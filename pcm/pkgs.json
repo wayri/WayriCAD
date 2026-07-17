@@ -220,8 +220,8 @@
         },
         {
             "name": "KiWay Via Stitching",
-            "description": "Generate a configurable ground-via stitching grid.",
-            "description_full": "Places unconnected stitching vias on a configurable grid inside the board outline bounding box, with spacing, edge inset, drill, and diameter controls.",
+            "description": "Generate net-aware via stitching while skipping blocked board objects.",
+            "description_full": "Places vias on a selected PCB net or leaves them unconnected, preserving the selected net code. Configurable exclusions skip footprint bodies, selected references, existing tracks, copper zones, and board drawings/keepout regions before vias are added.",
             "identifier": "kiway.via.stitching",
             "type": "plugin",
             "author": {
@@ -240,10 +240,44 @@
                     "version": "0.1.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "d802a53d38a7db1bff82ba63f0f4a5f7414d715aebea477d6095a7c51aea30a3",
-                    "download_size": 302687,
+                    "download_sha256": "5ab21b9d0226ae0c250a85627e2239652021cc84ea0c75d0ed51b8894b6df517",
+                    "download_size": 303616,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/via_stitching_plugin-0.1.0.zip",
-                    "install_size": 314263,
+                    "install_size": 317779,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "KiWay Test Point Descriptor Extractor",
+            "description": "Extract test-point descriptors, nets, and TM/TC metadata to engineering documents.",
+            "description_full": "Scans TP and TestPoint footprints, extracts descriptor/function fields and connected nets, parses board-sequence TM/TC labels, and exports live tables to CSV, Markdown, and HTML.",
+            "identifier": "kiway.test.point.descriptor",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/KiWay",
+                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/test_point_descriptor_plugin/icon.png"
+            },
+            "versions": [
+                {
+                    "version": "0.1.0",
+                    "status": "development",
+                    "kicad_version": "9.0",
+                    "download_sha256": "ce6454618340231a8f60f330f32ebb51c364d042790fba9b3463ce459063c178",
+                    "download_size": 304413,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/test_point_descriptor_plugin-0.1.0.zip",
+                    "install_size": 319753,
                     "platforms": [
                         "windows",
                         "linux",

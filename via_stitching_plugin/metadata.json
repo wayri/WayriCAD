@@ -1,8 +1,8 @@
 {
     "$schema": "https://go.kicad.org/pcm/schemas/v1",
     "name": "KiWay Via Stitching",
-    "description": "Generate a configurable ground-via stitching grid.",
-    "description_full": "Places unconnected stitching vias on a configurable grid inside the board outline bounding box, with spacing, edge inset, drill, and diameter controls.",
+    "description": "Generate net-aware via stitching while skipping blocked board objects.",
+    "description_full": "Places vias on a selected PCB net or leaves them unconnected, preserving the selected net code. Configurable exclusions skip footprint bodies, selected references, existing tracks, copper zones, and board drawings/keepout regions before vias are added.",
     "identifier": "kiway.via.stitching",
     "type": "plugin",
     "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
@@ -10,4 +10,3 @@
     "resources": {"homepage": "https://github.com/wayri/KiWay"},
     "versions": [{"version": "0.1.0", "status": "development", "kicad_version": "9.0"}]
 }
-

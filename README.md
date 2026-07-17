@@ -30,7 +30,7 @@ Creates conservative radial fanout tracks from a selected footprint or all SMD f
 
 ### 4. KiWay Via Stitching (v0.1.0)
 
-Creates an unconnected via-stitching grid inside the board outline bounding box with configurable spacing, edge inset, drill, and via diameter.
+Creates a configurable via-stitching grid inside the board outline bounding box. Select a net to stitch, or create unconnected vias, and skip footprint bodies, chosen references, tracks, zones, and board drawings/keepouts.
 
 ### 5. KiWay Connector ICD Builder (v0.1.0)
 
@@ -43,6 +43,15 @@ Scans for unconnected pads, duplicate references, single-pad nets, and suspiciou
 ### 7. KiWay Test Coverage Planner (v0.1.0)
 
 Reports every board net with its TP/TestPoint coverage status, test-point references, and coverage count.
+
+### 8. KiWay Test Point Descriptor Extractor (v0.1.0)
+
+Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board source/destination labels, and TM/TC classification to CSV, Markdown, or HTML.
+
+- Configurable descriptor field, with fallback to `Descriptor`, `Function`, or `Description`
+- Parses labels such as `DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD`
+- Includes TP reference, value, footprint, pad, net, descriptor, signal, board endpoints, and notes
+- Exports documentation directly from the open PCB
 
 ## Planned Enhancements
 
