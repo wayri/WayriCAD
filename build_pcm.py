@@ -10,6 +10,9 @@ from pathlib import Path
 PCM_DIR = "pcm"
 RELEASES_DIR = "releases"
 REPO_URL_BASE = "https://github.com/wayri/KiWay/releases/download" 
+# All package versions in a feed may differ, but this repository publishes
+# their downloadable assets together in one release.
+RELEASE_TAG = "2.4.0"
 
 def calculate_sha256(file_path):
     sha256_hash = hashlib.sha256()
@@ -103,7 +106,7 @@ def main():
         version_info.update({
             "download_sha256": sha256,
             "download_size": file_size,
-            "download_url": f"{REPO_URL_BASE}/v{version}/{zip_filename}",
+            "download_url": f"{REPO_URL_BASE}/v{RELEASE_TAG}/{zip_filename}",
             "install_size": 0,
             "platforms": ["windows", "linux", "macos"]
         })
