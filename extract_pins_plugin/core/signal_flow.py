@@ -168,6 +168,44 @@ class SignalFlowAnalyzer:
         
         return result
 
+    def generate_rich_source_destination_table(
+        self,
+        source_refs: List[str],
+        destination_refs: List[str],
+        include_intermediates: bool = True,
+        include_power: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Return chart-ready rows with path, protocol, and net classification."""
+        rows = self.generate_source_destination_table(source_refs, destination_refs, include_intermediates=True)
+        enriched = []
+        for row in rows:
+            net_name = row.get("Net Name", "")
+            net_type = self.extractor.classify_net(net_name) if net_name else "unconnected"
+            if not include_power and net_type != "signal":
+                continue
+            protocol = self._protocol(net_name)
+            intermediates = row.get("Intermediates", "") if include_intermediates else ""
+            path = [row.get("Source Reference", "")]
+            path.extend(part.split(":", 1)[0].strip() for part in intermediates.split(";") if part.strip())
+            path.append(row.get("Destination Reference", ""))
+            row.update({
+                "Net Type": net_type,
+                "Power Net": "Yes" if net_type != "signal" else "No",
+                "Protocol": protocol,
+                "Path": " -> ".join(item for item in path if item),
+                "Hop Count": max(0, len(path) - 1),
+            })
+            enriched.append(row)
+        return enriched
+
+    @staticmethod
+    def _protocol(net_name: str) -> str:
+        tokens = {part.upper() for part in str(net_name).split("_") if part}
+        for protocol in ("SPI", "I2C", "I3C", "UART", "CAN", "LIN", "USB", "JTAG", "SWD", "QSPI", "SDIO", "MDIO", "RMII", "MIPI", "LVDS", "TM", "TC", "TA", "TD", "CA", "CD"):
+            if protocol in tokens or str(net_name).upper().startswith(protocol):
+                return protocol
+        return ""
+
     def generate_ic_signal_chart(
         self,
         ic_ref: str,

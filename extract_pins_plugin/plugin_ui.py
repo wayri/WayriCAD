@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import fnmatch
 from typing import Any, Dict, List, Optional
 
 import wx
@@ -30,6 +31,9 @@ from .core.layout_assistant import LayoutAssistant
 from .core.schematic_graph import SchematicGraphParser
 from .core.test_point_extractor import TestPointExtractor
 from .core.board_extract import extract_board_pin_rows, protocol_color
+from .core.data_extractor import DataExtractor
+from .core.signal_flow import SignalFlowAnalyzer
+from .core.diagram_generator import SVGDiagramGenerator
 
 
 class PluginUI(wx.Frame):
@@ -50,8 +54,12 @@ class PluginUI(wx.Frame):
         self.connector_rows: List[Dict[str, Any]] = []
         self.peripheral_rows: List[Dict[str, Any]] = []
         self.board_rows: List[Dict[str, Any]] = []
+        self.signal_flow_rows: List[Dict[str, Any]] = []
         self.current_markdown = ""
         self.docgen = DocGenerator()
+        self.extractor = DataExtractor(self.board) if self.board else None
+        self.signal_analyzer = SignalFlowAnalyzer(self.extractor) if self.extractor else None
+        self.diagram_generator = SVGDiagramGenerator()
 
         self._build_ui()
         self.Centre()
@@ -129,6 +137,31 @@ class PluginUI(wx.Frame):
             self.pin_list.InsertColumn(idx, label, width=125 if idx != 7 else 260)
         self.pin_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_pin_selected)
         self.notebook.AddPage(self.pin_list, "Board Pins")
+
+        flow_panel = wx.Panel(self.notebook)
+        flow_root = wx.BoxSizer(wx.VERTICAL)
+        flow_controls = wx.StaticBoxSizer(wx.StaticBox(flow_panel, label="Flow Selection"), wx.HORIZONTAL)
+        flow_controls.Add(wx.StaticText(flow_panel, label="Sources:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        self.flow_source_filter = wx.TextCtrl(flow_panel, value="J*,U*", size=(110, -1))
+        self.flow_source_filter.SetToolTip("Comma-separated wildcard references, for example J*, U1")
+        flow_controls.Add(self.flow_source_filter, 0, wx.ALL, 4)
+        flow_controls.Add(wx.StaticText(flow_panel, label="Destinations:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        self.flow_destination_filter = wx.TextCtrl(flow_panel, value="U*,J*", size=(110, -1))
+        self.flow_destination_filter.SetToolTip("Comma-separated wildcard references, for example U*, J2")
+        flow_controls.Add(self.flow_destination_filter, 0, wx.ALL, 4)
+        self.flow_include_intermediates = wx.CheckBox(flow_panel, label="Show pass-through parts")
+        self.flow_include_intermediates.SetValue(True)
+        flow_controls.Add(self.flow_include_intermediates, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        self.flow_include_power = wx.CheckBox(flow_panel, label="Include power")
+        flow_controls.Add(self.flow_include_power, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        flow_preview_btn = wx.Button(flow_panel, label="Preview Flow")
+        flow_preview_btn.Bind(wx.EVT_BUTTON, self.on_flow_preview)
+        flow_controls.Add(flow_preview_btn, 0, wx.ALL, 4)
+        flow_root.Add(flow_controls, 0, wx.EXPAND | wx.ALL, 4)
+        self.flow_preview = wx.TextCtrl(flow_panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP)
+        flow_root.Add(self.flow_preview, 1, wx.EXPAND | wx.ALL, 4)
+        flow_panel.SetSizer(flow_root)
+        self.notebook.AddPage(flow_panel, "Signal Flow")
         left_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 4)
 
         button_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -144,7 +177,13 @@ class PluginUI(wx.Frame):
         highlight_btn.Bind(wx.EVT_BUTTON, self.on_highlight_net)
         clear_highlight_btn = wx.Button(left, label="Clear Highlight")
         clear_highlight_btn.Bind(wx.EVT_BUTTON, self.on_clear_highlight)
-        for btn in (group_btn, export_md_btn, export_html_btn, export_csv_btn, highlight_btn, clear_highlight_btn):
+        export_flow_btn = wx.Button(left, label="Flow SVG")
+        export_flow_btn.Bind(wx.EVT_BUTTON, self.on_export_flow_svg)
+        export_blocks_btn = wx.Button(left, label="Block SVG")
+        export_blocks_btn.Bind(wx.EVT_BUTTON, self.on_export_interface_svg)
+        export_flow_csv_btn = wx.Button(left, label="Flow CSV")
+        export_flow_csv_btn.Bind(wx.EVT_BUTTON, self.on_export_flow_csv)
+        for btn in (group_btn, export_md_btn, export_html_btn, export_csv_btn, export_flow_btn, export_blocks_btn, export_flow_csv_btn, highlight_btn, clear_highlight_btn):
             button_row.Add(btn, 0, wx.ALL, 4)
         left_sizer.Add(button_row, 0, wx.EXPAND)
         left.SetSizer(left_sizer)
@@ -191,12 +230,16 @@ class PluginUI(wx.Frame):
             self.tm_tc_rows = self.docgen.make_tm_tc_rows(self.parser)
             self.connector_rows = self.docgen.connector_rows_from_parser(self.parser)
             self.peripheral_rows = self.docgen.peripheral_rows_from_parser(self.parser)
+            if self.board:
+                self.extractor = DataExtractor(self.board)
+                self.signal_analyzer = SignalFlowAnalyzer(self.extractor)
             self.current_markdown = self.docgen.build_markdown(
                 tm_tc_rows=self.tm_tc_rows,
                 test_point_rows=self.tp_rows,
                 interface_maps=self.interfaces,
                 connector_rows=self.connector_rows,
                 peripheral_rows=self.peripheral_rows,
+                flow_rows=self.signal_flow_rows,
             )
             self._refresh_board_rows()
         except Exception as exc:
@@ -303,6 +346,96 @@ class PluginUI(wx.Frame):
         with wx.FileDialog(self, "Export CSV", wildcard="CSV files (*.csv)|*.csv", defaultFile="kiway_tables.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
             if dlg.ShowModal() == wx.ID_OK:
                 self.docgen.export_csv(rows, dlg.GetPath())
+                self.status.SetLabel(f"Exported {dlg.GetPath()}.")
+
+    def _matching_footprints(self, pattern_text: str) -> List[str]:
+        if not self.board:
+            return []
+        patterns = [item.strip().upper() for item in pattern_text.split(",") if item.strip()]
+        if not patterns:
+            return []
+        refs = []
+        for footprint in self.board.GetFootprints():
+            reference = str(footprint.GetReference())
+            if any(fnmatch.fnmatchcase(reference.upper(), pattern) for pattern in patterns):
+                refs.append(reference)
+        return sorted(refs, key=DataExtractor.natural_sort_key)
+
+    def on_flow_preview(self, _event: Any) -> None:
+        if not self.signal_analyzer:
+            wx.MessageBox("Open a PCB with footprints before calculating signal flow.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            return
+        source_refs = self._matching_footprints(self.flow_source_filter.GetValue())
+        destination_refs = self._matching_footprints(self.flow_destination_filter.GetValue())
+        self.signal_flow_rows = self.signal_analyzer.generate_rich_source_destination_table(
+            source_refs,
+            destination_refs,
+            include_intermediates=self.flow_include_intermediates.GetValue(),
+            include_power=self.flow_include_power.GetValue(),
+        )
+        lines = [
+            f"Sources: {', '.join(source_refs) or 'none'}",
+            f"Destinations: {', '.join(destination_refs) or 'none'}",
+            f"Paths: {len(self.signal_flow_rows)}",
+            "",
+        ]
+        if not self.signal_flow_rows:
+            lines.append("No complete paths matched. Check wildcard filters and net names.")
+        else:
+            for row in self.signal_flow_rows:
+                lines.append(
+                    f"{row.get('Source Reference')}:{row.get('Source Pin')} -> "
+                    f"{row.get('Destination Reference')}:{row.get('Destination Pin')} | "
+                    f"{row.get('Net Name')} | {row.get('Protocol') or 'signal'} | "
+                    f"{row.get('Path')}"
+                )
+        self.flow_preview.SetValue("\n".join(lines))
+        self.current_markdown = self.docgen.build_markdown(
+            tm_tc_rows=self.tm_tc_rows,
+            test_point_rows=self.tp_rows,
+            interface_maps=self.interfaces,
+            connector_rows=self.connector_rows,
+            peripheral_rows=self.peripheral_rows,
+            flow_rows=self.signal_flow_rows,
+        )
+        self._update_preview()
+        self.status.SetLabel(f"Prepared {len(self.signal_flow_rows)} signal-flow paths.")
+
+    def _ensure_flow_rows(self) -> bool:
+        if not self.signal_flow_rows:
+            self.on_flow_preview(None)
+        return bool(self.signal_flow_rows)
+
+    def on_export_flow_csv(self, _event: Any) -> None:
+        if not self._ensure_flow_rows():
+            return
+        with wx.FileDialog(self, "Export Signal Flow CSV", wildcard="CSV files (*.csv)|*.csv", defaultFile="kiway_signal_flow.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+            if dlg.ShowModal() == wx.ID_OK:
+                self.docgen.export_csv(self.signal_flow_rows, dlg.GetPath())
+                self.status.SetLabel(f"Exported {dlg.GetPath()}.")
+
+    def on_export_flow_svg(self, _event: Any) -> None:
+        if not self._ensure_flow_rows():
+            return
+        svg = self.diagram_generator.generate_rich_signal_flow_diagram(
+            self.signal_flow_rows,
+            title="KiWay Signal Flow: Sources to Destinations",
+        )
+        with wx.FileDialog(self, "Export Signal Flow SVG", wildcard="SVG files (*.svg)|*.svg", defaultFile="kiway_signal_flow.svg", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+            if dlg.ShowModal() == wx.ID_OK:
+                with open(dlg.GetPath(), "w", encoding="utf-8") as handle:
+                    handle.write(svg)
+                self.status.SetLabel(f"Exported {dlg.GetPath()}.")
+
+    def on_export_interface_svg(self, _event: Any) -> None:
+        if not self.interfaces:
+            wx.MessageBox("Run Analyze before exporting the interface block diagram.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            return
+        svg = self.diagram_generator.generate_interface_block_diagram(self.interfaces)
+        with wx.FileDialog(self, "Export Interface Block SVG", wildcard="SVG files (*.svg)|*.svg", defaultFile="kiway_interface_blocks.svg", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+            if dlg.ShowModal() == wx.ID_OK:
+                with open(dlg.GetPath(), "w", encoding="utf-8") as handle:
+                    handle.write(svg)
                 self.status.SetLabel(f"Exported {dlg.GetPath()}.")
 
     def _export_file(self, wildcard: str, default_file: str, exporter: Any) -> None:
