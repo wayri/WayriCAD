@@ -38,7 +38,9 @@ def create_plugin_zip(plugin_path, version, output_dir, metadata):
         for root, dirs, files in os.walk(plugin_path):
             dirs[:] = [d for d in dirs if d not in ['__pycache__', '.git', '.vscode']]
             for file in files:
-                if file.endswith('.pyc') or file in {'metadata.json', 'icon.png'}:
+                # Keep icon.png in the plugin payload: pcbnew.ActionPlugin uses
+                # this file for the External Plugins menu and toolbar icon.
+                if file.endswith('.pyc') or file == 'metadata.json':
                     continue
                 file_path = os.path.join(root, file)
                 rel_path = os.path.relpath(file_path, start=plugin_path)

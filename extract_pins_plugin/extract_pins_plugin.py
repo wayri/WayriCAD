@@ -4,7 +4,7 @@
 KIWAY EXTRACT PINS PLUGIN
 
 @author - Wayri (Yawar)
-@version - 2.3.0
+@version - 2.4.0
 @date - 2025
 
 ALLOWS USER TO EXTRACT ALL THE NET NAMES IN MARKDOWN OR CSV FORMAT FROM CONNECTORS LIKE J1, J2 ETC, OR USER SELECTIONS OR ANY COMPONENT
@@ -56,7 +56,7 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True # Set to True to display a button on the toolbar
         # Define the path to the optional icon file. It should be in the same directory.
         self.icon_file_name = os.path.join(os.path.dirname(__file__), 'icon.png')
-        self.version = "2.3.0"
+        self.version = "2.4.0"
 
     def Run(self):
         """

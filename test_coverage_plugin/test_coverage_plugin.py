@@ -38,7 +38,7 @@ class TestCoveragePlugin(pcbnew.ActionPlugin):
         self.description = "Report board-net coverage by test points."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.1.0"
+        self.version = "0.2.0"
 
     def Run(self) -> None: TestCoverageFrame(None, pcbnew.GetBoard()).Show()
 
@@ -67,4 +67,3 @@ class TestCoverageFrame(wx.Frame):
             if dialog.ShowModal() != wx.ID_OK: return
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=["Net", "Test Points", "Status", "Count"]); writer.writeheader(); writer.writerows(self.rows)
-

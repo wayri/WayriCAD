@@ -29,7 +29,7 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
         self.description = "Bulk rename labels, PCB text, footprint references, values, and fields using wildcard or regex rules."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.2.0"
+        self.version = "0.3.0"
 
     def Run(self) -> None:
         frame = BulkLabelEditorFrame(None, pcbnew.GetBoard())

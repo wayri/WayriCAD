@@ -30,7 +30,7 @@ class ConnectorICDPlugin(pcbnew.ActionPlugin):
         self.description = "Export connector pin and net tables for interface control documents."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.1.0"
+        self.version = "0.2.0"
 
     def Run(self) -> None:
         ConnectorFrame(None, pcbnew.GetBoard()).Show()
@@ -71,4 +71,3 @@ class ConnectorFrame(wx.Frame):
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=["Connector", "Part", "Pin", "Net", "Type"]); writer.writeheader(); writer.writerows(self.rows)
         wx.MessageBox(f"Exported {len(self.rows)} connector pins.", "KiWay", wx.OK | wx.ICON_INFORMATION)
-

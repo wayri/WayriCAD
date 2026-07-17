@@ -36,7 +36,7 @@ class NetHygienePlugin(pcbnew.ActionPlugin):
         self.description = "Find common PCB net and reference quality issues."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.1.0"
+        self.version = "0.2.0"
 
     def Run(self) -> None: NetHygieneFrame(None, pcbnew.GetBoard()).Show()
 
@@ -65,4 +65,3 @@ class NetHygieneFrame(wx.Frame):
             if dialog.ShowModal() != wx.ID_OK: return
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=["Severity", "Kind", "Object", "Details"]); writer.writeheader(); writer.writerows(self.issues)
-

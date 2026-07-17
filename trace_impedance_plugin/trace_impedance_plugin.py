@@ -19,7 +19,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.description = "Measure routed net geometry and estimate RLC, impedance, vias, layers, and zones."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.1.0"
+        self.version = "0.2.0"
 
     def Run(self) -> None:
         TraceFrame(None, pcbnew.GetBoard()).Show()
@@ -97,4 +97,3 @@ class TraceFrame(wx.Frame):
             row = self.current.as_dict()
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=list(row)); writer.writeheader(); writer.writerow(row)
-
