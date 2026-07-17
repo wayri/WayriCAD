@@ -10,6 +10,7 @@ import pcbnew
 import wx
 
 from .measurement import PathMeasurement, TraceMeasurementEngine
+from .help_utils import open_help
 
 
 class TraceImpedancePlugin(pcbnew.ActionPlugin):
@@ -19,10 +20,16 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.description = "Measure routed net geometry and estimate RLC, impedance, vias, layers, and zones."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.2.0"
+        self.version = "0.3.0"
 
     def Run(self) -> None:
-        TraceFrame(None, pcbnew.GetBoard()).Show()
+        try:
+            board = pcbnew.GetBoard()
+            if board is None or not hasattr(board, "GetFootprints"):
+                raise RuntimeError("Open a PCB in PCB Editor first.")
+            TraceFrame(None, board).Show()
+        except Exception as exc:
+            wx.MessageBox(str(exc), "KiWay Trace RLC / Impedance Analyzer", wx.OK | wx.ICON_ERROR)
 
 
 class TraceFrame(wx.Frame):
@@ -53,7 +60,9 @@ class TraceFrame(wx.Frame):
         self.measure_button.Bind(wx.EVT_BUTTON, self.analyze)
         export = wx.Button(panel, label="Export CSV")
         export.Bind(wx.EVT_BUTTON, self.export_csv)
-        row = wx.BoxSizer(wx.HORIZONTAL); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5)
+        help_btn = wx.Button(panel, label="Help")
+        help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
+        row = wx.BoxSizer(wx.HORIZONTAL); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
         root.Add(row, 0, wx.ALIGN_RIGHT)
         self.summary = wx.StaticText(panel, label="Select a net and optional start/end pads.")
         root.Add(self.summary, 0, wx.EXPAND | wx.ALL, 8)

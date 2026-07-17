@@ -10,6 +10,8 @@ from typing import Any, Dict, List
 import pcbnew
 import wx
 
+from .help_utils import open_help
+
 
 def find_issues(board: Any) -> List[Dict[str, str]]:
     issues: List[Dict[str, str]] = []
@@ -36,9 +38,16 @@ class NetHygienePlugin(pcbnew.ActionPlugin):
         self.description = "Find common PCB net and reference quality issues."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.2.0"
+        self.version = "0.3.0"
 
-    def Run(self) -> None: NetHygieneFrame(None, pcbnew.GetBoard()).Show()
+    def Run(self) -> None:
+        try:
+            board = pcbnew.GetBoard()
+            if board is None or not hasattr(board, "GetFootprints"):
+                raise RuntimeError("Open a PCB in PCB Editor first.")
+            NetHygieneFrame(None, board).Show()
+        except Exception as exc:
+            wx.MessageBox(str(exc), "KiWay Net Hygiene", wx.OK | wx.ICON_ERROR)
 
 
 class NetHygieneFrame(wx.Frame):
@@ -52,6 +61,9 @@ class NetHygieneFrame(wx.Frame):
         row = wx.BoxSizer(wx.HORIZONTAL)
         for label, handler in (("Scan", self.scan), ("Export CSV", self.export_csv)):
             button = wx.Button(panel, label=label); button.Bind(wx.EVT_BUTTON, handler); row.Add(button, 0, wx.ALL, 5)
+        help_btn = wx.Button(panel, label="Help")
+        help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
+        row.Add(help_btn, 0, wx.ALL, 5)
         root.Add(row, 0, wx.ALIGN_RIGHT); panel.SetSizer(root); self.scan(None); self.Centre()
 
     def scan(self, _event: Any) -> None:

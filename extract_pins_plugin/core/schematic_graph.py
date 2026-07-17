@@ -251,31 +251,55 @@ class SchematicGraphParser:
 
     def parse_interface_label(self, net_name: str) -> InterfaceSignal:
         """
-        Parse labels such as DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD.
+        Parse flexible board labels without requiring a fixed naming template.
 
-        The first two known board names in the configured board sequence are
-        interpreted as source and destination.  TM/TC/TA/TD/CA/CD tokens are
-        recognized only as underscore-delimited tokens.
+        Board order is the only positional contract: the first and second
+        configured board names found anywhere in the label are source and
+        destination.  Separators may be underscores, slashes, hyphens, plus
+        signs, parentheses, or spaces.  TM/TC markers are standalone tokens
+        separated by any non-alphanumeric character.
         """
-        tokens = [t for t in re.split(r"_+", net_name.upper()) if t]
-        boards_seen = [t for t in tokens if t in self.board_sequence]
-        tm_tc = next((t for t in tokens if t in TMT_C_TOKENS), "")
+        raw = str(net_name or "")
+        upper = raw.upper()
 
-        source = boards_seen[0] if len(boards_seen) >= 1 else ""
-        destination = boards_seen[1] if len(boards_seen) >= 2 else ""
-        payload = [t for t in tokens if t not in set(boards_seen) and t not in TMT_C_TOKENS]
-        payload = [t for t in payload if t not in {"SIGNAL", "SIG", "NET"}]
+        board_hits: List[Tuple[int, int, str]] = []
+        for board in self.board_sequence:
+            if not board:
+                continue
+            for match in re.finditer(re.escape(board), upper):
+                before = upper[match.start() - 1] if match.start() else ""
+                after = upper[match.end()] if match.end() < len(upper) else ""
+                if before.isalnum() or after.isalnum():
+                    continue
+                board_hits.append((match.start(), match.end(), board))
+        board_hits.sort(key=lambda item: (item[0], item[1]))
+        non_overlapping: List[Tuple[int, int, str]] = []
+        for hit in board_hits:
+            if not non_overlapping or hit[0] >= non_overlapping[-1][1]:
+                non_overlapping.append(hit)
+        boards_seen = [item[2] for item in non_overlapping]
+        source = boards_seen[0] if boards_seen else ""
+        destination = boards_seen[1] if len(boards_seen) > 1 else ""
 
-        interface = ""
-        signal = ""
-        channel = ""
-        for token in payload:
-            if re.match(r"^(I2C|SPI|UART|CAN|RS485|RS422|USB|ETH|ADC|DAC|GPIO)\d*$", token):
-                interface = token
-            elif re.match(r"^\d+$", token):
-                channel = token
-            elif token:
-                signal = token if not signal else f"{signal}_{token}"
+        marker_matches = list(re.finditer(r"(?<![A-Z0-9])(TM|TC|TA|TD|CA|CD)(?![A-Z0-9])", upper))
+        tm_tc = marker_matches[0].group(1) if marker_matches else ""
+
+        masked = list(upper)
+        for start, end, _board in non_overlapping:
+            for index in range(start, end):
+                masked[index] = " "
+        for match in marker_matches:
+            for index in range(match.start(), match.end()):
+                masked[index] = " "
+        payload = "".join(masked)
+        tokens = [token for token in re.findall(r"[A-Z0-9]+", payload) if token not in {"SIGNAL", "SIG", "NET"}]
+
+        interface = next(
+            (token for token in tokens if re.match(r"^(I2C|I3C|SPI|QSPI|UART|CAN|LIN|RS485|RS422|USB|ETH|ADC|DAC|GPIO|JTAG|SWD|MIPI|LVDS)\d*$", token)),
+            "",
+        )
+        channel = next((token for token in tokens if token.isdigit()), "")
+        signal = "_".join(token for token in tokens if token != interface and token != channel)
 
         return InterfaceSignal(
             net_name=net_name,

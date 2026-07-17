@@ -9,6 +9,8 @@ from typing import Any, Dict, List
 import pcbnew
 import wx
 
+from .help_utils import open_help
+
 
 def connector_rows(board: Any) -> List[Dict[str, str]]:
     rows = []
@@ -30,10 +32,16 @@ class ConnectorICDPlugin(pcbnew.ActionPlugin):
         self.description = "Export connector pin and net tables for interface control documents."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.2.0"
+        self.version = "0.3.0"
 
     def Run(self) -> None:
-        ConnectorFrame(None, pcbnew.GetBoard()).Show()
+        try:
+            board = pcbnew.GetBoard()
+            if board is None or not hasattr(board, "GetFootprints"):
+                raise RuntimeError("Open a PCB in PCB Editor first.")
+            ConnectorFrame(None, board).Show()
+        except Exception as exc:
+            wx.MessageBox(str(exc), "KiWay Connector ICD Builder", wx.OK | wx.ICON_ERROR)
 
 
 class ConnectorFrame(wx.Frame):
@@ -52,7 +60,9 @@ class ConnectorFrame(wx.Frame):
         export.Bind(wx.EVT_BUTTON, self.export_csv)
         refresh = wx.Button(panel, label="Refresh")
         refresh.Bind(wx.EVT_BUTTON, self.refresh)
-        row.Add(refresh, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5)
+        help_btn = wx.Button(panel, label="Help")
+        help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
+        row.Add(refresh, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
         root.Add(row, 0, wx.ALIGN_RIGHT)
         panel.SetSizer(root)
         self.refresh(None)

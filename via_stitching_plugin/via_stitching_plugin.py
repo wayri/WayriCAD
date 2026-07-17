@@ -8,6 +8,8 @@ from typing import Any, Iterable, List, Set, Tuple
 import pcbnew
 import wx
 
+from .help_utils import open_help
+
 
 class ViaStitchingPlugin(pcbnew.ActionPlugin):
     def defaults(self) -> None:
@@ -16,10 +18,16 @@ class ViaStitchingPlugin(pcbnew.ActionPlugin):
         self.description = "Generate a configurable ground-via stitching grid."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.3.0"
+        self.version = "0.4.0"
 
     def Run(self) -> None:
-        ViaFrame(None, pcbnew.GetBoard()).Show()
+        try:
+            board = pcbnew.GetBoard()
+            if board is None or not hasattr(board, "GetFootprints"):
+                raise RuntimeError("Open a PCB in PCB Editor first.")
+            ViaFrame(None, board).Show()
+        except Exception as exc:
+            wx.MessageBox(str(exc), "KiWay Via Stitching", wx.OK | wx.ICON_ERROR)
 
 
 class ViaFrame(wx.Frame):
@@ -76,6 +84,9 @@ class ViaFrame(wx.Frame):
             button = wx.Button(panel, label=text)
             button.Bind(wx.EVT_BUTTON, handler)
             row.Add(button, 0, wx.ALL, 5)
+        help_btn = wx.Button(panel, label="Help")
+        help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
+        row.Add(help_btn, 0, wx.ALL, 5)
         root.Add(row, 0, wx.ALIGN_RIGHT | wx.ALL, 5)
         panel.SetSizer(root)
         self._load_nets()

@@ -11,6 +11,8 @@ from typing import Any, Callable, List
 import pcbnew
 import wx
 
+from .help_utils import open_help
+
 
 @dataclass
 class EditableItem:
@@ -29,11 +31,16 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
         self.description = "Bulk rename labels, PCB text, footprint references, values, and fields using wildcard or regex rules."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.3.0"
+        self.version = "0.4.0"
 
     def Run(self) -> None:
-        frame = BulkLabelEditorFrame(None, pcbnew.GetBoard())
-        frame.Show()
+        try:
+            board = pcbnew.GetBoard()
+            if board is None or not hasattr(board, "GetFootprints"):
+                raise RuntimeError("Open a PCB in PCB Editor first.")
+            BulkLabelEditorFrame(None, board).Show()
+        except Exception as exc:
+            wx.MessageBox(str(exc), "KiWay Bulk Label Editor", wx.OK | wx.ICON_ERROR)
 
 
 class BulkLabelEditorFrame(wx.Frame):
@@ -91,7 +98,9 @@ class BulkLabelEditorFrame(wx.Frame):
         redo_btn.Bind(wx.EVT_BUTTON, self.on_redo)
         refresh_btn = wx.Button(panel, label="Refresh")
         refresh_btn.Bind(wx.EVT_BUTTON, self.on_refresh)
-        for btn in (preview_btn, apply_btn, undo_btn, redo_btn, refresh_btn):
+        help_btn = wx.Button(panel, label="Help")
+        help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
+        for btn in (preview_btn, apply_btn, undo_btn, redo_btn, refresh_btn, help_btn):
             row3.Add(btn, 0, wx.ALL, 4)
         options.Add(row3, 0, wx.EXPAND)
         root.Add(options, 0, wx.EXPAND | wx.ALL, 6)

@@ -9,6 +9,8 @@ from typing import Any, List, Tuple
 import pcbnew
 import wx
 
+from .help_utils import open_help
+
 
 def _coord(value: Any) -> float:
     return float(value) / 1_000_000.0 if hasattr(value, "__float__") else float(value)
@@ -21,10 +23,16 @@ class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
         self.description = "Generate conservative radial fanout tracks from SMD pads."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.3.0"
+        self.version = "0.4.0"
 
     def Run(self) -> None:
-        FanoutFrame(None, pcbnew.GetBoard()).Show()
+        try:
+            board = pcbnew.GetBoard()
+            if board is None or not hasattr(board, "GetFootprints"):
+                raise RuntimeError("Open a PCB in PCB Editor first.")
+            FanoutFrame(None, board).Show()
+        except Exception as exc:
+            wx.MessageBox(str(exc), "KiWay Fanout Generator", wx.OK | wx.ICON_ERROR)
 
 
 class FanoutFrame(wx.Frame):
@@ -61,10 +69,14 @@ class FanoutFrame(wx.Frame):
         self.status = wx.StaticText(panel, label="Select a footprint reference or leave blank for all SMD footprints.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        for text, handler in (("Preview", self.preview), ("Clear Preview", self.clear_preview), ("Generate", self.generate), ("Undo", self.undo), ("Redo", self.redo)):
+        actions = (("Preview", self.preview), ("Clear Preview", self.clear_preview), ("Generate", self.generate), ("Undo", self.undo), ("Redo", self.redo))
+        for text, handler in actions:
             button = wx.Button(panel, label=text)
             button.Bind(wx.EVT_BUTTON, handler)
             row.Add(button, 0, wx.ALL, 5)
+        help_btn = wx.Button(panel, label="Help")
+        help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
+        row.Add(help_btn, 0, wx.ALL, 5)
         root.Add(row, 0, wx.ALIGN_RIGHT | wx.ALL, 5)
         panel.SetSizer(root)
 

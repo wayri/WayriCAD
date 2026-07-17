@@ -217,9 +217,13 @@ class DataExtractor:
     @staticmethod
     def get_footprint_property(footprint, prop_name: str) -> Optional[str]:
         """Safely retrieves a custom property value from a footprint."""
-        for field in footprint.GetFields():
-            if field.GetName() == prop_name:
-                return field.GetText()
+        try:
+            fields = footprint.GetFields() if hasattr(footprint, "GetFields") else []
+            for field in fields:
+                if field.GetName() == prop_name:
+                    return field.GetText()
+        except Exception:
+            return None
         return None
 
     def get_footprints_by_reference_pattern(self, pattern: str) -> List[Any]:
@@ -319,12 +323,15 @@ class DataExtractor:
             rot = fp.GetOrientation()
             
             connector_type = self.get_footprint_property(fp, "connector-type") or ""
-            description = fp.GetLibDescription()
+            try:
+                description = fp.GetLibDescription() if hasattr(fp, "GetLibDescription") else ""
+            except Exception:
+                description = ""
             
             general_properties = {
                 "Reference": ref,
                 "Value": fp.GetValue(),
-                "Footprint Name": str(fp.GetFPID()),
+                "Footprint Name": str(fp.GetFPID()) if hasattr(fp, "GetFPID") else "",
                 "Description": description if description and description != "No description" else "N/A",
                 "Layer": fp.GetLayerName(),
                 "Position": f"({pos.x / 1000000.0:.2f}mm, {pos.y / 1000000.0:.2f}mm)",

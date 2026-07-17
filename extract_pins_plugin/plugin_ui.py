@@ -14,12 +14,11 @@ try:
 except ImportError:  # pragma: no cover - only outside KiCad
     pcbnew = None
 
-try:
-    from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-    from matplotlib.figure import Figure
-except ImportError:  # pragma: no cover - optional dependency
-    FigureCanvas = None
-    Figure = None
+# Do not import matplotlib during KiCad plugin discovery.  Some matplotlib/
+# wxPython combinations load native backends that can terminate KiCad before
+# the ActionPlugin window is shown.  SVG exports remain dependency-free.
+FigureCanvas = None
+Figure = None
 
 try:
     import markdown
@@ -34,6 +33,8 @@ from .core.board_extract import extract_board_pin_rows, protocol_color
 from .core.data_extractor import DataExtractor
 from .core.signal_flow import SignalFlowAnalyzer
 from .core.diagram_generator import SVGDiagramGenerator
+from .core.formatters import CSVFormatter, MarkdownFormatter
+from .help_utils import open_help
 
 
 class PluginUI(wx.Frame):
@@ -46,7 +47,7 @@ class PluginUI(wx.Frame):
             size=(1180, 760),
             style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER,
         )
-        self.board = board or (pcbnew.GetBoard() if pcbnew else None)
+        self.board = board if board is not None else (pcbnew.GetBoard() if pcbnew else None)
         self.parser: Optional[SchematicGraphParser] = None
         self.interfaces: Dict[str, Dict[str, Any]] = {}
         self.tm_tc_rows: List[Dict[str, Any]] = []
@@ -55,6 +56,8 @@ class PluginUI(wx.Frame):
         self.peripheral_rows: List[Dict[str, Any]] = []
         self.board_rows: List[Dict[str, Any]] = []
         self.signal_flow_rows: List[Dict[str, Any]] = []
+        self.selected_component_refs: List[str] = []
+        self.component_export_data: Dict[str, Any] = {}
         self.current_markdown = ""
         self.docgen = DocGenerator()
         self.extractor = DataExtractor(self.board) if self.board else None
@@ -62,6 +65,7 @@ class PluginUI(wx.Frame):
         self.diagram_generator = SVGDiagramGenerator()
 
         self._build_ui()
+        self.on_refresh_component_selection(None)
         self.Centre()
 
     def _build_ui(self) -> None:
@@ -138,6 +142,36 @@ class PluginUI(wx.Frame):
         self.pin_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_pin_selected)
         self.notebook.AddPage(self.pin_list, "Board Pins")
 
+        component_panel = wx.Panel(self.notebook)
+        component_root = wx.BoxSizer(wx.VERTICAL)
+        component_controls = wx.StaticBoxSizer(wx.StaticBox(component_panel, label="Connector / Component Selection"), wx.HORIZONTAL)
+        component_controls.Add(wx.StaticText(component_panel, label="Reference pattern:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        self.component_pattern = wx.TextCtrl(component_panel, value="J*", size=(130, -1))
+        self.component_pattern.SetToolTip("Use * and ? wildcards, for example J*, U1, or TP*")
+        component_controls.Add(self.component_pattern, 1, wx.EXPAND | wx.ALL, 4)
+        select_refresh = wx.Button(component_panel, label="Use PCB Selection")
+        select_refresh.Bind(wx.EVT_BUTTON, self.on_refresh_component_selection)
+        component_controls.Add(select_refresh, 0, wx.ALL, 4)
+        preview_components = wx.Button(component_panel, label="Preview")
+        preview_components.Bind(wx.EVT_BUTTON, self.on_component_preview)
+        component_controls.Add(preview_components, 0, wx.ALL, 4)
+        component_root.Add(component_controls, 0, wx.EXPAND | wx.ALL, 4)
+        self.component_list = wx.ListCtrl(component_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.component_list.InsertColumn(0, "Reference", width=120)
+        self.component_list.InsertColumn(1, "Value", width=220)
+        self.component_list.InsertColumn(2, "Pins", width=80)
+        component_root.Add(self.component_list, 1, wx.EXPAND | wx.ALL, 4)
+        self.component_preview = wx.TextCtrl(component_panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP)
+        component_root.Add(self.component_preview, 1, wx.EXPAND | wx.ALL, 4)
+        component_buttons = wx.BoxSizer(wx.HORIZONTAL)
+        for label, handler in (("Export Selected", self.on_export_selected_components), ("Export Pattern", self.on_export_pattern_components)):
+            button = wx.Button(component_panel, label=label)
+            button.Bind(wx.EVT_BUTTON, handler)
+            component_buttons.Add(button, 0, wx.ALL, 4)
+        component_root.Add(component_buttons, 0, wx.ALIGN_RIGHT)
+        component_panel.SetSizer(component_root)
+        self.notebook.AddPage(component_panel, "Component Export")
+
         flow_panel = wx.Panel(self.notebook)
         flow_root = wx.BoxSizer(wx.VERTICAL)
         flow_controls = wx.StaticBoxSizer(wx.StaticBox(flow_panel, label="Flow Selection"), wx.HORIZONTAL)
@@ -164,7 +198,9 @@ class PluginUI(wx.Frame):
         self.notebook.AddPage(flow_panel, "Signal Flow")
         left_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 4)
 
-        button_row = wx.BoxSizer(wx.HORIZONTAL)
+        # Wrap actions so Help and all exports remain reachable on narrow KiCad
+        # windows instead of being clipped at the right edge.
+        button_row = wx.WrapSizer(wx.HORIZONTAL)
         group_btn = wx.Button(left, label="Create PCB Group")
         group_btn.Bind(wx.EVT_BUTTON, self.on_create_group)
         export_md_btn = wx.Button(left, label="Export Markdown")
@@ -183,7 +219,9 @@ class PluginUI(wx.Frame):
         export_blocks_btn.Bind(wx.EVT_BUTTON, self.on_export_interface_svg)
         export_flow_csv_btn = wx.Button(left, label="Flow CSV")
         export_flow_csv_btn.Bind(wx.EVT_BUTTON, self.on_export_flow_csv)
-        for btn in (group_btn, export_md_btn, export_html_btn, export_csv_btn, export_flow_btn, export_blocks_btn, export_flow_csv_btn, highlight_btn, clear_highlight_btn):
+        help_btn = wx.Button(left, label="Help")
+        help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
+        for btn in (group_btn, export_md_btn, export_html_btn, export_csv_btn, export_flow_btn, export_blocks_btn, export_flow_csv_btn, highlight_btn, clear_highlight_btn, help_btn):
             button_row.Add(btn, 0, wx.ALL, 4)
         left_sizer.Add(button_row, 0, wx.EXPAND)
         left.SetSizer(left_sizer)
@@ -195,7 +233,7 @@ class PluginUI(wx.Frame):
         else:
             self.figure = None
             self.canvas = None
-            right_sizer.Add(wx.StaticText(right, label="Install matplotlib in KiCad Python to enable the visualizer."), 0, wx.ALL, 8)
+            right_sizer.Add(wx.StaticText(right, label="Native chart preview is optional. Use Flow SVG or Block SVG for dependency-free diagrams."), 0, wx.ALL, 8)
 
         self.html_preview = wx.html.HtmlWindow(right, style=wx.html.HW_SCROLLBAR_AUTO)
         right_sizer.Add(self.html_preview, 1, wx.EXPAND | wx.ALL, 4)
@@ -347,6 +385,77 @@ class PluginUI(wx.Frame):
             if dlg.ShowModal() == wx.ID_OK:
                 self.docgen.export_csv(rows, dlg.GetPath())
                 self.status.SetLabel(f"Exported {dlg.GetPath()}.")
+
+    def _selected_footprints(self) -> List[Any]:
+        if not self.board:
+            return []
+        return [footprint for footprint in self.board.GetFootprints() if getattr(footprint, "IsSelected", lambda: False)()]
+
+    def on_refresh_component_selection(self, _event: Any) -> None:
+        footprints = sorted(self._selected_footprints(), key=lambda item: DataExtractor.natural_sort_key(item.GetReference()))
+        self.selected_component_refs = [str(item.GetReference()) for item in footprints]
+        self.component_list.DeleteAllItems()
+        for footprint in footprints:
+            index = self.component_list.InsertItem(self.component_list.GetItemCount(), str(footprint.GetReference()))
+            self.component_list.SetItem(index, 1, str(footprint.GetValue()))
+            self.component_list.SetItem(index, 2, str(len(list(footprint.Pads()))))
+        self.status.SetLabel(f"Loaded {len(footprints)} selected components.")
+
+    def _component_data(self, footprints: List[Any]) -> Dict[str, Any]:
+        if not self.extractor:
+            return {}
+        return self.extractor.extract_footprint_data(
+            footprints,
+            ignore_unconnected=False,
+            ignore_power_nets=False,
+            sort_pins_by_net_type=True,
+        )
+
+    def _component_targets(self, use_selection: bool) -> List[Any]:
+        if use_selection:
+            refs = set(self.selected_component_refs)
+            return [footprint for footprint in (self.board.GetFootprints() if self.board else []) if footprint.GetReference() in refs]
+        return self._matching_footprints(self.component_pattern.GetValue())
+
+    def on_component_preview(self, _event: Any) -> None:
+        use_selection = bool(self.selected_component_refs)
+        footprints = self._component_targets(use_selection)
+        self.component_export_data = self._component_data(footprints)
+        lines = [f"Components: {len(self.component_export_data)}", ""]
+        if not self.component_export_data:
+            lines.append("No components found. Select footprints on the PCB or enter a reference pattern.")
+        else:
+            for reference, data in self.component_export_data.items():
+                props = data.get("general_properties", {})
+                lines.append(f"{reference} | {props.get('Value', '')} | {len(data.get('pins', []))} pins")
+                for pin in data.get("pins", [])[:12]:
+                    lines.append(f"  {pin.get('Pad Name/Number', '')}: {pin.get('Net Name', '')} [{pin.get('Net Type', '')}]")
+        self.component_preview.SetValue("\n".join(lines))
+        self.status.SetLabel(f"Previewed {len(self.component_export_data)} components.")
+
+    def _export_component_data(self, use_selection: bool) -> None:
+        footprints = self._component_targets(use_selection)
+        data = self._component_data(footprints)
+        if not data:
+            wx.MessageBox("No components matched the selection or pattern.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            return
+        with wx.FileDialog(self, "Export component pins", wildcard="CSV files (*.csv)|*.csv|Markdown files (*.md)|*.md", defaultFile="kiway_components.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            path = dialog.GetPath()
+            if path.lower().endswith(".md"):
+                content = MarkdownFormatter().format_component_data(data)
+            else:
+                content = CSVFormatter().format_component_data(data)
+            with open(path, "w", encoding="utf-8", newline="") as handle:
+                handle.write(content)
+        self.status.SetLabel(f"Exported {len(data)} components to {path}.")
+
+    def on_export_selected_components(self, _event: Any) -> None:
+        self._export_component_data(True)
+
+    def on_export_pattern_components(self, _event: Any) -> None:
+        self._export_component_data(False)
 
     def _matching_footprints(self, pattern_text: str) -> List[str]:
         if not self.board:

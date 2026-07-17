@@ -4,7 +4,7 @@
 KIWAY EXTRACT PINS PLUGIN
 
 @author - Wayri (Yawar)
-@version - 2.4.0
+@version - 2.5.0
 @date - 2025
 
 ALLOWS USER TO EXTRACT ALL THE NET NAMES IN MARKDOWN OR CSV FORMAT FROM CONNECTORS LIKE J1, J2 ETC, OR USER SELECTIONS OR ANY COMPONENT
@@ -56,18 +56,29 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True # Set to True to display a button on the toolbar
         # Define the path to the optional icon file. It should be in the same directory.
         self.icon_file_name = os.path.join(os.path.dirname(__file__), 'icon.png')
-        self.version = "2.4.0"
+        self.version = "2.5.0"
 
     def Run(self):
         """
         This method is called by KiCad when the user activates the plugin.
         It retrieves the current PCB board and selected footprints, then launches the GUI.
         """
-        board = pcbnew.GetBoard() # Get a reference to the currently active PCB board
+        try:
+            board = pcbnew.GetBoard() # Get a reference to the currently active PCB board
+        except Exception as exc:
+            wx.MessageBox(f"KiWay could not access the active board: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
+            return
+        if board is None or not hasattr(board, "GetFootprints"):
+            wx.MessageBox("Open a PCB in PCB Editor before launching KiWay Extract Pins.", "KiWay Extract Pins", wx.OK | wx.ICON_INFORMATION)
+            return
 
         # Retrieve all footprints on the board and filter for those that are currently selected.
         # This is the robust way to get user-selected footprints in KiCad 9's pcbnew API.
-        selected_footprints = [f for f in board.GetFootprints() if f.IsSelected()]
+        try:
+            selected_footprints = [f for f in board.GetFootprints() if getattr(f, "IsSelected", lambda: False)()]
+        except Exception as exc:
+            wx.MessageBox(f"Could not read PCB footprints: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
+            return
 
         if not selected_footprints:
             # If no footprints are selected, show dialog anyway - user can use pattern matching
@@ -84,14 +95,23 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         # handled by extract_pins_plugin/__init__.py calling
         # ExtractPinsPlugin().register(); KiCad then invokes this Run() method.
         if PluginUI is not None:
-            print("DEBUG: Launching KiWay dashboard")
-            frame = PluginUI(None, board=board)
-            frame.Show()
-            return
+            try:
+                frame = PluginUI(None, board=board)
+                frame.Show()
+                return
+            except Exception as exc:
+                wx.MessageBox(
+                    "The dashboard could not start. KiWay will try the compatibility dialog.\n\n"
+                    f"Details: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_WARNING
+                )
 
         # Fallback for minimal KiCad Python environments.
         print(f"DEBUG: Launching dialog {DIALOG_VERSION}")
-        dialog = PluginDialog(None, selected_footprints)
+        try:
+            dialog = PluginDialog(None, selected_footprints)
+            dialog.Show()
+        except Exception as exc:
+            wx.MessageBox(f"The compatibility dialog could not start: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
         
         # The dialog is non-modal and handles its own lifecycle.
         # Once the dialog is closed, this Run() method simply finishes.
