@@ -4,7 +4,7 @@ KiWay is a parent repository for KiCad ActionPlugins that can be added to KiCad'
 
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.1.0)
+### 1. KiWay Extract Pins (v2.2.0)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -16,7 +16,7 @@ A comprehensive interface documentation and test engineering tool.
 - **Layout Assist**: Create native KiCad PCB groups for logical interfaces
 - **Docs**: Export Markdown, HTML, CSV, JSON, SVG diagrams, and automation-friendly CLI output
 
-### 2. KiWay Bulk Label Editor (v0.1.0)
+### 2. KiWay Bulk Label Editor (v0.2.0)
 
 A preview-and-apply editor for repeated channel labels and component text.
 
@@ -24,11 +24,11 @@ A preview-and-apply editor for repeated channel labels and component text.
 - Regex replacement for advanced renaming
 - Scoped edits for footprint references, values, custom fields, and PCB text
 
-### 3. KiWay Fanout Generator (v0.1.0)
+### 3. KiWay Fanout Generator (v0.2.0)
 
 Creates conservative radial fanout tracks from a selected footprint or all SMD footprints, preserving pad layer and net assignment. Track width and fanout length are configurable.
 
-### 4. KiWay Via Stitching (v0.1.0)
+### 4. KiWay Via Stitching (v0.2.0)
 
 Creates a configurable via-stitching grid inside the board outline bounding box. Select a net to stitch, or create unconnected vias, and skip footprint bodies, chosen references, tracks, zones, and board drawings/keepouts.
 
@@ -52,6 +52,12 @@ Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board sour
 - Parses labels such as `DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD`
 - Includes TP reference, value, footprint, pad, net, descriptor, signal, board endpoints, and notes
 - Exports documentation directly from the open PCB
+
+### 9. KiWay Trace RLC / Impedance Analyzer (v0.1.0)
+
+Measures routed net geometry between selected start/end pads and reports first-order resistance, capacitance, inductance, impedance, layer changes, vias, and same-net copper zones. It supports optional differential-mate comparison and stackup/reference-layer inputs.
+
+The analyzer is intended for design review and estimation. Critical high-speed interfaces still require field-solver, TDR, or laboratory validation.
 
 ## Planned Enhancements
 

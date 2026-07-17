@@ -19,6 +19,20 @@
             },
             "versions": [
                 {
+                    "version": "2.2.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "640ce44e55fe15669409f196aba34a6185378ecabf61f6f8fb68cdf6b57037a5",
+                    "download_size": 84696,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.2.0/extract_pins_plugin-2.2.0.zip",
+                    "install_size": 311018,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "2.1.0",
                     "status": "stable",
                     "kicad_version": "9.0",
@@ -67,6 +81,20 @@
             },
             "versions": [
                 {
+                    "version": "0.2.0",
+                    "status": "development",
+                    "kicad_version": "9.0",
+                    "download_sha256": "b9159a64d641c66b31c1d05476af3b40111c72e4c0d3bf191289a9b719b0383c",
+                    "download_size": 11330,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.2.0/bulk_label_editor_plugin-0.2.0.zip",
+                    "install_size": 19334,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "0.1.0",
                     "status": "development",
                     "kicad_version": "9.0",
@@ -104,7 +132,7 @@
                     "version": "0.1.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "33100decb0f46e5ea6748d4816b861bb0ec19eaaeb6fb4a4b85630604927287d",
+                    "download_sha256": "8055e38b3efbee509c7e7d438884a587b006b327063b88c1cbb5e326e22b66cd",
                     "download_size": 9403,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/connector_icd_plugin-0.1.0.zip",
                     "install_size": 11441,
@@ -134,6 +162,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/fanout_generator_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.2.0",
+                    "status": "development",
+                    "kicad_version": "9.0",
+                    "download_sha256": "ff893b73cf79a8fca0cb5ea437e78f05e385bd2d116215b65ac912cf791c1219",
+                    "download_size": 13868,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.2.0/fanout_generator_plugin-0.2.0.zip",
+                    "install_size": 20058,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.1.0",
                     "status": "development",
@@ -172,7 +214,7 @@
                     "version": "0.1.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "c6d03a253d8154da54857eb95d8d9e7dff9633d0636ae513322ab162e28472bd",
+                    "download_sha256": "99eca934709b4bec46751f5c7b9265d9bd606157533509d5a66f2b9be4e2f025",
                     "download_size": 9043,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/net_hygiene_plugin-0.1.0.zip",
                     "install_size": 11241,
@@ -206,7 +248,7 @@
                     "version": "0.1.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "dad3e2ce24575bae371410b602b245e379b44e326b131434b5001c78dadd27e6",
+                    "download_sha256": "5c342a800358c8c520181569625b0a82b3ca715a204a773f679e97e0c77b4b02",
                     "download_size": 8985,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/test_coverage_plugin-0.1.0.zip",
                     "install_size": 11075,
@@ -236,6 +278,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/via_stitching_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.2.0",
+                    "status": "development",
+                    "kicad_version": "9.0",
+                    "download_sha256": "a57e6e84ac64670924385a7955e90c4503d316928f95504deb27e8bcfca66c6d",
+                    "download_size": 11794,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.2.0/via_stitching_plugin-0.2.0.zip",
+                    "install_size": 20160,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.1.0",
                     "status": "development",
@@ -274,10 +330,44 @@
                     "version": "0.1.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "2ed17855f6ef99ad08fc498859d0b66702e4826f18a9b5532af0674ee0bda497",
+                    "download_sha256": "888fd8ff9114e44cd8b35fb86c69151fc1ff672c344fdd8e7191f99bdcfa846b",
                     "download_size": 10108,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/test_point_descriptor_plugin-0.1.0.zip",
                     "install_size": 16565,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "KiWay Trace RLC / Impedance Analyzer",
+            "description": "Measure routed geometry and estimate RLC, impedance, vias, layers, and copper-zone effects.",
+            "description_full": "Select a PCB net and optional start/end pads to traverse routed tracks, layer changes, vias, and same-net zones. Reports geometry and first-order resistance, capacitance, inductance, and impedance estimates using the board stackup where available. Differential-pair comparison is supported through a selectable mate net.",
+            "identifier": "kiway.trace.impedance",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/KiWay",
+                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/trace_impedance_plugin/icon.png"
+            },
+            "versions": [
+                {
+                    "version": "0.1.0",
+                    "status": "development",
+                    "kicad_version": "9.0",
+                    "download_sha256": "facd9ff3bf6c0dc2d72bb0521ef8ec292fde05cb9d197a9bb2b825515c52d9cd",
+                    "download_size": 13214,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/trace_impedance_plugin-0.1.0.zip",
+                    "install_size": 24088,
                     "platforms": [
                         "windows",
                         "linux",

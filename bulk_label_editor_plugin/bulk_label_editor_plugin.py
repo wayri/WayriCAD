@@ -29,7 +29,7 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
         self.description = "Bulk rename labels, PCB text, footprint references, values, and fields using wildcard or regex rules."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.1.0"
+        self.version = "0.2.0"
 
     def Run(self) -> None:
         frame = BulkLabelEditorFrame(None, pcbnew.GetBoard())
@@ -44,6 +44,8 @@ class BulkLabelEditorFrame(wx.Frame):
         self.board = board
         self.items: List[EditableItem] = []
         self.matches: List[EditableItem] = []
+        self.undo_stack: List[List[tuple[EditableItem, str, str]]] = []
+        self.redo_stack: List[List[tuple[EditableItem, str, str]]] = []
         self._build_ui()
         self.refresh_items()
         self.Centre()
@@ -83,9 +85,13 @@ class BulkLabelEditorFrame(wx.Frame):
         preview_btn.Bind(wx.EVT_BUTTON, self.on_preview)
         apply_btn = wx.Button(panel, label="Apply")
         apply_btn.Bind(wx.EVT_BUTTON, self.on_apply)
+        undo_btn = wx.Button(panel, label="Undo")
+        undo_btn.Bind(wx.EVT_BUTTON, self.on_undo)
+        redo_btn = wx.Button(panel, label="Redo")
+        redo_btn.Bind(wx.EVT_BUTTON, self.on_redo)
         refresh_btn = wx.Button(panel, label="Refresh")
         refresh_btn.Bind(wx.EVT_BUTTON, self.on_refresh)
-        for btn in (preview_btn, apply_btn, refresh_btn):
+        for btn in (preview_btn, apply_btn, undo_btn, redo_btn, refresh_btn):
             row3.Add(btn, 0, wx.ALL, 4)
         options.Add(row3, 0, wx.EXPAND)
         root.Add(options, 0, wx.EXPAND | wx.ALL, 6)
@@ -162,13 +168,43 @@ class BulkLabelEditorFrame(wx.Frame):
             wx.MessageBox("No matching items to apply.", "KiWay", wx.OK | wx.ICON_INFORMATION)
             return
         count = 0
+        operation: List[tuple[EditableItem, str, str]] = []
         for item in self.matches:
-            item.setter(self._replace(item.current))
+            new_value = self._replace(item.current)
+            item.setter(new_value)
+            operation.append((item, item.current, new_value))
             count += 1
+        if operation:
+            self.undo_stack.append(operation)
+            self.redo_stack.clear()
         if hasattr(pcbnew, "Refresh"):
             pcbnew.Refresh()
         self.refresh_items()
         self.status.SetLabel(f"Applied {count} edits.")
+
+    def on_undo(self, _event: Any) -> None:
+        if not self.undo_stack:
+            self.status.SetLabel("Nothing to undo.")
+            return
+        operation = self.undo_stack.pop()
+        for item, old_value, _new_value in reversed(operation):
+            item.setter(old_value)
+        self.redo_stack.append(operation)
+        if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
+        self.refresh_items()
+        self.status.SetLabel(f"Undid {len(operation)} edits.")
+
+    def on_redo(self, _event: Any) -> None:
+        if not self.redo_stack:
+            self.status.SetLabel("Nothing to redo.")
+            return
+        operation = self.redo_stack.pop()
+        for item, _old_value, new_value in operation:
+            item.setter(new_value)
+        self.undo_stack.append(operation)
+        if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
+        self.refresh_items()
+        self.status.SetLabel(f"Redid {len(operation)} edits.")
 
     def _filtered_items(self) -> List[EditableItem]:
         enabled = []

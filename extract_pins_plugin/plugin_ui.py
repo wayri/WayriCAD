@@ -29,6 +29,7 @@ from .core.doc_generator import DocGenerator
 from .core.layout_assistant import LayoutAssistant
 from .core.schematic_graph import SchematicGraphParser
 from .core.test_point_extractor import TestPointExtractor
+from .core.board_extract import extract_board_pin_rows, protocol_color
 
 
 class PluginUI(wx.Frame):
@@ -48,6 +49,7 @@ class PluginUI(wx.Frame):
         self.tp_rows: List[Dict[str, Any]] = []
         self.connector_rows: List[Dict[str, Any]] = []
         self.peripheral_rows: List[Dict[str, Any]] = []
+        self.board_rows: List[Dict[str, Any]] = []
         self.current_markdown = ""
         self.docgen = DocGenerator()
 
@@ -79,6 +81,24 @@ class PluginUI(wx.Frame):
         config.Add(analyze_btn, 0, wx.ALL, 4)
         root.Add(config, 0, wx.EXPAND | wx.ALL, 6)
 
+        filters = wx.StaticBoxSizer(wx.StaticBox(panel, label="Board Pin Filters"), wx.HORIZONTAL)
+        self.reference_filter = wx.TextCtrl(panel, value="", size=(90, -1))
+        self.value_filter = wx.TextCtrl(panel, value="", size=(90, -1))
+        self.net_filter = wx.TextCtrl(panel, value="", size=(110, -1))
+        self.property_filter = wx.TextCtrl(panel, value="", size=(120, -1))
+        self.include_power = wx.CheckBox(panel, label="Power nets")
+        self.include_power.SetValue(True)
+        self.selected_only = wx.CheckBox(panel, label="Selected only")
+        for label, control in (("Refs (*,?):", self.reference_filter), ("Values:", self.value_filter), ("Nets:", self.net_filter), ("Property / value:", self.property_filter)):
+            filters.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
+            filters.Add(control, 1, wx.EXPAND | wx.ALL, 3)
+        filters.Add(self.include_power, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        filters.Add(self.selected_only, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        filter_btn = wx.Button(panel, label="Apply Filters")
+        filter_btn.Bind(wx.EVT_BUTTON, self.on_apply_filters)
+        filters.Add(filter_btn, 0, wx.ALL, 4)
+        root.Add(filters, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+
         splitter = wx.SplitterWindow(panel)
         left = wx.Panel(splitter)
         right = wx.Panel(splitter)
@@ -104,6 +124,11 @@ class PluginUI(wx.Frame):
         for idx, label in enumerate(["Type", "Source", "Destination", "Interface", "Signal", "Net", "Ref", "Pin"]):
             self.tm_tc_list.InsertColumn(idx, label, width=110)
         self.notebook.AddPage(self.tm_tc_list, "TM/TC")
+        self.pin_list = wx.ListCtrl(self.notebook, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for idx, label in enumerate(["Reference", "Pad", "Net", "Type", "Power", "Protocol", "Value", "Properties"]):
+            self.pin_list.InsertColumn(idx, label, width=125 if idx != 7 else 260)
+        self.pin_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_pin_selected)
+        self.notebook.AddPage(self.pin_list, "Board Pins")
         left_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 4)
 
         button_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -115,7 +140,11 @@ class PluginUI(wx.Frame):
         export_html_btn.Bind(wx.EVT_BUTTON, self.on_export_html)
         export_csv_btn = wx.Button(left, label="Export CSV")
         export_csv_btn.Bind(wx.EVT_BUTTON, self.on_export_csv)
-        for btn in (group_btn, export_md_btn, export_html_btn, export_csv_btn):
+        highlight_btn = wx.Button(left, label="Highlight Net")
+        highlight_btn.Bind(wx.EVT_BUTTON, self.on_highlight_net)
+        clear_highlight_btn = wx.Button(left, label="Clear Highlight")
+        clear_highlight_btn.Bind(wx.EVT_BUTTON, self.on_clear_highlight)
+        for btn in (group_btn, export_md_btn, export_html_btn, export_csv_btn, highlight_btn, clear_highlight_btn):
             button_row.Add(btn, 0, wx.ALL, 4)
         left_sizer.Add(button_row, 0, wx.EXPAND)
         left.SetSizer(left_sizer)
@@ -169,6 +198,7 @@ class PluginUI(wx.Frame):
                 connector_rows=self.connector_rows,
                 peripheral_rows=self.peripheral_rows,
             )
+            self._refresh_board_rows()
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay analysis failed", wx.OK | wx.ICON_ERROR)
             return
@@ -180,6 +210,71 @@ class PluginUI(wx.Frame):
             f"Analyzed {len(self.interfaces)} interfaces, {len(self.tp_rows)} test points, "
             f"{len(self.tm_tc_rows)} TM/TC rows."
         )
+
+    def _refresh_board_rows(self) -> None:
+        self.board_rows = extract_board_pin_rows(
+            self.board,
+            reference_filter=self.reference_filter.GetValue(),
+            value_filter=self.value_filter.GetValue(),
+            net_filter=self.net_filter.GetValue(),
+            property_filter=self.property_filter.GetValue(),
+            include_power=self.include_power.GetValue(),
+            selected_only=self.selected_only.GetValue(),
+        )
+        self.pin_list.DeleteAllItems()
+        for row in self.board_rows:
+            index = self.pin_list.InsertItem(self.pin_list.GetItemCount(), row["Reference"])
+            values = [row["Pad"], row["Net Name"], row["Net Type"], row["Power Net"], row["Protocol"], row["Value"], row["Properties"]]
+            for column, value in enumerate(values, 1):
+                self.pin_list.SetItem(index, column, str(value))
+            self.pin_list.SetItemBackgroundColour(index, protocol_color(row["Protocol"], row["Net Type"]))
+
+    def on_apply_filters(self, _event: Any) -> None:
+        try:
+            self._refresh_board_rows()
+            self.status.SetLabel(f"Showing {len(self.board_rows)} filtered board pin rows.")
+        except Exception as exc:
+            wx.MessageBox(str(exc), "Filter failed", wx.OK | wx.ICON_ERROR)
+
+    def on_pin_selected(self, event: Any) -> None:
+        row_index = event.GetIndex()
+        if row_index < 0 or row_index >= len(self.board_rows):
+            return
+        net_name = self.board_rows[row_index].get("Net Name", "")
+        self._highlight_net_name(net_name)
+
+    def on_highlight_net(self, _event: Any) -> None:
+        selected = self.pin_list.GetFirstSelected()
+        if selected >= 0:
+            self._highlight_net_name(self.board_rows[selected].get("Net Name", ""))
+            return
+        iface = self.interface_list.GetFirstSelected()
+        if iface >= 0:
+            nets = self.interfaces.get(self.interface_list.GetItemText(iface), {}).get("nets", [])
+            if nets:
+                self._highlight_net_name(nets[0])
+
+    def _highlight_net_name(self, net_name: str) -> None:
+        if not self.board or not net_name:
+            return
+        try:
+            net = self.board.FindNet(net_name) if hasattr(self.board, "FindNet") else None
+            if net is not None and hasattr(self.board, "SetHighLightNet"):
+                self.board.SetHighLightNet(net.GetNetCode())
+            elif hasattr(self.board, "HighlightNet"):
+                self.board.HighlightNet(net_name)
+            if pcbnew and hasattr(pcbnew, "Refresh"):
+                pcbnew.Refresh()
+            self.status.SetLabel(f"Highlighted net {net_name}.")
+        except Exception as exc:
+            self.status.SetLabel(f"Could not highlight {net_name}: {exc}")
+
+    def on_clear_highlight(self, _event: Any) -> None:
+        if self.board and hasattr(self.board, "SetHighLightNet"):
+            self.board.SetHighLightNet(-1)
+        if pcbnew and hasattr(pcbnew, "Refresh"):
+            pcbnew.Refresh()
+        self.status.SetLabel("Net highlighting cleared.")
 
     def on_interface_selected(self, event: Any) -> None:
         self._draw_interfaces(selected=self.interface_list.GetItemText(event.GetIndex()))

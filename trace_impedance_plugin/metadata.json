@@ -1,0 +1,13 @@
+{
+    "$schema": "https://go.kicad.org/pcm/schemas/v1",
+    "name": "KiWay Trace RLC / Impedance Analyzer",
+    "description": "Measure routed geometry and estimate RLC, impedance, vias, layers, and copper-zone effects.",
+    "description_full": "Select a PCB net and optional start/end pads to traverse routed tracks, layer changes, vias, and same-net zones. Reports geometry and first-order resistance, capacitance, inductance, and impedance estimates using the board stackup where available. Differential-pair comparison is supported through a selectable mate net.",
+    "identifier": "kiway.trace.impedance",
+    "type": "plugin",
+    "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
+    "license": "GPL-3.0",
+    "resources": {"homepage": "https://github.com/wayri/KiWay"},
+    "versions": [{"version": "0.1.0", "status": "development", "kicad_version": "9.0"}]
+}
+
