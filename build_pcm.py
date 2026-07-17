@@ -98,8 +98,8 @@ def main():
 
         if 'resources' not in metadata:
             metadata['resources'] = {"homepage": "https://github.com/wayri/KiWay"}
-        if 'icon' not in metadata['resources']:
-            metadata['resources']['icon'] = f"https://raw.githubusercontent.com/wayri/KiWay/develop/{plugin_path.name}/icon.png"
+        # Keep every package icon aligned with the repository's actual default branch.
+        metadata['resources']['icon'] = f"https://raw.githubusercontent.com/wayri/KiWay/develop/{plugin_path.name}/icon.png"
 
         package = {
             "name": metadata['name'],
