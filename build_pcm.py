@@ -3,6 +3,7 @@ import json
 import zipfile
 import hashlib
 import datetime
+from io import BytesIO
 from pathlib import Path
 
 # Configuration
@@ -31,18 +32,33 @@ def create_plugin_zip(plugin_path, version, output_dir, metadata):
     print(f"Zipping {plugin_path} to {zip_path}...")
     
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # KiCad PCM expects metadata at the archive root, plugin files under
+        # plugins/, and the 64x64 PCM card icon under resources/icon.png.
+        zipf.write(plugin_path / 'metadata.json', 'metadata.json')
         for root, dirs, files in os.walk(plugin_path):
             dirs[:] = [d for d in dirs if d not in ['__pycache__', '.git', '.vscode']]
             for file in files:
-                if file.endswith('.pyc'):
+                if file.endswith('.pyc') or file in {'metadata.json', 'icon.png'}:
                     continue
                 file_path = os.path.join(root, file)
-                # Nest under identifier folder
                 rel_path = os.path.relpath(file_path, start=plugin_path)
-                arcname = os.path.join(metadata['identifier'], rel_path)
-                # FORCE FORWARD SLASHES for Zip Standard
+                arcname = os.path.join('plugins', rel_path)
                 arcname = arcname.replace(os.sep, '/')
                 zipf.write(file_path, arcname)
+
+        icon_path = plugin_path / 'icon.png'
+        if icon_path.exists():
+            try:
+                from PIL import Image
+
+                with Image.open(icon_path) as image:
+                    image = image.convert('RGBA').resize((64, 64), Image.Resampling.LANCZOS)
+                    buffer = BytesIO()
+                    image.save(buffer, format='PNG', optimize=True)
+                    zipf.writestr('resources/icon.png', buffer.getvalue())
+            except Exception:
+                # Keep package generation usable in minimal Python environments.
+                zipf.write(icon_path, 'resources/icon.png')
     
     return zip_path, zip_filename
 
