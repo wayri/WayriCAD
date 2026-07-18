@@ -20,7 +20,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.description = "Measure routed net geometry and estimate RLC, impedance, vias, layers, and zones."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.3.0"
+        self.version = "0.4.0"
 
     def Run(self) -> None:
         try:
@@ -40,6 +40,7 @@ class TraceFrame(wx.Frame):
         self.current: Optional[PathMeasurement] = None
         self._build_ui()
         self._load_nets()
+        self._load_stackup()
         self.Centre()
 
     def _build_ui(self) -> None:
@@ -50,8 +51,7 @@ class TraceFrame(wx.Frame):
         self.end = wx.ComboBox(panel, style=wx.CB_READONLY)
         self.diff_net = wx.ComboBox(panel, style=wx.CB_READONLY)
         self.frequency = wx.TextCtrl(panel, value="100")
-        self.reference = wx.ComboBox(panel, choices=["F.Cu", "B.Cu", "In1.Cu", "In2.Cu"], style=wx.CB_READONLY)
-        self.reference.SetSelection(0)
+        self.reference = wx.ComboBox(panel, style=wx.CB_READONLY)
         for label, control in (("Net:", self.net), ("Start pad:", self.start), ("End pad:", self.end), ("Differential mate (optional):", self.diff_net), ("Frequency (MHz):", self.frequency), ("Reference layer:", self.reference)):
             config.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL); config.Add(control, 1, wx.EXPAND)
         config.AddGrowableCol(1, 1); root.Add(config, 0, wx.EXPAND | wx.ALL, 10)
@@ -63,9 +63,18 @@ class TraceFrame(wx.Frame):
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
         row = wx.BoxSizer(wx.HORIZONTAL); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
+        refresh_stackup = wx.Button(panel, label="Refresh Stackup")
+        refresh_stackup.Bind(wx.EVT_BUTTON, self._load_stackup)
+        row.Add(refresh_stackup, 0, wx.ALL, 5)
         root.Add(row, 0, wx.ALIGN_RIGHT)
         self.summary = wx.StaticText(panel, label="Select a net and optional start/end pads.")
         root.Add(self.summary, 0, wx.EXPAND | wx.ALL, 8)
+        stackup_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Detected Board Stackup"), wx.VERTICAL)
+        self.stackup_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, label in enumerate(("Layer", "Type", "Copper mm", "Dielectric mm", "Er", "Material")):
+            self.stackup_list.InsertColumn(index, label, width=150 if index in (0, 5) else 105)
+        stackup_box.Add(self.stackup_list, 1, wx.EXPAND | wx.ALL, 3)
+        root.Add(stackup_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         self.table = wx.ListCtrl(panel, style=wx.LC_REPORT)
         for index, label in enumerate(("Metric", "Value")):
             self.table.InsertColumn(index, label, width=260 if index == 0 else 620)
@@ -78,6 +87,21 @@ class TraceFrame(wx.Frame):
         names = self.engine.net_names()
         self.net.AppendItems(names); self.diff_net.Append("<none>"); self.diff_net.AppendItems(names)
         if names: self.net.SetSelection(0); self._load_pads(None)
+
+    def _load_stackup(self, _event: Any = None) -> None:
+        layers = self.engine.stackup_layers()
+        names = [layer.name for layer in layers]
+        self.reference.Clear()
+        self.reference.AppendItems(names)
+        if names:
+            self.reference.SetSelection(0)
+        self.stackup_list.DeleteAllItems()
+        for layer in layers:
+            index = self.stackup_list.InsertItem(self.stackup_list.GetItemCount(), layer.name)
+            values = (layer.kind, f"{layer.thickness_mm:.4f}", f"{layer.dielectric_height_mm:.4f}", f"{layer.relative_permittivity:.4g}", layer.material)
+            for column, value in enumerate(values, 1):
+                self.stackup_list.SetItem(index, column, str(value))
+        self.summary.SetLabel(f"Detected {len(layers)} stackup layers. Select a reference layer before analysis.")
 
     def _load_pads(self, _event: Any) -> None:
         pads = self.engine.pads_for_net(self.net.GetValue())

@@ -111,6 +111,16 @@ class PluginUI(wx.Frame):
         filters.Add(filter_btn, 0, wx.ALL, 4)
         root.Add(filters, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
+        tm_tc_options = wx.StaticBoxSizer(wx.StaticBox(panel, label="TM/TC Output"), wx.HORIZONTAL)
+        self.consolidate_tm_tc = wx.CheckBox(panel, label="One universal row per net")
+        self.consolidate_tm_tc.SetValue(True)
+        self.consolidate_tm_tc.SetToolTip("Combine repeated connector, passive, and IC pin entries into one row per labeled net.")
+        self.tm_tc_selected_only = wx.CheckBox(panel, label="Selected components only")
+        self.tm_tc_selected_only.SetToolTip("Limit TM/TC rows to footprints currently selected in PCB Editor.")
+        tm_tc_options.Add(self.consolidate_tm_tc, 0, wx.ALL, 4)
+        tm_tc_options.Add(self.tm_tc_selected_only, 0, wx.ALL, 4)
+        root.Add(tm_tc_options, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+
         splitter = wx.SplitterWindow(panel)
         left = wx.Panel(splitter)
         right = wx.Panel(splitter)
@@ -133,7 +143,7 @@ class PluginUI(wx.Frame):
         self.notebook.AddPage(self.tp_list, "Test Points")
 
         self.tm_tc_list = wx.ListCtrl(self.notebook, style=wx.LC_REPORT)
-        for idx, label in enumerate(["Type", "Source", "Destination", "Interface", "Signal", "Net", "Ref", "Pin"]):
+        for idx, label in enumerate(["Type", "Source", "Destination", "Interface", "Signal", "Net", "Ref", "Pin", "Count"]):
             self.tm_tc_list.InsertColumn(idx, label, width=110)
         self.notebook.AddPage(self.tm_tc_list, "TM/TC")
         self.pin_list = wx.ListCtrl(self.notebook, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
@@ -265,7 +275,12 @@ class PluginUI(wx.Frame):
             self.interfaces = self.parser.group_interfaces()
             tp_extractor = TestPointExtractor(self.parser)
             self.tp_rows = tp_extractor.as_rows()
-            self.tm_tc_rows = self.docgen.make_tm_tc_rows(self.parser)
+            selected_refs = [footprint.GetReference() for footprint in self._selected_footprints()] if self.tm_tc_selected_only.GetValue() else None
+            self.tm_tc_rows = self.docgen.make_tm_tc_rows(
+                self.parser,
+                selected_refs=selected_refs,
+                consolidate=self.consolidate_tm_tc.GetValue(),
+            )
             self.connector_rows = self.docgen.connector_rows_from_parser(self.parser)
             self.peripheral_rows = self.docgen.peripheral_rows_from_parser(self.parser)
             if self.board:
@@ -572,7 +587,7 @@ class PluginUI(wx.Frame):
                 self.tp_list.SetItem(idx, col, str(row.get(key, "")))
 
         self.tm_tc_list.DeleteAllItems()
-        keys = ["Type", "Source Board", "Destination Board", "Interface", "Signal", "Net Name", "Reference", "Pin"]
+        keys = ["Type", "Source Board", "Destination Board", "Interface", "Signal", "Net Name", "Reference", "Pin", "Pin Count"]
         for row in self.tm_tc_rows:
             idx = self.tm_tc_list.InsertItem(self.tm_tc_list.GetItemCount(), str(row.get(keys[0], "")))
             for col, key in enumerate(keys[1:], start=1):

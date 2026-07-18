@@ -82,26 +82,44 @@ code { background: #f2f4f7; padding: 1px 4px; border-radius: 3px; }
                 writer.writerow({h: row.get(h, "") for h in headers})
         return path
 
-    def make_tm_tc_rows(self, parser: Any) -> List[Dict[str, Any]]:
+    def make_tm_tc_rows(
+        self,
+        parser: Any,
+        selected_refs: Optional[Sequence[str]] = None,
+        consolidate: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Build TM/TC rows with optional selected-component filtering.
+
+        Consolidation creates one universal row per labeled net instead of
+        repeating the same signal for every passive, connector, or IC pin.
+        """
         rows: List[Dict[str, Any]] = []
+        selected = set(selected_refs or ())
         for net_name, pins in sorted(parser.net_to_pins.items(), key=lambda item: parser.natural_sort_key(item[0])):
             parsed = parser.parse_interface_label(net_name)
             if not parsed.tm_tc_type:
                 continue
-            for ref, pin in pins:
+            filtered_pins = [(ref, pin) for ref, pin in pins if not selected or ref in selected]
+            if not filtered_pins:
+                continue
+            base = {
+                "Type": parsed.tm_tc_type,
+                "Type Label": TYPE_LABELS.get(parsed.tm_tc_type, parsed.tm_tc_type),
+                "Source Board": parsed.source_board,
+                "Destination Board": parsed.destination_board,
+                "Interface": parsed.interface,
+                "Signal": parsed.signal,
+                "Channel": parsed.channel,
+                "Net Name": net_name,
+            }
+            if consolidate:
+                refs = sorted({ref for ref, _pin in filtered_pins}, key=parser.natural_sort_key)
+                pins_text = sorted({pin for _ref, pin in filtered_pins}, key=parser.natural_sort_key)
+                rows.append({**base, "Reference": ", ".join(refs), "Pin": ", ".join(pins_text), "Pin Count": str(len(filtered_pins))})
+                continue
+            for ref, pin in filtered_pins:
                 rows.append(
-                    {
-                        "Type": parsed.tm_tc_type,
-                        "Type Label": TYPE_LABELS.get(parsed.tm_tc_type, parsed.tm_tc_type),
-                        "Source Board": parsed.source_board,
-                        "Destination Board": parsed.destination_board,
-                        "Interface": parsed.interface,
-                        "Signal": parsed.signal,
-                        "Channel": parsed.channel,
-                        "Net Name": net_name,
-                        "Reference": ref,
-                        "Pin": pin,
-                    }
+                    {**base, "Reference": ref, "Pin": pin}
                 )
         return rows
 

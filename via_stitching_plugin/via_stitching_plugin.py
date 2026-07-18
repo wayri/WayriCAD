@@ -18,7 +18,7 @@ class ViaStitchingPlugin(pcbnew.ActionPlugin):
         self.description = "Generate a configurable ground-via stitching grid."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.4.0"
+        self.version = "0.5.0"
 
     def Run(self) -> None:
         try:

@@ -32,7 +32,7 @@ class ConnectorICDPlugin(pcbnew.ActionPlugin):
         self.description = "Export connector pin and net tables for interface control documents."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.3.0"
+        self.version = "0.4.0"
 
     def Run(self) -> None:
         try:

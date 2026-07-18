@@ -8,5 +8,5 @@
     "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
     "license": "GPL-3.0",
     "resources": {"homepage": "https://github.com/wayri/KiWay"},
-    "versions": [{"version": "0.3.0", "status": "development", "kicad_version": "9.0"}]
+    "versions": [{"version": "0.4.0", "status": "development", "kicad_version": "9.0"}]
 }
