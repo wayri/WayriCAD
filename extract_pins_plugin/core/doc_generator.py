@@ -115,11 +115,28 @@ code { background: #f2f4f7; padding: 1px 4px; border-radius: 3px; }
             if consolidate:
                 refs = sorted({ref for ref, _pin in filtered_pins}, key=parser.natural_sort_key)
                 pins_text = sorted({pin for _ref, pin in filtered_pins}, key=parser.natural_sort_key)
-                rows.append({**base, "Reference": ", ".join(refs), "Pin": ", ".join(pins_text), "Pin Count": str(len(filtered_pins))})
+                sheets = [parser.get_component_sheet(ref) for ref in refs]
+                rows.append(
+                    {
+                        **base,
+                        "Sheet": ", ".join(sorted({sheet["name"] for sheet in sheets})),
+                        "Sheet Path": ", ".join(sorted({sheet["path"] for sheet in sheets})),
+                        "Reference": ", ".join(refs),
+                        "Pin": ", ".join(pins_text),
+                        "Pin Count": str(len(filtered_pins)),
+                    }
+                )
                 continue
             for ref, pin in filtered_pins:
+                sheet = parser.get_component_sheet(ref)
                 rows.append(
-                    {**base, "Reference": ref, "Pin": pin}
+                    {
+                        **base,
+                        "Sheet": sheet["name"],
+                        "Sheet Path": sheet["path"],
+                        "Reference": ref,
+                        "Pin": pin,
+                    }
                 )
         return rows
 
@@ -128,11 +145,14 @@ code { background: #f2f4f7; padding: 1px 4px; border-radius: 3px; }
         for ref, meta in parser.components.items():
             if meta.get("kind") != "connector":
                 continue
+            sheet = parser.get_component_sheet(ref)
             for row in parser.get_component_pin_nets(ref):
                 rows.append(
                     {
                         "Connector": ref,
                         "Value": meta.get("value", ""),
+                        "Sheet": sheet["name"],
+                        "Sheet Path": sheet["path"],
                         "Pin": row["pin"],
                         "Net Name": row["net"],
                     }
@@ -144,12 +164,15 @@ code { background: #f2f4f7; padding: 1px 4px; border-radius: 3px; }
         for ref, meta in parser.components.items():
             if meta.get("kind") not in {"active", "component"}:
                 continue
+            sheet = parser.get_component_sheet(ref)
             rows.append(
                 {
                     "Reference": ref,
                     "Value": meta.get("value", ""),
                     "Kind": meta.get("kind", ""),
                     "Footprint": meta.get("footprint", ""),
+                    "Sheet": sheet["name"],
+                    "Sheet Path": sheet["path"],
                 }
             )
         return sorted(rows, key=lambda r: parser.natural_sort_key(r["Reference"]))

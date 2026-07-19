@@ -27,7 +27,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 from .core.doc_generator import DocGenerator
 from .core.layout_assistant import LayoutAssistant
-from .core.schematic_graph import SchematicGraphParser
+from .core.schematic_graph import SchematicGraphParser, SheetDefinition
 from .core.test_point_extractor import TestPointExtractor
 from .core.board_extract import extract_board_pin_rows, protocol_color
 from .core.data_extractor import DataExtractor
@@ -138,12 +138,12 @@ class PluginUI(wx.Frame):
         self.notebook.AddPage(self.interface_list, "Interfaces")
 
         self.tp_list = wx.ListCtrl(self.notebook, style=wx.LC_REPORT)
-        for idx, label in enumerate(["TP", "Net", "Resolved IC", "Function", "IC Pin", "Type"]):
+        for idx, label in enumerate(["TP", "Sheet", "Net", "Resolved IC", "IC Sheet", "Function", "IC Pin", "Type"]):
             self.tp_list.InsertColumn(idx, label, width=120)
         self.notebook.AddPage(self.tp_list, "Test Points")
 
         self.tm_tc_list = wx.ListCtrl(self.notebook, style=wx.LC_REPORT)
-        for idx, label in enumerate(["Type", "Source", "Destination", "Interface", "Signal", "Net", "Ref", "Pin", "Count"]):
+        for idx, label in enumerate(["Type", "Source", "Destination", "Interface", "Signal", "Net", "Sheet", "Ref", "Pin", "Count"]):
             self.tm_tc_list.InsertColumn(idx, label, width=110)
         self.notebook.AddPage(self.tm_tc_list, "TM/TC")
         self.pin_list = wx.ListCtrl(self.notebook, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
@@ -151,6 +151,37 @@ class PluginUI(wx.Frame):
             self.pin_list.InsertColumn(idx, label, width=125 if idx != 7 else 260)
         self.pin_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_pin_selected)
         self.notebook.AddPage(self.pin_list, "Board Pins")
+
+        sheet_panel = wx.Panel(self.notebook)
+        sheet_root = wx.BoxSizer(wx.VERTICAL)
+        sheet_splitter = wx.SplitterWindow(sheet_panel)
+        sheet_rules_panel = wx.Panel(sheet_splitter)
+        sheet_rules_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sheet_definitions = wx.TextCtrl(
+            sheet_rules_panel,
+            style=wx.TE_MULTILINE | wx.TE_DONTWRAP,
+        )
+        self.sheet_definitions.SetToolTip(
+            "One rule per line: Display Name | /hierarchical/path/* | reference wildcard. "
+            "Path and reference may be *; examples: Power | /Power/* | * or Control | * | U*."
+        )
+        sheet_rules_sizer.Add(self.sheet_definitions, 1, wx.EXPAND | wx.ALL, 4)
+        validate_sheets = wx.Button(sheet_rules_panel, label="Validate Rules")
+        validate_sheets.Bind(wx.EVT_BUTTON, self.on_validate_sheet_definitions)
+        sheet_rules_sizer.Add(validate_sheets, 0, wx.ALIGN_RIGHT | wx.ALL, 4)
+        sheet_rules_panel.SetSizer(sheet_rules_sizer)
+
+        sheet_preview_panel = wx.Panel(sheet_splitter)
+        sheet_preview_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sheet_list = wx.ListCtrl(sheet_preview_panel, style=wx.LC_REPORT)
+        for idx, label in enumerate(["Sheet", "Native Path", "Components", "References"]):
+            self.sheet_list.InsertColumn(idx, label, width=120 if idx < 3 else 280)
+        sheet_preview_sizer.Add(self.sheet_list, 1, wx.EXPAND | wx.ALL, 4)
+        sheet_preview_panel.SetSizer(sheet_preview_sizer)
+        sheet_splitter.SplitVertically(sheet_rules_panel, sheet_preview_panel, 330)
+        sheet_root.Add(sheet_splitter, 1, wx.EXPAND)
+        sheet_panel.SetSizer(sheet_root)
+        self.notebook.AddPage(sheet_panel, "Sheet Definitions")
 
         component_panel = wx.Panel(self.notebook)
         component_root = wx.BoxSizer(wx.VERTICAL)
@@ -261,6 +292,34 @@ class PluginUI(wx.Frame):
             if dlg.ShowModal() == wx.ID_OK:
                 self.schematic_dir.SetValue(dlg.GetPath())
 
+    def _parse_sheet_definitions(self) -> List[SheetDefinition]:
+        definitions: List[SheetDefinition] = []
+        for line_number, raw_line in enumerate(self.sheet_definitions.GetValue().splitlines(), start=1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = [part.strip() for part in line.split("|")]
+            if not parts[0]:
+                raise ValueError(f"Sheet rule line {line_number} is missing a display name.")
+            if len(parts) > 3:
+                raise ValueError(f"Sheet rule line {line_number} has more than three fields.")
+            definitions.append(
+                SheetDefinition(
+                    name=parts[0],
+                    path_pattern=parts[1] if len(parts) > 1 and parts[1] else "*",
+                    reference_pattern=parts[2] if len(parts) > 2 and parts[2] else "*",
+                )
+            )
+        return definitions
+
+    def on_validate_sheet_definitions(self, _event: Any) -> None:
+        try:
+            definitions = self._parse_sheet_definitions()
+        except ValueError as exc:
+            wx.MessageBox(str(exc), "Invalid sheet definition", wx.OK | wx.ICON_ERROR)
+            return
+        self.status.SetLabel(f"Validated {len(definitions)} sheet definition rules.")
+
     def on_analyze(self, _event: Any) -> None:
         try:
             board_order = [b.strip() for b in self.board_sequence.GetValue().split(",") if b.strip()]
@@ -270,6 +329,7 @@ class PluginUI(wx.Frame):
                 schematic_paths=schematic_paths,
                 board_sequence=board_order,
                 pass_through_field=self.pass_field.GetValue() or "NetTie_Path",
+                sheet_definitions=self._parse_sheet_definitions(),
             )
             self.parser.build()
             self.interfaces = self.parser.group_interfaces()
@@ -419,12 +479,19 @@ class PluginUI(wx.Frame):
     def _component_data(self, footprints: List[Any]) -> Dict[str, Any]:
         if not self.extractor:
             return {}
-        return self.extractor.extract_footprint_data(
+        data = self.extractor.extract_footprint_data(
             footprints,
             ignore_unconnected=False,
             ignore_power_nets=False,
             sort_pins_by_net_type=True,
         )
+        if self.parser:
+            for reference, component in data.items():
+                sheet = self.parser.get_component_sheet(reference)
+                properties = component.setdefault("general_properties", {})
+                properties["Sheet"] = sheet["name"]
+                properties["Sheet Path"] = sheet["path"]
+        return data
 
     def _component_targets(self, use_selection: bool) -> List[Any]:
         if use_selection:
@@ -583,15 +650,25 @@ class PluginUI(wx.Frame):
         self.tp_list.DeleteAllItems()
         for row in self.tp_rows:
             idx = self.tp_list.InsertItem(self.tp_list.GetItemCount(), str(row.get("TP Reference", "")))
-            for col, key in enumerate(["Net Name", "Resolved IC", "Resolved IC Function", "IC Pin", "TM/TC Type"], start=1):
+            for col, key in enumerate(
+                ["TP Sheet", "Net Name", "Resolved IC", "Resolved IC Sheet", "Resolved IC Function", "IC Pin", "TM/TC Type"],
+                start=1,
+            ):
                 self.tp_list.SetItem(idx, col, str(row.get(key, "")))
 
         self.tm_tc_list.DeleteAllItems()
-        keys = ["Type", "Source Board", "Destination Board", "Interface", "Signal", "Net Name", "Reference", "Pin", "Pin Count"]
+        keys = ["Type", "Source Board", "Destination Board", "Interface", "Signal", "Net Name", "Sheet", "Reference", "Pin", "Pin Count"]
         for row in self.tm_tc_rows:
             idx = self.tm_tc_list.InsertItem(self.tm_tc_list.GetItemCount(), str(row.get(keys[0], "")))
             for col, key in enumerate(keys[1:], start=1):
                 self.tm_tc_list.SetItem(idx, col, str(row.get(key, "")))
+
+        self.sheet_list.DeleteAllItems()
+        if self.parser:
+            for row in self.parser.sheet_summary():
+                idx = self.sheet_list.InsertItem(self.sheet_list.GetItemCount(), str(row["Sheet"]))
+                for col, key in enumerate(["Path", "Components", "References"], start=1):
+                    self.sheet_list.SetItem(idx, col, str(row[key]))
 
     def _draw_interfaces(self, selected: str = "") -> None:
         if not self.figure or not self.canvas:

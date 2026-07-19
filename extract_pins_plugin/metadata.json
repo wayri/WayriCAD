@@ -2,7 +2,7 @@
     "$schema": "https://go.kicad.org/pcm/schemas/v1",
     "name": "KiWay Extract Pins",
     "description": "Advanced pin, interface, test-point, and TM/TC documentation generator for KiCad.",
-    "description_full": "KiWay Extract Pins is a comprehensive documentation and analysis plugin for KiCAD.\n\n**Features:**\n- Extract component pin data to CSV, Markdown, HTML, or JSON\n- Build a networkx connectivity graph from pcbnew board data and optional KiCad XML netlists\n- Trace through passive parts and custom NetTie_Path pass-throughs\n- Resolve test points back to source IC pins and functions\n- Parse board-sequence labels such as DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD for TM/TC tables\n- Group differential pairs, buses, connectors, peripherals, and logical interfaces\n- Create native KiCad PCB groups for logical interfaces\n- Generate ICD/TM-TC Markdown, HTML, and CSV deliverables\n- CLI support for automation and scripting\n\nOptional Python packages for full dashboard capability: networkx, matplotlib, and markdown.\n\nTargets KiCAD 9 and later.",
+    "description_full": "KiWay Extract Pins is a comprehensive documentation and analysis plugin for KiCAD.\n\n**Features:**\n- Extract component pin data to CSV, Markdown, HTML, or JSON\n- Build a networkx connectivity graph from pcbnew board data and optional KiCad XML netlists\n- Preserve hierarchical sheet paths and apply user-defined path/reference aliases\n- Trace through passive parts and custom NetTie_Path pass-throughs\n- Resolve test points back to source IC pins and functions\n- Parse board-sequence labels such as DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD for TM/TC tables\n- Group differential pairs, buses, connectors, peripherals, and logical interfaces\n- Create native KiCad PCB groups for logical interfaces\n- Generate ICD/TM-TC Markdown, HTML, and CSV deliverables\n- CLI support for automation and scripting\n\nOptional Python packages for full dashboard capability: networkx, matplotlib, and markdown.\n\nTargets KiCAD 9 and later.",
     "identifier": "kiway.extract.pins",
     "type": "plugin",
     "author": {
@@ -24,7 +24,7 @@
     },
     "versions": [
         {
-            "version": "2.6.0",
+            "version": "2.7.0",
             "status": "stable",
             "kicad_version": "9.0"
         }

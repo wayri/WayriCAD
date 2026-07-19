@@ -1,1 +1,53 @@
-<!doctype html><meta charset="utf-8"><title>KiWay Extract Pins Help</title><style>body{font:15px Segoe UI,Arial;max-width:980px;margin:32px;color:#202124;line-height:1.45}h1,h2,h3{color:#17324d}code{background:#eef3f8;padding:2px 4px}li{margin:6px 0}table{border-collapse:collapse}td,th{border:1px solid #cfd8e3;padding:6px 9px;text-align:left}th{background:#eef3f8}</style><h1>KiWay Extract Pins</h1><p>Extract interfaces, test points, TM/TC signals, connectors, peripherals, and board-level signal-flow diagrams from the open PCB and optional KiCad XML netlists.</p><h2>Basic workflow</h2><ol><li>Open the PCB in PCB Editor and launch <b>KiWay Extract Pins</b> from Tools or the toolbar.</li><li>Enter the schematic/netlist directory when available and set board order, for example <code>DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO</code>.</li><li>Click <b>Analyze</b>, review Interfaces, Test Points, TM/TC, and Board Pins.</li><li>Use <b>Export Markdown</b>, <b>Export HTML</b>, or <b>Export CSV</b> for ICD and software/test deliverables.</li></ol><h2>Signal Flow tab</h2><p>Use comma-separated wildcard reference filters. For example, Sources <code>J*,U1</code> and Destinations <code>U*,J2</code> finds connector/IC paths. Enable <b>Show pass-through parts</b> to keep intermediate footprints in the flow. Power nets are excluded by default; enable <b>Include power</b> when documenting rails.</p><p><b>Flow CSV</b> contains source and destination pins, net type, protocol, path, and hop count. <b>Flow SVG</b> creates a three-column chart with labeled arrows. <b>Block SVG</b> creates a board/interface map with source board, destination board, net count, and TM/TC or protocol labels.</p><h2>Label examples</h2><p><code>DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD</code> is interpreted as a board-to-board telemetry-digital signal. Tokens <code>TM</code>, <code>TC</code>, <code>TA</code>, <code>TD</code>, <code>CA</code>, and <code>CD</code> must be underscore-delimited.</p><h2>Common issues and fixes</h2><table><tr><th>Issue</th><th>Resolution</th></tr><tr><td>No interfaces or paths</td><td>Save the PCB, confirm pads have net names, and check wildcard reference filters.</td></tr><tr><td>No IC function</td><td>Add pin-function fields to the netlist; the PCB reference/value is used as fallback.</td></tr><tr><td>Graph import error</td><td>Install <code>networkx</code> in KiCad's Python environment.</td></tr><tr><td>Blank matplotlib preview</td><td>Install <code>matplotlib</code>; SVG and table exports do not require it.</td></tr><tr><td>Power dominates the chart</td><td>Leave <b>Include power</b> disabled, or filter power rows in Board Pins.</td></tr><tr><td>Intermediate part is missing</td><td>Enable <b>Show pass-through parts</b> and ensure it shares the same named net.</td></tr></table>
+<!doctype html>
+<meta charset="utf-8">
+<title>KiWay Extract Pins Help</title>
+<style>
+body{font:15px Segoe UI,Arial;max-width:980px;margin:32px;color:#202124;line-height:1.45}
+h1,h2,h3{color:#17324d}code{background:#eef3f8;padding:2px 4px}
+li{margin:6px 0}table{border-collapse:collapse}
+td,th{border:1px solid #cfd8e3;padding:6px 9px;text-align:left}th{background:#eef3f8}
+</style>
+<h1>KiWay Extract Pins</h1>
+<p>Extract interfaces, test points, TM/TC signals, connectors, peripherals,
+and board-level signal-flow diagrams from the open PCB and optional KiCad XML
+netlists.</p>
+<h2>Basic workflow</h2>
+<ol>
+<li>Open the PCB and launch <b>KiWay Extract Pins</b>.</li>
+<li>Select a schematic/netlist directory when available and set board order,
+for example <code>DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO</code>.</li>
+<li>Optionally define hierarchical sheet aliases, then click <b>Analyze</b>.</li>
+<li>Review the tables and use the Markdown, HTML, CSV, or SVG exports.</li>
+</ol>
+<h2>Hierarchical sheets</h2>
+<p>KiWay automatically reads native <code>sheetpath</code> data from KiCad XML
+netlists. In <b>Sheet Definitions</b>, enter one optional alias rule per line:</p>
+<p><code>Display Name | /hierarchical/path/* | reference wildcard</code></p>
+<pre>Channel 1 Power | /Power/Channel1/* | *
+Control MCU | * | U1
+Connector Sheets | /Interfaces/* | J*</pre>
+<p>Rules are evaluated from top to bottom and both filters must match. Use
+<code>*</code> to ignore one filter. The right side of the tab previews the
+resolved sheet, native path, component count, and references after analysis.
+Sheet information is included in TM/TC, test-point, connector, peripheral, and
+component exports.</p>
+<h2>Signal Flow tab</h2>
+<p>Use comma-separated wildcard reference filters. For example, Sources
+<code>J*,U1</code> and Destinations <code>U*,J2</code> finds connector/IC
+paths. Enable <b>Show pass-through parts</b> to keep intermediate footprints.
+Power nets are excluded by default.</p>
+<h2>Label examples</h2>
+<p><code>DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD</code> is interpreted as a
+board-to-board telemetry-digital signal. Supported identifiers are
+<code>TM</code>, <code>TC</code>, <code>TA</code>, <code>TD</code>,
+<code>CA</code>, and <code>CD</code>.</p>
+<h2>Common issues and fixes</h2>
+<table>
+<tr><th>Issue</th><th>Resolution</th></tr>
+<tr><td>Sheets show only Root</td><td>Export an XML netlist from Schematic Editor and select its directory. PCB data alone may not contain hierarchical paths.</td></tr>
+<tr><td>A sheet alias does not apply</td><td>Click Validate Rules; check path slashes and remember that both path and reference filters must match.</td></tr>
+<tr><td>No interfaces or paths</td><td>Save the PCB, confirm pads have net names, and check wildcard filters.</td></tr>
+<tr><td>No IC function</td><td>Add pin-function data to the XML netlist.</td></tr>
+<tr><td>Graph import error</td><td>Install <code>networkx</code> in KiCad's Python environment.</td></tr>
+<tr><td>Blank chart preview</td><td>Use SVG exports; native matplotlib preview is optional.</td></tr>
+</table>

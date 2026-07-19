@@ -36,12 +36,18 @@ class TestPointExtractor:
                 targets = self.parser.trace_from_pin(ref, pin, target_kinds={"active"}, max_hops=max_hops)
                 resolved = self._best_target(targets)
                 parsed = self.parser.parse_interface_label(net_name)
+                tp_sheet = self.parser.get_component_sheet(ref)
+                ic_sheet = self.parser.get_component_sheet(resolved.get("reference", ""))
                 result[ref] = {
                     "TP Reference": ref,
                     "TP Pin": pin,
+                    "TP Sheet": tp_sheet["name"],
+                    "TP Sheet Path": tp_sheet["path"],
                     "Net Name": net_name,
                     "Resolved IC": resolved.get("reference", ""),
                     "Resolved IC Value": resolved.get("value", ""),
+                    "Resolved IC Sheet": ic_sheet["name"],
+                    "Resolved IC Sheet Path": ic_sheet["path"],
                     "Resolved IC Function": self._resolve_pin_function(resolved),
                     "IC Pin": self._resolve_pin_number(resolved),
                     "Path": " -> ".join(resolved.get("path", [])),

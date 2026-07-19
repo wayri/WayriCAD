@@ -2,7 +2,7 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-2.0.0-blue)
+![Version](https://img.shields.io/badge/Version-2.7.0-blue)
 ![KiCAD](https://img.shields.io/badge/KiCAD-9.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
@@ -13,6 +13,8 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 - Filter by reference pattern (`J*`, `U*`, etc.), value, or connector type
 - Export to clean **CSV**, **Markdown**, or **JSON** formats
 - Support for custom `connector-type` properties
+- Preserve native hierarchical schematic sheet paths from KiCad XML netlists
+- Define sheet display aliases with path and component-reference wildcards
 
 ### Signal Flow Analysis
 - Generate source-to-destination signal flow tables
@@ -68,6 +70,26 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 4. Use the dialog to filter, configure, and export
 
 ### CLI Mode (Installed Plugin)
+
+### Hierarchical Sheet Definitions
+
+The **Sheet Definitions** tab shows sheets detected from each XML netlist's
+`sheetpath` metadata. Optional rules use this format:
+
+```text
+Display Name | /native/sheet/path/* | reference wildcard
+```
+
+Rules are evaluated from top to bottom and both filters must match. Examples:
+
+```text
+Channel 1 Power | /Power/Channel1/* | *
+Control MCU | * | U1
+Connector Sheets | /Interfaces/* | J*
+```
+
+The resolved sheet name and native path are included in TM/TC, test-point,
+connector, peripheral, and component exports.
 
 ```bash
 # Basic extraction - all J* connectors to CSV

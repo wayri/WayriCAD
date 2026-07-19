@@ -47,6 +47,15 @@ class InterfaceSignal:
     boards_seen: List[str] = field(default_factory=list)
 
 
+@dataclass
+class SheetDefinition:
+    """User-defined display information for a hierarchical schematic sheet."""
+
+    name: str
+    path_pattern: str = "*"
+    reference_pattern: str = "*"
+
+
 class SchematicGraphParser:
     """
     Construct and query a KiCad connectivity graph.
@@ -67,6 +76,7 @@ class SchematicGraphParser:
         schematic_paths: Optional[Sequence[str]] = None,
         board_sequence: Optional[Sequence[str]] = None,
         pass_through_field: str = "NetTie_Path",
+        sheet_definitions: Optional[Sequence[Any]] = None,
     ) -> None:
         if nx is None:
             raise ImportError(
@@ -78,6 +88,7 @@ class SchematicGraphParser:
         self.schematic_paths = list(schematic_paths or [])
         self.board_sequence = [b.strip().upper() for b in (board_sequence or []) if b.strip()]
         self.pass_through_field = pass_through_field
+        self.sheet_definitions = self._normalize_sheet_definitions(sheet_definitions or [])
         self.graph = nx.Graph()
         self.components: Dict[str, Dict[str, Any]] = {}
         self.net_to_pins: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
@@ -136,10 +147,24 @@ class SchematicGraphParser:
                 field.attrib.get("name", ""): (field.text or "")
                 for field in comp.findall("./fields/field")
             }
+            sheet_path_node = comp.find("./sheetpath")
+            native_sheet_path = (
+                sheet_path_node.attrib.get("names", "")
+                if sheet_path_node is not None
+                else ""
+            )
+            sheet = self.resolve_sheet(ref, native_sheet_path)
             comp_meta[ref] = {
                 "value": (comp.findtext("value") or ""),
                 "footprint": (comp.findtext("footprint") or ""),
                 "datasheet": (comp.findtext("datasheet") or ""),
+                "sheet_name": sheet["name"],
+                "sheet_path": sheet["path"],
+                "sheet_tstamps": (
+                    sheet_path_node.attrib.get("tstamps", "")
+                    if sheet_path_node is not None
+                    else ""
+                ),
                 **fields,
             }
             self._ensure_component(ref, comp_meta[ref])
@@ -160,11 +185,15 @@ class SchematicGraphParser:
         for fp in board.GetFootprints():
             ref = fp.GetReference()
             fields = self._get_footprint_fields(fp)
+            native_sheet_path = fields.get("SheetPath", "") or fields.get("Sheet Path", "")
+            sheet = self.resolve_sheet(ref, native_sheet_path)
             meta = {
                 "reference": ref,
                 "value": fp.GetValue(),
                 "footprint": str(fp.GetFPID()),
                 "layer": fp.GetLayerName(),
+                "sheet_name": sheet["name"],
+                "sheet_path": sheet["path"],
                 **fields,
             }
             self._ensure_component(ref, meta)
@@ -401,6 +430,75 @@ class SchematicGraphParser:
             for net_name in nets:
                 rows.append({"reference": ref, "pin": pin, "net": net_name})
         return sorted(rows, key=lambda r: self.natural_sort_key(r["pin"]))
+
+    def resolve_sheet(self, ref: str, native_path: str = "") -> Dict[str, str]:
+        """Resolve a component to a user alias while preserving its native path."""
+        path = self._normalize_sheet_path(native_path)
+        for definition in self.sheet_definitions:
+            path_matches = (
+                definition.path_pattern in {"", "*"}
+                or wildcard_match(path, self._normalize_sheet_path(definition.path_pattern))
+            )
+            ref_matches = (
+                definition.reference_pattern in {"", "*"}
+                or wildcard_match(ref, definition.reference_pattern)
+            )
+            if path_matches and ref_matches:
+                return {"name": definition.name, "path": path}
+
+        segments = [segment for segment in path.split("/") if segment]
+        return {"name": segments[-1] if segments else "Root", "path": path}
+
+    def get_component_sheet(self, ref: str) -> Dict[str, str]:
+        if not ref:
+            return {"name": "", "path": ""}
+        meta = self.components.get(ref, {})
+        path = self._normalize_sheet_path(str(meta.get("sheet_path", "")))
+        return {
+            "name": str(meta.get("sheet_name", "") or self.resolve_sheet(ref, path)["name"]),
+            "path": path,
+        }
+
+    def sheet_summary(self) -> List[Dict[str, Any]]:
+        """Return resolved sheet counts for UI preview and documentation."""
+        grouped: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+        for ref in self.components:
+            sheet = self.get_component_sheet(ref)
+            grouped[(sheet["name"], sheet["path"])].append(ref)
+        return [
+            {
+                "Sheet": name,
+                "Path": path,
+                "Components": len(refs),
+                "References": ", ".join(sorted(refs, key=self.natural_sort_key)),
+            }
+            for (name, path), refs in sorted(grouped.items())
+        ]
+
+    @staticmethod
+    def _normalize_sheet_path(path: str) -> str:
+        value = str(path or "").replace("\\", "/").strip()
+        if not value or value == "/":
+            return "/"
+        return "/" + value.strip("/") + "/"
+
+    @staticmethod
+    def _normalize_sheet_definitions(definitions: Sequence[Any]) -> List[SheetDefinition]:
+        normalized: List[SheetDefinition] = []
+        for item in definitions:
+            if isinstance(item, SheetDefinition):
+                definition = item
+            elif isinstance(item, dict):
+                definition = SheetDefinition(
+                    name=str(item.get("name", "")).strip(),
+                    path_pattern=str(item.get("path_pattern", "*")).strip() or "*",
+                    reference_pattern=str(item.get("reference_pattern", "*")).strip() or "*",
+                )
+            else:
+                continue
+            if definition.name:
+                normalized.append(definition)
+        return normalized
 
     def _infer_bus_name(self, net_name: str) -> str:
         match = re.search(r"\b(I2C|SPI|UART|CAN|USB|ETH|RS485|RS422|ADC|DAC|GPIO)\d*", net_name.upper())
