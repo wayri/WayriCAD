@@ -1,634 +1,554 @@
 #!/usr/bin/env python3
-# cli.py
+"""KiWay command line interface.
+
+The CLI is intentionally built on KiWay core modules that do not import wx or
+pcbnew. Commands that need an open PCB load pcbnew only inside the adapter
+function, so XML/netlist, cross-project, validation, reporting, and benchmark
+workflows run in normal Python.
 """
-Command-Line Interface for KiWay Extract Pins Plugin.
-Provides full access to all plugin features from the command line.
 
-@author - Wayri (Yawar)
-@version - 2.0.0
-
-Usage:
-    python -m extract_pins_plugin <command> [options] <pcb_file>
-
-Wildcard Support:
-    All reference and filter arguments support wildcards:
-    - * matches any sequence of characters
-    - ? matches any single character
-    - Multiple patterns can be comma-separated
-
-Examples:
-    # Extract pins from all J* connectors
-    python -m extract_pins_plugin extract --refs "J*" --format csv board.kicad_pcb
-
-    # Extract from multiple reference patterns
-    python -m extract_pins_plugin extract --refs "J*,U*,TP*" board.kicad_pcb
-
-    # Generate signal flow between connectors and ICs
-    python -m extract_pins_plugin signal-flow --source "J*" --dest "U*" board.kicad_pcb
-
-    # Generate IC signal chart as SVG diagram
-    python -m extract_pins_plugin ic-chart --ic "U1" --format svg board.kicad_pcb
-
-    # Filter by net name patterns
-    python -m extract_pins_plugin extract --refs "J*" --net-filter "SPI_*,I2C_*" board.kicad_pcb
-"""
+from __future__ import annotations
 
 import argparse
-import sys
+import csv
+import json
 import os
+import subprocess
+import sys
+import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+
+from .core.cross_linker import CrossProjectLinker, PinDocumentImporter, parse_link_rules
+from .core.diagram_generator import SVGDiagramGenerator
+from .core.doc_generator import DocGenerator
+from .core.schematic_graph import SchematicGraphParser
+
+VERSION = "2.9.0"
+EXIT_OK = 0
+EXIT_USAGE = 2
+EXIT_VALIDATION = 3
+EXIT_RUNTIME = 1
 
 
-def get_board(pcb_path: str):
-    """Load a KiCAD PCB file and return the board object."""
+class CliError(Exception):
+    """Expected CLI failure with a stable exit code."""
+
+    def __init__(self, message: str, exit_code: int = EXIT_RUNTIME, diagnostics: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+        self.diagnostics = diagnostics or {}
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not hasattr(args, "func"):
+        parser.print_help()
+        return EXIT_USAGE
+    try:
+        merged = merge_config(args)
+        return int(merged.func(merged) or EXIT_OK)
+    except CliError as exc:
+        emit_diagnostic("error", str(exc), args, exc.diagnostics)
+        return exc.exit_code
+    except Exception as exc:  # pragma: no cover - defensive CLI boundary
+        emit_diagnostic("error", str(exc), args, {"type": exc.__class__.__name__})
+        return EXIT_RUNTIME
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="kiway",
+        description="KiWay electrical systems CLI for KiCad projects, netlists, cross-linking, validation, reports, and benchmarks.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--version", action="version", version=f"KiWay {VERSION}")
+    parser.add_argument("--config", help="JSON configuration file. CLI flags override config values.")
+    parser.add_argument("--diagnostics", choices=("text", "json"), default="text", help="Diagnostic format on stderr.")
+    parser.add_argument("--quiet", action="store_true", help="Suppress non-error diagnostics.")
+    sub = parser.add_subparsers(dest="command", metavar="COMMAND")
+
+    add_inspect(sub)
+    add_extract(sub)
+    add_crosslink(sub)
+    add_validate(sub)
+    add_report(sub)
+    add_benchmark(sub)
+    add_test(sub)
+    add_legacy_board_commands(sub)
+    return parser
+
+
+def add_common_project_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("inputs", nargs="+", help="KiCad XML netlist files, .net files, or directories containing them.")
+    p.add_argument("--board-sequence", default="", help="Comma-separated board tokens used for TM/TC source/destination parsing.")
+    p.add_argument("--sheet-alias", action="append", default=[], help="Sheet alias rule: Name:path_glob:ref_glob. Repeatable.")
+    p.add_argument("-f", "--format", choices=("json", "csv", "md", "markdown", "html", "svg"), default="json")
+    p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
+
+
+def add_inspect(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("inspect", help="Inspect project/netlist structure without pcbnew.")
+    add_common_project_args(p)
+    p.add_argument("--include-pins", action="store_true", help="Include per-component pin rows.")
+    p.set_defaults(func=cmd_inspect)
+
+
+def add_extract(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("extract", help="Extract pins, connectors, test points, TM/TC rows, or interfaces.")
+    add_common_project_args(p)
+    p.add_argument("--kind", choices=("pins", "connectors", "testpoints", "tm-tc", "interfaces"), default="pins")
+    p.add_argument("--consolidate", action="store_true", help="Consolidate TM/TC rows by net.")
+    p.add_argument("--include-power", action="store_true", help="Include likely power nets where filtering applies.")
+    p.set_defaults(func=cmd_extract)
+
+
+def add_crosslink(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("crosslink", help="Link pins across imported CSV/Markdown project exports.")
+    p.add_argument("documents", nargs="+", help="CSV or Markdown pin documents.")
+    p.add_argument("--project", action="append", default=[], help="Project name for each document. Defaults to file stem.")
+    p.add_argument("--rules", default="", help="Inline rules: Name | wildcard/regex | source | destination.")
+    p.add_argument("--rules-file", help="File containing cross-link rules.")
+    p.add_argument("--no-exact", action="store_true", help="Disable exact matching.")
+    p.add_argument("--no-normalized", action="store_true", help="Disable normalized matching.")
+    p.add_argument("--include-power", action="store_true", help="Allow power-net links.")
+    p.add_argument("--max-links", type=int, default=50000, help="Safety limit for generated links.")
+    p.add_argument("-f", "--format", choices=("json", "csv", "md", "markdown", "html", "svg"), default="json")
+    p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
+    p.set_defaults(func=cmd_crosslink)
+
+
+def add_validate(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("validate", help="Run deterministic validation checks on project/netlist data and optional imports.")
+    add_common_project_args(p)
+    p.add_argument("--imports", nargs="*", default=[], help="Imported CSV/Markdown pin documents to cross-link and validate.")
+    p.add_argument("--require-tm-consumer", action="store_true", help="Fail if TM rows do not name a destination board.")
+    p.add_argument("--require-tc-origin", action="store_true", help="Fail if TC rows do not name a source board.")
+    p.set_defaults(func=cmd_validate)
+
+
+def add_report(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("report", help="Generate ICD Markdown/HTML/CSV/JSON/SVG reports.")
+    add_common_project_args(p)
+    p.add_argument("--title", default="KiWay Interface Control Document")
+    p.add_argument("--imports", nargs="*", default=[], help="Imported CSV/Markdown pin documents to include as cross-project tracker.")
+    p.add_argument("--rules", default="", help="Cross-link rules for imports.")
+    p.set_defaults(func=cmd_report)
+
+
+def add_benchmark(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("benchmark", help="Run non-flaky synthetic parser/linker benchmarks.")
+    p.add_argument("--nets", type=int, default=2000, help="Synthetic net count.")
+    p.add_argument("--boards", type=int, default=4, help="Synthetic board count.")
+    p.add_argument("--threshold-ms", type=int, default=2500, help="Warn/fail threshold for total benchmark time.")
+    p.add_argument("-f", "--format", choices=("json", "csv", "md", "markdown"), default="json")
+    p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
+    p.set_defaults(func=cmd_benchmark)
+
+
+def add_test(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("test", help="Run KiWay's automated test suite.")
+    p.add_argument("pytest_args", nargs="*", help="Additional unittest/pytest arguments.")
+    p.set_defaults(func=cmd_test)
+
+
+def add_legacy_board_commands(sub: argparse._SubParsersAction) -> None:
+    for name, help_text in (
+        ("board-extract", "Extract component/pin data from a .kicad_pcb using pcbnew."),
+        ("board-list", "List board components using pcbnew."),
+    ):
+        p = sub.add_parser(name, help=help_text)
+        p.add_argument("pcb", help="Path to .kicad_pcb")
+        p.add_argument("--refs", default="", help="Reference wildcard filter.")
+        p.add_argument("--net-filter", default="", help="Net wildcard filter.")
+        p.add_argument("--include-power", action="store_true", help="Include power nets.")
+        p.add_argument("-f", "--format", choices=("json", "csv", "md", "markdown"), default="json")
+        p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
+        p.set_defaults(func=cmd_board_list if name == "board-list" else cmd_board_extract)
+
+
+def merge_config(args: argparse.Namespace) -> argparse.Namespace:
+    config_path = getattr(args, "config", None)
+    if not config_path:
+        return args
+    try:
+        with open(config_path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except OSError as exc:
+        raise CliError(f"Cannot read config file: {exc}", EXIT_USAGE) from exc
+    except json.JSONDecodeError as exc:
+        raise CliError(f"Invalid JSON config: {exc}", EXIT_USAGE) from exc
+    command_config = {}
+    if isinstance(data, dict):
+        command_config.update(data.get("defaults", {}))
+        command_config.update(data.get(getattr(args, "command", ""), {}))
+    for key, value in command_config.items():
+        if hasattr(args, key) and getattr(args, key) in (None, "", [], False):
+            setattr(args, key, value)
+    return args
+
+
+def cmd_inspect(args: argparse.Namespace) -> int:
+    parser = load_parser(args)
+    rows = {
+        "inputs": sorted(expand_inputs(args.inputs)),
+        "component_count": len(parser.components),
+        "net_count": len(parser.net_to_pins),
+        "components": sorted(parser.components.values(), key=lambda row: SchematicGraphParser.natural_sort_key(row.get("reference", ""))),
+        "sheets": parser.sheet_summary(),
+        "interfaces": normalize_interfaces(parser.group_interfaces()),
+    }
+    if getattr(args, "include_pins", False):
+        rows["pins"] = all_pin_rows(parser)
+    return write_rows(rows, args.format, args.output, title="KiWay Inspect")
+
+
+def cmd_extract(args: argparse.Namespace) -> int:
+    parser = load_parser(args)
+    doc = DocGenerator()
+    if args.kind == "connectors":
+        rows: Any = doc.connector_rows_from_parser(parser)
+    elif args.kind == "testpoints":
+        from .core.test_point_extractor import TestPointExtractor
+
+        rows = TestPointExtractor(parser).as_rows()
+    elif args.kind == "tm-tc":
+        rows = doc.make_tm_tc_rows(parser, consolidate=args.consolidate)
+    elif args.kind == "interfaces":
+        rows = normalize_interfaces(parser.group_interfaces())
+    else:
+        rows = all_pin_rows(parser, include_power=args.include_power)
+    return write_rows(rows, args.format, args.output, title=f"KiWay {args.kind} Extract")
+
+
+def cmd_crosslink(args: argparse.Namespace) -> int:
+    documents = load_import_documents(args.documents, args.project)
+    rules = load_rules(args.rules, args.rules_file)
+    linker = CrossProjectLinker(documents)
+    links = linker.link(
+        rules,
+        exact_match=not args.no_exact,
+        normalized_match=not args.no_normalized,
+        include_power=args.include_power,
+        max_links=args.max_links,
+    )
+    if args.format == "svg":
+        return write_text(linker.harness_svg(links), args.output)
+    return write_rows(links, args.format, args.output, title="KiWay Cross-Project Pin Tracker")
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    parser = load_parser(args)
+    issues: List[Dict[str, Any]] = []
+    for ref, meta in parser.components.items():
+        if not parser.get_component_pin_nets(ref):
+            issues.append(issue("warning", "component-without-pins", f"{ref} has no connected pins", ref=ref))
+        if not meta.get("sheet_path"):
+            issues.append(issue("info", "missing-sheet-path", f"{ref} has no native sheet path", ref=ref))
+    doc = DocGenerator()
+    for row in doc.make_tm_tc_rows(parser, consolidate=True):
+        if args.require_tm_consumer and row.get("Type") in {"TM", "TA", "TD"} and not row.get("Destination Board"):
+            issues.append(issue("error", "tm-without-consumer", f"{row.get('Net Name')} has no destination board", net=row.get("Net Name")))
+        if args.require_tc_origin and row.get("Type") in {"TC", "CA", "CD"} and not row.get("Source Board"):
+            issues.append(issue("error", "tc-without-origin", f"{row.get('Net Name')} has no source board", net=row.get("Net Name")))
+    if args.imports:
+        cross_args = argparse.Namespace(
+            documents=args.imports,
+            project=[],
+            rules="",
+            rules_file=None,
+            no_exact=False,
+            no_normalized=False,
+            include_power=False,
+            max_links=50000,
+        )
+        documents = load_import_documents(cross_args.documents, cross_args.project)
+        links = CrossProjectLinker(documents).link()
+        if not links:
+            issues.append(issue("warning", "no-cross-project-links", "No imported project endpoints linked"))
+    result = {"status": "fail" if any(i["severity"] == "error" for i in issues) else "pass", "issue_count": len(issues), "issues": issues}
+    write_rows(result, args.format, args.output, title="KiWay Validation")
+    return EXIT_VALIDATION if result["status"] == "fail" else EXIT_OK
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    parser = load_parser(args)
+    doc = DocGenerator(args.title)
+    cross_links: List[Dict[str, str]] = []
+    if args.imports:
+        cross_links = CrossProjectLinker(load_import_documents(args.imports, [])).link(load_rules(args.rules, None))
+    markdown = doc.build_markdown(
+        tm_tc_rows=doc.make_tm_tc_rows(parser, consolidate=True),
+        test_point_rows=__import__("extract_pins_plugin.core.test_point_extractor", fromlist=["TestPointExtractor"]).TestPointExtractor(parser).as_rows(),
+        interface_maps=parser.group_interfaces(),
+        connector_rows=doc.connector_rows_from_parser(parser),
+        peripheral_rows=doc.peripheral_rows_from_parser(parser),
+        cross_link_rows=cross_links,
+    )
+    if args.format == "html":
+        html_path = args.output or "kiway_report.html"
+        doc.export_html(markdown, html_path)
+        return EXIT_OK
+    if args.format == "csv":
+        return write_rows(doc.make_tm_tc_rows(parser), "csv", args.output, title=args.title)
+    if args.format == "json":
+        return write_rows({"markdown": markdown, "cross_links": cross_links}, "json", args.output, title=args.title)
+    if args.format == "svg":
+        svg = SVGDiagramGenerator().generate_interface_block_diagram(parser.group_interfaces(), title=args.title)
+        return write_text(svg, args.output)
+    return write_text(markdown, args.output)
+
+
+def cmd_benchmark(args: argparse.Namespace) -> int:
+    start = time.perf_counter()
+    docs = synthetic_documents(args.boards, args.nets)
+    build_ms = (time.perf_counter() - start) * 1000
+    link_start = time.perf_counter()
+    links = CrossProjectLinker(docs).link(exact_match=True, normalized_match=False, include_power=False, max_links=max(args.nets * args.boards, 50000))
+    link_ms = (time.perf_counter() - link_start) * 1000
+    total_ms = (time.perf_counter() - start) * 1000
+    result = {
+        "boards": args.boards,
+        "nets": args.nets,
+        "links": len(links),
+        "build_ms": round(build_ms, 3),
+        "link_ms": round(link_ms, 3),
+        "total_ms": round(total_ms, 3),
+        "threshold_ms": args.threshold_ms,
+        "status": "pass" if total_ms <= args.threshold_ms else "warn",
+    }
+    write_rows(result, args.format, args.output, title="KiWay Benchmark")
+    return EXIT_OK
+
+
+def cmd_test(args: argparse.Namespace) -> int:
+    command = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"] + list(args.pytest_args)
+    return subprocess.call(command)
+
+
+def cmd_board_extract(args: argparse.Namespace) -> int:
+    from .core.board_extract import extract_board_pin_rows
+
+    board = load_board(args.pcb)
+    rows = extract_board_pin_rows(board, reference_filter=args.refs, net_filter=args.net_filter, include_power=args.include_power)
+    return write_rows(rows, args.format, args.output, title="KiWay Board Extract")
+
+
+def cmd_board_list(args: argparse.Namespace) -> int:
+    board = load_board(args.pcb)
+    rows = []
+    for fp in board.GetFootprints():
+        rows.append({"Reference": fp.GetReference(), "Value": fp.GetValue(), "Footprint": str(fp.GetFPID()), "Layer": fp.GetLayerName()})
+    return write_rows(sorted(rows, key=lambda r: SchematicGraphParser.natural_sort_key(r["Reference"])), args.format, args.output, title="KiWay Board Components")
+
+
+def load_parser(args: argparse.Namespace) -> SchematicGraphParser:
+    inputs = expand_inputs(args.inputs)
+    if not inputs:
+        raise CliError("No XML/.net inputs found", EXIT_USAGE)
+    parser = SchematicGraphParser(
+        schematic_paths=inputs,
+        board_sequence=split_csv(getattr(args, "board_sequence", "")),
+        sheet_definitions=parse_sheet_aliases(getattr(args, "sheet_alias", [])),
+    )
+    parser.build()
+    return parser
+
+
+def expand_inputs(inputs: Sequence[str]) -> List[str]:
+    paths: List[str] = []
+    for item in inputs:
+        path = Path(item)
+        if path.is_dir():
+            paths.extend(str(p) for p in sorted(path.rglob("*")) if p.suffix.lower() in {".xml", ".net"})
+        elif path.is_file():
+            paths.append(str(path))
+    return sorted(dict.fromkeys(paths))
+
+
+def parse_sheet_aliases(values: Sequence[str]) -> List[Dict[str, str]]:
+    rules = []
+    for value in values or []:
+        parts = [p.strip() for p in str(value).split(":", 2)]
+        if len(parts) != 3:
+            raise CliError("--sheet-alias must be Name:path_glob:ref_glob", EXIT_USAGE)
+        rules.append({"name": parts[0], "path_pattern": parts[1], "reference_pattern": parts[2]})
+    return rules
+
+
+def all_pin_rows(parser: SchematicGraphParser, include_power: bool = True) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for ref, meta in sorted(parser.components.items(), key=lambda item: parser.natural_sort_key(item[0])):
+        sheet = parser.get_component_sheet(ref)
+        for pin in parser.get_component_pin_nets(ref):
+            net_name = pin["net"]
+            if not include_power and CrossProjectLinker._is_power_endpoint(  # type: ignore[attr-defined]
+                PinDocumentImporter().endpoints_from_rows([{"Reference": ref, "Pin": pin["pin"], "Net Name": net_name}], "local", "local")[0]
+            ):
+                continue
+            parsed = parser.parse_interface_label(net_name)
+            rows.append(
+                {
+                    "Reference": ref,
+                    "Value": meta.get("value", ""),
+                    "Kind": meta.get("kind", ""),
+                    "Sheet": sheet["name"],
+                    "Sheet Path": sheet["path"],
+                    "Pin": pin["pin"],
+                    "Pin Function": parser.pin_functions.get((ref, pin["pin"]), ""),
+                    "Net Name": net_name,
+                    "Source Board": parsed.source_board,
+                    "Destination Board": parsed.destination_board,
+                    "Interface": parsed.interface,
+                    "Signal": parsed.signal,
+                    "TM/TC Type": parsed.tm_tc_type,
+                }
+            )
+    return rows
+
+
+def normalize_interfaces(interfaces: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    rows = []
+    for name, data in sorted(interfaces.items()):
+        rows.append(
+            {
+                "Interface": name,
+                "Source Board": data.get("source_board", ""),
+                "Destination Board": data.get("destination_board", ""),
+                "Net Count": len(data.get("nets", [])),
+                "Nets": ", ".join(data.get("nets", [])),
+                "TM/TC Types": ", ".join(data.get("tm_tc_types", [])),
+                "Diff Pairs": json.dumps(data.get("diff_pairs", []), sort_keys=True),
+            }
+        )
+    return rows
+
+
+def load_import_documents(paths: Sequence[str], projects: Sequence[str]) -> List[Any]:
+    importer = PinDocumentImporter()
+    documents = []
+    for index, path in enumerate(paths):
+        project = projects[index] if index < len(projects) else Path(path).stem
+        documents.append(importer.load(path, project))
+    return documents
+
+
+def load_rules(inline: str = "", path: Optional[str] = None) -> List[Any]:
+    text = inline or ""
+    if path:
+        with open(path, "r", encoding="utf-8") as handle:
+            text = text + "\n" + handle.read()
+    return parse_link_rules(text) if text.strip() else []
+
+
+def synthetic_documents(boards: int, nets: int) -> List[Any]:
+    importer = PinDocumentImporter()
+    docs = []
+    for board_index in range(boards):
+        rows = [
+            {"Reference": f"J{net_index + 1}", "Pin": str(net_index + 1), "Net Name": f"SIG_{net_index:05d}"}
+            for net_index in range(nets)
+        ]
+        project = f"BOARD{board_index + 1}"
+        docs.append(importer.endpoints_from_rows(rows, project, f"{project}.csv"))
+        docs[-1] = __import__("extract_pins_plugin.core.cross_linker", fromlist=["ImportedPinDocument"]).ImportedPinDocument(project, f"{project}.csv", docs[-1])
+    return docs
+
+
+def write_rows(data: Any, fmt: str, output: Optional[str], title: str = "KiWay") -> int:
+    fmt = "md" if fmt == "markdown" else fmt
+    if fmt == "json":
+        return write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", output)
+    if isinstance(data, dict):
+        rows = data.get("issues") if "issues" in data else [data]
+    else:
+        rows = list(data)
+    if fmt == "csv":
+        return write_text(to_csv(rows), output)
+    if fmt == "html":
+        markdown = to_markdown(rows, title)
+        path = output or "kiway_report.html"
+        DocGenerator(title).export_html(markdown, path)
+        return EXIT_OK
+    if fmt == "svg":
+        return write_text(SVGDiagramGenerator().generate_interface_block_diagram({row.get("Interface", "Rows"): {"nets": split_csv(row.get("Nets", ""))} for row in rows}, title), output)
+    return write_text(to_markdown(rows, title), output)
+
+
+def write_text(text: str, output: Optional[str]) -> int:
+    if output:
+        path = Path(output)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    else:
+        sys.stdout.write(text)
+    return EXIT_OK
+
+
+def to_csv(rows: Sequence[Dict[str, Any]]) -> str:
+    if not rows:
+        return ""
+    headers = ordered_headers(rows)
+    from io import StringIO
+
+    buf = StringIO()
+    writer = csv.DictWriter(buf, fieldnames=headers, lineterminator="\n")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({h: row.get(h, "") for h in headers})
+    return buf.getvalue()
+
+
+def to_markdown(rows: Sequence[Dict[str, Any]], title: str) -> str:
+    lines = [f"# {title}", ""]
+    if not rows:
+        return "\n".join(lines + ["No entries found.", ""])
+    headers = ordered_headers(rows)
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("|" + "|".join(["---"] * len(headers)) + "|")
+    for row in rows:
+        lines.append("| " + " | ".join(str(row.get(h, "")).replace("|", "\\|").replace("\n", " ") for h in headers) + " |")
+    return "\n".join(lines) + "\n"
+
+
+def ordered_headers(rows: Sequence[Dict[str, Any]]) -> List[str]:
+    headers: List[str] = []
+    for row in rows:
+        for key in row:
+            if key not in headers:
+                headers.append(key)
+    return headers
+
+
+def load_board(pcb_path: str) -> Any:
     try:
         import pcbnew
-    except ImportError:
-        print("Error: pcbnew module not found. Run this from within KiCAD's Python environment.", file=sys.stderr)
-        print("       Or add KiCAD's Python path to PYTHONPATH.", file=sys.stderr)
-        sys.exit(1)
-    
+    except ImportError as exc:
+        raise CliError("pcbnew is not available. Run board commands from KiCad Python or use XML/netlist commands.", EXIT_USAGE) from exc
     if not os.path.exists(pcb_path):
-        print(f"Error: PCB file not found: {pcb_path}", file=sys.stderr)
-        sys.exit(1)
-    
-    try:
-        board = pcbnew.LoadBoard(pcb_path)
-        return board
-    except Exception as e:
-        print(f"Error loading PCB file: {e}", file=sys.stderr)
-        sys.exit(1)
+        raise CliError(f"PCB file not found: {pcb_path}", EXIT_USAGE)
+    return pcbnew.LoadBoard(pcb_path)
 
 
-def write_output(content: str, output_path: Optional[str], format_type: str):
-    """Write output to file or stdout."""
-    if output_path:
-        # Ensure correct extension
-        ext_map = {'csv': '.csv', 'md': '.md', 'markdown': '.md', 'json': '.json', 'svg': '.svg'}
-        expected_ext = ext_map.get(format_type.lower(), '')
-        
-        path = Path(output_path)
-        if expected_ext and path.suffix.lower() != expected_ext:
-            output_path = str(path.with_suffix(expected_ext))
-        
-        try:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            print(f"Output written to: {output_path}", file=sys.stderr)
-        except Exception as e:
-            print(f"Error writing output file: {e}", file=sys.stderr)
-            sys.exit(1)
+def split_csv(value: Any) -> List[str]:
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    return [part.strip() for part in str(value or "").split(",") if part.strip()]
+
+
+def issue(severity: str, code: str, message: str, **extra: Any) -> Dict[str, Any]:
+    return {"severity": severity, "code": code, "message": message, **extra}
+
+
+def emit_diagnostic(level: str, message: str, args: argparse.Namespace, data: Optional[Dict[str, Any]] = None) -> None:
+    if getattr(args, "quiet", False) and level != "error":
+        return
+    if getattr(args, "diagnostics", "text") == "json":
+        print(json.dumps({"level": level, "message": message, "data": data or {}}, sort_keys=True), file=sys.stderr)
     else:
-        # Write to stdout
-        print(content)
+        print(f"kiway: {level}: {message}", file=sys.stderr)
 
 
-def expand_refs(extractor, refs_str: str) -> List[str]:
-    """
-    Expand a comma-separated reference pattern string into actual reference designators.
-    Supports wildcards: * (any chars), ? (single char)
-    """
-    if not refs_str:
-        return []
-    
-    patterns = [p.strip() for p in refs_str.split(',') if p.strip()]
-    expanded = []
-    
-    for pattern in patterns:
-        if '*' in pattern or '?' in pattern:
-            # It's a wildcard pattern
-            fps = extractor.get_footprints_by_reference_pattern(pattern)
-            expanded.extend([fp.GetReference() for fp in fps])
-        else:
-            # Exact reference
-            expanded.append(pattern)
-    
-    # Remove duplicates while preserving order
-    seen = set()
-    result = []
-    for ref in expanded:
-        if ref not in seen:
-            seen.add(ref)
-            result.append(ref)
-    
-    return result
-
-
-def get_footprints_from_args(extractor, args) -> list:
-    """
-    Get footprints based on command arguments with full wildcard support.
-    Handles --refs, --connector-types, and applies filters.
-    """
-    footprints = []
-    
-    if hasattr(args, 'refs') and args.refs:
-        # Reference pattern(s) - supports wildcards and comma-separation
-        patterns = [p.strip() for p in args.refs.split(',') if p.strip()]
-        for pattern in patterns:
-            footprints.extend(extractor.get_footprints_by_reference_pattern(pattern))
-    
-    if hasattr(args, 'connector_types') and args.connector_types:
-        # Connector type(s) - supports wildcards
-        types = [t.strip() for t in args.connector_types.split(',') if t.strip()]
-        footprints.extend(extractor.get_footprints_by_connector_type(types))
-    
-    if not footprints and not (hasattr(args, 'refs') and args.refs) and not (hasattr(args, 'connector_types') and args.connector_types):
-        # No filters specified, use all footprints
-        footprints = extractor.footprints
-    
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_footprints = []
-    for fp in footprints:
-        ref = fp.GetReference()
-        if ref not in seen:
-            seen.add(ref)
-            unique_footprints.append(fp)
-    
-    return unique_footprints
-
-
-def cmd_extract(args):
-    """Handle the 'extract' command - extract component/pin data."""
-    from .core.data_extractor import DataExtractor
-    from .core.formatters import get_formatter
-    
-    board = get_board(args.pcb)
-    extractor = DataExtractor(board)
-    
-    # Get footprints with wildcard support
-    footprints = get_footprints_from_args(extractor, args)
-    
-    # Extract data with filters (all support wildcards)
-    data = extractor.extract_footprint_data(
-        footprints,
-        ignore_unconnected=args.ignore_unconnected,
-        ignore_free_pins=args.ignore_free,
-        ignore_power_nets=getattr(args, 'ignore_power', False),
-        value_filter=args.value_filter,  # Supports wildcards
-        net_filter=args.net_filter,  # Supports wildcards, comma-separated
-        sort_pins_by_net_type=getattr(args, 'sort_by_net_type', False)
-    )
-    
-    if not data:
-        print("No components found matching the criteria.", file=sys.stderr)
-        sys.exit(0)
-    
-    # Format output
-    formatter = get_formatter(args.format, highlight_nets=args.highlight)
-    
-    properties = None
-    if args.columns:
-        properties = [c.strip() for c in args.columns.split(',')]
-    
-    output = formatter.format_component_data(
-        data,
-        include_properties=properties,
-        include_pins=not args.no_pins
-    )
-    
-    write_output(output, args.output, args.format)
-
-
-def cmd_unique_nets(args):
-    """Handle the 'unique-nets' command - extract unique net names."""
-    from .core.data_extractor import DataExtractor
-    from .core.formatters import get_formatter
-    
-    board = get_board(args.pcb)
-    extractor = DataExtractor(board)
-    
-    # Get footprints with wildcard support
-    footprints = get_footprints_from_args(extractor, args)
-    
-    # Extract unique nets (net_filter supports wildcards)
-    nets = extractor.extract_unique_nets(
-        footprints,
-        ignore_unconnected=args.ignore_unconnected,
-        ignore_free_pins=args.ignore_free,
-        ignore_power_nets=getattr(args, 'ignore_power', False),
-        net_filter=args.net_filter,  # Supports wildcards, comma-separated
-        sort_by_type=getattr(args, 'sort_by_type', False)
-    )
-    
-    # Format output
-    formatter = get_formatter(args.format)
-    output = formatter.format_unique_nets(nets)
-    
-    write_output(output, args.output, args.format)
-
-
-def cmd_signal_flow(args):
-    """Handle the 'signal-flow' command - generate source/destination table."""
-    from .core.data_extractor import DataExtractor
-    from .core.signal_flow import SignalFlowAnalyzer
-    from .core.formatters import get_formatter
-    from .core.diagram_generator import SVGDiagramGenerator
-    
-    board = get_board(args.pcb)
-    extractor = DataExtractor(board)
-    analyzer = SignalFlowAnalyzer(extractor)
-    
-    # Expand source and destination refs (full wildcard support)
-    expanded_sources = expand_refs(extractor, args.source)
-    expanded_dests = expand_refs(extractor, args.dest)
-    
-    if not expanded_sources:
-        print(f"No components found matching source pattern: {args.source}", file=sys.stderr)
-        sys.exit(1)
-    
-    if not expanded_dests:
-        print(f"No components found matching destination pattern: {args.dest}", file=sys.stderr)
-        sys.exit(1)
-    
-    # Generate signal flow table
-    data = analyzer.generate_source_destination_table(
-        expanded_sources,
-        expanded_dests,
-        include_intermediates=args.intermediates
-    )
-    
-    if not data:
-        print("No signal connections found between specified components.", file=sys.stderr)
-        sys.exit(0)
-    
-    # Handle SVG output
-    if args.format == 'svg':
-        diagram_gen = SVGDiagramGenerator()
-        output = diagram_gen.generate_signal_flow_diagram(
-            data,
-            title=f"Signal Flow: {args.source} → {args.dest}"
-        )
-    else:
-        formatter = get_formatter(args.format, highlight_nets=args.highlight)
-        output = formatter.format_signal_flow(data)
-    
-    write_output(output, args.output, args.format)
-
-
-def cmd_ic_chart(args):
-    """Handle the 'ic-chart' command - generate IC signal chart."""
-    from .core.data_extractor import DataExtractor
-    from .core.signal_flow import SignalFlowAnalyzer
-    from .core.formatters import get_formatter
-    from .core.diagram_generator import SVGDiagramGenerator
-    
-    board = get_board(args.pcb)
-    extractor = DataExtractor(board)
-    analyzer = SignalFlowAnalyzer(extractor)
-    
-    # Expand IC reference (supports wildcards for batch processing)
-    ic_refs = expand_refs(extractor, args.ic)
-    
-    if not ic_refs:
-        print(f"No IC found matching pattern: {args.ic}", file=sys.stderr)
-        sys.exit(1)
-    
-    # Parse power net patterns if provided (comma-separated wildcards)
-    power_patterns = None
-    if args.power_nets:
-        power_patterns = [p.strip() for p in args.power_nets.split(',') if p.strip()]
-    
-    all_outputs = []
-    
-    for ic_ref in ic_refs:
-        # Generate IC signal chart
-        data = analyzer.generate_ic_signal_chart(
-            ic_ref,
-            include_power_nets=args.include_power,
-            power_net_patterns=power_patterns
-        )
-        
-        if not data:
-            print(f"No data found for IC: {ic_ref}", file=sys.stderr)
-            continue
-        
-        # Get IC value for diagram title
-        ic_fp = extractor.get_footprint_by_reference(ic_ref)
-        ic_value = ic_fp.GetValue() if ic_fp else ""
-        
-        # Handle SVG output
-        if args.format == 'svg':
-            diagram_gen = SVGDiagramGenerator()
-            output = diagram_gen.generate_ic_signal_chart(
-                ic_ref,
-                ic_value,
-                data,
-                title=f"Signal Chart: {ic_ref}"
-            )
-        else:
-            formatter = get_formatter(args.format, highlight_nets=args.highlight)
-            output = formatter.format_signal_flow(data)
-        
-        all_outputs.append(output)
-    
-    if not all_outputs:
-        print("No IC data generated.", file=sys.stderr)
-        sys.exit(0)
-    
-    # Combine outputs
-    if args.format == 'svg':
-        # For SVG, write each to separate file if output specified
-        if args.output and len(ic_refs) > 1:
-            base_path = Path(args.output)
-            for i, (ic_ref, output) in enumerate(zip(ic_refs, all_outputs)):
-                out_path = base_path.with_stem(f"{base_path.stem}_{ic_ref}")
-                write_output(output, str(out_path), args.format)
-        else:
-            write_output(all_outputs[0], args.output, args.format)
-    else:
-        combined = "\n\n".join(all_outputs)
-        write_output(combined, args.output, args.format)
-
-
-def cmd_diagram(args):
-    """Handle the 'diagram' command - generate block diagram for components."""
-    from .core.data_extractor import DataExtractor
-    from .core.diagram_generator import SVGDiagramGenerator
-    
-    board = get_board(args.pcb)
-    extractor = DataExtractor(board)
-    
-    # Expand refs with wildcard support
-    refs = expand_refs(extractor, args.refs)
-    
-    if not refs:
-        print(f"No components found matching pattern: {args.refs}", file=sys.stderr)
-        sys.exit(1)
-    
-    diagram_gen = SVGDiagramGenerator()
-    all_outputs = []
-    
-    for ref in refs:
-        # Get component data
-        fp = extractor.get_footprint_by_reference(ref)
-        if not fp:
-            continue
-        
-        # Extract pin data
-        data = extractor.extract_footprint_data(
-            [fp],
-            ignore_unconnected=args.ignore_unconnected,
-            ignore_free_pins=args.ignore_free,
-            sort_pins_by_net_type=True
-        )
-        
-        if ref not in data:
-            continue
-        
-        comp_data = data[ref]
-        pins = comp_data.get('pins', [])
-        value = comp_data['general_properties'].get('Value', '')
-        
-        output = diagram_gen.generate_component_block(ref, value, pins)
-        all_outputs.append((ref, output))
-    
-    if not all_outputs:
-        print("No diagram generated.", file=sys.stderr)
-        sys.exit(0)
-    
-    # Write outputs
-    if args.output and len(all_outputs) > 1:
-        base_path = Path(args.output)
-        for ref, output in all_outputs:
-            out_path = base_path.with_stem(f"{base_path.stem}_{ref}")
-            write_output(output, str(out_path), 'svg')
-    elif all_outputs:
-        write_output(all_outputs[0][1], args.output, 'svg')
-
-
-def cmd_find_path(args):
-    """Handle the 'find-path' command - find signal paths between components."""
-    from .core.data_extractor import DataExtractor
-    from .core.signal_flow import SignalFlowAnalyzer
-    from .core.formatters import get_formatter
-    
-    board = get_board(args.pcb)
-    extractor = DataExtractor(board)
-    analyzer = SignalFlowAnalyzer(extractor)
-    
-    # Find paths
-    paths = analyzer.find_signal_path(
-        args.start,
-        args.end,
-        max_hops=args.max_hops
-    )
-    
-    if not paths:
-        print(f"No paths found between {args.start} and {args.end}.", file=sys.stderr)
-        sys.exit(0)
-    
-    # Format output based on format type
-    if args.format == 'json':
-        import json
-        output = json.dumps({"paths": paths, "path_count": len(paths)}, indent=2)
-    else:
-        lines = [f"# Signal Paths: {args.start} → {args.end}", ""]
-        lines.append(f"Found {len(paths)} path(s)")
-        lines.append("")
-        
-        for i, path in enumerate(paths, 1):
-            lines.append(f"## Path {i} ({len(path)} hop(s))")
-            lines.append("")
-            
-            if args.format == 'csv':
-                lines.append("From,From Pin,Net,To,To Pin")
-                for hop in path:
-                    lines.append(f"{hop['From Reference']},{hop['From Pin']},{hop['Net Name']},{hop['To Reference']},{hop['To Pin']}")
-            else:
-                lines.append("| From | Pin | Net | To | Pin |")
-                lines.append("|------|-----|-----|-----|-----|")
-                for hop in path:
-                    lines.append(f"| {hop['From Reference']} | {hop['From Pin']} | {hop['Net Name']} | {hop['To Reference']} | {hop['To Pin']} |")
-            
-            lines.append("")
-        
-        output = "\n".join(lines)
-    
-    write_output(output, args.output, args.format)
-
-
-def cmd_list(args):
-    """Handle the 'list' command - list components on board."""
-    from .core.data_extractor import DataExtractor
-    
-    board = get_board(args.pcb)
-    extractor = DataExtractor(board)
-    
-    # Get footprints with wildcard support
-    footprints = get_footprints_from_args(extractor, args)
-    
-    # Sort by reference
-    footprints = sorted(footprints, key=lambda fp: extractor.natural_sort_key(fp.GetReference()))
-    
-    if args.format == 'json':
-        import json
-        components = []
-        for fp in footprints:
-            components.append({
-                "reference": fp.GetReference(),
-                "value": fp.GetValue(),
-                "footprint": str(fp.GetFPID()),
-                "connector_type": extractor.get_footprint_property(fp, "connector-type") or ""
-            })
-        output = json.dumps({"components": components, "count": len(components)}, indent=2)
-    elif args.format == 'csv':
-        lines = ["Reference,Value,Footprint,Connector Type"]
-        for fp in footprints:
-            ref = fp.GetReference()
-            val = fp.GetValue()
-            fpn = str(fp.GetFPID())
-            ct = extractor.get_footprint_property(fp, "connector-type") or ""
-            # Escape quotes in CSV
-            lines.append(f'"{ref}","{val}","{fpn}","{ct}"')
-        output = "\n".join(lines)
-    else:
-        lines = ["# Components on Board", "", f"Total: {len(footprints)}", ""]
-        lines.append("| Reference | Value | Footprint | Connector Type |")
-        lines.append("|-----------|-------|-----------|----------------|")
-        for fp in footprints:
-            ref = fp.GetReference()
-            val = fp.GetValue()
-            fpn = str(fp.GetFPID())
-            ct = extractor.get_footprint_property(fp, "connector-type") or ""
-            lines.append(f"| {ref} | {val} | {fpn} | {ct} |")
-        output = "\n".join(lines)
-    
-    write_output(output, args.output, args.format)
-
-
-def main():
-    """Main entry point for CLI."""
-    parser = argparse.ArgumentParser(
-        prog='kiway',
-        description='KiWay Extract Pins - Extract component data and analyze signal flow from KiCAD PCB files.',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Wildcard Patterns:
-  * matches any characters (e.g., "J*" matches J1, J2, J10, JCONN1)
-  ? matches single character (e.g., "J?" matches J1, J2 but not J10)
-  Comma-separate multiple patterns (e.g., "J*,U*,TP*")
-
-Examples:
-  kiway extract --refs "J*" --format csv board.kicad_pcb
-  kiway extract --refs "J*,P*" --net-filter "SPI_*,I2C_*" board.kicad_pcb
-  kiway signal-flow --source "J*" --dest "U*" --format md board.kicad_pcb
-  kiway ic-chart --ic "U1" --format svg board.kicad_pcb
-  kiway diagram --refs "U1,U2,U3" board.kicad_pcb
-  kiway unique-nets --refs "J*" --sort-by-type board.kicad_pcb
-  kiway list --refs "U*" board.kicad_pcb
-        """
-    )
-    
-    parser.add_argument('--version', action='version', version='KiWay 2.0.0')
-    
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
-    
-    # Common arguments
-    def add_common_args(p, include_svg=False):
-        p.add_argument('pcb', help='Path to KiCAD PCB file (.kicad_pcb)')
-        p.add_argument('-o', '--output', help='Output file path (stdout if not specified)')
-        formats = ['csv', 'md', 'markdown', 'json']
-        if include_svg:
-            formats.append('svg')
-        p.add_argument('-f', '--format', choices=formats,
-                       default='csv', help='Output format (default: csv)')
-    
-    def add_filter_args(p):
-        p.add_argument('--refs', help='Reference pattern(s), comma-separated with wildcards (e.g., "J*,U*")')
-        p.add_argument('--connector-types', help='Connector type(s), comma-separated with wildcards')
-        p.add_argument('--value-filter', help='Filter by component value (wildcards supported)')
-        p.add_argument('--net-filter', help='Filter by net name (wildcards, comma-separated)')
-        p.add_argument('--ignore-unconnected', action='store_true',
-                       help='Ignore pins with "unconnected" net name')
-        p.add_argument('--ignore-free', action='store_true',
-                       help='Ignore pins with no assigned net')
-        p.add_argument('--ignore-power', action='store_true',
-                       help='Ignore power/ground nets')
-    
-    # Extract command
-    extract_parser = subparsers.add_parser('extract', help='Extract component and pin data')
-    add_common_args(extract_parser)
-    add_filter_args(extract_parser)
-    extract_parser.add_argument('--columns', help='Columns to include, comma-separated')
-    extract_parser.add_argument('--no-pins', action='store_true', help='Exclude pin details')
-    extract_parser.add_argument('--highlight', action='store_true',
-                                help='Highlight nets in markdown output')
-    extract_parser.add_argument('--sort-by-net-type', action='store_true',
-                                help='Sort pins with signals first, power/ground last')
-    extract_parser.set_defaults(func=cmd_extract)
-    
-    # Unique nets command
-    nets_parser = subparsers.add_parser('unique-nets', help='Extract unique net names')
-    add_common_args(nets_parser)
-    add_filter_args(nets_parser)
-    nets_parser.add_argument('--sort-by-type', action='store_true',
-                             help='Group signal nets first, then power, then ground')
-    nets_parser.set_defaults(func=cmd_unique_nets)
-    
-    # Signal flow command
-    flow_parser = subparsers.add_parser('signal-flow', help='Generate source/destination signal flow table')
-    add_common_args(flow_parser, include_svg=True)
-    flow_parser.add_argument('--source', required=True,
-                             help='Source component(s), comma-separated (wildcards supported, e.g., "J*")')
-    flow_parser.add_argument('--dest', required=True,
-                             help='Destination component(s), comma-separated (wildcards supported)')
-    flow_parser.add_argument('--intermediates', action='store_true',
-                             help='Include intermediate components in output')
-    flow_parser.add_argument('--highlight', action='store_true',
-                             help='Highlight nets in markdown output')
-    flow_parser.set_defaults(func=cmd_signal_flow)
-    
-    # IC chart command
-    ic_parser = subparsers.add_parser('ic-chart', help='Generate IC signal chart')
-    add_common_args(ic_parser, include_svg=True)
-    ic_parser.add_argument('--ic', required=True, 
-                           help='IC reference designator (wildcards supported for batch, e.g., "U*")')
-    ic_parser.add_argument('--include-power', action='store_true',
-                           help='Include power/ground nets')
-    ic_parser.add_argument('--power-nets', 
-                           help='Custom power net patterns, comma-separated (e.g., "VCC*,GND*")')
-    ic_parser.add_argument('--highlight', action='store_true',
-                           help='Highlight nets in markdown output')
-    ic_parser.set_defaults(func=cmd_ic_chart)
-    
-    # Diagram command
-    diagram_parser = subparsers.add_parser('diagram', help='Generate SVG block diagram for components')
-    diagram_parser.add_argument('pcb', help='Path to KiCAD PCB file')
-    diagram_parser.add_argument('-o', '--output', help='Output SVG file path')
-    diagram_parser.add_argument('--refs', required=True,
-                                help='Component reference(s), comma-separated (wildcards supported)')
-    diagram_parser.add_argument('--ignore-unconnected', action='store_true',
-                                help='Ignore unconnected pins')
-    diagram_parser.add_argument('--ignore-free', action='store_true',
-                                help='Ignore free pins')
-    diagram_parser.set_defaults(func=cmd_diagram)
-    
-    # Find path command
-    path_parser = subparsers.add_parser('find-path', help='Find signal paths between components')
-    add_common_args(path_parser)
-    path_parser.add_argument('--start', required=True, help='Starting component reference')
-    path_parser.add_argument('--end', required=True, help='Ending component reference')
-    path_parser.add_argument('--max-hops', type=int, default=10,
-                             help='Maximum number of hops to search (default: 10)')
-    path_parser.set_defaults(func=cmd_find_path)
-    
-    # List command
-    list_parser = subparsers.add_parser('list', help='List components on board')
-    add_common_args(list_parser)
-    list_parser.add_argument('--refs', help='Reference pattern(s) to filter (wildcards supported)')
-    list_parser.add_argument('--connector-types', help='Connector type(s) to filter')
-    list_parser.set_defaults(func=cmd_list)
-    
-    args = parser.parse_args()
-    
-    if args.command is None:
-        parser.print_help()
-        sys.exit(0)
-    
-    args.func(args)
-
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())

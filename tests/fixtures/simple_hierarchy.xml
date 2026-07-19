@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<export>
+  <components>
+    <comp ref="U1">
+      <value>STM32</value>
+      <footprint>Package_QFP:LQFP-64</footprint>
+      <sheetpath names="/Main/ADCS/IMU/" tstamps="/a/b/c/"/>
+    </comp>
+    <comp ref="J1">
+      <value>Conn_01x04</value>
+      <footprint>Connector:Generic</footprint>
+      <sheetpath names="/Main/Interfaces/" tstamps="/a/d/"/>
+    </comp>
+    <comp ref="TP105">
+      <value>TestPoint</value>
+      <footprint>TestPoint:TP</footprint>
+      <sheetpath names="/Main/Debug/" tstamps="/a/e/"/>
+    </comp>
+    <comp ref="R57">
+      <value>0R</value>
+      <footprint>Resistor:R_0603</footprint>
+      <sheetpath names="/Main/Debug/" tstamps="/a/e/"/>
+    </comp>
+  </components>
+  <nets>
+    <net code="1" name="DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD">
+      <node ref="U1" pin="42" pinfunction="SPI1_CLK"/>
+      <node ref="J1" pin="1" pinfunction="CLK"/>
+    </net>
+    <net code="2" name="DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_MOSI_1_TM">
+      <node ref="U1" pin="43" pinfunction="SPI1_MOSI"/>
+      <node ref="R57" pin="1" pinfunction="A"/>
+    </net>
+    <net code="3" name="SPI1_MOSI_TP">
+      <node ref="R57" pin="2" pinfunction="B"/>
+      <node ref="TP105" pin="1" pinfunction="PROBE"/>
+    </net>
+    <net code="4" name="GND">
+      <node ref="J1" pin="4" pinfunction="GND"/>
+    </net>
+  </nets>
+</export>

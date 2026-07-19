@@ -6,7 +6,9 @@ Usage:
     python -m extract_pins_plugin <command> [options] <pcb_file>
 """
 
+import sys
+
 from .cli import main
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

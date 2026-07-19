@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package
+        run: python -m pip install -U pip build && python -m pip install -e .
+      - name: Compile
+        run: python -m compileall extract_pins_plugin tests
+      - name: Unit and integration tests
+        run: python -m unittest discover -s tests -v
+      - name: CLI smoke
+        run: |
+          kiway --help
+          kiway inspect tests/fixtures/simple_hierarchy.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --format json
+          kiway benchmark --nets 500 --boards 3 --threshold-ms 3000 --format json
+      - name: Package validation
+        run: python -m build && python build_pcm.py

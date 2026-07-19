@@ -6,17 +6,19 @@ A comprehensive plugin for extracting component data, analyzing signal flow,
 and generating documentation from KiCAD PCB designs.
 
 @author - Wayri (Yawar)
-@version - 2.8.0
+@version - 2.9.0
 @license - GPL-3.0
 """
 
-__version__ = "2.8.0"
+__version__ = "2.9.0"
 __author__ = "Wayri (Yawar)"
 
-# Register the GUI plugin with KiCAD
-from .extract_pins_plugin import ExtractPinsPlugin
-
-ExtractPinsPlugin().register()
+try:
+    from .extract_pins_plugin import ExtractPinsPlugin
+except ImportError:
+    ExtractPinsPlugin = None
+else:
+    ExtractPinsPlugin().register()
 
 # Export core modules for programmatic use
 from .core import DataExtractor, SignalFlowAnalyzer

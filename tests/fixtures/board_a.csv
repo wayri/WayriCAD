@@ -1,0 +1,4 @@
+Reference,Pin,Net Name,Sheet
+J1,1,DEMO_CTRL_SPI1_CLK,Interfaces
+J1,2,DEMO_CTRL_SPI1_MOSI,Interfaces
+J1,3,GND,Interfaces

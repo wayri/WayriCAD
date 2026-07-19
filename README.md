@@ -116,6 +116,56 @@ python build_pcm.py
 
 The builder discovers every top-level plugin directory containing `metadata.json`, creates a release zip under `releases/`, and updates `pcm/pkgs.json` plus `pcm/repo.json`.
 
+## KiWay CLI
+
+KiWay also installs a normal Python CLI that can run outside KiCad for netlist,
+ICD, validation, cross-project, and automation workflows:
+
+```bash
+python -m pip install -e .
+kiway --help
+```
+
+KiCad PCB extraction still requires KiCad's `pcbnew` Python module, but XML
+netlist, CSV, Markdown, report, validation, cross-link, and benchmark commands
+run in standard Python.
+
+Common commands:
+
+```bash
+# Inspect one project or a directory of KiCad XML/.net exports.
+kiway inspect path/to/project_exports --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO --format json
+
+# Extract telemetry/command rows from hierarchical netlists.
+kiway extract project.xml --kind tm-tc --consolidate --board-sequence DEMO_CTRL,DEMO_SENSOR --format csv -o tm_tc.csv
+
+# Extract connector rows and preserve native sheet paths with aliases.
+kiway extract project.xml --kind connectors --sheet-alias "ADCS IMU:/Main/ADCS/*:U*" --format md
+
+# Link board exports with exact, normalized, wildcard, or regex rules.
+kiway crosslink DEMO_CTRL_pins.csv DEMO_SENSOR_pins.md --project DEMO_CTRL --project DEMO_SENSOR --rules "Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*" --format json -o cross_links.json
+
+# Generate a harness-style SVG from imported project documents.
+kiway crosslink DEMO_CTRL_pins.csv DEMO_SENSOR_pins.md --rules "Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*" --format svg -o harness.svg
+
+# Validate aerospace interface conventions with machine-readable diagnostics.
+kiway validate project.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --require-tm-consumer --require-tc-origin --diagnostics json --format json
+
+# Build a full ICD report.
+kiway report project.xml --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO --title "DEMO_CTRL Electrical ICD" --format html -o DEMO_CTRL_icd.html
+
+# Run synthetic, non-flaky scaling checks.
+kiway benchmark --nets 10000 --boards 8 --threshold-ms 10000 --format json
+
+# Run the repository test suite.
+kiway test
+```
+
+The CLI returns `0` for success, `1` for runtime failures, `2` for usage/config
+errors, and `3` for validation failures. JSON output is sorted and indented for
+deterministic automation diffs. Config files are JSON objects with optional
+`defaults` and per-command sections; CLI flags override config values.
+
 ## Documentation
 
 - [Extract Pins Plugin Documentation](extract_pins_plugin/ReadMe.md)
