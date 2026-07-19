@@ -183,7 +183,7 @@ class CSVFormatter(BaseFormatter):
         if include_properties is None:
             include_properties = [
                 "Reference", "Value", "Description", "Layer",
-                "Position", "Rotation", "Connector Type"
+                "Position", "Rotation", "Connector Type", "Sheet", "Sheet Path"
             ]
         
         # Build rows list first, then join with newlines

@@ -34,6 +34,12 @@ from .core.data_extractor import DataExtractor
 from .core.signal_flow import SignalFlowAnalyzer
 from .core.diagram_generator import SVGDiagramGenerator
 from .core.formatters import CSVFormatter, MarkdownFormatter
+from .core.cross_linker import (
+    CrossProjectLinker,
+    ImportedPinDocument,
+    PinDocumentImporter,
+    parse_link_rules,
+)
 from .help_utils import open_help
 
 
@@ -58,6 +64,8 @@ class PluginUI(wx.Frame):
         self.signal_flow_rows: List[Dict[str, Any]] = []
         self.selected_component_refs: List[str] = []
         self.component_export_data: Dict[str, Any] = {}
+        self.cross_documents: List[ImportedPinDocument] = []
+        self.cross_links: List[Dict[str, str]] = []
         self.current_markdown = ""
         self.docgen = DocGenerator()
         self.extractor = DataExtractor(self.board) if self.board else None
@@ -183,6 +191,71 @@ class PluginUI(wx.Frame):
         sheet_panel.SetSizer(sheet_root)
         self.notebook.AddPage(sheet_panel, "Sheet Definitions")
 
+        cross_panel = wx.Panel(self.notebook)
+        cross_root = wx.BoxSizer(wx.VERTICAL)
+        cross_controls = wx.WrapSizer(wx.HORIZONTAL)
+        cross_controls.Add(wx.StaticText(cross_panel, label="Project / board:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        self.cross_project_name = wx.TextCtrl(cross_panel, value="", size=(150, -1))
+        self.cross_project_name.SetToolTip("Optional project name for a single imported document or the current PCB.")
+        cross_controls.Add(self.cross_project_name, 0, wx.ALL, 4)
+        for label, handler in (
+            ("Import Pin Docs", self.on_import_pin_docs),
+            ("Add Current PCB", self.on_add_current_cross_document),
+            ("Clear", self.on_clear_cross_documents),
+        ):
+            button = wx.Button(cross_panel, label=label)
+            button.Bind(wx.EVT_BUTTON, handler)
+            cross_controls.Add(button, 0, wx.ALL, 4)
+        self.cross_exact_match = wx.CheckBox(cross_panel, label="Exact labels")
+        self.cross_exact_match.SetValue(True)
+        self.cross_normalized_match = wx.CheckBox(cross_panel, label="Normalized labels")
+        self.cross_normalized_match.SetValue(True)
+        self.cross_include_power = wx.CheckBox(cross_panel, label="Include power")
+        cross_controls.Add(self.cross_exact_match, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        cross_controls.Add(self.cross_normalized_match, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        cross_controls.Add(self.cross_include_power, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        build_links = wx.Button(cross_panel, label="Build Cross-Links")
+        build_links.Bind(wx.EVT_BUTTON, self.on_build_cross_links)
+        cross_controls.Add(build_links, 0, wx.ALL, 4)
+        cross_root.Add(cross_controls, 0, wx.EXPAND)
+
+        self.cross_document_list = wx.ListCtrl(cross_panel, style=wx.LC_REPORT)
+        self.cross_document_list.SetMinSize((-1, 105))
+        for idx, label in enumerate(["Project", "Document", "Endpoints"]):
+            self.cross_document_list.InsertColumn(idx, label, width=150 if idx != 1 else 390)
+        cross_root.Add(self.cross_document_list, 0, wx.EXPAND | wx.ALL, 4)
+
+        cross_rules_box = wx.StaticBoxSizer(wx.StaticBox(cross_panel, label="Link Rules"), wx.VERTICAL)
+        self.cross_rules = wx.TextCtrl(cross_panel, size=(-1, 72), style=wx.TE_MULTILINE | wx.TE_DONTWRAP)
+        self.cross_rules.SetToolTip(
+            "One rule per line: Name | wildcard/regex | source pattern | destination pattern. "
+            "Wildcard captures (* and ?) or regex capture groups must contain the same signal text. "
+            "Use || as the field delimiter when a regex contains | alternation."
+        )
+        cross_rules_box.Add(self.cross_rules, 1, wx.EXPAND | wx.ALL, 4)
+        cross_root.Add(cross_rules_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
+
+        self.cross_link_list = wx.ListCtrl(cross_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        cross_columns = [
+            "Source", "Source Pin", "Source Label", "Destination", "Destination Pin",
+            "Destination Label", "Signal", "Method", "Rule", "Confidence", "Status",
+        ]
+        for idx, label in enumerate(cross_columns):
+            self.cross_link_list.InsertColumn(idx, label, width=130 if idx not in {2, 5} else 190)
+        cross_root.Add(self.cross_link_list, 1, wx.EXPAND | wx.ALL, 4)
+        cross_exports = wx.WrapSizer(wx.HORIZONTAL)
+        for label, handler in (
+            ("Export Tracker CSV", self.on_export_cross_csv),
+            ("Export Tracker Markdown", self.on_export_cross_markdown),
+            ("Export Harness SVG", self.on_export_cross_svg),
+        ):
+            button = wx.Button(cross_panel, label=label)
+            button.Bind(wx.EVT_BUTTON, handler)
+            cross_exports.Add(button, 0, wx.ALL, 4)
+        cross_root.Add(cross_exports, 0, wx.ALIGN_RIGHT)
+        cross_panel.SetSizer(cross_root)
+        self.notebook.AddPage(cross_panel, "Cross-Link")
+
         component_panel = wx.Panel(self.notebook)
         component_root = wx.BoxSizer(wx.VERTICAL)
         component_controls = wx.StaticBoxSizer(wx.StaticBox(component_panel, label="Connector / Component Selection"), wx.HORIZONTAL)
@@ -292,6 +365,214 @@ class PluginUI(wx.Frame):
             if dlg.ShowModal() == wx.ID_OK:
                 self.schematic_dir.SetValue(dlg.GetPath())
 
+    def on_import_pin_docs(self, _event: Any) -> None:
+        wildcard = "Pin documents (*.csv;*.md;*.markdown)|*.csv;*.md;*.markdown|All files (*.*)|*.*"
+        with wx.FileDialog(
+            self,
+            "Import KiWay or compatible pin documents",
+            wildcard=wildcard,
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE,
+        ) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            paths = dialog.GetPaths()
+        importer = PinDocumentImporter()
+        configured_project = self.cross_project_name.GetValue().strip()
+        imported: List[ImportedPinDocument] = []
+        try:
+            for path in paths:
+                project = configured_project if len(paths) == 1 else os.path.splitext(os.path.basename(path))[0]
+                document = importer.load(path, project_name=project)
+                if not document.endpoints:
+                    raise ValueError(f"No recognizable pin endpoints were found in {path}.")
+                imported.append(document)
+        except Exception as exc:
+            wx.MessageBox(str(exc), "Pin document import failed", wx.OK | wx.ICON_ERROR)
+            return
+        self.cross_documents.extend(imported)
+        self.cross_links = []
+        self._populate_cross_documents()
+        self._populate_cross_links()
+        self._rebuild_current_markdown()
+        self._update_preview()
+        self.status.SetLabel(
+            f"Imported {len(imported)} pin documents with "
+            f"{sum(len(document.endpoints) for document in imported)} endpoints."
+        )
+
+    def on_add_current_cross_document(self, _event: Any) -> None:
+        if not self.board:
+            wx.MessageBox("Open a PCB before adding the current board.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            return
+        project = self.cross_project_name.GetValue().strip()
+        board_path = str(getattr(self.board, "GetFileName", lambda: "")() or "")
+        if not project:
+            project = os.path.splitext(os.path.basename(board_path))[0] or "Current PCB"
+        rows = extract_board_pin_rows(self.board, include_power=True)
+        if self.parser:
+            for row in rows:
+                sheet = self.parser.get_component_sheet(str(row.get("Reference", "")))
+                row["Sheet"] = sheet["name"]
+                row["Sheet Path"] = sheet["path"]
+        importer = PinDocumentImporter()
+        endpoints = importer.endpoints_from_rows(rows, project, board_path or "Current PCB")
+        self.cross_documents = [
+            document for document in self.cross_documents
+            if document.path != (board_path or "Current PCB")
+        ]
+        self.cross_documents.append(
+            ImportedPinDocument(project=project, path=board_path or "Current PCB", endpoints=endpoints)
+        )
+        self.cross_links = []
+        self._populate_cross_documents()
+        self._populate_cross_links()
+        self._rebuild_current_markdown()
+        self._update_preview()
+        self.status.SetLabel(f"Added current PCB as {project} with {len(endpoints)} pin endpoints.")
+
+    def on_clear_cross_documents(self, _event: Any) -> None:
+        self.cross_documents = []
+        self.cross_links = []
+        self._populate_cross_documents()
+        self._populate_cross_links()
+        self._rebuild_current_markdown()
+        self._update_preview()
+        self.status.SetLabel("Cleared imported cross-link documents.")
+
+    def on_build_cross_links(self, _event: Any) -> None:
+        if len(self.cross_documents) < 2:
+            wx.MessageBox(
+                "Import at least two pin documents, or import one document and add the current PCB.",
+                "KiWay",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+        try:
+            rules = parse_link_rules(self.cross_rules.GetValue())
+            linker = CrossProjectLinker(self.cross_documents)
+            self.cross_links = linker.link(
+                rules=rules,
+                exact_match=self.cross_exact_match.GetValue(),
+                normalized_match=self.cross_normalized_match.GetValue(),
+                include_power=self.cross_include_power.GetValue(),
+            )
+        except Exception as exc:
+            wx.MessageBox(str(exc), "Cross-link generation failed", wx.OK | wx.ICON_ERROR)
+            return
+        self._populate_cross_links()
+        self._rebuild_current_markdown()
+        self._update_preview()
+        unmatched = len(
+            linker.unmatched(
+                self.cross_links,
+                include_power=self.cross_include_power.GetValue(),
+            )
+        )
+        self.status.SetLabel(
+            f"Generated {len(self.cross_links)} cross-project links; "
+            f"{unmatched} endpoints remain unmatched."
+        )
+
+    def _populate_cross_documents(self) -> None:
+        self.cross_document_list.DeleteAllItems()
+        for document in self.cross_documents:
+            index = self.cross_document_list.InsertItem(
+                self.cross_document_list.GetItemCount(), document.project
+            )
+            self.cross_document_list.SetItem(index, 1, document.path)
+            self.cross_document_list.SetItem(index, 2, str(len(document.endpoints)))
+
+    def _populate_cross_links(self) -> None:
+        self.cross_link_list.DeleteAllItems()
+        keys = [
+            "Source Endpoint",
+            "Source Pin",
+            "Source Net/Label",
+            "Destination Endpoint",
+            "Destination Pin",
+            "Destination Net/Label",
+            "Signal Key",
+            "Match Method",
+            "Rule",
+            "Confidence",
+            "Status",
+        ]
+        for row in self.cross_links:
+            index = self.cross_link_list.InsertItem(
+                self.cross_link_list.GetItemCount(), str(row.get(keys[0], ""))
+            )
+            for column, key in enumerate(keys[1:], start=1):
+                self.cross_link_list.SetItem(index, column, str(row.get(key, "")))
+
+    def _ensure_cross_links(self) -> bool:
+        if not self.cross_links:
+            self.on_build_cross_links(None)
+        return bool(self.cross_links)
+
+    def on_export_cross_csv(self, _event: Any) -> None:
+        if not self._ensure_cross_links():
+            return
+        with wx.FileDialog(
+            self,
+            "Export cross-project tracker",
+            wildcard="CSV files (*.csv)|*.csv",
+            defaultFile="kiway_cross_project_tracker.csv",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        ) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                self.docgen.export_csv(self.cross_links, dialog.GetPath())
+                self.status.SetLabel(f"Exported {dialog.GetPath()}.")
+
+    def on_export_cross_markdown(self, _event: Any) -> None:
+        if not self._ensure_cross_links():
+            return
+        linker = CrossProjectLinker(self.cross_documents)
+        unmatched_rows = [
+            {
+                "Project": endpoint.project,
+                "Board": endpoint.board,
+                "Sheet": endpoint.sheet,
+                "Reference": endpoint.reference,
+                "Pin": endpoint.pin,
+                "Net/Label": endpoint.net_name or endpoint.label,
+                "Source File": endpoint.source_file,
+            }
+            for endpoint in linker.unmatched(
+                self.cross_links,
+                include_power=self.cross_include_power.GetValue(),
+            )
+        ]
+        lines = ["# KiWay Cross-Project Pin Tracker", ""]
+        lines.extend(self.docgen._table_section("Resolved Cross-Links", self.cross_links))
+        lines.extend(self.docgen._table_section("Unmatched Endpoints", unmatched_rows))
+        markdown_text = "\n".join(lines)
+        with wx.FileDialog(
+            self,
+            "Export cross-project tracker",
+            wildcard="Markdown files (*.md)|*.md",
+            defaultFile="kiway_cross_project_tracker.md",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        ) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                self.docgen.export_markdown(markdown_text, dialog.GetPath())
+                self.status.SetLabel(f"Exported {dialog.GetPath()}.")
+
+    def on_export_cross_svg(self, _event: Any) -> None:
+        if not self._ensure_cross_links():
+            return
+        svg = CrossProjectLinker(self.cross_documents).harness_svg(self.cross_links)
+        with wx.FileDialog(
+            self,
+            "Export cross-project harness",
+            wildcard="SVG files (*.svg)|*.svg",
+            defaultFile="kiway_cross_project_harness.svg",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        ) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                with open(dialog.GetPath(), "w", encoding="utf-8") as handle:
+                    handle.write(svg)
+                self.status.SetLabel(f"Exported {dialog.GetPath()}.")
+
     def _parse_sheet_definitions(self) -> List[SheetDefinition]:
         definitions: List[SheetDefinition] = []
         for line_number, raw_line in enumerate(self.sheet_definitions.GetValue().splitlines(), start=1):
@@ -346,14 +627,7 @@ class PluginUI(wx.Frame):
             if self.board:
                 self.extractor = DataExtractor(self.board)
                 self.signal_analyzer = SignalFlowAnalyzer(self.extractor)
-            self.current_markdown = self.docgen.build_markdown(
-                tm_tc_rows=self.tm_tc_rows,
-                test_point_rows=self.tp_rows,
-                interface_maps=self.interfaces,
-                connector_rows=self.connector_rows,
-                peripheral_rows=self.peripheral_rows,
-                flow_rows=self.signal_flow_rows,
-            )
+            self._rebuild_current_markdown()
             self._refresh_board_rows()
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay analysis failed", wx.OK | wx.ICON_ERROR)
@@ -581,6 +855,11 @@ class PluginUI(wx.Frame):
                     f"{row.get('Path')}"
                 )
         self.flow_preview.SetValue("\n".join(lines))
+        self._rebuild_current_markdown()
+        self._update_preview()
+        self.status.SetLabel(f"Prepared {len(self.signal_flow_rows)} signal-flow paths.")
+
+    def _rebuild_current_markdown(self) -> None:
         self.current_markdown = self.docgen.build_markdown(
             tm_tc_rows=self.tm_tc_rows,
             test_point_rows=self.tp_rows,
@@ -588,9 +867,8 @@ class PluginUI(wx.Frame):
             connector_rows=self.connector_rows,
             peripheral_rows=self.peripheral_rows,
             flow_rows=self.signal_flow_rows,
+            cross_link_rows=self.cross_links,
         )
-        self._update_preview()
-        self.status.SetLabel(f"Prepared {len(self.signal_flow_rows)} signal-flow paths.")
 
     def _ensure_flow_rows(self) -> bool:
         if not self.signal_flow_rows:

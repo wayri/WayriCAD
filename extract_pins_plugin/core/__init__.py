@@ -10,6 +10,14 @@ from .test_point_extractor import TestPointExtractor
 from .layout_assistant import LayoutAssistant
 from .doc_generator import DocGenerator
 from .board_extract import extract_board_pin_rows, protocol_color
+from .cross_linker import (
+    CrossProjectLinker,
+    ImportedPinDocument,
+    LinkRule,
+    PinDocumentImporter,
+    PinEndpoint,
+    parse_link_rules,
+)
 
 __all__ = [
     'DataExtractor',
@@ -27,4 +35,10 @@ __all__ = [
     'DocGenerator',
     'extract_board_pin_rows',
     'protocol_color',
+    'CrossProjectLinker',
+    'ImportedPinDocument',
+    'LinkRule',
+    'PinDocumentImporter',
+    'PinEndpoint',
+    'parse_link_rules',
 ]

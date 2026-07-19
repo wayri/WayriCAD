@@ -3,7 +3,7 @@
         {
             "name": "KiWay Extract Pins",
             "description": "Advanced pin, interface, test-point, and TM/TC documentation generator for KiCad.",
-            "description_full": "KiWay Extract Pins is a comprehensive documentation and analysis plugin for KiCAD.\n\n**Features:**\n- Extract component pin data to CSV, Markdown, HTML, or JSON\n- Build a networkx connectivity graph from pcbnew board data and optional KiCad XML netlists\n- Preserve hierarchical sheet paths and apply user-defined path/reference aliases\n- Trace through passive parts and custom NetTie_Path pass-throughs\n- Resolve test points back to source IC pins and functions\n- Parse board-sequence labels such as DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD for TM/TC tables\n- Group differential pairs, buses, connectors, peripherals, and logical interfaces\n- Create native KiCad PCB groups for logical interfaces\n- Generate ICD/TM-TC Markdown, HTML, and CSV deliverables\n- CLI support for automation and scripting\n\nOptional Python packages for full dashboard capability: networkx, matplotlib, and markdown.\n\nTargets KiCAD 9 and later.",
+            "description_full": "KiWay Extract Pins is a comprehensive documentation and analysis plugin for KiCAD.\n\n**Features:**\n- Extract component pin data to CSV, Markdown, HTML, or JSON\n- Build a networkx connectivity graph from pcbnew board data and optional KiCad XML netlists\n- Preserve hierarchical sheet paths and apply user-defined path/reference aliases\n- Import pin documents from other projects and auto-link board-level endpoints\n- Apply exact, normalized, wildcard, or regex link rules and flag ambiguous matches\n- Export cross-project tracker CSV/Markdown and harness-style SVG diagrams\n- Trace through passive parts and custom NetTie_Path pass-throughs\n- Resolve test points back to source IC pins and functions\n- Parse board-sequence labels such as DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD for TM/TC tables\n- Group differential pairs, buses, connectors, peripherals, and logical interfaces\n- Create native KiCad PCB groups for logical interfaces\n- Generate ICD/TM-TC Markdown, HTML, and CSV deliverables\n- CLI support for automation and scripting\n\nOptional Python packages for full dashboard capability: networkx, matplotlib, and markdown.\n\nTargets KiCAD 9 and later.",
             "identifier": "kiway.extract.pins",
             "type": "plugin",
             "author": {
@@ -18,6 +18,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/extract_pins_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "2.8.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "3e7a152b9f8e1c45a4ad889796dcedcb386482930915a4febd53824e81f41917",
+                    "download_size": 111285,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/extract_pins_plugin-2.8.0.zip",
+                    "install_size": 399620,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "2.7.0",
                     "status": "stable",
@@ -154,9 +168,9 @@
                     "version": "0.5.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "cf9f0d919413d15482d5f851caa596ab9d10be1fb7a27a7857a0611d33c73844",
+                    "download_sha256": "764cf8886a7df05fa9bcc6d5860ee165b27a605e952ea5035d3366cdfdfded2d",
                     "download_size": 18536,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.7.0/bulk_label_editor_plugin-0.5.0.zip",
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/bulk_label_editor_plugin-0.5.0.zip",
                     "install_size": 26757,
                     "platforms": [
                         "windows",
@@ -244,9 +258,9 @@
                     "version": "0.4.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "898e6af783ad4b75c231bb92db3d3ee92110fdc181510e8f4e3386ee4188b19b",
+                    "download_sha256": "00d47c10be3e3f35ead0967937beadc2314ca600c99dda4f42103c64fd94b05a",
                     "download_size": 16428,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.7.0/connector_icd_plugin-0.4.0.zip",
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/connector_icd_plugin-0.4.0.zip",
                     "install_size": 18701,
                     "platforms": [
                         "windows",
@@ -320,9 +334,9 @@
                     "version": "0.5.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "ace85dfefb069375a463192807645dbbcec3a336976cff630fb2ca2465c79d3f",
+                    "download_sha256": "aac697d0f3a931fe68309f433ffbfefcc7b159b2f31ab626ca7cd9e12b63e9e2",
                     "download_size": 24280,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.7.0/fanout_generator_plugin-0.5.0.zip",
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/fanout_generator_plugin-0.5.0.zip",
                     "install_size": 30749,
                     "platforms": [
                         "windows",
@@ -410,9 +424,9 @@
                     "version": "0.4.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "a88c8d99f296e2020aa7ea9714cf7b8d310571890c027cc2b3e26ff7f168c86f",
+                    "download_sha256": "72cbff57c7fd54d260ceb0f48db225278fdf7b6db4a6275c7b8d7c7c9fc6c3c3",
                     "download_size": 15656,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.7.0/net_hygiene_plugin-0.4.0.zip",
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/net_hygiene_plugin-0.4.0.zip",
                     "install_size": 18078,
                     "platforms": [
                         "windows",
@@ -486,9 +500,9 @@
                     "version": "0.4.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "e4b37afaaf551b90d7a0346d4a22e338b6222decf699941dfea9819c2a8379ae",
+                    "download_sha256": "63434fac782849a47386da59c6c3f17a7c9cf5f8c3a595ec7047a127f458f042",
                     "download_size": 15595,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.7.0/test_coverage_plugin-0.4.0.zip",
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/test_coverage_plugin-0.4.0.zip",
                     "install_size": 17913,
                     "platforms": [
                         "windows",
@@ -562,9 +576,9 @@
                     "version": "0.5.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "90a10bc43825f85391e5af36866d8f278e53262be9bda78d74ecc6cc003ea142",
+                    "download_sha256": "7104802325ea391d79c4571af2009177d98e70a2eb9f69072a518c39429bdc94",
                     "download_size": 19397,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.7.0/via_stitching_plugin-0.5.0.zip",
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/via_stitching_plugin-0.5.0.zip",
                     "install_size": 28040,
                     "platforms": [
                         "windows",
@@ -652,9 +666,9 @@
                     "version": "0.4.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "bc039aeca03021c072edd5a0010912c19866bc2c265cb137f7278c8541e17e09",
+                    "download_sha256": "8f0677d13c34d172f3c4b970f8ad970f488194366c1a92cd6a246cbaddf8b578",
                     "download_size": 16331,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.7.0/test_point_descriptor_plugin-0.4.0.zip",
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/test_point_descriptor_plugin-0.4.0.zip",
                     "install_size": 23420,
                     "platforms": [
                         "windows",
@@ -728,9 +742,9 @@
                     "version": "0.4.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "d6ac561cabb3461d6a53b5e5bc6bbc57f144582f27ff4986ac05412c38e577cd",
+                    "download_sha256": "f63b20926582d616ce1d109d8c83ae8f366ba3ffd3982386948911e12fd47a73",
                     "download_size": 20990,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.7.0/trace_impedance_plugin-0.4.0.zip",
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/trace_impedance_plugin-0.4.0.zip",
                     "install_size": 35820,
                     "platforms": [
                         "windows",

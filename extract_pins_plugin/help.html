@@ -31,6 +31,22 @@ Connector Sheets | /Interfaces/* | J*</pre>
 resolved sheet, native path, component count, and references after analysis.
 Sheet information is included in TM/TC, test-point, connector, peripheral, and
 component exports.</p>
+<h2>Cross-project pin linking</h2>
+<ol>
+<li>Open <b>Cross-Link</b> and import CSV or Markdown pin documents from other projects.</li>
+<li>Optionally set a project name and click <b>Add Current PCB</b>.</li>
+<li>Keep exact/normalized matching enabled, or add ordered custom rules.</li>
+<li>Click <b>Build Cross-Links</b> and review resolved, ambiguous, and unmatched endpoints.</li>
+<li>Export the tracker to CSV/Markdown or create a multi-project harness SVG.</li>
+</ol>
+<p>Wildcard rule example:
+<code>Board prefixes | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*</code>. The text captured
+by <code>*</code> or <code>?</code> must agree on both sides.</p>
+<p>Regex rule example:
+<code>Harness || regex || ^SRC_(?P&lt;signal&gt;.+)$ || ^DST_(?P&lt;signal&gt;.+)$</code>.
+Use <code>||</code> separators when a regex contains <code>|</code>
+alternation. Matching capture groups must agree. Power rails are excluded by
+default because common rails can create very large many-to-many trackers.</p>
 <h2>Signal Flow tab</h2>
 <p>Use comma-separated wildcard reference filters. For example, Sources
 <code>J*,U1</code> and Destinations <code>U*,J2</code> finds connector/IC
@@ -46,6 +62,8 @@ board-to-board telemetry-digital signal. Supported identifiers are
 <tr><th>Issue</th><th>Resolution</th></tr>
 <tr><td>Sheets show only Root</td><td>Export an XML netlist from Schematic Editor and select its directory. PCB data alone may not contain hierarchical paths.</td></tr>
 <tr><td>A sheet alias does not apply</td><td>Click Validate Rules; check path slashes and remember that both path and reference filters must match.</td></tr>
+<tr><td>An imported document has no endpoints</td><td>Export a CSV/Markdown table containing reference or connector, pin or pad, and net or label columns.</td></tr>
+<tr><td>Too many or ambiguous cross-links</td><td>Disable power matching and narrow the wildcard/regex rules. Ambiguous rows indicate one endpoint matched multiple peers.</td></tr>
 <tr><td>No interfaces or paths</td><td>Save the PCB, confirm pads have net names, and check wildcard filters.</td></tr>
 <tr><td>No IC function</td><td>Add pin-function data to the XML netlist.</td></tr>
 <tr><td>Graph import error</td><td>Install <code>networkx</code> in KiCad's Python environment.</td></tr>

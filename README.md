@@ -13,6 +13,7 @@ A comprehensive interface documentation and test engineering tool.
 - **Test Points**: Resolve TP nets back to source IC pins/functions
 - **TM/TC Tables**: Parse labels such as `DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD`, including `TM`, `TC`, `TA`, `TD`, `CA`, and `CD`
 - **Hierarchical Sheets**: Detect native sub-sheet paths and apply user-defined path/reference aliases to exported records
+- **Cross-Project Links**: Import pin CSV/Markdown documents, auto-link board endpoints, and export tracker and harness diagrams
 - **Interfaces**: Group buses, differential pairs, connectors, peripherals, and board-to-board signal maps
 - **Layout Assist**: Create native KiCad PCB groups for logical interfaces
 - **Docs**: Export Markdown, HTML, CSV, JSON, SVG diagrams, and automation-friendly CLI output

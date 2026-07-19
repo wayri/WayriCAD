@@ -33,11 +33,13 @@ class DocGenerator:
         connector_rows: Sequence[Dict[str, Any]] = (),
         peripheral_rows: Sequence[Dict[str, Any]] = (),
         flow_rows: Sequence[Dict[str, Any]] = (),
+        cross_link_rows: Sequence[Dict[str, Any]] = (),
     ) -> str:
         lines = [f"# {self.title}", ""]
         lines.extend(self._table_section("Telemetry / Telecommand Map", list(tm_tc_rows)))
         lines.extend(self._table_section("Test Points", list(test_point_rows)))
         lines.extend(self._table_section("Signal Flow", list(flow_rows)))
+        lines.extend(self._table_section("Cross-Project Pin Tracker", list(cross_link_rows)))
         lines.extend(self._interface_section(interface_maps or {}))
         lines.extend(self._table_section("Connectors", list(connector_rows)))
         lines.extend(self._table_section("Peripherals", list(peripheral_rows)))
