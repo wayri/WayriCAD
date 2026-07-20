@@ -13,6 +13,7 @@ import wx
 
 from .help_utils import open_help
 from .selection_utils import select_items
+from .guided_ui import add_workflow
 
 
 @dataclass
@@ -62,6 +63,11 @@ class BulkLabelEditorFrame(wx.Frame):
     def _build_ui(self) -> None:
         panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
+        self.workflow = add_workflow(
+            panel, root, "Bulk Label Editor",
+            "Build a rename rule, inspect every proposed change, then apply exactly that preview.",
+            ("Configure", "Review preview", "Apply"),
+        )
 
         options = wx.StaticBoxSizer(wx.StaticBox(panel, label="Rename Rule"), wx.VERTICAL)
         row1 = wx.BoxSizer(wx.HORIZONTAL)
@@ -90,9 +96,9 @@ class BulkLabelEditorFrame(wx.Frame):
         options.Add(row2, 0, wx.EXPAND)
 
         row3 = wx.BoxSizer(wx.HORIZONTAL)
-        preview_btn = wx.Button(panel, label="Preview")
+        preview_btn = wx.Button(panel, label="Preview Changes")
         preview_btn.Bind(wx.EVT_BUTTON, self.on_preview)
-        apply_btn = wx.Button(panel, label="Apply")
+        apply_btn = wx.Button(panel, label="Apply Preview")
         apply_btn.Bind(wx.EVT_BUTTON, self.on_apply)
         undo_btn = wx.Button(panel, label="Undo")
         undo_btn.Bind(wx.EVT_BUTTON, self.on_undo)
@@ -176,6 +182,10 @@ class BulkLabelEditorFrame(wx.Frame):
             self.status.SetLabel(f"Regex error: {exc}")
             return
         self.status.SetLabel(f"{len(self.matches)} matching editable items.")
+        if self.matches:
+            self.workflow.set_step(2, "Inspect the rows, double-click uncertain items to locate them, then Apply.")
+        else:
+            self.workflow.set_step(0, "Adjust the find rule or enabled object scopes until Preview finds the intended rows.")
 
     def on_apply(self, _event: Any) -> None:
         if not self.matches:
@@ -195,6 +205,7 @@ class BulkLabelEditorFrame(wx.Frame):
             pcbnew.Refresh()
         self.refresh_items()
         self.status.SetLabel(f"Applied {count} edits.")
+        self.workflow.set_step(3, "Save the PCB and review the result; Undo remains available in this window.")
 
     def on_select_preview(self, event: Any) -> None:
         index = event.GetIndex() if hasattr(event, "GetIndex") else self.preview.GetFirstSelected()

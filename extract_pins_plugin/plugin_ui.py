@@ -42,6 +42,7 @@ from .core.cross_linker import (
 )
 from .help_utils import open_help
 from .selection_utils import footprint, select_items
+from .guided_ui import add_workflow
 
 
 class PluginUI(wx.Frame):
@@ -80,6 +81,11 @@ class PluginUI(wx.Frame):
     def _build_ui(self) -> None:
         panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
+        self.workflow = add_workflow(
+            panel, root, "Extract Pins and Build ICD",
+            "Choose project inputs, generate a complete report preview, then review tables and export the approved artifacts.",
+            ("Configure", "Preview and review", "Export"),
+        )
 
         config = wx.StaticBoxSizer(wx.StaticBox(panel, label="Project"), wx.VERTICAL)
         self.schematic_dir = wx.TextCtrl(panel)
@@ -89,8 +95,9 @@ class PluginUI(wx.Frame):
         self.board_sequence.SetToolTip("Comma-separated board order, e.g. DEMO_CTRL, DEMO_SENSOR, DEMO_POWER, DEMO_IO")
         self.pass_field = wx.TextCtrl(panel)
         self.pass_field.SetValue("NetTie_Path")
-        analyze_btn = wx.Button(panel, label="Analyze")
+        analyze_btn = wx.Button(panel, label="Analyze & Preview")
         analyze_btn.Bind(wx.EVT_BUTTON, self.on_analyze)
+        analyze_btn.SetDefault()
 
         source_row = wx.BoxSizer(wx.HORIZONTAL)
         source_row.Add(wx.StaticText(panel, label="Netlist directory:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
@@ -318,6 +325,7 @@ class PluginUI(wx.Frame):
         report_sizer.Add(self.html_preview, 1, wx.EXPAND | wx.ALL, 4)
         report_panel.SetSizer(report_sizer)
         self.notebook.AddPage(report_panel, "Report Preview")
+        self.html_preview.SetPage(self.docgen.render_html("# No preview yet\n\nChoose project inputs, then click **Analyze & Preview**." , for_preview=True))
         root.Add(self.notebook, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
 
         button_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -341,6 +349,7 @@ class PluginUI(wx.Frame):
         self.status = wx.StaticText(panel, label="Ready.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         panel.SetSizer(root)
+        self.workflow.set_step(0, "Choose an optional netlist directory and board order, then Analyze & Preview.")
 
     def on_browse_dir(self, _event: Any) -> None:
         with wx.DirDialog(self, "Select directory containing KiCad XML netlists") as dlg:
@@ -618,10 +627,12 @@ class PluginUI(wx.Frame):
         self._populate_tables()
         self._draw_interfaces()
         self._update_preview()
+        self.notebook.SetSelection(self.notebook.GetPageCount() - 1)
         self.status.SetLabel(
             f"Analyzed {len(self.interfaces)} interfaces, {len(self.tp_rows)} test points, "
             f"{len(self.tm_tc_rows)} TM/TC rows."
         )
+        self.workflow.set_step(2, "Review Report Preview, then inspect detailed views and cross-select uncertain PCB rows before export.")
 
     def _refresh_board_rows(self) -> None:
         self.board_rows = extract_board_pin_rows(
@@ -747,6 +758,7 @@ class PluginUI(wx.Frame):
             if dlg.ShowModal() == wx.ID_OK:
                 self.docgen.export_csv(rows, dlg.GetPath())
                 self.status.SetLabel(f"Exported {dlg.GetPath()}.")
+                self.workflow.set_step(3, "Open the exported artifact and complete its engineering review/sign-off.")
 
     def _selected_footprints(self) -> List[Any]:
         if not self.board:
@@ -928,6 +940,7 @@ class PluginUI(wx.Frame):
             if dlg.ShowModal() == wx.ID_OK:
                 exporter(self.current_markdown, dlg.GetPath())
                 self.status.SetLabel(f"Exported {dlg.GetPath()}.")
+                self.workflow.set_step(3, "Open the exported artifact and complete its engineering review/sign-off.")
 
     def _populate_tables(self) -> None:
         self.interface_list.DeleteAllItems()

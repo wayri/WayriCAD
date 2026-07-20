@@ -12,6 +12,7 @@ import wx
 from .measurement import PathMeasurement, TraceMeasurementEngine
 from .help_utils import open_help
 from .selection_utils import pads_on_net, select_items
+from .guided_ui import add_workflow
 
 
 class TraceImpedancePlugin(pcbnew.ActionPlugin):
@@ -46,6 +47,7 @@ class TraceFrame(wx.Frame):
 
     def _build_ui(self) -> None:
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
+        self.workflow = add_workflow(panel, root, "Trace RLC / Impedance Analyzer", "Choose a route and stackup context, preview measured geometry, then export the engineering estimate.", ("Configure path", "Review result", "Export"))
         config = wx.FlexGridSizer(0, 2, 6, 8)
         self.net = wx.ComboBox(panel, style=wx.CB_READONLY)
         self.start = wx.ComboBox(panel, style=wx.CB_READONLY)
@@ -85,6 +87,7 @@ class TraceFrame(wx.Frame):
         self.notes = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
         root.Add(self.notes, 0, wx.EXPAND | wx.ALL, 8)
         panel.SetSizer(root)
+        self.workflow.set_step(0, "Select a net, endpoints, frequency, and reference layer; then Analyze Path.")
 
     def _load_nets(self) -> None:
         names = self.engine.net_names()
@@ -115,6 +118,7 @@ class TraceFrame(wx.Frame):
         try:
             self.current = self.engine.measure(self.net.GetValue(), self.start.GetValue(), self.end.GetValue(), float(self.frequency.GetValue()), self.reference.GetValue())
             self._show(self.current)
+            self.workflow.set_step(2, "Review route geometry and notes, cross-select the net, then export if appropriate.")
         except Exception as exc:
             wx.MessageBox(str(exc), "Trace analysis failed", wx.OK | wx.ICON_ERROR)
 
@@ -138,3 +142,4 @@ class TraceFrame(wx.Frame):
             row = self.current.as_dict()
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=list(row)); writer.writeheader(); writer.writerow(row)
+            self.workflow.set_step(3, "Validate critical results with a field solver or measurement before release.")

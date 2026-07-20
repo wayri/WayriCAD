@@ -11,6 +11,7 @@ import wx
 
 from .help_utils import open_help
 from .selection_utils import footprint, select_items
+from .guided_ui import add_workflow
 
 
 def connector_rows(board: Any) -> List[Dict[str, str]]:
@@ -52,6 +53,11 @@ class ConnectorFrame(wx.Frame):
         self.rows: List[Dict[str, str]] = []
         panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
+        self.workflow = add_workflow(
+            panel, root, "Connector ICD Builder",
+            "Load connector pins, verify them against the PCB, then export the reviewed table.",
+            ("Load", "Review on PCB", "Export"),
+        )
         self.list = wx.ListCtrl(panel, style=wx.LC_REPORT)
         self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.select_row)
         for index, label in enumerate(("Connector", "Part", "Pin", "Net", "Type")):
@@ -60,7 +66,7 @@ class ConnectorFrame(wx.Frame):
         row = wx.BoxSizer(wx.HORIZONTAL)
         export = wx.Button(panel, label="Export CSV")
         export.Bind(wx.EVT_BUTTON, self.export_csv)
-        refresh = wx.Button(panel, label="Refresh")
+        refresh = wx.Button(panel, label="Refresh Preview")
         refresh.Bind(wx.EVT_BUTTON, self.refresh)
         select = wx.Button(panel, label="Select on PCB")
         select.Bind(wx.EVT_BUTTON, self.select_row)
@@ -68,6 +74,8 @@ class ConnectorFrame(wx.Frame):
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
         row.Add(refresh, 0, wx.ALL, 5); row.Add(select, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
         root.Add(row, 0, wx.ALIGN_RIGHT)
+        self.status = wx.StaticText(panel, label="Loading connector pins...")
+        root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         panel.SetSizer(root)
         self.refresh(None)
         self.Centre()
@@ -78,6 +86,8 @@ class ConnectorFrame(wx.Frame):
         for row in self.rows:
             index = self.list.InsertItem(self.list.GetItemCount(), row["Connector"])
             for col, key in enumerate(("Part", "Pin", "Net", "Type"), 1): self.list.SetItem(index, col, row[key])
+        self.status.SetLabel(f"Preview contains {len(self.rows)} connector pins.")
+        self.workflow.set_step(1 if self.rows else 0, "Select representative rows on the PCB before exporting." if self.rows else "Check connector references/values, then Refresh.")
 
     def export_csv(self, _event: Any) -> None:
         with wx.FileDialog(self, "Export connector ICD", wildcard="CSV files (*.csv)|*.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
@@ -85,6 +95,7 @@ class ConnectorFrame(wx.Frame):
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=["Connector", "Part", "Pin", "Net", "Type"]); writer.writeheader(); writer.writerows(self.rows)
         wx.MessageBox(f"Exported {len(self.rows)} connector pins.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+        self.workflow.set_step(3, "Open the CSV and complete the ICD review/sign-off.")
 
     def select_row(self, event: Any) -> None:
         index = event.GetIndex() if hasattr(event, "GetIndex") else self.list.GetFirstSelected()
@@ -95,3 +106,5 @@ class ConnectorFrame(wx.Frame):
         owner = footprint(self.board, row["Connector"])
         pads = [pad for pad in owner.Pads() if str(pad.GetNumber()) == row["Pin"]] if owner else []
         select_items(self.board, pads or [owner])
+        self.status.SetLabel(f"Selected {row['Connector']} pin {row['Pin']} on the PCB.")
+        self.workflow.set_step(2, "Continue spot-checking rows or export the reviewed connector table.")

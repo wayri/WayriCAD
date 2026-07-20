@@ -10,6 +10,7 @@ import wx
 
 from .help_utils import open_help
 from .selection_utils import select_items
+from .guided_ui import add_workflow
 
 
 class ViaStitchingPlugin(pcbnew.ActionPlugin):
@@ -33,64 +34,90 @@ class ViaStitchingPlugin(pcbnew.ActionPlugin):
 
 class ViaFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Via Stitching", size=(720, 560))
+        super().__init__(parent, title="KiWay Via Stitching", size=(900, 760))
         self.board = board
         self.preview_items: List[Any] = []
         self.undo_stack: List[List[Any]] = []
         self.redo_stack: List[List[Any]] = []
         self._build_ui()
+        self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Centre()
 
     def _build_ui(self) -> None:
         panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
+        self.workflow = add_workflow(panel, root, "Via Stitching", "Define the net and spacing, preview the exact accepted vias, then commit that preview to the PCB.", ("Configure", "Preview", "Commit"))
         grid = wx.FlexGridSizer(0, 2, 6, 8)
         self.spacing = wx.TextCtrl(panel, value="2.50")
         self.edge = wx.TextCtrl(panel, value="1.00")
         self.drill = wx.TextCtrl(panel, value="0.30")
         self.diameter = wx.TextCtrl(panel, value="0.60")
         self.net_choice = wx.ComboBox(panel, style=wx.CB_READONLY)
-        self.skip_refs = wx.TextCtrl(panel, value="")
-        self.universal = wx.CheckBox(panel, label="Universal board bounds")
+        self.advanced = wx.CollapsiblePane(panel, label="Area and exclusion settings")
+        advanced_panel = self.advanced.GetPane()
+        advanced_root = wx.BoxSizer(wx.VERTICAL)
+        self.skip_refs = wx.TextCtrl(advanced_panel, value="")
+        self.universal = wx.CheckBox(advanced_panel, label="Use full board bounds")
         self.universal.SetValue(True)
-        self.x_min = wx.TextCtrl(panel, value="0")
-        self.y_min = wx.TextCtrl(panel, value="0")
-        self.x_max = wx.TextCtrl(panel, value="100")
-        self.y_max = wx.TextCtrl(panel, value="100")
-        for label, control in (("Grid spacing (mm):", self.spacing), ("Edge inset (mm):", self.edge), ("Drill (mm):", self.drill), ("Via diameter (mm):", self.diameter), ("Net to stitch:", self.net_choice), ("Skip footprint refs (comma separated):", self.skip_refs)):
+        self.x_min = wx.TextCtrl(advanced_panel, value="0")
+        self.y_min = wx.TextCtrl(advanced_panel, value="0")
+        self.x_max = wx.TextCtrl(advanced_panel, value="100")
+        self.y_max = wx.TextCtrl(advanced_panel, value="100")
+        for label, control in (("Net to stitch:", self.net_choice), ("Grid spacing (mm):", self.spacing), ("Edge inset (mm):", self.edge), ("Drill (mm):", self.drill), ("Via diameter (mm):", self.diameter)):
             grid.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
             grid.Add(control, 1, wx.EXPAND)
         grid.AddGrowableCol(1, 1)
         root.Add(grid, 0, wx.EXPAND | wx.ALL, 10)
-        root.Add(self.universal, 0, wx.LEFT | wx.RIGHT, 10)
+        advanced_root.Add(self.universal, 0, wx.LEFT | wx.RIGHT, 8)
         bounds = wx.BoxSizer(wx.HORIZONTAL)
         for label, control in (("X min mm", self.x_min), ("Y min mm", self.y_min), ("X max mm", self.x_max), ("Y max mm", self.y_max)):
-            bounds.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 6)
+            bounds.Add(wx.StaticText(advanced_panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 6)
             bounds.Add(control, 1, wx.ALL, 3)
-        select_bounds = wx.Button(panel, label="Use Selected Items Bounds")
+        select_bounds = wx.Button(advanced_panel, label="Use PCB Selection Bounds")
         select_bounds.Bind(wx.EVT_BUTTON, self.use_selection_bounds)
         bounds.Add(select_bounds, 0, wx.ALL, 3)
-        root.Add(bounds, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
-        self.skip_parts = wx.CheckBox(panel, label="Skip footprint bodies / parts")
-        self.skip_tracks = wx.CheckBox(panel, label="Skip locations occupied by tracks")
-        self.skip_zones = wx.CheckBox(panel, label="Skip locations inside copper zones")
-        self.skip_keepouts = wx.CheckBox(panel, label="Skip locations inside keepouts / board drawings")
+        advanced_root.Add(bounds, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
+        skip_row = wx.BoxSizer(wx.HORIZONTAL)
+        skip_row.Add(wx.StaticText(advanced_panel, label="Skip refs:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        skip_row.Add(self.skip_refs, 1, wx.EXPAND)
+        advanced_root.Add(skip_row, 0, wx.EXPAND | wx.ALL, 8)
+        self.skip_parts = wx.CheckBox(advanced_panel, label="Footprints")
+        self.skip_tracks = wx.CheckBox(advanced_panel, label="Tracks")
+        self.skip_zones = wx.CheckBox(advanced_panel, label="Copper zones")
+        self.skip_keepouts = wx.CheckBox(advanced_panel, label="Keepouts / drawings")
+        exclusion_row = wx.BoxSizer(wx.HORIZONTAL)
         for checkbox in (self.skip_parts, self.skip_tracks, self.skip_zones, self.skip_keepouts):
             checkbox.SetValue(True)
-            root.Add(checkbox, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
-        self.status = wx.StaticText(panel, label="Select a net. Candidates overlapping enabled exclusions are skipped.")
+            exclusion_row.Add(checkbox, 0, wx.RIGHT, 10)
+        advanced_root.Add(exclusion_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        advanced_panel.SetSizer(advanced_root)
+        root.Add(self.advanced, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        self.preview_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, (label, width) in enumerate((("#", 55), ("Net", 220), ("X (mm)", 110), ("Y (mm)", 110), ("Result", 150))):
+            self.preview_list.InsertColumn(index, label, width=width)
+        root.Add(self.preview_list, 1, wx.EXPAND | wx.ALL, 10)
+        self.status = wx.StaticText(panel, label="No preview yet.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        for text, handler in (("Preview", self.preview), ("Clear Preview", self.clear_preview), ("Generate", self.generate), ("Select Generated", self.select_generated), ("Undo", self.undo), ("Redo", self.redo)):
+        for text, handler in (("Preview on PCB", self.preview), ("Clear Preview", self.clear_preview), ("Commit to PCB", self.generate), ("Undo Commit", self.undo)):
             button = wx.Button(panel, label=text)
             button.Bind(wx.EVT_BUTTON, handler)
             row.Add(button, 0, wx.ALL, 5)
+            if text == "Commit to PCB":
+                self.commit_button = button
+                button.Enable(False)
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
         row.Add(help_btn, 0, wx.ALL, 5)
         root.Add(row, 0, wx.ALIGN_RIGHT | wx.ALL, 5)
         panel.SetSizer(root)
         self._load_nets()
+        for control in (self.spacing, self.edge, self.drill, self.diameter, self.skip_refs, self.x_min, self.y_min, self.x_max, self.y_max):
+            control.Bind(wx.EVT_TEXT, self.on_config_changed)
+        self.net_choice.Bind(wx.EVT_COMBOBOX, self.on_config_changed)
+        for control in (self.universal, self.skip_parts, self.skip_tracks, self.skip_zones, self.skip_keepouts):
+            control.Bind(wx.EVT_CHECKBOX, self.on_config_changed)
+        self.workflow.set_step(0, "Select a net and spacing, then Preview on PCB. Advanced area/exclusion settings are optional.")
 
     def _load_nets(self) -> None:
         names: Set[str] = set()
@@ -207,29 +234,50 @@ class ViaFrame(wx.Frame):
         try:
             self.clear_preview(None)
             plan = self._plan()
-            for via in plan:
+            self.preview_list.DeleteAllItems()
+            net_name, _net_code = self._selected_net()
+            for number, via in enumerate(plan, 1):
                 self.board.Add(via); self.preview_items.append(via)
+                position = via.GetPosition()
+                index = self.preview_list.InsertItem(self.preview_list.GetItemCount(), str(number))
+                values = (net_name or "<No net>", f"{pcbnew.ToMM(position.x):.3f}", f"{pcbnew.ToMM(position.y):.3f}", "Accepted")
+                for column, value in enumerate(values, 1):
+                    self.preview_list.SetItem(index, column, value)
             if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
             select_items(self.board, self.preview_items)
-            self.status.SetLabel(f"Previewing {len(plan)} vias. Clear or Generate to continue.")
-        except Exception as exc: self.status.SetLabel(str(exc))
+            self.commit_button.Enable(bool(plan))
+            self.status.SetLabel(f"Preview: {len(plan)} accepted vias. Temporary items are selected on the PCB.")
+            self.workflow.set_step(2, "Inspect the selected vias and preview table; Commit to PCB only when correct.")
+            if not plan:
+                wx.MessageBox("No via candidates survived the selected bounds and exclusions.", "No stitching preview", wx.OK | wx.ICON_INFORMATION)
+        except Exception as exc:
+            self.status.SetLabel(str(exc))
+            wx.MessageBox(str(exc), "Via preview failed", wx.OK | wx.ICON_ERROR)
 
     def clear_preview(self, _event: Any) -> None:
         for item in self.preview_items:
             try: self.board.Remove(item)
             except Exception: pass
         self.preview_items = []
+        self.preview_list.DeleteAllItems()
+        self.commit_button.Enable(False)
         if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
+        if _event is not None:
+            self.status.SetLabel("Preview cleared. No board changes were committed.")
+            self.workflow.set_step(0, "Adjust settings, then Preview on PCB again.")
 
     def generate(self, _event: Any) -> None:
         try:
-            self.clear_preview(None)
-            plan = self._plan()
-            for via in plan: self.board.Add(via)
-            self.undo_stack.append(plan); self.redo_stack.clear()
-            if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
-            select_items(self.board, plan)
-            self.status.SetLabel(f"Created {len(plan)} vias. Run DRC and review board-edge/keepout clearances.")
+            if not self.preview_items:
+                wx.MessageBox("Create and inspect a preview before committing.", "Preview required", wx.OK | wx.ICON_INFORMATION)
+                return
+            committed = list(self.preview_items)
+            self.preview_items = []
+            self.undo_stack.append(committed); self.redo_stack.clear()
+            self.commit_button.Enable(False)
+            select_items(self.board, committed)
+            self.status.SetLabel(f"Committed {len(committed)} vias. Run DRC before saving or fabrication.")
+            self.workflow.set_step(3, "Run DRC, inspect clearances, and save the board. Undo Commit remains available.")
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay Via Stitching", wx.OK | wx.ICON_ERROR)
 
@@ -257,3 +305,14 @@ class ViaFrame(wx.Frame):
         self.undo_stack.append(items)
         if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
         self.status.SetLabel("Last stitching operation redone.")
+
+    def on_config_changed(self, _event: Any) -> None:
+        if self.preview_items:
+            self.clear_preview(None)
+        self.preview_list.DeleteAllItems()
+        self.status.SetLabel("Settings changed; create a fresh preview before committing.")
+        self.workflow.set_step(0, "Preview the updated settings on the PCB.")
+
+    def on_close(self, event: Any) -> None:
+        self.clear_preview(None)
+        event.Skip()
