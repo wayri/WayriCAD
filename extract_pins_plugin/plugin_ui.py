@@ -81,7 +81,7 @@ class PluginUI(wx.Frame):
         panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
 
-        config = wx.StaticBoxSizer(wx.StaticBox(panel, label="Project Inputs"), wx.HORIZONTAL)
+        config = wx.StaticBoxSizer(wx.StaticBox(panel, label="Project"), wx.VERTICAL)
         self.schematic_dir = wx.TextCtrl(panel)
         browse_btn = wx.Button(panel, label="Browse")
         browse_btn.Bind(wx.EVT_BUTTON, self.on_browse_dir)
@@ -92,51 +92,50 @@ class PluginUI(wx.Frame):
         analyze_btn = wx.Button(panel, label="Analyze")
         analyze_btn.Bind(wx.EVT_BUTTON, self.on_analyze)
 
-        config.Add(wx.StaticText(panel, label="Schematic/netlist directory:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
-        config.Add(self.schematic_dir, 1, wx.EXPAND | wx.ALL, 4)
-        config.Add(browse_btn, 0, wx.ALL, 4)
-        config.Add(wx.StaticText(panel, label="Board order:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
-        config.Add(self.board_sequence, 1, wx.EXPAND | wx.ALL, 4)
-        config.Add(wx.StaticText(panel, label="Pass field:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
-        config.Add(self.pass_field, 0, wx.ALL, 4)
-        config.Add(analyze_btn, 0, wx.ALL, 4)
+        source_row = wx.BoxSizer(wx.HORIZONTAL)
+        source_row.Add(wx.StaticText(panel, label="Netlist directory:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        source_row.Add(self.schematic_dir, 1, wx.EXPAND | wx.ALL, 4)
+        source_row.Add(browse_btn, 0, wx.ALL, 4)
+        config.Add(source_row, 0, wx.EXPAND)
+        options_row = wx.BoxSizer(wx.HORIZONTAL)
+        options_row.Add(wx.StaticText(panel, label="Board order:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        options_row.Add(self.board_sequence, 1, wx.EXPAND | wx.ALL, 4)
+        options_row.Add(wx.StaticText(panel, label="Pass field:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        options_row.Add(self.pass_field, 0, wx.ALL, 4)
+        options_row.Add(analyze_btn, 0, wx.ALL, 4)
+        config.Add(options_row, 0, wx.EXPAND)
         root.Add(config, 0, wx.EXPAND | wx.ALL, 6)
 
-        filters = wx.StaticBoxSizer(wx.StaticBox(panel, label="Board Pin Filters"), wx.HORIZONTAL)
-        self.reference_filter = wx.TextCtrl(panel, value="", size=(90, -1))
-        self.value_filter = wx.TextCtrl(panel, value="", size=(90, -1))
-        self.net_filter = wx.TextCtrl(panel, value="", size=(110, -1))
-        self.property_filter = wx.TextCtrl(panel, value="", size=(120, -1))
-        self.include_power = wx.CheckBox(panel, label="Power nets")
+        self.filter_pane = wx.CollapsiblePane(panel, label="Filters and advanced options")
+        filter_panel = self.filter_pane.GetPane()
+        filters = wx.WrapSizer(wx.HORIZONTAL)
+        self.reference_filter = wx.TextCtrl(filter_panel, value="", size=(110, -1))
+        self.value_filter = wx.TextCtrl(filter_panel, value="", size=(110, -1))
+        self.net_filter = wx.TextCtrl(filter_panel, value="", size=(130, -1))
+        self.property_filter = wx.TextCtrl(filter_panel, value="", size=(140, -1))
+        self.include_power = wx.CheckBox(filter_panel, label="Power nets")
         self.include_power.SetValue(True)
-        self.selected_only = wx.CheckBox(panel, label="Selected only")
+        self.selected_only = wx.CheckBox(filter_panel, label="Selected only")
         for label, control in (("Refs (*,?):", self.reference_filter), ("Values:", self.value_filter), ("Nets:", self.net_filter), ("Property / value:", self.property_filter)):
-            filters.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
+            filters.Add(wx.StaticText(filter_panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
             filters.Add(control, 1, wx.EXPAND | wx.ALL, 3)
         filters.Add(self.include_power, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         filters.Add(self.selected_only, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
-        filter_btn = wx.Button(panel, label="Apply Filters")
+        filter_btn = wx.Button(filter_panel, label="Apply")
         filter_btn.Bind(wx.EVT_BUTTON, self.on_apply_filters)
         filters.Add(filter_btn, 0, wx.ALL, 4)
-        root.Add(filters, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
-
-        tm_tc_options = wx.StaticBoxSizer(wx.StaticBox(panel, label="TM/TC Output"), wx.HORIZONTAL)
-        self.consolidate_tm_tc = wx.CheckBox(panel, label="One universal row per net")
+        self.consolidate_tm_tc = wx.CheckBox(filter_panel, label="Consolidate TM/TC by net")
         self.consolidate_tm_tc.SetValue(True)
         self.consolidate_tm_tc.SetToolTip("Combine repeated connector, passive, and IC pin entries into one row per labeled net.")
-        self.tm_tc_selected_only = wx.CheckBox(panel, label="Selected components only")
+        self.tm_tc_selected_only = wx.CheckBox(filter_panel, label="TM/TC from selected components")
         self.tm_tc_selected_only.SetToolTip("Limit TM/TC rows to footprints currently selected in PCB Editor.")
-        tm_tc_options.Add(self.consolidate_tm_tc, 0, wx.ALL, 4)
-        tm_tc_options.Add(self.tm_tc_selected_only, 0, wx.ALL, 4)
-        root.Add(tm_tc_options, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+        filters.Add(self.consolidate_tm_tc, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        filters.Add(self.tm_tc_selected_only, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        filter_panel.SetSizer(filters)
+        self.filter_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, lambda _event: panel.Layout())
+        root.Add(self.filter_pane, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
-        splitter = wx.SplitterWindow(panel)
-        left = wx.Panel(splitter)
-        right = wx.Panel(splitter)
-        left_sizer = wx.BoxSizer(wx.VERTICAL)
-        right_sizer = wx.BoxSizer(wx.VERTICAL)
-
-        self.notebook = wx.Notebook(left)
+        self.notebook = wx.Choicebook(panel)
         self.interface_list = wx.ListCtrl(self.notebook, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.interface_list.InsertColumn(0, "Interface", width=120)
         self.interface_list.InsertColumn(1, "Nets", width=70)
@@ -313,51 +312,31 @@ class PluginUI(wx.Frame):
         flow_root.Add(self.flow_preview, 1, wx.EXPAND | wx.ALL, 4)
         flow_panel.SetSizer(flow_root)
         self.notebook.AddPage(flow_panel, "Signal Flow")
-        left_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 4)
+        report_panel = wx.Panel(self.notebook)
+        report_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.html_preview = wx.html.HtmlWindow(report_panel, style=wx.html.HW_SCROLLBAR_AUTO)
+        report_sizer.Add(self.html_preview, 1, wx.EXPAND | wx.ALL, 4)
+        report_panel.SetSizer(report_sizer)
+        self.notebook.AddPage(report_panel, "Report Preview")
+        root.Add(self.notebook, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
 
-        # Wrap actions so Help and all exports remain reachable on narrow KiCad
-        # windows instead of being clipped at the right edge.
-        button_row = wx.WrapSizer(wx.HORIZONTAL)
-        group_btn = wx.Button(left, label="Create PCB Group")
+        button_row = wx.BoxSizer(wx.HORIZONTAL)
+        group_btn = wx.Button(panel, label="Create PCB Group")
         group_btn.Bind(wx.EVT_BUTTON, self.on_create_group)
-        export_md_btn = wx.Button(left, label="Export Markdown")
-        export_md_btn.Bind(wx.EVT_BUTTON, self.on_export_markdown)
-        export_html_btn = wx.Button(left, label="Export HTML")
-        export_html_btn.Bind(wx.EVT_BUTTON, self.on_export_html)
-        export_csv_btn = wx.Button(left, label="Export CSV")
-        export_csv_btn.Bind(wx.EVT_BUTTON, self.on_export_csv)
-        highlight_btn = wx.Button(left, label="Highlight Net")
+        highlight_btn = wx.Button(panel, label="Highlight Net")
         highlight_btn.Bind(wx.EVT_BUTTON, self.on_highlight_net)
-        clear_highlight_btn = wx.Button(left, label="Clear Highlight")
+        clear_highlight_btn = wx.Button(panel, label="Clear")
         clear_highlight_btn.Bind(wx.EVT_BUTTON, self.on_clear_highlight)
-        export_flow_btn = wx.Button(left, label="Flow SVG")
-        export_flow_btn.Bind(wx.EVT_BUTTON, self.on_export_flow_svg)
-        export_blocks_btn = wx.Button(left, label="Block SVG")
-        export_blocks_btn.Bind(wx.EVT_BUTTON, self.on_export_interface_svg)
-        export_flow_csv_btn = wx.Button(left, label="Flow CSV")
-        export_flow_csv_btn.Bind(wx.EVT_BUTTON, self.on_export_flow_csv)
-        help_btn = wx.Button(left, label="Help")
+        export_btn = wx.Button(panel, label="Export...")
+        export_btn.Bind(wx.EVT_BUTTON, self.on_export_menu)
+        help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
-        for btn in (group_btn, export_md_btn, export_html_btn, export_csv_btn, export_flow_btn, export_blocks_btn, export_flow_csv_btn, highlight_btn, clear_highlight_btn, help_btn):
+        for btn in (group_btn, highlight_btn, clear_highlight_btn, export_btn, help_btn):
             button_row.Add(btn, 0, wx.ALL, 4)
-        left_sizer.Add(button_row, 0, wx.EXPAND)
-        left.SetSizer(left_sizer)
-
-        if FigureCanvas and Figure:
-            self.figure = Figure(figsize=(5, 3))
-            self.canvas = FigureCanvas(right, -1, self.figure)
-            right_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 4)
-        else:
-            self.figure = None
-            self.canvas = None
-            right_sizer.Add(wx.StaticText(right, label="Native chart preview is optional. Use Flow SVG or Block SVG for dependency-free diagrams."), 0, wx.ALL, 8)
-
-        self.html_preview = wx.html.HtmlWindow(right, style=wx.html.HW_SCROLLBAR_AUTO)
-        right_sizer.Add(self.html_preview, 1, wx.EXPAND | wx.ALL, 4)
-        right.SetSizer(right_sizer)
-
-        splitter.SplitVertically(left, right, 560)
-        root.Add(splitter, 1, wx.EXPAND | wx.ALL, 6)
+        button_row.AddStretchSpacer(1)
+        root.Add(button_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
+        self.figure = None
+        self.canvas = None
 
         self.status = wx.StaticText(panel, label="Ready.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
@@ -661,6 +640,7 @@ class PluginUI(wx.Frame):
             for column, value in enumerate(values, 1):
                 self.pin_list.SetItem(index, column, str(value))
             self.pin_list.SetItemBackgroundColour(index, protocol_color(row["Protocol"], row["Net Type"]))
+            self.pin_list.SetItemTextColour(index, wx.Colour(24, 31, 38))
 
     def on_apply_filters(self, _event: Any) -> None:
         try:
@@ -668,6 +648,27 @@ class PluginUI(wx.Frame):
             self.status.SetLabel(f"Showing {len(self.board_rows)} filtered board pin rows.")
         except Exception as exc:
             wx.MessageBox(str(exc), "Filter failed", wx.OK | wx.ICON_ERROR)
+
+    def on_export_menu(self, _event: Any) -> None:
+        menu = wx.Menu()
+        actions = (
+            ("Report as Markdown...", self.on_export_markdown),
+            ("Report as HTML...", self.on_export_html),
+            ("Combined tables as CSV...", self.on_export_csv),
+            (None, None),
+            ("Signal flow as SVG...", self.on_export_flow_svg),
+            ("Interface blocks as SVG...", self.on_export_interface_svg),
+            ("Signal flow as CSV...", self.on_export_flow_csv),
+        )
+        for label, handler in actions:
+            if label is None:
+                menu.AppendSeparator()
+                continue
+            item_id = int(wx.NewIdRef())
+            menu.Append(item_id, label)
+            self.Bind(wx.EVT_MENU, handler, id=item_id)
+        self.PopupMenu(menu)
+        menu.Destroy()
 
     def on_pin_selected(self, event: Any) -> None:
         row_index = event.GetIndex()
@@ -989,8 +990,4 @@ class PluginUI(wx.Frame):
         self.canvas.draw()
 
     def _update_preview(self) -> None:
-        if markdown:
-            html_text = markdown.markdown(self.current_markdown, extensions=["tables"])
-        else:
-            html_text = self.docgen._basic_markdown_to_html(self.current_markdown)
-        self.html_preview.SetPage(html_text)
+        self.html_preview.SetPage(self.docgen.render_html(self.current_markdown, for_preview=True))

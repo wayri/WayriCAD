@@ -52,6 +52,14 @@ class DocGenerator:
         return path
 
     def export_html(self, markdown_text: str, path: str) -> str:
+        html_doc = self.render_html(markdown_text)
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html_doc)
+        return path
+
+    def render_html(self, markdown_text: str, for_preview: bool = False) -> str:
+        """Render a theme-independent, width-safe HTML report."""
         try:
             import markdown
         except ImportError:
@@ -59,20 +67,19 @@ class DocGenerator:
         else:
             body = markdown.markdown(markdown_text, extensions=["tables", "toc"])
 
-        css = """
-body { font-family: Segoe UI, Arial, sans-serif; margin: 32px; color: #202124; }
-h1, h2, h3 { color: #17324d; }
-table { border-collapse: collapse; width: 100%; margin: 12px 0 28px; font-size: 13px; }
-th, td { border: 1px solid #d6dde5; padding: 7px 9px; text-align: left; vertical-align: top; }
-th { background: #eef3f8; }
-tr:nth-child(even) td { background: #fafbfd; }
-code { background: #f2f4f7; padding: 1px 4px; border-radius: 3px; }
+        margin = "12px" if for_preview else "28px"
+        css = f"""
+html, body {{ background: #ffffff; color: #202124; }}
+body {{ font-family: Segoe UI, Arial, sans-serif; margin: {margin}; line-height: 1.42; }}
+h1 {{ font-size: 24px; }} h2 {{ font-size: 19px; margin-top: 24px; }} h3 {{ font-size: 16px; }}
+h1, h2, h3 {{ color: #17324d; }}
+table {{ border-collapse: collapse; width: 100%; max-width: 100%; margin: 10px 0 24px; font-size: 12px; table-layout: fixed; }}
+th, td {{ border: 1px solid #b9c4cf; padding: 6px 7px; text-align: left; vertical-align: top; color: #202124; background: #ffffff; overflow-wrap: anywhere; word-wrap: break-word; }}
+th {{ background: #e8f0f6; color: #17324d; font-weight: 600; }}
+tr:nth-child(even) td {{ background: #f5f7f9; }}
+code {{ background: #eef2f5; color: #202124; padding: 1px 4px; }}
 """
-        html_doc = f"<!doctype html><html><head><meta charset='utf-8'><style>{css}</style></head><body>{body}</body></html>"
-        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(html_doc)
-        return path
+        return f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><style>{css}</style></head><body>{body}</body></html>"
 
     def export_csv(self, rows: Sequence[Dict[str, Any]], path: str) -> str:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
