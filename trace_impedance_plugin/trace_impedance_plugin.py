@@ -11,6 +11,7 @@ import wx
 
 from .measurement import PathMeasurement, TraceMeasurementEngine
 from .help_utils import open_help
+from .selection_utils import pads_on_net, select_items
 
 
 class TraceImpedancePlugin(pcbnew.ActionPlugin):
@@ -60,9 +61,11 @@ class TraceFrame(wx.Frame):
         self.measure_button.Bind(wx.EVT_BUTTON, self.analyze)
         export = wx.Button(panel, label="Export CSV")
         export.Bind(wx.EVT_BUTTON, self.export_csv)
+        select = wx.Button(panel, label="Select Net on PCB")
+        select.Bind(wx.EVT_BUTTON, self.select_net)
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
-        row = wx.BoxSizer(wx.HORIZONTAL); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
+        row = wx.BoxSizer(wx.HORIZONTAL); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(select, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
         refresh_stackup = wx.Button(panel, label="Refresh Stackup")
         refresh_stackup.Bind(wx.EVT_BUTTON, self._load_stackup)
         row.Add(refresh_stackup, 0, wx.ALL, 5)
@@ -114,6 +117,11 @@ class TraceFrame(wx.Frame):
             self._show(self.current)
         except Exception as exc:
             wx.MessageBox(str(exc), "Trace analysis failed", wx.OK | wx.ICON_ERROR)
+
+    def select_net(self, _event: Any) -> None:
+        net_name = self.net.GetValue()
+        count = select_items(self.board, pads_on_net(self.board, net_name))
+        self.summary.SetLabel(f"Selected {count} pads on {net_name} in PCB Editor.")
 
     def _show(self, result: PathMeasurement) -> None:
         self.table.DeleteAllItems()

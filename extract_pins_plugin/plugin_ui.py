@@ -41,6 +41,7 @@ from .core.cross_linker import (
     parse_link_rules,
 )
 from .help_utils import open_help
+from .selection_utils import footprint, select_items
 
 
 class PluginUI(wx.Frame):
@@ -158,6 +159,7 @@ class PluginUI(wx.Frame):
         for idx, label in enumerate(["Reference", "Pad", "Net", "Type", "Power", "Protocol", "Value", "Properties"]):
             self.pin_list.InsertColumn(idx, label, width=125 if idx != 7 else 260)
         self.pin_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_pin_selected)
+        self.pin_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_pin_selected)
         self.notebook.AddPage(self.pin_list, "Board Pins")
 
         sheet_panel = wx.Panel(self.notebook)
@@ -271,6 +273,7 @@ class PluginUI(wx.Frame):
         component_controls.Add(preview_components, 0, wx.ALL, 4)
         component_root.Add(component_controls, 0, wx.EXPAND | wx.ALL, 4)
         self.component_list = wx.ListCtrl(component_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.component_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_component_selected)
         self.component_list.InsertColumn(0, "Reference", width=120)
         self.component_list.InsertColumn(1, "Value", width=220)
         self.component_list.InsertColumn(2, "Pins", width=80)
@@ -670,8 +673,17 @@ class PluginUI(wx.Frame):
         row_index = event.GetIndex()
         if row_index < 0 or row_index >= len(self.board_rows):
             return
-        net_name = self.board_rows[row_index].get("Net Name", "")
+        row = self.board_rows[row_index]
+        net_name = row.get("Net Name", "")
+        owner = footprint(self.board, row.get("Reference", ""))
+        pads = [pad for pad in owner.Pads() if str(pad.GetNumber()) == str(row.get("Pad", ""))] if owner else []
+        select_items(self.board, pads or [owner])
         self._highlight_net_name(net_name)
+
+    def on_component_selected(self, event: Any) -> None:
+        reference = self.component_list.GetItemText(event.GetIndex())
+        select_items(self.board, [footprint(self.board, reference)])
+        self.status.SetLabel(f"Selected {reference} on the PCB.")
 
     def on_highlight_net(self, _event: Any) -> None:
         selected = self.pin_list.GetFirstSelected()

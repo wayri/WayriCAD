@@ -10,6 +10,7 @@ import pcbnew
 import wx
 
 from .help_utils import open_help
+from .selection_utils import footprint, select_items
 
 
 def connector_rows(board: Any) -> List[Dict[str, str]]:
@@ -52,6 +53,7 @@ class ConnectorFrame(wx.Frame):
         panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
         self.list = wx.ListCtrl(panel, style=wx.LC_REPORT)
+        self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.select_row)
         for index, label in enumerate(("Connector", "Part", "Pin", "Net", "Type")):
             self.list.InsertColumn(index, label, width=160 if index < 2 else 130)
         root.Add(self.list, 1, wx.EXPAND | wx.ALL, 8)
@@ -60,9 +62,11 @@ class ConnectorFrame(wx.Frame):
         export.Bind(wx.EVT_BUTTON, self.export_csv)
         refresh = wx.Button(panel, label="Refresh")
         refresh.Bind(wx.EVT_BUTTON, self.refresh)
+        select = wx.Button(panel, label="Select on PCB")
+        select.Bind(wx.EVT_BUTTON, self.select_row)
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
-        row.Add(refresh, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
+        row.Add(refresh, 0, wx.ALL, 5); row.Add(select, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
         root.Add(row, 0, wx.ALIGN_RIGHT)
         panel.SetSizer(root)
         self.refresh(None)
@@ -81,3 +85,13 @@ class ConnectorFrame(wx.Frame):
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=["Connector", "Part", "Pin", "Net", "Type"]); writer.writeheader(); writer.writerows(self.rows)
         wx.MessageBox(f"Exported {len(self.rows)} connector pins.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+
+    def select_row(self, event: Any) -> None:
+        index = event.GetIndex() if hasattr(event, "GetIndex") else self.list.GetFirstSelected()
+        if index < 0 or index >= len(self.rows):
+            wx.MessageBox("Select a connector-pin row first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            return
+        row = self.rows[index]
+        owner = footprint(self.board, row["Connector"])
+        pads = [pad for pad in owner.Pads() if str(pad.GetNumber()) == row["Pin"]] if owner else []
+        select_items(self.board, pads or [owner])

@@ -12,6 +12,7 @@ import pcbnew
 import wx
 
 from .help_utils import open_help
+from .selection_utils import select_items
 
 
 @dataclass
@@ -20,6 +21,7 @@ class EditableItem:
     owner: str
     current: str
     setter: Callable[[str], None]
+    board_item: Any = None
 
 
 class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
@@ -98,14 +100,17 @@ class BulkLabelEditorFrame(wx.Frame):
         redo_btn.Bind(wx.EVT_BUTTON, self.on_redo)
         refresh_btn = wx.Button(panel, label="Refresh")
         refresh_btn.Bind(wx.EVT_BUTTON, self.on_refresh)
+        select_btn = wx.Button(panel, label="Select on PCB")
+        select_btn.Bind(wx.EVT_BUTTON, self.on_select_preview)
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
-        for btn in (preview_btn, apply_btn, undo_btn, redo_btn, refresh_btn, help_btn):
+        for btn in (preview_btn, apply_btn, undo_btn, redo_btn, refresh_btn, select_btn, help_btn):
             row3.Add(btn, 0, wx.ALL, 4)
         options.Add(row3, 0, wx.EXPAND)
         root.Add(options, 0, wx.EXPAND | wx.ALL, 6)
 
         self.preview = wx.ListCtrl(panel, style=wx.LC_REPORT)
+        self.preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_select_preview)
         for idx, (label, width) in enumerate([("Kind", 120), ("Owner", 120), ("Current", 260), ("New", 260)]):
             self.preview.InsertColumn(idx, label, width=width)
         root.Add(self.preview, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
@@ -118,8 +123,8 @@ class BulkLabelEditorFrame(wx.Frame):
         self.items = []
         for fp in self.board.GetFootprints():
             ref = fp.GetReference()
-            self.items.append(EditableItem("Reference", ref, ref, fp.SetReference))
-            self.items.append(EditableItem("Value", ref, fp.GetValue(), fp.SetValue))
+            self.items.append(EditableItem("Reference", ref, ref, fp.SetReference, fp))
+            self.items.append(EditableItem("Value", ref, fp.GetValue(), fp.SetValue, fp))
             self._add_fields(fp, ref)
         self._add_board_text()
         self.on_preview(None)
@@ -139,7 +144,7 @@ class BulkLabelEditorFrame(wx.Frame):
                     f"Field:{name}",
                     owner,
                     field.GetText(),
-                    field.SetText,
+                    field.SetText, fp,
                 )
             )
 
@@ -149,7 +154,7 @@ class BulkLabelEditorFrame(wx.Frame):
             get_text = getattr(drawing, "GetText", None)
             set_text = getattr(drawing, "SetText", None)
             if callable(get_text) and callable(set_text):
-                self.items.append(EditableItem(type(drawing).__name__, "Board", get_text(), set_text))
+                self.items.append(EditableItem(type(drawing).__name__, "Board", get_text(), set_text, drawing))
 
     def on_refresh(self, _event: Any) -> None:
         self.refresh_items()
@@ -190,6 +195,15 @@ class BulkLabelEditorFrame(wx.Frame):
             pcbnew.Refresh()
         self.refresh_items()
         self.status.SetLabel(f"Applied {count} edits.")
+
+    def on_select_preview(self, event: Any) -> None:
+        index = event.GetIndex() if hasattr(event, "GetIndex") else self.preview.GetFirstSelected()
+        if index < 0 or index >= len(self.matches):
+            wx.MessageBox("Select a preview row first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            return
+        item = self.matches[index]
+        select_items(self.board, [item.board_item])
+        self.status.SetLabel(f"Selected {item.owner} on the PCB.")
 
     def on_undo(self, _event: Any) -> None:
         if not self.undo_stack:

@@ -10,6 +10,7 @@ import pcbnew
 import wx
 
 from .help_utils import open_help
+from .selection_utils import pads_on_net, select_items
 
 
 def coverage_rows(board: Any) -> List[Dict[str, str]]:
@@ -58,11 +59,15 @@ class TestCoverageFrame(wx.Frame):
         self.board = board; self.rows: List[Dict[str, str]] = []
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
         self.list = wx.ListCtrl(panel, style=wx.LC_REPORT)
+        self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.select_net)
         for idx, label in enumerate(("Net", "Test Points", "Status", "Count")): self.list.InsertColumn(idx, label, width=270 if idx < 2 else 120)
         root.Add(self.list, 1, wx.EXPAND | wx.ALL, 8)
         row = wx.BoxSizer(wx.HORIZONTAL)
         for label, handler in (("Scan", self.scan), ("Export CSV", self.export_csv)):
             button = wx.Button(panel, label=label); button.Bind(wx.EVT_BUTTON, handler); row.Add(button, 0, wx.ALL, 5)
+        select = wx.Button(panel, label="Select Net on PCB")
+        select.Bind(wx.EVT_BUTTON, self.select_net)
+        row.Add(select, 0, wx.ALL, 5)
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
         row.Add(help_btn, 0, wx.ALL, 5)
@@ -79,3 +84,10 @@ class TestCoverageFrame(wx.Frame):
             if dialog.ShowModal() != wx.ID_OK: return
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=["Net", "Test Points", "Status", "Count"]); writer.writeheader(); writer.writerows(self.rows)
+
+    def select_net(self, event: Any) -> None:
+        index = event.GetIndex() if hasattr(event, "GetIndex") else self.list.GetFirstSelected()
+        if index < 0 or index >= len(self.rows):
+            wx.MessageBox("Select a net row first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            return
+        select_items(self.board, pads_on_net(self.board, self.rows[index]["Net"]))

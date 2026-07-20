@@ -10,6 +10,7 @@ import pcbnew
 import wx
 
 from .help_utils import open_help
+from .selection_utils import select_items
 
 
 def _coord(value: Any) -> float:
@@ -69,7 +70,7 @@ class FanoutFrame(wx.Frame):
         self.status = wx.StaticText(panel, label="Select a footprint reference or leave blank for all SMD footprints.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        actions = (("Preview", self.preview), ("Clear Preview", self.clear_preview), ("Generate", self.generate), ("Undo", self.undo), ("Redo", self.redo))
+        actions = (("Preview", self.preview), ("Clear Preview", self.clear_preview), ("Generate", self.generate), ("Select Generated", self.select_generated), ("Undo", self.undo), ("Redo", self.redo))
         for text, handler in actions:
             button = wx.Button(panel, label=text)
             button.Bind(wx.EVT_BUTTON, handler)
@@ -129,6 +130,7 @@ class FanoutFrame(wx.Frame):
                 track.SetStart(pad.GetPosition()); track.SetEnd(end); track.SetWidth(width); track.SetLayer(self._layer(pad)); track.SetNetCode(pad.GetNetCode())
                 self.board.Add(track); self.preview_items.append(track)
             if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
+            select_items(self.board, self.preview_items)
             self.status.SetLabel(f"Previewing {len(plan)} fanout tracks. Clear or Generate to continue.")
         except Exception as exc:
             self.status.SetLabel(str(exc))
@@ -160,9 +162,16 @@ class FanoutFrame(wx.Frame):
                     self.board.Add(via); created.append(via)
             self.undo_stack.append(created); self.redo_stack.clear()
             if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
+            select_items(self.board, created)
             self.status.SetLabel(f"Generated {len(plan)} fanout tracks. Review clearance and routing before fabrication.")
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay Fanout Generator", wx.OK | wx.ICON_ERROR)
+
+    def select_generated(self, _event: Any) -> None:
+        """Select the current preview or most recently generated fanout."""
+        items = self.preview_items or (self.undo_stack[-1] if self.undo_stack else [])
+        select_items(self.board, items)
+        self.status.SetLabel(f"Selected {len(items)} generated fanout items on the PCB.")
 
     def undo(self, _event: Any) -> None:
         if not self.undo_stack: return

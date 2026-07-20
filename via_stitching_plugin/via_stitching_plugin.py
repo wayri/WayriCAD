@@ -9,6 +9,7 @@ import pcbnew
 import wx
 
 from .help_utils import open_help
+from .selection_utils import select_items
 
 
 class ViaStitchingPlugin(pcbnew.ActionPlugin):
@@ -80,7 +81,7 @@ class ViaFrame(wx.Frame):
         self.status = wx.StaticText(panel, label="Select a net. Candidates overlapping enabled exclusions are skipped.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        for text, handler in (("Preview", self.preview), ("Clear Preview", self.clear_preview), ("Generate", self.generate), ("Undo", self.undo), ("Redo", self.redo)):
+        for text, handler in (("Preview", self.preview), ("Clear Preview", self.clear_preview), ("Generate", self.generate), ("Select Generated", self.select_generated), ("Undo", self.undo), ("Redo", self.redo)):
             button = wx.Button(panel, label=text)
             button.Bind(wx.EVT_BUTTON, handler)
             row.Add(button, 0, wx.ALL, 5)
@@ -209,6 +210,7 @@ class ViaFrame(wx.Frame):
             for via in plan:
                 self.board.Add(via); self.preview_items.append(via)
             if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
+            select_items(self.board, self.preview_items)
             self.status.SetLabel(f"Previewing {len(plan)} vias. Clear or Generate to continue.")
         except Exception as exc: self.status.SetLabel(str(exc))
 
@@ -226,9 +228,15 @@ class ViaFrame(wx.Frame):
             for via in plan: self.board.Add(via)
             self.undo_stack.append(plan); self.redo_stack.clear()
             if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
+            select_items(self.board, plan)
             self.status.SetLabel(f"Created {len(plan)} vias. Run DRC and review board-edge/keepout clearances.")
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay Via Stitching", wx.OK | wx.ICON_ERROR)
+
+    def select_generated(self, _event: Any) -> None:
+        items = self.preview_items or (self.undo_stack[-1] if self.undo_stack else [])
+        select_items(self.board, items)
+        self.status.SetLabel(f"Selected {len(items)} generated vias on the PCB.")
 
     def undo(self, _event: Any) -> None:
         if not self.undo_stack: return

@@ -11,6 +11,7 @@ import pcbnew
 import wx
 
 from .help_utils import open_help
+from .selection_utils import footprint, pads_on_net, select_items
 
 
 def find_issues(board: Any) -> List[Dict[str, str]]:
@@ -56,11 +57,15 @@ class NetHygieneFrame(wx.Frame):
         self.board = board; self.issues: List[Dict[str, str]] = []
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
         self.list = wx.ListCtrl(panel, style=wx.LC_REPORT)
+        self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.select_issue)
         for idx, label in enumerate(("Severity", "Kind", "Object", "Details")): self.list.InsertColumn(idx, label, width=180 if idx != 3 else 360)
         root.Add(self.list, 1, wx.EXPAND | wx.ALL, 8)
         row = wx.BoxSizer(wx.HORIZONTAL)
         for label, handler in (("Scan", self.scan), ("Export CSV", self.export_csv)):
             button = wx.Button(panel, label=label); button.Bind(wx.EVT_BUTTON, handler); row.Add(button, 0, wx.ALL, 5)
+        select = wx.Button(panel, label="Select on PCB")
+        select.Bind(wx.EVT_BUTTON, self.select_issue)
+        row.Add(select, 0, wx.ALL, 5)
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
         row.Add(help_btn, 0, wx.ALL, 5)
@@ -77,3 +82,17 @@ class NetHygieneFrame(wx.Frame):
             if dialog.ShowModal() != wx.ID_OK: return
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=["Severity", "Kind", "Object", "Details"]); writer.writeheader(); writer.writerows(self.issues)
+
+    def select_issue(self, event: Any) -> None:
+        index = event.GetIndex() if hasattr(event, "GetIndex") else self.list.GetFirstSelected()
+        if index < 0 or index >= len(self.issues):
+            wx.MessageBox("Select an issue row first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            return
+        value = self.issues[index]["Object"]
+        if "." in value:
+            ref, pad_number = value.split(".", 1)
+            owner = footprint(self.board, ref)
+            targets = [pad for pad in owner.Pads() if str(pad.GetNumber()) == pad_number] if owner else []
+        else:
+            targets = pads_on_net(self.board, value) or [footprint(self.board, value)]
+        select_items(self.board, targets)
