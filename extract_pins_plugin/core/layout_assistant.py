@@ -29,8 +29,7 @@ class LayoutAssistant:
             raise RuntimeError("This KiCad pcbnew API does not expose PCB_GROUP.")
 
         name = group_name or f"KiWay_{interface.get('name', 'Interface')}"
-        refs = self._interface_references(interface)
-        footprints = [fp for fp in self.board.GetFootprints() if fp.GetReference() in refs]
+        footprints = self.interface_footprints(interface)
         if not footprints:
             raise ValueError(f"No board footprints matched interface group {name}.")
 
@@ -54,6 +53,14 @@ class LayoutAssistant:
             refresh()
 
         return group
+
+    def interface_footprints(self, interface: Dict[str, Any]) -> List[Any]:
+        """Return the deterministic PCB footprint set represented by an interface."""
+        refs = self._interface_references(interface)
+        return sorted(
+            (fp for fp in self.board.GetFootprints() if fp.GetReference() in refs),
+            key=lambda fp: str(fp.GetReference()),
+        )
 
     def _interface_references(self, interface: Dict[str, Any]) -> Set[str]:
         refs: Set[str] = set()

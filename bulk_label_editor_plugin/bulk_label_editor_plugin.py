@@ -41,16 +41,18 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
             board = pcbnew.GetBoard()
             if board is None or not hasattr(board, "GetFootprints"):
                 raise RuntimeError("Open a PCB in PCB Editor first.")
-            BulkLabelEditorFrame(None, board).Show()
+            dialog = BulkLabelEditorFrame(None, board)
+            dialog.ShowModal()
+            dialog.Destroy()
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay Bulk Label Editor", wx.OK | wx.ICON_ERROR)
 
 
-class BulkLabelEditorFrame(wx.Frame):
+class BulkLabelEditorFrame(wx.Dialog):
     """Preview-and-apply editor for common pcbnew text-bearing objects."""
 
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Bulk Label Editor", size=(900, 620))
+        super().__init__(parent, title="KiWay Bulk Label Editor", size=(900, 680), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.board = board
         self.items: List[EditableItem] = []
         self.matches: List[EditableItem] = []
@@ -100,17 +102,21 @@ class BulkLabelEditorFrame(wx.Frame):
         preview_btn.Bind(wx.EVT_BUTTON, self.on_preview)
         apply_btn = wx.Button(panel, label="Apply Preview")
         apply_btn.Bind(wx.EVT_BUTTON, self.on_apply)
-        undo_btn = wx.Button(panel, label="Undo")
-        undo_btn.Bind(wx.EVT_BUTTON, self.on_undo)
-        redo_btn = wx.Button(panel, label="Redo")
-        redo_btn.Bind(wx.EVT_BUTTON, self.on_redo)
+        self.undo_button = wx.Button(panel, label="Undo Last Apply")
+        self.undo_button.Bind(wx.EVT_BUTTON, self.on_undo)
+        self.undo_button.Enable(False)
+        self.undo_button.SetToolTip("Restore every field changed by the most recent Apply Preview.")
+        self.redo_button = wx.Button(panel, label="Redo Last Apply")
+        self.redo_button.Bind(wx.EVT_BUTTON, self.on_redo)
+        self.redo_button.Enable(False)
+        self.redo_button.SetToolTip("Reapply every field restored by Undo Last Apply.")
         refresh_btn = wx.Button(panel, label="Refresh")
         refresh_btn.Bind(wx.EVT_BUTTON, self.on_refresh)
         select_btn = wx.Button(panel, label="Select on PCB")
         select_btn.Bind(wx.EVT_BUTTON, self.on_select_preview)
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
-        for btn in (preview_btn, apply_btn, undo_btn, redo_btn, refresh_btn, select_btn, help_btn):
+        for btn in (preview_btn, apply_btn, self.undo_button, self.redo_button, refresh_btn, select_btn, help_btn):
             row3.Add(btn, 0, wx.ALL, 4)
         options.Add(row3, 0, wx.EXPAND)
         root.Add(options, 0, wx.EXPAND | wx.ALL, 6)
@@ -201,6 +207,8 @@ class BulkLabelEditorFrame(wx.Frame):
         if operation:
             self.undo_stack.append(operation)
             self.redo_stack.clear()
+            self.undo_button.Enable(True)
+            self.redo_button.Enable(False)
         if hasattr(pcbnew, "Refresh"):
             pcbnew.Refresh()
         self.refresh_items()
@@ -224,6 +232,8 @@ class BulkLabelEditorFrame(wx.Frame):
         for item, old_value, _new_value in reversed(operation):
             item.setter(old_value)
         self.redo_stack.append(operation)
+        self.undo_button.Enable(bool(self.undo_stack))
+        self.redo_button.Enable(True)
         if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
         self.refresh_items()
         self.status.SetLabel(f"Undid {len(operation)} edits.")
@@ -236,6 +246,8 @@ class BulkLabelEditorFrame(wx.Frame):
         for item, _old_value, new_value in operation:
             item.setter(new_value)
         self.undo_stack.append(operation)
+        self.undo_button.Enable(True)
+        self.redo_button.Enable(bool(self.redo_stack))
         if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
         self.refresh_items()
         self.status.SetLabel(f"Redid {len(operation)} edits.")

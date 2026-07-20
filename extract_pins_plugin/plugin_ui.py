@@ -45,7 +45,7 @@ from .selection_utils import footprint, select_items
 from .guided_ui import add_workflow
 
 
-class PluginUI(wx.Frame):
+class PluginUI(wx.Dialog):
     """Main KiWay dashboard for graph extraction, visualization, and docs."""
 
     def __init__(self, parent: Any = None, board: Any = None) -> None:
@@ -53,7 +53,7 @@ class PluginUI(wx.Frame):
             parent,
             title="KiWay Extract Pins - Interface Dashboard",
             size=(1180, 760),
-            style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER,
+            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
         self.board = board if board is not None else (pcbnew.GetBoard() if pcbnew else None)
         self.parser: Optional[SchematicGraphParser] = None
@@ -68,6 +68,10 @@ class PluginUI(wx.Frame):
         self.component_export_data: Dict[str, Any] = {}
         self.cross_documents: List[ImportedPinDocument] = []
         self.cross_links: List[Dict[str, str]] = []
+        self.group_undo_stack: List[Any] = []
+        self.group_redo_stack: List[Any] = []
+        self.group_preview_name = ""
+        self.group_preview_items: List[Any] = []
         self.current_markdown = ""
         self.docgen = DocGenerator()
         self.extractor = DataExtractor(self.board) if self.board else None
@@ -329,8 +333,21 @@ class PluginUI(wx.Frame):
         root.Add(self.notebook, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
 
         button_row = wx.BoxSizer(wx.HORIZONTAL)
-        group_btn = wx.Button(panel, label="Create PCB Group")
-        group_btn.Bind(wx.EVT_BUTTON, self.on_create_group)
+        self.show_group_btn = wx.Button(panel, label="Show Group on PCB")
+        self.show_group_btn.Bind(wx.EVT_BUTTON, self.on_preview_group)
+        self.show_group_btn.SetToolTip("Select every footprint represented by the highlighted interface table row.")
+        self.create_group_btn = wx.Button(panel, label="Create PCB Group")
+        self.create_group_btn.Bind(wx.EVT_BUTTON, self.on_create_group)
+        self.create_group_btn.Enable(False)
+        self.create_group_btn.SetToolTip("Create the group only after reviewing its members in the table and on the PCB.")
+        self.undo_group_btn = wx.Button(panel, label="Undo Group")
+        self.undo_group_btn.Bind(wx.EVT_BUTTON, self.on_undo_group)
+        self.undo_group_btn.Enable(False)
+        self.undo_group_btn.SetToolTip("Remove the complete PCB group created by the most recent plugin action.")
+        self.redo_group_btn = wx.Button(panel, label="Redo Group")
+        self.redo_group_btn.Bind(wx.EVT_BUTTON, self.on_redo_group)
+        self.redo_group_btn.Enable(False)
+        self.redo_group_btn.SetToolTip("Restore the complete PCB group removed by Undo Group.")
         highlight_btn = wx.Button(panel, label="Highlight Net")
         highlight_btn.Bind(wx.EVT_BUTTON, self.on_highlight_net)
         clear_highlight_btn = wx.Button(panel, label="Clear")
@@ -339,7 +356,7 @@ class PluginUI(wx.Frame):
         export_btn.Bind(wx.EVT_BUTTON, self.on_export_menu)
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
-        for btn in (group_btn, highlight_btn, clear_highlight_btn, export_btn, help_btn):
+        for btn in (self.show_group_btn, self.create_group_btn, self.undo_group_btn, self.redo_group_btn, highlight_btn, clear_highlight_btn, export_btn, help_btn):
             button_row.Add(btn, 0, wx.ALL, 4)
         button_row.AddStretchSpacer(1)
         root.Add(button_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
@@ -732,6 +749,28 @@ class PluginUI(wx.Frame):
 
     def on_interface_selected(self, event: Any) -> None:
         self._draw_interfaces(selected=self.interface_list.GetItemText(event.GetIndex()))
+        self.group_preview_name = ""
+        self.group_preview_items = []
+        self.create_group_btn.Enable(False)
+
+    def on_preview_group(self, _event: Any) -> None:
+        selected = self.interface_list.GetFirstSelected()
+        if selected < 0:
+            wx.MessageBox("Select an interface row in the window first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            return
+        name = self.interface_list.GetItemText(selected)
+        try:
+            items = LayoutAssistant(self.board).interface_footprints(self.interfaces[name])
+            if not items:
+                raise ValueError(f"No board footprints matched interface {name}.")
+            select_items(self.board, items)
+        except Exception as exc:
+            wx.MessageBox(str(exc), "PCB group preview failed", wx.OK | wx.ICON_ERROR)
+            return
+        self.group_preview_name = name
+        self.group_preview_items = items
+        self.create_group_btn.Enable(True)
+        self.status.SetLabel(f"PCB preview: selected {len(items)} group members for {name}. Create PCB Group is now enabled.")
 
     def on_create_group(self, _event: Any) -> None:
         selected = self.interface_list.GetFirstSelected()
@@ -739,12 +778,63 @@ class PluginUI(wx.Frame):
             wx.MessageBox("Select an interface first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
             return
         name = self.interface_list.GetItemText(selected)
+        if self.group_preview_name != name or not self.group_preview_items:
+            wx.MessageBox(
+                "Review this interface in the window, then click Show Group on PCB before creating it.",
+                "PCB preview required",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            self.create_group_btn.Enable(False)
+            return
         try:
-            LayoutAssistant(self.board).create_interface_group(self.interfaces[name])
+            group = LayoutAssistant(self.board).create_interface_group(self.interfaces[name])
         except Exception as exc:
             wx.MessageBox(str(exc), "Create PCB group failed", wx.OK | wx.ICON_ERROR)
             return
+        self.group_undo_stack.append(group)
+        self.group_redo_stack.clear()
+        self.group_preview_name = ""
+        self.group_preview_items = []
+        self.create_group_btn.Enable(False)
+        self.undo_group_btn.Enable(True)
+        self.redo_group_btn.Enable(False)
         self.status.SetLabel(f"Created PCB group for {name}.")
+
+    def on_undo_group(self, _event: Any) -> None:
+        if not self.group_undo_stack:
+            self.status.SetLabel("No plugin-created PCB group to undo.")
+            return
+        group = self.group_undo_stack.pop()
+        try:
+            self.board.Remove(group)
+        except Exception as exc:
+            self.group_undo_stack.append(group)
+            wx.MessageBox(str(exc), "Undo PCB group failed", wx.OK | wx.ICON_ERROR)
+            return
+        self.group_redo_stack.append(group)
+        self.undo_group_btn.Enable(bool(self.group_undo_stack))
+        self.redo_group_btn.Enable(True)
+        if pcbnew and hasattr(pcbnew, "Refresh"):
+            pcbnew.Refresh()
+        self.status.SetLabel("Undid the last plugin-created PCB group.")
+
+    def on_redo_group(self, _event: Any) -> None:
+        if not self.group_redo_stack:
+            self.status.SetLabel("No plugin-created PCB group to redo.")
+            return
+        group = self.group_redo_stack.pop()
+        try:
+            self.board.Add(group)
+        except Exception as exc:
+            self.group_redo_stack.append(group)
+            wx.MessageBox(str(exc), "Redo PCB group failed", wx.OK | wx.ICON_ERROR)
+            return
+        self.group_undo_stack.append(group)
+        self.undo_group_btn.Enable(True)
+        self.redo_group_btn.Enable(bool(self.group_redo_stack))
+        if pcbnew and hasattr(pcbnew, "Refresh"):
+            pcbnew.Refresh()
+        self.status.SetLabel("Redid the last plugin-created PCB group.")
 
     def on_export_markdown(self, _event: Any) -> None:
         self._export_file("Markdown files (*.md)|*.md", "kiway_icd.md", self.docgen.export_markdown)

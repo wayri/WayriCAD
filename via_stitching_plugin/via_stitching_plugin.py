@@ -11,6 +11,7 @@ import wx
 from .help_utils import open_help
 from .selection_utils import select_items
 from .guided_ui import add_workflow
+from .geometry_preview import GeometryPreview
 
 
 class ViaStitchingPlugin(pcbnew.ActionPlugin):
@@ -27,15 +28,18 @@ class ViaStitchingPlugin(pcbnew.ActionPlugin):
             board = pcbnew.GetBoard()
             if board is None or not hasattr(board, "GetFootprints"):
                 raise RuntimeError("Open a PCB in PCB Editor first.")
-            ViaFrame(None, board).Show()
+            dialog = ViaFrame(None, board)
+            dialog.ShowModal()
+            dialog.Destroy()
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay Via Stitching", wx.OK | wx.ICON_ERROR)
 
 
-class ViaFrame(wx.Frame):
+class ViaFrame(wx.Dialog):
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Via Stitching", size=(900, 760))
+        super().__init__(parent, title="KiWay Via Stitching", size=(920, 850), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.board = board
+        self.preview_plan: List[Any] = []
         self.preview_items: List[Any] = []
         self.undo_stack: List[List[Any]] = []
         self.redo_stack: List[List[Any]] = []
@@ -46,7 +50,13 @@ class ViaFrame(wx.Frame):
     def _build_ui(self) -> None:
         panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
-        self.workflow = add_workflow(panel, root, "Via Stitching", "Define the net and spacing, preview the exact accepted vias, then commit that preview to the PCB.", ("Configure", "Preview", "Commit"))
+        self.workflow = add_workflow(
+            panel,
+            root,
+            "Via Stitching",
+            "Review accepted via positions in this window first, show them temporarily on the PCB second, then commit.",
+            ("Configure", "Window preview", "PCB preview", "Commit"),
+        )
         grid = wx.FlexGridSizer(0, 2, 6, 8)
         self.spacing = wx.TextCtrl(panel, value="2.50")
         self.edge = wx.TextCtrl(panel, value="1.00")
@@ -92,6 +102,8 @@ class ViaFrame(wx.Frame):
         advanced_root.Add(exclusion_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         advanced_panel.SetSizer(advanced_root)
         root.Add(self.advanced, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        self.geometry_preview = GeometryPreview(panel, "Configure settings, then click Preview in Window.")
+        root.Add(self.geometry_preview, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
         self.preview_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (label, width) in enumerate((("#", 55), ("Net", 220), ("X (mm)", 110), ("Y (mm)", 110), ("Result", 150))):
             self.preview_list.InsertColumn(index, label, width=width)
@@ -99,13 +111,34 @@ class ViaFrame(wx.Frame):
         self.status = wx.StaticText(panel, label="No preview yet.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        for text, handler in (("Preview on PCB", self.preview), ("Clear Preview", self.clear_preview), ("Commit to PCB", self.generate), ("Undo Commit", self.undo)):
+        actions = (
+            ("Preview in Window", self.preview),
+            ("Show on PCB", self.show_on_pcb),
+            ("Clear Preview", self.clear_preview),
+            ("Commit to PCB", self.generate),
+            ("Undo Last Commit", self.undo),
+            ("Redo Last Commit", self.redo),
+        )
+        for text, handler in actions:
             button = wx.Button(panel, label=text)
             button.Bind(wx.EVT_BUTTON, handler)
             row.Add(button, 0, wx.ALL, 5)
-            if text == "Commit to PCB":
+            if text == "Show on PCB":
+                self.show_button = button
+                button.Enable(False)
+                button.SetToolTip("Temporarily add the reviewed via positions to the PCB and select them.")
+            elif text == "Commit to PCB":
                 self.commit_button = button
                 button.Enable(False)
+                button.SetToolTip("Keep the exact temporary PCB preview as one plugin operation.")
+            elif text == "Undo Last Commit":
+                self.undo_button = button
+                button.Enable(False)
+                button.SetToolTip("Remove every via from the most recent stitching commit.")
+            elif text == "Redo Last Commit":
+                self.redo_button = button
+                button.Enable(False)
+                button.SetToolTip("Restore every via removed by Undo Last Commit.")
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
         row.Add(help_btn, 0, wx.ALL, 5)
@@ -117,7 +150,7 @@ class ViaFrame(wx.Frame):
         self.net_choice.Bind(wx.EVT_COMBOBOX, self.on_config_changed)
         for control in (self.universal, self.skip_parts, self.skip_tracks, self.skip_zones, self.skip_keepouts):
             control.Bind(wx.EVT_CHECKBOX, self.on_config_changed)
-        self.workflow.set_step(0, "Select a net and spacing, then Preview on PCB. Advanced area/exclusion settings are optional.")
+        self.workflow.set_step(0, "Select a net and spacing, then Preview in Window. Advanced area/exclusion settings are optional.")
 
     def _load_nets(self) -> None:
         names: Set[str] = set()
@@ -233,38 +266,68 @@ class ViaFrame(wx.Frame):
     def preview(self, _event: Any) -> None:
         try:
             self.clear_preview(None)
-            plan = self._plan()
-            self.preview_list.DeleteAllItems()
+            self.preview_plan = self._plan()
             net_name, _net_code = self._selected_net()
-            for number, via in enumerate(plan, 1):
-                self.board.Add(via); self.preview_items.append(via)
+            points = []
+            for number, via in enumerate(self.preview_plan, 1):
                 position = via.GetPosition()
+                points.append((pcbnew.ToMM(position.x), pcbnew.ToMM(position.y)))
                 index = self.preview_list.InsertItem(self.preview_list.GetItemCount(), str(number))
                 values = (net_name or "<No net>", f"{pcbnew.ToMM(position.x):.3f}", f"{pcbnew.ToMM(position.y):.3f}", "Accepted")
                 for column, value in enumerate(values, 1):
                     self.preview_list.SetItem(index, column, value)
-            if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
-            select_items(self.board, self.preview_items)
-            self.commit_button.Enable(bool(plan))
-            self.status.SetLabel(f"Preview: {len(plan)} accepted vias. Temporary items are selected on the PCB.")
-            self.workflow.set_step(2, "Inspect the selected vias and preview table; Commit to PCB only when correct.")
-            if not plan:
+            self.geometry_preview.set_geometry(points=points)
+            self.show_button.Enable(bool(self.preview_plan))
+            self.commit_button.Enable(False)
+            self.status.SetLabel(f"Window preview: {len(self.preview_plan)} accepted vias. The PCB has not been changed.")
+            self.workflow.set_step(1, "Inspect the canvas and table, then Show on PCB for clearance review.")
+            if not self.preview_plan:
                 wx.MessageBox("No via candidates survived the selected bounds and exclusions.", "No stitching preview", wx.OK | wx.ICON_INFORMATION)
         except Exception as exc:
             self.status.SetLabel(str(exc))
             wx.MessageBox(str(exc), "Via preview failed", wx.OK | wx.ICON_ERROR)
 
-    def clear_preview(self, _event: Any) -> None:
+    def show_on_pcb(self, _event: Any) -> None:
+        if not self.preview_plan:
+            wx.MessageBox("Create and inspect the in-window preview first.", "Window preview required", wx.OK | wx.ICON_INFORMATION)
+            return
+        try:
+            self.clear_pcb_preview()
+            for via in self.preview_plan:
+                self.board.Add(via)
+                self.preview_items.append(via)
+            select_items(self.board, self.preview_items)
+            if hasattr(pcbnew, "Refresh"):
+                pcbnew.Refresh()
+            self.commit_button.Enable(bool(self.preview_items))
+            self.status.SetLabel(f"PCB preview: {len(self.preview_items)} temporary vias selected. Commit or clear them.")
+            self.workflow.set_step(2, "Inspect temporary PCB clearances, then Commit to PCB.")
+        except Exception as exc:
+            self.clear_pcb_preview()
+            self.status.SetLabel(str(exc))
+            wx.MessageBox(str(exc), "PCB preview failed", wx.OK | wx.ICON_ERROR)
+
+    def clear_pcb_preview(self) -> None:
         for item in self.preview_items:
-            try: self.board.Remove(item)
-            except Exception: pass
+            try:
+                self.board.Remove(item)
+            except Exception:
+                pass
         self.preview_items = []
-        self.preview_list.DeleteAllItems()
         self.commit_button.Enable(False)
-        if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
+        if hasattr(pcbnew, "Refresh"):
+            pcbnew.Refresh()
+
+    def clear_preview(self, _event: Any) -> None:
+        self.clear_pcb_preview()
+        self.preview_plan = []
+        self.preview_list.DeleteAllItems()
+        self.geometry_preview.clear()
+        self.show_button.Enable(False)
+        self.commit_button.Enable(False)
         if _event is not None:
             self.status.SetLabel("Preview cleared. No board changes were committed.")
-            self.workflow.set_step(0, "Adjust settings, then Preview on PCB again.")
+            self.workflow.set_step(0, "Adjust settings, then Preview in Window again.")
 
     def generate(self, _event: Any) -> None:
         try:
@@ -273,45 +336,56 @@ class ViaFrame(wx.Frame):
                 return
             committed = list(self.preview_items)
             self.preview_items = []
-            self.undo_stack.append(committed); self.redo_stack.clear()
+            self.undo_stack.append(committed)
+            self.redo_stack.clear()
             self.commit_button.Enable(False)
+            self.undo_button.Enable(True)
+            self.redo_button.Enable(False)
             select_items(self.board, committed)
             self.status.SetLabel(f"Committed {len(committed)} vias. Run DRC before saving or fabrication.")
-            self.workflow.set_step(3, "Run DRC, inspect clearances, and save the board. Undo Commit remains available.")
+            self.workflow.set_step(3, "Run DRC, inspect clearances, and save the board. Undo Last Commit removes the whole operation.")
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay Via Stitching", wx.OK | wx.ICON_ERROR)
 
-    def select_generated(self, _event: Any) -> None:
-        items = self.preview_items or (self.undo_stack[-1] if self.undo_stack else [])
-        select_items(self.board, items)
-        self.status.SetLabel(f"Selected {len(items)} generated vias on the PCB.")
-
     def undo(self, _event: Any) -> None:
-        if not self.undo_stack: return
+        if not self.undo_stack:
+            self.status.SetLabel("Nothing to undo.")
+            return
         items = self.undo_stack.pop()
         for item in items:
-            try: self.board.Remove(item)
-            except Exception: pass
+            try:
+                self.board.Remove(item)
+            except Exception:
+                pass
         self.redo_stack.append(items)
-        if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
-        self.status.SetLabel("Last stitching operation undone.")
+        self.undo_button.Enable(bool(self.undo_stack))
+        self.redo_button.Enable(True)
+        if hasattr(pcbnew, "Refresh"):
+            pcbnew.Refresh()
+        self.status.SetLabel(f"Undid one stitching operation ({len(items)} vias).")
 
     def redo(self, _event: Any) -> None:
-        if not self.redo_stack: return
+        if not self.redo_stack:
+            self.status.SetLabel("Nothing to redo.")
+            return
         items = self.redo_stack.pop()
         for item in items:
-            try: self.board.Add(item)
-            except Exception: pass
+            try:
+                self.board.Add(item)
+            except Exception:
+                pass
         self.undo_stack.append(items)
-        if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
-        self.status.SetLabel("Last stitching operation redone.")
+        self.undo_button.Enable(True)
+        self.redo_button.Enable(bool(self.redo_stack))
+        select_items(self.board, items)
+        if hasattr(pcbnew, "Refresh"):
+            pcbnew.Refresh()
+        self.status.SetLabel(f"Redid one stitching operation ({len(items)} vias).")
 
     def on_config_changed(self, _event: Any) -> None:
-        if self.preview_items:
-            self.clear_preview(None)
-        self.preview_list.DeleteAllItems()
+        self.clear_preview(None)
         self.status.SetLabel("Settings changed; create a fresh preview before committing.")
-        self.workflow.set_step(0, "Preview the updated settings on the PCB.")
+        self.workflow.set_step(0, "Preview the updated settings in this window.")
 
     def on_close(self, event: Any) -> None:
         self.clear_preview(None)

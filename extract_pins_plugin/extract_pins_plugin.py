@@ -96,8 +96,9 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         # ExtractPinsPlugin().register(); KiCad then invokes this Run() method.
         if PluginUI is not None:
             try:
-                frame = PluginUI(None, board=board)
-                frame.Show()
+                dialog = PluginUI(None, board=board)
+                dialog.ShowModal()
+                dialog.Destroy()
                 return
             except Exception as exc:
                 wx.MessageBox(
@@ -109,9 +110,10 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         print(f"DEBUG: Launching dialog {DIALOG_VERSION}")
         try:
             dialog = PluginDialog(None, selected_footprints)
-            dialog.Show()
+            dialog.ShowModal()
+            dialog.Destroy()
         except Exception as exc:
             wx.MessageBox(f"The compatibility dialog could not start: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
         
-        # The dialog is non-modal and handles its own lifecycle.
-        # Once the dialog is closed, this Run() method simply finishes.
+        # Modal lifetime keeps edits inside ActionPlugin.Run(), allowing KiCad
+        # to record the final board delta as one native undo/redo operation.
