@@ -13,6 +13,9 @@ authors = [{name = "Wayri (Yawar)"}]
 dependencies = ["networkx>=2.8"]
 keywords = ["kicad", "eda", "icd", "cli", "aerospace", "harness"]
 
+[project.optional-dependencies]
+test = ["Pillow>=9.0"]
+
 [project.scripts]
 kiway = "extract_pins_plugin.cli:main"
 
