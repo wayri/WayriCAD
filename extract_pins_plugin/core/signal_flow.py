@@ -69,8 +69,9 @@ class SignalFlowAnalyzer:
             dest_ref = dest_fp.GetReference()
             dest_pad_name = dest_pad.GetPadName()
             
-            # Skip self-connections (same component, same pad)
-            if dest_ref == source_ref and dest_pad_name == source_pad_name:
+            # An IC chart describes external flow; internal same-footprint pads
+            # are not destinations even when they share a rail.
+            if dest_ref == source_ref:
                 continue
             
             connected.append({
@@ -198,6 +199,61 @@ class SignalFlowAnalyzer:
             enriched.append(row)
         return enriched
 
+    def summarize_source_destination_table(
+        self,
+        source_refs: List[str],
+        destination_refs: List[str],
+        include_intermediates: bool = True,
+        include_power: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Consolidate repeated pad-to-pad rows into readable routes."""
+        rows = self.generate_rich_source_destination_table(
+            source_refs,
+            destination_refs,
+            include_intermediates=include_intermediates,
+            include_power=include_power,
+        )
+        grouped: Dict[Tuple[str, ...], Dict[str, Any]] = {}
+        for row in rows:
+            key = (
+                str(row.get("Source Reference", "")),
+                str(row.get("Source Value", "")),
+                str(row.get("Net Name", "")),
+                str(row.get("Destination Reference", "")),
+                str(row.get("Destination Value", "")),
+                str(row.get("Intermediates", "")),
+                str(row.get("Path", "")),
+            )
+            entry = grouped.setdefault(
+                key,
+                {
+                    **row,
+                    "Source Pins": set(),
+                    "Destination Pins": set(),
+                    "Connection Count": 0,
+                },
+            )
+            entry["Source Pins"].add(str(row.get("Source Pin", "")))
+            entry["Destination Pins"].add(str(row.get("Destination Pin", "")))
+            entry["Connection Count"] += 1
+        result = []
+        for entry in grouped.values():
+            source_pins = sorted(entry.pop("Source Pins"), key=DataExtractor.natural_sort_key)
+            destination_pins = sorted(entry.pop("Destination Pins"), key=DataExtractor.natural_sort_key)
+            entry["Source Pin"] = ", ".join(source_pins)
+            entry["Destination Pin"] = ", ".join(destination_pins)
+            entry["Source Endpoint"] = f'{entry.get("Source Reference", "")}.{entry["Source Pin"]}'
+            entry["Destination Endpoint"] = f'{entry.get("Destination Reference", "")}.{entry["Destination Pin"]}'
+            result.append(entry)
+        return sorted(
+            result,
+            key=lambda row: (
+                DataExtractor.natural_sort_key(str(row.get("Source Reference", ""))),
+                DataExtractor.natural_sort_key(str(row.get("Net Name", ""))),
+                DataExtractor.natural_sort_key(str(row.get("Destination Reference", ""))),
+            ),
+        )
+
     @staticmethod
     def _protocol(net_name: str) -> str:
         tokens = {part.upper() for part in str(net_name).split("_") if part}
@@ -223,11 +279,10 @@ class SignalFlowAnalyzer:
         Returns:
             List of signal entries with IC pin info and all destinations
         """
-        if power_net_patterns is None:
-            power_net_patterns = ["VCC*", "VDD*", "GND*", "VSS*", "+*V*", "-*V*", "VBAT*"]
-        
-        power_regexes = [DataExtractor.convert_wildcard_to_regex(p.upper()) 
-                        for p in power_net_patterns]
+        power_regexes = None
+        if power_net_patterns is not None:
+            power_regexes = [DataExtractor.convert_wildcard_to_regex(p.upper())
+                            for p in power_net_patterns]
         
         ic_fp = self.extractor.get_footprint_by_reference(ic_ref)
         if not ic_fp:
@@ -246,10 +301,13 @@ class SignalFlowAnalyzer:
                 continue
             
             # Check if this is a power net
-            is_power_net = any(
-                __import__('re').fullmatch(regex, net_name.upper()) 
-                for regex in power_regexes
+            is_power_net = (
+                any(__import__('re').fullmatch(regex, net_name.upper()) for regex in power_regexes)
+                if power_regexes is not None
+                else self.extractor.is_power_net(net_name)
             )
+            net_type = self.extractor.classify_net(net_name)
+            protocol = self._protocol(net_name)
             
             if not include_power_nets and is_power_net:
                 continue
@@ -267,6 +325,8 @@ class SignalFlowAnalyzer:
                         "IC Value": ic_value,
                         "IC Pin": pad_name,
                         "Net Name": net_name,
+                        "Net Type": net_type,
+                        "Protocol": protocol,
                         "Is Power Net": "Yes" if is_power_net else "No",
                         "Destination Reference": dest["Reference"],
                         "Destination Value": dest["Value"],
@@ -280,6 +340,8 @@ class SignalFlowAnalyzer:
                     "IC Value": ic_value,
                     "IC Pin": pad_name,
                     "Net Name": net_name,
+                    "Net Type": net_type,
+                    "Protocol": protocol,
                     "Is Power Net": "Yes" if is_power_net else "No",
                     "Destination Reference": "N/C",
                     "Destination Value": "",

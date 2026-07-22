@@ -15,6 +15,7 @@ from typing import Dict, List, Any, Optional, Set, Tuple
 DEFAULT_POWER_NET_PATTERNS = [
     "VCC*", "VDD*", "VBAT*", "VBUS*", "VIN*", "VOUT*",
     "+*V", "+*V*", "*+*V", "3V3*", "3.3V*", "5V*", "12V*", "1V8*",
+    "*VDC", "*VAC", "48V*", "36V*", "28V*", "24V*", "15V*", "9V*", "6V*", "3V*", "2V*", "1V*",
     "GND*", "AGND*", "DGND*", "PGND*", "VSS*", "AVSS*", "DVSS*",
     "PWR*", "POWER*", "*_PWR", "*_POWER",
     "V+", "V-", "+V", "-V"
@@ -29,6 +30,7 @@ DEFAULT_GROUND_NET_PATTERNS = [
 DEFAULT_SUPPLY_NET_PATTERNS = [
     "VCC*", "VDD*", "VBAT*", "VBUS*", "VIN*", "VOUT*",
     "+*V", "+*V*", "3V3*", "3.3V*", "5V*", "12V*", "1V8*",
+    "*VDC", "*VAC", "48V*", "36V*", "28V*", "24V*", "15V*", "9V*", "6V*", "3V*", "2V*", "1V*",
     "V+", "+V", "PWR*", "POWER*"
 ]
 
@@ -40,7 +42,14 @@ class DataExtractor:
     across GUI and CLI interfaces.
     """
 
-    def __init__(self, board, power_net_patterns: list = None):
+    def __init__(
+        self,
+        board,
+        power_net_patterns: list = None,
+        signal_net_patterns: list = None,
+        ground_net_patterns: list = None,
+        supply_net_patterns: list = None,
+    ):
         """
         Initialize the data extractor with a KiCAD board reference.
         
@@ -53,20 +62,52 @@ class DataExtractor:
         self._nets_cache = None
         self._net_to_pads_cache = None
         
-        # Compile power net patterns for classification
-        patterns = power_net_patterns if power_net_patterns else DEFAULT_POWER_NET_PATTERNS
-        self._power_net_regexes = [
-            re.compile(self.convert_wildcard_to_regex(p.upper())) 
-            for p in patterns
+        self.configure_net_patterns(
+            power_net_patterns=power_net_patterns,
+            signal_net_patterns=signal_net_patterns,
+            ground_net_patterns=ground_net_patterns,
+            supply_net_patterns=supply_net_patterns,
+        )
+
+    def configure_net_patterns(
+        self,
+        power_net_patterns: Optional[List[str]] = None,
+        signal_net_patterns: Optional[List[str]] = None,
+        ground_net_patterns: Optional[List[str]] = None,
+        supply_net_patterns: Optional[List[str]] = None,
+    ) -> None:
+        """Apply one shared wildcard policy to every extractor feature.
+
+        Explicit signal rules have highest precedence, allowing a broad power
+        wildcard to be overridden for exceptional nets.
+        """
+        self.power_net_patterns = list(
+            DEFAULT_POWER_NET_PATTERNS if power_net_patterns is None else power_net_patterns
+        )
+        self.signal_net_patterns = list(signal_net_patterns or [])
+        self.ground_net_patterns = list(
+            DEFAULT_GROUND_NET_PATTERNS if ground_net_patterns is None else ground_net_patterns
+        )
+        self.supply_net_patterns = list(
+            DEFAULT_SUPPLY_NET_PATTERNS if supply_net_patterns is None else supply_net_patterns
+        )
+        self._signal_net_regexes = self._compile_patterns(self.signal_net_patterns)
+        self._power_net_regexes = self._compile_patterns(self.power_net_patterns)
+        self._ground_net_regexes = self._compile_patterns(self.ground_net_patterns)
+        self._supply_net_regexes = self._compile_patterns(self.supply_net_patterns)
+
+    @classmethod
+    def _compile_patterns(cls, patterns: List[str]) -> List[Any]:
+        return [
+            re.compile(cls.convert_wildcard_to_regex(pattern.upper()))
+            for pattern in patterns
+            if str(pattern).strip()
         ]
-        self._ground_net_regexes = [
-            re.compile(self.convert_wildcard_to_regex(p.upper())) 
-            for p in DEFAULT_GROUND_NET_PATTERNS
-        ]
-        self._supply_net_regexes = [
-            re.compile(self.convert_wildcard_to_regex(p.upper())) 
-            for p in DEFAULT_SUPPLY_NET_PATTERNS
-        ]
+
+    @staticmethod
+    def parse_pattern_text(value: str) -> List[str]:
+        """Parse comma, semicolon, or newline-separated wildcard patterns."""
+        return [part.strip() for part in re.split(r"[,;\r\n]+", str(value or "")) if part.strip()]
 
     @property
     def footprints(self) -> list:
@@ -115,6 +156,11 @@ class DataExtractor:
             One of: 'ground', 'supply', 'power', 'signal'
         """
         net_upper = net_name.upper()
+
+        # User-forced signals override every broad power or voltage rule.
+        for regex in self._signal_net_regexes:
+            if regex.fullmatch(net_upper):
+                return 'signal'
         
         # Check ground first (most specific)
         for regex in self._ground_net_regexes:
@@ -211,7 +257,7 @@ class DataExtractor:
     def convert_wildcard_to_regex(pattern: str) -> str:
         """Converts a wildcard pattern (e.g., 'J*') into a regex pattern."""
         escaped_pattern = re.escape(pattern)
-        regex_pattern = escaped_pattern.replace(r'\*', '.*')
+        regex_pattern = escaped_pattern.replace(r'\*', '.*').replace(r'\?', '.')
         return regex_pattern
 
     @staticmethod

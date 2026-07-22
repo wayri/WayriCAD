@@ -4,17 +4,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>KiWay Pin Extractor and CLI Guide</title>
 <style>
-body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;padding:0 22px;color:#202124;line-height:1.55}h1,h2,h3{color:#17324d}h1{border-bottom:3px solid #4b90c7;padding-bottom:10px}code,pre{background:#eef3f8}code{padding:2px 4px}pre{padding:14px;overflow:auto;border-left:4px solid #4b90c7}.callout{background:#f2f8fc;border-left:4px solid #2675b8;padding:12px 16px}.warn{background:#fff8e8;border-left-color:#bc7a13}table{border-collapse:collapse;width:100%;margin:12px 0}td,th{border:1px solid #cfd8e3;padding:7px 9px;text-align:left;vertical-align:top}th{background:#eaf2f8}li{margin:6px 0}img.walkthrough{display:block;width:100%;height:auto;border:1px solid #b9c4cf;margin:12px 0 24px}
+body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;padding:0 22px;color:#202124;line-height:1.55}h1,h2,h3{color:#17324d}h1{border-bottom:3px solid #4b90c7;padding-bottom:10px}code,pre{background:#eef3f8}code{padding:2px 4px}pre{padding:14px;overflow:auto;border-left:4px solid #4b90c7}.callout{background:#f2f8fc;border-left:4px solid #2675b8;padding:12px 16px}.warn{background:#fff8e8;border-left-color:#bc7a13}table{border-collapse:collapse;width:100%;margin:12px 0}td,th{border:1px solid #cfd8e3;padding:7px 9px;text-align:left;vertical-align:top}th{background:#eaf2f8}li{margin:6px 0}img.walkthrough{display:block;width:100%;height:auto;border:1px solid #b9c4cf;margin:12px 0 24px}nav{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 24px}nav a{background:#eaf2f8;border:1px solid #b9cfe0;padding:6px 10px;color:#174b73;text-decoration:none}
 </style>
 <body>
 <h1>KiWay Pin Extractor</h1>
 <p>The extractor is a modeless PCB Editor window. Keep it open while selecting components, reviewing pin rows, and locating nets on the board.</p>
+<nav><a href="#pins">Pin Extraction</a><a href="#net-rules">Net Rules</a><a href="#signal-flow">Signal Flow</a><a href="#ic-chart">IC Chart</a><a href="#power-tree">Power Tree</a><a href="#diagrams">Diagrams</a><a href="#troubleshooting">Troubleshooting</a></nav>
 
 <h2>Annotated interface walkthrough</h2>
 <p>This image uses the same tabs, field names, modes, and actions as the installed window.</p>
 <img class="walkthrough" src="help-workflow.png" alt="KiWay Pin Extractor showing live PCB selection, wildcard filters, pin preview, and export actions">
 
-<h2>Pin Extraction</h2>
+<h2 id="pins">Pin Extraction</h2>
 <ol>
 <li>Open a PCB and launch <b>KiWay Pin Extractor</b>. No initial selection is required.</li>
 <li>Choose <b>PCB selection</b>, <b>Wildcard filters</b>, or <b>Selection + filters</b>. Combined mode forms a de-duplicated union.</li>
@@ -26,7 +27,21 @@ body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;pad
 </ol>
 <div class="callout"><b>Connector shortcut:</b> <b>Use connector preset (J*)</b> switches to wildcard mode, applies <code>J*</code>, and immediately refreshes the preview.</div>
 
-<h2>Visual Block Diagrams</h2>
+<h2 id="net-rules">Net Classification and PCB Net Actions</h2>
+<p>Open <b>5 Power Tree &amp; Net Rules</b> to edit comma-, semicolon-, or newline-separated wildcard lists for power, supply, ground, and forced-signal nets. A forced-signal rule overrides broad voltage rules. Click <b>Apply Rules</b>; the same classification then drives extraction, signal flow, IC charts, block diagrams, and power-tree analysis.</p>
+<p>In <b>1 Extract Pins</b>, choose any <b>PCB net</b> and use <b>Highlight Net</b>, <b>Select Copper</b>, or <b>Clear Highlight</b>. Double-clicking pin, signal-flow, IC-chart, or classified-net rows uses the same native net-code lookup.</p>
+
+<h2 id="signal-flow">Signal Flow</h2>
+<p>Enter source and destination reference wildcards. <b>Consolidate repeated routes</b> groups the pad-level Cartesian expansion into a single source/net/destination route with source pins, destination pins, intermediate parts, protocol, path, and underlying link count. Disable it when every physical pad pairing is required.</p>
+
+<h2 id="ic-chart">IC Signal Chart</h2>
+<p>Select an IC and click <b>Preview</b>. KiWay generates the detailed destination table and a visual IC-to-peripheral flow chart from the same rows. Enable <b>Include Power Nets</b> when rail connectivity is required. The SVG export matches the generated chart.</p>
+
+<h2 id="power-tree">Automatic Power Tree</h2>
+<p>After applying net rules, click <b>Build Power Tree</b>. KiWay searches references, values, footprints, descriptions, and custom fields for terms such as LDO, buck, boost, regulator, PMIC, load switch, ferrite, fuse, and power filter. It uses VIN/VOUT/SW-style pin functions when available and marks voltage- or pad-order-based direction as inferred.</p>
+<p>The result includes classified rails, converter/filter paths, root inputs, attached loads, and checks for unclassified voltage nets, unresolved sources, incomplete converters, multiple drivers, direction conflicts, and cycles. Export the reviewed tree as SVG or its paths and findings as CSV. This workflow is inspired by the graphical power architecture approach of the open-source <a href="https://smariel.github.io/PTree/">PTree</a> project; KiWay derives topology from the PCB instead of requiring a manually entered consumption model.</p>
+
+<h2 id="diagrams">Visual Block Diagrams</h2>
 <img class="walkthrough" src="help-diagrams.png" alt="KiWay embedded SVG block diagram preview with combined, signals-only, and power-only modes">
 <ol>
 <li>Open <b>4 Block Diagrams</b> and enter references or wildcards, or click <b>Use Extraction Preview</b>.</li>
@@ -34,7 +49,6 @@ body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;pad
 <li>Click <b>Refresh Visual Preview</b>. The self-contained SVG is rendered inside the plugin window.</li>
 <li>Click <b>Export This SVG...</b> to save exactly the displayed diagram.</li>
 </ol>
-<p><b>2 Signal Flow</b> creates source-to-destination tables. <b>3 IC Signal Chart</b> maps one IC pin to every connected destination. Both remain available for focused exports.</p>
 
 <h2>Interboard and Harness Work</h2>
 <p>Multi-project inputs, sheet aliases, TM/TC extraction, cross-link rules, harness generation, and full ICD reports are separated into <b>Tools &gt; External Plugins &gt; KiWay Interboard &amp; Harness</b>. This keeps ordinary pin extraction small while retaining the complete system workflow.</p>
@@ -81,10 +95,14 @@ kiway test</pre>
 <tr><td><code>test</code></td><td>Run the installed automated suite.</td><td>Test runner output</td></tr></table>
 <p>Use <code>--config config.json</code> for defaults; command-line flags override config values. Exit codes are <code>0</code> success, <code>1</code> runtime failure, <code>2</code> usage/input error, and <code>3</code> validation findings.</p>
 
-<h2>Troubleshooting</h2>
+<h2 id="troubleshooting">Troubleshooting</h2>
 <table><tr><th>Symptom</th><th>Resolution</th></tr>
 <tr><td>PCB selection does not appear</td><td>Enable <b>Follow PCB selection</b>, click a footprint rather than a track, or click <b>Refresh from PCB</b>.</td></tr>
 <tr><td>No preview rows</td><td>Check the selected source mode and clear restrictive net/value filters.</td></tr>
+<tr><td>Help does not open</td><td>The Help button now opens packaged documentation inside a native KiWay window. Use Open in Browser only as a fallback.</td></tr>
+<tr><td>A rail appears as signal</td><td>Add its exact name or a wildcard under Power or Supply patterns, then click Apply Rules. Use Force-signal only for intentional exceptions.</td></tr>
+<tr><td>Double-click does not highlight</td><td>Choose the same name in PCB net and click Highlight Net. Select Copper can be used to verify that routed tracks, vias, or zones carry that net.</td></tr>
+<tr><td>Power-tree direction is inferred</td><td>Add VIN/VOUT/SW pin functions in the library or verify the voltage heuristic before using the diagram for review.</td></tr>
 <tr><td>Diagram is empty</td><td>Use connected component references and choose Combined before narrowing by connection type.</td></tr>
 <tr><td>Only Root sheet appears</td><td>Use a KiCad XML netlist; PCB data alone does not contain schematic hierarchy.</td></tr>
 <tr><td>Too many cross-links</td><td>Exclude power and narrow wildcard/regex rules. Ambiguous matches are retained for review.</td></tr>

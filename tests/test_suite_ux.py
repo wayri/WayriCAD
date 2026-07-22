@@ -101,14 +101,29 @@ class SuiteUxTests(unittest.TestCase):
             "Power only",
             "Refresh Visual Preview",
             "Export This SVG...",
+            "Highlight Net",
+            "Select Copper",
+            "Consolidate repeated routes",
+            "IC Pin Connections and Flow Chart",
+            "Power Tree & Net Rules",
+            "Force-signal patterns",
+            "Build Power Tree",
+            "Export Tree SVG...",
         ):
             self.assertIn(label, source)
         self.assertIn("wxhtml2.WebView.New", source)
         self.assertIn("fp.SetSelected()", source)
         self.assertIn("SetHighLightNet", source)
+        self.assertIn("summarize_source_destination_table", source)
+        self.assertIn("PowerTreeAnalyzer", source)
 
         help_text = (ROOT / "extract_pins_plugin" / "help.html").read_text(encoding="utf-8")
         self.assertIn('src="help-diagrams.png"', help_text)
+        for anchor in ("#pins", "#net-rules", "#signal-flow", "#ic-chart", "#power-tree", "#troubleshooting"):
+            self.assertIn(f'href="{anchor}"', help_text)
+        help_launcher = (ROOT / "extract_pins_plugin" / "help_utils.py").read_text(encoding="utf-8")
+        self.assertIn("path.as_uri()", help_launcher)
+        self.assertIn("wxhtml2.WebView.New", help_launcher)
         with Image.open(ROOT / "extract_pins_plugin" / "help-diagrams.png") as image:
             self.assertEqual((1200, 680), image.size)
 

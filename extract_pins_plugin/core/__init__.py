@@ -18,6 +18,7 @@ from .cross_linker import (
     PinEndpoint,
     parse_link_rules,
 )
+from .power_tree import PowerTreeAnalyzer, generate_power_tree_svg
 
 __all__ = [
     'DataExtractor',
@@ -41,4 +42,6 @@ __all__ = [
     'PinDocumentImporter',
     'PinEndpoint',
     'parse_link_rules',
+    'PowerTreeAnalyzer',
+    'generate_power_tree_svg',
 ]

@@ -2,7 +2,7 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-2.8.0-blue)
+![Version](https://img.shields.io/badge/Version-2.11.0-blue)
 ![KiCAD](https://img.shields.io/badge/KiCAD-9.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
@@ -20,15 +20,18 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 - Export cross-project tracker CSV/Markdown and harness-style SVG diagrams
 
 ### Signal Flow Analysis
-- Generate source-to-destination signal flow tables
+- Generate consolidated source-to-destination signal flow tables
 - Trace connections between connectors, ICs, and passives
 - Find all signal paths between any two components
 - Identify intermediate components in signal chains
+- Show source and destination pin lists, net class, protocol, path, and link count
+- Double-click a route to highlight its net in PCB Editor
 
 ### IC Signal Charts
 - Create complete pin-to-destination mapping for ICs
 - Optionally include or exclude power/ground nets
 - Group and sort power nets separately from signals
+- Preview the IC connectivity as an embedded visual flow diagram
 - Perfect for documentation and debugging
 
 ### Block Diagrams (NEW!)
@@ -37,9 +40,12 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 - Create signal flow diagrams between component groups
 
 ### Power Net Classification
-- Automatic detection of power/ground nets (VCC, VDD, GND, VSS, etc.)
+- Automatic detection of power/ground nets (VCC, VDD, GND, VSS, voltage rails, etc.)
 - Sort and group power nets separately from signal nets
-- Customizable power net patterns
+- User-defined power, supply, ground, and forced-signal wildcard patterns
+- Shared classification rules across extraction, signal flow, IC charts, and diagrams
+- Auto-extracted converter/filter power tree with editable rules and issue checks
+- Power-tree SVG and CSV export, including inferred direction and confidence
 
 ### CLI Support (NEW!)
 - Full command-line interface for automation
@@ -53,7 +59,7 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 
 ### Method 1: Plugin Manager (Recommended)
 1. Open KiCAD → `Plugin and Content Manager`
-2. Add repository: `https://raw.githubusercontent.com/wayri/KiWay/main/pcm/repo.json`
+2. Add repository: `https://raw.githubusercontent.com/wayri/KiWay/develop/pcm/repo.json`
 3. Search for "KiWay" and install
 
 ### Method 2: Manual Installation
@@ -70,7 +76,14 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 1. Open your PCB in the PCB Editor
 2. *(Optional)* Select components on the PCB
 3. `Tools → External Plugins → Extract Component Pins with GUI`
-4. Use the dialog to filter, configure, and export
+4. Use **Extract Pins** to follow PCB selection, filter components, preview rows, and export
+5. Use **Signal Flow** and **IC Signal Chart** to review table and visual connectivity
+6. Use **Power Tree & Net Rules** to define classification wildcards and build the checked rail tree
+
+Double-click an extracted pin, signal-flow route, or IC-chart row to highlight its
+net in PCB Editor. **Select Copper** selects matching tracks, vias, and zones for
+native KiCad operations. The **Help** button opens the bundled guide inside a
+native KiCad window and provides an external-browser fallback.
 
 ### CLI Mode (Installed Plugin)
 

@@ -21,7 +21,6 @@ import pcbnew
 import csv
 from io import StringIO
 import os
-import webbrowser
 import re
 
 try:
@@ -35,12 +34,16 @@ try:
     from .core.signal_flow import SignalFlowAnalyzer
     from .core.formatters import get_formatter, MarkdownFormatter, CSVFormatter
     from .core.diagram_generator import SVGDiagramGenerator
+    from .core.power_tree import PowerTreeAnalyzer, generate_power_tree_svg
+    from .help_utils import open_help
 except ImportError:
     # Fallback for direct execution
     from core.data_extractor import DataExtractor
     from core.signal_flow import SignalFlowAnalyzer
     from core.formatters import get_formatter, MarkdownFormatter, CSVFormatter
     from core.diagram_generator import SVGDiagramGenerator
+    from core.power_tree import PowerTreeAnalyzer, generate_power_tree_svg
+    from help_utils import open_help
 
 
 class PluginDialogV2(wx.Frame):
@@ -65,7 +68,12 @@ class PluginDialogV2(wx.Frame):
         self.preview_footprints = []
         self.preview_data = {}
         self.preview_rows = []
+        self.sf_rows = []
+        self.ic_rows = []
         self.current_diagram_svg = ""
+        self.current_ic_svg = ""
+        self.power_tree_result = {"nodes": [], "edges": [], "issues": [], "roots": []}
+        self.current_power_tree_svg = ""
         self.all_refs = sorted([fp.GetReference() for fp in self.extractor.footprints], 
                                key=DataExtractor.natural_sort_key)
         self.all_ics = [r for r in self.all_refs if r.startswith('U')]
@@ -108,6 +116,9 @@ class PluginDialogV2(wx.Frame):
         # Tab 4: Diagrams
         self.diagram_panel = self._create_diagram_tab()
         self.notebook.AddPage(self.diagram_panel, "4  Block Diagrams")
+
+        self.power_tree_panel = self._create_power_tree_tab()
+        self.notebook.AddPage(self.power_tree_panel, "5  Power Tree & Net Rules")
         
         main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -240,6 +251,26 @@ class PluginDialogV2(wx.Frame):
         options_sizer.Add(preview_button, 0)
         preview_box.Add(options_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
+        net_action_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        net_action_sizer.Add(wx.StaticText(panel, label="PCB net:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.net_action_combo = wx.ComboBox(
+            panel,
+            choices=sorted(self.extractor.all_nets, key=DataExtractor.natural_sort_key),
+            style=wx.CB_DROPDOWN,
+        )
+        self.net_action_combo.SetToolTip("Choose any board net to highlight or select its routed copper.")
+        net_action_sizer.Add(self.net_action_combo, 1, wx.RIGHT, 6)
+        highlight_net_btn = wx.Button(panel, label="Highlight Net")
+        highlight_net_btn.Bind(wx.EVT_BUTTON, self.OnHighlightChosenNet)
+        net_action_sizer.Add(highlight_net_btn, 0, wx.RIGHT, 6)
+        select_net_btn = wx.Button(panel, label="Select Copper")
+        select_net_btn.Bind(wx.EVT_BUTTON, self.OnSelectChosenNet)
+        net_action_sizer.Add(select_net_btn, 0, wx.RIGHT, 6)
+        clear_net_btn = wx.Button(panel, label="Clear Highlight")
+        clear_net_btn.Bind(wx.EVT_BUTTON, self.OnClearNetHighlight)
+        net_action_sizer.Add(clear_net_btn, 0)
+        preview_box.Add(net_action_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
+
         self.pin_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (label, width) in enumerate((("Reference", 90), ("Value", 170), ("Pad", 70), ("Net", 270), ("Type", 90))):
             self.pin_preview.InsertColumn(index, label, width=width)
@@ -293,15 +324,27 @@ class PluginDialogV2(wx.Frame):
         
         self.sf_include_power = wx.CheckBox(panel, label="Include Power Nets")
         opt_sizer.Add(self.sf_include_power, 0, wx.ALL, 5)
+
+        self.sf_consolidate = wx.CheckBox(panel, label="Consolidate repeated routes")
+        self.sf_consolidate.SetValue(True)
+        self.sf_consolidate.SetToolTip("Group many pad-to-pad rows into one source/net/destination route with pin lists.")
+        opt_sizer.Add(self.sf_consolidate, 0, wx.ALL, 5)
         
         sizer.Add(opt_sizer, 0, wx.EXPAND | wx.ALL, 5)
         
         # Preview area
         preview_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, label="Preview"), wx.VERTICAL)
         self.sf_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        for index, (label, width) in enumerate((("Source", 110), ("Pin", 70), ("Net", 260), ("Destination", 120), ("Pin", 70), ("Type", 90))):
+        for index, (label, width) in enumerate((
+            ("From", 120), ("Pins", 100), ("Net", 190), ("Class", 85),
+            ("Protocol", 80), ("Via", 180), ("To", 120), ("Pins", 100),
+            ("Path", 240), ("Links", 65),
+        )):
             self.sf_preview.InsertColumn(index, label, width=width)
+        self.sf_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnSignalFlowRowActivated)
         preview_sizer.Add(self.sf_preview, 1, wx.EXPAND | wx.ALL, 2)
+        self.sf_summary = wx.StaticText(panel, label="Preview a route to see explicit source, intermediate, and destination context.")
+        preview_sizer.Add(self.sf_summary, 0, wx.EXPAND | wx.ALL, 4)
         sizer.Add(preview_sizer, 1, wx.EXPAND | wx.ALL, 5)
         
         # Buttons
@@ -347,12 +390,27 @@ class PluginDialogV2(wx.Frame):
         
         sizer.Add(sel_sizer, 0, wx.EXPAND | wx.ALL, 5)
         
-        # Preview
-        preview_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, label="IC Pin Connections"), wx.VERTICAL)
+        # Table and visual chart are generated from the same rows.
+        preview_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, label="IC Pin Connections and Flow Chart"), wx.VERTICAL)
+        ic_content = wx.BoxSizer(wx.HORIZONTAL)
         self.ic_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        for index, (label, width) in enumerate((("IC Pin", 90), ("Net", 260), ("Destination", 130), ("Dest Pin", 90), ("Type", 90))):
+        for index, (label, width) in enumerate((
+            ("IC Pin", 80), ("Net", 180), ("Class", 80), ("Protocol", 75),
+            ("Destination", 110), ("Dest Pin", 80), ("Destination Value", 160),
+        )):
             self.ic_preview.InsertColumn(index, label, width=width)
-        preview_sizer.Add(self.ic_preview, 1, wx.EXPAND | wx.ALL, 2)
+        self.ic_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnICChartRowActivated)
+        ic_content.Add(self.ic_preview, 1, wx.EXPAND | wx.ALL, 2)
+        if wxhtml2 is not None:
+            self.ic_visual_preview = wxhtml2.WebView.New(panel)
+            self.ic_visual_is_web = True
+        else:
+            self.ic_visual_preview = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
+            self.ic_visual_is_web = False
+        ic_content.Add(self.ic_visual_preview, 1, wx.EXPAND | wx.ALL, 2)
+        preview_sizer.Add(ic_content, 1, wx.EXPAND)
+        self.ic_summary = wx.StaticText(panel, label="Preview an IC to generate both the table and visual flow chart.")
+        preview_sizer.Add(self.ic_summary, 0, wx.EXPAND | wx.ALL, 4)
         sizer.Add(preview_sizer, 1, wx.EXPAND | wx.ALL, 5)
         
         # Buttons
@@ -429,6 +487,84 @@ class PluginDialogV2(wx.Frame):
         panel.SetSizer(sizer)
         return panel
 
+    def _create_power_tree_tab(self):
+        """Create shared net rules and automatic power-tree workspace."""
+        panel = wx.Panel(self.notebook)
+        root = wx.BoxSizer(wx.VERTICAL)
+
+        rules = wx.StaticBoxSizer(wx.StaticBox(panel, label="Shared Net Classification Rules"), wx.VERTICAL)
+        grid = wx.FlexGridSizer(4, 2, 5, 8)
+        grid.AddGrowableCol(1)
+        rule_rows = (
+            ("Power patterns", "power_patterns_ctrl", self.extractor.power_net_patterns),
+            ("Supply patterns", "supply_patterns_ctrl", self.extractor.supply_net_patterns),
+            ("Ground patterns", "ground_patterns_ctrl", self.extractor.ground_net_patterns),
+            ("Force-signal patterns", "signal_patterns_ctrl", self.extractor.signal_net_patterns),
+        )
+        for label, attribute, values in rule_rows:
+            grid.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
+            control = wx.TextCtrl(panel, value=", ".join(values))
+            control.SetToolTip("Comma, semicolon, or newline-separated wildcards. * and ? are supported.")
+            setattr(self, attribute, control)
+            grid.Add(control, 1, wx.EXPAND)
+        rules.Add(grid, 0, wx.EXPAND | wx.ALL, 6)
+        rule_actions = wx.BoxSizer(wx.HORIZONTAL)
+        apply_rules = wx.Button(panel, label="Apply Rules")
+        apply_rules.Bind(wx.EVT_BUTTON, self.OnApplyNetRules)
+        rule_actions.Add(apply_rules, 0, wx.RIGHT, 6)
+        build_tree = wx.Button(panel, label="Build Power Tree")
+        build_tree.Bind(wx.EVT_BUTTON, self.OnBuildPowerTree)
+        rule_actions.Add(build_tree, 0, wx.RIGHT, 6)
+        self.export_power_tree_svg = wx.Button(panel, label="Export Tree SVG...")
+        self.export_power_tree_svg.Enable(False)
+        self.export_power_tree_svg.Bind(wx.EVT_BUTTON, self.OnExportPowerTreeSvg)
+        rule_actions.Add(self.export_power_tree_svg, 0, wx.RIGHT, 6)
+        self.export_power_tree_csv = wx.Button(panel, label="Export Tree CSV...")
+        self.export_power_tree_csv.Enable(False)
+        self.export_power_tree_csv.Bind(wx.EVT_BUTTON, self.OnExportPowerTreeCsv)
+        rule_actions.Add(self.export_power_tree_csv, 0)
+        rules.Add(rule_actions, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+        root.Add(rules, 0, wx.EXPAND | wx.ALL, 8)
+
+        splitter = wx.SplitterWindow(panel, style=wx.SP_LIVE_UPDATE)
+        left = wx.Panel(splitter)
+        right = wx.Panel(splitter)
+        left_sizer = wx.BoxSizer(wx.VERTICAL)
+        result_tabs = wx.Notebook(left)
+        self.power_net_list = wx.ListCtrl(result_tabs, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, (label, width) in enumerate((("Net", 190), ("Class", 85), ("Pads", 65), ("Voltage", 80))):
+            self.power_net_list.InsertColumn(index, label, width=width)
+        self.power_net_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnPowerNetRowActivated)
+        result_tabs.AddPage(self.power_net_list, "Classified Nets")
+        self.power_edge_list = wx.ListCtrl(result_tabs, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, (label, width) in enumerate((("From Rail", 150), ("Via", 80), ("Function", 105), ("To Rail", 150), ("Confidence", 105))):
+            self.power_edge_list.InsertColumn(index, label, width=width)
+        result_tabs.AddPage(self.power_edge_list, "Power Paths")
+        self.power_issue_list = wx.ListCtrl(result_tabs, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, (label, width) in enumerate((("Severity", 75), ("Check", 150), ("Item", 90), ("Detail", 360))):
+            self.power_issue_list.InsertColumn(index, label, width=width)
+        result_tabs.AddPage(self.power_issue_list, "Checks")
+        left_sizer.Add(result_tabs, 1, wx.EXPAND)
+        left.SetSizer(left_sizer)
+
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+        if wxhtml2 is not None:
+            self.power_tree_preview = wxhtml2.WebView.New(right)
+            self.power_tree_preview_is_web = True
+        else:
+            self.power_tree_preview = wx.TextCtrl(right, style=wx.TE_MULTILINE | wx.TE_READONLY)
+            self.power_tree_preview_is_web = False
+        right_sizer.Add(self.power_tree_preview, 1, wx.EXPAND)
+        self.power_tree_summary = wx.StaticText(right, label="Apply classification rules, then build the inferred rail topology.")
+        right_sizer.Add(self.power_tree_summary, 0, wx.EXPAND | wx.ALL, 5)
+        right.SetSizer(right_sizer)
+        splitter.SplitVertically(left, right, 545)
+        splitter.SetMinimumPaneSize(280)
+        root.Add(splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        panel.SetSizer(root)
+        self._populate_net_classification_table()
+        return panel
+
     # ==================== Event Handlers ====================
     
     def OnClose(self, event):
@@ -438,12 +574,214 @@ class PluginDialogV2(wx.Frame):
         self.Destroy()
 
     def OnHelp(self, event):
-        plugin_dir = os.path.dirname(__file__)
-        help_file = os.path.join(plugin_dir, "help.html")
-        if os.path.exists(help_file):
-            webbrowser.open_new_tab(f"file:///{help_file}")
+        open_help(self, "help.html")
+
+    def _find_net_code(self, net_name):
+        if not net_name:
+            return None
+        try:
+            net_info = self.board.FindNet(net_name)
+            if net_info is not None:
+                if hasattr(net_info, "GetNetCode"):
+                    return int(net_info.GetNetCode())
+                if isinstance(net_info, int):
+                    return net_info
+        except Exception:
+            pass
+        for footprint in self.board.GetFootprints():
+            for pad in footprint.Pads():
+                try:
+                    net = pad.GetNet()
+                    if net and str(net.GetNetname()) == net_name:
+                        if hasattr(pad, "GetNetCode"):
+                            return int(pad.GetNetCode())
+                        return int(net.GetNetCode())
+                except Exception:
+                    continue
+        for item in getattr(self.board, "GetTracks", lambda: [])():
+            try:
+                if str(item.GetNetname()) == net_name:
+                    return int(item.GetNetCode())
+            except Exception:
+                continue
+        return None
+
+    def _highlight_net(self, net_name):
+        code = self._find_net_code(net_name)
+        if code is None:
+            self.status_text.SetLabel(f"Net not found on the PCB: {net_name}")
+            return False
+        highlighted = False
+        for method_name in ("SetHighLightNet", "SetHighlightNet", "HighlightNet"):
+            method = getattr(self.board, method_name, None)
+            if not callable(method):
+                continue
+            try:
+                method(code)
+                highlighted = True
+                break
+            except Exception:
+                continue
+        pcbnew.Refresh()
+        if highlighted:
+            self.net_action_combo.SetValue(net_name)
+            self.status_text.SetLabel(f"Highlighted {net_name} (net code {code}) in PCB Editor.")
+            return True
+        self.status_text.SetLabel(f"KiCad did not expose a compatible net highlight method for {net_name}.")
+        return False
+
+    def _select_net_copper(self, net_name):
+        code = self._find_net_code(net_name)
+        if code is None:
+            self.status_text.SetLabel(f"Net not found on the PCB: {net_name}")
+            return 0
+        selected = 0
+        collections = [list(getattr(self.board, "GetTracks", lambda: [])())]
+        try:
+            collections.append(list(self.board.Zones()))
+        except Exception:
+            try:
+                collections.append(list(self.board.GetZones()))
+            except Exception:
+                pass
+        for collection in collections:
+            for item in collection:
+                try:
+                    if hasattr(item, "ClearSelected"):
+                        item.ClearSelected()
+                    if int(item.GetNetCode()) == code and hasattr(item, "SetSelected"):
+                        item.SetSelected()
+                        selected += 1
+                except Exception:
+                    continue
+        pcbnew.Refresh()
+        self.net_action_combo.SetValue(net_name)
+        self.status_text.SetLabel(f"Selected {selected} routed copper items on {net_name}.")
+        return selected
+
+    def OnHighlightChosenNet(self, event):
+        net_name = self.net_action_combo.GetValue().strip()
+        if net_name:
+            self._highlight_net(net_name)
+
+    def OnSelectChosenNet(self, event):
+        net_name = self.net_action_combo.GetValue().strip()
+        if net_name:
+            self._select_net_copper(net_name)
+
+    def OnClearNetHighlight(self, event):
+        cleared = False
+        for method_name in ("SetHighLightNet", "SetHighlightNet"):
+            method = getattr(self.board, method_name, None)
+            if callable(method):
+                try:
+                    method(-1)
+                    cleared = True
+                    break
+                except Exception:
+                    continue
+        pcbnew.Refresh()
+        self.status_text.SetLabel("Cleared PCB net highlight." if cleared else "No compatible highlight-clear method was available.")
+
+    def OnApplyNetRules(self, event):
+        self.extractor.configure_net_patterns(
+            power_net_patterns=DataExtractor.parse_pattern_text(self.power_patterns_ctrl.GetValue()),
+            signal_net_patterns=DataExtractor.parse_pattern_text(self.signal_patterns_ctrl.GetValue()),
+            ground_net_patterns=DataExtractor.parse_pattern_text(self.ground_patterns_ctrl.GetValue()),
+            supply_net_patterns=DataExtractor.parse_pattern_text(self.supply_patterns_ctrl.GetValue()),
+        )
+        self._populate_net_classification_table()
+        self.power_tree_result = {"nodes": [], "edges": [], "issues": [], "roots": []}
+        self.current_power_tree_svg = ""
+        self.export_power_tree_svg.Enable(False)
+        self.export_power_tree_csv.Enable(False)
+        self.status_text.SetLabel("Applied shared net rules to extraction, signal flow, IC charts, diagrams, and power-tree analysis.")
+
+    def _populate_net_classification_table(self):
+        if not hasattr(self, "power_net_list"):
+            return
+        self.power_net_list.DeleteAllItems()
+        pad_map = self.extractor.get_net_to_pads_map()
+        for net_name in sorted(self.extractor.all_nets, key=DataExtractor.natural_sort_key):
+            net_type = self.extractor.classify_net(net_name)
+            voltage = PowerTreeAnalyzer.parse_voltage(net_name)
+            index = self.power_net_list.InsertItem(self.power_net_list.GetItemCount(), str(net_name))
+            self.power_net_list.SetItem(index, 1, net_type)
+            self.power_net_list.SetItem(index, 2, str(len(pad_map.get(net_name, []))))
+            self.power_net_list.SetItem(index, 3, f"{voltage:g} V" if voltage is not None else "")
+            colors = {"ground": "#d9e1e8", "supply": "#ffe0a6", "power": "#ffd0c7", "signal": "#ffffff"}
+            self.power_net_list.SetItemBackgroundColour(index, colors.get(net_type, "#ffffff"))
+            self.power_net_list.SetItemTextColour(index, "#202124")
+
+    def OnPowerNetRowActivated(self, event):
+        net_name = self.power_net_list.GetItemText(event.GetIndex())
+        self.net_action_combo.SetValue(net_name)
+        self._highlight_net(net_name)
+
+    def OnBuildPowerTree(self, event):
+        self.OnApplyNetRules(event)
+        self.power_tree_result = PowerTreeAnalyzer(self.extractor).analyze()
+        self.current_power_tree_svg = generate_power_tree_svg(self.power_tree_result)
+        self.power_edge_list.DeleteAllItems()
+        for edge in self.power_tree_result["edges"]:
+            index = self.power_edge_list.InsertItem(self.power_edge_list.GetItemCount(), str(edge["Source Net"]))
+            for column, key in enumerate(("Component", "Function", "Destination Net", "Confidence"), 1):
+                self.power_edge_list.SetItem(index, column, str(edge.get(key, "")))
+        self.power_issue_list.DeleteAllItems()
+        severity_colors = {"Error": "#ffc7c7", "Warning": "#ffe4b5", "Info": "#d9ecf5"}
+        for issue in self.power_tree_result["issues"]:
+            index = self.power_issue_list.InsertItem(self.power_issue_list.GetItemCount(), str(issue["Severity"]))
+            for column, key in enumerate(("Category", "Item", "Detail"), 1):
+                self.power_issue_list.SetItem(index, column, str(issue.get(key, "")))
+            self.power_issue_list.SetItemBackgroundColour(index, severity_colors.get(issue["Severity"], "#ffffff"))
+            self.power_issue_list.SetItemTextColour(index, "#202124")
+        if self.power_tree_preview_is_web:
+            self.power_tree_preview.SetPage(self._svg_html(self.current_power_tree_svg), "")
         else:
-            wx.MessageBox("Help file not found.", "Error", wx.OK | wx.ICON_ERROR)
+            self.power_tree_preview.SetValue(
+                f"Power tree visual preview requires wx.html2.\n\n"
+                f"{len(self.power_tree_result['nodes'])} rails, {len(self.power_tree_result['edges'])} paths, "
+                f"{len(self.power_tree_result['issues'])} findings are ready for export."
+            )
+        self.export_power_tree_svg.Enable(True)
+        self.export_power_tree_csv.Enable(True)
+        self.power_tree_summary.SetLabel(
+            f"{len(self.power_tree_result['nodes'])} rails | {len(self.power_tree_result['edges'])} conversion/filter paths | "
+            f"{len(self.power_tree_result['issues'])} findings | roots: {', '.join(self.power_tree_result['roots']) or 'none'}"
+        )
+        self.status_text.SetLabel("Built the inferred PCB power tree and completed topology checks.")
+
+    @staticmethod
+    def _svg_html(svg):
+        return (
+            "<!doctype html><meta charset='utf-8'><style>"
+            "html,body{margin:0;background:#15191d;height:100%;overflow:auto}"
+            "svg{display:block;min-width:900px;width:100%;height:auto;margin:0 auto}"
+            "</style>" + svg
+        )
+
+    def OnExportPowerTreeSvg(self, event):
+        if self.current_power_tree_svg:
+            self._save_file(self.current_power_tree_svg, "SVG", "kiway_power_tree.svg")
+
+    def OnExportPowerTreeCsv(self, event):
+        if not self.power_tree_result.get("nodes"):
+            return
+        rows = []
+        for edge in self.power_tree_result["edges"]:
+            rows.append({"Record Type": "Power Path", **edge})
+        for issue in self.power_tree_result["issues"]:
+            rows.append({"Record Type": "Issue", **issue})
+        headers = []
+        for row in rows:
+            for key in row:
+                if key not in headers:
+                    headers.append(key)
+        stream = StringIO()
+        writer = csv.DictWriter(stream, fieldnames=headers)
+        writer.writeheader()
+        writer.writerows(rows)
+        self._save_file(stream.getvalue(), "CSV", "kiway_power_tree.csv")
 
     def OnAutoRefreshToggle(self, event):
         """Toggle auto-refresh timer on/off."""
@@ -603,14 +941,14 @@ class PluginDialogV2(wx.Frame):
         footprint = self.extractor.get_footprint_by_reference(row["Reference"])
         try:
             for fp in self.board.GetFootprints():
-                fp.ClearSelected()
+                if hasattr(fp, "ClearSelected"):
+                    fp.ClearSelected()
             if footprint is not None:
                 footprint.SetSelected()
             net = row.get("Net", "")
-            if net and hasattr(self.board, "SetHighLightNet"):
-                net_info = self.board.FindNet(net)
-                if net_info:
-                    self.board.SetHighLightNet(net_info.GetNetCode())
+            if net:
+                self.net_action_combo.SetValue(net)
+                self._highlight_net(net)
             pcbnew.Refresh()
             self.status_text.SetLabel(f"PCB selection: {row['Reference']} pad {row['Pad']} on {row['Net'] or 'no net'}.")
         except Exception as exc:
@@ -743,6 +1081,27 @@ class PluginDialogV2(wx.Frame):
         self._save_file(csv_content, "CSV", "unique_nets.csv")
 
     # Signal Flow handlers
+    def _signal_flow_rows(self):
+        src_pattern = self.source_pattern.GetValue().strip()
+        dst_pattern = self.dest_pattern.GetValue().strip()
+        sources = [fp.GetReference() for fp in self._get_footprints_by_pattern(src_pattern)]
+        destinations = [fp.GetReference() for fp in self._get_footprints_by_pattern(dst_pattern)]
+        if not sources or not destinations:
+            return [], sources, destinations
+        kwargs = {
+            "include_intermediates": self.sf_include_intermediates.IsChecked(),
+            "include_power": self.sf_include_power.IsChecked(),
+        }
+        if self.sf_consolidate.IsChecked():
+            rows = self.analyzer.summarize_source_destination_table(sources, destinations, **kwargs)
+        else:
+            rows = self.analyzer.generate_rich_source_destination_table(sources, destinations, **kwargs)
+            for row in rows:
+                row["Connection Count"] = 1
+                row["Source Endpoint"] = f'{row.get("Source Reference", "")}.{row.get("Source Pin", "")}'
+                row["Destination Endpoint"] = f'{row.get("Destination Reference", "")}.{row.get("Destination Pin", "")}'
+        return rows, sources, destinations
+
     def OnSignalFlowPreview(self, event):
         src_pattern = self.source_pattern.GetValue().strip()
         dst_pattern = self.dest_pattern.GetValue().strip()
@@ -751,53 +1110,61 @@ class PluginDialogV2(wx.Frame):
             wx.MessageBox("Enter source and destination patterns.", "Info", wx.OK)
             return
         
-        sources = [fp.GetReference() for fp in self._get_footprints_by_pattern(src_pattern)]
-        dests = [fp.GetReference() for fp in self._get_footprints_by_pattern(dst_pattern)]
-        
-        if not sources or not dests:
+        data, sources, destinations = self._signal_flow_rows()
+        if not sources or not destinations:
             wx.MessageBox("No matching components found.", "Info", wx.OK)
             return
-        
-        data = self.analyzer.generate_source_destination_table(
-            sources, dests, 
-            include_intermediates=self.sf_include_intermediates.IsChecked()
-        )
-        if not self.sf_include_power.IsChecked():
-            data = [row for row in data if self.extractor.classify_net(row.get("Net Name", "")) == "signal"]
-        
+        self.sf_rows = data
         self.sf_preview.DeleteAllItems()
         if not data:
+            self.sf_summary.SetLabel("No complete source-to-destination routes matched the current scope and net rules.")
             self.status_text.SetLabel("No matching connections found between source and destination.")
             return
         for entry in data:
-            net_type = self.extractor.classify_net(entry.get("Net Name", ""))
-            index = self.sf_preview.InsertItem(self.sf_preview.GetItemCount(), str(entry.get("Source Reference", "")))
-            values = (entry.get("Source Pin", ""), entry.get("Net Name", ""), entry.get("Destination Reference", ""), entry.get("Destination Pin", ""), net_type)
+            source_label = str(entry.get("Source Reference", ""))
+            if entry.get("Source Value"):
+                source_label += f' | {entry.get("Source Value")}'
+            destination_label = str(entry.get("Destination Reference", ""))
+            if entry.get("Destination Value"):
+                destination_label += f' | {entry.get("Destination Value")}'
+            index = self.sf_preview.InsertItem(self.sf_preview.GetItemCount(), source_label)
+            values = (
+                entry.get("Source Pin", ""), entry.get("Net Name", ""),
+                entry.get("Net Type", ""), entry.get("Protocol", ""),
+                entry.get("Intermediates", ""), destination_label,
+                entry.get("Destination Pin", ""), entry.get("Path", ""),
+                entry.get("Connection Count", 1),
+            )
             for column, value in enumerate(values, 1):
                 self.sf_preview.SetItem(index, column, str(value))
-        self.status_text.SetLabel(f"Previewed {len(data)} source-to-destination connections.")
+        unique_nets = {row.get("Net Name", "") for row in data}
+        power_routes = sum(1 for row in data if row.get("Net Type") != "signal")
+        self.sf_summary.SetLabel(
+            f"{len(data)} routes across {len(unique_nets)} nets; {power_routes} power/ground routes. "
+            "Double-click a route to highlight its net in PCB Editor."
+        )
+        self.status_text.SetLabel(f"Previewed {len(data)} explicit source-to-destination routes.")
+
+    def OnSignalFlowRowActivated(self, event):
+        index = event.GetIndex()
+        if 0 <= index < len(self.sf_rows):
+            net_name = str(self.sf_rows[index].get("Net Name", ""))
+            self.net_action_combo.SetValue(net_name)
+            self._highlight_net(net_name)
 
     def OnSignalFlowExport(self, format_type):
         src_pattern = self.source_pattern.GetValue().strip()
         dst_pattern = self.dest_pattern.GetValue().strip()
         
-        sources = [fp.GetReference() for fp in self._get_footprints_by_pattern(src_pattern)]
-        dests = [fp.GetReference() for fp in self._get_footprints_by_pattern(dst_pattern)]
-        
-        data = self.analyzer.generate_source_destination_table(
-            sources, dests,
-            include_intermediates=self.sf_include_intermediates.IsChecked()
-        )
-        if not self.sf_include_power.IsChecked():
-            data = [row for row in data if self.extractor.classify_net(row.get("Net Name", "")) == "signal"]
+        data, _sources, _destinations = self._signal_flow_rows()
         
         if not data:
             wx.MessageBox("No data to export.", "Info", wx.OK)
             return
         
         if format_type == 'svg':
-            content = self.diagram_gen.generate_signal_flow_diagram(
-                data, title=f"Signal Flow: {src_pattern} → {dst_pattern}"
+            content = self.diagram_gen.generate_rich_signal_flow_diagram(
+                data, title=f"Signal Flow: {src_pattern} to {dst_pattern}"
             )
             self._save_file(content, "SVG", "signal_flow.svg")
         else:
@@ -818,16 +1185,44 @@ class PluginDialogV2(wx.Frame):
             include_power_nets=self.ic_include_power.IsChecked()
         )
         
+        self.ic_rows = data
         self.ic_preview.DeleteAllItems()
         if not data:
+            self.ic_summary.SetLabel(f"No connection rows found for {ic_ref} with the current power-net option.")
             self.status_text.SetLabel(f"No connection rows found for {ic_ref}.")
             return
         for entry in data:
             index = self.ic_preview.InsertItem(self.ic_preview.GetItemCount(), str(entry.get("IC Pin", "")))
-            values = (entry.get("Net Name", ""), entry.get("Destination Reference", ""), entry.get("Destination Pin", ""), "power" if entry.get("Is Power Net") == "Yes" else "signal")
+            values = (
+                entry.get("Net Name", ""), entry.get("Net Type", ""),
+                entry.get("Protocol", ""), entry.get("Destination Reference", ""),
+                entry.get("Destination Pin", ""), entry.get("Destination Value", ""),
+            )
             for column, value in enumerate(values, 1):
                 self.ic_preview.SetItem(index, column, str(value))
-        self.status_text.SetLabel(f"Previewed {len(data)} connections for {ic_ref}.")
+        ic_fp = self.extractor.get_footprint_by_reference(ic_ref)
+        ic_value = ic_fp.GetValue() if ic_fp else ""
+        self.current_ic_svg = self.diagram_gen.generate_ic_signal_chart(ic_ref, ic_value, data)
+        if self.ic_visual_is_web:
+            self.ic_visual_preview.SetPage(self._svg_html(self.current_ic_svg), "")
+        else:
+            self.ic_visual_preview.SetValue(
+                f"Visual preview requires wx.html2.\n\n{len(data)} IC connection rows are ready for SVG export."
+            )
+        unique_nets = {row.get("Net Name", "") for row in data}
+        destinations = {row.get("Destination Reference", "") for row in data if row.get("Destination Reference") != "N/C"}
+        self.ic_summary.SetLabel(
+            f"{ic_ref}: {len(unique_nets)} nets to {len(destinations)} destination components. "
+            "Double-click a row to highlight the net."
+        )
+        self.status_text.SetLabel(f"Generated the table and visual flow chart for {ic_ref}.")
+
+    def OnICChartRowActivated(self, event):
+        index = event.GetIndex()
+        if 0 <= index < len(self.ic_rows):
+            net_name = str(self.ic_rows[index].get("Net Name", ""))
+            self.net_action_combo.SetValue(net_name)
+            self._highlight_net(net_name)
 
     def OnICChartExport(self, format_type):
         ic_ref = self.ic_combo.GetValue().strip()
