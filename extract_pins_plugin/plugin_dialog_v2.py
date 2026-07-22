@@ -1,6 +1,6 @@
 # plugin_dialog_v2.py 
 """
-KiWay Extract Pins Plugin - Enhanced Dialog v2.0
+KiWay Pin Extractor modeless workspace
 
 @author - Wayri (Yawar)
 @version - 2.0.0
@@ -24,6 +24,11 @@ import os
 import webbrowser
 import re
 
+try:
+    import wx.html2 as wxhtml2
+except ImportError:
+    wxhtml2 = None
+
 # Import core modules
 try:
     from .core.data_extractor import DataExtractor
@@ -38,18 +43,17 @@ except ImportError:
     from core.diagram_generator import SVGDiagramGenerator
 
 
-class PluginDialogV2(wx.Dialog):
+class PluginDialogV2(wx.Frame):
     """
-    Enhanced wxPython dialog for the KiCad pin extraction plugin v2.0.
-    Includes signal flow analysis and diagram generation.
+    Focused wxPython workspace for selection, extraction, and visualization.
     """
 
     def __init__(self, parent, initial_selected_footprints):
         super(PluginDialogV2, self).__init__(
-            parent, 
-            title="KiWay Pin Extractor v2.0", 
-            size=(900, 600),
-            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER
+            parent,
+            title="KiWay Pin Extractor",
+            size=(1120, 760),
+            style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER,
         )
         
         self.board = pcbnew.GetBoard()
@@ -58,6 +62,10 @@ class PluginDialogV2(wx.Dialog):
         self.diagram_gen = SVGDiagramGenerator()
         
         self.current_display_footprints = []
+        self.preview_footprints = []
+        self.preview_data = {}
+        self.preview_rows = []
+        self.current_diagram_svg = ""
         self.all_refs = sorted([fp.GetReference() for fp in self.extractor.footprints], 
                                key=DataExtractor.natural_sort_key)
         self.all_ics = [r for r in self.all_refs if r.startswith('U')]
@@ -69,12 +77,12 @@ class PluginDialogV2(wx.Dialog):
         
         self.InitUI()
         self._update_footprint_list_display(initial_selected_footprints)
+        self.auto_refresh_timer.Start(500)
         
         # Initialize last known selection with initial footprints
         self.last_known_selection = {fp.GetReference() for fp in initial_selected_footprints}
         
         self.Centre()
-        self.Show()
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
     def InitUI(self):
@@ -85,21 +93,21 @@ class PluginDialogV2(wx.Dialog):
         # Create notebook for tabs
         self.notebook = wx.Notebook(panel)
         
-        # Tab 1: Extract Pins (original functionality)
+        # Keep the original extraction workflow first and separate visualization tasks.
         self.extract_panel = self._create_extract_tab()
-        self.notebook.AddPage(self.extract_panel, "Extract Pins")
+        self.notebook.AddPage(self.extract_panel, "1  Extract Pins")
         
         # Tab 2: Signal Flow
         self.signal_flow_panel = self._create_signal_flow_tab()
-        self.notebook.AddPage(self.signal_flow_panel, "Signal Flow")
+        self.notebook.AddPage(self.signal_flow_panel, "2  Signal Flow")
         
         # Tab 3: IC Signal Chart
         self.ic_chart_panel = self._create_ic_chart_tab()
-        self.notebook.AddPage(self.ic_chart_panel, "IC Signal Chart")
+        self.notebook.AddPage(self.ic_chart_panel, "3  IC Signal Chart")
         
         # Tab 4: Diagrams
         self.diagram_panel = self._create_diagram_tab()
-        self.notebook.AddPage(self.diagram_panel, "Diagrams")
+        self.notebook.AddPage(self.diagram_panel, "4  Block Diagrams")
         
         main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -132,126 +140,126 @@ class PluginDialogV2(wx.Dialog):
         panel.SetSizer(main_sizer)
 
     def _create_extract_tab(self):
-        """Create the Extract Pins tab."""
+        """Create the selection-aware extraction workspace."""
         panel = wx.Panel(self.notebook)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        
-        # Top section: Component selection
-        top_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        
-        # Left: Component list
-        left_panel = wx.StaticBoxSizer(wx.StaticBox(panel, label="Selected Components"), wx.VERTICAL)
-        
-        self.footprint_list_ctrl = wx.ListCtrl(panel, size=(200, 150), 
-                                                style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.footprint_list_ctrl.InsertColumn(0, "Reference", width=80)
-        self.footprint_list_ctrl.InsertColumn(1, "Value", width=100)
-        self.footprint_list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnListItemSelected)
-        left_panel.Add(self.footprint_list_ctrl, 1, wx.EXPAND | wx.ALL, 2)
-        
-        # Auto-refresh checkbox
-        auto_refresh_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.auto_refresh_cb = wx.CheckBox(panel, label="Auto-Refresh")
-        self.auto_refresh_cb.SetToolTip("Automatically add components as you click them on the PCB")
+
+        intro = wx.StaticText(
+            panel,
+            label="Select components on the PCB, enter wildcard filters, or combine both. "
+                  "Preview the exact pin rows before exporting.",
+        )
+        sizer.Add(intro, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+
+        source_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="1. Choose components"), wx.VERTICAL)
+        source_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.source_mode = wx.RadioBox(
+            panel,
+            label="Use",
+            choices=("PCB selection", "Wildcard filters", "Selection + filters"),
+            majorDimension=3,
+            style=wx.RA_SPECIFY_COLS,
+        )
+        self.source_mode.SetSelection(2)
+        self.source_mode.SetToolTip("Combined mode exports the union of the live PCB selection and wildcard matches.")
+        source_row.Add(self.source_mode, 0, wx.RIGHT, 10)
+
+        selection_box = wx.BoxSizer(wx.VERTICAL)
+        live_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.auto_refresh_cb = wx.CheckBox(panel, label="Follow PCB selection")
+        self.auto_refresh_cb.SetValue(True)
+        self.auto_refresh_cb.SetToolTip("Keep this window open and click footprints in PCB Editor to add them here.")
         self.auto_refresh_cb.Bind(wx.EVT_CHECKBOX, self.OnAutoRefreshToggle)
-        auto_refresh_sizer.Add(self.auto_refresh_cb, 0, wx.ALL, 2)
-        
-        self.auto_status = wx.StaticText(panel, label="")
-        self.auto_status.SetForegroundColour(wx.Colour(0, 150, 0))
-        auto_refresh_sizer.Add(self.auto_status, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
-        
-        left_panel.Add(auto_refresh_sizer, 0, wx.EXPAND | wx.ALL, 2)
-        
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.multi_select_cb = wx.CheckBox(panel, label="Multi-select")
-        self.multi_select_cb.SetToolTip("Add to existing selection on manual refresh")
-        btn_sizer.Add(self.multi_select_cb, 0, wx.ALL, 2)
-        
-        refresh_btn = wx.Button(panel, label="Refresh", size=(70, -1))
+        live_row.Add(self.auto_refresh_cb, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.auto_status = wx.StaticText(panel, label="Live")
+        self.auto_status.SetForegroundColour(wx.Colour(31, 122, 78))
+        live_row.Add(self.auto_status, 0, wx.ALIGN_CENTER_VERTICAL)
+        selection_box.Add(live_row, 0, wx.BOTTOM, 4)
+
+        selection_buttons = wx.BoxSizer(wx.HORIZONTAL)
+        refresh_btn = wx.Button(panel, label="Refresh from PCB")
         refresh_btn.Bind(wx.EVT_BUTTON, self.OnRefreshSelection)
-        refresh_btn.SetToolTip("Manually refresh from PCB selection")
-        btn_sizer.Add(refresh_btn, 0, wx.ALL, 2)
-        
-        remove_btn = wx.Button(panel, label="Remove", size=(70, -1))
+        selection_buttons.Add(refresh_btn, 0, wx.RIGHT, 6)
+        remove_btn = wx.Button(panel, label="Remove")
         remove_btn.Bind(wx.EVT_BUTTON, self.OnRemoveSelectedFromList)
-        btn_sizer.Add(remove_btn, 0, wx.ALL, 2)
-        
-        clear_btn = wx.Button(panel, label="Clear", size=(50, -1))
+        selection_buttons.Add(remove_btn, 0, wx.RIGHT, 6)
+        clear_btn = wx.Button(panel, label="Clear")
         clear_btn.Bind(wx.EVT_BUTTON, self.OnClearList)
-        clear_btn.SetToolTip("Clear the component list")
-        btn_sizer.Add(clear_btn, 0, wx.ALL, 2)
-        
-        left_panel.Add(btn_sizer, 0, wx.EXPAND | wx.ALL, 2)
-        top_sizer.Add(left_panel, 1, wx.EXPAND | wx.ALL, 5)
-        
-        # Right: Details
-        right_panel = wx.StaticBoxSizer(wx.StaticBox(panel, label="Component Details"), wx.VERTICAL)
-        self.details_text = wx.TextCtrl(panel, size=(250, 150), 
-                                         style=wx.TE_MULTILINE | wx.TE_READONLY)
-        right_panel.Add(self.details_text, 1, wx.EXPAND | wx.ALL, 2)
-        top_sizer.Add(right_panel, 1, wx.EXPAND | wx.ALL, 5)
-        
-        sizer.Add(top_sizer, 1, wx.EXPAND)
-        
-        # Middle: Filters
-        filter_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, label="Filters (Wildcards: * ?)"), wx.HORIZONTAL)
-        
-        filter_sizer.Add(wx.StaticText(panel, label="Reference:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
-        self.ref_filter = wx.TextCtrl(panel, size=(80, -1))
+        selection_buttons.Add(clear_btn, 0)
+        selection_box.Add(selection_buttons, 0)
+        source_row.Add(selection_box, 1, wx.ALIGN_CENTER_VERTICAL)
+        source_box.Add(source_row, 0, wx.EXPAND | wx.ALL, 6)
+
+        content_row = wx.BoxSizer(wx.HORIZONTAL)
+        selected_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Selection basket"), wx.VERTICAL)
+        self.footprint_list_ctrl = wx.ListCtrl(panel, size=(310, 145), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.footprint_list_ctrl.InsertColumn(0, "Reference", width=90)
+        self.footprint_list_ctrl.InsertColumn(1, "Value", width=190)
+        self.footprint_list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnListItemSelected)
+        selected_box.Add(self.footprint_list_ctrl, 1, wx.EXPAND | wx.ALL, 4)
+        self.details_text = wx.TextCtrl(panel, size=(-1, 58), style=wx.TE_MULTILINE | wx.TE_READONLY)
+        self.details_text.SetHint("Select a basket row to inspect and locate it on the PCB.")
+        selected_box.Add(self.details_text, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        content_row.Add(selected_box, 1, wx.EXPAND | wx.RIGHT, 8)
+
+        filter_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Wildcard filters (* and ?)"), wx.VERTICAL)
+        grid = wx.FlexGridSizer(3, 2, 5, 8)
+        grid.AddGrowableCol(1)
+        grid.Add(wx.StaticText(panel, label="References"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.ref_filter = wx.TextCtrl(panel)
         self.ref_filter.SetValue("J*")
-        filter_sizer.Add(self.ref_filter, 0, wx.ALL, 2)
-        
-        filter_sizer.Add(wx.StaticText(panel, label="Net:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
-        self.net_filter_ctrl = wx.ComboBox(panel, size=(100, -1), 
-                                           choices=sorted(self.extractor.all_nets)[:50])
-        filter_sizer.Add(self.net_filter_ctrl, 0, wx.ALL, 2)
-        
-        filter_sizer.Add(wx.StaticText(panel, label="Value:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
-        self.value_filter_ctrl = wx.ComboBox(panel, size=(80, -1),
-                                              choices=sorted(set(fp.GetValue() for fp in self.extractor.footprints)))
-        filter_sizer.Add(self.value_filter_ctrl, 0, wx.ALL, 2)
-        
-        sizer.Add(filter_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        
-        # Options
+        self.ref_filter.SetToolTip("Comma-separated patterns, for example J*, U1, U2, P?.")
+        grid.Add(self.ref_filter, 1, wx.EXPAND)
+        grid.Add(wx.StaticText(panel, label="Net names"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.net_filter_ctrl = wx.ComboBox(panel, choices=sorted(self.extractor.all_nets)[:100])
+        self.net_filter_ctrl.SetToolTip("Optional. Comma-separated wildcard patterns, for example CAN_*, 28V*.")
+        grid.Add(self.net_filter_ctrl, 1, wx.EXPAND)
+        grid.Add(wx.StaticText(panel, label="Component value"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.value_filter_ctrl = wx.ComboBox(panel, choices=sorted(set(fp.GetValue() for fp in self.extractor.footprints)))
+        self.value_filter_ctrl.SetToolTip("Optional wildcard filter for component values.")
+        grid.Add(self.value_filter_ctrl, 1, wx.EXPAND)
+        filter_box.Add(grid, 1, wx.EXPAND | wx.ALL, 5)
+        preset = wx.Button(panel, label="Use connector preset (J*)")
+        preset.Bind(wx.EVT_BUTTON, self.OnConnectorPreset)
+        filter_box.Add(preset, 0, wx.LEFT | wx.BOTTOM, 5)
+        content_row.Add(filter_box, 1, wx.EXPAND)
+        source_box.Add(content_row, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+        sizer.Add(source_box, 0, wx.EXPAND | wx.ALL, 8)
+
+        preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="2. Review extracted pins"), wx.VERTICAL)
         options_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        
-        self.ignore_unconnected_cb = wx.CheckBox(panel, label="Ignore Unconnected")
-        options_sizer.Add(self.ignore_unconnected_cb, 0, wx.ALL, 5)
-        
-        self.ignore_power_cb = wx.CheckBox(panel, label="Ignore Power Nets")
-        options_sizer.Add(self.ignore_power_cb, 0, wx.ALL, 5)
-        
-        self.sort_by_type_cb = wx.CheckBox(panel, label="Sort by Net Type")
-        options_sizer.Add(self.sort_by_type_cb, 0, wx.ALL, 5)
-        
-        self.highlight_nets_cb = wx.CheckBox(panel, label="Highlight Nets (MD)")
-        options_sizer.Add(self.highlight_nets_cb, 0, wx.ALL, 5)
-        
-        sizer.Add(options_sizer, 0, wx.EXPAND | wx.ALL, 2)
-        
-        # Export buttons
+        self.ignore_unconnected_cb = wx.CheckBox(panel, label="Hide unconnected")
+        self.ignore_power_cb = wx.CheckBox(panel, label="Hide power and ground")
+        self.sort_by_type_cb = wx.CheckBox(panel, label="Group by net type")
+        self.highlight_nets_cb = wx.CheckBox(panel, label="Highlight nets in Markdown")
+        for control in (self.ignore_unconnected_cb, self.ignore_power_cb, self.sort_by_type_cb, self.highlight_nets_cb):
+            options_sizer.Add(control, 0, wx.RIGHT, 14)
+        options_sizer.AddStretchSpacer()
+        preview_button = wx.Button(panel, label="Preview Extraction")
+        preview_button.Bind(wx.EVT_BUTTON, self.OnPreviewExtraction)
+        options_sizer.Add(preview_button, 0)
+        preview_box.Add(options_sizer, 0, wx.EXPAND | wx.ALL, 5)
+
+        self.pin_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, (label, width) in enumerate((("Reference", 90), ("Value", 170), ("Pad", 70), ("Net", 270), ("Type", 90))):
+            self.pin_preview.InsertColumn(index, label, width=width)
+        self.pin_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnPreviewRowActivated)
+        preview_box.Add(self.pin_preview, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
+        self.preview_summary = wx.StaticText(panel, label="No preview yet. The PCB has not been changed.")
+        preview_box.Add(self.preview_summary, 0, wx.ALL, 5)
+        sizer.Add(preview_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+
         export_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        
-        self.export_selected_btn = wx.Button(panel, label="Export Selected")
-        self.export_selected_btn.Bind(wx.EVT_BUTTON, self.OnExportSelected)
+        export_sizer.Add(wx.StaticText(panel, label="3. Export the reviewed rows"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        self.export_selected_btn = wx.Button(panel, label="Export Preview...")
+        self.export_selected_btn.Bind(wx.EVT_BUTTON, self.OnExportPreview)
         self.export_selected_btn.Enable(False)
-        export_sizer.Add(self.export_selected_btn, 0, wx.ALL, 5)
-        
-        export_j_btn = wx.Button(panel, label="Export J*")
-        export_j_btn.Bind(wx.EVT_BUTTON, self.OnExportJs)
-        export_sizer.Add(export_j_btn, 0, wx.ALL, 5)
-        
-        export_pattern_btn = wx.Button(panel, label="Export by Pattern")
-        export_pattern_btn.Bind(wx.EVT_BUTTON, self.OnExportByPattern)
-        export_sizer.Add(export_pattern_btn, 0, wx.ALL, 5)
-        
-        export_nets_btn = wx.Button(panel, label="Unique Nets")
+        export_sizer.Add(self.export_selected_btn, 0, wx.RIGHT, 6)
+        export_nets_btn = wx.Button(panel, label="Export Unique Nets...")
         export_nets_btn.Bind(wx.EVT_BUTTON, self.OnExtractUniqueNets)
-        export_sizer.Add(export_nets_btn, 0, wx.ALL, 5)
-        
-        sizer.Add(export_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 5)
-        
+        export_sizer.Add(export_nets_btn, 0)
+        sizer.Add(export_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
         panel.SetSizer(sizer)
         return panel
 
@@ -290,9 +298,9 @@ class PluginDialogV2(wx.Dialog):
         
         # Preview area
         preview_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, label="Preview"), wx.VERTICAL)
-        self.sf_preview = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL,
-                                       size=(-1, 200))
-        self.sf_preview.SetFont(wx.Font(9, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        self.sf_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, (label, width) in enumerate((("Source", 110), ("Pin", 70), ("Net", 260), ("Destination", 120), ("Pin", 70), ("Type", 90))):
+            self.sf_preview.InsertColumn(index, label, width=width)
         preview_sizer.Add(self.sf_preview, 1, wx.EXPAND | wx.ALL, 2)
         sizer.Add(preview_sizer, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -341,9 +349,9 @@ class PluginDialogV2(wx.Dialog):
         
         # Preview
         preview_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, label="IC Pin Connections"), wx.VERTICAL)
-        self.ic_preview = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL,
-                                       size=(-1, 250))
-        self.ic_preview.SetFont(wx.Font(9, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        self.ic_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, (label, width) in enumerate((("IC Pin", 90), ("Net", 260), ("Destination", 130), ("Dest Pin", 90), ("Type", 90))):
+            self.ic_preview.InsertColumn(index, label, width=width)
         preview_sizer.Add(self.ic_preview, 1, wx.EXPAND | wx.ALL, 2)
         sizer.Add(preview_sizer, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -372,46 +380,52 @@ class PluginDialogV2(wx.Dialog):
         return panel
 
     def _create_diagram_tab(self):
-        """Create the Diagrams tab."""
+        """Create an embedded visual block-diagram workspace."""
         panel = wx.Panel(self.notebook)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        
-        info = wx.StaticText(panel, label="Generate self-contained SVG block diagrams.\nNo external dependencies required.")
-        sizer.Add(info, 0, wx.ALL, 10)
-        
-        # Component selection
-        sel_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sel_sizer.Add(wx.StaticText(panel, label="Components:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
-        self.diagram_refs = wx.TextCtrl(panel, value="U1,U2,J1")
-        self.diagram_refs.SetToolTip("Comma-separated references or wildcards (e.g., U*, J1,J2)")
-        sel_sizer.Add(self.diagram_refs, 1, wx.ALL, 5)
-        sizer.Add(sel_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        
-        # Options
-        opt_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        
-        self.diag_ignore_power = wx.CheckBox(panel, label="Exclude Power Nets")
-        opt_sizer.Add(self.diag_ignore_power, 0, wx.ALL, 5)
-        
-        self.diag_dark_mode = wx.CheckBox(panel, label="Dark Mode")
-        self.diag_dark_mode.SetValue(True)
-        opt_sizer.Add(self.diag_dark_mode, 0, wx.ALL, 5)
-        
-        sizer.Add(opt_sizer, 0, wx.EXPAND | wx.ALL, 5)
-        
-        # Generate buttons
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        
-        gen_block_btn = wx.Button(panel, label="Generate Component Blocks")
-        gen_block_btn.Bind(wx.EVT_BUTTON, self.OnGenerateBlockDiagram)
-        btn_sizer.Add(gen_block_btn, 0, wx.ALL, 5)
-        
-        gen_flow_btn = wx.Button(panel, label="Generate Flow Diagram")
-        gen_flow_btn.Bind(wx.EVT_BUTTON, self.OnGenerateFlowDiagram)
-        btn_sizer.Add(gen_flow_btn, 0, wx.ALL, 5)
-        
-        sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 10)
-        
+
+        controls = wx.StaticBoxSizer(wx.StaticBox(panel, label="Diagram scope"), wx.VERTICAL)
+        scope_row = wx.BoxSizer(wx.HORIZONTAL)
+        scope_row.Add(wx.StaticText(panel, label="Components"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.diagram_refs = wx.TextCtrl(panel, value="J*,U*")
+        self.diagram_refs.SetToolTip("Comma-separated references or wildcards. Leave blank to use the extraction preview.")
+        scope_row.Add(self.diagram_refs, 1, wx.RIGHT, 12)
+        self.diagram_mode = wx.RadioBox(
+            panel,
+            label="Connections",
+            choices=("Combined", "Signals only", "Power only"),
+            majorDimension=3,
+            style=wx.RA_SPECIFY_COLS,
+        )
+        scope_row.Add(self.diagram_mode, 0)
+        controls.Add(scope_row, 0, wx.EXPAND | wx.ALL, 6)
+
+        action_row = wx.BoxSizer(wx.HORIZONTAL)
+        refresh = wx.Button(panel, label="Refresh Visual Preview")
+        refresh.Bind(wx.EVT_BUTTON, self.OnDiagramPreview)
+        action_row.Add(refresh, 0, wx.RIGHT, 6)
+        use_extract = wx.Button(panel, label="Use Extraction Preview")
+        use_extract.Bind(wx.EVT_BUTTON, self.OnUseExtractionForDiagram)
+        action_row.Add(use_extract, 0, wx.RIGHT, 6)
+        self.export_diagram_btn = wx.Button(panel, label="Export This SVG...")
+        self.export_diagram_btn.Enable(False)
+        self.export_diagram_btn.Bind(wx.EVT_BUTTON, self.OnExportDiagramPreview)
+        action_row.Add(self.export_diagram_btn, 0)
+        controls.Add(action_row, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+        sizer.Add(controls, 0, wx.EXPAND | wx.ALL, 8)
+
+        preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Visual preview"), wx.VERTICAL)
+        if wxhtml2 is not None:
+            self.diagram_preview = wxhtml2.WebView.New(panel)
+            self.diagram_preview_is_web = True
+        else:
+            self.diagram_preview = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
+            self.diagram_preview_is_web = False
+        preview_box.Add(self.diagram_preview, 1, wx.EXPAND | wx.ALL, 4)
+        self.diagram_summary = wx.StaticText(panel, label="Choose components and refresh the preview. No PCB objects are changed.")
+        preview_box.Add(self.diagram_summary, 0, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(preview_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+
         panel.SetSizer(sizer)
         return panel
 
@@ -425,7 +439,7 @@ class PluginDialogV2(wx.Dialog):
 
     def OnHelp(self, event):
         plugin_dir = os.path.dirname(__file__)
-        help_file = os.path.join(plugin_dir, "help_doc.html")
+        help_file = os.path.join(plugin_dir, "help.html")
         if os.path.exists(help_file):
             webbrowser.open_new_tab(f"file:///{help_file}")
         else:
@@ -487,20 +501,10 @@ class PluginDialogV2(wx.Dialog):
             self.footprint_list_ctrl.SetItem(i, 1, fp.GetValue())
         
         self.details_text.SetValue("")
-        self.export_selected_btn.Enable(bool(footprints_list))
 
     def OnRefreshSelection(self, event):
         newly_selected = [f for f in self.board.GetFootprints() if f.IsSelected()]
-        
-        if self.multi_select_cb.IsChecked():
-            existing = {fp.GetReference(): fp for fp in self.current_display_footprints}
-            for fp in newly_selected:
-                existing[fp.GetReference()] = fp
-            merged = sorted(existing.values(), key=lambda f: DataExtractor.natural_sort_key(f.GetReference()))
-            self._update_footprint_list_display(merged)
-        else:
-            self._update_footprint_list_display(newly_selected)
-        
+        self._update_footprint_list_display(newly_selected)
         self.status_text.SetLabel(f"Found {len(self.current_display_footprints)} components.")
 
     def OnListItemSelected(self, event):
@@ -524,8 +528,108 @@ class PluginDialogV2(wx.Dialog):
             details += f"Connector Type: {conn_type}\n"
         
         details += f"\nPins: {len(list(fp.Pads()))}"
-        
         self.details_text.SetValue(details)
+
+        try:
+            fp.SetSelected()
+            pcbnew.Refresh()
+            self.status_text.SetLabel(f"Selected {fp.GetReference()} on the PCB.")
+        except Exception:
+            pass
+
+    def OnConnectorPreset(self, event):
+        self.ref_filter.SetValue("J*")
+        self.source_mode.SetSelection(1)
+        self.OnPreviewExtraction(event)
+
+    def _resolve_extract_scope(self):
+        selected = {fp.GetReference(): fp for fp in self.current_display_footprints}
+        pattern = self.ref_filter.GetValue().strip()
+        matched = {
+            fp.GetReference(): fp for fp in self._get_footprints_by_pattern(pattern)
+        } if pattern else {}
+        mode = self.source_mode.GetSelection()
+        if mode == 0:
+            footprints = selected
+        elif mode == 1:
+            footprints = matched
+        else:
+            footprints = dict(selected)
+            footprints.update(matched)
+        return sorted(footprints.values(), key=lambda fp: DataExtractor.natural_sort_key(fp.GetReference()))
+
+    def OnPreviewExtraction(self, event):
+        footprints = self._resolve_extract_scope()
+        self.pin_preview.DeleteAllItems()
+        self.preview_rows = []
+        self.preview_footprints = footprints
+        self.preview_data = self.extractor.extract_footprint_data(
+            footprints,
+            ignore_unconnected=self.ignore_unconnected_cb.IsChecked(),
+            ignore_power_nets=self.ignore_power_cb.IsChecked(),
+            value_filter=self.value_filter_ctrl.GetValue().strip() or None,
+            net_filter=self.net_filter_ctrl.GetValue().strip() or None,
+            sort_pins_by_net_type=self.sort_by_type_cb.IsChecked(),
+        )
+        for ref, component in self.preview_data.items():
+            value = component.get("general_properties", {}).get("Value", "")
+            for pin in component.get("pins", []):
+                row = {
+                    "Reference": ref,
+                    "Value": value,
+                    "Pad": pin.get("Pad Name/Number", ""),
+                    "Net": pin.get("Net Name", ""),
+                    "Type": pin.get("Net Type", ""),
+                }
+                self.preview_rows.append(row)
+                index = self.pin_preview.InsertItem(self.pin_preview.GetItemCount(), row["Reference"])
+                for column, key in enumerate(("Value", "Pad", "Net", "Type"), 1):
+                    self.pin_preview.SetItem(index, column, str(row[key]))
+        count = len(self.preview_rows)
+        self.export_selected_btn.Enable(count > 0)
+        self.preview_summary.SetLabel(
+            f"Preview: {count} pin rows from {len(self.preview_data)} components. "
+            "Double-click a row to select its footprint and highlight its net on the PCB."
+            if count else
+            "No rows match this scope. Adjust the source or filters and preview again."
+        )
+        self.status_text.SetLabel(f"Previewed {count} pin rows; the PCB was not changed.")
+
+    def OnPreviewRowActivated(self, event):
+        index = event.GetIndex()
+        if index < 0 or index >= len(self.preview_rows):
+            return
+        row = self.preview_rows[index]
+        footprint = self.extractor.get_footprint_by_reference(row["Reference"])
+        try:
+            for fp in self.board.GetFootprints():
+                fp.ClearSelected()
+            if footprint is not None:
+                footprint.SetSelected()
+            net = row.get("Net", "")
+            if net and hasattr(self.board, "SetHighLightNet"):
+                net_info = self.board.FindNet(net)
+                if net_info:
+                    self.board.SetHighLightNet(net_info.GetNetCode())
+            pcbnew.Refresh()
+            self.status_text.SetLabel(f"PCB selection: {row['Reference']} pad {row['Pad']} on {row['Net'] or 'no net'}.")
+        except Exception as exc:
+            self.status_text.SetLabel(f"Could not update PCB selection: {exc}")
+
+    def OnExportPreview(self, event):
+        if not self.preview_data:
+            wx.MessageBox("Create a preview first.", "Preview required", wx.OK | wx.ICON_INFORMATION)
+            return
+        choices = ("CSV (.csv)", "Markdown (.md)")
+        with wx.SingleChoiceDialog(self, "Choose an export format for the reviewed rows.", "Export Preview", choices) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            if dialog.GetSelection() == 0:
+                content = CSVFormatter().format_component_data(self.preview_data)
+                self._save_file(content, "CSV", "kiway_pin_preview.csv")
+            else:
+                content = MarkdownFormatter(highlight_nets=self.highlight_nets_cb.IsChecked()).format_component_data(self.preview_data)
+                self._save_file(content, "Markdown", "kiway_pin_preview.md")
 
     def OnRemoveSelectedFromList(self, event):
         idx = self.footprint_list_ctrl.GetFirstSelected()
@@ -618,11 +722,10 @@ class PluginDialogV2(wx.Dialog):
         self.status_text.SetLabel("Export complete.")
 
     def OnExtractUniqueNets(self, event):
-        pattern = self.ref_filter.GetValue().strip() or "J*"
-        footprints = self._get_footprints_by_pattern(pattern)
+        footprints = list(self.preview_footprints) or self._resolve_extract_scope()
         
         if not footprints:
-            wx.MessageBox(f"No components matching '{pattern}'.", "Info", wx.OK)
+            wx.MessageBox("No components are in the current extraction scope.", "Info", wx.OK)
             return
         
         nets = self.extractor.extract_unique_nets(
@@ -659,22 +762,20 @@ class PluginDialogV2(wx.Dialog):
             sources, dests, 
             include_intermediates=self.sf_include_intermediates.IsChecked()
         )
+        if not self.sf_include_power.IsChecked():
+            data = [row for row in data if self.extractor.classify_net(row.get("Net Name", "")) == "signal"]
         
+        self.sf_preview.DeleteAllItems()
         if not data:
-            self.sf_preview.SetValue("No connections found between source and destination.")
+            self.status_text.SetLabel("No matching connections found between source and destination.")
             return
-        
-        # Format preview
-        lines = [f"Found {len(data)} connection(s)\n"]
-        lines.append(f"{'Source':<10} {'Pin':<6} {'Net':<25} {'Dest':<10} {'Pin':<6}")
-        lines.append("-" * 60)
-        for entry in data[:50]:  # Limit preview
-            lines.append(f"{entry['Source Reference']:<10} {entry['Source Pin']:<6} {entry['Net Name']:<25} {entry['Destination Reference']:<10} {entry['Destination Pin']:<6}")
-        
-        if len(data) > 50:
-            lines.append(f"\n... and {len(data) - 50} more")
-        
-        self.sf_preview.SetValue("\n".join(lines))
+        for entry in data:
+            net_type = self.extractor.classify_net(entry.get("Net Name", ""))
+            index = self.sf_preview.InsertItem(self.sf_preview.GetItemCount(), str(entry.get("Source Reference", "")))
+            values = (entry.get("Source Pin", ""), entry.get("Net Name", ""), entry.get("Destination Reference", ""), entry.get("Destination Pin", ""), net_type)
+            for column, value in enumerate(values, 1):
+                self.sf_preview.SetItem(index, column, str(value))
+        self.status_text.SetLabel(f"Previewed {len(data)} source-to-destination connections.")
 
     def OnSignalFlowExport(self, format_type):
         src_pattern = self.source_pattern.GetValue().strip()
@@ -687,6 +788,8 @@ class PluginDialogV2(wx.Dialog):
             sources, dests,
             include_intermediates=self.sf_include_intermediates.IsChecked()
         )
+        if not self.sf_include_power.IsChecked():
+            data = [row for row in data if self.extractor.classify_net(row.get("Net Name", "")) == "signal"]
         
         if not data:
             wx.MessageBox("No data to export.", "Info", wx.OK)
@@ -715,19 +818,16 @@ class PluginDialogV2(wx.Dialog):
             include_power_nets=self.ic_include_power.IsChecked()
         )
         
+        self.ic_preview.DeleteAllItems()
         if not data:
-            self.ic_preview.SetValue(f"No data found for {ic_ref}")
+            self.status_text.SetLabel(f"No connection rows found for {ic_ref}.")
             return
-        
-        lines = [f"IC: {ic_ref} - {len(data)} connection(s)\n"]
-        lines.append(f"{'Pin':<6} {'Net':<25} {'Dest':<10} {'Dest Pin':<8} {'Type':<8}")
-        lines.append("-" * 60)
-        
         for entry in data:
-            pwr = "PWR" if entry['Is Power Net'] == 'Yes' else "SIG"
-            lines.append(f"{entry['IC Pin']:<6} {entry['Net Name']:<25} {entry['Destination Reference']:<10} {entry['Destination Pin']:<8} {pwr:<8}")
-        
-        self.ic_preview.SetValue("\n".join(lines))
+            index = self.ic_preview.InsertItem(self.ic_preview.GetItemCount(), str(entry.get("IC Pin", "")))
+            values = (entry.get("Net Name", ""), entry.get("Destination Reference", ""), entry.get("Destination Pin", ""), "power" if entry.get("Is Power Net") == "Yes" else "signal")
+            for column, value in enumerate(values, 1):
+                self.ic_preview.SetItem(index, column, str(value))
+        self.status_text.SetLabel(f"Previewed {len(data)} connections for {ic_ref}.")
 
     def OnICChartExport(self, format_type):
         ic_ref = self.ic_combo.GetValue().strip()
@@ -757,98 +857,93 @@ class PluginDialogV2(wx.Dialog):
             self._save_file(content, format_type.upper(), f"{ic_ref}_chart.{ext}")
 
     # Diagram handlers
-    def OnGenerateBlockDiagram(self, event):
-        refs_str = self.diagram_refs.GetValue().strip()
-        if not refs_str:
+    def OnUseExtractionForDiagram(self, event):
+        refs = list(self.preview_data)
+        if not refs:
+            wx.MessageBox("Create an extraction preview first.", "Preview required", wx.OK | wx.ICON_INFORMATION)
             return
-        
-        footprints = self._get_footprints_by_pattern(refs_str)
-        if not footprints:
-            wx.MessageBox("No matching components.", "Info", wx.OK)
-            return
-        
-        # Generate block for first component (for simplicity)
-        fp = footprints[0]
-        data = self.extractor.extract_footprint_data(
-            [fp], sort_pins_by_net_type=True
-        )
-        
-        if fp.GetReference() in data:
-            comp_data = data[fp.GetReference()]
-            content = self.diagram_gen.generate_component_block(
-                fp.GetReference(),
-                fp.GetValue(),
-                comp_data['pins']
-            )
-            self._save_file(content, "SVG", f"{fp.GetReference()}_block.svg")
+        self.diagram_refs.SetValue(",".join(refs))
+        self.OnDiagramPreview(event)
 
-    def OnGenerateFlowDiagram(self, event):
-        refs_str = self.diagram_refs.GetValue().strip()
-        if not refs_str:
-            wx.MessageBox("Enter component references.", "Info", wx.OK)
-            return
-        
-        footprints = self._get_footprints_by_pattern(refs_str)
-        if not footprints:
-            wx.MessageBox("No matching components found.", "Info", wx.OK)
-            return
-        
-        refs = [fp.GetReference() for fp in footprints]
-        
-        # For flow diagram, find all connections FROM these components TO any other component
-        self.status_text.SetLabel("Generating flow diagram...")
-        wx.Yield()
-        
-        # Use the first component(s) as sources and find their destinations
-        # If only 1 component, show all its connections
-        # If multiple, show connections between them
-        
+    def _diagram_flow_rows(self, refs):
         if len(refs) == 1:
-            # Single component: show all connections from/to it
-            data = self.analyzer.generate_ic_signal_chart(
-                refs[0],
-                include_power_nets=not self.diag_ignore_power.IsChecked()
+            rows = self.analyzer.generate_ic_signal_chart(refs[0], include_power_nets=True)
+            return [{
+                "Source Reference": refs[0],
+                "Source Pin": row.get("IC Pin", ""),
+                "Net Name": row.get("Net Name", ""),
+                "Destination Reference": row.get("Destination Reference", ""),
+                "Destination Value": row.get("Destination Value", ""),
+                "Destination Pin": row.get("Destination Pin", ""),
+                "Is Power Net": row.get("Is Power Net", "No"),
+            } for row in rows]
+
+        rows = self.analyzer.generate_source_destination_table(refs, refs)
+        if not rows:
+            rows = []
+            for ref in refs:
+                for row in self.analyzer.generate_ic_signal_chart(ref, include_power_nets=True):
+                    rows.append({
+                        "Source Reference": ref,
+                        "Source Pin": row.get("IC Pin", ""),
+                        "Net Name": row.get("Net Name", ""),
+                        "Destination Reference": row.get("Destination Reference", ""),
+                        "Destination Value": row.get("Destination Value", ""),
+                        "Destination Pin": row.get("Destination Pin", ""),
+                        "Is Power Net": row.get("Is Power Net", "No"),
+                    })
+        return rows
+
+    def OnDiagramPreview(self, event):
+        patterns = self.diagram_refs.GetValue().strip()
+        footprints = self._get_footprints_by_pattern(patterns) if patterns else list(self.preview_footprints)
+        refs = [fp.GetReference() for fp in footprints]
+        if not refs:
+            wx.MessageBox("Select components or enter reference patterns first.", "No diagram scope", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        rows = self._diagram_flow_rows(refs)
+        mode = self.diagram_mode.GetSelection()
+        filtered = []
+        for row in rows:
+            is_power = self.extractor.classify_net(row.get("Net Name", "")) != "signal"
+            row["Is Power Net"] = "Yes" if is_power else "No"
+            if mode == 1 and is_power:
+                continue
+            if mode == 2 and not is_power:
+                continue
+            filtered.append(row)
+
+        labels = ("Combined power and signal", "Signal", "Power and ground")
+        self.current_diagram_svg = self.diagram_gen.generate_signal_flow_diagram(
+            filtered,
+            title=f"{labels[mode]} connections: {', '.join(refs[:6])}{'...' if len(refs) > 6 else ''}",
+        )
+        if self.diagram_preview_is_web:
+            html = (
+                "<!doctype html><meta charset='utf-8'><style>"
+                "html,body{margin:0;background:#15191f;height:100%;overflow:auto}"
+                "svg{display:block;max-width:100%;height:auto;margin:0 auto}"
+                "</style>" + self.current_diagram_svg
             )
-            if not data:
-                wx.MessageBox(f"No connections found for {refs[0]}.", "Info", wx.OK)
-                return
-            
-            # Convert IC chart format to signal flow format
-            flow_data = []
-            for entry in data:
-                flow_data.append({
-                    'Source Reference': refs[0],
-                    'Source Pin': entry.get('IC Pin', ''),
-                    'Net Name': entry.get('Net Name', ''),
-                    'Destination Reference': entry.get('Destination Reference', ''),
-                    'Destination Pin': entry.get('Destination Pin', '')
-                })
-            
-            content = self.diagram_gen.generate_signal_flow_diagram(
-                flow_data, 
-                title=f"Connections: {refs[0]}"
-            )
+            self.diagram_preview.SetPage(html, "")
         else:
-            # Multiple components: show connections between all of them
-            # Use all as both sources and destinations to catch all inter-connections
-            data = self.analyzer.generate_source_destination_table(refs, refs)
-            
-            if not data:
-                # Try finding connections from these to any other component
-                all_other_refs = [r for r in self.all_refs if r not in refs]
-                data = self.analyzer.generate_source_destination_table(refs, all_other_refs[:20])
-            
-            if not data:
-                wx.MessageBox("No connections found between specified components.", "Info", wx.OK)
-                return
-            
-            content = self.diagram_gen.generate_signal_flow_diagram(
-                data, 
-                title=f"Signal Flow: {', '.join(refs[:3])}{'...' if len(refs) > 3 else ''}"
+            self.diagram_preview.SetValue(
+                f"Visual web preview is unavailable in this KiCad Python build.\n\n"
+                f"{len(filtered)} connections are ready for SVG export."
             )
-        
-        self._save_file(content, "SVG", "flow_diagram.svg")
-        self.status_text.SetLabel("Diagram generated.")
+        self.export_diagram_btn.Enable(bool(filtered))
+        self.diagram_summary.SetLabel(
+            f"Preview: {len(filtered)} connections across {len(refs)} components. "
+            "The displayed SVG is exactly what Export This SVG writes."
+        )
+        self.status_text.SetLabel(f"Rendered {len(filtered)} diagram connections in the plugin window.")
+
+    def OnExportDiagramPreview(self, event):
+        if not self.current_diagram_svg:
+            wx.MessageBox("Refresh the visual preview first.", "Preview required", wx.OK | wx.ICON_INFORMATION)
+            return
+        self._save_file(self.current_diagram_svg, "SVG", "kiway_block_diagram.svg")
 
     def _save_file(self, content, format_name, default_name):
         """Show save dialog and write file."""

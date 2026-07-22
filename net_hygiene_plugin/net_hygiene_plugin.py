@@ -40,7 +40,7 @@ class NetHygienePlugin(pcbnew.ActionPlugin):
         self.description = "Find common PCB net and reference quality issues."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.4.0"
+        self.version = "0.4.1"
 
     def Run(self) -> None:
         try:

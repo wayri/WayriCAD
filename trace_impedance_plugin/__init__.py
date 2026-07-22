@@ -2,5 +2,8 @@
 
 from .trace_impedance_plugin import TraceImpedancePlugin
 
-TraceImpedancePlugin().register()
+import wx
+
+if wx.GetApp() is not None:
+    TraceImpedancePlugin().register()
 

@@ -109,6 +109,149 @@ def render(package: str, spec: tuple) -> None:
     image.save(ROOT / package / "help-workflow.png", optimize=True)
 
 
+def render_extract_workspace() -> None:
+    image = Image.new("RGB", (1200, 680), "#e9edf1")
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((22, 18, 1178, 660), radius=6, fill="#ffffff", outline="#7e8c99", width=2)
+    draw.rectangle((22, 18, 1178, 70), fill="#17324d")
+    text(draw, (45, 33), "KiWay Pin Extractor", 24, True, "#ffffff")
+
+    tabs = ("1  Extract Pins", "2  Signal Flow", "3  IC Signal Chart", "4  Block Diagrams")
+    x = 42
+    for index, label in enumerate(tabs):
+        width = (190, 180, 205, 205)[index]
+        fill = "#ffffff" if index == 0 else "#e5eaf0"
+        draw.rectangle((x, 82, x + width, 120), fill=fill, outline="#8796a3")
+        text(draw, (x + 12, 92), label, 16, index == 0, "#17324d")
+        x += width
+
+    text(draw, (42, 136), "Select on the PCB, enter wildcard filters, or combine both. Preview before export.", 16, fill="#35566f")
+    draw.rounded_rectangle((42, 169, 1156, 350), radius=4, fill="#f8fafb", outline="#a9b5bf")
+    text(draw, (58, 181), "1. Choose components", 17, True, "#17324d")
+    for idx, label in enumerate(("PCB selection", "Wildcard filters", "Selection + filters")):
+        cx = 78 + idx * 145
+        draw.ellipse((cx, 218, cx + 16, 234), fill="#1769aa" if idx == 2 else "#ffffff", outline="#617685", width=2)
+        text(draw, (cx + 24, 216), label, 14)
+    draw.rectangle((58, 250, 520, 330), fill="#ffffff", outline="#a7b3bd")
+    text(draw, (70, 259), "Selection basket", 14, True, "#17324d")
+    text(draw, (72, 291), "J3    Backplane", 14)
+    text(draw, (270, 291), "U1    STM32H7", 14)
+    draw.rectangle((548, 207, 1137, 330), fill="#ffffff", outline="#a7b3bd")
+    text(draw, (562, 217), "Wildcard filters (* and ?)", 14, True, "#17324d")
+    for y, label, value in ((249, "References", "J*, U1"), (282, "Net names", "CAN_*, 28V*")):
+        text(draw, (564, y + 5), label, 14)
+        draw.rounded_rectangle((690, y, 1118, y + 29), radius=3, fill="#ffffff", outline="#94a3af")
+        text(draw, (701, y + 5), value, 14)
+
+    draw.rounded_rectangle((42, 365, 1156, 562), radius=4, fill="#ffffff", outline="#a9b5bf")
+    text(draw, (58, 377), "2. Review extracted pins", 17, True, "#17324d")
+    button(draw, (935, 375, 1135, 414), "Preview Extraction", primary=True)
+    columns = (("Reference", 130), ("Value", 210), ("Pad", 100), ("Net", 350), ("Type", 160))
+    left, y, x = 58, 426, 58
+    for label, width in columns:
+        draw.rectangle((x, y, x + width, y + 34), fill="#e7eef4", outline="#a7b3bd")
+        text(draw, (x + 8, y + 7), label, 14, True, "#17324d")
+        x += width
+    rows = (("J3", "Backplane", "17", "CAN_A_H", "signal"), ("U1", "STM32H7", "12", "3V3", "supply"))
+    for row_index, row in enumerate(rows):
+        x = left
+        for value, (_label, width) in zip(row, columns):
+            draw.rectangle((x, y + 34 + row_index * 34, x + width, y + 68 + row_index * 34), fill="#ffffff" if row_index == 0 else "#f5f7f9", outline="#c3ccd4")
+            text(draw, (x + 8, y + 41 + row_index * 34), value, 14)
+            x += width
+    text(draw, (58, 536), "Double-click a row to select its footprint and highlight its net on the PCB.", 14, fill="#35566f")
+    text(draw, (42, 589), "3. Export the reviewed rows", 17, True, "#17324d")
+    button(draw, (308, 579, 498, 622), "Export Preview...")
+    button(draw, (514, 579, 730, 622), "Export Unique Nets...")
+    callout(draw, 1, (920, 145), (395, 226), "Combined input")
+    callout(draw, 2, (805, 350), (1005, 395), "Preview exact rows")
+    callout(draw, 3, (790, 635), (405, 601), "Export only the preview")
+    image.save(ROOT / "extract_pins_plugin" / "help-workflow.png", optimize=True)
+
+
+def render_extract_diagrams() -> None:
+    image = Image.new("RGB", (1200, 680), "#e9edf1")
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((22, 18, 1178, 660), radius=6, fill="#ffffff", outline="#7e8c99", width=2)
+    draw.rectangle((22, 18, 1178, 70), fill="#17324d")
+    text(draw, (45, 33), "KiWay Pin Extractor - Block Diagrams", 24, True, "#ffffff")
+    draw.rounded_rectangle((42, 91, 1156, 188), radius=4, fill="#f8fafb", outline="#a9b5bf")
+    text(draw, (58, 103), "Diagram scope", 17, True, "#17324d")
+    text(draw, (58, 144), "Components", 14)
+    draw.rounded_rectangle((160, 136, 510, 167), radius=3, fill="#ffffff", outline="#94a3af")
+    text(draw, (171, 142), "J*, U*", 14)
+    for idx, label in enumerate(("Combined", "Signals only", "Power only")):
+        x = 570 + idx * 145
+        draw.ellipse((x, 141, x + 16, 157), fill="#1769aa" if idx == 0 else "#ffffff", outline="#617685", width=2)
+        text(draw, (x + 23, 139), label, 14)
+    button(draw, (58, 204, 270, 244), "Refresh Visual Preview", primary=True)
+    button(draw, (286, 204, 496, 244), "Use Extraction Preview")
+    button(draw, (512, 204, 690, 244), "Export This SVG...")
+
+    draw.rectangle((42, 263, 1156, 608), fill="#15191f", outline="#7e8c99")
+    text(draw, (58, 276), "Combined power and signal connections", 18, True, "#ffffff")
+    nodes = ((90, 355, 240, 440, "J3", "Backplane"), (480, 320, 650, 480, "U1", "STM32H7"), (900, 355, 1050, 440, "J7", "Payload"))
+    for x1, y1, x2, y2, ref, value in nodes:
+        draw.rounded_rectangle((x1, y1, x2, y2), radius=5, fill="#20344d", outline="#57c5b6", width=2)
+        text(draw, (x1 + 15, y1 + 18), ref, 18, True, "#ffffff")
+        text(draw, (x1 + 15, y1 + 49), value, 14, fill="#c5d0da")
+    for y, color, label in ((360, "#00d9ff", "CAN_A_H"), (392, "#00d9ff", "CAN_A_L"), (424, "#ff6b6b", "28V_MAIN")):
+        draw.line((240, y, 480, y), fill=color, width=4)
+        draw.line((650, y, 900, y), fill=color, width=4)
+        text(draw, (310, y - 23), label, 13, True, "#ffffff")
+    text(draw, (58, 624), "Preview is embedded in the plugin; mode changes filter the visual before SVG export.", 15, fill="#35566f")
+    image.save(ROOT / "extract_pins_plugin" / "help-diagrams.png", optimize=True)
+
+
+def render_dependency_manager() -> None:
+    image = Image.new("RGB", (1200, 680), "#e9edf1")
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((28, 24, 1172, 650), radius=7, fill="#ffffff", outline="#8a98a6", width=2)
+    draw.rectangle((28, 24, 1172, 80), fill="#17324d")
+    text(draw, (52, 39), "KiWay Suite Dependency Manager", 25, True, "#ffffff")
+    text(draw, (52, 102), "Python 3.11.5 | KiCad 10 bundled runtime", 18, True, "#17324d")
+    text(draw, (52, 132), r"User site: Documents\KiCad\10.0\3rdparty\Python311\site-packages", 16, fill="#35566f")
+
+    text(draw, (52, 178), "Python Dependencies", 19, True, "#17324d")
+    columns = ("Dependency", "Status", "Version", "Level", "Features")
+    rows = (
+        ("networkx", "available", "3.4", "required", "Graphs and tracing"),
+        ("Markdown", "missing", "-", "recommended", "Full HTML reports"),
+        ("matplotlib", "available", "3.9", "optional", "Native charts"),
+        ("Pillow", "available", "11.0", "optional", "Help validation"),
+    )
+    widths = (160, 120, 100, 135, 405)
+    left, top = 52, 214
+    x = left
+    for label, width in zip(columns, widths):
+        draw.rectangle((x, top, x + width, top + 38), fill="#e7eef4", outline="#a7b3bd")
+        text(draw, (x + 8, top + 8), label, 15, True, "#17324d")
+        x += width
+    for row_index, row in enumerate(rows):
+        y = top + 38 + row_index * 37
+        x = left
+        for value, width in zip(row, widths):
+            fill = "#fff7e6" if row[1] == "missing" else ("#ffffff" if row_index % 2 == 0 else "#f5f7f9")
+            draw.rectangle((x, y, x + width, y + 37), fill=fill, outline="#c3ccd4")
+            text(draw, (x + 8, y + 8), value, 14)
+            x += width
+
+    text(draw, (52, 424), "KiWay Plugin Packages", 19, True, "#17324d")
+    text(draw, (52, 458), "9 of 9 packages installed | metadata and versions readable", 16, fill="#35566f")
+    button(draw, (568, 535, 742, 583), "Check Again")
+    button(draw, (756, 535, 962, 583), "Install Recommended", primary=True)
+    button(draw, (976, 535, 1128, 583), "Install Selected")
+    text(draw, (52, 611), "Installs into KiCad's user-site. Restart PCB Editor after installation.", 16, fill="#35566f")
+    callout(draw, 1, (930, 118), (690, 118), "Verify the target runtime")
+    callout(draw, 2, (900, 290), (820, 306), "See feature impact")
+    callout(draw, 3, (725, 622), (850, 559), "Review before installing")
+    image.save(ROOT / "extract_pins_plugin" / "help-dependencies.png", optimize=True)
+
+
 if __name__ == "__main__":
     for package_name, plugin_spec in SPECS.items():
-        render(package_name, plugin_spec)
+        if package_name != "extract_pins_plugin":
+            render(package_name, plugin_spec)
+    render_extract_workspace()
+    render_extract_diagrams()
+    render_dependency_manager()

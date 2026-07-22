@@ -2,5 +2,8 @@
 
 from .net_hygiene_plugin import NetHygienePlugin
 
-NetHygienePlugin().register()
+import wx
+
+if wx.GetApp() is not None:
+    NetHygienePlugin().register()
 

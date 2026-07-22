@@ -2,5 +2,8 @@
 
 from .fanout_generator_plugin import FanoutGeneratorPlugin
 
-FanoutGeneratorPlugin().register()
+import wx
+
+if wx.GetApp() is not None:
+    FanoutGeneratorPlugin().register()
 

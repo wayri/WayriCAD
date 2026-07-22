@@ -1,8 +1,8 @@
 {
     "$schema": "https://go.kicad.org/pcm/schemas/v1",
     "name": "KiWay Extract Pins",
-    "description": "Advanced pin, interface, test-point, and TM/TC documentation generator for KiCad.",
-    "description_full": "KiWay Extract Pins is a comprehensive documentation and analysis plugin for KiCAD.\n\n**Features:**\n- Extract component pin data to CSV, Markdown, HTML, or JSON\n- Build a networkx connectivity graph from pcbnew board data and optional KiCad XML netlists\n- Preserve hierarchical sheet paths and apply user-defined path/reference aliases\n- Import pin documents from other projects and auto-link board-level endpoints\n- Apply exact, normalized, wildcard, or regex link rules and flag ambiguous matches\n- Export cross-project tracker CSV/Markdown and harness-style SVG diagrams\n- Trace through passive parts and custom NetTie_Path pass-throughs\n- Resolve test points back to source IC pins and functions\n- Parse board-sequence labels such as DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD for TM/TC tables\n- Group differential pairs, buses, connectors, peripherals, and logical interfaces\n- Create native KiCad PCB groups for logical interfaces\n- Generate ICD/TM-TC Markdown, HTML, and CSV deliverables\n- CLI support for automation and scripting\n\nOptional Python packages for full dashboard capability: networkx, matplotlib, and markdown.\n\nTargets KiCAD 9 and later.",
+    "description": "Modeless pin extraction, PCB cross-selection, visual diagrams, and interboard documentation for KiCad.",
+    "description_full": "KiWay provides a focused, modeless Pin Extractor plus a separate Interboard & Harness workspace.\n\n**Features:**\n- Follow live PCB selection while the extractor remains open\n- Combine selected footprints with comma-separated wildcard reference, net, and value filters\n- Review native pin tables before deterministic CSV or Markdown export\n- Cross-select preview rows and highlight their PCB nets\n- Preview combined, signal-only, or power-only block diagrams inside the plugin and export the exact SVG\n- Build a networkx connectivity graph from pcbnew board data and optional KiCad XML netlists\n- Preserve hierarchical sheet paths and apply user-defined path/reference aliases\n- Import pin documents from other projects and auto-link board-level endpoints\n- Apply exact, normalized, wildcard, or regex link rules and flag ambiguous matches\n- Export cross-project trackers, harness SVGs, ICDs, test-point traces, and TM/TC tables\n- Check and install full-suite dependencies through an integrated guarded manager\n- Run deterministic inspect, extract, crosslink, validate, report, benchmark, and test commands outside KiCad\n\nOptional Python packages for full dashboard capability: networkx, matplotlib, markdown, and Pillow. The integrated dependency manager installs reviewed packages into KiCad's Python user-site.\n\nTargets KiCAD 9 and later.",
     "identifier": "kiway.extract.pins",
     "type": "plugin",
     "author": {
@@ -24,7 +24,7 @@
     },
     "versions": [
         {
-            "version": "2.9.0",
+            "version": "2.10.0",
             "status": "stable",
             "kicad_version": "9.0"
         }

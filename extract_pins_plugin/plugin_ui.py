@@ -354,9 +354,12 @@ class PluginUI(wx.Dialog):
         clear_highlight_btn.Bind(wx.EVT_BUTTON, self.on_clear_highlight)
         export_btn = wx.Button(panel, label="Export...")
         export_btn.Bind(wx.EVT_BUTTON, self.on_export_menu)
+        dependencies_btn = wx.Button(panel, label="Dependencies...")
+        dependencies_btn.Bind(wx.EVT_BUTTON, self.on_dependencies)
+        dependencies_btn.SetToolTip("Check KiCad Python dependencies and all installed KiWay plugin packages.")
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
-        for btn in (self.show_group_btn, self.create_group_btn, self.undo_group_btn, self.redo_group_btn, highlight_btn, clear_highlight_btn, export_btn, help_btn):
+        for btn in (self.show_group_btn, self.create_group_btn, self.undo_group_btn, self.redo_group_btn, highlight_btn, clear_highlight_btn, export_btn, dependencies_btn, help_btn):
             button_row.Add(btn, 0, wx.ALL, 4)
         button_row.AddStretchSpacer(1)
         root.Add(button_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
@@ -367,6 +370,13 @@ class PluginUI(wx.Dialog):
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         panel.SetSizer(root)
         self.workflow.set_step(0, "Choose an optional netlist directory and board order, then Analyze & Preview.")
+
+    def on_dependencies(self, _event: Any) -> None:
+        from .dependency_dialog import DependencyManagerDialog
+
+        dialog = DependencyManagerDialog(self)
+        dialog.ShowModal()
+        dialog.Destroy()
 
     def on_browse_dir(self, _event: Any) -> None:
         with wx.DirDialog(self, "Select directory containing KiCad XML netlists") as dlg:

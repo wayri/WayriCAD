@@ -24,7 +24,7 @@ from .core.diagram_generator import SVGDiagramGenerator
 from .core.doc_generator import DocGenerator
 from .core.schematic_graph import SchematicGraphParser
 
-VERSION = "2.9.0"
+VERSION = "2.10.0"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3
@@ -75,6 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_validate(sub)
     add_report(sub)
     add_benchmark(sub)
+    add_dependencies(sub)
     add_test(sub)
     add_legacy_board_commands(sub)
     return parser
@@ -145,6 +146,16 @@ def add_benchmark(sub: argparse._SubParsersAction) -> None:
     p.add_argument("-f", "--format", choices=("json", "csv", "md", "markdown"), default="json")
     p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
     p.set_defaults(func=cmd_benchmark)
+
+
+def add_dependencies(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("dependencies", help="Check or install dependencies for the complete KiWay suite.")
+    p.add_argument("--install", action="store_true", help="Install missing required and recommended dependencies.")
+    p.add_argument("--all", action="store_true", help="Include optional dependencies when installing.")
+    p.add_argument("--dry-run", action="store_true", help="Print the pip command without executing it.")
+    p.add_argument("--no-user", action="store_true", help="Install into the active environment instead of its user-site.")
+    p.add_argument("-o", "--output", help="Write the deterministic JSON health report to this path.")
+    p.set_defaults(func=cmd_dependencies)
 
 
 def add_test(sub: argparse._SubParsersAction) -> None:
@@ -220,6 +231,35 @@ def cmd_extract(args: argparse.Namespace) -> int:
     else:
         rows = all_pin_rows(parser, include_power=args.include_power)
     return write_rows(rows, args.format, args.output, title=f"KiWay {args.kind} Extract")
+
+
+def cmd_dependencies(args: argparse.Namespace) -> int:
+    from .dependency_manager import health_report, install_dependencies, recommended_missing
+
+    install_result = None
+    if args.install:
+        keys = recommended_missing(include_optional=args.all)
+        if keys:
+            install_result = install_dependencies(
+                keys,
+                use_user_site=not args.no_user,
+                dry_run=args.dry_run,
+            )
+        else:
+            install_result = {
+                "command": [],
+                "returncode": 0,
+                "stdout": "All selected dependencies are already installed.",
+                "stderr": "",
+                "dry_run": bool(args.dry_run),
+            }
+    report = health_report()
+    if install_result is not None:
+        report["install"] = install_result
+    write_rows(report, "json", args.output, title="KiWay Dependencies")
+    if install_result and install_result["returncode"]:
+        return EXIT_RUNTIME
+    return EXIT_OK
 
 
 def cmd_crosslink(args: argparse.Namespace) -> int:
@@ -449,6 +489,7 @@ def synthetic_documents(boards: int, nets: int) -> List[Any]:
         rows = [
             {"Reference": f"J{net_index + 1}", "Pin": str(net_index + 1), "Net Name": f"SIG_{net_index:05d}"}
             for net_index in range(nets)
+            if board_index in (net_index % boards, (net_index + 1) % boards)
         ]
         project = f"BOARD{board_index + 1}"
         docs.append(importer.endpoints_from_rows(rows, project, f"{project}.csv"))

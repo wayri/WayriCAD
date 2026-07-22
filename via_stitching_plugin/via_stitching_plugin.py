@@ -21,23 +21,28 @@ class ViaStitchingPlugin(pcbnew.ActionPlugin):
         self.description = "Generate a configurable ground-via stitching grid."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.5.0"
+        self.version = "0.6.0"
 
     def Run(self) -> None:
         try:
             board = pcbnew.GetBoard()
             if board is None or not hasattr(board, "GetFootprints"):
                 raise RuntimeError("Open a PCB in PCB Editor first.")
-            dialog = ViaFrame(None, board)
-            dialog.ShowModal()
-            dialog.Destroy()
+            existing = getattr(self, "_frame", None)
+            if existing is not None and existing:
+                existing.Show()
+                existing.Raise()
+                return
+            self._frame = ViaFrame(None, board)
+            self._frame.Show()
+            self._frame.Raise()
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay Via Stitching", wx.OK | wx.ICON_ERROR)
 
 
-class ViaFrame(wx.Dialog):
+class ViaFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Via Stitching", size=(920, 850), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="KiWay Via Stitching", size=(920, 850), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.board = board
         self.preview_plan: List[Any] = []
         self.preview_items: List[Any] = []

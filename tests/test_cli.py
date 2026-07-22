@@ -22,8 +22,19 @@ class KiWayCliTests(unittest.TestCase):
     def test_help_lists_required_top_level_commands(self):
         result = self.run_cli("--help")
         self.assertEqual(result.returncode, 0, result.stderr)
-        for command in ("inspect", "extract", "crosslink", "validate", "report", "benchmark", "test"):
+        for command in ("inspect", "extract", "crosslink", "validate", "report", "benchmark", "dependencies", "test"):
             self.assertIn(command, result.stdout)
+
+    def test_dependencies_emits_full_suite_health_json(self):
+        result = self.run_cli("dependencies")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("runtime", payload)
+        self.assertEqual(len(payload["suite"]), 9)
+        self.assertEqual(
+            {row["key"] for row in payload["dependencies"]},
+            {"networkx", "markdown", "matplotlib", "pillow"},
+        )
 
     def test_inspect_json_is_deterministic_and_preserves_sheet_aliases(self):
         result = self.run_cli(
@@ -99,7 +110,7 @@ class KiWayCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["status"], "pass")
-        self.assertGreater(payload["links"], 0)
+        self.assertEqual(payload["links"], 100)
 
 
 if __name__ == "__main__":

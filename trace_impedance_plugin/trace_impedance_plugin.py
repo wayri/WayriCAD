@@ -22,7 +22,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.description = "Measure routed net geometry and estimate RLC, impedance, vias, layers, and zones."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.4.0"
+        self.version = "0.4.1"
 
     def Run(self) -> None:
         try:

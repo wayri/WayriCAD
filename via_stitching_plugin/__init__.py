@@ -2,5 +2,8 @@
 
 from .via_stitching_plugin import ViaStitchingPlugin
 
-ViaStitchingPlugin().register()
+import wx
+
+if wx.GetApp() is not None:
+    ViaStitchingPlugin().register()
 

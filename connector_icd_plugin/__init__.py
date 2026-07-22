@@ -2,5 +2,8 @@
 
 from .connector_icd_plugin import ConnectorICDPlugin
 
-ConnectorICDPlugin().register()
+import wx
+
+if wx.GetApp() is not None:
+    ConnectorICDPlugin().register()
 

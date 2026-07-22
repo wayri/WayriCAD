@@ -2,5 +2,8 @@
 
 from .test_coverage_plugin import TestCoveragePlugin
 
-TestCoveragePlugin().register()
+import wx
+
+if wx.GetApp() is not None:
+    TestCoveragePlugin().register()
 

@@ -4,7 +4,7 @@
 KIWAY EXTRACT PINS PLUGIN
 
 @author - Wayri (Yawar)
-@version - 2.8.0
+@version - 2.10.0
 @date - 2025
 
 ALLOWS USER TO EXTRACT ALL THE NET NAMES IN MARKDOWN OR CSV FORMAT FROM CONNECTORS LIKE J1, J2 ETC, OR USER SELECTIONS OR ANY COMPONENT
@@ -26,7 +26,8 @@ import pcbnew
 import wx
 import os
 
-# Try to import the advanced dashboard, then fall back to the v2 dialog.
+# The focused extractor is the default entry. The system dashboard is exposed
+# separately so harness work does not crowd the normal pin extraction flow.
 try:
     from .plugin_ui import PluginUI
     UI_VERSION = "dashboard"
@@ -35,7 +36,7 @@ except ImportError:
 
 try:
     from .plugin_dialog_v2 import PluginDialogV2 as PluginDialog
-    DIALOG_VERSION = "v2.0"
+    DIALOG_VERSION = "v2.10"
 except ImportError:
     from .plugin_dialog import PluginDialog
     DIALOG_VERSION = "v1.x"
@@ -50,13 +51,13 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         """
         Sets the metadata for the plugin, which KiCad displays in its menus.
         """
-        self.name = "Extract Component Pins with GUI" # The name visible in KiCad's 'Tools -> External Plugins' menu
+        self.name = "KiWay Pin Extractor"
         self.category = "Utilities" # Category under which the plugin will be listed
-        self.description = "Extract pins, trace interfaces, build TM/TC tables, resolve test points, and generate docs."
+        self.description = "Select PCB components, preview pins, cross-select nets, and export tables or diagrams."
         self.show_toolbar_button = True # Set to True to display a button on the toolbar
         # Define the path to the optional icon file. It should be in the same directory.
         self.icon_file_name = os.path.join(os.path.dirname(__file__), 'icon.png')
-        self.version = "2.6.0"
+        self.version = "2.10.0"
 
     def Run(self):
         """
@@ -80,40 +81,45 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
             wx.MessageBox(f"Could not read PCB footprints: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
             return
 
-        if not selected_footprints:
-            # If no footprints are selected, show dialog anyway - user can use pattern matching
-            result = wx.MessageBox(
-                "No footprints selected. Open the plugin anyway?\n\n"
-                "You can use patterns (J*, U*, etc.) to select components.",
-                "No Selection",
-                wx.YES_NO | wx.ICON_QUESTION
-            )
-            if result != wx.YES:
-                return
-
-        # Prefer the advanced wx.Frame dashboard.  ActionPlugin registration is
-        # handled by extract_pins_plugin/__init__.py calling
-        # ExtractPinsPlugin().register(); KiCad then invokes this Run() method.
-        if PluginUI is not None:
-            try:
-                dialog = PluginUI(None, board=board)
-                dialog.ShowModal()
-                dialog.Destroy()
-                return
-            except Exception as exc:
-                wx.MessageBox(
-                    "The dashboard could not start. KiWay will try the compatibility dialog.\n\n"
-                    f"Details: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_WARNING
-                )
-
-        # Fallback for minimal KiCad Python environments.
-        print(f"DEBUG: Launching dialog {DIALOG_VERSION}")
         try:
-            dialog = PluginDialog(None, selected_footprints)
-            dialog.ShowModal()
-            dialog.Destroy()
+            existing = getattr(self, "_frame", None)
+            if existing is not None and existing:
+                existing.Raise()
+                existing.Show()
+                existing.OnRefreshSelection(None)
+                return
+            self._frame = PluginDialog(None, selected_footprints)
+            self._frame.Show()
+            self._frame.Raise()
         except Exception as exc:
-            wx.MessageBox(f"The compatibility dialog could not start: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
-        
-        # Modal lifetime keeps edits inside ActionPlugin.Run(), allowing KiCad
-        # to record the final board delta as one native undo/redo operation.
+            wx.MessageBox(f"The pin extractor could not start: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
+
+
+class InterboardHarnessPlugin(pcbnew.ActionPlugin):
+    """Separate entry point for project-level ICD and harness work."""
+
+    def defaults(self):
+        self.name = "KiWay Interboard & Harness"
+        self.category = "Documentation"
+        self.description = "Analyze multi-board interfaces, harnesses, TM/TC, test points, and ICD reports."
+        self.show_toolbar_button = False
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
+        self.version = "2.10.0"
+
+    def Run(self):
+        if PluginUI is None:
+            wx.MessageBox("The Interboard & Harness UI is unavailable.", "KiWay", wx.OK | wx.ICON_ERROR)
+            return
+        board = pcbnew.GetBoard()
+        try:
+            existing = getattr(self, "_frame", None)
+            if existing is not None and existing:
+                existing.Raise()
+                existing.Show()
+                return
+            self._frame = PluginUI(None, board=board)
+            self._frame.SetTitle("KiWay Interboard & Harness")
+            self._frame.Show()
+            self._frame.Raise()
+        except Exception as exc:
+            wx.MessageBox(f"The Interboard & Harness window could not start: {exc}", "KiWay", wx.OK | wx.ICON_ERROR)

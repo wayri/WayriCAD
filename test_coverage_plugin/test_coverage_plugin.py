@@ -42,7 +42,7 @@ class TestCoveragePlugin(pcbnew.ActionPlugin):
         self.description = "Report board-net coverage by test points."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.4.0"
+        self.version = "0.4.1"
 
     def Run(self) -> None:
         try:

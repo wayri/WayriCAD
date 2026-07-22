@@ -4,7 +4,7 @@ KiWay is a parent repository for KiCad ActionPlugins that can be added to KiCad'
 
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.2.0)
+### 1. KiWay Extract Pins (v2.10.0)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -17,8 +17,11 @@ A comprehensive interface documentation and test engineering tool.
 - **Interfaces**: Group buses, differential pairs, connectors, peripherals, and board-to-board signal maps
 - **Layout Assist**: Create native KiCad PCB groups for logical interfaces
 - **Docs**: Export Markdown, HTML, CSV, JSON, SVG diagrams, and automation-friendly CLI output
+- **Live PCB Selection**: Keep the modeless extractor open while selecting footprints and cross-selecting preview rows
+- **Visual Preview**: Review native pin tables and embedded combined, signal-only, or power-only SVG block diagrams before export
+- **Focused Tasks**: Use the simple Pin Extractor for board work and the separate Interboard & Harness entry for system ICD work
 
-### 2. KiWay Bulk Label Editor (v0.2.0)
+### 2. KiWay Bulk Label Editor (v0.6.0)
 
 A preview-and-apply editor for repeated channel labels and component text.
 
@@ -26,27 +29,27 @@ A preview-and-apply editor for repeated channel labels and component text.
 - Regex replacement for advanced renaming
 - Scoped edits for footprint references, values, custom fields, and PCB text
 
-### 3. KiWay Fanout Generator (v0.2.0)
+### 3. KiWay Fanout Generator (v0.6.0)
 
 Creates conservative radial fanout tracks from a selected footprint or all SMD footprints, preserving pad layer and net assignment. Track width and fanout length are configurable.
 
-### 4. KiWay Via Stitching (v0.2.0)
+### 4. KiWay Via Stitching (v0.6.0)
 
 Creates a configurable via-stitching grid inside the board outline bounding box. Select a net to stitch, or create unconnected vias, and skip footprint bodies, chosen references, tracks, zones, and board drawings/keepouts.
 
-### 5. KiWay Connector ICD Builder (v0.1.0)
+### 5. KiWay Connector ICD Builder (v0.4.1)
 
 Detects connector-like footprints and exports connector, part, pin, net, and pad-type tables to CSV for ICD and harness reviews.
 
-### 6. KiWay Net Hygiene (v0.1.0)
+### 6. KiWay Net Hygiene (v0.4.1)
 
 Scans for unconnected pads, duplicate references, single-pad nets, and suspicious net names, then exports a review CSV.
 
-### 7. KiWay Test Coverage Planner (v0.1.0)
+### 7. KiWay Test Coverage Planner (v0.4.1)
 
 Reports every board net with its TP/TestPoint coverage status, test-point references, and coverage count.
 
-### 8. KiWay Test Point Descriptor Extractor (v0.1.0)
+### 8. KiWay Test Point Descriptor Extractor (v0.4.1)
 
 Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board source/destination labels, and TM/TC classification to CSV, Markdown, or HTML.
 
@@ -55,19 +58,22 @@ Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board sour
 - Includes TP reference, value, footprint, pad, net, descriptor, signal, board endpoints, and notes
 - Exports documentation directly from the open PCB
 
-### 9. KiWay Trace RLC / Impedance Analyzer (v0.1.0)
+### 9. KiWay Trace RLC / Impedance Analyzer (v0.4.1)
 
 Measures routed net geometry between selected start/end pads and reports first-order resistance, capacitance, inductance, impedance, layer changes, vias, and same-net copper zones. It supports optional differential-mate comparison and stackup/reference-layer inputs.
 
 The analyzer is intended for design review and estimation. Critical high-speed interfaces still require field-solver, TDR, or laboratory validation.
 
-## Planned Enhancements
+## PCB Editor Workflow
 
-- **Fanout improvements**: BGA/QFN escape strategies, differential-pair fanout, length-aware escape patterns, rule-driven layer assignment, and review overlays.
-- **Via stitching improvements**: Copper-zone awareness, shielding fences, RF keepout support, return-path stitching, and DRC-friendly presets.
-- **Connector ICD improvements**: Multi-board connector maps, pin compatibility checks, mating connector BOM validation, and mismatch reports.
-- **Net hygiene improvements**: Naming-convention linting, source/destination inference, power-domain checks, and orphan-signal reports.
-- **Test coverage improvements**: Coverage scoring per interface, fixture probe planning, and manufacturing test exports.
+1. Launch **KiWay Pin Extractor** for normal component and net work.
+2. Select **PCB selection**, **Wildcard filters**, or **Selection + filters**.
+3. Keep **Follow PCB selection** enabled while clicking footprints in PCB Editor.
+4. Click **Preview Extraction** and review the native pin table.
+5. Double-click a preview row to select its footprint and highlight its net on the PCB.
+6. Export the reviewed rows, or open **Block Diagrams** for an embedded combined, signal-only, or power-only SVG preview.
+
+Launch **KiWay Interboard & Harness** separately for netlist directories, sheet aliases, multi-board cross-links, TM/TC, harnesses, and complete ICD reports. Fanout, via stitching, and bulk editing also use modeless staged-preview windows so the PCB remains inspectable while they are open.
 
 ## Installation
 
@@ -124,6 +130,12 @@ ICD, validation, cross-project, and automation workflows:
 ```bash
 python -m pip install -e .
 kiway --help
+
+# Check the current Python environment and every KiWay suite package.
+kiway dependencies
+
+# Review the exact user-site pip command without changing the environment.
+kiway dependencies --install --dry-run
 ```
 
 KiCad PCB extraction still requires KiCad's `pcbnew` Python module, but XML
@@ -160,6 +172,16 @@ kiway benchmark --nets 10000 --boards 8 --threshold-ms 10000 --format json
 # Run the repository test suite.
 kiway test
 ```
+
+Inside KiCad, open **KiWay Interboard & Harness** and click
+**Dependencies...** to check the bundled KiCad Python runtime, dependency
+versions, user-site target, and all installed KiWay packages. Install actions
+show the exact command for confirmation and never write into KiCad's
+`Program Files` directory. Restart PCB Editor after installing dependencies.
+
+ActionPlugin registration is guarded by a running wx application, so standalone
+module imports no longer call KiCad's registration API. Use `kiway dependencies`,
+`compileall`, or the integrated dependency manager for repeatable health checks.
 
 The CLI returns `0` for success, `1` for runtime failures, `2` for usage/config
 errors, and `3` for validation failures. JSON output is sorted and indented for
