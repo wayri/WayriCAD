@@ -200,3 +200,35 @@ deterministic automation diffs. Config files are JSON objects with optional
 - [Trace RLC / Impedance Documentation](trace_impedance_plugin/ReadMe.md)
 - [Contributing](CONTRIBUTING.md)
 - [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
+
+## Acknowledgements
+
+KiWay is built on the work of the open-source electronic-design and Python
+communities. In particular, the project acknowledges:
+
+- [KiCad](https://www.kicad.org/) and its contributors for the EDA suite,
+  `pcbnew` Python API, file formats, and Plugin and Content Manager ecosystem.
+- [wxPython](https://wxpython.org/) for the native desktop user interfaces.
+- [NetworkX](https://networkx.org/) for connectivity graphs and path traversal.
+- [Matplotlib](https://matplotlib.org/) and
+  [Python-Markdown](https://python-markdown.github.io/) for optional diagrams
+  and documentation previews.
+- KiWay users and contributors who report PCB workflow issues, test releases,
+  propose features, and contribute code or documentation.
+
+KiCad and the named projects are independent projects. Their inclusion here
+does not imply sponsorship or endorsement of KiWay.
+
+## License
+
+KiWay is free software licensed under the
+[GNU General Public License, version 3 only](LICENSE) (`GPL-3.0-only`). You may
+use, study, modify, and redistribute it under the terms of that license. Any
+redistributed modified or unmodified KiWay source must retain the applicable
+license and copyright notices and provide the corresponding source as required
+by the GPL.
+
+Third-party projects and dependencies remain subject to their own licenses.
+Generated Markdown, CSV, HTML, JSON, and diagram exports describe the user's
+design data and are not automatically relicensed as KiWay source code merely
+because KiWay generated them.
