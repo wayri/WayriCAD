@@ -1,12 +1,12 @@
 {
     "$schema": "https://go.kicad.org/pcm/schemas/v1",
     "name": "KiWay Via Stitching",
-    "description": "Generate net-aware via stitching while skipping blocked board objects.",
-    "description_full": "Places vias on a selected PCB net or leaves them unconnected, preserving the selected net code. Configurable exclusions skip footprint bodies, selected references, existing tracks, copper zones, and board drawings/keepout regions before vias are added.",
+    "description": "Preview net-aware copper-zone via stitching with geometric clearance exclusions.",
+    "description_full": "Generates a reviewed stitching grid inside the board or selected bounds, optionally constrained to filled target-net copper. It rejects footprint bodies, other-net tracks, vias, zones, keepouts, and drawings, previews accepted and rejected candidates, and commits a removable native KiCad group.",
     "identifier": "kiway.via.stitching",
     "type": "plugin",
     "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
     "license": "GPL-3.0",
     "resources": {"homepage": "https://github.com/wayri/KiWay"},
-    "versions": [{"version": "0.6.0", "status": "stable", "kicad_version": "9.0"}]
+    "versions": [{"version": "0.7.0", "status": "stable", "kicad_version": "9.0"}]
 }

@@ -22,10 +22,10 @@
                     "version": "2.13.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "736f484d01e6f18b60a10b561486b464adce88af39915e1861940c869f308f9b",
-                    "download_size": 294194,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.13.0/extract_pins_plugin-2.13.0.zip",
-                    "install_size": 675670,
+                    "download_sha256": "39376d8df4b4330ada7e4ae0fddedb078d174336fca89c6310bfbfe14bbc603e",
+                    "download_size": 294287,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/extract_pins_plugin-2.13.0.zip",
+                    "install_size": 676186,
                     "platforms": [
                         "windows",
                         "linux",
@@ -238,10 +238,10 @@
                     "version": "0.6.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "f7d7783a984abda6e99e67c6300ba11bb920e047922bdff430b0ce18fc854ae1",
-                    "download_size": 63798,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.13.0/bulk_label_editor_plugin-0.6.0.zip",
-                    "install_size": 80429,
+                    "download_sha256": "becf067ec757581e5a2b16dd84bca511f39d3d7a92ecf0641638efa95198aabe",
+                    "download_size": 63891,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/bulk_label_editor_plugin-0.6.0.zip",
+                    "install_size": 80945,
                     "platforms": [
                         "windows",
                         "linux",
@@ -342,10 +342,10 @@
                     "version": "0.4.1",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "e199219fe2557e71d57f08a0a867a28373673345f53cf2441f4e1b76b1e08a2c",
-                    "download_size": 59910,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.13.0/connector_icd_plugin-0.4.1.zip",
-                    "install_size": 69593,
+                    "download_sha256": "44716f82677a1c8a5eb83d3d2249cf30488a840f1c92560a7aab9a0bba43546e",
+                    "download_size": 60003,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/connector_icd_plugin-0.4.1.zip",
+                    "install_size": 70109,
                     "platforms": [
                         "windows",
                         "linux",
@@ -412,8 +412,8 @@
         },
         {
             "name": "KiWay Fanout Generator",
-            "description": "Generate conservative radial fanout tracks from SMD pads.",
-            "description_full": "Creates reviewable radial fanout tracks from selected or all SMD footprints. Track width and length are configurable; the tool preserves pad layer and net code.",
+            "description": "Preview and generate advanced SMD, BGA, and LGA fanouts with persistent grouped commits.",
+            "description_full": "Creates reviewable dogbone, quadrant, four-corner, perimeter, radial, grid, and via-in-pad fanouts. Scope work to selected pads, selected footprints, reference wildcards, or all SMD pads; preview in the window and on the PCB before committing a native KiCad group.",
             "identifier": "kiway.fanout.generator",
             "type": "plugin",
             "author": {
@@ -428,6 +428,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/fanout_generator_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.7.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "e651dd2a4e60ce835983eddb58a952759ad113ab236808bd911058375346ea1f",
+                    "download_size": 80199,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/fanout_generator_plugin-0.7.0.zip",
+                    "install_size": 106574,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.6.0",
                     "status": "stable",
@@ -536,10 +550,10 @@
                     "version": "0.4.1",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "4800a4e76d586d9e51d808bd9240d85befde000201331f4b0ac909c37401af94",
-                    "download_size": 58667,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.13.0/net_hygiene_plugin-0.4.1.zip",
-                    "install_size": 68268,
+                    "download_sha256": "a4c76fdfc9eca8d10944b7484a8982c07671bf60954ddae1c37a944892571560",
+                    "download_size": 58760,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/net_hygiene_plugin-0.4.1.zip",
+                    "install_size": 68784,
                     "platforms": [
                         "windows",
                         "linux",
@@ -626,10 +640,10 @@
                     "version": "0.4.1",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "e75a761ebca8015cbe3b8cd8b8dd80767fae95bfc819f7a83a0181fba23ceb57",
-                    "download_size": 58116,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.13.0/test_coverage_plugin-0.4.1.zip",
-                    "install_size": 67283,
+                    "download_sha256": "93ad904f821e71a4afbca674e0828b8047ff109c7b676ab66cedde0275e7f28e",
+                    "download_size": 58209,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/test_coverage_plugin-0.4.1.zip",
+                    "install_size": 67799,
                     "platforms": [
                         "windows",
                         "linux",
@@ -696,8 +710,8 @@
         },
         {
             "name": "KiWay Via Stitching",
-            "description": "Generate net-aware via stitching while skipping blocked board objects.",
-            "description_full": "Places vias on a selected PCB net or leaves them unconnected, preserving the selected net code. Configurable exclusions skip footprint bodies, selected references, existing tracks, copper zones, and board drawings/keepout regions before vias are added.",
+            "description": "Preview net-aware copper-zone via stitching with geometric clearance exclusions.",
+            "description_full": "Generates a reviewed stitching grid inside the board or selected bounds, optionally constrained to filled target-net copper. It rejects footprint bodies, other-net tracks, vias, zones, keepouts, and drawings, previews accepted and rejected candidates, and commits a removable native KiCad group.",
             "identifier": "kiway.via.stitching",
             "type": "plugin",
             "author": {
@@ -712,6 +726,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/via_stitching_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.7.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "6f8aa879dc86b0fe95e8a8d45896e2dbd8b44a7598c0b947ad3f388f87e066e8",
+                    "download_size": 73946,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/via_stitching_plugin-0.7.0.zip",
+                    "install_size": 103630,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.6.0",
                     "status": "stable",
@@ -800,8 +828,8 @@
         },
         {
             "name": "KiWay Test Point Descriptor Extractor",
-            "description": "Extract test-point descriptors, nets, and TM/TC metadata to engineering documents.",
-            "description_full": "Scans TP and TestPoint footprints, extracts descriptor/function fields and connected nets, parses board-sequence TM/TC labels, and exports live tables to CSV, Markdown, and HTML.",
+            "description": "Resolve test points through passives to IC pins and export engineering documentation.",
+            "description_full": "Scans TP and TestPoint footprints, extracts descriptor/function fields, traces connected nets through common passives and NetTie_Path parts to terminal IC pins, parses board-sequence TM/TC labels, cross-selects results on the PCB, and exports CSV, Markdown, and HTML.",
             "identifier": "kiway.test.point.descriptor",
             "type": "plugin",
             "author": {
@@ -816,6 +844,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/test_point_descriptor_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.5.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "66610ba7958638af1af28bc52fcf01b8a78507fd912deeb484ce4dbee4dcfbca",
+                    "download_size": 60315,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/test_point_descriptor_plugin-0.5.0.zip",
+                    "install_size": 77881,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.4.1",
                     "status": "stable",
@@ -890,8 +932,8 @@
         },
         {
             "name": "KiWay Trace RLC / Impedance Analyzer",
-            "description": "Measure routed geometry and estimate RLC, impedance, vias, layers, and copper-zone effects.",
-            "description_full": "Select a PCB net and optional start/end pads to traverse routed tracks, layer changes, vias, and same-net zones. Reports geometry and first-order resistance, capacitance, inductance, and impedance estimates using the board stackup where available. Differential-pair comparison is supported through a selectable mate net.",
+            "description": "Measure routed geometry and estimate RLC and impedance against an explicit reference layer.",
+            "description_full": "Follows PCB net and pad selection, traverses the routed path between endpoints, enumerates the complete parsed stackup, and reports route geometry, vias, layer changes, resistance, capacitance, inductance, and first-order impedance with the exact reference layer, dielectric height, and permittivity used.",
             "identifier": "kiway.trace.impedance",
             "type": "plugin",
             "author": {
@@ -906,6 +948,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/trace_impedance_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.5.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "f9e14e82426a2715eebd4b76f31dd25c4f9221056d09a7a8d0988b190645e2d6",
+                    "download_size": 70420,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/trace_impedance_plugin-0.5.0.zip",
+                    "install_size": 98954,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.4.1",
                     "status": "stable",

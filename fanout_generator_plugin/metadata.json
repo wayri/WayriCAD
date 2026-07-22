@@ -1,12 +1,12 @@
 {
     "$schema": "https://go.kicad.org/pcm/schemas/v1",
     "name": "KiWay Fanout Generator",
-    "description": "Generate conservative radial fanout tracks from SMD pads.",
-    "description_full": "Creates reviewable radial fanout tracks from selected or all SMD footprints. Track width and length are configurable; the tool preserves pad layer and net code.",
+    "description": "Preview and generate advanced SMD, BGA, and LGA fanouts with persistent grouped commits.",
+    "description_full": "Creates reviewable dogbone, quadrant, four-corner, perimeter, radial, grid, and via-in-pad fanouts. Scope work to selected pads, selected footprints, reference wildcards, or all SMD pads; preview in the window and on the PCB before committing a native KiCad group.",
     "identifier": "kiway.fanout.generator",
     "type": "plugin",
     "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
     "license": "GPL-3.0",
     "resources": {"homepage": "https://github.com/wayri/KiWay"},
-    "versions": [{"version": "0.6.0", "status": "stable", "kicad_version": "9.0"}]
+    "versions": [{"version": "0.7.0", "status": "stable", "kicad_version": "9.0"}]
 }

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import os
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -59,6 +61,12 @@ class PathMeasurement:
     zone_count: int = 0
     layers: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
+    reference_layer: str = ""
+    stackup_source: str = ""
+    dielectric_height_mm: float = 0.0
+    relative_permittivity: float = 0.0
+    copper_thickness_mm: float = 0.0
+    board_items: List[Any] = field(default_factory=list, repr=False)
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -75,6 +83,11 @@ class PathMeasurement:
             "Tracks": str(self.track_count),
             "Zones": str(self.zone_count),
             "Layers": ", ".join(self.layers),
+            "Reference Layer Used": self.reference_layer,
+            "Stackup Source": self.stackup_source,
+            "Dielectric Height Used (mm)": f"{self.dielectric_height_mm:.4f}",
+            "Relative Permittivity Used": f"{self.relative_permittivity:.4g}",
+            "Copper Thickness Used (mm)": f"{self.copper_thickness_mm:.4f}",
             "Notes": "; ".join(self.notes),
         }
 
@@ -144,6 +157,8 @@ class TraceMeasurementEngine:
                 dielectric /= 1000.0
             rows.append(StackupLayer(name=name, kind=kind, thickness_mm=thickness, dielectric_height_mm=dielectric, relative_permittivity=er, material=str(self._value(properties, "material", "material_name", default="")), loss_tangent=self._number(self._value(properties, "loss_tangent", "tan_delta", default=0.0))))
         if not rows:
+            rows = self._stackup_from_board_file()
+        if not rows:
             names = []
             for track in getattr(self.board, "GetTracks", lambda: [])():
                 if hasattr(track, "GetLayer"):
@@ -151,6 +166,88 @@ class TraceMeasurementEngine:
             for name in sorted(set(names), key=self._natural_key):
                 rows.append(StackupLayer(name=name, kind="routed", thickness_mm=0.035))
         return rows
+
+    def _stackup_from_board_file(self) -> List[StackupLayer]:
+        """Parse KiCad's stackup S-expression when the SWIG API is opaque."""
+        path = str(getattr(self.board, "GetFileName", lambda: "")())
+        if not path or not os.path.isfile(path):
+            return []
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                text = handle.read()
+        except OSError:
+            return []
+        start = text.find("(stackup")
+        if start < 0:
+            return []
+        block = self._balanced_block(text, start)
+        rows = []
+        cursor = 0
+        while True:
+            layer_start = block.find("(layer", cursor)
+            if layer_start < 0:
+                break
+            layer = self._balanced_block(block, layer_start)
+            cursor = layer_start + len(layer)
+            name_match = re.match(r'\(layer\s+(?:"([^"]+)"|([^\s()]+))', layer)
+            if not name_match:
+                continue
+            name = name_match.group(1) or name_match.group(2)
+            def token(key: str, default: str = "") -> str:
+                match = re.search(rf'\({key}\s+(?:"([^"]*)"|([^\s()]+))', layer)
+                return (match.group(1) or match.group(2)) if match else default
+            kind = token("type", "unknown")
+            thickness = self._number(token("thickness", "0"))
+            er = self._number(token("epsilon_r", "4.2")) or 4.2
+            rows.append(StackupLayer(
+                name=name,
+                kind=kind,
+                thickness_mm=thickness,
+                dielectric_height_mm=thickness if "copper" not in kind.lower() and not name.endswith(".Cu") else 0.0,
+                relative_permittivity=er,
+                material=token("material"),
+                loss_tangent=self._number(token("loss_tangent", "0")),
+            ))
+        return rows
+
+    @staticmethod
+    def _balanced_block(text: str, start: int) -> str:
+        depth = 0
+        quoted = False
+        escaped = False
+        for index in range(start, len(text)):
+            char = text[index]
+            if quoted:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    quoted = False
+                continue
+            if char == '"':
+                quoted = True
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    return text[start:index + 1]
+        return text[start:]
+
+    def dielectric_to_reference(self, signal_layer: str, reference_layer: str) -> Tuple[float, float]:
+        rows = self.stackup_layers()
+        indices = {row.name: index for index, row in enumerate(rows)}
+        if signal_layer not in indices or reference_layer not in indices:
+            stack = self.stackup(reference_layer)
+            return stack.dielectric_height_mm, stack.relative_permittivity
+        low, high = sorted((indices[signal_layer], indices[reference_layer]))
+        dielectrics = [row for row in rows[low + 1:high] if "copper" not in row.kind.lower() and not row.name.endswith(".Cu")]
+        if not dielectrics:
+            return 0.20, 4.2
+        total = sum(row.thickness_mm or row.dielectric_height_mm for row in dielectrics)
+        weighted_er = sum((row.thickness_mm or row.dielectric_height_mm) * row.relative_permittivity for row in dielectrics) / max(total, 1e-9)
+        return total or 0.20, weighted_er or 4.2
 
     def available_layers(self) -> List[str]:
         """Return all actual stackup/routed layers, not a hard-coded subset."""
@@ -177,6 +274,11 @@ class TraceMeasurementEngine:
     def measure(self, net_name: str, start_pad: str, end_pad: str, frequency_mhz: float = 100.0, reference_layer: str = "F.Cu") -> PathMeasurement:
         stack = self.stackup(reference_layer)
         result = PathMeasurement(net_name=net_name, start_pad=start_pad, end_pad=end_pad)
+        result.reference_layer = reference_layer
+        result.stackup_source = stack.source
+        result.dielectric_height_mm = stack.dielectric_height_mm
+        result.relative_permittivity = stack.relative_permittivity
+        result.copper_thickness_mm = stack.copper_thickness_mm
         if nx is None:
             result.notes.append("Install networkx for routed-path traversal; fallback uses aggregate net geometry.")
         net_code = self._net_code(net_name)
@@ -230,14 +332,21 @@ class TraceMeasurementEngine:
             copper_mm = copper_thickness.thickness_mm if copper_thickness and copper_thickness.thickness_mm else stack.copper_thickness_mm
             area = (width / 1000.0) * (copper_mm / 1000.0)
             result.resistance_ohm += COPPER_RESISTIVITY * (length / 1000.0) / area
+            if data.get("item") is not None:
+                result.board_items.append(data["item"])
         result.layer_changes = max(0, len(result.layers) - 1)
         result.via_count = self._via_count(net_code, selected_edges)
         result.zone_count = self._zone_count(net_code)
         length_m = result.length_mm / 1000.0
         width_m = max((stack.copper_thickness_mm / 1000.0), 1e-9)
-        height_m = max(stack.dielectric_height_mm / 1000.0, 1e-9)
+        heights = [self.dielectric_to_reference(layer_name, reference_layer) for layer_name in result.layers]
+        dielectric_height = sum(item[0] for item in heights) / len(heights) if heights else stack.dielectric_height_mm
+        relative_permittivity = sum(item[1] for item in heights) / len(heights) if heights else stack.relative_permittivity
+        result.dielectric_height_mm = dielectric_height
+        result.relative_permittivity = relative_permittivity
+        height_m = max(dielectric_height / 1000.0, 1e-9)
         effective_width_m = max(sum(float((e.get("width", 0.20) if isinstance(e, dict) else e[3])) for e in selected_edges if (e.get("kind") if isinstance(e, dict) else "track") == "track") / max(result.track_count, 1) / 1000.0, width_m)
-        capacitance_per_m = EPS0 * stack.relative_permittivity * effective_width_m / height_m
+        capacitance_per_m = EPS0 * relative_permittivity * effective_width_m / height_m
         inductance_per_m = MU0 * height_m / effective_width_m
         result.capacitance_pf = capacitance_per_m * length_m * 1e12
         result.inductance_nh = inductance_per_m * length_m * 1e9
@@ -262,9 +371,11 @@ class TraceMeasurementEngine:
         return int(point.x), int(point.y)
 
     def _nearest_track_node(self, position: Any, tracks: List[Tuple[Any, Any, float, float, str, Any]]) -> Optional[Any]:
-        if not tracks: return None
+        if not tracks:
+            return None
         point = (position.x, position.y)
-        return min((item for item in tracks), key=lambda item: min(self._distance(point, (item[0][0], item[0][1])), self._distance(point, (item[1][0], item[1][1]))))[0]
+        endpoints = (endpoint for item in tracks for endpoint in (item[0], item[1]))
+        return min(endpoints, key=lambda endpoint: self._distance(point, endpoint))
 
     def _distance(self, a: Tuple[int, int], b: Tuple[int, int]) -> float:
         return math.hypot(a[0] - b[0], a[1] - b[1])

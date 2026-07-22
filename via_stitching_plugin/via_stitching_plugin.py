@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Iterable, List, Set, Tuple
+from typing import Any, Dict, Iterable, List, Set, Tuple
 
 import pcbnew
 import wx
@@ -21,7 +21,7 @@ class ViaStitchingPlugin(pcbnew.ActionPlugin):
         self.description = "Generate a configurable ground-via stitching grid."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.6.0"
+        self.version = "0.7.0"
 
     def Run(self) -> None:
         try:
@@ -46,9 +46,16 @@ class ViaFrame(wx.Frame):
         self.board = board
         self.preview_plan: List[Any] = []
         self.preview_items: List[Any] = []
-        self.undo_stack: List[List[Any]] = []
-        self.redo_stack: List[List[Any]] = []
+        self.undo_stack: List[Any] = []
+        self.redo_stack: List[Tuple[str, List[Any]]] = []
+        self.last_selection_signature: Tuple[Any, ...] = ()
+        self.plan_rejections: Dict[str, int] = {}
+        self.selection_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.on_selection_timer, self.selection_timer)
         self._build_ui()
+        self.undo_stack = self._persistent_groups()
+        self.undo_button.Enable(bool(self.undo_stack))
+        self.selection_timer.Start(500)
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Centre()
 
@@ -100,11 +107,19 @@ class ViaFrame(wx.Frame):
         self.skip_tracks = wx.CheckBox(advanced_panel, label="Tracks")
         self.skip_zones = wx.CheckBox(advanced_panel, label="Copper zones")
         self.skip_keepouts = wx.CheckBox(advanced_panel, label="Keepouts / drawings")
+        self.require_target_zone = wx.CheckBox(advanced_panel, label="Only inside target-net copper zone")
+        self.require_target_zone.SetValue(True)
+        self.auto_refresh = wx.CheckBox(advanced_panel, label="Auto-refresh from PCB selection")
+        self.auto_refresh.SetValue(True)
         exclusion_row = wx.BoxSizer(wx.HORIZONTAL)
         for checkbox in (self.skip_parts, self.skip_tracks, self.skip_zones, self.skip_keepouts):
             checkbox.SetValue(True)
             exclusion_row.Add(checkbox, 0, wx.RIGHT, 10)
         advanced_root.Add(exclusion_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        behavior_row = wx.BoxSizer(wx.HORIZONTAL)
+        behavior_row.Add(self.require_target_zone, 0, wx.RIGHT, 18)
+        behavior_row.Add(self.auto_refresh, 0)
+        advanced_root.Add(behavior_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         advanced_panel.SetSizer(advanced_root)
         root.Add(self.advanced, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         self.geometry_preview = GeometryPreview(panel, "Configure settings, then click Preview in Window.")
@@ -112,6 +127,7 @@ class ViaFrame(wx.Frame):
         self.preview_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (label, width) in enumerate((("#", 55), ("Net", 220), ("X (mm)", 110), ("Y (mm)", 110), ("Result", 150))):
             self.preview_list.InsertColumn(index, label, width=width)
+        self.preview_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_preview_row_activated)
         root.Add(self.preview_list, 1, wx.EXPAND | wx.ALL, 10)
         self.status = wx.StaticText(panel, label="No preview yet.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
@@ -153,7 +169,7 @@ class ViaFrame(wx.Frame):
         for control in (self.spacing, self.edge, self.drill, self.diameter, self.skip_refs, self.x_min, self.y_min, self.x_max, self.y_max):
             control.Bind(wx.EVT_TEXT, self.on_config_changed)
         self.net_choice.Bind(wx.EVT_COMBOBOX, self.on_config_changed)
-        for control in (self.universal, self.skip_parts, self.skip_tracks, self.skip_zones, self.skip_keepouts):
+        for control in (self.universal, self.skip_parts, self.skip_tracks, self.skip_zones, self.skip_keepouts, self.require_target_zone):
             control.Bind(wx.EVT_CHECKBOX, self.on_config_changed)
         self.workflow.set_step(0, "Select a net and spacing, then Preview in Window. Advanced area/exclusion settings are optional.")
 
@@ -188,6 +204,12 @@ class ViaFrame(wx.Frame):
         return {item.strip().upper() for item in self.skip_refs.GetValue().split(",") if item.strip()}
 
     def _contains(self, item: Any, position: Any) -> bool:
+        hit_test = getattr(item, "HitTest", None)
+        if callable(hit_test):
+            try:
+                return bool(hit_test(position))
+            except Exception:
+                pass
         getter = getattr(item, "GetBoundingBox", None)
         if not callable(getter):
             return False
@@ -196,30 +218,58 @@ class ViaFrame(wx.Frame):
         except Exception:
             return False
 
-    def _blocked(self, position: Any) -> bool:
+    @staticmethod
+    def _net_code(item: Any) -> int:
+        try:
+            return int(item.GetNetCode())
+        except Exception:
+            return 0
+
+    def _target_zones(self, net_code: int) -> List[Any]:
+        return [zone for zone in getattr(self.board, "Zones", lambda: [])() if self._net_code(zone) == net_code]
+
+    def _inside_zone(self, zone: Any, position: Any) -> bool:
+        hit_filled = getattr(zone, "HitTestFilledArea", None)
+        if callable(hit_filled):
+            try:
+                return bool(hit_filled(zone.GetLayer(), position))
+            except Exception:
+                pass
+        return self._contains(zone, position)
+
+    def _blocked_reason(self, position: Any, net_code: int) -> str:
         if self.skip_parts.GetValue():
             excluded = self._excluded_refs()
             for fp in self.board.GetFootprints():
                 if fp.GetReference().upper() in excluded or self._contains(fp, position):
-                    return True
+                    return "footprint"
         if self.skip_tracks.GetValue():
             tracks = getattr(self.board, "GetTracks", lambda: [])()
-            if any(self._contains(track, position) for track in tracks):
-                return True
+            if any(self._net_code(track) != net_code and self._contains(track, position) for track in tracks):
+                return "other-net track/via"
         if self.skip_zones.GetValue():
             zones = getattr(self.board, "Zones", lambda: [])()
-            if any(self._contains(zone, position) for zone in zones):
-                return True
+            if any(self._net_code(zone) != net_code and self._inside_zone(zone, position) for zone in zones):
+                return "other-net zone"
         if self.skip_keepouts.GetValue():
             drawings = getattr(self.board, "GetDrawings", lambda: [])()
             if any(self._contains(drawing, position) for drawing in drawings):
-                return True
-        return False
+                return "keepout/drawing"
+        return ""
 
-    def use_selection_bounds(self, _event: Any) -> None:
+    def use_selection_bounds(self, _event: Any, silent: bool = False) -> None:
         """Use the bounding rectangle of selected footprints/graphics as the stitch area."""
         try:
-            selection = list(self.board.GetSelection()) if hasattr(self.board, "GetSelection") else []
+            selection = []
+            for fp in self.board.GetFootprints():
+                if bool(getattr(fp, "IsSelected", lambda: False)()):
+                    selection.append(fp)
+                selection.extend(pad for pad in fp.Pads() if bool(getattr(pad, "IsSelected", lambda: False)()))
+            for collection_name in ("GetTracks", "GetDrawings", "Zones"):
+                selection.extend(
+                    item for item in getattr(self.board, collection_name, lambda: [])()
+                    if bool(getattr(item, "IsSelected", lambda: False)())
+                )
             boxes = [item.GetBoundingBox() for item in selection if hasattr(item, "GetBoundingBox")]
             if not boxes:
                 raise ValueError("Select at least one footprint or graphic in PCB Editor first.")
@@ -234,7 +284,8 @@ class ViaFrame(wx.Frame):
             self.universal.SetValue(False)
             self.status.SetLabel("Selection bounds loaded. Preview to inspect the stitching area.")
         except Exception as exc:
-            wx.MessageBox(str(exc), "Bounds selection", wx.OK | wx.ICON_ERROR)
+            if not silent:
+                wx.MessageBox(str(exc), "Bounds selection", wx.OK | wx.ICON_ERROR)
 
     def _bounds(self) -> Tuple[int, int, int, int]:
         if self.universal.GetValue():
@@ -247,15 +298,32 @@ class ViaFrame(wx.Frame):
         inset = pcbnew.FromMM(float(self.edge.GetValue()))
         drill = pcbnew.FromMM(float(self.drill.GetValue()))
         diameter = pcbnew.FromMM(float(self.diameter.GetValue()))
+        if spacing <= 0:
+            raise ValueError("Grid spacing must be greater than zero.")
         _net_name, net_code = self._selected_net()
+        if not net_code:
+            raise ValueError("Choose a real PCB net before previewing stitching vias.")
         left, top, right, bottom = self._bounds()
+        left, right = sorted((left, right))
+        top, bottom = sorted((top, bottom))
+        if right - left <= 2 * inset or bottom - top <= 2 * inset:
+            raise ValueError("The selected bounds are smaller than twice the edge inset.")
+        target_zones = self._target_zones(net_code)
+        require_zone = self.require_target_zone.GetValue() and bool(target_zones)
+        rejected: Dict[str, int] = {}
         result = []
         x = left + inset
         while x <= right - inset:
             y = top + inset
             while y <= bottom - inset:
                 position = pcbnew.VECTOR2I(int(x), int(y))
-                if self._blocked(position):
+                if require_zone and not any(self._inside_zone(zone, position) for zone in target_zones):
+                    rejected["outside target copper"] = rejected.get("outside target copper", 0) + 1
+                    y += spacing
+                    continue
+                reason = self._blocked_reason(position, net_code)
+                if reason:
+                    rejected[reason] = rejected.get(reason, 0) + 1
                     y += spacing
                     continue
                 via = pcbnew.PCB_VIA(self.board)
@@ -266,9 +334,10 @@ class ViaFrame(wx.Frame):
                 result.append(via)
                 y += spacing
             x += spacing
+        self.plan_rejections = rejected
         return result
 
-    def preview(self, _event: Any) -> None:
+    def preview(self, _event: Any, silent: bool = False) -> None:
         try:
             self.clear_preview(None)
             self.preview_plan = self._plan()
@@ -285,12 +354,16 @@ class ViaFrame(wx.Frame):
             self.show_button.Enable(bool(self.preview_plan))
             self.commit_button.Enable(False)
             self.status.SetLabel(f"Window preview: {len(self.preview_plan)} accepted vias. The PCB has not been changed.")
+            if self.plan_rejections:
+                detail = ", ".join(f"{count} {reason}" for reason, count in sorted(self.plan_rejections.items()))
+                self.status.SetLabel(f"Window preview: {len(self.preview_plan)} accepted; rejected {detail}.")
             self.workflow.set_step(1, "Inspect the canvas and table, then Show on PCB for clearance review.")
-            if not self.preview_plan:
+            if not self.preview_plan and not silent:
                 wx.MessageBox("No via candidates survived the selected bounds and exclusions.", "No stitching preview", wx.OK | wx.ICON_INFORMATION)
         except Exception as exc:
             self.status.SetLabel(str(exc))
-            wx.MessageBox(str(exc), "Via preview failed", wx.OK | wx.ICON_ERROR)
+            if not silent:
+                wx.MessageBox(str(exc), "Via preview failed", wx.OK | wx.ICON_ERROR)
 
     def show_on_pcb(self, _event: Any) -> None:
         if not self.preview_plan:
@@ -334,6 +407,37 @@ class ViaFrame(wx.Frame):
             self.status.SetLabel("Preview cleared. No board changes were committed.")
             self.workflow.set_step(0, "Adjust settings, then Preview in Window again.")
 
+    def _persistent_groups(self) -> List[Any]:
+        groups = []
+        for group in getattr(self.board, "Groups", lambda: [])():
+            try:
+                if str(group.GetName()).startswith("KiWay Via Stitch Commit"):
+                    groups.append(group)
+            except Exception:
+                continue
+        return groups
+
+    @staticmethod
+    def _group_items(group: Any) -> List[Any]:
+        for getter_name in ("GetItems", "GetBoardItems"):
+            getter = getattr(group, getter_name, None)
+            if callable(getter):
+                try:
+                    return list(getter())
+                except Exception:
+                    continue
+        return []
+
+    def _new_commit_group(self, items: List[Any], name: str = "") -> Any:
+        if not hasattr(pcbnew, "PCB_GROUP"):
+            return list(items)
+        group = pcbnew.PCB_GROUP(self.board)
+        group.SetName(name or f"KiWay Via Stitch Commit {len(self._persistent_groups()) + 1:03d}")
+        self.board.Add(group)
+        for item in items:
+            group.AddItem(item)
+        return group
+
     def generate(self, _event: Any) -> None:
         try:
             if not self.preview_items:
@@ -341,14 +445,15 @@ class ViaFrame(wx.Frame):
                 return
             committed = list(self.preview_items)
             self.preview_items = []
-            self.undo_stack.append(committed)
+            group = self._new_commit_group(committed)
+            self.undo_stack.append(group)
             self.redo_stack.clear()
             self.commit_button.Enable(False)
             self.undo_button.Enable(True)
             self.redo_button.Enable(False)
             select_items(self.board, committed)
-            self.status.SetLabel(f"Committed {len(committed)} vias. Run DRC before saving or fabrication.")
-            self.workflow.set_step(3, "Run DRC, inspect clearances, and save the board. Undo Last Commit removes the whole operation.")
+            self.status.SetLabel(f"Committed {len(committed)} vias in a persistent KiWay group. Run DRC before saving.")
+            self.workflow.set_step(3, "Run DRC and save. Reopen this plugin later to undo the latest named KiWay group.")
         except Exception as exc:
             wx.MessageBox(str(exc), "KiWay Via Stitching", wx.OK | wx.ICON_ERROR)
 
@@ -356,13 +461,26 @@ class ViaFrame(wx.Frame):
         if not self.undo_stack:
             self.status.SetLabel("Nothing to undo.")
             return
-        items = self.undo_stack.pop()
+        entry = self.undo_stack.pop()
+        if isinstance(entry, list):
+            name, items = "KiWay Via Stitch Commit", entry
+        else:
+            name, items = str(entry.GetName()), self._group_items(entry)
+            for item in items:
+                try:
+                    entry.RemoveItem(item)
+                except Exception:
+                    pass
+            try:
+                self.board.Remove(entry)
+            except Exception:
+                pass
         for item in items:
             try:
                 self.board.Remove(item)
             except Exception:
                 pass
-        self.redo_stack.append(items)
+        self.redo_stack.append((name, items))
         self.undo_button.Enable(bool(self.undo_stack))
         self.redo_button.Enable(True)
         if hasattr(pcbnew, "Refresh"):
@@ -373,13 +491,14 @@ class ViaFrame(wx.Frame):
         if not self.redo_stack:
             self.status.SetLabel("Nothing to redo.")
             return
-        items = self.redo_stack.pop()
+        name, items = self.redo_stack.pop()
         for item in items:
             try:
                 self.board.Add(item)
             except Exception:
                 pass
-        self.undo_stack.append(items)
+        group = self._new_commit_group(items, name)
+        self.undo_stack.append(group)
         self.undo_button.Enable(True)
         self.redo_button.Enable(bool(self.redo_stack))
         select_items(self.board, items)
@@ -392,6 +511,53 @@ class ViaFrame(wx.Frame):
         self.status.SetLabel("Settings changed; create a fresh preview before committing.")
         self.workflow.set_step(0, "Preview the updated settings in this window.")
 
+    def _selected_items(self) -> List[Any]:
+        result = []
+        for fp in self.board.GetFootprints():
+            if bool(getattr(fp, "IsSelected", lambda: False)()):
+                result.append(fp)
+            result.extend(pad for pad in fp.Pads() if bool(getattr(pad, "IsSelected", lambda: False)()))
+        for collection_name in ("GetTracks", "GetDrawings", "Zones"):
+            result.extend(
+                item for item in getattr(self.board, collection_name, lambda: [])()
+                if bool(getattr(item, "IsSelected", lambda: False)())
+            )
+        return result
+
+    def _selection_signature(self) -> Tuple[Any, ...]:
+        signature = []
+        for item in self._selected_items():
+            net_name = str(getattr(item, "GetNetname", lambda: "")())
+            box = getattr(item, "GetBoundingBox", lambda: None)()
+            signature.append((id(item), net_name, box.GetLeft() if box else 0, box.GetTop() if box else 0))
+        return tuple(sorted(signature))
+
+    def on_selection_timer(self, _event: Any) -> None:
+        try:
+            signature = self._selection_signature()
+            if signature == self.last_selection_signature:
+                return
+            self.last_selection_signature = signature
+            selected = self._selected_items()
+            selected_net = next((str(getattr(item, "GetNetname", lambda: "")()) for item in selected if str(getattr(item, "GetNetname", lambda: "")())), "")
+            if selected_net and self.net_choice.FindString(selected_net) != wx.NOT_FOUND:
+                self.net_choice.SetValue(selected_net)
+            if selected and not self.universal.GetValue():
+                self.use_selection_bounds(None, silent=True)
+            if self.auto_refresh.GetValue() and not self.preview_items:
+                self.preview(None, silent=True)
+        except Exception:
+            pass
+
+    def on_preview_row_activated(self, event: Any) -> None:
+        index = event.GetIndex()
+        if 0 <= index < len(self.preview_items):
+            select_items(self.board, [self.preview_items[index]])
+        elif 0 <= index < len(self.preview_plan):
+            position = self.preview_plan[index].GetPosition()
+            self.status.SetLabel(f"Candidate {index + 1}: {pcbnew.ToMM(position.x):.3f}, {pcbnew.ToMM(position.y):.3f} mm. Show on PCB to cross-select it.")
+
     def on_close(self, event: Any) -> None:
+        self.selection_timer.Stop()
         self.clear_preview(None)
         event.Skip()

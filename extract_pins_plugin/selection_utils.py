@@ -25,9 +25,25 @@ def select_items(board: Any, targets: Iterable[Any]) -> int:
     """Replace the PCB editor selection and return the selected item count."""
     target_ids = {id(item) for item in targets if item is not None}
     for item in _items(board):
-        setter = getattr(item, "SetSelected", None)
-        if callable(setter):
-            setter(id(item) in target_ids)
+        selected = id(item) in target_ids
+        if selected:
+            setter = getattr(item, "SetSelected", None)
+            if callable(setter):
+                try:
+                    setter()
+                except TypeError:
+                    setter(True)
+        else:
+            clearer = getattr(item, "ClearSelected", None)
+            if callable(clearer):
+                clearer()
+            else:
+                setter = getattr(item, "SetSelected", None)
+                if callable(setter):
+                    try:
+                        setter(False)
+                    except TypeError:
+                        pass
     if hasattr(pcbnew, "Refresh"):
         pcbnew.Refresh()
     return len(target_ids)

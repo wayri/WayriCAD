@@ -67,11 +67,48 @@ class SuiteUxTests(unittest.TestCase):
                 self.assertIn("Commit to PCB", source)
                 self.assertIn("Undo Last Commit", source)
                 self.assertIn("Redo Last Commit", source)
+                self.assertIn("PCB_GROUP", source)
+                self.assertIn("_persistent_groups", source)
 
                 preview_body = source.split("    def preview(", 1)[1].split("    def show_on_pcb(", 1)[0]
                 self.assertNotIn("self.board.Add(", preview_body)
                 pcb_preview_body = source.split("    def show_on_pcb(", 1)[1].split("    def clear_pcb_preview(", 1)[0]
                 self.assertIn("self.board.Add(", pcb_preview_body)
+
+        fanout = (ROOT / "fanout_generator_plugin" / "fanout_generator_plugin.py").read_text(encoding="utf-8")
+        for capability in (
+            "Selected pads", "Selected footprints", "Reference wildcard", "Auto-refresh from PCB selection",
+            "Dogbone outward", "Dogbone inward", "BGA/LGA grid outward", "Quadrant outward",
+            "Quadrant inward", "Four-corner outward", "Four-corner inward", "Via-in-pad",
+            "on_preview_row_activated", "KiWay Fanout Commit",
+        ):
+            self.assertIn(capability, fanout)
+
+        stitching = (ROOT / "via_stitching_plugin" / "via_stitching_plugin.py").read_text(encoding="utf-8")
+        for capability in (
+            "Only inside target-net copper zone", "Auto-refresh from PCB selection",
+            "outside target copper", "other-net zone", "HitTestFilledArea",
+            "on_preview_row_activated", "KiWay Via Stitch Commit",
+        ):
+            self.assertIn(capability, stitching)
+        self.assertNotIn("self.board.GetSelection()", stitching)
+
+    def test_kicad10_selection_adapter_and_analysis_crosslinks(self) -> None:
+        for package in PACKAGES:
+            source = (ROOT / package / "selection_utils.py").read_text(encoding="utf-8")
+            self.assertIn("ClearSelected", source)
+            self.assertIn("setter()", source)
+            self.assertNotIn("setter(id(item) in target_ids)", source)
+
+        tp = (ROOT / "test_point_descriptor_plugin" / "test_point_descriptor_plugin.py").read_text(encoding="utf-8")
+        for field in ("Connected IC", "IC Pin", "IC Pin Function", "Terminal Net", "Intermediate Components", "Trace Path"):
+            self.assertIn(field, tp)
+        self.assertIn("resolve_connected_ics", tp)
+
+        rlc = (ROOT / "trace_impedance_plugin" / "trace_impedance_plugin.py").read_text(encoding="utf-8")
+        for capability in ("Auto-refresh from PCB selection", "Reference Layer Used", "SetMinSize", "on_selection_timer"):
+            target = rlc + (ROOT / "trace_impedance_plugin" / "measurement.py").read_text(encoding="utf-8")
+            self.assertIn(capability, target)
 
     def test_pcb_interactive_plugins_are_modeless(self) -> None:
         cases = (
