@@ -96,9 +96,9 @@ class SuiteUxTests(unittest.TestCase):
             "Follow PCB selection",
             "Preview Extraction",
             "Export Preview...",
-            "Combined",
-            "Signals only",
-            "Power only",
+            "System map",
+            "Signal flow",
+            "Power flow",
             "Refresh Visual Preview",
             "Export This SVG...",
             "Highlight Net",
@@ -109,6 +109,9 @@ class SuiteUxTests(unittest.TestCase):
             "Force-signal patterns",
             "Build Power Tree",
             "Export Tree SVG...",
+            "Zoom in",
+            "Fit diagram",
+            "kiway://net/",
         ):
             self.assertIn(label, source)
         self.assertIn("wxhtml2.WebView.New", source)

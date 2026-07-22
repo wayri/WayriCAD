@@ -22,6 +22,7 @@ import csv
 from io import StringIO
 import os
 import re
+from urllib.parse import unquote
 
 try:
     import wx.html2 as wxhtml2
@@ -450,8 +451,8 @@ class PluginDialogV2(wx.Frame):
         scope_row.Add(self.diagram_refs, 1, wx.RIGHT, 12)
         self.diagram_mode = wx.RadioBox(
             panel,
-            label="Connections",
-            choices=("Combined", "Signals only", "Power only"),
+            label="Diagram type",
+            choices=("System map", "Signal flow", "Power flow"),
             majorDimension=3,
             style=wx.RA_SPECIFY_COLS,
         )
@@ -476,6 +477,7 @@ class PluginDialogV2(wx.Frame):
         if wxhtml2 is not None:
             self.diagram_preview = wxhtml2.WebView.New(panel)
             self.diagram_preview_is_web = True
+            self.diagram_preview.Bind(wxhtml2.EVT_WEBVIEW_NAVIGATING, self.OnDiagramNavigation)
         else:
             self.diagram_preview = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
             self.diagram_preview_is_web = False
@@ -759,6 +761,41 @@ class PluginDialogV2(wx.Frame):
             "svg{display:block;min-width:900px;width:100%;height:auto;margin:0 auto}"
             "</style>" + svg
         )
+
+    @staticmethod
+    def _interactive_svg_html(svg):
+        """Wrap an SVG in a picture-like pan/zoom viewport."""
+        return """<!doctype html><meta charset="utf-8"><style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#15191d;color:#eef2f6;font:13px Segoe UI,sans-serif}
+#toolbar{position:fixed;z-index:5;right:12px;top:10px;display:flex;gap:4px;padding:5px;background:#202630;border:1px solid #657080;border-radius:5px;box-shadow:0 2px 8px #0008}
+#toolbar button{width:38px;height:30px;border:1px solid #6f7b89;background:#303844;color:#fff;border-radius:3px;font-size:15px;cursor:pointer}
+#toolbar button.fit{width:48px;font-size:12px}#toolbar button:hover{background:#435064}
+#stage{position:absolute;inset:0;overflow:auto;cursor:grab;user-select:none;padding:8px;box-sizing:border-box}
+#stage.dragging{cursor:grabbing}#host{transform-origin:0 0;width:max-content;height:max-content}svg{display:block;max-width:none;height:auto}
+</style><div id="toolbar"><button title="Zoom out" onclick="zoomBy(0.8)">-</button><button title="Zoom in" onclick="zoomBy(1.25)">+</button><button class="fit" title="Fit diagram" onclick="fitView()">Fit</button><button class="fit" title="Actual size" onclick="setScale(1)">100%</button></div><div id="stage"><div id="host">""" + svg + """</div></div><script>
+const stage=document.getElementById('stage'),host=document.getElementById('host'),svg=host.querySelector('svg');
+const vb=(svg.getAttribute('viewBox')||'0 0 1200 800').split(/\\s+/).map(Number);const baseW=vb[2],baseH=vb[3];let scale=1,drag=false,lastX=0,lastY=0;
+function setScale(next,cx=stage.clientWidth/2,cy=stage.clientHeight/2){next=Math.max(.15,Math.min(6,next));const wx=(stage.scrollLeft+cx)/scale,wy=(stage.scrollTop+cy)/scale;scale=next;svg.style.width=(baseW*scale)+'px';svg.style.height=(baseH*scale)+'px';stage.scrollLeft=wx*scale-cx;stage.scrollTop=wy*scale-cy}
+function zoomBy(f){setScale(scale*f)}function fitView(){setScale(Math.min((stage.clientWidth-24)/baseW,(stage.clientHeight-24)/baseH,1),0,0);stage.scrollLeft=0;stage.scrollTop=0}
+stage.addEventListener('wheel',e=>{e.preventDefault();const r=stage.getBoundingClientRect();setScale(scale*(e.deltaY<0?1.12:.89),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+stage.addEventListener('mousedown',e=>{if(e.target.closest('.net-row'))return;drag=true;lastX=e.clientX;lastY=e.clientY;stage.classList.add('dragging')});
+window.addEventListener('mousemove',e=>{if(!drag)return;stage.scrollLeft-=e.clientX-lastX;stage.scrollTop-=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY});
+window.addEventListener('mouseup',()=>{drag=false;stage.classList.remove('dragging')});
+stage.addEventListener('dblclick',e=>{if(!e.target.closest('.net-row'))fitView()});
+document.querySelectorAll('.net-row').forEach(row=>row.addEventListener('click',()=>{const net=row.dataset.net;if(net)location.href='kiway://net/'+encodeURIComponent(net)}));
+setTimeout(fitView,50);
+</script>"""
+
+    def OnDiagramNavigation(self, event):
+        url = event.GetURL()
+        prefix = "kiway://net/"
+        if not url.startswith(prefix):
+            return
+        event.Veto()
+        net_name = unquote(url[len(prefix):]).strip("/")
+        if net_name:
+            self.net_action_combo.SetValue(net_name)
+            self._highlight_net(net_name)
 
     def OnExportPowerTreeSvg(self, event):
         if self.current_power_tree_svg:
@@ -1301,7 +1338,9 @@ class PluginDialogV2(wx.Frame):
         mode = self.diagram_mode.GetSelection()
         filtered = []
         for row in rows:
-            is_power = self.extractor.classify_net(row.get("Net Name", "")) != "signal"
+            net_type = self.extractor.classify_net(row.get("Net Name", ""))
+            is_power = net_type != "signal"
+            row["Net Type"] = net_type
             row["Is Power Net"] = "Yes" if is_power else "No"
             if mode == 1 and is_power:
                 continue
@@ -1309,30 +1348,38 @@ class PluginDialogV2(wx.Frame):
                 continue
             filtered.append(row)
 
-        labels = ("Combined power and signal", "Signal", "Power and ground")
-        self.current_diagram_svg = self.diagram_gen.generate_signal_flow_diagram(
-            filtered,
-            title=f"{labels[mode]} connections: {', '.join(refs[:6])}{'...' if len(refs) > 6 else ''}",
-        )
-        if self.diagram_preview_is_web:
-            html = (
-                "<!doctype html><meta charset='utf-8'><style>"
-                "html,body{margin:0;background:#15191f;height:100%;overflow:auto}"
-                "svg{display:block;max-width:100%;height:auto;margin:0 auto}"
-                "</style>" + self.current_diagram_svg
+        scope_label = f"{', '.join(refs[:6])}{'...' if len(refs) > 6 else ''}"
+        if mode == 2:
+            self.power_tree_result = PowerTreeAnalyzer(self.extractor).analyze()
+            self.current_diagram_svg = generate_power_tree_svg(
+                self.power_tree_result,
+                title="Board Power Flow",
             )
-            self.diagram_preview.SetPage(html, "")
+            diagram_detail = (
+                f"board-level {len(self.power_tree_result['nodes'])} rails, "
+                f"{len(self.power_tree_result['edges'])} directed conversion/filter paths, and "
+                f"{len(self.power_tree_result['issues'])} findings"
+            )
+        else:
+            labels = ("System Connectivity", "Signal Topology")
+            self.current_diagram_svg = self.diagram_gen.generate_signal_flow_diagram(
+                filtered,
+                title=f"{labels[mode]}: {scope_label}",
+            )
+            unique_nets = {row.get("Net Name", "") for row in filtered if row.get("Net Name", "")}
+            diagram_detail = f"{len(unique_nets)} unique net lanes across {len(refs)} components"
+        if self.diagram_preview_is_web:
+            self.diagram_preview.SetPage(self._interactive_svg_html(self.current_diagram_svg), "")
         else:
             self.diagram_preview.SetValue(
                 f"Visual web preview is unavailable in this KiCad Python build.\n\n"
                 f"{len(filtered)} connections are ready for SVG export."
             )
-        self.export_diagram_btn.Enable(bool(filtered))
+        self.export_diagram_btn.Enable(bool(self.current_diagram_svg))
         self.diagram_summary.SetLabel(
-            f"Preview: {len(filtered)} connections across {len(refs)} components. "
-            "The displayed SVG is exactly what Export This SVG writes."
+            f"Preview: {diagram_detail}. Mouse wheel zooms; drag empty space to pan; click a net lane to highlight it."
         )
-        self.status_text.SetLabel(f"Rendered {len(filtered)} diagram connections in the plugin window.")
+        self.status_text.SetLabel(f"Rendered interactive {self.diagram_mode.GetStringSelection().lower()} in the plugin window.")
 
     def OnExportDiagramPreview(self, event):
         if not self.current_diagram_svg:

@@ -4,7 +4,7 @@ KiWay is a parent repository for KiCad ActionPlugins that can be added to KiCad'
 
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.10.0)
+### 1. KiWay Extract Pins (v2.12.0)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -19,7 +19,7 @@ A comprehensive interface documentation and test engineering tool.
 - **Layout Assist**: Create native KiCad PCB groups for logical interfaces
 - **Docs**: Export Markdown, HTML, CSV, JSON, SVG diagrams, and automation-friendly CLI output
 - **Live PCB Selection**: Keep the modeless extractor open while selecting footprints and cross-selecting preview rows
-- **Visual Preview**: Review native pin tables and embedded combined, signal-only, or power-only SVG block diagrams before export
+- **Visual Preview**: Explore pan/zoom system maps, signal topologies, and directed power-flow diagrams with unique component cards and color-coded net buses
 - **Focused Tasks**: Use the simple Pin Extractor for board work and the separate Interboard & Harness entry for system ICD work
 
 ### 2. KiWay Bulk Label Editor (v0.6.0)
@@ -72,7 +72,7 @@ The analyzer is intended for design review and estimation. Critical high-speed i
 3. Keep **Follow PCB selection** enabled while clicking footprints in PCB Editor.
 4. Click **Preview Extraction** and review the native pin table.
 5. Double-click a preview row to select its footprint and highlight its net on the PCB.
-6. Export the reviewed rows, or open **Block Diagrams** for an embedded combined, signal-only, or power-only SVG preview.
+6. Export the reviewed rows, or open **Block Diagrams** for an interactive system map, signal topology, or directed power-flow preview.
 
 Launch **KiWay Interboard & Harness** separately for netlist directories, sheet aliases, multi-board cross-links, TM/TC, harnesses, and complete ICD reports. Fanout, via stitching, and bulk editing also use modeless staged-preview windows so the PCB remains inspectable while they are open.
 

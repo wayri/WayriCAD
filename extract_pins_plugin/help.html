@@ -42,11 +42,12 @@ body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;pad
 <p>The result includes classified rails, converter/filter paths, root inputs, attached loads, and checks for unclassified voltage nets, unresolved sources, incomplete converters, multiple drivers, direction conflicts, and cycles. Export the reviewed tree as SVG or its paths and findings as CSV. This workflow is inspired by the graphical power architecture approach of the open-source <a href="https://smariel.github.io/PTree/">PTree</a> project; KiWay derives topology from the PCB instead of requiring a manually entered consumption model.</p>
 
 <h2 id="diagrams">Visual Block Diagrams</h2>
-<img class="walkthrough" src="help-diagrams.png" alt="KiWay embedded SVG block diagram preview with combined, signals-only, and power-only modes">
+<img class="walkthrough" src="help-diagrams.png" alt="KiWay embedded SVG block diagram preview">
 <ol>
 <li>Open <b>4 Block Diagrams</b> and enter references or wildcards, or click <b>Use Extraction Preview</b>.</li>
-<li>Select <b>Combined</b>, <b>Signals only</b>, or <b>Power only</b>.</li>
-<li>Click <b>Refresh Visual Preview</b>. The self-contained SVG is rendered inside the plugin window.</li>
+<li>Select <b>System map</b> for all classified nets, <b>Signal flow</b> for signal topology, or <b>Power flow</b> for the inferred directed converter/filter tree.</li>
+<li>Click <b>Refresh Visual Preview</b>. Components appear once and unique nets become color-coded, labeled bus lanes with explicit pin membership.</li>
+<li>Use the mouse wheel or + / - controls to zoom, drag empty space to pan, and use <b>Fit</b> or <b>100%</b> to reset the view. Click a net lane to highlight it in PCB Editor.</li>
 <li>Click <b>Export This SVG...</b> to save exactly the displayed diagram.</li>
 </ol>
 
@@ -103,7 +104,7 @@ kiway test</pre>
 <tr><td>A rail appears as signal</td><td>Add its exact name or a wildcard under Power or Supply patterns, then click Apply Rules. Use Force-signal only for intentional exceptions.</td></tr>
 <tr><td>Double-click does not highlight</td><td>Choose the same name in PCB net and click Highlight Net. Select Copper can be used to verify that routed tracks, vias, or zones carry that net.</td></tr>
 <tr><td>Power-tree direction is inferred</td><td>Add VIN/VOUT/SW pin functions in the library or verify the voltage heuristic before using the diagram for review.</td></tr>
-<tr><td>Diagram is empty</td><td>Use connected component references and choose Combined before narrowing by connection type.</td></tr>
+<tr><td>Diagram is empty</td><td>Use connected component references and choose System map before narrowing by connection type.</td></tr>
 <tr><td>Only Root sheet appears</td><td>Use a KiCad XML netlist; PCB data alone does not contain schematic hierarchy.</td></tr>
 <tr><td>Too many cross-links</td><td>Exclude power and narrow wildcard/regex rules. Ambiguous matches are retained for review.</td></tr>
 <tr><td>Missing HTML features</td><td>Open Dependencies and install recommended packages into KiCad's user-site.</td></tr></table>

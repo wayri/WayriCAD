@@ -2,7 +2,7 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-2.11.0-blue)
+![Version](https://img.shields.io/badge/Version-2.12.0-blue)
 ![KiCAD](https://img.shields.io/badge/KiCAD-9.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
@@ -36,8 +36,10 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 
 ### Block Diagrams (NEW!)
 - Generate SVG block diagrams - fully self-contained, no external dependencies
-- Visualize IC signal connections with color-coded net types
-- Create signal flow diagrams between component groups
+- Show every component once in a harness-style component/net topology
+- Use distinct signal, supply, power, and ground bus colors with pin labels
+- Switch between system map, signal topology, and directed power flow
+- Zoom with the mouse wheel, drag to pan, fit/restore the image, and click nets to highlight them in KiCad
 
 ### Power Net Classification
 - Automatic detection of power/ground nets (VCC, VDD, GND, VSS, voltage rails, etc.)

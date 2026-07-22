@@ -240,162 +240,153 @@ class SVGDiagramGenerator:
     def generate_signal_flow_diagram(
         self,
         flow_data: List[Dict[str, Any]],
-        title: str = "Signal Flow Diagram",
+        title: str = "System Connectivity Map",
         width: int = 1400,
         height: int = None
     ) -> str:
-        """
-        Generate an SVG block diagram showing signal flow between components.
-        
-        Args:
-            flow_data: List of signal flow dictionaries from SignalFlowAnalyzer
-            title: Diagram title
-            width: SVG width in pixels
-            height: SVG height (auto-calculated if None)
-        
-        Returns:
-            SVG string
+        """Generate a component/net topology without mirrored components.
+
+        Each component is drawn exactly once. Unique nets form horizontal
+        buses and component membership is shown by a dot on a vertical harness
+        drop. This remains readable when a net fans out to many pins because
+        pad-to-pad Cartesian rows are consolidated before rendering.
         """
         if not flow_data:
             return self._generate_empty_diagram("No signal flow data")
-
-        # Collect unique sources and destinations
-        sources = {}
-        destinations = {}
-        connections = []
-
+        components: Dict[str, Dict[str, Any]] = {}
+        nets: Dict[str, Dict[str, Any]] = {}
         for entry in flow_data:
-            src_ref = entry.get('Source Reference', '')
-            src_val = entry.get('Source Value', '')
-            dst_ref = entry.get('Destination Reference', '')
-            dst_val = entry.get('Destination Value', '')
-            net = entry.get('Net Name', '')
-            src_pin = entry.get('Source Pin', '')
-            dst_pin = entry.get('Destination Pin', '')
+            net_name = str(entry.get("Net Name", "")).strip()
+            if not net_name:
+                continue
+            net_type = str(entry.get("Net Type", "")).lower()
+            if net_type not in ("signal", "supply", "power", "ground"):
+                net_type = self._infer_net_type(net_name, entry.get("Is Power Net", "No"))
+            net = nets.setdefault(net_name, {"type": net_type, "members": {}})
+            for side in ("Source", "Destination"):
+                ref = str(entry.get(f"{side} Reference", "")).strip()
+                if not ref or ref == "N/C":
+                    continue
+                value = str(entry.get(f"{side} Value", ""))
+                comp_type = str(entry.get(f"{side} Type", ""))
+                component = components.setdefault(ref, {"value": value, "type": comp_type})
+                if not component["value"] and value:
+                    component["value"] = value
+                pins = net["members"].setdefault(ref, set())
+                raw_pins = entry.get(f"{side} Pins", entry.get(f"{side} Pin", ""))
+                if isinstance(raw_pins, (list, tuple, set)):
+                    pins.update(str(pin) for pin in raw_pins if str(pin))
+                else:
+                    pins.update(part.strip() for part in str(raw_pins).split(",") if part.strip())
 
-            if src_ref and src_ref not in sources:
-                sources[src_ref] = {'value': src_val, 'pins': set(), 'type': entry.get('Source Type', '')}
-            if src_ref:
-                sources[src_ref]['pins'].add(src_pin)
+        nets = {name: data for name, data in nets.items() if data["members"]}
+        if not components or not nets:
+            return self._generate_empty_diagram("No complete component/net topology")
 
-            if dst_ref and dst_ref not in destinations:
-                destinations[dst_ref] = {'value': dst_val, 'pins': set(), 'type': entry.get('Destination Type', '')}
-            if dst_ref:
-                destinations[dst_ref]['pins'].add(dst_pin)
+        component_order = sorted(components, key=self._component_sort_key)
+        type_order = {"supply": 0, "power": 1, "signal": 2, "ground": 3}
+        net_order = sorted(
+            nets,
+            key=lambda name: (type_order.get(nets[name]["type"], 9), self._natural_sort_key(name)),
+        )
+        box_w, box_h, left_gutter, component_gap = 164, 72, 220, 28
+        width = max(width, left_gutter + 40 + len(component_order) * (box_w + component_gap))
+        bus_start_y, lane_gap = 205, 48
+        height = height or bus_start_y + len(net_order) * lane_gap + 70
+        component_y = 76
+        x_positions = {
+            ref: left_gutter + 20 + index * (box_w + component_gap) + box_w // 2
+            for index, ref in enumerate(component_order)
+        }
 
-            connections.append({
-                'src': src_ref, 'src_pin': src_pin,
-                'dst': dst_ref, 'dst_pin': dst_pin,
-                'net': net
-            })
-
-        # Calculate layout
-        src_count = len(sources)
-        dst_count = len(destinations)
-        box_height = 80
-        box_width = 160
-        margin = 60
-        spacing = 20
-
-        if height is None:
-            height = max(src_count, dst_count) * (box_height + spacing) + 150
-
-        # Start SVG
-        svg_parts = [
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}">',
+        svg = [
+            f'<svg id="kiway-diagram" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}">',
             f'<rect width="100%" height="100%" fill="{self.styles["background"]}"/>',
             '<style>',
-            f'.title {{ font-family: {self.styles["font_family"]}; font-size: {self.styles["title_font_size"]}px; fill: {self.styles["text_color"]}; font-weight: bold; }}',
-            f'.label {{ font-family: {self.styles["font_family"]}; font-size: {self.styles["label_font_size"]}px; fill: {self.styles["text_color"]}; }}',
-            f'.pin {{ font-family: {self.styles["font_family"]}; font-size: {self.styles["pin_font_size"]}px; fill: {self.styles["pin_text"]}; }}',
-            f'.net {{ font-family: {self.styles["font_family"]}; font-size: 9px; fill: {self.styles["net_text"]}; }}',
+            f'.title{{font:700 {self.styles["title_font_size"]}px {self.styles["font_family"]};fill:{self.styles["text_color"]}}}',
+            f'.label{{font:700 12px {self.styles["font_family"]};fill:{self.styles["text_color"]}}}',
+            f'.small{{font:10px {self.styles["font_family"]};fill:{self.styles["pin_text"]}}}',
+            f'.lane-label{{font:700 11px {self.styles["font_family"]};fill:{self.styles["text_color"]}}}',
+            f'.pin-label{{font:9px {self.styles["font_family"]};fill:{self.styles["text_color"]}}}',
+            '.net-row{cursor:pointer}.net-row:hover .net-bus{stroke-width:7}.net-row:hover .lane-hit{fill:#ffffff;fill-opacity:.05}',
             '</style>',
+            f'<text x="{width // 2}" y="31" class="title" text-anchor="middle">{self._escape(title)}</text>',
+            f'<text x="24" y="58" class="small">Click a net lane to highlight it in PCB Editor</text>',
         ]
 
-        # Title
-        svg_parts.append(f'<text x="{width // 2}" y="35" class="title" text-anchor="middle">{self._escape(title)}</text>')
+        # One component card per reference. A neutral vertical harness spine
+        # reaches its last connected lane; colored dots define actual joins.
+        for ref in component_order:
+            data = components[ref]
+            cx = x_positions[ref]
+            x = cx - box_w // 2
+            fill, stroke = self._get_component_color(ref, data.get("type", ""))
+            connected_lanes = [index for index, name in enumerate(net_order) if ref in nets[name]["members"]]
+            last_y = bus_start_y + max(connected_lanes) * lane_gap if connected_lanes else component_y + box_h
+            svg.append(f'<line x1="{cx}" y1="{component_y + box_h}" x2="{cx}" y2="{last_y}" stroke="#73808f" stroke-width="1.5" opacity="0.65"/>')
+            svg.append(f'<g class="component" data-ref="{self._escape(ref)}"><title>{self._escape(ref)} | {self._escape(data.get("value", ""))}</title>')
+            svg.append(f'<rect x="{x}" y="{component_y}" width="{box_w}" height="{box_h}" rx="6" fill="{fill}" stroke="{stroke}" stroke-width="2"/>')
+            svg.append(f'<text x="{x + 11}" y="{component_y + 25}" class="label">{self._escape(ref)}</text>')
+            svg.append(f'<text x="{x + 11}" y="{component_y + 45}" class="small">{self._escape(str(data.get("value", ""))[:22])}</text>')
+            svg.append(f'<text x="{x + 11}" y="{component_y + 61}" class="small">{len(connected_lanes)} net(s)</text></g>')
 
-        # Column headers
-        svg_parts.append(f'<text x="{margin + box_width // 2}" y="65" class="label" text-anchor="middle" font-weight="bold">Sources</text>')
-        svg_parts.append(f'<text x="{width - margin - box_width // 2}" y="65" class="label" text-anchor="middle" font-weight="bold">Destinations</text>')
+        lane_colors = {
+            "signal": self.styles["signal_line"],
+            "supply": self.styles["power_line"],
+            "power": "#ff9f43",
+            "ground": self.styles["ground_line"],
+        }
+        bus_x1, bus_x2 = left_gutter, width - 35
+        for lane_index, net_name in enumerate(net_order):
+            data = nets[net_name]
+            y = bus_start_y + lane_index * lane_gap
+            color = lane_colors.get(data["type"], self.styles["signal_line"])
+            members = sorted(data["members"], key=self._component_sort_key)
+            detail = "; ".join(
+                f'{ref} pins {", ".join(sorted(data["members"][ref], key=self._natural_sort_key)) or "?"}'
+                for ref in members
+            )
+            svg.append(f'<g class="net-row" data-net="{self._escape(net_name)}"><title>{self._escape(net_name)} ({self._escape(data["type"])}) | {self._escape(detail)}</title>')
+            svg.append(f'<rect class="lane-hit" x="12" y="{y - 17}" width="{width - 24}" height="34" fill="transparent"/>')
+            svg.append(f'<rect x="18" y="{y - 15}" width="176" height="30" rx="4" fill="#242b36" stroke="{color}" stroke-width="1.5"/>')
+            svg.append(f'<text x="28" y="{y - 1}" class="lane-label">{self._escape(net_name[:25])}</text>')
+            svg.append(f'<text x="28" y="{y + 11}" class="small">{self._escape(data["type"].upper())} | {len(members)} components</text>')
+            svg.append(f'<line class="net-bus" x1="{bus_x1}" y1="{y}" x2="{bus_x2}" y2="{y}" stroke="{color}" stroke-width="4" opacity="0.9"/>')
+            for ref in members:
+                cx = x_positions[ref]
+                pin_text = ",".join(sorted(data["members"][ref], key=self._natural_sort_key)) or "?"
+                svg.append(f'<circle cx="{cx}" cy="{y}" r="6" fill="{color}" stroke="#10141a" stroke-width="2"/>')
+                svg.append(f'<text x="{cx + 8}" y="{y - 7}" class="pin-label">P{self._escape(pin_text[:16])}</text>')
+            svg.append('</g>')
 
-        # Draw source boxes
-        src_positions = {}
-        for i, (ref, data) in enumerate(sorted(sources.items())):
-            x = margin
-            y = 80 + i * (box_height + spacing)
-            src_positions[ref] = (x + box_width, y + box_height // 2)
-            
-            fill, stroke = self._get_component_color(ref, data['type'])
-            svg_parts.append(f'<rect x="{x}" y="{y}" width="{box_width}" height="{box_height}" fill="{fill}" stroke="{stroke}" stroke-width="2" rx="5"/>')
-            svg_parts.append(f'<text x="{x + 10}" y="{y + 25}" class="label" font-weight="bold">{self._escape(ref)}</text>')
-            svg_parts.append(f'<text x="{x + 10}" y="{y + 42}" class="pin">{self._escape(data["value"][:18])}</text>')
-            
-            # Show pin count
-            pin_count = len(data['pins'])
-            svg_parts.append(f'<text x="{x + 10}" y="{y + 58}" class="pin">{pin_count} pin(s) connected</text>')
-            
-            # Connection point
-            svg_parts.append(f'<circle cx="{x + box_width}" cy="{y + box_height // 2}" r="5" fill="{stroke}"/>')
+        legend_y = height - 26
+        legend = (("Signal", self.styles["signal_line"]), ("Supply", self.styles["power_line"]), ("Power", "#ff9f43"), ("Ground", self.styles["ground_line"]))
+        for index, (label, color) in enumerate(legend):
+            x = 24 + index * 125
+            svg.append(f'<line x1="{x}" y1="{legend_y - 4}" x2="{x + 30}" y2="{legend_y - 4}" stroke="{color}" stroke-width="5"/>')
+            svg.append(f'<text x="{x + 38}" y="{legend_y}" class="small">{label}</text>')
+        svg.append(f'<text x="{width - 24}" y="{legend_y}" class="small" text-anchor="end">{len(components)} components | {len(nets)} unique nets</text></svg>')
+        return '\n'.join(svg)
 
-        # Draw destination boxes
-        dst_positions = {}
-        for i, (ref, data) in enumerate(sorted(destinations.items())):
-            x = width - margin - box_width
-            y = 80 + i * (box_height + spacing)
-            dst_positions[ref] = (x, y + box_height // 2)
-            
-            fill, stroke = self._get_component_color(ref, data['type'])
-            svg_parts.append(f'<rect x="{x}" y="{y}" width="{box_width}" height="{box_height}" fill="{fill}" stroke="{stroke}" stroke-width="2" rx="5"/>')
-            svg_parts.append(f'<text x="{x + 10}" y="{y + 25}" class="label" font-weight="bold">{self._escape(ref)}</text>')
-            svg_parts.append(f'<text x="{x + 10}" y="{y + 42}" class="pin">{self._escape(data["value"][:18])}</text>')
-            
-            # Show pin count
-            pin_count = len(data['pins'])
-            svg_parts.append(f'<text x="{x + 10}" y="{y + 58}" class="pin">{pin_count} pin(s) connected</text>')
-            
-            # Connection point
-            svg_parts.append(f'<circle cx="{x}" cy="{y + box_height // 2}" r="5" fill="{stroke}"/>')
+    def _infer_net_type(self, net_name: str, is_power: Any = "No") -> str:
+        lower = str(net_name).lower()
+        if "gnd" in lower or "vss" in lower:
+            return "ground"
+        if str(is_power).lower() in ("yes", "true", "1"):
+            return "supply"
+        return "signal"
 
-        # Draw connections
-        drawn_connections = set()
-        for conn in connections:
-            src_ref = conn['src']
-            dst_ref = conn['dst']
-            conn_key = (src_ref, dst_ref)
-            
-            if conn_key in drawn_connections or src_ref not in src_positions or dst_ref not in dst_positions:
-                continue
-            drawn_connections.add(conn_key)
-            
-            src_x, src_y = src_positions[src_ref]
-            dst_x, dst_y = dst_positions[dst_ref]
-            
-            # Determine line color based on net name
-            net = conn['net']
-            net_lower = net.lower()
-            if 'gnd' in net_lower or 'vss' in net_lower:
-                line_color = self.styles['ground_line']
-            elif any(p in net_lower for p in ['vcc', 'vdd', '3v3', '5v', 'pwr']):
-                line_color = self.styles['power_line']
-            else:
-                line_color = self.styles['signal_line']
-            
-            # Draw curved connection
-            mid_x = (src_x + dst_x) // 2
-            offset = (list(drawn_connections).index(conn_key) % 5 - 2) * 15
-            
-            path = f'M {src_x} {src_y} C {mid_x} {src_y + offset}, {mid_x} {dst_y + offset}, {dst_x} {dst_y}'
-            svg_parts.append(f'<path d="{path}" fill="none" stroke="{line_color}" stroke-width="2" opacity="0.7"/>')
-            
-            # Arrow head
-            svg_parts.append(f'<polygon points="{dst_x},{dst_y} {dst_x - 10},{dst_y - 5} {dst_x - 10},{dst_y + 5}" fill="{line_color}"/>')
-
-        # Connection count summary
-        svg_parts.append(f'<text x="{width // 2}" y="{height - 20}" class="pin" text-anchor="middle">{len(connections)} signal connection(s) between {len(sources)} source(s) and {len(destinations)} destination(s)</text>')
-
-        svg_parts.append('</svg>')
-        return '\n'.join(svg_parts)
+    def _component_sort_key(self, ref: str) -> tuple:
+        upper = str(ref).upper()
+        if upper.startswith(("J", "P")):
+            role = 0
+        elif upper.startswith(("U", "IC")):
+            role = 1
+        elif upper.startswith(("R", "C", "L", "FB", "F")):
+            role = 2
+        else:
+            role = 3
+        return role, self._natural_sort_key(ref)
 
     def generate_rich_signal_flow_diagram(
         self,

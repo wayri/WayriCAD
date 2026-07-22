@@ -353,7 +353,7 @@ def generate_power_tree_svg(result: Dict[str, Any], title: str = "KiWay Power Tr
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}">',
         '<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#54c7d9"/></marker></defs>',
         '<rect width="100%" height="100%" fill="#15191d"/>',
-        '<style>.title{font:700 22px Segoe UI;fill:#f4f7fa}.rail{font:700 14px Segoe UI;fill:#f4f7fa}.small{font:11px Segoe UI;fill:#aebdca}.edge{font:10px Segoe UI;fill:#f4ca64}.issue{font:11px Segoe UI;fill:#d8e0e6}</style>',
+        '<style>.title{font:700 22px Segoe UI;fill:#f4f7fa}.rail{font:700 14px Segoe UI;fill:#f4f7fa}.small{font:11px Segoe UI;fill:#aebdca}.edge{font:10px Segoe UI;fill:#f4ca64}.issue{font:11px Segoe UI;fill:#d8e0e6}.net-row{cursor:pointer}.net-row:hover .rail-box{stroke-width:4}</style>',
         f'<text x="{width / 2}" y="34" class="title" text-anchor="middle">{html.escape(title)}</text>',
     ]
     for level in sorted(columns):
@@ -366,13 +366,15 @@ def generate_power_tree_svg(result: Dict[str, Any], title: str = "KiWay Power Tr
             classification = node.get("Class", "power")
             fill = {"supply": "#294d63", "power": "#57462c", "signal": "#3c3f45"}.get(classification, "#3c3f45")
             stroke = "#63c5da" if classification != "signal" else "#d6a84f"
-            svg.append(f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_h}" rx="5" fill="{fill}" stroke="{stroke}" stroke-width="2"/>')
+            svg.append(f'<g class="net-row" data-net="{html.escape(name)}"><title>{html.escape(name)} | click to highlight in PCB Editor</title>')
+            svg.append(f'<rect class="rail-box" x="{x}" y="{y}" width="{box_w}" height="{box_h}" rx="5" fill="{fill}" stroke="{stroke}" stroke-width="2"/>')
             svg.append(f'<text x="{x + 12}" y="{y + 25}" class="rail">{html.escape(name[:28])}</text>')
             voltage = node.get("Voltage")
             detail = f'{voltage:g} V' if voltage is not None else classification
             svg.append(f'<text x="{x + 12}" y="{y + 45}" class="small">{html.escape(detail)} | {node.get("Load Count", 0)} loads</text>')
             source_text = node.get("Sources") or "upstream inferred"
             svg.append(f'<text x="{x + 12}" y="{y + 63}" class="small">Source: {html.escape(str(source_text)[:28])}</text>')
+            svg.append('</g>')
     for edge_index, edge in enumerate(edges):
         source = positions.get(edge["Source Net"])
         destination = positions.get(edge["Destination Net"])
