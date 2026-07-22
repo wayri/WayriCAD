@@ -2,7 +2,7 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-2.12.0-blue)
+![Version](https://img.shields.io/badge/Version-2.13.0-blue)
 ![KiCAD](https://img.shields.io/badge/KiCAD-9.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
@@ -26,6 +26,13 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 - Identify intermediate components in signal chains
 - Show source and destination pin lists, net class, protocol, path, and link count
 - Double-click a route to highlight its net in PCB Editor
+
+### Wildcard Label Endpoint Trace
+- Match label/net families such as `*TM`, `*_TD`, or `DEMO_CTRL_*`
+- Resolve exact or wildcard endpoint sets such as `U1,U2`, `J1,U1`, or `U*`
+- Trace across user-approved resistor/filter/jumper references and `NetTie_Path` parts
+- Report endpoint pins, pin functions, terminal nets, ordered intermediate components, and complete paths
+- Export software and harness endpoint maps to CSV or Markdown
 
 ### IC Signal Charts
 - Create complete pin-to-destination mapping for ICs

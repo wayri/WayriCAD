@@ -36,6 +36,7 @@ try:
     from .core.formatters import get_formatter, MarkdownFormatter, CSVFormatter
     from .core.diagram_generator import SVGDiagramGenerator
     from .core.power_tree import PowerTreeAnalyzer, generate_power_tree_svg
+    from .core.schematic_graph import SchematicGraphParser
     from .help_utils import open_help
 except ImportError:
     # Fallback for direct execution
@@ -44,6 +45,7 @@ except ImportError:
     from core.formatters import get_formatter, MarkdownFormatter, CSVFormatter
     from core.diagram_generator import SVGDiagramGenerator
     from core.power_tree import PowerTreeAnalyzer, generate_power_tree_svg
+    from core.schematic_graph import SchematicGraphParser
     from help_utils import open_help
 
 
@@ -69,6 +71,7 @@ class PluginDialogV2(wx.Frame):
         self.preview_footprints = []
         self.preview_data = {}
         self.preview_rows = []
+        self.endpoint_rows = []
         self.sf_rows = []
         self.ic_rows = []
         self.current_diagram_svg = ""
@@ -105,21 +108,24 @@ class PluginDialogV2(wx.Frame):
         # Keep the original extraction workflow first and separate visualization tasks.
         self.extract_panel = self._create_extract_tab()
         self.notebook.AddPage(self.extract_panel, "1  Extract Pins")
-        
-        # Tab 2: Signal Flow
+
+        self.endpoint_trace_panel = self._create_endpoint_trace_tab()
+        self.notebook.AddPage(self.endpoint_trace_panel, "2  Endpoint Trace")
+
+        # Tab 3: Signal Flow
         self.signal_flow_panel = self._create_signal_flow_tab()
-        self.notebook.AddPage(self.signal_flow_panel, "2  Signal Flow")
+        self.notebook.AddPage(self.signal_flow_panel, "3  Signal Flow")
         
-        # Tab 3: IC Signal Chart
+        # Tab 4: IC Signal Chart
         self.ic_chart_panel = self._create_ic_chart_tab()
-        self.notebook.AddPage(self.ic_chart_panel, "3  IC Signal Chart")
+        self.notebook.AddPage(self.ic_chart_panel, "4  IC Signal Chart")
         
-        # Tab 4: Diagrams
+        # Tab 5: Diagrams
         self.diagram_panel = self._create_diagram_tab()
-        self.notebook.AddPage(self.diagram_panel, "4  Block Diagrams")
+        self.notebook.AddPage(self.diagram_panel, "5  Block Diagrams")
 
         self.power_tree_panel = self._create_power_tree_tab()
-        self.notebook.AddPage(self.power_tree_panel, "5  Power Tree & Net Rules")
+        self.notebook.AddPage(self.power_tree_panel, "6  Power Tree & Net Rules")
         
         main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -293,6 +299,71 @@ class PluginDialogV2(wx.Frame):
         sizer.Add(export_sizer, 0, wx.EXPAND | wx.ALL, 10)
 
         panel.SetSizer(sizer)
+        return panel
+
+    def _create_endpoint_trace_tab(self):
+        """Create wildcard label-to-component endpoint tracing workspace."""
+        panel = wx.Panel(self.notebook)
+        root = wx.BoxSizer(wx.VERTICAL)
+
+        intro = wx.StaticText(
+            panel,
+            label="Resolve matching net labels to selected IC/connector pins through approved series components.",
+        )
+        root.Add(intro, 0, wx.EXPAND | wx.ALL, 10)
+
+        criteria = wx.StaticBoxSizer(wx.StaticBox(panel, label="Trace criteria"), wx.VERTICAL)
+        grid = wx.FlexGridSizer(2, 4, 6, 10)
+        grid.AddGrowableCol(1)
+        grid.AddGrowableCol(3)
+        grid.Add(wx.StaticText(panel, label="Net / label wildcards"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.endpoint_net_patterns = wx.TextCtrl(panel, value="*TM")
+        self.endpoint_net_patterns.SetToolTip("Comma-separated net wildcards, for example *TM, *_TD, DEMO_CTRL_*.")
+        grid.Add(self.endpoint_net_patterns, 1, wx.EXPAND)
+        grid.Add(wx.StaticText(panel, label="Resolve endpoint refs"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.endpoint_ref_patterns = wx.TextCtrl(panel, value="U*,J*")
+        self.endpoint_ref_patterns.SetToolTip("Exact references or wildcards, for example U1,U2 or J1,U1.")
+        grid.Add(self.endpoint_ref_patterns, 1, wx.EXPAND)
+        grid.Add(wx.StaticText(panel, label="Trace through refs"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.endpoint_pass_patterns = wx.TextCtrl(panel, value="R*,L*,FB*,F*,C*,JP*,JMP*")
+        self.endpoint_pass_patterns.SetToolTip("Only these references and NetTie_Path parts may be crossed between nets.")
+        grid.Add(self.endpoint_pass_patterns, 1, wx.EXPAND)
+        grid.Add(wx.StaticText(panel, label="Maximum graph hops"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.endpoint_max_hops = wx.SpinCtrl(panel, min=2, max=50, initial=16)
+        grid.Add(self.endpoint_max_hops, 0)
+        criteria.Add(grid, 0, wx.EXPAND | wx.ALL, 7)
+        root.Add(criteria, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+
+        preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Resolved endpoints"), wx.VERTICAL)
+        self.endpoint_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, (label, width) in enumerate((
+            ("Matched Label", 200), ("Endpoint", 105), ("Role", 90),
+            ("Value", 145), ("Pin Function", 125), ("Terminal Net", 180),
+            ("Components In Between", 190), ("Ordered Trace", 380), ("Hops", 55),
+        )):
+            self.endpoint_preview.InsertColumn(index, label, width=width)
+        self.endpoint_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnEndpointTraceRowActivated)
+        preview_box.Add(self.endpoint_preview, 1, wx.EXPAND | wx.ALL, 3)
+        self.endpoint_summary = wx.StaticText(
+            panel,
+            label="Enter label and endpoint patterns, then preview the resolved pin map.",
+        )
+        preview_box.Add(self.endpoint_summary, 0, wx.EXPAND | wx.ALL, 5)
+        root.Add(preview_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+
+        actions = wx.BoxSizer(wx.HORIZONTAL)
+        preview = wx.Button(panel, label="Preview Endpoint Map")
+        preview.Bind(wx.EVT_BUTTON, self.OnEndpointTracePreview)
+        actions.Add(preview, 0, wx.RIGHT, 6)
+        export_csv = wx.Button(panel, label="Export CSV...")
+        export_csv.Bind(wx.EVT_BUTTON, lambda event: self.OnEndpointTraceExport("csv"))
+        actions.Add(export_csv, 0, wx.RIGHT, 6)
+        export_md = wx.Button(panel, label="Export Markdown...")
+        export_md.Bind(wx.EVT_BUTTON, lambda event: self.OnEndpointTraceExport("md"))
+        actions.Add(export_md, 0)
+        root.Add(actions, 0, wx.ALL, 10)
+
+        panel.SetSizer(root)
         return panel
 
     def _create_signal_flow_tab(self):
@@ -1116,6 +1187,96 @@ setTimeout(fitView,50);
         
         csv_content = "Net Name\n" + "\n".join(nets)
         self._save_file(csv_content, "CSV", "unique_nets.csv")
+
+    # Endpoint Trace handlers
+    def OnEndpointTracePreview(self, event):
+        net_patterns = DataExtractor.parse_pattern_text(self.endpoint_net_patterns.GetValue())
+        endpoint_patterns = DataExtractor.parse_pattern_text(self.endpoint_ref_patterns.GetValue())
+        pass_patterns = DataExtractor.parse_pattern_text(self.endpoint_pass_patterns.GetValue())
+        if not net_patterns or not endpoint_patterns:
+            wx.MessageBox("Enter at least one net wildcard and one endpoint reference pattern.", "Trace criteria", wx.OK | wx.ICON_INFORMATION)
+            return
+        try:
+            parser = SchematicGraphParser(board=self.board)
+            parser.build()
+            rows = parser.trace_matching_nets(
+                net_patterns,
+                endpoint_patterns,
+                pass_through_patterns=pass_patterns,
+                max_hops=self.endpoint_max_hops.GetValue(),
+            )
+        except ImportError as exc:
+            wx.MessageBox(str(exc), "networkx required", wx.OK | wx.ICON_ERROR)
+            return
+        except Exception as exc:
+            wx.MessageBox(f"Endpoint trace failed: {exc}", "Trace error", wx.OK | wx.ICON_ERROR)
+            return
+
+        self.endpoint_rows = rows
+        self.endpoint_preview.DeleteAllItems()
+        role_names = {
+            "active": "IC / active",
+            "connector": "Connector",
+            "passive": "Passive",
+            "testpoint": "Test point",
+            "component": "Component",
+        }
+        for row in rows:
+            endpoint = f'{row.get("Endpoint Reference", "")}.{row.get("Endpoint Pin", "")}'
+            index = self.endpoint_preview.InsertItem(self.endpoint_preview.GetItemCount(), str(row.get("Label Net", "")))
+            values = (
+                endpoint,
+                role_names.get(str(row.get("Endpoint Kind", "")), str(row.get("Endpoint Kind", ""))),
+                row.get("Endpoint Value", ""),
+                row.get("Pin Function", ""),
+                row.get("Terminal Net", ""),
+                row.get("Intermediate Components", ""),
+                row.get("Path", ""),
+                row.get("Hop Count", 0),
+            )
+            for column, value in enumerate(values, 1):
+                self.endpoint_preview.SetItem(index, column, str(value))
+        matched_nets = {row.get("Label Net", "") for row in rows}
+        if rows:
+            self.endpoint_summary.SetLabel(
+                f"Resolved {len(rows)} endpoint pins from {len(matched_nets)} matching labels. "
+                "Double-click a row to highlight the original labeled net."
+            )
+            self.status_text.SetLabel(f"Resolved {len(rows)} software/harness endpoint records.")
+        else:
+            self.endpoint_summary.SetLabel(
+                "No selected endpoints were reachable. Check the net suffix, endpoint refs, and Trace through refs patterns."
+            )
+            self.status_text.SetLabel("No endpoint traces matched the current criteria.")
+
+    def OnEndpointTraceRowActivated(self, event):
+        index = event.GetIndex()
+        if 0 <= index < len(self.endpoint_rows):
+            net_name = str(self.endpoint_rows[index].get("Label Net", ""))
+            self.net_action_combo.SetValue(net_name)
+            self._highlight_net(net_name)
+
+    def OnEndpointTraceExport(self, format_name):
+        if not self.endpoint_rows:
+            wx.MessageBox("Preview an endpoint map before exporting.", "Preview required", wx.OK | wx.ICON_INFORMATION)
+            return
+        headers = (
+            "Label Net", "Matched Pattern", "Endpoint Reference", "Endpoint Pattern",
+            "Endpoint Value", "Endpoint Kind", "Endpoint Pin", "Pin Function",
+            "Terminal Net", "Intermediate Components", "Path", "Hop Count",
+        )
+        if format_name == "csv":
+            stream = StringIO()
+            writer = csv.DictWriter(stream, fieldnames=headers, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(self.endpoint_rows)
+            self._save_file(stream.getvalue(), "CSV", "kiway_endpoint_trace.csv")
+            return
+        lines = ["# KiWay Label Endpoint Map", "", "| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"]
+        for row in self.endpoint_rows:
+            values = [str(row.get(header, "")).replace("|", "\\|").replace("\n", " ") for header in headers]
+            lines.append("| " + " | ".join(values) + " |")
+        self._save_file("\n".join(lines) + "\n", "Markdown", "kiway_endpoint_trace.md")
 
     # Signal Flow handlers
     def _signal_flow_rows(self):

@@ -95,6 +95,12 @@ class SuiteUxTests(unittest.TestCase):
             "Selection + filters",
             "Follow PCB selection",
             "Preview Extraction",
+            "Endpoint Trace",
+            "Net / label wildcards",
+            "Resolve endpoint refs",
+            "Trace through refs",
+            "Preview Endpoint Map",
+            "Components In Between",
             "Export Preview...",
             "System map",
             "Signal flow",
@@ -119,10 +125,11 @@ class SuiteUxTests(unittest.TestCase):
         self.assertIn("SetHighLightNet", source)
         self.assertIn("summarize_source_destination_table", source)
         self.assertIn("PowerTreeAnalyzer", source)
+        self.assertIn("trace_matching_nets", source)
 
         help_text = (ROOT / "extract_pins_plugin" / "help.html").read_text(encoding="utf-8")
         self.assertIn('src="help-diagrams.png"', help_text)
-        for anchor in ("#pins", "#net-rules", "#signal-flow", "#ic-chart", "#power-tree", "#troubleshooting"):
+        for anchor in ("#pins", "#endpoint-trace", "#net-rules", "#signal-flow", "#ic-chart", "#power-tree", "#troubleshooting"):
             self.assertIn(f'href="{anchor}"', help_text)
         help_launcher = (ROOT / "extract_pins_plugin" / "help_utils.py").read_text(encoding="utf-8")
         self.assertIn("path.as_uri()", help_launcher)

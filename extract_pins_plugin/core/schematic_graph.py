@@ -413,6 +413,140 @@ class SchematicGraphParser:
                     queue.append((neighbor, path + [neighbor]))
         return results
 
+    def trace_matching_nets(
+        self,
+        net_patterns: Sequence[str],
+        endpoint_patterns: Sequence[str],
+        pass_through_patterns: Optional[Sequence[str]] = None,
+        max_hops: int = 12,
+    ) -> List[Dict[str, Any]]:
+        """Resolve wildcard-matched labels to selected component endpoints.
+
+        Traversal crosses only references explicitly allowed by
+        ``pass_through_patterns`` or components carrying the configured
+        ``NetTie_Path`` field. Active devices and connectors are terminal
+        endpoints, preventing accidental traversal through an IC from one pin
+        to every other pin.
+        """
+        net_patterns = [str(item).strip() for item in net_patterns if str(item).strip()]
+        endpoint_patterns = [str(item).strip() for item in endpoint_patterns if str(item).strip()]
+        pass_through_patterns = [
+            str(item).strip() for item in (
+                pass_through_patterns
+                if pass_through_patterns is not None
+                else ("R*", "C*", "L*", "FB*", "F*", "JP*", "JMP*")
+            ) if str(item).strip()
+        ]
+        if not net_patterns or not endpoint_patterns:
+            return []
+
+        def first_matching_pattern(value: str, patterns: Sequence[str]) -> str:
+            return next((pattern for pattern in patterns if wildcard_match(value, pattern)), "")
+
+        def can_pass(ref: str) -> bool:
+            explicit = str(self.components.get(ref, {}).get(self.pass_through_field, "")).strip()
+            return bool(explicit or first_matching_pattern(ref, pass_through_patterns))
+
+        rows: List[Dict[str, Any]] = []
+        for net_name in sorted(self.net_to_pins, key=self.natural_sort_key):
+            matched_pattern = first_matching_pattern(net_name, net_patterns)
+            if not matched_pattern:
+                continue
+            start = self.net_node(net_name)
+            if start not in self.graph:
+                continue
+            queue: List[Tuple[str, List[str]]] = [(start, [start])]
+            seen: Set[str] = {start}
+            while queue:
+                node, path = queue.pop(0)
+                if len(path) - 1 > max_hops:
+                    continue
+                node_data = self.graph.nodes[node]
+                node_type = node_data.get("node_type")
+                if node_type == "net":
+                    candidates = [
+                        neighbor for neighbor in self.graph.neighbors(node)
+                        if self.graph.nodes[neighbor].get("node_type") == "pin"
+                    ]
+                elif node_type == "pin":
+                    ref = str(node_data.get("ref", ""))
+                    endpoint_pattern = first_matching_pattern(ref, endpoint_patterns)
+                    if endpoint_pattern:
+                        component = self.components.get(ref, {})
+                        terminal_net = next(
+                            (
+                                str(self.graph.nodes[item].get("net_name", ""))
+                                for item in reversed(path[:-1])
+                                if self.graph.nodes[item].get("node_type") == "net"
+                            ),
+                            net_name,
+                        )
+                        intermediate_refs: List[str] = []
+                        for item in path[1:-1]:
+                            item_data = self.graph.nodes[item]
+                            if item_data.get("node_type") != "pin":
+                                continue
+                            item_ref = str(item_data.get("ref", ""))
+                            if item_ref != ref and item_ref not in intermediate_refs:
+                                intermediate_refs.append(item_ref)
+                        rows.append({
+                            "Label Net": net_name,
+                            "Matched Pattern": matched_pattern,
+                            "Endpoint Reference": ref,
+                            "Endpoint Pattern": endpoint_pattern,
+                            "Endpoint Value": str(component.get("value", "")),
+                            "Endpoint Kind": str(component.get("kind", "component")),
+                            "Endpoint Pin": str(node_data.get("pin", "")),
+                            "Pin Function": str(node_data.get("function", "")),
+                            "Terminal Net": terminal_net,
+                            "Intermediate Components": ", ".join(intermediate_refs),
+                            "Path": " -> ".join(self._trace_node_label(item) for item in path),
+                            "Hop Count": len(intermediate_refs),
+                        })
+                        continue
+                    if not can_pass(ref):
+                        continue
+                    component_node = self.component_node(ref)
+                    candidates = [
+                        neighbor for neighbor in self.graph.neighbors(node)
+                        if self.graph.nodes[neighbor].get("node_type") == "net"
+                    ] + [
+                        neighbor for neighbor in self.graph.neighbors(component_node)
+                        if neighbor != node and self.graph.nodes[neighbor].get("node_type") == "pin"
+                    ]
+                else:
+                    continue
+
+                for candidate in candidates:
+                    if candidate in seen:
+                        continue
+                    seen.add(candidate)
+                    queue.append((candidate, path + [candidate]))
+
+        unique: Dict[Tuple[str, str, str, str], Dict[str, Any]] = {}
+        for row in rows:
+            key = (
+                row["Label Net"], row["Endpoint Reference"],
+                row["Endpoint Pin"], row["Terminal Net"],
+            )
+            unique.setdefault(key, row)
+        return sorted(
+            unique.values(),
+            key=lambda row: (
+                self.natural_sort_key(row["Label Net"]),
+                self.natural_sort_key(row["Endpoint Reference"]),
+                self.natural_sort_key(row["Endpoint Pin"]),
+            ),
+        )
+
+    def _trace_node_label(self, node: str) -> str:
+        data = self.graph.nodes[node]
+        if data.get("node_type") == "net":
+            return f'[{data.get("net_name", "")}]'
+        if data.get("node_type") == "pin":
+            return f'{data.get("ref", "")}.{data.get("pin", "")}'
+        return str(data.get("ref", node))
+
     def get_component_pin_nets(self, ref: str) -> List[Dict[str, str]]:
         rows: List[Dict[str, str]] = []
         comp_node = self.component_node(ref)
