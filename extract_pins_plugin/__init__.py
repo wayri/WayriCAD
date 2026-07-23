@@ -6,11 +6,11 @@ A comprehensive plugin for extracting component data, analyzing signal flow,
 and generating documentation from KiCAD PCB designs.
 
 @author - Wayri (Yawar)
-@version - 2.14.0
+@version - 2.14.1
 @license - GPL-3.0
 """
 
-__version__ = "2.14.0"
+__version__ = "2.14.1"
 __author__ = "Wayri (Yawar)"
 
 try:

@@ -12,7 +12,7 @@ RELEASES_DIR = "releases"
 REPO_URL_BASE = "https://github.com/wayri/KiWay/releases/download" 
 # All package versions in a feed may differ, but this repository publishes
 # their downloadable assets together in one release.
-RELEASE_TAG = "2.15.0"
+RELEASE_TAG = "2.16.0"
 
 def calculate_sha256(file_path):
     sha256_hash = hashlib.sha256()

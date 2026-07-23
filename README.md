@@ -4,7 +4,7 @@ KiWay is a parent repository for KiCad ActionPlugins that can be added to KiCad'
 
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.14.0)
+### 1. KiWay Extract Pins (v2.14.1)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -51,7 +51,7 @@ Scans for unconnected pads, duplicate references, single-pad nets, and suspiciou
 
 Reports every board net with its TP/TestPoint coverage status, test-point references, and coverage count.
 
-### 8. KiWay Test Point Descriptor Extractor (v0.5.0)
+### 8. KiWay Test Point Descriptor Extractor (v0.5.1)
 
 Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board source/destination labels, and TM/TC classification to CSV, Markdown, or HTML.
 

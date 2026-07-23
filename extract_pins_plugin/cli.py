@@ -26,7 +26,7 @@ from .core.diagram_generator import SVGDiagramGenerator
 from .core.doc_generator import DocGenerator
 from .core.schematic_graph import SchematicGraphParser
 
-VERSION = "2.14.0"
+VERSION = "2.14.1"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3
