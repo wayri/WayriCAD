@@ -4,7 +4,7 @@ KiWay is a parent repository for KiCad ActionPlugins that can be added to KiCad'
 
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.13.0)
+### 1. KiWay Extract Pins (v2.14.0)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -130,6 +130,10 @@ The builder discovers every top-level plugin directory containing `metadata.json
 KiWay also installs a normal Python CLI that can run outside KiCad for netlist,
 ICD, validation, cross-project, and automation workflows:
 
+See the [detailed CLI user guide](docs/CLI_USER_GUIDE.md) for complete command
+coverage, configuration files, CI examples, and KiCad `.kicad_jobset`
+integration.
+
 ```bash
 python -m pip install -e .
 kiway --help
@@ -169,6 +173,9 @@ kiway validate project.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --require-tm-c
 # Build a full ICD report.
 kiway report project.xml --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO --title "DEMO_CTRL Electrical ICD" --format html -o DEMO_CTRL_icd.html
 
+# Run a KiCad jobset using the native kicad-cli backend.
+kiway jobset-run project.kicad_pro --file release.kicad_jobset --stop-on-error
+
 # Run synthetic, non-flaky scaling checks.
 kiway benchmark --nets 10000 --boards 8 --threshold-ms 10000 --format json
 
@@ -194,6 +201,7 @@ deterministic automation diffs. Config files are JSON objects with optional
 ## Documentation
 
 - [Extract Pins Plugin Documentation](extract_pins_plugin/ReadMe.md)
+- [CLI User Guide and Jobset Integration](docs/CLI_USER_GUIDE.md)
 - [Fanout Generator Documentation](fanout_generator_plugin/ReadMe.md)
 - [Via Stitching Documentation](via_stitching_plugin/ReadMe.md)
 - [Test Point Descriptor Documentation](test_point_descriptor_plugin/ReadMe.md)

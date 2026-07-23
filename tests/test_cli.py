@@ -3,6 +3,9 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
+
+from extract_pins_plugin import cli
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,8 +25,40 @@ class KiWayCliTests(unittest.TestCase):
     def test_help_lists_required_top_level_commands(self):
         result = self.run_cli("--help")
         self.assertEqual(result.returncode, 0, result.stderr)
-        for command in ("inspect", "extract", "crosslink", "validate", "report", "benchmark", "dependencies", "test"):
+        for command in ("inspect", "extract", "crosslink", "validate", "report", "jobset-run", "benchmark", "dependencies", "test"):
             self.assertIn(command, result.stdout)
+
+    def test_jobset_run_builds_native_kicad_command(self):
+        project = FIXTURES / "sample.kicad_pro"
+        jobset = FIXTURES / "release.kicad_jobset"
+        project.write_text("{}", encoding="utf-8")
+        jobset.write_text("{}", encoding="utf-8")
+        try:
+            with mock.patch.object(cli, "find_kicad_cli", return_value="kicad-cli"), mock.patch.object(cli.subprocess, "run") as run:
+                run.return_value.returncode = 0
+                result = cli.main([
+                    "jobset-run", str(project), "--file", str(jobset),
+                    "--destination", "Manufacturing", "--stop-on-error",
+                ])
+            self.assertEqual(result, 0)
+            command = run.call_args.args[0]
+            self.assertEqual(command[:4], ["kicad-cli", "jobset", "run", "--stop-on-error"])
+            self.assertIn("--output", command)
+            self.assertEqual(command[-1], str(project.resolve()))
+            self.assertEqual(run.call_args.kwargs["cwd"], str(project.parent.resolve()))
+        finally:
+            project.unlink(missing_ok=True)
+            jobset.unlink(missing_ok=True)
+
+    def test_jobset_run_rejects_wrong_input_type(self):
+        result = self.run_cli("jobset-run", str(FIXTURES / "simple_hierarchy.xml"), "--file", "missing.kicad_jobset")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(".kicad_pro", result.stderr)
+
+    def test_report_help_accepts_crosslink_rules_file(self):
+        result = self.run_cli("report", "--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--rules-file", result.stdout)
 
     def test_dependencies_emits_full_suite_health_json(self):
         result = self.run_cli("dependencies")

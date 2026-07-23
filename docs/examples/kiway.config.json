@@ -1,0 +1,17 @@
+{
+  "defaults": {
+    "board_sequence": "DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO",
+    "sheet_alias": [
+      "ADCS IMU:/Main/ADCS/*:U*"
+    ],
+    "format": "json"
+  },
+  "extract": {
+    "consolidate": true,
+    "include_power": false
+  },
+  "validate": {
+    "require_tm_consumer": true,
+    "require_tc_origin": true
+  }
+}

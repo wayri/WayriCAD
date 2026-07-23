@@ -1,0 +1,3 @@
+# Name | matching mode | source pattern | destination pattern
+Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*
+Signal suffix | regex | ^DEMO_CTRL_(?P<signal>.+)$ | ^DEMO_SENSOR_(?P<signal>.+)$

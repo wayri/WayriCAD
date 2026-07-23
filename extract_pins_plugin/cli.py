@@ -13,6 +13,8 @@ import argparse
 import csv
 import json
 import os
+import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -24,7 +26,7 @@ from .core.diagram_generator import SVGDiagramGenerator
 from .core.doc_generator import DocGenerator
 from .core.schematic_graph import SchematicGraphParser
 
-VERSION = "2.10.0"
+VERSION = "2.14.0"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3
@@ -74,6 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_crosslink(sub)
     add_validate(sub)
     add_report(sub)
+    add_jobset_run(sub)
     add_benchmark(sub)
     add_dependencies(sub)
     add_test(sub)
@@ -135,7 +138,19 @@ def add_report(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--title", default="KiWay Interface Control Document")
     p.add_argument("--imports", nargs="*", default=[], help="Imported CSV/Markdown pin documents to include as cross-project tracker.")
     p.add_argument("--rules", default="", help="Cross-link rules for imports.")
+    p.add_argument("--rules-file", help="File containing cross-link rules for imports.")
     p.set_defaults(func=cmd_report)
+
+
+def add_jobset_run(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("jobset-run", help="Run a KiCad .kicad_jobset through the native kicad-cli.")
+    p.add_argument("project", help="KiCad project file (.kicad_pro) used by the jobset.")
+    p.add_argument("-f", "--file", required=True, help="Jobset file (.kicad_jobset) to run.")
+    p.add_argument("--destination", help="Run one destination by its unique description or ID.")
+    p.add_argument("--stop-on-error", action="store_true", help="Stop the native jobset after its first failed job.")
+    p.add_argument("--kicad-cli", help="Path to kicad-cli. Otherwise use KICAD_CLI, PATH, or standard install locations.")
+    p.add_argument("--dry-run", action="store_true", help="Print the exact native command without running it.")
+    p.set_defaults(func=cmd_jobset_run)
 
 
 def add_benchmark(sub: argparse._SubParsersAction) -> None:
@@ -317,7 +332,7 @@ def cmd_report(args: argparse.Namespace) -> int:
     doc = DocGenerator(args.title)
     cross_links: List[Dict[str, str]] = []
     if args.imports:
-        cross_links = CrossProjectLinker(load_import_documents(args.imports, [])).link(load_rules(args.rules, None))
+        cross_links = CrossProjectLinker(load_import_documents(args.imports, [])).link(load_rules(args.rules, args.rules_file))
     markdown = doc.build_markdown(
         tm_tc_rows=doc.make_tm_tc_rows(parser, consolidate=True),
         test_point_rows=__import__("extract_pins_plugin.core.test_point_extractor", fromlist=["TestPointExtractor"]).TestPointExtractor(parser).as_rows(),
@@ -338,6 +353,66 @@ def cmd_report(args: argparse.Namespace) -> int:
         svg = SVGDiagramGenerator().generate_interface_block_diagram(parser.group_interfaces(), title=args.title)
         return write_text(svg, args.output)
     return write_text(markdown, args.output)
+
+
+def cmd_jobset_run(args: argparse.Namespace) -> int:
+    project = Path(args.project).expanduser().resolve()
+    jobset = Path(args.file).expanduser().resolve()
+    if not project.is_file() or project.suffix.lower() != ".kicad_pro":
+        raise CliError(f"KiCad project file not found or not a .kicad_pro file: {project}", EXIT_USAGE)
+    if not jobset.is_file() or jobset.suffix.lower() != ".kicad_jobset":
+        raise CliError(f"KiCad jobset file not found or not a .kicad_jobset file: {jobset}", EXIT_USAGE)
+
+    executable = find_kicad_cli(getattr(args, "kicad_cli", None))
+    command = [executable, "jobset", "run"]
+    if args.stop_on_error:
+        command.append("--stop-on-error")
+    command.extend(["--file", str(jobset)])
+    if args.destination:
+        command.extend(["--output", args.destination])
+    command.append(str(project))
+
+    if args.dry_run:
+        return write_rows({"command": command, "display": display_command(command)}, "json", None, title="KiWay Jobset Run")
+
+    completed = subprocess.run(command, cwd=str(project.parent), check=False)
+    if completed.returncode:
+        raise CliError(
+            f"kicad-cli jobset run failed with exit code {completed.returncode}",
+            EXIT_RUNTIME,
+            {"command": command, "native_exit_code": completed.returncode},
+        )
+    return EXIT_OK
+
+
+def find_kicad_cli(explicit: Optional[str] = None) -> str:
+    requested = explicit or os.environ.get("KICAD_CLI", "")
+    if requested:
+        candidate = Path(requested).expanduser()
+        if candidate.is_file():
+            return str(candidate.resolve())
+        located = shutil.which(requested)
+        if located:
+            return located
+        raise CliError(f"kicad-cli executable not found: {requested}", EXIT_USAGE)
+
+    located = shutil.which("kicad-cli")
+    if located:
+        return located
+    candidates: List[Path] = []
+    if os.name == "nt":
+        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
+        candidates.extend(Path(program_files) / "KiCad" / version / "bin" / "kicad-cli.exe" for version in ("10.0", "9.0"))
+    elif sys.platform == "darwin":
+        candidates.append(Path("/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"))
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    raise CliError("kicad-cli was not found. Set KICAD_CLI, pass --kicad-cli, or add it to PATH.", EXIT_USAGE)
+
+
+def display_command(command: Sequence[str]) -> str:
+    return subprocess.list2cmdline(list(command)) if os.name == "nt" else shlex.join(command)
 
 
 def cmd_benchmark(args: argparse.Namespace) -> int:
