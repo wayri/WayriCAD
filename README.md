@@ -162,16 +162,16 @@ kiway extract project.xml --kind tm-tc --consolidate --board-sequence DEMO_CTRL,
 kiway extract project.xml --kind connectors --sheet-alias "ADCS IMU:/Main/ADCS/*:U*" --format md
 
 # Link board exports with exact, normalized, wildcard, or regex rules.
-kiway crosslink DEMO_CTRL_pins.csv DEMO_SENSOR_pins.md --project DEMO_CTRL --project DEMO_SENSOR --rules "Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*" --format json -o cross_links.json
+kiway crosslink demo_ctrl_pins.csv demo_sensor_pins.md --project DEMO_CTRL --project DEMO_SENSOR --rules "Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*" --format json -o cross_links.json
 
 # Generate a harness-style SVG from imported project documents.
-kiway crosslink DEMO_CTRL_pins.csv DEMO_SENSOR_pins.md --rules "Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*" --format svg -o harness.svg
+kiway crosslink demo_ctrl_pins.csv demo_sensor_pins.md --rules "Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*" --format svg -o harness.svg
 
 # Validate aerospace interface conventions with machine-readable diagnostics.
 kiway validate project.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --require-tm-consumer --require-tc-origin --diagnostics json --format json
 
 # Build a full ICD report.
-kiway report project.xml --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO --title "DEMO_CTRL Electrical ICD" --format html -o DEMO_CTRL_icd.html
+kiway report project.xml --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO --title "DEMO_CTRL Electrical ICD" --format html -o demo_ctrl_icd.html
 
 # Run a KiCad jobset using the native kicad-cli backend.
 kiway jobset-run project.kicad_pro --file release.kicad_jobset --stop-on-error

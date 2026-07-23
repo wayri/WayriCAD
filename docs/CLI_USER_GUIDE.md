@@ -99,12 +99,12 @@ and normalized net matching, then any supplied wildcard or regular-expression
 rules. Power links are excluded unless `--include-power` is present.
 
 ```bash
-kiway crosslink DEMO_CTRL-pins.csv DEMO_SENSOR-pins.md \
+kiway crosslink demo_ctrl-pins.csv demo_sensor-pins.md \
   --project DEMO_CTRL --project DEMO_SENSOR \
   --rules-file docs/examples/crosslink.rules.txt \
   --format json --output artifacts/cross-links.json
 
-kiway crosslink DEMO_CTRL-pins.csv DEMO_SENSOR-pins.md \
+kiway crosslink demo_ctrl-pins.csv demo_sensor-pins.md \
   --project DEMO_CTRL --project DEMO_SENSOR \
   --rules 'Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*' \
   --format svg --output artifacts/harness.svg
@@ -236,9 +236,9 @@ Create one complete interface control document:
 ```bash
 kiway report exports/ --title 'DEMO_CTRL Electrical ICD' \
   --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO \
-  --imports DEMO_CTRL-pins.csv DEMO_SENSOR-pins.csv \
+  --imports demo_ctrl-pins.csv demo_sensor-pins.csv \
   --rules-file docs/examples/crosslink.rules.txt \
-  --format html --output artifacts/DEMO_CTRL-icd.html
+  --format html --output artifacts/demo_ctrl-icd.html
 ```
 
 `report` supports Markdown, HTML, CSV, JSON, and SVG. CSV report output contains
