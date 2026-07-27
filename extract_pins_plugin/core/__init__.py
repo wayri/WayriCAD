@@ -19,6 +19,14 @@ from .cross_linker import (
     parse_link_rules,
 )
 from .power_tree import PowerTreeAnalyzer, generate_power_tree_svg
+from .controller_connector_mapper import (
+    ACTIVE_RULE_EXAMPLES,
+    DEFAULT_PASSIVE_RULE_TEXT,
+    ControllerConnectorMapper,
+    TraversalRule,
+    parse_traversal_rules,
+    rows_to_markdown,
+)
 
 __all__ = [
     'DataExtractor',
@@ -44,4 +52,10 @@ __all__ = [
     'parse_link_rules',
     'PowerTreeAnalyzer',
     'generate_power_tree_svg',
+    'ACTIVE_RULE_EXAMPLES',
+    'DEFAULT_PASSIVE_RULE_TEXT',
+    'ControllerConnectorMapper',
+    'TraversalRule',
+    'parse_traversal_rules',
+    'rows_to_markdown',
 ]

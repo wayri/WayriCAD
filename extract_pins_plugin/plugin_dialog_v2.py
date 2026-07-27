@@ -37,6 +37,13 @@ try:
     from .core.diagram_generator import SVGDiagramGenerator
     from .core.power_tree import PowerTreeAnalyzer, generate_power_tree_svg
     from .core.schematic_graph import SchematicGraphParser
+    from .core.controller_connector_mapper import (
+        ACTIVE_RULE_EXAMPLES,
+        DEFAULT_PASSIVE_RULE_TEXT,
+        ControllerConnectorMapper,
+        parse_traversal_rules,
+        rows_to_markdown,
+    )
     from .help_utils import open_help
 except ImportError:
     # Fallback for direct execution
@@ -46,6 +53,13 @@ except ImportError:
     from core.diagram_generator import SVGDiagramGenerator
     from core.power_tree import PowerTreeAnalyzer, generate_power_tree_svg
     from core.schematic_graph import SchematicGraphParser
+    from core.controller_connector_mapper import (
+        ACTIVE_RULE_EXAMPLES,
+        DEFAULT_PASSIVE_RULE_TEXT,
+        ControllerConnectorMapper,
+        parse_traversal_rules,
+        rows_to_markdown,
+    )
     from help_utils import open_help
 
 
@@ -72,6 +86,7 @@ class PluginDialogV2(wx.Frame):
         self.preview_data = {}
         self.preview_rows = []
         self.endpoint_rows = []
+        self.controller_map_rows = []
         self.sf_rows = []
         self.ic_rows = []
         self.current_diagram_svg = ""
@@ -112,20 +127,23 @@ class PluginDialogV2(wx.Frame):
         self.endpoint_trace_panel = self._create_endpoint_trace_tab()
         self.notebook.AddPage(self.endpoint_trace_panel, "2  Endpoint Trace")
 
-        # Tab 3: Signal Flow
+        self.controller_map_panel = self._create_controller_map_tab()
+        self.notebook.AddPage(self.controller_map_panel, "3  Controller Map")
+
+        # Tab 4: Signal Flow
         self.signal_flow_panel = self._create_signal_flow_tab()
-        self.notebook.AddPage(self.signal_flow_panel, "3  Signal Flow")
+        self.notebook.AddPage(self.signal_flow_panel, "4  Signal Flow")
         
-        # Tab 4: IC Signal Chart
+        # Tab 5: IC Signal Chart
         self.ic_chart_panel = self._create_ic_chart_tab()
-        self.notebook.AddPage(self.ic_chart_panel, "4  IC Signal Chart")
+        self.notebook.AddPage(self.ic_chart_panel, "5  IC Signal Chart")
         
-        # Tab 5: Diagrams
+        # Tab 6: Diagrams
         self.diagram_panel = self._create_diagram_tab()
-        self.notebook.AddPage(self.diagram_panel, "5  Block Diagrams")
+        self.notebook.AddPage(self.diagram_panel, "6  Block Diagrams")
 
         self.power_tree_panel = self._create_power_tree_tab()
-        self.notebook.AddPage(self.power_tree_panel, "6  Power Tree & Net Rules")
+        self.notebook.AddPage(self.power_tree_panel, "7  Power Tree & Net Rules")
         
         main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -360,6 +378,126 @@ class PluginDialogV2(wx.Frame):
         actions.Add(export_csv, 0, wx.RIGHT, 6)
         export_md = wx.Button(panel, label="Export Markdown...")
         export_md.Bind(wx.EVT_BUTTON, lambda event: self.OnEndpointTraceExport("md"))
+        actions.Add(export_md, 0)
+        root.Add(actions, 0, wx.ALL, 10)
+
+        panel.SetSizer(root)
+        return panel
+
+    def _create_controller_map_tab(self):
+        """Create the safeguarded controller-to-connector mapping workspace."""
+        panel = wx.Panel(self.notebook)
+        root = wx.BoxSizer(wx.VERTICAL)
+        root.Add(
+            wx.StaticText(
+                panel,
+                label="Map selected controller/IC pins to connector pins across exact, reviewable "
+                      "component pin pairs. Source and connector describe report scope, not signal direction.",
+            ),
+            0,
+            wx.EXPAND | wx.ALL,
+            8,
+        )
+
+        scope = wx.StaticBoxSizer(wx.StaticBox(panel, label="Endpoint scope and limits"), wx.VERTICAL)
+        scope_grid = wx.FlexGridSizer(2, 6, 6, 8)
+        scope_grid.AddGrowableCol(1)
+        scope_grid.AddGrowableCol(3)
+        scope_grid.Add(wx.StaticText(panel, label="Controller / source refs"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.map_source_refs = wx.TextCtrl(panel, value="U*")
+        self.map_source_refs.SetToolTip("Comma-separated exact references or wildcards, for example U1,U3 or U*.")
+        scope_grid.Add(self.map_source_refs, 1, wx.EXPAND)
+        scope_grid.Add(wx.StaticText(panel, label="Connector refs"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.map_connector_refs = wx.TextCtrl(panel, value="J*")
+        self.map_connector_refs.SetToolTip("Comma-separated exact references or wildcards.")
+        scope_grid.Add(self.map_connector_refs, 1, wx.EXPAND)
+        use_selection = wx.Button(panel, label="Use PCB Selection")
+        use_selection.Bind(wx.EVT_BUTTON, self.OnControllerMapUseSelection)
+        scope_grid.Add(use_selection, 0)
+        scope_grid.AddSpacer(1)
+        scope_grid.Add(wx.StaticText(panel, label="Maximum component hops"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.map_max_hops = wx.SpinCtrl(panel, min=1, max=50, initial=12)
+        scope_grid.Add(self.map_max_hops, 0)
+        scope_grid.Add(wx.StaticText(panel, label="Maximum routes"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.map_max_paths = wx.SpinCtrl(panel, min=1, max=50000, initial=2000)
+        scope_grid.Add(self.map_max_paths, 0)
+        self.map_include_ambiguous = wx.CheckBox(panel, label="Show ambiguous routes")
+        self.map_include_ambiguous.SetValue(True)
+        scope_grid.Add(self.map_include_ambiguous, 0, wx.ALIGN_CENTER_VERTICAL)
+        scope_grid.AddSpacer(1)
+        scope.Add(scope_grid, 0, wx.EXPAND | wx.ALL, 6)
+        root.Add(scope, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+
+        rules_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Approved pin-pair crossings"), wx.HORIZONTAL)
+        passive_column = wx.BoxSizer(wx.VERTICAL)
+        passive_column.Add(wx.StaticText(panel, label="Fixed/passive rules"), 0, wx.BOTTOM, 3)
+        self.map_passive_rules = wx.TextCtrl(
+            panel,
+            value=DEFAULT_PASSIVE_RULE_TEXT.rstrip(),
+            size=(-1, 92),
+            style=wx.TE_MULTILINE,
+        )
+        self.map_passive_rules.SetToolTip(
+            "Format: reference wildcard | entry-exit pin pair | passive | note. "
+            "Capacitors are excluded because they are normally shunts."
+        )
+        passive_column.Add(self.map_passive_rules, 1, wx.EXPAND)
+        rules_box.Add(passive_column, 1, wx.EXPAND | wx.ALL, 6)
+
+        active_column = wx.BoxSizer(wx.VERTICAL)
+        active_header = wx.BoxSizer(wx.HORIZONTAL)
+        active_header.Add(wx.StaticText(panel, label="Conditional active-device rules"), 0, wx.ALIGN_CENTER_VERTICAL)
+        active_header.AddStretchSpacer()
+        self.map_include_active = wx.CheckBox(panel, label="Enable conditional active paths")
+        self.map_include_active.SetToolTip(
+            "Required for MOSFET, BJT, jumper-state, and IC crossings. "
+            "Results remain conditional because device state is not inferred."
+        )
+        active_header.Add(self.map_include_active, 0)
+        active_column.Add(active_header, 0, wx.EXPAND | wx.BOTTOM, 3)
+        self.map_active_rules = wx.TextCtrl(
+            panel,
+            value=ACTIVE_RULE_EXAMPLES.rstrip(),
+            size=(-1, 92),
+            style=wx.TE_MULTILINE,
+        )
+        self.map_active_rules.SetToolTip(
+            "Edit these examples to exact references and actual pin numbers/functions. "
+            "A reference match alone never permits an all-pin crossing."
+        )
+        active_column.Add(self.map_active_rules, 1, wx.EXPAND)
+        rules_box.Add(active_column, 1, wx.EXPAND | wx.ALL, 6)
+        root.Add(rules_box, 0, wx.EXPAND | wx.ALL, 8)
+
+        preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Auditable route preview"), wx.VERTICAL)
+        self.controller_map_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, (label, width) in enumerate((
+            ("Controller", 90), ("Pin", 60), ("Function", 105), ("Source Net", 150),
+            ("Connector", 90), ("Pin", 60), ("Connector Net", 150),
+            ("Inline Components", 150), ("Pin Transitions", 220),
+            ("Status", 85), ("Confidence", 85), ("Ordered Path", 420),
+        )):
+            self.controller_map_preview.InsertColumn(index, label, width=width)
+        self.controller_map_preview.Bind(
+            wx.EVT_LIST_ITEM_ACTIVATED, self.OnControllerMapRowActivated
+        )
+        preview_box.Add(self.controller_map_preview, 1, wx.EXPAND | wx.ALL, 3)
+        self.controller_map_summary = wx.StaticText(
+            panel,
+            label="Preview is read-only. No PCB objects are created or modified.",
+        )
+        preview_box.Add(self.controller_map_summary, 0, wx.EXPAND | wx.ALL, 5)
+        root.Add(preview_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+
+        actions = wx.BoxSizer(wx.HORIZONTAL)
+        preview = wx.Button(panel, label="Preview Controller Map")
+        preview.Bind(wx.EVT_BUTTON, self.OnControllerMapPreview)
+        actions.Add(preview, 0, wx.RIGHT, 6)
+        export_csv = wx.Button(panel, label="Export CSV...")
+        export_csv.Bind(wx.EVT_BUTTON, lambda event: self.OnControllerMapExport("csv"))
+        actions.Add(export_csv, 0, wx.RIGHT, 6)
+        export_md = wx.Button(panel, label="Export Markdown...")
+        export_md.Bind(wx.EVT_BUTTON, lambda event: self.OnControllerMapExport("md"))
         actions.Add(export_md, 0)
         root.Add(actions, 0, wx.ALL, 10)
 
@@ -1277,6 +1415,145 @@ setTimeout(fitView,50);
             values = [str(row.get(header, "")).replace("|", "\\|").replace("\n", " ") for header in headers]
             lines.append("| " + " | ".join(values) + " |")
         self._save_file("\n".join(lines) + "\n", "Markdown", "kiway_endpoint_trace.md")
+
+    # Controller-to-connector mapping handlers
+    def OnControllerMapUseSelection(self, event):
+        selected = sorted(
+            (
+                fp.GetReference()
+                for fp in self.board.GetFootprints()
+                if fp.IsSelected()
+            ),
+            key=DataExtractor.natural_sort_key,
+        )
+        if not selected:
+            wx.MessageBox(
+                "Select controller/IC and connector footprints in PCB Editor first.",
+                "PCB selection",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+        connector_prefixes = ("J", "P", "CON", "X")
+        connectors = [ref for ref in selected if ref.upper().startswith(connector_prefixes)]
+        sources = [ref for ref in selected if ref not in connectors]
+        if sources:
+            self.map_source_refs.SetValue(",".join(sources))
+        if connectors:
+            self.map_connector_refs.SetValue(",".join(connectors))
+        self.status_text.SetLabel(
+            f"Controller-map scope updated from {len(selected)} selected footprints."
+        )
+
+    def OnControllerMapPreview(self, event):
+        source_patterns = DataExtractor.parse_pattern_text(self.map_source_refs.GetValue())
+        connector_patterns = DataExtractor.parse_pattern_text(self.map_connector_refs.GetValue())
+        if not source_patterns or not connector_patterns:
+            wx.MessageBox(
+                "Enter at least one controller/source and connector reference pattern.",
+                "Mapping scope",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+        rule_text = self.map_passive_rules.GetValue()
+        if self.map_active_rules.GetValue().strip():
+            rule_text += "\n" + self.map_active_rules.GetValue()
+        try:
+            rules = parse_traversal_rules(rule_text)
+            parser = SchematicGraphParser(board=self.board)
+            parser.build()
+            mapper = ControllerConnectorMapper(parser)
+            rows = mapper.trace(
+                source_patterns,
+                connector_patterns,
+                rules,
+                include_conditional=self.map_include_active.IsChecked(),
+                include_ambiguous=self.map_include_ambiguous.IsChecked(),
+                max_component_hops=self.map_max_hops.GetValue(),
+                max_paths=self.map_max_paths.GetValue(),
+            )
+        except ImportError as exc:
+            wx.MessageBox(str(exc), "networkx required", wx.OK | wx.ICON_ERROR)
+            return
+        except ValueError as exc:
+            wx.MessageBox(str(exc), "Invalid pin-pair rule", wx.OK | wx.ICON_ERROR)
+            return
+        except Exception as exc:
+            wx.MessageBox(f"Controller map failed: {exc}", "Mapping error", wx.OK | wx.ICON_ERROR)
+            return
+
+        self.controller_map_rows = rows
+        self.controller_map_preview.DeleteAllItems()
+        for row in rows:
+            index = self.controller_map_preview.InsertItem(
+                self.controller_map_preview.GetItemCount(),
+                str(row.get("Source Reference", "")),
+            )
+            values = (
+                row.get("Source Pin", ""),
+                row.get("Source Pin Function", ""),
+                row.get("Source Net", ""),
+                row.get("Connector Reference", ""),
+                row.get("Connector Pin", ""),
+                row.get("Connector Net", ""),
+                row.get("Inline Components", ""),
+                row.get("Pin Transitions", ""),
+                row.get("Status", ""),
+                row.get("Confidence", ""),
+                row.get("Ordered Path", ""),
+            )
+            for column, value in enumerate(values, 1):
+                self.controller_map_preview.SetItem(index, column, str(value))
+
+        statuses = {}
+        for row in rows:
+            status = str(row.get("Status", "Unknown"))
+            statuses[status] = statuses.get(status, 0) + 1
+        status_text = ", ".join(f"{key}: {value}" for key, value in sorted(statuses.items()))
+        diagnostics = " ".join(mapper.last_diagnostics)
+        if rows:
+            self.controller_map_summary.SetLabel(
+                f"{len(rows)} routes. {status_text}. Double-click a row to highlight its source net. "
+                f"{diagnostics}".strip()
+            )
+        else:
+            self.controller_map_summary.SetLabel(
+                "No routes matched. Verify endpoint scope, exact pin numbers/functions, active-path opt-in, "
+                f"and route limits. {diagnostics}".strip()
+            )
+        self.status_text.SetLabel(f"Controller map preview: {len(rows)} auditable routes.")
+
+    def OnControllerMapRowActivated(self, event):
+        index = event.GetIndex()
+        if 0 <= index < len(self.controller_map_rows):
+            net_name = str(self.controller_map_rows[index].get("Source Net", ""))
+            self.net_action_combo.SetValue(net_name)
+            self._highlight_net(net_name)
+
+    def OnControllerMapExport(self, format_name):
+        if not self.controller_map_rows:
+            wx.MessageBox(
+                "Preview a controller map before exporting.",
+                "Preview required",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+        if format_name == "md":
+            self._save_file(
+                rows_to_markdown(self.controller_map_rows),
+                "Markdown",
+                "kiway_controller_connector_map.md",
+            )
+            return
+        headers = [key for key in self.controller_map_rows[0] if not key.startswith("_")]
+        stream = StringIO()
+        writer = csv.DictWriter(stream, fieldnames=headers, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(self.controller_map_rows)
+        self._save_file(
+            stream.getvalue(),
+            "CSV",
+            "kiway_controller_connector_map.csv",
+        )
 
     # Signal Flow handlers
     def _signal_flow_rows(self):

@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -104,6 +105,50 @@ class KiWayCliTests(unittest.TestCase):
         types = {row["Type"] for row in rows}
         self.assertEqual(types, {"TD", "TM"})
         self.assertTrue(all(row["Source Board"] == "DEMO_CTRL" for row in rows))
+
+    def test_extract_controller_map_requires_explicit_active_opt_in(self):
+        xml = """<?xml version="1.0"?>
+<export>
+  <components>
+    <comp ref="U1"><value>Controller</value></comp>
+    <comp ref="Q1"><value>MOSFET</value></comp>
+    <comp ref="J1"><value>Connector</value></comp>
+  </components>
+  <nets>
+    <net code="1" name="DRIVE">
+      <node ref="U1" pin="4" pinfunction="GPIO"/>
+      <node ref="Q1" pin="1" pinfunction="D"/>
+    </net>
+    <net code="2" name="SWITCHED">
+      <node ref="Q1" pin="2" pinfunction="S"/>
+      <node ref="J1" pin="7" pinfunction="OUTPUT"/>
+    </net>
+  </nets>
+</export>
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False) as handle:
+            handle.write(xml)
+            path = Path(handle.name)
+        try:
+            disabled = self.run_cli(
+                "extract", str(path), "--kind", "controller-map",
+                "--path-rule", "Q1 | D-S | active | verify MOSFET state",
+                "--format", "json",
+            )
+            enabled = self.run_cli(
+                "extract", str(path), "--kind", "controller-map",
+                "--path-rule", "Q1 | D-S | active | verify MOSFET state",
+                "--include-active-paths", "--format", "json",
+            )
+        finally:
+            path.unlink(missing_ok=True)
+        self.assertEqual(disabled.returncode, 0, disabled.stderr)
+        self.assertEqual(json.loads(disabled.stdout), [])
+        self.assertEqual(enabled.returncode, 0, enabled.stderr)
+        rows = json.loads(enabled.stdout)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["Status"], "Conditional")
+        self.assertEqual(rows[0]["Pin Transitions"], "Q1.1->Q1.2")
 
     def test_crosslink_wildcard_rule_outputs_svg_and_excludes_power_by_default(self):
         result = self.run_cli(

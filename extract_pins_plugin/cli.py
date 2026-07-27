@@ -25,8 +25,13 @@ from .core.cross_linker import CrossProjectLinker, PinDocumentImporter, parse_li
 from .core.diagram_generator import SVGDiagramGenerator
 from .core.doc_generator import DocGenerator
 from .core.schematic_graph import SchematicGraphParser
+from .core.controller_connector_mapper import (
+    DEFAULT_PASSIVE_RULE_TEXT,
+    ControllerConnectorMapper,
+    parse_traversal_rules,
+)
 
-VERSION = "2.14.1"
+VERSION = "2.15.0"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3
@@ -102,9 +107,30 @@ def add_inspect(sub: argparse._SubParsersAction) -> None:
 def add_extract(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("extract", help="Extract pins, connectors, test points, TM/TC rows, or interfaces.")
     add_common_project_args(p)
-    p.add_argument("--kind", choices=("pins", "connectors", "testpoints", "tm-tc", "interfaces"), default="pins")
+    p.add_argument(
+        "--kind",
+        choices=("pins", "connectors", "testpoints", "tm-tc", "interfaces", "controller-map"),
+        default="pins",
+    )
     p.add_argument("--consolidate", action="store_true", help="Consolidate TM/TC rows by net.")
     p.add_argument("--include-power", action="store_true", help="Include likely power nets where filtering applies.")
+    p.add_argument("--source-refs", default="U*", help="Controller/source reference wildcards for controller-map.")
+    p.add_argument("--connector-refs", default="J*", help="Connector/destination reference wildcards for controller-map.")
+    p.add_argument(
+        "--path-rule",
+        action="append",
+        default=[],
+        help="Exact crossing rule: 'REF | PIN-PIN | passive/active | note'. Repeatable.",
+    )
+    p.add_argument("--path-rules-file", help="Text file containing exact component crossing rules.")
+    p.add_argument(
+        "--include-active-paths",
+        action="store_true",
+        help="Include conditional MOSFET/BJT/IC paths defined by exact pin-pair rules.",
+    )
+    p.add_argument("--exclude-ambiguous", action="store_true", help="Omit routes with alternate allowed paths.")
+    p.add_argument("--max-hops", type=int, default=12, help="Maximum inline component crossings per route.")
+    p.add_argument("--max-paths", type=int, default=2000, help="Hard safety limit for controller-map routes.")
     p.set_defaults(func=cmd_extract)
 
 
@@ -243,6 +269,32 @@ def cmd_extract(args: argparse.Namespace) -> int:
         rows = doc.make_tm_tc_rows(parser, consolidate=args.consolidate)
     elif args.kind == "interfaces":
         rows = normalize_interfaces(parser.group_interfaces())
+    elif args.kind == "controller-map":
+        rule_text = DEFAULT_PASSIVE_RULE_TEXT
+        if args.path_rules_file:
+            try:
+                rule_text += "\n" + Path(args.path_rules_file).read_text(encoding="utf-8")
+            except OSError as exc:
+                raise CliError(f"Cannot read path rules: {exc}", EXIT_USAGE) from exc
+        if args.path_rule:
+            rule_text += "\n" + "\n".join(args.path_rule)
+        try:
+            rules = parse_traversal_rules(rule_text)
+        except ValueError as exc:
+            raise CliError(str(exc), EXIT_USAGE) from exc
+        mapper = ControllerConnectorMapper(parser)
+        rows = mapper.trace(
+            split_csv(args.source_refs),
+            split_csv(args.connector_refs),
+            rules,
+            include_conditional=args.include_active_paths,
+            include_ambiguous=not args.exclude_ambiguous,
+            max_component_hops=max(1, args.max_hops),
+            max_paths=max(1, args.max_paths),
+        )
+        if mapper.last_diagnostics and not args.quiet:
+            for message in mapper.last_diagnostics:
+                emit_diagnostic("warning", message, args)
     else:
         rows = all_pin_rows(parser, include_power=args.include_power)
     return write_rows(rows, args.format, args.output, title=f"KiWay {args.kind} Extract")

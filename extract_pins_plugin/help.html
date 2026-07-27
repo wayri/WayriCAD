@@ -9,7 +9,7 @@ body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;pad
 <body>
 <h1>KiWay Pin Extractor</h1>
 <p>The extractor is a modeless PCB Editor window. Keep it open while selecting components, reviewing pin rows, and locating nets on the board.</p>
-<nav><a href="#pins">Pin Extraction</a><a href="#endpoint-trace">Endpoint Trace</a><a href="#net-rules">Net Rules</a><a href="#signal-flow">Signal Flow</a><a href="#ic-chart">IC Chart</a><a href="#power-tree">Power Tree</a><a href="#diagrams">Diagrams</a><a href="#troubleshooting">Troubleshooting</a></nav>
+<nav><a href="#pins">Pin Extraction</a><a href="#endpoint-trace">Endpoint Trace</a><a href="#controller-map">Controller Map</a><a href="#net-rules">Net Rules</a><a href="#signal-flow">Signal Flow</a><a href="#ic-chart">IC Chart</a><a href="#power-tree">Power Tree</a><a href="#diagrams">Diagrams</a><a href="#troubleshooting">Troubleshooting</a></nav>
 
 <h2>Annotated interface walkthrough</h2>
 <p>This image uses the same tabs, field names, modes, and actions as the installed window.</p>
@@ -32,8 +32,19 @@ body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;pad
 <p><b>Trace through refs</b> controls which parts may join differently named nets. The defaults cover common series resistors, inductors, ferrites, fuses, capacitors, and jumpers; parts with a <code>NetTie_Path</code> field are also traversable. Remove a broad pattern when that component type must be treated as a terminal instead.</p>
 <p>The result identifies the matched label, endpoint reference and pin, pin function when KiCad exposes it, terminal net, ordered intermediate components, and full trace. Double-click a row to highlight the original labeled net. Export the reviewed software/harness map to CSV or Markdown. PCB nets do not inherently encode signal direction, so the table reports resolved endpoints rather than claiming an unverified source.</p>
 
+<h2 id="controller-map">Safeguarded Controller-to-Connector Map</h2>
+<p>Open <b>3 Controller Map</b> to build a software-facing table from selected controller/IC pins to connector pins, including renamed nets and every inline component. Enter exact references or wildcards, or select footprints in PCB Editor and click <b>Use PCB Selection</b>.</p>
+<p>A component is crossed only when an exact pin pair is approved. Rule format is <code>reference pattern | pin A-pin B | passive/active | review note</code>. Pin tokens match physical pad numbers or schematic pin functions.</p>
+<pre>R* | 1-2 | passive | two-terminal series resistor
+Q12 | D-S | active | MOSFET state must be verified
+Q20 | C-E | active | BJT bias must be verified
+U7 | IN-OUT | active | explicitly reviewed pass-through IC</pre>
+<p>The safe defaults include series resistors, inductors, ferrites, and fuses. Capacitors are deliberately excluded because they are normally shunts. MOSFET, BJT, jumper-state, and other IC rules are ignored until <b>Enable conditional active paths</b> is checked. Active paths remain <b>Conditional</b>; alternate permitted paths are <b>Ambiguous</b>. The mapper does not infer transistor state, population state, or electrical direction.</p>
+<p>Review source and connector pin functions, net sequence, inline components, pin transitions, status, confidence, and ordered path. Maximum hops and route count prevent runaway traversal. Double-click a row to highlight its source net, then export the exact preview to CSV or Markdown.</p>
+<div class="callout warn"><b>Fail-closed behavior:</b> if a symbolic rule such as <code>D-S</code> cannot match pad functions in the PCB/netlist, the component is not crossed. Use reviewed numeric pairs when the board does not expose functions.</div>
+
 <h2 id="net-rules">Net Classification and PCB Net Actions</h2>
-<p>Open <b>6 Power Tree &amp; Net Rules</b> to edit comma-, semicolon-, or newline-separated wildcard lists for power, supply, ground, and forced-signal nets. A forced-signal rule overrides broad voltage rules. Click <b>Apply Rules</b>; the same classification then drives extraction, signal flow, IC charts, block diagrams, and power-tree analysis.</p>
+<p>Open <b>7 Power Tree &amp; Net Rules</b> to edit comma-, semicolon-, or newline-separated wildcard lists for power, supply, ground, and forced-signal nets. A forced-signal rule overrides broad voltage rules. Click <b>Apply Rules</b>; the same classification then drives extraction, signal flow, IC charts, block diagrams, and power-tree analysis.</p>
 <p>In <b>1 Extract Pins</b>, choose any <b>PCB net</b> and use <b>Highlight Net</b>, <b>Select Copper</b>, or <b>Clear Highlight</b>. Double-clicking pin, signal-flow, IC-chart, or classified-net rows uses the same native net-code lookup.</p>
 
 <h2 id="signal-flow">Signal Flow</h2>
@@ -49,7 +60,7 @@ body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;pad
 <h2 id="diagrams">Visual Block Diagrams</h2>
 <img class="walkthrough" src="help-diagrams.png" alt="KiWay embedded SVG block diagram preview">
 <ol>
-<li>Open <b>5 Block Diagrams</b> and enter references or wildcards, or click <b>Use Extraction Preview</b>.</li>
+<li>Open <b>6 Block Diagrams</b> and enter references or wildcards, or click <b>Use Extraction Preview</b>.</li>
 <li>Select <b>System map</b> for all classified nets, <b>Signal flow</b> for signal topology, or <b>Power flow</b> for the inferred directed converter/filter tree.</li>
 <li>Click <b>Refresh Visual Preview</b>. Components appear once and unique nets become color-coded, labeled bus lanes with explicit pin membership.</li>
 <li>Use the mouse wheel or + / - controls to zoom, drag empty space to pan, and use <b>Fit</b> or <b>100%</b> to reset the view. Click a net lane to highlight it in PCB Editor.</li>
@@ -93,7 +104,7 @@ kiway test</pre>
 <table><tr><th>Command</th><th>Purpose</th><th>Typical output</th></tr>
 <tr><td><code>dependencies</code></td><td>Check or install reviewed suite dependencies.</td><td>JSON health report</td></tr>
 <tr><td><code>inspect</code></td><td>Parse projects/netlists and summarize hierarchy.</td><td>JSON, Markdown</td></tr>
-<tr><td><code>extract</code></td><td>Extract pins, connectors, test points, and TM/TC rows.</td><td>JSON, CSV, Markdown</td></tr>
+<tr><td><code>extract</code></td><td>Extract pins, connectors, test points, TM/TC rows, and safeguarded controller maps.</td><td>JSON, CSV, Markdown</td></tr>
 <tr><td><code>crosslink</code></td><td>Link boards using exact, normalized, wildcard, or regex rules.</td><td>JSON, CSV, Markdown, SVG</td></tr>
 <tr><td><code>validate</code></td><td>Check ambiguity, missing endpoints, power policy, and malformed inputs.</td><td>Machine-readable diagnostics</td></tr>
 <tr><td><code>report</code></td><td>Generate review and publication artifacts.</td><td>Markdown, HTML, CSV, JSON, SVG</td></tr>
@@ -106,6 +117,8 @@ kiway test</pre>
 <tr><td>PCB selection does not appear</td><td>Enable <b>Follow PCB selection</b>, click a footprint rather than a track, or click <b>Refresh from PCB</b>.</td></tr>
 <tr><td>No preview rows</td><td>Check the selected source mode and clear restrictive net/value filters.</td></tr>
 <tr><td>No endpoint traces</td><td>Verify the label wildcard, endpoint references, and Trace through refs. A renamed net across an unlisted series part intentionally stops there.</td></tr>
+<tr><td>No controller-map path through Q/U</td><td>Add the exact physical or function pin pair, then enable conditional active paths. A reference wildcard alone intentionally cannot cross an active device.</td></tr>
+<tr><td>Controller-map route is conditional or ambiguous</td><td>Verify device state, stuffing option, pin functions, and alternate routes against the schematic. Narrow the rule to an exact reference/pair before publication.</td></tr>
 <tr><td>Help does not open</td><td>The Help button now opens packaged documentation inside a native KiWay window. Use Open in Browser only as a fallback.</td></tr>
 <tr><td>A rail appears as signal</td><td>Add its exact name or a wildcard under Power or Supply patterns, then click Apply Rules. Use Force-signal only for intentional exceptions.</td></tr>
 <tr><td>Double-click does not highlight</td><td>Choose the same name in PCB net and click Highlight Net. Select Copper can be used to verify that routed tracks, vias, or zones carry that net.</td></tr>

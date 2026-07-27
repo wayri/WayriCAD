@@ -4,7 +4,7 @@ KiWay is a parent repository for KiCad ActionPlugins that can be added to KiCad'
 
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.14.1)
+### 1. KiWay Extract Pins (v2.15.0)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -16,6 +16,8 @@ A comprehensive interface documentation and test engineering tool.
 - **Cross-Project Links**: Import pin CSV/Markdown documents, auto-link board endpoints, and export tracker and harness diagrams
 - **Power Architecture**: Define shared power/signal wildcards, inspect consolidated routes, and auto-build checked converter/filter power trees
 - **Endpoint Trace**: Resolve wildcard label families such as `*TM` to selected IC/connector pins through user-approved series components
+- **Controller-to-Connector Map**: Trace exact controller/IC pins across renamed nets and approved inline pin pairs to connector pins, retaining every intermediate component and net
+- **Active-Device Safeguards**: MOSFET, BJT, jumper-state, and other IC crossings require explicit pin-pair rules and opt-in; conditional and ambiguous paths are never presented as proven direction
 - **Interfaces**: Group buses, differential pairs, connectors, peripherals, and board-to-board signal maps
 - **Layout Assist**: Create native KiCad PCB groups for logical interfaces
 - **Docs**: Export Markdown, HTML, CSV, JSON, SVG diagrams, and automation-friendly CLI output

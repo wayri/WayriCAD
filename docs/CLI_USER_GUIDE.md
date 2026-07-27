@@ -64,7 +64,7 @@ applied.
 
 ## 4. Electrical data extraction
 
-The `extract` command supports five datasets:
+The `extract` command supports six datasets:
 
 | Kind | Purpose |
 |---|---|
@@ -73,6 +73,7 @@ The `extract` command supports five datasets:
 | `testpoints` | Test-point net and resolved function rows |
 | `tm-tc` | `TM`, `TA`, `TD`, `TC`, `CA`, and `CD` signal records |
 | `interfaces` | Consolidated buses, differential pairs, and logical interfaces |
+| `controller-map` | Auditable controller/IC-to-connector paths across exact approved pin pairs |
 
 Examples:
 
@@ -86,11 +87,28 @@ kiway extract exports/ --kind tm-tc --consolidate \
 
 kiway extract exports/ --kind interfaces --format svg \
   --output artifacts/interfaces.svg
+
+kiway extract exports/controller.xml --kind controller-map \
+  --source-refs U1,U2 --connector-refs J* \
+  --path-rule "Q12 | D-S | active | verify MOSFET state" \
+  --path-rule "Q20 | C-E | active | verify BJT bias" \
+  --include-active-paths --format csv \
+  --output artifacts/controller-connector-map.csv
 ```
 
 Board endpoint order is inferred from the order of tokens in
 `--board-sequence`, not from one rigid label template. TM/TC identifiers are
 recognized as underscore-delimited tokens.
+
+Controller-map safe defaults cross only two-terminal series resistors,
+inductors, ferrites, and fuses. Capacitors are excluded because they are
+normally shunts. MOSFET, BJT, jumper-state, and other IC routes require an exact
+pin-pair rule plus `--include-active-paths`; these rows are marked
+`Conditional`. Pin tokens may be physical numbers or XML netlist pin functions.
+Use `--path-rules-file` for reviewed team rules, `--exclude-ambiguous` for a
+strict publication artifact, and `--max-hops`/`--max-paths` as traversal bounds.
+Source and connector indicate reporting scope only; KiWay does not infer
+semiconductor state or electrical direction.
 
 ## 5. Cross-project and harness linking
 

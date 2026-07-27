@@ -2,7 +2,7 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-2.14.1-blue)
+![Version](https://img.shields.io/badge/Version-2.15.0-blue)
 ![KiCAD](https://img.shields.io/badge/KiCAD-9.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
@@ -33,6 +33,17 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 - Trace across user-approved resistor/filter/jumper references and `NetTie_Path` parts
 - Report endpoint pins, pin functions, terminal nets, ordered intermediate components, and complete paths
 - Export software and harness endpoint maps to CSV or Markdown
+
+### Safeguarded Controller-to-Connector Map
+- Select controller/IC and connector scopes by exact reference, wildcard, or live PCB selection
+- Trace across net-name changes while retaining source pin/function, every net, every inline component pin transition, and final connector pin
+- Cross only exact approved pin pairs such as `R* | 1-2 | passive`
+- Keep capacitors out of the safe defaults because a shunt capacitor is not a series path
+- Support MOSFET `D-S`, BJT `C-E`, jumper-state, and other IC `IN-OUT` paths through explicit rules
+- Require **Enable conditional active paths** before active-device rules are used
+- Mark active-device routes `Conditional` and alternate routes `Ambiguous`; device state and electrical direction are not inferred
+- Bound traversal with maximum component-hop and route-count controls
+- Double-click a reviewed row to highlight its source net; export the exact preview to CSV or Markdown
 
 ### IC Signal Charts
 - Create complete pin-to-destination mapping for ICs
@@ -86,8 +97,22 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 2. *(Optional)* Select components on the PCB
 3. `Tools → External Plugins → Extract Component Pins with GUI`
 4. Use **Extract Pins** to follow PCB selection, filter components, preview rows, and export
-5. Use **Signal Flow** and **IC Signal Chart** to review table and visual connectivity
-6. Use **Power Tree & Net Rules** to define classification wildcards and build the checked rail tree
+5. Use **Controller Map** for an auditable IC-to-connector table across approved series and active-device pin pairs
+6. Use **Signal Flow** and **IC Signal Chart** to review same-net table and visual connectivity
+7. Use **Power Tree & Net Rules** to define classification wildcards and build the checked rail tree
+
+Controller-map rules use one crossing per line:
+
+```text
+R* | 1-2 | passive | two-terminal series resistor
+Q12 | D-S | active | MOSFET state must be verified
+Q20 | C-E | active | BJT bias must be verified
+U7 | IN-OUT | active | explicitly reviewed pass-through IC
+```
+
+Pin tokens match either physical pad numbers or schematic pin functions. Active
+rules are ignored until conditional paths are enabled. Do not use a broad `U*`
+rule unless every matched IC and pin pair has been reviewed.
 
 Double-click an extracted pin, signal-flow route, or IC-chart row to highlight its
 net in PCB Editor. **Select Copper** selects matching tracks, vias, and zones for
