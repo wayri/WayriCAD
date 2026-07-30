@@ -27,7 +27,7 @@ jobs:
         run: >-
           python -m compileall -q
           bulk_label_editor_plugin connector_icd_plugin extract_pins_plugin
-          fanout_generator_plugin net_hygiene_plugin test_coverage_plugin
+          fanout_generator_plugin kilo_plugin net_hygiene_plugin test_coverage_plugin
           test_point_descriptor_plugin trace_impedance_plugin
           via_stitching_plugin tools tests
       - name: Unit and integration tests
