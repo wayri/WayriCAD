@@ -69,6 +69,16 @@ Measures routed net geometry between selected start/end pads and reports first-o
 
 The analyzer is intended for design review and estimation. Critical high-speed interfaces still require field-solver, TDR, or laboratory validation.
 
+### 10. Kilo — KiCad Localizer (v0.1.0)
+
+Packages reusable KiCad design blocks with their footprint and 3D-model dependencies, then installs them into other projects. Kilo can also localize an existing project into reversible project-local libraries.
+
+- Token-preserving updates for KiCad project, schematic, board, footprint, and library-table files
+- Project-local footprint and 3D-model dependencies, including embedded-model support
+- Dry-run previews, validation reports, transaction history, and restore points
+- Native KiCad 10 Action Plugin interface with built-in help
+- Reads legacy KiCad BlockPack packages and project state while writing new Kilo formats
+
 ## PCB Editor Workflow
 
 1. Launch **KiWay Pin Extractor** for normal component and net work.
@@ -208,6 +218,7 @@ deterministic automation diffs. Config files are JSON objects with optional
 - [Via Stitching Documentation](via_stitching_plugin/ReadMe.md)
 - [Test Point Descriptor Documentation](test_point_descriptor_plugin/ReadMe.md)
 - [Trace RLC / Impedance Documentation](trace_impedance_plugin/ReadMe.md)
+- [Kilo — KiCad Localizer Help](kilo_plugin/ReadMe.md)
 - [Contributing](CONTRIBUTING.md)
 - [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
 

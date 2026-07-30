@@ -79,7 +79,7 @@ def main():
     
     if packages_file.exists():
         try:
-            with open(packages_file, 'r') as f:
+            with open(packages_file, 'r', encoding='utf-8') as f:
                 existing = json.load(f)
                 if isinstance(existing, dict) and 'packages' in existing:
                     packages_data = existing
@@ -93,7 +93,7 @@ def main():
     existing_by_id = {pkg.get('identifier'): pkg for pkg in packages_list}
 
     for plugin_path in discover_plugins(base_path):
-        with open(plugin_path / "metadata.json", "r") as f:
+        with open(plugin_path / "metadata.json", "r", encoding='utf-8') as f:
             metadata = json.load(f)
 
         version = metadata['versions'][0]['version']
@@ -156,7 +156,7 @@ def main():
     
     packages_data['packages'] = packages_list
     
-    with open(packages_file, 'w') as f:
+    with open(packages_file, 'w', encoding='utf-8') as f:
         json.dump(packages_data, f, indent=4)
         
     print(f"Updated {packages_file}")
@@ -182,7 +182,7 @@ def main():
         }
     }
     
-    with open(repo_file, 'w') as f:
+    with open(repo_file, 'w', encoding='utf-8') as f:
         json.dump(repository, f, indent=4)
         
     print(f"Updated {repo_file}")

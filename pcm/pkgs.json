@@ -1089,6 +1089,40 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "Kilo \u2014 KiCad Localizer",
+            "description": "Package portable design blocks and localize project footprints and 3D models.",
+            "description_full": "Kilo packages reusable KiCad design blocks with their footprint and 3D-model dependencies, then installs them into other projects. It can also localize an existing project into reversible project-local libraries, with validation reports, transaction history, and restore support. New data uses Kilo identifiers while legacy KiCad BlockPack packages and project state remain readable.",
+            "identifier": "kiway.kilo.localizer",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "MIT",
+            "resources": {
+                "homepage": "https://github.com/wayri/KiWay",
+                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/kilo_plugin/icon.png"
+            },
+            "versions": [
+                {
+                    "version": "0.1.0",
+                    "status": "stable",
+                    "kicad_version": "10.0",
+                    "download_sha256": "8f0e113cfcfa108855c70ae8ddcc940faf8bb98a056c81d914ce2e1ccc8628c7",
+                    "download_size": 80260,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.17.0/kilo_plugin-0.1.0.zip",
+                    "install_size": 202381,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
         }
     ]
 }
