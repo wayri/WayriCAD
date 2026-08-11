@@ -19,6 +19,20 @@
             },
             "versions": [
                 {
+                    "version": "2.16.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "acfffa45ee9a1bf53522be0faaca1de2181ebdb6933e9672a5bae138491251e3",
+                    "download_size": 300173,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/extract_pins_plugin-2.16.0.zip",
+                    "install_size": 712792,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "2.15.0",
                     "status": "stable",
                     "kicad_version": "9.0",
@@ -277,6 +291,20 @@
             },
             "versions": [
                 {
+                    "version": "0.7.0",
+                    "status": "development",
+                    "kicad_version": "9.0",
+                    "download_sha256": "cce43288d59b85f4f8a9c49c282e068dc362327ff707c70a307bf7402ec27111",
+                    "download_size": 58225,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/bulk_label_editor_plugin-0.7.0.zip",
+                    "install_size": 76113,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "0.6.0",
                     "status": "development",
                     "kicad_version": "9.0",
@@ -380,6 +408,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/fanout_generator_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.8.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "79089839dfe9eec7cfaacb1aa47eea5e7cbf09ca2988a488b97bb2df07072399",
+                    "download_size": 74110,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/fanout_generator_plugin-0.8.0.zip",
+                    "install_size": 102168,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.7.0",
                     "status": "stable",
@@ -499,6 +541,20 @@
             },
             "versions": [
                 {
+                    "version": "0.8.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "1684dd22278adefd89b5c51c40de07557969bcd749c5d56992f2b50f54d101ef",
+                    "download_size": 70663,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/via_stitching_plugin-0.8.0.zip",
+                    "install_size": 102287,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "0.7.0",
                     "status": "stable",
                     "kicad_version": "9.0",
@@ -616,6 +672,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/test_point_descriptor_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.6.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "0ea5190cedcff1489657d516554d99015a6a49b0929a0333513625eecc5f91b8",
+                    "download_size": 72786,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/test_point_descriptor_plugin-0.6.0.zip",
+                    "install_size": 91238,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.5.1",
                     "status": "stable",
@@ -735,6 +805,20 @@
             },
             "versions": [
                 {
+                    "version": "0.6.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "69f09f7577d6ec2b7436b4af4aa339e9a07c7ee75d3663829618b6c73c2d822a",
+                    "download_size": 70407,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/trace_impedance_plugin-0.6.0.zip",
+                    "install_size": 100464,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "0.5.0",
                     "status": "stable",
                     "kicad_version": "9.0",
@@ -842,9 +926,9 @@
                     "version": "0.1.0",
                     "status": "stable",
                     "kicad_version": "10.0",
-                    "download_sha256": "5050c485fa20f586ff7b4c90fe796df1d54fd1db17982060029b2c0cef1a20d6",
+                    "download_sha256": "19f5dbb06bbc565be430601b633bba0b1483dab5ce345daf3531de08db54059c",
                     "download_size": 80952,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/kilo_plugin-0.1.0.zip",
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/kilo_plugin-0.1.0.zip",
                     "install_size": 207796,
                     "platforms": [
                         "windows",
@@ -872,6 +956,21 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/portable_assets_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.2.1",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "838d0ab664b8a2e9fbcd8c1a8924e61276f261ed52361d51c6c59d2b57f3dede",
+                    "download_size": 79482,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/portable_assets_plugin-0.2.1.zip",
+                    "install_size": 143242,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.2.0",
                     "status": "testing",
@@ -907,6 +1006,21 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/variant_workbench_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.5.1",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "4abd8f1b51999915ad93bbfe543a7d9cfe73e687ad59c43d896ab8e326298364",
+                    "download_size": 126552,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/variant_workbench_plugin-0.5.1.zip",
+                    "install_size": 330449,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.5.0",
                     "status": "testing",

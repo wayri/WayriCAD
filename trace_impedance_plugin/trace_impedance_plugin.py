@@ -22,7 +22,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.description = "Measure routed net geometry and estimate RLC, impedance, vias, layers, and zones."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.5.0"
+        self.version = "0.6.0"
 
     def Run(self) -> None:
         try:
@@ -36,7 +36,8 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
 
 class TraceFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Trace RLC / Impedance Analyzer", size=(1120, 840), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="KiWay Trace RLC / Impedance Analyzer", size=(1180, 760), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        self.SetMinSize((940, 650))
         self.board = board
         self.engine = TraceMeasurementEngine(board)
         self.current: Optional[PathMeasurement] = None
@@ -53,7 +54,11 @@ class TraceFrame(wx.Frame):
     def _build_ui(self) -> None:
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
         self.workflow = add_workflow(panel, root, "Trace RLC / Impedance Analyzer", "Choose a route and stackup context, preview measured geometry, then export the engineering estimate.", ("Configure path", "Review result", "Export"))
-        config = wx.FlexGridSizer(0, 2, 6, 8)
+        config_box = wx.BoxSizer(wx.VERTICAL)
+        config_heading = wx.StaticText(panel, label="Measurement Path")
+        config_heading.SetFont(config_heading.GetFont().Bold())
+        config_box.Add(config_heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        config = wx.FlexGridSizer(0, 4, 6, 8)
         self.net = wx.ComboBox(panel, style=wx.CB_READONLY)
         self.start = wx.ComboBox(panel, style=wx.CB_READONLY)
         self.end = wx.ComboBox(panel, style=wx.CB_READONLY)
@@ -64,7 +69,10 @@ class TraceFrame(wx.Frame):
         self.auto_refresh.SetValue(True)
         for label, control in (("Net:", self.net), ("Start pad:", self.start), ("End pad:", self.end), ("Differential mate (optional):", self.diff_net), ("Frequency (MHz):", self.frequency), ("Reference layer:", self.reference)):
             config.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL); config.Add(control, 1, wx.EXPAND)
-        config.AddGrowableCol(1, 1); root.Add(config, 0, wx.EXPAND | wx.ALL, 10)
+        config.AddGrowableCol(1, 1)
+        config.AddGrowableCol(3, 1)
+        config_box.Add(config, 0, wx.EXPAND | wx.ALL, 8)
+        root.Add(config_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
         self.net.Bind(wx.EVT_COMBOBOX, self._load_pads)
         self.measure_button = wx.Button(panel, label="Analyze Path")
         self.measure_button.Bind(wx.EVT_BUTTON, self.analyze)
@@ -74,29 +82,39 @@ class TraceFrame(wx.Frame):
         select.Bind(wx.EVT_BUTTON, self.select_net)
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
-        row = wx.BoxSizer(wx.HORIZONTAL); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(select, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
+        row = wx.WrapSizer(wx.HORIZONTAL); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(select, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(help_btn, 0, wx.ALL, 5)
         refresh_stackup = wx.Button(panel, label="Refresh Stackup")
         refresh_stackup.Bind(wx.EVT_BUTTON, self._load_stackup)
         row.Add(refresh_stackup, 0, wx.ALL, 5)
         row.Add(self.auto_refresh, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        self.measure_button.SetDefault()
         root.Add(row, 0, wx.ALIGN_RIGHT)
         self.summary = wx.StaticText(panel, label="Select a net and optional start/end pads.")
         root.Add(self.summary, 0, wx.EXPAND | wx.ALL, 8)
-        stackup_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Detected Board Stackup"), wx.VERTICAL)
-        self.stackup_list = wx.ListCtrl(stackup_box.GetStaticBox(), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.stackup_list.SetMinSize((-1, 150))
+        notebook = wx.Notebook(panel)
+        result_page = wx.Panel(notebook)
+        result_sizer = wx.BoxSizer(wx.VERTICAL)
+        stackup_page = wx.Panel(notebook)
+        stackup_sizer = wx.BoxSizer(wx.VERTICAL)
+        notes_page = wx.Panel(notebook)
+        notes_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.stackup_list = wx.ListCtrl(stackup_page, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, label in enumerate(("Layer", "Type", "Copper mm", "Dielectric mm", "Er", "Material")):
             self.stackup_list.InsertColumn(index, label, width=150 if index in (0, 5) else 105)
-        stackup_box.Add(self.stackup_list, 1, wx.EXPAND | wx.ALL, 3)
-        root.Add(stackup_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
-        self.table = wx.ListCtrl(panel, style=wx.LC_REPORT)
-        self.table.SetMinSize((-1, 190))
+        stackup_sizer.Add(self.stackup_list, 1, wx.EXPAND | wx.ALL, 6)
+        stackup_page.SetSizer(stackup_sizer)
+        self.table = wx.ListCtrl(result_page, style=wx.LC_REPORT)
         for index, label in enumerate(("Metric", "Value")):
             self.table.InsertColumn(index, label, width=260 if index == 0 else 620)
-        root.Add(self.table, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
-        self.notes = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
-        self.notes.SetMinSize((-1, 100))
-        root.Add(self.notes, 1, wx.EXPAND | wx.ALL, 8)
+        result_sizer.Add(self.table, 1, wx.EXPAND | wx.ALL, 6)
+        result_page.SetSizer(result_sizer)
+        self.notes = wx.TextCtrl(notes_page, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
+        notes_sizer.Add(self.notes, 1, wx.EXPAND | wx.ALL, 6)
+        notes_page.SetSizer(notes_sizer)
+        notebook.AddPage(result_page, "Results")
+        notebook.AddPage(stackup_page, "Board Stackup")
+        notebook.AddPage(notes_page, "Engineering Notes")
+        root.Add(notebook, 1, wx.EXPAND | wx.ALL, 8)
         panel.SetSizer(root)
         self.workflow.set_step(0, "Select a net, endpoints, frequency, and reference layer; then Analyze Path.")
 

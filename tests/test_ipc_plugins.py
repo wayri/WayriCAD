@@ -24,8 +24,8 @@ from variant_workbench_plugin.kicad_variant_manager import (
 
 ROOT = Path(__file__).resolve().parents[1]
 IPC_PACKAGES = (
-    ("portable_assets_plugin", "kiway-portable-assets", "0.2.0"),
-    ("variant_workbench_plugin", "kiway-variant-workbench", "0.5.0"),
+    ("portable_assets_plugin", "kiway-portable-assets", "0.2.1"),
+    ("variant_workbench_plugin", "kiway-variant-workbench", "0.5.1"),
 )
 
 
@@ -55,6 +55,8 @@ class IpcPluginTests(unittest.TestCase):
 
     def test_portable_assets_defaults_to_offline_and_hashes_inputs(self) -> None:
         self.assertFalse(PortableOptions().allow_network)
+        requirements = (ROOT / "portable_assets_plugin" / "requirements.txt").read_text(encoding="utf-8")
+        self.assertNotIn("wxPython", requirements)
         with tempfile.TemporaryDirectory() as raw_dir:
             root = Path(raw_dir)
             (root / "demo.kicad_pro").write_text("{}", encoding="utf-8")
@@ -64,6 +66,12 @@ class IpcPluginTests(unittest.TestCase):
             before = project_signature(context)
             board.write_text("(kicad_pcb (version 1))", encoding="utf-8")
             self.assertNotEqual(before, project_signature(context))
+
+    def test_variant_launcher_requires_a_tk_capable_gui_interpreter(self) -> None:
+        source = (ROOT / "variant_workbench_plugin" / "variant_manager_plugin.py").read_text(encoding="utf-8")
+        self.assertIn("KIWAY_VARIANT_PYTHON", source)
+        self.assertIn("import tkinter", source)
+        self.assertIn("_tk_python()", source)
 
     def test_variant_workbench_refuses_active_project_lock(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:

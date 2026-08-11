@@ -4,7 +4,7 @@ KiWay is a focused parent repository for KiCad ActionPlugins and KiCad 10 IPC pl
 
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.15.0)
+### 1. KiWay Extract Pins (v2.16.0)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -25,7 +25,7 @@ A comprehensive interface documentation and test engineering tool.
 - **Visual Preview**: Explore pan/zoom system maps, signal topologies, and directed power-flow diagrams with unique component cards and color-coded net buses
 - **Focused Tasks**: Use the simple Pin Extractor for board work and the separate Interboard & Harness entry for system ICD work
 
-### 2. KiWay Bulk Label Editor (v0.6.0)
+### 2. KiWay Bulk Label Editor (v0.7.0)
 
 A preview-and-apply editor for repeated channel labels and component text.
 
@@ -33,15 +33,15 @@ A preview-and-apply editor for repeated channel labels and component text.
 - Regex replacement for advanced renaming
 - Scoped edits for footprint references, values, custom fields, and PCB text
 
-### 3. KiWay Fanout Generator (v0.7.0)
+### 3. KiWay Fanout Generator (v0.8.0)
 
 Creates dogbone, BGA/LGA grid, quadrant, four-corner, perimeter, radial, and via-in-pad escapes. Scope generation to selected pads, selected footprints, reference wildcards, or all SMD pads; use the live KiCad-like preview before committing a persistent native PCB group.
 
-### 4. KiWay Via Stitching (v0.7.0)
+### 4. KiWay Via Stitching (v0.8.0)
 
 Creates a configurable stitching grid inside the board outline or the current PCB selection. It can require filled copper on the selected target net and reports candidates rejected by footprint, other-net copper, track/via, keepout, and drawing exclusions before committing a persistent PCB group.
 
-### 5. KiWay Test Point Descriptor Extractor (v0.5.1)
+### 5. KiWay Test Point Descriptor Extractor (v0.6.0)
 
 Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board source/destination labels, and TM/TC classification to CSV, Markdown, or HTML.
 
@@ -51,7 +51,7 @@ Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board sour
 - Includes TP reference, value, footprint, pad, net, descriptor, signal, board endpoints, and notes
 - Exports documentation directly from the open PCB
 
-### 6. KiWay Trace RLC / Impedance Analyzer (v0.5.0)
+### 6. KiWay Trace RLC / Impedance Analyzer (v0.6.0)
 
 Measures routed net geometry between selected start/end pads and reports first-order resistance, capacitance, inductance, impedance, layer changes, vias, and same-net copper zones. The result identifies the selected reference layer, dielectric separation, permittivity, and complete parsed stackup used by the estimate.
 
@@ -67,7 +67,7 @@ Packages reusable KiCad design blocks with their footprint and 3D-model dependen
 - Native KiCad 10 Action Plugin interface with built-in help
 - Reads legacy KiCad BlockPack packages and project state while writing new Kilo formats
 
-### 8. KiWay Portable Assets (v0.2.0)
+### 8. KiWay Portable Assets (v0.2.1)
 
 Makes a KiCad project self-contained by snapshotting placed footprints, localizing cached symbols, embedding resolvable 3D models, and repairing missing footprint links from PCB geometry.
 
@@ -77,7 +77,7 @@ Makes a KiCad project self-contained by snapshotting placed footprints, localizi
 - Uses explicit confirmation, S-expression validation, backups, atomic replacement, and unresolved-asset reporting
 - Provides an optional native Embedded Files recovery vault
 
-### 9. KiWay Design Variant Workbench (v0.5.0)
+### 9. KiWay Design Variant Workbench (v0.5.1)
 
 Provides semantic variant rebasing, matrix editing, comparison, linting, PCB synchronization auditing, guarded substitutions, lifecycle management, and manufacturing-release generation.
 

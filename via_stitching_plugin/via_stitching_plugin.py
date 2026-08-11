@@ -21,7 +21,7 @@ class ViaStitchingPlugin(pcbnew.ActionPlugin):
         self.description = "Generate a configurable ground-via stitching grid."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.7.0"
+        self.version = "0.8.0"
 
     def Run(self) -> None:
         try:
@@ -42,7 +42,8 @@ class ViaStitchingPlugin(pcbnew.ActionPlugin):
 
 class ViaFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Via Stitching", size=(920, 850), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="KiWay Via Stitching", size=(1180, 780), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        self.SetMinSize((960, 680))
         self.board = board
         self.preview_plan: List[Any] = []
         self.preview_items: List[Any] = []
@@ -69,12 +70,22 @@ class ViaFrame(wx.Frame):
             "Review accepted via positions in this window first, show them temporarily on the PCB second, then commit.",
             ("Configure", "Window preview", "PCB preview", "Commit"),
         )
+        workspace = wx.BoxSizer(wx.HORIZONTAL)
+        settings_box = wx.BoxSizer(wx.VERTICAL)
+        settings_heading = wx.StaticText(panel, label="Stitch Settings")
+        settings_heading.SetFont(settings_heading.GetFont().Bold())
+        settings_box.Add(settings_heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        preview_box = wx.BoxSizer(wx.VERTICAL)
+        preview_heading = wx.StaticText(panel, label="Candidate Preview")
+        preview_heading.SetFont(preview_heading.GetFont().Bold())
+        preview_box.Add(preview_heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
         grid = wx.FlexGridSizer(0, 2, 6, 8)
         self.spacing = wx.TextCtrl(panel, value="2.50")
         self.edge = wx.TextCtrl(panel, value="1.00")
         self.drill = wx.TextCtrl(panel, value="0.30")
         self.diameter = wx.TextCtrl(panel, value="0.60")
         self.net_choice = wx.ComboBox(panel, style=wx.CB_READONLY)
+        self.net_choice.SetMinSize((250, -1))
         self.advanced = wx.CollapsiblePane(panel, label="Area and exclusion settings")
         advanced_panel = self.advanced.GetPane()
         advanced_root = wx.BoxSizer(wx.VERTICAL)
@@ -89,16 +100,17 @@ class ViaFrame(wx.Frame):
             grid.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
             grid.Add(control, 1, wx.EXPAND)
         grid.AddGrowableCol(1, 1)
-        root.Add(grid, 0, wx.EXPAND | wx.ALL, 10)
+        settings_box.Add(grid, 0, wx.EXPAND | wx.ALL, 8)
         advanced_root.Add(self.universal, 0, wx.LEFT | wx.RIGHT, 8)
-        bounds = wx.BoxSizer(wx.HORIZONTAL)
+        bounds = wx.FlexGridSizer(0, 2, 5, 6)
         for label, control in (("X min mm", self.x_min), ("Y min mm", self.y_min), ("X max mm", self.x_max), ("Y max mm", self.y_max)):
-            bounds.Add(wx.StaticText(advanced_panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 6)
-            bounds.Add(control, 1, wx.ALL, 3)
+            bounds.Add(wx.StaticText(advanced_panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
+            bounds.Add(control, 1, wx.EXPAND)
+        bounds.AddGrowableCol(1, 1)
         select_bounds = wx.Button(advanced_panel, label="Use PCB Selection Bounds")
         select_bounds.Bind(wx.EVT_BUTTON, self.use_selection_bounds)
-        bounds.Add(select_bounds, 0, wx.ALL, 3)
-        advanced_root.Add(bounds, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
+        advanced_root.Add(bounds, 0, wx.EXPAND | wx.ALL, 8)
+        advanced_root.Add(select_bounds, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         skip_row = wx.BoxSizer(wx.HORIZONTAL)
         skip_row.Add(wx.StaticText(advanced_panel, label="Skip refs:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
         skip_row.Add(self.skip_refs, 1, wx.EXPAND)
@@ -111,27 +123,30 @@ class ViaFrame(wx.Frame):
         self.require_target_zone.SetValue(True)
         self.auto_refresh = wx.CheckBox(advanced_panel, label="Auto-refresh from PCB selection")
         self.auto_refresh.SetValue(True)
-        exclusion_row = wx.BoxSizer(wx.HORIZONTAL)
+        exclusion_row = wx.WrapSizer(wx.HORIZONTAL)
         for checkbox in (self.skip_parts, self.skip_tracks, self.skip_zones, self.skip_keepouts):
             checkbox.SetValue(True)
             exclusion_row.Add(checkbox, 0, wx.RIGHT, 10)
         advanced_root.Add(exclusion_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
-        behavior_row = wx.BoxSizer(wx.HORIZONTAL)
+        behavior_row = wx.WrapSizer(wx.HORIZONTAL)
         behavior_row.Add(self.require_target_zone, 0, wx.RIGHT, 18)
         behavior_row.Add(self.auto_refresh, 0)
         advanced_root.Add(behavior_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         advanced_panel.SetSizer(advanced_root)
-        root.Add(self.advanced, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        settings_box.Add(self.advanced, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.geometry_preview = GeometryPreview(panel, "Configure settings, then click Preview in Window.")
-        root.Add(self.geometry_preview, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        preview_box.Add(self.geometry_preview, 0, wx.EXPAND | wx.ALL, 6)
         self.preview_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        for index, (label, width) in enumerate((("#", 55), ("Net", 220), ("X (mm)", 110), ("Y (mm)", 110), ("Result", 150))):
+        for index, (label, width) in enumerate((("#", 45), ("Net", 150), ("X (mm)", 90), ("Y (mm)", 90), ("Result", 160))):
             self.preview_list.InsertColumn(index, label, width=width)
         self.preview_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_preview_row_activated)
-        root.Add(self.preview_list, 1, wx.EXPAND | wx.ALL, 10)
+        preview_box.Add(self.preview_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+        workspace.Add(settings_box, 0, wx.EXPAND | wx.RIGHT, 8)
+        workspace.Add(preview_box, 1, wx.EXPAND)
+        root.Add(workspace, 1, wx.EXPAND | wx.ALL, 10)
         self.status = wx.StaticText(panel, label="No preview yet.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        row = wx.BoxSizer(wx.HORIZONTAL)
+        row = wx.WrapSizer(wx.HORIZONTAL)
         actions = (
             ("Preview in Window", self.preview),
             ("Show on PCB", self.show_on_pcb),
@@ -160,6 +175,8 @@ class ViaFrame(wx.Frame):
                 self.redo_button = button
                 button.Enable(False)
                 button.SetToolTip("Restore every via removed by Undo Last Commit.")
+            elif text == "Preview in Window":
+                button.SetDefault()
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
         row.Add(help_btn, 0, wx.ALL, 5)

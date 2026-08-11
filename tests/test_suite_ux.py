@@ -66,6 +66,9 @@ class SuiteUxTests(unittest.TestCase):
                 self.assertIn("Redo Last Commit", source)
                 self.assertIn("PCB_GROUP", source)
                 self.assertIn("_persistent_groups", source)
+                self.assertIn("wx.WrapSizer", source)
+                self.assertIn("settings_box", source)
+                self.assertIn("preview_box", source)
 
                 preview_body = source.split("    def preview(", 1)[1].split("    def show_on_pcb(", 1)[0]
                 self.assertNotIn("self.board.Add(", preview_body)
@@ -103,7 +106,7 @@ class SuiteUxTests(unittest.TestCase):
         self.assertIn("resolve_connected_ics", tp)
 
         rlc = (ROOT / "trace_impedance_plugin" / "trace_impedance_plugin.py").read_text(encoding="utf-8")
-        for capability in ("Auto-refresh from PCB selection", "Reference Layer Used", "SetMinSize", "on_selection_timer"):
+        for capability in ("Auto-refresh from PCB selection", "Reference Layer Used", "SetMinSize", "on_selection_timer", "Board Stackup", "Engineering Notes", "wx.Notebook"):
             target = rlc + (ROOT / "trace_impedance_plugin" / "measurement.py").read_text(encoding="utf-8")
             self.assertIn(capability, target)
 

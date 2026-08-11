@@ -41,7 +41,7 @@ class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
         self.description = "Generate conservative radial fanout tracks from SMD pads."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.7.0"
+        self.version = "0.8.0"
 
     def Run(self) -> None:
         try:
@@ -62,7 +62,8 @@ class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
 
 class FanoutFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Fanout Generator", size=(860, 820), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="KiWay Fanout Generator", size=(1180, 780), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        self.SetMinSize((960, 680))
         self.board = board
         self.preview_plan: List[FanoutPlan] = []
         self.preview_items: List[Any] = []
@@ -89,10 +90,20 @@ class FanoutFrame(wx.Frame):
             "Review geometry in this window first, show it temporarily on the PCB second, then commit the exact preview.",
             ("Configure", "Window preview", "PCB preview", "Commit"),
         )
+        workspace = wx.BoxSizer(wx.HORIZONTAL)
+        settings_box = wx.BoxSizer(wx.VERTICAL)
+        settings_heading = wx.StaticText(panel, label="Fanout Settings")
+        settings_heading.SetFont(settings_heading.GetFont().Bold())
+        settings_box.Add(settings_heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        preview_box = wx.BoxSizer(wx.VERTICAL)
+        preview_heading = wx.StaticText(panel, label="Geometry Preview")
+        preview_heading.SetFont(preview_heading.GetFont().Bold())
+        preview_box.Add(preview_heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
         grid = wx.FlexGridSizer(0, 2, 6, 8)
         self.ref = wx.TextCtrl(panel, value="")
         self.scope = wx.ComboBox(panel, choices=["Selected pads", "Selected footprints", "Reference wildcard", "All SMD pads"], style=wx.CB_READONLY)
         self.scope.SetSelection(1)
+        self.scope.SetMinSize((250, -1))
         self.width = wx.TextCtrl(panel, value="0.20")
         self.length = wx.TextCtrl(panel, value="1.50")
         self.pattern = wx.ComboBox(panel, choices=[
@@ -110,25 +121,28 @@ class FanoutFrame(wx.Frame):
             grid.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
             grid.Add(control, 1, wx.EXPAND)
         grid.AddGrowableCol(1, 1)
-        root.Add(grid, 0, wx.EXPAND | wx.ALL, 10)
-        options = wx.BoxSizer(wx.HORIZONTAL)
+        settings_box.Add(grid, 0, wx.EXPAND | wx.ALL, 8)
+        options = wx.WrapSizer(wx.HORIZONTAL)
         options.Add(self.add_vias, 0, wx.RIGHT, 16)
         self.auto_refresh = wx.CheckBox(panel, label="Auto-refresh from PCB selection")
         self.auto_refresh.SetValue(True)
         options.Add(self.auto_refresh, 0, wx.RIGHT, 16)
         self.selection_status = wx.StaticText(panel, label="PCB selection: none")
-        options.Add(self.selection_status, 1, wx.ALIGN_CENTER_VERTICAL)
-        root.Add(options, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        options.Add(self.selection_status, 0, wx.ALIGN_CENTER_VERTICAL)
+        settings_box.Add(options, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.geometry_preview = GeometryPreview(panel, "Configure settings, then click Preview in Window.")
-        root.Add(self.geometry_preview, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
+        preview_box.Add(self.geometry_preview, 0, wx.EXPAND | wx.ALL, 6)
         self.preview_list = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (label, width) in enumerate((("Footprint", 110), ("Pad", 80), ("Net", 220), ("Layer", 100), ("Result", 140))):
             self.preview_list.InsertColumn(index, label, width=width)
         self.preview_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_preview_row_activated)
-        root.Add(self.preview_list, 1, wx.EXPAND | wx.ALL, 10)
+        preview_box.Add(self.preview_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+        workspace.Add(settings_box, 0, wx.EXPAND | wx.RIGHT, 8)
+        workspace.Add(preview_box, 1, wx.EXPAND)
+        root.Add(workspace, 1, wx.EXPAND | wx.ALL, 10)
         self.status = wx.StaticText(panel, label="No preview yet.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        row = wx.BoxSizer(wx.HORIZONTAL)
+        row = wx.WrapSizer(wx.HORIZONTAL)
         actions = (
             ("Preview in Window", self.preview),
             ("Show on PCB", self.show_on_pcb),
@@ -157,6 +171,8 @@ class FanoutFrame(wx.Frame):
                 self.redo_button = button
                 button.Enable(False)
                 button.SetToolTip("Restore every item removed by Undo Last Commit.")
+            elif text == "Preview in Window":
+                button.SetDefault()
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
         row.Add(help_btn, 0, wx.ALL, 5)

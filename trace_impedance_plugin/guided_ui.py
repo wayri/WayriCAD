@@ -16,25 +16,33 @@ class WorkflowGuide:
         heading = wx.StaticText(self.panel, label=title)
         heading.SetFont(heading.GetFont().Bold().Larger())
         root.Add(heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
-        subtitle = wx.StaticText(self.panel, label=summary)
-        subtitle.Wrap(760)
-        root.Add(subtitle, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        self.subtitle = wx.StaticText(self.panel, label=summary)
+        self.subtitle.Wrap(760)
+        root.Add(self.subtitle, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
 
-        row = wx.BoxSizer(wx.HORIZONTAL)
+        row = wx.WrapSizer(wx.HORIZONTAL)
         self.labels = []
         for index, step in enumerate(steps, 1):
-            label = wx.StaticText(self.panel, label=f" {index}  {step} ", style=wx.ALIGN_CENTER)
-            label.SetMinSize((120, 30))
+            label = wx.StaticText(self.panel, label=f" {index}  {step} ", style=wx.ALIGN_CENTER | wx.BORDER_SIMPLE)
+            label.SetMinSize((108, 30))
             row.Add(label, 0, wx.RIGHT, 6)
             self.labels.append(label)
-        row.AddStretchSpacer(1)
         root.Add(row, 0, wx.EXPAND | wx.ALL, 8)
 
         self.next_action = wx.StaticText(self.panel, label="")
         self.next_action.Wrap(760)
         root.Add(self.next_action, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        root.Add(wx.StaticLine(self.panel), 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         self.panel.SetSizer(root)
+        self.panel.Bind(wx.EVT_SIZE, self._on_size)
         self.set_step(0, "Review the settings, then use the primary action below.")
+
+    def _on_size(self, event: wx.SizeEvent) -> None:
+        width = max(420, event.GetSize().width - 32)
+        self.subtitle.Wrap(width)
+        self.next_action.Wrap(width)
+        self.panel.Layout()
+        event.Skip()
 
     def set_step(self, active: int, next_action: str) -> None:
         for index, label in enumerate(self.labels):

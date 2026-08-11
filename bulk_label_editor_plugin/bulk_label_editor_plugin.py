@@ -34,7 +34,7 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
         self.description = "Bulk rename labels, PCB text, footprint references, values, and fields using wildcard or regex rules."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.6.0"
+        self.version = "0.7.0"
 
     def Run(self) -> None:
         try:
@@ -57,7 +57,8 @@ class BulkLabelEditorFrame(wx.Frame):
     """Preview-and-apply editor for common pcbnew text-bearing objects."""
 
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Bulk Label Editor", size=(900, 680), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="KiWay Bulk Label Editor", size=(1080, 720), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        self.SetMinSize((860, 600))
         self.board = board
         self.items: List[EditableItem] = []
         self.matches: List[EditableItem] = []
@@ -88,7 +89,7 @@ class BulkLabelEditorFrame(wx.Frame):
         row1.Add(self.replacement_text, 1, wx.EXPAND | wx.ALL, 4)
         options.Add(row1, 0, wx.EXPAND)
 
-        row2 = wx.BoxSizer(wx.HORIZONTAL)
+        row2 = wx.WrapSizer(wx.HORIZONTAL)
         self.use_regex = wx.CheckBox(panel, label="Regex")
         self.case_sensitive = wx.CheckBox(panel, label="Case sensitive")
         self.edit_refs = wx.CheckBox(panel, label="References")
@@ -102,9 +103,10 @@ class BulkLabelEditorFrame(wx.Frame):
             row2.Add(control, 0, wx.ALL, 4)
         options.Add(row2, 0, wx.EXPAND)
 
-        row3 = wx.BoxSizer(wx.HORIZONTAL)
+        row3 = wx.WrapSizer(wx.HORIZONTAL)
         preview_btn = wx.Button(panel, label="Preview Changes")
         preview_btn.Bind(wx.EVT_BUTTON, self.on_preview)
+        preview_btn.SetDefault()
         apply_btn = wx.Button(panel, label="Apply Preview")
         apply_btn.Bind(wx.EVT_BUTTON, self.on_apply)
         self.undo_button = wx.Button(panel, label="Undo Last Apply")
