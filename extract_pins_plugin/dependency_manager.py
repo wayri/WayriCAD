@@ -37,13 +37,13 @@ DEPENDENCIES: tuple[DependencySpec, ...] = (
 
 SUITE_PACKAGES: tuple[tuple[str, str], ...] = (
     ("bulk_label_editor_plugin", "Bulk Label Editor"),
-    ("connector_icd_plugin", "Connector ICD Builder"),
     ("extract_pins_plugin", "Extract Pins and Build ICD"),
     ("fanout_generator_plugin", "Fanout Generator"),
-    ("net_hygiene_plugin", "Net Hygiene"),
-    ("test_coverage_plugin", "Test Coverage Planner"),
+    ("kilo_plugin", "Kilo Localizer"),
+    ("portable_assets_plugin", "Portable Assets"),
     ("test_point_descriptor_plugin", "Test Point Descriptor"),
     ("trace_impedance_plugin", "Trace RLC / Impedance"),
+    ("variant_workbench_plugin", "Design Variant Workbench"),
     ("via_stitching_plugin", "Via Stitching"),
 )
 

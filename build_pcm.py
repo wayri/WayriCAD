@@ -12,7 +12,7 @@ RELEASES_DIR = "releases"
 REPO_URL_BASE = "https://github.com/wayri/KiWay/releases/download" 
 # All package versions in a feed may differ, but this repository publishes
 # their downloadable assets together in one release.
-RELEASE_TAG = "2.18.0"
+RELEASE_TAG = "2.19.0"
 
 def calculate_sha256(file_path):
     sha256_hash = hashlib.sha256()
@@ -89,10 +89,21 @@ def main():
         except Exception:
             pass
 
-    packages_list = packages_data['packages']
+    plugin_paths = discover_plugins(base_path)
+    active_identifiers = set()
+    for plugin_path in plugin_paths:
+        with open(plugin_path / "metadata.json", "r", encoding="utf-8") as f:
+            active_identifiers.add(json.load(f)["identifier"])
+
+    # The filesystem is authoritative. Removed packages must disappear from
+    # the feed instead of lingering indefinitely from an older build.
+    packages_list = [
+        package for package in packages_data['packages']
+        if package.get('identifier') in active_identifiers
+    ]
     existing_by_id = {pkg.get('identifier'): pkg for pkg in packages_list}
 
-    for plugin_path in discover_plugins(base_path):
+    for plugin_path in plugin_paths:
         with open(plugin_path / "metadata.json", "r", encoding='utf-8') as f:
             metadata = json.load(f)
 

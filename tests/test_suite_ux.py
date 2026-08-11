@@ -8,13 +8,10 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = (
+GUIDED_PACKAGES = (
     "bulk_label_editor_plugin",
-    "connector_icd_plugin",
     "extract_pins_plugin",
     "fanout_generator_plugin",
-    "net_hygiene_plugin",
-    "test_coverage_plugin",
     "test_point_descriptor_plugin",
     "trace_impedance_plugin",
     "via_stitching_plugin",
@@ -23,7 +20,7 @@ PACKAGES = (
 
 class SuiteUxTests(unittest.TestCase):
     def test_every_plugin_embeds_an_annotated_help_visual(self) -> None:
-        for package in PACKAGES:
+        for package in GUIDED_PACKAGES:
             with self.subTest(package=package):
                 help_text = (ROOT / package / "help.html").read_text(encoding="utf-8")
                 self.assertIn('src="help-workflow.png"', help_text)
@@ -35,7 +32,7 @@ class SuiteUxTests(unittest.TestCase):
     def test_guided_workflow_component_is_identical_in_standalone_packages(self) -> None:
         hashes = {
             hashlib.sha256((ROOT / package / "guided_ui.py").read_bytes()).hexdigest()
-            for package in PACKAGES
+            for package in GUIDED_PACKAGES
         }
         self.assertEqual(1, len(hashes))
 
@@ -94,7 +91,7 @@ class SuiteUxTests(unittest.TestCase):
         self.assertNotIn("self.board.GetSelection()", stitching)
 
     def test_kicad10_selection_adapter_and_analysis_crosslinks(self) -> None:
-        for package in PACKAGES:
+        for package in GUIDED_PACKAGES:
             source = (ROOT / package / "selection_utils.py").read_text(encoding="utf-8")
             self.assertIn("ClearSelected", source)
             self.assertIn("setter()", source)

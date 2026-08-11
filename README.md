@@ -1,6 +1,6 @@
 # KiWay Plugins for KiCad
 
-KiWay is a parent repository for KiCad ActionPlugins that can be added to KiCad's Plugin and Content Manager (PCM). Each plugin lives in its own package directory and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
+KiWay is a focused parent repository for KiCad ActionPlugins and KiCad 10 IPC plugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
 
 ## List of Plugins
 
@@ -41,19 +41,7 @@ Creates dogbone, BGA/LGA grid, quadrant, four-corner, perimeter, radial, and via
 
 Creates a configurable stitching grid inside the board outline or the current PCB selection. It can require filled copper on the selected target net and reports candidates rejected by footprint, other-net copper, track/via, keepout, and drawing exclusions before committing a persistent PCB group.
 
-### 5. KiWay Connector ICD Builder (v0.4.1)
-
-Detects connector-like footprints and exports connector, part, pin, net, and pad-type tables to CSV for ICD and harness reviews.
-
-### 6. KiWay Net Hygiene (v0.4.1)
-
-Scans for unconnected pads, duplicate references, single-pad nets, and suspicious net names, then exports a review CSV.
-
-### 7. KiWay Test Coverage Planner (v0.4.1)
-
-Reports every board net with its TP/TestPoint coverage status, test-point references, and coverage count.
-
-### 8. KiWay Test Point Descriptor Extractor (v0.5.1)
+### 5. KiWay Test Point Descriptor Extractor (v0.5.1)
 
 Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board source/destination labels, and TM/TC classification to CSV, Markdown, or HTML.
 
@@ -63,13 +51,13 @@ Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board sour
 - Includes TP reference, value, footprint, pad, net, descriptor, signal, board endpoints, and notes
 - Exports documentation directly from the open PCB
 
-### 9. KiWay Trace RLC / Impedance Analyzer (v0.5.0)
+### 6. KiWay Trace RLC / Impedance Analyzer (v0.5.0)
 
 Measures routed net geometry between selected start/end pads and reports first-order resistance, capacitance, inductance, impedance, layer changes, vias, and same-net copper zones. The result identifies the selected reference layer, dielectric separation, permittivity, and complete parsed stackup used by the estimate.
 
 The analyzer is intended for design review and estimation. Critical high-speed interfaces still require field-solver, TDR, or laboratory validation.
 
-### 10. Kilo — KiCad Localizer (v0.1.0)
+### 7. Kilo - KiCad Localizer (v0.1.0)
 
 Packages reusable KiCad design blocks with their footprint and 3D-model dependencies, then installs them into other projects. Kilo can also localize an existing project into reversible project-local libraries.
 
@@ -78,6 +66,26 @@ Packages reusable KiCad design blocks with their footprint and 3D-model dependen
 - Dry-run previews, validation reports, transaction history, and restore points
 - Native KiCad 10 Action Plugin interface with built-in help
 - Reads legacy KiCad BlockPack packages and project state while writing new Kilo formats
+
+### 8. KiWay Portable Assets (v0.2.0)
+
+Makes a KiCad project self-contained by snapshotting placed footprints, localizing cached symbols, embedding resolvable 3D models, and repairing missing footprint links from PCB geometry.
+
+- Requires a fresh, unchanged analysis before every write
+- Disables network model retrieval by default
+- Refuses writes while KiCad project lock files are present
+- Uses explicit confirmation, S-expression validation, backups, atomic replacement, and unresolved-asset reporting
+- Provides an optional native Embedded Files recovery vault
+
+### 9. KiWay Design Variant Workbench (v0.5.0)
+
+Provides semantic variant rebasing, matrix editing, comparison, linting, PCB synchronization auditing, guarded substitutions, lifecycle management, and manufacturing-release generation.
+
+- Preserves the effective behavior of other variants when setting a new Default
+- Previews semantic and file changes before Apply
+- Rejects active KiCad lock files and stale source hashes
+- Creates all backups before the first write and attempts rollback on failure
+- Launches as a detached KiCad 10 IPC workbench so editors can be closed before file changes
 
 ## PCB Editor Workflow
 
@@ -106,7 +114,7 @@ Launch **KiWay Interboard & Harness** separately for netlist directories, sheet 
 7. Select **KiWay Plugin Repository** in the repository dropdown.
 8. Select a plugin and click **Install**.
 9. Apply the pending changes if KiCad shows an **Apply Pending Changes** button.
-10. Restart the KiCad PCB Editor so the ActionPlugins are registered.
+10. Restart the KiCad PCB Editor. IPC plugin environments may take additional time to initialize on first launch.
 
 If the repository does not appear immediately, close and reopen the Plugin and Content Manager, or remove and re-add the repository URL to clear its cached feed.
 
@@ -117,11 +125,15 @@ The repository feed is also directly viewable here:
 ### Method 2: Manual Installation
 
 1. Download a release zip from the repository releases page.
-2. Extract the plugin folder into your KiCad third-party plugins directory:
+2. For ActionPlugins, extract the plugin folder into your KiCad scripting plugin directory:
    - Windows KiCad 10 scripting plugins: `%APPDATA%\kicad\10.0\scripting\plugins\`
    - Linux KiCad 10 scripting plugins: `~/.local/share/kicad/10.0/scripting/plugins/`
    - macOS KiCad 10 scripting plugins: `~/Library/Application Support/kicad/10.0/scripting/plugins/`
-3. Restart KiCad.
+3. For IPC plugins such as Portable Assets and Design Variant Workbench, extract the package into the KiCad IPC plugin directory:
+   - Windows KiCad 10: `%USERPROFILE%\Documents\KiCad\10.0\plugins\`
+   - Linux KiCad 10: `~/.local/share/KiCad/10.0/plugins/`
+   - macOS KiCad 10: `~/Documents/KiCad/10.0/plugins/`
+4. Restart KiCad.
 
 For an existing KiCad 10 Windows installation, the scripting plugin directory is usually:
 
@@ -218,7 +230,9 @@ deterministic automation diffs. Config files are JSON objects with optional
 - [Via Stitching Documentation](via_stitching_plugin/ReadMe.md)
 - [Test Point Descriptor Documentation](test_point_descriptor_plugin/ReadMe.md)
 - [Trace RLC / Impedance Documentation](trace_impedance_plugin/ReadMe.md)
-- [Kilo — KiCad Localizer Help](kilo_plugin/ReadMe.md)
+- [Kilo - KiCad Localizer Help](kilo_plugin/ReadMe.md)
+- [Portable Assets Documentation](portable_assets_plugin/README.md)
+- [Design Variant Workbench Documentation](variant_workbench_plugin/README.md)
 - [Contributing](CONTRIBUTING.md)
 - [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
 
