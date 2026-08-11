@@ -1,6 +1,6 @@
 # KiWay Plugins for KiCad
 
-KiWay is a focused parent repository for KiCad ActionPlugins and KiCad 10 IPC plugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
+KiWay is a focused parent repository for KiCad ActionPlugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
 
 ## List of Plugins
 
@@ -67,7 +67,7 @@ Packages reusable KiCad design blocks with their footprint and 3D-model dependen
 - Native KiCad 10 Action Plugin interface with built-in help
 - Reads legacy KiCad BlockPack packages and project state while writing new Kilo formats
 
-### 8. KiWay Portable Assets (v0.2.1)
+### 8. KiWay Portable Assets (v0.2.2)
 
 Makes a KiCad project self-contained by snapshotting placed footprints, localizing cached symbols, embedding resolvable 3D models, and repairing missing footprint links from PCB geometry.
 
@@ -77,7 +77,7 @@ Makes a KiCad project self-contained by snapshotting placed footprints, localizi
 - Uses explicit confirmation, S-expression validation, backups, atomic replacement, and unresolved-asset reporting
 - Provides an optional native Embedded Files recovery vault
 
-### 9. KiWay Design Variant Workbench (v0.5.1)
+### 9. KiWay Design Variant Workbench (v0.5.2)
 
 Provides semantic variant rebasing, matrix editing, comparison, linting, PCB synchronization auditing, guarded substitutions, lifecycle management, and manufacturing-release generation.
 
@@ -85,7 +85,7 @@ Provides semantic variant rebasing, matrix editing, comparison, linting, PCB syn
 - Previews semantic and file changes before Apply
 - Rejects active KiCad lock files and stale source hashes
 - Creates all backups before the first write and attempts rollback on failure
-- Launches as a detached KiCad 10 IPC workbench so editors can be closed before file changes
+- Launches as a detached workbench from a native PCB Editor ActionPlugin so editors can be closed before file changes
 
 ## PCB Editor Workflow
 
@@ -114,7 +114,7 @@ Launch **KiWay Interboard & Harness** separately for netlist directories, sheet 
 7. Select **KiWay Plugin Repository** in the repository dropdown.
 8. Select a plugin and click **Install**.
 9. Apply the pending changes if KiCad shows an **Apply Pending Changes** button.
-10. Restart the KiCad PCB Editor. IPC plugin environments may take additional time to initialize on first launch.
+10. Restart the KiCad PCB Editor.
 
 If the repository does not appear immediately, close and reopen the Plugin and Content Manager, or remove and re-add the repository URL to clear its cached feed.
 
@@ -129,10 +129,7 @@ The repository feed is also directly viewable here:
    - Windows KiCad 10 scripting plugins: `%APPDATA%\kicad\10.0\scripting\plugins\`
    - Linux KiCad 10 scripting plugins: `~/.local/share/kicad/10.0/scripting/plugins/`
    - macOS KiCad 10 scripting plugins: `~/Library/Application Support/kicad/10.0/scripting/plugins/`
-3. For IPC plugins such as Portable Assets and Design Variant Workbench, extract the package into the KiCad IPC plugin directory:
-   - Windows KiCad 10: `%USERPROFILE%\Documents\KiCad\10.0\plugins\`
-   - Linux KiCad 10: `~/.local/share/KiCad/10.0/plugins/`
-   - macOS KiCad 10: `~/Documents/KiCad/10.0/plugins/`
+3. Portable Assets and Design Variant Workbench use the same ActionPlugin directory and launch their workbenches as isolated GUI processes.
 4. Restart KiCad.
 
 For an existing KiCad 10 Windows installation, the scripting plugin directory is usually:

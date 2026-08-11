@@ -23,35 +23,33 @@ from variant_workbench_plugin.kicad_variant_manager import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-IPC_PACKAGES = (
-    ("portable_assets_plugin", "kiway-portable-assets", "0.2.1"),
-    ("variant_workbench_plugin", "kiway-variant-workbench", "0.5.1"),
+WORKBENCH_PACKAGES = (
+    ("portable_assets_plugin", "kiway-portable-assets", "0.2.2"),
+    ("variant_workbench_plugin", "kiway-variant-workbench", "0.5.2"),
 )
 
 
-class IpcPluginTests(unittest.TestCase):
-    def test_pcm_and_ipc_manifests_match(self) -> None:
-        for folder, identifier, version in IPC_PACKAGES:
+class WorkbenchPluginTests(unittest.TestCase):
+    def test_pcm_packages_have_visible_action_plugin_launchers(self) -> None:
+        for folder, identifier, version in WORKBENCH_PACKAGES:
             with self.subTest(folder=folder):
                 package = ROOT / folder
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
-                manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))
                 self.assertEqual(identifier, metadata["identifier"])
-                self.assertEqual(identifier, manifest["identifier"])
                 self.assertEqual(version, metadata["versions"][0]["version"])
-                self.assertEqual("ipc", metadata["versions"][0]["runtime"])
-                self.assertEqual("python", manifest["runtime"]["type"])
+                self.assertEqual("action-plugin", metadata["versions"][0]["runtime"])
+                self.assertTrue((package / "__init__.py").is_file())
+                launcher = (package / "legacy_action_plugin.py").read_text(encoding="utf-8")
+                self.assertIn("pcbnew.ActionPlugin", launcher)
+                self.assertIn("show_toolbar_button = True", launcher)
+                self.assertNotIn("KICAD_API_SOCKET", launcher)
                 self.assertTrue((package / "help.html").is_file())
                 with Image.open(package / "help-workflow.png") as image:
                     self.assertEqual((1200, 680), image.size)
 
-                action = manifest["actions"][0]
-                for theme in ("icons-light", "icons-dark"):
-                    sizes = []
-                    for icon_name in action[theme]:
-                        with Image.open(package / icon_name) as icon:
-                            sizes.append(icon.size)
-                    self.assertEqual([(32, 32), (64, 64)], sizes)
+                with Image.open(package / "icon.png") as icon:
+                    self.assertGreaterEqual(icon.width, 32)
+                    self.assertGreaterEqual(icon.height, 32)
 
     def test_portable_assets_defaults_to_offline_and_hashes_inputs(self) -> None:
         self.assertFalse(PortableOptions().allow_network)

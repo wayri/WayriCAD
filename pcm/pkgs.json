@@ -22,10 +22,10 @@
                     "version": "2.16.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "acfffa45ee9a1bf53522be0faaca1de2181ebdb6933e9672a5bae138491251e3",
-                    "download_size": 300173,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/extract_pins_plugin-2.16.0.zip",
-                    "install_size": 712792,
+                    "download_sha256": "b44322753c69f9e126b21be10432441a4b85dfda0b06e754e78129fea7e8ab1b",
+                    "download_size": 304658,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/extract_pins_plugin-2.16.0.zip",
+                    "install_size": 717647,
                     "platforms": [
                         "windows",
                         "linux",
@@ -294,10 +294,10 @@
                     "version": "0.7.0",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "cce43288d59b85f4f8a9c49c282e068dc362327ff707c70a307bf7402ec27111",
-                    "download_size": 58225,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/bulk_label_editor_plugin-0.7.0.zip",
-                    "install_size": 76113,
+                    "download_sha256": "377381e3eebd706726e3ac2bf7992c8c509bd3554fca710724bc64915a93cdb8",
+                    "download_size": 62111,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/bulk_label_editor_plugin-0.7.0.zip",
+                    "install_size": 80339,
                     "platforms": [
                         "windows",
                         "linux",
@@ -412,10 +412,10 @@
                     "version": "0.8.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "79089839dfe9eec7cfaacb1aa47eea5e7cbf09ca2988a488b97bb2df07072399",
-                    "download_size": 74110,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/fanout_generator_plugin-0.8.0.zip",
-                    "install_size": 102168,
+                    "download_sha256": "617807c76ab01270bdd247d73a447500f6a43528057f09385a1009ecdf0ff98c",
+                    "download_size": 82001,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/fanout_generator_plugin-0.8.0.zip",
+                    "install_size": 110480,
                     "platforms": [
                         "windows",
                         "linux",
@@ -544,10 +544,10 @@
                     "version": "0.8.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "1684dd22278adefd89b5c51c40de07557969bcd749c5d56992f2b50f54d101ef",
-                    "download_size": 70663,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/via_stitching_plugin-0.8.0.zip",
-                    "install_size": 102287,
+                    "download_sha256": "f8c7b67ae1edcb69d473794b3254a0c397b9894d17ced117a84d979633ae26cd",
+                    "download_size": 76825,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/via_stitching_plugin-0.8.0.zip",
+                    "install_size": 109062,
                     "platforms": [
                         "windows",
                         "linux",
@@ -676,10 +676,10 @@
                     "version": "0.6.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "0ea5190cedcff1489657d516554d99015a6a49b0929a0333513625eecc5f91b8",
-                    "download_size": 72786,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/test_point_descriptor_plugin-0.6.0.zip",
-                    "install_size": 91238,
+                    "download_sha256": "69c6f56f1de2115ada4f7ed587830db049273fbed397a5b04a7ea062bc0e8766",
+                    "download_size": 86594,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/test_point_descriptor_plugin-0.6.0.zip",
+                    "install_size": 105248,
                     "platforms": [
                         "windows",
                         "linux",
@@ -808,10 +808,10 @@
                     "version": "0.6.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "69f09f7577d6ec2b7436b4af4aa339e9a07c7ee75d3663829618b6c73c2d822a",
-                    "download_size": 70407,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/trace_impedance_plugin-0.6.0.zip",
-                    "install_size": 100464,
+                    "download_sha256": "dde4e5648a7e2508a29585674b8dc122bd1e3ac0d501922a41eb1afd6ffd879f",
+                    "download_size": 77766,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/trace_impedance_plugin-0.6.0.zip",
+                    "install_size": 108177,
                     "platforms": [
                         "windows",
                         "linux",
@@ -926,10 +926,10 @@
                     "version": "0.1.0",
                     "status": "stable",
                     "kicad_version": "10.0",
-                    "download_sha256": "19f5dbb06bbc565be430601b633bba0b1483dab5ce345daf3531de08db54059c",
-                    "download_size": 80952,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/kilo_plugin-0.1.0.zip",
-                    "install_size": 207796,
+                    "download_sha256": "d154824a64900ca9d53b7beefd7712a561f53e63d9702fc2fb0b007ff7a556f4",
+                    "download_size": 86986,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/kilo_plugin-0.1.0.zip",
+                    "install_size": 214080,
                     "platforms": [
                         "windows",
                         "linux",
@@ -941,7 +941,7 @@
         {
             "name": "KiWay Portable Assets",
             "description": "Make KiCad projects self-contained using reviewed footprint, symbol, and 3D-model snapshots.",
-            "description_full": "KiWay Portable Assets snapshots placed PCB footprints into a project-local library, relinks schematic symbols, embeds resolvable 3D models, creates an optional native Embedded Files recovery vault, and repairs missing footprint links from PCB geometry. A fresh unchanged analysis is required before each write. Network model retrieval is disabled by default. Lock-file checks, explicit confirmation, S-expression validation, timestamped backups, atomic replacement, and unresolved-model reporting protect project files.",
+            "description_full": "KiWay Portable Assets snapshots placed PCB footprints into a project-local library, relinks schematic symbols, embeds resolvable 3D models, creates an optional native Embedded Files recovery vault, and repairs missing footprint links from PCB geometry. A native PCB Editor ActionPlugin launches the workbench in an isolated GUI process and passes the active board path directly. A fresh unchanged analysis is required before each write. Network model retrieval is disabled by default. Lock-file checks, explicit confirmation, S-expression validation, timestamped backups, atomic replacement, and unresolved-model reporting protect project files.",
             "identifier": "kiway-portable-assets",
             "type": "plugin",
             "author": {
@@ -956,6 +956,21 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/portable_assets_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.2.2",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "action-plugin",
+                    "download_sha256": "d7be4b11faceb0e12067195cbb71dd3bb87938d9ea7b8a07e73b214d53eed99c",
+                    "download_size": 84935,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/portable_assets_plugin-0.2.2.zip",
+                    "install_size": 150326,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.2.1",
                     "status": "testing",
@@ -991,7 +1006,7 @@
         {
             "name": "KiWay Design Variant Workbench",
             "description": "Review, edit, validate, compare, audit, and release KiCad 10 design variants safely.",
-            "description_full": "KiWay Design Variant Workbench provides semantic Set Default/rebase operations, a variant matrix, comparison and lint tables, PCB synchronization audits, guarded part substitutions, lifecycle management, and manufacturing-release generation. Every design-file write requires a preview, rejects active KiCad lock files and stale input hashes, validates generated S-expressions, creates all backups before writing, uses atomic replacement, and attempts rollback on failure. The IPC launcher detaches the workbench so KiCad can be closed before Apply.",
+            "description_full": "KiWay Design Variant Workbench provides semantic Set Default/rebase operations, a variant matrix, comparison and lint tables, PCB synchronization audits, guarded part substitutions, lifecycle management, and manufacturing-release generation. A native PCB Editor ActionPlugin passes the active project to a detached workbench so KiCad can be closed before Apply. Every design-file write requires a preview, rejects active KiCad lock files and stale input hashes, validates generated S-expressions, creates all backups before writing, uses atomic replacement, and attempts rollback on failure.",
             "identifier": "kiway-variant-workbench",
             "type": "plugin",
             "author": {
@@ -1006,6 +1021,21 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/variant_workbench_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.5.2",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "action-plugin",
+                    "download_sha256": "ed0a46b4599f52ebf225936f898984064ee46d3242559c22bbd0bb2e26d6cf14",
+                    "download_size": 133186,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/variant_workbench_plugin-0.5.2.zip",
+                    "install_size": 338584,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.5.1",
                     "status": "testing",
