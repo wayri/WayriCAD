@@ -11,6 +11,7 @@ from PIL import Image
 from portable_assets_plugin.portable_assets.core.engine import (
     PortableOptions,
     ProjectContext,
+    Transaction,
     project_signature,
 )
 from variant_workbench_plugin.kicad_variant_manager import (
@@ -24,7 +25,7 @@ from variant_workbench_plugin.kicad_variant_manager import (
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKBENCH_PACKAGES = (
-    ("portable_assets_plugin", "kiway-portable-assets", "0.2.2"),
+    ("portable_assets_plugin", "kiway-portable-assets", "0.2.3"),
     ("variant_workbench_plugin", "kiway-variant-workbench", "0.5.2"),
 )
 
@@ -64,6 +65,19 @@ class WorkbenchPluginTests(unittest.TestCase):
             before = project_signature(context)
             board.write_text("(kicad_pcb (version 1))", encoding="utf-8")
             self.assertNotEqual(before, project_signature(context))
+
+    def test_portable_assets_creates_conventional_and_transaction_backups(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_dir:
+            root = Path(raw_dir)
+            (root / "demo.kicad_pro").write_text("{}", encoding="utf-8")
+            board = root / "demo.kicad_pcb"
+            board.write_text("(kicad_pcb)", encoding="utf-8")
+            context = ProjectContext.discover(root)
+            transaction = Transaction(context)
+            transaction.commit({board: b"(kicad_pcb (version 1))"})
+            self.assertTrue((transaction.backup_dir / "demo.kicad_pcb").is_file())
+            archives = list((root / "demo-backups").glob("demo-*.zip"))
+            self.assertEqual(1, len(archives))
 
     def test_variant_launcher_requires_a_tk_capable_gui_interpreter(self) -> None:
         source = (ROOT / "variant_workbench_plugin" / "variant_manager_plugin.py").read_text(encoding="utf-8")

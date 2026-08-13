@@ -19,6 +19,20 @@
             },
             "versions": [
                 {
+                    "version": "2.16.1",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "93e2dd62a345d93f82ed0b35e53f2be2b9846c7197b0bdd33e959efe4831f527",
+                    "download_size": 273949,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/extract_pins_plugin-2.16.1.zip",
+                    "install_size": 686931,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "2.16.0",
                     "status": "stable",
                     "kicad_version": "9.0",
@@ -291,6 +305,20 @@
             },
             "versions": [
                 {
+                    "version": "0.7.1",
+                    "status": "development",
+                    "kicad_version": "9.0",
+                    "download_sha256": "7155dc58e0da0e9fcbf5bb257fe52fbd8628c4925d77def6d1d39d7b84501ac4",
+                    "download_size": 30900,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/bulk_label_editor_plugin-0.7.1.zip",
+                    "install_size": 48308,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "0.7.0",
                     "status": "development",
                     "kicad_version": "9.0",
@@ -393,7 +421,7 @@
         {
             "name": "KiWay Fanout Generator",
             "description": "Preview and generate advanced SMD, BGA, and LGA fanouts with persistent grouped commits.",
-            "description_full": "Creates reviewable dogbone, quadrant, four-corner, perimeter, radial, grid, and via-in-pad fanouts. Scope work to selected pads, selected footprints, reference wildcards, or all SMD pads; preview in the window and on the PCB before committing a native KiCad group.",
+            "description_full": "Creates reviewable dogbone, quadrant, four-corner, perimeter, radial, grid, and via-in-pad fanouts. Scope work to selected pads, selected footprints, reference wildcards, or all SMD pads; preview actual footprint extents, pad locations, tracks, and scaled vias in the window and on the PCB before committing a native KiCad group.",
             "identifier": "kiway.fanout.generator",
             "type": "plugin",
             "author": {
@@ -408,6 +436,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/fanout_generator_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.9.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "d4dbc97c45f408e7f3ef58d34235ae9bf9cebdfd26dd9adca608904d96b2c857",
+                    "download_size": 59515,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/fanout_generator_plugin-0.9.0.zip",
+                    "install_size": 88963,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.8.0",
                     "status": "stable",
@@ -525,7 +567,7 @@
         {
             "name": "KiWay Via Stitching",
             "description": "Preview net-aware copper-zone via stitching with geometric clearance exclusions.",
-            "description_full": "Generates a reviewed stitching grid inside the board or selected bounds, optionally constrained to filled target-net copper. It rejects footprint bodies, other-net tracks, vias, zones, keepouts, and drawings, previews accepted and rejected candidates, and commits a removable native KiCad group.",
+            "description_full": "Generates uniform or perimeter-weighted stitching inside the board or selected bounds, optionally constrained to filled target-net copper. It rejects footprint bodies, other-net tracks, vias, zones, keepouts, and drawings, previews board bounds and scaled via geometry, and commits a removable native KiCad group.",
             "identifier": "kiway.via.stitching",
             "type": "plugin",
             "author": {
@@ -540,6 +582,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/via_stitching_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.9.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "f1ebd0777dbd6afa1524a4318d906c188cb7db66b89f44904647537a495767ff",
+                    "download_size": 51672,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/via_stitching_plugin-0.9.0.zip",
+                    "install_size": 85397,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.8.0",
                     "status": "stable",
@@ -657,7 +713,7 @@
         {
             "name": "KiWay Test Point Descriptor Extractor",
             "description": "Resolve test points through passives to IC pins and export engineering documentation.",
-            "description_full": "Scans TP and TestPoint footprints, extracts descriptor/function fields, traces connected nets through common passives and NetTie_Path parts to terminal IC pins, parses board-sequence TM/TC labels, cross-selects results on the PCB, and exports CSV, Markdown, and HTML.",
+            "description_full": "Scans TP and TestPoint footprints, extracts descriptor/function fields, traces connected nets through common passives and NetTie_Path parts to terminal IC pins, parses board-sequence TM/TC labels, sorts and consolidates reviewed rows, and exports documentation, spring-probe channel plans, or a separate KiCad bed-of-nails fixture PCB.",
             "identifier": "kiway.test.point.descriptor",
             "type": "plugin",
             "author": {
@@ -672,6 +728,20 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/test_point_descriptor_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.7.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "c683d2fff50283088559f93fc8be541488365fbb4c88fdf7b98dd9a2c5769372",
+                    "download_size": 57552,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/test_point_descriptor_plugin-0.7.0.zip",
+                    "install_size": 81719,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.6.0",
                     "status": "stable",
@@ -805,6 +875,20 @@
             },
             "versions": [
                 {
+                    "version": "0.6.1",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "0c3e8e45cf6ac0e3755200cf29caaa8ad90fcd349aaa721f0250e88f46ddf031",
+                    "download_size": 50868,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/trace_impedance_plugin-0.6.1.zip",
+                    "install_size": 81074,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "0.6.0",
                     "status": "stable",
                     "kicad_version": "9.0",
@@ -926,10 +1010,10 @@
                     "version": "0.1.0",
                     "status": "stable",
                     "kicad_version": "10.0",
-                    "download_sha256": "d154824a64900ca9d53b7beefd7712a561f53e63d9702fc2fb0b007ff7a556f4",
-                    "download_size": 86986,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/kilo_plugin-0.1.0.zip",
-                    "install_size": 214080,
+                    "download_sha256": "f9d9998540c9d2e6a06c9a215def727b9c1de06bc30499dab9324317b36cffd9",
+                    "download_size": 80952,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/kilo_plugin-0.1.0.zip",
+                    "install_size": 207796,
                     "platforms": [
                         "windows",
                         "linux",
@@ -941,7 +1025,7 @@
         {
             "name": "KiWay Portable Assets",
             "description": "Make KiCad projects self-contained using reviewed footprint, symbol, and 3D-model snapshots.",
-            "description_full": "KiWay Portable Assets snapshots placed PCB footprints into a project-local library, relinks schematic symbols, embeds resolvable 3D models, creates an optional native Embedded Files recovery vault, and repairs missing footprint links from PCB geometry. A native PCB Editor ActionPlugin launches the workbench in an isolated GUI process and passes the active board path directly. A fresh unchanged analysis is required before each write. Network model retrieval is disabled by default. Lock-file checks, explicit confirmation, S-expression validation, timestamped backups, atomic replacement, and unresolved-model reporting protect project files.",
+            "description_full": "KiWay Portable Assets snapshots placed PCB footprints into a project-local library, relinks schematic symbols, embeds resolvable 3D models, creates an optional native Embedded Files recovery vault, and repairs missing footprint links from PCB geometry. A native PCB Editor ActionPlugin launches the workbench in an isolated GUI process and passes the active board path directly. A fresh unchanged analysis is required before each write. Network model retrieval is disabled by default. Lock-file checks, explicit confirmation, S-expression validation, conventional KiCad backup archives plus transactional backups, atomic replacement, and unresolved-model reporting protect project files.",
             "identifier": "kiway-portable-assets",
             "type": "plugin",
             "author": {
@@ -956,6 +1040,21 @@
                 "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/portable_assets_plugin/icon.png"
             },
             "versions": [
+                {
+                    "version": "0.2.3",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "action-plugin",
+                    "download_sha256": "e8ff5eee6eb0650ae5bdb63885a95d137c6dad94defc467a0863667d32ad1639",
+                    "download_size": 80954,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/portable_assets_plugin-0.2.3.zip",
+                    "install_size": 146746,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "0.2.2",
                     "status": "testing",
@@ -1026,10 +1125,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "action-plugin",
-                    "download_sha256": "ed0a46b4599f52ebf225936f898984064ee46d3242559c22bbd0bb2e26d6cf14",
-                    "download_size": 133186,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/variant_workbench_plugin-0.5.2.zip",
-                    "install_size": 338584,
+                    "download_sha256": "6b5ae334a099259a203b0b3efcf9c72a2cccdf932828ca75d9458ffe73010f1f",
+                    "download_size": 127583,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/variant_workbench_plugin-0.5.2.zip",
+                    "install_size": 332460,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1060,6 +1159,40 @@
                     "download_size": 126048,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/variant_workbench_plugin-0.5.0.zip",
                     "install_size": 328713,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "KiWay Signal Integrity Advisor",
+            "description": "Calculate I2C pull-up ranges and validate routed single-ended or differential impedance.",
+            "description_full": "Guided, read-only engineering checks for I2C pull-up resistance, routed impedance, differential skew, stackup/reference-layer use, vias, layer changes, zones, and unresolved topology. Includes editable protocol presets for CAN, Ethernet, RF, RS-485, SerDes, USB 2/3/4, and custom constraints.",
+            "identifier": "kiway.signal.integrity.advisor",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/KiWay",
+                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/signal_integrity_advisor_plugin/icon.png"
+            },
+            "versions": [
+                {
+                    "version": "0.1.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "download_sha256": "c84d78c269ecfd4461ef3065df8d82d9eec861d1f99ae9169e2fc6afb227aac1",
+                    "download_size": 76481,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/signal_integrity_advisor_plugin-0.1.0.zip",
+                    "install_size": 107733,
                     "platforms": [
                         "windows",
                         "linux",

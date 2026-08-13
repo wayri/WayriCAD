@@ -21,7 +21,7 @@ class ViaStitchingPlugin(pcbnew.ActionPlugin):
         self.description = "Generate a configurable ground-via stitching grid."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.8.0"
+        self.version = "0.9.0"
 
     def Run(self) -> None:
         try:
@@ -84,6 +84,8 @@ class ViaFrame(wx.Frame):
         self.edge = wx.TextCtrl(panel, value="1.00")
         self.drill = wx.TextCtrl(panel, value="0.30")
         self.diameter = wx.TextCtrl(panel, value="0.60")
+        self.density = wx.ComboBox(panel, choices=["Uniform", "Dense perimeter / sparse interior", "Dense selected area"], style=wx.CB_READONLY)
+        self.density.SetSelection(0)
         self.net_choice = wx.ComboBox(panel, style=wx.CB_READONLY)
         self.net_choice.SetMinSize((250, -1))
         self.advanced = wx.CollapsiblePane(panel, label="Area and exclusion settings")
@@ -96,7 +98,7 @@ class ViaFrame(wx.Frame):
         self.y_min = wx.TextCtrl(advanced_panel, value="0")
         self.x_max = wx.TextCtrl(advanced_panel, value="100")
         self.y_max = wx.TextCtrl(advanced_panel, value="100")
-        for label, control in (("Net to stitch:", self.net_choice), ("Grid spacing (mm):", self.spacing), ("Edge inset (mm):", self.edge), ("Drill (mm):", self.drill), ("Via diameter (mm):", self.diameter)):
+        for label, control in (("Net to stitch:", self.net_choice), ("Density profile:", self.density), ("Grid spacing (mm):", self.spacing), ("Edge inset (mm):", self.edge), ("Drill (mm):", self.drill), ("Via diameter (mm):", self.diameter)):
             grid.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
             grid.Add(control, 1, wx.EXPAND)
         grid.AddGrowableCol(1, 1)
@@ -186,6 +188,7 @@ class ViaFrame(wx.Frame):
         for control in (self.spacing, self.edge, self.drill, self.diameter, self.skip_refs, self.x_min, self.y_min, self.x_max, self.y_max):
             control.Bind(wx.EVT_TEXT, self.on_config_changed)
         self.net_choice.Bind(wx.EVT_COMBOBOX, self.on_config_changed)
+        self.density.Bind(wx.EVT_COMBOBOX, self.on_config_changed)
         for control in (self.universal, self.skip_parts, self.skip_tracks, self.skip_zones, self.skip_keepouts, self.require_target_zone):
             control.Bind(wx.EVT_CHECKBOX, self.on_config_changed)
         self.workflow.set_step(0, "Select a net and spacing, then Preview in Window. Advanced area/exclusion settings are optional.")
@@ -317,6 +320,7 @@ class ViaFrame(wx.Frame):
         diameter = pcbnew.FromMM(float(self.diameter.GetValue()))
         if spacing <= 0:
             raise ValueError("Grid spacing must be greater than zero.")
+        step = max(1, spacing // 2) if self.density.GetValue() == "Dense selected area" else spacing
         _net_name, net_code = self._selected_net()
         if not net_code:
             raise ValueError("Choose a real PCB net before previewing stitching vias.")
@@ -330,18 +334,26 @@ class ViaFrame(wx.Frame):
         rejected: Dict[str, int] = {}
         result = []
         x = left + inset
+        x_index = 0
         while x <= right - inset:
             y = top + inset
+            y_index = 0
             while y <= bottom - inset:
+                profile = self.density.GetValue()
+                perimeter_distance = min(x - left, right - x, y - top, bottom - y)
+                if profile == "Dense perimeter / sparse interior" and perimeter_distance > 3 * spacing and (x_index % 2 or y_index % 2):
+                    y += step; y_index += 1; continue
                 position = pcbnew.VECTOR2I(int(x), int(y))
                 if require_zone and not any(self._inside_zone(zone, position) for zone in target_zones):
                     rejected["outside target copper"] = rejected.get("outside target copper", 0) + 1
-                    y += spacing
+                    y += step
+                    y_index += 1
                     continue
                 reason = self._blocked_reason(position, net_code)
                 if reason:
                     rejected[reason] = rejected.get(reason, 0) + 1
-                    y += spacing
+                    y += step
+                    y_index += 1
                     continue
                 via = pcbnew.PCB_VIA(self.board)
                 via.SetPosition(position)
@@ -349,8 +361,10 @@ class ViaFrame(wx.Frame):
                 via.SetWidth(int(diameter))
                 via.SetNetCode(net_code)
                 result.append(via)
-                y += spacing
-            x += spacing
+                y += step
+                y_index += 1
+            x += step
+            x_index += 1
         self.plan_rejections = rejected
         return result
 
@@ -367,7 +381,9 @@ class ViaFrame(wx.Frame):
                 values = (net_name or "<No net>", f"{pcbnew.ToMM(position.x):.3f}", f"{pcbnew.ToMM(position.y):.3f}", "Accepted")
                 for column, value in enumerate(values, 1):
                     self.preview_list.SetItem(index, column, value)
-            self.geometry_preview.set_geometry(points=points)
+            left, top, right, bottom = self._bounds()
+            outline = [(pcbnew.ToMM(left), pcbnew.ToMM(top), pcbnew.ToMM(right), pcbnew.ToMM(bottom))]
+            self.geometry_preview.set_geometry(points=points, outlines=outline, point_diameters=[float(self.diameter.GetValue())] * len(points))
             self.show_button.Enable(bool(self.preview_plan))
             self.commit_button.Enable(False)
             self.status.SetLabel(f"Window preview: {len(self.preview_plan)} accepted vias. The PCB has not been changed.")

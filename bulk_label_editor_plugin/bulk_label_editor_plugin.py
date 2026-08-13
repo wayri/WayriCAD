@@ -34,7 +34,7 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
         self.description = "Bulk rename labels, PCB text, footprint references, values, and fields using wildcard or regex rules."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.7.0"
+        self.version = "0.7.1"
 
     def Run(self) -> None:
         try:
@@ -77,7 +77,10 @@ class BulkLabelEditorFrame(wx.Frame):
             ("Configure", "Review preview", "Apply"),
         )
 
-        options = wx.StaticBoxSizer(wx.StaticBox(panel, label="Rename Rule"), wx.VERTICAL)
+        options = wx.BoxSizer(wx.VERTICAL)
+        options_heading = wx.StaticText(panel, label="Rename Rule")
+        options_heading.SetFont(options_heading.GetFont().Bold())
+        options.Add(options_heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 4)
         row1 = wx.BoxSizer(wx.HORIZONTAL)
         self.match_text = wx.TextCtrl(panel)
         self.match_text.SetValue("CH*_MAIN")

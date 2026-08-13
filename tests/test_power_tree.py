@@ -92,6 +92,7 @@ def make_board():
     rail_48 = FakeNet("48VDC", 1)
     switch = FakeNet("SW_NODE", 2)
     rail_3v3 = FakeNet("3V3", 3)
+    ground = FakeNet("AGND", 4)
     return FakeBoard(
         [
             FakeFootprint("J1", "Power Input", [FakePad("1", rail_48)]),
@@ -102,6 +103,7 @@ def make_board():
                 "Buck step-down regulator",
             ),
             FakeFootprint("L1", "10uH", [FakePad("1", switch), FakePad("2", rail_3v3)], "Power filter inductor"),
+            FakeFootprint("L2", "10uH", [FakePad("1", rail_3v3), FakePad("2", ground)], "Power filter inductor"),
             FakeFootprint("U2", "MCU", [FakePad("8", rail_3v3, "VDD")]),
         ]
     )
@@ -127,6 +129,7 @@ class PowerTreeTests(unittest.TestCase):
         }
         self.assertIn(("48VDC", "U1", "SW_NODE"), routes)
         self.assertIn(("SW_NODE", "L1", "3V3"), routes)
+        self.assertFalse(any(component == "L2" for _source, component, _destination in routes))
         self.assertIn("48VDC", result["roots"])
         rail_3v3 = next(row for row in result["nodes"] if row["Net"] == "3V3")
         self.assertIn("U2", rail_3v3["Loads"])

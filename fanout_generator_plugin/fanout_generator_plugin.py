@@ -41,7 +41,7 @@ class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
         self.description = "Generate conservative radial fanout tracks from SMD pads."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "0.8.0"
+        self.version = "0.9.0"
 
     def Run(self) -> None:
         try:
@@ -284,8 +284,13 @@ class FanoutFrame(wx.Frame):
             lines = []
             points = []
             pads = []
+            outlines = []
+            seen_footprints = set()
             for plan in self.preview_plan:
                 fp, pad, end = plan.footprint, plan.pad, plan.end
+                if id(fp) not in seen_footprints:
+                    seen_footprints.add(id(fp)); box = fp.GetBoundingBox()
+                    outlines.append((pcbnew.ToMM(box.GetLeft()), pcbnew.ToMM(box.GetTop()), pcbnew.ToMM(box.GetRight()), pcbnew.ToMM(box.GetBottom())))
                 start = pad.GetPosition()
                 pads.append((pcbnew.ToMM(start.x), pcbnew.ToMM(start.y)))
                 if plan.add_track:
@@ -297,7 +302,7 @@ class FanoutFrame(wx.Frame):
                 values = (str(pad.GetNumber()), str(pad.GetNetname()), str(self.escape_layer.GetValue()), f"{result_kind} | {plan.pattern}")
                 for column, value in enumerate(values, 1):
                     self.preview_list.SetItem(index, column, value)
-            self.geometry_preview.set_geometry(lines, points, pads=pads)
+            self.geometry_preview.set_geometry(lines, points, pads=pads, outlines=outlines, point_diameters=[float(self.via_diameter.GetValue())] * len(points))
             self.show_button.Enable(bool(self.preview_plan))
             self.commit_button.Enable(False)
             self.status.SetLabel(f"Window preview: {len(self.preview_plan)} fanouts. The PCB has not been changed.")

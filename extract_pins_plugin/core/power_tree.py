@@ -75,6 +75,15 @@ class PowerTreeAnalyzer:
             kind = info["kind"]
             if not kind:
                 continue
+            all_component_nets = {
+                pad["net"] for pad in pads_by_component[ref] if pad["net"]
+            }
+            # A filter-looking two-terminal part connected to ground is a
+            # shunt/decoupling branch, not a series element in a single-line
+            # power diagram.  Keep it out even when a custom rule forgot to
+            # classify that ground alias.
+            if kind == "filter" and any(self._ground_like(net) for net in all_component_nets):
+                continue
             pads = [
                 pad for pad in pads_by_component[ref]
                 if pad["net"] in candidate_nets and pad["net"] not in ground_nets
@@ -282,6 +291,11 @@ class PowerTreeAnalyzer:
         return cls.parse_voltage(net_name) is not None or bool(
             re.search(r"(^|[^A-Z0-9])(VCC|VDD|VBAT|VBUS|VIN|VOUT|PWR)([^A-Z0-9]|$)", str(net_name).upper())
         )
+
+    @staticmethod
+    def _ground_like(net_name: str) -> bool:
+        tokens = set(re.findall(r"[A-Z0-9]+", str(net_name).upper()))
+        return bool(tokens & {"GND", "GROUND", "AGND", "DGND", "PGND", "GNDA", "GNDD", "VSS"})
 
     @staticmethod
     def _issue(severity: str, category: str, item: str, detail: str) -> Dict[str, str]:
