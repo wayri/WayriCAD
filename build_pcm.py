@@ -12,7 +12,7 @@ RELEASES_DIR = "releases"
 REPO_URL_BASE = "https://github.com/wayri/KiWay/releases/download" 
 # All package versions in a feed may differ, but this repository publishes
 # their downloadable assets together in one release.
-RELEASE_TAG = "2.21.0"
+RELEASE_TAG = "2.21.1"
 
 def calculate_sha256(file_path):
     sha256_hash = hashlib.sha256()
@@ -26,6 +26,17 @@ def discover_plugins(base_path):
         path for path in base_path.iterdir()
         if path.is_dir() and (path / "metadata.json").exists()
     )
+
+
+def normalize_runtime(version_info):
+    """Migrate legacy ActionPlugin labels to KiCad's PCM runtime enum."""
+    normalized = dict(version_info)
+    if normalized.get("runtime") == "action-plugin":
+        normalized["runtime"] = "swig"
+    runtime = normalized.get("runtime", "swig")
+    if runtime not in {"swig", "ipc"}:
+        raise ValueError(f"Unsupported KiCad PCM runtime: {runtime!r}")
+    return normalized
 
 def create_plugin_zip(plugin_path, version, output_dir, metadata):
     os.makedirs(output_dir, exist_ok=True)
@@ -101,6 +112,8 @@ def main():
         package for package in packages_data['packages']
         if package.get('identifier') in active_identifiers
     ]
+    for package in packages_list:
+        package['versions'] = [normalize_runtime(version) for version in package.get('versions', [])]
     existing_by_id = {pkg.get('identifier'): pkg for pkg in packages_list}
 
     for plugin_path in plugin_paths:
@@ -113,7 +126,7 @@ def main():
 
         file_size = os.path.getsize(zip_path)
         sha256 = calculate_sha256(zip_path)
-        version_info = dict(metadata['versions'][0])
+        version_info = normalize_runtime(metadata['versions'][0])
         version_info.update({
             "download_sha256": sha256,
             "download_size": file_size,

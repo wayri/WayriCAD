@@ -25,8 +25,8 @@ from variant_workbench_plugin.kicad_variant_manager import (
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKBENCH_PACKAGES = (
-    ("portable_assets_plugin", "kiway-portable-assets", "0.2.3"),
-    ("variant_workbench_plugin", "kiway-variant-workbench", "0.5.2"),
+    ("portable_assets_plugin", "kiway-portable-assets", "0.2.4"),
+    ("variant_workbench_plugin", "kiway-variant-workbench", "0.5.3"),
 )
 
 
@@ -38,7 +38,7 @@ class WorkbenchPluginTests(unittest.TestCase):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
                 self.assertEqual(identifier, metadata["identifier"])
                 self.assertEqual(version, metadata["versions"][0]["version"])
-                self.assertEqual("action-plugin", metadata["versions"][0]["runtime"])
+                self.assertEqual("swig", metadata["versions"][0]["runtime"])
                 self.assertTrue((package / "__init__.py").is_file())
                 launcher = (package / "legacy_action_plugin.py").read_text(encoding="utf-8")
                 self.assertIn("pcbnew.ActionPlugin", launcher)
@@ -51,6 +51,16 @@ class WorkbenchPluginTests(unittest.TestCase):
                 with Image.open(package / "icon.png") as icon:
                     self.assertGreaterEqual(icon.width, 32)
                     self.assertGreaterEqual(icon.height, 32)
+
+    def test_pcm_feed_uses_only_kicad_supported_runtime_values(self) -> None:
+        feed = json.loads((ROOT / "pcm" / "pkgs.json").read_text(encoding="utf-8"))
+        invalid = [
+            (package["identifier"], version["version"], version.get("runtime"))
+            for package in feed["packages"]
+            for version in package["versions"]
+            if version.get("runtime", "swig") not in {"swig", "ipc"}
+        ]
+        self.assertEqual([], invalid)
 
     def test_portable_assets_defaults_to_offline_and_hashes_inputs(self) -> None:
         self.assertFalse(PortableOptions().allow_network)
