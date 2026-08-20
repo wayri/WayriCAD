@@ -20,7 +20,7 @@
     "license": "GPL-3.0",
     "resources": {
         "homepage": "https://github.com/wayri/KiWay",
-        "icon": "https://raw.githubusercontent.com/wayri/KiWay/main/bulk_label_editor_plugin/icon.png"
+        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/bulk_label_editor_plugin/icon.png"
     },
     "versions": [
         {

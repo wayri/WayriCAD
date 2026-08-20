@@ -19,6 +19,21 @@
             },
             "versions": [
                 {
+                    "version": "2.17.0",
+                    "status": "stable",
+                    "kicad_version": "9.0",
+                    "runtime": "swig",
+                    "download_sha256": "23921f933b14b1b55ded9581a1432ad611e5d1380785f8ad4e37bb8160c1e403",
+                    "download_size": 285562,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/extract_pins_plugin-2.17.0.zip",
+                    "install_size": 707094,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
+                {
                     "version": "2.16.1",
                     "status": "stable",
                     "kicad_version": "9.0",
@@ -30,7 +45,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.16.0",
@@ -44,7 +60,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.15.0",
@@ -58,7 +75,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.14.1",
@@ -72,7 +90,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.14.0",
@@ -86,7 +105,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.13.0",
@@ -100,7 +120,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.12.0",
@@ -114,7 +135,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.11.0",
@@ -128,7 +150,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.10.0",
@@ -142,7 +165,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.9.0",
@@ -156,7 +180,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.8.0",
@@ -170,7 +195,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.7.0",
@@ -184,7 +210,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.6.0",
@@ -198,7 +225,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.5.0",
@@ -212,7 +240,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.4.0",
@@ -226,7 +255,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.3.0",
@@ -240,7 +270,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.2.0",
@@ -254,7 +285,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.1.0",
@@ -268,7 +300,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "2.0.0",
@@ -282,7 +315,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 }
             ]
         },
@@ -308,10 +342,11 @@
                     "version": "0.7.1",
                     "status": "development",
                     "kicad_version": "9.0",
-                    "download_sha256": "ac5c91d031e489eca1b74bbbaaa7ab7512449d4e3189d5a94155593d1def800e",
-                    "download_size": 30900,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/bulk_label_editor_plugin-0.7.1.zip",
-                    "install_size": 48308,
+                    "runtime": "swig",
+                    "download_sha256": "cedc5934dabbed16b5c0c41d59a16890196bf182ce33698eea0689416ba12c27",
+                    "download_size": 25693,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/bulk_label_editor_plugin-0.7.1.zip",
+                    "install_size": 42809,
                     "platforms": [
                         "windows",
                         "linux",
@@ -330,7 +365,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.6.0",
@@ -344,7 +380,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.5.0",
@@ -358,7 +395,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.4.0",
@@ -372,7 +410,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.3.0",
@@ -386,7 +425,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.2.0",
@@ -400,7 +440,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.1.0",
@@ -414,7 +455,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 }
             ]
         },
@@ -440,10 +482,11 @@
                     "version": "0.9.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "fda996bc11ccc3824534570d18bdae25350a9d901c3dfe177da6c6598db9913d",
-                    "download_size": 59515,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/fanout_generator_plugin-0.9.0.zip",
-                    "install_size": 88963,
+                    "runtime": "swig",
+                    "download_sha256": "aa84278a2e463bcb79616e17b652da115f9e5b89ddeda03f272bbac6cda10ee6",
+                    "download_size": 50049,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/fanout_generator_plugin-0.9.0.zip",
+                    "install_size": 79178,
                     "platforms": [
                         "windows",
                         "linux",
@@ -462,7 +505,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.7.0",
@@ -476,7 +520,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.6.0",
@@ -490,7 +535,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.5.0",
@@ -504,7 +550,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.4.0",
@@ -518,7 +565,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.3.0",
@@ -532,7 +580,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.2.0",
@@ -546,7 +595,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.1.0",
@@ -560,7 +610,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 }
             ]
         },
@@ -586,10 +637,11 @@
                     "version": "0.9.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "86b13188550cc4b1c3bdac6a605793e17e5e12f5a92901c34c84447d1373b4ed",
-                    "download_size": 51672,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/via_stitching_plugin-0.9.0.zip",
-                    "install_size": 85397,
+                    "runtime": "swig",
+                    "download_sha256": "2dd46151e8c63d0f6652201bfc4b4d32322f030c76eecd175c2479900535dd60",
+                    "download_size": 44223,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/via_stitching_plugin-0.9.0.zip",
+                    "install_size": 77454,
                     "platforms": [
                         "windows",
                         "linux",
@@ -608,7 +660,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.7.0",
@@ -622,7 +675,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.6.0",
@@ -636,7 +690,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.5.0",
@@ -650,7 +705,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.4.0",
@@ -664,7 +720,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.3.0",
@@ -678,7 +735,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.2.0",
@@ -692,7 +750,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.1.0",
@@ -706,7 +765,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 }
             ]
         },
@@ -732,10 +792,11 @@
                     "version": "0.7.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "a111eb8b4703d6cd2e8f43869278f8b468a80612bbd6814471b27ecbf217679c",
-                    "download_size": 57552,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/test_point_descriptor_plugin-0.7.0.zip",
-                    "install_size": 81719,
+                    "runtime": "swig",
+                    "download_sha256": "4efc46a2cb9f7f4a7e579ae9f82ad85f15fe1812f54fcaf6a1b38271dd063f0b",
+                    "download_size": 39725,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/test_point_descriptor_plugin-0.7.0.zip",
+                    "install_size": 63793,
                     "platforms": [
                         "windows",
                         "linux",
@@ -754,7 +815,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.5.1",
@@ -768,7 +830,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.5.0",
@@ -782,7 +845,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.4.1",
@@ -796,7 +860,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.4.0",
@@ -810,7 +875,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.3.0",
@@ -824,7 +890,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.2.0",
@@ -838,7 +905,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.1.0",
@@ -852,7 +920,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 }
             ]
         },
@@ -878,10 +947,11 @@
                     "version": "0.6.1",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "94e7503021e18b99707db12c1d9da67e252c40e032b1b2454c5eda21c32df8d3",
-                    "download_size": 50868,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/trace_impedance_plugin-0.6.1.zip",
-                    "install_size": 81074,
+                    "runtime": "swig",
+                    "download_sha256": "db32df2e453f52e5669348269ac3b45c0b0ec497d6fb2b97d2566c5924c99196",
+                    "download_size": 42156,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/trace_impedance_plugin-0.6.1.zip",
+                    "install_size": 72106,
                     "platforms": [
                         "windows",
                         "linux",
@@ -900,7 +970,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.5.0",
@@ -914,7 +985,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.4.1",
@@ -928,7 +1000,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.4.0",
@@ -942,7 +1015,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.3.0",
@@ -956,7 +1030,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.2.0",
@@ -970,7 +1045,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 },
                 {
                     "version": "0.1.0",
@@ -984,7 +1060,8 @@
                         "windows",
                         "linux",
                         "macos"
-                    ]
+                    ],
+                    "runtime": "swig"
                 }
             ]
         },
@@ -1010,10 +1087,11 @@
                     "version": "0.1.0",
                     "status": "stable",
                     "kicad_version": "10.0",
-                    "download_sha256": "5d794f1d01675169a9be1f1a1173999963b44be7a18ffee174a7488e528847e0",
-                    "download_size": 80952,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/kilo_plugin-0.1.0.zip",
-                    "install_size": 207796,
+                    "runtime": "swig",
+                    "download_sha256": "f62c912fc1e8b07d8e504b3f4778bffdb64a2ab8f67ca77dcd2ac3a894a53bd1",
+                    "download_size": 65111,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/kilo_plugin-0.1.0.zip",
+                    "install_size": 191576,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1045,10 +1123,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "39a46fc03926caea4e617f2c42b0b5f701be99e2d27dd881219cdab9ac6d6dd3",
-                    "download_size": 77624,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/portable_assets_plugin-0.2.4.zip",
-                    "install_size": 142917,
+                    "download_sha256": "8fff7eb3526c19ea2973840d6cd82f35fb295026cccc6f0334a69411bb8c26a3",
+                    "download_size": 72889,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/portable_assets_plugin-0.2.4.zip",
+                    "install_size": 137891,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1140,10 +1218,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "058ddcbb69ba16f88aefe6ee1abb359ae0c3c9e126beabe5bd0bc337432a2a3a",
-                    "download_size": 146500,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/variant_workbench_plugin-0.5.3.zip",
-                    "install_size": 350902,
+                    "download_sha256": "3214b5fb3fc20927d54c54db8adcfe2d50eeb1e3525024167bfcec7e670087be",
+                    "download_size": 138661,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/variant_workbench_plugin-0.5.3.zip",
+                    "install_size": 342649,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1219,10 +1297,186 @@
                     "version": "0.1.0",
                     "status": "stable",
                     "kicad_version": "9.0",
-                    "download_sha256": "fce29e1c0cd0bf2766699a02e82f7463d34bcc2f325d53f2f539f0878e5a5df9",
-                    "download_size": 76481,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/signal_integrity_advisor_plugin-0.1.0.zip",
-                    "install_size": 107733,
+                    "runtime": "swig",
+                    "download_sha256": "50b80d479850011f7fa9f9c75b1cd26f5823334bb1c3dacb41ac4bcb57f6eefa",
+                    "download_size": 75258,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/signal_integrity_advisor_plugin-0.1.0.zip",
+                    "install_size": 106623,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "KiWay Harness and Cable Workbench",
+            "description": "Cross-link board connector exports into validated harness wire lists.",
+            "description_full": "Imports KiWay or compatible connector-pin CSV documents, links signals using exact, wildcard, or regex capture rules, reports ambiguous/unmatched mappings and voltage conflicts, and exports reviewed cable wire lists with gauge, pair, shield, and status fields.",
+            "identifier": "kiway.harness.workbench",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/KiWay",
+                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/harness_workbench_plugin/icon.png"
+            },
+            "versions": [
+                {
+                    "version": "0.1.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "swig",
+                    "download_sha256": "a0856750b55381ac0a1df5ca126ee8be34769132c57027f9f0bbc71ecfbe33ff",
+                    "download_size": 34415,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/harness_workbench_plugin-0.1.0.zip",
+                    "install_size": 49977,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "KiWay Manufacturing Readiness Manager",
+            "description": "Audit fabricator capabilities and gate deterministic KiCad manufacturing releases.",
+            "description_full": "Combines reusable fabricator capability profiles with board geometry audits, KiCad JSON DRC and jobset execution, explicit pass/fail release gates, and ZIP packaging with SHA-256 file manifests. It does not claim fabricator acceptance; profiles must be reviewed against the current fabrication quotation.",
+            "identifier": "kiway.manufacturing.readiness",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/KiWay",
+                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/manufacturing_readiness_plugin/icon.png"
+            },
+            "versions": [
+                {
+                    "version": "0.1.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "swig",
+                    "download_sha256": "85b6f429a07c7fc2216c9f40f91bbcc7cdfb22374c465b45e8f61148fe71fb7e",
+                    "download_size": 34328,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/manufacturing_readiness_plugin-0.1.0.zip",
+                    "install_size": 49595,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "KiWay PDN and Decoupling Planner",
+            "description": "Audit power-rail topology and local decoupling placement from PCB geometry.",
+            "description_full": "Uses configurable rail, ground, capacitor, load, and regulator conventions to locate supply pins without nearby rail-to-ground capacitors. Results are sortable, cross-selectable, and exportable. It is a placement/topology screen rather than an AC impedance, transient, or electromagnetic PDN solver.",
+            "identifier": "kiway.pdn.decoupling",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/KiWay",
+                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/pdn_decoupling_plugin/icon.png"
+            },
+            "versions": [
+                {
+                    "version": "0.1.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "swig",
+                    "download_sha256": "c19c96bc86f805ac42c92d648eea1d44eb9c0ba0aa78bd5ca404a7cf838c0cc5",
+                    "download_size": 30414,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/pdn_decoupling_plugin-0.1.0.zip",
+                    "install_size": 40740,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "KiWay Protocol Constraint Composer",
+            "description": "Detect protocol nets and compose reviewed KiCad custom design rules.",
+            "description_full": "Detects common USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF net-name conventions, presents editable assignments, and generates a clearly delimited KiWay-managed custom-rule block. Rules can be exported or applied to the project .kicad_dru after confirmation and timestamped backup.",
+            "identifier": "kiway.protocol.constraint.composer",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/KiWay",
+                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/protocol_constraint_composer_plugin/icon.png"
+            },
+            "versions": [
+                {
+                    "version": "0.1.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "swig",
+                    "download_sha256": "9770f11c79e7debeb7f233ba9cd7bb230675554649616f97967bba0dff1428b4",
+                    "download_size": 33446,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/protocol_constraint_composer_plugin-0.1.0.zip",
+                    "install_size": 46871,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "KiWay Return-Path Auditor",
+            "description": "Find PCB return-path discontinuities, unsupported layer transitions, plane gaps, and possible routed stubs.",
+            "description_full": "A modeless, read-only geometry audit for routed signal segments. It checks signal-via proximity to configured return vias, supplied return-plane coverage, and branched copper that may form stubs. Findings are cross-selectable and exportable. Results are review aids, not electromagnetic simulation or compliance certification.",
+            "identifier": "kiway.return.path.auditor",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/KiWay",
+                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/return_path_auditor_plugin/icon.png"
+            },
+            "versions": [
+                {
+                    "version": "0.1.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "swig",
+                    "download_sha256": "e214e1644719d50a99d1921b3d2d4da1e0d17286beeef0bded936aa5ab3eee1a",
+                    "download_size": 35546,
+                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.22.0/return_path_auditor_plugin-0.1.0.zip",
+                    "install_size": 53265,
                     "platforms": [
                         "windows",
                         "linux",

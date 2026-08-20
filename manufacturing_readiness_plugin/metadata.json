@@ -1,0 +1,12 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v1",
+  "name": "KiWay Manufacturing Readiness Manager",
+  "description": "Audit fabricator capabilities and gate deterministic KiCad manufacturing releases.",
+  "description_full": "Combines reusable fabricator capability profiles with board geometry audits, KiCad JSON DRC and jobset execution, explicit pass/fail release gates, and ZIP packaging with SHA-256 file manifests. It does not claim fabricator acceptance; profiles must be reviewed against the current fabrication quotation.",
+  "identifier": "kiway.manufacturing.readiness",
+  "type": "plugin",
+  "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
+  "license": "GPL-3.0",
+  "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/manufacturing_readiness_plugin/icon.png"},
+  "versions": [{"version": "0.1.0", "status": "testing", "kicad_version": "10.0", "runtime": "swig"}]
+}

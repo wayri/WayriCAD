@@ -45,6 +45,7 @@ try:
         rows_to_markdown,
     )
     from .help_utils import open_help
+    from .core.bringup_packager import collect_bringup_rows, markdown as bringup_markdown, c_header as bringup_c_header
 except ImportError:
     # Fallback for direct execution
     from core.data_extractor import DataExtractor
@@ -61,6 +62,7 @@ except ImportError:
         rows_to_markdown,
     )
     from help_utils import open_help
+    from core.bringup_packager import collect_bringup_rows, markdown as bringup_markdown, c_header as bringup_c_header
 
 
 class PluginDialogV2(wx.Frame):
@@ -144,6 +146,9 @@ class PluginDialogV2(wx.Frame):
 
         self.power_tree_panel = self._create_power_tree_tab()
         self.notebook.AddPage(self.power_tree_panel, "7  Power Tree & Net Rules")
+
+        self.bringup_panel = self._create_bringup_tab()
+        self.notebook.AddPage(self.bringup_panel, "8  Programming & Bring-Up")
         
         main_sizer.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -174,6 +179,71 @@ class PluginDialogV2(wx.Frame):
         main_sizer.Add(button_sizer, 0, wx.EXPAND | wx.ALL, 5)
         
         panel.SetSizer(main_sizer)
+
+    def _create_bringup_tab(self):
+        panel = wx.Panel(self.notebook)
+        root = wx.BoxSizer(wx.VERTICAL)
+        intro = wx.StaticText(panel, label="Detect SWD, JTAG, UART, reset, boot-strap, reference-voltage, power, and ground pins from the reviewed extraction rows.")
+        root.Add(intro, 0, wx.EXPAND | wx.ALL, 10)
+        controls = wx.BoxSizer(wx.HORIZONTAL)
+        controls.Add(wx.StaticText(panel, label="Component/connector refs"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.bringup_refs = wx.TextCtrl(panel, value="J*,U*")
+        controls.Add(self.bringup_refs, 1, wx.RIGHT, 8)
+        preview = wx.Button(panel, label="Build bring-up preview")
+        preview.Bind(wx.EVT_BUTTON, self.OnBringupPreview)
+        controls.Add(preview)
+        root.Add(controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        self.bringup_table = wx.ListCtrl(panel, style=wx.LC_REPORT)
+        for index, (name, width) in enumerate((("Interface", 120), ("Reference", 100), ("Pin", 70), ("Net", 220), ("Function", 180), ("Direction", 110), ("Review note", 360))):
+            self.bringup_table.InsertColumn(index, name, width=width)
+        self.bringup_table.Bind(wx.EVT_LIST_COL_CLICK, self.OnBringupSort)
+        root.Add(self.bringup_table, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        actions = wx.BoxSizer(wx.HORIZONTAL)
+        for label, handler in (("Export Markdown", self.OnBringupMarkdown), ("Export C Header", self.OnBringupHeader)):
+            button = wx.Button(panel, label=label); button.Bind(wx.EVT_BUTTON, handler); actions.Add(button, 0, wx.RIGHT, 8)
+        root.Add(actions, 0, wx.ALL, 10)
+        self.bringup_rows = []
+        panel.SetSizer(root)
+        return panel
+
+    def OnBringupSort(self, event):
+        column = event.GetColumn()
+        rows = [[self.bringup_table.GetItemText(row, col) for col in range(self.bringup_table.GetColumnCount())] for row in range(self.bringup_table.GetItemCount())]
+        rows.sort(key=lambda row: row[column].casefold())
+        self.bringup_table.DeleteAllItems()
+        for row in rows:
+            index = self.bringup_table.InsertItem(self.bringup_table.GetItemCount(), row[0])
+            for col, value in enumerate(row[1:], 1): self.bringup_table.SetItem(index, col, value)
+
+    def _board_pin_rows(self):
+        rows = []
+        for footprint in self.extractor.footprints:
+            reference, value = footprint.GetReference(), footprint.GetValue()
+            for pad in footprint.Pads():
+                rows.append({"reference": reference, "value": value, "pin": str(pad.GetNumber()), "net": str(pad.GetNetname()), "function": str(pad.GetPinFunction()) if hasattr(pad, "GetPinFunction") else str(pad.GetNetname())})
+        return rows
+
+    def OnBringupPreview(self, _event):
+        self.bringup_rows = collect_bringup_rows(self._board_pin_rows(), self.bringup_refs.GetValue())
+        self.bringup_table.DeleteAllItems()
+        for row in self.bringup_rows:
+            values = (row.interface, row.reference, row.pin, row.net, row.function, row.direction, row.note)
+            index = self.bringup_table.InsertItem(self.bringup_table.GetItemCount(), values[0])
+            for column, value in enumerate(values[1:], 1): self.bringup_table.SetItem(index, column, value)
+        self.status_text.SetLabel(f"Programming/bring-up preview: {len(self.bringup_rows)} relevant pins.")
+
+    def _save_bringup(self, title, wildcard, content):
+        if not self.bringup_rows:
+            wx.MessageBox("Build the bring-up preview first.", title, wx.OK | wx.ICON_INFORMATION); return
+        with wx.FileDialog(self, title, wildcard=wildcard, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                with open(dialog.GetPath(), "w", encoding="utf-8", newline="") as handle: handle.write(content)
+
+    def OnBringupMarkdown(self, _event):
+        self._save_bringup("Export bring-up Markdown", "Markdown (*.md)|*.md", bringup_markdown(self.bringup_rows))
+
+    def OnBringupHeader(self, _event):
+        self._save_bringup("Export firmware pin header", "C Header (*.h)|*.h", bringup_c_header(self.bringup_rows))
 
     def _create_extract_tab(self):
         """Create the selection-aware extraction workspace."""

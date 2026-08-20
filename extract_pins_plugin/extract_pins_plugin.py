@@ -57,7 +57,8 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True # Set to True to display a button on the toolbar
         # Define the path to the optional icon file. It should be in the same directory.
         self.icon_file_name = os.path.join(os.path.dirname(__file__), 'icon.png')
-        self.version = "2.16.1"
+        self.dark_icon_file_name = self.icon_file_name
+        self.version = "2.17.0"
 
     def Run(self):
         """
@@ -104,7 +105,8 @@ class InterboardHarnessPlugin(pcbnew.ActionPlugin):
         self.description = "Analyze multi-board interfaces, harnesses, TM/TC, test points, and ICD reports."
         self.show_toolbar_button = False
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.version = "2.16.1"
+        self.dark_icon_file_name = self.icon_file_name
+        self.version = "2.17.0"
 
     def Run(self):
         if PluginUI is None:

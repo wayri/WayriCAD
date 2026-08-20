@@ -7,6 +7,6 @@
     "type": "plugin",
     "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
     "license": "GPL-3.0",
-    "resources": {"homepage": "https://github.com/wayri/KiWay"},
+    "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/via_stitching_plugin/icon.png"},
     "versions": [{"version": "0.9.0", "status": "stable", "kicad_version": "9.0"}]
 }

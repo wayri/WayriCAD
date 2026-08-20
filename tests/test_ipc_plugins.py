@@ -58,7 +58,7 @@ class WorkbenchPluginTests(unittest.TestCase):
             (package["identifier"], version["version"], version.get("runtime"))
             for package in feed["packages"]
             for version in package["versions"]
-            if version.get("runtime", "swig") not in {"swig", "ipc"}
+            if version.get("runtime") not in {"swig", "ipc"}
         ]
         self.assertEqual([], invalid)
 

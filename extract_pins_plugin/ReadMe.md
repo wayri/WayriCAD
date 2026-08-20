@@ -2,7 +2,7 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-2.15.0-blue)
+![Version](https://img.shields.io/badge/Version-2.17.0-blue)
 ![KiCAD](https://img.shields.io/badge/KiCAD-9.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
@@ -66,6 +66,13 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 - Shared classification rules across extraction, signal flow, IC charts, and diagrams
 - Auto-extracted converter/filter power tree with editable rules and issue checks
 - Power-tree SVG and CSV export, including inferred direction and confidence
+
+### Programming and Bring-Up Package
+- Detect SWD, JTAG, UART, reset, boot-strap, target-reference voltage, power, and ground pins
+- Scope discovery to connector/controller reference wildcards such as `J*,U*`
+- Preview reference, pin, net, function, direction, and required engineering review notes
+- Export a bring-up Markdown document with a first-power checklist
+- Export firmware-friendly C macros for reviewed net and physical pin mappings
 
 ### CLI Support (NEW!)
 - Full command-line interface for automation

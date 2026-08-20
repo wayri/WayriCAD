@@ -2,9 +2,13 @@
 
 KiWay is a focused parent repository for KiCad ActionPlugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
 
+Current suite release: **v2.22.0**. The feed contains 15 independently installable
+packages. Every package provides a distinct 96 x 96 PCM icon and matching
+light/dark PCB Editor ActionPlugin icon.
+
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.16.1)
+### 1. KiWay Extract Pins (v2.17.0)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -24,6 +28,7 @@ A comprehensive interface documentation and test engineering tool.
 - **Live PCB Selection**: Keep the modeless extractor open while selecting footprints and cross-selecting preview rows
 - **Visual Preview**: Explore pan/zoom system maps, signal topologies, and directed power-flow diagrams with unique component cards and color-coded net buses
 - **Focused Tasks**: Use the simple Pin Extractor for board work and the separate Interboard & Harness entry for system ICD work
+- **Programming & Bring-Up**: Detect SWD, JTAG, UART, reset, boot-strap, reference-voltage, power, and ground pins; export reviewed Markdown and C definitions
 
 ### 2. KiWay Bulk Label Editor (v0.7.1)
 
@@ -71,7 +76,7 @@ Packages reusable KiCad design blocks with their footprint and 3D-model dependen
 - Native KiCad 10 Action Plugin interface with built-in help
 - Reads legacy KiCad BlockPack packages and project state while writing new Kilo formats
 
-### 9. KiWay Portable Assets (v0.2.3)
+### 9. KiWay Portable Assets (v0.2.4)
 
 Makes a KiCad project self-contained by snapshotting placed footprints, localizing cached symbols, embedding resolvable 3D models, and repairing missing footprint links from PCB geometry.
 
@@ -81,7 +86,7 @@ Makes a KiCad project self-contained by snapshotting placed footprints, localizi
 - Uses explicit confirmation, S-expression validation, a conventional `<project>-backups` archive plus transactional backups, atomic replacement, and unresolved-asset reporting
 - Provides an optional native Embedded Files recovery vault
 
-### 10. KiWay Design Variant Workbench (v0.5.2)
+### 10. KiWay Design Variant Workbench (v0.5.3)
 
 Provides semantic variant rebasing, matrix editing, comparison, linting, PCB synchronization auditing, guarded substitutions, lifecycle management, and manufacturing-release generation.
 
@@ -90,6 +95,26 @@ Provides semantic variant rebasing, matrix editing, comparison, linting, PCB syn
 - Rejects active KiCad lock files and stale source hashes
 - Creates all backups before the first write and attempts rollback on failure
 - Launches as a detached workbench from a native PCB Editor ActionPlugin so editors can be closed before file changes
+
+### 11. KiWay Return-Path Auditor (v0.1.0)
+
+Screens routed geometry for unsupported signal layer transitions, missing nearby return vias, apparent reference-plane gaps, long branches that may be stubs, differential-pair skew, and uncoupled pair segments. Findings can be cross-selected and exported for review. It is not an electromagnetic field solver.
+
+### 12. KiWay Harness and Cable Workbench (v0.1.0)
+
+Imports connector-pin CSV documents from multiple projects, links nets with exact, wildcard, or regex capture rules, reports ambiguous/unmatched mappings and voltage conflicts, assigns gauge/pair/shield properties, and exports wire-list CSV plus harness SVG diagrams.
+
+### 13. KiWay Manufacturing Readiness Manager (v0.1.0)
+
+Combines fabricator capability profiles with board geometry audits, JSON DRC, `.kicad_jobset` execution, explicit release gates, and deterministic release ZIPs containing SHA-256 manifests. Fabricator limits remain user-controlled engineering inputs.
+
+### 14. KiWay PDN and Decoupling Planner (v0.1.0)
+
+Uses configurable rail, ground, load, capacitor, and regulator conventions to find power pins without nearby rail-to-ground capacitors. Results are cross-selectable and exportable; frequency-domain and transient PDN signoff still requires appropriate simulation and measurement.
+
+### 15. KiWay Protocol Constraint Composer (v0.1.0)
+
+Detects likely USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF nets, then generates a reviewable KiCad custom-rule block. Applying rules requires confirmation, creates a timestamped backup, and leaves rules outside the KiWay-managed markers untouched.
 
 ## PCB Editor Workflow
 
@@ -121,6 +146,12 @@ Launch **KiWay Interboard & Harness** separately for netlist directories, sheet 
 10. Restart the KiCad PCB Editor.
 
 If the repository does not appear immediately, close and reopen the Plugin and Content Manager, or remove and re-add the repository URL to clear its cached feed.
+
+KiWay v2.22.0 removes the retired Connector ICD Builder, Net Hygiene, and Test
+Coverage Planner packages from the feed. Their useful workflows are covered by
+Pin Extractor, Test Point Descriptor Extractor, Harness and Cable Workbench, and
+the engineering audit tools. If an old package still appears, uninstall it and
+remove/re-add the repository URL to refresh KiCad's cached package index.
 
 The repository feed is also directly viewable here:
 
@@ -234,6 +265,12 @@ deterministic automation diffs. Config files are JSON objects with optional
 - [Kilo - KiCad Localizer Help](kilo_plugin/ReadMe.md)
 - [Portable Assets Documentation](portable_assets_plugin/README.md)
 - [Design Variant Workbench Documentation](variant_workbench_plugin/README.md)
+- [Return-Path Auditor Documentation](return_path_auditor_plugin/ReadMe.md)
+- [Harness and Cable Workbench Documentation](harness_workbench_plugin/ReadMe.md)
+- [Manufacturing Readiness Manager Documentation](manufacturing_readiness_plugin/ReadMe.md)
+- [PDN and Decoupling Planner Documentation](pdn_decoupling_plugin/ReadMe.md)
+- [Protocol Constraint Composer Documentation](protocol_constraint_composer_plugin/ReadMe.md)
+- [KiWay v2.22.0 Release Notes](docs/RELEASE_2.22.0.md)
 - [Contributing](CONTRIBUTING.md)
 - [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
 

@@ -41,6 +41,7 @@ class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
         self.description = "Generate conservative radial fanout tracks from SMD pads."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
+        self.dark_icon_file_name = self.icon_file_name
         self.version = "0.9.0"
 
     def Run(self) -> None:

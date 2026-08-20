@@ -113,6 +113,10 @@ kiway test</pre>
 <p>Use <code>--config config.json</code> for defaults; command-line flags override config values. Exit codes are <code>0</code> success, <code>1</code> runtime failure, <code>2</code> usage/input error, and <code>3</code> validation findings.</p>
 
 <h2 id="troubleshooting">Troubleshooting</h2>
+<h2 id="bringup">Programming and Bring-Up</h2>
+<img src="help-bringup.png" alt="Actual Programming and Bring-Up tab">
+<p>Open tab <b>8 Programming &amp; Bring-Up</b>, scope the connector/controller references, and build the preview. KiWay classifies SWD, JTAG, UART, reset, boot-strap, target-reference voltage, power, and ground names. Review voltage compatibility, connector orientation, reset/boot state, and target pin functions before exporting Markdown or C definitions.</p>
+<div class="callout warn"><b>Safety:</b> generated definitions describe observed names and pins; they do not prove debugger voltage compatibility, direction, boot state, or safe first-power conditions.</div>
 <table><tr><th>Symptom</th><th>Resolution</th></tr>
 <tr><td>PCB selection does not appear</td><td>Enable <b>Follow PCB selection</b>, click a footprint rather than a track, or click <b>Refresh from PCB</b>.</td></tr>
 <tr><td>No preview rows</td><td>Check the selected source mode and clear restrictive net/value filters.</td></tr>

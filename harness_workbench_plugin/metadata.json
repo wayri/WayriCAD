@@ -1,0 +1,12 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v1",
+  "name": "KiWay Harness and Cable Workbench",
+  "description": "Cross-link board connector exports into validated harness wire lists.",
+  "description_full": "Imports KiWay or compatible connector-pin CSV documents, links signals using exact, wildcard, or regex capture rules, reports ambiguous/unmatched mappings and voltage conflicts, and exports reviewed cable wire lists with gauge, pair, shield, and status fields.",
+  "identifier": "kiway.harness.workbench",
+  "type": "plugin",
+  "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
+  "license": "GPL-3.0",
+  "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/harness_workbench_plugin/icon.png"},
+  "versions": [{"version": "0.1.0", "status": "testing", "kicad_version": "10.0", "runtime": "swig"}]
+}

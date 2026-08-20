@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import time
+import os
 import sys
 import ctypes
 import subprocess
 import tempfile
+import traceback
 from pathlib import Path
 
 import pcbnew
@@ -25,6 +27,11 @@ from via_stitching_plugin.via_stitching_plugin import ViaFrame
 from portable_assets_plugin.portable_assets.app import PortableAssetsFrame
 from portable_assets_plugin.portable_assets.core.engine import ProjectContext
 from variant_workbench_plugin.variant_manager_plugin import _tk_python
+from return_path_auditor_plugin.return_path_auditor_plugin import ReturnPathFrame
+from harness_workbench_plugin.harness_workbench_plugin import HarnessFrame
+from manufacturing_readiness_plugin.manufacturing_readiness_plugin import ManufacturingFrame
+from pdn_decoupling_plugin.pdn_decoupling_plugin import PdnFrame
+from protocol_constraint_composer_plugin.protocol_constraint_composer_plugin import ConstraintFrame
 import wx
 from PIL import Image, ImageDraw
 
@@ -38,13 +45,13 @@ def save_window(hwnd: int, destination: Path, title: str) -> None:
     if not ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect)):
         raise RuntimeError(f"Could not measure {title}")
     width, height = rect.right - rect.left, rect.bottom - rect.top
+    temporary = destination.with_suffix(".capture.png")
     bitmap = wx.Bitmap(width, height)
     memory = wx.MemoryDC(bitmap)
     rendered = ctypes.windll.user32.PrintWindow(hwnd, int(memory.GetHDC()), 2)
     memory.SelectObject(wx.NullBitmap)
     if not rendered:
-        raise RuntimeError(f"Windows PrintWindow failed for {title}")
-    temporary = destination.with_suffix(".capture.png")
+        raise RuntimeError(f"Windows could not capture {title}")
     bitmap.SaveFile(str(temporary), wx.BITMAP_TYPE_PNG)
     with Image.open(temporary) as source:
         image = source.convert("RGB").resize((1200, 680), Image.Resampling.LANCZOS)
@@ -57,12 +64,21 @@ def save_window(hwnd: int, destination: Path, title: str) -> None:
 
 
 def capture(frame: wx.Frame, destination: Path) -> None:
-    frame.SetSize((1200, 680)); frame.SetPosition((30, 30)); frame.Show(); frame.Raise()
-    for _ in range(5):
-        wx.Yield(); time.sleep(0.06)
-    save_window(int(frame.GetHandle()), destination, frame.GetTitle())
-    close = wx.CloseEvent(wx.EVT_CLOSE.typeId); wx.PostEvent(frame, close)
-    for _ in range(3): wx.Yield()
+    try:
+        frame.SetSize((1200, 680)); frame.SetPosition((30, 30)); frame.Show(); frame.Raise()
+        frame.Refresh()
+        for child in frame.GetChildren():
+            child.Refresh()
+        for _ in range(15):
+            wx.Yield(); frame.Update(); time.sleep(0.08)
+        save_window(int(frame.GetHandle()), destination, frame.GetTitle())
+    finally:
+        # Destroy native children while wx is fully alive. WebView teardown during
+        # Python interpreter finalization can otherwise hang or crash python.exe.
+        frame.Hide()
+        frame.Destroy()
+        for _ in range(3):
+            wx.Yield()
 
 
 def capture_variant(destination: Path) -> None:
@@ -121,12 +137,31 @@ def main() -> None:
             (ViaFrame(None, board), ROOT / "via_stitching_plugin" / "help-workflow.png"),
             (SignalIntegrityFrame(None, board), ROOT / "signal_integrity_advisor_plugin" / "help-workflow.png"),
             (PortableAssetsFrame(ProjectContext.discover(demo)), ROOT / "portable_assets_plugin" / "help-workflow.png"),
+            (ReturnPathFrame(None, board), ROOT / "return_path_auditor_plugin" / "help-workflow.png"),
+            (HarnessFrame(None), ROOT / "harness_workbench_plugin" / "help-workflow.png"),
+            (ManufacturingFrame(None, board), ROOT / "manufacturing_readiness_plugin" / "help-workflow.png"),
+            (PdnFrame(None, board), ROOT / "pdn_decoupling_plugin" / "help-workflow.png"),
+            (ConstraintFrame(None, board), ROOT / "protocol_constraint_composer_plugin" / "help-workflow.png"),
         )
-        frames[-2][0]._calculate_i2c(None)
+        next(frame for frame, _destination in frames if isinstance(frame, SignalIntegrityFrame))._calculate_i2c(None)
         for frame, destination in frames:
             capture(frame, destination)
-    capture_variant(ROOT / "variant_workbench_plugin" / "help-workflow.png")
+    try:
+        capture_variant(ROOT / "variant_workbench_plugin" / "help-workflow.png")
+    except RuntimeError as exc:
+        print(f"Variant Workbench capture skipped: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":
-    main()
+    status = 0
+    try:
+        main()
+    except BaseException:
+        traceback.print_exc()
+        status = 1
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        # wx/WebView owns native threads that are unsafe to tear down after the
+        # Python runtime has started finalizing. This is a one-shot build tool.
+        os._exit(status)

@@ -20,11 +20,11 @@
     "license": "GPL-3.0",
     "resources": {
         "homepage": "https://github.com/wayri/KiWay",
-        "icon": "https://raw.githubusercontent.com/wayri/KiWay/main/extract_pins_plugin/icon.png"
+        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/extract_pins_plugin/icon.png"
     },
     "versions": [
         {
-            "version": "2.16.1",
+            "version": "2.17.0",
             "status": "stable",
             "kicad_version": "9.0"
         }

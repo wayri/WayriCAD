@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import unittest
 from pathlib import Path
 
@@ -15,6 +16,30 @@ GUIDED_PACKAGES = (
     "test_point_descriptor_plugin",
     "trace_impedance_plugin",
     "via_stitching_plugin",
+)
+ENGINEERING_WORKBENCHES = (
+    ("return_path_auditor_plugin", "return_path_auditor_plugin.py"),
+    ("harness_workbench_plugin", "harness_workbench_plugin.py"),
+    ("manufacturing_readiness_plugin", "manufacturing_readiness_plugin.py"),
+    ("pdn_decoupling_plugin", "pdn_decoupling_plugin.py"),
+    ("protocol_constraint_composer_plugin", "protocol_constraint_composer_plugin.py"),
+)
+ACTION_PLUGIN_MODULES = (
+    ("bulk_label_editor_plugin", "bulk_label_editor_plugin.py"),
+    ("extract_pins_plugin", "extract_pins_plugin.py"),
+    ("fanout_generator_plugin", "fanout_generator_plugin.py"),
+    ("harness_workbench_plugin", "harness_workbench_plugin.py"),
+    ("kilo_plugin", "kilo/plugin/action_plugin.py"),
+    ("manufacturing_readiness_plugin", "manufacturing_readiness_plugin.py"),
+    ("pdn_decoupling_plugin", "pdn_decoupling_plugin.py"),
+    ("portable_assets_plugin", "legacy_action_plugin.py"),
+    ("protocol_constraint_composer_plugin", "protocol_constraint_composer_plugin.py"),
+    ("return_path_auditor_plugin", "return_path_auditor_plugin.py"),
+    ("signal_integrity_advisor_plugin", "signal_integrity_advisor_plugin.py"),
+    ("test_point_descriptor_plugin", "test_point_descriptor_plugin.py"),
+    ("trace_impedance_plugin", "trace_impedance_plugin.py"),
+    ("variant_workbench_plugin", "legacy_action_plugin.py"),
+    ("via_stitching_plugin", "via_stitching_plugin.py"),
 )
 
 
@@ -35,6 +60,44 @@ class SuiteUxTests(unittest.TestCase):
             for package in GUIDED_PACKAGES
         }
         self.assertEqual(1, len(hashes))
+
+    def test_engineering_workbenches_follow_kicad_design_language(self) -> None:
+        guide_hashes = set()
+        for package, module in ENGINEERING_WORKBENCHES:
+            with self.subTest(package=package):
+                source = (ROOT / package / module).read_text(encoding="utf-8")
+                help_text = (ROOT / package / "help.html").read_text(encoding="utf-8")
+                guide = ROOT / package / "guided_ui.py"
+                guide_hashes.add(hashlib.sha256(guide.read_bytes()).hexdigest())
+                self.assertIn("add_workflow", source)
+                self.assertIn("self.guide", source)
+                self.assertIn("make_sortable", source)
+                self.assertIn('src="help-workflow.png"', help_text)
+                with Image.open(ROOT / package / "help-workflow.png") as image:
+                    self.assertEqual((1200, 680), image.size)
+                    self.assertEqual("PNG", image.format)
+        self.assertEqual(1, len(guide_hashes))
+
+    def test_every_action_plugin_defines_light_and_dark_icons(self) -> None:
+        for package, module in ACTION_PLUGIN_MODULES:
+            with self.subTest(package=package):
+                source = (ROOT / package / module).read_text(encoding="utf-8")
+                self.assertIn("icon_file_name", source)
+                self.assertIn("dark_icon_file_name", source)
+                with Image.open(ROOT / package / "icon.png") as icon:
+                    self.assertEqual("PNG", icon.format)
+                    self.assertGreaterEqual(icon.width, 64)
+                    self.assertGreaterEqual(icon.height, 64)
+                    self.assertIsNotNone(icon.getbbox())
+                metadata = json.loads((ROOT / package / "metadata.json").read_text(encoding="utf-8"))
+                self.assertEqual(
+                    f"https://raw.githubusercontent.com/wayri/KiWay/develop/{package}/icon.png",
+                    metadata["resources"]["icon"],
+                )
+        for icon_path in ROOT.glob("*_plugin/**/icon.png"):
+            with self.subTest(icon=str(icon_path.relative_to(ROOT))):
+                with Image.open(icon_path) as icon:
+                    self.assertEqual((96, 96), icon.size)
 
     def test_dependency_manager_has_visual_help_and_guarded_install_actions(self) -> None:
         help_text = (ROOT / "extract_pins_plugin" / "help.html").read_text(encoding="utf-8")

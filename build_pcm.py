@@ -12,7 +12,7 @@ RELEASES_DIR = "releases"
 REPO_URL_BASE = "https://github.com/wayri/KiWay/releases/download" 
 # All package versions in a feed may differ, but this repository publishes
 # their downloadable assets together in one release.
-RELEASE_TAG = "2.21.1"
+RELEASE_TAG = "2.22.0"
 
 def calculate_sha256(file_path):
     sha256_hash = hashlib.sha256()
@@ -36,6 +36,7 @@ def normalize_runtime(version_info):
     runtime = normalized.get("runtime", "swig")
     if runtime not in {"swig", "ipc"}:
         raise ValueError(f"Unsupported KiCad PCM runtime: {runtime!r}")
+    normalized["runtime"] = runtime
     return normalized
 
 def create_plugin_zip(plugin_path, version, output_dir, metadata):
