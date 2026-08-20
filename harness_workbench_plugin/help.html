@@ -1,1 +1,37 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Harness Workbench Help</title><style>body{font:16px system-ui;max-width:1050px;margin:32px auto;line-height:1.5;color:#17202a}img{max-width:100%;border:1px solid #9aa6b2}code{background:#eef2f5;padding:2px 5px}h1,h2{color:#17365d}</style></head><body><h1>Harness and Cable Workbench</h1><img src="help-workflow.png" alt="Actual Harness Workbench window"><h2>Workflow</h2><ol><li>Export connector pin CSV files from KiWay Pin Extractor.</li><li>Import source and destination documents.</li><li>Use <code>*</code> wildcards, or enable regex and provide a capture group.</li><li>Review every ambiguous, unmatched, duplicate, or voltage-conflict row.</li><li>Export the reviewed wire list.</li></ol><h2>Example</h2><p>Source <code>DEMO_CTRL_*</code> and destination <code>DEMO_IO_*</code> link records by the captured suffix.</p><h2>Limitations</h2><p>Automatic name matching does not establish electrical compatibility. Verify pin type, voltage, current, gauge, shielding, twist, insulation, connector rating, and mating orientation.</p></body></html>
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Harness Workbench Help</title>
+<style>body{font:16px system-ui;max-width:1100px;margin:32px auto;line-height:1.55;color:#17202a}img{max-width:100%;border:1px solid #9aa6b2}code,pre{background:#eef2f5;padding:2px 5px}pre{padding:12px;overflow:auto}h1,h2{color:#17365d}table{border-collapse:collapse;width:100%}th,td{border:1px solid #b8c2cc;padding:7px;text-align:left}.warn{border-left:5px solid #c47718;padding:10px;background:#fff7e8}</style>
+</head><body><h1>KiWay Harness and Cable Workbench 0.2.0</h1>
+<p>Build a reviewed system harness from board pin exports and endpoint loads. The workbench reads project data only and never modifies the PCB.</p>
+<img src="help-workflow.png" alt="Actual Harness Workbench window">
+<h2>1. Import sources</h2>
+<p>Import multiple CSV files or scan a directory recursively. A project set may contain up to 50 unique project names.</p>
+<table><tr><th>Column</th><th>Purpose</th></tr>
+<tr><td>project</td><td>Unique board or endpoint group name.</td></tr>
+<tr><td>connector / reference</td><td>Connector reference such as J1. Required.</td></tr>
+<tr><td>pin / pad</td><td>Connector pin identity. Required.</td></tr>
+<tr><td>net / net name</td><td>Signal name used by indexed matching.</td></tr>
+<tr><td>function, voltage</td><td>Documentation and voltage-conflict checks.</td></tr>
+<tr><td>connector part, contact part</td><td>Parts used by the harness BoM.</td></tr>
+<tr><td>load A</td><td>Endpoint current shown in the net map.</td></tr></table>
+<h2>2. Define links</h2>
+<p>Indexed matching groups equal net names across different connectors and projects. Use a wildcard or regex to restrict candidates. Power nets are excluded by default to prevent accidental cross-products.</p>
+<pre>DEMO_CTRL:J1 -&gt; DEMO_IO:J2
+DEMO_IO:J4 -&gt; LOADS:P1 [offset=1]
+DEMO_A:J3 -&gt; DEMO_B:J7 [map=1:3,2:4]</pre>
+<p>The first rule maps N to N. Offset changes numeric destination pins. An explicit map overrides listed pins.</p>
+<h2>3. Add external loads</h2>
+<pre>PROJECT,REFERENCE,PIN,NET,FUNCTION,VOLTAGE,CURRENT_A,CONNECTOR_PART
+LOADS,MOTOR_A,1,MOTOR_POS,Drive motor,24V,3.5,DEMO-CONN</pre>
+<h2>4. Review construction</h2>
+<p>Sort tables by clicking a header. Select wires, then apply AWG, color, bundle, splice, length, and shielding. With no selection, the action applies to every link. Review unmatched, ambiguous, duplicate-destination, and voltage-conflict findings.</p>
+<h2>5. Draft and outputs</h2>
+<p>The Draft Canvas shows each connector once. Mouse wheel zooms, drag pans, and double-click inspects a connector. Export pin map, net map, wire list, procurement BoM, or universal SVG. The UI displays at most 10,000 rows; exports contain every generated row.</p>
+<h2>Troubleshooting</h2><ul>
+<li><b>No links:</b> confirm project/connector spelling, net pattern, and CSV columns.</li>
+<li><b>Too many links:</b> disable indexed matching for straight-through cables or narrow the pattern. Automatic generation stops at 50,000 links.</li>
+<li><b>Unmatched pins:</b> inspect connector population and use offset or explicit maps.</li>
+<li><b>Missing BoM parts:</b> provide connector/contact part columns. Unknown parts remain TBD.</li>
+</ul>
+<p class="warn"><b>Engineering limitation:</b> correspondence does not prove polarity, pin gender, mating orientation, electrical compatibility, ampacity, temperature derating, insulation, creepage, shielding, bend radius, regulatory compliance, manufacturability, or testability. Verify these before release.</p>
+</body></html>

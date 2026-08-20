@@ -1,0 +1,60 @@
+<!doctype html><html><head><meta charset="utf-8"><title>KiWay Planar Magnetics Help</title>
+<style>body{font:15px Segoe UI,Arial;max-width:1100px;margin:24px auto;color:#263744;line-height:1.5}h1,h2{color:#3d5f89}img{max-width:100%;border:1px solid #9aabb7}code{background:#eef3f6;padding:2px 5px}.warn{border-left:5px solid #d1495b;padding:10px;background:#fff3f3}.note{border-left:5px solid #2b8cbe;padding:10px;background:#eff8fc}table{border-collapse:collapse;width:100%}th,td{border:1px solid #aebbc5;padding:7px;text-align:left}</style>
+</head><body><h1>Planar Magnetics & Actuator Workbench 0.2.0</h1>
+<img src="help-workflow.png" alt="Actual planar magnetics window">
+<h2>Guided workflow</h2><ol>
+<li>Define winding geometry, copper layers, excitation, core, and optional transformer secondary.</li>
+<li>Generate and review geometry, vias, LCR, loss, saturation, and self resonance.</li>
+<li>Choose linear or rotary actuation, define mechanics and drive, then run the coupled simulation.</li>
+<li>Review the trajectory, all warnings, and PCB preview before committing copper.</li></ol>
+<h2>Motion inputs</h2><table>
+<tr><th>Input</th><th>Meaning</th></tr>
+<tr><td>Moving mass / rotor inertia</td><td>Effective modal mass or rotary inertia, not necessarily total physical mass.</td></tr>
+<tr><td>Spring / angular stiffness</td><td>Linearized restoring stiffness around the operating point.</td></tr>
+<tr><td>Mechanical Q or damping</td><td>Enter damping directly, or leave zero to derive it from Q.</td></tr>
+<tr><td>Gap and travel limit</td><td>Initial magnetic gap and hard position clamp. Contact bounce is not modeled.</td></tr>
+<tr><td>Load and stiction</td><td>Constant opposing load and a simple breakaway-force threshold.</td></tr>
+<tr><td>Drive</td><td>Voltage/current step or sine waveform. Voltage drive includes coil L/R and back EMF.</td></tr></table>
+<h2>Equations</h2>
+<p>The electrical state uses <code>L di/dt = V - Ri - Ke v</code>. Linear motion uses
+<code>m x'' + c x' + kx = Fmag - Fload - Ffriction</code>; rotary motion uses the
+inertia/torque equivalent. Solenoid force is based on
+<code>F = 0.5 i^2 dL/dx</code> with a variable air-gap reluctance and saturation
+clamp. Voice-coil force uses a local <code>B l i</code> model with gap roll-off.
+The RK4 integrator automatically tightens the requested step against electrical
+and mechanical time constants and limits runs to 200,000 internal steps.</p>
+<p>Mechanical resonance is <code>sqrt(k/m)/(2 pi)</code>. Thermal force-noise
+density uses <code>sqrt(4 kB T c)</code>, and equilibrium Brownian displacement
+uses <code>sqrt(kB T/k)</code>. These are lumped, linear, equilibrium estimates.</p>
+<h2>Trajectory and export</h2>
+<p>The four-lane plot shows position, speed, acceleration, and force or torque
+against time. Each lane is independently normalized and labeled with its peak;
+compare values in the results table rather than comparing lane heights.
+Export Motion CSV writes every displayed sample with SI units. Animation follows
+the simulated trajectory but visually amplifies very small travel.</p>
+<h2>Nanoscale screening</h2>
+<div class="warn"><b>This is not a nanoscale fabrication signoff solver.</b>
+The nano preset is useful for sensitivity studies and checking orders of
+magnitude. It does not model rarefied-gas or squeeze-film damping, adhesion,
+stiction surface physics, Casimir/van der Waals force, fabrication variation,
+residual stress, nonlinear or anisotropic materials, multimode coupling,
+temperature-dependent properties, readout back-action, or quantum behavior.
+PCB copper generation also cannot represent nanofabricated coil geometry.</div>
+<p>For MEMS/NEMS work, replace every default with process-specific measured
+values, solve coupled electromagnetic, structural, thermal, and fluid domains,
+perform mesh and timestep convergence studies, include uncertainty/Monte Carlo
+analysis, and correlate against fabricated test structures.</p>
+<h2>References and interpretation</h2>
+<p>The one-mode mass/spring/damping structure and thermal-noise treatment follow
+standard nanomechanical resonator practice. See the NIST cantilever control and
+noise treatment and peer-reviewed nanomechanical force-sensitivity literature:
+<a href="https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=907965">NIST cantilever modeling</a>,
+<a href="https://www.nature.com/articles/ncomms4638">diamond nanomechanical resonators</a>, and
+<a href="https://www.nature.com/articles/s41378-024-00718-0">thermal-noise-driven resonators</a>.</p>
+<h2>Troubleshooting</h2><ul>
+<li><b>Diverged:</b> reduce requested step, check units, and inspect stiffness, mass, gap, and drive.</li>
+<li><b>Travel stop reached:</b> increase realistic clearance or reduce drive; contact dynamics need another solver.</li>
+<li><b>No movement:</b> compare magnetic effort with load, stiction, and spring force.</li>
+<li><b>Too many steps:</b> shorten duration or use a validated reduced-order envelope model.</li>
+<li><b>Self resonance warning:</b> use a distributed winding model or electromagnetic solver.</li></ul>
+</body></html>

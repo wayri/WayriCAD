@@ -1,0 +1,12 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v1",
+  "name": "KiWay Planar Magnetics & Actuator Workbench",
+  "description": "Design PCB coils, transformers, inductors, motors, actuators, and magnetic torquers.",
+  "description_full": "Generate multilayer and via-connected planar windings, estimate LCR, loss, field and force, then simulate coupled current, position, speed, acceleration, resonance, damping, travel stops, and thermal-noise limits for linear and rotary actuator concepts.",
+  "identifier": "kiway.planar.magnetics",
+  "type": "plugin",
+  "author": {"name": "Wayri (Yawar)"},
+  "license": "GPL-3.0-only",
+  "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/planar_magnetics_plugin/icon.png"},
+  "versions": [{"version": "0.2.0", "status": "testing", "kicad_version": "10.0", "runtime": "swig"}]
+}

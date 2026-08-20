@@ -22,7 +22,7 @@ def test_kilo_pcm_metadata_and_feed_are_consistent() -> None:
     assert metadata["versions"][0]["version"] == feed_entry["versions"][0]["version"]
     assert metadata["versions"][0]["kicad_version"] == "10.0"
     assert feed_entry["versions"][0]["download_url"].endswith(
-        "/v2.22.0/kilo_plugin-0.1.0.zip"
+        "/v2.23.0/kilo_plugin-0.1.0.zip"
     )
 
 
@@ -36,3 +36,5 @@ def test_kilo_pcm_payload_includes_native_help_icon_and_guarded_wrapper() -> Non
     assert (PLUGIN / "LICENSE").is_file()
     assert (PLUGIN / "kilo" / "README.md").is_file()
     assert (PLUGIN / "kilo" / "icon.png").is_file()
+    assert (PLUGIN / "help.html").is_file()
+    assert (PLUGIN / "help-workflow.png").is_file()

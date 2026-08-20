@@ -1,0 +1,12 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v1",
+  "name": "KiWay PCB / Foil Heater Designer",
+  "description": "Design zoned PCB heaters and preview electrical and thermal behavior.",
+  "description_full": "Generate serpentine or spiral multilayer heater copper, vary resistance by region to create controlled hot/cold zones, run a review-grade thermal model, and commit only the reviewed geometry.",
+  "identifier": "kiway.heater.designer",
+  "type": "plugin",
+  "author": {"name": "Wayri (Yawar)"},
+  "license": "GPL-3.0-only",
+  "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/heater_designer_plugin/icon.png"},
+  "versions": [{"version": "0.1.0", "status": "stable", "kicad_version": "10.0", "runtime": "swig"}]
+}

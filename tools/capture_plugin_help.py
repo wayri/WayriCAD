@@ -15,6 +15,7 @@ import pcbnew
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "kilo_plugin"))
 
 # Import before creating wx.App so standalone imports do not register actions.
 from bulk_label_editor_plugin.bulk_label_editor_plugin import BulkLabelEditorFrame
@@ -32,6 +33,9 @@ from harness_workbench_plugin.harness_workbench_plugin import HarnessFrame
 from manufacturing_readiness_plugin.manufacturing_readiness_plugin import ManufacturingFrame
 from pdn_decoupling_plugin.pdn_decoupling_plugin import PdnFrame
 from protocol_constraint_composer_plugin.protocol_constraint_composer_plugin import ConstraintFrame
+from heater_designer_plugin.heater_designer_plugin import HeaterFrame
+from planar_magnetics_plugin.planar_magnetics_plugin import MagneticsFrame
+from kilo.ui.main_frame import MainFrame as KiloFrame
 import wx
 from PIL import Image, ImageDraw
 
@@ -123,33 +127,48 @@ def capture_variant(destination: Path) -> None:
 
 def main() -> None:
     app = wx.App(False); board = pcbnew.BOARD()
+    requested = set(sys.argv[1:])
     pcbnew.GetBoard = lambda: board
     with tempfile.TemporaryDirectory(prefix="kiway-help-") as temporary:
         demo = Path(temporary)
         (demo / "demo.kicad_pro").write_text("{}\n", encoding="utf-8")
         pcbnew.SaveBoard(str(demo / "demo.kicad_pcb"), board)
         frames = (
-            (BulkLabelEditorFrame(None, board), ROOT / "bulk_label_editor_plugin" / "help-workflow.png"),
-            (PluginDialogV2(None, []), ROOT / "extract_pins_plugin" / "help-workflow.png"),
-            (FanoutFrame(None, board), ROOT / "fanout_generator_plugin" / "help-workflow.png"),
-            (TestPointFrame(None, board), ROOT / "test_point_descriptor_plugin" / "help-workflow.png"),
-            (TraceFrame(None, board), ROOT / "trace_impedance_plugin" / "help-workflow.png"),
-            (ViaFrame(None, board), ROOT / "via_stitching_plugin" / "help-workflow.png"),
-            (SignalIntegrityFrame(None, board), ROOT / "signal_integrity_advisor_plugin" / "help-workflow.png"),
-            (PortableAssetsFrame(ProjectContext.discover(demo)), ROOT / "portable_assets_plugin" / "help-workflow.png"),
-            (ReturnPathFrame(None, board), ROOT / "return_path_auditor_plugin" / "help-workflow.png"),
-            (HarnessFrame(None), ROOT / "harness_workbench_plugin" / "help-workflow.png"),
-            (ManufacturingFrame(None, board), ROOT / "manufacturing_readiness_plugin" / "help-workflow.png"),
-            (PdnFrame(None, board), ROOT / "pdn_decoupling_plugin" / "help-workflow.png"),
-            (ConstraintFrame(None, board), ROOT / "protocol_constraint_composer_plugin" / "help-workflow.png"),
+            ("bulk_label_editor_plugin", lambda: BulkLabelEditorFrame(None, board)),
+            ("extract_pins_plugin", lambda: PluginDialogV2(None, [])),
+            ("fanout_generator_plugin", lambda: FanoutFrame(None, board)),
+            ("test_point_descriptor_plugin", lambda: TestPointFrame(None, board)),
+            ("trace_impedance_plugin", lambda: TraceFrame(None, board)),
+            ("via_stitching_plugin", lambda: ViaFrame(None, board)),
+            ("signal_integrity_advisor_plugin", lambda: SignalIntegrityFrame(None, board)),
+            ("portable_assets_plugin", lambda: PortableAssetsFrame(ProjectContext.discover(demo))),
+            ("return_path_auditor_plugin", lambda: ReturnPathFrame(None, board)),
+            ("harness_workbench_plugin", lambda: HarnessFrame(None)),
+            ("manufacturing_readiness_plugin", lambda: ManufacturingFrame(None, board)),
+            ("pdn_decoupling_plugin", lambda: PdnFrame(None, board)),
+            ("protocol_constraint_composer_plugin", lambda: ConstraintFrame(None, board)),
+            ("heater_designer_plugin", lambda: HeaterFrame(None, board)),
+            ("planar_magnetics_plugin", lambda: MagneticsFrame(None, board)),
+            ("kilo_plugin", lambda: KiloFrame()),
         )
-        next(frame for frame, _destination in frames if isinstance(frame, SignalIntegrityFrame))._calculate_i2c(None)
-        for frame, destination in frames:
+        for package, factory in frames:
+            if requested and package not in requested:
+                continue
+            frame = factory()
+            if isinstance(frame, SignalIntegrityFrame):
+                frame._calculate_i2c(None)
+            if isinstance(frame, MagneticsFrame):
+                frame._motion_preset(False)
+                frame.run_dynamics(None)
+            if isinstance(frame, KiloFrame):
+                frame.notebook.SetSelection(frame.help_page)
+            destination = ROOT / package / "help-workflow.png"
             capture(frame, destination)
-    try:
-        capture_variant(ROOT / "variant_workbench_plugin" / "help-workflow.png")
-    except RuntimeError as exc:
-        print(f"Variant Workbench capture skipped: {exc}", file=sys.stderr)
+    if not requested or "variant_workbench_plugin" in requested:
+        try:
+            capture_variant(ROOT / "variant_workbench_plugin" / "help-workflow.png")
+        except RuntimeError as exc:
+            print(f"Variant Workbench capture skipped: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":

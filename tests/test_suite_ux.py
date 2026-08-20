@@ -29,9 +29,11 @@ ACTION_PLUGIN_MODULES = (
     ("extract_pins_plugin", "extract_pins_plugin.py"),
     ("fanout_generator_plugin", "fanout_generator_plugin.py"),
     ("harness_workbench_plugin", "harness_workbench_plugin.py"),
+    ("heater_designer_plugin", "heater_designer_plugin.py"),
     ("kilo_plugin", "kilo/plugin/action_plugin.py"),
     ("manufacturing_readiness_plugin", "manufacturing_readiness_plugin.py"),
     ("pdn_decoupling_plugin", "pdn_decoupling_plugin.py"),
+    ("planar_magnetics_plugin", "planar_magnetics_plugin.py"),
     ("portable_assets_plugin", "legacy_action_plugin.py"),
     ("protocol_constraint_composer_plugin", "protocol_constraint_composer_plugin.py"),
     ("return_path_auditor_plugin", "return_path_auditor_plugin.py"),
@@ -44,6 +46,36 @@ ACTION_PLUGIN_MODULES = (
 
 
 class SuiteUxTests(unittest.TestCase):
+    def test_every_pcm_package_has_unique_icon_docs_help_and_actual_capture(self) -> None:
+        packages = sorted(
+            path for path in ROOT.iterdir()
+            if path.is_dir() and (path / "metadata.json").is_file()
+        )
+        self.assertEqual(17, len(packages))
+        icon_hashes = {}
+        for package in packages:
+            with self.subTest(package=package.name):
+                icon = package / "icon.png"
+                help_file = package / "help.html"
+                screenshot = package / "help-workflow.png"
+                readme = next(
+                    (candidate for candidate in (package / "ReadMe.md", package / "README.md")
+                     if candidate.is_file()),
+                    None,
+                )
+                self.assertIsNotNone(readme)
+                self.assertTrue(help_file.is_file())
+                self.assertIn('src="help-workflow.png"', help_file.read_text(encoding="utf-8"))
+                with Image.open(icon) as image:
+                    self.assertEqual((96, 96), image.size)
+                    self.assertEqual("PNG", image.format)
+                with Image.open(screenshot) as image:
+                    self.assertEqual((1200, 680), image.size)
+                    self.assertEqual("PNG", image.format)
+                digest = hashlib.sha256(icon.read_bytes()).hexdigest()
+                icon_hashes.setdefault(digest, []).append(package.name)
+        self.assertEqual([], [names for names in icon_hashes.values() if len(names) > 1])
+
     def test_every_plugin_embeds_an_annotated_help_visual(self) -> None:
         for package in GUIDED_PACKAGES:
             with self.subTest(package=package):

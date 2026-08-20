@@ -11,9 +11,11 @@ SPECS = {
     "extract_pins_plugin": ("#17806d", "extract"),
     "fanout_generator_plugin": ("#c66a1b", "fanout"),
     "harness_workbench_plugin": ("#2e8b57", "harness"),
+    "heater_designer_plugin": ("#c74f3d", "heater"),
     "kilo_plugin": ("#3b6ea8", "localize"),
     "manufacturing_readiness_plugin": ("#d9822b", "factory"),
     "pdn_decoupling_plugin": ("#c23b53", "pdn"),
+    "planar_magnetics_plugin": ("#3d6591", "magnetics"),
     "portable_assets_plugin": ("#417f62", "portable"),
     "protocol_constraint_composer_plugin": ("#6b5ca5", "rules"),
     "return_path_auditor_plugin": ("#1f77b4", "return"),
@@ -55,6 +57,11 @@ def icon(color: str, kind: str) -> Image.Image:
             draw.line((20, y, 46, y, 76, y + bend), fill=color, width=4)
         draw.rectangle((14, 20, 22, 70), fill=pale, outline=dark, width=2)
         draw.rectangle((74, 20, 82, 70), fill=pale, outline=dark, width=2)
+    elif kind == "heater":
+        draw.rectangle((16, 18, 80, 78), fill="#fff6f2", outline=dark, width=2)
+        points = [(23, 27), (72, 27), (72, 38), (23, 38), (23, 49), (72, 49), (72, 60), (23, 60), (23, 69), (72, 69)]
+        draw.line(points, fill=color, width=5, joint="curve")
+        draw.ellipse((41, 40, 55, 54), fill="#f5b642", outline="#b65a27", width=2)
     elif kind == "localize":
         draw.rounded_rectangle((16, 27, 59, 70), radius=3, fill=pale, outline=dark, width=3)
         draw.polygon(((16, 27), (30, 27), (35, 34), (59, 34), (59, 27)), fill="#d9e8f4", outline=dark)
@@ -71,6 +78,12 @@ def icon(color: str, kind: str) -> Image.Image:
         for x in (31, 57):
             draw.line((x - 7, 54, x + 7, 54), fill=dark, width=3)
             draw.line((x - 7, 63, x + 7, 63), fill=dark, width=3)
+    elif kind == "magnetics":
+        for inset in (0, 8, 16):
+            draw.rounded_rectangle((17 + inset, 17 + inset, 79 - inset, 79 - inset), radius=8, outline=color, width=4)
+        draw.ellipse((42, 42, 54, 54), fill="#ffffff", outline=dark, width=3)
+        draw.line((48, 12, 48, 25), fill=dark, width=3)
+        draw.polygon(((43, 17), (53, 17), (48, 9)), fill=dark)
     elif kind == "portable":
         draw.rounded_rectangle((15, 24, 62, 70), radius=3, fill=pale, outline=dark, width=3)
         draw.polygon(((15,24),(30,24),(35,31),(62,31),(62,24)), fill="#dcece4", outline=dark)

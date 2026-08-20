@@ -2,7 +2,7 @@
 
 KiWay is a focused parent repository for KiCad ActionPlugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
 
-Current suite release: **v2.22.0**. The feed contains 15 independently installable
+Current development suite: **v2.23.0**. The feed contains 17 independently installable
 packages. Every package provides a distinct 96 x 96 PCM icon and matching
 light/dark PCB Editor ActionPlugin icon.
 
@@ -100,9 +100,14 @@ Provides semantic variant rebasing, matrix editing, comparison, linting, PCB syn
 
 Screens routed geometry for unsupported signal layer transitions, missing nearby return vias, apparent reference-plane gaps, long branches that may be stubs, differential-pair skew, and uncoupled pair segments. Findings can be cross-selected and exported for review. It is not an electromagnetic field solver.
 
-### 12. KiWay Harness and Cable Workbench (v0.1.0)
+### 12. KiWay Harness and Cable Workbench (v0.2.0)
 
-Imports connector-pin CSV documents from multiple projects, links nets with exact, wildcard, or regex capture rules, reports ambiguous/unmatched mappings and voltage conflicts, assigns gauge/pair/shield properties, and exports wire-list CSV plus harness SVG diagrams.
+Ingests up to 50 board pin documents and builds system harness data using
+indexed net matching or connector-to-connector rules that default to pin-for-pin
+correspondence. It supports explicit pin maps, virtual endpoint loads, bundles,
+splices, gauges, colors, shields, and cut lengths. Outputs include sortable pin
+and net maps, wire-list and procurement BoM CSVs, plus a native pan/zoom draft
+and universal SVG.
 
 ### 13. KiWay Manufacturing Readiness Manager (v0.1.0)
 
@@ -115,6 +120,23 @@ Uses configurable rail, ground, load, capacitor, and regulator conventions to fi
 ### 15. KiWay Protocol Constraint Composer (v0.1.0)
 
 Detects likely USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF nets, then generates a reviewable KiCad custom-rule block. Applying rules requires confirmation, creates a timestamped backup, and leaves rules outside the KiWay-managed markers untouched.
+
+### 16. KiWay PCB / Foil Heater Designer (v0.1.0)
+
+Synthesizes serpentine, zoned-raster, and concentric-spiral PCB heater copper.
+Users can vary regional resistance to create controlled hot or cold areas,
+continue a series path across multiple layers with transition vias, run a
+steady-state 2D thermal preview, inspect power density and temperature
+uniformity, and commit only the reviewed geometry.
+
+### 17. KiWay Planar Magnetics & Actuator Workbench (v0.2.0)
+
+Designs rectangular or circular multilayer PCB inductors, transformers, coils,
+voice-coil motors, linear actuators, and magnetic torquers. The coupled motion
+solver reports force or torque, acceleration, speed, travel, resonance, damping,
+settling, thermal force noise, and Brownian motion. A nanoscale preset supports
+feasibility screening while explicitly requiring process-calibrated
+multiphysics validation for MEMS/NEMS fabrication.
 
 ## PCB Editor Workflow
 
@@ -270,6 +292,8 @@ deterministic automation diffs. Config files are JSON objects with optional
 - [Manufacturing Readiness Manager Documentation](manufacturing_readiness_plugin/ReadMe.md)
 - [PDN and Decoupling Planner Documentation](pdn_decoupling_plugin/ReadMe.md)
 - [Protocol Constraint Composer Documentation](protocol_constraint_composer_plugin/ReadMe.md)
+- [PCB / Foil Heater Designer Documentation](heater_designer_plugin/ReadMe.md)
+- [Planar Magnetics & Actuator Documentation](planar_magnetics_plugin/ReadMe.md)
 - [KiWay v2.22.0 Release Notes](docs/RELEASE_2.22.0.md)
 - [Contributing](CONTRIBUTING.md)
 - [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
