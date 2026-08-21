@@ -12,8 +12,13 @@ def make_sortable(table):
         for row in rows:i=table.InsertItem(table.GetItemCount(),row[0]);[table.SetItem(i,c,v) for c,v in enumerate(row[1:],1)]
     table.Bind(wx.EVT_LIST_COL_CLICK,sort)
 
+PROTOCOL_COLOURS={"USB":"#3399cc","CAN":"#3fa56b","ETHERNET":"#d67142","PCIe/SerDes":"#a45ac7","DDR":"#d4a62a","RS-485":"#4fb3bf","RF":"#e34a43"}
+def protocol_colour(name:str)->str:
+    if name in PROTOCOL_COLOURS:return PROTOCOL_COLOURS[name]
+    palette=tuple(PROTOCOL_COLOURS.values());return palette[sum(ord(c) for c in name)%len(palette)]
+
 class ProtocolConstraintComposerPlugin(pcbnew.ActionPlugin):
-    def defaults(self):self.name="KiWay Protocol Constraint Composer";self.category="Design Rules";self.description="Detect protocol nets and compose reviewed KiCad custom design rules.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"icon.png");self.dark_icon_file_name=self.icon_file_name;self.version="0.1.0"
+    def defaults(self):self.name="KiWay Protocol Constraint Composer";self.category="Design Rules";self.description="Detect protocol nets and compose reviewed KiCad custom design rules.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"icon.png");self.dark_icon_file_name=self.icon_file_name;self.version="0.2.0"
     def Run(self):
         board=pcbnew.GetBoard()
         if board is None:return
@@ -30,7 +35,22 @@ class ConstraintFrame(wx.Frame):
         edit_actions=wx.BoxSizer(wx.HORIZONTAL);assign=wx.Button(left,label="Assign Protocol to Selected Rows");assign.SetToolTip("Assign the selected preset to each selected net row");assign.Bind(wx.EVT_BUTTON,self.assign_protocol);update=wx.Button(left,label="Update Protocol Geometry");update.SetToolTip("Update this session's preset from the entered geometry");update.Bind(wx.EVT_BUTTON,self.update_preset);edit_actions.Add(assign,1,wx.RIGHT,6);edit_actions.Add(update,1);ls.Add(edit_actions,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,6)
         self.table=wx.ListCtrl(left,style=wx.LC_REPORT);self.table.InsertColumn(0,"Protocol",width=150);self.table.InsertColumn(1,"Net",width=260);self.table.InsertColumn(2,"Detection",width=110);ls.Add(self.table,1,wx.EXPAND|wx.ALL,6);generate=wx.Button(left,label="Generate Rule Preview");generate.SetToolTip("Generate the exact managed rules for review");generate.Bind(wx.EVT_BUTTON,self.generate);ls.Add(generate,0,wx.EXPAND|wx.ALL,6);left.SetSizer(ls)
         make_sortable(self.table)
-        self.preview=wx.TextCtrl(right,style=wx.TE_MULTILINE|wx.TE_RICH2);self.preview.SetFont(wx.Font(wx.FontInfo(10).Family(wx.FONTFAMILY_TELETYPE)));rs.Add(self.preview,1,wx.EXPAND|wx.ALL,6);buttons=wx.BoxSizer(wx.HORIZONTAL);export=wx.Button(right,label="Export .kicad_dru…");export.Bind(wx.EVT_BUTTON,self.export);apply=wx.Button(right,label="Apply Managed Block…");apply.Bind(wx.EVT_BUTTON,self.apply);buttons.Add(export,0,wx.RIGHT,8);buttons.Add(apply);rs.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,6);right.SetSizer(rs);split.SplitVertically(left,right,500);r.Add(split,1,wx.EXPAND|wx.ALL,8);p.SetSizer(r)
+        chips_row=wx.BoxSizer(wx.HORIZONTAL);chips_label=wx.StaticText(left,label="Detected mix:");chips_label.SetFont(chips_label.GetFont().Bold());chips_row.Add(chips_label,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8);self.chips_host=wx.Panel(left);self.chips_sizer=wx.WrapSizer(wx.HORIZONTAL);self.chips_host.SetSizer(self.chips_sizer);chips_row.Add(self.chips_host,1,wx.EXPAND);ls.Add(chips_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,6)
+        self.preview=wx.TextCtrl(right,style=wx.TE_MULTILINE|wx.TE_RICH2);self.preview.SetFont(wx.Font(wx.FontInfo(10).Family(wx.FONTFAMILY_TELETYPE)));rs.Add(self.preview,1,wx.EXPAND|wx.ALL,6);buttons=wx.BoxSizer(wx.HORIZONTAL);copy_rules=wx.Button(right,label="Copy Rules");copy_rules.SetToolTip("Copy the reviewed rule block to the clipboard");copy_rules.Bind(wx.EVT_BUTTON,self.copy_rules);export=wx.Button(right,label="Export .kicad_dru…");export.Bind(wx.EVT_BUTTON,self.export);apply=wx.Button(right,label="Apply Managed Block…");apply.Bind(wx.EVT_BUTTON,self.apply);buttons.Add(copy_rules,0,wx.RIGHT,8);buttons.Add(export,0,wx.RIGHT,8);buttons.Add(apply);rs.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,6);right.SetSizer(rs);split.SplitVertically(left,right,500);r.Add(split,1,wx.EXPAND|wx.ALL,8);p.SetSizer(r)
+    def refresh_chips(self):
+        self.chips_sizer.Clear(delete_windows=True)
+        counts={}
+        for a in self.assignments:counts[a.protocol]=counts.get(a.protocol,0)+1
+        for name,count in sorted(counts.items(),key=lambda item:(-item[1],item[0])):
+            chip=wx.Panel(self.chips_host,size=(-1,24));chip.SetBackgroundColour(wx.Colour(protocol_colour(name)));text=wx.StaticText(chip,label=f" {name} × {count} ",style=wx.ALIGN_CENTER);row=wx.BoxSizer(wx.HORIZONTAL);row.Add(text,1,wx.ALIGN_CENTER_VERTICAL);chip.SetSizer(row);self.chips_sizer.Add(chip,0,wx.ALL,3)
+        if not counts:
+            empty=wx.StaticText(self.chips_host,label="run Detect to populate");empty.SetForegroundColour(wx.Colour("#78848f"));self.chips_sizer.Add(empty,0,wx.ALIGN_CENTER_VERTICAL)
+        self.chips_host.Layout()
+    def copy_rules(self,_event):
+        if not self.generated and not self.preview.GetValue():return
+        text=self.generated or self.preview.GetValue()
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(text));wx.TheClipboard.Close()
     def nets(self):return sorted({str(pad.GetNetname()) for fp in self.board.GetFootprints() for pad in fp.Pads() if str(pad.GetNetname())})
     def detect(self,_e):
         self.assignments=detect_protocols(self.nets(),self.presets);self.table.DeleteAllItems()

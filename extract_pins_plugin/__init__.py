@@ -10,7 +10,7 @@ and generating documentation from KiCAD PCB designs.
 @license - GPL-3.0
 """
 
-__version__ = "2.24.0"
+__version__ = "2.26.0"
 __author__ = "Wayri (Yawar)"
 
 try:

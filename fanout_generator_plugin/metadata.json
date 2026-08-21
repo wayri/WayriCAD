@@ -5,8 +5,22 @@
     "description_full": "Creates reviewable dogbone, quadrant, four-corner, perimeter, radial, grid, and via-in-pad fanouts. Scope work to selected pads, selected footprints, reference wildcards, or all SMD pads; preview actual footprint extents, pad locations, tracks, and scaled vias in the window and on the PCB before committing a native KiCad group.",
     "identifier": "kiway.fanout.generator",
     "type": "plugin",
-    "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
+    "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
     "license": "GPL-3.0",
-    "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/fanout_generator_plugin/icon.png"},
-    "versions": [{"version": "0.9.0", "status": "stable", "kicad_version": "9.0"}]
+    "resources": {
+        "homepage": "https://github.com/wayri/KiWay",
+        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/fanout_generator_plugin/icon.png"
+    },
+    "versions": [
+        {
+            "version": "0.10.0",
+            "status": "stable",
+            "kicad_version": "9.0"
+        }
+    ]
 }

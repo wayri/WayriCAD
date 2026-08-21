@@ -9,10 +9,11 @@ import wx
 
 MARGIN = 10
 CONTROL_GAP = 7
+ACCENT = wx.Colour("#3399cc")
 
 
 class WorkflowGuide:
-    """Theme-aware title, workflow steps, and contextual next action."""
+    """Theme-aware title, workflow steps, progress, and contextual next action."""
 
     def __init__(
         self,
@@ -22,13 +23,25 @@ class WorkflowGuide:
         steps: Sequence[str],
         help_handler: Callable[[wx.CommandEvent], None] | None = None,
     ) -> None:
+        self.steps = list(steps)
         self.panel = wx.Panel(parent)
+        outer = wx.BoxSizer(wx.HORIZONTAL)
+        accent = wx.Panel(self.panel, size=(5, -1))
+        accent.SetBackgroundColour(ACCENT)
+        outer.Add(accent, 0, wx.EXPAND)
+
         root = wx.BoxSizer(wx.VERTICAL)
 
         header = wx.BoxSizer(wx.HORIZONTAL)
         heading = wx.StaticText(self.panel, label=title)
         heading.SetFont(heading.GetFont().Bold().Larger())
         header.Add(heading, 1, wx.ALIGN_CENTER_VERTICAL)
+        self.progress = wx.StaticText(self.panel, label="")
+        progress_font = self.progress.GetFont()
+        progress_font.MakeSmaller()
+        self.progress.SetFont(progress_font)
+        self.progress.SetForegroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_GRAYTEXT))
+        header.Add(self.progress, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, MARGIN)
         if help_handler is not None:
             bitmap = wx.ArtProvider.GetBitmap(wx.ART_HELP, wx.ART_BUTTON, (20, 20))
             help_button = wx.BitmapButton(self.panel, bitmap=bitmap)
@@ -43,7 +56,7 @@ class WorkflowGuide:
 
         step_row = wx.BoxSizer(wx.HORIZONTAL)
         self.labels: list[wx.StaticText] = []
-        for index, step in enumerate(steps, 1):
+        for index, step in enumerate(self.steps, 1):
             label = wx.StaticText(
                 self.panel,
                 label=f" {index}  {step} ",
@@ -57,13 +70,14 @@ class WorkflowGuide:
         self.next_action = wx.StaticText(self.panel)
         root.Add(self.next_action, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, MARGIN)
         root.Add(wx.StaticLine(self.panel), 0, wx.EXPAND | wx.LEFT | wx.RIGHT, MARGIN)
-        self.panel.SetSizer(root)
+        outer.Add(root, 1, wx.EXPAND)
+        self.panel.SetSizer(outer)
         self.panel.SetMinSize((-1, 150))
         self.panel.Bind(wx.EVT_SIZE, self._on_size)
         self.set_step(0, "Review the inputs, then use the primary action.")
 
     def _on_size(self, event: wx.SizeEvent) -> None:
-        width = max(420, event.GetSize().width - 2 * MARGIN)
+        width = max(420, event.GetSize().width - 2 * MARGIN - 16)
         self.subtitle.Wrap(width)
         self.next_action.Wrap(width)
         event.Skip()
@@ -75,15 +89,28 @@ class WorkflowGuide:
         active_fg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHTTEXT)
         done_bg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_INFOBK)
         done_fg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_INFOTEXT)
+        total = len(self.labels)
         for index, label in enumerate(self.labels):
             if index < active:
                 background, foreground = done_bg, done_fg
+                text = f" \u2713  {self.steps[index]} "
             elif index == active:
                 background, foreground = active_bg, active_fg
+                text = f" {index + 1}  {self.steps[index]} "
             else:
                 background, foreground = normal_bg, normal_fg
+                text = f" {index + 1}  {self.steps[index]} "
+            label.SetLabel(text)
             label.SetBackgroundColour(background)
             label.SetForegroundColour(foreground)
+            font = label.GetFont()
+            if index == active and not font.Bold():
+                label.SetFont(font.Bold())
+        position = min(max(active, 0), total)
+        if active >= total:
+            self.progress.SetLabel("complete")
+        else:
+            self.progress.SetLabel(f"step {position + 1} of {total}")
         self.next_action.SetLabel(f"Next: {next_action}")
         self.panel.Layout()
 

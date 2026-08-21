@@ -3,9 +3,38 @@ import json,os,subprocess,sys,webbrowser
 from pathlib import Path
 import pcbnew,wx
 from .analysis import BoardMetrics,FabricatorProfile,audit_metrics,build_release,load_profile,save_profile
-from .guided_ui import add_workflow
+from .guided_ui import add_workflow, mark_primary
 
-VERSION="0.1.0"
+VERSION="0.2.0"
+STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","FAIL":"#e34a43","INFO":"#3399cc"}
+
+class ReadinessMeter(wx.Panel):
+    """Compact gate summary: pass ratio arc plus per-status counts."""
+    def __init__(self,parent):
+        super().__init__(parent,size=(-1,86));self.counts={"PASS":0,"WARN":0,"FAIL":0};self.total=0
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT);self.Bind(wx.EVT_PAINT,self.paint)
+    def update(self,checks):
+        self.counts={"PASS":0,"WARN":0,"FAIL":0};self.total=len(checks)
+        for c in checks:
+            key=c.status.upper()[:4]
+            for name in self.counts:
+                if key.startswith(name[:4].lower()) or key==name:self.counts[name]+=1;break
+        self.Refresh()
+    def paint(self,_event):
+        import math
+        dc=wx.AutoBufferedPaintDC(self);dc.SetBackground(wx.Brush(self.GetParent().GetBackgroundColour()));dc.Clear()
+        w,h=self.GetClientSize();side=min(70,h-12)
+        dc.SetPen(wx.Pen("#d5dde4",7));dc.SetBrush(wx.TRANSPARENT_BRUSH);dc.DrawEllipse(14,(h-side)//2,side,side)
+        passed=self.counts["PASS"];ratio=(passed/max(self.total,1))
+        if self.total:
+            dc.SetPen(wx.Pen(wx.Colour("#3fa56b" if not self.counts["FAIL"] else "#e34a43"),7));start=90;extent=-int(360*ratio);dc.DrawArc(start,0,start+extent,0,14+side//2,h//2)
+        dc.SetTextForeground(wx.Colour("#3c4043"));font=dc.GetFont();font.MakeBold();font.SetPointSize(font.GetPointSize()+3);dc.SetFont(font)
+        dc.DrawText(f"{passed}/{self.total} gates pass",24+side,(h-side)//2+8)
+        font.SetPointSize(max(8,font.GetPointSize()-4));dc.SetFont(font);x=24+side
+        for name,label in (("PASS","pass"),("WARN","warn"),("FAIL","fail")):
+            dc.SetTextForeground(wx.Colour(STATUS_COLOURS[name]));dc.DrawText(f"{label}: {self.counts[name]}",x,(h-side)//2+46);x+=dc.GetTextExtent(f"{label}: {self.counts[name]}")[0]+16
+
+
 def make_sortable(table):
     state={"column":0,"reverse":False}
     def sort(event):
@@ -29,7 +58,7 @@ class ManufacturingFrame(wx.Frame):
         for label,key,value in (("Profile name","name",self.profile.name),("Minimum track (mm)","minimum_track_mm",str(self.profile.minimum_track_mm)),("Minimum clearance (mm)","minimum_clearance_mm",str(self.profile.minimum_clearance_mm)),("Minimum drill (mm)","minimum_drill_mm",str(self.profile.minimum_drill_mm)),("Minimum annular ring (mm)","minimum_annular_ring_mm",str(self.profile.minimum_annular_ring_mm)),("Maximum via aspect ratio","maximum_via_aspect_ratio",str(self.profile.maximum_via_aspect_ratio)),("Maximum copper layers","maximum_layers",str(self.profile.maximum_layers))):c=wx.TextCtrl(p,value=value);self.fields[key]=c;g.Add(wx.StaticText(p,label=label));g.Add(c,1,wx.EXPAND)
         r.Add(g,0,wx.EXPAND|wx.ALL,14);buttons=wx.BoxSizer(wx.HORIZONTAL);load=wx.Button(p,label="Load Profile JSON…");load.Bind(wx.EVT_BUTTON,self.load);save=wx.Button(p,label="Save Profile JSON…");save.Bind(wx.EVT_BUTTON,self.save);buttons.Add(load,0,wx.RIGHT,8);buttons.Add(save);r.Add(buttons,0,wx.ALL,14);p.SetSizer(r);return p
     def audit_page(self,parent):
-        p=wx.Panel(parent);r=wx.BoxSizer(wx.VERTICAL);a=wx.Button(p,label="Audit Current Board Against Profile");a.Bind(wx.EVT_BUTTON,self.audit);r.Add(a,0,wx.ALL,10);self.audit_table=wx.ListCtrl(p,style=wx.LC_REPORT)
+        p=wx.Panel(parent);r=wx.BoxSizer(wx.VERTICAL);row=wx.BoxSizer(wx.HORIZONTAL);a=mark_primary(wx.Button(p,label="Audit Current Board Against Profile"),"Compare board geometry limits with the fabricator profile");a.Bind(wx.EVT_BUTTON,self.audit);row.Add(a,0,wx.ALL,10);self.meter=ReadinessMeter(p);row.Add(self.meter,1,wx.EXPAND|wx.ALL,6);r.Add(row,0,wx.EXPAND);self.audit_table=wx.ListCtrl(p,style=wx.LC_REPORT)
         for i,(n,w) in enumerate((("Status",90),("Check",250),("Board",220),("Requirement",220))):self.audit_table.InsertColumn(i,n,width=w)
         make_sortable(self.audit_table)
         r.Add(self.audit_table,1,wx.EXPAND|wx.ALL,10);p.SetSizer(r);return p
@@ -48,9 +77,15 @@ class ManufacturingFrame(wx.Frame):
     def metrics(self):
         tracks=[float(pcbnew.ToMM(i.GetWidth())) for i in self.board.GetTracks() if "VIA" not in str(getattr(i,"GetClass",lambda:"")()).upper() and hasattr(i,"GetWidth")];vias=[i for i in self.board.GetTracks() if "VIA" in str(getattr(i,"GetClass",lambda:"")()).upper()];drills=[float(pcbnew.ToMM(i.GetDrillValue())) for i in vias if hasattr(i,"GetDrillValue")];rings=[(float(pcbnew.ToMM(i.GetWidth()))-float(pcbnew.ToMM(i.GetDrillValue())))/2 for i in vias if hasattr(i,"GetDrillValue")];settings=self.board.GetDesignSettings();clearance=float(pcbnew.ToMM(getattr(settings,"GetSmallestClearanceValue",lambda:0)())) or self.current_profile().minimum_clearance_mm;layers=int(getattr(self.board,"GetCopperLayerCount",lambda:2)());thickness=float(pcbnew.ToMM(getattr(settings,"GetBoardThickness",lambda:pcbnew.FromMM(1.6))()));aspect=max((thickness/d for d in drills if d>0),default=0);return BoardMetrics(min(tracks,default=99),clearance,min(drills,default=99),min(rings,default=99),aspect,layers)
     def audit(self,_e):
-        try:self.checks=audit_metrics(self.metrics(),self.current_profile());self.audit_table.DeleteAllItems();[(lambda row:(lambda i:[self.audit_table.SetItem(i,c,v) for c,v in enumerate(row[1:],1)])(self.audit_table.InsertItem(self.audit_table.GetItemCount(),row[0])))((c.status,c.item,c.actual,c.requirement)) for c in self.checks]
+        try:
+            self.checks=audit_metrics(self.metrics(),self.current_profile());self.audit_table.DeleteAllItems()
+            for c in self.checks:
+                row=(c.status,c.item,c.actual,c.requirement);i=self.audit_table.InsertItem(self.audit_table.GetItemCount(),row[0])
+                for col,value in enumerate(row[1:],1):self.audit_table.SetItem(i,col,value)
+                self.audit_table.SetItemTextColour(i,wx.Colour(STATUS_COLOURS.get(c.status.upper(),"#3c4043")))
+            self.meter.update(self.checks)
         except Exception as exc:wx.MessageBox(str(exc),"Audit failed",wx.OK|wx.ICON_ERROR)
-        else:self.guide.set_step(1,"Review capability checks, then run DRC and the selected jobset.")
+        else:self.guide.set_step(1,"Review capability checks and the gate meter, then run DRC and the selected jobset.")
     def pick_jobset(self,_e):
         with wx.FileDialog(self,"Select jobset",wildcard="KiCad jobsets (*.kicad_jobset)|*.kicad_jobset",style=wx.FD_OPEN) as d:
             if d.ShowModal()==wx.ID_OK:self.jobset.SetValue(d.GetPath())

@@ -1,12 +1,27 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v1",
-  "name": "KiWay Harness and Cable Workbench",
-  "description": "Build multi-board harness maps, drawings, bundles, splices, and BoMs.",
-  "description_full": "Imports up to 50 board pin CSV documents, maps arbitrary connector pins, bundles, splices, gauges, and loads, and joins safeguarded Pin Extractor controller maps into complete IC-to-IC or IC-to-peripheral routes through series components. Exports sortable tables, CSV, SVG, an offline pan/zoom/draggable interactive system harness, findings, and a procurement BoM.",
-  "identifier": "kiway.harness.workbench",
-  "type": "plugin",
-  "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
-  "license": "GPL-3.0",
-  "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/harness_workbench_plugin/icon.png"},
-  "versions": [{"version": "0.4.0", "status": "testing", "kicad_version": "10.0", "runtime": "swig"}]
+    "$schema": "https://go.kicad.org/pcm/schemas/v1",
+    "name": "KiWay Harness and Cable Workbench",
+    "description": "Build multi-board harness maps, drawings, bundles, splices, and BoMs.",
+    "description_full": "Imports up to 50 board pin CSV documents, maps arbitrary connector pins, bundles, splices, gauges, and loads, and joins safeguarded Pin Extractor controller maps into complete IC-to-IC or IC-to-peripheral routes through series components. Exports sortable tables, CSV, SVG, an offline pan/zoom/draggable interactive system harness, findings, and a procurement BoM.",
+    "identifier": "kiway.harness.workbench",
+    "type": "plugin",
+    "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
+    "license": "GPL-3.0",
+    "resources": {
+        "homepage": "https://github.com/wayri/KiWay",
+        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/harness_workbench_plugin/icon.png"
+    },
+    "versions": [
+        {
+            "version": "0.5.0",
+            "status": "testing",
+            "kicad_version": "10.0",
+            "runtime": "swig"
+        }
+    ]
 }

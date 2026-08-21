@@ -10,66 +10,86 @@ import wx
 
 from .analysis import ImpedanceResult, PROTOCOL_PRESETS, SignalIntegrityEngine
 from .help_utils import open_help
+from .preview_kit import PanZoomCanvas, add_zoom_toolbar, TEXT as TEXT_COLOUR
 
 
-class RoutePreview(wx.Panel):
-    """Board-like routed geometry preview with layer-aware colors."""
+LAYER_COLOURS = ("#e34a43", "#3fa56b", "#d4a62a", "#3399cc", "#a45ac7", "#d67142")
 
-    COLORS = ("#e34a43", "#3fa56b", "#d4a62a", "#3399cc", "#a45ac7", "#d67142")
+
+class RoutePreview(PanZoomCanvas):
+    """Board-like routed geometry preview with pan/zoom and a layer legend."""
 
     def __init__(self, parent: wx.Window) -> None:
-        super().__init__(parent, style=wx.BORDER_SIMPLE)
-        self.SetMinSize((-1, 230)); self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        super().__init__(parent, empty_text="Analyze a routed path to review its layer sequence, vias, and endpoints.")
         self.result: Optional[ImpedanceResult] = None
-        self.Bind(wx.EVT_PAINT, self._paint)
+        self.tracks = []
 
     def show_result(self, result: ImpedanceResult) -> None:
-        self.result = result; self.Refresh()
-
-    def _paint(self, _event: Any) -> None:
-        dc = wx.AutoBufferedPaintDC(self); dc.SetBackground(wx.Brush("#151a20")); dc.Clear()
-        width, height = self.GetClientSize()
-        dc.SetPen(wx.Pen("#29333d"))
-        for x in range(20, width, 40): dc.DrawLine(x, 0, x, height)
-        for y in range(20, height, 40): dc.DrawLine(0, y, width, y)
-        if not self.result:
-            dc.SetTextForeground("#aebdca"); dc.DrawLabel("Analyze a routed path to review its layer sequence, vias, and endpoints.", wx.Rect(20, 20, width-40, height-40), wx.ALIGN_CENTER); return
-        paths = [self.result.primary] + ([self.result.mate] if self.result.mate else [])
-        tracks = []
-        for lane, path in enumerate(paths):
-            for item in path.board_items:
+        self.result = result
+        self.tracks = []
+        colours: dict[str, str] = {}
+        paths = [result.primary] + ([result.mate] if result.mate else [])
+        for path in paths:
+            for item in getattr(path, "board_items", []):
                 if not hasattr(item, "GetStart") or not hasattr(item, "GetEnd"):
                     continue
                 start, end = item.GetStart(), item.GetEnd()
-                layer = str(getattr(item, "GetLayerName", lambda: "")())
-                tracks.append((float(start.x), float(start.y), float(end.x), float(end.y), layer, lane))
-        if tracks:
-            xs = [value for row in tracks for value in (row[0], row[2])]
-            ys = [value for row in tracks for value in (row[1], row[3])]
-            span_x, span_y = max(max(xs)-min(xs), 1.0), max(max(ys)-min(ys), 1.0)
-            margin = 35; scale = min((width-2*margin)/span_x, (height-2*margin)/span_y)
-            colors = {}; color_index = 0
-            for x1, y1, x2, y2, layer, _lane in tracks:
-                if layer not in colors:
-                    colors[layer] = self.COLORS[color_index % len(self.COLORS)]; color_index += 1
-                project = lambda x, y: (margin + int((x-min(xs))*scale), height-margin-int((y-min(ys))*scale))
-                dc.SetPen(wx.Pen(colors[layer], 4)); dc.DrawLine(*project(x1,y1), *project(x2,y2))
-            dc.SetTextForeground("#d9e2ea"); dc.DrawText("Actual routed copper: " + ", ".join(colors), 12, 10)
+                try:
+                    import pcbnew as _pcbnew
+                    layer = str(_pcbnew.LayerName(item.GetLayer()))
+                except Exception:
+                    layer = str(getattr(item, "GetLayerName", lambda: "")() or "unknown")
+                self.tracks.append((
+                    float(start.x) / 1e6, float(start.y) / 1e6,
+                    float(end.x) / 1e6, float(end.y) / 1e6,
+                    layer,
+                    0 if path is result.primary else 1,
+                ))
+        legend = []
+        for position, layer in enumerate(dict.fromkeys(track[4] for track in self.tracks)):
+            colour = LAYER_COLOURS[position % len(LAYER_COLOURS)]
+            colours[layer] = colour
+            legend.append((colour, layer))
+        if result is not None and result.primary:
+            legend.append(("#f4d48d", f"primary {getattr(result.primary, 'net_name', '')}"))
+            if result.mate is not None:
+                legend.append(("#8fd3f4", f"mate {getattr(result.mate, 'net_name', '')}"))
+        self.set_legend(legend)
+        self.Refresh()
+        if self.tracks:
+            self.fit()
+
+    def scene_bounds(self):
+        if not self.tracks:
+            return None
+        xs = [value for track in self.tracks for value in (track[0], track[2])]
+        ys = [value for track in self.tracks for value in (track[1], track[3])]
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    def draw_scene(self, gc, project) -> None:
+        if not self.tracks:
             return
-        lane_height = max(70, height // max(len(paths), 1))
-        for lane, path in enumerate(paths):
-            y = lane_height // 2 + lane * lane_height
-            left, right = 75, width - 75
-            layers = path.layers or [path.reference_layer or "unresolved"]
-            section = max(1, (right-left)//len(layers))
-            dc.SetTextForeground("#d9e2ea"); dc.DrawText(path.net_name, 10, y-28)
-            for index, layer in enumerate(layers):
-                x1, x2 = left + index*section, left + (index+1)*section
-                dc.SetPen(wx.Pen(self.COLORS[index % len(self.COLORS)], 5)); dc.DrawLine(x1, y, x2, y)
-                dc.DrawText(layer, x1+4, y+8)
-                if index:
-                    dc.SetPen(wx.Pen("#e7edf2", 2)); dc.SetBrush(wx.Brush("#1f2831")); dc.DrawCircle(x1, y, 6)
-            dc.SetBrush(wx.Brush("#e5b14b")); dc.SetPen(wx.Pen("#f4d48d", 2)); dc.DrawCircle(left, y, 8); dc.DrawCircle(right, y, 8)
+        colours = {}
+        mate_shades = {"#e34a43": "#ff9c94", "#3fa56b": "#8fe0ae", "#d4a62a": "#ffd97a",
+                       "#3399cc": "#8fd3f4", "#a45ac7": "#cba6ec", "#d67142": "#ffb08e"}
+        for position, layer in enumerate(dict.fromkeys(track[4] for track in self.tracks)):
+            colours[layer] = LAYER_COLOURS[position % len(LAYER_COLOURS)]
+        gc.SetBrush(wx.TRANSPARENT_BRUSH)
+        for x1, y1, x2, y2, layer, lane in self.tracks:
+            base_colour = colours.get(layer, "#8fa5b8")
+            colour = mate_shades.get(base_colour, base_colour) if lane else base_colour
+            gc.SetPen(wx.Pen(wx.Colour(colour), 4))
+            gc.StrokeLine(*project((x1, y1)), *project((x2, y2)))
+        gc.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL), TEXT_COLOUR)
+        endpoints = ((self.tracks[0][0], self.tracks[0][1]), (self.tracks[-1][2], self.tracks[-1][3]))
+        gc.SetPen(wx.Pen(wx.Colour("#f4d48d"), 2))
+        gc.SetBrush(wx.Brush(wx.Colour("#5c4a1e")))
+        for point in endpoints:
+            sx, sy = project(point)
+            gc.DrawEllipse(sx - 6, sy - 6, 12, 12)
+
+
+TEXT_COLOUR = "#aab7c4"
 
 
 class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
@@ -80,7 +100,7 @@ class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
         self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.1.0"
+        self.version = "0.2.0"
 
     def Run(self) -> None:
         board = pcbnew.GetBoard()
@@ -130,7 +150,7 @@ class SignalIntegrityFrame(wx.Frame):
             grid.Add(wx.StaticText(page,label=label),0,wx.ALIGN_CENTER_VERTICAL); grid.Add(control,1,wx.EXPAND)
         config.Add(grid,1,wx.EXPAND|wx.ALL,8)
         actions=wx.BoxSizer(wx.HORIZONTAL); use_selection=wx.Button(page,label="Use PCB selection"); use_selection.Bind(wx.EVT_BUTTON,self._use_selection); actions.Add(use_selection,0,wx.RIGHT,6); run=wx.Button(page,label="Analyze and validate path"); run.Bind(wx.EVT_BUTTON,self._analyze); actions.Add(run,1); config.Add(actions,0,wx.EXPAND|wx.ALL,8); split.Add(config,0,wx.EXPAND|wx.ALL,8)
-        self.preview=RoutePreview(page); split.Add(self.preview,1,wx.EXPAND|wx.ALL,8); root.Add(split,1,wx.EXPAND)
+        self.preview=RoutePreview(page); preview_column=wx.BoxSizer(wx.VERTICAL); preview_column.Add(self.preview,1,wx.EXPAND); add_zoom_toolbar(page,self.preview,preview_column); preview_host=wx.Panel(page); preview_host.SetSizer(preview_column); split.Add(preview_host,1,wx.EXPAND|wx.ALL,8); root.Add(split,1,wx.EXPAND)
         self.results=wx.ListCtrl(page,style=wx.LC_REPORT); self.results.InsertColumn(0,"Check",width=230); self.results.InsertColumn(1,"Value",width=330); self.results.InsertColumn(2,"Disposition",width=520); root.Add(self.results,1,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         page.SetSizer(root); self.net.Bind(wx.EVT_COMBOBOX,lambda e:self._pads(self.net,self.start,self.end)); self.mate.Bind(wx.EVT_COMBOBOX,lambda e:self._pads(self.mate,self.mate_start,self.mate_end)); return page
 

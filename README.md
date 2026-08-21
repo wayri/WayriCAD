@@ -305,6 +305,7 @@ deterministic automation diffs. Config files are JSON objects with optional
 - [Planar Magnetics & Actuator Documentation](planar_magnetics_plugin/ReadMe.md)
 - [KiWay v2.22.0 Release Notes](docs/RELEASE_2.22.0.md)
 - [KiWay v2.25.0 Release Notes](docs/RELEASE_2.25.0.md)
+- [KiWay v2.26.0 Release Notes](docs/RELEASE_2.26.0.md)
 - [Contributing](CONTRIBUTING.md)
 - [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
 

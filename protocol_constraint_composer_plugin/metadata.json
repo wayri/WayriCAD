@@ -1,12 +1,27 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v1",
-  "name": "KiWay Protocol Constraint Composer",
-  "description": "Detect protocol nets and compose reviewed KiCad custom design rules.",
-  "description_full": "Detects common USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF net-name conventions, presents editable assignments, and generates a clearly delimited KiWay-managed custom-rule block. Rules can be exported or applied to the project .kicad_dru after confirmation and timestamped backup.",
-  "identifier": "kiway.protocol.constraint.composer",
-  "type": "plugin",
-  "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
-  "license": "GPL-3.0",
-  "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/protocol_constraint_composer_plugin/icon.png"},
-  "versions": [{"version": "0.1.0", "status": "testing", "kicad_version": "10.0", "runtime": "swig"}]
+    "$schema": "https://go.kicad.org/pcm/schemas/v1",
+    "name": "KiWay Protocol Constraint Composer",
+    "description": "Detect protocol nets and compose reviewed KiCad custom design rules.",
+    "description_full": "Detects common USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF net-name conventions, presents editable assignments, and generates a clearly delimited KiWay-managed custom-rule block. Rules can be exported or applied to the project .kicad_dru after confirmation and timestamped backup.",
+    "identifier": "kiway.protocol.constraint.composer",
+    "type": "plugin",
+    "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
+    "license": "GPL-3.0",
+    "resources": {
+        "homepage": "https://github.com/wayri/KiWay",
+        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/protocol_constraint_composer_plugin/icon.png"
+    },
+    "versions": [
+        {
+            "version": "0.2.0",
+            "status": "testing",
+            "kicad_version": "10.0",
+            "runtime": "swig"
+        }
+    ]
 }

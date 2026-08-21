@@ -5,8 +5,22 @@
     "description_full": "Follows PCB net and pad selection, traverses the routed path between endpoints, enumerates the complete parsed stackup, and reports route geometry, vias, layer changes, resistance, capacitance, inductance, and first-order impedance with the exact reference layer, dielectric height, and permittivity used.",
     "identifier": "kiway.trace.impedance",
     "type": "plugin",
-    "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
+    "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
     "license": "GPL-3.0",
-    "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/trace_impedance_plugin/icon.png"},
-    "versions": [{"version": "0.6.1", "status": "stable", "kicad_version": "9.0"}]
+    "resources": {
+        "homepage": "https://github.com/wayri/KiWay",
+        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/trace_impedance_plugin/icon.png"
+    },
+    "versions": [
+        {
+            "version": "0.7.0",
+            "status": "stable",
+            "kicad_version": "9.0"
+        }
+    ]
 }

@@ -13,10 +13,19 @@ try:
 except ImportError:  # pragma: no cover - KiCad installations may omit it
     nx = None
 
+try:
+    from . import rlc_model as _rlc
+except ImportError:  # Direct-file execution (tests/automation) has no package parent.
+    import importlib.util as _ilu
 
-EPS0 = 8.8541878128e-12
-MU0 = 1.25663706212e-6
-COPPER_RESISTIVITY = 1.724e-8
+    _spec = _ilu.spec_from_file_location("_kiway_rlc_model", os.path.join(os.path.dirname(os.path.abspath(__file__)), "rlc_model.py"))
+    _rlc = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_rlc)
+
+
+EPS0 = _rlc.EPS0
+MU0 = _rlc.MU0
+COPPER_RESISTIVITY = _rlc.COPPER_RESISTIVITY
 
 
 def mm(value: Any) -> float:
@@ -66,18 +75,30 @@ class PathMeasurement:
     dielectric_height_mm: float = 0.0
     relative_permittivity: float = 0.0
     copper_thickness_mm: float = 0.0
+    average_width_mm: float = 0.0
+    width_to_height: float = 0.0
+    effective_permittivity: float = 0.0
+    impedance_model: str = ""
+    resistance_ac_ohm: float = 0.0
+    propagation_delay_ns: float = 0.0
     board_items: List[Any] = field(default_factory=list, repr=False)
 
     def as_dict(self) -> Dict[str, Any]:
-        return {
+        rows = {
             "Net": self.net_name,
             "Start Pad": self.start_pad,
             "End Pad": self.end_pad,
             "Length (mm)": f"{self.length_mm:.3f}",
-            "R (ohm)": f"{self.resistance_ohm:.6g}",
+            "R DC (ohm)": f"{self.resistance_ohm:.6g}",
+            "R AC @ est. freq (ohm)": f"{self.resistance_ac_ohm:.6g}" if self.resistance_ac_ohm else "-",
             "C (pF)": f"{self.capacitance_pf:.6g}",
             "L (nH)": f"{self.inductance_nh:.6g}",
             "Z0 estimate (ohm)": f"{self.impedance_ohm:.6g}",
+            "Impedance Model": self.impedance_model or "parallel-plate fallback",
+            "Avg trace width (mm)": f"{self.average_width_mm:.4g}" if self.average_width_mm else "-",
+            "Width / height": f"{self.width_to_height:.4g}" if self.width_to_height else "-",
+            "Effective Er": f"{self.effective_permittivity:.4g}" if self.effective_permittivity else "-",
+            "Propagation delay (ns)": f"{self.propagation_delay_ns:.4g}" if self.propagation_delay_ns else "-",
             "Layer changes": str(self.layer_changes),
             "Vias": str(self.via_count),
             "Tracks": str(self.track_count),
@@ -90,6 +111,7 @@ class PathMeasurement:
             "Copper Thickness Used (mm)": f"{self.copper_thickness_mm:.4f}",
             "Notes": "; ".join(self.notes),
         }
+        return rows
 
 
 class TraceMeasurementEngine:
@@ -249,6 +271,23 @@ class TraceMeasurementEngine:
         weighted_er = sum((row.thickness_mm or row.dielectric_height_mm) * row.relative_permittivity for row in dielectrics) / max(total, 1e-9)
         return total or 0.20, weighted_er or 4.2
 
+    def topology_for_layers(self, layers: Iterable[str], reference_layer: str) -> str:
+        """Choose microstrip vs stripline from the stackup around the route."""
+        rows = self.stackup_layers()
+        if not rows:
+            return "microstrip"
+        indices = {row.name: index for index, row in enumerate(rows)}
+        for layer in layers or ():
+            position = indices.get(layer)
+            if position is None:
+                continue
+            neighbours = [rows[position - 1] if position > 0 else None, rows[position + 1] if position + 1 < len(rows) else None]
+            def is_copper(row: Optional[StackupLayer]) -> bool:
+                return bool(row) and ("copper" in row.kind.lower() or row.name.endswith(".Cu"))  # type: ignore[union-attr]
+            if all(neighbour is None or is_copper(neighbour) for neighbour in neighbours) and any(is_copper(n) for n in neighbours if n is not None):
+                return "stripline"
+        return "microstrip"
+
     def available_layers(self) -> List[str]:
         """Return all actual stackup/routed layers, not a hard-coded subset."""
         names = [row.name for row in self.stackup_layers()]
@@ -345,12 +384,44 @@ class TraceMeasurementEngine:
         result.dielectric_height_mm = dielectric_height
         result.relative_permittivity = relative_permittivity
         height_m = max(dielectric_height / 1000.0, 1e-9)
-        effective_width_m = max(sum(float((e.get("width", 0.20) if isinstance(e, dict) else e[3])) for e in selected_edges if (e.get("kind") if isinstance(e, dict) else "track") == "track") / max(result.track_count, 1) / 1000.0, width_m)
-        capacitance_per_m = EPS0 * relative_permittivity * effective_width_m / height_m
-        inductance_per_m = MU0 * height_m / effective_width_m
-        result.capacitance_pf = capacitance_per_m * length_m * 1e12
-        result.inductance_nh = inductance_per_m * length_m * 1e9
-        result.impedance_ohm = math.sqrt(inductance_per_m / max(capacitance_per_m, 1e-30))
+        track_edges = [e for e in selected_edges if (e.get("kind") if isinstance(e, dict) else "track") == "track"]
+        average_width_mm = sum(float((e.get("width", 0.20) if isinstance(e, dict) else e[3])) for e in track_edges) / max(len(track_edges), 1)
+        result.average_width_mm = average_width_mm
+        effective_width_m = max(average_width_mm / 1000.0, width_m)
+
+        # Standard transmission-line model (IPC-2141A microstrip or symmetric
+        # stripline, selected from the stackup neighbours of the route).
+        topology = self.topology_for_layers(result.layers, reference_layer)
+        try:
+            model = _rlc.solve(
+                width_mm=average_width_mm,
+                height_mm=dielectric_height,
+                copper_mm=result.copper_thickness_mm or stack.copper_thickness_mm,
+                relative_permittivity=relative_permittivity,
+                length_mm=result.length_mm,
+                frequency_mhz=frequency_mhz,
+                topology=topology,
+            )
+            result.impedance_model = model["model"]
+            result.capacitance_pf = model["capacitance_pf"]
+            result.inductance_nh = model["inductance_nh"]
+            result.impedance_ohm = model["z0_ohm"]
+            result.resistance_ac_ohm = model["resistance_ac_ohm"]
+            result.width_to_height = model["width_to_height"]
+            result.effective_permittivity = model["effective_permittivity"]
+            result.propagation_delay_ns = model["propagation_delay_ns"]
+            result.notes.append(
+                f"{model['model']} estimate: Z0={model['z0_ohm']:.2f} ohm at w/h={model['width_to_height']:.3g}, "
+                f"Er(eff)={model['effective_permittivity']:.3g}; AC conductor loss {model['resistance_ac_ohm']:.4g} ohm "
+                f"(skin depth {model['skin_depth_um']:.3g} um)."
+            )
+        except Exception as exc:  # pragma: no cover - keep legacy estimate usable
+            capacitance_per_m = EPS0 * relative_permittivity * effective_width_m / height_m
+            inductance_per_m = MU0 * height_m / effective_width_m
+            result.capacitance_pf = capacitance_per_m * length_m * 1e12
+            result.inductance_nh = inductance_per_m * length_m * 1e9
+            result.impedance_ohm = math.sqrt(inductance_per_m / max(capacitance_per_m, 1e-30))
+            result.notes.append(f"Standard model unavailable ({exc}); parallel-plate fallback used.")
         result.notes.append(f"First-order estimate at {frequency_mhz:g} MHz; validate critical nets with a field solver or TDR.")
         result.notes.append(f"Stackup source: {stack.source}; reference layer: {stack.reference_layer}.")
         if result.zone_count:

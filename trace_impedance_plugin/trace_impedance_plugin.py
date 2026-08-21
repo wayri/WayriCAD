@@ -13,6 +13,10 @@ from .measurement import PathMeasurement, TraceMeasurementEngine
 from .help_utils import open_help
 from .selection_utils import pads_on_net, select_items
 from .guided_ui import add_workflow
+from . import rlc_model
+from .preview_kit import PanZoomCanvas, add_zoom_toolbar, severity_colour
+
+LAYER_COLOURS = ("#e34a43", "#3fa56b", "#d4a62a", "#3399cc", "#a45ac7", "#d67142", "#4fb3bf")
 
 
 class TraceImpedancePlugin(pcbnew.ActionPlugin):
@@ -23,7 +27,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
         self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.6.1"
+        self.version = "0.7.0"
 
     def Run(self) -> None:
         try:
@@ -93,12 +97,20 @@ class TraceFrame(wx.Frame):
         self.summary = wx.StaticText(panel, label="Select a net and optional start/end pads.")
         root.Add(self.summary, 0, wx.EXPAND | wx.ALL, 8)
         notebook = wx.Notebook(panel)
+        preview_page = wx.Panel(notebook)
+        preview_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.route_preview = RoutePreview(preview_page)
+        preview_sizer.Add(self.route_preview, 1, wx.EXPAND | wx.ALL, 6)
+        add_zoom_toolbar(preview_page, self.route_preview, preview_sizer)
+        preview_page.SetSizer(preview_sizer)
         result_page = wx.Panel(notebook)
         result_sizer = wx.BoxSizer(wx.VERTICAL)
         stackup_page = wx.Panel(notebook)
         stackup_sizer = wx.BoxSizer(wx.VERTICAL)
         notes_page = wx.Panel(notebook)
         notes_sizer = wx.BoxSizer(wx.VERTICAL)
+        model_page = wx.Panel(notebook)
+        model_sizer = wx.BoxSizer(wx.VERTICAL)
         self.stackup_list = wx.ListCtrl(stackup_page, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, label in enumerate(("Layer", "Type", "Copper mm", "Dielectric mm", "Er", "Material")):
             self.stackup_list.InsertColumn(index, label, width=150 if index in (0, 5) else 105)
@@ -112,7 +124,18 @@ class TraceFrame(wx.Frame):
         self.notes = wx.TextCtrl(notes_page, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
         notes_sizer.Add(self.notes, 1, wx.EXPAND | wx.ALL, 6)
         notes_page.SetSizer(notes_sizer)
+        model_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.model_table = wx.ListCtrl(model_page, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for index, label in enumerate(("Model quantity", "Value")):
+            self.model_table.InsertColumn(index, label, width=280 if index == 0 else 300)
+        model_row.Add(self.model_table, 0, wx.EXPAND | wx.ALL, 6)
+        self.sweep_canvas = SweepCanvas(model_page)
+        model_row.Add(self.sweep_canvas, 1, wx.EXPAND | wx.ALL, 6)
+        model_row.AddGrowableCol(1, 1)
+        model_page.SetSizer(model_sizer)
+        notebook.AddPage(preview_page, "Route Preview")
         notebook.AddPage(result_page, "Results")
+        notebook.AddPage(model_page, "RLC Model")
         notebook.AddPage(stackup_page, "Board Stackup")
         notebook.AddPage(notes_page, "Engineering Notes")
         root.Add(notebook, 1, wx.EXPAND | wx.ALL, 8)
@@ -166,8 +189,35 @@ class TraceFrame(wx.Frame):
             index = self.table.InsertItem(self.table.GetItemCount(), key); self.table.SetItem(index, 1, str(value))
         self.notes.SetValue("\n".join(result.notes))
         self.summary.SetLabel(f"{result.net_name}: {result.length_mm:.3f} mm | reference {result.reference_layer} | h={result.dielectric_height_mm:.4f} mm | Er={result.relative_permittivity:.3g} | {result.via_count} vias")
+        self.route_preview.show_measurement(result)
+        self._show_model(result)
         if result.board_items:
             select_items(self.board, result.board_items + pads_on_net(self.board, result.net_name))
+
+    def _show_model(self, result: PathMeasurement) -> None:
+        self.model_table.DeleteAllItems()
+        topology = "microstrip" if "microstrip" in (result.impedance_model or "").lower() else "stripline"
+        rows = (
+            ("Topology", result.impedance_model or "-"),
+            ("Average trace width", f"{result.average_width_mm:.4g} mm" if result.average_width_mm else "-"),
+            ("Dielectric height to reference", f"{result.dielectric_height_mm:.4g} mm" if result.dielectric_height_mm else "-"),
+            ("Width / height ratio", f"{result.width_to_height:.4g}" if result.width_to_height else "-"),
+            ("Effective permittivity", f"{result.effective_permittivity:.4g}" if result.effective_permittivity else "-"),
+            ("Characteristic impedance Z0", f"{result.impedance_ohm:.3g} ohm" if result.impedance_ohm else "-"),
+            ("Distributed C", f"{result.capacitance_pf / max(result.length_mm, 1e-9):.4g} pF/mm" if result.length_mm else "-"),
+            ("Distributed L", f"{result.inductance_nh / max(result.length_mm, 1e-9):.4g} nH/mm" if result.length_mm else "-"),
+            ("R DC (total route)", f"{result.resistance_ohm:.6g} ohm" if result.resistance_ohm else "-"),
+            ("R AC with skin effect", f"{result.resistance_ac_ohm:.6g} ohm" if result.resistance_ac_ohm else "-"),
+            ("Propagation delay", f"{result.propagation_delay_ns:.4g} ns" if result.propagation_delay_ns else "-"),
+        )
+        for key, value in rows:
+            index = self.model_table.InsertItem(self.model_table.GetItemCount(), key)
+            self.model_table.SetItem(index, 1, value)
+        try:
+            frequency = float(self.frequency.GetValue())
+        except ValueError:
+            frequency = 100.0
+        self.sweep_canvas.configure_route(result, frequency, topology)
 
     def _selected_board_items(self) -> list[Any]:
         items = []
@@ -215,3 +265,128 @@ class TraceFrame(wx.Frame):
             with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=list(row)); writer.writeheader(); writer.writerow(row)
             self.workflow.set_step(3, "Validate critical results with a field solver or measurement before release.")
+
+
+class RoutePreview(PanZoomCanvas):
+    """Layer-colored rendering of the measured route with endpoint markers."""
+
+    def __init__(self, parent: Any) -> None:
+        super().__init__(parent, empty_text="Analyze a path to preview its routed geometry, layers, and endpoints.")
+        self.measurement: Optional[PathMeasurement] = None
+        self.segments: List[tuple] = []
+
+    def show_measurement(self, result: Optional[PathMeasurement]) -> None:
+        self.measurement = result
+        self.segments = []
+        legend = []
+        colours = {}
+        if result is not None:
+            for item in result.board_items:
+                if not hasattr(item, "GetStart") or not hasattr(item, "GetEnd"):
+                    continue
+                start, end = item.GetStart(), item.GetEnd()
+                try:
+                    layer = str(pcbnew.LayerName(item.GetLayer()))
+                except Exception:
+                    layer = "unknown"
+                width = 0.15
+                if hasattr(item, "GetWidth"):
+                    try:
+                        width = float(item.GetWidth()) / 1_000_000.0
+                    except Exception:
+                        pass
+                self.segments.append((
+                    float(start.x) / 1e6, float(start.y) / 1e6,
+                    float(end.x) / 1e6, float(end.y) / 1e6,
+                    layer, width,
+                ))
+            for position, layer in enumerate(dict.fromkeys(segment[4] for segment in self.segments)):
+                colour = LAYER_COLOURS[position % len(LAYER_COLOURS)]
+                colours[layer] = colour
+                legend.append((colour, layer))
+        self.set_legend(legend)
+        self.Refresh()
+        if self.segments:
+            self.fit()
+
+    def scene_bounds(self):
+        if not self.segments:
+            return None
+        xs = [value for segment in self.segments for value in (segment[0], segment[2])]
+        ys = [value for segment in self.segments for value in (segment[1], segment[3])]
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    def draw_scene(self, gc, project) -> None:
+        if not self.segments:
+            return
+        colours = {}
+        for position, layer in enumerate(dict.fromkeys(segment[4] for segment in self.segments)):
+            colours[layer] = LAYER_COLOURS[position % len(LAYER_COLOURS)]
+        gc.SetBrush(wx.TRANSPARENT_BRUSH)
+        for x1, y1, x2, y2, layer, width in self.segments:
+            pen_width = max(2.0, min(width * self.scale, 14.0))
+            gc.SetPen(wx.Pen(wx.Colour(colours.get(layer, "#8fa5b8")), int(max(1, round(pen_width))), wx.PENSTYLE_SOLID))
+            gc.StrokeLine(*project((x1, y1)), *project((x2, y2)))
+        if self.segments:
+            first = self.segments[0]
+            last = self.segments[-1]
+            gc.SetFont(wx.Font(9, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD), "#f4d48d")
+            gc.SetPen(wx.Pen(wx.Colour("#f4d48d"), 2))
+            gc.SetBrush(wx.Brush(wx.Colour("#5c4a1e")))
+            for point, label in ((first, "start"), (last, "end")):
+                sx, sy = project((point[0], point[1]))
+                gc.DrawEllipse(sx - 6, sy - 6, 12, 12)
+                gc.DrawText(label, sx + 9, sy - 7)
+
+
+class SweepCanvas(PanZoomCanvas):
+    """Synthesis insight: characteristic impedance versus trace width."""
+
+    def __init__(self, parent: Any) -> None:
+        super().__init__(parent, empty_text="Analyze a route to explore Z0 across trace widths at this stackup.")
+        self.curve: List[tuple] = []
+        self.marker: Optional[tuple] = None
+
+    def configure_route(self, result: PathMeasurement, frequency_mhz: float, topology: str) -> None:
+        if not result.dielectric_height_mm or not result.relative_permittivity:
+            self.curve = []
+            self.Refresh()
+            return
+        self.curve = rlc_model.z0_width_sweep(
+            height_mm=result.dielectric_height_mm,
+            copper_mm=result.copper_thickness_mm or 0.035,
+            relative_permittivity=result.relative_permittivity,
+            topology=topology,
+        )
+        self.marker = (result.average_width_mm or None, result.impedance_ohm or None)
+        self.set_legend([("#3399cc", "Z0(width)")])
+        self.Refresh()
+        self.fit()
+
+    def scene_bounds(self):
+        if not self.curve:
+            return None
+        xs = [point[0] for point in self.curve]
+        ys = [point[1] for point in self.curve]
+        return (min(xs), max(min(ys), 0.0), max(xs), max(ys))
+
+    def draw_scene(self, gc, project) -> None:
+        if len(self.curve) < 2:
+            return
+        # Reference lines at common design targets.
+        for target, colour in ((50.0, "#3fa56b"), (90.0, "#a45ac7"), (100.0, "#d67142")):
+            gc.SetPen(wx.Pen(wx.Colour(colour), 1, wx.PENSTYLE_SHORT_DASH))
+            left_x, right_x = self.curve[0][0], self.curve[-1][0]
+            gc.StrokeLine(*project((left_x, target)), *project((right_x, target)))
+            gc.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL), TEXT)
+            gc.DrawText(f"{target:g} ohm", *project((right_x, target)))
+        gc.SetPen(wx.Pen(wx.Colour("#3399cc"), 2))
+        points = [project(point) for point in self.curve]
+        gc.StrokeLines(points)
+        if self.marker and all(value is not None for value in self.marker):
+            mx, my = project((float(self.marker[0]), float(self.marker[1])))
+            gc.SetPen(wx.Pen(wx.Colour("#f4d48d"), 2))
+            gc.SetBrush(wx.Brush(wx.Colour("#5c4a1e")))
+            gc.DrawEllipse(mx - 6, my - 6, 12, 12)
+            gc.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL), "#f4d48d")
+            gc.DrawText(f"route {self.marker[0]:.3g} mm -> {self.marker[1]:.3g} ohm", mx + 10, my - 16)

@@ -5,8 +5,22 @@
     "description_full": "Generates uniform or perimeter-weighted stitching inside the board or selected bounds, optionally constrained to filled target-net copper. It rejects footprint bodies, other-net tracks, vias, zones, keepouts, and drawings, previews board bounds and scaled via geometry, and commits a removable native KiCad group.",
     "identifier": "kiway.via.stitching",
     "type": "plugin",
-    "author": {"name": "Wayri (Yawar)", "contact": {"github": "https://github.com/wayri"}},
+    "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
     "license": "GPL-3.0",
-    "resources": {"homepage": "https://github.com/wayri/KiWay", "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/via_stitching_plugin/icon.png"},
-    "versions": [{"version": "0.9.0", "status": "stable", "kicad_version": "9.0"}]
+    "resources": {
+        "homepage": "https://github.com/wayri/KiWay",
+        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/via_stitching_plugin/icon.png"
+    },
+    "versions": [
+        {
+            "version": "0.10.0",
+            "status": "stable",
+            "kicad_version": "9.0"
+        }
+    ]
 }
