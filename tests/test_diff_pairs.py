@@ -18,7 +18,16 @@ def _load(relative: str, name: str):
 
 
 diff_pairs = _load("trace_impedance_plugin/diff_pairs.py", "kiway_diff_pairs_test")
-preview_kit = _load("trace_impedance_plugin/preview_kit.py", "kiway_preview_kit_test")
+
+try:
+    import wx  # noqa: F401
+
+    _HAS_WX = True
+except ImportError:  # pragma: no cover - CI environments without wxPython
+    _HAS_WX = False
+
+if _HAS_WX:
+    preview_kit = _load("trace_impedance_plugin/preview_kit.py", "kiway_preview_kit_test")
 
 
 class DifferentialPairDetectionTests(unittest.TestCase):
@@ -47,6 +56,7 @@ class DifferentialPairDetectionTests(unittest.TestCase):
         self.assertNotEqual(diff_pairs.pair_key("USB_DP"), diff_pairs.pair_key("USB"))
 
 
+@unittest.skipUnless(_HAS_WX, "preview_kit requires wxPython")
 class PickHitTestingTests(unittest.TestCase):
     def test_nearest_pick_within_tolerance_wins(self):
         picks = [
