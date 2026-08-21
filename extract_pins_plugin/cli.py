@@ -31,7 +31,7 @@ from .core.controller_connector_mapper import (
     parse_traversal_rules,
 )
 
-VERSION = "2.15.0"
+VERSION = "2.24.0"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3
@@ -85,6 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_benchmark(sub)
     add_dependencies(sub)
     add_test(sub)
+    add_automation_commands(sub)
     add_legacy_board_commands(sub)
     return parser
 
@@ -203,6 +204,19 @@ def add_test(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("test", help="Run KiWay's automated test suite.")
     p.add_argument("pytest_args", nargs="*", help="Additional unittest/pytest arguments.")
     p.set_defaults(func=cmd_test)
+
+
+def add_automation_commands(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("capabilities", help="Describe every KiWay plugin and its machine-control surface as JSON.")
+    p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
+    p.set_defaults(func=cmd_capabilities)
+    p = sub.add_parser("run", help="Execute one JSON-RPC/kiway.control request from a file or stdin.")
+    p.add_argument("--request", required=True, help="JSON request file, or '-' for stdin.")
+    p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
+    p.set_defaults(func=cmd_run_request)
+    p = sub.add_parser("serve", help="Run newline-delimited JSON-RPC 2.0 over stdio for workflow tools.")
+    p.add_argument("--stdio", action="store_true", required=True, help="Use stdin/stdout NDJSON transport.")
+    p.set_defaults(func=cmd_serve)
 
 
 def add_legacy_board_commands(sub: argparse._SubParsersAction) -> None:
@@ -492,6 +506,30 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
 def cmd_test(args: argparse.Namespace) -> int:
     command = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"] + list(args.pytest_args)
     return subprocess.call(command)
+
+
+def cmd_capabilities(args: argparse.Namespace) -> int:
+    from .automation import capabilities
+    return write_text(json.dumps(capabilities(), indent=2, sort_keys=True) + "\n", args.output)
+
+
+def cmd_run_request(args: argparse.Namespace) -> int:
+    from .automation import execute
+    try:
+        raw = sys.stdin.read() if args.request == "-" else Path(args.request).read_text(encoding="utf-8")
+        request = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CliError(f"Cannot read JSON request: {exc}", EXIT_USAGE) from exc
+    if not isinstance(request, dict):
+        raise CliError("JSON request must be an object.", EXIT_USAGE)
+    response = execute(request)
+    write_text(json.dumps(response, indent=2, sort_keys=True) + "\n", args.output)
+    return EXIT_RUNTIME if "error" in response else EXIT_OK
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    from .automation import serve
+    return serve(sys.stdin, sys.stdout)
 
 
 def cmd_board_extract(args: argparse.Namespace) -> int:

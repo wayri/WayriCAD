@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kiway"
-version = "2.23.0"
+version = "2.24.0"
 description = "KiWay KiCad electrical systems CLI and plugin package"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -19,9 +19,10 @@ test = ["Pillow>=9.0"]
 [project.scripts]
 kiway = "extract_pins_plugin.cli:main"
 
-[tool.setuptools]
-packages = ["extract_pins_plugin", "extract_pins_plugin.core"]
-include-package-data = true
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*_plugin", "*_plugin.*"]
 
 [tool.setuptools.package-data]
 extract_pins_plugin = ["*.html", "*.md", "*.txt", "*.svg", "*.png", "metadata.json"]
+harness_workbench_plugin = ["*.html", "*.md", "*.png", "metadata.json"]

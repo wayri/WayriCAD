@@ -1,7 +1,7 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>Harness Workbench Help</title>
 <style>body{font:16px system-ui;max-width:1100px;margin:32px auto;line-height:1.55;color:#17202a}img{max-width:100%;border:1px solid #9aa6b2}code,pre{background:#eef2f5;padding:2px 5px}pre{padding:12px;overflow:auto}h1,h2{color:#17365d}table{border-collapse:collapse;width:100%}th,td{border:1px solid #b8c2cc;padding:7px;text-align:left}.warn{border-left:5px solid #c47718;padding:10px;background:#fff7e8}</style>
-</head><body><h1>KiWay Harness and Cable Workbench 0.2.0</h1>
+</head><body><h1>KiWay Harness and Cable Workbench 0.4.0</h1>
 <p>Build a reviewed system harness from board pin exports and endpoint loads. The workbench reads project data only and never modifies the PCB.</p>
 <img src="help-workflow.png" alt="Actual Harness Workbench window">
 <h2>1. Import sources</h2>
@@ -20,17 +20,35 @@
 DEMO_IO:J4 -&gt; LOADS:P1 [offset=1]
 DEMO_A:J3 -&gt; DEMO_B:J7 [map=1:3,2:4]</pre>
 <p>The first rule maps N to N. Offset changes numeric destination pins. An explicit map overrides listed pins.</p>
-<h2>3. Add external loads</h2>
+<h2>3. Edit arbitrary pin mappings</h2>
+<p>Open <b>Pin Mapping Editor</b>, choose a source and destination connector, and click <b>Seed N-to-N Rows</b>. Every cell remains editable: change either pin, add or delete rows, and assign wire ID, AWG, color, bundle, splice, length, shield, and notes.</p>
+<p>Use <b>Validate Mapping</b> before building. A source may appear on several rows for an intentional splice, but the validator reports it for review. Missing imported endpoints are marked unmatched rather than silently accepted.</p>
+<pre>source_project,source_connector,source_pin,destination_project,destination_connector,destination_pin,gauge_awg,length_m
+DEMO_CTRL,J1,1,DEMO_IO,J7,8,24,1.25
+DEMO_CTRL,J1,2,DEMO_IO,J7,12,24,1.25</pre>
+<p><b>Import Mapping CSV</b> and <b>Export Mapping CSV</b> provide round trips for engineering review and source control. Explicit table rows take precedence over duplicate automatic links.</p>
+<h2>4. Add external loads</h2>
 <pre>PROJECT,REFERENCE,PIN,NET,FUNCTION,VOLTAGE,CURRENT_A,CONNECTOR_PART
 LOADS,MOTOR_A,1,MOTOR_POS,Drive motor,24V,3.5,DEMO-CONN</pre>
-<h2>4. Review construction</h2>
+<h2>5. Review construction</h2>
 <p>Sort tables by clicking a header. Select wires, then apply AWG, color, bundle, splice, length, and shielding. With no selection, the action applies to every link. Review unmatched, ambiguous, duplicate-destination, and voltage-conflict findings.</p>
-<h2>5. Draft and outputs</h2>
-<p>The Draft Canvas shows each connector once. Mouse wheel zooms, drag pans, and double-click inspects a connector. Export pin map, net map, wire list, procurement BoM, or universal SVG. The UI displays at most 10,000 rows; exports contain every generated row.</p>
+<h2>6. Build IC / peripheral paths</h2>
+<p>In Pin Extractor, build and export a <b>Controller Map CSV</b> for each board. Its exact traversal retains net changes, resistors, inductors, ferrites, fuses, and user-authorized active-device pin transitions. Import those CSV files with <b>Import IC / Connector Paths</b>.</p>
+<p>The controller-map filename without <code>.csv</code>, or a <code>Project</code> column, must equal the board project name used in the connector pin document. The workbench joins records only when project, connector reference, and connector pin all match exactly.</p>
+<p>On <b>IC / Peripheral Paths</b>, enter comma-separated reference wildcards such as <code>U1,U2</code>, <code>U*</code>, or <code>MCU*</code>. Build the preview and review every Conditional, Ambiguous, or Incomplete path. A missing endpoint may be retained as a connector-only path; a wildcard-excluded endpoint is omitted.</p>
+<pre>DEMO_CTRL:U1.21 -&gt; R12.1 -&gt; R12.2 -&gt; J1.3
+  -- W00003 / DATA-A --&gt;
+DEMO_SENSOR:J2.8 -&gt; R7.2 -&gt; R7.1 -&gt; U3.5</pre>
+<h2>7. Draft and outputs</h2>
+<p>The native Draft Canvas shows each connector once. Mouse wheel zooms, drag pans, and double-click inspects a connector. The self-contained interactive HTML adds separate IC/peripheral, connector, and bundle stages; wheel zoom, empty-space pan, draggable nodes, clickable path details, search, bundle/status filters, sortable tables, findings, and the procurement BoM. It requires no web connection or external script.</p>
+<img src="help-interactive-report.png" alt="Actual generated interactive system harness report">
+<p>Export pin map, net map, wire list, system paths, procurement BoM, universal SVG, or interactive HTML. The native UI displays at most 10,000 rows; exports contain every generated row.</p>
 <h2>Troubleshooting</h2><ul>
 <li><b>No links:</b> confirm project/connector spelling, net pattern, and CSV columns.</li>
 <li><b>Too many links:</b> disable indexed matching for straight-through cables or narrow the pattern. Automatic generation stops at 50,000 links.</li>
 <li><b>Unmatched pins:</b> inspect connector population and use offset or explicit maps.</li>
+<li><b>No IC/peripheral path:</b> verify the controller-map Project/file stem and exact connector reference and pin. Re-export after changing the PCB.</li>
+<li><b>Conditional path:</b> review the active-device pin-pair rule and operating-state note in Pin Extractor. The harness workbench does not promote it to proven connectivity.</li>
 <li><b>Missing BoM parts:</b> provide connector/contact part columns. Unknown parts remain TBD.</li>
 </ul>
 <p class="warn"><b>Engineering limitation:</b> correspondence does not prove polarity, pin gender, mating orientation, electrical compatibility, ampacity, temperature derating, insulation, creepage, shielding, bend radius, regulatory compliance, manufacturability, or testability. Verify these before release.</p>

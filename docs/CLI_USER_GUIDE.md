@@ -131,6 +131,49 @@ kiway crosslink demo_ctrl-pins.csv demo_sensor-pins.md \
 Keep rule files under version control. Review ambiguous one-to-many links before
 using the result as a harness definition.
 
+### Explicit harness pin maps
+
+The Harness Workbench accepts non-corresponding and one-to-many pin mappings.
+Create a CSV with the endpoint columns below; optional columns carry wire
+construction metadata.
+
+```csv
+source_project,source_connector,source_pin,destination_project,destination_connector,destination_pin,wire_id,gauge_awg,color,bundle,splice,length_m,shield,notes
+DEMO_CTRL,J1,1,DEMO_IO,J7,8,W00001,24,Blue,DATA,,1.25,,Transmit
+DEMO_CTRL,J1,2,DEMO_IO,J7,12,W00002,24,White,DATA,,1.25,,Receive
+```
+
+To include full board-internal paths, first export a Controller Map CSV from Pin
+Extractor for each board. The file stem, or an optional `Project` column, must
+match the project name in the board pin document. These maps retain ordered net
+segments, series passives, and explicitly authorized conditional active-device
+crossings.
+
+Build the reviewed harness and offline interactive report through the
+machine-control API:
+
+```json
+{"jsonrpc":"2.0","id":"harness-1","method":"harness.build","params":{"documents":["demo_ctrl.csv","demo_io.csv"],"mapping_csv":"harness-map.csv","path_documents":["DEMO_CTRL.csv","DEMO_IO.csv"],"source_refs":"U1,U2","destination_refs":"U*","include_partial":true,"include_html":true,"title":"Demo System Harness","auto_match":false}}
+```
+
+```bash
+kiway run --request harness-request.json --output artifacts/harness-result.json
+```
+
+The response includes the wire list, pin map, net map, ordered system paths,
+procurement BoM, validation findings, and optionally the complete standalone
+HTML report in `html`. Write that field to an `.html` artifact without modifying
+it. The report has an interactive five-stage IC/connector/bundle/connector/IC
+canvas, path details, bundle and status filters, search, sortable tables, and no
+runtime network dependency. Explicit mappings never assume that connector pins
+match.
+
+`source_refs` and `destination_refs` are comma-separated wildcards. A missing
+board-side path can be emitted as an Incomplete connector-only row when
+`include_partial` is true. An endpoint intentionally excluded by a wildcard is
+not emitted. Conditional MOSFET, BJT, jumper, and IC transitions remain
+Conditional in the system result; the harness stage never infers device state.
+
 ## 6. Validation and CI gates
 
 `validate` emits deterministic diagnostics and returns exit code `3` when a
@@ -263,7 +306,40 @@ kiway report exports/ --title 'DEMO_CTRL Electrical ICD' \
 the TM/TC table; use individual `extract` commands when separate connector,
 test-point, pin, and interface CSV files are required.
 
-## 10. Exit codes and diagnostics
+## 10. Plugin automation and external controllers
+
+`kiway capabilities` returns a deterministic inventory of all KiWay plugins,
+their actions, input type, and whether mutating actions exist. This lets a
+workflow engine discover the suite without scraping help text.
+
+```bash
+kiway capabilities --output artifacts/kiway-capabilities.json
+```
+
+For one operation, use `kiway run --request FILE`. For a long-lived controller,
+use `kiway serve --stdio`. The server reads one JSON-RPC 2.0 object per line and
+writes one response per line, flushing after every response:
+
+```text
+{"jsonrpc":"2.0","id":1,"method":"capabilities"}
+{"jsonrpc":"2.0","id":2,"method":"signal-integrity.i2c-pullup","params":{"voltage_v":3.3,"capacitance_pf":200,"rise_time_ns":300,"sink_current_ma":3}}
+```
+
+This NDJSON subprocess contract works with Doki-style container runners, CI
+agents, desktop automation, and custom Python/Node/Go controllers. Keep stdin
+and stdout reserved for protocol messages; diagnostics belong on stderr.
+
+Currently callable headless operations are reported in the `operations` array.
+The capability inventory also exposes GUI/board actions so controllers can
+identify them, but a listed action is not callable through JSON-RPC until its
+fully qualified operation appears in that array. Board changes require KiCad's
+Python runtime and must use explicit apply semantics; discovery and analysis do
+not modify project files.
+
+JSON-RPC errors use standard codes: `-32700` parse error, `-32601` unknown
+method, `-32602` invalid parameters, and `-32000` backend failure.
+
+## 11. Exit codes and diagnostics
 
 | Code | Meaning |
 |---:|---|
@@ -275,7 +351,7 @@ test-point, pin, and interface CSV files are required.
 Diagnostics go to stderr. `--diagnostics json` is recommended for CI log
 collectors. `--quiet` suppresses non-error diagnostics but never hides errors.
 
-## 11. Troubleshooting and limitations
+## 12. Troubleshooting and limitations
 
 - **No XML inputs found:** export a `kicadxml` netlist; a `.kicad_sch` file is
   not itself a CLI parser input.

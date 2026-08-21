@@ -2,20 +2,24 @@ from __future__ import annotations
 
 import math
 import os
+import tempfile
 import webbrowser
 from pathlib import Path
 
 import pcbnew
 import wx
+import wx.grid as gridlib
 
 from .analysis import (
-    HarnessBundle, HarnessSplice, VirtualLoad, apply_bundle, apply_splice,
+    HarnessBundle, HarnessSplice, PinMapRow, VirtualLoad, apply_bundle, apply_splice,
     auto_link_multi, connector_correspondence, connector_graph,
-    discover_pin_documents, export_csv, export_rows, harness_bom,
-    load_pin_documents, net_map_rows, parse_connector_rules, pin_map_rows,
-    universal_harness_svg, validate_links, virtual_load_records,
+    build_system_signal_paths, discover_pin_documents, export_csv, export_rows, harness_bom,
+    links_from_pin_map, load_pin_documents, load_pin_map_csv, load_signal_path_documents, net_map_rows,
+    parse_connector_rules, pin_map_editor_rows, pin_map_rows, universal_harness_svg,
+    system_signal_rows, validate_links, validate_pin_map, virtual_load_records,
 )
 from .guided_ui import add_workflow, mark_primary, section
+from .report import interactive_harness_html
 
 MAX_PROJECTS = 50
 MAX_VISIBLE_ROWS = 10000
@@ -159,7 +163,7 @@ class HarnessWorkbenchPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
         self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.2.0"
+        self.version = "0.4.0"
     def Run(self): HarnessFrame(None).Show()
 
 
@@ -167,6 +171,7 @@ class HarnessFrame(wx.Frame):
     def __init__(self, parent):
         super().__init__(parent, title="KiWay Harness and Cable Workbench", size=(1400, 900))
         self.records, self.virtual_loads, self.links, self.bundles, self.splices = [], [], [], [], []
+        self.board_paths, self.system_paths = [], []
         self._build(); self.Centre()
 
     def _build(self):
@@ -174,10 +179,10 @@ class HarnessFrame(wx.Frame):
         self.guide = add_workflow(
             panel, root, "Harness and Cable Workbench",
             "Ingest up to 50 board pin documents, map connector families, and release reviewed harness data.",
-            ("Sources", "Link rules", "Wire review", "Draft and BoM"), self._help)
+            ("Sources", "Link rules", "Pin map", "Wire review", "System paths", "Report"), self._help)
         self.notebook = wx.Notebook(panel)
-        self._build_sources(); self._build_rules(); self._build_wires()
-        self._build_canvas(); self._build_outputs()
+        self._build_sources(); self._build_rules(); self._build_pin_editor(); self._build_wires()
+        self._build_system_map(); self._build_canvas(); self._build_outputs()
         root.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 8)
         self.status = wx.StaticText(panel, label="Import board pin CSV files or a directory to begin.")
         root.Add(self.status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
@@ -190,6 +195,7 @@ class HarnessFrame(wx.Frame):
         page = self._page("1  Sources"); root = wx.BoxSizer(wx.VERTICAL); actions = wx.BoxSizer(wx.HORIZONTAL)
         for label, handler in (("Import Pin CSV Files...", self._import_files),
                                ("Import Directory...", self._import_directory),
+                               ("Import IC / Connector Paths...", self._import_signal_paths),
                                ("Clear Sources", self._clear_sources)):
             button = wx.Button(page, label=label); button.Bind(wx.EVT_BUTTON, handler)
             actions.Add(button, 0, wx.RIGHT, 8)
@@ -197,6 +203,8 @@ class HarnessFrame(wx.Frame):
         self.source_table = _table(page, ("Project", "Connector", "Pins", "Connector Part", "Endpoint Type"),
                                    (190, 150, 80, 250, 130))
         root.Add(self.source_table, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        self.path_source_status = wx.StaticText(page, label="No audited IC/peripheral-to-connector path documents loaded.")
+        root.Add(self.path_source_status, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         root.Add(wx.StaticText(page, label="Columns: project, connector/reference, pin/pad, net, function, voltage, connector part, contact part, load A."),
                  0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10); page.SetSizer(root)
 
@@ -221,8 +229,50 @@ class HarnessFrame(wx.Frame):
         build = mark_primary(wx.Button(page, label="Build Universal Harness"), "Apply net and connector rules")
         build.Bind(wx.EVT_BUTTON, self._build_links); root.Add(build, 0, wx.ALIGN_RIGHT | wx.ALL, 10); page.SetSizer(root)
 
+    def _build_pin_editor(self):
+        page = self._page("3  Pin Map"); root = wx.BoxSizer(wx.VERTICAL)
+        seed = section(page, "Seed a connector pair, then edit any pin relationship")
+        parent = seed.GetStaticBox(); row = wx.BoxSizer(wx.HORIZONTAL)
+        self.map_source = wx.ComboBox(parent, style=wx.CB_READONLY)
+        self.map_destination = wx.ComboBox(parent, style=wx.CB_READONLY)
+        seed_button = wx.Button(parent, label="Seed N-to-N Rows")
+        seed_button.SetToolTip("Create editable starting rows for pins present on both connectors.")
+        seed_button.Bind(wx.EVT_BUTTON, self._seed_pin_map)
+        for label, control in (("Source", self.map_source), ("Destination", self.map_destination)):
+            row.Add(wx.StaticText(parent, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+            row.Add(control, 1, wx.RIGHT, 12)
+        row.Add(seed_button); seed.Add(row, 0, wx.EXPAND | wx.ALL, 8)
+        root.Add(seed, 0, wx.EXPAND | wx.ALL, 8)
+
+        columns = ("Source Project", "Source Connector", "Source Pin", "Destination Project",
+                   "Destination Connector", "Destination Pin", "Wire ID", "AWG", "Color",
+                   "Bundle", "Splice", "Length m", "Shield", "Notes")
+        self.pin_grid = gridlib.Grid(page)
+        self.pin_grid.CreateGrid(0, len(columns))
+        for index, label in enumerate(columns):
+            self.pin_grid.SetColLabelValue(index, label)
+        widths = (150, 120, 75, 150, 130, 90, 85, 60, 85, 100, 90, 80, 120, 240)
+        for index, width in enumerate(widths):
+            self.pin_grid.SetColSize(index, width)
+        self.pin_grid.EnableDragRowSize(False)
+        root.Add(self.pin_grid, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+
+        actions = wx.BoxSizer(wx.HORIZONTAL)
+        for label, handler in (("Add Row", self._add_pin_map_row), ("Delete Selected Rows", self._delete_pin_map_rows),
+                               ("Import Mapping CSV...", self._import_pin_map), ("Export Mapping CSV...", self._export_pin_map),
+                               ("Validate Mapping", self._validate_pin_map_ui)):
+            button = wx.Button(page, label=label); button.Bind(wx.EVT_BUTTON, handler)
+            actions.Add(button, 0, wx.RIGHT, 8)
+        actions.AddStretchSpacer()
+        build = mark_primary(wx.Button(page, label="Build Universal Harness"), "Build exact rows plus enabled automatic rules")
+        build.Bind(wx.EVT_BUTTON, self._build_links); actions.Add(build)
+        root.Add(actions, 0, wx.EXPAND | wx.ALL, 8)
+        root.Add(wx.StaticText(page, label="Every row is explicit. One source may feed several destinations when a splice is intentional."),
+                 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        page.SetSizer(root)
+
     def _build_wires(self):
-        page = self._page("3  Wire List"); root = wx.BoxSizer(wx.VERTICAL)
+        page = self._page("4  Wire List"); root = wx.BoxSizer(wx.VERTICAL)
         fields = ("Wire", "Source", "Source Net", "Destination", "Destination Net", "AWG",
                   "Color", "Bundle", "Splice", "Length m", "Shield", "Status")
         self.wire_table = _table(page, fields, (85, 210, 160, 210, 160, 65, 85, 120, 100, 80, 120, 90))
@@ -244,7 +294,7 @@ class HarnessFrame(wx.Frame):
         props.Add(buttons,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,8); root.Add(props,0,wx.EXPAND|wx.ALL,8); page.SetSizer(root)
 
     def _build_canvas(self):
-        page=self._page("4  Draft Canvas"); root=wx.BoxSizer(wx.VERTICAL); tools=wx.BoxSizer(wx.HORIZONTAL)
+        page=self._page("6  Draft Canvas"); root=wx.BoxSizer(wx.VERTICAL); tools=wx.BoxSizer(wx.HORIZONTAL)
         fit=wx.Button(page,label="Fit Drawing"); fit.Bind(wx.EVT_BUTTON,lambda _e:self.canvas.fit())
         refresh=wx.Button(page,label="Refresh Draft"); refresh.Bind(wx.EVT_BUTTON,lambda _e:self.canvas.set_links(self.links))
         tools.Add(fit,0,wx.RIGHT,8); tools.Add(refresh); tools.AddStretchSpacer()
@@ -254,7 +304,7 @@ class HarnessFrame(wx.Frame):
         root.Add(self.canvas_detail,0,wx.EXPAND|wx.ALL,8); page.SetSizer(root)
 
     def _build_outputs(self):
-        page=self._page("5  Maps and BoM"); root=wx.BoxSizer(wx.VERTICAL); book=wx.Notebook(page)
+        page=self._page("7  Reports"); root=wx.BoxSizer(wx.VERTICAL); book=wx.Notebook(page)
         pin,net,bom=wx.Panel(book),wx.Panel(book),wx.Panel(book)
         book.AddPage(pin,"Pin Map"); book.AddPage(net,"Net Map"); book.AddPage(bom,"Harness BoM")
         self.pin_table=_table(pin,("Wire","Source","Source Net","Destination","Destination Net","Function","Bundle","Splice","Status"))
@@ -266,9 +316,38 @@ class HarnessFrame(wx.Frame):
         root.Add(book,1,wx.EXPAND|wx.ALL,8); actions=wx.BoxSizer(wx.HORIZONTAL)
         for label,kind in (("Export Pin Map CSV...","pin"),("Export Net Map CSV...","net"),
                            ("Export Wire List CSV...","wire"),("Export Harness BoM CSV...","bom"),
-                           ("Export Universal SVG...","svg")):
+                           ("Export System Paths CSV...","system"),("Export Universal SVG...","svg"),
+                           ("Preview Interactive HTML","preview-html"),("Export Interactive HTML...","html")):
             button=wx.Button(page,label=label);button.Bind(wx.EVT_BUTTON,lambda event,k=kind:self._export(k));actions.Add(button,0,wx.RIGHT,8)
         root.Add(actions,0,wx.ALL,8);page.SetSizer(root)
+
+    def _build_system_map(self):
+        page = self._page("5  System Paths"); root = wx.BoxSizer(wx.VERTICAL)
+        controls = section(page, "End-to-end path scope"); parent = controls.GetStaticBox()
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        self.system_source_refs = wx.TextCtrl(parent, value="U*")
+        self.system_destination_refs = wx.TextCtrl(parent, value="U*")
+        self.system_include_partial = wx.CheckBox(parent, label="Include incomplete connector-only paths")
+        self.system_include_partial.SetValue(True)
+        for label, control in (("Source IC / peripheral refs", self.system_source_refs),
+                               ("Destination IC / peripheral refs", self.system_destination_refs)):
+            row.Add(wx.StaticText(parent, label=label), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+            row.Add(control, 1, wx.RIGHT, 12)
+        row.Add(self.system_include_partial, 0, wx.ALIGN_CENTER_VERTICAL)
+        controls.Add(row, 0, wx.EXPAND | wx.ALL, 8); root.Add(controls, 0, wx.EXPAND | wx.ALL, 8)
+        fields = ("Path", "Source IC / Peripheral", "Source Function", "Source Net", "Source Connector",
+                  "Wire", "Bundle", "Destination Connector", "Destination IC / Peripheral",
+                  "Destination Function", "Destination Net", "Protocol", "Inline Components", "Status", "Confidence")
+        widths = (75, 200, 150, 140, 120, 80, 100, 140, 220, 160, 140, 100, 240, 90, 90)
+        self.system_table = _table(page, fields, widths); root.Add(self.system_table, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+        actions = wx.BoxSizer(wx.HORIZONTAL)
+        for label, handler in (("Build End-to-End Paths", self._build_system_paths),
+                               ("Preview Interactive HTML", self._preview_html),
+                               ("Export Interactive HTML...", lambda event: self._export("html"))):
+            button = wx.Button(page, label=label); button.Bind(wx.EVT_BUTTON, handler); actions.Add(button, 0, wx.RIGHT, 8)
+        root.Add(actions, 0, wx.ALL, 8)
+        root.Add(wx.StaticText(page, label="Board-side paths must come from the safeguarded Pin Extractor controller map. File stem or Project column must match the pin document project."),
+                 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10); page.SetSizer(root)
 
     def _import_files(self,_event):
         with wx.FileDialog(self,"Import board pin documents",wildcard="CSV (*.csv)|*.csv",
@@ -277,6 +356,21 @@ class HarnessFrame(wx.Frame):
     def _import_directory(self,_event):
         with wx.DirDialog(self,"Import a directory of board pin documents") as dialog:
             if dialog.ShowModal()==wx.ID_OK:self._load_paths(discover_pin_documents(dialog.GetPath()))
+    def _import_signal_paths(self,_event):
+        with wx.FileDialog(self,"Import Pin Extractor controller-map CSV files",wildcard="CSV (*.csv)|*.csv",
+                           style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST|wx.FD_MULTIPLE) as dialog:
+            if dialog.ShowModal()!=wx.ID_OK:return
+            try:
+                imported=load_signal_path_documents([Path(path) for path in dialog.GetPaths()],MAX_PROJECTS)
+                combined={(p.project,p.endpoint_reference,p.endpoint_pin,p.connector,p.connector_pin,p.ordered_path):p
+                          for p in self.board_paths}
+                combined.update({(p.project,p.endpoint_reference,p.endpoint_pin,p.connector,p.connector_pin,p.ordered_path):p
+                                 for p in imported})
+                self.board_paths=list(combined.values())
+                projects=len({p.project for p in self.board_paths})
+                self.path_source_status.SetLabel(f"Loaded {len(self.board_paths)} audited board paths from {projects} projects.")
+                self._refresh_system_paths()
+            except Exception as exc:wx.MessageBox(str(exc),"Signal path import failed",wx.OK|wx.ICON_ERROR)
     def _load_paths(self,paths):
         try:
             imported=load_pin_documents(paths,MAX_PROJECTS)
@@ -288,13 +382,19 @@ class HarnessFrame(wx.Frame):
             self.guide.set_step(1,"Define connector correspondence, net rules, and external loads.")
         except Exception as exc:wx.MessageBox(str(exc),"Import failed",wx.OK|wx.ICON_ERROR)
     def _clear_sources(self,_event):
-        self.records=[];self.virtual_loads=[];self.links=[];self._refresh_sources();self._refresh_all()
+        self.records=[];self.virtual_loads=[];self.links=[];self.board_paths=[];self.system_paths=[]
+        self.path_source_status.SetLabel("No audited IC/peripheral-to-connector path documents loaded.")
+        self._refresh_sources();self._refresh_all()
     def _refresh_sources(self):
         groups={}
         for row in self.records:
             key=(row.project,row.connector,row.connector_part,row.endpoint_type);groups[key]=groups.get(key,0)+1
         rows=[{"Project":k[0],"Connector":k[1],"Pins":v,"Connector Part":k[2],"Endpoint Type":k[3]} for k,v in sorted(groups.items())]
         _fill(self.source_table,rows,("Project","Connector","Pins","Connector Part","Endpoint Type"))
+        choices = [f"{project}:{connector}" for project, connector, _part, _kind in sorted(groups)]
+        for control in (self.map_source, self.map_destination):
+            current = control.GetValue(); control.SetItems(choices)
+            if current in choices: control.SetValue(current)
     def _parse_loads(self):
         loads=[]
         for number,line in enumerate(self.load_text.GetValue().splitlines(),1):
@@ -310,17 +410,98 @@ class HarnessFrame(wx.Frame):
             self.virtual_loads=self._parse_loads();endpoints=self.records+virtual_load_records(self.virtual_loads);links=[]
             if self.match_nets.GetValue():links+=auto_link_multi(endpoints,self.net_pattern.GetValue() or "*",self.use_regex.GetValue(),self.include_power.GetValue())
             links+=connector_correspondence(endpoints,parse_connector_rules(self.connector_rules.GetValue()))
+            manual = self._pin_map_rows()
+            links += links_from_pin_map(endpoints, manual)
             unique={}
             for link in links:
                 key=(link.source.project,link.source.connector,link.source.pin,link.destination.project,link.destination.connector,link.destination.pin)
-                if key not in unique or (unique[key].status!="linked" and link.status=="linked"):unique[key]=link
+                if key not in unique or link.notes.startswith("Manual pin map") or (unique[key].status!="linked" and link.status=="linked"):unique[key]=link
             self.links=list(unique.values())
             for index,link in enumerate(self.links,1):link.wire_id=f"W{index:05d}"
             self._refresh_all();issues=validate_links(self.links)
             self.status.SetLabel(f"{len(self.links)} wires across {len({r.project for r in endpoints})} projects | {len(issues)} findings.")
             self.guide.set_step(2,"Review mappings and assign bundle, splice, gauge, color, and length.")
-            self.notebook.SetSelection(2)
+            self.notebook.SetSelection(3)
         except Exception as exc:wx.MessageBox(str(exc),"Harness build failed",wx.OK|wx.ICON_ERROR)
+
+    def _build_system_paths(self,_event=None):
+        self._refresh_system_paths()
+        self.status.SetLabel(f"Resolved {len(self.system_paths)} end-to-end IC/peripheral paths from {len(self.board_paths)} audited board paths.")
+
+    def _refresh_system_paths(self):
+        self.system_paths=build_system_signal_paths(
+            self.links,self.board_paths,self.system_source_refs.GetValue() or "*",
+            self.system_destination_refs.GetValue() or "*",self.system_include_partial.GetValue()) if self.links else []
+        fields=("Path","Source IC / Peripheral","Source Function","Source Net","Source Connector","Wire","Bundle",
+                "Destination Connector","Destination IC / Peripheral","Destination Function","Destination Net",
+                "Protocol","Inline Components","Status","Confidence")
+        _fill(self.system_table,system_signal_rows(self.system_paths),fields)
+
+    def _append_pin_map_rows(self, rows):
+        data = pin_map_editor_rows(rows); start = self.pin_grid.GetNumberRows()
+        if data: self.pin_grid.AppendRows(len(data))
+        fields = ("source_project", "source_connector", "source_pin", "destination_project",
+                  "destination_connector", "destination_pin", "wire_id", "gauge_awg", "color",
+                  "bundle", "splice", "length_m", "shield", "notes")
+        for offset, item in enumerate(data):
+            for column, field in enumerate(fields): self.pin_grid.SetCellValue(start + offset, column, item[field])
+
+    def _pin_map_rows(self):
+        rows = []
+        for index in range(self.pin_grid.GetNumberRows()):
+            values = [self.pin_grid.GetCellValue(index, column).strip() for column in range(14)]
+            if not any(values): continue
+            if not all(values[position] for position in range(6)):
+                raise ValueError(f"Pin mapping row {index + 1} requires both project, connector, and pin endpoints.")
+            try: length = float(values[11] or 1)
+            except ValueError as exc: raise ValueError(f"Pin mapping row {index + 1} has an invalid length.") from exc
+            rows.append(PinMapRow(*values[:6], values[6], values[7] or "24", values[8], values[9],
+                                  values[10], length, values[12], values[13] or "Manual pin map"))
+        return rows
+
+    def _add_pin_map_row(self, _event):
+        self._append_pin_map_rows([PinMapRow("", "", "", "", "", "")])
+        self.pin_grid.MakeCellVisible(self.pin_grid.GetNumberRows() - 1, 0)
+
+    def _delete_pin_map_rows(self, _event):
+        selected = sorted(set(self.pin_grid.GetSelectedRows()), reverse=True)
+        if not selected and self.pin_grid.GetGridCursorRow() >= 0: selected = [self.pin_grid.GetGridCursorRow()]
+        for row in selected:
+            if 0 <= row < self.pin_grid.GetNumberRows(): self.pin_grid.DeleteRows(row, 1)
+
+    def _seed_pin_map(self, _event):
+        try:
+            source_project, source_connector = self.map_source.GetValue().split(":", 1)
+            destination_project, destination_connector = self.map_destination.GetValue().split(":", 1)
+        except ValueError:
+            wx.MessageBox("Choose both connector endpoints first.", "Pin map", wx.OK | wx.ICON_INFORMATION); return
+        source_pins = {r.pin for r in self.records if r.project == source_project and r.connector == source_connector}
+        destination_pins = {r.pin for r in self.records if r.project == destination_project and r.connector == destination_connector}
+        pins = sorted(source_pins & destination_pins, key=lambda value: (len(value), value.casefold()))
+        self._append_pin_map_rows([PinMapRow(source_project, source_connector, pin,
+                                             destination_project, destination_connector, pin)
+                                   for pin in pins])
+        self.status.SetLabel(f"Seeded {len(pins)} editable rows. Change destination pins for non-corresponding connectors.")
+
+    def _validate_pin_map_ui(self, _event):
+        try: issues = validate_pin_map(self.records + virtual_load_records(self._parse_loads()), self._pin_map_rows())
+        except Exception as exc: wx.MessageBox(str(exc), "Pin map validation", wx.OK | wx.ICON_ERROR); return
+        wx.MessageBox("\n".join(issues[:30]) if issues else "All explicit endpoints resolve.",
+                      "Pin map validation", wx.OK | (wx.ICON_WARNING if issues else wx.ICON_INFORMATION))
+
+    def _import_pin_map(self, _event):
+        with wx.FileDialog(self, "Import explicit pin mapping", wildcard="CSV (*.csv)|*.csv",
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
+            if dialog.ShowModal() != wx.ID_OK: return
+            try: self._append_pin_map_rows(load_pin_map_csv(dialog.GetPath()))
+            except Exception as exc: wx.MessageBox(str(exc), "Pin map import failed", wx.OK | wx.ICON_ERROR)
+
+    def _export_pin_map(self, _event):
+        with wx.FileDialog(self, "Export explicit pin mapping", wildcard="CSV (*.csv)|*.csv",
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
+            if dialog.ShowModal() != wx.ID_OK: return
+            try: export_rows(dialog.GetPath(), pin_map_editor_rows(self._pin_map_rows()))
+            except Exception as exc: wx.MessageBox(str(exc), "Pin map export failed", wx.OK | wx.ICON_ERROR)
     def _wire_rows(self):
         return [{"Wire":l.wire_id,"Source":f"{l.source.project}:{l.source.connector}.{l.source.pin}","Source Net":l.source.net,
                  "Destination":f"{l.destination.project}:{l.destination.connector}.{l.destination.pin}","Destination Net":l.destination.net,
@@ -332,6 +513,7 @@ class HarnessFrame(wx.Frame):
         _fill(self.pin_table,pins,("Wire","Source","Source Net","Destination","Destination Net","Function","Bundle","Splice","Status"))
         _fill(self.net_table,nets,("Net / Signal","Endpoints","Wires","Bundles","Loads (A)"))
         _fill(self.bom_table,bom,("Category","Part Number","Description","Quantity","Unit","Notes"));self.canvas.set_links(self.links)
+        self._refresh_system_paths()
     def _selected(self):
         result=[];index=self.wire_table.GetFirstSelected()
         while index!=-1:result.append(self.wire_table.GetItemText(index,0));index=self.wire_table.GetNextSelected(index)
@@ -360,9 +542,19 @@ class HarnessFrame(wx.Frame):
     def _show_connector(self,node):
         relevant=[l for l in self.links if node in (f"{l.source.project}:{l.source.connector}",f"{l.destination.project}:{l.destination.connector}")]
         self.canvas_detail.SetLabel(f"{node}: {len(relevant)} mapped wires | bundles: {', '.join(sorted({l.bundle or 'Unbundled' for l in relevant}))}")
+    def _html(self):
+        return interactive_harness_html(self.records+virtual_load_records(self.virtual_loads),self.links,
+                                        self.bundles,self.splices,self.system_paths,
+                                        "KiWay Interactive System Harness")
+    def _preview_html(self,_event):
+        if not self.links:return
+        path=Path(tempfile.gettempdir())/"kiway-interactive-harness-preview.html"
+        path.write_text(self._html(),encoding="utf-8");webbrowser.open(path.resolve().as_uri())
+        self.status.SetLabel(f"Opened interactive preview: {path.name}")
     def _export(self,kind):
         if not self.links:return
-        wildcard="SVG (*.svg)|*.svg" if kind=="svg" else "CSV (*.csv)|*.csv"
+        if kind=="preview-html":self._preview_html(None);return
+        wildcard="HTML (*.html)|*.html" if kind=="html" else "SVG (*.svg)|*.svg" if kind=="svg" else "CSV (*.csv)|*.csv"
         with wx.FileDialog(self,"Export harness output",wildcard=wildcard,style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             path=dialog.GetPath()
@@ -370,6 +562,8 @@ class HarnessFrame(wx.Frame):
             elif kind=="pin":export_rows(path,pin_map_rows(self.links))
             elif kind=="net":export_rows(path,net_map_rows(self.links))
             elif kind=="bom":export_rows(path,harness_bom(self.records+virtual_load_records(self.virtual_loads),self.links,self.bundles,self.splices))
+            elif kind=="system":export_rows(path,system_signal_rows(self.system_paths))
+            elif kind=="html":Path(path).write_text(self._html(),encoding="utf-8")
             else:Path(path).write_text(universal_harness_svg(self.links),encoding="utf-8")
             self.status.SetLabel(f"Exported {Path(path).name}")
     def _help(self,_event):webbrowser.open(Path(__file__).with_name("help.html").resolve().as_uri())

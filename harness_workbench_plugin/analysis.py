@@ -53,6 +53,25 @@ class ConnectorRule:
 
 
 @dataclass(frozen=True)
+class PinMapRow:
+    """One reviewed wire definition from the tabular harness editor."""
+    source_project: str
+    source_connector: str
+    source_pin: str
+    destination_project: str
+    destination_connector: str
+    destination_pin: str
+    wire_id: str = ""
+    gauge_awg: str = "24"
+    color: str = ""
+    bundle: str = ""
+    splice: str = ""
+    length_m: float = 1.0
+    shield: str = ""
+    notes: str = "Manual pin map"
+
+
+@dataclass(frozen=True)
 class VirtualLoad:
     project: str
     reference: str
@@ -82,6 +101,60 @@ class HarnessSplice:
     splice_type: str = "Crimp splice"
     location: str = ""
     part_number: str = ""
+
+
+@dataclass(frozen=True)
+class BoardSignalPath:
+    """Audited path from an internal IC/peripheral pin to a board connector."""
+    project: str
+    endpoint_reference: str
+    endpoint_value: str
+    endpoint_pin: str
+    endpoint_function: str
+    endpoint_net: str
+    connector: str
+    connector_pin: str
+    connector_net: str
+    net_sequence: str = ""
+    inline_components: str = ""
+    pin_transitions: str = ""
+    active_devices: str = ""
+    condition_notes: str = ""
+    status: str = "Resolved"
+    confidence: str = "High"
+    ordered_path: str = ""
+    sheet: str = ""
+
+
+@dataclass(frozen=True)
+class SystemSignalPath:
+    """End-to-end logical route across board copper and a physical harness."""
+    path_id: str
+    source_project: str
+    source_reference: str
+    source_value: str
+    source_pin: str
+    source_function: str
+    source_net: str
+    source_connector: str
+    source_connector_pin: str
+    wire_id: str
+    bundle: str
+    destination_connector: str
+    destination_connector_pin: str
+    destination_project: str
+    destination_reference: str
+    destination_value: str
+    destination_pin: str
+    destination_function: str
+    destination_net: str
+    inline_components: str
+    board_net_sequence: str
+    ordered_path: str
+    protocol: str
+    status: str
+    confidence: str
+    notes: str = ""
 
 
 def load_pin_csv(path: str | Path, project: str = "") -> list[PinRecord]:
@@ -128,6 +201,172 @@ def load_pin_documents(paths: list[str | Path], maximum_projects: int = 50) -> l
     return sorted(records.values(), key=lambda item: (item.project.casefold(), item.connector.casefold(), _pin_key(item.pin), item.net.casefold()))
 
 
+def load_signal_path_csv(path: str | Path, project: str = "") -> list[BoardSignalPath]:
+    """Load Pin Extractor controller-map CSV without discarding audit fields."""
+    source = Path(path)
+    with source.open(newline="", encoding="utf-8-sig") as handle:
+        rows = list(csv.DictReader(handle))
+    result = []
+    for number, raw in enumerate(rows, 2):
+        folded = {str(key).strip().casefold().replace("_", " "): str(value or "").strip()
+                  for key, value in raw.items()}
+        endpoint_reference = folded.get("source reference", folded.get("endpoint reference", ""))
+        endpoint_pin = folded.get("source pin", folded.get("endpoint pin", ""))
+        connector = folded.get("connector reference", folded.get("connector", ""))
+        connector_pin = folded.get("connector pin", "")
+        if not all((endpoint_reference, endpoint_pin, connector, connector_pin)):
+            raise ValueError(
+                f"Signal path row {number} needs Source Reference/Pin and Connector Reference/Pin columns."
+            )
+        result.append(BoardSignalPath(
+            project or folded.get("project", source.stem), endpoint_reference,
+            folded.get("source value", folded.get("endpoint value", "")), endpoint_pin,
+            folded.get("source pin function", folded.get("endpoint function", "")),
+            folded.get("source net", ""), connector, connector_pin,
+            folded.get("connector net", ""), folded.get("net sequence", ""),
+            folded.get("inline components", ""), folded.get("pin transitions", ""),
+            folded.get("active devices", ""), folded.get("condition notes", ""),
+            folded.get("status", "Resolved"), folded.get("confidence", "High"),
+            folded.get("ordered path", ""), folded.get("sheet", ""),
+        ))
+    return result
+
+
+def load_signal_path_documents(paths: list[str | Path], maximum_projects: int = 50) -> list[BoardSignalPath]:
+    records = {}
+    for raw_path in paths:
+        for item in load_signal_path_csv(raw_path):
+            key = (item.project, item.endpoint_reference, item.endpoint_pin, item.connector, item.connector_pin,
+                   item.ordered_path)
+            records[key] = item
+    projects = {item.project for item in records.values()}
+    if len(projects) > maximum_projects:
+        raise ValueError(f"Imported {len(projects)} signal-path projects; the configured limit is {maximum_projects}.")
+    return sorted(records.values(), key=lambda item: (
+        item.project.casefold(), _pin_key(item.endpoint_reference), _pin_key(item.endpoint_pin),
+        _pin_key(item.connector), _pin_key(item.connector_pin), item.ordered_path.casefold()))
+
+
+def _matches_patterns(value: str, patterns: str) -> bool:
+    choices = [item.strip() for item in str(patterns or "*").split(",") if item.strip()]
+    return any(fnmatch.fnmatchcase(value.casefold(), item.casefold()) for item in choices or ["*"])
+
+
+def _reverse_ordered_path(path: BoardSignalPath) -> str:
+    text = path.ordered_path.strip()
+    if text:
+        return " -> ".join(reversed([item.strip() for item in text.split(" -> ")]))
+    return " -> ".join(filter(None, (
+        f"{path.connector}.{path.connector_pin}", f"[{path.connector_net}]",
+        f"{path.endpoint_reference}.{path.endpoint_pin}",
+    )))
+
+
+def _protocol_name(*values: str) -> str:
+    text = " ".join(values).upper()
+    patterns = (
+        ("UART", ("UART", "USART")), ("I2C", ("I2C", "SCL", "SDA")),
+        ("SPI", ("SPI", "MOSI", "MISO", "SCLK", "CS_")),
+        ("CAN", ("CANH", "CANL", "CAN_")), ("USB", ("USB",)),
+        ("Ethernet", ("ETH", "MDI", "RGMII", "RMII")),
+        ("RS-485", ("RS485", "RS-485")), ("JTAG/SWD", ("JTAG", "SWD", "SWCLK", "SWDIO")),
+    )
+    return next((name for name, tokens in patterns if any(token in text for token in tokens)), "General signal")
+
+
+def build_system_signal_paths(links: list[HarnessLink], board_paths: list[BoardSignalPath],
+                              source_patterns: str = "U*", destination_patterns: str = "U*",
+                              include_partial: bool = True) -> list[SystemSignalPath]:
+    """Join audited internal-to-connector paths across reviewed harness wires."""
+    index: dict[tuple[str, str, str], list[BoardSignalPath]] = {}
+    for path in board_paths:
+        index.setdefault((path.project.casefold(), path.connector.casefold(), path.connector_pin.casefold()), []).append(path)
+    results = []
+    for link in links:
+        source_candidates = index.get((link.source.project.casefold(), link.source.connector.casefold(),
+                                       link.source.pin.casefold()), [])
+        destination_candidates = index.get((link.destination.project.casefold(), link.destination.connector.casefold(),
+                                            link.destination.pin.casefold()), [])
+        sources = [item for item in source_candidates
+                   if _matches_patterns(item.endpoint_reference, source_patterns)]
+        destinations = [item for item in destination_candidates
+                        if _matches_patterns(item.endpoint_reference, destination_patterns)]
+        if not sources and include_partial and not source_candidates:
+            sources = [BoardSignalPath(link.source.project, "", "", "", "", link.source.net,
+                                       link.source.connector, link.source.pin, link.source.net,
+                                       status="Unresolved", confidence="Low")]
+        if not destinations and include_partial and not destination_candidates:
+            destinations = [BoardSignalPath(link.destination.project, "", "", "", "", link.destination.net,
+                                            link.destination.connector, link.destination.pin, link.destination.net,
+                                            status="Unresolved", confidence="Low")]
+        for source in sources:
+            for destination in destinations:
+                path_id = f"P{len(results)+1:05d}"
+                harness_step = (f"{link.source.project}:{link.source.connector}.{link.source.pin}"
+                                f" --{link.wire_id}/{link.bundle or 'Unbundled'}--> "
+                                f"{link.destination.project}:{link.destination.connector}.{link.destination.pin}")
+                source_ordered = source.ordered_path or " -> ".join(filter(None, (
+                    f"{source.endpoint_reference}.{source.endpoint_pin}" if source.endpoint_reference else "",
+                    f"[{source.endpoint_net}]" if source.endpoint_net else "",
+                    f"{source.connector}.{source.connector_pin}",
+                )))
+                ordered = " -> ".join(filter(None, (source_ordered, harness_step, _reverse_ordered_path(destination))))
+                statuses = {source.status.casefold(), destination.status.casefold(), link.status.casefold()}
+                if "unmatched" in statuses or "unresolved" in statuses:
+                    status, confidence = "Incomplete", "Low"
+                elif "ambiguous" in statuses:
+                    status, confidence = "Ambiguous", "Low"
+                elif "conditional" in statuses:
+                    status, confidence = "Conditional", "Conditional"
+                else:
+                    status = "Resolved"; confidence = "High" if source.confidence == destination.confidence == "High" else "Review"
+                inline = "; ".join(filter(None, (
+                    f"{source.project}: {source.inline_components}" if source.inline_components else "",
+                    f"{destination.project}: {destination.inline_components}" if destination.inline_components else "",
+                )))
+                net_sequence = " | harness | ".join(filter(None, (source.net_sequence or source.endpoint_net,
+                                                                   destination.net_sequence or destination.endpoint_net)))
+                notes = "; ".join(dict.fromkeys(filter(None, (
+                    source.condition_notes, destination.condition_notes, link.notes,
+                    "Destination board path shown connector-to-endpoint (reverse of extracted route).",
+                ))))
+                results.append(SystemSignalPath(
+                    path_id, source.project, source.endpoint_reference, source.endpoint_value,
+                    source.endpoint_pin, source.endpoint_function, source.endpoint_net,
+                    link.source.connector, link.source.pin, link.wire_id, link.bundle or "Unbundled",
+                    link.destination.connector, link.destination.pin, destination.project,
+                    destination.endpoint_reference, destination.endpoint_value, destination.endpoint_pin,
+                    destination.endpoint_function, destination.endpoint_net, inline, net_sequence, ordered,
+                    _protocol_name(source.endpoint_function, source.endpoint_net, destination.endpoint_function,
+                                   destination.endpoint_net), status, confidence, notes,
+                ))
+    return sorted(results, key=lambda item: (
+        item.bundle.casefold(), item.source_project.casefold(), _pin_key(item.source_reference),
+        _pin_key(item.source_pin), item.destination_project.casefold(), _pin_key(item.destination_reference),
+        _pin_key(item.destination_pin)))
+
+
+def system_signal_rows(paths: list[SystemSignalPath]) -> list[dict[str, str]]:
+    return [{
+        "Path": item.path_id,
+        "Source IC / Peripheral": f"{item.source_project}:{item.source_reference}.{item.source_pin}",
+        "Source Function": item.source_function,
+        "Source Net": item.source_net,
+        "Source Connector": f"{item.source_connector}.{item.source_connector_pin}",
+        "Wire": item.wire_id,
+        "Bundle": item.bundle,
+        "Destination Connector": f"{item.destination_connector}.{item.destination_connector_pin}",
+        "Destination IC / Peripheral": f"{item.destination_project}:{item.destination_reference}.{item.destination_pin}",
+        "Destination Function": item.destination_function,
+        "Destination Net": item.destination_net,
+        "Protocol": item.protocol,
+        "Inline Components": item.inline_components,
+        "Status": item.status,
+        "Confidence": item.confidence,
+        "Ordered Path": item.ordered_path,
+    } for item in paths]
+
+
 def discover_pin_documents(directory: str | Path, recursive: bool = True) -> list[Path]:
     root = Path(directory)
     if not root.is_dir():
@@ -163,6 +402,106 @@ def connector_correspondence(records: list[PinRecord], rules: list[ConnectorRule
             links.append(HarnessLink(source, destination, f"W{len(links)+1:05d}", status=status,
                                      notes=rule.rule_name))
     return links
+
+
+def links_from_pin_map(records: list[PinRecord], rows: list[PinMapRow]) -> list[HarnessLink]:
+    """Resolve exact, user-reviewed endpoint rows without assuming pin correspondence."""
+    index = {
+        (record.project.casefold(), record.connector.casefold(), record.pin.casefold()): record
+        for record in records
+    }
+    links = []
+    for number, row in enumerate(rows, 1):
+        source_key = (row.source_project.casefold(), row.source_connector.casefold(), row.source_pin.casefold())
+        destination_key = (
+            row.destination_project.casefold(), row.destination_connector.casefold(), row.destination_pin.casefold()
+        )
+        source = index.get(source_key) or PinRecord(
+            row.source_project, row.source_connector, row.source_pin, "", endpoint_type="unresolved"
+        )
+        destination = index.get(destination_key) or PinRecord(
+            row.destination_project, row.destination_connector, row.destination_pin, "", endpoint_type="unresolved"
+        )
+        missing = []
+        if source_key not in index:
+            missing.append("source")
+        if destination_key not in index:
+            missing.append("destination")
+        links.append(HarnessLink(
+            source=source,
+            destination=destination,
+            wire_id=row.wire_id or f"W{number:05d}",
+            gauge_awg=row.gauge_awg or "24",
+            shield=row.shield,
+            status="linked" if not missing else "unmatched",
+            bundle=row.bundle,
+            splice=row.splice,
+            color=row.color,
+            length_m=max(0.0, row.length_m),
+            notes=row.notes if not missing else f"{row.notes}; unresolved {' and '.join(missing)} endpoint",
+        ))
+    return links
+
+
+def load_pin_map_csv(path: str | Path) -> list[PinMapRow]:
+    """Load an editable pin-map CSV using stable, case-insensitive column names."""
+    with Path(path).open(newline="", encoding="utf-8-sig") as handle:
+        source_rows = list(csv.DictReader(handle))
+    result = []
+    for number, source_row in enumerate(source_rows, 2):
+        row = {str(key).strip().casefold().replace(" ", "_"): str(value or "").strip()
+               for key, value in source_row.items()}
+        required = ("source_project", "source_connector", "source_pin",
+                    "destination_project", "destination_connector", "destination_pin")
+        missing = [name for name in required if not row.get(name)]
+        if missing:
+            raise ValueError(f"Pin map row {number} is missing: {', '.join(missing)}")
+        result.append(PinMapRow(
+            row["source_project"], row["source_connector"], row["source_pin"],
+            row["destination_project"], row["destination_connector"], row["destination_pin"],
+            row.get("wire_id", ""), row.get("gauge_awg", row.get("awg", "24")), row.get("color", ""),
+            row.get("bundle", ""), row.get("splice", ""), _safe_float(row.get("length_m", "1")),
+            row.get("shield", ""), row.get("notes", "Manual pin map"),
+        ))
+    return result
+
+
+def pin_map_editor_rows(rows: list[PinMapRow]) -> list[dict[str, str]]:
+    return [{
+        "source_project": row.source_project,
+        "source_connector": row.source_connector,
+        "source_pin": row.source_pin,
+        "destination_project": row.destination_project,
+        "destination_connector": row.destination_connector,
+        "destination_pin": row.destination_pin,
+        "wire_id": row.wire_id,
+        "gauge_awg": row.gauge_awg,
+        "color": row.color,
+        "bundle": row.bundle,
+        "splice": row.splice,
+        "length_m": f"{row.length_m:.3f}",
+        "shield": row.shield,
+        "notes": row.notes,
+    } for row in rows]
+
+
+def validate_pin_map(records: list[PinRecord], rows: list[PinMapRow]) -> list[str]:
+    endpoint_keys = {(r.project.casefold(), r.connector.casefold(), r.pin.casefold()) for r in records}
+    issues = []
+    seen_sources: dict[tuple[str, str, str], int] = {}
+    for number, row in enumerate(rows, 1):
+        source = (row.source_project.casefold(), row.source_connector.casefold(), row.source_pin.casefold())
+        destination = (row.destination_project.casefold(), row.destination_connector.casefold(), row.destination_pin.casefold())
+        if source not in endpoint_keys:
+            issues.append(f"Row {number}: source endpoint does not exist: {row.source_project}:{row.source_connector}.{row.source_pin}")
+        if destination not in endpoint_keys:
+            issues.append(f"Row {number}: destination endpoint does not exist: {row.destination_project}:{row.destination_connector}.{row.destination_pin}")
+        seen_sources[source] = seen_sources.get(source, 0) + 1
+    issues.extend(
+        f"Source endpoint {project}:{connector}.{pin} is mapped to {count} destinations; verify a splice is intended."
+        for (project, connector, pin), count in seen_sources.items() if count > 1
+    )
+    return issues
 
 
 def parse_connector_rules(text: str) -> list[ConnectorRule]:

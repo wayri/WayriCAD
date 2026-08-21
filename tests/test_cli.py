@@ -3,10 +3,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from io import StringIO
 from pathlib import Path
 from unittest import mock
 
 from extract_pins_plugin import cli
+from extract_pins_plugin.automation import execute, serve
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +30,66 @@ class KiWayCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         for command in ("inspect", "extract", "crosslink", "validate", "report", "jobset-run", "benchmark", "dependencies", "test"):
             self.assertIn(command, result.stdout)
+        for command in ("capabilities", "run", "serve"):
+            self.assertIn(command, result.stdout)
+
+    def test_capabilities_inventory_covers_every_pcm_plugin(self):
+        result = self.run_cli("capabilities")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(17, len(payload["plugins"]))
+        self.assertIn("harness.build", payload["operations"])
+        self.assertTrue(payload["safety"]["writes_require_apply"])
+
+    def test_json_rpc_stdio_processes_multiple_requests(self):
+        input_stream = StringIO(
+            '{"jsonrpc":"2.0","id":1,"method":"capabilities"}\n'
+            '{"jsonrpc":"2.0","id":2,"method":"signal-integrity.i2c-pullup",'
+            '"params":{"voltage_v":3.3,"capacitance_pf":100,"rise_time_ns":300,"sink_current_ma":3}}\n'
+        )
+        output_stream = StringIO()
+        self.assertEqual(0, serve(input_stream, output_stream))
+        responses = [json.loads(line) for line in output_stream.getvalue().splitlines()]
+        self.assertEqual([1, 2], [item["id"] for item in responses])
+        self.assertEqual("PASS", responses[1]["result"]["status"])
+
+    def test_json_rpc_unknown_method_has_stable_error(self):
+        response = execute({"jsonrpc": "2.0", "id": "bad", "method": "missing.operation"})
+        self.assertEqual(-32601, response["error"]["code"])
+
+    def test_harness_json_rpc_builds_ic_to_peripheral_path_and_html(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "pins.csv").write_text(
+                "project,connector,pin,net\n"
+                "DEMO_CTRL,J1,3,UART_TX\n"
+                "DEMO_IO,J2,8,UART_RX\n", encoding="utf-8")
+            (root / "map.csv").write_text(
+                "source_project,source_connector,source_pin,destination_project,destination_connector,destination_pin,bundle\n"
+                "DEMO_CTRL,J1,3,DEMO_IO,J2,8,DATA-A\n", encoding="utf-8")
+            headers = ("Project,Source Reference,Source Value,Source Pin,Source Pin Function,Source Net,"
+                       "Connector Reference,Connector Pin,Connector Net,Inline Components,Status,Confidence,Ordered Path\n")
+            (root / "ctrl-paths.csv").write_text(
+                headers + "DEMO_CTRL,U1,STM32,21,USART3_TX,UART_RAW,J1,3,UART_TX,R12,Resolved,High,"
+                "U1.21 -> [UART_RAW] -> R12.1 -> R12.2 -> [UART_TX] -> J1.3\n", encoding="utf-8")
+            (root / "io-paths.csv").write_text(
+                headers + "DEMO_IO,U3,UART peripheral,5,UART_RX,UART_LOCAL,J2,8,UART_RX,R7,Resolved,High,"
+                "U3.5 -> [UART_LOCAL] -> R7.1 -> R7.2 -> [UART_RX] -> J2.8\n", encoding="utf-8")
+            response = execute({
+                "jsonrpc": "2.0", "id": "harness", "method": "harness.build",
+                "params": {
+                    "documents": [str(root / "pins.csv")],
+                    "mapping_csv": str(root / "map.csv"),
+                    "path_documents": [str(root / "ctrl-paths.csv"), str(root / "io-paths.csv")],
+                    "source_refs": "U1", "destination_refs": "U3", "include_html": True,
+                },
+            })
+        self.assertNotIn("error", response)
+        result = response["result"]
+        self.assertEqual(1, len(result["system_paths"]))
+        self.assertIn("R12", result["system_paths"][0]["Inline Components"])
+        self.assertIn("R7", result["system_paths"][0]["Inline Components"])
+        self.assertIn("KiWay Interactive System Harness", result["html"])
 
     def test_jobset_run_builds_native_kicad_command(self):
         project = FIXTURES / "sample.kicad_pro"

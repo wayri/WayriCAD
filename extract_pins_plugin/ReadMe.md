@@ -2,7 +2,7 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-2.17.0-blue)
+![Version](https://img.shields.io/badge/Version-2.19.0-blue)
 ![KiCAD](https://img.shields.io/badge/KiCAD-9.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 

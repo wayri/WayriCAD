@@ -2,13 +2,13 @@
 
 KiWay is a focused parent repository for KiCad ActionPlugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
 
-Current development suite: **v2.23.0**. The feed contains 17 independently installable
+Current development suite: **v2.24.0**. The feed contains 17 independently installable
 packages. Every package provides a distinct 96 x 96 PCM icon and matching
 light/dark PCB Editor ActionPlugin icon.
 
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.17.0)
+### 1. KiWay Extract Pins (v2.19.0)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -100,14 +100,17 @@ Provides semantic variant rebasing, matrix editing, comparison, linting, PCB syn
 
 Screens routed geometry for unsupported signal layer transitions, missing nearby return vias, apparent reference-plane gaps, long branches that may be stubs, differential-pair skew, and uncoupled pair segments. Findings can be cross-selected and exported for review. It is not an electromagnetic field solver.
 
-### 12. KiWay Harness and Cable Workbench (v0.2.0)
+### 12. KiWay Harness and Cable Workbench (v0.4.0)
 
 Ingests up to 50 board pin documents and builds system harness data using
-indexed net matching or connector-to-connector rules that default to pin-for-pin
-correspondence. It supports explicit pin maps, virtual endpoint loads, bundles,
-splices, gauges, colors, shields, and cut lengths. Outputs include sortable pin
-and net maps, wire-list and procurement BoM CSVs, plus a native pan/zoom draft
-and universal SVG.
+indexed net matching, connector rules, or arbitrary tabular pin maps. It joins
+safeguarded Pin Extractor controller-map exports into ordered IC-to-IC and
+IC-to-peripheral routes while retaining series parts, net changes, active-device
+conditions, connector pins, and harness wires. It supports virtual loads,
+bundles, splices, gauges, colors, shields, and cut lengths. Outputs include
+sortable pin, net, and system-path tables, wire-list and procurement BoM CSVs,
+a native draft, universal SVG, and a self-contained interactive HTML harness
+with zoom, pan, draggable nodes, filters, and clickable path details.
 
 ### 13. KiWay Manufacturing Readiness Manager (v0.1.0)
 
@@ -211,6 +214,12 @@ ICD, validation, cross-project, and automation workflows:
 See the [detailed CLI user guide](docs/CLI_USER_GUIDE.md) for complete command
 coverage, configuration files, CI examples, and KiCad `.kicad_jobset`
 integration.
+
+External tools can discover the full plugin inventory with `kiway capabilities`,
+execute one JSON request with `kiway run --request`, or maintain an NDJSON
+JSON-RPC 2.0 session using `kiway serve --stdio`. The Harness Workbench also
+supports explicit tabular pin maps for non-corresponding and one-to-many
+connector wiring.
 
 ```bash
 python -m pip install -e .
