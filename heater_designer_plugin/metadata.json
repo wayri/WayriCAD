@@ -6,7 +6,7 @@
   "identifier": "kiway.heater.designer",
   "type": "plugin",
   "author": {
-  "name": "Wayri (Yawar)",
+    "name": "Wayri (Yawar)",
     "contact": {
       "github": "https://github.com/wayri"
     }
