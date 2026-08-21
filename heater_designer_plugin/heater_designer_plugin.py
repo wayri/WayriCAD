@@ -13,7 +13,7 @@ from .analysis import HeatZone, HeaterEngine, HeaterResult, HeaterSpec, ThermalR
 from .guided_ui import add_workflow
 
 
-VERSION = "0.1.0"
+VERSION = "0.1.2"
 PALETTE = ("#157f74", "#d1495b", "#edae49", "#5267a5", "#8f5aa6", "#3c91a3")
 
 
@@ -27,18 +27,24 @@ def copper_layer(index: int, count: int) -> int:
 
 
 class HeaterPreview(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self,parent):
         super().__init__(parent, style=wx.BORDER_SIMPLE)
         self.SetMinSize((-1, 320)); self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.heater: HeaterResult | None = None; self.thermal: ThermalResult | None = None
-        self.mode = "pattern"; self.zoom = 1.0; self.Bind(wx.EVT_PAINT, self.paint); self.Bind(wx.EVT_MOUSEWHEEL, self.wheel)
+        self.mode = "pattern"; self.zoom = 1.0; self.Bind(wx.EVT_PAINT,self.paint); self.Bind(wx.EVT_MOUSEWHEEL,self.wheel)
+        self.Bind(wx.EVT_SIZE,self._on_size); self.Bind(wx.EVT_ERASE_BACKGROUND,self._on_erase)
 
-    def show_pattern(self, result): self.heater=result; self.thermal=None; self.mode="pattern"; self.Refresh()
-    def show_thermal(self, result): self.heater=result.heater; self.thermal=result; self.mode="thermal"; self.Refresh()
-    def wheel(self,event): self.zoom=max(0.5,min(5.0,self.zoom*(1.12 if event.GetWheelRotation()>0 else 0.89)));self.Refresh()
+    def _on_size(self,event):self._repaint();event.Skip()
+    def _on_erase(self,_event):pass
+
+    def _repaint(self):self.Refresh();self.Update()
+    def show_pattern(self,result): self.heater=result; self.thermal=None; self.mode="pattern"; self._repaint()
+    def show_thermal(self,result): self.heater=result.heater; self.thermal=result; self.mode="thermal"; self._repaint()
+    def wheel(self,event): self.zoom=max(0.5,min(5.0,self.zoom*(1.12 if event.GetWheelRotation()>0 else 0.89)));self._repaint()
 
     def paint(self,_event):
         dc=wx.AutoBufferedPaintDC(self);dc.SetBackground(wx.Brush("#f7f9fb"));dc.Clear();w,h=self.GetClientSize()
+        if w<48 or h<48:return
         if not self.heater:
             dc.SetTextForeground("#52616b");dc.DrawLabel("Generate a heater to inspect exact copper geometry and zoned power.",wx.Rect(10,10,w-20,h-20),wx.ALIGN_CENTER);return
         margin=32;spec=self.heater.spec;scale=min((w-2*margin)/spec.width_mm,(h-2*margin)/spec.height_mm)*self.zoom

@@ -15,7 +15,7 @@ from .analysis import CORE_CATALOG, CoilSpec, MagneticsEngine, MagneticResult, M
 from .guided_ui import add_workflow
 
 
-VERSION="0.2.0";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
+VERSION="0.2.2";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
 def point(x,y):return pcbnew.VECTOR2I(pcbnew.FromMM(x),pcbnew.FromMM(y))
 def copper_layer(index,count):
     if index<=0:return int(pcbnew.F_Cu)
@@ -25,10 +25,17 @@ def copper_layer(index,count):
 
 class MagneticPreview(wx.Panel):
     def __init__(self,parent):
-        super().__init__(parent,style=wx.BORDER_SIMPLE);self.SetMinSize((-1,330));self.SetBackgroundStyle(wx.BG_STYLE_PAINT);self.result=None;self.zoom=1.0;self.phase=0.0;self.animate=False;self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_MOUSEWHEEL,self.wheel);self.timer=wx.Timer(self);self.Bind(wx.EVT_TIMER,self.tick,self.timer)
-    def show_result(self,result):self.result=result;self.Refresh()
-    def wheel(self,e):self.zoom=max(.5,min(5,self.zoom*(1.12 if e.GetWheelRotation()>0 else .89)));self.Refresh()
-    def set_animation(self,enabled):self.animate=enabled;self.timer.Start(45) if enabled else self.timer.Stop();self.Refresh()
+        super().__init__(parent,style=wx.BORDER_SIMPLE);self.SetMinSize((-1,330));self.SetBackgroundStyle(wx.BG_STYLE_PAINT);self.result=None;self.zoom=1.0;self.phase=0.0;self.animate=False;self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_MOUSEWHEEL,self.wheel);self.timer=wx.Timer(self);self.Bind(wx.EVT_TIMER,self.tick,self.timer);self.Bind(wx.EVT_SIZE,self._on_size);self.Bind(wx.EVT_ERASE_BACKGROUND,self._on_erase)
+    def _on_size(self,event):self._repaint();event.Skip()
+    def _on_erase(self,_event):pass
+    def _repaint(self):self.Refresh();self.Update()
+    def show_result(self,result):self.result=result;self._repaint()
+    def wheel(self,e):self.zoom=max(.5,min(5,self.zoom*(1.12 if e.GetWheelRotation()>0 else .89)));self._repaint()
+    def set_animation(self,enabled):
+        self.animate=enabled
+        if enabled:self.timer.Start(45)
+        else:self.timer.Stop()
+        self._repaint()
     def tick(self,_e):self.phase=(self.phase+.12)%(2*math.pi);self.Refresh()
     def paint(self,_e):
         dc=wx.AutoBufferedPaintDC(self);dc.SetBackground(wx.Brush("#f7f9fb"));dc.Clear();w,h=self.GetClientSize()
@@ -52,8 +59,10 @@ class MagneticPreview(wx.Panel):
 class MotionPlot(wx.Panel):
     COLORS=("#237c73","#d15b45","#5577aa","#8d62a8")
     def __init__(self,parent):
-        super().__init__(parent,style=wx.BORDER_SIMPLE);self.SetMinSize((-1,280));self.SetBackgroundStyle(wx.BG_STYLE_PAINT);self.dynamics=None;self.Bind(wx.EVT_PAINT,self.paint)
-    def show(self,dynamics):self.dynamics=dynamics;self.Refresh()
+        super().__init__(parent,style=wx.BORDER_SIMPLE);self.SetMinSize((-1,280));self.SetBackgroundStyle(wx.BG_STYLE_PAINT);self.dynamics=None;self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_SIZE,self._on_size);self.Bind(wx.EVT_ERASE_BACKGROUND,self._on_erase)
+    def _on_size(self,event):self.Refresh();self.Update();event.Skip()
+    def _on_erase(self,_event):pass
+    def show(self,dynamics):self.dynamics=dynamics;self.Refresh();self.Update()
     def paint(self,_event):
         dc=wx.AutoBufferedPaintDC(self);bg=wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW);fg=wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT);dc.SetBackground(wx.Brush(bg));dc.Clear();w,h=self.GetClientSize()
         if not self.dynamics or not self.dynamics.samples:dc.SetTextForeground(fg);dc.DrawLabel("Run the coupled simulation to view position, speed, acceleration, and force.",wx.Rect(8,8,w-16,h-16),wx.ALIGN_CENTER);return

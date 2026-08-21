@@ -2,7 +2,7 @@
 
 KiWay is a focused parent repository for KiCad ActionPlugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
 
-Current development suite: **v2.27.0**. The feed contains 17 independently installable
+Current development suite: **v2.27.1**. The feed contains 17 independently installable
 packages. Every package provides a distinct 96 x 96 PCM icon and matching
 light/dark PCB Editor ActionPlugin icon.
 
@@ -124,7 +124,7 @@ Uses configurable rail, ground, load, capacitor, and regulator conventions to fi
 
 Detects likely USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF nets, then generates a reviewable KiCad custom-rule block. Applying rules requires confirmation, creates a timestamped backup, and leaves rules outside the KiWay-managed markers untouched.
 
-### 16. KiWay PCB / Foil Heater Designer (v0.1.1)
+### 16. KiWay PCB / Foil Heater Designer (v0.1.2)
 
 Synthesizes serpentine, zoned-raster, and concentric-spiral PCB heater copper.
 Users can vary regional resistance to create controlled hot or cold areas,
@@ -132,7 +132,7 @@ continue a series path across multiple layers with transition vias, run a
 steady-state 2D thermal preview, inspect power density and temperature
 uniformity, and commit only the reviewed geometry.
 
-### 17. KiWay Planar Magnetics & Actuator Workbench (v0.2.1)
+### 17. KiWay Planar Magnetics & Actuator Workbench (v0.2.2)
 
 Designs rectangular or circular multilayer PCB inductors, transformers, coils,
 voice-coil motors, linear actuators, and magnetic torquers. The coupled motion
@@ -307,6 +307,7 @@ deterministic automation diffs. Config files are JSON objects with optional
 - [KiWay v2.25.0 Release Notes](docs/RELEASE_2.25.0.md)
 - [KiWay v2.26.0 Release Notes](docs/RELEASE_2.26.0.md)
 - [KiWay v2.27.0 Release Notes](docs/RELEASE_2.27.0.md)
+- [KiWay v2.27.1 Release Notes](docs/RELEASE_2.27.1.md)
 - [Contributing](CONTRIBUTING.md)
 - [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
 
