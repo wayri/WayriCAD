@@ -22,10 +22,9 @@ REPO_HOMEPAGE = f"https://github.com/{REPO_OWNER}/{REPO_NAME}"
 REPO_URL_BASE = f"{REPO_HOMEPAGE}/releases/download"
 
 PCM_SCHEMA = "https://go.kicad.org/pcm/schemas/v1"
-
 SUPPORTED_RUNTIMES = {"swig", "ipc"}
 
-# KiCad PCM v1 uses a restricted license enum.
+# KiCad PCM v1 uses the older SPDX spelling for this license.
 PCM_LICENSE_ALIASES = {
     "GPL-3.0-only": "GPL-3.0",
 }
@@ -64,7 +63,7 @@ def discover_plugins(base_path):
 
 
 def normalize_runtime(version_info):
-    """Normalize legacy runtime labels to KiCad PCM v1 runtime values."""
+    """Normalize old runtime names to KiCad PCM v1 runtime values."""
     normalized = dict(version_info)
 
     if normalized.get("runtime") == "action-plugin":
@@ -82,13 +81,7 @@ def normalize_runtime(version_info):
 
 
 def normalize_author(author, plugin_path):
-    """
-    KiCad PCM v1 requires author.contact.
-
-    Older KiWay metadata omitted contact for a few packages. Because this
-    repository has a single known maintainer, inject the repository GitHub
-    contact when it is missing.
-    """
+    """Ensure author data satisfies KiCad PCM v1."""
     if not isinstance(author, dict):
         raise ValueError(f"{plugin_path}: 'author' must be a JSON object.")
 
@@ -102,8 +95,11 @@ def normalize_author(author, plugin_path):
     if contact is None:
         contact = {}
     elif not isinstance(contact, dict):
-        raise ValueError(f"{plugin_path}: 'author.contact' must be a JSON object.")
+        raise ValueError(
+            f"{plugin_path}: 'author.contact' must be a JSON object."
+        )
 
+    # All KiWay packages use the same repository maintainer.
     if not contact:
         contact = {"github": GITHUB_PROFILE}
 
@@ -129,20 +125,23 @@ def normalize_license(license_name, plugin_path):
 def require_string(metadata, key, plugin_path):
     value = metadata.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{plugin_path}: required string field {key!r} is missing.")
+        raise ValueError(
+            f"{plugin_path}: required string field {key!r} is missing."
+        )
     return value
 
 
 def normalize_metadata(metadata, plugin_path, branch):
     """
-    Return PCM-safe metadata without mutating the source dictionary.
+    Return PCM-safe metadata without changing the source dictionary.
 
-    The normalized object is used BOTH in pcm/pkgs.json and as metadata.json
-    inside the generated package ZIP, preventing the feed and package archive
-    from disagreeing.
+    The same normalized metadata is used for pcm/pkgs.json and for the
+    metadata.json embedded in each generated package ZIP.
     """
     if not isinstance(metadata, dict):
-        raise ValueError(f"{plugin_path}: metadata.json root must be an object.")
+        raise ValueError(
+            f"{plugin_path}: metadata.json root must be an object."
+        )
 
     normalized = copy.deepcopy(metadata)
     normalized["$schema"] = PCM_SCHEMA
@@ -161,17 +160,23 @@ def normalize_metadata(metadata, plugin_path, branch):
         normalized.get("author"),
         plugin_path,
     )
+
     normalized["license"] = normalize_license(
         normalized["license"],
         plugin_path,
     )
 
     versions = normalized.get("versions")
+
     if not isinstance(versions, list) or not versions:
-        raise ValueError(f"{plugin_path}: 'versions' must be a non-empty array.")
+        raise ValueError(
+            f"{plugin_path}: 'versions' must be a non-empty array."
+        )
 
     normalized_versions = []
+
     for index, version in enumerate(versions):
+
         if not isinstance(version, dict):
             raise ValueError(
                 f"{plugin_path}: versions[{index}] must be a JSON object."
@@ -179,12 +184,18 @@ def normalize_metadata(metadata, plugin_path, branch):
 
         version = normalize_runtime(version)
 
-        if not isinstance(version.get("version"), str) or not version["version"].strip():
+        if (
+            not isinstance(version.get("version"), str)
+            or not version["version"].strip()
+        ):
             raise ValueError(
                 f"{plugin_path}: versions[{index}].version is required."
             )
 
-        if not isinstance(version.get("status"), str) or not version["status"].strip():
+        if (
+            not isinstance(version.get("status"), str)
+            or not version["status"].strip()
+        ):
             raise ValueError(
                 f"{plugin_path}: versions[{index}].status is required."
             )
@@ -202,34 +213,116 @@ def normalize_metadata(metadata, plugin_path, branch):
     normalized["versions"] = normalized_versions
 
     resources = normalized.get("resources")
+
     if resources is None:
         resources = {}
-    elif not isinstance(resources, dict):
-        raise ValueError(f"{plugin_path}: 'resources' must be a JSON object.")
 
-    resources.setdefault("homepage", REPO_HOMEPAGE)
-    resources["icon"] = (
-        f"https://raw.githubusercontent.com/"
-        f"{REPO_OWNER}/{REPO_NAME}/{branch}/{plugin_path.name}/icon.png"
+    elif not isinstance(resources, dict):
+        raise ValueError(
+            f"{plugin_path}: 'resources' must be a JSON object."
+        )
+
+    resources = copy.deepcopy(resources)
+
+    resources.setdefault(
+        "homepage",
+        REPO_HOMEPAGE,
     )
+
+    # IMPORTANT:
+    #
+    # KiCad does NOT use a per-package URL here for icons shown in
+    # Plugin and Content Manager.
+    #
+    # Those icons come from the separate repository-level resources.zip.
+    #
+    # The package itself will still contain:
+    #
+    #     resources/icon.png
+    #
+    # for use after installation.
+    resources.pop("icon", None)
+
     normalized["resources"] = resources
 
     return normalized
 
 
-def create_plugin_zip(plugin_path, version, output_dir, metadata):
+def get_pcm_icon_bytes(icon_path):
     """
-    Create a KiCad PCM package archive.
+    Return a 64x64 PNG icon suitable for KiCad PCM.
 
-    The NORMALIZED metadata is written into the archive rather than copying
-    source metadata.json verbatim.
+    Pillow is preferred. If Pillow is unavailable or conversion fails,
+    the original PNG is returned.
     """
-    os.makedirs(output_dir, exist_ok=True)
 
-    zip_filename = f"{plugin_path.name}-{version}.zip"
-    zip_path = os.path.join(output_dir, zip_filename)
+    icon_path = Path(icon_path)
 
-    print(f"Zipping {plugin_path} -> {zip_path}")
+    if not icon_path.exists():
+        return None
+
+    try:
+        from PIL import Image
+
+        with Image.open(icon_path) as image:
+
+            image = image.convert("RGBA").resize(
+                (64, 64),
+                Image.Resampling.LANCZOS,
+            )
+
+            buffer = BytesIO()
+
+            image.save(
+                buffer,
+                format="PNG",
+                optimize=True,
+            )
+
+            return buffer.getvalue()
+
+    except Exception as exc:
+
+        print(
+            f"  Warning: could not normalize {icon_path}: {exc}. "
+            "Using the original PNG."
+        )
+
+        return icon_path.read_bytes()
+
+
+def create_repository_resources_zip(
+    plugin_paths,
+    metadata_by_path,
+    output_dir,
+):
+    """
+    Create KiCad's repository-level resources.zip.
+
+    THIS is what supplies icons in Plugin and Content Manager before a
+    package is installed.
+
+    KiCad expects icons inside the ZIP using:
+
+        <package-identifier>/icon.png
+
+    Examples:
+
+        kiway.extract.pins/icon.png
+        kiway.fanout.generator/icon.png
+        kiway.via.stitching/icon.png
+    """
+
+    output_dir = Path(output_dir)
+
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    zip_path = output_dir / "resources.zip"
+
+    icon_count = 0
 
     with zipfile.ZipFile(
         zip_path,
@@ -237,127 +330,423 @@ def create_plugin_zip(plugin_path, version, output_dir, metadata):
         compression=zipfile.ZIP_DEFLATED,
         compresslevel=9,
     ) as zipf:
-        normalized_metadata_text = (
-            json.dumps(metadata, indent=2, ensure_ascii=False) + "\n"
+
+        for plugin_path in plugin_paths:
+
+            metadata = metadata_by_path[plugin_path]
+
+            identifier = metadata["identifier"]
+
+            icon_path = plugin_path / "icon.png"
+
+            icon_bytes = get_pcm_icon_bytes(icon_path)
+
+            if icon_bytes is None:
+
+                print(
+                    f"  Warning: no PCM icon found for {identifier}: "
+                    f"{icon_path}"
+                )
+
+                continue
+
+            # ZIP filenames MUST use forward slashes,
+            # including when building under Windows.
+
+            archive_name = f"{identifier}/icon.png"
+
+            zipf.writestr(
+                archive_name,
+                icon_bytes,
+            )
+
+            icon_count += 1
+
+    if icon_count == 0:
+
+        zip_path.unlink(
+            missing_ok=True
         )
-        zipf.writestr("metadata.json", normalized_metadata_text)
+
+        raise RuntimeError(
+            "No plugin icons were found; refusing to create an empty "
+            "repository resources.zip."
+        )
+
+    print(
+        f"Created repository resources archive: "
+        f"{zip_path} ({icon_count} icons)"
+    )
+
+    return zip_path, icon_count
+
+
+def create_plugin_zip(
+    plugin_path,
+    version,
+    output_dir,
+    metadata,
+):
+    """
+    Create one KiCad PCM plugin archive.
+
+    Archive layout:
+
+        metadata.json
+
+        plugins/
+            ...
+
+        resources/
+            icon.png
+    """
+
+    output_dir = Path(output_dir)
+
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    zip_filename = (
+        f"{plugin_path.name}-{version}.zip"
+    )
+
+    zip_path = (
+        output_dir / zip_filename
+    )
+
+    print(
+        f"Zipping {plugin_path} -> {zip_path}"
+    )
+
+    with zipfile.ZipFile(
+        zip_path,
+        "w",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=9,
+    ) as zipf:
+
+        #
+        # metadata.json
+        #
+        # Write NORMALIZED metadata, not the original source metadata.
+        #
+        # This guarantees:
+        #
+        #   author.contact
+        #   normalized license
+        #   normalized runtime
+        #
+        # are also correct inside the downloadable package.
+        #
+
+        normalized_metadata_text = (
+            json.dumps(
+                metadata,
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+
+        zipf.writestr(
+            "metadata.json",
+            normalized_metadata_text,
+        )
+
+        #
+        # Plugin files
+        #
 
         for root, dirs, files in os.walk(plugin_path):
+
             dirs[:] = [
-                d for d in dirs
-                if d not in {"__pycache__", ".git", ".vscode"}
+                d
+                for d in dirs
+                if d
+                not in {
+                    "__pycache__",
+                    ".git",
+                    ".vscode",
+                }
             ]
 
             for file in files:
-                if file.endswith(".pyc") or file == "metadata.json":
+
+                if file.endswith(".pyc"):
                     continue
 
-                file_path = os.path.join(root, file)
-                rel_path = os.path.relpath(file_path, start=plugin_path)
-                arcname = os.path.join("plugins", rel_path).replace(os.sep, "/")
-                zipf.write(file_path, arcname)
+                if file == "metadata.json":
+                    continue
 
-        icon_path = plugin_path / "icon.png"
-        if icon_path.exists():
-            try:
-                from PIL import Image
-
-                with Image.open(icon_path) as image:
-                    image = image.convert("RGBA").resize(
-                        (64, 64),
-                        Image.Resampling.LANCZOS,
-                    )
-                    buffer = BytesIO()
-                    image.save(buffer, format="PNG", optimize=True)
-                    zipf.writestr("resources/icon.png", buffer.getvalue())
-            except Exception as exc:
-                print(
-                    f"  Warning: could not resize {icon_path}: {exc}. "
-                    "Using the original icon."
+                file_path = (
+                    Path(root) / file
                 )
-                zipf.write(icon_path, "resources/icon.png")
 
-    return zip_path, zip_filename
+                rel_path = (
+                    file_path.relative_to(
+                        plugin_path
+                    )
+                )
+
+                archive_name = (
+                    Path("plugins") / rel_path
+                ).as_posix()
+
+                zipf.write(
+                    file_path,
+                    archive_name,
+                )
+
+        #
+        # Installed-package icon
+        #
+
+        icon_bytes = get_pcm_icon_bytes(
+            plugin_path / "icon.png"
+        )
+
+        if icon_bytes is not None:
+
+            zipf.writestr(
+                "resources/icon.png",
+                icon_bytes,
+            )
+
+    return (
+        zip_path,
+        zip_filename,
+    )
 
 
 def calculate_install_size(zip_path):
-    with zipfile.ZipFile(zip_path, "r") as zipf:
-        return sum(info.file_size for info in zipf.infolist())
+
+    with zipfile.ZipFile(
+        zip_path,
+        "r",
+    ) as zipf:
+
+        return sum(
+            info.file_size
+            for info
+            in zipf.infolist()
+        )
 
 
 def validate_feed(packages_data):
-    """Final guard against PCM-breaking repository metadata."""
-    if not isinstance(packages_data, dict):
-        raise ValueError("packages feed root must be a JSON object.")
+    """
+    Catch common PCM feed errors before publishing.
 
-    packages = packages_data.get("packages")
-    if not isinstance(packages, list):
-        raise ValueError("packages feed must contain a 'packages' array.")
+    This is deliberately strict about the errors we already encountered.
+    """
+
+    if not isinstance(
+        packages_data,
+        dict,
+    ):
+        raise ValueError(
+            "packages feed root must be a JSON object."
+        )
+
+    packages = packages_data.get(
+        "packages"
+    )
+
+    if not isinstance(
+        packages,
+        list,
+    ):
+        raise ValueError(
+            "packages feed must contain a 'packages' array."
+        )
 
     identifiers = set()
 
-    for index, package in enumerate(packages):
-        prefix = f"/packages/{index}"
+    for index, package in enumerate(
+        packages
+    ):
 
-        if not isinstance(package, dict):
-            raise ValueError(f"{prefix}: package must be a JSON object.")
+        prefix = (
+            f"/packages/{index}"
+        )
 
-        identifier = package.get("identifier")
-        if not isinstance(identifier, str) or not identifier.strip():
-            raise ValueError(f"{prefix}/identifier: required.")
+        if not isinstance(
+            package,
+            dict,
+        ):
+            raise ValueError(
+                f"{prefix}: package must be a JSON object."
+            )
+
+        identifier = package.get(
+            "identifier"
+        )
+
+        if (
+            not isinstance(
+                identifier,
+                str,
+            )
+            or not identifier.strip()
+        ):
+            raise ValueError(
+                f"{prefix}/identifier: required."
+            )
 
         if identifier in identifiers:
+
             raise ValueError(
-                f"{prefix}/identifier: duplicate identifier {identifier!r}."
-            )
-        identifiers.add(identifier)
-
-        author = package.get("author")
-        if not isinstance(author, dict):
-            raise ValueError(f"{prefix}/author: must be an object.")
-
-        if not isinstance(author.get("name"), str) or not author["name"].strip():
-            raise ValueError(f"{prefix}/author/name: required.")
-
-        contact = author.get("contact")
-        if not isinstance(contact, dict) or not contact:
-            raise ValueError(
-                f"{prefix}/author/contact: required by KiCad PCM v1."
+                f"{prefix}/identifier: "
+                f"duplicate identifier "
+                f"{identifier!r}."
             )
 
-        license_name = package.get("license")
+        identifiers.add(
+            identifier
+        )
+
+        #
+        # Author validation
+        #
+
+        author = package.get(
+            "author"
+        )
+
+        if not isinstance(
+            author,
+            dict,
+        ):
+            raise ValueError(
+                f"{prefix}/author: "
+                "must be an object."
+            )
+
+        if (
+            not isinstance(
+                author.get("name"),
+                str,
+            )
+            or not author["name"].strip()
+        ):
+            raise ValueError(
+                f"{prefix}/author/name: required."
+            )
+
+        contact = author.get(
+            "contact"
+        )
+
+        if (
+            not isinstance(
+                contact,
+                dict,
+            )
+            or not contact
+        ):
+
+            raise ValueError(
+                f"{prefix}/author/contact: "
+                "required by KiCad PCM v1."
+            )
+
+        #
+        # License validation
+        #
+
+        license_name = package.get(
+            "license"
+        )
+
         if license_name in PCM_LICENSE_ALIASES:
+
             raise ValueError(
-                f"{prefix}/license: unnormalized license "
-                f"{license_name!r}; expected "
+                f"{prefix}/license: "
+                f"unnormalized license "
+                f"{license_name!r}; "
+                f"expected "
                 f"{PCM_LICENSE_ALIASES[license_name]!r}."
             )
 
-        versions = package.get("versions")
-        if not isinstance(versions, list) or not versions:
-            raise ValueError(f"{prefix}/versions: must be a non-empty array.")
+        #
+        # Versions
+        #
+
+        versions = package.get(
+            "versions"
+        )
+
+        if (
+            not isinstance(
+                versions,
+                list,
+            )
+            or not versions
+        ):
+
+            raise ValueError(
+                f"{prefix}/versions: "
+                "must be a non-empty array."
+            )
 
         seen_versions = set()
-        for v_index, version in enumerate(versions):
-            v_prefix = f"{prefix}/versions/{v_index}"
 
-            if not isinstance(version, dict):
-                raise ValueError(f"{v_prefix}: must be an object.")
+        for v_index, version in enumerate(
+            versions
+        ):
 
-            version_name = version.get("version")
-            if not isinstance(version_name, str) or not version_name.strip():
-                raise ValueError(f"{v_prefix}/version: required.")
+            v_prefix = (
+                f"{prefix}/versions/{v_index}"
+            )
+
+            if not isinstance(
+                version,
+                dict,
+            ):
+
+                raise ValueError(
+                    f"{v_prefix}: "
+                    "must be an object."
+                )
+
+            version_name = version.get(
+                "version"
+            )
+
+            if (
+                not isinstance(
+                    version_name,
+                    str,
+                )
+                or not version_name.strip()
+            ):
+
+                raise ValueError(
+                    f"{v_prefix}/version: required."
+                )
 
             if version_name in seen_versions:
-                raise ValueError(
-                    f"{v_prefix}/version: duplicate version {version_name!r}."
-                )
-            seen_versions.add(version_name)
 
-            runtime = version.get("runtime")
-            if runtime not in SUPPORTED_RUNTIMES:
                 raise ValueError(
-                    f"{v_prefix}/runtime: {runtime!r} is invalid."
+                    f"{v_prefix}/version: "
+                    f"duplicate version "
+                    f"{version_name!r}."
+                )
+
+            seen_versions.add(
+                version_name
+            )
+
+            runtime = version.get(
+                "runtime"
+            )
+
+            if runtime not in SUPPORTED_RUNTIMES:
+
+                raise ValueError(
+                    f"{v_prefix}/runtime: "
+                    f"{runtime!r} is invalid."
                 )
 
             for required_key in (
@@ -367,176 +756,425 @@ def validate_feed(packages_data):
                 "install_size",
                 "platforms",
             ):
+
                 if required_key not in version:
+
                     raise ValueError(
-                        f"{v_prefix}/{required_key}: required in generated feed."
+                        f"{v_prefix}/{required_key}: "
+                        "required in generated feed."
                     )
 
 
 def parse_args():
+
     parser = argparse.ArgumentParser(
-        description="Build KiWay KiCad PCM packages and repository metadata."
+        description=(
+            "Build KiWay KiCad PCM packages "
+            "and repository metadata."
+        )
     )
+
     parser.add_argument(
         "--release-tag",
         default=DEFAULT_RELEASE_TAG,
         help=(
-            "GitHub release tag WITHOUT the leading 'v'. "
+            "GitHub release tag WITHOUT "
+            "the leading 'v'. "
             f"Default: {DEFAULT_RELEASE_TAG}"
         ),
     )
+
     parser.add_argument(
         "--branch",
         default=DEFAULT_BRANCH,
-        help=f"Branch used for raw metadata/icon URLs. Default: {DEFAULT_BRANCH}",
+        help=(
+            "Branch used for raw "
+            "pcm/pkgs.json. "
+            f"Default: {DEFAULT_BRANCH}"
+        ),
     )
+
     parser.add_argument(
         "--clean-feed",
         action="store_true",
         help=(
-            "Ignore existing pcm/pkgs.json version history and rebuild the feed "
-            "from only the current metadata versions."
+            "Ignore existing pcm/pkgs.json "
+            "version history and rebuild "
+            "the feed from only the current "
+            "metadata versions."
         ),
     )
+
     return parser.parse_args()
 
 
 def main():
+
     args = parse_args()
 
-    release_tag = args.release_tag.removeprefix("v")
+    release_tag = (
+        args.release_tag.removeprefix("v")
+    )
+
     branch = args.branch
 
     base_path = Path(".")
-    pcm_dir = Path(PCM_DIR)
-    releases_dir = Path(RELEASES_DIR)
 
-    pcm_dir.mkdir(parents=True, exist_ok=True)
-    releases_dir.mkdir(parents=True, exist_ok=True)
+    pcm_dir = Path(
+        PCM_DIR
+    )
 
-    packages_file = pcm_dir / "pkgs.json"
-    repo_file = pcm_dir / "repo.json"
+    releases_dir = Path(
+        RELEASES_DIR
+    )
 
-    packages_data = {"packages": []}
+    pcm_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-    if packages_file.exists() and not args.clean_feed:
+    releases_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    packages_file = (
+        pcm_dir / "pkgs.json"
+    )
+
+    repo_file = (
+        pcm_dir / "repo.json"
+    )
+
+    packages_data = {
+        "packages": []
+    }
+
+    #
+    # Load existing package history
+    #
+
+    if (
+        packages_file.exists()
+        and not args.clean_feed
+    ):
+
         try:
-            existing = load_json(packages_file)
 
-            if isinstance(existing, dict) and isinstance(
-                existing.get("packages"), list
+            existing = load_json(
+                packages_file
+            )
+
+            if (
+                isinstance(existing, dict)
+                and isinstance(
+                    existing.get("packages"),
+                    list,
+                )
             ):
+
                 packages_data = existing
-            elif isinstance(existing, list):
-                packages_data["packages"] = existing
+
+            elif isinstance(
+                existing,
+                list,
+            ):
+
+                #
+                # Migration from older
+                # root-array feeds.
+                #
+
+                packages_data[
+                    "packages"
+                ] = existing
+
             else:
+
                 print(
-                    f"Warning: ignoring malformed existing {packages_file}; "
+                    f"Warning: ignoring malformed "
+                    f"existing {packages_file}; "
                     "rebuilding feed."
                 )
 
         except Exception as exc:
+
             print(
-                f"Warning: could not read existing {packages_file}: {exc}. "
-                "Rebuilding feed."
+                f"Warning: could not read "
+                f"existing {packages_file}: "
+                f"{exc}. Rebuilding feed."
             )
 
-    plugin_paths = discover_plugins(base_path)
+    #
+    # Discover plugins
+    #
+
+    plugin_paths = discover_plugins(
+        base_path
+    )
+
     if not plugin_paths:
-        raise RuntimeError("No plugin directories containing metadata.json found.")
+
+        raise RuntimeError(
+            "No plugin directories "
+            "containing metadata.json found."
+        )
+
+    #
+    # Normalize source metadata
+    #
 
     metadata_by_path = {}
+
     active_identifiers = set()
 
     for plugin_path in plugin_paths:
-        source_metadata = load_json(plugin_path / "metadata.json")
-        metadata = normalize_metadata(source_metadata, plugin_path, branch)
 
-        identifier = metadata["identifier"]
+        source_metadata = load_json(
+            plugin_path
+            / "metadata.json"
+        )
+
+        metadata = normalize_metadata(
+            source_metadata,
+            plugin_path,
+            branch,
+        )
+
+        identifier = metadata[
+            "identifier"
+        ]
+
         if identifier in active_identifiers:
-            raise ValueError(f"Duplicate plugin identifier: {identifier!r}")
 
-        active_identifiers.add(identifier)
-        metadata_by_path[plugin_path] = metadata
+            raise ValueError(
+                f"Duplicate plugin identifier: "
+                f"{identifier!r}"
+            )
 
-    # Filesystem is authoritative for which packages still exist.
+        active_identifiers.add(
+            identifier
+        )
+
+        metadata_by_path[
+            plugin_path
+        ] = metadata
+
+    #
+    # Filesystem is authoritative for
+    # which packages still exist.
+    #
+
     packages_list = [
         package
-        for package in packages_data["packages"]
-        if package.get("identifier") in active_identifiers
+        for package
+        in packages_data["packages"]
+        if package.get("identifier")
+        in active_identifiers
     ]
 
-    # Normalize retained historical runtime names.
+    #
+    # Normalize retained historical
+    # runtime values.
+    #
+
     for package in packages_list:
+
+        versions = package.get(
+            "versions",
+            [],
+        )
+
+        if not isinstance(
+            versions,
+            list,
+        ):
+            versions = []
+
         package["versions"] = [
             normalize_runtime(version)
-            for version in package.get("versions", [])
+            for version
+            in versions
         ]
 
     existing_by_id = {
-        package.get("identifier"): package
-        for package in packages_list
+        package.get("identifier"):
+        package
+
+        for package
+        in packages_list
+
+        if package.get("identifier")
     }
 
+    #
+    # Build every current package
+    #
+
     for plugin_path in plugin_paths:
-        metadata = metadata_by_path[plugin_path]
 
-        identifier = metadata["identifier"]
-        current_version = metadata["versions"][0]
-        version = current_version["version"]
+        metadata = metadata_by_path[
+            plugin_path
+        ]
 
-        zip_path, zip_filename = create_plugin_zip(
+        identifier = metadata[
+            "identifier"
+        ]
+
+        current_version = (
+            metadata["versions"][0]
+        )
+
+        version = current_version[
+            "version"
+        ]
+
+        (
+            zip_path,
+            zip_filename,
+        ) = create_plugin_zip(
             plugin_path,
             version,
             releases_dir,
             metadata,
         )
 
-        file_size = os.path.getsize(zip_path)
-        sha256 = calculate_sha256(zip_path)
-        install_size = calculate_install_size(zip_path)
+        file_size = os.path.getsize(
+            zip_path
+        )
 
-        version_info = normalize_runtime(current_version)
+        sha256 = calculate_sha256(
+            zip_path
+        )
+
+        install_size = calculate_install_size(
+            zip_path
+        )
+
+        version_info = normalize_runtime(
+            current_version
+        )
+
         version_info.update(
             {
-                "download_sha256": sha256,
-                "download_size": file_size,
-                "download_url": (
-                    f"{REPO_URL_BASE}/v{release_tag}/{zip_filename}"
-                ),
-                "install_size": install_size,
-                "platforms": ["windows", "linux", "macos"],
+                "download_sha256":
+                    sha256,
+
+                "download_size":
+                    file_size,
+
+                "download_url":
+                    (
+                        f"{REPO_URL_BASE}/"
+                        f"v{release_tag}/"
+                        f"{zip_filename}"
+                    ),
+
+                "install_size":
+                    install_size,
+
+                "platforms": [
+                    "windows",
+                    "linux",
+                    "macos",
+                ],
             }
         )
 
         package = {
-            "name": metadata["name"],
-            "description": metadata["description"],
-            "description_full": metadata["description_full"],
-            "identifier": identifier,
-            "type": metadata["type"],
-            "author": metadata["author"],
-            "license": metadata["license"],
-            "resources": metadata["resources"],
-            "versions": [version_info],
+
+            "name":
+                metadata["name"],
+
+            "description":
+                metadata["description"],
+
+            "description_full":
+                metadata["description_full"],
+
+            "identifier":
+                identifier,
+
+            "type":
+                metadata["type"],
+
+            "author":
+                metadata["author"],
+
+            "license":
+                metadata["license"],
+
+            "resources":
+                metadata["resources"],
+
+            "versions": [
+                version_info
+            ],
         }
 
-        existing_package = existing_by_id.get(identifier)
+        existing_package = (
+            existing_by_id.get(
+                identifier
+            )
+        )
 
         if existing_package is not None:
-            versions = existing_package.setdefault("versions", [])
+
+            versions = (
+                existing_package.setdefault(
+                    "versions",
+                    [],
+                )
+            )
+
+            if not isinstance(
+                versions,
+                list,
+            ):
+
+                versions = []
+
+                existing_package[
+                    "versions"
+                ] = versions
 
             replaced = False
-            for index, existing_version in enumerate(versions):
-                if existing_version.get("version") == version:
-                    versions[index] = version_info
+
+            for (
+                index,
+                existing_version,
+            ) in enumerate(versions):
+
+                if (
+                    existing_version.get(
+                        "version"
+                    )
+                    == version
+                ):
+
+                    versions[index] = (
+                        version_info
+                    )
+
                     replaced = True
+
                     break
 
             if not replaced:
-                versions.insert(0, version_info)
 
-            # Source metadata is authoritative for ALL package-level fields.
+                versions.insert(
+                    0,
+                    version_info,
+                )
+
+            #
+            # Source metadata is authoritative
+            # for ALL package-level fields.
+            #
+            # This fixes the previous bug where
+            # author/license/type could remain stale.
+            #
+
             for key in (
                 "name",
                 "description",
@@ -547,54 +1185,189 @@ def main():
                 "license",
                 "resources",
             ):
-                existing_package[key] = copy.deepcopy(package[key])
+
+                existing_package[
+                    key
+                ] = copy.deepcopy(
+                    package[key]
+                )
 
         else:
-            packages_list.append(package)
-            existing_by_id[identifier] = package
 
-        print(f"Updated package {identifier} ({version})")
+            packages_list.append(
+                package
+            )
 
-    packages_data["packages"] = packages_list
+            existing_by_id[
+                identifier
+            ] = package
 
-    validate_feed(packages_data)
+        print(
+            f"Updated package "
+            f"{identifier} ({version})"
+        )
 
-    atomic_write_json(packages_file, packages_data)
-    print(f"Updated {packages_file}")
+    packages_data[
+        "packages"
+    ] = packages_list
+
+    #
+    # Validate before publishing anything.
+    #
+
+    validate_feed(
+        packages_data
+    )
+
+    #
+    # Write package feed
+    #
+
+    atomic_write_json(
+        packages_file,
+        packages_data,
+    )
+
+    print(
+        f"Updated {packages_file}"
+    )
+
+    #
+    # ================================================================
+    #
+    # IMPORTANT:
+    #
+    # This is the part the previous file was missing.
+    #
+    # KiCad's Plugin and Content Manager needs a separate
+    # repository-level resources.zip to display icons for packages
+    # that are not yet installed.
+    #
+    # ================================================================
+    #
+
+    (
+        resources_zip,
+        resources_icon_count,
+    ) = create_repository_resources_zip(
+        plugin_paths,
+        metadata_by_path,
+        releases_dir,
+    )
 
     packages_timestamp = int(
-        datetime.datetime.now(datetime.timezone.utc).timestamp()
+        datetime.datetime.now(
+            datetime.timezone.utc
+        ).timestamp()
+    )
+
+    resources_sha256 = (
+        calculate_sha256(
+            resources_zip
+        )
     )
 
     packages_url = (
         f"https://raw.githubusercontent.com/"
-        f"{REPO_OWNER}/{REPO_NAME}/{branch}/pcm/pkgs.json"
+        f"{REPO_OWNER}/"
+        f"{REPO_NAME}/"
+        f"{branch}/"
+        f"pcm/pkgs.json"
         f"?t={packages_timestamp}"
     )
 
+    #
+    # Repository descriptor
+    #
+
     repository = {
-        "$schema": PCM_SCHEMA,
-        "name": "KiWay Plugin Repository",
+
+        "$schema":
+            PCM_SCHEMA,
+
+        "name":
+            "KiWay Plugin Repository",
+
         "maintainer": {
-            "name": "Wayri (Yawar)",
+
+            "name":
+                "Wayri (Yawar)",
+
             "contact": {
-                "github": GITHUB_PROFILE,
+                "github":
+                    GITHUB_PROFILE,
             },
         },
+
         "packages": {
-            "url": packages_url,
-            "update_timestamp": packages_timestamp,
+
+            "url":
+                packages_url,
+
+            "update_timestamp":
+                packages_timestamp,
+        },
+
+        #
+        # THIS section tells KiCad where
+        # the repository icon archive lives.
+        #
+
+        "resources": {
+
+            "url":
+                (
+                    f"{REPO_URL_BASE}/"
+                    f"v{release_tag}/"
+                    f"resources.zip"
+                ),
+
+            "sha256":
+                resources_sha256,
+
+            "update_timestamp":
+                packages_timestamp,
         },
     }
 
-    atomic_write_json(repo_file, repository)
+    atomic_write_json(
+        repo_file,
+        repository,
+    )
 
-    print(f"Updated {repo_file}")
-    print(f"Packages: {len(packages_list)}")
-    print(f"Release tag: v{release_tag}")
-    print(f"Branch: {branch}")
+    print(
+        f"Updated {repo_file}"
+    )
+
+    print(
+        f"Packages: "
+        f"{len(packages_list)}"
+    )
+
+    print(
+        f"Release tag: "
+        f"v{release_tag}"
+    )
+
+    print(
+        f"Branch: {branch}"
+    )
+
+    print(
+        f"Repository icons: "
+        f"{resources_icon_count}"
+    )
+
+    print(
+        f"Repository resources: "
+        f"{resources_zip}"
+    )
+
     print()
-    print("PCM build completed successfully.")
+
+    print(
+        "PCM build completed successfully."
+    )
 
 
 if __name__ == "__main__":

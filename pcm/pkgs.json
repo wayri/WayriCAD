@@ -14,8 +14,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/extract_pins_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -23,10 +22,10 @@
                     "status": "stable",
                     "kicad_version": "9.0",
                     "runtime": "swig",
-                    "download_sha256": "a349bad88fadce25c3dcf2ffb692f5edd860dc27219ea2e6eb223ae4770270e9",
-                    "download_size": 289832,
+                    "download_sha256": "31017e494112cf54288779710a181d89bc49b9e9c557587efb5564cf2235151c",
+                    "download_size": 289792,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/extract_pins_plugin-2.19.0.zip",
-                    "install_size": 723688,
+                    "install_size": 723590,
                     "platforms": [
                         "windows",
                         "linux",
@@ -349,8 +348,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/bulk_label_editor_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -358,10 +356,10 @@
                     "status": "development",
                     "kicad_version": "9.0",
                     "runtime": "swig",
-                    "download_sha256": "5a66b01d79883a7dd407900a3e9e621926b6445a5aadc01bf24da6de91cfcbae",
-                    "download_size": 26944,
+                    "download_sha256": "d66c662dfdd789e542f9a6220be38fbe20fe8a6606c5339105162610a9e6f139",
+                    "download_size": 26903,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/bulk_label_editor_plugin-0.7.1.zip",
-                    "install_size": 44956,
+                    "install_size": 44853,
                     "platforms": [
                         "windows",
                         "linux",
@@ -489,8 +487,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/fanout_generator_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -498,10 +495,10 @@
                     "status": "stable",
                     "kicad_version": "9.0",
                     "runtime": "swig",
-                    "download_sha256": "4a8b097f4cb9dc58ff8ff34a893c363f551fb47ed279934ff31feeffd6bc24d5",
-                    "download_size": 49979,
+                    "download_sha256": "5b23d5e0de21b8011ec7b6846f6824915766c2152f3fa81fbd343a229006d4d7",
+                    "download_size": 49939,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/fanout_generator_plugin-0.9.0.zip",
-                    "install_size": 79243,
+                    "install_size": 79141,
                     "platforms": [
                         "windows",
                         "linux",
@@ -644,8 +641,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/via_stitching_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -653,10 +649,10 @@
                     "status": "stable",
                     "kicad_version": "9.0",
                     "runtime": "swig",
-                    "download_sha256": "50faf5adaba6805dbdc225e2eeb31637ede0fddcc4f059013ab1ca626ce187d3",
-                    "download_size": 44160,
+                    "download_sha256": "80ce7e75603142f2285db741af4ad0553e5b0cad0997f47e343f8342e6bc09f3",
+                    "download_size": 44119,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/via_stitching_plugin-0.9.0.zip",
-                    "install_size": 77519,
+                    "install_size": 77420,
                     "platforms": [
                         "windows",
                         "linux",
@@ -799,8 +795,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/test_point_descriptor_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -808,10 +803,10 @@
                     "status": "stable",
                     "kicad_version": "9.0",
                     "runtime": "swig",
-                    "download_sha256": "652b22628498701135978135e1a7629558e8f43b790e21f0c9024ea8b7826fbe",
-                    "download_size": 39711,
+                    "download_sha256": "862fbb4a7187b4f427573668e09c87e271d0d8170e95d8b5a488c6951c65b776",
+                    "download_size": 39669,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/test_point_descriptor_plugin-0.7.0.zip",
-                    "install_size": 63858,
+                    "install_size": 63751,
                     "platforms": [
                         "windows",
                         "linux",
@@ -954,8 +949,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/trace_impedance_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -963,10 +957,10 @@
                     "status": "stable",
                     "kicad_version": "9.0",
                     "runtime": "swig",
-                    "download_sha256": "4158e63826f91a507484d26d5845df504571c1a16c324bc7fc3ef8ea0519e753",
-                    "download_size": 42128,
+                    "download_sha256": "0f3c2cff7c4aaaf0137cbed0afcce99cb3f153a476f2bba5dd24f93837d23007",
+                    "download_size": 42088,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/trace_impedance_plugin-0.6.1.zip",
-                    "install_size": 72171,
+                    "install_size": 72070,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1094,8 +1088,7 @@
             },
             "license": "MIT",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/kilo_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1103,10 +1096,10 @@
                     "status": "stable",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "b1c5b240938924a77a97a6f6228d590bb5f782c0c63e89befdffc84fb806aab5",
-                    "download_size": 102355,
+                    "download_sha256": "1b539f02baaacf53e6d192e0eff8ba8ab81b15c1341673a8951dca32d091acfc",
+                    "download_size": 102317,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/kilo_plugin-0.1.0.zip",
-                    "install_size": 234150,
+                    "install_size": 234060,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1129,8 +1122,7 @@
             },
             "license": "MIT",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/portable_assets_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1138,10 +1130,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "5d0b1d334e05fa7604ae02d94314232149b5f7f56f94076736cdc738da452cfb",
-                    "download_size": 72763,
+                    "download_sha256": "9cc06c148c489db8d833b61b5b6c7c73afa86342e2f957278dcf4dc5c8fb3b25",
+                    "download_size": 72720,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/portable_assets_plugin-0.2.4.zip",
-                    "install_size": 137915,
+                    "install_size": 137814,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1224,8 +1216,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/variant_workbench_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1233,10 +1224,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "4bf602e5c2e9ab7816047d76c9d247fe185935d2c25d8bb905aac87084a17d27",
-                    "download_size": 138164,
+                    "download_sha256": "36f2d974b285f524786b71a6cd09b8ebbbf3bba98d8e544a72c0ec57fc00ef46",
+                    "download_size": 138124,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/variant_workbench_plugin-0.5.3.zip",
-                    "install_size": 342673,
+                    "install_size": 342570,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1304,8 +1295,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/signal_integrity_advisor_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1313,10 +1303,10 @@
                     "status": "stable",
                     "kicad_version": "9.0",
                     "runtime": "swig",
-                    "download_sha256": "608447d1c78e4ada3602c0b5741c84a84980659222063ff613fca2e64025d7b4",
-                    "download_size": 75255,
+                    "download_sha256": "b7f295743d661a6d18ffc348fc67c19f35780a1a72d1534132f51f9f4eb109b9",
+                    "download_size": 75211,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/signal_integrity_advisor_plugin-0.1.0.zip",
-                    "install_size": 106716,
+                    "install_size": 106606,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1339,8 +1329,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/harness_workbench_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1348,10 +1337,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "9690307509d38de47a2f37651de52e575a42ba92e73f6f75b77c6e4dee15a696",
-                    "download_size": 136325,
+                    "download_sha256": "1d53470f2f8fd73b0a0b71fdc15b3fa524ad4808ec4bca4b454b1bfe348d0ca8",
+                    "download_size": 136285,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/harness_workbench_plugin-0.4.0.zip",
-                    "install_size": 222666,
+                    "install_size": 222563,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1404,8 +1393,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/manufacturing_readiness_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1413,10 +1401,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "c1ec6164382db45a24fe6c6a9791b4b3f4b32247a9fa9e4187e66e1b6c8365e6",
-                    "download_size": 34322,
+                    "download_sha256": "352f8395574c6396ccfca528c10de33a4f86be6af1fa461cad8f7109ff6f9306",
+                    "download_size": 34283,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/manufacturing_readiness_plugin-0.1.0.zip",
-                    "install_size": 49669,
+                    "install_size": 49560,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1439,8 +1427,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/pdn_decoupling_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1448,10 +1435,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "3687c1a94f4ea52d339abac5a4cbdfee3c68ea4673385d9065d44958589dd766",
-                    "download_size": 30428,
+                    "download_sha256": "915c9184fb0b9b5fd18d908eb9c22d99335b1fa6664380d4070d0e2d37c16763",
+                    "download_size": 30388,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/pdn_decoupling_plugin-0.1.0.zip",
-                    "install_size": 40814,
+                    "install_size": 40714,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1474,8 +1461,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/protocol_constraint_composer_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1483,10 +1469,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "f99c9ded9d9ce6d933c82936f2b48750990026fdf872a60b4a44f720f9b5f99f",
-                    "download_size": 33443,
+                    "download_sha256": "7d1aaeb1d598e9d9d3f12af6f4a5e309ee6e17465e45db2fe8b28fd26e228e06",
+                    "download_size": 33396,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/protocol_constraint_composer_plugin-0.1.0.zip",
-                    "install_size": 46945,
+                    "install_size": 46831,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1509,8 +1495,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/return_path_auditor_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1518,10 +1503,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "bbb3b5774912d7ffd274945a36a041009e4b09e333a900d6d68334d4d9fc073c",
-                    "download_size": 35527,
+                    "download_sha256": "4d1c6d1238d1e0da1bab924060e26a4f9712757c57278eb0b74813e5af83a0ef",
+                    "download_size": 35484,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/return_path_auditor_plugin-0.1.0.zip",
-                    "install_size": 53339,
+                    "install_size": 53234,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1544,8 +1529,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/heater_designer_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1553,10 +1537,10 @@
                     "status": "stable",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "e3d83194035b5b3868e7be08a26ad26e323cf2eb584b3db453c19714049bc2e4",
-                    "download_size": 102543,
+                    "download_sha256": "bce4139b762c693633bf3d1b89b22d725891ba998c9805f9a5cc8db8901fef25",
+                    "download_size": 102503,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/heater_designer_plugin-0.1.0.zip",
-                    "install_size": 125448,
+                    "install_size": 125347,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1579,8 +1563,7 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay",
-                "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/planar_magnetics_plugin/icon.png"
+                "homepage": "https://github.com/wayri/KiWay"
             },
             "versions": [
                 {
@@ -1588,10 +1571,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "swig",
-                    "download_sha256": "438cb724b639d9712848d23620ca554498026a6d206d942c9576861661ff5404",
-                    "download_size": 171535,
+                    "download_sha256": "7c5868ddf958ac4620e72dc67d922667504016de0202aff2a32b41d9fbb0f3c9",
+                    "download_size": 171495,
                     "download_url": "https://github.com/wayri/KiWay/releases/download/v2.24.1/planar_magnetics_plugin-0.2.0.zip",
-                    "install_size": 213786,
+                    "install_size": 213684,
                     "platforms": [
                         "windows",
                         "linux",
