@@ -97,7 +97,7 @@ class WorkbenchPluginTests(unittest.TestCase):
 
     def test_variant_workbench_refuses_active_project_lock(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
-            root = Path(raw_dir)
+            root = Path(raw_dir).resolve()
             schematic = root / "demo.kicad_sch"
             old_text = "(kicad_sch)"
             schematic.write_text(old_text, encoding="utf-8")
