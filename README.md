@@ -2,7 +2,7 @@
 
 KiWay is a focused parent repository for KiCad ActionPlugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
 
-Current development suite: **v2.24.0**. The feed contains 17 independently installable
+Current development suite: **v2.25.0**. The feed contains 17 independently installable
 packages. Every package provides a distinct 96 x 96 PCM icon and matching
 light/dark PCB Editor ActionPlugin icon.
 
@@ -304,6 +304,7 @@ deterministic automation diffs. Config files are JSON objects with optional
 - [PCB / Foil Heater Designer Documentation](heater_designer_plugin/ReadMe.md)
 - [Planar Magnetics & Actuator Documentation](planar_magnetics_plugin/ReadMe.md)
 - [KiWay v2.22.0 Release Notes](docs/RELEASE_2.22.0.md)
+- [KiWay v2.25.0 Release Notes](docs/RELEASE_2.25.0.md)
 - [Contributing](CONTRIBUTING.md)
 - [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
 

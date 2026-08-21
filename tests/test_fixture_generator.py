@@ -4,12 +4,16 @@ import unittest
 import tempfile
 from pathlib import Path
 
-import pcbnew
+try:
+    import pcbnew
+except ImportError:  # pragma: no cover - pcbnew ships inside KiCad only
+    pcbnew = None
 
 from test_point_descriptor_plugin.fixture import FixturePoint, generate_fixture_board
 
 
 class FixtureGeneratorTests(unittest.TestCase):
+    @unittest.skipUnless(pcbnew is not None, "pcbnew is only available inside KiCad")
     def test_fixture_contains_probe_edge_channels_and_routing(self):
         text = generate_fixture_board([
             FixturePoint("TP1", "1", "SDA", 10.0, 20.0),
@@ -20,6 +24,8 @@ class FixtureGeneratorTests(unittest.TestCase):
         self.assertIn('KiWay:Edge_Channel_2', text)
         self.assertEqual(6, text.count("  (segment "))
         self.assertIn('(layer "Edge.Cuts")', text)
+        if pcbnew is None:
+            return
         with tempfile.NamedTemporaryFile("w", suffix=".kicad_pcb", delete=False, encoding="utf-8") as handle:
             handle.write(text); path = Path(handle.name)
         try:

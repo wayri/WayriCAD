@@ -1,9 +1,13 @@
 """KiWay Trace RLC and Impedance Analyzer plugin entry point."""
 
-from .trace_impedance_plugin import TraceImpedancePlugin
+try:
+    from .trace_impedance_plugin import TraceImpedancePlugin
+except ImportError:  # pcbnew/wx unavailable outside KiCad
+    TraceImpedancePlugin = None
+else:
+    import wx
 
-import wx
+    if wx.GetApp() is not None:
+        TraceImpedancePlugin().register()
 
-if wx.GetApp() is not None:
-    TraceImpedancePlugin().register()
-
+__all__ = ["TraceImpedancePlugin"]

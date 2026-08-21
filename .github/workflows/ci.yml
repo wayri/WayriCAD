@@ -26,10 +26,14 @@ jobs:
       - name: Compile
         run: >-
           python -m compileall -q
-          bulk_label_editor_plugin connector_icd_plugin extract_pins_plugin
-          fanout_generator_plugin kilo_plugin net_hygiene_plugin test_coverage_plugin
-          test_point_descriptor_plugin trace_impedance_plugin
-          via_stitching_plugin tools tests
+          bulk_label_editor_plugin extract_pins_plugin fanout_generator_plugin
+          harness_workbench_plugin heater_designer_plugin kilo_plugin
+          manufacturing_readiness_plugin pdn_decoupling_plugin
+          planar_magnetics_plugin portable_assets_plugin
+          protocol_constraint_composer_plugin return_path_auditor_plugin
+          signal_integrity_advisor_plugin test_point_descriptor_plugin
+          trace_impedance_plugin variant_workbench_plugin via_stitching_plugin
+          tools tests
       - name: Unit and integration tests
         run: python -m unittest discover -s tests -v
       - name: CLI smoke
