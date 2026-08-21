@@ -162,17 +162,27 @@ def main():
         pkg = existing_by_id.get(identifier)
         if pkg:
             v_exists = False
+        
             for v_idx, v in enumerate(pkg['versions']):
                 if v['version'] == version:
                     pkg['versions'][v_idx] = version_info
                     v_exists = True
                     break
+        
             if not v_exists:
                 pkg['versions'].insert(0, version_info)
-            pkg['name'] = package['name']
-            pkg['description'] = package['description']
-            pkg['description_full'] = package['description_full']
-            pkg['resources'] = package['resources']
+        
+            # Metadata.json is authoritative for package-level fields.
+            for key in (
+                'name',
+                'description',
+                'description_full',
+                'type',
+                'author',
+                'license',
+                'resources',
+            ):
+                pkg[key] = package[key]
         else:
             packages_list.append(package)
             existing_by_id[identifier] = package
