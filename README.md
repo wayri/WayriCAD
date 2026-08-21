@@ -2,13 +2,13 @@
 
 KiWay is a focused parent repository for KiCad ActionPlugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
 
-Current development suite: **v2.25.0**. The feed contains 17 independently installable
+Current development suite: **v2.27.0**. The feed contains 17 independently installable
 packages. Every package provides a distinct 96 x 96 PCM icon and matching
 light/dark PCB Editor ActionPlugin icon.
 
 ## List of Plugins
 
-### 1. KiWay Extract Pins (v2.19.0)
+### 1. KiWay Extract Pins (v2.20.0)
 
 A comprehensive interface documentation and test engineering tool.
 
@@ -30,7 +30,7 @@ A comprehensive interface documentation and test engineering tool.
 - **Focused Tasks**: Use the simple Pin Extractor for board work and the separate Interboard & Harness entry for system ICD work
 - **Programming & Bring-Up**: Detect SWD, JTAG, UART, reset, boot-strap, reference-voltage, power, and ground pins; export reviewed Markdown and C definitions
 
-### 2. KiWay Bulk Label Editor (v0.7.1)
+### 2. KiWay Bulk Label Editor (v0.7.2)
 
 A preview-and-apply editor for repeated channel labels and component text.
 
@@ -38,15 +38,15 @@ A preview-and-apply editor for repeated channel labels and component text.
 - Regex replacement for advanced renaming
 - Scoped edits for footprint references, values, custom fields, and PCB text
 
-### 3. KiWay Fanout Generator (v0.9.0)
+### 3. KiWay Fanout Generator (v0.10.0)
 
 Creates dogbone, BGA/LGA grid, quadrant, four-corner, perimeter, radial, and via-in-pad escapes. Scope generation to selected pads, selected footprints, reference wildcards, or all SMD pads; use the live KiCad-like preview before committing a persistent native PCB group.
 
-### 4. KiWay Via Stitching (v0.9.0)
+### 4. KiWay Via Stitching (v0.10.0)
 
 Creates a configurable stitching grid inside the board outline or the current PCB selection. It can require filled copper on the selected target net and reports candidates rejected by footprint, other-net copper, track/via, keepout, and drawing exclusions before committing a persistent PCB group.
 
-### 5. KiWay Test Point Descriptor Extractor (v0.7.0)
+### 5. KiWay Test Point Descriptor Extractor (v0.8.0)
 
 Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board source/destination labels, and TM/TC classification to CSV, Markdown, or HTML.
 
@@ -56,13 +56,13 @@ Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board sour
 - Includes TP reference, value, footprint, pad, net, descriptor, signal, board endpoints, and notes
 - Exports documentation directly from the open PCB
 
-### 6. KiWay Trace RLC / Impedance Analyzer (v0.6.1)
+### 6. KiWay Trace RLC / Impedance Analyzer (v0.8.0)
 
 Measures routed net geometry between selected start/end pads and reports first-order resistance, capacitance, inductance, impedance, layer changes, vias, and same-net copper zones. The result identifies the selected reference layer, dielectric separation, permittivity, and complete parsed stackup used by the estimate.
 
 The analyzer is intended for design review and estimation. Critical high-speed interfaces still require field-solver, TDR, or laboratory validation.
 
-### 7. KiWay Signal Integrity Advisor (v0.1.0)
+### 7. KiWay Signal Integrity Advisor (v0.3.0)
 
 Calculates I2C pull-up resistor limits and validates explicit routed paths against editable single-ended or differential impedance constraints. Presets cover CAN, Ethernet, RF, RS-485, SerDes, and USB families, while every result records route resolution, stackup source, reference layer, vias, layer transitions, zones, error, and differential skew. This is a design-review aid; field-solver or measurement signoff remains required.
 
@@ -96,11 +96,11 @@ Provides semantic variant rebasing, matrix editing, comparison, linting, PCB syn
 - Creates all backups before the first write and attempts rollback on failure
 - Launches as a detached workbench from a native PCB Editor ActionPlugin so editors can be closed before file changes
 
-### 11. KiWay Return-Path Auditor (v0.1.0)
+### 11. KiWay Return-Path Auditor (v0.3.0)
 
 Screens routed geometry for unsupported signal layer transitions, missing nearby return vias, apparent reference-plane gaps, long branches that may be stubs, differential-pair skew, and uncoupled pair segments. Findings can be cross-selected and exported for review. It is not an electromagnetic field solver.
 
-### 12. KiWay Harness and Cable Workbench (v0.4.0)
+### 12. KiWay Harness and Cable Workbench (v0.5.0)
 
 Ingests up to 50 board pin documents and builds system harness data using
 indexed net matching, connector rules, or arbitrary tabular pin maps. It joins
@@ -112,19 +112,19 @@ sortable pin, net, and system-path tables, wire-list and procurement BoM CSVs,
 a native draft, universal SVG, and a self-contained interactive HTML harness
 with zoom, pan, draggable nodes, filters, and clickable path details.
 
-### 13. KiWay Manufacturing Readiness Manager (v0.1.0)
+### 13. KiWay Manufacturing Readiness Manager (v0.2.0)
 
 Combines fabricator capability profiles with board geometry audits, JSON DRC, `.kicad_jobset` execution, explicit release gates, and deterministic release ZIPs containing SHA-256 manifests. Fabricator limits remain user-controlled engineering inputs.
 
-### 14. KiWay PDN and Decoupling Planner (v0.1.0)
+### 14. KiWay PDN and Decoupling Planner (v0.3.0)
 
 Uses configurable rail, ground, load, capacitor, and regulator conventions to find power pins without nearby rail-to-ground capacitors. Results are cross-selectable and exportable; frequency-domain and transient PDN signoff still requires appropriate simulation and measurement.
 
-### 15. KiWay Protocol Constraint Composer (v0.1.0)
+### 15. KiWay Protocol Constraint Composer (v0.2.0)
 
 Detects likely USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF nets, then generates a reviewable KiCad custom-rule block. Applying rules requires confirmation, creates a timestamped backup, and leaves rules outside the KiWay-managed markers untouched.
 
-### 16. KiWay PCB / Foil Heater Designer (v0.1.0)
+### 16. KiWay PCB / Foil Heater Designer (v0.1.1)
 
 Synthesizes serpentine, zoned-raster, and concentric-spiral PCB heater copper.
 Users can vary regional resistance to create controlled hot or cold areas,
@@ -132,7 +132,7 @@ continue a series path across multiple layers with transition vias, run a
 steady-state 2D thermal preview, inspect power density and temperature
 uniformity, and commit only the reviewed geometry.
 
-### 17. KiWay Planar Magnetics & Actuator Workbench (v0.2.0)
+### 17. KiWay Planar Magnetics & Actuator Workbench (v0.2.1)
 
 Designs rectangular or circular multilayer PCB inductors, transformers, coils,
 voice-coil motors, linear actuators, and magnetic torquers. The coupled motion
@@ -306,6 +306,7 @@ deterministic automation diffs. Config files are JSON objects with optional
 - [KiWay v2.22.0 Release Notes](docs/RELEASE_2.22.0.md)
 - [KiWay v2.25.0 Release Notes](docs/RELEASE_2.25.0.md)
 - [KiWay v2.26.0 Release Notes](docs/RELEASE_2.26.0.md)
+- [KiWay v2.27.0 Release Notes](docs/RELEASE_2.27.0.md)
 - [Contributing](CONTRIBUTING.md)
 - [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
 

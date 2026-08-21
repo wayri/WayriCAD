@@ -8,12 +8,12 @@
         }
     },
     "packages": {
-        "url": "https://raw.githubusercontent.com/wayri/KiWay/develop/pcm/pkgs.json?t=1787345296",
-        "update_timestamp": 1787345296
+        "url": "https://raw.githubusercontent.com/wayri/KiWay/develop/pcm/pkgs.json?t=1787346766",
+        "update_timestamp": 1787346766
     },
     "resources": {
-        "url": "https://github.com/wayri/KiWay/releases/download/v2.26.0/resources.zip",
-        "sha256": "d4ab68bff82ab4e799ab22b5220cf58752301b5be6f313f4e35cf9893b0fa252",
-        "update_timestamp": 1787345296
+        "url": "https://github.com/wayri/KiWay/releases/download/v2.27.0/resources.zip",
+        "sha256": "6b6e09011ab5dc67e6cb7af0a80cd1465daef4346e95cfb5fea3b65f8d59ebdc",
+        "update_timestamp": 1787346766
     }
 }

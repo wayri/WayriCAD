@@ -14,7 +14,8 @@ from .help_utils import open_help
 from .selection_utils import pads_on_net, select_items
 from .guided_ui import add_workflow
 from . import rlc_model
-from .preview_kit import PanZoomCanvas, add_zoom_toolbar, severity_colour
+from . import diff_pairs
+from .preview_kit import PanZoomCanvas, add_zoom_toolbar, severity_colour, pcb_select_items, pcb_highlight_net
 
 LAYER_COLOURS = ("#e34a43", "#3fa56b", "#d4a62a", "#3399cc", "#a45ac7", "#d67142", "#4fb3bf")
 
@@ -27,7 +28,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
         self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.7.0"
+        self.version = "0.8.0"
 
     def Run(self) -> None:
         try:
@@ -46,6 +47,7 @@ class TraceFrame(wx.Frame):
         self.board = board
         self.engine = TraceMeasurementEngine(board)
         self.current: Optional[PathMeasurement] = None
+        self.mate_result: Optional[PathMeasurement] = None
         self.last_selection_signature = ()
         self.selection_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_selection_timer, self.selection_timer)
@@ -72,6 +74,9 @@ class TraceFrame(wx.Frame):
         self.reference = wx.ComboBox(panel, style=wx.CB_READONLY)
         self.auto_refresh = wx.CheckBox(panel, label="Auto-refresh from PCB selection")
         self.auto_refresh.SetValue(True)
+        self.auto_pair = wx.CheckBox(panel, label="Auto-detect differential mate")
+        self.auto_pair.SetValue(True)
+        self.auto_pair.SetToolTip("Detect pair mates via _P/_N, +/-, _DP/_DM and P/N suffix patterns")
         for label, control in (("Net:", self.net), ("Start pad:", self.start), ("End pad:", self.end), ("Differential mate (optional):", self.diff_net), ("Frequency (MHz):", self.frequency), ("Reference layer:", self.reference)):
             config.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL); config.Add(control, 1, wx.EXPAND)
         config.AddGrowableCol(1, 1)
@@ -92,6 +97,11 @@ class TraceFrame(wx.Frame):
         refresh_stackup.Bind(wx.EVT_BUTTON, self._load_stackup)
         row.Add(refresh_stackup, 0, wx.ALL, 5)
         row.Add(self.auto_refresh, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        row.Add(self.auto_pair, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
+        highlight = wx.Button(panel, label="Highlight Net on PCB")
+        highlight.SetToolTip("Highlight the selected net (and its detected pair mate) in PCB Editor")
+        highlight.Bind(wx.EVT_BUTTON, self.highlight_net)
+        row.Add(highlight, 0, wx.ALL, 5)
         self.measure_button.SetDefault()
         root.Add(row, 0, wx.ALIGN_RIGHT)
         self.summary = wx.StaticText(panel, label="Select a net and optional start/end pads.")
@@ -100,6 +110,7 @@ class TraceFrame(wx.Frame):
         preview_page = wx.Panel(notebook)
         preview_sizer = wx.BoxSizer(wx.VERTICAL)
         self.route_preview = RoutePreview(preview_page)
+        self.route_preview.on_pick = self._on_route_pick
         preview_sizer.Add(self.route_preview, 1, wx.EXPAND | wx.ALL, 6)
         add_zoom_toolbar(preview_page, self.route_preview, preview_sizer)
         preview_page.SetSizer(preview_sizer)
@@ -167,14 +178,74 @@ class TraceFrame(wx.Frame):
         pads = self.engine.pads_for_net(self.net.GetValue())
         self.start.Clear(); self.end.Clear(); self.start.AppendItems(pads); self.end.AppendItems(pads)
         if pads: self.start.SetSelection(0); self.end.SetSelection(len(pads) - 1)
+        self._auto_mate()
+
+    def _auto_mate(self) -> None:
+        """Fill the differential-mate combo automatically from pair patterns."""
+        current = self.net.GetValue()
+        names = [self.net.GetString(i) for i in range(self.net.GetCount())]
+        mate = diff_pairs.find_mate(current, names)
+        rule = next((pair.rule for pair in diff_pairs.detect_pairs(names) if current in (pair.positive, pair.negative)), "")
+        index = self.diff_net.FindString(mate) if mate else wx.NOT_FOUND
+        if mate and index != wx.NOT_FOUND:
+            self.diff_net.SetSelection(index)
+            self.summary.SetLabel(f"Detected differential pair: {current} + {mate} ({rule}).")
+        elif not self.auto_pair.GetValue():
+            return
+        else:
+            self.diff_net.SetSelection(0)
+
+    def _mate_net(self) -> str:
+        value = self.diff_net.GetValue()
+        return "" if (not value or value == "<none>" or value == self.net.GetValue()) else value
 
     def analyze(self, _event: Any) -> None:
         try:
-            self.current = self.engine.measure(self.net.GetValue(), self.start.GetValue(), self.end.GetValue(), float(self.frequency.GetValue()), self.reference.GetValue())
+            frequency = float(self.frequency.GetValue())
+            self.current = self.engine.measure(self.net.GetValue(), self.start.GetValue(), self.end.GetValue(), frequency, self.reference.GetValue())
+            self.mate_result = None
+            mate = self._mate_net()
+            if mate:
+                pads = self.engine.pads_for_net(mate)
+                if len(pads) >= 2:
+                    self.mate_result = self.engine.measure(mate, pads[0], pads[-1], frequency, self.reference.GetValue())
+                elif pads:
+                    self.mate_result = self.engine.measure(mate, pads[0], pads[0], frequency, self.reference.GetValue())
             self._show(self.current)
-            self.workflow.set_step(2, "Review route geometry and notes, cross-select the net, then export if appropriate.")
+            self.workflow.set_step(2, "Review route geometry, skew, and notes; cross-select or highlight the pair; then export if appropriate.")
         except Exception as exc:
             wx.MessageBox(str(exc), "Trace analysis failed", wx.OK | wx.ICON_ERROR)
+
+    def _on_route_pick(self, data: Any) -> None:
+        """Click a preview segment: cross-select it and highlight its net."""
+        if not isinstance(data, tuple) or len(data) < 2:
+            return
+        kind, net, _layer = (list(data) + ["", ""])[:3]
+        if kind != "net" or not net:
+            return
+        items = [item for item in getattr(self.board, "GetTracks", lambda: [])() if str(getattr(item, "GetNetname", lambda: "")()) == net]
+        pcb_select_items(items + pads_on_net(self.board, net))
+        pcb_highlight_net(self.board, net)
+        self.summary.SetLabel(f"Selected and highlighted {net} from the route preview.")
+
+    def highlight_net(self, _event: Any = None) -> None:
+        nets = [self.net.GetValue()]
+        mate = self._mate_net()
+        if mate:
+            nets.append(mate)
+        done = []
+        for name in nets:
+            if name and pcb_highlight_net(self.board, name):
+                done.append(name)
+        targets = list(self.current.board_items) if self.current else []
+        if self.mate_result:
+            targets.extend(self.mate_result.board_items)
+        if targets:
+            pcb_select_items(targets + pads_on_net(self.board, nets[0]))
+        if done:
+            self.summary.SetLabel("Highlighted: " + " + ".join(done) + (" (differential pair)" if len(done) > 1 else "") + ".")
+        else:
+            self.summary.SetLabel("Highlight is not supported by this KiCad version; items were selected instead.")
 
     def select_net(self, _event: Any) -> None:
         net_name = self.net.GetValue()
@@ -189,7 +260,18 @@ class TraceFrame(wx.Frame):
             index = self.table.InsertItem(self.table.GetItemCount(), key); self.table.SetItem(index, 1, str(value))
         self.notes.SetValue("\n".join(result.notes))
         self.summary.SetLabel(f"{result.net_name}: {result.length_mm:.3f} mm | reference {result.reference_layer} | h={result.dielectric_height_mm:.4f} mm | Er={result.relative_permittivity:.3g} | {result.via_count} vias")
-        self.route_preview.show_measurement(result)
+        self.route_preview.show_measurement(result, self.mate_result)
+        self._show_model(result)
+        if self.mate_result:
+            skew_mm = abs(result.length_mm - self.mate_result.length_mm)
+            extra = (
+                ("Differential mate", f"{self.mate_result.net_name} ({self.mate_result.length_mm:.3f} mm)"),
+                ("Intra-pair skew", f"{skew_mm:.4f} mm"),
+                ("Skew verdict", "within 0.5 mm guideline" if skew_mm <= 0.5 else "exceeds 0.5 mm guideline; review"),
+            )
+            for key, value in extra:
+                index = self.table.InsertItem(self.table.GetItemCount(), key); self.table.SetItem(index, 1, str(value))
+            result.notes.append(f"Pair {result.net_name} + {self.mate_result.net_name}: intra-pair skew {skew_mm:.4f} mm.")
         self._show_model(result)
         if result.board_items:
             select_items(self.board, result.board_items + pads_on_net(self.board, result.net_name))
@@ -275,13 +357,15 @@ class RoutePreview(PanZoomCanvas):
         self.measurement: Optional[PathMeasurement] = None
         self.segments: List[tuple] = []
 
-    def show_measurement(self, result: Optional[PathMeasurement]) -> None:
+    def show_measurement(self, result: Optional[PathMeasurement], mate: Optional[PathMeasurement] = None) -> None:
         self.measurement = result
         self.segments = []
         legend = []
-        colours = {}
-        if result is not None:
-            for item in result.board_items:
+
+        def collect(measurement: Optional[PathMeasurement], lane: int) -> None:
+            if measurement is None:
+                return
+            for item in measurement.board_items:
                 if not hasattr(item, "GetStart") or not hasattr(item, "GetEnd"):
                     continue
                 start, end = item.GetStart(), item.GetEnd()
@@ -298,13 +382,31 @@ class RoutePreview(PanZoomCanvas):
                 self.segments.append((
                     float(start.x) / 1e6, float(start.y) / 1e6,
                     float(end.x) / 1e6, float(end.y) / 1e6,
-                    layer, width,
+                    layer, width, lane, item,
                 ))
-            for position, layer in enumerate(dict.fromkeys(segment[4] for segment in self.segments)):
-                colour = LAYER_COLOURS[position % len(LAYER_COLOURS)]
-                colours[layer] = colour
-                legend.append((colour, layer))
+
+        collect(result, 0)
+        collect(mate, 1)
+        colours: dict[str, str] = {}
+        for position, layer in enumerate(dict.fromkeys(segment[4] for segment in self.segments)):
+            colour = LAYER_COLOURS[position % len(LAYER_COLOURS)]
+            colours[layer] = colour
+            legend.append((colour, layer))
+        if result is not None:
+            legend.append(("#f4d48d", f"primary {result.net_name}"))
+        if mate is not None:
+            legend.append(("#8fd3f4", f"mate {mate.net_name}"))
         self.set_legend(legend)
+        picks = []
+        for index, segment in enumerate(self.segments):
+            picks.append({
+                "x": (segment[0] + segment[2]) / 2.0,
+                "y": (segment[1] + segment[3]) / 2.0,
+                "r": max(segment[5], 0.3),
+                "data": ("net", getattr(segment[7], "GetNetname", lambda: "")(), segment[4]),
+                "marker": False,
+            })
+        self.set_picks(picks)
         self.Refresh()
         if self.segments:
             self.fit()
@@ -323,9 +425,12 @@ class RoutePreview(PanZoomCanvas):
         for position, layer in enumerate(dict.fromkeys(segment[4] for segment in self.segments)):
             colours[layer] = LAYER_COLOURS[position % len(LAYER_COLOURS)]
         gc.SetBrush(wx.TRANSPARENT_BRUSH)
-        for x1, y1, x2, y2, layer, width in self.segments:
+        for x1, y1, x2, y2, layer, width, lane, _item in self.segments:
             pen_width = max(2.0, min(width * self.scale, 14.0))
-            gc.SetPen(wx.Pen(wx.Colour(colours.get(layer, "#8fa5b8")), int(max(1, round(pen_width))), wx.PENSTYLE_SOLID))
+            colour = colours.get(layer, "#8fa5b8")
+            if lane == 1:
+                colour = "#8fd3f4"
+            gc.SetPen(wx.Pen(wx.Colour(colour), int(max(1, round(pen_width))), wx.PENSTYLE_SOLID))
             gc.StrokeLine(*project((x1, y1)), *project((x2, y2)))
         if self.segments:
             first = self.segments[0]

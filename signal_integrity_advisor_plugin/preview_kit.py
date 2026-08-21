@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Iterable, List, Optional, Tuple
+import math
+from typing import Any, Iterable, List, Optional, Tuple
 
 import wx
 
@@ -41,6 +42,81 @@ def _nice_step(raw: float) -> float:
     return 10.0 * exponent
 
 
+def pick_nearest(picks: List[dict], screen_x: float, screen_y: float, tolerance_px: float = 11.0):
+    """Nearest pick entry within tolerance of a screen point, else None.
+
+    Pure geometry so tests can exercise hit-testing without a wx App.
+    """
+    best = None
+    best_distance: Optional[float] = None
+    for pick in picks:
+        distance = math.hypot(pick["sx"] - screen_x, pick["sy"] - screen_y)
+        radius = max(float(pick.get("r", 6.0)), 4.0)
+        allowed = max(tolerance_px, radius + 5.0)
+        if distance <= allowed and (best_distance is None or distance < best_distance):
+            best = pick
+            best_distance = distance
+    return best
+
+
+def pcb_select_items(items: Iterable[Any]) -> int:
+    """Mark board items selected inside PCB Editor; returns count marked."""
+    count = 0
+    try:
+        for item in items:
+            setter = getattr(item, "SetSelected", None)
+            if callable(setter):
+                setter(True)
+                count += 1
+        import pcbnew
+
+        pcbnew.Refresh()
+    except Exception:
+        pass
+    return count
+
+
+def pcb_highlight_net(board: Any, net_name: str) -> bool:
+    """Best-effort cross-version net highlight in PCB Editor."""
+    if not net_name:
+        return False
+    code = 0
+    try:
+        for footprint in board.GetFootprints():
+            for pad in footprint.Pads():
+                if str(getattr(pad, "GetNetname", lambda: "")()) == net_name:
+                    code = int(pad.GetNetCode())
+                    break
+            if code:
+                break
+        if not code:
+            for track in getattr(board, "GetTracks", lambda: [])():
+                if str(getattr(track, "GetNetname", lambda: "")()) == net_name:
+                    code = int(track.GetNetCode())
+                    break
+    except Exception:
+        code = 0
+    highlighted = False
+    for attempt in (
+        lambda: board.SetHighLightNet(code),
+        lambda: board.HighlightNet(code),
+        lambda: board.SetHighlightedNet(code),
+    ):
+        try:
+            attempt()
+            highlighted = True
+            break
+        except Exception:
+            continue
+    try:
+        import pcbnew
+
+        pcbnew.Refresh()
+    except Exception:
+        pass
+    return highlighted
+
+
 class PanZoomCanvas(wx.Panel):
     """Antialiased world-space canvas with grid, legend, pan and zoom.
 
@@ -60,6 +136,9 @@ class PanZoomCanvas(wx.Panel):
         self.center_y = 0.0
         self._pan_start: Optional[Tuple[int, int]] = None
         self._pan_center: Optional[Tuple[float, float]] = None
+        self.picks: List[dict] = []
+        self.on_pick = None
+        self.highlight_data: Any = None
         self.SetMinSize((-1, 200))
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
@@ -76,6 +155,25 @@ class PanZoomCanvas(wx.Panel):
             self.Bind(event, handler)
 
     # ------------------------------------------------------------------ API
+    def set_picks(self, picks: Iterable[dict]) -> None:
+        """Register clickable world points: {"x","y","r","data"} entries.
+
+        Screen positions are recomputed on every paint; consumers set
+        ``on_pick`` to receive the ``data`` of the clicked entry and call
+        ``set_highlight`` to keep a marker visible.
+        """
+        self.picks = list(picks)
+
+    def set_highlight(self, data: Any) -> None:
+        """Keep a double-ring marker on every pick whose data matches."""
+        self.highlight_data = data
+        self.Refresh()
+
+    def refresh_pick_screens(self) -> None:
+        for pick in self.picks:
+            sx, sy = self.project((pick["x"], pick["y"]))
+            pick["sx"] = sx
+            pick["sy"] = sy
     def set_legend(self, items: Iterable[Tuple[str, str]]) -> None:
         self.legend_items = list(items)
         self.Refresh()
@@ -151,9 +249,22 @@ class PanZoomCanvas(wx.Panel):
         event.Skip()
 
     def on_left_up(self, event: wx.MouseEvent) -> None:
+        start = self._pan_start
         self._pan_start = None
         self._pan_center = None
         self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
+        if start is not None and callable(self.on_pick):
+            moved = math.hypot(event.GetPosition()[0] - start[0], event.GetPosition()[1] - start[1])
+            if moved < 4.0:
+                self.refresh_pick_screens()
+                hit = pick_nearest(self.picks, event.GetPosition()[0], event.GetPosition()[1])
+                if hit is not None:
+                    self.set_highlight(hit.get("data"))
+                    try:
+                        self.on_pick(hit.get("data"))
+                    except Exception:
+                        pass
+                    return
         event.Skip()
 
     def on_motion(self, event: wx.MouseEvent) -> None:
@@ -187,6 +298,7 @@ class PanZoomCanvas(wx.Panel):
             self.draw_scene(gc, self.project)
         except Exception:
             pass
+        self._draw_picks_and_highlight(gc)
         self._draw_overlays(gc, size)
 
     def _draw_grid(self, gc: wx.GraphicsContext, size: wx.Size) -> None:
@@ -214,6 +326,25 @@ class PanZoomCanvas(wx.Panel):
             if step * self.scale >= 52:
                 gc.DrawText(f"{y_value:g}", 4, sy - 14)
             y_value += step
+
+    def _draw_picks_and_highlight(self, gc: wx.GraphicsContext) -> None:
+        self.refresh_pick_screens()
+        for pick in self.picks:
+            if pick.get("marker", True) is False:
+                continue
+            sx, sy = pick["sx"], pick["sy"]
+            gc.SetPen(wx.Pen(wx.Colour("#f4d48d"), 1))
+            gc.SetBrush(wx.TRANSPARENT_BRUSH)
+            gc.DrawEllipse(sx - 4.0, sy - 4.0, 8.0, 8.0)
+        if self.highlight_data is not None:
+            for pick in self.picks:
+                if pick.get("data") == self.highlight_data:
+                    sx, sy = pick["sx"], pick["sy"]
+                    gc.SetPen(wx.Pen(wx.Colour("#ffcf5c"), 3))
+                    gc.SetBrush(wx.TRANSPARENT_BRUSH)
+                    gc.DrawEllipse(sx - 11.0, sy - 11.0, 22.0, 22.0)
+                    gc.SetPen(wx.Pen(wx.Colour("#ffffff"), 1))
+                    gc.DrawEllipse(sx - 15.0, sy - 15.0, 30.0, 30.0)
 
     def _draw_overlays(self, gc: wx.GraphicsContext, size: wx.Size) -> None:
         gc.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL), TEXT)

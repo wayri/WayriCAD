@@ -10,7 +10,8 @@ import wx
 
 from .analysis import ImpedanceResult, PROTOCOL_PRESETS, SignalIntegrityEngine
 from .help_utils import open_help
-from .preview_kit import PanZoomCanvas, add_zoom_toolbar, TEXT as TEXT_COLOUR
+from .preview_kit import PanZoomCanvas, add_zoom_toolbar, TEXT as TEXT_COLOUR, pcb_select_items, pcb_highlight_net
+from . import diff_pairs
 
 
 LAYER_COLOURS = ("#e34a43", "#3fa56b", "#d4a62a", "#3399cc", "#a45ac7", "#d67142")
@@ -27,9 +28,9 @@ class RoutePreview(PanZoomCanvas):
     def show_result(self, result: ImpedanceResult) -> None:
         self.result = result
         self.tracks = []
-        colours: dict[str, str] = {}
         paths = [result.primary] + ([result.mate] if result.mate else [])
         for path in paths:
+            lane = 0 if path is result.primary else 1
             for item in getattr(path, "board_items", []):
                 if not hasattr(item, "GetStart") or not hasattr(item, "GetEnd"):
                     continue
@@ -42,19 +43,27 @@ class RoutePreview(PanZoomCanvas):
                 self.tracks.append((
                     float(start.x) / 1e6, float(start.y) / 1e6,
                     float(end.x) / 1e6, float(end.y) / 1e6,
-                    layer,
-                    0 if path is result.primary else 1,
+                    layer, lane, item,
                 ))
         legend = []
+        colours: dict[str, str] = {}
         for position, layer in enumerate(dict.fromkeys(track[4] for track in self.tracks)):
             colour = LAYER_COLOURS[position % len(LAYER_COLOURS)]
             colours[layer] = colour
             legend.append((colour, layer))
-        if result is not None and result.primary:
+        if result.primary is not None:
             legend.append(("#f4d48d", f"primary {getattr(result.primary, 'net_name', '')}"))
-            if result.mate is not None:
-                legend.append(("#8fd3f4", f"mate {getattr(result.mate, 'net_name', '')}"))
+        if result.mate is not None:
+            legend.append(("#8fd3f4", f"mate {getattr(result.mate, 'net_name', '')}"))
         self.set_legend(legend)
+        picks = []
+        for x1, y1, x2, y2, _layer, _lane, item in self.tracks:
+            picks.append({
+                "x": (x1 + x2) / 2.0, "y": (y1 + y2) / 2.0, "r": 0.4,
+                "data": (str(getattr(item, "GetNetname", lambda: "")()), item),
+                "marker": False,
+            })
+        self.set_picks(picks)
         self.Refresh()
         if self.tracks:
             self.fit()
@@ -75,7 +84,7 @@ class RoutePreview(PanZoomCanvas):
         for position, layer in enumerate(dict.fromkeys(track[4] for track in self.tracks)):
             colours[layer] = LAYER_COLOURS[position % len(LAYER_COLOURS)]
         gc.SetBrush(wx.TRANSPARENT_BRUSH)
-        for x1, y1, x2, y2, layer, lane in self.tracks:
+        for x1, y1, x2, y2, layer, lane, _item in self.tracks:
             base_colour = colours.get(layer, "#8fa5b8")
             colour = mate_shades.get(base_colour, base_colour) if lane else base_colour
             gc.SetPen(wx.Pen(wx.Colour(colour), 4))
@@ -100,7 +109,7 @@ class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
         self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.2.0"
+        self.version = "0.3.0"
 
     def Run(self) -> None:
         board = pcbnew.GetBoard()
@@ -150,19 +159,38 @@ class SignalIntegrityFrame(wx.Frame):
             grid.Add(wx.StaticText(page,label=label),0,wx.ALIGN_CENTER_VERTICAL); grid.Add(control,1,wx.EXPAND)
         config.Add(grid,1,wx.EXPAND|wx.ALL,8)
         actions=wx.BoxSizer(wx.HORIZONTAL); use_selection=wx.Button(page,label="Use PCB selection"); use_selection.Bind(wx.EVT_BUTTON,self._use_selection); actions.Add(use_selection,0,wx.RIGHT,6); run=wx.Button(page,label="Analyze and validate path"); run.Bind(wx.EVT_BUTTON,self._analyze); actions.Add(run,1); config.Add(actions,0,wx.EXPAND|wx.ALL,8); split.Add(config,0,wx.EXPAND|wx.ALL,8)
-        self.preview=RoutePreview(page); preview_column=wx.BoxSizer(wx.VERTICAL); preview_column.Add(self.preview,1,wx.EXPAND); add_zoom_toolbar(page,self.preview,preview_column); preview_host=wx.Panel(page); preview_host.SetSizer(preview_column); split.Add(preview_host,1,wx.EXPAND|wx.ALL,8); root.Add(split,1,wx.EXPAND)
+        self.preview=RoutePreview(page); self.preview.on_pick=self._on_route_pick; preview_column=wx.BoxSizer(wx.VERTICAL); preview_column.Add(self.preview,1,wx.EXPAND); add_zoom_toolbar(page,self.preview,preview_column); preview_host=wx.Panel(page); preview_host.SetSizer(preview_column); split.Add(preview_host,1,wx.EXPAND|wx.ALL,8); root.Add(split,1,wx.EXPAND)
+        self.status_pair=wx.StaticText(page,label=""); root.Add(self.status_pair,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         self.results=wx.ListCtrl(page,style=wx.LC_REPORT); self.results.InsertColumn(0,"Check",width=230); self.results.InsertColumn(1,"Value",width=330); self.results.InsertColumn(2,"Disposition",width=520); root.Add(self.results,1,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
-        page.SetSizer(root); self.net.Bind(wx.EVT_COMBOBOX,lambda e:self._pads(self.net,self.start,self.end)); self.mate.Bind(wx.EVT_COMBOBOX,lambda e:self._pads(self.mate,self.mate_start,self.mate_end)); return page
+        page.SetSizer(root); self.net.Bind(wx.EVT_COMBOBOX,lambda e:(self._pads(self.net,self.start,self.end),self._auto_mate())); self.mate.Bind(wx.EVT_COMBOBOX,lambda e:self._pads(self.mate,self.mate_start,self.mate_end)); return page
 
     def _load_board(self) -> None:
         names=self.engine.measurement.net_names(); self.net.AppendItems(names); self.mate.Append("<none>"); self.mate.AppendItems(names)
         if names: self.net.SetSelection(0); self._pads(self.net,self.start,self.end)
         self.mate.SetSelection(0); layers=[x.name for x in self.engine.measurement.stackup_layers() if x.name.endswith(".Cu") or "copper" in x.kind.lower()]; self.reference.AppendItems(layers)
         if layers: self.reference.SetSelection(0)
+        self._auto_mate()
 
     def _pads(self, net: wx.ComboBox, start: wx.ComboBox, end: wx.ComboBox) -> None:
         values=[] if net.GetValue()=="<none>" else self.engine.measurement.pads_for_net(net.GetValue()); start.Clear(); end.Clear(); start.AppendItems(values); end.AppendItems(values)
         if values: start.SetSelection(0); end.SetSelection(len(values)-1)
+
+    def _auto_mate(self) -> None:
+        """Auto-fill the differential mate from detected pair patterns."""
+        names = [self.net.GetString(i) for i in range(self.net.GetCount())]
+        mate = diff_pairs.find_mate(self.net.GetValue(), names)
+        index = self.mate.FindString(mate) if mate else wx.NOT_FOUND
+        if mate and index != wx.NOT_FOUND:
+            self.mate.SetSelection(index)
+            self._pads(self.mate, self.mate_start, self.mate_end)
+        elif self.mate.GetSelection() == 0 or not self.mate.GetValue():
+            self.mate.SetSelection(0)
+        pair = next((p for p in diff_pairs.detect_pairs(names) if self.net.GetValue() in (p.positive, p.negative)), None)
+        if pair is not None:
+            self.preview.set_legend(list(self.preview.legend_items) + [])  # keep legend stable
+            self.status_pair.SetLabel(f"Pair detected ({pair.rule}): {pair.positive} + {pair.negative}")
+        else:
+            self.status_pair.SetLabel("No differential mate pattern detected for the primary net.")
 
     def _preset(self,_event:Any) -> None:
         preset=PROTOCOL_PRESETS[self.protocol.GetValue()]; self.target.SetValue(str(preset["target"])); self.tolerance.SetValue(str(preset["tolerance"]))
@@ -196,6 +224,15 @@ class SignalIntegrityFrame(wx.Frame):
             recommendation="none" if r.recommended_ohm is None else f"{r.recommended_ohm:g} ohm (E24 midpoint candidate)"
             self._set_rows(self.i2c_result,[("Status",r.status,""),("Minimum resistance",f"{r.minimum_ohm:.1f} ohm",""),("Maximum resistance",f"{r.maximum_ohm:.1f} ohm",""),("Recommended value",recommendation,""),("Engineering note",r.note,"")])
         except Exception as exc: wx.MessageBox(str(exc),"I2C calculation failed",wx.OK|wx.ICON_ERROR)
+
+    def _on_route_pick(self, data: Any) -> None:
+        """Click a preview track: cross-select it and highlight its net."""
+        if isinstance(data, tuple) and data:
+            net, item = (list(data) + ["", None])[:2]
+            items = [item] if item is not None else []
+            pcb_select_items(items)
+            if pcb_highlight_net(self.board, net):
+                self.status_pair.SetLabel(f"Selected and highlighted {net} from the preview.")
 
     def _analyze(self,_event:Any) -> None:
         try:
