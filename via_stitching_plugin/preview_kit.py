@@ -406,16 +406,17 @@ class PanZoomCanvas(wx.Panel):
 
 def add_zoom_toolbar(panel: wx.Panel, canvas: PanZoomCanvas, sizer: wx.Sizer) -> None:
     """Attach a compact Fit/zoom toolbar row beneath ``canvas``."""
+    parent = sizer.GetContainingWindow() or panel
     row = wx.BoxSizer(wx.HORIZONTAL)
     for label, handler in (
         ("Fit", lambda _e: canvas.fit()),
         ("+", lambda _e: canvas.zoom(1.25)),
         ("\u2212", lambda _e: canvas.zoom(0.8)),
     ):
-        button = wx.Button(panel, label=label, size=(46, 26))
+        button = wx.Button(parent, label=label, size=(46, 26))
         button.Bind(wx.EVT_BUTTON, handler)
         row.Add(button, 0, wx.RIGHT, 6)
-    hint = wx.StaticText(panel, label="Drag to pan \u00b7 scroll to zoom \u00b7 double-click to fit")
+    hint = wx.StaticText(parent, label="Drag to pan \u00b7 scroll to zoom \u00b7 double-click to fit")
     hint.Wrap(420)
     row.Add(hint, 0, wx.ALIGN_CENTER_VERTICAL)
     sizer.Add(row, 0, wx.ALIGN_RIGHT | wx.BOTTOM, 4)
