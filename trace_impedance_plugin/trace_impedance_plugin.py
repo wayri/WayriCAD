@@ -142,7 +142,7 @@ class TraceFrame(wx.Frame):
         model_row.Add(self.model_table, 0, wx.EXPAND | wx.ALL, 6)
         self.sweep_canvas = SweepCanvas(model_page)
         model_row.Add(self.sweep_canvas, 1, wx.EXPAND | wx.ALL, 6)
-        model_row.AddGrowableCol(1, 1)
+        model_sizer.Add(model_row, 1, wx.EXPAND | wx.ALL, 6)
         model_page.SetSizer(model_sizer)
         notebook.AddPage(preview_page, "Route Preview")
         notebook.AddPage(result_page, "Results")

@@ -86,7 +86,7 @@ class WorkflowGuide:
             else:
                 font = label.GetFont()
                 if font.Bold():
-                    font.MakeBold(False)
+                    font.SetWeight(wx.FONTWEIGHT_NORMAL)
                     label.SetFont(font)
         total = len(self.steps)
         current = min(max(active, 0), total)

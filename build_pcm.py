@@ -24,6 +24,19 @@ REPO_URL_BASE = f"{REPO_HOMEPAGE}/releases/download"
 PCM_SCHEMA = "https://go.kicad.org/pcm/schemas/v1"
 SUPPORTED_RUNTIMES = {"swig", "ipc"}
 
+# Fixed zip entry timestamp so identical inputs produce byte-identical
+# archives (zipfile.writestr otherwise embeds the current time, which
+# makes every rebuild change package/resource hashes and dirty the feed).
+FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
+
+
+def zip_entry(name, compress_type=zipfile.ZIP_STORED, mode=0o644):
+    info = zipfile.ZipInfo(name, date_time=FIXED_ZIP_TIME)
+    info.compress_type = compress_type
+    info.external_attr = mode << 16
+    info.create_system = 3
+    return info
+
 # KiCad PCM v1 uses the older SPDX spelling for this license.
 PCM_LICENSE_ALIASES = {
     "GPL-3.0-only": "GPL-3.0",
@@ -356,7 +369,7 @@ def create_repository_resources_zip(
             archive_name = f"{identifier}/icon.png"
 
             zipf.writestr(
-                archive_name,
+                zip_entry(archive_name),
                 icon_bytes,
             )
 
@@ -451,7 +464,7 @@ def create_plugin_zip(
         )
 
         zipf.writestr(
-            "metadata.json",
+            zip_entry("metadata.json"),
             normalized_metadata_text,
         )
 
@@ -494,9 +507,12 @@ def create_plugin_zip(
                     Path("plugins") / rel_path
                 ).as_posix()
 
-                zipf.write(
-                    file_path,
-                    archive_name,
+                zipf.writestr(
+                    zip_entry(
+                        archive_name,
+                        compress_type=zipfile.ZIP_DEFLATED,
+                    ),
+                    file_path.read_bytes(),
                 )
 
         #
@@ -510,7 +526,10 @@ def create_plugin_zip(
         if icon_bytes is not None:
 
             zipf.writestr(
-                "resources/icon.png",
+                zip_entry(
+                    "resources/icon.png",
+                    compress_type=zipfile.ZIP_DEFLATED,
+                ),
                 icon_bytes,
             )
 
