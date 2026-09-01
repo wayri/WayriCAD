@@ -260,7 +260,7 @@ class PluginDialogV2(wx.Frame):
         source_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="1. Choose components"), wx.VERTICAL)
         source_row = wx.BoxSizer(wx.HORIZONTAL)
         self.source_mode = wx.RadioBox(
-            panel,
+            source_box.GetStaticBox(),
             label="Use",
             choices=("PCB selection", "Wildcard filters", "Selection + filters"),
             majorDimension=3,
@@ -272,24 +272,24 @@ class PluginDialogV2(wx.Frame):
 
         selection_box = wx.BoxSizer(wx.VERTICAL)
         live_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.auto_refresh_cb = wx.CheckBox(panel, label="Follow PCB selection")
+        self.auto_refresh_cb = wx.CheckBox(source_box.GetStaticBox(), label="Follow PCB selection")
         self.auto_refresh_cb.SetValue(True)
         self.auto_refresh_cb.SetToolTip("Keep this window open and click footprints in PCB Editor to add them here.")
         self.auto_refresh_cb.Bind(wx.EVT_CHECKBOX, self.OnAutoRefreshToggle)
         live_row.Add(self.auto_refresh_cb, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        self.auto_status = wx.StaticText(panel, label="Live")
+        self.auto_status = wx.StaticText(source_box.GetStaticBox(), label="Live")
         self.auto_status.SetForegroundColour(wx.Colour(31, 122, 78))
         live_row.Add(self.auto_status, 0, wx.ALIGN_CENTER_VERTICAL)
         selection_box.Add(live_row, 0, wx.BOTTOM, 4)
 
         selection_buttons = wx.BoxSizer(wx.HORIZONTAL)
-        refresh_btn = wx.Button(panel, label="Refresh from PCB")
+        refresh_btn = wx.Button(source_box.GetStaticBox(), label="Refresh from PCB")
         refresh_btn.Bind(wx.EVT_BUTTON, self.OnRefreshSelection)
         selection_buttons.Add(refresh_btn, 0, wx.RIGHT, 6)
-        remove_btn = wx.Button(panel, label="Remove")
+        remove_btn = wx.Button(source_box.GetStaticBox(), label="Remove")
         remove_btn.Bind(wx.EVT_BUTTON, self.OnRemoveSelectedFromList)
         selection_buttons.Add(remove_btn, 0, wx.RIGHT, 6)
-        clear_btn = wx.Button(panel, label="Clear")
+        clear_btn = wx.Button(source_box.GetStaticBox(), label="Clear")
         clear_btn.Bind(wx.EVT_BUTTON, self.OnClearList)
         selection_buttons.Add(clear_btn, 0)
         selection_box.Add(selection_buttons, 0)
@@ -298,12 +298,12 @@ class PluginDialogV2(wx.Frame):
 
         content_row = wx.BoxSizer(wx.HORIZONTAL)
         selected_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Selection basket"), wx.VERTICAL)
-        self.footprint_list_ctrl = wx.ListCtrl(panel, size=(310, 145), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.footprint_list_ctrl = wx.ListCtrl(selected_box.GetStaticBox(), size=(310, 145), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         self.footprint_list_ctrl.InsertColumn(0, "Reference", width=90)
         self.footprint_list_ctrl.InsertColumn(1, "Value", width=190)
         self.footprint_list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnListItemSelected)
         selected_box.Add(self.footprint_list_ctrl, 1, wx.EXPAND | wx.ALL, 4)
-        self.details_text = wx.TextCtrl(panel, size=(-1, 58), style=wx.TE_MULTILINE | wx.TE_READONLY)
+        self.details_text = wx.TextCtrl(selected_box.GetStaticBox(), size=(-1, 58), style=wx.TE_MULTILINE | wx.TE_READONLY)
         self.details_text.SetHint("Select a basket row to inspect and locate it on the PCB.")
         selected_box.Add(self.details_text, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         content_row.Add(selected_box, 1, wx.EXPAND | wx.RIGHT, 8)
@@ -311,21 +311,21 @@ class PluginDialogV2(wx.Frame):
         filter_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Wildcard filters (* and ?)"), wx.VERTICAL)
         grid = wx.FlexGridSizer(3, 2, 5, 8)
         grid.AddGrowableCol(1)
-        grid.Add(wx.StaticText(panel, label="References"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.ref_filter = wx.TextCtrl(panel)
+        grid.Add(wx.StaticText(filter_box.GetStaticBox(), label="References"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.ref_filter = wx.TextCtrl(filter_box.GetStaticBox())
         self.ref_filter.SetValue("J*")
         self.ref_filter.SetToolTip("Comma-separated patterns, for example J*, U1, U2, P?.")
         grid.Add(self.ref_filter, 1, wx.EXPAND)
-        grid.Add(wx.StaticText(panel, label="Net names"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.net_filter_ctrl = wx.ComboBox(panel, choices=sorted(self.extractor.all_nets)[:100])
+        grid.Add(wx.StaticText(filter_box.GetStaticBox(), label="Net names"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.net_filter_ctrl = wx.ComboBox(filter_box.GetStaticBox(), choices=sorted(self.extractor.all_nets)[:100])
         self.net_filter_ctrl.SetToolTip("Optional. Comma-separated wildcard patterns, for example CAN_*, 28V*.")
         grid.Add(self.net_filter_ctrl, 1, wx.EXPAND)
-        grid.Add(wx.StaticText(panel, label="Component value"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.value_filter_ctrl = wx.ComboBox(panel, choices=sorted(set(fp.GetValue() for fp in self.extractor.footprints)))
+        grid.Add(wx.StaticText(filter_box.GetStaticBox(), label="Component value"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.value_filter_ctrl = wx.ComboBox(filter_box.GetStaticBox(), choices=sorted(set(fp.GetValue() for fp in self.extractor.footprints)))
         self.value_filter_ctrl.SetToolTip("Optional wildcard filter for component values.")
         grid.Add(self.value_filter_ctrl, 1, wx.EXPAND)
         filter_box.Add(grid, 1, wx.EXPAND | wx.ALL, 5)
-        preset = wx.Button(panel, label="Use connector preset (J*)")
+        preset = wx.Button(filter_box.GetStaticBox(), label="Use connector preset (J*)")
         preset.Bind(wx.EVT_BUTTON, self.OnConnectorPreset)
         filter_box.Add(preset, 0, wx.LEFT | wx.BOTTOM, 5)
         content_row.Add(filter_box, 1, wx.EXPAND)
@@ -334,44 +334,44 @@ class PluginDialogV2(wx.Frame):
 
         preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="2. Review extracted pins"), wx.VERTICAL)
         options_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.ignore_unconnected_cb = wx.CheckBox(panel, label="Hide unconnected")
-        self.ignore_power_cb = wx.CheckBox(panel, label="Hide power and ground")
-        self.sort_by_type_cb = wx.CheckBox(panel, label="Group by net type")
-        self.highlight_nets_cb = wx.CheckBox(panel, label="Highlight nets in Markdown")
+        self.ignore_unconnected_cb = wx.CheckBox(preview_box.GetStaticBox(), label="Hide unconnected")
+        self.ignore_power_cb = wx.CheckBox(preview_box.GetStaticBox(), label="Hide power and ground")
+        self.sort_by_type_cb = wx.CheckBox(preview_box.GetStaticBox(), label="Group by net type")
+        self.highlight_nets_cb = wx.CheckBox(preview_box.GetStaticBox(), label="Highlight nets in Markdown")
         for control in (self.ignore_unconnected_cb, self.ignore_power_cb, self.sort_by_type_cb, self.highlight_nets_cb):
             options_sizer.Add(control, 0, wx.RIGHT, 14)
         options_sizer.AddStretchSpacer()
-        preview_button = wx.Button(panel, label="Preview Extraction")
+        preview_button = wx.Button(preview_box.GetStaticBox(), label="Preview Extraction")
         preview_button.Bind(wx.EVT_BUTTON, self.OnPreviewExtraction)
         options_sizer.Add(preview_button, 0)
         preview_box.Add(options_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
         net_action_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        net_action_sizer.Add(wx.StaticText(panel, label="PCB net:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        net_action_sizer.Add(wx.StaticText(preview_box.GetStaticBox(), label="PCB net:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         self.net_action_combo = wx.ComboBox(
-            panel,
+            preview_box.GetStaticBox(),
             choices=sorted(self.extractor.all_nets, key=DataExtractor.natural_sort_key),
             style=wx.CB_DROPDOWN,
         )
         self.net_action_combo.SetToolTip("Choose any board net to highlight or select its routed copper.")
         net_action_sizer.Add(self.net_action_combo, 1, wx.RIGHT, 6)
-        highlight_net_btn = wx.Button(panel, label="Highlight Net")
+        highlight_net_btn = wx.Button(preview_box.GetStaticBox(), label="Highlight Net")
         highlight_net_btn.Bind(wx.EVT_BUTTON, self.OnHighlightChosenNet)
         net_action_sizer.Add(highlight_net_btn, 0, wx.RIGHT, 6)
-        select_net_btn = wx.Button(panel, label="Select Copper")
+        select_net_btn = wx.Button(preview_box.GetStaticBox(), label="Select Copper")
         select_net_btn.Bind(wx.EVT_BUTTON, self.OnSelectChosenNet)
         net_action_sizer.Add(select_net_btn, 0, wx.RIGHT, 6)
-        clear_net_btn = wx.Button(panel, label="Clear Highlight")
+        clear_net_btn = wx.Button(preview_box.GetStaticBox(), label="Clear Highlight")
         clear_net_btn.Bind(wx.EVT_BUTTON, self.OnClearNetHighlight)
         net_action_sizer.Add(clear_net_btn, 0)
         preview_box.Add(net_action_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
 
-        self.pin_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.pin_preview = wx.ListCtrl(preview_box.GetStaticBox(), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (label, width) in enumerate((("Reference", 90), ("Value", 170), ("Pad", 70), ("Net", 270), ("Type", 90))):
             self.pin_preview.InsertColumn(index, label, width=width)
         self.pin_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnPreviewRowActivated)
         preview_box.Add(self.pin_preview, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
-        self.preview_summary = wx.StaticText(panel, label="No preview yet. The PCB has not been changed.")
+        self.preview_summary = wx.StaticText(preview_box.GetStaticBox(), label="No preview yet. The PCB has not been changed.")
         preview_box.Add(self.preview_summary, 0, wx.ALL, 5)
         sizer.Add(preview_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
 
@@ -404,26 +404,26 @@ class PluginDialogV2(wx.Frame):
         grid = wx.FlexGridSizer(2, 4, 6, 10)
         grid.AddGrowableCol(1)
         grid.AddGrowableCol(3)
-        grid.Add(wx.StaticText(panel, label="Net / label wildcards"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.endpoint_net_patterns = wx.TextCtrl(panel, value="*TM")
+        grid.Add(wx.StaticText(criteria.GetStaticBox(), label="Net / label wildcards"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.endpoint_net_patterns = wx.TextCtrl(criteria.GetStaticBox(), value="*TM")
         self.endpoint_net_patterns.SetToolTip("Comma-separated net wildcards, for example *TM, *_TD, DEMO_CTRL_*.")
         grid.Add(self.endpoint_net_patterns, 1, wx.EXPAND)
-        grid.Add(wx.StaticText(panel, label="Resolve endpoint refs"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.endpoint_ref_patterns = wx.TextCtrl(panel, value="U*,J*")
+        grid.Add(wx.StaticText(criteria.GetStaticBox(), label="Resolve endpoint refs"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.endpoint_ref_patterns = wx.TextCtrl(criteria.GetStaticBox(), value="U*,J*")
         self.endpoint_ref_patterns.SetToolTip("Exact references or wildcards, for example U1,U2 or J1,U1.")
         grid.Add(self.endpoint_ref_patterns, 1, wx.EXPAND)
-        grid.Add(wx.StaticText(panel, label="Trace through refs"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.endpoint_pass_patterns = wx.TextCtrl(panel, value="R*,L*,FB*,F*,C*,JP*,JMP*")
+        grid.Add(wx.StaticText(criteria.GetStaticBox(), label="Trace through refs"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.endpoint_pass_patterns = wx.TextCtrl(criteria.GetStaticBox(), value="R*,L*,FB*,F*,C*,JP*,JMP*")
         self.endpoint_pass_patterns.SetToolTip("Only these references and NetTie_Path parts may be crossed between nets.")
         grid.Add(self.endpoint_pass_patterns, 1, wx.EXPAND)
-        grid.Add(wx.StaticText(panel, label="Maximum graph hops"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.endpoint_max_hops = wx.SpinCtrl(panel, min=2, max=50, initial=16)
+        grid.Add(wx.StaticText(criteria.GetStaticBox(), label="Maximum graph hops"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.endpoint_max_hops = wx.SpinCtrl(criteria.GetStaticBox(), min=2, max=50, initial=16)
         grid.Add(self.endpoint_max_hops, 0)
         criteria.Add(grid, 0, wx.EXPAND | wx.ALL, 7)
         root.Add(criteria, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
         preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Resolved endpoints"), wx.VERTICAL)
-        self.endpoint_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.endpoint_preview = wx.ListCtrl(preview_box.GetStaticBox(), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (label, width) in enumerate((
             ("Matched Label", 200), ("Endpoint", 105), ("Role", 90),
             ("Value", 145), ("Pin Function", 125), ("Terminal Net", 180),
@@ -433,7 +433,7 @@ class PluginDialogV2(wx.Frame):
         self.endpoint_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnEndpointTraceRowActivated)
         preview_box.Add(self.endpoint_preview, 1, wx.EXPAND | wx.ALL, 3)
         self.endpoint_summary = wx.StaticText(
-            panel,
+            preview_box.GetStaticBox(),
             label="Enter label and endpoint patterns, then preview the resolved pin map.",
         )
         preview_box.Add(self.endpoint_summary, 0, wx.EXPAND | wx.ALL, 5)
@@ -473,25 +473,25 @@ class PluginDialogV2(wx.Frame):
         scope_grid = wx.FlexGridSizer(2, 6, 6, 8)
         scope_grid.AddGrowableCol(1)
         scope_grid.AddGrowableCol(3)
-        scope_grid.Add(wx.StaticText(panel, label="Controller / source refs"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.map_source_refs = wx.TextCtrl(panel, value="U*")
+        scope_grid.Add(wx.StaticText(scope.GetStaticBox(), label="Controller / source refs"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.map_source_refs = wx.TextCtrl(scope.GetStaticBox(), value="U*")
         self.map_source_refs.SetToolTip("Comma-separated exact references or wildcards, for example U1,U3 or U*.")
         scope_grid.Add(self.map_source_refs, 1, wx.EXPAND)
-        scope_grid.Add(wx.StaticText(panel, label="Connector refs"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.map_connector_refs = wx.TextCtrl(panel, value="J*")
+        scope_grid.Add(wx.StaticText(scope.GetStaticBox(), label="Connector refs"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.map_connector_refs = wx.TextCtrl(scope.GetStaticBox(), value="J*")
         self.map_connector_refs.SetToolTip("Comma-separated exact references or wildcards.")
         scope_grid.Add(self.map_connector_refs, 1, wx.EXPAND)
-        use_selection = wx.Button(panel, label="Use PCB Selection")
+        use_selection = wx.Button(scope.GetStaticBox(), label="Use PCB Selection")
         use_selection.Bind(wx.EVT_BUTTON, self.OnControllerMapUseSelection)
         scope_grid.Add(use_selection, 0)
         scope_grid.AddSpacer(1)
-        scope_grid.Add(wx.StaticText(panel, label="Maximum component hops"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.map_max_hops = wx.SpinCtrl(panel, min=1, max=50, initial=12)
+        scope_grid.Add(wx.StaticText(scope.GetStaticBox(), label="Maximum component hops"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.map_max_hops = wx.SpinCtrl(scope.GetStaticBox(), min=1, max=50, initial=12)
         scope_grid.Add(self.map_max_hops, 0)
-        scope_grid.Add(wx.StaticText(panel, label="Maximum routes"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.map_max_paths = wx.SpinCtrl(panel, min=1, max=50000, initial=2000)
+        scope_grid.Add(wx.StaticText(scope.GetStaticBox(), label="Maximum routes"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.map_max_paths = wx.SpinCtrl(scope.GetStaticBox(), min=1, max=50000, initial=2000)
         scope_grid.Add(self.map_max_paths, 0)
-        self.map_include_ambiguous = wx.CheckBox(panel, label="Show ambiguous routes")
+        self.map_include_ambiguous = wx.CheckBox(scope.GetStaticBox(), label="Show ambiguous routes")
         self.map_include_ambiguous.SetValue(True)
         scope_grid.Add(self.map_include_ambiguous, 0, wx.ALIGN_CENTER_VERTICAL)
         scope_grid.AddSpacer(1)
@@ -500,9 +500,9 @@ class PluginDialogV2(wx.Frame):
 
         rules_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Approved pin-pair crossings"), wx.HORIZONTAL)
         passive_column = wx.BoxSizer(wx.VERTICAL)
-        passive_column.Add(wx.StaticText(panel, label="Fixed/passive rules"), 0, wx.BOTTOM, 3)
+        passive_column.Add(wx.StaticText(rules_box.GetStaticBox(), label="Fixed/passive rules"), 0, wx.BOTTOM, 3)
         self.map_passive_rules = wx.TextCtrl(
-            panel,
+            rules_box.GetStaticBox(),
             value=DEFAULT_PASSIVE_RULE_TEXT.rstrip(),
             size=(-1, 92),
             style=wx.TE_MULTILINE,
@@ -516,9 +516,9 @@ class PluginDialogV2(wx.Frame):
 
         active_column = wx.BoxSizer(wx.VERTICAL)
         active_header = wx.BoxSizer(wx.HORIZONTAL)
-        active_header.Add(wx.StaticText(panel, label="Conditional active-device rules"), 0, wx.ALIGN_CENTER_VERTICAL)
+        active_header.Add(wx.StaticText(rules_box.GetStaticBox(), label="Conditional active-device rules"), 0, wx.ALIGN_CENTER_VERTICAL)
         active_header.AddStretchSpacer()
-        self.map_include_active = wx.CheckBox(panel, label="Enable conditional active paths")
+        self.map_include_active = wx.CheckBox(rules_box.GetStaticBox(), label="Enable conditional active paths")
         self.map_include_active.SetToolTip(
             "Required for MOSFET, BJT, jumper-state, and IC crossings. "
             "Results remain conditional because device state is not inferred."
@@ -526,7 +526,7 @@ class PluginDialogV2(wx.Frame):
         active_header.Add(self.map_include_active, 0)
         active_column.Add(active_header, 0, wx.EXPAND | wx.BOTTOM, 3)
         self.map_active_rules = wx.TextCtrl(
-            panel,
+            rules_box.GetStaticBox(),
             value=ACTIVE_RULE_EXAMPLES.rstrip(),
             size=(-1, 92),
             style=wx.TE_MULTILINE,
@@ -540,7 +540,7 @@ class PluginDialogV2(wx.Frame):
         root.Add(rules_box, 0, wx.EXPAND | wx.ALL, 8)
 
         preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Auditable route preview"), wx.VERTICAL)
-        self.controller_map_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.controller_map_preview = wx.ListCtrl(preview_box.GetStaticBox(), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (label, width) in enumerate((
             ("Controller", 90), ("Pin", 60), ("Function", 105), ("Source Net", 150),
             ("Connector", 90), ("Pin", 60), ("Connector Net", 150),
@@ -553,7 +553,7 @@ class PluginDialogV2(wx.Frame):
         )
         preview_box.Add(self.controller_map_preview, 1, wx.EXPAND | wx.ALL, 3)
         self.controller_map_summary = wx.StaticText(
-            panel,
+            preview_box.GetStaticBox(),
             label="Preview is read-only. No PCB objects are created or modified.",
         )
         preview_box.Add(self.controller_map_summary, 0, wx.EXPAND | wx.ALL, 5)
@@ -614,7 +614,7 @@ class PluginDialogV2(wx.Frame):
         
         # Preview area
         preview_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, label="Preview"), wx.VERTICAL)
-        self.sf_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.sf_preview = wx.ListCtrl(preview_sizer.GetStaticBox(), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (label, width) in enumerate((
             ("From", 120), ("Pins", 100), ("Net", 190), ("Class", 85),
             ("Protocol", 80), ("Via", 180), ("To", 120), ("Pins", 100),
@@ -623,7 +623,7 @@ class PluginDialogV2(wx.Frame):
             self.sf_preview.InsertColumn(index, label, width=width)
         self.sf_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnSignalFlowRowActivated)
         preview_sizer.Add(self.sf_preview, 1, wx.EXPAND | wx.ALL, 2)
-        self.sf_summary = wx.StaticText(panel, label="Preview a route to see explicit source, intermediate, and destination context.")
+        self.sf_summary = wx.StaticText(preview_sizer.GetStaticBox(), label="Preview a route to see explicit source, intermediate, and destination context.")
         preview_sizer.Add(self.sf_summary, 0, wx.EXPAND | wx.ALL, 4)
         sizer.Add(preview_sizer, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -673,7 +673,7 @@ class PluginDialogV2(wx.Frame):
         # Table and visual chart are generated from the same rows.
         preview_sizer = wx.StaticBoxSizer(wx.StaticBox(panel, label="IC Pin Connections and Flow Chart"), wx.VERTICAL)
         ic_content = wx.BoxSizer(wx.HORIZONTAL)
-        self.ic_preview = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        self.ic_preview = wx.ListCtrl(preview_sizer.GetStaticBox(), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (label, width) in enumerate((
             ("IC Pin", 80), ("Net", 180), ("Class", 80), ("Protocol", 75),
             ("Destination", 110), ("Dest Pin", 80), ("Destination Value", 160),
@@ -682,14 +682,14 @@ class PluginDialogV2(wx.Frame):
         self.ic_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnICChartRowActivated)
         ic_content.Add(self.ic_preview, 1, wx.EXPAND | wx.ALL, 2)
         if wxhtml2 is not None:
-            self.ic_visual_preview = wxhtml2.WebView.New(panel)
+            self.ic_visual_preview = wxhtml2.WebView.New(preview_sizer.GetStaticBox())
             self.ic_visual_is_web = True
         else:
-            self.ic_visual_preview = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
+            self.ic_visual_preview = wx.TextCtrl(preview_sizer.GetStaticBox(), style=wx.TE_MULTILINE | wx.TE_READONLY)
             self.ic_visual_is_web = False
         ic_content.Add(self.ic_visual_preview, 1, wx.EXPAND | wx.ALL, 2)
         preview_sizer.Add(ic_content, 1, wx.EXPAND)
-        self.ic_summary = wx.StaticText(panel, label="Preview an IC to generate both the table and visual flow chart.")
+        self.ic_summary = wx.StaticText(preview_sizer.GetStaticBox(), label="Preview an IC to generate both the table and visual flow chart.")
         preview_sizer.Add(self.ic_summary, 0, wx.EXPAND | wx.ALL, 4)
         sizer.Add(preview_sizer, 1, wx.EXPAND | wx.ALL, 5)
         
@@ -724,12 +724,12 @@ class PluginDialogV2(wx.Frame):
 
         controls = wx.StaticBoxSizer(wx.StaticBox(panel, label="Diagram scope"), wx.VERTICAL)
         scope_row = wx.BoxSizer(wx.HORIZONTAL)
-        scope_row.Add(wx.StaticText(panel, label="Components"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        self.diagram_refs = wx.TextCtrl(panel, value="J*,U*")
+        scope_row.Add(wx.StaticText(controls.GetStaticBox(), label="Components"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.diagram_refs = wx.TextCtrl(controls.GetStaticBox(), value="J*,U*")
         self.diagram_refs.SetToolTip("Comma-separated references or wildcards. Leave blank to use the extraction preview.")
         scope_row.Add(self.diagram_refs, 1, wx.RIGHT, 12)
         self.diagram_mode = wx.RadioBox(
-            panel,
+            controls.GetStaticBox(),
             label="Diagram type",
             choices=("System map", "Signal flow", "Power flow"),
             majorDimension=3,
@@ -739,13 +739,13 @@ class PluginDialogV2(wx.Frame):
         controls.Add(scope_row, 0, wx.EXPAND | wx.ALL, 6)
 
         action_row = wx.BoxSizer(wx.HORIZONTAL)
-        refresh = wx.Button(panel, label="Refresh Visual Preview")
+        refresh = wx.Button(controls.GetStaticBox(), label="Refresh Visual Preview")
         refresh.Bind(wx.EVT_BUTTON, self.OnDiagramPreview)
         action_row.Add(refresh, 0, wx.RIGHT, 6)
-        use_extract = wx.Button(panel, label="Use Extraction Preview")
+        use_extract = wx.Button(controls.GetStaticBox(), label="Use Extraction Preview")
         use_extract.Bind(wx.EVT_BUTTON, self.OnUseExtractionForDiagram)
         action_row.Add(use_extract, 0, wx.RIGHT, 6)
-        self.export_diagram_btn = wx.Button(panel, label="Export This SVG...")
+        self.export_diagram_btn = wx.Button(controls.GetStaticBox(), label="Export This SVG...")
         self.export_diagram_btn.Enable(False)
         self.export_diagram_btn.Bind(wx.EVT_BUTTON, self.OnExportDiagramPreview)
         action_row.Add(self.export_diagram_btn, 0)
@@ -754,14 +754,14 @@ class PluginDialogV2(wx.Frame):
 
         preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Visual preview"), wx.VERTICAL)
         if wxhtml2 is not None:
-            self.diagram_preview = wxhtml2.WebView.New(panel)
+            self.diagram_preview = wxhtml2.WebView.New(preview_box.GetStaticBox())
             self.diagram_preview_is_web = True
             self.diagram_preview.Bind(wxhtml2.EVT_WEBVIEW_NAVIGATING, self.OnDiagramNavigation)
         else:
-            self.diagram_preview = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
+            self.diagram_preview = wx.TextCtrl(preview_box.GetStaticBox(), style=wx.TE_MULTILINE | wx.TE_READONLY)
             self.diagram_preview_is_web = False
         preview_box.Add(self.diagram_preview, 1, wx.EXPAND | wx.ALL, 4)
-        self.diagram_summary = wx.StaticText(panel, label="Choose components and refresh the preview. No PCB objects are changed.")
+        self.diagram_summary = wx.StaticText(preview_box.GetStaticBox(), label="Choose components and refresh the preview. No PCB objects are changed.")
         preview_box.Add(self.diagram_summary, 0, wx.EXPAND | wx.ALL, 5)
         sizer.Add(preview_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
@@ -783,24 +783,24 @@ class PluginDialogV2(wx.Frame):
             ("Force-signal patterns", "signal_patterns_ctrl", self.extractor.signal_net_patterns),
         )
         for label, attribute, values in rule_rows:
-            grid.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
-            control = wx.TextCtrl(panel, value=", ".join(values))
+            grid.Add(wx.StaticText(rules.GetStaticBox(), label=label), 0, wx.ALIGN_CENTER_VERTICAL)
+            control = wx.TextCtrl(rules.GetStaticBox(), value=", ".join(values))
             control.SetToolTip("Comma, semicolon, or newline-separated wildcards. * and ? are supported.")
             setattr(self, attribute, control)
             grid.Add(control, 1, wx.EXPAND)
         rules.Add(grid, 0, wx.EXPAND | wx.ALL, 6)
         rule_actions = wx.BoxSizer(wx.HORIZONTAL)
-        apply_rules = wx.Button(panel, label="Apply Rules")
+        apply_rules = wx.Button(rules.GetStaticBox(), label="Apply Rules")
         apply_rules.Bind(wx.EVT_BUTTON, self.OnApplyNetRules)
         rule_actions.Add(apply_rules, 0, wx.RIGHT, 6)
-        build_tree = wx.Button(panel, label="Build Power Tree")
+        build_tree = wx.Button(rules.GetStaticBox(), label="Build Power Tree")
         build_tree.Bind(wx.EVT_BUTTON, self.OnBuildPowerTree)
         rule_actions.Add(build_tree, 0, wx.RIGHT, 6)
-        self.export_power_tree_svg = wx.Button(panel, label="Export Tree SVG...")
+        self.export_power_tree_svg = wx.Button(rules.GetStaticBox(), label="Export Tree SVG...")
         self.export_power_tree_svg.Enable(False)
         self.export_power_tree_svg.Bind(wx.EVT_BUTTON, self.OnExportPowerTreeSvg)
         rule_actions.Add(self.export_power_tree_svg, 0, wx.RIGHT, 6)
-        self.export_power_tree_csv = wx.Button(panel, label="Export Tree CSV...")
+        self.export_power_tree_csv = wx.Button(rules.GetStaticBox(), label="Export Tree CSV...")
         self.export_power_tree_csv.Enable(False)
         self.export_power_tree_csv.Bind(wx.EVT_BUTTON, self.OnExportPowerTreeCsv)
         rule_actions.Add(self.export_power_tree_csv, 0)

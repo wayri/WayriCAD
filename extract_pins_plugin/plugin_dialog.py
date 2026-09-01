@@ -126,16 +126,16 @@ class PluginDialog(wx.Dialog):
                                            wx.VERTICAL)
         grid_filters = wx.GridSizer(3, 2, 2, 2) # Reduced gaps
 
-        grid_filters.Add(wx.StaticText(panel, label="Value Filter (wildcard *):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.value_filter_ctrl = wx.ComboBox(panel, size=(120, -1), choices=self.all_values, style=wx.CB_DROPDOWN) # Reduced width
+        grid_filters.Add(wx.StaticText(filters_panel.GetStaticBox(), label="Value Filter (wildcard *):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.value_filter_ctrl = wx.ComboBox(filters_panel.GetStaticBox(), size=(120, -1), choices=self.all_values, style=wx.CB_DROPDOWN) # Reduced width
         grid_filters.Add(self.value_filter_ctrl, 0, wx.EXPAND)
 
-        grid_filters.Add(wx.StaticText(panel, label="Net Name Filter (comma-sep, wildcard *):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.net_name_filter_ctrl = wx.ComboBox(panel, size=(120, -1), choices=self.all_net_names, style=wx.CB_DROPDOWN) # Reduced width
+        grid_filters.Add(wx.StaticText(filters_panel.GetStaticBox(), label="Net Name Filter (comma-sep, wildcard *):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.net_name_filter_ctrl = wx.ComboBox(filters_panel.GetStaticBox(), size=(120, -1), choices=self.all_net_names, style=wx.CB_DROPDOWN) # Reduced width
         grid_filters.Add(self.net_name_filter_ctrl, 0, wx.EXPAND)
 
-        grid_filters.Add(wx.StaticText(panel, label="Connector Type Filter (comma-sep, wildcard *):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.connector_type_filter_ctrl = wx.ComboBox(panel, size=(120, -1), choices=self.all_connector_types, style=wx.CB_DROPDOWN) # Reduced width
+        grid_filters.Add(wx.StaticText(filters_panel.GetStaticBox(), label="Connector Type Filter (comma-sep, wildcard *):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.connector_type_filter_ctrl = wx.ComboBox(filters_panel.GetStaticBox(), size=(120, -1), choices=self.all_connector_types, style=wx.CB_DROPDOWN) # Reduced width
         grid_filters.Add(self.connector_type_filter_ctrl, 0, wx.EXPAND)
 
         filters_panel.Add(grid_filters, 1, wx.EXPAND | wx.ALL, 2) # Reduced padding
@@ -143,17 +143,17 @@ class PluginDialog(wx.Dialog):
 
         options_panel = wx.StaticBoxSizer(wx.StaticBox(panel, label="Output Options"), wx.VERTICAL)
 
-        self.highlight_nets_markdown_checkbox = wx.CheckBox(panel, label="Highlight Same Nets in Markdown Output")
+        self.highlight_nets_markdown_checkbox = wx.CheckBox(options_panel.GetStaticBox(), label="Highlight Same Nets in Markdown Output")
         options_panel.Add(self.highlight_nets_markdown_checkbox, 0, wx.ALL, 2) # Reduced padding
 
-        self.sort_by_reference_checkbox = wx.CheckBox(panel, label="Sort Components by Reference (A-Z)")
+        self.sort_by_reference_checkbox = wx.CheckBox(options_panel.GetStaticBox(), label="Sort Components by Reference (A-Z)")
         options_panel.Add(self.sort_by_reference_checkbox, 0, wx.ALL, 2) # Reduced padding
 
-        self.ignore_unconnected_pins_checkbox = wx.CheckBox(panel, label="Ignore 'Unconnected' Pins (CSV)")
+        self.ignore_unconnected_pins_checkbox = wx.CheckBox(options_panel.GetStaticBox(), label="Ignore 'Unconnected' Pins (CSV)")
         self.ignore_unconnected_pins_checkbox.SetToolTip("If checked, pins with 'unconnected' net name are excluded from CSV.")
         options_panel.Add(self.ignore_unconnected_pins_checkbox, 0, wx.ALL, 2) # Reduced padding
 
-        self.ignore_free_pins_checkbox = wx.CheckBox(panel, label="Ignore Free Pins (CSV)")
+        self.ignore_free_pins_checkbox = wx.CheckBox(options_panel.GetStaticBox(), label="Ignore Free Pins (CSV)")
         self.ignore_free_pins_checkbox.SetToolTip("If checked, pins with no assigned net are excluded from CSV.")
         options_panel.Add(self.ignore_free_pins_checkbox, 0, wx.ALL, 2) # Reduced padding
 
@@ -164,15 +164,15 @@ class PluginDialog(wx.Dialog):
             "Pin Details": ["Pad Name/Number", "Net Name"]
         }
 
-        options_panel.Add(wx.StaticText(panel, label="Select Output Columns:"), 0, wx.ALL, 2) # Reduced padding
+        options_panel.Add(wx.StaticText(options_panel.GetStaticBox(), label="Select Output Columns:"), 0, wx.ALL, 2) # Reduced padding
 
         column_checkbox_hbox = wx.BoxSizer(wx.HORIZONTAL)
         
         for category, columns in column_checkbox_data.items():
             col_vbox = wx.BoxSizer(wx.VERTICAL)
-            col_vbox.Add(wx.StaticText(panel, label=f"{category}"), 0, wx.ALL, 1) # Reduced padding
+            col_vbox.Add(wx.StaticText(options_panel.GetStaticBox(), label=f"{category}"), 0, wx.ALL, 1) # Reduced padding
             for col_name in columns:
-                cb = wx.CheckBox(panel, label=f"Include {col_name}")
+                cb = wx.CheckBox(options_panel.GetStaticBox(), label=f"Include {col_name}")
                 cb.SetValue(True)
                 self.output_column_checkboxes[col_name] = cb
                 col_vbox.Add(cb, 0, wx.ALL, 1) # Reduced padding
