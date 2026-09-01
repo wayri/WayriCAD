@@ -46,7 +46,7 @@ class DependencyManagerDialog(wx.Dialog):
         root.Add(self.runtime, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
 
         dependencies_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Python Dependencies"), wx.VERTICAL)
-        self.dependencies = wx.ListCtrl(panel, style=wx.LC_REPORT)
+        self.dependencies = wx.ListCtrl(dependencies_box.GetStaticBox(), style=wx.LC_REPORT)
         for index, (label, width) in enumerate(
             (("Install", 70), ("Dependency", 130), ("Status", 100), ("Version", 100), ("Level", 110), ("Features", 380))
         ):
@@ -55,7 +55,7 @@ class DependencyManagerDialog(wx.Dialog):
         root.Add(dependencies_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
 
         suite_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="KiWay Plugin Packages"), wx.VERTICAL)
-        self.suite = wx.ListCtrl(panel, style=wx.LC_REPORT)
+        self.suite = wx.ListCtrl(suite_box.GetStaticBox(), style=wx.LC_REPORT)
         for index, (label, width) in enumerate((("Plugin", 360), ("Status", 120), ("Version", 100), ("Package Folder", 260))):
             self.suite.InsertColumn(index, label, width=width)
         suite_box.Add(self.suite, 1, wx.EXPAND | wx.ALL, 6)
