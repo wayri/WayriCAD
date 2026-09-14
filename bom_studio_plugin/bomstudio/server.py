@@ -52,7 +52,7 @@ class Application:
         if self.workspace is None:raise ValueError('Open a KiCad project first.')
         return self.workspace
     def state(self,variant=BASE):
-        if not self.workspace:return {'project':None,'version':'3.0.0','ui_mode':self.ui_mode,'startup_note':self.startup_note,'runtime':runtime_info(self)}
+        if not self.workspace:return {'project':None,'version':'3.1.0','ui_mode':self.ui_mode,'startup_note':self.startup_note,'runtime':runtime_info(self)}
         result=self.workspace.public(variant);result['runtime']=runtime_info(self);result['ui_mode']=self.ui_mode;result['startup_note']=self.startup_note;result['demo']=bool(self.demo_directory and self.workspace.project.root.parent==self.demo_directory)
         return result
 
@@ -70,7 +70,7 @@ class Server(ThreadingHTTPServer):
         self.url=self.origin+'/#token='+app.token
 
 class Handler(BaseHTTPRequestHandler):
-    server_version='WayriCADBOM/3.0.0'
+    server_version='WayriCADBOM/3.1.0'
     def log_message(self,fmt,*args):
         # URLs/token fragments are deliberately never written to an access log.
         pass
@@ -155,6 +155,16 @@ class Handler(BaseHTTPRequestHandler):
             if b.get('demo'):app.open_demo()
             else:app.workspace=Workspace(Project(b['path']))
             return app.state()
+        if path=='/api/upgrade-copy':
+            ws=app.current()
+            if ws.dirty:raise ValueError('Save your workspace before upgrading a project copy.')
+            from .upgrade import upgrade_project_copy
+            result=upgrade_project_copy(ws.project.root,b['destination'])
+            app.link.call('close')
+            app.workspace=Workspace(Project(result['destination']))
+            app.startup_note='Opened the upgraded project copy. Native connectivity and annotation were verified; original files are unchanged.'
+            if result['validation'].get('workspace_notice'):app.startup_note+=' '+result['validation']['workspace_notice']
+            return result
         if path=='/api/quit':
             if app.workspace and app.workspace.dirty and b.get('discard') is not True:raise ValueError('Save changes or confirm discarding before quitting.')
             threading.Thread(target=self.server.shutdown,daemon=True).start()

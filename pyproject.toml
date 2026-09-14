@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.0.0"
+version = "3.1.0"
 description = "WayriCAD KiCad electrical systems CLI and plugin package"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,6 +23,8 @@ wayricad-rlc = "trace_impedance_plugin.cli:main"
 wayricad-diff = "visual_diff_plugin.kicad_vizdiff.cli:main"
 wayricad-mechanical = "mechanical_check_plugin.cli:main"
 wayricad-copper = "copper_balancer_plugin.cli:main"
+wayricad-library = "embed_3d_plugin.__main__:main"
+wayricad-pi = "quick_pi_plugin.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -40,6 +42,8 @@ visual_diff_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 "visual_diff_plugin.kicad_vizdiff" = ["viewer.html"]
 mechanical_check_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "resources/*.html", "src/wayricad_mechanical/*.py", "src/wayricad_mechanical/*.html", "src/wayricad_mechanical/*.js"]
 copper_balancer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
+quick_pi_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
+embed_3d_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

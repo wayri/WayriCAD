@@ -44,7 +44,8 @@ def model_filename(name, data):
         suffix = ''.join(Path(name).suffixes[-2:]).lower()
     if not re.fullmatch(r'(?:\.[a-z0-9]{1,10}){0,2}', suffix):
         raise ValueError('Unsafe model file extension: '+name)
-    return 'models/'+safe_name(slug(Path(name).stem, 25)+'__'+sha256(data)+suffix)
+    stem = re.sub(r'__[0-9a-f]{64}$', '', Path(name).stem)
+    return 'models/'+safe_name(slug(stem, 25)+'__'+sha256(data)+suffix)
 
 
 def _real_entry(name, local, pool):
@@ -55,20 +56,23 @@ def _real_entry(name, local, pool):
 def extract_pcb(source: Path, folder: Path, *, footprints=True, models=True,
                 include_external=False, nickname='UnbundledFootprints',
                 normalized=None, normalized_source_hash=None, resolver=None, cancelled=None,
-                footprint_uuids=None, model_uuids=None):
+                footprint_uuids=None, model_uuids=None, allow_missing=False, board_snapshot=None):
     """Return a preview plan. No disk writes. Native normalized map: uuid -> (name, text).
 
     Without a map, footprint extraction requires a valid WayriCAD Embed3D board archive.
     Model-only extraction supports any modern KiCad PCB.
     """
     source, folder = Path(source).absolute(), Path(folder).absolute()
-    text = read_text(source); root = parse(text)
-    if root.head(text) != 'kicad_pcb': raise ValueError('Choose a saved .kicad_pcb')
+    from .native import board_asset_root
+    if board_snapshot is None:
+        text = read_text(source); root = board_asset_root(text)
+    else:
+        _, text, root = board_snapshot
     if normalized_source_hash and sha256(text.encode('utf-8')) != normalized_source_hash:
         raise ValueError('PCB changed after native footprint capture. Preview again.')
     if not footprints and not models: raise ValueError('Select footprints, 3D models, or both')
     safe_name(nickname)
-    reader, pool = PayloadReader(), embedded_entries(text)
+    reader, pool = PayloadReader(), embedded_entries(text, root)
     files, warnings, instances, definitions, def_models = {}, [], [], {}, {}
     resolver = resolver or Resolver(source.parent, saved_project_variables(source))
     library_paths = resolver.footprint_libraries(source.parent)
@@ -92,8 +96,9 @@ def extract_pcb(source: Path, folder: Path, *, footprints=True, models=True,
     external_cache = {}
 
     def extract_models(raw, context, collect=True):
-        local = embedded_entries(raw); mapping, edits = [], []
-        for index, model in enumerate(parse(raw).nodes(raw, 'model')):
+        parsed = parse(raw)
+        local = embedded_entries(raw, parsed); mapping, edits = [], []
+        for index, model in enumerate(parsed.nodes(raw, 'model')):
             if cancelled and cancelled(): raise InterruptedError('PCB extraction cancelled')
             ref = model.arg().value(raw)
             if not models or not collect: continue
@@ -103,7 +108,13 @@ def extract_pcb(source: Path, folder: Path, *, footprints=True, models=True,
                 if not entry: raise ValueError('Missing embedded model bytes: '+ref)
                 data = reader.read(entry)
             elif include_external:
-                resolution = resolver.resolve(ref, context)
+                try:
+                    resolution = resolver.resolve(ref, context)
+                except (ValueError, OSError) as exc:
+                    if not allow_missing:
+                        raise
+                    warnings.append('Unresolved model retained: '+ref+'; '+str(exc))
+                    continue
                 # Resolver returns a Path, or raises a readable resolution error.
                 if resolution not in external_cache:
                     external_cache[resolution] = read_bytes(resolution, 256*1024*1024)
@@ -124,8 +135,11 @@ def extract_pcb(source: Path, folder: Path, *, footprints=True, models=True,
                             'embedded_name': name if embedded else None})
             edits.append((model.arg().start, model.arg().end, quote((folder/target).as_posix())))
         new = patch(raw, edits)
-        new = prune_models(new, {m['embedded_name'] for m in mapping if m['embedded_name']})
-        if model_settings(raw) != model_settings(new): raise ValueError('Extraction changed 3D settings')
+        embedded_names = {m['embedded_name'] for m in mapping if m['embedded_name']}
+        if embedded_names:
+            new = prune_models(new, embedded_names)
+        if new != raw and model_settings(raw) != model_settings(new):
+            raise ValueError('Extraction changed 3D settings')
         return new, mapping
 
     for fp in root.nodes(text, 'footprint'):

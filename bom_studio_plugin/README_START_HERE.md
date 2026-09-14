@@ -1,4 +1,4 @@
-# Start WayriCAD BOM Studio 3.0.0
+# Start WayriCAD BOM Studio 3.1.0
 
 Install the PCM ZIP directly with KiCad Manager → Plugin and Content Manager → Install from File. Restart KiCad, enable its IPC API in preferences, and launch BOM Studio from the plugin toolbar.
 

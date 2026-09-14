@@ -27,6 +27,7 @@ SPECS = {
     "signal_integrity_advisor_plugin": ("#00838f", "signal"),
     "test_point_descriptor_plugin": ("#a23c64", "probe"),
     "trace_impedance_plugin": ("#536d9c", "impedance"),
+    "quick_pi_plugin": ("#af4e37", "pdn"),
     "variant_workbench_plugin": ("#7b6d3d", "variants"),
     "via_stitching_plugin": ("#397a9b", "stitch"),
 }

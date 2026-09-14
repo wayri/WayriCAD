@@ -18,7 +18,7 @@ def main():
                 raise RuntimeError('Wheel contains generated build or private validation directories.')
             archive.extractall(root)
         modules = ('wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
-                   'visual_diff_plugin.kicad_vizdiff.cli')
+                   'visual_diff_plugin.kicad_vizdiff.cli', 'embed_3d_plugin.__main__', 'quick_pi_plugin.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'
                       'module=importlib.import_module(sys.argv[2]);'

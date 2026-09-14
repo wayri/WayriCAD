@@ -253,7 +253,7 @@ class WorkspaceDialog(wx.Dialog):
         advbuttons=wx.BoxSizer(wx.HORIZONTAL)
         self.legacy_button=self._button(op,'Standalone library / live-board tools…',self.open_legacy,
             'Existing footprint-file, supplied-library, repair and live-model workflows. The main embed/unbundle/relink actions stay in this window.')
-        if not getattr(self.bridge,'supports_live_tools',True):
+        if not (getattr(self.bridge,'supports_live_tools',True) or getattr(self.bridge,'supports_file_tools',False)):
             self.legacy_button.Disable()
             self.legacy_button.SetToolTip('These native live-board tools require the KiCad 10 source plugin.')
         self.report_button=self._button(op,'Save preview report…',self.save_report)
@@ -603,7 +603,7 @@ class WorkspaceDialog(wx.Dialog):
 
     def open_legacy(self,event=None):
         if self.busy:return
-        if not getattr(self.bridge,'supports_live_tools',True):
+        if not (getattr(self.bridge,'supports_live_tools',True) or getattr(self.bridge,'supports_file_tools',False)):
             self.error(ValueError('Live-board tools require the KiCad 10 source plugin. Use the saved-design workflow in this window.'))
             return
         from .ui import EmbedDialog

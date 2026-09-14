@@ -51,10 +51,13 @@ class MatrixContractTests(unittest.TestCase):
     def test_numeric_reference_sort(self):self.assertGreater(self.model.Compare(Item(0),Item(1),0,True),0)
     def test_buttons_include_separate_and_combined_actions(self):
         self.assertEqual(set(self.mod.ACTION_LABELS.values()),{'Embed checked','Embed all','Unbundle','Relink','Unbundle & relink'})
-    def test_plugin_opens_new_workspace_not_old_model_dialog(self):
+    def test_plugin_opens_project_library_and_retains_workspace_under_more(self):
         text=(ROOT/'plugin.py').read_text();tree=ast.parse(text)
         imports=[n for n in ast.walk(tree) if isinstance(n,ast.ImportFrom)]
-        self.assertTrue(any(n.module=='workspace_ui' for n in imports));self.assertNotIn('dialog = EmbedDialog',text)
+        self.assertTrue(any(n.module=='project_ui' for n in imports))
+        self.assertTrue(any(n.module=='project_launcher' for n in imports))
+        self.assertNotIn('dialog = EmbedDialog',text)
+        self.assertIn('from .workspace_ui import WorkspaceDialog',(ROOT/'project_ui.py').read_text())
     def test_ui_avoids_whole_window_fit_and_hardcoded_colours(self):
         text=(ROOT/'workspace_ui.py').read_text()
         self.assertNotIn('SetForegroundColour',text);self.assertNotIn('self.Fit()',text)

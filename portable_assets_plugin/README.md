@@ -1,3 +1,5 @@
+> **Consolidated in 3.1:** Install [WayriCAD Project Library](../embed_3d_plugin/README.md). This source API remains for older scripts; the separate PCM tool is retired.
+
 # WayriCAD Portable Assets 3.0.0
 
 A KiCad 10 ActionPlugin for making a project self-contained without depending on the original footprint, symbol, or 3D-model library installation. The menu action launches an isolated GUI process and passes the active board path directly.

@@ -1,2 +1,2 @@
 """Shared runtime, vendored into every independently installable PCM package."""
-VERSION = '3.0.0'
+VERSION = '3.1.0'

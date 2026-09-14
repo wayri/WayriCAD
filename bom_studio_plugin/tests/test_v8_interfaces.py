@@ -59,6 +59,6 @@ class Interfaces8(unittest.TestCase):
  def test_cli_finder_category(self):
   code,r=self.callcli('catalog','search','--library',str(self.app.library_path),'--category','Passives','--sort','category','--summary');self.assertEqual(code,0);self.assertGreater(r['data']['total'],0);self.assertTrue(all(p['classification']['category'].startswith('Passives') for p in r['data']['items']))
  def test_cli_gui_mode_and_schema(self):
-  a=cli.parser().parse_args(['gui','--ui','desktop']);self.assertEqual(a.ui,'desktop');code,r=self.callcli('schema');self.assertEqual(code,0);self.assertIn('library-create',str(r));self.assertEqual(len(cli.COMMANDS),39)
+  a=cli.parser().parse_args(['gui','--ui','desktop']);self.assertEqual(a.ui,'desktop');code,r=self.callcli('schema');self.assertEqual(code,0);self.assertIn('library-create',str(r));self.assertIn('upgrade-copy',cli.COMMANDS)
  def test_mapping_http_unconnected(self):
   code,_,b=self.http('link/mapping',{});self.assertEqual(code,200);self.assertEqual(json.loads(b)['schema'],'wayricad-link-mapping-1');self.assertFalse(json.loads(b)['connected'])

@@ -1,3 +1,5 @@
+> **Consolidated in 3.1:** Install [WayriCAD Project Library](../embed_3d_plugin/README.md). This source API remains for older scripts; the separate PCM tool is retired.
+
 # Kilo — KiCad Localizer Help
 
 Kilo makes KiCad 10 projects and design blocks portable by collecting their

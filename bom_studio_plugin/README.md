@@ -1,10 +1,10 @@
-# WayriCAD BOM Studio 3.0.0
+# WayriCAD BOM Studio 3.1.0
 
 Local BOM editing and exports for KiCad 10. The desktop window runs the bundled interface through wxPython WebView and a session-authenticated loopback server. UI assets are local; no CDN, account or cloud service is needed. Dependency installation may require internet access once.
 
 ## Install
 
-In KiCad Manager, open Plugin and Content Manager → Install from File and select the **WayriCAD BOM Studio 3.0.0 PCM ZIP**. Keep the ZIP intact. Restart KiCad and launch BOM Studio from the plugin toolbar. IPC support must be enabled in KiCad preferences. KiCad installs the package's declared `kicad-python` and `wxPython` dependencies in its plugin environment.
+In KiCad Manager, open Plugin and Content Manager → Install from File and select the **WayriCAD BOM Studio 3.1.0 PCM ZIP**. Keep the ZIP intact. Restart KiCad and launch BOM Studio from the plugin toolbar. IPC support must be enabled in KiCad preferences. KiCad installs the package's declared `kicad-python` and `wxPython` dependencies in its plugin environment.
 
 The UI is a separate local desktop window. Windows requires a working WebView2 runtime; Linux requires wxGTK WebKit support. If an embedded runtime is unavailable, the launcher opens the same authenticated local interface in your installed browser. Use the page’s Quit button to stop the local service. KiCad 11 compatibility is based on capability checks and an open-ended minimum version; live KiCad 11 acceptance has not been run.
 
@@ -18,11 +18,14 @@ The UI is a separate local desktop window. Windows requires a working WebView2 r
 
 ## CLI
 
+Older hierarchical projects can be upgraded through **Review & native sync > Upgrade project copy**. Select a new directory outside the source project. KiCad 10 upgrades every sheet; WayriCAD restores legacy annotation and power-net semantics, then compares native connectivity and component fields before publishing the copy. The original project stays unchanged. Unsupported or ambiguous hierarchies are rejected with a reason. Consistent multi-unit components spanning several sheets are grouped and edited together.
+
 Run from this package directory with Python 3.10 or later:
 
 ```console
 python cli.py gui --demo
 python cli.py gui project.kicad_pro
+python cli.py upgrade-copy legacy/project.kicad_pro --destination modern-project
 python cli.py bom-format show project.kicad_pro
 python cli.py bom-format configure project.kicad_pro --config settings.json
 python cli.py export project.kicad_pro --format csv --acknowledge-saved-only --output bom.csv

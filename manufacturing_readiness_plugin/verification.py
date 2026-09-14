@@ -11,6 +11,21 @@ from .analysis import gate_key, saved_metrics, sexpr_tokens
 SOURCE_SUFFIXES={'.kicad_pcb','.kicad_sch','.kicad_pro','.kicad_dru','.kicad_jobset','.kicad_sym','.kicad_mod','.step','.stp','.wrl'}
 
 
+def drc_evidence(report,returncode):
+    """Retain native findings even when KiCad exits 5 for design violations."""
+    from collections import Counter
+    data=json.loads(Path(report).read_text(encoding='utf-8'))
+    keys=('violations','unconnected_items','schematic_parity')
+    if (not isinstance(data,dict)
+            or not all(isinstance(data.get(key),list) for key in keys[:2])
+            or not isinstance(data.get('schematic_parity',[]),list)
+            or any(not isinstance(item,dict) for key in keys for item in data.get(key,[]))):
+        raise ValueError('KiCad did not return a recognizable JSON DRC report.')
+    counts={key:len(data.get(key,[])) for key in keys}
+    return {'clean':returncode==0 and not any(counts.values()),'findings':counts,
+            'types':dict(Counter(item.get('type','unknown') for key in keys for item in data.get(key,[])))}
+
+
 def find_cli():
     candidates=[Path(sys.executable).with_name('kicad-cli.exe'),Path(sys.executable).with_name('kicad-cli')]
     for variable in ('ProgramW6432','ProgramFiles'):

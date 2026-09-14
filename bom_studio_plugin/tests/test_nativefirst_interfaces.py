@@ -24,7 +24,7 @@ class NativeFirstInterfaces(Fixture):
   if auth:h['X-Bom-Token']=self.app.token
   c.request('GET' if body is None else 'POST','/api/'+path,body=None if body is None else json.dumps(body),headers=h);r=c.getresponse();data=r.read();status=r.status;c.close();return status,data
  def test_http_native_mode_by_default(self):
-  code,raw=self.request('state');d=json.loads(raw);self.assertEqual(code,200);self.assertEqual(d['bom_authority']['preferences']['mode'],'native');self.assertEqual(d['runtime']['version'],'3.0.0')
+  code,raw=self.request('state');d=json.loads(raw);self.assertEqual(code,200);self.assertEqual(d['bom_authority']['preferences']['mode'],'native');self.assertEqual(d['runtime']['version'],'3.1.0')
  def test_api_custom_preview_needs_template(self):self.assertEqual(self.request('export/preview',{})[0],400)
  def test_api_custom_export_needs_template(self):self.assertEqual(self.request('export',{})[0],400)
  def test_api_release_needs_template(self):self.assertEqual(self.request('release',{})[0],400)

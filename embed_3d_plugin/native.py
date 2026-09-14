@@ -18,6 +18,83 @@ from .sexpr import parse, semantic
 from .storage import job_directory, atomic_write, write_json
 
 
+_BOARD_TOKEN = re.compile(r'"(?:\\.|[^"\\])*"|\|[^|]*\||[;#][^\n]*|[()]|[^\s\ufeff()"|]+', re.S)
+
+
+def _board_sections(text, with_spans=False):
+    """Read relevant top-level spans without constructing a whole-board AST.
+
+    Filled zones may contain millions of coordinates. KiCad validates those;
+    the asset bridge only needs footprints and the board's embedded file pool.
+    The lexer still checks root identity, balanced parentheses and string/blob
+    termination, so parentheses inside paths or payloads cannot split a span.
+    """
+    depth = 0
+    root_seen = False
+    root_head = False
+    child_start = None
+    child_head = None
+    sections = []
+    previous = 0
+    for match in _BOARD_TOKEN.finditer(text):
+        if text[previous:match.start()].strip('\ufeff \t\r\n'):
+            raise ValueError('Malformed saved PCB token')
+        previous = match.end()
+        token = match.group()
+        if token.startswith(('#', ';')):
+            continue
+        if token == '(':
+            if depth == 0:
+                if root_seen:
+                    raise ValueError('Expected one saved PCB root')
+                root_seen = True
+            elif depth == 1:
+                if not root_head:
+                    raise ValueError('Choose a saved PCB')
+                child_start, child_head = match.start(), None
+            depth += 1
+        elif token == ')':
+            if depth <= 0:
+                raise ValueError('Unbalanced saved PCB')
+            if depth == 2 and child_head in ('footprint', 'module', 'embedded_files'):
+                sections.append((child_head, child_start, match.end()) if with_spans else
+                                (child_head, text[child_start:match.end()]))
+            depth -= 1
+        else:
+            if depth == 0:
+                raise ValueError('Unexpected data outside saved PCB')
+            if depth == 1 and not root_head:
+                if token != 'kicad_pcb':
+                    raise ValueError('Choose a saved PCB')
+                root_head = True
+            elif depth == 2 and child_head is None:
+                child_head = token
+    if depth or not root_head or text[previous:].strip('\ufeff \t\r\n'):
+        raise ValueError('Unbalanced or truncated saved PCB')
+    return sections
+
+
+def board_asset_root(text):
+    """Sparse span-preserving tree for asset operations; excludes zone geometry."""
+    from .sexpr import Atom, Node
+    def shifted(node, offset):
+        if isinstance(node, Atom):
+            return Atom(node.start+offset, node.end+offset, node.kind)
+        return Node(node.start+offset, node.end+offset,
+                    [shifted(child, offset) for child in node.children])
+    children = []
+    for name, start, end in _board_sections(text, with_spans=True):
+        children.append(shifted(parse(text[start:end]), start))
+    return Node(0, len(text), children)
+
+
+def _asset_snapshot(text):
+    sections = _board_sections(text)
+    pool = '(kicad_pcb\n' + '\n'.join(raw for name, raw in sections if name == 'embedded_files') + '\n)'
+    footprints = [raw for name, raw in sections if name in ('footprint', 'module')]
+    return pool, footprints
+
+
 class NativeBridge:
     def __init__(self, pcbnew):
         self.pcbnew = pcbnew
@@ -66,12 +143,13 @@ class NativeBridge:
         self._detached = [fp for fp in self._detached if fp is not item]
         item.DeleteStructure()
 
-    def _save_footprint(self, writer, directory, footprint):
+    def _save_footprint(self, writer, directory, footprint, board_context=None):
         """Give KiCad's back-side flip a detached board/layer context."""
         previous = footprint.GetParent()
         scratch = self.pcbnew.BOARD()
-        if self.board is not None:
-            scratch.SetCopperLayerCount(self.board.GetCopperLayerCount())
+        context = board_context if board_context is not None else self.board
+        if context is not None:
+            scratch.SetCopperLayerCount(context.GetCopperLayerCount())
         footprint.SetParent(scratch)
         try:
             writer.FootprintSave(str(directory), footprint)
@@ -450,36 +528,67 @@ class NativeBridge:
         from .board_package import (slug, safe_name, model_settings, model_refs,
                                     replace_entries, uuid_of)
         from .portability_io import read_bytes
-        data = read_bytes(Path(source_path)); text = data.decode('utf-8'); root = parse(text)
-        if root.head(text) != 'kicad_pcb': raise ValueError('Choose a saved PCB')
-        pool, result = embedded_entries(text), {}
+        data = read_bytes(Path(source_path)); text = data.decode('utf-8')
+        pool_text, fragments = _asset_snapshot(text)
+        pool, result = embedded_entries(pool_text), {}
+        # Load legacy footprints in their complete board/version/net context.
+        # Parsing an old placed-footprint fragment with KiCad 10's standalone
+        # parser can abort the process rather than raise a Python exception.
+        saved = self.pcbnew.LoadBoard(str(source_path))
+        if saved is None: raise ValueError('KiCad could not load the saved PCB.')
+        native_items = {item.m_Uuid.AsString(): item for item in saved.GetFootprints()}
         with tempfile.TemporaryDirectory(prefix='embed_3d_plugin-unbundle-') as tmp:
             library = Path(tmp)/'native.pretty'; library.mkdir()
-            io = self.pcbnew.PCB_IO_KICAD_SEXPR()
-            for index, node in enumerate(root.nodes(text, 'footprint')):
+            for index, raw in enumerate(fragments):
                 if cancelled and cancelled(): raise InterruptedError('Footprint normalization cancelled')
-                raw, uid = node.raw(text), uuid_of(text,node)
+                node = parse(raw)
+                uid = uuid_of(raw,node)
                 if selected_uuids is not None and uid not in selected_uuids: continue
-                local = embedded_entries(raw)
-                for reference in model_refs(raw):
+                local = embedded_entries(raw, node)
+                original_models = node.nodes(raw, 'model')
+                original_refs = [model.arg().value(raw) for model in original_models]
+                original_settings = [semantic(model.raw(raw), True) for model in original_models]
+                for reference in original_refs:
                     if reference.startswith(PREFIX):
                         key = reference[len(PREFIX):]; entry=local.get(key)
                         if not entry or not entry.encoded: entry=pool.get(key)
                         if not entry: raise ValueError('Missing embedded model data: '+key)
                         local[key]=entry
-                materialized = replace_entries(raw,local)
-                fp = self.deserialize(materialized)
-                name=safe_name('F%05d_'%(index+1)+slug(node.arg().value(text).rsplit(':',1)[-1],55))
+                if uid not in native_items:raise ValueError('Native board load changed footprint identity: '+uid)
+                fp = native_items[uid].Duplicate(False).Cast()
+                fp.SetParent(None); fp.thisown=False; self._detached.append(fp)
+                original_name = node.arg().value(raw).rsplit(':',1)[-1]
+                original_name = re.sub(r'^(?:F\d{5}_)+', '', original_name)
+                name=safe_name('F%05d_'%(index+1)+slug(original_name,55))
                 libid=fp.GetFPID(); libid.SetLibNickname(self.pcbnew.UTF8('')); libid.SetLibItemName(self.pcbnew.UTF8(name)); fp.SetFPID(libid)
-                self._save_footprint(io,library,fp)
-                normalized=(library/(name+'.kicad_mod')).read_text(encoding='utf-8')
-                if model_settings(raw) != model_settings(normalized) or model_refs(raw) != model_refs(normalized):
+                # FootprintSave maintains a library cache. Retaining every
+                # previous file makes each save revisit an ever-growing
+                # library; an empty scratch library keeps this operation linear.
+                io = self.pcbnew.PCB_IO_KICAD_SEXPR()
+                self._save_footprint(io,library,fp,board_context=saved)
+                normalized_path = library/(name+'.kicad_mod')
+                normalized=normalized_path.read_text(encoding='utf-8')
+                io = None
+                normalized_path.unlink()
+                normalized_node = parse(normalized)
+                actual_models = normalized_node.nodes(normalized, 'model')
+                actual_refs = [model.arg().value(normalized) for model in actual_models]
+                actual_settings = [semantic(model.raw(normalized), True) for model in actual_models]
+                if original_settings != actual_settings or original_refs != actual_refs:
                     raise ValueError('Native normalization changed model placement: '+name)
-                self.check_payloads(materialized,normalized)
+                expected_payloads = '(footprint "payloads" (embedded_files\n' + '\n'.join(e.raw for e in local.values()) + '\n))'
+                actual_payloads = normalized_node.one(normalized, 'embedded_files')
+                self.check_payloads(expected_payloads, '(footprint "payloads"\n' +
+                                    (actual_payloads.raw(normalized) if actual_payloads else '') + '\n)')
                 result[uid]=(name,normalized)
                 self._release_scratch(fp)
                 fp=None
             io=None
+        expected_ids = set(native_items) if selected_uuids is None else set(selected_uuids)
+        if set(result) != expected_ids:
+            raise ValueError('Requested footprint identities were not all preserved during native normalization.')
+        if read_bytes(Path(source_path)) != data:
+            raise ValueError('Saved PCB changed during native normalization. Preview again.')
         return result,sha256(data)
 
     def validate_portable_board(self, source):
@@ -487,23 +596,33 @@ class NativeBridge:
         from .board_package import uuid_of, model_settings, model_refs
         expected=Path(source).read_text(encoding='utf-8')
         io=self.pcbnew.PCB_IO_KICAD_SEXPR()
-        raw=io.Parse(expected)
-        if raw is None: raise ValueError('KiCad rejected the relinked PCB')
-        board=raw.Cast()
+        board=self.pcbnew.LoadBoard(str(source))
+        if board is None: raise ValueError('KiCad rejected the relinked PCB')
         if not isinstance(board,self.pcbnew.BOARD): raise ValueError('Parser did not return a BOARD')
-        raw.thisown=False; board.thisown=False
+        board.thisown=False
         self._detached.append(board)
         with tempfile.TemporaryDirectory(prefix='embed_3d_plugin-roundtrip-') as tmp:
             path=Path(tmp)/'roundtrip.kicad_pcb'; io.SaveBoard(str(path),board)
             actual=path.read_text(encoding='utf-8')
-        self.check_payloads(expected,actual)
-        a={uuid_of(expected,n):n.raw(expected) for n in parse(expected).nodes(expected,'footprint')}
-        b={uuid_of(actual,n):n.raw(actual) for n in parse(actual).nodes(actual,'footprint')}
+        expected_pool, expected_fragments = _asset_snapshot(expected)
+        actual_pool, actual_fragments = _asset_snapshot(actual)
+        self.check_payloads(expected_pool,actual_pool)
+        def identity(fragment):
+            node = parse(fragment)
+            models = node.nodes(fragment, 'model')
+            payload = node.one(fragment, 'embedded_files')
+            return uuid_of(fragment, node), (
+                node.arg().value(fragment),
+                [(model.arg().value(fragment), semantic(model.raw(fragment), True)) for model in models],
+                '(footprint "payloads"\n' + (payload.raw(fragment) if payload else '') + '\n)')
+        a = dict(identity(raw) for raw in expected_fragments)
+        b = dict(identity(raw) for raw in actual_fragments)
         if set(a)!=set(b): raise ValueError('Native round-trip changed footprint UUIDs')
         for uid in a:
-            if parse(a[uid]).arg().value(a[uid]) != parse(b[uid]).arg().value(b[uid]):
+            if a[uid][0] != b[uid][0]:
                 raise ValueError('Native round-trip changed a library ID')
-            if model_settings(a[uid])!=model_settings(b[uid]) or model_refs(a[uid])!=model_refs(b[uid]):
+            if a[uid][1] != b[uid][1]:
                 raise ValueError('Native round-trip changed 3D settings or paths')
+            self.check_payloads(a[uid][2], b[uid][2])
         self._release_scratch(board)
         board=None; io=None

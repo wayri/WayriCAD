@@ -15,7 +15,7 @@ def main(argv=None):
             stream.reconfigure(errors='backslashreplace')
     parser = argparse.ArgumentParser(prog='python -m embed_3d_plugin', description='KiCad design portability: embed, extract and separately relink verified assets.')
     parser.add_argument('action', choices=('scan', 'embed', 'restore', 'inspect-board', 'rebuild-library',
-                          'extract-pcb', 'relink-pcb', 'extract-symbols', 'embed-symbols', 'relink-symbols'))
+                          'extract-pcb', 'relink-pcb', 'extract-symbols', 'embed-symbols', 'relink-symbols', 'localize-project', 'restore-local'))
     parser.add_argument('path', type=Path, help='.kicad_mod, .pretty, .kicad_pcb, or restore manifest.json')
     parser.add_argument('--project', type=Path, help='Project directory for KIPRJMOD / relative paths')
     parser.add_argument('--var', action='append', default=[], metavar='NAME=FOLDER')
@@ -36,9 +36,42 @@ def main(argv=None):
     parser.add_argument('--local-links', action='store_true', help='Embed symbols: also create a local symbol library and relink to it')
     parser.add_argument('--supplied', type=Path, action='append', default=[], help='Embed symbols: additionally archive this .kicad_sym verbatim')
     parser.add_argument('--validate-cli', action='store_true', help='Schematic writes: require a local KiCad 10 CLI parser/netlist check')
+    parser.add_argument('--library-folder', help='Project-local library folder; defaults to the saved choice or local.')
+    parser.add_argument('--schematic', type=Path, help='Root schematic paired with localize-project PCB; defaults to the matching filename.')
+    parser.add_argument('--model-root', action='append', default=[], type=Path, help='Explicit local root for relative 3D model paths.')
     args = parser.parse_args(argv)
     try:
         path = args.path.resolve()
+        if args.action == 'restore-local':
+            from .project_local import restore
+            if not args.apply:raise ValueError('Restore requires --apply. Save and close project editors first.')
+            print(json.dumps(restore(path), indent=2)); return 0
+        if args.action == 'localize-project':
+            from .project_local import ProjectResolver, prepare, settings
+            from .portability_io import saved_project_variables
+            pcb = path if path.suffix == '.kicad_pcb' else None
+            schematic = args.schematic or (path if path.suffix == '.kicad_sch' else path.with_suffix('.kicad_sch'))
+            if not schematic.is_file():schematic = None
+            config = settings(path.parent)
+            values = {**saved_project_variables(path), **config.get('variables', {})}
+            for item in args.var:
+                if '=' not in item:raise ValueError('Use --var NAME=FOLDER')
+                key,value=item.split('=',1);values[key]=value
+            resolver = ProjectResolver(path.parent, values, args.model_root or config.get('model_roots', []))
+            normalized = digest = None
+            if pcb:
+                from .native_worker import normalize
+                normalized,digest=normalize(pcb)
+            plan=prepare(pcb,schematic,folder=args.library_folder or config['folder'],normalized=normalized,
+                         normalized_hash=digest,resolver=resolver,allow_missing=args.allow_partial)
+            report=plan.summary()
+            if args.apply:
+                from .native_worker import validate_project
+                def validate(stage):
+                    validate_project(stage, pcb.name if pcb else None, schematic.name if schematic else None)
+                report=plan.apply(validate=validate)
+            print(json.dumps(report,indent=2,ensure_ascii=False))
+            return 0 if report['assets_complete'] else 3
         if args.action in ('extract-pcb','relink-pcb','extract-symbols','embed-symbols','relink-symbols'):
             from .portability_io import load_extraction, saved_project_variables
             from .unbundle import extract_pcb, relink_pcb

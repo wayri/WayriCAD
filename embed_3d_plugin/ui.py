@@ -80,13 +80,15 @@ class EmbedDialog(wx.Dialog):
         box.Add(header, 0, wx.EXPAND | wx.BOTTOM, self.FromDIP(17))
         row = wx.BoxSizer(wx.HORIZONTAL)
         row.Add(wx.StaticText(panel, label='Source'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, self.FromDIP(10))
-        self.scope = wx.Choice(panel, choices=['Selected board footprints', 'All board footprints',
-                                             'Footprint files (.kicad_mod)…', 'Footprint library (.pretty)…'])
-        selected = bool(self.bridge.footprints(True))
-        self.scope.SetSelection(0 if selected else 1)
+        live = getattr(self.bridge, 'supports_live_tools', True)
+        choices = ['Selected board footprints', 'All board footprints',
+                   'Footprint files (.kicad_mod)…', 'Footprint library (.pretty)…']
+        self.scope = wx.Choice(panel, choices=choices if live else choices[2:])
+        selected = bool(self.bridge.footprints(True)) if live else False
+        self.scope.SetSelection((0 if selected else 1) if live else 0)
         row.Add(self.scope, 1, wx.RIGHT, self.FromDIP(8))
         self.browse = wx.Button(panel, label='Browse…')
-        self.browse.Enable(False)
+        self.browse.Enable(not live)
         row.Add(self.browse, 0, wx.RIGHT, self.FromDIP(8))
         self.scan = wx.Button(panel, label='Scan again')
         row.Add(self.scan)
@@ -99,7 +101,7 @@ class EmbedDialog(wx.Dialog):
         box.Add(portability, 0, wx.BOTTOM, self.FromDIP(8))
         self.unbundle_button.Bind(wx.EVT_BUTTON, lambda event: self.on_portability(0))
         self.symbols_button.Bind(wx.EVT_BUTTON, lambda event: self.on_portability(1))
-        self.scope_note = wx.StaticText(panel, label='Current PCB only. Source footprint libraries will not be changed.')
+        self.scope_note = wx.StaticText(panel, label='Current PCB only. Source footprint libraries will not be changed.' if live else 'Saved footprint files only. Close them in Footprint Editor before applying.')
         box.Add(self.scope_note, 0, wx.BOTTOM | wx.EXPAND, self.FromDIP(15))
         self.summary = wx.StaticText(panel, label='Preparing preview…')
         bold = self.summary.GetFont(); bold.SetWeight(wx.FONTWEIGHT_BOLD); self.summary.SetFont(bold)
@@ -221,11 +223,14 @@ class EmbedDialog(wx.Dialog):
         self.status.SetLabel('Path settings changed. Scan again to refresh the preview.')
         self.update_actions()
 
+    def scope_mode(self):
+        return self.scope.GetSelection() + (0 if getattr(self.bridge, 'supports_live_tools', True) else 2)
+
     def on_scope(self, event):
         self.overrides.clear()
         self.files = []
         self.valid = False
-        file_mode = self.scope.GetSelection() >= 2
+        file_mode = self.scope_mode() >= 2
         self.browse.Enable(file_mode)
         self.scope_note.SetLabel('Saved library files only. Close them in the Footprint Editor before applying.' if file_mode
                                  else 'Current PCB only. Source footprint libraries will not be changed.')
@@ -236,7 +241,7 @@ class EmbedDialog(wx.Dialog):
             self.start_scan()
 
     def choose_sources(self):
-        mode = self.scope.GetSelection()
+        mode = self.scope_mode()
         if mode == 2:
             with wx.FileDialog(self, 'Choose saved footprints', wildcard='KiCad footprints (*.kicad_mod)|*.kicad_mod',
                                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE) as dialog:
@@ -298,7 +303,7 @@ class EmbedDialog(wx.Dialog):
         self.busy = value
         for widget in (self.scope, self.scan, self.project, self.variables, self.stock_root, self.model_folder, self.more, self.all_button, self.none_button, self.table):
             widget.Enable(not value)
-        self.browse.Enable(not value and self.scope.GetSelection() >= 2)
+        self.browse.Enable(not value and self.scope_mode() >= 2)
         self.locate.Enable(False)
         if value:
             self.timer.Start(100)
@@ -319,7 +324,7 @@ class EmbedDialog(wx.Dialog):
         try:
             resolver = self.resolver()
             self.active_resolver = resolver
-            mode = self.scope.GetSelection()
+            mode = self.scope_mode()
             if mode < 2:
                 sources, pool = self.bridge.sources(mode == 0, resolver)
             else:
@@ -446,7 +451,7 @@ class EmbedDialog(wx.Dialog):
         self.find_missing.Enable(self.valid and not self.busy and attention > 0)
         self.package.Enable(not self.busy and bool(self.bridge.board))
         portable = bool(self.rows) and all(r.status == 'Embedded' or (r.ready and r.checked) for _, r in self.rows)
-        self.export.Enable(self.valid and not self.busy and self.scope.GetSelection() < 2 and portable)
+        self.export.Enable(self.valid and not self.busy and self.scope_mode() < 2 and portable)
         self.table.Enable(not self.busy and self.valid)
 
     def on_locate(self, event):
@@ -475,7 +480,7 @@ class EmbedDialog(wx.Dialog):
     def on_apply(self, event):
         if not self.valid or self.busy:
             return
-        file_mode = self.scope.GetSelection() >= 2
+        file_mode = self.scope_mode() >= 2
         chosen = [p for p in self.plans if p.actionable]
         checked = sum(len(p.actionable) for p in chosen)
         skipped = sum(r.status != 'Embedded' and not (r.ready and r.checked) for _, r in self.rows)

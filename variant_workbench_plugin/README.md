@@ -1,4 +1,4 @@
-# WayriCAD Design Variant Workbench 3.0.0
+# WayriCAD Design Variant Workbench 3.1.0
 
 A standalone Python/Tkinter application and KiCad 10 ActionPlugin for working with KiCad design variants safely. The menu action passes the active project to a detached Workbench process.
 
@@ -358,7 +358,7 @@ Run compatibility/regression tests inherited from the original Variant → Defau
 python -m unittest discover -s compat_tests -v
 ```
 
-The imported 0.4.0 test baseline contains **41 automated tests**. WayriCAD 3.0.0 adds integration tests for lock-file refusal, manifests, help, and icon assets.
+The imported 0.4.0 test baseline contains **41 automated tests**. WayriCAD 3.1.0 adds integration tests for lock-file refusal, manifests, help, and icon assets.
 
 - 27 Workbench/manager tests
 - 14 compatibility/regression tests

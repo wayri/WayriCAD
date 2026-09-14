@@ -1,77 +1,67 @@
-# Marble suite smoke - 2026-09-14
+# Marble functional validation — WayriCAD 3.1
 
-This is scoped functional evidence on Berkeley Lab Marble, not end-to-end UI, live IPC, full-board electrical acceptance or KiCad 11 certification. The board contains **1,006 footprints, 41,044 tracks/vias and 12 copper layers**.
+The source is Berkeley Lab Marble: 1,006 footprints, 41,044 tracks/vias and 12 copper layers. Tests use memory snapshots or disposable project copies; the original design is read-only. This document records actual operations, not a blanket certification of every board, GUI transport or numerical model. The [3.0 smoke record](MARBLE_SUITE_SMOKE_3.0.md) is retained separately.
 
-`PASS` means the stated operation completed (including correctly rejected unsafe proposals). `LIMITED` means a useful operation completed with an explicit scope/coverage limitation. `BLOCKED` identifies a failed, cancelled or unfinished operation. Design audit failures are separate from test execution status.
+## Operations expanded from the earlier smoke test
 
-| Plugin | Status | Actual operation and result |
-| --- | --- | --- |
-| WayriCAD BOM Studio | LIMITED | 25 sheets, 1,003 components. Legacy 20211123-format native-write blockers retained. |
-| WayriCAD Bulk Label Editor | PASS | Three actual footprint values changed and undone on an in-memory board; no save. |
-| WayriCAD Copper Balancer | PASS | 6x6 mm F.Cu region, max 10 shapes: 42 candidates, 3 accepted shapes, no warnings; 3.31 seconds after regional geometry filtering. No board write. |
-| WayriCAD Embed3D | LIMITED | 1,006 footprint inventory; 1,399 model references, 1,380 need attention and 19 external. |
-| WayriCAD Extract Pins | PASS | 371 actual J* connector pin/net rows exported. |
-| WayriCAD Fanout Generator | PASS | C43 via-in-pad, 0.45/0.2 mm via: both pads correctly rejected for other-net copper clearance. |
-| WayriCAD Harness and Cable Workbench | LIMITED | Single-board connector connectivity and local HTML; no invented external harness board. |
-| WayriCAD PCB / Foil Heater Designer | LIMITED | Reduced design sized from actual board bounds and thermal model using board thickness; no placement/apply acceptance. |
-| WayriCAD Localizer | LIMITED | Bounded PMOD sheet scan against full PCB: 11 footprint dependencies, 5 resolved and 6 missing. Five model references unresolved. |
-| WayriCAD Manufacturing Readiness Manager | LIMITED | Actual track/drill/annulus/aspect/layer metrics: default demo profile has 5 FAIL and 1 PASS. Full DRC/jobset not run. |
-| WayriCAD Mechanical Check | LIMITED | 1,006 components, 5,272 pads, 1,425 coverage gaps from native extraction. Missing CERN model library prevents comprehensive solid review. |
-| WayriCAD PDN and Decoupling Planner | PASS | 5,156 connected pads; 43 rail/decoupling findings. |
-| WayriCAD Planar Magnetics & Actuator Workbench | LIMITED | Small two-layer coil model derived from real board bounds; no occupied-copper fit or fabrication claim. |
-| WayriCAD Portable Assets | LIMITED | Full project dependency inventory; reports 1,399 unresolved model references, preserving source links. |
-| WayriCAD Protocol Constraint Composer | PASS | 229 detected protocol assignments; exported managed rules and verified idempotent merge. |
-| WayriCAD Return-Path Auditor | LIMITED | Real signal track/ground via and transition/stub analysis. Reference-plane polygon coverage deliberately excluded. |
-| WayriCAD Signal Integrity Advisor | LIMITED | /USB/TxD_OUT U23.42 to U25.8 completed using the shared corrected native route engine. Two via transitions retained; impedance status UNKNOWN with null estimate/error. |
-| WayriCAD Test Point Descriptor Extractor | PASS | 28 actual test-point/function rows extracted. |
-| WayriCAD Trace RLC / Impedance Analyzer | LIMITED | /USB/TxD_OUT U23.42 to U25.8: 9.6125 mm, 7 tracks, 2 vias and 2 layer changes between F.Cu and B.Cu. Global Z0 remains unknown; no copper movement. |
-| WayriCAD Design Variant Workbench | LIMITED | 25 schematic sheets, 2,009 parsed objects; read-only native variant inventory. Tk UI/promotion not certified. |
-| WayriCAD Via Stitching | PASS | 4x4 mm GND patch near C43: four candidates correctly rejected (2 outside target copper, 2 footprint collision). |
-| WayriCAD Visual Diff | PASS | Native Edge.Cuts SVG HEAD-versus-identical-WORKTREE comparison in disposable Git repo; 264,929-byte self-contained HTML. |
+| Tool | Result and actual scope |
+| --- | --- |
+| BOM Studio | **PASS:** all 25 legacy screens upgraded in a project copy; 2,047 placement records preserved, 11 canonical/power-field restorations. Native XML retains exactly 998 components and 1,374 nets. U1's eight units across six sheets accept a BOM field edit and native CSV export. |
+| Project Library | **PASS for available assets:** copied Marble project localizes 1,006 footprints, 215 symbols, nine unique real models and 1,007 schematic assignments into `local/`. Prepare/apply/native validation completes in 96.33 s after a separate 23.42 s normalization. Native XML preserves all 1,374 nets. Missing external models/default libraries remain explicit partial-mode warnings. |
+| Harness Workbench | **PASS:** 371 real Marble connector pins extracted. A separately identified two-board native fixture passes connection mapping, bundle/splice, BOM, CSV, SVG and offline HTML export. Marble alone does not supply an external harness board. |
+| Heater Designer | **PASS:** review/apply/undo/redo and native save/reload preserve 43 generated items including one via on a separate outlined coupon in a copied Marble board. Placement preflight now rejects occupied copper, same-net shunts, zones and keepouts. |
+| Planar Magnetics | **PASS:** equivalent operations preserve 23 generated items including one via on a separate copied-board coupon. Geometry review no longer invokes the unrelated mechanical-motion solver. |
+| Manufacturing Readiness | **PASS:** full native Marble DRC runs and reports 464 existing violations; release generation correctly refuses them. A separate clean native fixture passes DRC, a real three-Gerber jobset and a verified 19-file release ZIP. Failed DRC counts remain visible. |
+| Return-Path Auditor | **PASS:** extraction reads 37,380 signal segments, 3,664 vias and 118 filled regions in 3.64 s. A 158-segment FMC/MDI audit completes in 0.33 s with seven findings. Coverage uses whole trace corridors and actual plane outlines/holes rather than bounding boxes and midpoint checks. |
+| Trace RLC / Impedance | **PASS for stated models:** native connected trace/arc/via/zone paths, thermal contacts and finite-width paths around holes. The old 128-contact zone cutoff is removed. Fifteen native geometry regressions pass, including 150 contacts on one island. Numerical estimates and unresolved fields remain separate. |
+| Signal Integrity Advisor | **PASS for stated models:** independently packaged copy of the corrected RLC engine, including arc and zone-navigation support. Nonuniform or unreferenced routes retain unknown global characteristic impedance instead of a fabricated scalar. |
+| Variant Workbench | **PASS:** a copied migrated Marble project receives a named R62 DNP/value variant. Three native XML exports retain the overrides; all 1,374 nets, Default, untargeted variants and the copied PCB remain unchanged. Backup verification passes. |
+| Quick PI | **PASS:** native geometry, mesh, solver, result views, console, HTML/JSON exports and analytical regressions. Real single-net and full-net results are below; mesh convergence is explicitly separate from successful execution. |
 
-## Reproduce
+The heater/magnetics copied-board DRC runs complete in 87.03/79.90 s with 467/466 findings versus the original 464. The added findings are dangling fixture endpoints; no new clearance findings are introduced. These coupons are validation fixtures, not proposed production-board modifications.
 
-From the suite root, with the disposable project already copied:
+Project Library also validates exported symbol defaults and native schematic caches, while each placed assignment keeps its own extracted footprint. Native parsing/reload, geometry fingerprints, stable repeated output names, stale-source rejection, rollback and backup restoration are exercised. The full localization preserves all 29 input files byte-for-byte in verified publication backups. Evidence: `project-library-acceptance.json` and `project-library-result.json` under the validation directory.
 
-```powershell
+## Other plugin checks
+
+| Tool | Actual operation |
+| --- | --- |
+| Bulk Label Editor | Three footprint values changed and undone on an in-memory Marble board. |
+| Copper Balancer | A 6×6 mm F.Cu region produces 42 candidates and three accepted shapes after regional filtering; native unit tests cover commit/recovery paths. |
+| Extract Pins | Exports 371 actual J* connector pin/net rows. |
+| Fanout Generator | C43 via-in-pad proposals are correctly rejected for other-net copper clearance. Native fixtures cover advanced angles, paired fanout and stale-plan/apply behavior. |
+| Mechanical Check | Full component/pad geometry is extracted. Complete solid review still requires the missing external CERN 3D model collection; missing solids are reported, not substituted. |
+| PDN/Decoupling | Processes 5,156 connected pads and reports 43 rail/decoupling findings. |
+| Protocol Constraints | Detects 229 assignments, exports managed rules and verifies idempotent merging. |
+| Test Point Descriptor | Extracts 28 real test-point/function rows. |
+| Via Stitching | A 4×4 mm GND patch's four candidates are correctly rejected for target-copper or footprint conflicts. |
+| Visual Diff | Native Edge.Cuts SVG comparison between identical Git/working-tree snapshots produces self-contained HTML. |
+
+## RLC and power-integrity values
+
+- FMC1_LA_33_P, P1.G36 → U1.B10: 87.1239 mm, 31 tracks and two via transitions. MDI0_P, J4.11 → U4.28: 19.8799 mm and 124 tracks; modeled covered sections estimate 54.1179 Ω and total route DC resistance is 0.075325 Ω.
+- +12V, R15.2 → R16.2: the local RLC region has 34.2935 mm² island area and 12.8798 mm² reference overlap, estimating 4.8664 pF. Full-island capacitance and terminal-corridor R/L have different scopes and are not combined into a claimed complete circuit.
+- /Power/+12VS, C131.1 → Q4.1: corrected connected path is 40.54865 mm through a track, a via and two zones. Arcs retain exact arc length; bent zone routes retain actual voids and thermal-spoke geometry.
+- Quick PI, Net-(R161-Pad1), U1.M6 → R161.1, 1 V / 1 A: native GUI/console solve uses 429 vertices and 455 triangles, with approximately 2.568 mV drop and 2.568 mW conductor loss. Net, mesh, result maps and offline reports were generated from this actual run.
+- Quick PI, full +12V net, R15.2 → R16.2 at 1 A: 235,624 triangles at 0.5 mm edge size yield 0.489011 mV drop and 0.489011 mW loss. The 1 mm result is 0.408474 mV: **this mesh is not converged**. At 0.4 mm, 331,376 triangles give 0.544301 mV, an additional 11.31% change. Sharp/contact current-density peaks are particularly mesh-sensitive.
+- Quick PI, full /Power/+12VS net, C131.1 → Q4.1 at 1 A: 60,248 triangles at 0.5 mm give 2.182053 mV; 217,823 triangles at 0.25 mm give 2.256597 mV. At 0.2 mm, 317,037 triangles give 2.268876 mV: the final resistance increment is 0.544%. Peak current density still changes by 3.75% and needs its own convergence assessment.
+
+Quick PI meshes actual filled sheet copper, holes and thermal contacts on each layer and connects only physical plated barrels. It solves DC current distribution with current/energy checks. Series components contribute explicit R/L branches; copper and component losses are reported separately. The real console command `run pi U1.M6 R161.1 5mH+30m R161.2 U1.M5` passes at 1 V / 1 A with 52,825 triangles: 35.040172 mV drop, 5.040172 mW copper loss and 30 mW component loss. Stored inductor energy is 2.5 mJ. Inductance contributes stored energy, not steady-state DC voltage drop. The pulse risk map is an adiabatic temperature-limit screen, not a coupled thermal solve or certified fuse-opening prediction. Plated slots and backdrills are refused until their barrel geometry is represented accurately.
+
+The board's saved stackup supplies 0.105454 mm dielectric separation, Er 4.5 and 0.035 mm copper for the earlier RLC examples. The separate manufacturer stack file differs and was not silently substituted. Quick PI requires actual saved thickness/Z data or an explicit complete override.
+
+## Reproduce and inspect
+
+Final local release checks: 148 root tests and 86 subtests pass (40 optional/native skips); Project Library runs 315 tests with 19 skips and no failures; BOM Studio runs 1,170 tests with two skips and no failures; Quick PI passes all 49 tests in native KiCad Python. The 21 independent PCM ZIPs pass official schema, entrypoint, icon, payload syntax and SHA-256 checks. The rebuilt wheel passes isolated CLI and bundled report-asset checks. All 27 original Marble source hashes remain unchanged.
+
+```text
 python tools/smoke_marble_suite.py --project .validation/marble/Marble/design
-python tools/smoke_marble_suite.py --tools copper_balancer_plugin signal_integrity_advisor_plugin
+python tools/validate_marble_operations.py --help
+python -m unittest discover -s quick_pi_plugin/tests -v
+python variant_workbench_plugin/tests/validate_native_project.py --help
+wayricad-pi Marble.kicad_pcb --net Net-(R161-Pad1) --source U1.M6 --sink R161.1 --voltage 1 --current 1 --html pi.html
 ```
 
-The harness runs each tool in a separate KiCad Python worker with a 45-second operation timeout; copper also has a cooperative 25-second preprocessing limit. Cleanup is bounded, applies only to child PIDs started by the harness, and records any failure under that worker directory. Raw logs, PID metadata, JSON exports and per-tool results live in `.validation/marble/suite/`; `summary.json` collects all completed results. These generated artifacts are ignored by Git.
+Native numerical/geometry tests run in KiCad 10.0.5 Python. Generated evidence lives under `.validation/marble/`: `migrated-bom-result.json`, `migrated-bom-write-result.json`, `operations-final/verified-summary.json`, `variant-operations-verified/result.json`, `rlc-expanded-results.json`, `return-expanded-results.json`, and `quick-pi/`. Source hashes are checked against `source-manifest.json`.
 
-The full-board Localizer scan initially completed in 81.39 seconds, outside the desired small smoke budget. The reproducible test now selects the real PMOD schematic while retaining the complete PCB. The initial full-copper Visual Diff exceeded the bound; the reproducible test uses actual Edge.Cuts native SVG. These narrower tests do not certify full-board processing performance.
-
-The source folder `D:/PROJECTS-DEV/Kicad-plugins-dev/3d-interference-check/examples/Marble` is read-only input. Work uses `.validation/marble/Marble/design`; geometry mutations remain in memory or disposable worker output. Each completed harness run hashes copied PCB/schematic/project inputs before/after and verifies every original path recorded in `.validation/marble/source-manifest.json`.
-
-## Validation boundaries
-
-Copper regional filtering passed the bounded preview test in 3.31 seconds. Signal Integrity received the shared corrected measurement adapter and its two-via route rerun passed with appropriately UNKNOWN impedance. The revised SI analysis returns UNKNOWN with null impedance/error for unresolved or nonuniform routes, and does not sum independent single-ended impedances into a claimed differential impedance. Five focused uncertainty regressions and three existing SI tests pass.
-
-The RLC row reports modeled sections only; unknown capacitance/return geometry and via antipad effects remain unresolved. No live IPC or UI acceptance is inferred from these core results.
-
-## Additional real RLC cases
-
-The route-engine validation exported these five cases to `.validation/marble/rlc-engine-results.json`. Values represent modeled sections and actual selected pad connectivity. Partial results and null global Z0 remain explicit. Plane results are conservative region/overlap models, not full electromagnetic solves.
-
-| Net / endpoints | Status | Length (mm) | Tracks / vias / zones | Layers |
-| --- | --- | ---: | --- | --- |
-| FMC1_LA_33_P  /  P1.G36 to U1.B10 | partial | 87.1239 | 31 / 2 / 0 | F.Cu, In9.Cu |
-| /ETH_PHY/MDI0_P  /  J4.11 to U4.28 | partial | 19.8799 | 124 / 0 / 0 | F.Cu |
-| +12V  /  R15.2 to R16.2 | partial | 4.9835 | 0 / 0 / 1 | F.Cu |
-| /Power/+12VS  /  Q2.1 to Q2.2 | partial | 1.2700 | 0 / 0 / 1 | F.Cu |
-| /Power/+12VS  /  C131.1 to Q4.1 | partial | 43.1559 | 1 / 1 / 2 | F.Cu, B.Cu |
-
-## Electrical estimates and UI/package checks
-
-- Covered 0.13 mm sections of `/ETH_PHY/MDI0_P` estimate 54.1179 ohm. The route has 0.075325 ohm DC resistance; reference voids keep the overall result partial.
-- `+12V` R15.2 to R16.2: 34.2935 square mm island, 12.8798 square mm reference overlap, 12.274 milliohm corridor resistance, 3.302 nH corridor inductance and 4.8664 pF full-overlap capacitance.
-- `/Power/+12VS` Q2.1 to Q2.2: 62.3615 square mm reference overlap and 23.5621 pF. Corridor R/L and full-island C are separate approximations.
-- Ground candidates include GND. Embedded PCB data supplies 0.105454 mm dielectric separation, Er 4.5 and 0.035 mm copper for these sections. The separate `marble-stack.txt` lists different manufacturing values; it was not silently substituted. Netclass names are not measured impedance targets.
-- Native Trace and SI windows passed saved-board mode, unknown/partial display, stale-result clearing and minimum-size layout checks. See [route and sections](../../trace_impedance_plugin/help-workflow.png), [plane view](../../trace_impedance_plugin/help-marble-plane.png) and [SI unknown result](../../signal_integrity_advisor_plugin/help-marble-unknown.png).
-- Both electrical tools were extracted from their independent PCM ZIPs into temporary directories and launched using their bundled native-analysis module. Each measured the real 31-track/two-via FMC route; no repository imports were available to satisfy missing package files.
-- CLI `inspect`, `path` and `zone` passed on Marble, including numeric JSON, ground/island inventory and exit code 3 for partial results. Native geometry regressions cover false layer crossings, disconnected terminals, zone holes/islands, via spans, hybrid routes, invalid frequency and invalid impedance dimensions.
-
-The saved-board windows must be reopened after saving/refilling changes in KiCad. They deliberately disable live cross-selection. This isolated-launch evidence does not claim an end-to-end click test of KiCad's PCM installer or IPC transport. Complex bent zone paths, dense automatic zone graphs, trace arcs, thermal-spoke impedance and via antipad capacitance remain outside the model.
-
-Final local verification: 142 root tests passed (36 native/platform skips, 89 subtests), 11 native RLC regressions and 31 native Copper Balancer tests passed. All 22 PCM packages passed official schema, syntax, icon and hash validation; the rebuilt wheel passed isolated CLI/assets checks. Repeated wheel builds now exclude generated build directories to prevent recursive payload growth.
+CERN's public library [explicitly excludes its 3D model collection](https://gitlab.com/ohwr/cern-kicad-libs). Complete Marble model localization/solid checks require those original external bytes. KiCad 11 and a complete end-to-end live IPC click test of all plugins remain unverified; package acceptance and isolated native operation tests do not establish those claims.

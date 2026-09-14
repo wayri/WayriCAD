@@ -7,6 +7,7 @@ explicitly. Pins, units, fields, UUIDs, wires and hierarchy identity are retaine
 """
 from __future__ import annotations
 from dataclasses import dataclass
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -33,6 +34,7 @@ class Sheet:
     relative: str  # relative source path; may have ../ for an external child
     output: str
     children: list[tuple[str, Path]]
+    root: Node | None = None
 
 
 def property_value(node: Node, text: str, name: str):
@@ -84,7 +86,7 @@ def load_hierarchy(source: Path, follow=True, variables=None, cancelled=None):
                 target = Path(expanded.replace('\\', os.sep))
                 if not target.is_absolute(): target = path.parent/target
                 children.append((link, target.resolve()))
-        sheets[path] = Sheet(path, text, relative, output, children)
+        sheets[path] = Sheet(path, text, relative, output, children, root)
         stack.add(path)
         for _, target in children: visit(target)
         stack.remove(path)
@@ -92,8 +94,8 @@ def load_hierarchy(source: Path, follow=True, variables=None, cancelled=None):
     return list(sheets.values())
 
 
-def cache_symbols(text):
-    root = parse(text); block = root.one(text, 'lib_symbols'); result = {}
+def cache_symbols(text, root=None):
+    root = root or parse(text); block = root.one(text, 'lib_symbols'); result = {}
     if block:
         for node in block.nodes(text, 'symbol'):
             key = node.arg().value(text)
@@ -102,9 +104,9 @@ def cache_symbols(text):
     return result
 
 
-def placed_symbols(text):
+def placed_symbols(text, root=None):
     result, seen = [], set()
-    for sym in parse(text).nodes(text, 'symbol'):
+    for sym in (root or parse(text)).nodes(text, 'symbol'):
         libid = sym.one(text, 'lib_id'); uid = sym.one(text, 'uuid'); override = sym.one(text, 'lib_name')
         if not libid or not uid: raise ValueError('Placed symbol lacks lib_id/UUID')
         value = uid.arg().value(text)
@@ -133,6 +135,18 @@ def rename_definition(text, name):
     return patch(text, edits)
 
 
+def relink_definition_footprint(text, mapping):
+    """Change only an exactly matched default Footprint property's value."""
+    if not mapping:
+        return text
+    root = parse(text)
+    value = property_value(root, text, 'Footprint')
+    old_id = value.value(text) if value else ''
+    if old_id and old_id in mapping:
+        return patch(text, [(value.start, value.end, quote(mapping[old_id]))])
+    return text
+
+
 def hydrate_symbol(text, shared, reader):
     entries = embedded_entries(text)
     keys = set(entries) | {v[len(PREFIX):] for v in uri_references(text)}
@@ -145,7 +159,7 @@ def hydrate_symbol(text, shared, reader):
 
 
 def library_text(definitions):
-    return '(kicad_symbol_lib (version %d) (generator "WayriCAD Embed3D") (generator_version "3.0.0")\n%s\n)\n' % (LIB_VERSION, '\n'.join(definitions))
+    return '(kicad_symbol_lib (version %d) (generator "WayriCAD Embed3D") (generator_version "3.1.0")\n%s\n)\n' % (LIB_VERSION, '\n'.join(definitions))
 
 
 def _source_meta(source, sheets):
@@ -156,19 +170,20 @@ def _source_meta(source, sheets):
 
 
 def extract_symbols(source: Path, *, follow=True, nickname='UnbundledSymbols',
-                    include_unused=False, variables=None, cancelled=None, selection=None):
+                    include_unused=False, variables=None, cancelled=None, selection=None, sheets=None,
+                    footprint_defaults=None):
     """Extract actual as-drawn definitions. Originals and library IDs are unchanged."""
     safe_name(nickname)
-    sheets = load_hierarchy(source, follow, variables, cancelled)
+    sheets = sheets if sheets is not None else load_hierarchy(source, follow, variables, cancelled)
     shared, reader = {}, PayloadReader()
     for sheet in sheets:
-        for name, entry in embedded_entries(sheet.text).items():
+        for name, entry in embedded_entries(sheet.text, sheet.root).items():
             if name in shared and reader.read(shared[name]) != reader.read(entry):
                 raise ValueError('Conflicting schematic embedded resource name: '+name)
             shared[name] = entry
     exports, records, warnings, seen_names = {}, [], [], {}
     for sheet in sheets:
-        cache = cache_symbols(sheet.text); placed = placed_symbols(sheet.text)
+        cache = cache_symbols(sheet.text, sheet.root); placed = placed_symbols(sheet.text, sheet.root)
         chosen = placed if selection is None else [p for p in placed if p['uuid'] in selection.get(sheet.relative, set())]
         unknown = set() if selection is None else set(selection.get(sheet.relative, set())) - {p['uuid'] for p in placed}
         if unknown: raise ValueError('Selected symbol UUID no longer exists in '+sheet.relative)
@@ -178,10 +193,11 @@ def extract_symbols(source: Path, *, follow=True, nickname='UnbundledSymbols',
         mapping = {}
         for key in sorted(keys):
             if cancelled and cancelled(): raise InterruptedError('Symbol extraction cancelled')
-            raw = hydrate_symbol(cache[key], shared, reader)
+            raw = relink_definition_footprint(hydrate_symbol(cache[key], shared, reader), footprint_defaults)
             canonical = semantic(rename_definition(raw, 'Canonical'))
             digest = sha256(repr(canonical).encode('utf-8'))
-            name = safe_name(slug(key.rsplit(':',1)[-1], 40)+'__'+digest[:20])
+            stem = re.sub(r'__[0-9a-f]{20}$', '', key.rsplit(':',1)[-1])
+            name = safe_name(slug(stem, 40)+'__'+digest[:20])
             new = rename_definition(raw, name)
             if name in seen_names and seen_names[name] != canonical: raise ValueError('Symbol naming collision')
             seen_names[name] = canonical
@@ -207,41 +223,52 @@ def extract_symbols(source: Path, *, follow=True, nickname='UnbundledSymbols',
     return Extraction(files, meta, warnings).finalize()
 
 
+@lru_cache(maxsize=256)
 def _symbol_geometry(text):
     return semantic(rename_definition(text, 'Canonical'), ignore_embedding=True)
 
 
-def verify_symbol_preservation(before, after):
-    old_cache, new_cache = cache_symbols(before), cache_symbols(after)
-    old, new = placed_symbols(before), placed_symbols(after)
+def verify_symbol_preservation(before, after, before_root=None, after_root=None, footprint_defaults=None):
+    before_root, after_root = before_root or parse(before), after_root or parse(after)
+    old_cache, new_cache = cache_symbols(before, before_root), cache_symbols(after, after_root)
+    old, new = placed_symbols(before, before_root), placed_symbols(after, after_root)
     if [p['uuid'] for p in old] != [p['uuid'] for p in new]: raise ValueError('Placed symbol identity changed')
     def instance_content(raw):
         root = parse(raw)
         removals = [(n.start,n.end,'') for key in ('lib_id','lib_name') for n in root.nodes(raw,key)]
         return semantic(patch(raw,removals))
+    expected_geometry, received_geometry = {}, {}
     for a,b in zip(old,new):
         if instance_content(a['node'].raw(before)) != instance_content(b['node'].raw(after)):
             raise ValueError('A symbol field, pin, unit, location or attribute changed: '+a['uuid'])
-        if _symbol_geometry(old_cache[a['key']]) != _symbol_geometry(new_cache[b['key']]):
+        if a['key'] not in expected_geometry:
+            expected = relink_definition_footprint(old_cache[a['key']], footprint_defaults)
+            expected_geometry[a['key']] = _symbol_geometry(expected)
+        if b['key'] not in received_geometry:
+            received_geometry[b['key']] = _symbol_geometry(new_cache[b['key']])
+        if expected_geometry[a['key']] != received_geometry[b['key']]:
             raise ValueError('Symbol geometry changed: '+a['uuid'])
     # Every non-symbol/non-cache/non-embedding span is structurally identical.
-    def remainder(text):
-        root = parse(text)
+    def remainder(text, root):
         edits = [(n.start,n.end,'') for kind in ('lib_symbols','symbol','embedded_files') for n in root.nodes(text,kind)]
         return semantic(patch(text,edits))
-    if remainder(before) != remainder(after): raise ValueError('Non-symbol schematic content changed')
+    if remainder(before, before_root) != remainder(after, after_root): raise ValueError('Non-symbol schematic content changed')
 
 
-def relink_sheet(text, mapping, nickname, selected_uuids=None):
-    root = parse(text); block = root.one(text, 'lib_symbols')
-    cache = cache_symbols(text); edits = []; generated = {}; used = set(); retained = set()
-    for item in placed_symbols(text):
+def relink_sheet(text, mapping, nickname, selected_uuids=None, root=None, footprint_defaults=None):
+    root = root or parse(text); block = root.one(text, 'lib_symbols')
+    cache = cache_symbols(text, root); edits = []; generated = {}; used = set(); retained = set()
+    converted = {}
+    for item in placed_symbols(text, root):
         key = item['key']
         if key not in mapping or (selected_uuids is not None and item['uuid'] not in selected_uuids):
             retained.add(key); continue
         name = safe_name(mapping[key]); new_id = nickname+':'+name
-        raw = rename_definition(cache[key], new_id)
-        if new_id in generated and semantic(generated[new_id]) != semantic(raw):
+        conversion = (key, new_id)
+        if conversion not in converted:
+            converted[conversion] = rename_definition(relink_definition_footprint(cache[key], footprint_defaults), new_id)
+        raw = converted[conversion]
+        if new_id in generated and generated[new_id] != raw and semantic(generated[new_id]) != semantic(raw):
             raise ValueError('Conflicting schematic definitions map to one library ID')
         generated[new_id] = raw; used.add(key)
         sym = item['node']; libid = sym.one(text,'lib_id'); arg = libid.arg()
@@ -251,14 +278,15 @@ def relink_sheet(text, mapping, nickname, selected_uuids=None):
     if block:
         # Keep unselected/unused cache entries unchanged unless a generated ID
         # would collide with a different existing definition.
-        remaining = {k:v for k,v in cache.items() if k not in used or k in retained}
+        remaining = {k:relink_definition_footprint(v, footprint_defaults)
+                     for k,v in cache.items() if k not in used or k in retained}
         for k,v in generated.items():
             if k in remaining and semantic(remaining[k]) != semantic(v): raise ValueError('Cache-key collision: '+k)
             remaining[k] = v
         new_block = '(lib_symbols\n'+'\n'.join(remaining.values())+'\n)'
         edits.append((block.start,block.end,new_block))
     result = patch(text,edits)
-    verify_symbol_preservation(text,result)
+    verify_symbol_preservation(text,result,before_root=root,footprint_defaults=footprint_defaults)
     return result
 
 

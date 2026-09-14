@@ -34,7 +34,7 @@ import webbrowser
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, Union
 
 APP_NAME = "WayriCAD Design Variant Workbench"
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.1.0"
 BOM_LOGIC_FIX_VERSION = 20260306
 SUPPORTED_MIN_VARIANT_VERSION = 20250922
 

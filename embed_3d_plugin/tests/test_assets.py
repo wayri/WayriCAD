@@ -155,7 +155,7 @@ class IconLoaderContractTests(unittest.TestCase):
         self.assertEqual(plugin.icon_file_name, assets.toolbar_icon_path())
         self.assertEqual(plugin.dark_icon_file_name, assets.toolbar_icon_path(True))
         self.assertTrue(plugin.show_toolbar_button)
-        self.assertIn('WayriCAD Embed3D', plugin.name)
+        self.assertEqual('WayriCAD Project Library', plugin.name)
 
 
 if __name__ == '__main__': unittest.main()

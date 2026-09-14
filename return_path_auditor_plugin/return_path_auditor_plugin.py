@@ -8,7 +8,7 @@ from pathlib import Path
 import pcbnew
 import wx
 
-from .analysis import CopperSegment, ReferenceRegion, ReturnPathAnalyzer, ViaPoint
+from .analysis import CopperSegment, ReferenceRegion, ReturnPathAnalyzer, ViaPoint, collect_board_geometry
 from .guided_ui import add_workflow, mark_primary, section
 from .preview_kit import PanZoomCanvas, add_zoom_toolbar, pcb_select_items, pcb_highlight_net
 
@@ -61,7 +61,7 @@ class BoardPreview(PanZoomCanvas):
 
 class ReturnPathAuditorPlugin(pcbnew.ActionPlugin):
     def defaults(self):
-        self.name="WayriCAD Return-Path Auditor"; self.category="Analysis"; self.description="Find return-path discontinuities, unreferenced transitions, and routed stubs."; self.show_toolbar_button=True; self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png"); self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png"); self.version="3.0.0"
+        self.name="WayriCAD Return-Path Auditor"; self.category="Analysis"; self.description="Find return-path discontinuities, unreferenced transitions, and routed stubs."; self.show_toolbar_button=True; self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png"); self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png"); self.version="3.1.0"
     def Run(self):
         board=pcbnew.GetBoard()
         if board is None: wx.MessageBox("Open a PCB first.",self.name,wx.OK|wx.ICON_ERROR); return
@@ -96,21 +96,10 @@ class ReturnPathFrame(wx.Frame):
                 self.table.SetItemState(row,wx.LIST_STATE_SELECTED|wx.LIST_STATE_FOCUSED,wx.LIST_STATE_SELECTED|wx.LIST_STATE_FOCUSED);break
         self.cross_select_net(finding.net,f"Preview click: selected and highlighted {finding.net}; finding {index+1} marked.")
     def collect(self):
-        segments=[]; vias=[]
-        for item in self.board.GetTracks():
-            name=str(getattr(item,"GetNetname",lambda:"")()); layer=str(getattr(item,"GetLayerName",lambda:"")())
-            cls=str(getattr(item,"GetClass",lambda:"")()).upper()
-            if "VIA" in cls:
-                pos=item.GetPosition(); vias.append(ViaPoint(name,(mm(pos.x),mm(pos.y)),(layer,))); continue
-            if hasattr(item,"GetStart") and hasattr(item,"GetEnd"):
-                a,b=item.GetStart(),item.GetEnd();layer=str(self.board.GetLayerName(item.GetLayer()));segments.append(CopperSegment(name,layer,(mm(a.x),mm(a.y)),(mm(b.x),mm(b.y)),mm(item.GetWidth())))
-        regions=[]
-        for zone in getattr(self.board,"Zones",lambda:[])():
-            box=zone.GetBoundingBox(); start,end=box.GetPosition(),box.GetEnd(); regions.append(ReferenceRegion(str(zone.GetNetname()),str(self.board.GetLayerName(zone.GetLayer())),(mm(start.x),mm(start.y),mm(end.x),mm(end.y))))
-        return segments,vias,regions
+        return collect_board_geometry(self.board)
     def analyze(self,_event):
         try:
-            analyzer=ReturnPathAnalyzer(self.ground.GetValue().split(","));segments,vias,regions=self.collect();self.result=analyzer.audit(segments,vias,regions,float(self.radius.GetValue()),float(self.stub.GetValue()),float(self.diff_gap.GetValue()),float(self.diff_skew.GetValue()));self.table.DeleteAllItems()
+            analyzer=ReturnPathAnalyzer(self.ground.GetValue().split(","));segments,vias,regions=self.collect();self.result=analyzer.audit(segments,vias,regions,float(self.radius.GetValue()),float(self.stub.GetValue()),float(self.diff_gap.GetValue()),float(self.diff_skew.GetValue()),layer_order=[str(self.board.GetLayerName(layer)) for layer in self.board.GetEnabledLayers().CuStack()]);self.table.DeleteAllItems()
             for finding in self.result.findings:
                 row=(finding.severity,finding.check,finding.net,finding.layer,f"{finding.x_mm:.2f}, {finding.y_mm:.2f}",finding.detail,finding.remedy);index=self.table.InsertItem(self.table.GetItemCount(),row[0]);[self.table.SetItem(index,col,value) for col,value in enumerate(row[1:],1)]
             self.preview.show_result(self.result);self.summary.SetLabel(f"{len(segments)} routed segments | {len(vias)} vias | {len(regions)} reference regions | {len(self.result.findings)} findings")
