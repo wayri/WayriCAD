@@ -1,0 +1,6 @@
+{
+  "tool": "extract_pins_plugin",
+  "name": "WayriCAD Extract Pins",
+  "module": "extract_pins_plugin",
+  "class": "ExtractPinsPlugin"
+}

@@ -1,4 +1,4 @@
-# KiWay Planar Magnetics & Actuator Workbench 0.2.0
+# WayriCAD Planar Magnetics & Actuator Workbench 3.0.0
 
 Generate rectangular or circular planar windings across as many as 16 copper
 layers with series transitions, stitched vias, separate primary/secondary PCB
@@ -23,6 +23,6 @@ multimode coupling, readout back-action, and quantum effects. Use
 process-calibrated electromagnetic/structural/fluid/thermal FEA and measured
 device parameters before fabricating MEMS or NEMS hardware.
 
-Temporary PCB previews are removed when the window closes. Accepted windings
-are stored in persistent named groups, allowing the latest KiWay commit to be
+Preview stays in the window and does not change the PCB. Apply checks that the board and settings still match the review. Accepted windings
+are stored in persistent named groups, allowing the latest WayriCAD commit to be
 undone after reopening the workbench.

@@ -1,29 +1,33 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v1",
-  "name": "KiWay Portable Assets",
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Portable Assets",
   "description": "Make KiCad projects self-contained using reviewed footprint, symbol, and 3D-model snapshots.",
-  "description_full": "KiWay Portable Assets snapshots placed PCB footprints into a project-local library, relinks schematic symbols, embeds resolvable 3D models, creates an optional native Embedded Files recovery vault, and repairs missing footprint links from PCB geometry. A native PCB Editor ActionPlugin launches the workbench in an isolated GUI process and passes the active board path directly. A fresh unchanged analysis is required before each write. Network model retrieval is disabled by default. Lock-file checks, explicit confirmation, S-expression validation, conventional KiCad backup archives plus transactional backups, atomic replacement, and unresolved-model reporting protect project files.",
-  "identifier": "kiway-portable-assets",
+  "description_full": "WayriCAD Portable Assets snapshots placed PCB footprints into a project-local library, relinks schematic symbols, embeds resolvable 3D models, creates an optional native Embedded Files recovery vault, and repairs missing footprint links from PCB geometry. A native PCB Editor ActionPlugin launches the workbench in an isolated GUI process and passes the active board path directly. A fresh unchanged analysis is required before each write. Network model retrieval is disabled by default. Lock-file checks, explicit confirmation, S-expression validation, conventional KiCad backup archives plus transactional backups, atomic replacement, and unresolved-model reporting protect project files.",
+  "identifier": "com.github.wayri.wayricad.portable-assets",
   "type": "plugin",
   "author": {
     "name": "Wayri (Yawar)",
-    "contact": {"github": "https://github.com/wayri"}
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
   },
   "maintainer": {
     "name": "Wayri (Yawar)",
-    "contact": {"github": "https://github.com/wayri"}
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
   },
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "resources": {
-    "homepage": "https://github.com/wayri/KiWay",
-    "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/portable_assets_plugin/icon.png"
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/portable_assets_plugin/icon.png"
   },
   "versions": [
     {
-      "version": "0.2.4",
+      "version": "3.0.0",
       "status": "testing",
       "kicad_version": "10.0",
-      "runtime": "swig"
+      "runtime": "ipc"
     }
   ]
 }

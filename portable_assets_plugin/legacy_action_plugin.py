@@ -13,7 +13,7 @@ import wx
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parent
-PLUGIN_ID = "kiway-portable-assets"
+PLUGIN_ID = "wayricad-portable-assets"
 
 
 def _gui_python() -> Path:
@@ -68,18 +68,18 @@ def _launch() -> None:
 
 class PortableAssetsActionPlugin(pcbnew.ActionPlugin):
     def defaults(self) -> None:
-        self.name = "KiWay Portable Assets"
+        self.name = "WayriCAD Portable Assets"
         self.category = "Project Dependencies"
         self.description = "Snapshot project footprints, symbols, and 3D assets safely"
         self.icon_file_name = str(PLUGIN_ROOT / "icon.png")
-        self.dark_icon_file_name = self.icon_file_name
+        self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
         self.show_toolbar_button = True
 
     def Run(self) -> None:
         try:
             _launch()
         except Exception as exc:
-            wx.MessageBox(str(exc), "KiWay Portable Assets", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(str(exc), "WayriCAD Portable Assets", wx.OK | wx.ICON_ERROR)
 
 
 def register() -> None:

@@ -61,7 +61,7 @@ class BoardPreview(PanZoomCanvas):
 
 class ReturnPathAuditorPlugin(pcbnew.ActionPlugin):
     def defaults(self):
-        self.name="KiWay Return-Path Auditor"; self.category="Analysis"; self.description="Find return-path discontinuities, unreferenced transitions, and routed stubs."; self.show_toolbar_button=True; self.icon_file_name=os.path.join(os.path.dirname(__file__),"icon.png"); self.dark_icon_file_name=self.icon_file_name; self.version="0.3.0"
+        self.name="WayriCAD Return-Path Auditor"; self.category="Analysis"; self.description="Find return-path discontinuities, unreferenced transitions, and routed stubs."; self.show_toolbar_button=True; self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png"); self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png"); self.version="3.0.0"
     def Run(self):
         board=pcbnew.GetBoard()
         if board is None: wx.MessageBox("Open a PCB first.",self.name,wx.OK|wx.ICON_ERROR); return
@@ -70,7 +70,7 @@ class ReturnPathAuditorPlugin(pcbnew.ActionPlugin):
 
 class ReturnPathFrame(wx.Frame):
     def __init__(self,parent,board):
-        super().__init__(parent,title="KiWay Return-Path and Discontinuity Auditor",size=(1250,820)); self.board=board; self.result=None; self._build(); self.Centre()
+        super().__init__(parent,title="WayriCAD Return-Path and Discontinuity Auditor",size=(1250,820)); self.board=board; self.result=None; self._build(); self.Centre()
     def _build(self):
         p=wx.Panel(self); root=wx.BoxSizer(wx.VERTICAL)
         self.guide=add_workflow(p,root,"Return-Path and Discontinuity Auditor","Audit signal transitions, reference continuity, routed branches, and differential geometry without modifying the PCB.",("Configure","Analyze","Review","Export"),lambda e:webbrowser.open((Path(__file__).with_name("help.html")).as_uri()))

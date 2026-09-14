@@ -1,4 +1,4 @@
-"""KiWay PDN and Decoupling Planner plugin entry point."""
+"""WayriCAD PDN and Decoupling Planner plugin entry point."""
 
 try:
     from .pdn_decoupling_plugin import PdnDecouplingPlugin

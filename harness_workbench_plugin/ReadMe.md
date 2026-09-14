@@ -1,4 +1,4 @@
-# KiWay Harness and Cable Workbench 0.4.0
+# WayriCAD Harness and Cable Workbench 3.0.0
 
 Builds a system-level harness definition from as many as 50 board pin exports.
 It supports indexed net matching and connector correspondence where pin 1 maps
@@ -16,7 +16,7 @@ can be assigned gauges, colors, lengths, shields, bundles, and splices.
 
 The workbench can join an internal controller or peripheral path on one board,
 a reviewed harness wire, and an internal path on another board. Export
-**Controller Map CSV** from KiWay Pin Extractor for each board, then import
+**Controller Map CSV** from WayriCAD Pin Extractor for each board, then import
 those files with **Import IC / Connector Paths**. The CSV file stem, or its
 `Project` column when present, must match the project name in the board pin
 document.
@@ -59,7 +59,7 @@ DEMO_CTRL,J1,1,DEMO_IO,J7,8,W00001,24,Blue,DATA,,1.250,,UART transmit
 DEMO_CTRL,J1,2,DEMO_IO,J7,12,W00002,24,White,DATA,,1.250,,UART receive
 ~~~
 
-The same workflow is available headlessly through `kiway run` and
+The same workflow is available headlessly through `wayricad run` and
 `harness.build`; `path_documents`, `source_refs`, `destination_refs`, and
 `include_html` expose the complete system-path report. See
 `docs/CLI_USER_GUIDE.md`.

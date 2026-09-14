@@ -186,13 +186,13 @@ def extract_test_points(board: Any, descriptor_field: str = "TP_Descriptor", boa
 
 class TestPointDescriptorPlugin(pcbnew.ActionPlugin):
     def defaults(self) -> None:
-        self.name = "KiWay Test Point Descriptor Extractor"
+        self.name = "WayriCAD Test Point Descriptor Extractor"
         self.category = "Documentation"
         self.description = "Extract test-point nets, descriptors, and TM/TC metadata to engineering documents."
         self.show_toolbar_button = True
-        self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.8.0"
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
+        self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
+        self.version = "3.0.0"
 
     def Run(self) -> None:
         try:
@@ -201,12 +201,12 @@ class TestPointDescriptorPlugin(pcbnew.ActionPlugin):
                 raise RuntimeError("Open a PCB in PCB Editor first.")
             TestPointFrame(None, board).Show()
         except Exception as exc:
-            wx.MessageBox(str(exc), "KiWay Test Point Descriptor Extractor", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(str(exc), "WayriCAD Test Point Descriptor Extractor", wx.OK | wx.ICON_ERROR)
 
 
 class TestPointFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Test Point Descriptor Extractor", size=(1280, 720), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="WayriCAD Test Point Descriptor Extractor", size=(1280, 720), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.SetMinSize((960, 600))
         self.board = board
         self.rows: List[Dict[str, str]] = []
@@ -219,26 +219,27 @@ class TestPointFrame(wx.Frame):
             "Configure descriptor conventions, preview parsed records, then export reviewed documentation.",
             ("Configure", "Review preview", "Export"),
         )
+        settings = wx.CollapsiblePane(panel, label="Extraction settings", style=wx.CP_DEFAULT_STYLE | wx.CP_NO_TLW_RESIZE)
+        options_parent = settings.GetPane()
         options_box = wx.BoxSizer(wx.VERTICAL)
-        options_heading = wx.StaticText(panel, label="Extraction Rules")
-        options_heading.SetFont(options_heading.GetFont().Bold())
-        options_box.Add(options_heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 4)
         options = wx.FlexGridSizer(0, 2, 6, 8)
-        self.field = wx.TextCtrl(panel, value="TP_Descriptor")
-        self.boards = wx.TextCtrl(panel, value="DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO")
-        self.consolidate = wx.CheckBox(panel, label="Consolidate duplicate TP/net records")
+        self.field = wx.TextCtrl(options_parent, value="TP_Descriptor")
+        self.boards = wx.TextCtrl(options_parent, value="DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO")
+        self.consolidate = wx.CheckBox(options_parent, label="Consolidate duplicate TP/net records")
         self.consolidate.SetValue(True)
-        self.probe_type = wx.ComboBox(panel, choices=["P75 spring probe", "P100 spring probe", "P160 spring probe", "Custom"], style=wx.CB_READONLY)
+        self.probe_type = wx.ComboBox(options_parent, choices=["P75 spring probe", "P100 spring probe", "P160 spring probe", "Custom"], style=wx.CB_READONLY)
         self.probe_type.SetSelection(0)
-        options.Add(wx.StaticText(panel, label="Descriptor field:"), 0, wx.ALIGN_CENTER_VERTICAL)
+        options.Add(wx.StaticText(options_parent, label="Descriptor field:"), 0, wx.ALIGN_CENTER_VERTICAL)
         options.Add(self.field, 1, wx.EXPAND)
-        options.Add(wx.StaticText(panel, label="Board order (comma separated):"), 0, wx.ALIGN_CENTER_VERTICAL)
+        options.Add(wx.StaticText(options_parent, label="Board order (comma separated):"), 0, wx.ALIGN_CENTER_VERTICAL)
         options.Add(self.boards, 1, wx.EXPAND)
         options.Add(self.consolidate, 0, wx.ALIGN_CENTER_VERTICAL)
         options.Add(self.probe_type, 1, wx.EXPAND)
         options.AddGrowableCol(1, 1)
         options_box.Add(options, 0, wx.EXPAND | wx.ALL, 8)
-        root.Add(options_box, 0, wx.EXPAND | wx.ALL, 8)
+        options_parent.SetSizer(options_box)
+        settings.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, lambda event: panel.Layout())
+        root.Add(settings, 0, wx.EXPAND | wx.ALL, 8)
         self.list = wx.ListCtrl(panel, style=wx.LC_REPORT)
         self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.select_test_point)
         self.list.Bind(wx.EVT_LIST_COL_CLICK, self.on_sort_column)
@@ -247,7 +248,7 @@ class TestPointFrame(wx.Frame):
             self.list.InsertColumn(index, label, width=145 if index not in (2, 7) else 210)
         root.Add(self.list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         row = wx.WrapSizer(wx.HORIZONTAL)
-        for label, handler in (("Extract Preview", self.extract), ("Export CSV", self.export_csv), ("Export Fixture Plan", self.export_fixture_plan), ("Generate Fixture PCB", self.generate_fixture_pcb), ("Export Markdown", self.export_markdown), ("Export HTML", self.export_html)):
+        for label, handler in (("Refresh Preview", self.extract), ("Export…", self.export_menu)):
             button = wx.Button(panel, label=label)
             button.Bind(wx.EVT_BUTTON, handler)
             row.Add(button, 0, wx.ALL, 5)
@@ -273,6 +274,16 @@ class TestPointFrame(wx.Frame):
                 self.list.SetItem(index, col, row.get(key, ""))
         self.status.SetLabel(f"Extracted {len(self.rows)} test-point records.")
         self.workflow.set_step(1 if self.rows else 0, "Cross-select uncertain rows and verify parsed endpoints/types before export." if self.rows else "Check the descriptor field and TP naming, then Extract again.")
+
+    def export_menu(self, event: Any) -> None:
+        menu = wx.Menu()
+        for label, handler in (("CSV", self.export_csv), ("Markdown", self.export_markdown), ("HTML", self.export_html), ("Fixture Plan", self.export_fixture_plan), ("Fixture PCB…", self.generate_fixture_pcb)):
+            item = menu.Append(wx.ID_ANY, label)
+            menu.Bind(wx.EVT_MENU, handler, id=item.GetId())
+        try:
+            event.GetEventObject().PopupMenu(menu)
+        finally:
+            menu.Destroy()
 
     def extract(self, _event: Any) -> None:
         board_order = [item.strip() for item in self.boards.GetValue().split(",") if item.strip()]
@@ -332,7 +343,7 @@ class TestPointFrame(wx.Frame):
     def select_test_point(self, event: Any) -> None:
         index = event.GetIndex() if hasattr(event, "GetIndex") else self.list.GetFirstSelected()
         if index < 0 or index >= len(self.rows):
-            wx.MessageBox("Select a test-point row first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Select a test-point row first.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
         references = [self.rows[index].get("TP Reference", "")]
         references.extend(item.strip() for item in self.rows[index].get("Connected IC", "").split(";") if item.strip())

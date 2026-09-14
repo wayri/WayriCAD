@@ -1,0 +1,32 @@
+{
+  "$schema": "https://go.kicad.org/api/schemas/v1",
+  "identifier": "com.github.wayri.wayricad.portable-assets",
+  "name": "WayriCAD Portable Assets",
+  "description": "Make KiCad projects self-contained using reviewed footprint, symbol, and 3D-model snapshots.",
+  "runtime": {
+    "type": "python",
+    "min_version": "3.10.0"
+  },
+  "actions": [
+    {
+      "identifier": "open",
+      "name": "WayriCAD Portable Assets",
+      "description": "Make KiCad projects self-contained using reviewed footprint, symbol, and 3D-model snapshots.",
+      "show-button": true,
+      "scopes": [
+        "pcb"
+      ],
+      "entrypoint": "ipc_entrypoint.py",
+      "icons-light": [
+        "resources/icon-24.png",
+        "resources/icon-48.png",
+        "resources/icon-96.png"
+      ],
+      "icons-dark": [
+        "resources/icon-dark-24.png",
+        "resources/icon-dark-48.png",
+        "resources/icon-dark-96.png"
+      ]
+    }
+  ]
+}

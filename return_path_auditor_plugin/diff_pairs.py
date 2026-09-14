@@ -1,4 +1,4 @@
-"""Shared differential-pair net-name detection for KiWay tools."""
+"""Shared differential-pair net-name detection for WayriCAD tools."""
 
 from __future__ import annotations
 

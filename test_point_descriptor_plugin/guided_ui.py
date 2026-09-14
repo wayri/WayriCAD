@@ -1,107 +1,61 @@
-"""Consistent guided workflow widgets for standalone KiWay plugins."""
-
+"""Compact native workflow header, vendored identically into standalone tools."""
 from __future__ import annotations
-
-from typing import Sequence
-
+from typing import Callable,Sequence
 import wx
 
-
-ACCENT = "#3399cc"
-DONE_BG, DONE_FG = "#dcefe3", "#174c2c"
-ACTIVE_BG, ACTIVE_FG = "#d9eaff", "#123f67"
-PENDING_BG, PENDING_FG = "#e8eaed", "#3c4043"
+MARGIN=10
+CONTROL_GAP=7
+ACCENT='#3399cc'
 
 
 class WorkflowGuide:
-    """Compact, theme-safe step indicator with progress and next action."""
+    """A single title/status row; detailed guidance stays in local help/tooltips."""
+    def __init__(self,parent,title,summary,steps:Sequence[str],help_handler:Callable|None=None):
+        self.steps=list(steps);self.labels=[];self.summary=str(summary)
+        self.panel=wx.Panel(parent)
+        row=wx.BoxSizer(wx.HORIZONTAL)
+        heading=wx.StaticText(self.panel,label=title)
+        heading.SetFont(heading.GetFont().Bold());heading.SetToolTip(self.summary)
+        row.Add(heading,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,self.panel.FromDIP(16))
+        self.next_action=wx.StaticText(self.panel,label='',style=wx.ST_ELLIPSIZE_END)
+        self.next_action.SetForegroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_GRAYTEXT))
+        self.next_action.SetMinSize(self.panel.FromDIP((120,-1)))
+        row.Add(self.next_action,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,self.panel.FromDIP(8))
+        # Kept as hidden controls for callers that retain the original attributes.
+        self.subtitle=wx.StaticText(self.panel,label=self.summary);self.subtitle.Hide()
+        self.progress=wx.StaticText(self.panel,label='');self.progress.Hide()
+        if help_handler is not None:
+            help_button=wx.Button(self.panel,label='Help',style=wx.BU_EXACTFIT)
+            help_button.SetToolTip('Open local usage and troubleshooting help')
+            help_button.Bind(wx.EVT_BUTTON,help_handler)
+            row.Add(help_button,0,wx.ALIGN_CENTER_VERTICAL)
+        outer=wx.BoxSizer(wx.VERTICAL)
+        outer.Add(row,0,wx.EXPAND|wx.ALL,self.panel.FromDIP(MARGIN))
+        self.panel.SetSizer(outer)
+        self.panel.Bind(wx.EVT_SIZE,self._on_size)
+        self.set_step(0,self.summary)
 
-    def __init__(self, parent: wx.Window, title: str, summary: str, steps: Sequence[str]) -> None:
-        self.panel = wx.Panel(parent)
-        self.steps = list(steps)
-        root = wx.BoxSizer(wx.HORIZONTAL)
-        accent = wx.Panel(self.panel, size=(5, -1))
-        accent.SetBackgroundColour(wx.Colour(ACCENT))
-        root.Add(accent, 0, wx.EXPAND)
+    def _on_size(self,event):
+        self.panel.Layout();event.Skip()
 
-        content = wx.BoxSizer(wx.VERTICAL)
-        heading_row = wx.BoxSizer(wx.HORIZONTAL)
-        heading = wx.StaticText(self.panel, label=title)
-        heading.SetFont(heading.GetFont().Bold().Larger())
-        heading_row.Add(heading, 0, wx.ALIGN_CENTER_VERTICAL)
-        heading_row.AddStretchSpacer()
-        self.progress = wx.StaticText(self.panel, label="")
-        progress_font = self.progress.GetFont()
-        progress_font.MakeSmaller()
-        self.progress.SetFont(progress_font)
-        self.progress.SetForegroundColour(wx.Colour("#6b7a89"))
-        heading_row.Add(self.progress, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 12)
-        content.Add(heading_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
-        self.subtitle = wx.StaticText(self.panel, label=summary)
-        self.subtitle.Wrap(760)
-        content.Add(self.subtitle, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
-
-        row = wx.WrapSizer(wx.HORIZONTAL)
-        self.labels = []
-        for index, step in enumerate(self.steps, 1):
-            label = wx.StaticText(self.panel, label=f" {index}  {step} ", style=wx.ALIGN_CENTER | wx.BORDER_SIMPLE)
-            label.SetMinSize((108, 30))
-            row.Add(label, 0, wx.RIGHT, 6)
-            self.labels.append(label)
-        content.Add(row, 0, wx.EXPAND | wx.ALL, 8)
-
-        self.next_action = wx.StaticText(self.panel, label="")
-        self.next_action.Wrap(760)
-        content.Add(self.next_action, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
-        content.Add(wx.StaticLine(self.panel), 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
-        root.Add(content, 1, wx.EXPAND)
-        self.panel.SetSizer(root)
-        self.panel.Bind(wx.EVT_SIZE, self._on_size)
-        self.active_step = 0
-        self.set_step(0, "Review the settings, then use the primary action below.")
-
-    def _on_size(self, event: wx.SizeEvent) -> None:
-        width = max(420, event.GetSize().width - 48)
-        self.subtitle.Wrap(width)
-        self.next_action.Wrap(width)
-        self.panel.Layout()
-        event.Skip()
-
-    def set_step(self, active: int, next_action: str) -> None:
-        self.active_step = active
-        for index, label in enumerate(self.labels):
-            if index < active:
-                background, foreground, text = DONE_BG, DONE_FG, f" \u2713  {self.steps[index]} "
-            elif index == active:
-                background, foreground, text = ACTIVE_BG, ACTIVE_FG, f" {index + 1}  {self.steps[index]} "
-            else:
-                background, foreground, text = PENDING_BG, PENDING_FG, f" {index + 1}  {self.steps[index]} "
-            label.SetLabel(text)
-            label.SetBackgroundColour(wx.Colour(background))
-            label.SetForegroundColour(wx.Colour(foreground))
-            if index == active:
-                font = label.GetFont()
-                if not font.Bold():
-                    label.SetFont(font.Bold())
-            else:
-                font = label.GetFont()
-                if font.Bold():
-                    font.SetWeight(wx.FONTWEIGHT_NORMAL)
-                    label.SetFont(font)
-        total = len(self.steps)
-        current = min(max(active, 0), total)
-        self.progress.SetLabel(f"step {min(current + 1, total)} of {total}" if active < total else "complete")
-        self.next_action.SetLabel(f"Next: {next_action}")
+    def set_step(self,active,next_action):
+        active=max(0,int(active))
+        stage=self.steps[active] if active<len(self.steps) else 'Complete'
+        self.progress.SetLabel(stage)
+        text=str(next_action).strip()
+        self.next_action.SetLabel(text)
+        self.next_action.SetToolTip(stage+'\n'+text)
         self.panel.Layout()
 
 
-def add_workflow(
-    parent: wx.Window,
-    sizer: wx.Sizer,
-    title: str,
-    summary: str,
-    steps: Sequence[str],
-) -> WorkflowGuide:
-    guide = WorkflowGuide(parent, title, summary, steps)
-    sizer.Add(guide.panel, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 6)
+def add_workflow(parent,sizer,title,summary,steps,help_handler=None):
+    guide=WorkflowGuide(parent,title,summary,steps,help_handler)
+    sizer.Add(guide.panel,0,wx.EXPAND)
     return guide
+
+
+def section(parent,label):return wx.StaticBoxSizer(wx.VERTICAL,parent,label)
+
+
+def mark_primary(button,tooltip):
+    button.SetToolTip(tooltip);button.SetDefault();return button

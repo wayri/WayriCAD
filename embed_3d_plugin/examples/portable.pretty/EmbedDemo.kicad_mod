@@ -1,0 +1,27 @@
+(footprint "EmbedDemo"
+  (version 20241229)
+  (generator pcbnew)
+  (layer "F.Cu")
+  (descr "WayriCAD Embed3D disposable transform/portability example")
+  (attr smd)
+  (property "Reference" "REF**" (at 0 -2.8 0) (layer "F.SilkS")
+    (effects (font (size 1 1) (thickness 0.15))))
+  (property "Value" "EmbedDemo" (at 0 2.8 0) (layer "F.Fab")
+    (effects (font (size 1 1) (thickness 0.15))))
+  (fp_rect (start -2 -2) (end 2 2)
+    (stroke (width 0.15) (type default)) (fill none) (layer "F.SilkS"))
+  (pad "1" smd rect (at -1 0) (size 1.2 1.8) (layers "F.Cu" "F.Paste" "F.Mask"))
+  (pad "2" smd rect (at 1 0) (size 1.2 1.8) (layers "F.Cu" "F.Paste" "F.Mask"))
+  (model "kicad-embed://sample_box__c90b9762d808f38c7ceae98a17582817d949c84c5b0edaeff7da6a5c47527003.wrl"
+    (offset (xyz -0.25 0.5 0.8))
+    (scale (xyz 1.25 0.8 1.5))
+    (rotate (xyz 15 20 35)))
+
+	(embedded_files
+(file (name "sample_box__c90b9762d808f38c7ceae98a17582817d949c84c5b0edaeff7da6a5c47527003.wrl") (type model) (data
+|KLUv/SDAtQQA0gkhIUClOgeAtLmdioS9q9bSFdyipL3+ZXuR52W25tfEjk4TuKyyegLjmjsPNHX6
+KyZ+Vl+/GJr7UmjuiqC5z/iigikriho6bf62J1cLTxFngGnnspT7M3qWGxBh7YrP+UnY1PcHgVkx
+jCw9Qoa+GED8QEY3/nZqqefjCWOiyrprinNHA3GSBQAooZkGvzmUx0IS81bM|
+) (checksum "c90b9762d808f38c7ceae98a17582817d949c84c5b0edaeff7da6a5c47527003"))
+	)
+)

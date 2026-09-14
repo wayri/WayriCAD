@@ -3,26 +3,30 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kiway"
-version = "2.27.1"
-description = "KiWay KiCad electrical systems CLI and plugin package"
+name = "wayricad"
+version = "3.0.0"
+description = "WayriCAD KiCad electrical systems CLI and plugin package"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "GPL-3.0-only"
 authors = [{name = "Wayri (Yawar)"}]
 dependencies = ["networkx>=2.8"]
 keywords = ["kicad", "eda", "icd", "cli", "aerospace", "harness"]
 
 [project.optional-dependencies]
-test = ["Pillow>=9.0"]
+test = ["Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9"]
 
 [project.scripts]
-kiway = "extract_pins_plugin.cli:main"
+wayricad = "extract_pins_plugin.cli:main"
+wayricad-route = "wayricad_runtime.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["*_plugin", "*_plugin.*"]
+include = ["*_plugin", "*_plugin.*", "wayricad_runtime"]
 
 [tool.setuptools.package-data]
 extract_pins_plugin = ["*.html", "*.md", "*.txt", "*.svg", "*.png", "metadata.json"]
 harness_workbench_plugin = ["*.html", "*.md", "*.png", "metadata.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

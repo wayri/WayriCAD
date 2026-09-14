@@ -1,0 +1,6 @@
+{
+  "tool": "portable_assets_plugin",
+  "name": "WayriCAD Portable Assets",
+  "module": "legacy_action_plugin",
+  "class": "PortableAssetsActionPlugin"
+}

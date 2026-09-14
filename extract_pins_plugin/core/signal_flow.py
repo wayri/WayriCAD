@@ -1,6 +1,6 @@
 # signal_flow.py
 """
-Signal Flow Analysis module for KiWay Extract Pins Plugin.
+Signal Flow Analysis module for WayriCAD Extract Pins Plugin.
 Provides functionality for tracing signals between components.
 
 @author - Wayri (Yawar)

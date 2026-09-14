@@ -1,0 +1,6 @@
+{
+  "tool": "test_point_descriptor_plugin",
+  "name": "WayriCAD Test Point Descriptor Extractor",
+  "module": "test_point_descriptor_plugin",
+  "class": "TestPointDescriptorPlugin"
+}

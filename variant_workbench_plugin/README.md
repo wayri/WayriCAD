@@ -1,4 +1,4 @@
-# KiWay Design Variant Workbench 0.5.3
+# WayriCAD Design Variant Workbench 3.0.0
 
 A standalone Python/Tkinter application and KiCad 10 ActionPlugin for working with KiCad design variants safely. The menu action passes the active project to a detached Workbench process.
 
@@ -264,11 +264,11 @@ Compatibility logic also retains support for the older pre-2026-03-06 variant `i
 
 ## Installation and standalone use
 
-Install **KiWay Design Variant Workbench** from the KiWay repository in KiCad's Plugin and Content Manager. For a manual installation, extract the complete package into KiCad's ActionPlugin directory:
+Install **WayriCAD Design Variant Workbench** from the WayriCAD repository in KiCad's Plugin and Content Manager. For a manual installation, extract the complete package into KiCad's ActionPlugin directory:
 
-- Windows: `~/Documents/KiCad/10.0/3rdparty/plugins/kiway_variant_workbench`
-- macOS: `~/Documents/KiCad/10.0/3rdparty/plugins/kiway_variant_workbench`
-- Linux: `~/.local/share/KiCad/10.0/3rdparty/plugins/kiway_variant_workbench`
+- Windows: `~/Documents/KiCad/10.0/3rdparty/plugins/wayricad_variant_workbench`
+- macOS: `~/Documents/KiCad/10.0/3rdparty/plugins/wayricad_variant_workbench`
+- Linux: `~/.local/share/KiCad/10.0/3rdparty/plugins/wayricad_variant_workbench`
 
 Restart KiCad after installation. The PCB Editor ActionPlugin starts the independent Workbench with the active schematic when it can be resolved.
 
@@ -358,7 +358,7 @@ Run compatibility/regression tests inherited from the original Variant → Defau
 python -m unittest discover -s compat_tests -v
 ```
 
-The imported 0.4.0 test baseline contains **41 automated tests**. KiWay 0.5.0 adds integration tests for lock-file refusal, manifests, help, and icon assets.
+The imported 0.4.0 test baseline contains **41 automated tests**. WayriCAD 3.0.0 adds integration tests for lock-file refusal, manifests, help, and icon assets.
 
 - 27 Workbench/manager tests
 - 14 compatibility/regression tests
@@ -402,7 +402,7 @@ The GUI was also smoke-launched under a virtual X display during packaging. This
 
 ## PCM package layout
 
-The KiWay PCM archive contains only the runtime, documentation, manifests, and icons required by KiCad:
+The WayriCAD PCM archive contains only the runtime, documentation, manifests, and icons required by KiCad:
 
 ```text
 variant_workbench_plugin/

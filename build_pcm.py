@@ -12,16 +12,16 @@ from pathlib import Path
 PCM_DIR = "pcm"
 RELEASES_DIR = "releases"
 
-DEFAULT_BRANCH = os.environ.get("KIWAY_BRANCH", "develop")
-DEFAULT_RELEASE_TAG = os.environ.get("KIWAY_RELEASE_TAG", "2.24.1")
+DEFAULT_BRANCH = os.environ.get("WAYRICAD_BRANCH", "develop")
+DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "3.0.0")
 
 REPO_OWNER = "wayri"
-REPO_NAME = "KiWay"
+REPO_NAME = "WayriCAD"
 GITHUB_PROFILE = "https://github.com/wayri"
 REPO_HOMEPAGE = f"https://github.com/{REPO_OWNER}/{REPO_NAME}"
 REPO_URL_BASE = f"{REPO_HOMEPAGE}/releases/download"
 
-PCM_SCHEMA = "https://go.kicad.org/pcm/schemas/v1"
+PCM_SCHEMA = "https://go.kicad.org/pcm/schemas/v2"
 SUPPORTED_RUNTIMES = {"swig", "ipc"}
 
 # Fixed zip entry timestamp so identical inputs produce byte-identical
@@ -112,7 +112,7 @@ def normalize_author(author, plugin_path):
             f"{plugin_path}: 'author.contact' must be a JSON object."
         )
 
-    # All KiWay packages use the same repository maintainer.
+    # All WayriCAD packages use the same repository maintainer.
     if not contact:
         contact = {"github": GITHUB_PROFILE}
 
@@ -321,9 +321,9 @@ def create_repository_resources_zip(
 
     Examples:
 
-        kiway.extract.pins/icon.png
-        kiway.fanout.generator/icon.png
-        kiway.via.stitching/icon.png
+        wayricad.extract.pins/icon.png
+        wayricad.fanout.generator/icon.png
+        wayricad.via.stitching/icon.png
     """
 
     output_dir = Path(output_dir)
@@ -422,7 +422,7 @@ def create_plugin_zip(
     )
 
     zip_filename = (
-        f"{plugin_path.name}-{version}.zip"
+        f"WayriCAD-{plugin_path.name.removesuffix('_plugin').replace('_', '-')}-{version}-PCM.zip"
     )
 
     zip_path = (
@@ -474,7 +474,7 @@ def create_plugin_zip(
 
         for root, dirs, files in os.walk(plugin_path):
 
-            dirs[:] = [
+            dirs[:] = sorted([
                 d
                 for d in dirs
                 if d
@@ -482,12 +482,14 @@ def create_plugin_zip(
                     "__pycache__",
                     ".git",
                     ".vscode",
+                    ".pytest_cache", "tests", "tools", "scripts", "docs",
+                    "examples", "node_modules",
                 }
-            ]
+            ])
 
-            for file in files:
+            for file in sorted(files):
 
-                if file.endswith(".pyc"):
+                if file.endswith((".pyc", ".log")):
                     continue
 
                 if file == "metadata.json":
@@ -515,7 +517,35 @@ def create_plugin_zip(
                     file_path.read_bytes(),
                 )
 
-        #
+        # Every package carries its own runtime; installed tools never import siblings.
+        runtime_root = Path(__file__).resolve().parent / "wayricad_runtime"
+        for source in sorted(runtime_root.rglob("*.py")):
+            zipf.writestr(zip_entry("plugins/wayricad_runtime/" + source.relative_to(runtime_root).as_posix(),
+                                   compress_type=zipfile.ZIP_DEFLATED), source.read_bytes())
+        zipf.writestr(zip_entry("plugins/wayricad_runtime/LICENSE"),
+                      (Path(__file__).resolve().parent / "LICENSE").read_bytes())
+        if plugin_path.name == "extract_pins_plugin":
+            # The automation CLI advertises suite analyses, so its ZIP includes their pure backends.
+            backends = {
+                "harness_workbench_plugin": ("analysis.py", "report.py"),
+                "protocol_constraint_composer_plugin": ("analysis.py",),
+                "manufacturing_readiness_plugin": ("analysis.py",),
+                "heater_designer_plugin": ("analysis.py",),
+                "pdn_decoupling_plugin": ("analysis.py",),
+                "return_path_auditor_plugin": ("analysis.py",),
+                "planar_magnetics_plugin": ("analysis.py",),
+                "test_point_descriptor_plugin": ("fixture.py",),
+            }
+            for folder, filenames in sorted(backends.items()):
+                for filename in filenames:
+                    source = Path(__file__).resolve().parent / folder / filename
+                    zipf.writestr(zip_entry(f"plugins/_suite_backends/{folder}/{filename}",
+                                           compress_type=zipfile.ZIP_DEFLATED), source.read_bytes())
+        license_path = plugin_path / "LICENSE"
+        if not license_path.exists():
+            license_path = Path(__file__).resolve().parent / "LICENSE"
+            zipf.writestr(zip_entry("plugins/LICENSE"), license_path.read_bytes())
+
         # Installed-package icon
         #
 
@@ -788,7 +818,7 @@ def parse_args():
 
     parser = argparse.ArgumentParser(
         description=(
-            "Build KiWay KiCad PCM packages "
+            "Build WayriCAD KiCad PCM packages "
             "and repository metadata."
         )
     )
@@ -1305,7 +1335,7 @@ def main():
             PCM_SCHEMA,
 
         "name":
-            "KiWay Plugin Repository",
+            "WayriCAD Plugin Repository",
 
         "maintainer": {
 

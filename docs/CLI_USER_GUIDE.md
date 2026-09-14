@@ -1,20 +1,20 @@
-# KiWay CLI User Guide
+# WayriCAD CLI User Guide
 
-The KiWay CLI extracts electrical interface data without opening the plugin
+The WayriCAD CLI extracts electrical interface data without opening the plugin
 windows. Use it for repeatable ICD generation, design validation, cross-board
 linking, continuous integration, and KiCad jobset output pipelines.
 
 ## 1. Installation and runtime selection
 
-Install the repository into a normal Python 3.9 or newer environment:
+Install the repository into a normal Python 3.10 or newer environment:
 
 ```bash
 python -m pip install -e .
-kiway --version
-kiway dependencies
+wayricad --version
+wayricad dependencies
 ```
 
-Use `python -m extract_pins_plugin` wherever the `kiway` launcher is not on
+Use `python -m extract_pins_plugin` wherever the `wayricad` launcher is not on
 `PATH`. XML netlist, report, cross-link, validation, and inspection commands do
 not import `pcbnew`. `board-extract` and `board-list` do require a Python runtime
 that can import the KiCad `pcbnew` module.
@@ -27,7 +27,7 @@ On Windows, a board command can be launched explicitly with KiCad's Python:
   --output .\artifacts\connector-pins.csv
 ```
 
-Run `kiway COMMAND --help` for command-specific options. Global options such as
+Run `wayricad COMMAND --help` for command-specific options. Global options such as
 `--config`, `--diagnostics`, and `--quiet` must appear before the command.
 
 ## 2. Inputs and deterministic outputs
@@ -52,7 +52,7 @@ Inspect parsed components, sheets, interfaces, and optional pin rows before
 building a report:
 
 ```bash
-kiway inspect exports/ --include-pins \
+wayricad inspect exports/ --include-pins \
   --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO \
   --sheet-alias 'ADCS IMU:/Main/ADCS/*:U*' \
   --format json --output artifacts/project-inventory.json
@@ -78,17 +78,17 @@ The `extract` command supports six datasets:
 Examples:
 
 ```bash
-kiway extract exports/controller.xml --kind connectors --format csv \
+wayricad extract exports/controller.xml --kind connectors --format csv \
   --output artifacts/connectors.csv
 
-kiway extract exports/ --kind tm-tc --consolidate \
+wayricad extract exports/ --kind tm-tc --consolidate \
   --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO --format csv \
   --output artifacts/tm-tc.csv
 
-kiway extract exports/ --kind interfaces --format svg \
+wayricad extract exports/ --kind interfaces --format svg \
   --output artifacts/interfaces.svg
 
-kiway extract exports/controller.xml --kind controller-map \
+wayricad extract exports/controller.xml --kind controller-map \
   --source-refs U1,U2 --connector-refs J* \
   --path-rule "Q12 | D-S | active | verify MOSFET state" \
   --path-rule "Q20 | C-E | active | verify BJT bias" \
@@ -107,22 +107,22 @@ pin-pair rule plus `--include-active-paths`; these rows are marked
 `Conditional`. Pin tokens may be physical numbers or XML netlist pin functions.
 Use `--path-rules-file` for reviewed team rules, `--exclude-ambiguous` for a
 strict publication artifact, and `--max-hops`/`--max-paths` as traversal bounds.
-Source and connector indicate reporting scope only; KiWay does not infer
+Source and connector indicate reporting scope only; WayriCAD does not infer
 semiconductor state or electrical direction.
 
 ## 5. Cross-project and harness linking
 
-`crosslink` imports KiWay CSV or Markdown pin documents. It first applies exact
+`crosslink` imports WayriCAD CSV or Markdown pin documents. It first applies exact
 and normalized net matching, then any supplied wildcard or regular-expression
 rules. Power links are excluded unless `--include-power` is present.
 
 ```bash
-kiway crosslink demo_ctrl-pins.csv demo_sensor-pins.md \
+wayricad crosslink demo_ctrl-pins.csv demo_sensor-pins.md \
   --project DEMO_CTRL --project DEMO_SENSOR \
   --rules-file docs/examples/crosslink.rules.txt \
   --format json --output artifacts/cross-links.json
 
-kiway crosslink demo_ctrl-pins.csv demo_sensor-pins.md \
+wayricad crosslink demo_ctrl-pins.csv demo_sensor-pins.md \
   --project DEMO_CTRL --project DEMO_SENSOR \
   --rules 'Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*' \
   --format svg --output artifacts/harness.svg
@@ -157,7 +157,7 @@ machine-control API:
 ```
 
 ```bash
-kiway run --request harness-request.json --output artifacts/harness-result.json
+wayricad run --request harness-request.json --output artifacts/harness-result.json
 ```
 
 The response includes the wire list, pin map, net map, ordered system paths,
@@ -180,31 +180,31 @@ Conditional in the system result; the harness stage never infers device state.
 required rule fails:
 
 ```bash
-kiway --diagnostics json validate exports/ \
+wayricad --diagnostics json validate exports/ \
   --board-sequence DEMO_CTRL,DEMO_SENSOR \
   --require-tm-consumer --require-tc-origin \
-  --format json --output artifacts/kiway-validation.json
+  --format json --output artifacts/wayricad-validation.json
 ```
 
 Useful pipeline stages are:
 
 1. Export `kicadxml` from the schematic with `kicad-cli`.
 2. Run KiCad ERC and PCB DRC.
-3. Run `kiway validate` as an interface-contract gate.
+3. Run `wayricad validate` as an interface-contract gate.
 4. Generate the ICD and machine-readable pin tables.
 5. Publish the entire artifact directory.
 
 GitHub Actions example:
 
 ```yaml
-- name: Install KiWay
+- name: Install WayriCAD
   run: python -m pip install -e .
 - name: Export KiCad netlist
   run: kicad-cli sch export netlist --format kicadxml --output artifacts/design.xml design.kicad_sch
 - name: Validate interfaces
-  run: kiway --diagnostics json validate artifacts/design.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --require-tm-consumer --require-tc-origin --format json --output artifacts/validation.json
+  run: wayricad --diagnostics json validate artifacts/design.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --require-tm-consumer --require-tc-origin --format json --output artifacts/validation.json
 - name: Build ICD
-  run: kiway report artifacts/design.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --format html --output artifacts/electrical-icd.html
+  run: wayricad report artifacts/design.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --format html --output artifacts/electrical-icd.html
 ```
 
 The same commands work in GitLab CI, Jenkins, Azure Pipelines, Make, Ninja, or a
@@ -217,7 +217,7 @@ Pass `--config` before the command. The JSON object can contain shared
 `defaults` and command-specific keys. Explicit non-empty CLI values win.
 
 ```bash
-kiway --config docs/examples/kiway.config.json extract exports/ \
+wayricad --config docs/examples/wayricad.config.json extract exports/ \
   --kind tm-tc --output artifacts/tm-tc.csv
 ```
 
@@ -227,18 +227,18 @@ Option names use underscores in JSON, for example `board_sequence`,
 ## 8. KiCad jobset integration
 
 KiCad 9 and later can run `.kicad_jobset` files in the Project Manager or with
-`kicad-cli`. KiWay supports two integration patterns.
+`kicad-cli`. WayriCAD supports two integration patterns.
 
-### Run a native jobset through KiWay
+### Run a native jobset through WayriCAD
 
 ```bash
-kiway jobset-run controller.kicad_pro --file release.kicad_jobset \
+wayricad jobset-run controller.kicad_pro --file release.kicad_jobset \
   --stop-on-error
 
-kiway jobset-run controller.kicad_pro --file release.kicad_jobset \
+wayricad jobset-run controller.kicad_pro --file release.kicad_jobset \
   --destination Manufacturing
 
-kiway jobset-run controller.kicad_pro --file release.kicad_jobset \
+wayricad jobset-run controller.kicad_pro --file release.kicad_jobset \
   --dry-run
 ```
 
@@ -247,7 +247,7 @@ native `kicad-cli jobset run` implementation; it does not rewrite the jobset.
 Executable discovery order is `--kicad-cli`, `KICAD_CLI`, `PATH`, then standard
 KiCad 10/9 installation locations.
 
-### Add KiWay as an Execute Command job
+### Add WayriCAD as an Execute Command job
 
 In the KiCad Jobset editor:
 
@@ -258,13 +258,13 @@ In the KiCad Jobset editor:
 4. Use this command:
 
 ```text
-kiway report "${JOBSET_OUTPUT_WORK_PATH}/electrical.xml" --board-sequence DEMO_CTRL,DEMO_SENSOR --format html --output "${JOBSET_OUTPUT_WORK_PATH}/electrical-icd.html"
+wayricad report "${JOBSET_OUTPUT_WORK_PATH}/electrical.xml" --board-sequence DEMO_CTRL,DEMO_SENSOR --format html --output "${JOBSET_OUTPUT_WORK_PATH}/electrical-icd.html"
 ```
 
 Add another Execute Command job for validation:
 
 ```text
-kiway --diagnostics json validate "${JOBSET_OUTPUT_WORK_PATH}/electrical.xml" --board-sequence DEMO_CTRL,DEMO_SENSOR --require-tm-consumer --require-tc-origin --format json --output "${JOBSET_OUTPUT_WORK_PATH}/interface-validation.json"
+wayricad --diagnostics json validate "${JOBSET_OUTPUT_WORK_PATH}/electrical.xml" --board-sequence DEMO_CTRL,DEMO_SENSOR --require-tm-consumer --require-tc-origin --format json --output "${JOBSET_OUTPUT_WORK_PATH}/interface-validation.json"
 ```
 
 KiCad generates destination files in a temporary work directory before moving
@@ -274,10 +274,10 @@ file that must be included in the destination. Job ordering matters.
 
 For reproducible team use:
 
-- Commit the `.kicad_jobset`, KiWay config, and cross-link rules together.
+- Commit the `.kicad_jobset`, WayriCAD config, and cross-link rules together.
 - Use paths relative to the project or jobset work directory.
-- Pin the KiWay revision in CI.
-- Ensure `kiway` is on the environment inherited by KiCad. If it is not, use an
+- Pin the WayriCAD revision in CI.
+- Ensure `wayricad` is on the environment inherited by KiCad. If it is not, use an
   absolute virtual-environment launcher or `python -m extract_pins_plugin`.
 - Do not edit `.kicad_jobset` JSON by hand; configure and save it with KiCad.
 
@@ -295,7 +295,7 @@ for native destination behavior and options.
 Create one complete interface control document:
 
 ```bash
-kiway report exports/ --title 'DEMO_CTRL Electrical ICD' \
+wayricad report exports/ --title 'DEMO_CTRL Electrical ICD' \
   --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO \
   --imports demo_ctrl-pins.csv demo_sensor-pins.csv \
   --rules-file docs/examples/crosslink.rules.txt \
@@ -308,16 +308,16 @@ test-point, pin, and interface CSV files are required.
 
 ## 10. Plugin automation and external controllers
 
-`kiway capabilities` returns a deterministic inventory of all KiWay plugins,
+`wayricad capabilities` returns a deterministic inventory of all WayriCAD plugins,
 their actions, input type, and whether mutating actions exist. This lets a
 workflow engine discover the suite without scraping help text.
 
 ```bash
-kiway capabilities --output artifacts/kiway-capabilities.json
+wayricad capabilities --output artifacts/wayricad-capabilities.json
 ```
 
-For one operation, use `kiway run --request FILE`. For a long-lived controller,
-use `kiway serve --stdio`. The server reads one JSON-RPC 2.0 object per line and
+For one operation, use `wayricad run --request FILE`. For a long-lived controller,
+use `wayricad serve --stdio`. The server reads one JSON-RPC 2.0 object per line and
 writes one response per line, flushing after every response:
 
 ```text
@@ -367,6 +367,13 @@ collectors. `--quiet` suppresses non-error diagnostics but never hides errors.
 - **Board output differs from schematic output:** board commands inspect the
   saved `.kicad_pcb`; save the editor state before automation.
 
-KiWay's first-order electrical estimates and inferred interface direction are
+WayriCAD's first-order electrical estimates and inferred interface direction are
 review aids. They do not replace ERC/DRC, a field solver, TDR measurement, or an
 approved interface-control review.
+
+
+## Routing, BOM and design assets in 3.0.0
+
+`wayricad-route` (or `python -m wayricad_runtime.cli`) provides fanout and stitching plan/apply commands. Use KiCad 10 Python for board-file operations. Plan writes JSON and optional SVG; apply rechecks the board and candidate geometry and requires a new output filename. See `docs/examples/fanout.json` and `docs/examples/via-in-pad.json` for configurations. Net-class and layer selections use the same planner as the GUI.
+
+`python -m embed_3d_plugin --help` lists asset scanning, embedding, extraction, relinking and recovery commands. Writes require `--apply`. From the BOM Studio source directory, `python -m bomstudio --help` exposes native BOM export and workspace tools. These CLI modules do not require a browser.

@@ -1,0 +1,19 @@
+{
+  "schema": "wayricad-vendor-config-1",
+  "vendor_field": "Supplier",
+  "mpn_field": "",
+  "manufacturer_field": "",
+  "sku_field": "",
+  "customer_field": "",
+  "moq_field": "",
+  "multiple_field": "",
+  "boards": 10,
+  "attrition_percent": "5",
+  "quantity_basis": "order",
+  "formats": [
+    "csv",
+    "xlsx"
+  ],
+  "profiles": {},
+  "assignments": {}
+}

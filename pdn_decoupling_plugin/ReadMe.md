@@ -1,4 +1,4 @@
-# KiWay PDN and Decoupling Planner 0.1.0
+# WayriCAD PDN and Decoupling Planner 3.0.0
 
 Finds configured load power pins that do not have a nearby capacitor connected between the same rail and a configured ground net. Regulator candidates are inferred from component values using editable keywords. Results cross-select the load footprint and export to CSV.
 

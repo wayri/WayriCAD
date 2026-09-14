@@ -1,0 +1,8 @@
+[
+  {
+    "field": "Temp_Max",
+    "op": "<",
+    "value": "80",
+    "unit": "C"
+  }
+]

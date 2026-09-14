@@ -1,0 +1,10 @@
+{
+  "op": "create",
+  "name": "Quotation only",
+  "parent": "<Default>",
+  "mode": "derived",
+  "description": "Independent procurement scenario; not synchronized to KiCad",
+  "tags": [
+    "quotation"
+  ]
+}

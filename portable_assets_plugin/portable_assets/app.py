@@ -22,7 +22,7 @@ from .core.engine import (
 
 class PortableAssetsFrame(wx.Frame):
     def __init__(self, ctx: ProjectContext):
-        super().__init__(None, title="KiCad Portable Assets", size=(1080, 760))
+        super().__init__(None, title="WayriCAD Portable Assets", size=(1080, 760))
         self.ctx = ctx
         self.SetMinSize((920, 640))
         self._busy = False
@@ -190,12 +190,12 @@ class PortableAssetsFrame(wx.Frame):
     def open_help(self, _event=None):
         help_path = Path(__file__).resolve().parents[1] / "help.html"
         if not help_path.exists():
-            wx.MessageBox("The bundled help file is missing.", "KiWay Portable Assets", wx.OK | wx.ICON_ERROR, self)
+            wx.MessageBox("The bundled help file is missing.", "WayriCAD Portable Assets", wx.OK | wx.ICON_ERROR, self)
             return
         webbrowser.open(help_path.as_uri())
 
-    def _current_signature(self):
-        options = self.options()
+    def _current_signature(self, options=None):
+        options = options if options is not None else self.options()
         option_key = (
             options.embed_3d,
             options.snapshot_symbols,
@@ -206,14 +206,25 @@ class PortableAssetsFrame(wx.Frame):
         )
         return project_signature(self.ctx), option_key
 
+    def _post(self, callback, *args):
+        # Workers only enqueue Python callbacks; native control lifetime is checked on the UI thread.
+        def deliver():
+            if self and not self.IsBeingDeleted():
+                callback(*args)
+        wx.CallAfter(deliver)
+
     def append_log(self, line: str):
+        if not self or self.IsBeingDeleted():
+            return
         self.log.AppendText(line.rstrip() + "\n")
 
     def set_progress(self, message: str, pct: int):
-        wx.CallAfter(self.status.SetLabel, message)
-        wx.CallAfter(self.progress.SetValue, max(0, min(100, pct)))
+        self._post(lambda: self.status.SetLabel(message))
+        self._post(lambda: self.progress.SetValue(max(0, min(100, pct))))
 
     def _set_busy(self, busy: bool):
+        if not self or self.IsBeingDeleted():
+            return
         self._busy = busy
         for b in [self.btn_analyze, self.btn_apply, self.btn_restore, self.btn_repair_scan, self.btn_repair]:
             b.Enable(not busy)
@@ -226,25 +237,28 @@ class PortableAssetsFrame(wx.Frame):
         def worker():
             try:
                 result = fn()
-                wx.CallAfter(self.append_log, f"✓ {name} complete")
+                self._post(self.append_log, f"✓ {name} complete")
                 if done:
-                    wx.CallAfter(done, result)
+                    self._post(done, result)
             except Exception as exc:
                 detail = traceback.format_exc()
-                wx.CallAfter(self.append_log, f"✗ {exc}\n{detail}")
-                wx.CallAfter(wx.MessageBox, str(exc), "Portable Assets", wx.OK | wx.ICON_ERROR, self)
+                self._post(self.append_log, f"✗ {exc}\n{detail}")
+                self._post(wx.MessageBox, str(exc), "Portable Assets", wx.OK | wx.ICON_ERROR, self)
             finally:
-                wx.CallAfter(self._set_busy, False)
+                self._post(self._set_busy, False)
         threading.Thread(target=worker, daemon=True).start()
 
     def run_analysis(self):
+        if not self or self.IsBeingDeleted():
+            return
+        options = self.options()
         self.progress.SetValue(0)
         self._analysis_signature = None
 
         def analyze():
-            before = self._current_signature()
-            report = scan_project(self.ctx, self.options())
-            after = self._current_signature()
+            before = self._current_signature(options)
+            report = scan_project(self.ctx, options)
+            after = self._current_signature(options)
             if before != after:
                 raise RuntimeError("Project files or options changed during analysis. Analyze again before applying.")
             return report, after
@@ -312,7 +326,8 @@ class PortableAssetsFrame(wx.Frame):
                 "Portable Assets", wx.OK | wx.ICON_INFORMATION, self)
             self._analysis_signature = None
             self.run_analysis()
-        self._thread("Making project portable", lambda: make_portable(self.ctx, self.options(), self.set_progress), done)
+        options = self.options()
+        self._thread("Making project portable", lambda: make_portable(self.ctx, options, self.set_progress), done)
 
     def load_missing(self):
         try:

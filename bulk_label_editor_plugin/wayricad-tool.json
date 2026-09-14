@@ -1,0 +1,6 @@
+{
+  "tool": "bulk_label_editor_plugin",
+  "name": "WayriCAD Bulk Label Editor",
+  "module": "bulk_label_editor_plugin",
+  "class": "BulkLabelEditorPlugin"
+}

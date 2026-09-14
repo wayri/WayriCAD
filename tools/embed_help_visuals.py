@@ -26,6 +26,6 @@ for help_path in sorted(ROOT.glob("*_plugin/help.html")):
         '<p>The numbered cues below match the visible workflow in the plugin. '
         'A preview is the review evidence; committing or exporting is the final step.</p>'
         '<img class="walkthrough" src="help-workflow.png" '
-        'alt="Annotated KiWay interface showing workflow steps, preview area, and primary actions">'
+        'alt="Annotated WayriCAD interface showing workflow steps, preview area, and primary actions">'
     )
     help_path.write_text(content[:insert_at] + visual + content[insert_at:], encoding="utf-8")

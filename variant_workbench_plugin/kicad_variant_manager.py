@@ -33,8 +33,8 @@ import tempfile
 import webbrowser
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, Union
 
-APP_NAME = "KiWay Design Variant Workbench"
-APP_VERSION = "0.5.3"
+APP_NAME = "WayriCAD Design Variant Workbench"
+APP_VERSION = "3.0.0"
 BOM_LOGIC_FIX_VERSION = 20260306
 SUPPORTED_MIN_VARIANT_VERSION = 20250922
 

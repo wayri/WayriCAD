@@ -12,7 +12,7 @@ try:
 except ImportError:  # Direct-file execution (automation) has no package parent.
     import importlib.util as _ilu
 
-    _spec = _ilu.spec_from_file_location("_kiway_diff_pairs", os.path.join(os.path.dirname(os.path.abspath(__file__)), "diff_pairs.py"))
+    _spec = _ilu.spec_from_file_location("_wayricad_diff_pairs", os.path.join(os.path.dirname(os.path.abspath(__file__)), "diff_pairs.py"))
     _diff_pairs = _ilu.module_from_spec(_spec)
     _spec.loader.exec_module(_diff_pairs)
     _shared_find_mate = _diff_pairs.find_mate

@@ -1,27 +1,27 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v1",
-    "name": "KiWay PDN and Decoupling Planner",
-    "description": "Audit power-rail topology and local decoupling placement from PCB geometry.",
-    "description_full": "Uses configurable rail, ground, capacitor, load, and regulator conventions to locate supply pins without nearby rail-to-ground capacitors. Results are sortable, cross-selectable, and exportable. It is a placement/topology screen rather than an AC impedance, transient, or electromagnetic PDN solver.",
-    "identifier": "kiway.pdn.decoupling",
-    "type": "plugin",
-    "author": {
-        "name": "Wayri (Yawar)",
-        "contact": {
-            "github": "https://github.com/wayri"
-        }
-    },
-    "license": "GPL-3.0",
-    "resources": {
-        "homepage": "https://github.com/wayri/KiWay",
-        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/pdn_decoupling_plugin/icon.png"
-    },
-    "versions": [
-        {
-            "version": "0.3.0",
-            "status": "testing",
-            "kicad_version": "10.0",
-            "runtime": "swig"
-        }
-    ]
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD PDN and Decoupling Planner",
+  "description": "Audit power-rail topology and local decoupling placement from PCB geometry.",
+  "description_full": "Uses configurable rail, ground, capacitor, load, and regulator conventions to locate supply pins without nearby rail-to-ground capacitors. Results are sortable, cross-selectable, and exportable. It is a placement/topology screen rather than an AC impedance, transient, or electromagnetic PDN solver.",
+  "identifier": "com.github.wayri.wayricad.pdn-decoupling",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pdn_decoupling_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
 }

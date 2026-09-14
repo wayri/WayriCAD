@@ -1,4 +1,4 @@
-# KiWay Test Point Descriptor Extractor
+# WayriCAD Test Point Descriptor Extractor
 
 Builds manufacturing, integration, and software-facing test-point documentation
 from TP/TestPoint footprints.

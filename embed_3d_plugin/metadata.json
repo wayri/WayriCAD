@@ -1,0 +1,25 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Embed3D",
+  "description": "One component matrix: embed symbols, footprints and 3D models; unbundle, relink, or do both with checked selections.",
+  "description_full": "One window with global and per-component Symbols, Footprints and 3D models checkboxes. Visible Embed checked, Embed all, Unbundle, Relink and Unbundle & relink actions share a preview/apply workflow. Archive actual bytes, preserve model transforms and native symbol caches, and create verified external library links. Select asset and new-design folders; choose relative/absolute paths, child sheets and conservative attachment removal. Main operations read saved files and create new design copies, not edits to open buffers. Previous standalone library, repair and live-model tools remain under Options. Approved icon included. Offline KiCad 10 SWIG addon, not IPC or KiCad 11. Testing release: native UI, installation, rendering and live integration remain unverified.",
+  "identifier": "com.github.wayri.wayricad.embed-3d",
+  "type": "plugin",
+  "author": {
+    "name": "WayriCAD Embed3D contributors",
+    "contact": {}
+  },
+  "license": "GPL-3.0-only",
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ],
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/embed_3d_plugin/icon.png"
+  }
+}

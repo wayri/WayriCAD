@@ -22,13 +22,13 @@ LAYER_COLOURS = ("#e34a43", "#3fa56b", "#d4a62a", "#3399cc", "#a45ac7", "#d67142
 
 class TraceImpedancePlugin(pcbnew.ActionPlugin):
     def defaults(self) -> None:
-        self.name = "KiWay Trace RLC / Impedance Analyzer"
+        self.name = "WayriCAD Trace RLC / Impedance Analyzer"
         self.category = "Analysis"
         self.description = "Measure routed net geometry and estimate RLC, impedance, vias, layers, and zones."
         self.show_toolbar_button = True
-        self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.8.0"
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
+        self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
+        self.version = "3.0.0"
 
     def Run(self) -> None:
         try:
@@ -37,12 +37,12 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
                 raise RuntimeError("Open a PCB in PCB Editor first.")
             TraceFrame(None, board).Show()
         except Exception as exc:
-            wx.MessageBox(str(exc), "KiWay Trace RLC / Impedance Analyzer", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(str(exc), "WayriCAD Trace RLC / Impedance Analyzer", wx.OK | wx.ICON_ERROR)
 
 
 class TraceFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Trace RLC / Impedance Analyzer", size=(1180, 760), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="WayriCAD Trace RLC / Impedance Analyzer", size=(1180, 760), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.SetMinSize((940, 650))
         self.board = board
         self.engine = TraceMeasurementEngine(board)
@@ -340,7 +340,7 @@ class TraceFrame(wx.Frame):
 
     def export_csv(self, _event: Any) -> None:
         if not self.current:
-            wx.MessageBox("Analyze a path first.", "KiWay", wx.OK | wx.ICON_INFORMATION); return
+            wx.MessageBox("Analyze a path first.", "WayriCAD", wx.OK | wx.ICON_INFORMATION); return
         with wx.FileDialog(self, "Export trace measurement", wildcard="CSV files (*.csv)|*.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal() != wx.ID_OK: return
             row = self.current.as_dict()

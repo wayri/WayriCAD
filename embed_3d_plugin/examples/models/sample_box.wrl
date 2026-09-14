@@ -1,0 +1,6 @@
+#VRML V2.0 utf8
+# Original WayriCAD Embed3D demo geometry: a simple box.
+Shape {
+  appearance Appearance { material Material { diffuseColor 0.12 0.56 0.76 } }
+  geometry Box { size 0.1 0.08 0.04 }
+}

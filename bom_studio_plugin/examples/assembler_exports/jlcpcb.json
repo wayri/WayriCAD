@@ -1,0 +1,24 @@
+{
+  "schema": "wayricad-assembler-config-1",
+  "profiles": [
+    "jlcpcb"
+  ],
+  "formats": [
+    "csv",
+    "xlsx"
+  ],
+  "fields": {
+    "value": "Value",
+    "comment": "",
+    "description": "",
+    "footprint": "Footprint",
+    "manufacturer": "",
+    "mpn": "",
+    "customer": ""
+  },
+  "sku_fields": {},
+  "profile_overrides": {},
+  "footprint_mode": "identifier",
+  "require_supplier_code": false,
+  "acknowledge_review_required": false
+}

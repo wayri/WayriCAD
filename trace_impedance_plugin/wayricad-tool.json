@@ -1,0 +1,6 @@
+{
+  "tool": "trace_impedance_plugin",
+  "name": "WayriCAD Trace RLC / Impedance Analyzer",
+  "module": "trace_impedance_plugin",
+  "class": "TraceImpedancePlugin"
+}

@@ -1,4 +1,4 @@
-"""Shared pan/zoom scene canvas for KiWay engineering previews."""
+"""Shared pan/zoom scene canvas for WayriCAD engineering previews."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ import wx
 WorldPoint = Tuple[float, float]
 Bounds = Tuple[float, float, float, float]
 
-BACKGROUND = "#161b22"
-GRID = "#232b35"
-GRID_STRONG = "#2c3642"
-TEXT = "#aab7c4"
-ACCENT_TEXT = "#d9e2ea"
+BACKGROUND = "#f8fafc"
+GRID = "#eef1f4"
+GRID_STRONG = "#dbe2e9"
+TEXT = "#536170"
+ACCENT_TEXT = "#243444"
 
 
 def severity_colour(status: str) -> str:
@@ -66,7 +66,7 @@ def pcb_select_items(items: Iterable[Any]) -> int:
         for item in items:
             setter = getattr(item, "SetSelected", None)
             if callable(setter):
-                setter(True)
+                setter()
                 count += 1
         import pcbnew
 
@@ -293,11 +293,13 @@ class PanZoomCanvas(wx.Panel):
         gc = wx.GraphicsContext.Create(dc)
         if size.width < 30 or size.height < 30:
             return
-        self._draw_grid(gc, size)
+        if getattr(self, "show_grid", False):
+            self._draw_grid(gc, size)
         try:
             self.draw_scene(gc, self.project)
         except Exception:
-            pass
+            gc.SetFont(self.GetFont(), wx.Colour(TEXT))
+            gc.DrawText("Preview could not be drawn. Refresh the analysis.", 16, 16)
         self._draw_picks_and_highlight(gc)
         self._draw_overlays(gc, size)
 
@@ -368,7 +370,7 @@ class PanZoomCanvas(wx.Panel):
             chip_w = extent[0] + 24.0
             pen_x -= chip_w + 8.0
             top = 10.0
-            gc.SetBrush(wx.Brush(wx.Colour("#1d242d")))
+            gc.SetBrush(wx.Brush(wx.Colour("#ffffff")))
             gc.SetPen(wx.Pen(wx.Colour(colour), 2))
             gc.DrawRectangle(pen_x, top, chip_w, 20.0)
             gc.SetPen(wx.TRANSPARENT_PEN)
@@ -376,29 +378,25 @@ class PanZoomCanvas(wx.Panel):
             gc.DrawEllipse(pen_x + 7.0, top + 6.0, 8.0, 8.0)
             gc.DrawText(label, pen_x + 19.0, top + 3.0)
 
-        # Hover crosshair + readout.
+        # Compact coordinate readout; avoid a full-canvas crosshair.
         if self.hover_screen is not None:
             sx, sy = self.hover_screen
-            gc.SetPen(wx.Pen(wx.Colour("#3f4c5a"), 1, wx.PENSTYLE_SHORT_DASH))
-            gc.StrokeLine(sx, 0, sx, size.height)
-            gc.StrokeLine(0, sy, size.width, sy)
+            gc.SetPen(wx.Pen(wx.Colour("#ccd6df"), 1, wx.PENSTYLE_SHORT_DASH))
             readout = self.status_for(self.hover_world)
             if readout:
                 extent = gc.GetTextExtent(readout)
                 box_x = min(sx + 10.0, size.width - extent[0] - 18.0)
                 box_y = min(sy + 10.0, size.height - 26.0)
-                gc.SetBrush(wx.Brush(wx.Colour("#10151b")))
+                gc.SetBrush(wx.Brush(wx.Colour("#ffffff")))
                 gc.SetPen(wx.Pen(wx.Colour(GRID_STRONG), 1))
                 gc.DrawRectangle(box_x, box_y, extent[0] + 12.0, 20.0)
                 gc.DrawText(readout, box_x + 6.0, box_y + 3.0)
 
         if not self.has_content():
             gc.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL), TEXT)
-            gc.DrawLabel(
-                self.empty_text,
-                wx.Rect(18, 18, max(1, size.width - 36), max(1, size.height - 36)),
-                wx.ALIGN_CENTER,
-            )
+            width, height = gc.GetTextExtent(self.empty_text)
+            gc.DrawText(self.empty_text, max(16, (size.width-width)/2), max(16, (size.height-height)/2))
+
 
     def has_content(self) -> bool:  # pragma: no cover - interface
         return True

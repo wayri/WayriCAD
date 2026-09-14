@@ -1,0 +1,6 @@
+{
+  "tool": "pdn_decoupling_plugin",
+  "name": "WayriCAD PDN and Decoupling Planner",
+  "module": "pdn_decoupling_plugin",
+  "class": "PdnDecouplingPlugin"
+}

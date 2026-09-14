@@ -1,4 +1,4 @@
-"""Generate deterministic annotated UI walkthroughs for KiWay help pages."""
+"""Generate deterministic annotated UI walkthroughs for WayriCAD help pages."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def render(package: str, spec: tuple) -> None:
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((28, 24, 1172, 650), radius=7, fill="#ffffff", outline="#8a98a6", width=2)
     draw.rectangle((28, 24, 1172, 80), fill="#17324d")
-    text(draw, (52, 39), f"KiWay {title}", 25, True, "#ffffff")
+    text(draw, (52, 39), f"WayriCAD {title}", 25, True, "#ffffff")
     for index, step in enumerate(steps):
         x = 52 + index * 270
         fill = "#d9eaff" if index == 1 else "#eef1f4"
@@ -114,7 +114,7 @@ def render_extract_workspace() -> None:
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((22, 18, 1178, 660), radius=6, fill="#ffffff", outline="#7e8c99", width=2)
     draw.rectangle((22, 18, 1178, 70), fill="#17324d")
-    text(draw, (45, 33), "KiWay Pin Extractor", 24, True, "#ffffff")
+    text(draw, (45, 33), "WayriCAD Pin Extractor", 24, True, "#ffffff")
 
     tabs = ("1  Extract Pins", "2  Signal Flow", "3  IC Signal Chart", "4  Block Diagrams")
     x = 42
@@ -174,7 +174,7 @@ def render_extract_diagrams() -> None:
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((22, 18, 1178, 660), radius=6, fill="#ffffff", outline="#7e8c99", width=2)
     draw.rectangle((22, 18, 1178, 70), fill="#17324d")
-    text(draw, (45, 33), "KiWay Pin Extractor - Block Diagrams", 24, True, "#ffffff")
+    text(draw, (45, 33), "WayriCAD Pin Extractor - Block Diagrams", 24, True, "#ffffff")
     draw.rounded_rectangle((42, 91, 1156, 188), radius=4, fill="#f8fafb", outline="#a9b5bf")
     text(draw, (58, 103), "Diagram scope", 17, True, "#17324d")
     text(draw, (58, 144), "Components", 14)
@@ -208,7 +208,7 @@ def render_dependency_manager() -> None:
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((28, 24, 1172, 650), radius=7, fill="#ffffff", outline="#8a98a6", width=2)
     draw.rectangle((28, 24, 1172, 80), fill="#17324d")
-    text(draw, (52, 39), "KiWay Suite Dependency Manager", 25, True, "#ffffff")
+    text(draw, (52, 39), "WayriCAD Suite Dependency Manager", 25, True, "#ffffff")
     text(draw, (52, 102), "Python 3.11.5 | KiCad 10 bundled runtime", 18, True, "#17324d")
     text(draw, (52, 132), r"User site: Documents\KiCad\10.0\3rdparty\Python311\site-packages", 16, fill="#35566f")
 
@@ -236,7 +236,7 @@ def render_dependency_manager() -> None:
             text(draw, (x + 8, y + 8), value, 14)
             x += width
 
-    text(draw, (52, 424), "KiWay Plugin Packages", 19, True, "#17324d")
+    text(draw, (52, 424), "WayriCAD Plugin Packages", 19, True, "#17324d")
     text(draw, (52, 458), "9 of 9 packages installed | metadata and versions readable", 16, fill="#35566f")
     button(draw, (568, 535, 742, 583), "Check Again")
     button(draw, (756, 535, 962, 583), "Install Recommended", primary=True)

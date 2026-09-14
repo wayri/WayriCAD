@@ -1,0 +1,6 @@
+{
+  "tool": "return_path_auditor_plugin",
+  "name": "WayriCAD Return-Path Auditor",
+  "module": "return_path_auditor_plugin",
+  "class": "ReturnPathAuditorPlugin"
+}

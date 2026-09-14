@@ -1,0 +1,34 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD BOM Studio",
+  "description": "KiCad-first BOM workbench with embedded desktop UI, parts catalogue, distributor splits and assembler-specific CSV/Excel exports.",
+  "description_full": "Complete 3.0.0 PCM developer preview, not a profile-only patch. Retains native-first field templates, embedded desktop launcher, catalogue/assets/native library creation, variants, checks, analytics and CLI/job-set tools. Adds built-in per-board assembler BOM mappings for JLCPCB, PCBWay, HQPCB, NextPCB, Sierra Circuits, PCB Power, Seeed Fusion and generic assembly. CSV/XLSX/TSV and multi-profile ZIP exports are integrated into GUI and CLI. Distributor split exports remain separate: assembly quantities are never multiplied by procurement settings. Unverified/custom provider mappings require review. No automatic upload, order, CPL or Gerber generation. Actual KiCad/Windows/macOS/portal host acceptance is unexecuted. First setup requires Python and declared dependencies; no browser runtimes or wheels are bundled.",
+  "identifier": "com.github.wayri.wayricad.bom-studio",
+  "type": "plugin",
+  "author": {
+    "name": "WayriCAD BOM Studio contributors",
+    "contact": {}
+  },
+  "license": "MIT",
+  "resources": {},
+  "tags": [
+    "bom",
+    "variants",
+    "catalogue",
+    "manufacturing",
+    "ipc"
+  ],
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc",
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ]
+    }
+  ]
+}

@@ -55,18 +55,18 @@ def _launch() -> None:
 
 class VariantWorkbenchActionPlugin(pcbnew.ActionPlugin):
     def defaults(self) -> None:
-        self.name = "KiWay Design Variant Workbench"
+        self.name = "WayriCAD Design Variant Workbench"
         self.category = "Project Configuration"
         self.description = "Review, edit, validate, and release KiCad design variants"
         self.icon_file_name = str(PLUGIN_ROOT / "icon.png")
-        self.dark_icon_file_name = self.icon_file_name
+        self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
         self.show_toolbar_button = True
 
     def Run(self) -> None:
         try:
             _launch()
         except Exception as exc:
-            wx.MessageBox(str(exc), "KiWay Design Variant Workbench", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(str(exc), "WayriCAD Design Variant Workbench", wx.OK | wx.ICON_ERROR)
 
 
 def register() -> None:

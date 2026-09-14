@@ -1,4 +1,4 @@
-"""Dependency and installation health checks for the complete KiWay suite."""
+"""Dependency and installation health checks for the complete WayriCAD suite."""
 
 from __future__ import annotations
 

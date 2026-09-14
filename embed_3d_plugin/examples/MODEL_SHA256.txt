@@ -1,0 +1,1 @@
+c90b9762d808f38c7ceae98a17582817d949c84c5b0edaeff7da6a5c47527003  models/sample_box.wrl

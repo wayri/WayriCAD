@@ -47,7 +47,7 @@ def _root_from_project_file(project_file: Path) -> Optional[Path]:
 def detect_active_root() -> Tuple[Optional[str], str]:
     try:
         from kipy import KiCad
-        client = KiCad(client_name='KiWay Design Variant Workbench')
+        client = KiCad(client_name='WayriCAD Design Variant Workbench')
         try:
             board = client.get_board()
             if board is None:
@@ -83,7 +83,7 @@ def detect_active_root() -> Tuple[Optional[str], str]:
 def _tk_python() -> str:
     """Find a Python interpreter that can create the detached Tk workbench."""
     candidates = []
-    configured = os.environ.get('KIWAY_VARIANT_PYTHON', '').strip()
+    configured = os.environ.get('WAYRICAD_VARIANT_PYTHON', '').strip()
     if configured:
         candidates.append(Path(configured).expanduser())
     if os.name == 'nt':
@@ -105,7 +105,7 @@ def _tk_python() -> str:
                 continue
             checked.add(resolved)
             probe = subprocess.run(
-                [str(resolved), '-c', 'import tkinter'],
+                [str(resolved), '-c', 'import tkinter; tkinter.Tcl()'],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -117,8 +117,9 @@ def _tk_python() -> str:
         except Exception:
             continue
     raise RuntimeError(
-        'No Tk-capable Python interpreter was found. Install standard Python with Tcl/Tk, '
-        'or set KIWAY_VARIANT_PYTHON to its pythonw executable.'
+        'No usable Tcl/Tk runtime could be initialized. Set WAYRICAD_VARIANT_PYTHON to a working '
+        'Python interpreter, or repair its Tcl/Tk installation. In a restricted host, ensure '
+        'the interpreter can read its tcl resource directory.'
     )
 
 

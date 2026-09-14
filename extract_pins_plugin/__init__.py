@@ -1,16 +1,16 @@
-# __init__.py - KiWay Extract Pins Plugin
+# __init__.py - WayriCAD Extract Pins Plugin
 """
-KiWay Extract Pins Plugin for KiCAD
+WayriCAD Extract Pins Plugin for KiCAD
 
 A comprehensive plugin for extracting component data, analyzing signal flow,
 and generating documentation from KiCAD PCB designs.
 
 @author - Wayri (Yawar)
-@version - 2.27.1
+@version - 3.0.0
 @license - GPL-3.0
 """
 
-__version__ = "2.27.1"
+__version__ = "3.0.0"
 __author__ = "Wayri (Yawar)"
 
 try:

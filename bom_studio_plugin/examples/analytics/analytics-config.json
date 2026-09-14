@@ -1,0 +1,63 @@
+{
+  "schema": "wayricad-analytics-config-1",
+  "metrics": [
+    "pricing",
+    "mass",
+    "thermal"
+  ],
+  "scenario_name": "Synthetic demonstration",
+  "price_field": "Rate",
+  "currency_field": "Currency",
+  "currency_default": "",
+  "price_per": "1",
+  "price_per_field": "",
+  "moq_field": "MOQ",
+  "multiple_field": "OrderMultiple",
+  "supplier_field": "Supplier",
+  "sku_field": "SKU",
+  "quote_date_field": "PriceDate",
+  "quote_max_age_days": 90,
+  "mass_field": "Mass",
+  "mass_unit": "g",
+  "power_field": "Dissipation",
+  "power_unit": "W",
+  "power_basis": "average",
+  "duty_field": "",
+  "duty_percent": "100",
+  "rating_field": "",
+  "temperature_field": "Temp_Max",
+  "temperature_unit": "C",
+  "temperature_requirement_c": null,
+  "type_field": "ComponentType",
+  "group_by": [
+    "@type"
+  ],
+  "statistics": {
+    "Mass": "g",
+    "Temp_Max": "C"
+  },
+  "field_units": {},
+  "query": "",
+  "case_sensitive": false,
+  "physical_include_bom_excluded": true,
+  "boards": 10,
+  "attrition_percent": "5",
+  "scenario_boards": [
+    1,
+    10,
+    100
+  ],
+  "budgets": {
+    "cost_per_board": {
+      "INR": "100"
+    },
+    "mass_g": "2",
+    "power_w": "0.05"
+  },
+  "fx": {
+    "base_currency": "",
+    "rates": {},
+    "as_of": "",
+    "source": ""
+  }
+}

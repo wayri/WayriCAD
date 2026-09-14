@@ -1,4 +1,4 @@
-"""KiWay Protocol Constraint Composer plugin entry point."""
+"""WayriCAD Protocol Constraint Composer plugin entry point."""
 
 try:
     from .protocol_constraint_composer_plugin import ProtocolConstraintComposerPlugin

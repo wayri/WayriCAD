@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KiWay Extract Pins Plugin - Example Scripts
+WayriCAD Extract Pins Plugin - Example Scripts
 
 These examples demonstrate CLI usage for common documentation tasks.
 Run from the directory containing your .kicad_pcb file.
@@ -366,7 +366,7 @@ EXAMPLES = {
 
 def main():
     if len(sys.argv) < 3:
-        print("KiWay Extract Pins - Example Scripts")
+        print("WayriCAD Extract Pins - Example Scripts")
         print("="*50)
         print(f"\nUsage: python {sys.argv[0]} <example> <pcb_file> [output_dir]")
         print("\nAvailable examples:")

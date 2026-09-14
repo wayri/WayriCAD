@@ -1,0 +1,5 @@
+#VRML V2.0 utf8
+# Original WayriCAD synthetic illustration, MIT. Not a manufacturer model or qualified land pattern.
+Transform { translation 0 0 0.225 children [ Shape { appearance Appearance { material Material { diffuseColor 0.12 0.22 0.31 } } geometry Box { size 1.6 0.8 0.45 } } ] }
+Transform { translation 0.65 0 0.25 children [ Shape { appearance Appearance { material Material { diffuseColor 0.75 0.78 0.82 } } geometry Box { size 0.3 0.84 0.5 } } ] }
+Transform { translation -0.65 0 0.25 children [ Shape { appearance Appearance { material Material { diffuseColor 0.75 0.78 0.82 } } geometry Box { size 0.3 0.84 0.5 } } ] }

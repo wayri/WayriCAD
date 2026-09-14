@@ -62,7 +62,7 @@ class EngineeringWorkbenchTests(unittest.TestCase):
             destination = root / "release.zip"; manifest = build_release(destination, [source], passing, "test")
             self.assertEqual(1, len(manifest["files"]))
             with zipfile.ZipFile(destination) as archive:
-                self.assertIn("kiway-release-manifest.json", archive.namelist())
+                self.assertIn("wayricad-release-manifest.json", archive.namelist())
 
     def test_pdn_requires_capacitor_between_same_rail_and_ground(self):
         pads = [PadNode("U1", "1", "3V3", 0, 0, "MCU"), PadNode("C1", "1", "3V3", 1, 0, "100n"),
@@ -77,8 +77,8 @@ class EngineeringWorkbenchTests(unittest.TestCase):
         generated = generate_rules(assignments)
         merged = merge_managed_rules("(version 1)\n(rule \"existing\" (constraint clearance (min 0.2mm)))\n", generated)
         self.assertIn('rule "existing"', merged)
-        self.assertEqual(1, merged.count("BEGIN KIWAY MANAGED"))
-        self.assertEqual(1, merge_managed_rules(merged, generated).count("BEGIN KIWAY MANAGED"))
+        self.assertEqual(1, merged.count("BEGIN WAYRICAD MANAGED"))
+        self.assertEqual(1, merge_managed_rules(merged, generated).count("BEGIN WAYRICAD MANAGED"))
 
     def test_bringup_packager_generates_docs_and_firmware_header(self):
         rows = collect_bringup_rows([
@@ -87,13 +87,13 @@ class EngineeringWorkbenchTests(unittest.TestCase):
             {"reference": "R1", "pin": "1", "net": "SWCLK"},
         ])
         self.assertEqual(2, len(rows)); self.assertIn("Bring-Up Checklist", markdown(rows))
-        self.assertIn("KIWAY_SWD_DEBUG_DATA_PIN", c_header(rows))
+        self.assertIn("WAYRICAD_SWD_DEBUG_DATA_PIN", c_header(rows))
 
     def test_new_pcm_packages_have_runtime_icon_help_and_action(self):
         for folder in NEW_PACKAGES:
             with self.subTest(folder=folder):
                 root = ROOT / folder; metadata = json.loads((root / "metadata.json").read_text(encoding="utf-8"))
-                self.assertEqual("swig", metadata["versions"][0]["runtime"])
+                self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 self.assertTrue((root / "icon.png").is_file()); self.assertTrue((root / "help.html").is_file())
                 self.assertTrue((root / "help-workflow.png").is_file())
                 source = (root / f"{folder.removesuffix('_plugin')}_plugin.py").read_text(encoding="utf-8")

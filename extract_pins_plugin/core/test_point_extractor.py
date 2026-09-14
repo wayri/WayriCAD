@@ -1,4 +1,4 @@
-"""Test point to function extraction built on the KiWay connectivity graph."""
+"""Test point to function extraction built on the WayriCAD connectivity graph."""
 
 from __future__ import annotations
 

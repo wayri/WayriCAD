@@ -1,0 +1,5 @@
+# Optional STEP/IGES/BREP tessellation and portable embedded-model decoding.
+# Explicit user installation only. No API keys; no packages downloaded by WayriCAD.
+# OpenCascade wheels and dependencies can be large. Same Python as WayriCAD required.
+-r requirements-assets.txt
+cadquery-ocp==7.9.3.1.1

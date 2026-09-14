@@ -1,4 +1,4 @@
-# KiWay Bulk Label Editor 0.7.1
+# WayriCAD Bulk Label Editor 3.0.0
 
 Bulk Label Editor performs reviewed, pattern-based renaming of supported KiCad
 objects. It is intended for channel, interface, rail, connector, and repeated
@@ -54,4 +54,4 @@ large rename.
   recorded operation details; persistent cross-session undo depends on the
   edited KiCad object and editor state.
 
-See help.html for the annotated screenshot and integrated walkthrough.
+See help.html for the current window and integrated walkthrough.

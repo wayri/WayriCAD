@@ -1,26 +1,27 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v1",
-    "name": "KiWay Via Stitching",
-    "description": "Preview net-aware copper-zone via stitching with geometric clearance exclusions.",
-    "description_full": "Generates uniform or perimeter-weighted stitching inside the board or selected bounds, optionally constrained to filled target-net copper. It rejects footprint bodies, other-net tracks, vias, zones, keepouts, and drawings, previews board bounds and scaled via geometry, and commits a removable native KiCad group.",
-    "identifier": "kiway.via.stitching",
-    "type": "plugin",
-    "author": {
-        "name": "Wayri (Yawar)",
-        "contact": {
-            "github": "https://github.com/wayri"
-        }
-    },
-    "license": "GPL-3.0",
-    "resources": {
-        "homepage": "https://github.com/wayri/KiWay",
-        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/via_stitching_plugin/icon.png"
-    },
-    "versions": [
-        {
-            "version": "0.10.0",
-            "status": "stable",
-            "kicad_version": "9.0"
-        }
-    ]
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Via Stitching",
+  "description": "Preview net-aware copper-zone via stitching with geometric clearance exclusions.",
+  "description_full": "Local, reviewable routing with configurable geometry, pad/net scope, clearance checks, zoomable preview, shared headless planners, and recoverable named commit groups. Preview does not modify PCB copper. JSON/SVG command-line planning and verified application write a new board copy.",
+  "identifier": "com.github.wayri.wayricad.via-stitching",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/via_stitching_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
 }

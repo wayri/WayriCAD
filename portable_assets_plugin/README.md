@@ -1,4 +1,4 @@
-# KiWay Portable Assets 0.2.4
+# WayriCAD Portable Assets 3.0.0
 
 A KiCad 10 ActionPlugin for making a project self-contained without depending on the original footprint, symbol, or 3D-model library installation. The menu action launches an isolated GUI process and passes the active board path directly.
 
@@ -54,24 +54,24 @@ This means a missing original `.pretty` library is not fatal if the desired foot
 
 ## Installation (KiCad 10)
 
-Install **KiWay Portable Assets** from the KiWay repository in KiCad's Plugin and Content Manager. For a manual installation, copy the entire package into the KiCad ActionPlugin folder.
+Install **WayriCAD Portable Assets** from the WayriCAD repository in KiCad's Plugin and Content Manager. For a manual installation, copy the entire package into the KiCad ActionPlugin folder.
 
 Typical Windows location:
 
 ```text
-C:\Users\<you>\Documents\KiCad\10.0\3rdparty\plugins\kiway_portable_assets\
+C:\Users\<you>\Documents\KiCad\10.0\3rdparty\plugins\wayricad_portable_assets\
 ```
 
 Typical Linux location:
 
 ```text
-~/.local/share/KiCad/10.0/3rdparty/plugins/kiway_portable_assets/
+~/.local/share/KiCad/10.0/3rdparty/plugins/wayricad_portable_assets/
 ```
 
 Typical macOS location:
 
 ```text
-~/Documents/KiCad/10.0/3rdparty/plugins/kiway_portable_assets/
+~/Documents/KiCad/10.0/3rdparty/plugins/wayricad_portable_assets/
 ```
 
 Restart KiCad. The action appears in **PCB Editor > Tools > External Plugins** and uses the active board path without waiting for IPC environment registration.

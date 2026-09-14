@@ -1,4 +1,4 @@
-"""KiWay PCB / Foil Heater Designer plugin entry point."""
+"""WayriCAD PCB / Foil Heater Designer plugin entry point."""
 
 try:
     from .heater_designer_plugin import HeaterDesignerPlugin

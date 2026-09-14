@@ -1,0 +1,17 @@
+[
+  {
+    "op": "variant-add",
+    "name": "Prototype",
+    "parent": "<Default>",
+    "description": "Example review build"
+  },
+  {
+    "op": "filter-save",
+    "name": "Production resistors",
+    "record": {
+      "query": "Reference~\"R*\" AND is:fit",
+      "case_sensitive": false,
+      "description": "Fitted resistor references"
+    }
+  }
+]

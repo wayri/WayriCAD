@@ -1,0 +1,14 @@
+{
+  "scope": "Reference wildcard",
+  "ref": "U1",
+  "netclass_filter": "All netclasses",
+  "output_mode": "Escape traces",
+  "pattern": "Perimeter outward",
+  "escape_layer": "B.Cu",
+  "width": 0.2,
+  "length": 1.5,
+  "via_diameter": 0.6,
+  "via_drill": 0.3,
+  "clearance": 0.2,
+  "add_vias": false
+}

@@ -5,6 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import zipfile
+import math
+import os
+import re
+import tempfile
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
@@ -39,6 +43,7 @@ class ReadinessCheck:
 
 
 def audit_metrics(metrics: BoardMetrics, profile: FabricatorProfile) -> list[ReadinessCheck]:
+    validate_profile(profile)
     checks = []
     def minimum(item: str, actual: float, required: float, unit: str = "mm") -> None:
         checks.append(ReadinessCheck("PASS" if actual >= required else "FAIL", item,
@@ -60,21 +65,113 @@ def save_profile(path: str | Path, profile: FabricatorProfile) -> None:
 
 
 def load_profile(path: str | Path) -> FabricatorProfile:
-    return FabricatorProfile(**json.loads(Path(path).read_text(encoding="utf-8")))
+    profile=FabricatorProfile(**json.loads(Path(path).read_text(encoding="utf-8")))
+    validate_profile(profile)
+    return profile
+
+
+def validate_profile(profile):
+    if not str(profile.name).strip():raise ValueError('Give the fabricator profile a name.')
+    for key,value in asdict(profile).items():
+        if key=='name':continue
+        if isinstance(value,bool) or not math.isfinite(float(value)) or value<=0:
+            raise ValueError('Profile limits must be positive finite numbers: '+key)
+    if int(profile.maximum_layers)!=profile.maximum_layers:
+        raise ValueError('Maximum layers must be a whole number.')
+
+
+def sexpr_tokens(text):
+    """Whitespace-independent comparison preserving every serialized token."""
+    return re.findall(r'"(?:\\.|[^"\\])*"|[()]|[^\s()]+',text)
+
+
+def saved_metrics(board_bytes,project_bytes):
+    """Read the exact saved inputs supplied to CLI, without a live SWIG object.
+
+    Via aspect ratios conservatively use full board thickness. Non-uniform
+    via padstacks are refused until per-layer manufacturing metrics are available.
+    """
+    tokens=sexpr_tokens(board_bytes.decode('utf-8-sig'));stack=[];root=None
+    for token in tokens:
+        if token=='(':
+            node=[]
+            if stack:stack[-1].append(node)
+            stack.append(node)
+        elif token==')':
+            if not stack:raise ValueError('Malformed saved PCB.')
+            node=stack.pop()
+            if not stack:
+                if root is not None:raise ValueError('Multiple saved PCB roots.')
+                root=node
+        elif stack:stack[-1].append(token)
+        else:raise ValueError('Malformed saved PCB.')
+    if stack or not root or root[0]!='kicad_pcb':raise ValueError('Expected a saved KiCad PCB.')
+    def children(node,name):return [x for x in node if isinstance(x,list) and x and x[0]==name]
+    def number(node,name):
+        found=children(node,name)
+        if len(found)!=1 or len(found[0])!=2:raise ValueError('Saved PCB is missing an unambiguous '+name+'.')
+        value=float(found[0][1])
+        if not math.isfinite(value) or value<=0:raise ValueError('Saved PCB has invalid '+name+'.')
+        return value
+    general=children(root,'general');layers=children(root,'layers')
+    if len(general)!=1 or len(layers)!=1:raise ValueError('Saved PCB has no general/layer settings.')
+    thickness=number(general[0],'thickness')
+    count=sum(1 for layer in layers[0] if isinstance(layer,list) and len(layer)>=3 and layer[2] in ('signal','power','mixed','jumper'))
+    if count<1:raise ValueError('Saved PCB has no copper layers.')
+    tracks=[number(node,'width') for name in ('segment','arc') for node in children(root,name)]
+    vias=children(root,'via')
+    if any(children(via,'padstack') for via in vias):raise ValueError('Non-uniform via padstacks require a per-layer manufacturing audit in KiCad.')
+    drills=[number(via,'drill') for via in vias]
+    rings=[(number(via,'size')-drill)/2 for via,drill in zip(vias,drills)]
+    project=json.loads(project_bytes.decode('utf-8-sig'))
+    clearance=project.get('board',{}).get('design_settings',{}).get('rules',{}).get('min_clearance')
+    if clearance is None or not math.isfinite(float(clearance)) or float(clearance)<0:
+        raise ValueError('Save the project minimum clearance rule before auditing.')
+    return BoardMetrics(min(tracks,default=float('inf')),float(clearance),min(drills,default=float('inf')),
+                        min(rings,default=float('inf')),max((thickness/d for d in drills),default=0),count)
+
+
+def gate_key(files,profile,jobset,live_text):
+    validate_profile(profile)
+    payload={'files':{str(name):hashlib.sha256(data).hexdigest() for name,data in files.items()},
+             'profile':asdict(profile),'jobset':str(jobset),
+             'live':hashlib.sha256(json.dumps(sexpr_tokens(live_text)).encode()).hexdigest()}
+    return hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()
 
 
 def build_release(output_zip: str | Path, files: list[str | Path], checks: list[ReadinessCheck],
-                  tool_version: str) -> dict:
+                  tool_version: str, *, expected_hashes=None, base_directory=None, evidence=None) -> dict:
+    if not checks:raise ValueError('Release requires a completed board audit.')
     failed = [check.item for check in checks if check.status == "FAIL"]
     if failed: raise ValueError("Release blocked by failed checks: " + ", ".join(failed))
-    source_files = [Path(path) for path in files if Path(path).is_file()]
-    manifest = {"tool": "KiWay Manufacturing Readiness Manager", "version": tool_version,
+    source_files = [Path(path) for path in files]
+    if not source_files:raise ValueError('Release has no source files.')
+    base=Path(base_directory).resolve() if base_directory else None
+    payloads={}
+    for source in source_files:
+        name=source.resolve().relative_to(base).as_posix() if base else source.name
+        if name.casefold() in {key.casefold() for key in payloads} or name=='wayricad-release-manifest.json':
+            raise ValueError('Duplicate release archive member: '+name)
+        payloads[name]=source.read_bytes()
+    hashes={name:hashlib.sha256(data).hexdigest() for name,data in payloads.items()}
+    if expected_hashes is not None and hashes!=expected_hashes:
+        raise ValueError('Release inputs changed after verification. Repeat the audit and checks.')
+    manifest = {"tool": "WayriCAD Manufacturing Readiness Manager", "version": tool_version,
                 "files": [], "checks": [asdict(check) for check in checks]}
-    for source in sorted(source_files, key=lambda item: item.name.casefold()):
-        manifest["files"].append({"name": source.name, "size": source.stat().st_size,
-                                  "sha256": hashlib.sha256(source.read_bytes()).hexdigest()})
+    if evidence is not None:manifest['verification']=evidence
+    for name,data in sorted(payloads.items()):
+        manifest["files"].append({"name":name,"size":len(data),"sha256":hashes[name]})
     destination = Path(output_zip); destination.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
-        for source in source_files: archive.write(source, source.name)
-        archive.writestr("kiway-release-manifest.json", json.dumps(manifest, indent=2) + "\n")
+    fd,temporary=tempfile.mkstemp(prefix='.wayricad-release-',suffix='.zip',dir=destination.parent)
+    os.close(fd)
+    try:
+        with zipfile.ZipFile(temporary,"w",zipfile.ZIP_DEFLATED) as archive:
+            content=dict(payloads)
+            content['wayricad-release-manifest.json']=(json.dumps(manifest,indent=2)+'\n').encode('utf-8')
+            for name,data in sorted(content.items()):
+                info=zipfile.ZipInfo(name,(1980,1,1,0,0,0));info.compress_type=zipfile.ZIP_DEFLATED
+                archive.writestr(info,data)
+        os.replace(temporary,destination)
+    finally:
+        if Path(temporary).exists():Path(temporary).unlink()
     return manifest

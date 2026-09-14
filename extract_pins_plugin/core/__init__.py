@@ -1,4 +1,4 @@
-# Core module for KiWay Extract Pins Plugin
+# Core module for WayriCAD Extract Pins Plugin
 # Contains shared logic for both GUI and CLI interfaces
 
 from .data_extractor import DataExtractor, DEFAULT_POWER_NET_PATTERNS

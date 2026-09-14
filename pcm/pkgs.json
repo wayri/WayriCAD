@@ -1,359 +1,44 @@
 {
     "packages": [
         {
-            "name": "KiWay Extract Pins",
-            "description": "Modeless pin extraction, PCB cross-selection, visual diagrams, and interboard documentation for KiCad.",
-            "description_full": "KiWay provides a focused, modeless Pin Extractor plus a separate Interboard & Harness workspace.\n\n**Features:**\n- Follow live PCB selection while the extractor remains open\n- Combine selected footprints with comma-separated wildcard reference, net, and value filters\n- Resolve wildcard label families to selected IC/connector pins through user-approved series components\n- Build safeguarded controller/IC-to-connector maps across exact inline pin pairs and renamed nets\n- Support opt-in conditional MOSFET, BJT, jumper-state, and other IC crossings without inferring device state or direction\n- Export source/connector pins, pin functions, net sequences, intermediate components, ordered traces, confidence, and ambiguity status\n- Define shared power, supply, ground, and forced-signal wildcard rules\n- Highlight named nets or select their routed tracks, vias, and zones\n- Review native pin tables before deterministic CSV or Markdown export\n- Consolidate repeated pad links into explicit source/path/destination routes\n- Generate embedded IC signal-flow charts and checked converter/filter power trees\n- Explore interactive system maps, signal topologies, and power-flow diagrams with unique component cards and color-coded net buses\n- Zoom, pan, fit, and click diagram nets to cross-highlight them in PCB Editor\n- Build a networkx connectivity graph from pcbnew board data and optional KiCad XML netlists\n- Preserve hierarchical sheet paths and apply user-defined path/reference aliases\n- Import pin documents from other projects and auto-link board-level endpoints\n- Apply exact, normalized, wildcard, or regex link rules and flag ambiguous matches\n- Export cross-project trackers, harness SVGs, ICDs, test-point traces, and TM/TC tables\n- Check and install full-suite dependencies through an integrated guarded manager\n- Run deterministic inspect, extract, crosslink, validate, report, benchmark, and test commands outside KiCad\n\nOptional Python packages for full dashboard capability: networkx, matplotlib, markdown, and Pillow. The integrated dependency manager installs reviewed packages into KiCad's Python user-site.\n\nTargets KiCAD 9 and later.",
-            "identifier": "kiway.extract.pins",
+            "name": "WayriCAD BOM Studio",
+            "description": "KiCad-first BOM workbench with embedded desktop UI, parts catalogue, distributor splits and assembler-specific CSV/Excel exports.",
+            "description_full": "Complete 3.0.0 PCM developer preview, not a profile-only patch. Retains native-first field templates, embedded desktop launcher, catalogue/assets/native library creation, variants, checks, analytics and CLI/job-set tools. Adds built-in per-board assembler BOM mappings for JLCPCB, PCBWay, HQPCB, NextPCB, Sierra Circuits, PCB Power, Seeed Fusion and generic assembly. CSV/XLSX/TSV and multi-profile ZIP exports are integrated into GUI and CLI. Distributor split exports remain separate: assembly quantities are never multiplied by procurement settings. Unverified/custom provider mappings require review. No automatic upload, order, CPL or Gerber generation. Actual KiCad/Windows/macOS/portal host acceptance is unexecuted. First setup requires Python and declared dependencies; no browser runtimes or wheels are bundled.",
+            "identifier": "com.github.wayri.wayricad.bom-studio",
             "type": "plugin",
             "author": {
-                "name": "Wayri (Yawar)",
+                "name": "WayriCAD BOM Studio contributors",
                 "contact": {
                     "github": "https://github.com/wayri"
                 }
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
+                "homepage": "https://github.com/wayri/WayriCAD"
             },
             "versions": [
                 {
-                    "version": "2.20.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "e437ccce01a6cb98371ac702884df6483d3ea92c83ec7491b42f05c1f0bd3902",
-                    "download_size": 292471,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/extract_pins_plugin-2.20.0.zip",
-                    "install_size": 725545,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "2.19.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "e6602f65877c984820683d4497db402f5eaeb0da1b8eaed814e5db98ef889fc1",
-                    "download_size": 289792,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/extract_pins_plugin-2.19.0.zip",
-                    "install_size": 723590,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "2.17.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "54642e479fbd570fead4343585a19857aefe6f2e3e48ea2cdab9d8ef0b843108",
-                    "download_size": 285562,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.23.0/extract_pins_plugin-2.17.0.zip",
-                    "install_size": 707094,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "2.16.1",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "59e83fcd6ed1e01ad10b14cb010c79eaa2df30ccae968f8d8e3e5a23bb072b70",
-                    "download_size": 273949,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.1/extract_pins_plugin-2.16.1.zip",
-                    "install_size": 686931,
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
                     "platforms": [
                         "windows",
                         "linux",
                         "macos"
                     ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.16.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "b44322753c69f9e126b21be10432441a4b85dfda0b06e754e78129fea7e8ab1b",
-                    "download_size": 304658,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/extract_pins_plugin-2.16.0.zip",
-                    "install_size": 717647,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.15.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "cbb6c88a6707fcfabfc3aba9c7593829331e3927c1d5d16afa8f62f8e99d7bfc",
-                    "download_size": 300058,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/extract_pins_plugin-2.15.0.zip",
-                    "install_size": 712445,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.14.1",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "726bc24fef306abc199cc4ce81e5653eb79dbffb1ea9247b884afa9ef12cda3f",
-                    "download_size": 295307,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.16.0/extract_pins_plugin-2.14.1.zip",
-                    "install_size": 679839,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.14.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "4dd0adb6874bc54d617fc3fbb14d9b1b0c0cf0d6dd07c91d6695eb433a1312df",
-                    "download_size": 295275,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.15.0/extract_pins_plugin-2.14.0.zip",
-                    "install_size": 679761,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.13.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "39376d8df4b4330ada7e4ae0fddedb078d174336fca89c6310bfbfe14bbc603e",
-                    "download_size": 294287,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.14.0/extract_pins_plugin-2.13.0.zip",
-                    "install_size": 676186,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.12.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "c9802b502e0e5e56ee10621a5686ab3e1a878d051f641f1755f9089e80855889",
-                    "download_size": 290517,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.12.0/extract_pins_plugin-2.12.0.zip",
-                    "install_size": 658587,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.11.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "9c1cd621fbac386151fdd89c1b8806f355babd7ec0de3414050dcdb23d318bf6",
-                    "download_size": 287449,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.11.0/extract_pins_plugin-2.11.0.zip",
-                    "install_size": 652424,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.10.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "12fee354d4a745ec90a0763ae46335fbc13fdb45eab350454391ce7438bf5239",
-                    "download_size": 274076,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.10.0/extract_pins_plugin-2.10.0.zip",
-                    "install_size": 600739,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.9.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "6937ec7ca50ae43a69feead8707bfa77012a1f68c5b5f1d0b1759361f0e7d81e",
-                    "download_size": 160794,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.9.0/extract_pins_plugin-2.9.0.zip",
-                    "install_size": 463159,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.8.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "3e7a152b9f8e1c45a4ad889796dcedcb386482930915a4febd53824e81f41917",
-                    "download_size": 111285,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.8.0/extract_pins_plugin-2.8.0.zip",
-                    "install_size": 399620,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.7.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "e517af4a6645bac22559435f4604cf3a78c82d1e8198712e6f0e56f03c53ef85",
-                    "download_size": 101610,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.7.0/extract_pins_plugin-2.7.0.zip",
-                    "install_size": 360091,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.6.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "e095aa9297a04ceb4705e961a2f078a6140792abbaecfccfe0d986ed7042ccd4",
-                    "download_size": 99199,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.6.0/extract_pins_plugin-2.6.0.zip",
-                    "install_size": 349587,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.5.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "47d58a014c04e2f80bf676027d6d3040ddfde60d130b3c1a2941abb97e76e4a5",
-                    "download_size": 98670,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.5.0/extract_pins_plugin-2.5.0.zip",
-                    "install_size": 347648,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.4.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "5952c35cba5e8bf0bb509849145c3172e1ca1425f3f222d6e443840934502ec8",
-                    "download_size": 96082,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.4.0/extract_pins_plugin-2.4.0.zip",
-                    "install_size": 337745,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.3.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "d70bc784ebb6b85bb592f1f3f0e2eccc84f037adfc22d46978dff540bf1f04b9",
-                    "download_size": 89223,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.3.0/extract_pins_plugin-2.3.0.zip",
-                    "install_size": 331002,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.2.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "640ce44e55fe15669409f196aba34a6185378ecabf61f6f8fb68cdf6b57037a5",
-                    "download_size": 84696,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.2.0/extract_pins_plugin-2.2.0.zip",
-                    "install_size": 311018,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.1.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "2d5dc160b48cc197c41f2b048ab1561ce1d714c92185fa52fb0df427b41ab26b",
-                    "download_size": 82047,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.1.0/extract_pins_plugin-2.1.0.zip",
-                    "install_size": 301580,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "2.0.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "b42c1a5ad79c1460c77659f3353cd42d04ab967735c88a8c9de53bd54c7e13ad",
-                    "download_size": 360875,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.0.0/extract_pins_plugin-2.0.0.zip",
-                    "install_size": 557209,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
+                    "download_sha256": "cbc794b0c31eff7064d4f31dbad2382808a73faf831470c06f819f0a5db042ea",
+                    "download_size": 539989,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-bom-studio-3.0.0-PCM.zip",
+                    "install_size": 1426463
                 }
             ]
         },
         {
-            "name": "KiWay Bulk Label Editor",
+            "name": "WayriCAD Bulk Label Editor",
             "description": "Bulk edit labels, PCB text, footprint references, values, and fields with wildcard or regex rules.",
-            "description_full": "KiWay Bulk Label Editor provides a safe preview-and-apply workflow for renaming repeated channel labels and component text inside KiCad. It supports wildcard captures such as CH*_MAIN -> CH*_REDUNDANT, regex replacements, and scoped edits for references, values, fields, and PCB text.",
-            "identifier": "kiway.bulk.label.editor",
+            "description_full": "WayriCAD Bulk Label Editor provides a safe preview-and-apply workflow for renaming repeated channel labels and component text inside KiCad. It supports wildcard captures such as CH*_MAIN -> CH*_REDUNDANT, regex replacements, and scoped edits for references, values, fields, and PCB text.",
+            "identifier": "com.github.wayri.wayricad.bulk-label-editor",
             "type": "plugin",
             "author": {
                 "name": "Wayri (Yawar)",
@@ -363,151 +48,99 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
+                "homepage": "https://github.com/wayri/WayriCAD"
             },
             "versions": [
                 {
-                    "version": "0.7.2",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "77af18362e7927e1110f5fb251adc118e15aa48dcbd07b5e427d0cd0fa1abd27",
-                    "download_size": 27903,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/bulk_label_editor_plugin-0.7.2.zip",
-                    "install_size": 46724,
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "48fd00c9b08108431104335dcf83ad3d007e79a1cc4af81b65fc9a59e4b1e622",
+                    "download_size": 139563,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-bulk-label-editor-3.0.0-PCM.zip",
+                    "install_size": 227864,
                     "platforms": [
                         "windows",
                         "linux",
                         "macos"
                     ]
-                },
-                {
-                    "version": "0.7.1",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "5137007e652f68a8948fe9f11d08b9c3cdcbe41ec9a60a81950b3f180dc1f07e",
-                    "download_size": 26956,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/bulk_label_editor_plugin-0.7.1.zip",
-                    "install_size": 44960,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.7.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "377381e3eebd706726e3ac2bf7992c8c509bd3554fca710724bc64915a93cdb8",
-                    "download_size": 62111,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/bulk_label_editor_plugin-0.7.0.zip",
-                    "install_size": 80339,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.6.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "02cd1e9a633f0970fce370c88b74af995c739f6689bff25536b0c7c068852237",
-                    "download_size": 58073,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/bulk_label_editor_plugin-0.6.0.zip",
-                    "install_size": 75701,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.5.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "e09ab84bc54ce8325f909601cf75fc5faa024737751d5d8619091b9ffd6febf8",
-                    "download_size": 63742,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.9.0/bulk_label_editor_plugin-0.5.0.zip",
-                    "install_size": 80015,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.4.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "5274ac9413d7baa7b041e04b221d0302ca84a525798e9923ba150459a8a42f88",
-                    "download_size": 18536,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.5.0/bulk_label_editor_plugin-0.4.0.zip",
-                    "install_size": 26757,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.3.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "552a4135f169bd49fb6f9c850d5c16fdd8f6791f72adff85efde28999a14d970",
-                    "download_size": 18020,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.4.0/bulk_label_editor_plugin-0.3.0.zip",
-                    "install_size": 25912,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "f44cac4c32e5672e8ead09646ac1d3f184d7e70058d5941ee19877af969a6f93",
-                    "download_size": 11330,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.2.0/bulk_label_editor_plugin-0.2.0.zip",
-                    "install_size": 19334,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "ddc70919fceab2f065b99757436970537141c9a06e90ccd92840b7d64d8fd977",
-                    "download_size": 11081,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/bulk_label_editor_plugin-0.1.0.zip",
-                    "install_size": 17758,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
                 }
             ]
         },
         {
-            "name": "KiWay Fanout Generator",
+            "name": "WayriCAD Embed3D",
+            "description": "One component matrix: embed symbols, footprints and 3D models; unbundle, relink, or do both with checked selections.",
+            "description_full": "One window with global and per-component Symbols, Footprints and 3D models checkboxes. Visible Embed checked, Embed all, Unbundle, Relink and Unbundle & relink actions share a preview/apply workflow. Archive actual bytes, preserve model transforms and native symbol caches, and create verified external library links. Select asset and new-design folders; choose relative/absolute paths, child sheets and conservative attachment removal. Main operations read saved files and create new design copies, not edits to open buffers. Previous standalone library, repair and live-model tools remain under Options. Approved icon included. Offline KiCad 10 SWIG addon, not IPC or KiCad 11. Testing release: native UI, installation, rendering and live integration remain unverified.",
+            "identifier": "com.github.wayri.wayricad.embed-3d",
+            "type": "plugin",
+            "author": {
+                "name": "WayriCAD Embed3D contributors",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "85f40f8ba1d766b4a8673e134f3f073a93257ee9aaad6b8dc0effa138bba4523",
+                    "download_size": 289471,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-embed-3d-3.0.0-PCM.zip",
+                    "install_size": 608854,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Extract Pins",
+            "description": "Modeless pin extraction, PCB cross-selection, visual diagrams, and interboard documentation for KiCad.",
+            "description_full": "WayriCAD provides a focused, modeless Pin Extractor plus a separate Interboard & Harness workspace.\n\n**Features:**\n- Follow live PCB selection while the extractor remains open\n- Combine selected footprints with comma-separated wildcard reference, net, and value filters\n- Resolve wildcard label families to selected IC/connector pins through user-approved series components\n- Build safeguarded controller/IC-to-connector maps across exact inline pin pairs and renamed nets\n- Support opt-in conditional MOSFET, BJT, jumper-state, and other IC crossings without inferring device state or direction\n- Export source/connector pins, pin functions, net sequences, intermediate components, ordered traces, confidence, and ambiguity status\n- Define shared power, supply, ground, and forced-signal wildcard rules\n- Highlight named nets or select their routed tracks, vias, and zones\n- Review native pin tables before deterministic CSV or Markdown export\n- Consolidate repeated pad links into explicit source/path/destination routes\n- Generate embedded IC signal-flow charts and checked converter/filter power trees\n- Explore interactive system maps, signal topologies, and power-flow diagrams with unique component cards and color-coded net buses\n- Zoom, pan, fit, and click diagram nets to cross-highlight them in PCB Editor\n- Build a networkx connectivity graph from pcbnew board data and optional KiCad XML netlists\n- Preserve hierarchical sheet paths and apply user-defined path/reference aliases\n- Import pin documents from other projects and auto-link board-level endpoints\n- Apply exact, normalized, wildcard, or regex link rules and flag ambiguous matches\n- Export cross-project trackers, harness SVGs, ICDs, test-point traces, and TM/TC tables\n- Check and install full-suite dependencies through an integrated guarded manager\n- Run deterministic inspect, extract, crosslink, validate, report, benchmark, and test commands outside KiCad\n\nOptional Python packages for full dashboard capability: networkx, matplotlib, markdown, and Pillow. The integrated dependency manager installs reviewed packages into KiCad's Python user-site.\n\nTargets KiCAD 9 and later.",
+            "identifier": "com.github.wayri.wayricad.extract-pins",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "48673ca3f9b4fb06ca900e37933beff93ca6a25a77ef0e62a3982781238f1701",
+                    "download_size": 443548,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-extract-pins-3.0.0-PCM.zip",
+                    "install_size": 1030525,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Fanout Generator",
             "description": "Preview and generate advanced SMD, BGA, and LGA fanouts with persistent grouped commits.",
-            "description_full": "Creates reviewable dogbone, quadrant, four-corner, perimeter, radial, grid, and via-in-pad fanouts. Scope work to selected pads, selected footprints, reference wildcards, or all SMD pads; preview actual footprint extents, pad locations, tracks, and scaled vias in the window and on the PCB before committing a native KiCad group.",
-            "identifier": "kiway.fanout.generator",
+            "description_full": "Local, reviewable routing with configurable geometry, pad/net scope, clearance checks, zoomable preview, shared headless planners, and recoverable named commit groups. Preview does not modify PCB copper. JSON/SVG command-line planning and verified application write a new board copy.",
+            "identifier": "com.github.wayri.wayricad.fanout-generator",
             "type": "plugin",
             "author": {
                 "name": "Wayri (Yawar)",
@@ -517,788 +150,18 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
+                "homepage": "https://github.com/wayri/WayriCAD"
             },
             "versions": [
                 {
-                    "version": "0.10.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "0f1ca8092b169e592fd9b69d2fdcedb018a3d554748f4e3b93bbddc9e8db732a",
-                    "download_size": 55791,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/fanout_generator_plugin-0.10.0.zip",
-                    "install_size": 98125,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.9.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "6739443bf0c9407d35590b00d201744f7f1ae3e4933c2fbc462d2f5decd2c460",
-                    "download_size": 50008,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/fanout_generator_plugin-0.9.0.zip",
-                    "install_size": 79286,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.8.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "617807c76ab01270bdd247d73a447500f6a43528057f09385a1009ecdf0ff98c",
-                    "download_size": 82001,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/fanout_generator_plugin-0.8.0.zip",
-                    "install_size": 110480,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.7.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "0972adeb6895a4c5058bbc77bbe1b0134da78375c7d2ef5c73473ca4989fafae",
-                    "download_size": 73814,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/fanout_generator_plugin-0.7.0.zip",
-                    "install_size": 100884,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.6.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "e19aff0e98b39ea10d6e77e3f4ba72d69b07fb9cc88e00258cbd9c25f5f5810f",
-                    "download_size": 76972,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.13.0/fanout_generator_plugin-0.6.0.zip",
-                    "install_size": 96625,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.5.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "366b616a8f3dbbf21297d7069bda9ac971b294d079c84f775eb24c4c7f827357",
-                    "download_size": 76908,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.9.0/fanout_generator_plugin-0.5.0.zip",
-                    "install_size": 96095,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.4.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "fc6fa800b749d16efa11241d9a640f4fa3cd287d3d78da1e1e98617027f27777",
-                    "download_size": 24279,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.5.0/fanout_generator_plugin-0.4.0.zip",
-                    "install_size": 30749,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.3.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "64f08bdd3aafc3f91bbc52a35c7fd61665a6fda07460ee7b1c2120c755f75c95",
-                    "download_size": 23751,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.4.0/fanout_generator_plugin-0.3.0.zip",
-                    "install_size": 29829,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "dcd022b6a4c040088a11833e9abe78675eb426fcf36c85e3f1c802966f84de53",
-                    "download_size": 13868,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.2.0/fanout_generator_plugin-0.2.0.zip",
-                    "install_size": 20058,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "a1254affe4e89c88b5014f9f309335dad084d93362a77acb74255eb3a5300e0f",
-                    "download_size": 13061,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/fanout_generator_plugin-0.1.0.zip",
-                    "install_size": 16008,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                }
-            ]
-        },
-        {
-            "name": "KiWay Via Stitching",
-            "description": "Preview net-aware copper-zone via stitching with geometric clearance exclusions.",
-            "description_full": "Generates uniform or perimeter-weighted stitching inside the board or selected bounds, optionally constrained to filled target-net copper. It rejects footprint bodies, other-net tracks, vias, zones, keepouts, and drawings, previews board bounds and scaled via geometry, and commits a removable native KiCad group.",
-            "identifier": "kiway.via.stitching",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "GPL-3.0",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.10.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "c887c9083d5ed5a7b304f089fda8a53f98d9899b64341d757f7db3b66f8279f8",
-                    "download_size": 49944,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/via_stitching_plugin-0.10.0.zip",
-                    "install_size": 96400,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.9.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "fb87aee61898bcb7845fa3313021921ccf39ba13e35495be33b5639c35122652",
-                    "download_size": 44188,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/via_stitching_plugin-0.9.0.zip",
-                    "install_size": 77559,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.8.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "f8c7b67ae1edcb69d473794b3254a0c397b9894d17ced117a84d979633ae26cd",
-                    "download_size": 76825,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/via_stitching_plugin-0.8.0.zip",
-                    "install_size": 109062,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.7.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "303d3f03003a1fdb4257f17ad3fcf0dde0161be09c9ebd19bb91131e546910cb",
-                    "download_size": 70363,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/via_stitching_plugin-0.7.0.zip",
-                    "install_size": 100957,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.6.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "9b6c126d76f1adcaf59d04ab22020d4e434bfc2a68d08ead776e907c767264fe",
-                    "download_size": 71122,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.13.0/via_stitching_plugin-0.6.0.zip",
-                    "install_size": 93261,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.5.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "3eb80467c2223b46ecabbcaf06bc3cfa4c6a69d55f360e7a6ec76b660ad66063",
-                    "download_size": 71125,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.9.0/via_stitching_plugin-0.5.0.zip",
-                    "install_size": 92817,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.4.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "ed7d9fc0af80844114cade28fafed3a035d472850fd30f649f8bb24026461cc4",
-                    "download_size": 19396,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.5.0/via_stitching_plugin-0.4.0.zip",
-                    "install_size": 28040,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.3.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "2d87ef244dcd9e74a4eb15157a5930ee7b00fb1d58b311fb0f8e65a6d5324821",
-                    "download_size": 18894,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.4.0/via_stitching_plugin-0.3.0.zip",
-                    "install_size": 27149,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "798df5f46456434860633df68ffc67d12d9049274fd1693eeb7ba564f674bd68",
-                    "download_size": 11794,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.2.0/via_stitching_plugin-0.2.0.zip",
-                    "install_size": 20160,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "df4ad526c2d6d7fde9246fc8c629b5c7ed50d7b1e84bf193ad85eb57907685a4",
-                    "download_size": 11012,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/via_stitching_plugin-0.1.0.zip",
-                    "install_size": 16091,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                }
-            ]
-        },
-        {
-            "name": "KiWay Test Point Descriptor Extractor",
-            "description": "Resolve test points through passives to IC pins and export engineering documentation.",
-            "description_full": "Scans TP and TestPoint footprints, extracts descriptor/function fields, traces connected nets through common passives and NetTie_Path parts to terminal IC pins, parses board-sequence TM/TC labels, sorts and consolidates reviewed rows, and exports documentation, spring-probe channel plans, or a separate KiCad bed-of-nails fixture PCB.",
-            "identifier": "kiway.test.point.descriptor",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "GPL-3.0",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.8.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "4455d0008e41d401ee3ad19ac6c646aa3d16d9e176878742b98d2e6f1e83a689",
-                    "download_size": 40500,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/test_point_descriptor_plugin-0.8.0.zip",
-                    "install_size": 65822,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.7.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "252abfc0d9fa0c31478103c77191c489c272040dabf96f3dad1c87af20881aad",
-                    "download_size": 39734,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/test_point_descriptor_plugin-0.7.0.zip",
-                    "install_size": 63904,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.6.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "69c6f56f1de2115ada4f7ed587830db049273fbed397a5b04a7ea062bc0e8766",
-                    "download_size": 86594,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/test_point_descriptor_plugin-0.6.0.zip",
-                    "install_size": 105248,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.5.1",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "0f135c0b04ed6000d081927f0d90a5f81e60511961f4fdd3dfe4d2264a18548e",
-                    "download_size": 72571,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/test_point_descriptor_plugin-0.5.1.zip",
-                    "install_size": 90646,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.5.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "488f0a7a78ac1c4f7d1279a3ee4f926f98d9b1c3e10c58dc24fc5d9c683ddb3d",
-                    "download_size": 60315,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.15.0/test_point_descriptor_plugin-0.5.0.zip",
-                    "install_size": 77881,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.4.1",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "f6f4e93bbdd362315283a20c4549e31bd1c3e32a249935fa127153254584d5af",
-                    "download_size": 58592,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.13.0/test_point_descriptor_plugin-0.4.1.zip",
-                    "install_size": 72625,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.4.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "4825934dccd902539857307502cc5aff34e18ce1c9d2c9f2c30125a758ffedc9",
-                    "download_size": 58567,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.9.0/test_point_descriptor_plugin-0.4.0.zip",
-                    "install_size": 72449,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.3.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "a14b348cc09ada9ce5b4d9435f910ec9882b04de1f412b63793d13336023532b",
-                    "download_size": 16330,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.5.0/test_point_descriptor_plugin-0.3.0.zip",
-                    "install_size": 23420,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "57de0125ee5cae699dc5a80bebe428958d8571c02ed5edbf4aa106064218ee40",
-                    "download_size": 15526,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.4.0/test_point_descriptor_plugin-0.2.0.zip",
-                    "install_size": 21867,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "5c4ca6ad1a77ff3e67304c75686d1b7b0665ceefe27a183d10ecf26e6b87f81e",
-                    "download_size": 10108,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/test_point_descriptor_plugin-0.1.0.zip",
-                    "install_size": 16565,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                }
-            ]
-        },
-        {
-            "name": "KiWay Trace RLC / Impedance Analyzer",
-            "description": "Measure routed geometry and estimate RLC and impedance against an explicit reference layer.",
-            "description_full": "Follows PCB net and pad selection, traverses the routed path between endpoints, enumerates the complete parsed stackup, and reports route geometry, vias, layer changes, resistance, capacitance, inductance, and first-order impedance with the exact reference layer, dielectric height, and permittivity used.",
-            "identifier": "kiway.trace.impedance",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "GPL-3.0",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.8.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "bea28fb1b9e181118c2c56008a0aba6cd22168d84558ab02831801aa71a89979",
-                    "download_size": 55942,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/trace_impedance_plugin-0.8.0.zip",
-                    "install_size": 119388,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.7.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "e0ce813fc8463b88eaf96dd670e19ce2c9fb12d54ae6a16b40944d37fe444bd5",
-                    "download_size": 51416,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.26.0/trace_impedance_plugin-0.7.0.zip",
-                    "install_size": 104872,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.6.1",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "f920d8a48911d4527a72d11dedce96e1da833bcb8cf60c83ee4648c38573f2f5",
-                    "download_size": 42154,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/trace_impedance_plugin-0.6.1.zip",
-                    "install_size": 72213,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.6.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "dde4e5648a7e2508a29585674b8dc122bd1e3ac0d501922a41eb1afd6ffd879f",
-                    "download_size": 77766,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/trace_impedance_plugin-0.6.0.zip",
-                    "install_size": 108177,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.5.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "a6dd7a4dfed2ae40d2b0e7aef84aec754311077fd32b6bb4b8a60d9915539c54",
-                    "download_size": 70113,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/trace_impedance_plugin-0.5.0.zip",
-                    "install_size": 99305,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.4.1",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "download_sha256": "5db00c2fa8728d2c7e1ac015d55f983f878399f5dd8c18bb732d999436db0e92",
-                    "download_size": 67074,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.13.0/trace_impedance_plugin-0.4.1.zip",
-                    "install_size": 88180,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.4.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "b5ab09adf2a8b390b25ac7237fb0be26aa6564e5f22da2d0f3b4c5cce5b609e0",
-                    "download_size": 67069,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.9.0/trace_impedance_plugin-0.4.0.zip",
-                    "install_size": 88306,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.3.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "45f0d1664de957b64f932d7c2dd4b44e068826e718872efeb5598b2f0ce2c6c4",
-                    "download_size": 19860,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.5.0/trace_impedance_plugin-0.3.0.zip",
-                    "install_size": 30995,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "319e2654ff243d0a96c8081a62535810cdcc374bc943368c7947ddcefdfa0dbb",
-                    "download_size": 19334,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.4.0/trace_impedance_plugin-0.2.0.zip",
-                    "install_size": 30095,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "development",
-                    "kicad_version": "9.0",
-                    "download_sha256": "c5b47f9c195746b669e004cc5821efb4b5d521a0ea49cf675300a0c181a9c9f7",
-                    "download_size": 13214,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v0.1.0/trace_impedance_plugin-0.1.0.zip",
-                    "install_size": 24088,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ],
-                    "runtime": "swig"
-                }
-            ]
-        },
-        {
-            "name": "Kilo — KiCad Localizer",
-            "description": "Package portable design blocks and localize project footprints and 3D models.",
-            "description_full": "Kilo packages reusable KiCad design blocks with their footprint and 3D-model dependencies, then installs them into other projects. It can also localize an existing project into reversible project-local libraries, with validation reports, transaction history, and restore support. New data uses Kilo identifiers while legacy KiCad BlockPack packages and project state remain readable.",
-            "identifier": "kiway.kilo.localizer",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "MIT",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.1.0",
-                    "status": "stable",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "e7854ef4698f6ff03a9f31bfbc6108ced86d917fe56a8369fc4129a4793224e2",
-                    "download_size": 103186,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/kilo_plugin-0.1.0.zip",
-                    "install_size": 234148,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "KiWay Portable Assets",
-            "description": "Make KiCad projects self-contained using reviewed footprint, symbol, and 3D-model snapshots.",
-            "description_full": "KiWay Portable Assets snapshots placed PCB footprints into a project-local library, relinks schematic symbols, embeds resolvable 3D models, creates an optional native Embedded Files recovery vault, and repairs missing footprint links from PCB geometry. A native PCB Editor ActionPlugin launches the workbench in an isolated GUI process and passes the active board path directly. A fresh unchanged analysis is required before each write. Network model retrieval is disabled by default. Lock-file checks, explicit confirmation, S-expression validation, conventional KiCad backup archives plus transactional backups, atomic replacement, and unresolved-model reporting protect project files.",
-            "identifier": "kiway-portable-assets",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "MIT",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.2.4",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "b1ff430d102f04478d8b594542458232d8bff4c328c2e30ecabb1615a3a9ced7",
-                    "download_size": 73549,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/portable_assets_plugin-0.2.4.zip",
-                    "install_size": 137730,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.2.3",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "e8ff5eee6eb0650ae5bdb63885a95d137c6dad94defc467a0863667d32ad1639",
-                    "download_size": 80954,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/portable_assets_plugin-0.2.3.zip",
-                    "install_size": 146746,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.2.2",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "d7be4b11faceb0e12067195cbb71dd3bb87938d9ea7b8a07e73b214d53eed99c",
-                    "download_size": 84935,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.1/portable_assets_plugin-0.2.2.zip",
-                    "install_size": 150326,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.2.1",
+                    "version": "3.0.0",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "838d0ab664b8a2e9fbcd8c1a8924e61276f261ed52361d51c6c59d2b57f3dede",
-                    "download_size": 79482,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/portable_assets_plugin-0.2.1.zip",
-                    "install_size": 143242,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "ipc",
-                    "download_sha256": "a19a09f06042772b6e511e752db223f22e9f5aa38b06bc1dda429bfbe1bc5555",
-                    "download_size": 79469,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/portable_assets_plugin-0.2.0.zip",
-                    "install_size": 143213,
+                    "download_sha256": "c749e47200d3e77621f1312f85b592486b8332c7e3ae9697e67dcded641ce1fb",
+                    "download_size": 167841,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-fanout-generator-3.0.0-PCM.zip",
+                    "install_size": 270476,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1308,153 +171,10 @@
             ]
         },
         {
-            "name": "KiWay Design Variant Workbench",
-            "description": "Review, edit, validate, compare, audit, and release KiCad 10 design variants safely.",
-            "description_full": "KiWay Design Variant Workbench provides semantic Set Default/rebase operations, a variant matrix, comparison and lint tables, PCB synchronization audits, guarded part substitutions, lifecycle management, and manufacturing-release generation. A native PCB Editor ActionPlugin passes the active project to a detached workbench so KiCad can be closed before Apply. Every design-file write requires a preview, rejects active KiCad lock files and stale input hashes, validates generated S-expressions, creates all backups before writing, uses atomic replacement, and attempts rollback on failure.",
-            "identifier": "kiway-variant-workbench",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "GPL-3.0",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.5.3",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "b3c12171cb80dbbaacde624d479be75f41a1d68aa38b30cc1696c998dec5405c",
-                    "download_size": 139320,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/variant_workbench_plugin-0.5.3.zip",
-                    "install_size": 342570,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.5.2",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "6b5ae334a099259a203b0b3efcf9c72a2cccdf932828ca75d9458ffe73010f1f",
-                    "download_size": 127583,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.21.0/variant_workbench_plugin-0.5.2.zip",
-                    "install_size": 332460,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.5.1",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "ipc",
-                    "download_sha256": "4abd8f1b51999915ad93bbfe543a7d9cfe73e687ad59c43d896ab8e326298364",
-                    "download_size": 126552,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.20.0/variant_workbench_plugin-0.5.1.zip",
-                    "install_size": 330449,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.5.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "ipc",
-                    "download_sha256": "e7845ce0385009c7c2eb73882c28f6d04a204fcf6c36db608023b5d0b4838b94",
-                    "download_size": 126048,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.19.0/variant_workbench_plugin-0.5.0.zip",
-                    "install_size": 328713,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "KiWay Signal Integrity Advisor",
-            "description": "Calculate I2C pull-up ranges and validate routed single-ended or differential impedance.",
-            "description_full": "Guided, read-only engineering checks for I2C pull-up resistance, routed impedance, differential skew, stackup/reference-layer use, vias, layer changes, zones, and unresolved topology. Includes editable protocol presets for CAN, Ethernet, RF, RS-485, SerDes, USB 2/3/4, and custom constraints.",
-            "identifier": "kiway.signal.integrity.advisor",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "GPL-3.0",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.3.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "f9c194f340101aefa2e64cda5c89bc7f104c29d6c748e6a0bf0364ea14306ca0",
-                    "download_size": 82686,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/signal_integrity_advisor_plugin-0.3.0.zip",
-                    "install_size": 129996,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "2e56a84dcac18648dcf747a2c6cff41d9ef63a2cece46b2c460920cc7b2ec166",
-                    "download_size": 78903,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.26.0/signal_integrity_advisor_plugin-0.2.0.zip",
-                    "install_size": 118975,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "stable",
-                    "kicad_version": "9.0",
-                    "runtime": "swig",
-                    "download_sha256": "50ffefae0b7396ee0a6bfb4e66b2fcffbc18da8486c651d05ca7c1d4431d93bb",
-                    "download_size": 75310,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/signal_integrity_advisor_plugin-0.1.0.zip",
-                    "install_size": 106833,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "KiWay Harness and Cable Workbench",
+            "name": "WayriCAD Harness and Cable Workbench",
             "description": "Build multi-board harness maps, drawings, bundles, splices, and BoMs.",
             "description_full": "Imports up to 50 board pin CSV documents, maps arbitrary connector pins, bundles, splices, gauges, and loads, and joins safeguarded Pin Extractor controller maps into complete IC-to-IC or IC-to-peripheral routes through series components. Exports sortable tables, CSV, SVG, an offline pan/zoom/draggable interactive system harness, findings, and a procurement BoM.",
-            "identifier": "kiway.harness.workbench",
+            "identifier": "com.github.wayri.wayricad.harness-workbench",
             "type": "plugin",
             "author": {
                 "name": "Wayri (Yawar)",
@@ -1464,63 +184,18 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
+                "homepage": "https://github.com/wayri/WayriCAD"
             },
             "versions": [
                 {
-                    "version": "0.5.0",
+                    "version": "3.0.0",
                     "status": "testing",
                     "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "0246c565072652570372f0ec02b8e0766b4e1f26ef1e2b3ec837b6c2b059f536",
-                    "download_size": 137211,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/harness_workbench_plugin-0.5.0.zip",
-                    "install_size": 224377,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.4.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "bb497d6f8bbf68b46e3bb068a5832f694caf846f1a15740adb06f9b5bc39b663",
-                    "download_size": 136285,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/harness_workbench_plugin-0.4.0.zip",
-                    "install_size": 222563,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "cddc891a2a1f68a96568317d377866ec7f285f533965bb455a0f5636146d1f03",
-                    "download_size": 43199,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.23.0/harness_workbench_plugin-0.2.0.zip",
-                    "install_size": 83098,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "fadaa8b26860b7eb0ca32a96560fff392820ad26437873facece38b787c18fef",
-                    "download_size": 34415,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.23.0/harness_workbench_plugin-0.1.0.zip",
-                    "install_size": 49977,
+                    "runtime": "ipc",
+                    "download_sha256": "e44ae49f0b67ebb10ab80ac85fcab876586332a0f3b3c4ddba17baab58ab4373",
+                    "download_size": 243686,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-harness-workbench-3.0.0-PCM.zip",
+                    "install_size": 399049,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1530,236 +205,10 @@
             ]
         },
         {
-            "name": "KiWay Manufacturing Readiness Manager",
-            "description": "Audit fabricator capabilities and gate deterministic KiCad manufacturing releases.",
-            "description_full": "Combines reusable fabricator capability profiles with board geometry audits, KiCad JSON DRC and jobset execution, explicit pass/fail release gates, and ZIP packaging with SHA-256 file manifests. It does not claim fabricator acceptance; profiles must be reviewed against the current fabrication quotation.",
-            "identifier": "kiway.manufacturing.readiness",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "GPL-3.0",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.2.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "7f7e70eaeed42c21bb1e595c7a228869c5bd4afc197804e1464bb1c7d21044bc",
-                    "download_size": 36022,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/manufacturing_readiness_plugin-0.2.0.zip",
-                    "install_size": 53338,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "71d5bd7eee1b8754ba20a0eb9c5b961096b260067e78bc6da6dbc7d1fc9ed1b3",
-                    "download_size": 34371,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/manufacturing_readiness_plugin-0.1.0.zip",
-                    "install_size": 49766,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "KiWay PDN and Decoupling Planner",
-            "description": "Audit power-rail topology and local decoupling placement from PCB geometry.",
-            "description_full": "Uses configurable rail, ground, capacitor, load, and regulator conventions to locate supply pins without nearby rail-to-ground capacitors. Results are sortable, cross-selectable, and exportable. It is a placement/topology screen rather than an AC impedance, transient, or electromagnetic PDN solver.",
-            "identifier": "kiway.pdn.decoupling",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "GPL-3.0",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.3.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "99fb9fe806294272f422aa69224f8981307fb683a3d9a6805f09b4e6053b76a3",
-                    "download_size": 37657,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/pdn_decoupling_plugin-0.3.0.zip",
-                    "install_size": 63604,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "0873e5d57ab819c9e2d3d496ca434b14e413cdcd82dbf74201cc6f1dc9d00305",
-                    "download_size": 35491,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.26.0/pdn_decoupling_plugin-0.2.0.zip",
-                    "install_size": 57044,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "8ebebe19981d762943bf89c723d1fca0bdec5e360ff35d29aa1b48c817756bf9",
-                    "download_size": 30479,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/pdn_decoupling_plugin-0.1.0.zip",
-                    "install_size": 40897,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "KiWay Protocol Constraint Composer",
-            "description": "Detect protocol nets and compose reviewed KiCad custom design rules.",
-            "description_full": "Detects common USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF net-name conventions, presents editable assignments, and generates a clearly delimited KiWay-managed custom-rule block. Rules can be exported or applied to the project .kicad_dru after confirmation and timestamped backup.",
-            "identifier": "kiway.protocol.constraint.composer",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "GPL-3.0",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.2.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "e91d4597fa097ac141e8a6b3b1e69d315beefd305f2140d3d8cb401b300deb8a",
-                    "download_size": 34926,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/protocol_constraint_composer_plugin-0.2.0.zip",
-                    "install_size": 50369,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "1191317e9baf2d20b0b8a15ffc1c6cf7cc9168cc5b4d367ec2f8baf5ad0242f6",
-                    "download_size": 33484,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/protocol_constraint_composer_plugin-0.1.0.zip",
-                    "install_size": 47042,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "KiWay Return-Path Auditor",
-            "description": "Find PCB return-path discontinuities, unsupported layer transitions, plane gaps, and possible routed stubs.",
-            "description_full": "A modeless, read-only geometry audit for routed signal segments. It checks signal-via proximity to configured return vias, supplied return-plane coverage, and branched copper that may form stubs. Findings are cross-selectable and exportable. Results are review aids, not electromagnetic simulation or compliance certification.",
-            "identifier": "kiway.return.path.auditor",
-            "type": "plugin",
-            "author": {
-                "name": "Wayri (Yawar)",
-                "contact": {
-                    "github": "https://github.com/wayri"
-                }
-            },
-            "license": "GPL-3.0",
-            "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
-            },
-            "versions": [
-                {
-                    "version": "0.3.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "22c3ef9344412f863fee9592fdb2b921ec277dee8da6359f7174202ef56f4fef",
-                    "download_size": 43583,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/return_path_auditor_plugin-0.3.0.zip",
-                    "install_size": 77923,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.2.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "69dec3fb2a72299a7131b8851f4173d3c051750c0b342b3f0076f5f514aca1fd",
-                    "download_size": 39755,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.26.0/return_path_auditor_plugin-0.2.0.zip",
-                    "install_size": 67043,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "testing",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "cad94dc666f98d87fb4e1c110019a044dc11bcc3f53f793b9b29cbca5e2e611b",
-                    "download_size": 35565,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/return_path_auditor_plugin-0.1.0.zip",
-                    "install_size": 53403,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "KiWay PCB / Foil Heater Designer",
+            "name": "WayriCAD PCB / Foil Heater Designer",
             "description": "Design zoned PCB heaters and preview electrical and thermal behavior.",
             "description_full": "Generate serpentine or spiral multilayer heater copper, vary resistance by region to create controlled hot/cold zones, run a review-grade thermal model, and commit only the reviewed geometry.",
-            "identifier": "kiway.heater.designer",
+            "identifier": "com.github.wayri.wayricad.heater-designer",
             "type": "plugin",
             "author": {
                 "name": "Wayri (Yawar)",
@@ -1769,48 +218,18 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
+                "homepage": "https://github.com/wayri/WayriCAD"
             },
             "versions": [
                 {
-                    "version": "0.1.2",
-                    "status": "stable",
+                    "version": "3.0.0",
+                    "status": "testing",
                     "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "c6f9746ff6605d7079251aba80aeced5928c081d9a74abcf4ef8e60908af4777",
-                    "download_size": 108031,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/heater_designer_plugin-0.1.2.zip",
-                    "install_size": 142589,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.1.1",
-                    "status": "stable",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "881cbf1d82488c4e33a710e3047d7d23f465edf60bc760e36543a0132f3f1f8f",
-                    "download_size": 107462,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.0/heater_designer_plugin-0.1.1.zip",
-                    "install_size": 141843,
-                    "platforms": [
-                        "windows",
-                        "linux",
-                        "macos"
-                    ]
-                },
-                {
-                    "version": "0.1.0",
-                    "status": "stable",
-                    "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "ef01b5f8e2e1847ddd07e5d147a2a6e062c2aa7596cac454d2f14ff3cdc85b9c",
-                    "download_size": 102588,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/heater_designer_plugin-0.1.0.zip",
-                    "install_size": 125517,
+                    "runtime": "ipc",
+                    "download_sha256": "4696a4cf297e5932c27b67a7a6e87151e0235e50790e07356ba22f12992db9bb",
+                    "download_size": 159546,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-heater-designer-3.0.0-PCM.zip",
+                    "install_size": 263896,
                     "platforms": [
                         "windows",
                         "linux",
@@ -1820,10 +239,10 @@
             ]
         },
         {
-            "name": "KiWay Planar Magnetics & Actuator Workbench",
-            "description": "Design PCB coils, transformers, inductors, motors, actuators, and magnetic torquers.",
-            "description_full": "Generate multilayer and via-connected planar windings, estimate LCR, loss, field and force, then simulate coupled current, position, speed, acceleration, resonance, damping, travel stops, and thermal-noise limits for linear and rotary actuator concepts.",
-            "identifier": "kiway.planar.magnetics",
+            "name": "WayriCAD Localizer",
+            "description": "Package portable design blocks and localize project footprints and 3D models.",
+            "description_full": "Kilo packages reusable KiCad design blocks with their footprint and 3D-model dependencies, then installs them into other projects. It can also localize an existing project into reversible project-local libraries, with validation reports, transaction history, and restore support. New data uses Kilo identifiers while legacy KiCad BlockPack packages and project state remain readable.",
+            "identifier": "com.github.wayri.wayricad.kilo",
             "type": "plugin",
             "author": {
                 "name": "Wayri (Yawar)",
@@ -1833,63 +252,392 @@
             },
             "license": "GPL-3.0",
             "resources": {
-                "homepage": "https://github.com/wayri/KiWay"
+                "homepage": "https://github.com/wayri/WayriCAD"
             },
             "versions": [
                 {
-                    "version": "0.2.2",
+                    "version": "3.0.0",
                     "status": "testing",
                     "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "4506c6a5417ab9db9ff6cd0e2cbc8ab349c0a7501620eb387bbc36b23e051384",
-                    "download_size": 177080,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.1/planar_magnetics_plugin-0.2.2.zip",
-                    "install_size": 231140,
+                    "runtime": "ipc",
+                    "download_sha256": "e6515f2a8be49238e91e4aec4e6e1a5387a4e15cae9d3588bf27e7c37098d332",
+                    "download_size": 187338,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-kilo-3.0.0-PCM.zip",
+                    "install_size": 388628,
                     "platforms": [
                         "windows",
                         "linux",
                         "macos"
                     ]
-                },
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Manufacturing Readiness Manager",
+            "description": "Audit fabricator capabilities and gate deterministic KiCad manufacturing releases.",
+            "description_full": "Combines reusable fabricator capability profiles with board geometry audits, KiCad JSON DRC and jobset execution, explicit pass/fail release gates, and ZIP packaging with SHA-256 file manifests. It does not claim fabricator acceptance; profiles must be reviewed against the current fabrication quotation.",
+            "identifier": "com.github.wayri.wayricad.manufacturing-readiness",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
                 {
-                    "version": "0.2.1",
+                    "version": "3.0.0",
                     "status": "testing",
                     "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "5b4737e9fc354a10bbe14eae9236b345567912b1746ef04a0c4b992ef5ce57f1",
-                    "download_size": 176465,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.27.0/planar_magnetics_plugin-0.2.1.zip",
-                    "install_size": 230189,
+                    "runtime": "ipc",
+                    "download_sha256": "991bb47d84f3ec74c82895de7328b678ac11b3dd93c645f925585d9092136140",
+                    "download_size": 149517,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-manufacturing-readiness-3.0.0-PCM.zip",
+                    "install_size": 244653,
                     "platforms": [
                         "windows",
                         "linux",
                         "macos"
                     ]
-                },
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD PDN and Decoupling Planner",
+            "description": "Audit power-rail topology and local decoupling placement from PCB geometry.",
+            "description_full": "Uses configurable rail, ground, capacitor, load, and regulator conventions to locate supply pins without nearby rail-to-ground capacitors. Results are sortable, cross-selectable, and exportable. It is a placement/topology screen rather than an AC impedance, transient, or electromagnetic PDN solver.",
+            "identifier": "com.github.wayri.wayricad.pdn-decoupling",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
                 {
-                    "version": "0.2.0",
+                    "version": "3.0.0",
                     "status": "testing",
                     "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "0a27664a1ed1d10bb30d54ef9f1b3dacecc3f98054a8afbf6b2590e5dcf0c160",
-                    "download_size": 171590,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.25.0/planar_magnetics_plugin-0.2.0.zip",
-                    "install_size": 213867,
+                    "runtime": "ipc",
+                    "download_sha256": "02dc3055f5a466f96c9c482bd474fdcfc1dc3863afc8fa3e38783f149f5b700d",
+                    "download_size": 147820,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-pdn-decoupling-3.0.0-PCM.zip",
+                    "install_size": 241605,
                     "platforms": [
                         "windows",
                         "linux",
                         "macos"
                     ]
-                },
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Planar Magnetics & Actuator Workbench",
+            "description": "Design PCB coils, transformers, inductors, motors, actuators, and magnetic torquers.",
+            "description_full": "Generate multilayer and via-connected planar windings, estimate LCR, loss, field and force, then simulate coupled current, position, speed, acceleration, resonance, damping, travel stops, and thermal-noise limits for linear and rotary actuator concepts.",
+            "identifier": "com.github.wayri.wayricad.planar-magnetics",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
                 {
-                    "version": "0.1.0",
-                    "status": "stable",
+                    "version": "3.0.0",
+                    "status": "testing",
                     "kicad_version": "10.0",
-                    "runtime": "swig",
-                    "download_sha256": "e757a0edd1666fbfe3c8d58660047dfdd35f8301c02476d42f244639ce2cb5d1",
-                    "download_size": 110271,
-                    "download_url": "https://github.com/wayri/KiWay/releases/download/v2.23.0/planar_magnetics_plugin-0.1.0.zip",
-                    "install_size": 137071,
+                    "runtime": "ipc",
+                    "download_sha256": "6a87e37c7503b70282ec875e7fcd9302618ee77cfe7f5a6fa35e0ecbb3b9a7c6",
+                    "download_size": 178134,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-planar-magnetics-3.0.0-PCM.zip",
+                    "install_size": 302560,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Portable Assets",
+            "description": "Make KiCad projects self-contained using reviewed footprint, symbol, and 3D-model snapshots.",
+            "description_full": "WayriCAD Portable Assets snapshots placed PCB footprints into a project-local library, relinks schematic symbols, embeds resolvable 3D models, creates an optional native Embedded Files recovery vault, and repairs missing footprint links from PCB geometry. A native PCB Editor ActionPlugin launches the workbench in an isolated GUI process and passes the active board path directly. A fresh unchanged analysis is required before each write. Network model retrieval is disabled by default. Lock-file checks, explicit confirmation, S-expression validation, conventional KiCad backup archives plus transactional backups, atomic replacement, and unresolved-model reporting protect project files.",
+            "identifier": "com.github.wayri.wayricad.portable-assets",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "34d02bdc0016cad328a9727091379d0d5f2d44127787a00738b4f8db6cac46d0",
+                    "download_size": 151834,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-portable-assets-3.0.0-PCM.zip",
+                    "install_size": 287191,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Protocol Constraint Composer",
+            "description": "Detect protocol nets and compose reviewed KiCad custom design rules.",
+            "description_full": "Detects common USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF net-name conventions, presents editable assignments, and generates a clearly delimited WayriCAD-managed custom-rule block. Rules can be exported or applied to the project .kicad_dru after confirmation and timestamped backup.",
+            "identifier": "com.github.wayri.wayricad.protocol-constraints",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "be56cd67de688ba8f9033c4746f8c59e749e5971a9b862298f2dced75bbf1c29",
+                    "download_size": 139330,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-protocol-constraint-composer-3.0.0-PCM.zip",
+                    "install_size": 222207,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Return-Path Auditor",
+            "description": "Find PCB return-path discontinuities, unsupported layer transitions, plane gaps, and possible routed stubs.",
+            "description_full": "A modeless, read-only geometry audit for routed signal segments. It checks signal-via proximity to configured return vias, supplied return-plane coverage, and branched copper that may form stubs. Findings are cross-selectable and exportable. Results are review aids, not electromagnetic simulation or compliance certification.",
+            "identifier": "com.github.wayri.wayricad.return-path-auditor",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "79faab14fd10d2ab8a1446a3e0707b665689049b8836f021d685be663d0347d6",
+                    "download_size": 153331,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-return-path-auditor-3.0.0-PCM.zip",
+                    "install_size": 255015,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Signal Integrity Advisor",
+            "description": "Calculate I2C pull-up ranges and validate routed single-ended or differential impedance.",
+            "description_full": "Guided, read-only engineering checks for I2C pull-up resistance, routed impedance, differential skew, stackup/reference-layer use, vias, layer changes, zones, and unresolved topology. Includes editable protocol presets for CAN, Ethernet, RF, RS-485, SerDes, USB 2/3/4, and custom constraints.",
+            "identifier": "com.github.wayri.wayricad.signal-integrity-advisor",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "0c5ed85079a9fa43712ba485e0f6b87e49a9595e40a32829db3ca16057cffc05",
+                    "download_size": 164154,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-signal-integrity-advisor-3.0.0-PCM.zip",
+                    "install_size": 281205,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Test Point Descriptor Extractor",
+            "description": "Resolve test points through passives to IC pins and export engineering documentation.",
+            "description_full": "Scans TP and TestPoint footprints, extracts descriptor/function fields, traces connected nets through common passives and NetTie_Path parts to terminal IC pins, parses board-sequence TM/TC labels, sorts and consolidates reviewed rows, and exports documentation, spring-probe channel plans, or a separate KiCad bed-of-nails fixture PCB.",
+            "identifier": "com.github.wayri.wayricad.test-points",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "6233c8e27d9c712aa3cc6d69f08de48297b9d4bea219b7dfa815cf1610d6120a",
+                    "download_size": 144507,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-test-point-descriptor-3.0.0-PCM.zip",
+                    "install_size": 238837,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Trace RLC / Impedance Analyzer",
+            "description": "Measure routed geometry and estimate RLC and impedance against an explicit reference layer.",
+            "description_full": "Follows PCB net and pad selection, traverses the routed path between endpoints, enumerates the complete parsed stackup, and reports route geometry, vias, layer changes, resistance, capacitance, inductance, and first-order impedance with the exact reference layer, dielectric height, and permittivity used.",
+            "identifier": "com.github.wayri.wayricad.trace-impedance",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "81cf880436b07808f3ce9a13105474414e5f83edd1f0864330adbfe8660698a3",
+                    "download_size": 171557,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-trace-impedance-3.0.0-PCM.zip",
+                    "install_size": 303617,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Design Variant Workbench",
+            "description": "Review, edit, validate, compare, audit, and release KiCad 10 design variants safely.",
+            "description_full": "WayriCAD Design Variant Workbench provides semantic Set Default/rebase operations, a variant matrix, comparison and lint tables, PCB synchronization audits, guarded part substitutions, lifecycle management, and manufacturing-release generation. A native PCB Editor ActionPlugin passes the active project to a detached workbench so KiCad can be closed before Apply. Every design-file write requires a preview, rejects active KiCad lock files and stale input hashes, validates generated S-expressions, creates all backups before writing, uses atomic replacement, and attempts rollback on failure.",
+            "identifier": "com.github.wayri.wayricad.variant-workbench",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "e43168ffc47dec1c171bda6a7e3569736ebf2016c6a065b412062fbd2b7354f2",
+                    "download_size": 185644,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-variant-workbench-3.0.0-PCM.zip",
+                    "install_size": 462026,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Via Stitching",
+            "description": "Preview net-aware copper-zone via stitching with geometric clearance exclusions.",
+            "description_full": "Local, reviewable routing with configurable geometry, pad/net scope, clearance checks, zoomable preview, shared headless planners, and recoverable named commit groups. Preview does not modify PCB copper. JSON/SVG command-line planning and verified application write a new board copy.",
+            "identifier": "com.github.wayri.wayricad.via-stitching",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "1aadd027153447a8713cb9bc2b03c92f2f1c401537c9cbffb3e946e240850ded",
+                    "download_size": 160979,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-via-stitching-3.0.0-PCM.zip",
+                    "install_size": 265517,
                     "platforms": [
                         "windows",
                         "linux",

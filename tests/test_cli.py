@@ -15,13 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures"
 
 
-class KiWayCliTests(unittest.TestCase):
+class WayriCADCliTests(unittest.TestCase):
     def run_cli(self, *args):
         return subprocess.run(
             [sys.executable, "-m", "extract_pins_plugin", *args],
             cwd=ROOT,
             text=True,
             capture_output=True,
+            stdin=subprocess.DEVNULL,
             check=False,
         )
 
@@ -37,7 +38,7 @@ class KiWayCliTests(unittest.TestCase):
         result = self.run_cli("capabilities")
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(17, len(payload["plugins"]))
+        self.assertEqual(19, len(payload["plugins"]))
         self.assertIn("harness.build", payload["operations"])
         self.assertTrue(payload["safety"]["writes_require_apply"])
 
@@ -89,7 +90,7 @@ class KiWayCliTests(unittest.TestCase):
         self.assertEqual(1, len(result["system_paths"]))
         self.assertIn("R12", result["system_paths"][0]["Inline Components"])
         self.assertIn("R7", result["system_paths"][0]["Inline Components"])
-        self.assertIn("KiWay Interactive System Harness", result["html"])
+        self.assertIn("WayriCAD Interactive System Harness", result["html"])
 
     def test_jobset_run_builds_native_kicad_command(self):
         project = FIXTURES / "sample.kicad_pro"

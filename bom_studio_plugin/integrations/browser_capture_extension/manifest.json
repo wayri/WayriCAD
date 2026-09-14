@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "WayriCAD BOM Evidence Capture",
+  "version": "0.3.0",
+  "description": "Capture and review evidence from a DigiKey or Mouser product page you explicitly open. No API keys or background crawling.",
+  "permissions": ["activeTab", "scripting"],
+  "action": {"default_title": "Review BOM evidence", "default_popup": "popup.html"}
+}

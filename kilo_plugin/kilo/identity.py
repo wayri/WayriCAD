@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-PRODUCT_NAME = "Kilo"
-PRODUCT_TITLE = "Kilo — KiCad Localizer"
-PROJECT_NAME = "project-kilo"
+PRODUCT_NAME = "WayriCAD Localizer"
+PRODUCT_TITLE = "WayriCAD Localizer"
+PROJECT_NAME = "wayricad-localizer"
 CLI_NAME = "kilo"
 
 CONTROL_DIRECTORY = ".kilo"

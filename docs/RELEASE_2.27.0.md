@@ -1,4 +1,4 @@
-# KiWay v2.27.0 Release Notes
+# WayriCAD v2.27.0 Release Notes
 
 ## Differential-Pair Intelligence
 

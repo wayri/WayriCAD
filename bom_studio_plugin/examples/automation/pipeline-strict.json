@@ -1,0 +1,22 @@
+{
+  "schema": "wayricad-pipeline-1",
+  "name": "WayriCAD_Strict",
+  "variants": "all",
+  "template": "Purchasing",
+  "formats": [
+    "csv",
+    "xlsx",
+    "json",
+    "txt"
+  ],
+  "reports": [
+    "checks",
+    "health",
+    "analysis"
+  ],
+  "policy": {
+    "checks": "warning",
+    "health": "unknown",
+    "require_stock": true
+  }
+}

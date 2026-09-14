@@ -1,4 +1,4 @@
-"""KiWay Test Point Descriptor Extractor plugin entry point."""
+"""WayriCAD Test Point Descriptor Extractor plugin entry point."""
 
 try:
     from .test_point_descriptor_plugin import TestPointDescriptorPlugin

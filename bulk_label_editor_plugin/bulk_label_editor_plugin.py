@@ -14,6 +14,7 @@ import wx
 from .help_utils import open_help
 from .selection_utils import select_items
 from .guided_ui import add_workflow
+from wayricad_runtime.ui import more_button
 
 
 @dataclass
@@ -23,19 +24,20 @@ class EditableItem:
     current: str
     setter: Callable[[str], None]
     board_item: Any = None
+    getter: Any = None
 
 
 class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
     """ActionPlugin entry point for wildcard/regex board text edits."""
 
     def defaults(self) -> None:
-        self.name = "KiWay Bulk Label Editor"
+        self.name = "WayriCAD Bulk Label Editor"
         self.category = "Utilities"
         self.description = "Bulk rename labels, PCB text, footprint references, values, and fields using wildcard or regex rules."
         self.show_toolbar_button = True
-        self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.7.2"
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
+        self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
+        self.version = "3.0.0"
 
     def Run(self) -> None:
         try:
@@ -51,18 +53,19 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
             self._frame.Show()
             self._frame.Raise()
         except Exception as exc:
-            wx.MessageBox(str(exc), "KiWay Bulk Label Editor", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(str(exc), "WayriCAD Bulk Label Editor", wx.OK | wx.ICON_ERROR)
 
 
 class BulkLabelEditorFrame(wx.Frame):
     """Preview-and-apply editor for common pcbnew text-bearing objects."""
 
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Bulk Label Editor", size=(1080, 720), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="WayriCAD Bulk Label Editor", size=(1080, 720), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.SetMinSize((860, 600))
         self.board = board
         self.items: List[EditableItem] = []
         self.matches: List[EditableItem] = []
+        self.reviewed_changes = []
         self.undo_stack: List[List[tuple[EditableItem, str, str]]] = []
         self.redo_stack: List[List[tuple[EditableItem, str, str]]] = []
         self._build_ui()
@@ -76,6 +79,7 @@ class BulkLabelEditorFrame(wx.Frame):
             panel, root, "Bulk Label Editor",
             "Build a rename rule, inspect every proposed change, then apply exactly that preview.",
             ("Configure", "Review preview", "Apply"),
+            lambda _event: open_help(self),
         )
 
         options = wx.BoxSizer(wx.VERTICAL)
@@ -108,28 +112,22 @@ class BulkLabelEditorFrame(wx.Frame):
         options.Add(row2, 0, wx.EXPAND)
 
         row3 = wx.WrapSizer(wx.HORIZONTAL)
-        preview_btn = wx.Button(panel, label="Preview Changes")
+        preview_btn = wx.Button(panel, label="Preview")
         preview_btn.Bind(wx.EVT_BUTTON, self.on_preview)
         preview_btn.SetDefault()
-        apply_btn = wx.Button(panel, label="Apply Preview")
+        apply_btn = wx.Button(panel, label="Apply")
         apply_btn.Bind(wx.EVT_BUTTON, self.on_apply)
-        self.undo_button = wx.Button(panel, label="Undo Last Apply")
+        self.undo_button = wx.Button(panel, label="Undo")
         self.undo_button.Bind(wx.EVT_BUTTON, self.on_undo)
         self.undo_button.Enable(False)
         self.undo_button.SetToolTip("Restore every field changed by the most recent Apply Preview.")
-        self.redo_button = wx.Button(panel, label="Redo Last Apply")
+        self.redo_button = wx.Button(panel, label="Redo")
         self.redo_button.Bind(wx.EVT_BUTTON, self.on_redo)
         self.redo_button.Enable(False)
         self.redo_button.SetToolTip("Reapply every field restored by Undo Last Apply.")
-        refresh_btn = wx.Button(panel, label="Refresh")
-        refresh_btn.Bind(wx.EVT_BUTTON, self.on_refresh)
-        select_btn = wx.Button(panel, label="Select on PCB")
-        select_btn.Bind(wx.EVT_BUTTON, self.on_select_preview)
-        help_btn = wx.Button(panel, label="Help")
-        help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
-        for btn in (preview_btn, apply_btn, self.undo_button, self.redo_button, refresh_btn, select_btn, help_btn):
+        more = more_button(panel, [("Refresh from PCB", self.on_refresh), ("Select row on PCB", self.on_select_preview)])
+        for btn in (preview_btn, apply_btn, self.undo_button, self.redo_button, more):
             row3.Add(btn, 0, wx.ALL, 4)
-        options.Add(row3, 0, wx.EXPAND)
         root.Add(options, 0, wx.EXPAND | wx.ALL, 6)
 
         self.preview = wx.ListCtrl(panel, style=wx.LC_REPORT)
@@ -138,16 +136,19 @@ class BulkLabelEditorFrame(wx.Frame):
             self.preview.InsertColumn(idx, label, width=width)
         root.Add(self.preview, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
 
+        root.Add(row3, 0, wx.ALIGN_RIGHT | wx.ALL, 6)
         self.status = wx.StaticText(panel, label="Ready.")
         root.Add(self.status, 0, wx.EXPAND | wx.ALL, 6)
         panel.SetSizer(root)
+        self.match_text.Bind(wx.EVT_TEXT, self.on_preview)
+        self.replacement_text.Bind(wx.EVT_TEXT, self.on_preview)
 
     def refresh_items(self) -> None:
         self.items = []
         for fp in self.board.GetFootprints():
             ref = fp.GetReference()
-            self.items.append(EditableItem("Reference", ref, ref, fp.SetReference, fp))
-            self.items.append(EditableItem("Value", ref, fp.GetValue(), fp.SetValue, fp))
+            self.items.append(EditableItem("Reference", ref, ref, fp.SetReference, fp, fp.GetReference))
+            self.items.append(EditableItem("Value", ref, fp.GetValue(), fp.SetValue, fp, fp.GetValue))
             self._add_fields(fp, ref)
         self._add_board_text()
         self.on_preview(None)
@@ -167,7 +168,7 @@ class BulkLabelEditorFrame(wx.Frame):
                     f"Field:{name}",
                     owner,
                     field.GetText(),
-                    field.SetText, fp,
+                    field.SetText, fp, field.GetText,
                 )
             )
 
@@ -177,7 +178,7 @@ class BulkLabelEditorFrame(wx.Frame):
             get_text = getattr(drawing, "GetText", None)
             set_text = getattr(drawing, "SetText", None)
             if callable(get_text) and callable(set_text):
-                self.items.append(EditableItem(type(drawing).__name__, "Board", get_text(), set_text, drawing))
+                self.items.append(EditableItem(type(drawing).__name__, "Board", get_text(), set_text, drawing, get_text))
 
     def on_refresh(self, _event: Any) -> None:
         self.refresh_items()
@@ -185,17 +186,21 @@ class BulkLabelEditorFrame(wx.Frame):
     def on_preview(self, _event: Any) -> None:
         self.preview.DeleteAllItems()
         self.matches = []
+        self.reviewed_changes = []
         try:
             for item in self._filtered_items():
                 new_value = self._replace(item.current)
                 if new_value == item.current:
                     continue
                 self.matches.append(item)
+                self.reviewed_changes.append((item, item.current, new_value))
                 idx = self.preview.InsertItem(self.preview.GetItemCount(), item.kind)
                 self.preview.SetItem(idx, 1, item.owner)
                 self.preview.SetItem(idx, 2, item.current)
                 self.preview.SetItem(idx, 3, new_value)
         except re.error as exc:
+            self.matches = []
+            self.reviewed_changes = []
             self.status.SetLabel(f"Regex error: {exc}")
             return
         self.status.SetLabel(f"{len(self.matches)} matching editable items.")
@@ -206,15 +211,12 @@ class BulkLabelEditorFrame(wx.Frame):
 
     def on_apply(self, _event: Any) -> None:
         if not self.matches:
-            wx.MessageBox("No matching items to apply.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("No matching items to apply.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
-        count = 0
-        operation: List[tuple[EditableItem, str, str]] = []
-        for item in self.matches:
-            new_value = self._replace(item.current)
-            item.setter(new_value)
-            operation.append((item, item.current, new_value))
-            count += 1
+        operation = list(self.reviewed_changes)
+        if not self._apply_operation(operation):
+            return
+        count = len(operation)
         if operation:
             self.undo_stack.append(operation)
             self.redo_stack.clear()
@@ -229,7 +231,7 @@ class BulkLabelEditorFrame(wx.Frame):
     def on_select_preview(self, event: Any) -> None:
         index = event.GetIndex() if hasattr(event, "GetIndex") else self.preview.GetFirstSelected()
         if index < 0 or index >= len(self.matches):
-            wx.MessageBox("Select a preview row first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Select a preview row first.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
         item = self.matches[index]
         select_items(self.board, [item.board_item])
@@ -239,9 +241,10 @@ class BulkLabelEditorFrame(wx.Frame):
         if not self.undo_stack:
             self.status.SetLabel("Nothing to undo.")
             return
-        operation = self.undo_stack.pop()
-        for item, old_value, _new_value in reversed(operation):
-            item.setter(old_value)
+        operation = self.undo_stack[-1]
+        if not self._apply_operation(operation, reverse=True):
+            return
+        self.undo_stack.pop()
         self.redo_stack.append(operation)
         self.undo_button.Enable(bool(self.undo_stack))
         self.redo_button.Enable(True)
@@ -253,15 +256,38 @@ class BulkLabelEditorFrame(wx.Frame):
         if not self.redo_stack:
             self.status.SetLabel("Nothing to redo.")
             return
-        operation = self.redo_stack.pop()
-        for item, _old_value, new_value in operation:
-            item.setter(new_value)
+        operation = self.redo_stack[-1]
+        if not self._apply_operation(operation):
+            return
+        self.redo_stack.pop()
         self.undo_stack.append(operation)
         self.undo_button.Enable(True)
         self.redo_button.Enable(bool(self.redo_stack))
         if hasattr(pcbnew, "Refresh"): pcbnew.Refresh()
         self.refresh_items()
         self.status.SetLabel(f"Redid {len(operation)} edits.")
+
+    def _apply_operation(self, operation, reverse=False):
+        try:
+            from .wayricad_runtime.fields import apply_fields
+            from .wayricad_runtime.geometry import item_id
+        except ImportError:
+            from wayricad_runtime.fields import apply_fields
+            from wayricad_runtime.geometry import item_id
+        try:
+            # Resolve against a fresh board read, including IPC wrappers. Deleted or externally
+            # edited text must not be overwritten through stale preview object references.
+            requested = [(item_id(item.board_item), item.kind, old, new) for item,old,new in operation]
+            self.refresh_items()
+            current = {(item_id(item.board_item),item.kind):item for item in self.items}
+            if any((identifier,kind) not in current for identifier,kind,_,_ in requested):
+                raise ValueError("A reviewed object was removed. Refresh and review again.")
+            operation[:] = [(current[identifier,kind],old,new) for identifier,kind,old,new in requested]
+            apply_fields(operation, reverse=reverse)
+        except Exception as exc:
+            wx.MessageBox(str(exc), "Edit stopped", wx.OK | wx.ICON_ERROR)
+            return False
+        return True
 
     def _filtered_items(self) -> List[EditableItem]:
         enabled = []

@@ -1,26 +1,27 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v1",
-    "name": "KiWay Test Point Descriptor Extractor",
-    "description": "Resolve test points through passives to IC pins and export engineering documentation.",
-    "description_full": "Scans TP and TestPoint footprints, extracts descriptor/function fields, traces connected nets through common passives and NetTie_Path parts to terminal IC pins, parses board-sequence TM/TC labels, sorts and consolidates reviewed rows, and exports documentation, spring-probe channel plans, or a separate KiCad bed-of-nails fixture PCB.",
-    "identifier": "kiway.test.point.descriptor",
-    "type": "plugin",
-    "author": {
-        "name": "Wayri (Yawar)",
-        "contact": {
-            "github": "https://github.com/wayri"
-        }
-    },
-    "license": "GPL-3.0",
-    "resources": {
-        "homepage": "https://github.com/wayri/KiWay",
-        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/test_point_descriptor_plugin/icon.png"
-    },
-    "versions": [
-        {
-            "version": "0.8.0",
-            "status": "stable",
-            "kicad_version": "9.0"
-        }
-    ]
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Test Point Descriptor Extractor",
+  "description": "Resolve test points through passives to IC pins and export engineering documentation.",
+  "description_full": "Scans TP and TestPoint footprints, extracts descriptor/function fields, traces connected nets through common passives and NetTie_Path parts to terminal IC pins, parses board-sequence TM/TC labels, sorts and consolidates reviewed rows, and exports documentation, spring-probe channel plans, or a separate KiCad bed-of-nails fixture PCB.",
+  "identifier": "com.github.wayri.wayricad.test-points",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/test_point_descriptor_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
 }

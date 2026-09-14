@@ -1,4 +1,4 @@
-"""KiWay PCM entry point for Kilo -- KiCad Localizer."""
+"""WayriCAD PCM entry point for Kilo -- KiCad Localizer."""
 
 from __future__ import annotations
 

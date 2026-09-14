@@ -53,13 +53,13 @@ class PdnMapPreview(PanZoomCanvas):
                 gc.SetPen(wx.Pen(wx.Colour(STATUS_COLOURS["FAIL"]),2));gc.SetBrush(wx.TRANSPARENT_BRUSH);gc.DrawEllipse(sx-9,sy-9,18,18)
 
 class PdnDecouplingPlugin(pcbnew.ActionPlugin):
-    def defaults(self):self.name="KiWay PDN and Decoupling Planner";self.category="Analysis";self.description="Audit power-rail topology and local decoupling placement.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"icon.png");self.dark_icon_file_name=self.icon_file_name;self.version="0.3.0"
+    def defaults(self):self.name="WayriCAD PDN and Decoupling Planner";self.category="Analysis";self.description="Audit power-rail topology and local decoupling placement.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png");self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png");self.version="3.0.0"
     def Run(self):
         board=pcbnew.GetBoard()
         if board is None:return
         PdnFrame(None,board).Show()
 class PdnFrame(wx.Frame):
-    def __init__(self,parent,board):super().__init__(parent,title="KiWay PDN and Decoupling Planner",size=(1150,760));self.board=board;self.findings=[];self._build();self.Centre()
+    def __init__(self,parent,board):super().__init__(parent,title="WayriCAD PDN and Decoupling Planner",size=(1150,760));self.board=board;self.findings=[];self._build();self.Centre()
     def _build(self):
         p=wx.Panel(self);r=wx.BoxSizer(wx.VERTICAL)
         self.guide=add_workflow(p,r,"PDN and Decoupling Planner","Qualify rail-to-ground capacitors, check load proximity, and review regulator candidates without changing placement.",("Classify","Analyze","Review","Export"),lambda e:webbrowser.open(Path(__file__).with_name("help.html").as_uri()))

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""KiWay command line interface.
+"""WayriCAD command line interface.
 
-The CLI is intentionally built on KiWay core modules that do not import wx or
+The CLI is intentionally built on WayriCAD core modules that do not import wx or
 pcbnew. Commands that need an open PCB load pcbnew only inside the adapter
 function, so XML/netlist, cross-project, validation, reporting, and benchmark
 workflows run in normal Python.
@@ -31,7 +31,7 @@ from .core.controller_connector_mapper import (
     parse_traversal_rules,
 )
 
-VERSION = "2.27.1"
+VERSION = "3.0.0"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3
@@ -66,11 +66,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="kiway",
-        description="KiWay electrical systems CLI for KiCad projects, netlists, cross-linking, validation, reports, and benchmarks.",
+        prog="wayricad",
+        description="WayriCAD electrical systems CLI for KiCad projects, netlists, cross-linking, validation, reports, and benchmarks.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--version", action="version", version=f"KiWay {VERSION}")
+    parser.add_argument("--version", action="version", version=f"WayriCAD {VERSION}")
     parser.add_argument("--config", help="JSON configuration file. CLI flags override config values.")
     parser.add_argument("--diagnostics", choices=("text", "json"), default="text", help="Diagnostic format on stderr.")
     parser.add_argument("--quiet", action="store_true", help="Suppress non-error diagnostics.")
@@ -162,7 +162,7 @@ def add_validate(sub: argparse._SubParsersAction) -> None:
 def add_report(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("report", help="Generate ICD Markdown/HTML/CSV/JSON/SVG reports.")
     add_common_project_args(p)
-    p.add_argument("--title", default="KiWay Interface Control Document")
+    p.add_argument("--title", default="WayriCAD Interface Control Document")
     p.add_argument("--imports", nargs="*", default=[], help="Imported CSV/Markdown pin documents to include as cross-project tracker.")
     p.add_argument("--rules", default="", help="Cross-link rules for imports.")
     p.add_argument("--rules-file", help="File containing cross-link rules for imports.")
@@ -191,7 +191,7 @@ def add_benchmark(sub: argparse._SubParsersAction) -> None:
 
 
 def add_dependencies(sub: argparse._SubParsersAction) -> None:
-    p = sub.add_parser("dependencies", help="Check or install dependencies for the complete KiWay suite.")
+    p = sub.add_parser("dependencies", help="Check or install dependencies for the complete WayriCAD suite.")
     p.add_argument("--install", action="store_true", help="Install missing required and recommended dependencies.")
     p.add_argument("--all", action="store_true", help="Include optional dependencies when installing.")
     p.add_argument("--dry-run", action="store_true", help="Print the pip command without executing it.")
@@ -201,16 +201,16 @@ def add_dependencies(sub: argparse._SubParsersAction) -> None:
 
 
 def add_test(sub: argparse._SubParsersAction) -> None:
-    p = sub.add_parser("test", help="Run KiWay's automated test suite.")
+    p = sub.add_parser("test", help="Run WayriCAD's automated test suite.")
     p.add_argument("pytest_args", nargs="*", help="Additional unittest/pytest arguments.")
     p.set_defaults(func=cmd_test)
 
 
 def add_automation_commands(sub: argparse._SubParsersAction) -> None:
-    p = sub.add_parser("capabilities", help="Describe every KiWay plugin and its machine-control surface as JSON.")
+    p = sub.add_parser("capabilities", help="Describe every WayriCAD plugin and its machine-control surface as JSON.")
     p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
     p.set_defaults(func=cmd_capabilities)
-    p = sub.add_parser("run", help="Execute one JSON-RPC/kiway.control request from a file or stdin.")
+    p = sub.add_parser("run", help="Execute one JSON-RPC/wayricad.control request from a file or stdin.")
     p.add_argument("--request", required=True, help="JSON request file, or '-' for stdin.")
     p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
     p.set_defaults(func=cmd_run_request)
@@ -267,7 +267,7 @@ def cmd_inspect(args: argparse.Namespace) -> int:
     }
     if getattr(args, "include_pins", False):
         rows["pins"] = all_pin_rows(parser)
-    return write_rows(rows, args.format, args.output, title="KiWay Inspect")
+    return write_rows(rows, args.format, args.output, title="WayriCAD Inspect")
 
 
 def cmd_extract(args: argparse.Namespace) -> int:
@@ -311,7 +311,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
                 emit_diagnostic("warning", message, args)
     else:
         rows = all_pin_rows(parser, include_power=args.include_power)
-    return write_rows(rows, args.format, args.output, title=f"KiWay {args.kind} Extract")
+    return write_rows(rows, args.format, args.output, title=f"WayriCAD {args.kind} Extract")
 
 
 def cmd_dependencies(args: argparse.Namespace) -> int:
@@ -337,7 +337,7 @@ def cmd_dependencies(args: argparse.Namespace) -> int:
     report = health_report()
     if install_result is not None:
         report["install"] = install_result
-    write_rows(report, "json", args.output, title="KiWay Dependencies")
+    write_rows(report, "json", args.output, title="WayriCAD Dependencies")
     if install_result and install_result["returncode"]:
         return EXIT_RUNTIME
     return EXIT_OK
@@ -356,7 +356,7 @@ def cmd_crosslink(args: argparse.Namespace) -> int:
     )
     if args.format == "svg":
         return write_text(linker.harness_svg(links), args.output)
-    return write_rows(links, args.format, args.output, title="KiWay Cross-Project Pin Tracker")
+    return write_rows(links, args.format, args.output, title="WayriCAD Cross-Project Pin Tracker")
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -389,7 +389,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
         if not links:
             issues.append(issue("warning", "no-cross-project-links", "No imported project endpoints linked"))
     result = {"status": "fail" if any(i["severity"] == "error" for i in issues) else "pass", "issue_count": len(issues), "issues": issues}
-    write_rows(result, args.format, args.output, title="KiWay Validation")
+    write_rows(result, args.format, args.output, title="WayriCAD Validation")
     return EXIT_VALIDATION if result["status"] == "fail" else EXIT_OK
 
 
@@ -408,7 +408,7 @@ def cmd_report(args: argparse.Namespace) -> int:
         cross_link_rows=cross_links,
     )
     if args.format == "html":
-        html_path = args.output or "kiway_report.html"
+        html_path = args.output or "wayricad_report.html"
         doc.export_html(markdown, html_path)
         return EXIT_OK
     if args.format == "csv":
@@ -439,7 +439,7 @@ def cmd_jobset_run(args: argparse.Namespace) -> int:
     command.append(str(project))
 
     if args.dry_run:
-        return write_rows({"command": command, "display": display_command(command)}, "json", None, title="KiWay Jobset Run")
+        return write_rows({"command": command, "display": display_command(command)}, "json", None, title="WayriCAD Jobset Run")
 
     completed = subprocess.run(command, cwd=str(project.parent), check=False)
     if completed.returncode:
@@ -499,7 +499,7 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
         "threshold_ms": args.threshold_ms,
         "status": "pass" if total_ms <= args.threshold_ms else "warn",
     }
-    write_rows(result, args.format, args.output, title="KiWay Benchmark")
+    write_rows(result, args.format, args.output, title="WayriCAD Benchmark")
     return EXIT_OK
 
 
@@ -537,7 +537,7 @@ def cmd_board_extract(args: argparse.Namespace) -> int:
 
     board = load_board(args.pcb)
     rows = extract_board_pin_rows(board, reference_filter=args.refs, net_filter=args.net_filter, include_power=args.include_power)
-    return write_rows(rows, args.format, args.output, title="KiWay Board Extract")
+    return write_rows(rows, args.format, args.output, title="WayriCAD Board Extract")
 
 
 def cmd_board_list(args: argparse.Namespace) -> int:
@@ -545,7 +545,7 @@ def cmd_board_list(args: argparse.Namespace) -> int:
     rows = []
     for fp in board.GetFootprints():
         rows.append({"Reference": fp.GetReference(), "Value": fp.GetValue(), "Footprint": str(fp.GetFPID()), "Layer": fp.GetLayerName()})
-    return write_rows(sorted(rows, key=lambda r: SchematicGraphParser.natural_sort_key(r["Reference"])), args.format, args.output, title="KiWay Board Components")
+    return write_rows(sorted(rows, key=lambda r: SchematicGraphParser.natural_sort_key(r["Reference"])), args.format, args.output, title="WayriCAD Board Components")
 
 
 def load_parser(args: argparse.Namespace) -> SchematicGraphParser:
@@ -662,7 +662,7 @@ def synthetic_documents(boards: int, nets: int) -> List[Any]:
     return docs
 
 
-def write_rows(data: Any, fmt: str, output: Optional[str], title: str = "KiWay") -> int:
+def write_rows(data: Any, fmt: str, output: Optional[str], title: str = "WayriCAD") -> int:
     fmt = "md" if fmt == "markdown" else fmt
     if fmt == "json":
         return write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", output)
@@ -674,7 +674,7 @@ def write_rows(data: Any, fmt: str, output: Optional[str], title: str = "KiWay")
         return write_text(to_csv(rows), output)
     if fmt == "html":
         markdown = to_markdown(rows, title)
-        path = output or "kiway_report.html"
+        path = output or "wayricad_report.html"
         DocGenerator(title).export_html(markdown, path)
         return EXIT_OK
     if fmt == "svg":
@@ -753,7 +753,7 @@ def emit_diagnostic(level: str, message: str, args: argparse.Namespace, data: Op
     if getattr(args, "diagnostics", "text") == "json":
         print(json.dumps({"level": level, "message": message, "data": data or {}}, sort_keys=True), file=sys.stderr)
     else:
-        print(f"kiway: {level}: {message}", file=sys.stderr)
+        print(f"wayricad: {level}: {message}", file=sys.stderr)
 
 
 if __name__ == "__main__":  # pragma: no cover

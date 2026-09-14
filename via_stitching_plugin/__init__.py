@@ -1,4 +1,4 @@
-"""KiWay Via Stitching plugin entry point."""
+"""WayriCAD Via Stitching plugin entry point."""
 
 try:
     from .via_stitching_plugin import ViaStitchingPlugin

@@ -1,0 +1,1 @@
+Edit the placeholder absolute paths and actor first. The destination must be NEW and its parent must exist. Run `library-create preview`, inspect the full plan, then `library-create apply --confirm CREATE`. Empty and Projects mode do not require any source parts library/catalogue. No existing KiCad library tables or native projects are modified.

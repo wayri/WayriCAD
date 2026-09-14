@@ -1,4 +1,4 @@
-# KiWay v2.24.0 Release Notes
+# WayriCAD v2.24.0 Release Notes
 
 ## Harness and Cable Workbench 0.4.0
 
@@ -16,8 +16,8 @@
 
 ## Automation and CLI
 
-- Adds `kiway capabilities`, one-shot `kiway run`, and NDJSON JSON-RPC 2.0
-  `kiway serve --stdio` control for external workflow engines.
+- Adds `wayricad capabilities`, one-shot `wayricad run`, and NDJSON JSON-RPC 2.0
+  `wayricad serve --stdio` control for external workflow engines.
 - Extends `harness.build` with path documents, endpoint wildcards, partial-path
   policy, and optional standalone HTML output.
 - Documents deterministic use from CI, jobsets, and Doki-style controllers.

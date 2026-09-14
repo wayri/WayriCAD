@@ -1,4 +1,4 @@
-"""Advanced wxPython dashboard for KiWay Extract Pins."""
+"""Advanced wxPython dashboard for WayriCAD Extract Pins."""
 
 from __future__ import annotations
 
@@ -46,12 +46,12 @@ from .guided_ui import add_workflow
 
 
 class PluginUI(wx.Dialog):
-    """Main KiWay dashboard for graph extraction, visualization, and docs."""
+    """Main WayriCAD dashboard for graph extraction, visualization, and docs."""
 
     def __init__(self, parent: Any = None, board: Any = None) -> None:
         super().__init__(
             parent,
-            title="KiWay Extract Pins - Interface Dashboard",
+            title="WayriCAD Extract Pins - Interface Dashboard",
             size=(1180, 760),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
@@ -356,7 +356,7 @@ class PluginUI(wx.Dialog):
         export_btn.Bind(wx.EVT_BUTTON, self.on_export_menu)
         dependencies_btn = wx.Button(panel, label="Dependencies...")
         dependencies_btn.Bind(wx.EVT_BUTTON, self.on_dependencies)
-        dependencies_btn.SetToolTip("Check KiCad Python dependencies and all installed KiWay plugin packages.")
+        dependencies_btn.SetToolTip("Check KiCad Python dependencies and all installed WayriCAD plugin packages.")
         help_btn = wx.Button(panel, label="Help")
         help_btn.Bind(wx.EVT_BUTTON, lambda _event: open_help(self))
         for btn in (self.show_group_btn, self.create_group_btn, self.undo_group_btn, self.redo_group_btn, highlight_btn, clear_highlight_btn, export_btn, dependencies_btn, help_btn):
@@ -387,7 +387,7 @@ class PluginUI(wx.Dialog):
         wildcard = "Pin documents (*.csv;*.md;*.markdown)|*.csv;*.md;*.markdown|All files (*.*)|*.*"
         with wx.FileDialog(
             self,
-            "Import KiWay or compatible pin documents",
+            "Import WayriCAD or compatible pin documents",
             wildcard=wildcard,
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE,
         ) as dialog:
@@ -420,7 +420,7 @@ class PluginUI(wx.Dialog):
 
     def on_add_current_cross_document(self, _event: Any) -> None:
         if not self.board:
-            wx.MessageBox("Open a PCB before adding the current board.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Open a PCB before adding the current board.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
         project = self.cross_project_name.GetValue().strip()
         board_path = str(getattr(self.board, "GetFileName", lambda: "")() or "")
@@ -461,7 +461,7 @@ class PluginUI(wx.Dialog):
         if len(self.cross_documents) < 2:
             wx.MessageBox(
                 "Import at least two pin documents, or import one document and add the current PCB.",
-                "KiWay",
+                "WayriCAD",
                 wx.OK | wx.ICON_INFORMATION,
             )
             return
@@ -534,7 +534,7 @@ class PluginUI(wx.Dialog):
             self,
             "Export cross-project tracker",
             wildcard="CSV files (*.csv)|*.csv",
-            defaultFile="kiway_cross_project_tracker.csv",
+            defaultFile="wayricad_cross_project_tracker.csv",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         ) as dialog:
             if dialog.ShowModal() == wx.ID_OK:
@@ -560,7 +560,7 @@ class PluginUI(wx.Dialog):
                 include_power=self.cross_include_power.GetValue(),
             )
         ]
-        lines = ["# KiWay Cross-Project Pin Tracker", ""]
+        lines = ["# WayriCAD Cross-Project Pin Tracker", ""]
         lines.extend(self.docgen._table_section("Resolved Cross-Links", self.cross_links))
         lines.extend(self.docgen._table_section("Unmatched Endpoints", unmatched_rows))
         markdown_text = "\n".join(lines)
@@ -568,7 +568,7 @@ class PluginUI(wx.Dialog):
             self,
             "Export cross-project tracker",
             wildcard="Markdown files (*.md)|*.md",
-            defaultFile="kiway_cross_project_tracker.md",
+            defaultFile="wayricad_cross_project_tracker.md",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         ) as dialog:
             if dialog.ShowModal() == wx.ID_OK:
@@ -583,7 +583,7 @@ class PluginUI(wx.Dialog):
             self,
             "Export cross-project harness",
             wildcard="SVG files (*.svg)|*.svg",
-            defaultFile="kiway_cross_project_harness.svg",
+            defaultFile="wayricad_cross_project_harness.svg",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         ) as dialog:
             if dialog.ShowModal() == wx.ID_OK:
@@ -648,7 +648,7 @@ class PluginUI(wx.Dialog):
             self._rebuild_current_markdown()
             self._refresh_board_rows()
         except Exception as exc:
-            wx.MessageBox(str(exc), "KiWay analysis failed", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(str(exc), "WayriCAD analysis failed", wx.OK | wx.ICON_ERROR)
             return
 
         self._populate_tables()
@@ -766,7 +766,7 @@ class PluginUI(wx.Dialog):
     def on_preview_group(self, _event: Any) -> None:
         selected = self.interface_list.GetFirstSelected()
         if selected < 0:
-            wx.MessageBox("Select an interface row in the window first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Select an interface row in the window first.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
         name = self.interface_list.GetItemText(selected)
         try:
@@ -785,7 +785,7 @@ class PluginUI(wx.Dialog):
     def on_create_group(self, _event: Any) -> None:
         selected = self.interface_list.GetFirstSelected()
         if selected < 0:
-            wx.MessageBox("Select an interface first.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Select an interface first.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
         name = self.interface_list.GetItemText(selected)
         if self.group_preview_name != name or not self.group_preview_items:
@@ -847,14 +847,14 @@ class PluginUI(wx.Dialog):
         self.status.SetLabel("Redid the last plugin-created PCB group.")
 
     def on_export_markdown(self, _event: Any) -> None:
-        self._export_file("Markdown files (*.md)|*.md", "kiway_icd.md", self.docgen.export_markdown)
+        self._export_file("Markdown files (*.md)|*.md", "wayricad_icd.md", self.docgen.export_markdown)
 
     def on_export_html(self, _event: Any) -> None:
-        self._export_file("HTML files (*.html)|*.html", "kiway_icd.html", self.docgen.export_html)
+        self._export_file("HTML files (*.html)|*.html", "wayricad_icd.html", self.docgen.export_html)
 
     def on_export_csv(self, _event: Any) -> None:
         rows = self.tm_tc_rows + self.tp_rows + self.connector_rows
-        with wx.FileDialog(self, "Export CSV", wildcard="CSV files (*.csv)|*.csv", defaultFile="kiway_tables.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+        with wx.FileDialog(self, "Export CSV", wildcard="CSV files (*.csv)|*.csv", defaultFile="wayricad_tables.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
             if dlg.ShowModal() == wx.ID_OK:
                 self.docgen.export_csv(rows, dlg.GetPath())
                 self.status.SetLabel(f"Exported {dlg.GetPath()}.")
@@ -918,9 +918,9 @@ class PluginUI(wx.Dialog):
         footprints = self._component_targets(use_selection)
         data = self._component_data(footprints)
         if not data:
-            wx.MessageBox("No components matched the selection or pattern.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("No components matched the selection or pattern.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
-        with wx.FileDialog(self, "Export component pins", wildcard="CSV files (*.csv)|*.csv|Markdown files (*.md)|*.md", defaultFile="kiway_components.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
+        with wx.FileDialog(self, "Export component pins", wildcard="CSV files (*.csv)|*.csv|Markdown files (*.md)|*.md", defaultFile="wayricad_components.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal() != wx.ID_OK:
                 return
             path = dialog.GetPath()
@@ -953,7 +953,7 @@ class PluginUI(wx.Dialog):
 
     def on_flow_preview(self, _event: Any) -> None:
         if not self.signal_analyzer:
-            wx.MessageBox("Open a PCB with footprints before calculating signal flow.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Open a PCB with footprints before calculating signal flow.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
         source_refs = self._matching_footprints(self.flow_source_filter.GetValue())
         destination_refs = self._matching_footprints(self.flow_destination_filter.GetValue())
@@ -1003,7 +1003,7 @@ class PluginUI(wx.Dialog):
     def on_export_flow_csv(self, _event: Any) -> None:
         if not self._ensure_flow_rows():
             return
-        with wx.FileDialog(self, "Export Signal Flow CSV", wildcard="CSV files (*.csv)|*.csv", defaultFile="kiway_signal_flow.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+        with wx.FileDialog(self, "Export Signal Flow CSV", wildcard="CSV files (*.csv)|*.csv", defaultFile="wayricad_signal_flow.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
             if dlg.ShowModal() == wx.ID_OK:
                 self.docgen.export_csv(self.signal_flow_rows, dlg.GetPath())
                 self.status.SetLabel(f"Exported {dlg.GetPath()}.")
@@ -1013,9 +1013,9 @@ class PluginUI(wx.Dialog):
             return
         svg = self.diagram_generator.generate_rich_signal_flow_diagram(
             self.signal_flow_rows,
-            title="KiWay Signal Flow: Sources to Destinations",
+            title="WayriCAD Signal Flow: Sources to Destinations",
         )
-        with wx.FileDialog(self, "Export Signal Flow SVG", wildcard="SVG files (*.svg)|*.svg", defaultFile="kiway_signal_flow.svg", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+        with wx.FileDialog(self, "Export Signal Flow SVG", wildcard="SVG files (*.svg)|*.svg", defaultFile="wayricad_signal_flow.svg", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
             if dlg.ShowModal() == wx.ID_OK:
                 with open(dlg.GetPath(), "w", encoding="utf-8") as handle:
                     handle.write(svg)
@@ -1023,10 +1023,10 @@ class PluginUI(wx.Dialog):
 
     def on_export_interface_svg(self, _event: Any) -> None:
         if not self.interfaces:
-            wx.MessageBox("Run Analyze before exporting the interface block diagram.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Run Analyze before exporting the interface block diagram.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
         svg = self.diagram_generator.generate_interface_block_diagram(self.interfaces)
-        with wx.FileDialog(self, "Export Interface Block SVG", wildcard="SVG files (*.svg)|*.svg", defaultFile="kiway_interface_blocks.svg", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
+        with wx.FileDialog(self, "Export Interface Block SVG", wildcard="SVG files (*.svg)|*.svg", defaultFile="wayricad_interface_blocks.svg", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
             if dlg.ShowModal() == wx.ID_OK:
                 with open(dlg.GetPath(), "w", encoding="utf-8") as handle:
                     handle.write(svg)
@@ -1034,7 +1034,7 @@ class PluginUI(wx.Dialog):
 
     def _export_file(self, wildcard: str, default_file: str, exporter: Any) -> None:
         if not self.current_markdown:
-            wx.MessageBox("Run Analyze before exporting.", "KiWay", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Run Analyze before exporting.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
         with wx.FileDialog(self, "Export", wildcard=wildcard, defaultFile=default_file, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dlg:
             if dlg.ShowModal() == wx.ID_OK:

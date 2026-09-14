@@ -1,0 +1,36 @@
+{
+  "schema": "wayricad-pipeline-1",
+  "name": "WayriCAD_BOM",
+  "variants": "all",
+  "template": "Purchasing",
+  "formats": [
+    "csv",
+    "xlsx",
+    "json",
+    "txt"
+  ],
+  "reports": [
+    "checks",
+    "health",
+    "analysis"
+  ],
+  "analytics": null,
+  "analytics_formats": [
+    "json"
+  ],
+  "policy": {
+    "checks": "error",
+    "health": "none",
+    "require_stock": false,
+    "analytics": "none"
+  },
+  "assembler_exports": {
+    "profiles": [
+      "jlcpcb"
+    ],
+    "formats": [
+      "csv",
+      "xlsx"
+    ]
+  }
+}

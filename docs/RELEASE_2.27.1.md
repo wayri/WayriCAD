@@ -1,4 +1,4 @@
-# KiWay v2.27.1 Release Notes
+# WayriCAD v3.0.0 Release Notes
 
 ## Heater Designer Preview Fix
 
@@ -24,4 +24,4 @@ to force their repaints.
 
 ## Package Updates
 
-Heater Designer 0.1.2, Planar Magnetics 0.2.2. Suite version 2.27.1.
+Heater Designer 0.1.2, Planar Magnetics 0.2.2. Suite version 3.0.0.

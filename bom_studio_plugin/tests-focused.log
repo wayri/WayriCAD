@@ -1,0 +1,48 @@
+.....................................................................................................E........F.F.......
+======================================================================
+ERROR: test_no_browser_fallback_on_absent_desktop (test_v8.Mapping8.test_no_browser_fallback_on_absent_desktop)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yawar\Documents\agws\KiCAD_plugins\kiWay\bom_studio_plugin\tests\test_v8.py", line 246, in test_no_browser_fallback_on_absent_desktop
+    with patch('webbrowser.open') as opened,patch('bomstudio.desktop.importlib.import_module',side_effect=ImportError('not installed')),patch.dict('sys.modules',{'wx.html2':None}):
+                                                                                                                                        ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\yawar\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py", line 1930, in __enter__
+    self._patch_dict()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\yawar\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py", line 1937, in _patch_dict
+    self.in_dict = pkgutil.resolve_name(self.in_dict)
+                   ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\yawar\AppData\Local\Python\pythoncore-3.14-64\Lib\pkgutil.py", line 458, in resolve_name
+    mod = importlib.import_module(modname)
+  File "C:\Users\yawar\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py", line 1175, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\yawar\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py", line 1179, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\yawar\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py", line 1234, in _execute_mock_call
+    raise effect
+ImportError: not installed
+
+======================================================================
+FAIL: test_named_model_and_footprint_links (test_v8.LibraryMaker8.test_named_model_and_footprint_links)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yawar\Documents\agws\KiCAD_plugins\kiWay\bom_studio_plugin\tests\test_v8.py", line 130, in test_named_model_and_footprint_links
+    self.assertEqual(r['counts']['models'],2);text=Path(r['symbol_library']).read_text();self.assertIn('UserParts:KW_',text)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_partial_sources_need_explicit_choice (test_v8.LibraryMaker8.test_partial_sources_need_explicit_choice)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yawar\Documents\agws\KiCAD_plugins\kiWay\bom_studio_plugin\tests\test_v8.py", line 141, in test_partial_sources_need_explicit_choice
+    with self.assertRaises(ValueError):librarymaker.preview(self.req('projects',projects=[str(self.app.workspace.project.pro_path)]))
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 120 tests in 15.881s
+
+FAILED (failures=2, errors=1)

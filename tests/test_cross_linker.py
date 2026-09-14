@@ -12,7 +12,7 @@ MODULE_PATH = (
     / "core"
     / "cross_linker.py"
 )
-SPEC = importlib.util.spec_from_file_location("kiway_cross_linker_test", MODULE_PATH)
+SPEC = importlib.util.spec_from_file_location("wayricad_cross_linker_test", MODULE_PATH)
 cross_linker = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = cross_linker
 SPEC.loader.exec_module(cross_linker)

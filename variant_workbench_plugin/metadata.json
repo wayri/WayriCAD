@@ -1,29 +1,33 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v1",
-  "name": "KiWay Design Variant Workbench",
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Design Variant Workbench",
   "description": "Review, edit, validate, compare, audit, and release KiCad 10 design variants safely.",
-  "description_full": "KiWay Design Variant Workbench provides semantic Set Default/rebase operations, a variant matrix, comparison and lint tables, PCB synchronization audits, guarded part substitutions, lifecycle management, and manufacturing-release generation. A native PCB Editor ActionPlugin passes the active project to a detached workbench so KiCad can be closed before Apply. Every design-file write requires a preview, rejects active KiCad lock files and stale input hashes, validates generated S-expressions, creates all backups before writing, uses atomic replacement, and attempts rollback on failure.",
-  "identifier": "kiway-variant-workbench",
+  "description_full": "WayriCAD Design Variant Workbench provides semantic Set Default/rebase operations, a variant matrix, comparison and lint tables, PCB synchronization audits, guarded part substitutions, lifecycle management, and manufacturing-release generation. A native PCB Editor ActionPlugin passes the active project to a detached workbench so KiCad can be closed before Apply. Every design-file write requires a preview, rejects active KiCad lock files and stale input hashes, validates generated S-expressions, creates all backups before writing, uses atomic replacement, and attempts rollback on failure.",
+  "identifier": "com.github.wayri.wayricad.variant-workbench",
   "type": "plugin",
   "author": {
     "name": "Wayri (Yawar)",
-    "contact": {"github": "https://github.com/wayri"}
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
   },
   "maintainer": {
     "name": "Wayri (Yawar)",
-    "contact": {"github": "https://github.com/wayri"}
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
   },
-  "license": "GPL-3.0",
+  "license": "GPL-3.0-only",
   "resources": {
-    "homepage": "https://github.com/wayri/KiWay",
-    "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/variant_workbench_plugin/icon.png"
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/variant_workbench_plugin/icon.png"
   },
   "versions": [
     {
-      "version": "0.5.3",
+      "version": "3.0.0",
       "status": "testing",
       "kicad_version": "10.0",
-      "runtime": "swig"
+      "runtime": "ipc"
     }
   ]
 }

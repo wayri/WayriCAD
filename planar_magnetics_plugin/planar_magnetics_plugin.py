@@ -15,17 +15,29 @@ from .analysis import CORE_CATALOG, CoilSpec, MagneticsEngine, MagneticResult, M
 from .guided_ui import add_workflow
 
 
-VERSION="0.2.2";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
+VERSION="3.0.0";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
 def point(x,y):return pcbnew.VECTOR2I(pcbnew.FromMM(x),pcbnew.FromMM(y))
 def copper_layer(index,count):
     if index<=0:return int(pcbnew.F_Cu)
     if index>=count-1:return int(pcbnew.B_Cu)
-    return index
+    return int(getattr(pcbnew, f"In{index}_Cu"))
 
 
 class MagneticPreview(wx.Panel):
     def __init__(self,parent):
         super().__init__(parent,style=wx.BORDER_SIMPLE);self.SetMinSize((-1,330));self.SetBackgroundStyle(wx.BG_STYLE_PAINT);self.result=None;self.zoom=1.0;self.phase=0.0;self.animate=False;self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_MOUSEWHEEL,self.wheel);self.timer=wx.Timer(self);self.Bind(wx.EVT_TIMER,self.tick,self.timer);self.Bind(wx.EVT_SIZE,self._on_size);self.Bind(wx.EVT_ERASE_BACKGROUND,self._on_erase)
+        self.pan=(0,0);self.drag=None
+        self.Bind(wx.EVT_LEFT_DOWN,self.pan_start);self.Bind(wx.EVT_LEFT_UP,self.pan_end)
+        self.Bind(wx.EVT_MOTION,self.pan_move);self.Bind(wx.EVT_LEFT_DCLICK,self.fit)
+        self.Bind(wx.EVT_MOUSE_CAPTURE_LOST,lambda event:setattr(self,'drag',None))
+    def pan_start(self,event):self.drag=event.GetPosition();self.CaptureMouse()
+    def pan_end(self,event):
+        self.drag=None
+        if self.HasCapture():self.ReleaseMouse()
+    def pan_move(self,event):
+        if self.drag is not None and event.Dragging():
+            point=event.GetPosition();self.pan=(self.pan[0]+point.x-self.drag.x,self.pan[1]+point.y-self.drag.y);self.drag=point;self._repaint()
+    def fit(self,event=None):self.zoom=1.;self.pan=(0,0);self._repaint()
     def _on_size(self,event):self._repaint();event.Skip()
     def _on_erase(self,_event):pass
     def _repaint(self):self.Refresh();self.Update()
@@ -40,12 +52,15 @@ class MagneticPreview(wx.Panel):
     def paint(self,_e):
         dc=wx.AutoBufferedPaintDC(self);dc.SetBackground(wx.Brush("#f7f9fb"));dc.Clear();w,h=self.GetClientSize()
         if not self.result:dc.SetTextForeground("#52616b");dc.DrawLabel("Analyze a winding to preview copper, vias, field contours, and actuator motion.",wx.Rect(10,10,w-20,h-20),wx.ALIGN_CENTER);return
-        spec=self.result.spec;margin=35;scale=min((w-2*margin)/spec.outer_width_mm,(h-2*margin)/spec.outer_height_mm)*self.zoom;ox=(w-spec.outer_width_mm*scale)/2;oy=(h-spec.outer_height_mm*scale)/2;project=lambda x,y:(int(ox+x*scale),int(oy+(spec.outer_height_mm-y)*scale))
+        spec=self.result.spec;margin=35;scale=min((w-2*margin)/spec.outer_width_mm,(h-2*margin)/spec.outer_height_mm)*self.zoom;ox=(w-spec.outer_width_mm*scale)/2+self.pan[0];oy=(h-spec.outer_height_mm*scale)/2+self.pan[1];project=lambda x,y:(int(ox+x*scale),int(oy+(spec.outer_height_mm-y)*scale))
         cx,cy=project(spec.outer_width_mm/2,spec.outer_height_mm/2)
-        for ring in range(5,0,-1):
+        for ring in (range(5,0,-1) if self.animate else ()):
             strength=max(0.08,min(1.0,self.result.field_center_mt/100));color=wx.Colour(65,int(120+80*strength),int(190+40*(1-strength)));dc.SetPen(wx.Pen(color,1));radius=int(min(spec.outer_width_mm,spec.outer_height_mm)*scale*(.08+ring*.10));dc.DrawEllipse(cx-radius,cy-radius,2*radius,2*radius)
         for segment in self.result.segments:dc.SetPen(wx.Pen(LAYER_COLORS[segment.layer%len(LAYER_COLORS)],max(2,int(segment.width_mm*scale))));dc.DrawLine(*project(segment.x1_mm,segment.y1_mm),*project(segment.x2_mm,segment.y2_mm))
-        for via in self.result.vias:dc.SetBrush(wx.Brush("#f6c453"));dc.SetPen(wx.Pen("#674d00",2));dc.DrawCircle(*project(via.x_mm,via.y_mm),5)
+        for via in self.result.vias:
+            radius=max(.6,spec.trace_width_mm*1.8)*scale/2;drill=max(.3,spec.trace_width_mm*.7)*scale/2
+            dc.SetBrush(wx.Brush("#ac7c26"));dc.SetPen(wx.Pen("#674d00",1));dc.DrawCircle(*project(via.x_mm,via.y_mm),max(1,round(radius)))
+            dc.SetBrush(wx.Brush("#f7f9fb"));dc.SetPen(wx.TRANSPARENT_PEN);dc.DrawCircle(*project(via.x_mm,via.y_mm),max(1,round(drill)))
         if self.animate:
             if self.result.dynamics and self.result.dynamics.samples:
                 sample=self.result.dynamics.samples[int(self.phase/(2*math.pi)*len(self.result.dynamics.samples))%len(self.result.dynamics.samples)]
@@ -53,7 +68,7 @@ class MagneticPreview(wx.Panel):
                 displacement=normalized*min(h*.16,70)
             else:displacement=math.sin(self.phase)*self.result.travel_mm*scale
             dc.SetBrush(wx.Brush("#758493"));dc.SetPen(wx.Pen("#263744",2));dc.DrawRoundedRectangle(int(cx-26),int(cy-12-displacement),52,24,5);dc.SetTextForeground("#ffffff");dc.DrawText("Mover",int(cx-20),int(cy-8-displacement))
-        dc.SetTextForeground("#263744");dc.DrawText(f"{self.result.inductance_uh:.2f} uH | {self.result.resistance_ac_ohm:.3f} ohm AC | Q {self.result.quality_factor:.1f} | {self.result.field_center_mt:.2f} mT | wheel: zoom",12,10)
+        dc.SetTextForeground("#263744");dc.DrawText(f"{self.result.inductance_uh:.2f} uH | {self.result.resistance_ac_ohm:.3f} ohm AC | Q {self.result.quality_factor:.1f} | {self.result.field_center_mt:.2f} mT | Wheel: zoom · Drag: pan · Double-click: fit",12,10)
 
 
 class MotionPlot(wx.Panel):
@@ -81,34 +96,64 @@ class MotionPlot(wx.Panel):
 
 
 class PlanarMagneticsPlugin(pcbnew.ActionPlugin):
-    def defaults(self):self.name="KiWay Planar Magnetics & Actuator Workbench";self.category="PCB Engineering";self.description="Design PCB inductors, transformers, motors, actuators, and magnetic torquers.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"icon.png");self.dark_icon_file_name=self.icon_file_name;self.version=VERSION
+    def defaults(self):self.name="WayriCAD Planar Magnetics & Actuator Workbench";self.category="PCB Engineering";self.description="Design PCB inductors, transformers, motors, actuators, and magnetic torquers.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png");self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png");self.version=VERSION
     def Run(self):
         board=pcbnew.GetBoard()
         if board is None:wx.MessageBox("Open a PCB first.",self.name,wx.OK|wx.ICON_ERROR);return
         MagneticsFrame(None,board).Show()
 
 
-class MagneticsFrame(wx.Frame):
+try:
+    from .wayricad_runtime.generated import ReviewedGeometry
+except ImportError:
+    from wayricad_runtime.generated import ReviewedGeometry
+
+
+class MagneticsFrame(ReviewedGeometry, wx.Frame):
+    group_prefix = 'WayriCAD Planar Magnetics Commit'
     def __init__(self,parent,board):
-        super().__init__(parent,title="KiWay Planar Magnetics & Actuator Workbench",size=(1320,880));self.SetMinSize((1080,740));self.board=board;self.catalog=dict(CORE_CATALOG);self.result=None;self.preview_items=[];self.undo_stack=[];self.redo_stack=[];self._build();self.undo_stack=self._persistent_groups();self.Bind(wx.EVT_CLOSE,self.on_close);self.Centre()
+        super().__init__(parent,title="WayriCAD Planar Magnetics & Actuator Workbench",size=(1320,880));self.SetMinSize((1080,740));self.board=board;self.catalog=dict(CORE_CATALOG);self.result=None;self.preview_items=[];self.undo_stack=[];self.redo_stack=[];self._build();self.undo_stack=self._persistent_groups();self.Bind(wx.EVT_CLOSE,self.on_close);self.Centre()
     def _build(self):
         p=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL);self.guide=add_workflow(p,root,"Planar Magnetics and Actuator Workbench","Generate multilayer/via-connected windings, apply core and frequency models, inspect fields and motion, then commit only reviewed copper.",("Winding","Model","Field and motion","PCB commit"),lambda e:webbrowser.open(Path(__file__).with_name("help.html").as_uri()));self.tabs=wx.Notebook(p);self.tabs.AddPage(self.design_page(self.tabs),"Winding and Core");self.tabs.AddPage(self.model_page(self.tabs),"LCR / Parasitics");self.tabs.AddPage(self.actuator_page(self.tabs),"Field and Actuator");root.Add(self.tabs,1,wx.EXPAND|wx.ALL,8);p.SetSizer(root)
     def design_page(self,parent):
-        p=wx.Panel(parent);root=wx.BoxSizer(wx.HORIZONTAL)
-        rail=wx.Panel(p);rail.SetMinSize((390,-1));rail_root=wx.BoxSizer(wx.VERTICAL)
-        scroll=wx.ScrolledWindow(rail,style=wx.VSCROLL);scroll.SetScrollRate(0,12)
-        box=wx.StaticBoxSizer(wx.VERTICAL,scroll,"Geometry and excitation");bp=box.GetStaticBox();g=wx.FlexGridSizer(0,2,6,8);g.AddGrowableCol(1,1);self.fields={}
-        self.shape=wx.Choice(bp,choices=["Rectangular spiral","Circular spiral"]);self.shape.SetSelection(0);g.Add(wx.StaticText(bp,label="Winding shape"));g.Add(self.shape,1,wx.EXPAND)
-        for label,key,value in (("Outer width (mm)","width","35"),("Outer height (mm)","height","35"),("Turns per layer","turns","8"),("Trace width (mm)","trace","0.5"),("Spacing (mm)","spacing","0.25"),("Copper thickness (um)","copper","35"),("Primary copper layers","layers","2"),("Frequency (kHz)","frequency","100"),("Current (A)","current","0.5"),("Voltage (V)","voltage","5"),("Secondary turns (0=none)","secondary","0"),("Secondary layers","secondary_layers","1"),("Coupling coefficient","coupling","0.90"),("Origin X (mm)","origin_x","20"),("Origin Y (mm)","origin_y","20")):
-            c=wx.TextCtrl(bp,value=value);self.fields[key]=c;g.Add(wx.StaticText(bp,label=label));g.Add(c,1,wx.EXPAND)
-        self.connection=wx.Choice(bp,choices=["Series","Parallel"]);self.connection.SetSelection(0);g.Add(wx.StaticText(bp,label="Layer connection"));g.Add(self.connection,1,wx.EXPAND);self.core=wx.ComboBox(bp,choices=sorted(self.catalog),style=wx.CB_READONLY);self.core.SetValue("Air / no core");g.Add(wx.StaticText(bp,label="Magnetic core"));g.Add(self.core,1,wx.EXPAND);nets=["<no net>"]+self._nets();self.net=wx.ComboBox(bp,choices=nets,style=wx.CB_READONLY);self.net.SetSelection(0);g.Add(wx.StaticText(bp,label="Primary PCB net"));g.Add(self.net,1,wx.EXPAND);self.secondary_net=wx.ComboBox(bp,choices=nets,style=wx.CB_READONLY);self.secondary_net.SetSelection(0);g.Add(wx.StaticText(bp,label="Secondary PCB net"));g.Add(self.secondary_net,1,wx.EXPAND);box.Add(g,1,wx.EXPAND|wx.ALL,10)
-        core_actions=wx.BoxSizer(wx.HORIZONTAL);load=wx.Button(bp,label="Import Cores...");load.Bind(wx.EVT_BUTTON,self.load_cores);save=wx.Button(bp,label="Export Cores...");save.Bind(wx.EVT_BUTTON,self.save_cores);core_actions.Add(load,1,wx.RIGHT,6);core_actions.Add(save,1);box.Add(core_actions,0,wx.EXPAND|wx.ALL,10)
-        scroll.SetSizer(box);scroll.FitInside();rail_root.Add(scroll,1,wx.EXPAND)
-        analyze=wx.Button(rail,label="Generate and Analyze Winding");analyze.SetDefault();analyze.Bind(wx.EVT_BUTTON,self.analyze);rail_root.Add(analyze,0,wx.EXPAND|wx.TOP,8);rail.SetSizer(rail_root);root.Add(rail,0,wx.EXPAND|wx.ALL,10)
-        right=wx.BoxSizer(wx.VERTICAL);self.preview=MagneticPreview(p);right.Add(self.preview,1,wx.EXPAND);actions=wx.BoxSizer(wx.HORIZONTAL)
-        for label,handler in (("Show on PCB",self.show_pcb),("Clear PCB Preview",self.clear_preview),("Commit to PCB",self.commit),("Undo Commit",self.undo),("Redo Commit",self.redo),("Export JSON...",self.export_json),("Export Geometry CSV...",self.export_csv)):
-            b=wx.Button(p,label=label);b.Bind(wx.EVT_BUTTON,handler);actions.Add(b,0,wx.RIGHT,6)
-        right.Add(actions,0,wx.TOP,8);self.status=wx.StaticText(p,label="No winding analyzed. PCB unchanged.");right.Add(self.status,0,wx.TOP,8);root.Add(right,1,wx.EXPAND|wx.ALL,10);p.SetSizer(root);return p
+        try:
+            from .wayricad_runtime.ui import form_page, field, choice, more_button
+        except ImportError:
+            from wayricad_runtime.ui import form_page, field, choice, more_button
+        panel=wx.Panel(parent);root=wx.BoxSizer(wx.HORIZONTAL)
+        controls=wx.Notebook(panel);controls.SetMinSize((330,-1))
+        geometry,_,grid=form_page(controls,"Winding")
+        drive,drive_layout,drive_grid=form_page(controls,"Drive")
+        placement,_,placement_grid=form_page(controls,"Placement")
+        self.fields={}
+        self.shape=choice(geometry,grid,"Shape",["Rectangular spiral","Circular spiral"])
+        groups=((geometry,grid,(("Width (mm)","width",35),("Height (mm)","height",35),("Turns / layer","turns",8),
+                               ("Trace width (mm)","trace",0.5),("Spacing (mm)","spacing",0.25),("Copper (µm)","copper",35),
+                               ("Primary layers","layers",2))),
+                (drive,drive_grid,(("Frequency (kHz)","frequency",100),("Current (A)","current",0.5),("Voltage (V)","voltage",5),
+                                   ("Secondary turns","secondary",0),("Secondary layers","secondary_layers",1),("Coupling","coupling",0.90))),
+                (placement,placement_grid,(("Origin X (mm)","origin_x",20),("Origin Y (mm)","origin_y",20))))
+        for page,form,entries in groups:
+            for label,key,value in entries:self.fields[key]=field(page,form,label,value)
+        self.connection=choice(geometry,grid,"Connection",["Series","Parallel"])
+        self.core=choice(drive,drive_grid,"Core",sorted(self.catalog));self.core.SetValue("Air / no core")
+        drive_layout.Add(more_button(drive,[("Import cores…",self.load_cores),("Export cores…",self.save_cores)],"Core catalogue…"),0,wx.ALL,12)
+        nets=["<no net>"]+self._nets()
+        self.net=choice(placement,placement_grid,"Primary net",nets)
+        self.secondary_net=choice(placement,placement_grid,"Secondary net",nets)
+        root.Add(controls,0,wx.EXPAND|wx.ALL,12)
+        right=wx.BoxSizer(wx.VERTICAL);self.preview=MagneticPreview(panel);right.Add(self.preview,1,wx.EXPAND)
+        actions=wx.BoxSizer(wx.HORIZONTAL)
+        for label,handler in (("Preview",self.analyze),("Apply to PCB",self.commit)):
+            button=wx.Button(panel,label=label);button.Bind(wx.EVT_BUTTON,handler)
+            if label=="Preview":button.SetDefault()
+            actions.Add(button,0,wx.RIGHT,6)
+        actions.Add(more_button(panel,[("Review placement",self.show_pcb),("Clear placement",self.clear_preview),
+                                      ("Undo last apply",self.undo),("Redo",self.redo),
+                                      ("Export JSON…",self.export_json),("Export geometry CSV…",self.export_csv)]))
+        right.Add(actions,0,wx.TOP,10)
+        self.status=wx.StaticText(panel,label="Configure the winding, then preview.");right.Add(self.status,0,wx.TOP,8)
+        root.Add(right,1,wx.EXPAND|wx.ALL,12);panel.SetSizer(root);return panel
     def model_page(self,parent):
         p=wx.Panel(parent);root=wx.BoxSizer(wx.VERTICAL);self.results=wx.ListCtrl(p,style=wx.LC_REPORT);self.results.InsertColumn(0,"Metric",width=270);self.results.InsertColumn(1,"Result",width=250);self.results.InsertColumn(2,"Model / review note",width=680);root.Add(self.results,1,wx.EXPAND|wx.ALL,10);p.SetSizer(root);return p
     def actuator_page(self,parent):
@@ -137,7 +182,7 @@ class MagneticsFrame(wx.Frame):
         for key,value in values.items():self.motion_fields[key].SetValue(value)
         self.status.SetLabel("Nanoscale screening preset loaded; process-calibrated multiphysics validation is mandatory." if nano else "Macro-scale actuator preset loaded.")
     def analyze(self,_e):
-        try:self._calculate(1)
+        try:self._calculate(0);self._capture_review()
         except Exception as exc:wx.MessageBox(str(exc),"Magnetics analysis failed",wx.OK|wx.ICON_ERROR)
     def run_dynamics(self,_e):
         try:self._calculate(2)
@@ -196,60 +241,23 @@ class MagneticsFrame(wx.Frame):
         for s in self.result.segments:
             track=pcbnew.PCB_TRACK(self.board);track.SetStart(point(ox+s.x1_mm,oy+s.y1_mm));track.SetEnd(point(ox+s.x2_mm,oy+s.y2_mm));track.SetWidth(pcbnew.FromMM(s.width_mm));track.SetLayer(copper_layer(s.layer,copper));selected_net=secondary_net if s.winding=="Secondary" else net
             if selected_net is not None:track.SetNet(selected_net)
-            self.board.Add(track);items.append(track)
+            items.append(track)
         for v in self.result.vias:
             via=pcbnew.PCB_VIA(self.board);via.SetPosition(point(ox+v.x_mm,oy+v.y_mm));via.SetWidth(pcbnew.FromMM(max(.6,self.result.spec.trace_width_mm*1.8)));via.SetDrill(pcbnew.FromMM(max(.3,self.result.spec.trace_width_mm*.7)))
-            if hasattr(via,"SetLayerPair"):via.SetLayerPair(copper_layer(v.from_layer,copper),copper_layer(v.to_layer,copper))
+            via.SetViaType(pcbnew.VIATYPE_THROUGH if {v.from_layer,v.to_layer} == {0,copper-1} else (pcbnew.VIATYPE_BLIND if {v.from_layer,v.to_layer} & {0,copper-1} else pcbnew.VIATYPE_BURIED))
+            via.SetLayerPair(copper_layer(v.from_layer,copper),copper_layer(v.to_layer,copper))
             selected_net=secondary_net if v.winding=="Secondary" else net
             if selected_net is not None:via.SetNet(selected_net)
-            self.board.Add(via);items.append(via)
+            items.append(via)
         if hasattr(pcbnew,"Refresh"):pcbnew.Refresh()
         return items
-    def show_pcb(self,_e):
-        if not self.result:wx.MessageBox("Analyze a winding first.","Preview required",wx.OK|wx.ICON_INFORMATION);return
-        try:self.clear_preview(None);self.preview_items=self._make_items();self.status.SetLabel(f"Temporary PCB preview: {len(self.preview_items)} items. Run visual clearance checks before commit.");self.guide.set_step(3,"Inspect all copper layers and via transitions, then commit or clear the preview.")
-        except Exception as exc:wx.MessageBox(str(exc),"PCB preview failed",wx.OK|wx.ICON_ERROR)
-    def clear_preview(self,_e):
-        for item in self.preview_items:
-            try:self.board.Remove(item)
-            except Exception:pass
-        self.preview_items=[]
-        if hasattr(pcbnew,"Refresh"):pcbnew.Refresh()
-    def commit(self,_e):
-        if not self.preview_items:wx.MessageBox("Show the exact winding on the PCB before committing.","PCB preview required",wx.OK|wx.ICON_INFORMATION);return
-        items=list(self.preview_items);self.preview_items=[]
-        group=self._new_group(items);self.undo_stack.append(group);self.redo_stack.clear()
-        self.status.SetLabel(f"Committed {len(items)} items. Run DRC, field simulation, LCR measurement, and thermal validation.")
     def _persistent_groups(self):
-        return [g for g in getattr(self.board,"Groups",lambda:[])() if str(getattr(g,"GetName",lambda:"")()).startswith("KiWay Planar Magnetics Commit")]
+        return [g for g in getattr(self.board,"Groups",lambda:[])() if str(getattr(g,"GetName",lambda:"")()).startswith("WayriCAD Planar Magnetics Commit")]
     def _group_items(self,group):
         for name in ("GetItems","GetBoardItems"):
             try:return list(getattr(group,name)())
             except Exception:pass
         return []
-    def _new_group(self,items,name=""):
-        if not hasattr(pcbnew,"PCB_GROUP"):return list(items)
-        group=pcbnew.PCB_GROUP(self.board);group.SetName(name or f"KiWay Planar Magnetics Commit {len(self._persistent_groups())+1:03d}");self.board.Add(group)
-        for item in items:group.AddItem(item)
-        return group
-    def undo(self,_e):
-        if not self.undo_stack:self.status.SetLabel("No KiWay magnetics commit to undo.");return
-        entry=self.undo_stack.pop();items=list(entry) if isinstance(entry,list) else self._group_items(entry);name="KiWay Planar Magnetics Commit" if isinstance(entry,list) else str(entry.GetName())
-        if not isinstance(entry,list):
-            for item in items:
-                try:entry.RemoveItem(item)
-                except Exception:pass
-            try:self.board.Remove(entry)
-            except Exception:pass
-        for item in items:
-            try:self.board.Remove(item)
-            except Exception:pass
-        self.redo_stack.append((name,items));self.status.SetLabel(f"Undid magnetics commit containing {len(items)} items.");pcbnew.Refresh()
-    def redo(self,_e):
-        if not self.redo_stack:self.status.SetLabel("No KiWay magnetics commit to redo.");return
-        name,items=self.redo_stack.pop()
-        for item in items:self.board.Add(item)
-        self.undo_stack.append(self._new_group(items,name));self.status.SetLabel(f"Redid magnetics commit containing {len(items)} items.");pcbnew.Refresh()
     def export_json(self,_e):
         if not self.result:return
         with wx.FileDialog(self,"Export magnetic model",wildcard="JSON (*.json)|*.json",style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:

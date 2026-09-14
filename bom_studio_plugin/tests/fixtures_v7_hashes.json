@@ -1,0 +1,70 @@
+{
+  "source": "Independent compiled MurmurHash3_x64_128 from installed murmurhash native module; seed 0xABBA2345, KiCad h1/h2 word order. Generated 2026-09-09. No library binary is distributed.",
+  "vectors": [
+    {
+      "length": 0,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "0A8AD5D826E19AE9B0771881583631B3"
+    },
+    {
+      "length": 1,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "9AFC0799966943AD434C78CE6434FC6E"
+    },
+    {
+      "length": 4,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "8F6724E25E9B0F6CFCFA173F7C375597"
+    },
+    {
+      "length": 8,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "345E44639F814663938652601F72B524"
+    },
+    {
+      "length": 12,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "4BEEC772CFDAF30A79F50C277940E79A"
+    },
+    {
+      "length": 15,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "1ECD41CAA9D465B41ABD4B82DC91C94C"
+    },
+    {
+      "length": 16,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "FA03DBB5E3A1C1BAF12D125E128A2FED"
+    },
+    {
+      "length": 17,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "4624662CF68C4521488C1BB286C67572"
+    },
+    {
+      "length": 31,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "B63A1A4B9054B529F7A0A8AF0707DDD4"
+    },
+    {
+      "length": 32,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "AEA970FB8BA5135C00409EF2929F2D87"
+    },
+    {
+      "length": 100,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "E2061355C53836B3AA1B3F5B659D7075"
+    },
+    {
+      "length": 255,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "E0E1CDA92C4D4E4F4A57D5A526D9F0B9"
+    },
+    {
+      "length": 4096,
+      "formula": "bytes(i % 251 for i in range(length))",
+      "hash": "5E3CC95E0E0D0E50D4F2475CBE58B934"
+    }
+  ]
+}

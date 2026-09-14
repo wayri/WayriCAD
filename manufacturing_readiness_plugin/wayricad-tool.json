@@ -1,0 +1,6 @@
+{
+  "tool": "manufacturing_readiness_plugin",
+  "name": "WayriCAD Manufacturing Readiness Manager",
+  "module": "manufacturing_readiness_plugin",
+  "class": "ManufacturingReadinessPlugin"
+}

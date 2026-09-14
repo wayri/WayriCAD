@@ -1,4 +1,4 @@
-"""KiWay Return-Path Auditor plugin entry point."""
+"""WayriCAD Return-Path Auditor plugin entry point."""
 
 try:
     from .return_path_auditor_plugin import ReturnPathAuditorPlugin

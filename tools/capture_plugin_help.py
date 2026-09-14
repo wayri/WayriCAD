@@ -1,4 +1,4 @@
-"""Capture actual modeless KiWay frames using an empty demo board."""
+"""Capture actual modeless WayriCAD frames using a synthetic board fixture."""
 
 from __future__ import annotations
 
@@ -12,12 +12,16 @@ import traceback
 from pathlib import Path
 
 import pcbnew
+import wx
+_BOOTSTRAP_APP = wx.GetApp() or wx.App(False)
+# Standalone fixture has wx but no KiCad application singleton to register into.
+pcbnew.ActionPlugin.register = lambda self: None
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "kilo_plugin"))
 
-# Import before creating wx.App so standalone imports do not register actions.
+# Some package UI helpers construct wx.Colour during import and need a live wx.App.
 from bulk_label_editor_plugin.bulk_label_editor_plugin import BulkLabelEditorFrame
 from fanout_generator_plugin.fanout_generator_plugin import FanoutFrame
 from extract_pins_plugin.plugin_dialog_v2 import PluginDialogV2
@@ -37,7 +41,7 @@ from heater_designer_plugin.heater_designer_plugin import HeaterFrame
 from planar_magnetics_plugin.planar_magnetics_plugin import MagneticsFrame
 from kilo.ui.main_frame import MainFrame as KiloFrame
 import wx
-from PIL import Image, ImageDraw
+from PIL import Image
 
 
 def save_window(hwnd: int, destination: Path, title: str) -> None:
@@ -58,24 +62,23 @@ def save_window(hwnd: int, destination: Path, title: str) -> None:
         raise RuntimeError(f"Windows could not capture {title}")
     bitmap.SaveFile(str(temporary), wx.BITMAP_TYPE_PNG)
     with Image.open(temporary) as source:
-        image = source.convert("RGB").resize((1200, 680), Image.Resampling.LANCZOS)
-    draw = ImageDraw.Draw(image)
-    draw.rectangle((8, 8, 1191, 671), outline="#d54b36", width=3)
-    draw.rounded_rectangle((18, 18, 360, 52), radius=4, fill="#fff4df", outline="#d54b36", width=2)
-    draw.text((30, 26), "Actual plugin window - demo state", fill="#76281d")
-    image.save(destination, optimize=True)
+        image = source.convert("RGB")
+    replacement=destination.with_suffix(".new.png")
+    image.save(replacement, optimize=True)
+    os.replace(replacement,destination)
     temporary.unlink(missing_ok=True)
 
 
 def capture(frame: wx.Frame, destination: Path) -> None:
     try:
-        frame.SetSize((1200, 680)); frame.SetPosition((30, 30)); frame.Show(); frame.Raise()
+        frame.SetSize((1200, 780)); frame.SetPosition((30, 30)); frame.Show(); frame.Raise()
         frame.Refresh()
         for child in frame.GetChildren():
             child.Refresh()
         for _ in range(15):
             wx.Yield(); frame.Update(); time.sleep(0.08)
         save_window(int(frame.GetHandle()), destination, frame.GetTitle())
+        print("Captured " + str(destination.relative_to(ROOT)), flush=True)
     finally:
         # Destroy native children while wx is fully alive. WebView teardown during
         # Python interpreter finalization can otherwise hang or crash python.exe.
@@ -87,10 +90,19 @@ def capture(frame: wx.Frame, destination: Path) -> None:
 
 def capture_variant(destination: Path) -> None:
     script = ROOT / "variant_workbench_plugin" / "kicad_variant_manager.py"
-    process = subprocess.Popen([_tk_python(), str(script)])
+    interpreter=_tk_python()
+    # The Windows Python manager may spawn a different PID; capture the actual interpreter process.
+    with tempfile.TemporaryDirectory(prefix='wayricad-capture-python-') as folder:
+        marker=Path(folder)/'interpreter.txt'
+        subprocess.run([interpreter,'-c','import sys;from pathlib import Path;Path(sys.argv[1]).write_text(sys.executable)',str(marker)],check=True,timeout=10)
+        if marker.exists():interpreter=marker.read_text().strip()
+    process = subprocess.Popen([interpreter, str(script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     hwnd = 0
     try:
         for _ in range(100):
+            if process.poll() is not None:
+                output,error=process.communicate()
+                raise RuntimeError("Variant Workbench exited before capture: "+(error or output))
             time.sleep(0.1)
             matches: list[int] = []
 
@@ -104,7 +116,7 @@ def capture_variant(destination: Path) -> None:
                 if length:
                     title = ctypes.create_unicode_buffer(length + 1)
                     ctypes.windll.user32.GetWindowTextW(candidate, title, length + 1)
-                    if title.value.startswith("KiWay Design Variant Workbench"):
+                    if title.value.startswith("WayriCAD Design Variant Workbench"):
                         matches.append(candidate)
                 return True
 
@@ -116,7 +128,7 @@ def capture_variant(destination: Path) -> None:
             raise RuntimeError("Variant Workbench window did not appear")
         ctypes.windll.user32.SetWindowPos(hwnd, 0, 30, 30, 1200, 680, 0x0040)
         time.sleep(0.4)
-        save_window(hwnd, destination, "KiWay Design Variant Workbench")
+        save_window(hwnd, destination, "WayriCAD Design Variant Workbench")
         ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)
         process.wait(timeout=5)
     finally:
@@ -125,11 +137,33 @@ def capture_variant(destination: Path) -> None:
             process.wait(timeout=5)
 
 
+def demo_board():
+    board=pcbnew.BOARD()
+    net=pcbnew.NETINFO_ITEM(board,'GND');board.Add(net)
+    def point(x,y):return pcbnew.VECTOR2I(pcbnew.FromMM(x),pcbnew.FromMM(y))
+    for a,b in (((20,20),(80,20)),((80,20),(80,60)),((80,60),(20,60)),((20,60),(20,20))):
+        line=pcbnew.PCB_SHAPE(board);line.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        line.SetStart(point(*a));line.SetEnd(point(*b));line.SetLayer(pcbnew.Edge_Cuts);board.Add(line)
+    fp=pcbnew.FOOTPRINT(board);fp.SetReference('U1');fp.SetValue('SOIC-8');fp.SetPosition(point(50,40));board.Add(fp)
+    coordinates=[(47,38.095+i*1.27) for i in range(4)]+[(53,41.905-i*1.27) for i in range(4)]
+    for index,(x,y) in enumerate(coordinates,1):
+        pad=pcbnew.PAD(fp);pad.SetNumber(str(index));pad.SetPosition(point(x,y));pad.SetSize(point(1.5,.6))
+        pad.SetShape(pcbnew.PAD_SHAPE_ROUNDRECT);pad.SetRoundRectRadiusRatio(.2)
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD);layers=pcbnew.LSET();layers.AddLayer(pcbnew.F_Cu)
+        pad.SetLayerSet(layers);pad.SetNet(net);fp.Add(pad)
+    for a,b in (((48.5,37.3),(51.5,37.3)),((51.5,37.3),(51.5,42.7)),((51.5,42.7),(48.5,42.7)),((48.5,42.7),(48.5,37.3))):
+        body=pcbnew.PCB_SHAPE(fp);body.SetShape(pcbnew.SHAPE_T_SEGMENT);body.SetStart(point(*a));body.SetEnd(point(*b));body.SetLayer(pcbnew.F_SilkS);body.SetWidth(pcbnew.FromMM(.15));fp.Add(body)
+    for a,b in (((47,38.095),(44,38.095)),((44,38.095),(44,35.5))):
+        track=pcbnew.PCB_TRACK(board);track.SetStart(point(*a));track.SetEnd(point(*b));track.SetWidth(pcbnew.FromMM(.25));track.SetLayer(pcbnew.F_Cu);track.SetNet(net);board.Add(track)
+    via=pcbnew.PCB_VIA(board);via.SetPosition(point(44,35.5));via.SetWidth(pcbnew.FromMM(.7));via.SetDrill(pcbnew.FromMM(.35));via.SetNet(net);via.SetViaType(pcbnew.VIATYPE_THROUGH);via.SetLayerPair(pcbnew.F_Cu,pcbnew.B_Cu);board.Add(via)
+    return board
+
+
 def main() -> None:
-    app = wx.App(False); board = pcbnew.BOARD()
+    app = wx.GetApp() or wx.App(False); board = demo_board()
     requested = set(sys.argv[1:])
     pcbnew.GetBoard = lambda: board
-    with tempfile.TemporaryDirectory(prefix="kiway-help-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="wayricad-help-") as temporary:
         demo = Path(temporary)
         (demo / "demo.kicad_pro").write_text("{}\n", encoding="utf-8")
         pcbnew.SaveBoard(str(demo / "demo.kicad_pcb"), board)
@@ -155,11 +189,16 @@ def main() -> None:
             if requested and package not in requested:
                 continue
             frame = factory()
+            if isinstance(frame, FanoutFrame):
+                frame.scope.SetValue('All SMD pads');frame.preview(None,silent=True)
+            if isinstance(frame, ViaFrame):
+                frame.net_choice.SetValue('GND');frame.require_target_zone.SetValue(False);frame.preview(None,silent=True)
             if isinstance(frame, SignalIntegrityFrame):
                 frame._calculate_i2c(None)
+            if isinstance(frame, HeaterFrame):
+                frame.generate(None)
             if isinstance(frame, MagneticsFrame):
-                frame._motion_preset(False)
-                frame.run_dynamics(None)
+                frame.analyze(None)
             if isinstance(frame, KiloFrame):
                 frame.notebook.SetSelection(frame.help_page)
             destination = ROOT / package / "help-workflow.png"

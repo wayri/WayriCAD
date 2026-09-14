@@ -1,11 +1,11 @@
-# KiWay v2.25.0 Release Notes
+# WayriCAD v2.25.0 Release Notes
 
 ## Restored Plugin Entry Points
 
-- Every KiWay package entry point (`__init__.py`) now uses guarded imports:
+- Every WayriCAD package entry point (`__init__.py`) now uses guarded imports:
   plugins import cleanly outside KiCad, register normally inside PCB Editor,
   and never crash standalone tooling when `pcbnew` or `wx` are unavailable.
-  This restores `kiway dependencies` suite health checks, the CLI control
+  This restores `wayricad dependencies` suite health checks, the CLI control
   plane, and the full test suite on machines without a KiCad runtime.
 - Repairs the Manufacturing Readiness Manager, PDN and Decoupling Planner,
   Signal Integrity Advisor, Heater Designer, Planar Magnetics Workbench,
@@ -15,7 +15,7 @@
 
 ## Interfaces and Automation
 
-- `kiway capabilities`, `kiway run`, and `kiway serve --stdio` verified against
+- `wayricad capabilities`, `wayricad run`, and `wayricad serve --stdio` verified against
   all ten machine operations: `bulk-label.preview`, `harness.build`,
   `heater.analyze`, `magnetics.analyze`, `manufacturing.audit`,
   `pdn.analyze`, `protocol-constraints.compose`, `return-path.audit`,

@@ -1,0 +1,6 @@
+{
+  "tool": "kilo_plugin",
+  "name": "WayriCAD Localizer",
+  "module": "kilo.plugin.action_plugin",
+  "class": "KiloActionPlugin"
+}

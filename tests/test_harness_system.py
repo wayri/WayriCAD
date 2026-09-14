@@ -160,7 +160,7 @@ class HarnessSystemTests(unittest.TestCase):
         systems = build_system_signal_paths([link], loaded, include_partial=True)
         html = interactive_harness_html([link.source, link.destination], [link],
                                         [HarnessBundle("SPI-BUS", ["W00004"])], system_paths=systems)
-        self.assertIn("KiWay Interactive Harness", html)
+        self.assertIn("WayriCAD Interactive Harness", html)
         self.assertIn("wheel", html)
         self.assertIn("drag nodes", html)
         self.assertIn("SPI-BUS", html)

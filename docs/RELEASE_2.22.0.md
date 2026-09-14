@@ -1,6 +1,6 @@
-# KiWay v2.22.0
+# WayriCAD v2.22.0
 
-KiWay v2.22.0 expands the suite to 15 independently installable KiCad 10
+WayriCAD v2.22.0 expands the suite to 15 independently installable KiCad 10
 packages and standardizes their PCM and PCB Editor presentation.
 
 ## New engineering workbenches
@@ -41,7 +41,7 @@ the PCM feed. Their retained capabilities are consolidated into Pin Extractor,
 Test Point Descriptor Extractor, Harness and Cable Workbench, and the newer
 audit tools. Remove/re-add the repository URL if KiCad displays a cached entry:
 
-`https://raw.githubusercontent.com/wayri/KiWay/develop/pcm/repo.json`
+`https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json`
 
 ## Validation
 

@@ -65,7 +65,7 @@ def _bundle_rows(bundles: Iterable[HarnessBundle], links: Iterable[HarnessLink])
 def interactive_harness_html(records: list[PinRecord], links: list[HarnessLink],
                              bundles: list[HarnessBundle] = (), splices: list[HarnessSplice] = (),
                              system_paths: list[SystemSignalPath] = (),
-                             title: str = "KiWay Interactive Harness") -> str:
+                             title: str = "WayriCAD Interactive Harness") -> str:
     """Create an offline HTML report with an interactive system/harness canvas."""
     path_rows = system_signal_rows(system_paths)
     wire_rows = _wire_rows(links)

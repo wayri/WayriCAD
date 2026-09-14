@@ -1,0 +1,10 @@
+{
+  "op": "create",
+  "name": "Reviewed snapshot fields",
+  "parent": "<Default>",
+  "mode": "pinned",
+  "description": "Pinned fields/variables, not a topology archive",
+  "tags": [
+    "snapshot"
+  ]
+}

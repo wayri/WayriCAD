@@ -19,8 +19,8 @@ if pcbnew is not None:
             self.name = PRODUCT_TITLE
             self.category = "Project Dependencies"
             self.description = "Package design blocks and localize project footprints/models"
-            self.icon_file_name = str(Path(__file__).resolve().parents[2] / "icon.png")
-            self.dark_icon_file_name = self.icon_file_name
+            self.icon_file_name = str(Path(__file__).resolve().parents[2] / "resources" / "icon-24.png")
+            self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
             self.show_toolbar_button = True
 
         def Run(self) -> None:

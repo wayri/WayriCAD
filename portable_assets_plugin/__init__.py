@@ -1,4 +1,4 @@
-"""KiCad ActionPlugin entry point for KiWay Portable Assets."""
+"""KiCad ActionPlugin entry point for WayriCAD Portable Assets."""
 
 from __future__ import annotations
 

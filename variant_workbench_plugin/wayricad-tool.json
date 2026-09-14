@@ -1,0 +1,6 @@
+{
+  "tool": "variant_workbench_plugin",
+  "name": "WayriCAD Design Variant Workbench",
+  "module": "legacy_action_plugin",
+  "class": "VariantWorkbenchActionPlugin"
+}

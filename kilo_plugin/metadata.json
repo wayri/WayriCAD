@@ -1,9 +1,9 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v1",
-  "name": "Kilo — KiCad Localizer",
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Localizer",
   "description": "Package portable design blocks and localize project footprints and 3D models.",
   "description_full": "Kilo packages reusable KiCad design blocks with their footprint and 3D-model dependencies, then installs them into other projects. It can also localize an existing project into reversible project-local libraries, with validation reports, transaction history, and restore support. New data uses Kilo identifiers while legacy KiCad BlockPack packages and project state remain readable.",
-  "identifier": "kiway.kilo.localizer",
+  "identifier": "com.github.wayri.wayricad.kilo",
   "type": "plugin",
   "author": {
     "name": "Wayri (Yawar)",
@@ -17,16 +17,17 @@
       "github": "https://github.com/wayri"
     }
   },
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "resources": {
-    "homepage": "https://github.com/wayri/KiWay",
-    "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/kilo_plugin/icon.png"
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/kilo_plugin/icon.png"
   },
   "versions": [
     {
-      "version": "0.1.0",
-      "status": "stable",
-      "kicad_version": "10.0"
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
     }
   ]
 }

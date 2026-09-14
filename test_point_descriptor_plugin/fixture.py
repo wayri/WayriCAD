@@ -50,15 +50,15 @@ def generate_fixture_board(points: Iterable[FixturePoint], probe_type: str, conn
     for index,(point,x,y) in enumerate(normalized,1):
         net_name=point.net or f"UNCONNECTED_{point.reference}_{point.pad}"; connector_y=margin_mm+(index-1)*connector_pitch_mm
         ref=re.sub(r"[^A-Za-z0-9_]+","_",point.reference)
-        footprints.append(f'''  (footprint "KiWay:Probe_{ref}" (layer "F.Cu") (at {x:.4f} {y:.4f})
+        footprints.append(f'''  (footprint "WayriCAD:Probe_{ref}" (layer "F.Cu") (at {x:.4f} {y:.4f})
     (property "Reference" {quote(ref)} (at 0 -2 0) (layer "F.SilkS"))
     (property "Value" {quote(probe_type)} (at 0 2 0) (layer "F.Fab") hide)
     (pad "1" thru_hole circle (at 0 0) (size {diameter:.3f} {diameter:.3f}) (drill {drill:.3f}) (layers "*.Cu" "*.Mask") (net {index} {quote(net_name)})))''')
-        footprints.append(f'''  (footprint "KiWay:Edge_Channel_{index}" (layer "F.Cu") (at {connector_x:.4f} {connector_y:.4f})
+        footprints.append(f'''  (footprint "WayriCAD:Edge_Channel_{index}" (layer "F.Cu") (at {connector_x:.4f} {connector_y:.4f})
     (property "Reference" {quote(f"J1.{index}")} (at 0 -2 0) (layer "F.SilkS"))
     (property "Value" "Fixture edge channel" (at 0 2 0) (layer "F.Fab") hide)
     (pad {quote(str(index))} thru_hole circle (at 0 0) (size 1.8 1.8) (drill 1.0) (layers "*.Cu" "*.Mask") (net {index} {quote(net_name)})))''')
         lane_x=max_x+5.0+index*0.15
         segments.extend((f'  (segment (start {x:.4f} {y:.4f}) (end {lane_x:.4f} {y:.4f}) (width 0.25) (layer "F.Cu") (net {index}))',f'  (segment (start {lane_x:.4f} {y:.4f}) (end {lane_x:.4f} {connector_y:.4f}) (width 0.25) (layer "F.Cu") (net {index}))',f'  (segment (start {lane_x:.4f} {connector_y:.4f}) (end {connector_x:.4f} {connector_y:.4f}) (width 0.25) (layer "F.Cu") (net {index}))'))
     edge=(f'  (gr_rect (start 0 0) (end {board_width:.4f} {board_height:.4f}) (stroke (width 0.1) (type default)) (fill none) (layer "Edge.Cuts"))')
-    return '\n'.join(['(kicad_pcb (version 20240108) (generator "kiway-test-fixture")','  (general (thickness 1.6))','  (paper "A4")','  (layers (0 "F.Cu" signal) (31 "B.Cu" signal) (36 "B.SilkS" user "b.silkscreen") (37 "F.SilkS" user "f.silkscreen") (44 "Edge.Cuts" user))','  (setup (pad_to_mask_clearance 0))','  (net 0 "")',*nets,*footprints,*segments,edge,')',''])
+    return '\n'.join(['(kicad_pcb (version 20240108) (generator "wayricad-test-fixture")','  (general (thickness 1.6))','  (paper "A4")','  (layers (0 "F.Cu" signal) (31 "B.Cu" signal) (36 "B.SilkS" user "b.silkscreen") (37 "F.SilkS" user "f.silkscreen") (44 "Edge.Cuts" user))','  (setup (pad_to_mask_clearance 0))','  (net 0 "")',*nets,*footprints,*segments,edge,')',''])

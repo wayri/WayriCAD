@@ -103,13 +103,13 @@ TEXT_COLOUR = "#aab7c4"
 
 class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
     def defaults(self) -> None:
-        self.name = "KiWay Signal Integrity Advisor"
+        self.name = "WayriCAD Signal Integrity Advisor"
         self.category = "Analysis"
         self.description = "I2C pull-up recommendations and routed impedance validation."
         self.show_toolbar_button = True
-        self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.3.0"
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
+        self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
+        self.version = "3.0.0"
 
     def Run(self) -> None:
         board = pcbnew.GetBoard()
@@ -120,7 +120,7 @@ class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
 
 class SignalIntegrityFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any) -> None:
-        super().__init__(parent, title="KiWay Signal Integrity Advisor", size=(1220, 820), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="WayriCAD Signal Integrity Advisor", size=(1220, 820), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.SetMinSize((980, 700)); self.board = board; self.engine = SignalIntegrityEngine(board)
         self._build(); self._load_board(); self.Centre()
 

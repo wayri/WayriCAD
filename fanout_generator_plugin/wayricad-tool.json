@@ -1,0 +1,6 @@
+{
+  "tool": "fanout_generator_plugin",
+  "name": "WayriCAD Fanout Generator",
+  "module": "fanout_generator_plugin",
+  "class": "FanoutGeneratorPlugin"
+}

@@ -1,0 +1,6 @@
+{
+  "tool": "embed_3d_plugin",
+  "name": "WayriCAD Embed3D",
+  "module": "plugin",
+  "class": "WayriCADEmbed3DPlugin"
+}

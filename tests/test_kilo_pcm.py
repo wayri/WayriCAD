@@ -14,15 +14,15 @@ def test_kilo_pcm_metadata_and_feed_are_consistent() -> None:
     feed_entry = next(
         package
         for package in packages["packages"]
-        if package["identifier"] == "kiway.kilo.localizer"
+        if package["identifier"] == "com.github.wayri.wayricad.kilo"
     )
 
-    assert metadata["name"] == "Kilo — KiCad Localizer"
+    assert metadata["name"] == "WayriCAD Localizer"
     assert metadata["identifier"] == feed_entry["identifier"]
     assert metadata["versions"][0]["version"] == feed_entry["versions"][0]["version"]
     assert metadata["versions"][0]["kicad_version"] == "10.0"
     download_url = feed_entry["versions"][0]["download_url"]
-    assert download_url.endswith("/kilo_plugin-0.1.0.zip")
+    assert download_url.endswith("/WayriCAD-kilo-3.0.0-PCM.zip")
     repo = json.loads((ROOT / "pcm" / "repo.json").read_text(encoding="utf-8"))
     release_tag = repo["resources"]["url"].rsplit("/", 2)[-2]
     assert f"/{release_tag}/" in download_url

@@ -17,7 +17,7 @@ def _load(relative: str, name: str):
     return module
 
 
-diff_pairs = _load("trace_impedance_plugin/diff_pairs.py", "kiway_diff_pairs_test")
+diff_pairs = _load("trace_impedance_plugin/diff_pairs.py", "wayricad_diff_pairs_test")
 
 try:
     import wx  # noqa: F401
@@ -27,7 +27,7 @@ except ImportError:  # pragma: no cover - CI environments without wxPython
     _HAS_WX = False
 
 if _HAS_WX:
-    preview_kit = _load("trace_impedance_plugin/preview_kit.py", "kiway_preview_kit_test")
+    preview_kit = _load("trace_impedance_plugin/preview_kit.py", "wayricad_preview_kit_test")
 
 
 class DifferentialPairDetectionTests(unittest.TestCase):
