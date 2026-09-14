@@ -54,7 +54,7 @@ This means a missing original `.pretty` library is not fatal if the desired foot
 
 ## Installation (KiCad 10)
 
-Install **WayriCAD Portable Assets** from the WayriCAD repository in KiCad's Plugin and Content Manager. For a manual installation, copy the entire package into the KiCad ActionPlugin folder.
+Install **WayriCAD Portable Assets** from the published WayriCAD PCM feed, or choose **Install from File** and select `WayriCAD-portable-assets-3.0.0-PCM.zip`. Enable the KiCad API in Preferences → Plugins. The ZIP bundles its runtime; source installs should use the repository's `tools/install_suite.py` after building packages.
 
 Typical Windows location:
 

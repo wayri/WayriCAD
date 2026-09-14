@@ -27,10 +27,10 @@
                         "linux",
                         "macos"
                     ],
-                    "download_sha256": "7fb3e1ffa1c2e066f9cda0f45b6e2700b5fb5303c7bcd19d6e3fbd56bc79fde5",
-                    "download_size": 540003,
+                    "download_sha256": "3b2e4cdf7a2ea4dfdf90e00a19438e8ef6c5ad7d3a697b558b816577a2ff7c1a",
+                    "download_size": 540048,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-bom-studio-3.0.0-PCM.zip",
-                    "install_size": 1426498
+                    "install_size": 1426565
                 }
             ]
         },
@@ -124,10 +124,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "b376cb9668b6203260eb870bf5abd26897a8a8c33dea5d11c21e5d25cba3d4db",
-                    "download_size": 444004,
+                    "download_sha256": "66f87e6e026a1904ae21239576b2fcdb0b9c8a2a11f53f416713d0f8b20ed0db",
+                    "download_size": 444122,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-extract-pins-3.0.0-PCM.zip",
-                    "install_size": 1031515,
+                    "install_size": 1031728,
                     "platforms": [
                         "windows",
                         "linux",
@@ -396,10 +396,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "31557d1be780246996a4c55569dc1575723f50cf2709de7b363a515bba754387",
-                    "download_size": 151852,
+                    "download_sha256": "c601d57ec78d63c1bae5b4b38167c87f7f12cd1e8d9a25027cb20054d13838ed",
+                    "download_size": 151941,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-portable-assets-3.0.0-PCM.zip",
-                    "install_size": 287243,
+                    "install_size": 287383,
                     "platforms": [
                         "windows",
                         "linux",
@@ -600,10 +600,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "bf6eb9f65d4af48485270a998f1bc7e07be39ccf99501245ad197672594b4951",
-                    "download_size": 185662,
+                    "download_sha256": "4c59c943e870551ce6b4655d2c931f1b67233e6acd1b09dc51bf84d012e3a34d",
+                    "download_size": 185657,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-variant-workbench-3.0.0-PCM.zip",
-                    "install_size": 462078,
+                    "install_size": 462065,
                     "platforms": [
                         "windows",
                         "linux",

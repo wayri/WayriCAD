@@ -338,6 +338,21 @@ class AnalyticsPipelineTests(Fixture):
   a.configure(self.ws,{'metrics':['mass']});c=self.config();c['analytics']=None;automation.pipeline(self.ws,c,self.dir/'run');r=json.loads((self.dir/'run/001/analytics.json').read_text());self.assertEqual(r['config']['metrics'],['mass'])
 
 class AnalyticsSampleLaunchTests(unittest.TestCase):
+ def test_demo_identity_normalizes_temporary_path_alias(self):
+  import tempfile
+  from bomstudio.server import Application
+  from bomstudio import engineering_demo
+  with tempfile.TemporaryDirectory(prefix='wayricad-demo-identity-') as directory:
+   root=Path(directory).resolve();alias=root.parent/'..'/root.parent.name/root.name
+   with patch('bomstudio.server.tempfile.mkdtemp',return_value=str(alias)):
+    app=Application(demo=True)
+   try:
+    self.assertEqual(app.demo_directory,root)
+    self.assertTrue(app.state()['demo'])
+    app.demo_directory=alias
+    engineering_demo.prepare(app)
+    self.assertTrue(Path(app.library_path,'catalog.sqlite3').is_file())
+   finally:app.link.close()
  def test_analytics_sample_is_temporary_and_preconfigured(self):
   import shutil
   from bomstudio.server import Application, ROOT

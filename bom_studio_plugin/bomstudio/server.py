@@ -43,7 +43,7 @@ class Application:
                 self.startup_note='Saved PCB project discovered/linked from KiCad launch context. Schematic relay and focus remain host-unverified.'
             except Exception as exc:self.startup_note='Automatic live link unavailable: '+str(exc)
     def open_demo(self,analytics_demo=False):
-        directory=Path(tempfile.mkdtemp(prefix='wayricad-bom-demo-'))
+        directory=Path(tempfile.mkdtemp(prefix='wayricad-bom-demo-')).resolve()
         shutil.copytree(ROOT/'examples'/('analytics' if analytics_demo else ''),directory,dirs_exist_ok=True)
         self.demo_directory=directory;self.workspace=Workspace(Project(directory/'BOM_Demo.kicad_pro'))
         if analytics_demo:

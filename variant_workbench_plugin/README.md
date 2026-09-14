@@ -387,7 +387,7 @@ The GUI was also smoke-launched under a virtual X display during packaging. This
 
 ---
 
-## Intentional limitations in 0.5.0
+## Current limitations
 
 - KiCad 10 focused.
 - PCB Sync Audit is read-only.

@@ -18,12 +18,22 @@ Transform { translation -0.7 0 0 children [ USE Body ] }
 '''
 
 def zstd(raw):
- z=ctypes.CDLL(ctypes.util.find_library('zstd'));z.ZSTD_compressBound.argtypes=[ctypes.c_size_t];z.ZSTD_compressBound.restype=ctypes.c_size_t;size=z.ZSTD_compressBound(len(raw));out=ctypes.create_string_buffer(size);source=ctypes.create_string_buffer(raw);z.ZSTD_compress.argtypes=[ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_int];z.ZSTD_compress.restype=ctypes.c_size_t;n=z.ZSTD_compress(out,size,source,len(raw),3);return out.raw[:n]
+ try:
+  import zstandard
+ except ImportError:
+  name=ctypes.util.find_library('zstd')
+  if not name:raise RuntimeError('Install the declared zstandard dependency to run embedded-asset tests.')
+  z=ctypes.CDLL(name);z.ZSTD_compressBound.argtypes=[ctypes.c_size_t];z.ZSTD_compressBound.restype=ctypes.c_size_t;size=z.ZSTD_compressBound(len(raw));out=ctypes.create_string_buffer(size);source=ctypes.create_string_buffer(raw);z.ZSTD_compress.argtypes=[ctypes.c_void_p,ctypes.c_size_t,ctypes.c_void_p,ctypes.c_size_t,ctypes.c_int];z.ZSTD_compress.restype=ctypes.c_size_t;n=z.ZSTD_compress(out,size,source,len(raw),3);return out.raw[:n]
+ return zstandard.ZstdCompressor(level=3).compress(raw)
 
 def embedded(name,raw,checksum=None):
  return '(embedded_files (file (name '+quote(name)+') (type model) (data |\n'+base64.b64encode(zstd(raw)).decode()+'\n|) (checksum '+quote(checksum or a.sha(raw))+')))'
 
 class Assets(EngFixture):
+ @unittest.skipUnless(importlib.util.find_spec('zstandard'), 'Python Zstandard package not installed in this test interpreter')
+ def test_python_decoder_does_not_require_system_library(self):
+  with patch('ctypes.util.find_library',return_value=None),patch('ctypes.CDLL',side_effect=AssertionError('No host DLL should be loaded')):
+   self.assertEqual(a.zstd_decode(zstd(WRL)),WRL)
  def test_explicit_workspace_library_overrides_installed_table(self):
   fp,_=self.setup_assets()
   cfg=self.dir/'config/kicad/10.0';cfg.mkdir(parents=True)
