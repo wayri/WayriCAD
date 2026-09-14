@@ -60,6 +60,8 @@ Fanout supports selected-footprint and detected net-class scope, a selectable ou
 
 ## CLI
 
+Advanced fanout adds 45°/custom-angle spread, straight-then-angled escapes, staggered rows and paired escape review. Signal-family presets cover DDR, GDDR, SERDES, PCI/PCIe, PXI/PXIe and LVDS; editable net filters and selected-netclass dimensions keep the operation specific to your board. See the [advanced fanout guide](docs/ADVANCED_FANOUT.md) for pair gap/skew behavior and examples.
+
 Install the source CLI with `python -m pip install -e .`. `wayricad --help` and `wayricad capabilities` describe the document and automation interfaces. [CLI guide](docs/CLI_USER_GUIDE.md).
 
 Routing uses KiCad 10's Python interpreter (the interpreter that can import `pcbnew`):

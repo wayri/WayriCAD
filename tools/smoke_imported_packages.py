@@ -15,7 +15,7 @@ def main():
         root = Path(temporary)
         with zipfile.ZipFile(wheel) as archive:
             archive.extractall(root)
-        modules = ('copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
+        modules = ('wayricad_runtime.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
                    'visual_diff_plugin.kicad_vizdiff.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'
@@ -29,6 +29,11 @@ def main():
         script = '''import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
+from argparse import Namespace
+from wayricad_runtime.cli import execute
+settings=execute(Namespace(kind='fanout',operation='settings',board=None))
+assert 'Custom-angle spread' in settings['choices']['pattern']
+assert 'PCIe' in settings['profiles']
 from visual_diff_plugin.kicad_vizdiff.cli import write_report
 output = Path(sys.argv[1]) / 'review.html'
 write_report(output, {'pages': [], 'file': 'board.kicad_pcb'})

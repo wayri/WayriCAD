@@ -1,8 +1,10 @@
-"""Conservative radial fanout generator for selected/all SMD pads."""
+"""Reviewed pad escapes with adjustable angles and differential-pair geometry."""
 
 from __future__ import annotations
 
 import os
+import hashlib
+import json
 from typing import Any, List, Tuple
 
 import pcbnew
@@ -26,15 +28,15 @@ except ImportError:
 
 
 try:
-    from .wayricad_runtime.routing import plan_fanout, fanout_items, FanoutPlan
+    from .wayricad_runtime.routing import plan_fanout, fanout_items, FanoutPlan, project_netclasses
 except ImportError:
-    from wayricad_runtime.routing import plan_fanout, fanout_items, FanoutPlan
+    from wayricad_runtime.routing import plan_fanout, fanout_items, FanoutPlan, project_netclasses
 
 class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
     def defaults(self) -> None:
         self.name = "WayriCAD Fanout Generator"
         self.category = "Routing"
-        self.description = "Generate conservative radial fanout tracks from SMD pads."
+        self.description = "Preview angled, staggered and paired pad escapes before applying them."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-dark-24.png")
@@ -97,18 +99,39 @@ class FanoutFrame(wx.Frame):
         return refs
 
     def _plan(self):
-        settings = {name: getattr(self, name).GetValue() for name in self._settings_names}
+        settings = self._settings_snapshot()
         plans, self.plan_rejections = plan_fanout(self.board, pcbnew, settings)
         return plans
+
+    def _settings_snapshot(self):
+        return {name:getattr(self,name).GetValue() for name in self._settings_names}
+
+    def _rules_fingerprint(self):
+        canonical=json.dumps(project_netclasses(self.board),sort_keys=True,separators=(',',':'),ensure_ascii=True)
+        return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+    def _assert_preview_current(self, ignored=()):
+        if self._settings_snapshot()!=self.preview_settings:
+            raise ValueError('Settings changed. Create a fresh preview.')
+        if self._rules_fingerprint()!=self.preview_rules_fingerprint:
+            raise ValueError('Project netclass rules changed. Create a fresh preview.')
+        if board_fingerprint(self.board,ignored)!=self.preview_fingerprint:
+            raise ValueError('Board changed. Create a fresh preview.')
 
     def preview(self, _event: Any, silent: bool = False) -> None:
         try:
             self.clear_preview(None)
+            self.preview_settings=self._settings_snapshot()
+            self.preview_rules_fingerprint=self._rules_fingerprint()
             self.preview_plan = self._plan()
             self.geometry_preview.set_board(self.board, pcbnew)
             self.preview_fingerprint = board_fingerprint(self.board)
+            self._assert_preview_current()
             lines = []
             points = []
+            line_widths = []
+            point_diameters = []
+            point_drills = []
             pads = []
             outlines = []
             seen_footprints = set()
@@ -120,20 +143,24 @@ class FanoutFrame(wx.Frame):
                 start = pad.GetPosition()
                 pads.append((pcbnew.ToMM(start.x), pcbnew.ToMM(start.y)))
                 if plan.add_track:
-                    lines.append((pcbnew.ToMM(start.x), pcbnew.ToMM(start.y), pcbnew.ToMM(end.x), pcbnew.ToMM(end.y)))
+                    for a,b in zip(plan.path,plan.path[1:]):
+                        lines.append((pcbnew.ToMM(a.x),pcbnew.ToMM(a.y),pcbnew.ToMM(b.x),pcbnew.ToMM(b.y)))
+                        line_widths.append(pcbnew.ToMM(plan.width))
                 if plan.start_via:
                     points.append((pcbnew.ToMM(start.x), pcbnew.ToMM(start.y)))
+                    point_diameters.append(pcbnew.ToMM(plan.via_diameter));point_drills.append(pcbnew.ToMM(plan.via_drill))
                 if plan.add_via:
                     points.append((pcbnew.ToMM(end.x), pcbnew.ToMM(end.y)))
+                    point_diameters.append(pcbnew.ToMM(plan.via_diameter));point_drills.append(pcbnew.ToMM(plan.via_drill))
                 index = self.preview_list.InsertItem(self.preview_list.GetItemCount(), str(fp.GetReference()))
                 result_kind = "Via in pad" if not plan.add_track else ("Track + via" if plan.add_via or plan.start_via else "Track")
-                values = (str(pad.GetNumber()), str(pad.GetNetname()), str(self.board.GetLayerName(plan.layer)), f"{result_kind} | {plan.pattern}")
+                values = (str(pad.GetNumber()), str(pad.GetNetname()), str(self.board.GetLayerName(plan.layer)), f"{result_kind} | {plan.pattern}",f"{plan.length_mm:.3f}",plan.pair_id or '—')
                 for column, value in enumerate(values, 1):
                     self.preview_list.SetItem(index, column, value)
             self.geometry_preview.set_geometry(lines, points, pads=pads, outlines=outlines,
-                point_diameters=[float(self.via_diameter.GetValue())] * len(points),
-                point_drills=[float(self.via_drill.GetValue())] * len(points),
-                line_widths=[pcbnew.ToMM(plan.width) for plan in self.preview_plan if plan.add_track],
+                point_diameters=point_diameters,
+                point_drills=point_drills,
+                line_widths=line_widths,
                 pad_sizes=[(pcbnew.ToMM(plan.pad.GetSize().x),pcbnew.ToMM(plan.pad.GetSize().y),-float(plan.pad.GetOrientationDegrees())) for plan in self.preview_plan])
             self.preview_items = fanout_items(self.board, pcbnew, self.preview_plan)
             self.show_button.Enable(bool(self.preview_plan))
@@ -141,7 +168,8 @@ class FanoutFrame(wx.Frame):
             for rejection in self.plan_rejections:
                 index=self.preview_list.InsertItem(self.preview_list.GetItemCount(), "Rejected")
                 self.preview_list.SetItem(index,4,rejection)
-            self.status.SetLabel(f"Preview: {len(self.preview_plan)} accepted, {len(self.plan_rejections)} rejected. " + '; '.join(self.plan_rejections[:3]))
+            pair_count=len({p.pair_id for p in self.preview_plan if p.pair_id})
+            self.status.SetLabel(f"Preview: {len(self.preview_plan)} escapes, {pair_count} pairs, {len(self.plan_rejections)} rejected. " + '; '.join(self.plan_rejections[:2]))
             if not self.preview_plan and not silent:
                 wx.MessageBox("No fanouts accepted. Inspect rejection reasons, pad scope, and dimensions.", "No fanout preview", wx.OK | wx.ICON_INFORMATION)
         except Exception as exc:
@@ -155,7 +183,7 @@ class FanoutFrame(wx.Frame):
             return
         try:
             self.clear_pcb_preview()
-            if board_fingerprint(self.board)!=self.preview_fingerprint:raise ValueError("Board changed. Create a fresh preview.")
+            self._assert_preview_current()
             self.preview_items = fanout_items(self.board, pcbnew, self.preview_plan)
             select_items(self.board, [p.pad for p in self.preview_plan])
             if hasattr(pcbnew, "Refresh"):
@@ -214,7 +242,7 @@ class FanoutFrame(wx.Frame):
                 wx.MessageBox("Create and inspect a preview before committing.", "Preview required", wx.OK | wx.ICON_INFORMATION)
                 return
             created = list(self.preview_items)
-            if board_fingerprint(self.board,self.preview_items)!=self.preview_fingerprint:raise ValueError("Board changed. Clear and regenerate the preview before committing.")
+            self._assert_preview_current(self.preview_items)
             group = self._new_commit_group(created)
             self.preview_items = []
             self.preview_plan = []
@@ -267,14 +295,28 @@ class FanoutFrame(wx.Frame):
         pcbnew.Refresh()
         self.status.SetLabel(f"Restored {len(items)} items.")
 
-    def on_config_changed(self, _event: Any) -> None:
+    def _update_controls(self) -> None:
         via_in_pad = self.output_mode.GetValue() == "Via-in-pad"
         forced = self.pattern.GetValue().startswith("Dogbone") or via_in_pad
         self.pattern.Enable(not via_in_pad)
-        for control in (self.width,self.length,self.angle_offset,self.offset_x,self.offset_y):control.Enable(not via_in_pad)
+        for control in (self.length,self.angle_mode,self.escape_angle,self.launch_length,self.stagger_pitch,self.angle_offset,self.offset_x,self.offset_y,self.pair_mode):control.Enable(not via_in_pad)
+        netclass_rules=self.use_netclass_rules.GetValue()
+        self.width.Enable(not via_in_pad and not netclass_rules)
+        self.via_diameter.Enable(not netclass_rules);self.via_drill.Enable(not netclass_rules)
+        self.clearance.Enable(not netclass_rules)
+        paired=self.pair_mode.GetValue()!='Independent' and not via_in_pad
+        self.pair_gap.Enable(paired and not netclass_rules);self.max_pair_skew.Enable(paired)
+        angle_used=self.angle_mode.GetValue()!='Pattern' or self.pattern.GetValue() in ('Custom-angle spread','Straight + angled escape')
+        self.escape_angle.Enable(not via_in_pad and angle_used)
+        self.escape_angle.Show(not via_in_pad and angle_used);self.angle_label.Show(not via_in_pad and angle_used)
+        self.angle_label.SetLabel({'Pattern':'Spread angle (degrees)','Board absolute':'Board angle (degrees)','Footprint relative':'Footprint angle (degrees)'}[self.angle_mode.GetValue()])
+        self.escape_angle.GetParent().FitInside();self.Layout()
         self.escape_layer.Enable(not via_in_pad)
         self.add_vias.Enable(not forced)
         if forced: self.add_vias.SetValue(True)
+
+    def on_config_changed(self, _event: Any) -> None:
+        self._update_controls()
         self.clear_preview(None)
         self.status.SetLabel("Settings changed; create a fresh preview before committing.")
 
