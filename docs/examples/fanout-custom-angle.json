@@ -1,0 +1,12 @@
+{
+  "scope": "Reference wildcard",
+  "ref": "U1",
+  "pattern": "Straight + angled escape",
+  "angle_mode": "Pattern",
+  "escape_angle": 30,
+  "length": 2.5,
+  "launch_length": 0.6,
+  "add_vias": true,
+  "via_diameter": 0.6,
+  "via_drill": 0.3
+}

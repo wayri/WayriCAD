@@ -1,0 +1,18 @@
+{
+  "signal_profile": "PCIe",
+  "scope": "Reference wildcard",
+  "ref": "U1",
+  "net_filter": "*TX*P,*TX*N,*RX*P,*RX*N",
+  "pair_mode": "Auto differential pairs",
+  "pattern": "Straight + angled escape",
+  "angle_mode": "Board absolute",
+  "escape_angle": 0,
+  "length": 3.0,
+  "launch_length": 0.7,
+  "width": 0.15,
+  "pair_gap": 0.2,
+  "clearance": 0.15,
+  "max_pair_skew": 0.05,
+  "add_vias": false,
+  "escape_layer": "Pad layer"
+}

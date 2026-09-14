@@ -4,10 +4,12 @@ Conservative bounding-box obstacle checks supplement, but do not replace, KiCad 
 No wx import, file writes, or board mutation occurs during planning.
 """
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, List, Tuple, Set, Dict
 import math
 import fnmatch
+import re
+from .fanout_profiles import FANOUT_PATTERNS, SIGNAL_PROFILES, ANGLE_MODES, PAIR_MODES, profile_defaults
 from .geometry import (dimensions, positive, inside_native, segment_hits_box,
                        segment_segment_distance, segment_inside_native, item_id)
 
@@ -29,6 +31,9 @@ class FanoutPlan:
     layer: int = 0
     net_code: int = 0
     start_via: bool = False
+    path: list = field(default_factory=list)
+    pair_id: str = ""
+    length_mm: float = 0.0
 
 
 
@@ -84,12 +89,15 @@ def copper_layer_names(board):
 
 
 class FanoutPlanner:
-    defaults = {'scope': 'All SMD pads', 'ref': '*', 'width': 0.2, 'length': 1.5, 'via_diameter': 0.6, 'via_drill': 0.3, 'pattern': 'Dogbone outward', 'angle_offset': 0, 'offset_x': 0, 'offset_y': 0, 'clearance': 0.2, 'add_vias': True, 'escape_layer': 'Pad layer', 'output_mode': 'Escape traces', 'netclass_filter': 'All netclasses'}
+    defaults = {'scope': 'All SMD pads', 'ref': '*', 'width': 0.2, 'length': 1.5, 'via_diameter': 0.6, 'via_drill': 0.3, 'pattern': 'Dogbone outward', 'angle_offset': 0, 'offset_x': 0, 'offset_y': 0, 'clearance': 0.2, 'add_vias': True, 'escape_layer': 'Pad layer', 'output_mode': 'Escape traces', 'netclass_filter': 'All netclasses', 'escape_angle': 45.0, 'angle_mode': 'Pattern', 'launch_length': 0.5, 'stagger_pitch': 0.5, 'signal_profile': 'Generic', 'net_filter': '*', 'pair_mode': 'Independent', 'pair_gap': 0.2, 'max_pair_skew': 0.1, 'use_netclass_rules': False}
     def __init__(self, board, api, settings):
         unknown = set(settings) - set(self.defaults)
         if unknown: raise ValueError('Unknown routing settings: ' + ', '.join(sorted(unknown)))
         self.board, self.api = board, api
-        self.settings = dict(self.defaults, **settings)
+        self.settings = dict(self.defaults)
+        if "signal_profile" in settings:
+            self.settings.update(profile_defaults(settings["signal_profile"]))
+        self.settings.update(settings)
 
     def _layer(self, pad: Any) -> int:
         choice = self.settings["escape_layer"]
@@ -132,6 +140,8 @@ class FanoutPlanner:
             if scope == "Reference wildcard" and not any(fnmatch.fnmatchcase(ref.upper(), pattern) for pattern in patterns):
                 continue
             for pad in fp.Pads():
+                if not any(fnmatch.fnmatchcase(str(pad.GetNetname()), pattern.strip()) for pattern in str(self.settings["net_filter"]).split(",") if pattern.strip()):
+                    continue
                 if not pad_in_netclass(pad,self.settings["netclass_filter"],classes):
                     continue
                 if pad.GetAttribute() != self.api.PAD_ATTRIB_SMD:
@@ -157,8 +167,8 @@ class FanoutPlanner:
             angle = math.atan2(1.0 if dy >= 0 else -1.0, 1.0 if dx >= 0 else -1.0)
         elif pattern.startswith("Four-corner"):
             box = fp.GetBoundingBox()
-            corner_x = box.GetRight() if dx >= 0 else box.GetLeft()
-            corner_y = box.GetBottom() if dy >= 0 else box.GetTop()
+            corner_x = box.GetRight() if pos.x >= center.x else box.GetLeft()
+            corner_y = box.GetBottom() if pos.y >= center.y else box.GetTop()
             angle = math.atan2(_coord(corner_y) - _coord(pos.y), _coord(corner_x) - _coord(pos.x))
         elif pattern.startswith("BGA/LGA"):
             angle = math.atan2(1 if dy>=0 else -1,1 if dx>=0 else -1)
@@ -173,97 +183,281 @@ class FanoutPlanner:
         return angle + (0 if pattern.startswith("Four-corner") else rotation) + (math.pi if inward else 0.0)
 
 
+    def _outward(self, fp, pad):
+        """Dominant footprint-local edge normal and signed tangent."""
+        rotation = -math.radians(float(getattr(fp, 'GetOrientationDegrees', lambda: 0)()))
+        pos, center = pad.GetPosition(), fp.GetPosition()
+        dx, dy = pos.x-center.x, pos.y-center.y
+        x = math.cos(rotation)*dx + math.sin(rotation)*dy
+        y = -math.sin(rotation)*dx + math.cos(rotation)*dy
+        # Native rotation rounds positions to integer units; stabilize edge
+        # tangent choice for pads on the footprint's local centerline.
+        if abs(x) < 1: x = 0.0
+        if abs(y) < 1: y = 0.0
+        if abs(x) >= abs(y):
+            normal = 0.0 if x >= 0 else math.pi
+            tangent = (1 if y >= 0 else -1) * (1 if x >= 0 else -1)
+        else:
+            normal = math.pi/2 if y >= 0 else -math.pi/2
+            tangent = (-1 if x >= 0 else 1) * (1 if y >= 0 else -1)
+        return normal + rotation, tangent
+
+    def _direction(self, fp, pad, pattern):
+        normal, sign = self._outward(fp, pad)
+        mode = self.settings['angle_mode']
+        angle = math.radians(float(self.settings['escape_angle']))
+        if mode == 'Board absolute':
+            result = angle
+        elif mode == 'Footprint relative':
+            result = angle - math.radians(float(fp.GetOrientationDegrees()))
+        elif pattern in ('45-degree spread', 'Custom-angle spread', 'Straight + angled escape'):
+            result = normal + sign * (math.pi/4 if pattern == '45-degree spread' else angle)
+        elif pattern == 'Staggered rows':
+            result = normal
+        else:
+            result = self._escape_angle(pattern, fp, pad)
+        return result + math.radians(float(self.settings['angle_offset']))
+
+    @staticmethod
+    def _pair_key(net):
+        # Case and suffix style are significant, matching named PCB nets.
+        # P/N and +/- are KiCad's naming convention; delimited T/C is an
+        # explicit convenience for memory clocks/strobes.
+        match = re.fullmatch(r'(.+?)([PN+-])', str(net))
+        if match:
+            stem,polarity=match.groups()
+            return (stem, 'PN' if polarity in 'PN' else '+-'),polarity
+        match = re.fullmatch(r'(.+[_./-])([TCtc])', str(net))
+        if match:
+            stem,polarity=match.groups()
+            return (stem,'TC' if polarity in 'TC' else 'tc'),polarity
+        return None
+
+    def _groups(self, eligible):
+        if self.settings['pair_mode'] == 'Independent':
+            return [([entry], '') for entry in eligible]
+        buckets = {}
+        for fp, pad in eligible:
+            parsed = self._pair_key(pad.GetNetname())
+            if not parsed:
+                self.plan_rejections.append(f'{fp.GetReference()}.{pad.GetNumber()}: no strict differential suffix (P/N, T/C or +/-)')
+                continue
+            key, polarity = parsed
+            buckets.setdefault((item_id(fp), key), []).append((fp, pad, polarity))
+        groups = []
+        for (_fp_id, (stem, family)), members in buckets.items():
+            pair_id = f'{members[0][0].GetReference()}:{stem}[{family}]'
+            if len(members) != 2 or {row[2] for row in members} != set(family):
+                for fp, pad, _ in members:
+                    self.plan_rejections.append(f'{fp.GetReference()}.{pad.GetNumber()}: missing or ambiguous differential mate within filtered footprint')
+                continue
+            groups.append(([(fp, pad) for fp, pad, _ in members], pair_id))
+        return groups
+
+    def _dimensions(self):
+        values = dict(self.settings)
+        if values['use_netclass_rules']:
+            choice = values['netclass_filter']
+            if choice == 'All netclasses':
+                raise ValueError('Choose one netclass before loading its routing dimensions.')
+            classes = project_netclasses(self.board).get('classes', [])
+            matches = [row for row in classes if row.get('name') == choice]
+            if len(matches) != 1:
+                raise ValueError('Selected netclass dimensions are unavailable in the saved project.')
+            rule = matches[0]
+            paired = values['pair_mode'] != 'Independent'
+            for dest, source in [('width', 'diff_pair_width' if paired else 'track_width'),
+                                 ('via_diameter', 'via_diameter'), ('via_drill', 'via_drill'),
+                                 ('clearance', 'clearance')]:
+                if source not in rule:
+                    raise ValueError('Selected netclass lacks ' + source + '.')
+                values[dest] = rule[source]
+            if paired:
+                if 'diff_pair_gap' not in rule:
+                    raise ValueError('Selected netclass lacks diff_pair_gap.')
+                values['pair_gap'] = rule['diff_pair_gap']
+        dimensions(values['width'], values['length'], values['via_diameter'], values['via_drill'])
+        for name in ('clearance', 'pair_gap', 'max_pair_skew', 'stagger_pitch'):
+            positive(values[name], name, True)
+        positive(values['launch_length'], 'Launch length')
+        for name in ('escape_angle', 'angle_offset', 'offset_x', 'offset_y'):
+            if not math.isfinite(float(values[name])):
+                raise ValueError(name + ' must be finite.')
+        if not 0 <= float(values['escape_angle']) <= 360:
+            raise ValueError('Escape angle must be between 0 and 360 degrees.')
+        if values['angle_mode'] == 'Pattern' and values['pattern'] in ('Custom-angle spread', 'Straight + angled escape') and float(values['escape_angle']) >= 90:
+            raise ValueError('Outward spread angle must be less than 90 degrees; use an absolute angle for other directions.')
+        return values
+
+    def _candidate(self, fp, pad, path, values, pattern, pair_id=''):
+        via_in_pad = pattern == 'Via-in-pad'
+        start = self.api.VECTOR2I(pad.GetPosition().x, pad.GetPosition().y)
+        layer = self._layer(pad)
+        return FanoutPlan(fp, pad, path[-1], self.api.FromMM(float(values['width'])),
+                          self.api.FromMM(float(values['via_diameter'])), self.api.FromMM(float(values['via_drill'])),
+                          add_track=not via_in_pad, add_via=via_in_pad or pattern.startswith('Dogbone') or bool(values['add_vias']),
+                          pattern=pattern, start=start, layer=layer, net_code=pad.GetNetCode(),
+                          start_via=not via_in_pad and layer != pad.GetLayer(), path=path, pair_id=pair_id,
+                          length_mm=sum(math.hypot(b.x-a.x, b.y-a.y) for a,b in zip(path,path[1:])) / 1_000_000)
+
+    def _paths(self, group, pair_id, values, pattern, row_index):
+        def point(x, y): return self.api.VECTOR2I(int(round(x)), int(round(y)))
+        length = self.api.FromMM(float(values['length']))
+        launch = self.api.FromMM(float(values['launch_length']))
+        ox, oy = (self.api.FromMM(float(values[name])) for name in ('offset_x','offset_y'))
+        if pattern == 'Via-in-pad':
+            return [[point(p.GetPosition().x,p.GetPosition().y)] for _,p in group]
+        if pair_id:
+            angles = [self._direction(fp,pad,pattern) for fp,pad in group]
+            vx,vy = sum(math.cos(a) for a in angles),sum(math.sin(a) for a in angles)
+            if math.hypot(vx,vy) < 1.0:
+                raise ValueError('pair pads escape in opposing directions; choose a common absolute angle')
+            if pattern in ('45-degree spread', 'Custom-angle spread', 'Straight + angled escape'):
+                midpoint = point(sum(pad.GetPosition().x for _,pad in group)/2,
+                                 sum(pad.GetPosition().y for _,pad in group)/2)
+                class PairCenter:
+                    def GetPosition(self):return midpoint
+                angle = self._direction(group[0][0], PairCenter(), pattern)
+            else:
+                angle = math.atan2(vy,vx)
+            ux,uy,nx,ny = math.cos(angle),math.sin(angle),-math.sin(angle),math.cos(angle)
+            positions = [pad.GetPosition() for _,pad in group]
+            cx,cy = sum(p.x for p in positions)/2,sum(p.y for p in positions)/2
+            projections = [(p.x-cx)*nx+(p.y-cy)*ny for p in positions]
+            if abs(projections[0]-projections[1]) < 1:
+                raise ValueError('pair pads align with escape direction; choose a direction across the pad pair')
+            gap = self.api.FromMM(float(values['width'])+float(values['pair_gap']))
+            terminal_gap = max(gap, self.api.FromMM(float(values['via_diameter'])+float(values['clearance'])) + 2) if values['add_vias'] or pattern.startswith('Dogbone') else gap
+            flare = (terminal_gap-gap)/2
+            forward_launch = max((p.x-cx)*ux+(p.y-cy)*uy for p in positions)+launch
+            if length <= forward_launch+flare:
+                raise ValueError('pair escape length must exceed launch length plus via flare')
+            paths=[]
+            for pos, projection in zip(positions,projections):
+                sign = -1 if projection == min(projections) else 1
+                lane = sign*gap/2
+                path=[point(pos.x,pos.y),point(cx+ux*forward_launch+nx*lane+ox,cy+uy*forward_launch+ny*lane+oy),
+                      point(cx+ux*(length-flare)+nx*lane+ox,cy+uy*(length-flare)+ny*lane+oy)]
+                if flare:
+                    lane=sign*terminal_gap/2
+                    path.append(point(cx+ux*length+nx*lane+ox,cy+uy*length+ny*lane+oy))
+                paths.append(path)
+            return paths
+        fp,pad=group[0]
+        pos=pad.GetPosition()
+        angle=self._direction(fp,pad,pattern)
+        path=[point(pos.x,pos.y)]
+        x,y=pos.x,pos.y
+        if pattern=='Straight + angled escape':
+            if length <= launch:raise ValueError('Escape length must exceed launch length.')
+            normal,_=self._outward(fp,pad)
+            x,y=x+math.cos(normal)*launch,y+math.sin(normal)*launch
+            path.append(point(x,y))
+            length-=launch
+        if pattern=='Staggered rows':
+            length += self.api.FromMM(float(values['stagger_pitch']))*(row_index%2)
+        path.append(point(x+math.cos(angle)*length+ox,y+math.sin(angle)*length+oy))
+        return [path]
+
+    @staticmethod
+    def _segments(plan):
+        points=plan.path or [plan.start,plan.end]
+        return list(zip(points,points[1:])) if plan.add_track else []
+
+    @staticmethod
+    def _on_layer(item, layer):
+        getter=getattr(item,'IsOnLayer',None)
+        if getter:return bool(getter(layer))
+        getter=getattr(item,'GetLayer',None)
+        return getter() == layer if getter else True
+
+    def _blocked(self, plan, accepted, pads, tracks, zones, outline, margin):
+        segments=self._segments(plan)
+        vias=([plan.start] if plan.start_via else [])+([plan.end] if plan.add_via else [])
+        # Drill overlap is unsafe even when the existing via has the same net.
+        for item in tracks:
+            if 'VIA' in str(getattr(item,'GetClass',lambda:'')()):
+                if any(segment_hits_box(v,v,item.GetBoundingBox(),plan.via_diameter/2+margin) for v in vias):
+                    return 'existing via overlap'
+        obstacles=[item for item in pads+tracks if item.GetNetCode()!=plan.net_code]
+        for item in obstacles:
+            box=item.GetBoundingBox()
+            if any(segment_hits_box(v,v,box,plan.via_diameter/2+margin) for v in vias):
+                return 'via clearance to other-net copper'
+            if self._on_layer(item,plan.layer) and any(segment_hits_box(a,b,box,plan.width/2+margin) for a,b in segments):
+                return 'other-net copper'
+        if any(not segment_inside_native(a,b,plan.width/2+margin,outline) for a,b in segments):
+            return 'board edge/cutout'
+        if any(not inside_native(v,plan.via_diameter/2+margin,outline) for v in vias):
+            return 'via near board edge/cutout'
+        for zone in zones:
+            rule=zone.GetIsRuleArea()
+            blocked_via=zone.GetDoNotAllowVias() if rule else zone.GetNetCode()!=plan.net_code
+            blocked_track=zone.GetDoNotAllowTracks() if rule else zone.GetNetCode()!=plan.net_code
+            box=zone.GetBoundingBox()
+            if blocked_via and any(segment_hits_box(v,v,box,plan.via_diameter/2+margin) for v in vias):return 'zone/keepout'
+            if blocked_track and self._on_layer(zone,plan.layer) and any(segment_hits_box(a,b,box,plan.width/2+margin) for a,b in segments):return 'zone/keepout'
+        def distance(a,b,c,d):return segment_segment_distance((a.x,a.y),(b.x,b.y),(c.x,c.y),(d.x,d.y))
+        for other in accepted:
+            other_vias=([other.start] if other.start_via else [])+([other.end] if other.add_via else [])
+            if any(math.hypot(a.x-b.x,a.y-b.y)<(plan.via_diameter+other.via_diameter)/2+margin for a in vias for b in other_vias):
+                return 'generated via overlap'
+            if other.net_code==plan.net_code:continue
+            other_segments=self._segments(other)
+            if plan.layer==other.layer and any(distance(a,b,c,d)<(plan.width+other.width)/2+margin-2 for a,b in segments for c,d in other_segments):return 'generated copper collision'
+            if any(distance(v,v,a,b)<(plan.via_diameter+other.width)/2+margin-2 for v in vias for a,b in other_segments):return 'generated via/track collision'
+            if any(distance(v,v,a,b)<(other.via_diameter+plan.width)/2+margin-2 for v in other_vias for a,b in segments):return 'generated via/track collision'
+        return ''
+
     def _plan(self) -> List[FanoutPlan]:
-        try:
-            dimensions(self.settings["width"],self.settings["length"],self.settings["via_diameter"],self.settings["via_drill"])
-            width = self.api.FromMM(float(self.settings["width"]))
-            length = self.api.FromMM(float(self.settings["length"]))
-            via_diameter = self.api.FromMM(float(self.settings["via_diameter"]))
-            via_drill = self.api.FromMM(float(self.settings["via_drill"]))
-        except (TypeError, ValueError) as exc:
-            raise ValueError(str(exc)) from exc
-        result: List[FanoutPlan] = []
-        if self.settings["output_mode"] not in ("Escape traces","Via-in-pad"):raise ValueError("Unknown output mode.")
-        pattern = "Via-in-pad" if self.settings["output_mode"]=="Via-in-pad" else self.settings["pattern"]
-        offsets=[float(self.settings[name]) for name in ('angle_offset','offset_x','offset_y','clearance')]
-        if not all(math.isfinite(x) for x in offsets) or offsets[3]<0:raise ValueError("Offsets must be finite and clearance must be non-negative.")
-        self.plan_rejections=[]
-        margin=self.api.FromMM(offsets[3])
-        if width<=0 or via_drill<=0 or via_diameter<=via_drill or length<=0:
+        values=self._dimensions()
+        for key, choices in [('pattern',FANOUT_PATTERNS+('Via-in-pad',)),('signal_profile',SIGNAL_PROFILES),
+                             ('angle_mode',ANGLE_MODES),('pair_mode',PAIR_MODES),
+                             ('output_mode',('Escape traces','Via-in-pad')),
+                             ('scope',('All SMD pads','Selected pads','Selected footprints','Reference wildcard'))]:
+            if values[key] not in choices:raise ValueError('Unknown '+key+': '+str(values[key]))
+        pattern='Via-in-pad' if values['output_mode']=='Via-in-pad' else values['pattern']
+        if min(self.api.FromMM(float(values[name])) for name in ('width','length','via_drill'))<=0:
             raise ValueError('Dimensions are below the board coordinate resolution.')
-        patterns=('Dogbone outward','Dogbone inward','BGA/LGA grid outward','Quadrant outward','Quadrant inward',
-                  'Four-corner outward','Four-corner inward','Perimeter outward','Radial outward','Via-in-pad')
-        if pattern not in patterns:raise ValueError('Unknown fanout pattern: '+str(pattern))
-        if self.settings['scope'] not in ('All SMD pads','Selected pads','Selected footprints','Reference wildcard'):
-            raise ValueError('Unknown pad scope.')
-        outline=None
+        if self.api.FromMM(float(values['via_diameter']))<=self.api.FromMM(float(values['via_drill'])):
+            raise ValueError('Via diameter must exceed drill at board coordinate resolution.')
         if hasattr(self.api,'SHAPE_POLY_SET'):
             outline=self.api.SHAPE_POLY_SET()
             if not self.board.GetBoardPolygonOutlines(outline,False):raise ValueError('A closed, valid Edge.Cuts outline is required.')
         elif hasattr(self.board,'wayricad_outline'):outline=self.board.wayricad_outline()
         else:raise ValueError('This runtime cannot validate the board outline for fanout.')
+        self.plan_rejections=[]
         pads=[p for f in self.board.GetFootprints() for p in f.Pads()]
-        tracks=list(self.board.GetTracks())
-        zones=list(self.board.Zones())
-        for fp, pad in self._eligible_pads():
-            if not pad.GetNetCode():
-                self.plan_rejections.append(f"{fp.GetReference()}.{pad.GetNumber()}: no net")
-                continue
-            pos = pad.GetPosition()
-            via_in_pad = pattern == "Via-in-pad"
-            angle = self._escape_angle(pattern, fp, pad)+math.radians(offsets[0])
-            end = self.api.VECTOR2I(pos.x, pos.y) if via_in_pad else self.api.VECTOR2I(
-                pos.x + int(math.cos(angle) * length)+self.api.FromMM(offsets[1]),
-                pos.y + int(math.sin(angle) * length)+self.api.FromMM(offsets[2]),
-            )
-            target_layer=self._layer(pad)
-            start_via=not via_in_pad and target_layer!=pad.GetLayer()
-            forced_via = via_in_pad or pattern.startswith("Dogbone")
-            add_via=forced_via or self.settings["add_vias"]
-            obstacles=[p for p in pads if p.GetNetCode()!=pad.GetNetCode()]
-            obstacles.extend(t for t in tracks if t.GetNetCode()!=pad.GetNetCode())
-            reason=next(("other-net copper" for obstacle in obstacles if segment_hits_box(pos,end,obstacle.GetBoundingBox(),width/2+margin) or (add_via and segment_hits_box(end,end,obstacle.GetBoundingBox(),via_diameter/2+margin))),"")
-            if not reason and start_via:
-                reason=next(('source via clearance' for obstacle in obstacles if segment_hits_box(pos,pos,obstacle.GetBoundingBox(),via_diameter/2+margin)), '')
-            if not reason and start_via and not inside_native(pos,via_diameter/2+margin,outline):reason='source via near board edge'
-            if not reason and not segment_inside_native(pos,end,width/2+margin,outline):reason='board edge/cutout'
-            if not reason and add_via and not inside_native(end,via_diameter/2+margin,outline):reason='via near board edge/cutout'
+        tracks=list(self.board.GetTracks());zones=list(self.board.Zones())
+        margin=self.api.FromMM(float(values['clearance']))
+        eligible=sorted(self._eligible_pads(),key=lambda row:(str(row[0].GetReference()),row[1].GetPosition().x,row[1].GetPosition().y,str(row[1].GetNumber())))
+        result=[]
+        for index,(group,pair_id) in enumerate(self._groups(eligible)):
+            reason=''
+            candidates=[]
+            if any(not pad.GetNetCode() for _,pad in group):reason='no net'
+            if pair_id and len({self._layer(pad) for _,pad in group})!=1:reason='pair members must use the same copper layer'
             if not reason:
-                for zone in zones:
-                    blocked = (zone.GetIsRuleArea() and ((add_via and zone.GetDoNotAllowVias()) or (not via_in_pad and zone.GetDoNotAllowTracks()))) or (not zone.GetIsRuleArea() and zone.GetNetCode()!=pad.GetNetCode())
-                    if blocked and segment_hits_box(pos,end,zone.GetBoundingBox(),max(width,via_diameter if add_via else 0)/2+margin):
-                        reason='zone/keepout';break
-            if not reason:
-                for other in result:
-                    if other.start_via and segment_segment_distance((other.start.x,other.start.y),(other.start.x,other.start.y),(pos.x,pos.y),(end.x,end.y))<(via_diameter+width)/2+margin and other.net_code!=pad.GetNetCode():
-                        reason='generated source via collision';break
-                    if other.net_code==pad.GetNetCode():continue
-                    a,b=(pos.x,pos.y),(end.x,end.y)
-                    c,d=(other.start.x,other.start.y),(other.end.x,other.end.y)
-                    if (other.add_track and not via_in_pad and segment_segment_distance(a,b,c,d)<width+margin
-                        or add_via and other.add_track and segment_segment_distance(b,b,c,d)<(via_diameter+width)/2+margin
-                        or other.add_via and not via_in_pad and segment_segment_distance(d,d,a,b)<(via_diameter+width)/2+margin):
-                        reason='generated copper collision';break
-            if not reason and start_via:
-                a=(pos.x,pos.y)
-                for other in result:
-                    if other.start_via and math.hypot(other.start.x-pos.x,other.start.y-pos.y)<via_diameter+margin:
-                        reason='generated source via overlap';break
-                    if other.add_via and math.hypot(other.end.x-pos.x,other.end.y-pos.y)<via_diameter+margin:
-                        reason='generated source via overlap';break
-                    if other.net_code!=pad.GetNetCode() and other.add_track and segment_segment_distance(a,a,(other.start.x,other.start.y),(other.end.x,other.end.y))<(via_diameter+width)/2+margin:
-                        reason='generated source via collision';break
-            if not reason and add_via:
-                reason=next(("generated via overlap" for p in result if p.add_via and math.hypot(p.end.x-end.x,p.end.y-end.y)<via_diameter+margin),"")
+                try:
+                    paths=self._paths(group,pair_id,values,pattern,index)
+                    candidates=[self._candidate(fp,pad,path,values,pattern,pair_id) for (fp,pad),path in zip(group,paths)]
+                except ValueError as exc:reason=str(exc)
+            if not reason and pair_id:
+                if len({p.start_via for p in candidates})!=1:reason='pair members must use the same via transitions'
+                elif max(p.length_mm for p in candidates)-min(p.length_mm for p in candidates)>float(values['max_pair_skew'])+0.000002:
+                    reason='pair escape skew exceeds max_pair_skew (mm)'
+                elif self.api.FromMM(float(values['pair_gap'])) <= 0:
+                    reason='pair gap must be positive at board coordinate resolution'
+                elif float(values['pair_gap'])<float(values['clearance']):
+                    reason='pair gap is below configured clearance'
+            accepted=[]
+            for candidate in candidates:
+                if reason:break
+                reason=self._blocked(candidate,result+accepted,pads,tracks,zones,outline,margin)
+                if not reason:accepted.append(candidate)
             if reason:
-                self.plan_rejections.append(f"{fp.GetReference()}.{pad.GetNumber()}: {reason}")
-                continue
-            result.append(FanoutPlan(
-                fp, pad, end, width, via_diameter, via_drill,
-                add_track=not via_in_pad,
-                add_via=bool(pad.GetNetCode()) and (forced_via or self.settings["add_vias"]),
-                pattern=pattern,start=self.api.VECTOR2I(pos.x,pos.y),layer=target_layer,net_code=pad.GetNetCode(),start_via=start_via,
-            ))
+                for fp,pad in group:self.plan_rejections.append(f'{fp.GetReference()}.{pad.GetNumber()}: '+('differential pair rejected: ' if pair_id else '')+reason)
+            else:result.extend(accepted)
         return result
 
 
@@ -442,10 +636,13 @@ def fanout_items(board, api, plans):
     items = []
     for plan in plans:
         if plan.add_track:
-            track=api.PCB_TRACK(board)
-            track.SetStart(plan.start); track.SetEnd(plan.end)
-            track.SetWidth(plan.width); track.SetLayer(plan.layer); track.SetNetCode(plan.net_code)
-            items.append(track)
+            points=plan.path or [plan.start,plan.end]
+            for start,end in zip(points,points[1:]):
+                if start.x==end.x and start.y==end.y:continue
+                track=api.PCB_TRACK(board)
+                track.SetStart(start); track.SetEnd(end)
+                track.SetWidth(plan.width); track.SetLayer(plan.layer); track.SetNetCode(plan.net_code)
+                items.append(track)
         for position in ([plan.start] if plan.start_via else []) + ([plan.end] if plan.add_via else []):
             via=api.PCB_VIA(board)
             via.SetPosition(position); via.SetWidth(plan.via_diameter); via.SetDrill(plan.via_drill)
@@ -461,6 +658,8 @@ def plan_document(kind, board, api, settings=None):
         plans, rejected = plan_fanout(board, api, settings)
         records=[dict(reference=p.footprint.GetReference(),pad=p.pad.GetNumber(),net=p.pad.GetNetname(),
                       start_mm=[api.ToMM(p.start.x),api.ToMM(p.start.y)],end_mm=[api.ToMM(p.end.x),api.ToMM(p.end.y)],
+                      path_mm=[[api.ToMM(point.x),api.ToMM(point.y)] for point in (p.path or [p.start,p.end])],
+                      length_mm=p.length_mm,pair_id=p.pair_id,
                       width_mm=api.ToMM(p.width),via_diameter_mm=api.ToMM(p.via_diameter),via_drill_mm=api.ToMM(p.via_drill),
                       add_track=p.add_track,add_via=p.add_via,start_via=p.start_via,layer=board.GetLayerName(p.layer)) for p in plans]
     elif kind == 'stitching':

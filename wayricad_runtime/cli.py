@@ -6,6 +6,7 @@ import sys
 from .routing import (plan_document, plan_fanout, plan_stitching, fanout_items,
                       FanoutPlanner, StitchingPlanner, netclass_names, copper_layer_names)
 from .operations import add_group
+from .fanout_profiles import FANOUT_PATTERNS, SIGNAL_PROFILES, ANGLE_MODES, PAIR_MODES, profile_defaults
 
 
 def write_svg(document, destination, board=None, api=None):
@@ -13,7 +14,14 @@ def write_svg(document, destination, board=None, api=None):
     from html import escape
     entries=document['candidates']; points=[]
     for item in entries:
-        points.extend([item['start_mm'],item['end_mm']] if document['kind']=='fanout' else [item['position_mm']])
+        points.extend(item.get('path_mm') or [item['start_mm'],item['end_mm']] if document['kind']=='fanout' else [item['position_mm']])
+    if document['kind']=='fanout' and board is not None and api is not None:
+        references={item['reference'] for item in entries}
+        for footprint in board.GetFootprints():
+            if footprint.GetReference() in references:
+                box=footprint.GetBoundingBox()
+                points.extend(([api.ToMM(box.GetLeft()),api.ToMM(box.GetTop())],
+                               [api.ToMM(box.GetRight()),api.ToMM(box.GetBottom())]))
     xs=[p[0] for p in points] or [0,10];ys=[p[1] for p in points] or [0,10]
     x,y=min(xs)-2,min(ys)-2;w,h=max(xs)-x+2,max(ys)-y+2
     parts=[f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x} {y} {w} {h}" width="1000" height="800">',
@@ -49,9 +57,13 @@ def write_svg(document, destination, board=None, api=None):
     for item in entries:
         fan=document['kind']=='fanout';end=item['end_mm'] if fan else item['position_mm']
         label=escape(str(item.get('reference',''))+'.'+str(item.get('pad',''))+' '+str(item['net']))
+        if fan and 'length_mm' in item:
+            label += escape(f' | {item["length_mm"]:.4f} mm' + (' | pair '+str(item['pair_id']) if item.get('pair_id') else ''))
         parts.append('<g><title>'+label+'</title>')
         if fan and item['add_track']:
-            a=item['start_mm'];parts.append(f'<line x1="{a[0]}" y1="{a[1]}" x2="{end[0]}" y2="{end[1]}" stroke="#087f98" stroke-width="{item["width_mm"]}" stroke-linecap="round"/>')
+            path=item.get('path_mm') or [item['start_mm'],end]
+            vertices=' '.join(f'{point[0]},{point[1]}' for point in path)
+            parts.append(f'<polyline points="{vertices}" fill="none" stroke="#087f98" stroke-width="{item["width_mm"]}" stroke-linecap="round" stroke-linejoin="round"/>')
         positions=([item['start_mm']] if fan and item.get('start_via') else [])+([end] if not fan or item['add_via'] else [])
         for end in positions:
             diameter=item['via_diameter_mm'] if fan else item['diameter_mm']
@@ -75,6 +87,8 @@ def execute(args):
     if args.operation=='settings':
         defaults=dict(FanoutPlanner.defaults if kind=='fanout' else StitchingPlanner.defaults)
         choices={'pattern': ['Square grid','Staggered grid']} if kind=='stitching' else {
+            'pattern':list(FANOUT_PATTERNS), 'signal_profile':list(SIGNAL_PROFILES),
+            'angle_mode':list(ANGLE_MODES),'pair_mode':list(PAIR_MODES),
             'output_mode':['Escape traces','Via-in-pad'],
             'scope':['Selected pads','Selected footprints','Reference wildcard','All SMD pads'],
             'netclass_filter':['All netclasses','Default'],
@@ -85,8 +99,12 @@ def execute(args):
                 choices['netclass_filter']=['All netclasses']+netclass_names(board)
                 choices['escape_layer']=['Pad layer']+copper_layer_names(board)
             else:choices['net_choice']=[net.GetNetname() for net in board.GetNetsByName().values() if net.GetNetname()]
-        return {'defaults':defaults,'choices':choices,'units':'Dimensions in mm; angle_offset in degrees.',
-                'note':'Pass --board to list actual enabled copper layers and project netclasses. Changing fanout layer adds a source via.'}
+        result = {'defaults':defaults,'choices':choices,'units':'Dimensions in mm; angles in degrees.',
+                  'note':'Pass --board to list actual enabled copper layers and project netclasses. Changing fanout layer adds a source via.'}
+        if kind=='fanout':
+            result['profiles']={name:profile_defaults(name) for name in SIGNAL_PROFILES}
+            result['high_speed_note']='Profiles suggest escape geometry and net-name filters. Pair length/skew describe generated traces only; use board-specific KiCad constraints for impedance, delay and full-channel matching.'
+        return result
     api=load_api();source=Path(args.board).resolve()
     if not source.is_file():raise ValueError('Board file does not exist: '+str(source))
     board=api.LoadBoard(str(source))

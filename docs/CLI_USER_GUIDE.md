@@ -1,5 +1,7 @@
 # WayriCAD CLI User Guide
 
+Advanced fanout exposes style/angle choices, family presets, paired breakout settings and selected-netclass dimensions through `python -m wayricad_runtime.cli fanout settings`. Plans include every bend (`path_mm`), actual generated length (`length_mm`) and pair identity (`pair_id`). See [advanced fanout examples and semantics](ADVANCED_FANOUT.md).
+
 The WayriCAD CLI extracts electrical interface data without opening the plugin
 windows. Use it for repeatable ICD generation, design validation, cross-board
 linking, continuous integration, and KiCad jobset output pipelines.

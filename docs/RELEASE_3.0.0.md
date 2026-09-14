@@ -14,6 +14,8 @@ Shared window headers are smaller. Routing, heater, magnetics, manufacturing, Em
 
 ## Integrated applications
 
+Advanced fanout now includes 45° and custom-angle spreading, straight-then-angled escapes, staggered rows, and differential-pair breakouts. Family presets cover DDR/GDDR, SERDES, PCI/PCIe, PXI/PXIe and LVDS with editable net filters. Paired candidates are rejected together on clearance, transition or generated-skew failures; every bend and measured length appears in JSON and the local SVG review. Optional dimensions come from a selected saved project netclass, without assumed impedance targets.
+
 - **Copper Balancer:** floating copper thieving, shape/layout presets, layer scope and density review; a dedicated native KiCad launcher keeps polygon operations out of the incomplete IPC facade and writes an explicit board copy.
 - **Mechanical Check:** component/enclosure solid interference, height and assembly checks with local 3D inspection and offline evidence reports; dedicated KiCad/FreeCAD runtime discovery.
 - **Visual Diff:** Git revision and working-tree comparison using native KiCad SVG exports, an offline review page and a compact local launcher. Optional GitHub service functionality is never started by the plugin.
