@@ -27,6 +27,17 @@ class MigrationTests(unittest.TestCase):
         docs, visits = m._hierarchy(self.root)
         return m._legacy_records(self.root, docs, visits)
 
+    def test_equivalent_path_spelling_uses_canonical_hierarchy_keys(self):
+        alias = self.root.parent / '..' / self.root.parent.name / self.root.name
+        docs, visits = m._hierarchy(alias)
+        records = m._legacy_records(alias, docs, visits)
+        stage = self.home / 'stage'; stage.mkdir()
+        target = stage / self.root.name
+        target.write_text('(kicad_sch (symbol (uuid placed) (property "Value" "Display")))', encoding='utf-8')
+        m._restore_instances(stage, alias.parent, records, 'test')
+        m._restore_effective_fields(stage, alias.parent, records, {'components': []})
+        self.assertEqual(properties(parse(target.read_text(encoding='utf-8')).one('symbol'))['Value'][0], 'P')
+
     def test_legacy_power_name_and_identity_are_authoritative(self):
         row = next(iter(self.records().values()))[0]
         self.assertEqual(row, ('root', '#PWR01', '1', 'Display', '', 'P'))

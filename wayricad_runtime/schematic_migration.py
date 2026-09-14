@@ -83,6 +83,7 @@ def _hierarchy(root):
 
 
 def _legacy_records(root,documents,visits):
+    root = Path(root).resolve(strict=True)
     root_tree = documents[root][1];root_id=root_tree.get('uuid')
     if not root_id:raise ValueError('Root schematic UUID is missing.')
     tables = {}
@@ -132,6 +133,7 @@ def _legacy_records(root,documents,visits):
 
 
 def _restore_instances(stage,source,records,project_name):
+    source = Path(source).resolve(strict=True)
     files=defaultdict(list)
     for (path,uid,kind),rows in records.items():files[path].append((uid,kind,rows))
     for path,items in files.items():
@@ -159,6 +161,7 @@ def _restore_effective_fields(stage,source,records,native_circuit):
     screens may also contain stale secondary-unit fields. Native export is the
     authority for the original effective component, not an arbitrary first unit.
     """
+    source = Path(source).resolve(strict=True)
     canonical={ref:dict(fields,Value=value,Footprint=footprint)
                for ref,value,footprint,fields in native_circuit['components']}
     files=defaultdict(list)
