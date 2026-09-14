@@ -12,7 +12,7 @@ from embed_3d_plugin.core import Planner
 
 class NativePathsTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(); self.root = Path(self.tmp.name)
+        self.tmp = tempfile.TemporaryDirectory(); self.root = Path(self.tmp.name).resolve()
         self.stock = self.root/'KiCad 10'/'share'/'kicad'/'3dmodels'
         self.fpdir = self.root/'KiCad 10'/'share'/'kicad'/'footprints'
         self.stock.mkdir(parents=True); self.fpdir.mkdir(parents=True)

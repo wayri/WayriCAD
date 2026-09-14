@@ -35,7 +35,7 @@ class LibraryContextTests(unittest.TestCase):
         item=next(iter(plan.extractions.values()))
         self.assertFalse(any(name.endswith('.step') for name in item.files))
         raw=next(data.decode() for name,data in item.files.items() if name.endswith('.kicad_mod'))
-        self.assertEqual(bp.model_refs(raw),[(self.library/'own.step').as_posix()])
+        self.assertEqual(bp.model_refs(raw),[(self.library/'own.step').resolve().as_posix()])
     def test_combined_uses_library_context_and_preserves_transforms(self):
         opt=w.Options(self.root/'assets',self.root/'out',include_external=True)
         plan=w.prepare_operation(self.inv,w.Selection(footprints={self.uid},models={self.uid}),'unbundle-relink',opt,normalized=self.norm,normalized_hash=sha256(self.pcb.read_bytes()))

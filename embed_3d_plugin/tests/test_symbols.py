@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import tempfile
 import unittest
+from unittest.mock import patch as mock_patch
 from embed_3d_plugin.symbols import *
 from embed_3d_plugin.board_package import entry_for_bytes, replace_entries, PayloadReader
 from embed_3d_plugin.codec import Codec
@@ -58,6 +59,21 @@ class SymbolTests(unittest.TestCase):
         self.source=self.root/'circuit.kicad_sch';self.source.write_text(schematic())
         self.assets=self.root/'assets';self.out=self.root/'external'
     def tearDown(self):self.tmp.cleanup()
+    def test_path_alias_retains_root_and_child_output_locations(self):
+        actual = self.root.resolve()
+        alias = actual/'short-path-alias'
+        directory = actual/'sheets';directory.mkdir()
+        (directory/'child.kicad_sch').write_text(schematic(),encoding='utf-8')
+        self.source.write_text(schematic(extra=child('sheets/child.kicad_sch')),encoding='utf-8')
+        resolve = Path.resolve
+        def resolve_alias(path, *args, **kwargs):
+            try:path = actual/path.relative_to(alias)
+            except ValueError:pass
+            return resolve(path,*args,**kwargs)
+        with mock_patch.object(Path,'resolve',resolve_alias):
+            sheets = load_hierarchy(alias/self.source.name)
+        self.assertEqual([s.output for s in sheets],['circuit.kicad_sch','sheets/child.kicad_sch'])
+        self.assertEqual([s.relative for s in sheets],['circuit.kicad_sch','sheets/child.kicad_sch'])
     def extract(self,**kw):
         plan=extract_symbols(self.source,**kw);plan.publish(self.assets);return plan
     def test_native_cache_extracted_without_changing_source(self):

@@ -8,7 +8,7 @@ import sys
 import traceback
 
 
-def main(root):
+def main(root, action_class=None):
     root=Path(root).resolve()
     sys.path.insert(0,str(root))
     config={}
@@ -32,7 +32,7 @@ def main(root):
         module_obj=importlib.util.module_from_spec(spec);sys.modules[package]=module_obj;spec.loader.exec_module(module_obj)
         if (root/'kilo').is_dir():sys.path.insert(0,str(root))
         target=importlib.import_module('.'+config['module'],package)
-        plugin=getattr(target,config['class'])()
+        plugin=getattr(target,action_class or config['class'])()
         plugin.Run()
         if wx.GetTopLevelWindows():app.MainLoop()
         return 0

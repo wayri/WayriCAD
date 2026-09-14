@@ -40,7 +40,7 @@ def footprint(refs, settings=SETTINGS, extra='', newline='\n'):
 class TemporaryCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.model = self.root/'model.wrl'
         self.model.write_bytes(WRL)
         self.resolver = Resolver(self.root, {'ROOT': str(self.root)})

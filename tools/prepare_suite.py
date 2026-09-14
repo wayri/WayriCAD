@@ -38,6 +38,21 @@ def main():
                 "icons-light": [f"resources/icon-{n}.png" for n in (24, 48, 96)],
                 "icons-dark": [f"resources/icon-dark-{n}.png" for n in (24, 48, 96)]}],
         }
+        if folder.name == "extract_pins_plugin":
+            manifest["actions"].append(dict(manifest["actions"][0], **{
+                "identifier": "interboard", "name": "WayriCAD Interboard & Harness",
+                "description": "Open project connectivity, ICD and harness tools.",
+                "show-button": False, "entrypoint": "interboard_entrypoint.py",
+            }))
+            (folder / "interboard_entrypoint.py").write_text(
+                '"""Secondary IPC menu action for the existing system workbench."""\n'
+                'from pathlib import Path\nimport sys\n'
+                'ROOT = Path(__file__).resolve().parent\n'
+                'if not (ROOT / "wayricad_runtime").is_dir():\n'
+                '    sys.path.insert(0, str(ROOT.parent))\n'
+                'from wayricad_runtime.launcher import main\n'
+                'if __name__ == "__main__":\n    main(ROOT, action_class="InterboardHarnessPlugin")\n',
+                encoding="utf-8")
         write_json(folder / "plugin.json", manifest)
         if entrypoint == "ipc_entrypoint.py":
             candidates = []
