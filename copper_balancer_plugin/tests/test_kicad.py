@@ -13,6 +13,57 @@ except ImportError:
 
 @unittest.skipIf(p is None,"Requires KiCad's pcbnew module")
 class KiCadTests(unittest.TestCase):
+    def test_scoped_geometry_matches_full_board_clearance_and_density(self):
+        # The obstacle centre is outside the region; its local clearance reaches
+        # inside. A drill larger than its copper pad exercises the hole broad phase.
+        fp = p.FOOTPRINT(self.board)
+        self.board.Add(fp)
+        pad = p.PAD(fp)
+        pad.SetAttribute(p.PAD_ATTRIB_SMD)
+        layers = p.LSET()
+        layers.AddLayer(p.F_Cu)
+        pad.SetLayerSet(layers)
+        pad.SetSize(p.VECTOR2I(p.FromMM(1),p.FromMM(1)))
+        pad.SetPosition(p.VECTOR2I(p.FromMM(36),p.FromMM(20)))
+        pad.SetLocalClearance(p.FromMM(3))
+        fp.Add(pad)
+        hole = p.PAD(fp)
+        hole.SetAttribute(p.PAD_ATTRIB_NPTH)
+        hole.SetSize(p.VECTOR2I(p.FromMM(1),p.FromMM(1)))
+        hole.SetDrillShape(p.PAD_DRILL_SHAPE_OBLONG)
+        hole.SetDrillSize(p.VECTOR2I(p.FromMM(8),p.FromMM(2)))
+        hole.SetPosition(p.VECTOR2I(p.FromMM(36),p.FromMM(24)))
+        fp.Add(hole)
+        region = (29,17,34,27)
+        full = self.b.Geometry(self.board,p.F_Cu,self.settings)
+        scoped = self.b.Geometry(self.board,p.F_Cu,replace(self.settings,region=region))
+        for x in (29.2,30,31,32,33,33.5):
+            for y in (17.2,19,20,22,23,24,25,26):
+                shape = ((x,y),(x+.2,y),(x+.2,y+.2),(x,y+.2))
+                self.assertEqual(scoped.accepts(shape),full.accepts(shape),(x,y))
+        for bounds in ((29,17,31,20),(31,20,34,24),(29,24,34,27)):
+            for a,b in zip(scoped.measure(bounds),full.measure(bounds)):
+                self.assertAlmostEqual(a,b,places=5)
+        self.assertFalse(scoped.accepts(((33.5,20),(33.7,20),(33.7,20.2),(33.5,20.2))))
+        self.assertFalse(scoped.accepts(((33,24),(33.2,24),(33.2,24.2),(33,24.2))))
+
+    def test_scoped_preview_skips_far_track_polygon_conversion(self):
+        track = p.PCB_TRACK(self.board)
+        track.SetStart(p.VECTOR2I(p.FromMM(60),p.FromMM(40)))
+        track.SetEnd(p.VECTOR2I(p.FromMM(62),p.FromMM(41)))
+        track.SetLayer(p.F_Cu)
+        track.SetWidth(p.FromMM(.25))
+        self.board.Add(track)
+        distant_id = self.b.item_id(track)
+        original = p.PCB_TRACK.TransformShapeToPolygon
+        converted = []
+        def transform(item,*args):
+            converted.append(self.b.item_id(item))
+            return original(item,*args)
+        with patch.object(p.PCB_TRACK,'TransformShapeToPolygon',transform):
+            self.b.Geometry(self.board,p.F_Cu,replace(self.settings,region=(28,18,34,24)))
+        self.assertNotIn(distant_id,converted)
+
     def test_review_stamp_detects_direct_geometry_change(self):
         before = self.b.review_stamp(self.board)
         track = next(item for item in self.board.GetTracks() if not isinstance(item, p.PCB_VIA))

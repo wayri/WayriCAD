@@ -119,9 +119,9 @@ class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
 
 
 class SignalIntegrityFrame(wx.Frame):
-    def __init__(self, parent: Any, board: Any) -> None:
+    def __init__(self, parent: Any, board: Any, saved_board: bool = False) -> None:
         super().__init__(parent, title="WayriCAD Signal Integrity Advisor", size=(1220, 820), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
-        self.SetMinSize((980, 700)); self.board = board; self.engine = SignalIntegrityEngine(board)
+        self.SetMinSize((980, 700)); self.board = board; self.saved_board = saved_board; self.engine = SignalIntegrityEngine(board)
         self._build(); self._load_board(); self.Centre()
 
     def _build(self) -> None:
@@ -130,6 +130,8 @@ class SignalIntegrityFrame(wx.Frame):
         title = wx.StaticText(panel, label="Signal Integrity Advisor"); title.SetFont(title.GetFont().Bold().Larger())
         header.Add(title, 1, wx.ALIGN_CENTER_VERTICAL); help_btn = wx.Button(panel, label="Help"); help_btn.Bind(wx.EVT_BUTTON, open_help); header.Add(help_btn)
         root.Add(header, 0, wx.EXPAND | wx.ALL, 12)
+        if self.saved_board:
+            root.Add(wx.StaticText(panel, label="Saved board analysis — save/refill in KiCad and reopen to refresh."), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         intro = wx.StaticText(panel, label="1  Choose a check    2  Define electrical limits and routed endpoints    3  Review evidence and disposition")
         root.Add(intro, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         self.tabs = wx.Notebook(panel); self.tabs.AddPage(self._i2c_page(self.tabs), "I2C Pull-ups"); self.tabs.AddPage(self._impedance_page(self.tabs), "Impedance & Differential Pairs")
@@ -158,7 +160,7 @@ class SignalIntegrityFrame(wx.Frame):
         for label,control in (("Protocol / constraint",self.protocol),("Target impedance (ohm)",self.target),("Tolerance (%)",self.tolerance),("Frequency (MHz)",self.frequency),("Primary net",self.net),("Start pad",self.start),("End pad",self.end),("Differential mate",self.mate),("Mate start pad",self.mate_start),("Mate end pad",self.mate_end),("Reference layer",self.reference)):
             grid.Add(wx.StaticText(page,label=label),0,wx.ALIGN_CENTER_VERTICAL); grid.Add(control,1,wx.EXPAND)
         config.Add(grid,1,wx.EXPAND|wx.ALL,8)
-        actions=wx.BoxSizer(wx.HORIZONTAL); use_selection=wx.Button(page,label="Use PCB selection"); use_selection.Bind(wx.EVT_BUTTON,self._use_selection); actions.Add(use_selection,0,wx.RIGHT,6); run=wx.Button(page,label="Analyze and validate path"); run.Bind(wx.EVT_BUTTON,self._analyze); actions.Add(run,1); config.Add(actions,0,wx.EXPAND|wx.ALL,8); split.Add(config,0,wx.EXPAND|wx.ALL,8)
+        actions=wx.BoxSizer(wx.HORIZONTAL); use_selection=wx.Button(page,label="Use PCB selection"); use_selection.Bind(wx.EVT_BUTTON,self._use_selection); use_selection.Enable(not self.saved_board); actions.Add(use_selection,0,wx.RIGHT,6); run=wx.Button(page,label="Analyze and validate path"); run.Bind(wx.EVT_BUTTON,self._analyze); actions.Add(run,1); config.Add(actions,0,wx.EXPAND|wx.ALL,8); split.Add(config,0,wx.EXPAND|wx.ALL,8)
         preview_host=wx.Panel(page); preview_column=wx.BoxSizer(wx.VERTICAL); self.preview=RoutePreview(preview_host); self.preview.on_pick=self._on_route_pick; preview_column.Add(self.preview,1,wx.EXPAND); add_zoom_toolbar(preview_host,self.preview,preview_column); preview_host.SetSizer(preview_column); split.Add(preview_host,1,wx.EXPAND|wx.ALL,8); root.Add(split,1,wx.EXPAND)
         self.status_pair=wx.StaticText(page,label=""); root.Add(self.status_pair,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         self.results=wx.ListCtrl(page,style=wx.LC_REPORT); self.results.InsertColumn(0,"Check",width=230); self.results.InsertColumn(1,"Value",width=330); self.results.InsertColumn(2,"Disposition",width=520); root.Add(self.results,1,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
@@ -167,8 +169,9 @@ class SignalIntegrityFrame(wx.Frame):
     def _load_board(self) -> None:
         names=self.engine.measurement.net_names(); self.net.AppendItems(names); self.mate.Append("<none>"); self.mate.AppendItems(names)
         if names: self.net.SetSelection(0); self._pads(self.net,self.start,self.end)
-        self.mate.SetSelection(0); layers=[x.name for x in self.engine.measurement.stackup_layers() if x.name.endswith(".Cu") or "copper" in x.kind.lower()]; self.reference.AppendItems(layers)
-        if layers: self.reference.SetSelection(0)
+        self.mate.SetSelection(0); layers=[x.name for x in self.engine.measurement.stackup_layers() if x.name.endswith(".Cu") or "copper" in x.kind.lower()]; self.reference.AppendItems(["Auto", *layers])
+        self.reference.SetSelection(0)
+        self.reference.SetToolTip("Auto searches ground reference copper per routed section. An explicit layer overrides layer selection.")
         self._auto_mate()
 
     def _pads(self, net: wx.ComboBox, start: wx.ComboBox, end: wx.ComboBox) -> None:
@@ -196,6 +199,8 @@ class SignalIntegrityFrame(wx.Frame):
         preset=PROTOCOL_PRESETS[self.protocol.GetValue()]; self.target.SetValue(str(preset["target"])); self.tolerance.SetValue(str(preset["tolerance"]))
 
     def _use_selection(self, _event: Any) -> None:
+        if self.saved_board:
+            return
         selected_pads=[]; selected_nets=[]
         for footprint in self.board.GetFootprints():
             for pad in footprint.Pads():
@@ -227,6 +232,8 @@ class SignalIntegrityFrame(wx.Frame):
 
     def _on_route_pick(self, data: Any) -> None:
         """Click a preview track: cross-select it and highlight its net."""
+        if self.saved_board:
+            return
         if isinstance(data, tuple) and data:
             net, item = (list(data) + ["", None])[:2]
             items = [item] if item is not None else []
@@ -238,6 +245,10 @@ class SignalIntegrityFrame(wx.Frame):
         try:
             mate="" if self.mate.GetValue()=="<none>" else self.mate.GetValue()
             r=self.engine.validate_impedance(self.net.GetValue(),self.start.GetValue(),self.end.GetValue(),self.reference.GetValue(),float(self.frequency.GetValue()),float(self.target.GetValue()),float(self.tolerance.GetValue()),mate,self.mate_start.GetValue(),self.mate_end.GetValue())
-            rows=[("Overall",r.status,"Resolve topology before signoff." if r.status=="UNRESOLVED" else "Within target tolerance." if r.status=="PASS" else "Outside target tolerance."),("Estimated impedance",f"{r.measured_ohm:.2f} ohm",f"Target {r.target_ohm:g} ohm +/- {r.tolerance_percent:g}%"),("Error",f"{r.error_percent:.2f}%",""),("Primary route",f"{r.primary.length_mm:.3f} mm",f"{r.primary.track_count} tracks, {r.primary.via_count} vias, {r.primary.layer_changes} layer changes"),("Reference geometry",r.primary.reference_layer,f"{r.primary.stackup_source}; h={r.primary.dielectric_height_mm:.4f} mm; Er={r.primary.relative_permittivity:.3g}"),("Differential skew",f"{r.skew_mm:.3f} mm","Review protocol timing/skew budget."),("Discontinuity review",r.stub_warning,"Visual and field-solver review required for signoff.")]
+            disposition = {"PASS": "Within target tolerance.", "FAIL": "Outside target tolerance."}.get(r.status, "Impedance unavailable: inspect section/reference geometry and engineering assumptions.")
+            measured = "Unavailable" if r.measured_ohm is None else f"{r.measured_ohm:.2f} ohm"
+            error = "Unavailable" if r.error_percent is None else f"{r.error_percent:.2f}%"
+            rows=[("Overall",r.status,disposition),("Estimated impedance",measured,f"Target {r.target_ohm:g} ohm +/- {r.tolerance_percent:g}%"),("Error",error,""),("Primary route",f"{r.primary.length_mm:.3f} mm",f"{r.primary.track_count} tracks, {r.primary.via_count} vias, {r.primary.layer_changes} layer changes"),("Reference geometry",r.primary.reference_layer,f"{r.primary.stackup_source}; review per-section reference coverage."),("Differential skew",f"{r.skew_mm:.3f} mm","Review protocol timing/skew budget."),("Discontinuity review",r.stub_warning,"Visual and field-solver review required for signoff.")]
+            rows.extend(("Engineering assumption", "", note) for note in r.primary.notes)
             self._set_rows(self.results,rows); self.preview.show_result(r)
         except Exception as exc: wx.MessageBox(str(exc),"Impedance analysis failed",wx.OK|wx.ICON_ERROR)

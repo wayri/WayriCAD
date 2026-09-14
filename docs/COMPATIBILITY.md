@@ -42,3 +42,7 @@ KiCad 11 removes the legacy SWIG `pcbnew` bindings. WayriCAD's forward path is t
 - Native manufacturing probe on KiCad 10.0.5: a synthetic saved PCB matched a second native serialization token-for-token; saved track metrics read 0.2 mm correctly. JSON DRC produced its expected report schema and exit code 5 for an intentional violation. `jobset run --help` verified the command-line argument contract; no production jobset or full GUI release workflow was exercised.
 
 Before declaring a specific future host supported, run live IPC open/preview/apply/undo checks on disposable designs for each tool, check stale-preview and failure recovery behavior, and exercise representative project/jobset/model data on that exact KiCad build.
+
+## Electrical analysis runtime
+
+Trace RLC and Signal Integrity use native KiCad 10 filled-polygon geometry through the shared IPC launcher. Their PCM actions open the active saved board in a local analysis window. Save/refill in KiCad and reopen to refresh; live cross-selection is disabled in this saved-board mode. Set `WAYRICAD_KICAD_PYTHON` if automatic native interpreter discovery fails. KiCad 11 native geometry compatibility remains unverified.

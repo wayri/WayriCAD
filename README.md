@@ -47,7 +47,7 @@ Historical release notes remain available under `docs/`. Their version-specific 
 | Return-Path Auditor | Return-path transitions and discontinuity review |
 | Signal Integrity Advisor | Electrical and layout estimates |
 | Test Point Descriptor | Test-point documentation and fixture generation |
-| Trace Impedance | Trace geometry, RLC and impedance estimates |
+| [Trace Impedance](trace_impedance_plugin/ReadMe.md) | Connected trace/via/zone paths, terminal plane RLC, ground reference detection and per-section impedance estimates |
 | Variant Workbench | Review and generate design variants in project copies |
 
 The three added tools have dedicated local launchers. Copper Balancer needs KiCad 10's native Python geometry engine. Mechanical Check additionally needs FreeCAD for exact solid checks. Visual Diff needs Git and `kicad-cli`. Installing an IPC manifest does not remove these engine requirements or establish KiCad 11 support. See each tool's README for runtime discovery and saved-board boundaries.

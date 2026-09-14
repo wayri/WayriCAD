@@ -46,8 +46,8 @@ class ImpedanceResult:
     mate: Optional[PathMeasurement]
     target_ohm: float
     tolerance_percent: float
-    measured_ohm: float
-    error_percent: float
+    measured_ohm: Optional[float]
+    error_percent: Optional[float]
     status: str
     skew_mm: float
     stub_warning: str
@@ -90,14 +90,25 @@ class SignalIntegrityEngine:
     def validate_impedance(self, net: str, start: str, end: str, reference: str,
                            frequency_mhz: float, target: float, tolerance: float,
                            mate_net: str = "", mate_start: str = "", mate_end: str = "") -> ImpedanceResult:
+        if not math.isfinite(target) or target <= 0 or not math.isfinite(tolerance) or tolerance < 0:
+            raise ValueError('Impedance target must be positive and tolerance non-negative; both must be finite.')
         primary = self.measurement.measure(net, start, end, frequency_mhz, reference)
         mate = None
         if mate_net:
             mate = self.measurement.measure(mate_net, mate_start, mate_end, frequency_mhz, reference)
-        measured = primary.impedance_ohm if mate is None else primary.impedance_ohm + mate.impedance_ohm
-        error = abs(measured - target) / max(target, 1e-9) * 100.0
-        unresolved = any("not resolved" in note.lower() or "no connected" in note.lower() for note in primary.notes)
-        status = "UNRESOLVED" if unresolved else ("PASS" if error <= tolerance else "FAIL")
+        paths = [primary] + ([mate] if mate is not None else [])
+        valid = all(getattr(path, 'impedance_valid', False)
+                    and isinstance(path.impedance_ohm, (int, float))
+                    and math.isfinite(path.impedance_ohm) and path.impedance_ohm > 0
+                    for path in paths)
+        unresolved = any(getattr(path, 'status', '') in ('disconnected', 'ambiguous', 'unresolved')
+                         or any('not resolved' in note.lower() or 'no connected' in note.lower() for note in path.notes)
+                         for path in paths)
+        # Summing independent single-ended estimates does not establish the
+        # coupled odd-mode impedance of a differential pair.
+        measured = primary.impedance_ohm if valid and not unresolved and mate is None else None
+        error = abs(measured - target) / target * 100.0 if measured is not None else None
+        status = 'UNKNOWN' if error is None else ('PASS' if error <= tolerance else 'FAIL')
         skew = abs(primary.length_mm - mate.length_mm) if mate else 0.0
         stub = self._stub_warning(primary)
         return ImpedanceResult(primary, mate, target, tolerance, measured, error, status, skew, stub)

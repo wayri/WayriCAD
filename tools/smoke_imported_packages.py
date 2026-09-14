@@ -14,8 +14,10 @@ def main():
     with tempfile.TemporaryDirectory(prefix='wayricad-wheel-') as temporary:
         root = Path(temporary)
         with zipfile.ZipFile(wheel) as archive:
+            if any(name.startswith(('build/', 'dist/', '.validation/')) for name in archive.namelist()):
+                raise RuntimeError('Wheel contains generated build or private validation directories.')
             archive.extractall(root)
-        modules = ('wayricad_runtime.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
+        modules = ('wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
                    'visual_diff_plugin.kicad_vizdiff.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'

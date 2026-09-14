@@ -50,6 +50,7 @@ jobs:
           wayricad-copper --help
           wayricad-mechanical --help
           wayricad-diff --help
+          wayricad-rlc --help
       - name: Development-folder plugin regressions
         run: |
           python -m unittest discover -s copper_balancer_plugin/tests -v

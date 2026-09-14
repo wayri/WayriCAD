@@ -22,6 +22,9 @@ def main(root, action_class=None):
         if config['tool']=='bom_studio_plugin':
             from bomstudio.launch import main as launch
             return launch()
+        if config['tool'] in {'trace_impedance_plugin', 'signal_integrity_advisor_plugin'}:
+            from .native_analysis import launch
+            return launch(root, config['tool'])
         from .ipc import module
         sys.modules['pcbnew']=module()
         # The runtime namespace works both from a PCM install and a source checkout.

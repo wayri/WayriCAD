@@ -171,7 +171,7 @@ class SuiteUxTests(unittest.TestCase):
         self.assertIn("resolve_connected_ics", tp)
 
         rlc = (ROOT / "trace_impedance_plugin" / "trace_impedance_plugin.py").read_text(encoding="utf-8")
-        for capability in ("Auto-refresh from PCB selection", "Reference Layer Used", "SetMinSize", "on_selection_timer", "Board Stackup", "Engineering Notes", "wx.Notebook"):
+        for capability in ("Follow PCB selection", "Reference Layer Used", "SetMinSize", "on_selection_timer", "Board Stackup", "Engineering Notes", "wx.Notebook"):
             target = rlc + (ROOT / "trace_impedance_plugin" / "measurement.py").read_text(encoding="utf-8")
             self.assertIn(capability, target)
 

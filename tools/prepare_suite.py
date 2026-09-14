@@ -12,6 +12,11 @@ def write_json(path, value):
 
 
 def main():
+    # SI ships independently in PCM. Keep its bundled engine byte-identical
+    # to the canonical Trace RLC implementation rather than diverging copies.
+    for name in ("measurement.py", "rlc_model.py", "copper_path.py"):
+        (ROOT / "signal_integrity_advisor_plugin" / name).write_bytes(
+            (ROOT / "trace_impedance_plugin" / name).read_bytes())
     for source in sorted(ROOT.glob("*/metadata.json")):
         folder = source.parent
         metadata = json.loads(source.read_text(encoding="utf-8"))
