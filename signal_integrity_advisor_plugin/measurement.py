@@ -9,14 +9,18 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 try:
-    import networkx as nx
-except ImportError:  # pragma: no cover - KiCad installations may omit it
-    nx = None
+    from . import rlc_model as _rlc
+except ImportError:  # Direct-file execution (tests/automation) has no package parent.
+    import importlib.util as _ilu
+
+    _spec = _ilu.spec_from_file_location("_wayricad_rlc_model", os.path.join(os.path.dirname(os.path.abspath(__file__)), "rlc_model.py"))
+    _rlc = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_rlc)
 
 
-EPS0 = 8.8541878128e-12
-MU0 = 1.25663706212e-6
-COPPER_RESISTIVITY = 1.724e-8
+EPS0 = _rlc.EPS0
+MU0 = _rlc.MU0
+COPPER_RESISTIVITY = _rlc.COPPER_RESISTIVITY
 
 
 def mm(value: Any) -> float:
@@ -66,18 +70,49 @@ class PathMeasurement:
     dielectric_height_mm: float = 0.0
     relative_permittivity: float = 0.0
     copper_thickness_mm: float = 0.0
+    average_width_mm: float = 0.0
+    width_to_height: float = 0.0
+    effective_permittivity: float = 0.0
+    impedance_model: str = ""
+    resistance_ac_ohm: float = 0.0
+    propagation_delay_ns: float = 0.0
     board_items: List[Any] = field(default_factory=list, repr=False)
+    status: str = "disconnected"
+    impedance_valid: bool = False
+    segments: List[Dict[str, Any]] = field(default_factory=list)
+    ground_nets: List[str] = field(default_factory=list)
+    zone_area_mm2: float = 0.0
+    overlap_area_mm2: float = 0.0
+
+    def as_report(self) -> Dict[str, Any]:
+        """Numeric JSON report without live board object references."""
+        result = {key: value for key, value in vars(self).items() if key != "board_items"}
+        if not self.impedance_valid:
+            result["impedance_ohm"] = None
+        result["totals_complete"] = self.status == "ok"
+        result["totals_scope"] = "Modeled sections only; not a complete equivalent circuit" if self.status == "partial" else self.status
+        if self.status == "disconnected":
+            for key in ("length_mm", "resistance_ohm", "resistance_ac_ohm", "capacitance_pf", "inductance_nh", "propagation_delay_ns"):
+                result[key] = None
+        return result
 
     def as_dict(self) -> Dict[str, Any]:
-        return {
+        rows = {
             "Net": self.net_name,
             "Start Pad": self.start_pad,
             "End Pad": self.end_pad,
             "Length (mm)": f"{self.length_mm:.3f}",
-            "R (ohm)": f"{self.resistance_ohm:.6g}",
+            "R DC (ohm)": f"{self.resistance_ohm:.6g}",
+            "R AC @ est. freq (ohm)": f"{self.resistance_ac_ohm:.6g}" if self.resistance_ac_ohm else "-",
             "C (pF)": f"{self.capacitance_pf:.6g}",
             "L (nH)": f"{self.inductance_nh:.6g}",
-            "Z0 estimate (ohm)": f"{self.impedance_ohm:.6g}",
+            "Z0 estimate (ohm)": f"{self.impedance_ohm:.6g}" if self.impedance_valid else "Unknown / not a uniform transmission line",
+            "Status": self.status,
+            "Impedance Model": self.impedance_model or "Unresolved",
+            "Avg trace width (mm)": f"{self.average_width_mm:.4g}" if self.average_width_mm else "-",
+            "Width / height": f"{self.width_to_height:.4g}" if self.width_to_height else "-",
+            "Effective Er": f"{self.effective_permittivity:.4g}" if self.effective_permittivity else "-",
+            "Propagation delay (ns)": f"{self.propagation_delay_ns:.4g}" if self.propagation_delay_ns else "-",
             "Layer changes": str(self.layer_changes),
             "Vias": str(self.via_count),
             "Tracks": str(self.track_count),
@@ -90,6 +125,12 @@ class PathMeasurement:
             "Copper Thickness Used (mm)": f"{self.copper_thickness_mm:.4f}",
             "Notes": "; ".join(self.notes),
         }
+        if self.status == "disconnected":
+            for key in ("Length (mm)", "R DC (ohm)", "R AC @ est. freq (ohm)", "C (pF)", "L (nH)", "Propagation delay (ns)"):
+                rows[key] = "Unresolved"
+        elif self.status == "partial":
+            rows["Totals scope"] = "Modeled sections only; unresolved terms excluded"
+        return rows
 
 
 class TraceMeasurementEngine:
@@ -97,6 +138,8 @@ class TraceMeasurementEngine:
 
     def __init__(self, board: Any) -> None:
         self.board = board
+        self._geometry_cache = None
+        self._stackup_cache = None
 
     def net_names(self) -> List[str]:
         names = set()
@@ -127,6 +170,8 @@ class TraceMeasurementEngine:
 
     def stackup_layers(self) -> List[StackupLayer]:
         """Read all board stackup layers with fallbacks for KiCad API variants."""
+        if self._stackup_cache is not None:
+            return self._stackup_cache
         settings = getattr(self.board, "GetStackupSettings", lambda: None)()
         raw = None
         if settings is not None:
@@ -165,6 +210,7 @@ class TraceMeasurementEngine:
                     names.append(self._layer_name(track.GetLayer()))
             for name in sorted(set(names), key=self._natural_key):
                 rows.append(StackupLayer(name=name, kind="routed", thickness_mm=0.035))
+        self._stackup_cache = rows
         return rows
 
     def _stackup_from_board_file(self) -> List[StackupLayer]:
@@ -249,6 +295,25 @@ class TraceMeasurementEngine:
         weighted_er = sum((row.thickness_mm or row.dielectric_height_mm) * row.relative_permittivity for row in dielectrics) / max(total, 1e-9)
         return total or 0.20, weighted_er or 4.2
 
+    def topology_for_layers(self, layers: Iterable[str], reference_layer: str) -> str:
+        """Display topology only; measurement additionally verifies plane coverage."""
+        copper = [row.name for row in self.stackup_layers() if row.name.endswith(".Cu")]
+        actual = list(layers)
+        return "stripline" if copper and actual and all(layer in copper[1:-1] for layer in actual) else "microstrip"
+
+    def via_span_mm(self, layer_a, layer_b):
+        positions, z = {}, 0.
+        for row in self.stackup_layers():
+            if row.name.endswith(".Cu"):
+                positions[row.name] = z + row.thickness_mm/2
+            z += row.thickness_mm
+        a, b = self._layer_name(layer_a), self._layer_name(layer_b)
+        if a in positions and b in positions and positions[a] != positions[b]:
+            return abs(positions[b]-positions[a])
+        layers = self._geometry().layers
+        thickness = mm(self.board.GetDesignSettings().GetBoardThickness())
+        return thickness * abs(layers.index(layer_b)-layers.index(layer_a))/max(len(layers)-1,1)
+
     def available_layers(self) -> List[str]:
         """Return all actual stackup/routed layers, not a hard-coded subset."""
         names = [row.name for row in self.stackup_layers()]
@@ -271,114 +336,207 @@ class TraceMeasurementEngine:
         except (TypeError, ValueError):
             return 0.0
 
-    def measure(self, net_name: str, start_pad: str, end_pad: str, frequency_mhz: float = 100.0, reference_layer: str = "F.Cu") -> PathMeasurement:
-        stack = self.stackup(reference_layer)
-        result = PathMeasurement(net_name=net_name, start_pad=start_pad, end_pad=end_pad)
-        result.reference_layer = reference_layer
-        result.stackup_source = stack.source
-        result.dielectric_height_mm = stack.dielectric_height_mm
-        result.relative_permittivity = stack.relative_permittivity
-        result.copper_thickness_mm = stack.copper_thickness_mm
-        if nx is None:
-            result.notes.append("Install networkx for routed-path traversal; fallback uses aggregate net geometry.")
-        net_code = self._net_code(net_name)
-        graph = nx.Graph() if nx is not None else None
-        pad_positions: Dict[str, Any] = {}
-        for footprint in self.board.GetFootprints():
-            for pad in footprint.Pads():
-                if not hasattr(pad, "GetNetname") or pad.GetNetname() != net_name:
-                    continue
-                key = f"{footprint.GetReference()}.{pad.GetNumber()}"
-                pad_positions[key] = pad.GetPosition()
-                if graph is not None:
-                    graph.add_node(key)
-        tracks = []
-        for track in getattr(self.board, "GetTracks", lambda: [])():
-            if self._item_net_code(track) != net_code:
-                continue
-            if not hasattr(track, "GetStart") or not hasattr(track, "GetEnd"):
-                continue
-            start = track.GetStart(); end = track.GetEnd()
-            a = self._point_node(start); b = self._point_node(end)
-            layer = self._layer_name(track.GetLayer() if hasattr(track, "GetLayer") else None)
-            length = math.hypot(mm(end.x - start.x), mm(end.y - start.y))
-            width = mm(track.GetWidth()) if hasattr(track, "GetWidth") else 0.20
-            tracks.append((a, b, length, width, layer, track))
-            if graph is not None:
-                graph.add_edge(a, b, length=length, width=width, layer=layer, kind="track", item=track)
-        for key, position in pad_positions.items():
-            nearest = self._nearest_track_node(position, tracks)
-            if nearest and graph is not None:
-                graph.add_edge(key, nearest, length=0.0, width=0.20, layer=reference_layer, kind="pad")
-        selected_edges = []
-        if graph is not None and start_pad in graph and end_pad in graph:
+    def _geometry(self):
+        if self._geometry_cache is None:
             try:
-                path = nx.shortest_path(graph, start_pad, end_pad, weight="length")
-                selected_edges = [graph.get_edge_data(a, b) for a, b in zip(path, path[1:])]
-            except nx.NetworkXNoPath:
-                result.notes.append("No connected routed path was found between the selected pads.")
-        if not selected_edges:
-            selected_edges = [edge for edge in tracks]
-            result.notes.append("Measurement uses all matching-net tracks because a start/end path was not resolved.")
-        layer_rows = {item.name: item for item in self.stackup_layers()}
-        for edge in selected_edges:
-            data = edge if isinstance(edge, dict) else {"length": edge[2], "width": edge[3], "layer": edge[4], "kind": "track", "item": edge[5]}
-            if data.get("kind") != "track":
-                continue
-            length = float(data.get("length", 0.0)); width = max(float(data.get("width", 0.20)), 0.001)
-            result.length_mm += length; result.track_count += 1
-            if data.get("layer") and data["layer"] not in result.layers: result.layers.append(data["layer"])
-            copper_thickness = layer_rows.get(str(data.get("layer", "")), None)
-            copper_mm = copper_thickness.thickness_mm if copper_thickness and copper_thickness.thickness_mm else stack.copper_thickness_mm
-            area = (width / 1000.0) * (copper_mm / 1000.0)
-            result.resistance_ohm += COPPER_RESISTIVITY * (length / 1000.0) / area
-            if data.get("item") is not None:
-                result.board_items.append(data["item"])
-        result.layer_changes = max(0, len(result.layers) - 1)
-        result.via_count = self._via_count(net_code, selected_edges)
-        result.zone_count = self._zone_count(net_code)
-        length_m = result.length_mm / 1000.0
-        width_m = max((stack.copper_thickness_mm / 1000.0), 1e-9)
-        heights = [self.dielectric_to_reference(layer_name, reference_layer) for layer_name in result.layers]
-        dielectric_height = sum(item[0] for item in heights) / len(heights) if heights else stack.dielectric_height_mm
-        relative_permittivity = sum(item[1] for item in heights) / len(heights) if heights else stack.relative_permittivity
-        result.dielectric_height_mm = dielectric_height
-        result.relative_permittivity = relative_permittivity
-        height_m = max(dielectric_height / 1000.0, 1e-9)
-        effective_width_m = max(sum(float((e.get("width", 0.20) if isinstance(e, dict) else e[3])) for e in selected_edges if (e.get("kind") if isinstance(e, dict) else "track") == "track") / max(result.track_count, 1) / 1000.0, width_m)
-        capacitance_per_m = EPS0 * relative_permittivity * effective_width_m / height_m
-        inductance_per_m = MU0 * height_m / effective_width_m
-        result.capacitance_pf = capacitance_per_m * length_m * 1e12
-        result.inductance_nh = inductance_per_m * length_m * 1e9
-        result.impedance_ohm = math.sqrt(inductance_per_m / max(capacitance_per_m, 1e-30))
-        result.notes.append(f"First-order estimate at {frequency_mhz:g} MHz; validate critical nets with a field solver or TDR.")
-        result.notes.append(f"Stackup source: {stack.source}; reference layer: {stack.reference_layer}.")
-        if result.zone_count:
-            result.notes.append("Copper zones overlap this net; plane geometry and return path affect the estimate.")
+                from .copper_path import CopperGeometry
+            except ImportError:
+                import importlib.util
+                spec = importlib.util.spec_from_file_location("_wayricad_copper_path", os.path.join(os.path.dirname(__file__), "copper_path.py"))
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                CopperGeometry = module.CopperGeometry
+            self._geometry_cache = CopperGeometry(self)
+        return self._geometry_cache
+
+    def ground_nets(self) -> List[str]:
+        geometry = self._geometry()
+        return sorted({island["net"] for island in geometry.islands if re.search(r"(?:^|[/_+\-])(GND|AGND|DGND|PGND|SGND|VSS|GROUND)(?:$|[_\-\d])", island["net"], re.I)})
+
+    def zone_options(self, net_name=None) -> List[Dict[str, Any]]:
+        return [{"id": z["id"], "net": z["net"], "layer": self._layer_name(z["layer"]), "area_mm2": z["area_mm2"], "island": z["island"]}
+                for z in self._geometry().islands if net_name is None or z["net"] == net_name]
+
+    def zone_terminals(self, zone_id) -> List[str]:
+        geometry = self._geometry()
+        zone = next((z for z in geometry.islands if z["id"] == zone_id), None)
+        if zone is None:
+            return []
+        return sorted([key for key, pads in geometry.pads(zone["net"]).items()
+                       if any(pad.IsOnLayer(zone["layer"]) and geometry.contains(zone, (pad.GetPosition().x,pad.GetPosition().y)) for pad in pads)],key=self._natural_key)
+
+    def _new_result(self, net, start, end, reference):
+        result = PathMeasurement(net_name=net, start_pad=start, end_pad=end)
+        result.reference_layer = reference
+        result.ground_nets = self.ground_nets()
+        result.stackup_source = "Embedded board stackup (saved PCB)" if self._stackup_from_board_file() else "Default estimate; board stackup unavailable"
+        result.notes = ["Ground candidates use net names and actual filled coverage, not an electrical ground certification.",
+                        "No field solve: skin loss excludes roughness; return-current distribution, coupling and via antipad capacitance are unresolved."]
         return result
 
-    def _net_code(self, name: str) -> int:
-        for footprint in self.board.GetFootprints():
-            for pad in footprint.Pads():
-                if hasattr(pad, "GetNetname") and pad.GetNetname() == name:
-                    return int(pad.GetNetCode())
-        return 0
+    def measure(self, net_name: str, start_pad: str, end_pad: str, frequency_mhz: float = 100.0, reference_layer: str = "Auto") -> PathMeasurement:
+        if not math.isfinite(frequency_mhz) or frequency_mhz < 0:
+            raise ValueError("Frequency must be finite and non-negative.")
+        self._geometry_cache = None  # live board edits must not reuse stale copper
+        result = self._new_result(net_name, start_pad, end_pad, reference_layer)
+        edges, notes = self._geometry().path(net_name, start_pad, end_pad)
+        result.notes.extend(notes)
+        if edges is None:
+            result.notes.append("No supported connected path between these terminals. Missing zones, thermal spokes, arcs or complex copper may need a field solver; aggregate net geometry is never substituted.")
+            return result
+        self._measure_edges(result, edges, frequency_mhz, reference_layer)
+        return result
 
-    def _item_net_code(self, item: Any) -> int:
-        return int(item.GetNetCode()) if hasattr(item, "GetNetCode") else 0
+    def measure_zone(self, net_name, start_pad, end_pad, zone_id, reference_layer="Auto", frequency_mhz=100., corridor_width_mm=.2):
+        if not math.isfinite(frequency_mhz) or frequency_mhz < 0:
+            raise ValueError("Frequency must be finite and non-negative.")
+        self._geometry_cache = None
+        result = self._new_result(net_name, start_pad, end_pad, reference_layer)
+        if not math.isfinite(corridor_width_mm) or corridor_width_mm <= 0:
+            raise ValueError("Zone corridor width must be positive and finite.")
+        geometry = self._geometry()
+        zone = next((z for z in geometry.islands if z["id"] == zone_id and z["net"] == net_name), None)
+        if zone is None:
+            raise ValueError("Select a filled island belonging to this net.")
+        pads = geometry.pads(net_name)
+        result.zone_area_mm2 = zone["area_mm2"]
+        if start_pad == end_pad or start_pad not in pads or end_pad not in pads:
+            result.notes.append("Select two distinct pads on this zone's net.")
+            return result
+        # Layer-specific pad ownership is mandatory, including plated through pads.
+        candidates = [(a,b) for a in pads[start_pad] for b in pads[end_pad] if a.IsOnLayer(zone["layer"]) and b.IsOnLayer(zone["layer"])]
+        for pa, pb in candidates:
+            a, b = (pa.GetPosition().x,pa.GetPosition().y), (pb.GetPosition().x,pb.GetPosition().y)
+            if geometry.fits(zone, a, b, corridor_width_mm):
+                edge = dict(kind="zone", layer=zone["layer"], a=a,b=b,item=zone["item"],island=zone,
+                            length_mm=math.hypot(b[0]-a[0],b[1]-a[1])/1e6, width_mm=corridor_width_mm)
+                self._measure_edges(result,[edge],frequency_mhz,reference_layer,full_zone=True)
+                result.notes.append("Zone R/L uses the selected terminal corridor width, not the island's bounding box or a solved spreading resistance. Plane C uses the full island/reference overlap; do not treat this as a single series RLC circuit.")
+                return result
+        result.notes.append("Selected terminals and finite-width corridor do not fit this filled island on its layer. Islands, holes and thermal clearances are preserved; no straight-line shortcut was invented.")
+        return result
 
-    def _point_node(self, point: Any) -> Tuple[int, int]:
-        return int(point.x), int(point.y)
-
-    def _nearest_track_node(self, position: Any, tracks: List[Tuple[Any, Any, float, float, str, Any]]) -> Optional[Any]:
-        if not tracks:
-            return None
-        point = (position.x, position.y)
-        endpoints = (endpoint for item in tracks for endpoint in (item[0], item[1]))
-        return min(endpoints, key=lambda endpoint: self._distance(point, endpoint))
-
-    def _distance(self, a: Tuple[int, int], b: Tuple[int, int]) -> float:
-        return math.hypot(a[0] - b[0], a[1] - b[1])
+    def _measure_edges(self, result, edges, frequency, reference, full_zone=False):
+        geometry = self._geometry()
+        rows = {row.name:row for row in self.stackup_layers()}
+        result.status = "ok"
+        track_ids, via_ids, zone_ids = set(), set(), set()
+        widths, impedances = [], []
+        previous_layer = None
+        merged = []
+        for edge in edges:
+            if edge.get("kind") == "via" and merged and merged[-1].get("kind") == "via" and edge["item"].m_Uuid == merged[-1]["item"].m_Uuid:
+                merged[-1] = dict(merged[-1],length_mm=merged[-1]["length_mm"]+edge["length_mm"],end_layer=edge["end_layer"])
+            else:
+                merged.append(edge)
+        for edge in merged:
+            kind = edge.get("kind")
+            if kind not in ("track", "via", "zone"):
+                continue
+            layer = self._layer_name(edge["layer"])
+            length = edge["length_mm"]
+            result.length_mm += length
+            if layer not in result.layers:
+                result.layers.append(layer)
+            if previous_layer is not None and previous_layer != layer:
+                result.layer_changes += 1
+                result.status = "partial"  # plated-pad transition impedance is not modeled
+            previous_layer = layer
+            item = edge["item"]
+            uid = str(item.m_Uuid.AsString())
+            if item not in result.board_items:
+                result.board_items.append(item)
+            section = dict(kind=kind,layer=layer,length_mm=length,reference_layer="",reference_net="",
+                           resistance_ohm=0.,inductance_nh=None,capacitance_pf=None,impedance_ohm=None,status="partial")
+            copper = (rows[layer].thickness_mm if layer in rows else 0.) or .035
+            result.copper_thickness_mm = copper
+            if kind == "via":
+                via_ids.add(uid)
+                end_layer = self._layer_name(edge["end_layer"])
+                section["end_layer"] = end_layer
+                previous_layer = end_layer
+                result.layer_changes += 1
+                if end_layer not in result.layers:
+                    result.layers.append(end_layer)
+                model = _rlc.via_barrel(length, edge["drill_mm"])
+                section.update(resistance_ohm=model["resistance_ohm"],inductance_nh=model["inductance_nh"],
+                               model="Plated barrel: assumed 25 um plating; isolated partial inductance")
+                result.status = "partial"
+            else:
+                (track_ids if kind == "track" else zone_ids).add(uid)
+                width = edge["width_mm"]
+                widths.append((width,length))
+                section["width_mm"] = width
+                section["resistance_ohm"] = _rlc.dc_resistance_per_m(width,copper) * length/1000
+                result.resistance_ac_ohm += _rlc.ac_resistance_per_m(frequency,width,copper) * length/1000
+                ref = geometry.reference(edge["layer"],edge["a"],edge["b"],width,reference,result.net_name)
+                if ref:
+                    height, name, er, island = ref
+                    section.update(reference_layer=name,reference_net=island["net"],dielectric_height_mm=height,relative_permittivity=er)
+                    result.dielectric_height_mm = height
+                    result.relative_permittivity = er
+                    result.reference_layer = name if result.reference_layer in ("Auto",name) else "Multiple (see sections)"
+                    if kind == "zone":
+                        source_poly = edge["island"]["poly"] if full_zone else geometry.corridor(edge["a"],edge["b"],width)
+                        area = geometry.overlap(source_poly,island)
+                        result.overlap_area_mm2 += area
+                        section.update(inductance_nh=MU0*(height/1000)*(length/width)*1e9,
+                                       capacitance_pf=EPS0*er*(area/1e6)/(height/1000)*1e12,
+                                       model="Terminal corridor R/L; parallel-plate overlap C", overlap_area_mm2=area)
+                        result.status = "partial"
+                    else:
+                        # Internal copper with one known plane is an asymmetric
+                        # line, not automatically a symmetric stripline.
+                        outer = edge["layer"] in (geometry.layers[0],geometry.layers[-1])
+                        both = [] if outer else geometry.reference(edge["layer"],edge["a"],edge["b"],width,"Auto",result.net_name,all_matches=True)
+                        by_layer = {r[1]:r for r in both}
+                        symmetric = len(by_layer) == 2 and abs(max(r[0] for r in by_layer.values())-min(r[0] for r in by_layer.values())) < .01*height and abs(max(r[2] for r in by_layer.values())-min(r[2] for r in by_layer.values())) < .01*er
+                        if outer or symmetric:
+                            if symmetric and not outer:
+                                height = sum(r[0] for r in by_layer.values())
+                                result.dielectric_height_mm = height
+                                section["reference_layer"] = " + ".join(by_layer)
+                                section["dielectric_height_mm"] = height
+                            try:
+                                model = _rlc.solve(width,height,copper,er,length,frequency,"microstrip" if outer else "stripline")
+                                section.update(inductance_nh=model["inductance_nh"],capacitance_pf=model["capacitance_pf"],
+                                               impedance_ohm=model["z0_ohm"],model=model["model"],status="ok")
+                                impedances.append((model["z0_ohm"],length))
+                                result.propagation_delay_ns += model["propagation_delay_ns"]
+                                result.width_to_height = model["width_to_height"]
+                                result.effective_permittivity = model["effective_permittivity"]
+                            except ValueError as exc:
+                                section["model"] = str(exc)
+                                result.status = "partial"
+                        else:
+                            section["model"] = "Internal layer: asymmetric/multiple-plane field model unresolved"
+                            result.status = "partial"
+                else:
+                    section["model"] = "No adjacent named-ground filled reference covers this section"
+                    result.status = "partial"
+                if kind == "zone":
+                    result.zone_area_mm2 = max(result.zone_area_mm2,edge["island"]["area_mm2"])
+            result.resistance_ohm += section["resistance_ohm"]
+            result.inductance_nh += section["inductance_nh"] or 0.
+            result.capacitance_pf += section["capacitance_pf"] or 0.
+            result.segments.append(section)
+        result.track_count, result.via_count, result.zone_count = len(track_ids),len(via_ids),len(zone_ids)
+        if not result.segments:
+            result.status = "partial"
+        if widths:
+            result.average_width_mm = sum(w*l for w,l in widths)/max(sum(l for _,l in widths),1e-15)
+        if impedances and result.status == "ok":
+            values = [z for z,_ in impedances]
+            # A nonuniform route has section impedances, not one characteristic impedance.
+            result.impedance_valid = max(values)-min(values) <= .01*max(values)
+            if result.impedance_valid:
+                result.impedance_ohm = sum(z*l for z,l in impedances)/sum(l for _,l in impedances)
+        result.impedance_model = "Per-section geometry; see segments"
+        if result.status != "ok":
+            result.notes.append("R/L/C totals include modeled sections only; unresolved terms are null in the section report. They are not a complete equivalent-circuit extraction.")
+        if result.via_count:
+            result.notes.append("Via capacitance needs antipad/reference geometry and is unknown. Barrel plating is assumed 25 um; inductance is isolated partial L, not return-loop L.")
+        result.notes.append("Routing follows existing layer transitions without moving copper. Pad metallization and thermal-spoke impedance are excluded.")
 
     def _layer_name(self, layer: Any) -> str:
         try:
@@ -386,16 +544,6 @@ class TraceMeasurementEngine:
             return str(pcbnew.LayerName(layer))
         except Exception:
             return str(layer or "unknown")
-
-    def _via_count(self, net_code: int, edges: Iterable[Any]) -> int:
-        count = 0
-        for via in getattr(self.board, "GetTracks", lambda: [])():
-            if hasattr(via, "GetViaType") and self._item_net_code(via) == net_code:
-                count += 1
-        return count
-
-    def _zone_count(self, net_code: int) -> int:
-        return sum(1 for zone in getattr(self.board, "Zones", lambda: [])() if self._item_net_code(zone) == net_code)
 
     @staticmethod
     def _natural_key(text: str) -> List[Any]:

@@ -25,6 +25,14 @@ Advanced fanout now includes 45° and custom-angle spreading, straight-then-angl
 
 ## Installation and automation
 
+Marble validation adds connected trace/via/zone RLC, terminal-defined plane
+estimates, automatic ground reference coverage and per-section layer tracking.
+Trace RLC and Signal Integrity PCM actions use native KiCad 10 saved-board
+windows; their previews show real copper beside section results. Unsupported
+impedance models remain unknown. The new `wayricad-rlc` CLI exports numeric
+JSON. Small-region Copper Balancer previews now filter distant geometry before
+native polygon processing. See the [22-tool Marble smoke report](audits/MARBLE_SUITE_SMOKE.md).
+
 Install individual `WayriCAD-*-3.0.0-PCM.zip` files through KiCad PCM's Install from File command. Each package includes its runtime, local help and light/dark toolbar icons. The source installer previews destinations and backs up existing plugin installations before replacing them.
 
 The CLI provides document automation, routing plan/apply commands, SVG review files and settings discovery from a board. BOM Studio and Embed3D retain their application CLIs. See the [CLI guide](CLI_USER_GUIDE.md) and [installation instructions](../README.md).

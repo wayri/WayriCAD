@@ -54,6 +54,7 @@ def capabilities() -> dict[str, Any]:
         ],
         "operations": sorted(HANDLERS),
         "additional_cli": {
+            "trace-impedance": "wayricad-rlc --help (KiCad 10 Python; trace/via/hybrid and filled-zone estimates)",
             "copper-balancer": "wayricad-copper --help (KiCad 10 native geometry required)",
             "mechanical-check": "wayricad-mechanical --help (KiCad and FreeCAD required for solid checks)",
             "visual-diff": "wayricad-diff --help (Git and kicad-cli required for rendering)",

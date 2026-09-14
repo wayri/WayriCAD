@@ -19,6 +19,7 @@ test = ["Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9",
 [project.scripts]
 wayricad = "extract_pins_plugin.cli:main"
 wayricad-route = "wayricad_runtime.cli:main"
+wayricad-rlc = "trace_impedance_plugin.cli:main"
 wayricad-diff = "visual_diff_plugin.kicad_vizdiff.cli:main"
 wayricad-mechanical = "mechanical_check_plugin.cli:main"
 wayricad-copper = "copper_balancer_plugin.cli:main"
@@ -26,12 +27,15 @@ wayricad-copper = "copper_balancer_plugin.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["*_plugin", "*_plugin.*", "wayricad_runtime"]
+exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.tests.*"]
 
 [tool.setuptools.package-data]
 "*" = ["LICENSE", "LICENSE.*", "SOURCE_PROVENANCE.json"]
 extract_pins_plugin = ["*.html", "*.md", "*.txt", "*.svg", "*.png", "metadata.json"]
 harness_workbench_plugin = ["*.html", "*.md", "*.png", "metadata.json"]
 fanout_generator_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
+trace_impedance_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
+signal_integrity_advisor_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 visual_diff_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 "visual_diff_plugin.kicad_vizdiff" = ["viewer.html"]
 mechanical_check_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "resources/*.html", "src/wayricad_mechanical/*.py", "src/wayricad_mechanical/*.html", "src/wayricad_mechanical/*.js"]

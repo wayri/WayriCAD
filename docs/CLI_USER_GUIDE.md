@@ -390,3 +390,17 @@ approved interface-control review.
 `wayricad-route` (or `python -m wayricad_runtime.cli`) provides fanout and stitching plan/apply commands. Use KiCad 10 Python for board-file operations. Plan writes JSON and optional SVG; apply rechecks the board and candidate geometry and requires a new output filename. See `docs/examples/fanout.json` and `docs/examples/via-in-pad.json` for configurations. Net-class and layer selections use the same planner as the GUI.
 
 `python -m embed_3d_plugin --help` lists asset scanning, embedding, extraction, relinking and recovery commands. Writes require `--apply`. From the BOM Studio source directory, `python -m bomstudio --help` exposes native BOM export and workspace tools. These CLI modules do not require a browser.
+
+## Trace, via and plane estimates
+
+`wayricad-rlc` (or `python -m trace_impedance_plugin.cli`) provides `inspect`,
+`path` and `zone` operations using KiCad 10's native Python. `inspect --net`
+lists actual endpoints and filled-island IDs; `path` follows connected
+trace/zone/via geometry; `zone` estimates a terminal corridor and plane overlap.
+Auto reference detection checks both ground-net names and copper coverage.
+Reports are read-only JSON, including source hashes and per-section status.
+
+This command has its own exit codes: 0 resolved, 1 input/runtime error,
+2 disconnected or invalid command syntax, 3 partial model. Partial results
+must not be treated as a complete RLC extraction. See the
+[RLC guide](../trace_impedance_plugin/ReadMe.md) for examples and assumptions.

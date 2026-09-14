@@ -153,6 +153,7 @@ class Geometry:
         netclasses = board.GetAllNetClasses()
         default_nc = netclasses.get("Default")
         default_clearance = pcb.ToMM(default_nc.GetClearance()) if default_nc else 0
+        maximum_net_clearance = max([0]+[pcb.ToMM(c.GetClearance()) for c in netclasses.values()])
         self.clearance = max(settings.clearance,pcb.ToMM(rules.m_MinClearance),default_clearance)
         self.settings = replace(settings,gap=max(settings.gap,pcb.ToMM(rules.m_MinClearance),default_clearance))
         self.edge_clearance = max(settings.edge_clearance,pcb.ToMM(rules.m_CopperEdgeClearance))
@@ -162,6 +163,35 @@ class Geometry:
             self.allowed.BooleanSubtract(interior)
         if settings.region:
             self.allowed.BooleanIntersection(rectangle(settings.region))
+        # A local preview must not union the entire PCB. Bounding boxes provide
+        # only a broad phase: every retained object still uses native polygon
+        # geometry, and its own clearance expands the search region first.
+        scope = settings.region
+        if scope and (scope[2] <= self.bounds[0] or scope[0] >= self.bounds[2]
+                      or scope[3] <= self.bounds[1] or scope[1] >= self.bounds[3]):
+            raise ValueError("The chosen region does not overlap the board.")
+
+        def relevant(box, margin):
+            if scope is None:
+                return True
+            x0,y0,x1,y1 = [pcb.FromMM(v) for v in scope]
+            gap = pcb.FromMM(margin)
+            return not (box.GetRight()+gap < x0 or box.GetLeft()-gap > x1
+                        or box.GetBottom()+gap < y0 or box.GetTop()-gap > y1)
+
+        def clip_to_scope(poly, margin=0):
+            if scope is not None:
+                x0,y0,x1,y1 = scope
+                poly.BooleanIntersection(rectangle((x0-margin,y0-margin,x1+margin,y1+margin)))
+            return poly
+
+        def add_obstacle(poly, clearance):
+            # Keep a clearance-wide halo before inflation so shapes crossing
+            # the region boundary retain exactly the same collision envelope.
+            guard = clearance+ERROR_MM*2
+            clip_to_scope(poly, guard)
+            inflate(poly,guard)
+            self.obstacles.BooleanAdd(clip_to_scope(poly))
         self.copper = pcb.SHAPE_POLY_SET()
         self.warnings = []
         self.ignored = set()
@@ -184,18 +214,15 @@ class Geometry:
             # Holes are excluded on every copper layer, including NPTH and slots.
             if isinstance(item,(pcb.PAD,pcb.PCB_VIA)):
                 hole = item.GetEffectiveHoleShape()
-                if hole and hole.GetWidth() > 0:
+                hole_clearance = max(self.clearance,pcb.ToMM(rules.m_HoleClearance))
+                if hole and hole.GetWidth() > 0 and relevant(hole.BBox(),hole_clearance+ERROR_MM*2):
                     hp = pcb.SHAPE_POLY_SET()
                     hole.TransformToPolygon(hp,pcb.FromMM(ERROR_MM),pcb.ERROR_OUTSIDE)
+                    clip_to_scope(hp,hole_clearance+ERROR_MM*2)
                     holes.BooleanAdd(hp)
-                    self.obstacles.BooleanAdd(inflate(hp,max(self.clearance,pcb.ToMM(rules.m_HoleClearance))+ERROR_MM*2))
+                    add_obstacle(hp,hole_clearance)
             if not item.IsOnLayer(layer):
                 continue
-            if not hasattr(item,"TransformShapeToPolygon"):
-                raise ValueError(f"Cannot safely read a copper object ({type(item).__name__}). Generation stopped.")
-            raw = pcb.SHAPE_POLY_SET()
-            item.TransformShapeToPolygon(raw,layer,0,pcb.FromMM(ERROR_MM),pcb.ERROR_OUTSIDE)
-            self.copper.BooleanAdd(raw)
             clearance = self.clearance
             if hasattr(item,"GetOwnClearance"):
                 clearance = max(clearance,pcb.ToMM(item.GetOwnClearance(layer)))
@@ -210,24 +237,38 @@ class Geometry:
                 else:
                     # Composite netclasses are not exposed as NETCLASS proxies
                     # in KiCad 10 SWIG. A conservative fallback is intentional.
-                    clearance = max([clearance]+[pcb.ToMM(c.GetClearance()) for c in netclasses.values()])
-            self.obstacles.BooleanAdd(inflate(raw,clearance+ERROR_MM*2))
-        for zone in zones:
+                    clearance = max(clearance,maximum_net_clearance)
+            if not relevant(item.GetBoundingBox(),clearance+ERROR_MM*2):
+                continue
+            if not hasattr(item,"TransformShapeToPolygon"):
+                raise ValueError(f"Cannot safely read a copper object ({type(item).__name__}). Generation stopped.")
+            raw = pcb.SHAPE_POLY_SET()
+            item.TransformShapeToPolygon(raw,layer,0,pcb.FromMM(ERROR_MM),pcb.ERROR_OUTSIDE)
+            clip_to_scope(raw,clearance+ERROR_MM*2)
+            self.copper.BooleanAdd(raw)
+            add_obstacle(raw,clearance)
+        for index,zone in enumerate(zones):
+            if index % 10 == 0 and progress and progress(0,"Reading copper zones…") is False:
+                raise Cancelled()
             if not zone.IsOnLayer(layer):
                 continue
-            boundary = copy(zone.Outline())
             # Reserve the entire zone, even if currently unfilled. Later refills
             # cannot merge the thieves with a net or reclaim their clearance.
             clearance = self.clearance
             if not zone.GetIsRuleArea():
                 clearance = max(clearance,pcb.ToMM(zone.GetLocalClearance() or 0),pcb.ToMM(zone.GetOwnClearance(layer)))
+            if not relevant(zone.GetBoundingBox(),clearance+ERROR_MM*2):
+                continue
+            boundary = copy(zone.Outline())
+            if not zone.GetIsRuleArea():
                 if zone.IsFilled() and zone.HasFilledPolysForLayer(layer):
-                    self.copper.BooleanAdd(copy(zone.GetFilledPolysList(layer)))
+                    self.copper.BooleanAdd(clip_to_scope(copy(zone.GetFilledPolysList(layer))))
                 else:
                     self.warnings.append("An unfilled zone was reserved; fill zones in KiCad for accurate density measurements.")
-            self.obstacles.BooleanAdd(inflate(boundary,clearance+ERROR_MM*2))
+            add_obstacle(boundary,clearance)
         self.allowed.BooleanSubtract(self.obstacles)
         self.outline.BooleanSubtract(holes)
+        clip_to_scope(self.outline)
         self.copper.BooleanIntersection(self.outline)
 
     def accepts(self, points):
