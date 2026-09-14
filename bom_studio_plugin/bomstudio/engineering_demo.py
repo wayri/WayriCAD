@@ -15,7 +15,7 @@ FOOTPRINT='''(footprint "R_0603_1608Metric" (version 20241229) (layer "F.Cu")
 
 def prepare(app):
     ws=app.workspace;root=ws.project.root.parent
-    if not app.demo_directory or root!=Path(app.demo_directory):raise ValueError('Engineering sample must use a temporary demo copy.')
+    if not app.demo_directory or root!=Path(app.demo_directory).resolve():raise ValueError('Engineering sample must use a temporary demo copy.')
     fp=root/'demo-footprints/Resistor_SMD.pretty/R_0603_1608Metric.kicad_mod';fp.parent.mkdir(parents=True,exist_ok=True)
     models=root/'demo-models';models.mkdir(exist_ok=True)
     for model in (Path(__file__).resolve().parent.parent/'examples'/'assets').glob('SYNTHETIC_resistor.*'):shutil.copyfile(model,models/model.name)

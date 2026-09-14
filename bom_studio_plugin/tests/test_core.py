@@ -19,7 +19,7 @@ EXAMPLES=Path(__file__).resolve().parents[1]/'examples'
 
 class Fixture(unittest.TestCase):
  def setUp(self):
-  self.tmp=tempfile.TemporaryDirectory();self.dir=Path(self.tmp.name)
+  self.tmp=tempfile.TemporaryDirectory();self.dir=Path(self.tmp.name).resolve()
   # Isolate synthetic fixtures from installed KiCad libraries and user config.
   from unittest.mock import patch
   import os

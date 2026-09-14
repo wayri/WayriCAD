@@ -1,3 +1,3 @@
-# Optional portable decoder for KiCad embedded model files.
+# Portable decoder for KiCad embedded model files; also included in PCM requirements.
 # System/KiCad libzstd fallback works without this on some machines.
 zstandard==0.25.0

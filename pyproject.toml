@@ -14,7 +14,7 @@ dependencies = ["networkx>=2.8"]
 keywords = ["kicad", "eda", "icd", "cli", "aerospace", "harness"]
 
 [project.optional-dependencies]
-test = ["Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9"]
+test = ["Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9", "zstandard>=0.25.0,<1"]
 
 [project.scripts]
 wayricad = "extract_pins_plugin.cli:main"

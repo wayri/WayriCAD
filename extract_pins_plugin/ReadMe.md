@@ -2,8 +2,8 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-2.19.0-blue)
-![KiCAD](https://img.shields.io/badge/KiCAD-9.0+-green)
+![Version](https://img.shields.io/badge/Version-3.0.0-blue)
+![KiCAD](https://img.shields.io/badge/KiCAD-10.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
 ## Features
@@ -84,16 +84,13 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 
 ## Installation
 
-### Method 1: Plugin Manager (Recommended)
-1. Open KiCAD → `Plugin and Content Manager`
-2. Add repository: `https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json`
-3. Search for "WayriCAD" and install
+1. Download `WayriCAD-extract-pins-3.0.0-PCM.zip` from the published WayriCAD release, or build it with the repository's `build_pcm.py`.
+2. In KiCad Manager, open **Plugin and Content Manager → Install from File** and select the ZIP.
+3. Enable the API in **Preferences → Plugins**, configure Python, and restart KiCad.
 
-### Method 2: Manual Installation
-1. Enable the KiCAD API: `Preferences → Preferences → Plugins → Enable`
-2. Open PCB Editor → `Tools → Plugins → Open Plugin Directory`
-3. Copy the `extract_pins_plugin` folder to the plugin directory
-4. `Tools → Plugins → Refresh Plugins`
+The ZIP includes the shared runtime. For a source installation, use the repository's `tools/install_suite.py` after building the packages; copying this source folder alone omits its runtime.
+
+Once the release is published, the repository feed is `https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json`.
 
 ---
 
@@ -102,7 +99,7 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 ### GUI Mode
 1. Open your PCB in the PCB Editor
 2. *(Optional)* Select components on the PCB
-3. `Tools → External Plugins → Extract Component Pins with GUI`
+3. Launch **WayriCAD Pin Extractor**. The additional **WayriCAD Interboard & Harness** menu action opens the project connectivity and ICD workbench.
 4. Use **Extract Pins** to follow PCB selection, filter components, preview rows, and export
 5. Use **Controller Map** for an auditable IC-to-connector table across approved series and active-device pin pairs
 6. Use **Signal Flow** and **IC Signal Chart** to review same-net table and visual connectivity

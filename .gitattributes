@@ -1,0 +1,2 @@
+# Upstream artwork is verified against its original Git blob identity.
+bom_studio_plugin/resources/sources/*.svg -text
