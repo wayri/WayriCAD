@@ -69,6 +69,40 @@
             ]
         },
         {
+            "name": "WayriCAD Copper Balancer",
+            "description": "Preview isolated copper thieving and local density balancing on saved PCB copies.",
+            "description_full": "Local native KiCad 10 polygon geometry, eight patterns, per-layer density maps, clearances, keepouts and replacement. The PCM action opens an explicit saved-board workflow and writes a new board copy. Live IPC copper edits and KiCad 11 geometry are not yet supported.",
+            "identifier": "com.github.wayri.wayricad.copper-balancer",
+            "type": "plugin",
+            "author": {
+                "name": "Wayri (Yawar)",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "fa519846466d279d3456b20206803df557f2bcb32ae9d7bfe415f6aa6a308c42",
+                    "download_size": 237931,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-copper-balancer-3.0.0-PCM.zip",
+                    "install_size": 353454,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
             "name": "WayriCAD Embed3D",
             "description": "One component matrix: embed symbols, footprints and 3D models; unbundle, relink, or do both with checked selections.",
             "description_full": "One window with global and per-component Symbols, Footprints and 3D models checkboxes. Visible Embed checked, Embed all, Unbundle, Relink and Unbundle & relink actions share a preview/apply workflow. Archive actual bytes, preserve model transforms and native symbol caches, and create verified external library links. Select asset and new-design folders; choose relative/absolute paths, child sheets and conservative attachment removal. Main operations read saved files and create new design copies, not edits to open buffers. Previous standalone library, repair and live-model tools remain under Options. Approved icon included. Offline KiCad 10 SWIG addon, not IPC or KiCad 11. Testing release: native UI, installation, rendering and live integration remain unverified.",
@@ -124,10 +158,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "66f87e6e026a1904ae21239576b2fcdb0b9c8a2a11f53f416713d0f8b20ed0db",
-                    "download_size": 444122,
+                    "download_sha256": "199c1c9c55e27ca3bf3c1068f0fcac4312f5ed21b0b0517a0500f520822cc68c",
+                    "download_size": 444288,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-extract-pins-3.0.0-PCM.zip",
-                    "install_size": 1031728,
+                    "install_size": 1032333,
                     "platforms": [
                         "windows",
                         "linux",
@@ -298,6 +332,40 @@
                     "download_size": 149531,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-manufacturing-readiness-3.0.0-PCM.zip",
                     "install_size": 244688,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Mechanical Check",
+            "description": "Local mechanical clearance, height, hardware and STEP interference review.",
+            "description_full": "Read-only saved-board mechanical validation, exact FreeCAD/Open CASCADE solid intersections, model coverage inventory, native conflict viewer and offline HTML/JSON/CSV reports. Requires an installed KiCad 10 Python/CLI and FreeCAD Python. IPC launch opens the saved file; it does not capture unsaved edits. KiCad 11 launch is forward-oriented and unverified; the extraction worker still requires KiCad 10.",
+            "identifier": "com.github.wayri.wayricad.mechanical-check",
+            "type": "plugin",
+            "author": {
+                "name": "WayriCAD contributors",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "293e6fc52ab07447e69f34c843b6e7dee954185a17c16ef50655f9db1355000e",
+                    "download_size": 169256,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-mechanical-check-3.0.0-PCM.zip",
+                    "install_size": 316248,
                     "platforms": [
                         "windows",
                         "linux",
@@ -638,6 +706,40 @@
                     "download_size": 160993,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-via-stitching-3.0.0-PCM.zip",
                     "install_size": 265552,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "WayriCAD Visual Diff",
+            "description": "Compare PCB and schematic Git revisions with native KiCad SVGs in a local interactive report.",
+            "description_full": "Minimal local launcher for saved Git revisions. Compare sheets and PCB layers side by side, overlay, swipe, or inspect a raster change map with shared coordinates and pan/zoom. Offline HTML reports bundle all assets. Includes CLI and optional, separately invoked GitHub integration. Requires Git and KiCad 10+ CLI; does not modify boards or include unsaved editor changes. IPC only discovers the current saved board path; future KiCad compatibility is unverified.",
+            "identifier": "com.github.wayri.wayricad.visual-diff",
+            "type": "plugin",
+            "author": {
+                "name": "WayriCAD contributors",
+                "contact": {
+                    "github": "https://github.com/wayri"
+                }
+            },
+            "license": "GPL-3.0",
+            "resources": {
+                "homepage": "https://github.com/wayri/WayriCAD"
+            },
+            "versions": [
+                {
+                    "version": "3.0.0",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "12cc7e45bdfa3fdbec8c82291df84aa3a9c92643031b9300a50b5e4fa69e1602",
+                    "download_size": 137877,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.0.0/WayriCAD-visual-diff-3.0.0-PCM.zip",
+                    "install_size": 269453,
                     "platforms": [
                         "windows",
                         "linux",

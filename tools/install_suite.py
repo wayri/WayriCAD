@@ -17,8 +17,10 @@ def main():
     args = parser.parse_args()
     destination = (args.destination or Path.home() / "Documents" / "KiCad" / args.version / "plugins").resolve()
     packages = sorted((ROOT / "releases").glob("WayriCAD-*-3.0.0-PCM.zip"))
-    if len(packages) != 19:
-        parser.error("Build the 19 packages with python build_pcm.py --clean-feed first.")
+    expected = {"WayriCAD-" + p.parent.name.removesuffix("_plugin").replace("_", "-") + "-3.0.0-PCM.zip"
+                for p in ROOT.glob("*_plugin/metadata.json")}
+    if not expected or {p.name for p in packages} != expected:
+        parser.error("Release ZIPs differ from the source inventory. Run python build_pcm.py --clean-feed first.")
     for package in packages:
         with zipfile.ZipFile(package) as archive:
             manifest = json.loads(archive.read("plugins/plugin.json"))

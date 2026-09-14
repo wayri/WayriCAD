@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "project_name": "WayriCAD Mechanical Check validation fixture",
+  "project_revision": "",
+  "reviewer": "",
+  "clearance_mm": 0.25,
+  "xy_clearance_mm": 0.25,
+  "z_clearance_mm": 0.5,
+  "top_height_mm": 6,
+  "bottom_height_mm": 3.0,
+  "nozzle_radius_mm": 1.5,
+  "nozzle_travel_mm": 15.0,
+  "screw_clearance_mm": 0.5,
+  "volume_tolerance_mm3": 0.0001,
+  "include_dnp": false,
+  "mounts": {
+    "H1": {
+      "expected_plating": "NPTH",
+      "side": "top",
+      "head_diameter_mm": 5.5,
+      "head_height_mm": 3.0,
+      "washer_diameter_mm": 7.0,
+      "shaft_diameter_mm": 3.0,
+      "tool_radius_mm": 3.0
+    },
+    "H2": {
+      "expected_plating": "NPTH",
+      "side": "top",
+      "head_diameter_mm": 5.5,
+      "head_height_mm": 3.0,
+      "washer_diameter_mm": 7.0,
+      "shaft_diameter_mm": 3.0,
+      "tool_radius_mm": 3.0
+    }
+  },
+  "height_zones": [],
+  "keepouts": [],
+  "enclosures": [],
+  "waivers": {},
+  "model_variables": {}
+}

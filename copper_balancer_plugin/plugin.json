@@ -1,0 +1,32 @@
+{
+  "$schema": "https://go.kicad.org/api/schemas/v1",
+  "identifier": "com.github.wayri.wayricad.copper-balancer",
+  "name": "WayriCAD Copper Balancer",
+  "description": "Preview isolated copper thieving and local density balancing on saved PCB copies.",
+  "runtime": {
+    "type": "python",
+    "min_version": "3.10.0"
+  },
+  "actions": [
+    {
+      "identifier": "open",
+      "name": "WayriCAD Copper Balancer",
+      "description": "Preview isolated copper thieving and local density balancing on saved PCB copies.",
+      "show-button": true,
+      "scopes": [
+        "pcb"
+      ],
+      "entrypoint": "desktop_entrypoint.py",
+      "icons-light": [
+        "resources/icon-24.png",
+        "resources/icon-48.png",
+        "resources/icon-96.png"
+      ],
+      "icons-dark": [
+        "resources/icon-dark-24.png",
+        "resources/icon-dark-48.png",
+        "resources/icon-dark-96.png"
+      ]
+    }
+  ]
+}

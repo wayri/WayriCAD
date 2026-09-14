@@ -32,6 +32,17 @@ Run `wayricad COMMAND --help` for command-specific options. Global options such 
 
 ## 2. Inputs and deterministic outputs
 
+The additional development-folder tools expose separate local commands after installing the suite:
+
+```text
+wayricad-copper --help
+wayricad-mechanical --help
+wayricad-diff --help
+wayricad-diff doctor
+```
+
+Copper Balancer selects a native KiCad 10 interpreter for geometry work. Mechanical Check discovers native KiCad and FreeCAD runtimes. Visual Diff uses Git and `kicad-cli`; its offline HTML viewer is bundled in the wheel and PCM ZIP. These commands are listed in `wayricad capabilities` under `additional_cli`, rather than advertised as JSON-RPC operations. Detailed examples and engine requirements are in the individual plugin READMEs.
+
 Schematic commands accept KiCad XML netlists, `.net` files, or directories. A
 directory is searched recursively and all matching inputs are processed in
 sorted order. Export a compatible netlist with KiCad 10 using:

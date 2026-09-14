@@ -21,7 +21,8 @@ def validate():
     repo = json.loads((ROOT / "pcm/repo.json").read_text())
     Draft7Validator(dict(pcm, **{"$ref": "#/definitions/PackageArray"})).validate(feed)
     Draft7Validator(dict(pcm, **{"$ref": "#/definitions/Repository"})).validate(repo)
-    assert len(feed["packages"]) == 19
+    expected = {json.loads(p.read_text(encoding="utf-8"))["identifier"] for p in ROOT.glob("*_plugin/metadata.json")}
+    assert expected and {p["identifier"] for p in feed["packages"]} == expected, "Feed differs from source plugin inventory"
     identifiers = set()
     for package in feed["packages"]:
         Draft7Validator(pcm).validate(package)
@@ -62,7 +63,7 @@ def validate():
     assert hashlib.sha256(resources.read_bytes()).hexdigest() == repo["resources"]["sha256"]
     with zipfile.ZipFile(resources) as archive:
         assert set(archive.namelist()) == {i + "/icon.png" for i in identifiers}
-    print("Validated 19 independent PCM ZIPs: official schemas, payload syntax, icons, entrypoints and SHA-256 hashes.")
+    print(f"Validated {len(identifiers)} independent PCM ZIPs: official schemas, payload syntax, icons, entrypoints and SHA-256 hashes.")
 
 
 if __name__ == "__main__":

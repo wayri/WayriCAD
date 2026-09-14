@@ -1,6 +1,6 @@
 # WayriCAD 3.0.0
 
-A suite of 19 local KiCad tools for PCB planning, design review, BOM management, and portable projects. This release brings the former suite and the supplied BOM Studio and Embed3D applications under one name.
+A suite of 22 local KiCad tools for PCB planning, design review, BOM management, and portable projects. This release integrates BOM Studio, Embed3D, Copper Balancer, Mechanical Check and Visual Diff under one name.
 
 **Release status: testing.** KiCad 10 is the primary validation target. Packages now use KiCad's IPC plugin format, the forward path for KiCad 11. This does not constitute certification of every operation on KiCad 11; see [compatibility and verification](docs/COMPATIBILITY.md).
 
@@ -29,6 +29,9 @@ Historical release notes remain available under `docs/`. Their version-specific 
 |---|---|
 | BOM Studio | Local component table, variants, catalogue, native KiCad BOM fields/grouping/format settings and exports |
 | Embed3D | Embed models, inspect project assets, archive footprints and rebuild portable project copies |
+| [Copper Balancer](copper_balancer_plugin/README.md) | Review floating copper thieving and local density balancing; save an explicit board copy |
+| [Mechanical Check](mechanical_check_plugin/README.md) | Component/enclosure interference, clearance and assembly checks with offline evidence reports |
+| [Visual Diff](visual_diff_plugin/README.md) | Compare Git revisions or working-tree designs using KiCad-rendered schematic and PCB layers |
 | Fanout Generator | Configurable fanout patterns, placement review, obstacle rejection and grouped commits |
 | Via Stitching | Square or staggered stitching with copper, outline, clearance and exclusion checks |
 | Bulk Label Editor | Review references, values, fields and PCB text edits; undo and redo |
@@ -46,6 +49,8 @@ Historical release notes remain available under `docs/`. Their version-specific 
 | Test Point Descriptor | Test-point documentation and fixture generation |
 | Trace Impedance | Trace geometry, RLC and impedance estimates |
 | Variant Workbench | Review and generate design variants in project copies |
+
+The three added tools have dedicated local launchers. Copper Balancer needs KiCad 10's native Python geometry engine. Mechanical Check additionally needs FreeCAD for exact solid checks. Visual Diff needs Git and `kicad-cli`. Installing an IPC manifest does not remove these engine requirements or establish KiCad 11 support. See each tool's README for runtime discovery and saved-board boundaries.
 
 ## Routing workflow
 
@@ -78,6 +83,6 @@ python build_pcm.py --clean-feed --release-tag 3.0.0 --branch develop
 python tools/validate_packages.py
 ```
 
-Run the imported applications' suites separately: `python -m unittest discover -s embed_3d_plugin/tests` and, from `bom_studio_plugin`, `python -m unittest discover -s tests`. Native geometry tests require KiCad's Python. Optional native tests and IPC tests report skips when their runtimes are unavailable; skips are not compatibility evidence.
+Run the imported applications' suites separately: `python -m unittest discover -s embed_3d_plugin/tests` and, from `bom_studio_plugin`, `python -m unittest discover -s tests`. The added tools use `python -m unittest discover -s <plugin_folder>/tests` for `copper_balancer_plugin`, `mechanical_check_plugin` and `visual_diff_plugin`. Native geometry tests require KiCad's Python. Optional native tests and IPC tests report skips when their runtimes are unavailable; skips are not compatibility evidence. See the [development-folder integration record](docs/audits/DEVELOPMENT_FOLDER_IMPORT.md).
 
 The builder creates independent, deterministic ZIPs, a clean PCM feed and a repository icon archive. PCM icons are 64×64; toolbar assets include 24, 48 and 96 pixel light/dark variants. Schemas are checked in from the official KiCad source mirror for local validation.
