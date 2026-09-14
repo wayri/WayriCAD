@@ -35,7 +35,7 @@ class ServiceGuards(unittest.TestCase):
         request={'source_terminal':'start','sink_terminal':'end','net':'A',
                  'series':[{'from_pad':'in','to_pad':'out','resistance_ohm':.01},
                            {'from_pad':'out','to_pad':'in','resistance_ohm':.01}]}
-        with self.assertRaisesRegex(ValueError,'Repeated series endpoint'):
+        with patch.dict('sys.modules',{'quick_pi_plugin.mesh':None}), self.assertRaisesRegex(ValueError,'Repeated series endpoint'):
             service.series_execute(board,Path('unused.kicad_pcb'),request)
 
 
