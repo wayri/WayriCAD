@@ -6,7 +6,7 @@ Validation host: Windows, KiCad 10.0.5; ordinary Python 3.14 for pure tests and 
 | --- | --- |
 | Root regression suite | 121 passed, 12 runtime-dependent skips and 78 subtests passed with `python -m pytest tests -q`. Includes package contents, IPC contracts, manufacturing gates and reviewed operations. |
 | BOM Studio | Full imported suite: 1,157 tests with one optional skip. After final changes: 129 targeted tests passed, including local browser fallback, authentication and workspace settings. |
-| Embed3D | Final pure suite: 296 tests, 277 passed and 19 optional/native skips. Actual KiCad 10 native suite plus two new ownership regressions: 23 tests covered successfully. |
+| Embed3D | Final pure suite: 297 tests, 278 passed and 19 optional/native skips, including a full run with a real DOS 8.3 TEMP alias matching Windows CI. Actual KiCad 10 native suite plus two new ownership regressions: 23 tests covered successfully. |
 | Routing | 17 native KiCad tests passed: real pads, nets, tracks, vias, keepouts, saved-project netclasses, layer transitions, stale plans and operation recovery. |
 | Heater and magnetics | Disposable native boards: reviewed geometry did not modify the PCB; apply, undo and redo succeeded for 99 heater items and 63 magnetics items. |
 | Independent packages | All 19 PCM archives pass checked-in official PCM/API schemas, payload compilation, ZIP integrity, icon dimensions and SHA-256 verification. |

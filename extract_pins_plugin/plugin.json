@@ -27,6 +27,26 @@
         "resources/icon-dark-48.png",
         "resources/icon-dark-96.png"
       ]
+    },
+    {
+      "identifier": "interboard",
+      "name": "WayriCAD Interboard & Harness",
+      "description": "Open project connectivity, ICD and harness tools.",
+      "show-button": false,
+      "scopes": [
+        "pcb"
+      ],
+      "entrypoint": "interboard_entrypoint.py",
+      "icons-light": [
+        "resources/icon-24.png",
+        "resources/icon-48.png",
+        "resources/icon-96.png"
+      ],
+      "icons-dark": [
+        "resources/icon-dark-24.png",
+        "resources/icon-dark-48.png",
+        "resources/icon-dark-96.png"
+      ]
     }
   ]
 }

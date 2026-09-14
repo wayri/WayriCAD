@@ -56,11 +56,11 @@ class AssetFileTests(unittest.TestCase):
                 self.assertEqual(ico.ico.getimage(size).size, size)
 
     def test_asset_rebuild_is_reproducible(self):
-        from io import BytesIO
         generated = icon(*SPECS['embed_3d_plugin']).resize((64,64), Image.Resampling.LANCZOS)
-        output = BytesIO()
-        generated.save(output, format='PNG', optimize=True)
-        self.assertEqual(output.getvalue(), (ROOT/'icon.png').read_bytes())
+        # PNG compression can differ across platform zlib versions.
+        # Compare the actual raster, including alpha, instead of compressed bytes.
+        with Image.open(ROOT/'icon.png') as committed:
+            self.assertEqual(generated.tobytes(), committed.convert('RGBA').tobytes())
 
 
 class FakeBitmap:

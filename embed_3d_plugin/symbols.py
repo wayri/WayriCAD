@@ -44,7 +44,10 @@ def property_value(node: Node, text: str, name: str):
 
 
 def load_hierarchy(source: Path, follow=True, variables=None, cancelled=None):
-    source = Path(source).absolute()
+    # Use one filesystem identity for the root and every visited sheet. Windows
+    # TEMP and KiCad paths may use DOS 8.3 aliases; mixing those with resolved
+    # child paths incorrectly relocates even the root into external-sheets/.
+    source = Path(source).resolve()
     values = saved_project_variables(source); values.update(variables or {})
     resolver = Resolver(source.parent, values)
     sheets, stack = {}, set()
