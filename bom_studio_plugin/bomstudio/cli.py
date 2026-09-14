@@ -22,7 +22,7 @@ from .writeback import compile_plan,apply_plan
 
 EXIT={'ok':0,'usage':2,'policy':3,'io':4,'review':5,'unavailable':6,'internal':7,'interrupted':130}
 from .engineering_cli import COMMANDS as ENGINEERING_COMMANDS
-COMMANDS=('assemblers','vendors','bom-format','library-create','fields','native-bom','doctor','info','list','query','analytics','threshold','check','health','analyze','export','release','compare','bulk','config','native','enforce','evidence','templates','run','jobset','verify','gui','schema')+ENGINEERING_COMMANDS
+COMMANDS=('upgrade-copy','assemblers','vendors','bom-format','library-create','fields','native-bom','doctor','info','list','query','analytics','threshold','check','health','analyze','export','release','compare','bulk','config','native','enforce','evidence','templates','run','jobset','verify','gui','schema')+ENGINEERING_COMMANDS
 
 
 class StrictParser(argparse.ArgumentParser):
@@ -41,6 +41,9 @@ def parser():
         if variant:q.add_argument('--variant',default=BASE)
         if source:q.add_argument('--source-only',action='store_true',help='Ignore saved .wayricad-bom.json (read-only commands only).')
     def output(q):q.add_argument('--output',help='New JSON report/plan file; stdout otherwise. Never overwrites an existing file.')
+    q=subs.add_parser('upgrade-copy',help='Upgrade a complete legacy hierarchy into a new project directory using KiCad 10; verify native connectivity and preserve original files.')
+    project(q,variant=False,source=False);q.add_argument('--destination',required=True,help='New directory outside the source project. Existing destinations are refused.')
+    q.add_argument('--kicad-cli',help='Explicit KiCad 10 CLI executable.');output(q)
     q=subs.add_parser('vendors',help='Split fitted BOM by supplier and create DigiKey/Mouser/custom upload files. No network requests.');project(q);output(q)
     q.add_argument('--config',help='Vendor mapping/config JSON or - for stdin; saved mappings otherwise.')
     q.add_argument('--vendor-field',help='Exact project property used for routing, e.g. Vendor or Distributor.')
@@ -154,6 +157,9 @@ def emit(data,a,ok=True):
 
 def run_command(a):
     name=a.command
+    if name=='upgrade-copy':
+        from .upgrade import upgrade_project_copy
+        emit(upgrade_project_copy(a.project,a.destination,cli=a.kicad_cli),a);return 0
     if name=='assemblers':
         from . import assembler_export as ae
         if a.list_profiles:

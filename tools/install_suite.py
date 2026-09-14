@@ -16,8 +16,11 @@ def main():
     parser.add_argument("--apply", action="store_true", help="Copy plugins; existing installations are backed up.")
     args = parser.parse_args()
     destination = (args.destination or Path.home() / "Documents" / "KiCad" / args.version / "plugins").resolve()
-    packages = sorted((ROOT / "releases").glob("WayriCAD-*-3.0.0-PCM.zip"))
-    expected = {"WayriCAD-" + p.parent.name.removesuffix("_plugin").replace("_", "-") + "-3.0.0-PCM.zip"
+    versions = {json.loads(p.read_text(encoding='utf-8'))['versions'][0]['version'] for p in ROOT.glob('*_plugin/metadata.json')}
+    if len(versions)!=1:parser.error('Source plugins must have one release version.')
+    release=versions.pop()
+    packages = sorted((ROOT / "releases").glob("WayriCAD-*-"+release+"-PCM.zip"))
+    expected = {"WayriCAD-" + p.parent.name.removesuffix("_plugin").replace("_", "-") + "-"+release+"-PCM.zip"
                 for p in ROOT.glob("*_plugin/metadata.json")}
     if not expected or {p.name for p in packages} != expected:
         parser.error("Release ZIPs differ from the source inventory. Run python build_pcm.py --clean-feed first.")
@@ -57,6 +60,18 @@ def main():
                     if backup is not None:
                         backup.rename(target)
                     raise
+    # Retired tools are replaced by Project Library. Preserve installations in
+    # the same backup area so the suite no longer shows duplicate asset tools.
+    for identifier in ('com.github.wayri.wayricad.kilo','com.github.wayri.wayricad.portable-assets'):
+        retired=destination/identifier
+        if retired.exists():
+            if retired.is_symlink() or retired.resolve().parent != destination:
+                raise ValueError('Retired plugin path is not a direct child of the install directory.')
+            print('Consolidate into Project Library: '+str(retired))
+            if args.apply:
+                backups=destination.parent/'wayricad-plugin-backups';backups.mkdir(exist_ok=True)
+                stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%f')
+                retired.rename(backups/(identifier+'-'+stamp))
     print("Installed. Restart KiCad and enable the API in Preferences > Plugins." if args.apply else
           "Preview only. Add --apply to install; existing installations will be backed up.")
 

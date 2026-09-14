@@ -1,14 +1,16 @@
 """Layer-aware, conservative copper paths using KiCad's filled polygons.
 
 This is a geometry model, not a current-distribution/field solver. Zone hops
-are allowed only when a finite-width straight corridor fits inside one filled
-island. Missing or unsupported geometry never falls back to aggregate nets.
+require finite-width connected corridors through filled copper, including
+navigation around holes. Missing geometry never falls back to aggregate nets.
 """
 from __future__ import annotations
 
 import heapq
 import math
 import re
+import importlib.util
+import os
 
 IU = 1_000_000
 
@@ -74,6 +76,8 @@ class CopperGeometry:
         self.layers = list(self.board.GetEnabledLayers().CuStack())
         self.islands = []
         self.notes = []
+        self._navigation_cache = {}
+        self._routing_prepared = set()
         for zone in self.board.Zones():
             if getattr(zone, 'GetIsRuleArea', lambda: False)():
                 continue
@@ -112,12 +116,69 @@ class CopperGeometry:
     def contains(self, island, p):
         return island['poly'].Contains(self.pcb.VECTOR2I(*p))
 
-    def fits(self, island, a, b, width_mm):
-        if not self.contains(island, a) or not self.contains(island, b):
+    def fits(self, island, a, b, width_mm, routing=False):
+        poly = island.get('routing_poly',island['poly']) if routing else island['poly']
+        if not poly.Contains(self.pcb.VECTOR2I(*a)) or not poly.Contains(self.pcb.VECTOR2I(*b)):
             return False
         missing = self.corridor(a, b, width_mm)
-        missing.BooleanSubtract(island['poly'])
+        missing.BooleanSubtract(poly)
         return missing.Area() <= 4  # four square internal units, rounding only
+
+    def prepare_routing(self,net):
+        """Union actual pad copper into touching fill, preserving thermal voids.
+
+        Disjoint pads remain separate outlines and are discarded. This gives
+        thermal spokes a real path from the terminal instead of jumping a gap.
+        Original filled geometry/area stays intact for reference and C reports.
+        """
+        if net in self._routing_prepared:return
+        self._routing_prepared.add(net)
+        pads=[pad for group in self.pads(net).values() for pad in group]
+        for island in self.islands:
+            if island['net']!=net:continue
+            combined=self.pcb.SHAPE_POLY_SET(island['poly'])
+            for pad in pads:
+                if not pad.IsOnLayer(island['layer']):continue
+                if not pad.GetBoundingBox().Intersects(island['poly'].BBox()):continue
+                copper=self.pcb.SHAPE_POLY_SET()
+                pad.TransformShapeToPolygon(copper,island['layer'],0,1000,self.pcb.ERROR_INSIDE)
+                combined.BooleanAdd(copper)
+            # Extract only components containing original fill. An isolated pad
+            # placed inside a clearance hole must not become a connected terminal.
+            kept=self.pcb.SHAPE_POLY_SET()
+            for i in range(combined.OutlineCount()):
+                part=self.pcb.SHAPE_POLY_SET();part.AddOutline(combined.COutline(i))
+                for h in range(combined.HoleCount(i)):part.AddHole(combined.CHole(i,h),0)
+                overlap=self.pcb.SHAPE_POLY_SET(part);overlap.BooleanIntersection(island['poly'])
+                if overlap.Area()>0:kept.BooleanAdd(part)
+            island['routing_poly']=kept
+
+    def navigation(self,island,width_mm):
+        key=(island['id'],width_mm)
+        if key not in self._navigation_cache:
+            try:
+                from .zone_navigation import ZoneNavigation
+            except ImportError:
+                spec=importlib.util.spec_from_file_location('_wayricad_zone_navigation',os.path.join(os.path.dirname(__file__),'zone_navigation.py'))
+                module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+                ZoneNavigation=module.ZoneNavigation
+            self._navigation_cache[key]=ZoneNavigation(self,island,width_mm)
+        return self._navigation_cache[key]
+
+    def arc_pieces(self,item):
+        """Chords for coverage/contact checks; retain exact circular arc length."""
+        a,m,b=point(item.GetStart()),point(item.GetMid()),point(item.GetEnd())
+        c=point(item.GetCenter());radius=distance(a,c)*IU
+        if radius<=0:raise ValueError('Arc has zero radius.')
+        angles=[math.atan2(p[1]-c[1],p[0]-c[0]) for p in (a,m,b)]
+        sweep=(angles[2]-angles[0])%(2*math.pi)
+        if (angles[1]-angles[0])%(2*math.pi)>sweep:sweep-=2*math.pi
+        maximum=2*math.acos(max(-1.,min(1.,1-1000/radius)))
+        count=max(2,math.ceil(abs(sweep)/max(maximum,1e-6)))
+        points=[a]+[(round(c[0]+radius*math.cos(angles[0]+sweep*i/count)),
+                     round(c[1]+radius*math.sin(angles[0]+sweep*i/count))) for i in range(1,count)]+[b]
+        exact=item.GetLength()/IU/count
+        return [(p,q,exact/max(distance(p,q),1e-15)) for p,q in zip(points,points[1:])]
 
     def reference(self, signal_layer, a, b, width_mm, reference_layer='Auto', net='', all_matches=False):
         """Nearest named-ground filled island covering the entire corridor.
@@ -169,6 +230,7 @@ class CopperGeometry:
         pads = self.pads(net)
         if start not in pads or end not in pads or start == end:
             return None, ['Select two distinct pads on the selected net.']
+        self.prepare_routing(net)
         nodes = set()
         tracks = []
         vias = []
@@ -181,10 +243,13 @@ class CopperGeometry:
                     if item.IsOnLayer(layer):
                         nodes.add((*point(item.GetPosition()), layer))
             elif isinstance(item, self.pcb.PCB_ARC):
-                self.notes.append('Arc copper is not traversed; a path needing it remains unresolved.')
+                for a,b,scale in self.arc_pieces(item):
+                    layer=item.GetLayer()
+                    tracks.append((a,b,layer,item,scale))
+                    nodes.update([(*a,layer),(*b,layer)])
             else:
                 a, b, layer = point(item.GetStart()), point(item.GetEnd()), item.GetLayer()
-                tracks.append((a, b, layer, item))
+                tracks.append((a, b, layer, item,1.))
                 nodes.update([(*a, layer), (*b, layer)])
         for key, values in pads.items():
             for pad in values:
@@ -194,13 +259,14 @@ class CopperGeometry:
                         nodes.add((*p, layer))
         # Endpoints on a same-layer centreline split that track. Endpoints on
         # different layers remain separate, even at identical coordinates.
-        for a, b, layer, item in tracks:
+        for a, b, layer, item,length_scale in tracks:
             split = [(t, n) for n in nodes if n[2] == layer and (t := on_segment(n[:2], a, b)) is not None]
             split.sort()
             for (_, na), (_, nb) in zip(split, split[1:]):
                 if na != nb:
                     add(na, nb, kind='track', layer=layer, a=na[:2], b=nb[:2], item=item,
-                        length_mm=distance(na, nb), width_mm=item.GetWidth() / IU)
+                        length_mm=distance(na, nb)*length_scale, width_mm=item.GetWidth() / IU,
+                        geometry='arc (exact length, 1 um chord approximation)' if isinstance(item,self.pcb.PCB_ARC) else 'straight')
         for key, values in pads.items():
             for pad in values:
                 # Only geometrically contained, layer-correct contacts; no
@@ -223,13 +289,28 @@ class CopperGeometry:
         for island in self.islands:
             if island['net'] != net:
                 continue
-            contacts = [n for n in nodes if n[2] == island['layer'] and self.contains(island, n[:2])]
-            if len(contacts) > 128:
-                self.notes.append('A filled island has more than 128 contacts; automatic corridor search omitted it. Use a terminal-defined zone measurement.')
-                continue
-            for i, a in enumerate(contacts):
-                for b in contacts[i+1:]:
-                    if self.fits(island, a[:2], b[:2], corridor_width_mm):
-                        add(a,b,kind='zone',layer=island['layer'],a=a[:2],b=b[:2],
-                            item=island['item'],island=island,length_mm=distance(a,b),width_mm=corridor_width_mm)
-        return shortest_path(graph, start, end), list(dict.fromkeys(self.notes))
+            navigation=self.navigation(island,corridor_width_mm)
+            for n in nodes:
+                if n[2]!=island['layer']:continue
+                component=navigation.component(n[:2])
+                if component is not None:
+                    add(n,('island',island['id'],component),kind='zone_contact',contact=n,
+                        island=island,navigation=navigation,component=component)
+        edges=shortest_path(graph,start,end)
+        if edges is None:return None,list(dict.fromkeys(self.notes))
+        resolved=[];index=0
+        while index<len(edges):
+            edge=edges[index]
+            if edge['kind']!='zone_contact':resolved.append(edge);index+=1;continue
+            if index+1>=len(edges) or edges[index+1]['kind']!='zone_contact':
+                return None,['Internal zone path could not be paired.']
+            other=edges[index+1];island=edge['island']
+            route=edge['navigation'].route(edge['contact'][:2],other['contact'][:2],edge['component'])
+            if route is None:return None,['Finite-width copper navigation could not resolve this island path.']
+            for a,b in zip(route,route[1:]):
+                resolved.append(dict(kind='zone',layer=island['layer'],a=a,b=b,item=island['item'],island=island,
+                    length_mm=distance(a,b),width_mm=corridor_width_mm,geometry='filled-copper corridor'))
+            index+=2
+        if any(edge['kind']=='zone' for edge in resolved):
+            self.notes.append('Zone topology is resolved through filled islands; reported corridor is visibility-shortened, not a globally shortest current-distribution solution.')
+        return resolved,list(dict.fromkeys(self.notes))

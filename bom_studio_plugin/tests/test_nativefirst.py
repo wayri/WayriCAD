@@ -132,7 +132,7 @@ class NativeFirst(Fixture):
    self.assertEqual(desktop_entrypoint.desktop_main(),0);self.assertEqual(os.sys.argv[-2:],['--ui','desktop'])
  def test_runtime_diagnostic_no_changes(self):
   from bomstudio.runtime_info import diagnostic
-  d=diagnostic(roots=[self.dir]);self.assertTrue(d['read_only']);self.assertEqual(d['runtime']['version'],'3.0.0');self.assertNotIn('token',d['runtime'])
+  d=diagnostic(roots=[self.dir]);self.assertTrue(d['read_only']);self.assertEqual(d['runtime']['version'],'3.1.0');self.assertNotIn('token',d['runtime'])
  def test_duplicate_manifest_detected(self):
   from bomstudio.runtime_info import diagnostic
   for n in ('a','b'):

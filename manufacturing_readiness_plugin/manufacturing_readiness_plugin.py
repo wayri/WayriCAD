@@ -3,10 +3,10 @@ import json,os,subprocess,sys,webbrowser,threading,tempfile
 from pathlib import Path
 import pcbnew,wx
 from .analysis import BoardMetrics,FabricatorProfile,audit_metrics,build_release,load_profile,save_profile
-from .verification import capture_inputs,VerificationSnapshot,find_cli
+from .verification import capture_inputs,VerificationSnapshot,find_cli,drc_evidence
 from .guided_ui import add_workflow, mark_primary
 
-VERSION="3.0.0"
+VERSION="3.1.0"
 STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","FAIL":"#e34a43","INFO":"#3399cc"}
 
 class ReadinessMeter(wx.Panel):
@@ -175,11 +175,10 @@ class ManufacturingFrame(wx.Frame):
                     self.process.kill();self.process.communicate();raise ValueError('KiCad CLI exceeded five minutes and was stopped.')
                 details={'command':cmd,'returncode':self.process.returncode,'stdout':stdout,'stderr':stderr}
                 passed=self.process.returncode==0
-                if passed and report is not None:
-                    data=json.loads(Path(report).read_text(encoding='utf-8'))
-                    if not isinstance(data,dict) or not all(isinstance(data.get(key),list) for key in ('violations','unconnected_items')):
-                        raise ValueError('KiCad did not return a recognizable JSON DRC report.')
-                    passed=all(not data.get(key) for key in ('violations','unconnected_items','schematic_parity'))
+                if report is not None and self.process.returncode in (0,5):
+                    evidence=drc_evidence(report,self.process.returncode)
+                    passed=evidence['clean']
+                    details.update(evidence)
                     details['report']=Path(report).relative_to(snapshot.root).as_posix()
                 snapshot.record(kind,passed,details)
             except Exception as exc:error=str(exc)
@@ -195,6 +194,8 @@ class ManufacturingFrame(wx.Frame):
             except Exception as exc:
                 snapshot.drc=False;snapshot.jobset=False;self.log.AppendText(str(exc)+'\n');return
             self.log.AppendText(details.get('stdout','')+details.get('stderr','')+'\n'+kind+(': PASS\n' if passed else ': FAILED\n'))
+            if 'findings' in details:
+                self.log.AppendText('DRC findings: '+', '.join(f'{key.replace("_"," ")}: {count}' for key,count in details['findings'].items())+'.\n')
             self.guide.set_step(2,'Verification belongs to the captured design only. Rerunning DRC requires rerunning the selected jobset.')
         threading.Thread(target=work,name='WayriCAD manufacturing check',daemon=True).start()
 

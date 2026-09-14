@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DESKTOP_TOOLS = {"bom_studio_plugin", "copper_balancer_plugin", "mechanical_check_plugin", "visual_diff_plugin"}
+DESKTOP_TOOLS = {"bom_studio_plugin", "copper_balancer_plugin", "mechanical_check_plugin", "visual_diff_plugin", "quick_pi_plugin"}
 
 
 def write_json(path, value):
@@ -14,9 +14,14 @@ def write_json(path, value):
 def main():
     # SI ships independently in PCM. Keep its bundled engine byte-identical
     # to the canonical Trace RLC implementation rather than diverging copies.
-    for name in ("measurement.py", "rlc_model.py", "copper_path.py"):
+    for name in ("measurement.py", "rlc_model.py", "copper_path.py", "zone_navigation.py"):
         (ROOT / "signal_integrity_advisor_plugin" / name).write_bytes(
             (ROOT / "trace_impedance_plugin" / name).read_bytes())
+    (ROOT / 'wayricad_runtime' / 'schematic_sexpr.py').write_bytes(
+        (ROOT / 'bom_studio_plugin' / 'bomstudio' / 'sexpr.py').read_bytes())
+    migration = (ROOT / 'bom_studio_plugin' / 'bomstudio' / 'migration.py').read_text(encoding='utf-8')
+    (ROOT / 'wayricad_runtime' / 'schematic_migration.py').write_text(
+        migration.replace('from .sexpr import', 'from .schematic_sexpr import'), encoding='utf-8')
     for source in sorted(ROOT.glob("*/metadata.json")):
         folder = source.parent
         metadata = json.loads(source.read_text(encoding="utf-8"))
@@ -27,7 +32,7 @@ def main():
         # The distributed bundle includes the GPL suite runtime; imported MIT notices remain intact.
         metadata["license"] = "GPL-3.0-only"
         for version in metadata["versions"]:
-            version.update(version="3.0.0", runtime="ipc", kicad_version="10.0", status="testing")
+            version.update(version="3.1.0", runtime="ipc", kicad_version="10.0", status="testing")
             for key in list(version):
                 if key.startswith("download_") or key in {"install_size", "kicad_version_max"}:
                     del version[key]

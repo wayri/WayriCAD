@@ -137,7 +137,49 @@ class NativeCopper(unittest.TestCase):
         self.zone([(0,0),(10,0),(10,10),(0,10)],holes=[[(4,4),(6,4),(6,6),(4,6)]])
         e=self.engine(); z=e.zone_options('SIGNAL')[0]
         self.assertAlmostEqual(z['area_mm2'],96)
-        self.assertEqual(e.measure_zone('SIGNAL','A.1','B.1',z['id']).status,'disconnected')
+        result=e.measure_zone('SIGNAL','A.1','B.1',z['id'])
+        self.assertNotEqual(result.status,'disconnected')
+        self.assertGreater(result.length_mm,8)
+        self.assertGreater(len(result.segments),1)
+        g=e._geometry();island=g.islands[0]
+        for section in result.segments:
+            a=tuple(round(v*1e6) for v in section['start_mm'])
+            b=tuple(round(v*1e6) for v in section['end_mm'])
+            self.assertTrue(g.fits(island,a,b,.2,routing=True))
+
+    def test_arc_traversal_preserves_actual_circular_length(self):
+        self.pad('A',0,0);self.pad('B',10,0)
+        arc=pcb.PCB_ARC(self.board)
+        arc.SetStart(self.pos(0,0));arc.SetMid(self.pos(5,5));arc.SetEnd(self.pos(10,0))
+        arc.SetWidth(pcb.FromMM(.2));arc.SetLayer(pcb.F_Cu);arc.SetNet(self.net);self.board.Add(arc)
+        result=self.engine().measure('SIGNAL','A.1','B.1')
+        self.assertEqual(result.track_count,1)
+        self.assertAlmostEqual(result.length_mm,math.pi*5,places=5)
+        self.assertTrue(all(s['geometry'].startswith('arc') for s in result.segments))
+
+    def test_island_with_more_than_128_contacts_remains_measurable(self):
+        for i in range(150):self.pad('P'+str(i),1+i*.2,1)
+        self.zone([(0,0),(32,0),(32,2),(0,2)])
+        result=self.engine().measure('SIGNAL','P0.1','P149.1')
+        self.assertNotEqual(result.status,'disconnected')
+        self.assertGreater(result.zone_count,0)
+        self.assertGreater(result.length_mm,0)
+
+    def test_thermal_spoke_connects_through_actual_pad_copper(self):
+        self.pad('A',1,5);self.pad('B',9,5)
+        zone=self.zone([(0,0),(10,0),(10,10),(0,10)],holes=[[(.5,4.5),(1.5,4.5),(1.5,5.5),(.5,5.5)]])
+        g=self.engine()._geometry()
+        filled=pcb.SHAPE_POLY_SET(zone.GetFilledPolysList(pcb.F_Cu))
+        spoke=g.polygon([(1100000,4850000),(1600000,4850000),(1600000,5150000),(1100000,5150000)])
+        filled.BooleanAdd(spoke);zone.SetFilledPolysList(pcb.F_Cu,filled)
+        result=self.engine().measure('SIGNAL','A.1','B.1')
+        self.assertNotEqual(result.status,'disconnected')
+        self.assertGreater(result.zone_count,0)
+
+    def test_pad_isolated_inside_zone_void_stays_disconnected(self):
+        self.pad('A',1,5);self.pad('B',9,5)
+        self.zone([(0,0),(10,0),(10,10),(0,10)],holes=[[(.5,4.5),(1.5,4.5),(1.5,5.5),(.5,5.5)]])
+        self.assertEqual(self.engine().measure('SIGNAL','A.1','B.1').status,'disconnected')
 
     def test_split_islands_do_not_connect(self):
         self.pad('A',1,1); self.pad('B',9,1)

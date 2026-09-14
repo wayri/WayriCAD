@@ -9,12 +9,11 @@ from .cli_validation import find_cli
 
 
 class IPCBridge:
-    supports_normalization=False
+    supports_normalization=True
     supports_live_tools=False
     supports_native_roundtrip=False
-    capability_note=('IPC mode reads saved designs and creates new copies. Footprints use previously embedded archives; '
-                     'as-placed footprint normalization and live-board tools require the KiCad 10 source plugin. '
-                     'Validation uses the local KiCad CLI parser, not a footprint round-trip.')
+    capability_note=('Project Library updates saved project files with backups. Save and close editors before applying. '
+                     'As-placed normalization uses the installed KiCad 10 native helper; live-board tools require the legacy adapter.')
     model_structure=staticmethod(NativeBridge.model_structure)
     check_payloads=NativeBridge.check_payloads
 
@@ -26,8 +25,10 @@ class IPCBridge:
         raise RuntimeError('Native footprint parsing is unavailable through IPC; use validate_footprint_file for CLI parser acceptance.')
     def serialize(self,text):
         raise RuntimeError('Native footprint serialization is unavailable through IPC.')
-    def extract_normalized_footprints(self,*args,**kwargs):
-        raise RuntimeError('This IPC API does not expose native footprint-library normalization. Use previously embedded footprint archives, or uncheck Footprints to process symbols and 3D models. KiCad 10 source launch retains native normalization.')
+    def extract_normalized_footprints(self,source_path,cancelled=None,selected_uuids=None):
+        from .native_worker import normalize
+        if cancelled and cancelled():raise InterruptedError('Normalization cancelled')
+        return normalize(source_path,selected_uuids)
     def _validate_export(self,source,kind):
         cli=find_cli()
         if not cli:raise RuntimeError('KiCad CLI is required to validate the output board.')

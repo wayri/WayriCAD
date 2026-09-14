@@ -404,3 +404,21 @@ This command has its own exit codes: 0 resolved, 1 input/runtime error,
 2 disconnected or invalid command syntax, 3 partial model. Partial results
 must not be treated as a complete RLC extraction. See the
 [RLC guide](../trace_impedance_plugin/ReadMe.md) for examples and assumptions.
+
+## Project Library and Quick PI
+
+`wayricad-library localize-project board.kicad_pcb` previews symbols, footprints and models in the project-local `local/` folder. Use `--library-folder` to change it, `--model-root` and `--var NAME=FOLDER` for explicit dependencies, and `--apply` after saving/closing editors. `restore-local BACKUP --apply` checks backup and published-file hashes.
+
+Quick PI runs local layered DC conduction and produces native views or offline reports:
+
+```text
+wayricad-pi board.kicad_pcb
+wayricad-pi board.kicad_pcb --net VCC --source J1.1 --sink U8.2 --voltage 3.3 --current 1 --html pi.html
+wayricad-pi board.kicad_pcb --command "run pi C1.1 L1.1 5mH+30m L1.2 U8.2" --voltage 3.3 --current 1 --html series.html
+```
+
+The native window's console accepts `help`, `nets`, `pads [net]`, and the same `run pi` paths. Enter runs a command; Tab completes net/pad names; Up/Down recalls history. Quotes preserve spaces in net names. Unbroken paths accept `run pi NET START END` or infer the net with `run pi START END`. Series triplets can repeat: `START R1.1 5m R1.2 L1.1 5mH+30m L1.2 END`. Each copper section must share an actual net; each component joins two distinct pads of that component.
+
+SI prefixes are case-sensitive: `m` is milli, `M`/`Meg` mega, `u`/`µ`/`μ` micro; scientific notation and Ω/ohm/H units are accepted. A bare `5m` is 5 mΩ. `5mH+30m` is 5 mH plus 30 mΩ. Values are explicit models, not automatic guesses from the component name. The DC solve reports conductor/component losses separately; inductance stores energy and contributes zero steady-state DC voltage drop.
+
+`--mesh-edge` controls mesh size in mm, `--plating` gives barrel plating in mm, and `--pulse`, `--ambient`, `--temperature` and `--temperature-limit` set the electrical/adiabatic screening assumptions. Numerical conservation is checked separately from mesh convergence. Neither the RLC approximations nor Quick PI claim AC full-wave or fuse-opening-time signoff.

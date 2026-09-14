@@ -1,4 +1,4 @@
-# WayriCAD Harness and Cable Workbench 3.0.0
+# WayriCAD Harness and Cable Workbench 3.1.0
 
 Builds a system-level harness definition from as many as 50 board pin exports.
 It supports indexed net matching and connector correspondence where pin 1 maps
@@ -68,3 +68,5 @@ Automatic matching establishes correspondence, not electrical or mechanical
 compatibility. Independently verify polarity, mating view, pin gender, wire
 ampacity and derating, insulation, creepage, shielding, bend radius, connector
 ratings, assembly process, applicable standards, and test coverage.
+
+Native operational validation inventories the real Marble board (371 connector pins) without inventing external mates. A clearly separate two-board fixture exercises saved-board reload, reviewed pin-map CSV roundtrip, bundles/splices, procurement BOM and CSV/SVG/offline HTML exports. Reproduce with `python tools/validate_marble_operations.py --kinds harness` from the suite root.

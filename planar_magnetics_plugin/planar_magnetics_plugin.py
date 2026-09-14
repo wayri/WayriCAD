@@ -13,9 +13,10 @@ import wx
 
 from .analysis import CORE_CATALOG, CoilSpec, MagneticsEngine, MagneticResult, MotionSpec, load_core_catalog, save_core_catalog
 from .guided_ui import add_workflow
+from .placement import validate_placement
 
 
-VERSION="3.0.0";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
+VERSION="3.1.0";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
 def point(x,y):return pcbnew.VECTOR2I(pcbnew.FromMM(x),pcbnew.FromMM(y))
 def copper_layer(index,count):
     if index<=0:return int(pcbnew.F_Cu)
@@ -188,7 +189,20 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
         try:self._calculate(2)
         except Exception as exc:wx.MessageBox(str(exc),"Motion simulation failed",wx.OK|wx.ICON_ERROR)
     def _calculate(self,tab):
-        self.clear_preview(None);self.result=MagneticsEngine.analyze(self._spec(),self.catalog,self.actuator.GetStringSelection());MagneticsEngine.simulate_dynamics(self.result,self._motion_spec(),self.actuator.GetStringSelection());self.preview.show_result(self.result);self.motion_plot.show(self.result.dynamics);self._fill_results();self.tabs.SetSelection(tab);self.status.SetLabel(f"Analyzed {len(self.result.segments)} segments and {len(self.result.dynamics.samples)} motion samples. PCB unchanged. {self.result.dynamics.validity}.");self.guide.set_step(2,"Review force, acceleration, speed, travel, resonance, noise, and every model warning.")
+        self.clear_preview(None)
+        self.result=MagneticsEngine.analyze(self._spec(),self.catalog,self.actuator.GetStringSelection())
+        # Winding review must not depend on an unrelated mechanical time span.
+        # Small coils can require far more integration steps than the default
+        # actuator settings allow. Run that bounded solver only on its own action.
+        if tab==2:
+            MagneticsEngine.simulate_dynamics(self.result,self._motion_spec(),self.actuator.GetStringSelection())
+        self.preview.show_result(self.result)
+        self.motion_plot.show(self.result.dynamics)
+        self._fill_results();self.tabs.SetSelection(tab)
+        detail=(f"{len(self.result.dynamics.samples)} motion samples. {self.result.dynamics.validity}."
+                if self.result.dynamics else "Run Coupled Motion Simulation for actuator results.")
+        self.status.SetLabel(f"Analyzed {len(self.result.segments)} segments. PCB unchanged. {detail}")
+        self.guide.set_step(2,"Review winding geometry and electrical results; run motion analysis when needed.")
     def _fill(self,table,rows):
         table.DeleteAllItems()
         for row in rows:i=table.InsertItem(table.GetItemCount(),row[0]);table.SetItem(i,1,row[1]);table.SetItem(i,2,row[2])
@@ -249,8 +263,13 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
             selected_net=secondary_net if v.winding=="Secondary" else net
             if selected_net is not None:via.SetNet(selected_net)
             items.append(via)
+        validate_placement(self.board,items,pcbnew)
         if hasattr(pcbnew,"Refresh"):pcbnew.Refresh()
         return items
+    def _new_group(self, items, name=""):
+        validate_placement(self.board,items,pcbnew)
+        return super()._new_group(items,name)
+
     def _persistent_groups(self):
         return [g for g in getattr(self.board,"Groups",lambda:[])() if str(getattr(g,"GetName",lambda:"")()).startswith("WayriCAD Planar Magnetics Commit")]
     def _group_items(self,group):

@@ -13,3 +13,7 @@ appropriate coupled solver and physical prototype before fabrication.
 Window previews do not create board geometry. Apply writes the reviewed geometry as a recoverable group. Committed heaters
 use persistent named groups, and the latest WayriCAD heater commit can be undone
 after reopening the plugin.
+
+Placement review now checks existing copper, zones and keepouts before creating a group, including copper on the selected net that would short around the designed conductor. Pad, text and zone bounding boxes are reserved conservatively. Choose a clear area and connect the generated terminals afterwards; KiCad DRC remains the final geometry check. Redo repeats the placement check.
+
+Native operational validation uses `python tools/validate_marble_operations.py` from the suite root. It exercises review, apply, undo/redo, preserved net assignment, native saved-board reload and full DRC on explicit isolated test coupons in copies of Marble. These coupons are validation fixtures, not proposed Marble modifications.

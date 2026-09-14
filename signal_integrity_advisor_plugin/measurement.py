@@ -362,8 +362,10 @@ class TraceMeasurementEngine:
         zone = next((z for z in geometry.islands if z["id"] == zone_id), None)
         if zone is None:
             return []
+        geometry.prepare_routing(zone['net'])
+        poly=zone.get('routing_poly',zone['poly'])
         return sorted([key for key, pads in geometry.pads(zone["net"]).items()
-                       if any(pad.IsOnLayer(zone["layer"]) and geometry.contains(zone, (pad.GetPosition().x,pad.GetPosition().y)) for pad in pads)],key=self._natural_key)
+                       if any(pad.IsOnLayer(zone["layer"]) and poly.Contains(pad.GetPosition()) for pad in pads)],key=self._natural_key)
 
     def _new_result(self, net, start, end, reference):
         result = PathMeasurement(net_name=net, start_pad=start, end_pad=end)
@@ -382,7 +384,7 @@ class TraceMeasurementEngine:
         edges, notes = self._geometry().path(net_name, start_pad, end_pad)
         result.notes.extend(notes)
         if edges is None:
-            result.notes.append("No supported connected path between these terminals. Missing zones, thermal spokes, arcs or complex copper may need a field solver; aggregate net geometry is never substituted.")
+            result.notes.append("No connected finite-width path between these terminals. Check copper connectivity, zone fills and corridor width; aggregate net geometry is never substituted.")
             return result
         self._measure_edges(result, edges, frequency_mhz, reference_layer)
         return result
@@ -395,6 +397,7 @@ class TraceMeasurementEngine:
         if not math.isfinite(corridor_width_mm) or corridor_width_mm <= 0:
             raise ValueError("Zone corridor width must be positive and finite.")
         geometry = self._geometry()
+        geometry.prepare_routing(net_name)
         zone = next((z for z in geometry.islands if z["id"] == zone_id and z["net"] == net_name), None)
         if zone is None:
             raise ValueError("Select a filled island belonging to this net.")
@@ -407,13 +410,15 @@ class TraceMeasurementEngine:
         candidates = [(a,b) for a in pads[start_pad] for b in pads[end_pad] if a.IsOnLayer(zone["layer"]) and b.IsOnLayer(zone["layer"])]
         for pa, pb in candidates:
             a, b = (pa.GetPosition().x,pa.GetPosition().y), (pb.GetPosition().x,pb.GetPosition().y)
-            if geometry.fits(zone, a, b, corridor_width_mm):
-                edge = dict(kind="zone", layer=zone["layer"], a=a,b=b,item=zone["item"],island=zone,
-                            length_mm=math.hypot(b[0]-a[0],b[1]-a[1])/1e6, width_mm=corridor_width_mm)
-                self._measure_edges(result,[edge],frequency_mhz,reference_layer,full_zone=True)
-                result.notes.append("Zone R/L uses the selected terminal corridor width, not the island's bounding box or a solved spreading resistance. Plane C uses the full island/reference overlap; do not treat this as a single series RLC circuit.")
+            route=geometry.navigation(zone,corridor_width_mm).route(a,b)
+            if route:
+                edges=[dict(kind="zone", layer=zone["layer"], a=p,b=q,item=zone["item"],island=zone,
+                            length_mm=math.hypot(q[0]-p[0],q[1]-p[1])/1e6, width_mm=corridor_width_mm,
+                            geometry="filled-copper corridor") for p,q in zip(route,route[1:])]
+                self._measure_edges(result,edges,frequency_mhz,reference_layer,full_zone=True)
+                result.notes.append("Zone R/L uses a finite-width terminal corridor around actual voids, including connected pad copper and thermal spokes. It is not solved spreading resistance. Plane C uses full island/reference overlap once per reference; do not treat this as a single series RLC circuit.")
                 return result
-        result.notes.append("Selected terminals and finite-width corridor do not fit this filled island on its layer. Islands, holes and thermal clearances are preserved; no straight-line shortcut was invented.")
+        result.notes.append("Selected terminals have no connected corridor of this width on the selected island/layer. Reduce corridor width if a real narrow spoke is the bottleneck; copper gaps are never bridged.")
         return result
 
     def _measure_edges(self, result, edges, frequency, reference, full_zone=False):
@@ -421,6 +426,7 @@ class TraceMeasurementEngine:
         rows = {row.name:row for row in self.stackup_layers()}
         result.status = "ok"
         track_ids, via_ids, zone_ids = set(), set(), set()
+        overlap_seen=set()
         widths, impedances = [], []
         previous_layer = None
         merged = []
@@ -448,6 +454,10 @@ class TraceMeasurementEngine:
                 result.board_items.append(item)
             section = dict(kind=kind,layer=layer,length_mm=length,reference_layer="",reference_net="",
                            resistance_ohm=0.,inductance_nh=None,capacitance_pf=None,impedance_ohm=None,status="partial")
+            section['geometry']=edge.get('geometry','barrel' if kind=='via' else 'straight')
+            if 'a' in edge:
+                section['start_mm']=[v/1e6 for v in edge['a']]
+                section['end_mm']=[v/1e6 for v in edge['b']]
             copper = (rows[layer].thickness_mm if layer in rows else 0.) or .035
             result.copper_thickness_mm = copper
             if kind == "via":
@@ -469,7 +479,8 @@ class TraceMeasurementEngine:
                 section["width_mm"] = width
                 section["resistance_ohm"] = _rlc.dc_resistance_per_m(width,copper) * length/1000
                 result.resistance_ac_ohm += _rlc.ac_resistance_per_m(frequency,width,copper) * length/1000
-                ref = geometry.reference(edge["layer"],edge["a"],edge["b"],width,reference,result.net_name)
+                coverage_width=width+(.002 if section['geometry'].startswith('arc') else 0.)
+                ref = geometry.reference(edge["layer"],edge["a"],edge["b"],coverage_width,reference,result.net_name)
                 if ref:
                     height, name, er, island = ref
                     section.update(reference_layer=name,reference_net=island["net"],dielectric_height_mm=height,relative_permittivity=er)
@@ -479,6 +490,10 @@ class TraceMeasurementEngine:
                     if kind == "zone":
                         source_poly = edge["island"]["poly"] if full_zone else geometry.corridor(edge["a"],edge["b"],width)
                         area = geometry.overlap(source_poly,island)
+                        overlap_key=(edge['island']['id'],island['id'])
+                        if full_zone:
+                            if overlap_key in overlap_seen:area=0.
+                            overlap_seen.add(overlap_key)
                         result.overlap_area_mm2 += area
                         section.update(inductance_nh=MU0*(height/1000)*(length/width)*1e9,
                                        capacitance_pf=EPS0*er*(area/1e6)/(height/1000)*1e12,
@@ -536,7 +551,7 @@ class TraceMeasurementEngine:
             result.notes.append("R/L/C totals include modeled sections only; unresolved terms are null in the section report. They are not a complete equivalent-circuit extraction.")
         if result.via_count:
             result.notes.append("Via capacitance needs antipad/reference geometry and is unknown. Barrel plating is assumed 25 um; inductance is isolated partial L, not return-loop L.")
-        result.notes.append("Routing follows existing layer transitions without moving copper. Pad metallization and thermal-spoke impedance are excluded.")
+        result.notes.append("Routing follows existing layer transitions without moving copper. Zone corridors include connected thermal copper at the stated width; general pad spreading impedance remains unmodeled.")
 
     def _layer_name(self, layer: Any) -> str:
         try:

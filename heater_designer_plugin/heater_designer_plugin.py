@@ -11,9 +11,10 @@ import wx
 
 from .analysis import HeatZone, HeaterEngine, HeaterResult, HeaterSpec, ThermalResult, ThermalSpec
 from .guided_ui import add_workflow
+from .placement import validate_placement
 
 
-VERSION = "3.0.0"
+VERSION = "3.1.0"
 PALETTE = ("#157f74", "#d1495b", "#edae49", "#5267a5", "#8f5aa6", "#3c91a3")
 
 
@@ -200,8 +201,13 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
             via.SetLayerPair(copper_layer(transition.from_layer,copper_count),copper_layer(transition.to_layer,copper_count))
             if net is not None:via.SetNet(net)
             items.append(via)
+        validate_placement(self.board,items,pcbnew)
         if hasattr(pcbnew,"Refresh"):pcbnew.Refresh()
         return items
+    def _new_group(self, items, name=""):
+        validate_placement(self.board,items,pcbnew)
+        return super()._new_group(items,name)
+
     def _persistent_groups(self):
         return [g for g in getattr(self.board,"Groups",lambda:[])() if str(getattr(g,"GetName",lambda:"")()).startswith("WayriCAD Heater Commit")]
     def _group_items(self,group):

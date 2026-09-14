@@ -127,8 +127,9 @@ class Selection:
 
 
 def _model_inventory(raw, pool, resolver, context):
-    result = []; local = embedded_entries(raw)
-    for node in parse(raw).nodes(raw, 'model'):
+    root = parse(raw)
+    result = []; local = embedded_entries(raw, root)
+    for node in root.nodes(raw, 'model'):
         ref = node.arg().value(raw)
         if ref.startswith(PREFIX):
             entry = local.get(ref[len(PREFIX):])
@@ -146,10 +147,11 @@ def _model_inventory(raw, pool, resolver, context):
     return result
 
 
-def scan_design(pcb=None, schematic=None, *, follow=True, resolver=None, cancelled=None):
+def scan_design(pcb=None, schematic=None, *, follow=True, resolver=None, cancelled=None,
+                sheets=None, board_snapshot=None):
     """Match by native symbol UUID first; ambiguous/ref-only matches stay separate.
 
-    A multi-unit component in one sheet gets one checkbox controlling its units.
+    A consistent multi-unit component gets one checkbox controlling its units.
     Shared sheet files have one row set: editing a shared file affects all its uses.
     """
     pcb = Path(pcb).absolute() if pcb else None
@@ -161,13 +163,13 @@ def scan_design(pcb=None, schematic=None, *, follow=True, resolver=None, cancell
     resolver = resolver or Resolver(project, saved_project_variables(pcb or schematic))
     hashes, warnings, groups = {}, [], {}
     if schematic:
-        sheets = sy.load_hierarchy(schematic, follow, cancelled=cancelled)
+        sheets = sheets if sheets is not None else sy.load_hierarchy(schematic, follow, cancelled=cancelled)
         child_counts = {}
         for sheet in sheets:
             hashes[str(sheet.path)] = sha256(sheet.text.encode('utf-8'))
             for _, target in sheet.children: child_counts[target] = child_counts.get(target, 0)+1
-            cache = sy.cache_symbols(sheet.text)
-            for item in sy.placed_symbols(sheet.text):
+            cache = sy.cache_symbols(sheet.text, sheet.root)
+            for item in sy.placed_symbols(sheet.text, sheet.root):
                 n = item['node']; ref = _prop(n, sheet.text, 'Reference', item['uuid'][:8])
                 value = _prop(n, sheet.text, 'Value')
                 unit = n.one(sheet.text, 'unit')
@@ -191,6 +193,27 @@ def scan_design(pcb=None, schematic=None, *, follow=True, resolver=None, cancell
             else:
                 group['ambiguous'] = False; expanded[key] = group
         groups = expanded
+        # Units of one component may span sheets. Merge only consistent,
+        # distinctly numbered units in a hierarchy without reused sheet files.
+        if not any(v > 1 for v in child_counts.values()):
+            refs = {}
+            for key, group in groups.items():
+                refs.setdefault(group['ref'], []).append(key)
+            for ref, keys in refs.items():
+                if len(keys) < 2 or not ref or '?' in ref:
+                    continue
+                candidates = [groups[k] for k in keys]
+                units = [u for g in candidates for u in g['units']]
+                if (len(units) != len(set(units)) or
+                    len(set.union(*(g['ids'] for g in candidates))) != 1 or
+                    len({g['value'] for g in candidates}) != 1):
+                    continue
+                merged = groups[keys[0]]
+                for key in keys[1:]:
+                    other = groups.pop(key)
+                    merged['instances'].extend(other['instances'])
+                    merged['units'].extend(other['units'])
+                    merged['notes'].extend(other['notes'])
         if any(v > 1 for v in child_counts.values()):
             warnings.append('A child sheet file is reused. Its symbol checkboxes apply to that saved file and therefore to every use of that file.')
     by_uid, by_ref = {}, {}
@@ -199,10 +222,13 @@ def scan_design(pcb=None, schematic=None, *, follow=True, resolver=None, cancell
         by_ref.setdefault(g['ref'], []).append(key)
     board_rows, used_groups = [], set()
     if pcb:
-        raw = read_bytes(pcb); text = raw.decode('utf-8'); root = parse(text)
-        if root.head(text) != 'kicad_pcb': raise ValueError('Choose a .kicad_pcb file.')
+        from .native import board_asset_root
+        if board_snapshot is None:
+            raw = read_bytes(pcb); text = raw.decode('utf-8'); root = board_asset_root(text)
+        else:
+            raw, text, root = board_snapshot
         hashes[str(pcb)] = sha256(raw)
-        pool = embedded_entries(text); libraries = resolver.footprint_libraries(project)
+        pool = embedded_entries(text, root); libraries = resolver.footprint_libraries(project)
         fps = root.nodes(text, 'footprint'); counts = {}; seen_uuids = set()
         for fp in fps:
             ref = _prop(fp, text, 'Reference'); counts[ref] = counts.get(ref, 0)+1

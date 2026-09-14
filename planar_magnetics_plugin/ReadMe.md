@@ -1,4 +1,4 @@
-# WayriCAD Planar Magnetics & Actuator Workbench 3.0.0
+# WayriCAD Planar Magnetics & Actuator Workbench 3.1.0
 
 Generate rectangular or circular planar windings across as many as 16 copper
 layers with series transitions, stitched vias, separate primary/secondary PCB
@@ -26,3 +26,9 @@ device parameters before fabricating MEMS or NEMS hardware.
 Preview stays in the window and does not change the PCB. Apply checks that the board and settings still match the review. Accepted windings
 are stored in persistent named groups, allowing the latest WayriCAD commit to be
 undone after reopening the workbench.
+
+Placement review now checks existing copper, zones and keepouts before creating a group, including copper on the selected net that would short around the designed conductor. Pad, text and zone bounding boxes are reserved conservatively. Choose a clear area and connect the generated terminals afterwards; KiCad DRC remains the final geometry check. Redo repeats the placement check.
+
+**Analyze** reviews winding geometry and electrical estimates. **Run Coupled Motion Simulation** separately runs the bounded dynamics solver, so mechanical duration/step limits cannot block ordinary winding placement.
+
+Native operational validation uses `python tools/validate_marble_operations.py` from the suite root. It exercises review, apply, undo/redo, preserved net assignment, native saved-board reload and full DRC on explicit isolated test coupons in copies of Marble. These coupons are validation fixtures, not proposed Marble modifications.

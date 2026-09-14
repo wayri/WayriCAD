@@ -12,11 +12,12 @@ class IPCBridgeTests(unittest.TestCase):
     def setUp(self):
         self.bridge=IPCBridge(SimpleNamespace(GetBoard=lambda:None,Version=lambda:'11.0.0'))
 
-    def test_native_features_are_explicitly_unavailable(self):
-        self.assertFalse(self.bridge.supports_normalization)
+    def test_saved_normalization_uses_isolated_helper_without_live_board_access(self):
+        self.assertTrue(self.bridge.supports_normalization)
         self.assertFalse(self.bridge.supports_live_tools)
-        with self.assertRaisesRegex(RuntimeError,'normalization'):
-            self.bridge.extract_normalized_footprints('board')
+        with patch('embed_3d_plugin.native_worker.normalize',return_value=({'uuid':'footprint'},'hash')) as normalize:
+            self.assertEqual(self.bridge.extract_normalized_footprints('board',selected_uuids={'uuid'}),({'uuid':'footprint'},'hash'))
+            normalize.assert_called_once_with('board',{'uuid'})
         with self.assertRaisesRegex(RuntimeError,'unavailable'):
             self.bridge.deserialize('(footprint "A")')
 

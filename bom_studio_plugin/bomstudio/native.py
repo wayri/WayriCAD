@@ -180,8 +180,6 @@ class Project:
         if not root_id:
             raise ValueError('Root sheet UUID missing. Open and save this project in KiCad 10.')
         self._walk(self.root, '/' + root_id, [], '/', ())
-        self.components.sort(key=lambda c: natural(c.ref))
-        self.by_id = {c.id: c for c in self.components}
         self.hashes = {str(p):sha(d.data) for p,d in self.documents.items()}
         if self.pro_data is not None:
             self.hashes[str(self.pro_path)] = sha(self.pro_data)
@@ -190,7 +188,20 @@ class Project:
             refs[c.ref].append(c)
         for ref, items in refs.items():
             if len(items) > 1:
-                self.blockers.append(f'Duplicate reference {ref} across sheets. Annotate in KiCad before release.')
+                first=items[0];members=[m for c in items for m in c.members]
+                def context(c):return [(a.flags,a.native) for a in c.ancestors]
+                consistent=(len({m.unit for m in members})==len(members)
+                    and all(c.lib_id==first.lib_id and c.fields==first.fields
+                            and c.flags==first.flags and c.native==first.native
+                            and context(c)==context(first) for c in items)
+                    and '${SHEET' not in json.dumps([first.fields,first.native],ensure_ascii=False))
+                if consistent:
+                    first.members=members
+                    for extra in items[1:]:self.components.remove(extra)
+                    self.warnings.append(f'{ref}: consistent units across sheets are grouped as one physical component; sheet context uses the first unit.')
+                else:self.blockers.append(f'Duplicate reference {ref} across sheets. Annotate or reconcile multi-unit fields before release.')
+        self.components.sort(key=lambda c: natural(c.ref))
+        self.by_id = {c.id: c for c in self.components}
         self.blockers = list(dict.fromkeys(self.blockers))
         self.warnings = list(dict.fromkeys(self.warnings))
 

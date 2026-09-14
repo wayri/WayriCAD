@@ -38,7 +38,7 @@ class WayriCADCliTests(unittest.TestCase):
         result = self.run_cli("capabilities")
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(22, len(payload["plugins"]))
+        self.assertEqual(len(list(ROOT.glob('*_plugin/metadata.json'))), len(payload["plugins"]))
         self.assertIn("harness.build", payload["operations"])
         self.assertTrue(payload["safety"]["writes_require_apply"])
 
