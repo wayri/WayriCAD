@@ -1,0 +1,27 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Copper Balancer",
+  "description": "Preview isolated copper thieving and local density balancing on saved PCB copies.",
+  "description_full": "Local native KiCad 10 polygon geometry, eight patterns, per-layer density maps, clearances, keepouts and replacement. The PCM action opens an explicit saved-board workflow and writes a new board copy. Live IPC copper edits and KiCad 11 geometry are not yet supported.",
+  "identifier": "com.github.wayri.wayricad.copper-balancer",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/copper_balancer_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
+}

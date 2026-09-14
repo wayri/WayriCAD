@@ -1,6 +1,6 @@
 # WayriCAD 3.0.0 — testing release
 
-WayriCAD replaces the previous suite with 19 independently installable KiCad packages, including BOM Studio and Embed3D from the supplied archives. The repository, package identifiers, release assets, documentation, action names and icons now use WayriCAD branding. Original copyright and third-party license notices remain intact.
+WayriCAD replaces the previous suite with 22 independently installable KiCad packages, including BOM Studio and Embed3D from the supplied archives and three tools from the supplied development folder. The repository, package identifiers, release assets, documentation, action names and icons now use WayriCAD branding. Original copyright and third-party license notices remain intact.
 
 ## Design and review
 
@@ -14,6 +14,9 @@ Shared window headers are smaller. Routing, heater, magnetics, manufacturing, Em
 
 ## Integrated applications
 
+- **Copper Balancer:** floating copper thieving, shape/layout presets, layer scope and density review; a dedicated native KiCad launcher keeps polygon operations out of the incomplete IPC facade and writes an explicit board copy.
+- **Mechanical Check:** component/enclosure solid interference, height and assembly checks with local 3D inspection and offline evidence reports; dedicated KiCad/FreeCAD runtime discovery.
+- **Visual Diff:** Git revision and working-tree comparison using native KiCad SVG exports, an offline review page and a compact local launcher. Optional GitHub service functionality is never started by the plugin.
 - **BOM Studio:** native KiCad fields, columns, grouping and export-format configuration; persistent workspace settings; variant and catalogue tools; CLI configuration; library-root precedence fixes and local server lifecycle checks.
 - **Embed3D:** portable project and model workflows; saved-file IPC operation boundaries; fixes for KiCad 10 UTF8 library identifiers, parsed-object ownership corruption and backside footprint normalization. Unsupported live IPC library operations are visibly disabled.
 - **Manufacturing Readiness:** verification bound to saved input bytes, profile, jobset and live board state; CLI checks run on private copies; hashed output archives are published atomically.

@@ -1,0 +1,21 @@
+{
+  "source": "D:\\PROJECTS-DEV\\Kicad-plugins-dev\\nativegitvizdiffkicad",
+  "imported": "2026-09-14",
+  "source_version": "0.1.0",
+  "license_notice": "No separate license file or source copyright notice was present. Integrated locally at the user's request; this bundle uses the suite GPL-3.0-only license. This does not assert an upstream license grant.",
+  "sha256": {
+    ".gitignore": "2af46c5aeb9798018ea5b78972d902585f59c09390cf5cb80ce79a3af43ba732",
+    "pyproject.toml": "4aab7fc9e1cfbf2606de4b6911dd91ab9b770c60bb15a7a402b9fa150d910cc3",
+    "kicad_vizdiff/cli.py": "803d389a5136065f08bc626bb73154a182c6ca79b8498b06347cff7cb26825ec",
+    "kicad_vizdiff/git.py": "19e76d4e361fbf41c53f2023b186343822d2f0cf6ecae6a3ba5c5d3bc2b3ba22",
+    "kicad_vizdiff/github.py": "5659f01bf5e3ac33614abce5e7228c595663edbb0511f19164c4b2003b84da87",
+    "kicad_vizdiff/render.py": "5934b414a0ce39dffd4e242253249047870c630a28e619df59cbc1c597c0de5c",
+    "kicad_vizdiff/server.py": "1aff2dc6c6c97ae3da1dc263870972379a55ae337549cf66cf9b8a6f875bc44f",
+    "kicad_vizdiff/viewer.html": "8eaf4f9b48e5769cf8913fc28c6b2aaae4e4a7131ed11d3218ba83bfcd015e5a",
+    "kicad_vizdiff/__init__.py": "f3d8921d665c4c1f6661cd0e5ed28a9a45c09e6fc49ed3785006fe3eeb06d4c6",
+    "kicad_vizdiff/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "scripts/demo.py": "5c36ba9bdb95192fe55ecb72d8368ebde79dd558b8ba2ec695da26c1d78374ce",
+    "tests/fixtures.py": "e7b75bc68b207c2d855a407a1e48c1f4c1dbdc3051df677e8af20fe9f19af5cf",
+    "tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

@@ -7,6 +7,9 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 SPECS = {
+    "copper_balancer_plugin": ("#a66a23", "copper"),
+    "mechanical_check_plugin": ("#446b8c", "mechanical"),
+    "visual_diff_plugin": ("#657b42", "diff"),
     "bom_studio_plugin": ("#17806d", "bom"),
     "embed_3d_plugin": ("#536d9c", "portable"),
     "bulk_label_editor_plugin": ("#247ba0", "labels"),
@@ -35,7 +38,26 @@ def icon(color: str, kind: str, theme="light") -> Image.Image:
     dark = "#40515f" if theme == "light" else "#e1e9f0"
     pale = "#edf3f7" if theme == "light" else "#354552"
 
-    if kind == "bom":
+    if kind == "copper":
+        draw.rectangle((15, 18, 81, 78), fill=pale, outline=dark, width=3)
+        draw.line((23, 30, 49, 30, 49, 65, 71, 65), fill=color, width=5)
+        for x, y in ((28, 47), (28, 64), (65, 30), (65, 47)):
+            draw.polygon(((x, y-5), (x+5,y), (x,y+5), (x-5,y)), fill=color)
+    elif kind == "mechanical":
+        draw.polygon(((16,35),(45,20),(74,35),(45,50)), fill=pale, outline=dark)
+        draw.polygon(((16,35),(45,50),(45,77),(16,62)), fill=color, outline=dark)
+        draw.polygon(((45,50),(74,35),(74,62),(45,77)), fill=pale, outline=dark)
+        draw.ellipse((55,47,84,76), fill="#ffffff", outline=color, width=3)
+        draw.line((61,61,67,67,78,55), fill=color, width=4)
+    elif kind == "diff":
+        for x in (16, 54):
+            draw.rectangle((x, 20, x+26, 75), fill=pale, outline=dark, width=2)
+            draw.line((x+6, 31, x+20, 31), fill=dark, width=2)
+            draw.line((x+6, 40, x+20, 40), fill=dark, width=2)
+        draw.line((22,57,36,57), fill="#bc543f", width=4)
+        draw.line((60,57,74,57), fill=color, width=4)
+        draw.line((67,50,67,64), fill=color, width=4)
+    elif kind == "bom":
         draw.rectangle((18, 17, 78, 78), fill=pale, outline=dark, width=3)
         for y in (32, 46, 60):
             draw.line((18, y, 78, y), fill=dark, width=2)
@@ -149,6 +171,8 @@ def main() -> None:
                 source.resize((size,size), Image.Resampling.LANCZOS).save(resources / f"icon{suffix}-{size}.png", optimize=True)
         if folder == "kilo_plugin":
             generated.resize((64,64), Image.Resampling.LANCZOS).save(ROOT / folder / "kilo" / "icon.png", optimize=True)
+        if folder == "copper_balancer_plugin":
+            generated.resize((64,64), Image.Resampling.LANCZOS).save(ROOT / folder / "copper_balancer" / "icon.png", optimize=True)
         if folder == "embed_3d_plugin":
             for size in (16,24,32,48,64,96,128,192,256,512):
                 generated.resize((size,size), Image.Resampling.LANCZOS).save(ROOT / folder / "icons" / f"icon{size}.png", optimize=True)

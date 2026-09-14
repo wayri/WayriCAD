@@ -17,6 +17,9 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 PLUGIN_CAPABILITIES = (
+    ("copper-balancer", "WayriCAD Copper Balancer", ("preview", "apply", "export"), True, "saved-board"),
+    ("mechanical-check", "WayriCAD Mechanical Check", ("inspect", "validate", "report"), False, "saved-board"),
+    ("visual-diff", "WayriCAD Visual Diff", ("compare", "review"), False, "git-repository"),
     ("bom-studio", "WayriCAD BOM Studio", ("inspect", "export", "variants"), True, "project"),
     ("embed-3d", "WayriCAD Embed3D", ("plan", "apply", "verify"), True, "project"),
     ("bulk-label-editor", "WayriCAD Bulk Label Editor", ("preview", "apply"), True, "board"),
@@ -51,6 +54,9 @@ def capabilities() -> dict[str, Any]:
         ],
         "operations": sorted(HANDLERS),
         "additional_cli": {
+            "copper-balancer": "wayricad-copper --help (KiCad 10 native geometry required)",
+            "mechanical-check": "wayricad-mechanical --help (KiCad and FreeCAD required for solid checks)",
+            "visual-diff": "wayricad-diff --help (Git and kicad-cli required for rendering)",
             "fanout-generator": "python -m wayricad_runtime.cli fanout --help (KiCad 10 Python)",
             "via-stitching": "python -m wayricad_runtime.cli stitching --help (KiCad 10 Python)",
             "embed-3d": "python -m embed_3d_plugin --help (source checkout)",

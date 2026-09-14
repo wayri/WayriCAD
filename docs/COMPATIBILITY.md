@@ -20,6 +20,9 @@ KiCad 11 removes the legacy SWIG `pcbnew` bindings. WayriCAD's forward path is t
 
 | Area | Current boundary |
 | --- | --- |
+| Copper Balancer | The IPC-format action opens a saved-board workflow in native KiCad 10 Python. Copper polygon booleans and floating-net generation require SWIG; this engine is not a KiCad 11 port. Outputs are explicit board copies, not live editor updates. |
+| Mechanical Check | The dedicated launcher requires native KiCad Python for extraction and wx/OpenGL viewing, plus FreeCAD Python for exact STEP geometry. The imported IPC action uses saved files; unsaved editor edits must be saved first. Its native engine remains KiCad 10 dependent. |
+| Visual Diff | Requires Git and `kicad-cli` for native SVG export; compares read-only Git snapshots and the working tree, then writes an offline HTML report. No live IPC mutation or automatic GitHub service is involved. Future CLI compatibility must be tested on that host. |
 | Variant Workbench | Uses a local Tk desktop window. The launcher now initializes Tcl during interpreter selection and reports a missing usable runtime explicitly. This sandbox could not open Tcl initialization files even when matching files existed; the final Variant window was not visually reverified. |
 | Fanout/stitching over IPC | Straight, closed Edge.Cuts segments, rectangles and polygons can form islands and cutouts. Open, intersecting, touching, degenerate and curved boundaries are refused where outline safety is required. No guessed curve tessellation is used. Final KiCad DRC is still required. |
 | Geometry preview | Pads, straight tracks, vias, polygons and candidates are displayed locally. Curved tracks use bounding envelopes in the shared overview. Conservative obstacle checks are not a replacement for KiCad's full rules engine. |

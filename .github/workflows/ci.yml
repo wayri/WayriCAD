@@ -33,7 +33,8 @@ jobs:
           protocol_constraint_composer_plugin return_path_auditor_plugin
           signal_integrity_advisor_plugin test_point_descriptor_plugin
           trace_impedance_plugin variant_workbench_plugin via_stitching_plugin
-          bom_studio_plugin embed_3d_plugin wayricad_runtime tools tests
+          bom_studio_plugin embed_3d_plugin copper_balancer_plugin
+          mechanical_check_plugin visual_diff_plugin wayricad_runtime tools tests
       - name: Unit and integration tests
         run: python -m pytest tests -q -s
       - name: Embed3D regressions
@@ -46,8 +47,17 @@ jobs:
           wayricad --help
           wayricad inspect tests/fixtures/simple_hierarchy.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --format json
           wayricad benchmark --nets 500 --boards 3 --threshold-ms 3000 --format json
+          wayricad-copper --help
+          wayricad-mechanical --help
+          wayricad-diff --help
+      - name: Development-folder plugin regressions
+        run: |
+          python -m unittest discover -s copper_balancer_plugin/tests -v
+          python -m unittest discover -s mechanical_check_plugin/tests -v
+          python -m unittest discover -s visual_diff_plugin/tests -v
       - name: Package validation
         run: |
           python -m build
           python build_pcm.py --clean-feed
           python tools/validate_packages.py
+          python tools/smoke_imported_packages.py dist/wayricad-3.0.0-py3-none-any.whl

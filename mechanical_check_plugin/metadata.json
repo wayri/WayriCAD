@@ -1,0 +1,25 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Mechanical Check",
+  "description": "Local mechanical clearance, height, hardware and STEP interference review.",
+  "description_full": "Read-only saved-board mechanical validation, exact FreeCAD/Open CASCADE solid intersections, model coverage inventory, native conflict viewer and offline HTML/JSON/CSV reports. Requires an installed KiCad 10 Python/CLI and FreeCAD Python. IPC launch opens the saved file; it does not capture unsaved edits. KiCad 11 launch is forward-oriented and unverified; the extraction worker still requires KiCad 10.",
+  "identifier": "com.github.wayri.wayricad.mechanical-check",
+  "type": "plugin",
+  "author": {
+    "name": "WayriCAD contributors",
+    "contact": {}
+  },
+  "license": "GPL-3.0-only",
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ],
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/mechanical_check_plugin/icon.png"
+  }
+}

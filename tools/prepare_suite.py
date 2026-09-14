@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+DESKTOP_TOOLS = {"bom_studio_plugin", "copper_balancer_plugin", "mechanical_check_plugin", "visual_diff_plugin"}
 
 
 def write_json(path, value):
@@ -26,7 +27,9 @@ def main():
                 if key.startswith("download_") or key in {"install_size", "kicad_version_max"}:
                     del version[key]
         write_json(source, metadata)
-        entrypoint = "desktop_entrypoint.py" if folder.name == "bom_studio_plugin" else "ipc_entrypoint.py"
+        entrypoint = "desktop_entrypoint.py" if folder.name in DESKTOP_TOOLS else "ipc_entrypoint.py"
+        if folder.name in DESKTOP_TOOLS and not (folder / entrypoint).is_file():
+            raise ValueError(f"Missing desktop launcher: {folder / entrypoint}")
         manifest = {
             "$schema": "https://go.kicad.org/api/schemas/v1",
             "identifier": metadata["identifier"], "name": metadata["name"],
@@ -38,6 +41,8 @@ def main():
                 "icons-light": [f"resources/icon-{n}.png" for n in (24, 48, 96)],
                 "icons-dark": [f"resources/icon-dark-{n}.png" for n in (24, 48, 96)]}],
         }
+        if folder.name == "visual_diff_plugin":
+            manifest["actions"][0]["scopes"] = ["pcb", "schematic", "project_manager"]
         if folder.name == "extract_pins_plugin":
             manifest["actions"].append(dict(manifest["actions"][0], **{
                 "identifier": "interboard", "name": "WayriCAD Interboard & Harness",
