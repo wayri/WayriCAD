@@ -1,4 +1,4 @@
-"""KiWay Trace RLC and Impedance Analyzer plugin entry point."""
+"""WayriCAD Trace RLC and Impedance Analyzer plugin entry point."""
 
 try:
     from .trace_impedance_plugin import TraceImpedancePlugin

@@ -1,4 +1,4 @@
-"""Generate the complete, size-consistent KiWay PCM and toolbar icon set."""
+"""Generate the complete, size-consistent WayriCAD PCM and toolbar icon set."""
 
 from pathlib import Path
 
@@ -7,6 +7,8 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 SPECS = {
+    "bom_studio_plugin": ("#17806d", "bom"),
+    "embed_3d_plugin": ("#536d9c", "portable"),
     "bulk_label_editor_plugin": ("#247ba0", "labels"),
     "extract_pins_plugin": ("#17806d", "extract"),
     "fanout_generator_plugin": ("#c66a1b", "fanout"),
@@ -27,14 +29,19 @@ SPECS = {
 }
 
 
-def icon(color: str, kind: str) -> Image.Image:
+def icon(color: str, kind: str, theme="light") -> Image.Image:
     image = Image.new("RGBA", (96, 96), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    dark = "#40515f"
-    pale = "#edf3f7"
-    draw.rounded_rectangle((6, 6, 89, 89), radius=7, fill="#ffffff", outline="#aebdca", width=2)
+    dark = "#40515f" if theme == "light" else "#e1e9f0"
+    pale = "#edf3f7" if theme == "light" else "#354552"
 
-    if kind == "labels":
+    if kind == "bom":
+        draw.rectangle((18, 17, 78, 78), fill=pale, outline=dark, width=3)
+        for y in (32, 46, 60):
+            draw.line((18, y, 78, y), fill=dark, width=2)
+        draw.line((34, 17, 34, 78), fill=color, width=3)
+        draw.line((56, 17, 56, 78), fill=color, width=3)
+    elif kind == "labels":
         for y in (25, 43, 61):
             draw.rounded_rectangle((17, y - 6, 64, y + 6), radius=2, fill=pale, outline=dark, width=2)
             draw.line((25, y, 53, y), fill=color, width=3)
@@ -132,9 +139,21 @@ def icon(color: str, kind: str) -> Image.Image:
 def main() -> None:
     for folder, (color, kind) in SPECS.items():
         generated = icon(color, kind)
-        generated.save(ROOT / folder / "icon.png", optimize=True)
+        generated.resize((64,64), Image.Resampling.LANCZOS).save(ROOT / folder / "icon.png", optimize=True)
+        resources = ROOT / folder / "resources"
+        resources.mkdir(exist_ok=True)
+        for theme in ("light", "dark"):
+            source = icon(color, kind, theme)
+            for size in (24,48,96):
+                suffix = "-dark" if theme == "dark" else ""
+                source.resize((size,size), Image.Resampling.LANCZOS).save(resources / f"icon{suffix}-{size}.png", optimize=True)
         if folder == "kilo_plugin":
-            generated.save(ROOT / folder / "kilo" / "icon.png", optimize=True)
+            generated.resize((64,64), Image.Resampling.LANCZOS).save(ROOT / folder / "kilo" / "icon.png", optimize=True)
+        if folder == "embed_3d_plugin":
+            for size in (16,24,32,48,64,96,128,192,256,512):
+                generated.resize((size,size), Image.Resampling.LANCZOS).save(ROOT / folder / "icons" / f"icon{size}.png", optimize=True)
+            generated.resize((256,256), Image.Resampling.LANCZOS).save(
+                ROOT / folder / "icons" / "WayriCAD Embed3D.ico", sizes=[(n,n) for n in (16,24,32,48,64,128,256)])
 
 
 if __name__ == "__main__":

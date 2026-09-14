@@ -1,0 +1,8 @@
+﻿Reference,Value,Footprint,MPN,Manufacturer,Assembly,Qty,Required,UnitPrice,Currency,LineCost
+"C1, C2",100n,Capacitor_SMD:C_0603_1608Metric,DEMO-C0603-100N,DEMO Components,FIT,2,2,2.50,INR,5.00
+C3,10u,Capacitor_SMD:C_0603_1608Metric,DEMO-C0603-10U,DEMO Components,FIT,1,1,6.40,INR,6.40
+D1,LED Green,LED_SMD:LED_0603_1608Metric,DEMO-LED-GREEN,DEMO Components,FIT,1,1,4.50,INR,4.50
+J1,Terminal 2P,Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical,DEMO-TERM-2P,DEMO Components,FIT,1,1,24.00,INR,24.00
+R1–R3,10k,Resistor_SMD:R_0603_1608Metric,DEMO-R0603-10K,DEMO Components,FIT,3,3,1.20,INR,3.60
+R4,0R,Resistor_SMD:R_0603_1608Metric,DEMO-R0603-0R,DEMO Components,DNP,1,0,1.20,INR,0.00
+"R101, R201",1k,Resistor_SMD:R_0603_1608Metric,DEMO-R0603-1K,DEMO Components,FIT,2,2,1.10,INR,2.20

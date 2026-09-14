@@ -1,32 +1,33 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v1",
-    "name": "KiWay Bulk Label Editor",
-    "description": "Bulk edit labels, PCB text, footprint references, values, and fields with wildcard or regex rules.",
-    "description_full": "KiWay Bulk Label Editor provides a safe preview-and-apply workflow for renaming repeated channel labels and component text inside KiCad. It supports wildcard captures such as CH*_MAIN -> CH*_REDUNDANT, regex replacements, and scoped edits for references, values, fields, and PCB text.",
-    "identifier": "kiway.bulk.label.editor",
-    "type": "plugin",
-    "author": {
-        "name": "Wayri (Yawar)",
-        "contact": {
-            "github": "https://github.com/wayri"
-        }
-    },
-    "maintainer": {
-        "name": "Wayri (Yawar)",
-        "contact": {
-            "github": "https://github.com/wayri"
-        }
-    },
-    "license": "GPL-3.0",
-    "resources": {
-        "homepage": "https://github.com/wayri/KiWay",
-        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/bulk_label_editor_plugin/icon.png"
-    },
-    "versions": [
-        {
-            "version": "0.7.2",
-            "status": "development",
-            "kicad_version": "9.0"
-        }
-    ]
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Bulk Label Editor",
+  "description": "Bulk edit labels, PCB text, footprint references, values, and fields with wildcard or regex rules.",
+  "description_full": "WayriCAD Bulk Label Editor provides a safe preview-and-apply workflow for renaming repeated channel labels and component text inside KiCad. It supports wildcard captures such as CH*_MAIN -> CH*_REDUNDANT, regex replacements, and scoped edits for references, values, fields, and PCB text.",
+  "identifier": "com.github.wayri.wayricad.bulk-label-editor",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "maintainer": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/bulk_label_editor_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
 }

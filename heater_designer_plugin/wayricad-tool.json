@@ -1,0 +1,6 @@
+{
+  "tool": "heater_designer_plugin",
+  "name": "WayriCAD PCB / Foil Heater Designer",
+  "module": "heater_designer_plugin",
+  "class": "HeaterDesignerPlugin"
+}

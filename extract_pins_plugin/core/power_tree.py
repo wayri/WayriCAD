@@ -329,7 +329,7 @@ class PowerTreeAnalyzer:
         return cycles
 
 
-def generate_power_tree_svg(result: Dict[str, Any], title: str = "KiWay Power Tree") -> str:
+def generate_power_tree_svg(result: Dict[str, Any], title: str = "WayriCAD Power Tree") -> str:
     """Render a layered rail/converter diagram with an issue summary."""
     nodes = {node["Net"]: node for node in result.get("nodes", [])}
     edges = list(result.get("edges", []))

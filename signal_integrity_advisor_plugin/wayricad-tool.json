@@ -1,0 +1,6 @@
+{
+  "tool": "signal_integrity_advisor_plugin",
+  "name": "WayriCAD Signal Integrity Advisor",
+  "module": "signal_integrity_advisor_plugin",
+  "class": "SignalIntegrityAdvisorPlugin"
+}

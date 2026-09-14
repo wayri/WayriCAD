@@ -20,8 +20,8 @@ class FixtureGeneratorTests(unittest.TestCase):
             FixturePoint("TP2", "1", "SCL", 12.0, 24.0),
         ], "P75 spring probe")
         self.assertIn('(net 1 "SDA")', text)
-        self.assertIn('KiWay:Probe_TP1', text)
-        self.assertIn('KiWay:Edge_Channel_2', text)
+        self.assertIn('WayriCAD:Probe_TP1', text)
+        self.assertIn('WayriCAD:Edge_Channel_2', text)
         self.assertEqual(6, text.count("  (segment "))
         self.assertIn('(layer "Edge.Cuts")', text)
         if pcbnew is None:

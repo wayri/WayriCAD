@@ -1,4 +1,4 @@
-# KiWay v2.26.0 Release Notes
+# WayriCAD v2.26.0 Release Notes
 
 ## Standard RLC Models for the Trace Analyzer
 

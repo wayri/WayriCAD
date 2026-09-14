@@ -1,0 +1,19 @@
+{
+  "new": true,
+  "internal_pn": "SYNTHETIC-RES-10K-0603",
+  "reference_hint": "R1",
+  "fields": {
+    "Manufacturer": "SYNTHETIC EXAMPLE",
+    "MPN": "NOT-ORDERABLE-10K",
+    "Value": "10k",
+    "Footprint": "Resistor_SMD:R_0603_1608Metric",
+    "Tolerance": "1%",
+    "Voltage": "50 V",
+    "Power": "0.1 W",
+    "Notes": "Fictional schema example, not an actual part recommendation"
+  },
+  "status": "candidate",
+  "tags": [
+    "example"
+  ]
+}

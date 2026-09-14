@@ -1,0 +1,10 @@
+{
+  "scope": "Reference wildcard",
+  "ref": "U1",
+  "netclass_filter": "All netclasses",
+  "output_mode": "Via-in-pad",
+  "escape_layer": "Pad layer",
+  "via_diameter": 0.6,
+  "via_drill": 0.3,
+  "clearance": 0.2
+}

@@ -1,0 +1,5 @@
+﻿Project,Variant,Scenario,Generated UTC,Report status,Group,References,Components,Pricing components,Physical components,Cost per board INR,Unpriced components,Known mass g,Mass missing / invalid,Known dissipation W,Power missing / invalid,Minimum Temp_Max C
+BOM_Demo,<Default>,Synthetic demonstration,2026-09-09T16:33:31+00:00,ADVISORY ANALYTICS SNAPSHOT — NOT A MANUFACTURING APPROVAL,Capacitor,"C1, C2, C3",3,3,3,13.5,0,0.07,1,0.003,0,85
+BOM_Demo,<Default>,Synthetic demonstration,2026-09-09T16:33:31+00:00,ADVISORY ANALYTICS SNAPSHOT — NOT A MANUFACTURING APPROVAL,Connector,J1,1,1,1,25,0,1.2,0,0,0,70
+BOM_Demo,<Default>,Synthetic demonstration,2026-09-09T16:33:31+00:00,ADVISORY ANALYTICS SNAPSHOT — NOT A MANUFACTURING APPROVAL,Diode,D1,1,1,1,12,0,0.1,0,0.025,0,85
+BOM_Demo,<Default>,Synthetic demonstration,2026-09-09T16:33:31+00:00,ADVISORY ANALYTICS SNAPSHOT — NOT A MANUFACTURING APPROVAL,Resistor,"R1, R2, R3, R4, R101, R201",6,5,5,2.5,0,0.06,0,0.01,0,125

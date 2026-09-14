@@ -1,6 +1,6 @@
 # plugin_dialog_v2.py 
 """
-KiWay Pin Extractor modeless workspace
+WayriCAD Pin Extractor modeless workspace
 
 @author - Wayri (Yawar)
 @version - 2.0.0
@@ -73,7 +73,7 @@ class PluginDialogV2(wx.Frame):
     def __init__(self, parent, initial_selected_footprints):
         super(PluginDialogV2, self).__init__(
             parent,
-            title="KiWay Pin Extractor",
+            title="WayriCAD Pin Extractor",
             size=(1120, 760),
             style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER,
         )
@@ -1061,13 +1061,13 @@ stage.addEventListener('mousedown',e=>{if(e.target.closest('.net-row'))return;dr
 window.addEventListener('mousemove',e=>{if(!drag)return;stage.scrollLeft-=e.clientX-lastX;stage.scrollTop-=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY});
 window.addEventListener('mouseup',()=>{drag=false;stage.classList.remove('dragging')});
 stage.addEventListener('dblclick',e=>{if(!e.target.closest('.net-row'))fitView()});
-document.querySelectorAll('.net-row').forEach(row=>row.addEventListener('click',()=>{const net=row.dataset.net;if(net)location.href='kiway://net/'+encodeURIComponent(net)}));
+document.querySelectorAll('.net-row').forEach(row=>row.addEventListener('click',()=>{const net=row.dataset.net;if(net)location.href='wayricad://net/'+encodeURIComponent(net)}));
 setTimeout(fitView,50);
 </script>"""
 
     def OnDiagramNavigation(self, event):
         url = event.GetURL()
-        prefix = "kiway://net/"
+        prefix = "wayricad://net/"
         if not url.startswith(prefix):
             return
         event.Veto()
@@ -1078,7 +1078,7 @@ setTimeout(fitView,50);
 
     def OnExportPowerTreeSvg(self, event):
         if self.current_power_tree_svg:
-            self._save_file(self.current_power_tree_svg, "SVG", "kiway_power_tree.svg")
+            self._save_file(self.current_power_tree_svg, "SVG", "wayricad_power_tree.svg")
 
     def OnExportPowerTreeCsv(self, event):
         if not self.power_tree_result.get("nodes"):
@@ -1097,7 +1097,7 @@ setTimeout(fitView,50);
         writer = csv.DictWriter(stream, fieldnames=headers)
         writer.writeheader()
         writer.writerows(rows)
-        self._save_file(stream.getvalue(), "CSV", "kiway_power_tree.csv")
+        self._save_file(stream.getvalue(), "CSV", "wayricad_power_tree.csv")
 
     def OnAutoRefreshToggle(self, event):
         """Toggle auto-refresh timer on/off."""
@@ -1280,10 +1280,10 @@ setTimeout(fitView,50);
                 return
             if dialog.GetSelection() == 0:
                 content = CSVFormatter().format_component_data(self.preview_data)
-                self._save_file(content, "CSV", "kiway_pin_preview.csv")
+                self._save_file(content, "CSV", "wayricad_pin_preview.csv")
             else:
                 content = MarkdownFormatter(highlight_nets=self.highlight_nets_cb.IsChecked()).format_component_data(self.preview_data)
-                self._save_file(content, "Markdown", "kiway_pin_preview.md")
+                self._save_file(content, "Markdown", "wayricad_pin_preview.md")
 
     def OnRemoveSelectedFromList(self, event):
         idx = self.footprint_list_ctrl.GetFirstSelected()
@@ -1478,13 +1478,13 @@ setTimeout(fitView,50);
             writer = csv.DictWriter(stream, fieldnames=headers, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(self.endpoint_rows)
-            self._save_file(stream.getvalue(), "CSV", "kiway_endpoint_trace.csv")
+            self._save_file(stream.getvalue(), "CSV", "wayricad_endpoint_trace.csv")
             return
-        lines = ["# KiWay Label Endpoint Map", "", "| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"]
+        lines = ["# WayriCAD Label Endpoint Map", "", "| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"]
         for row in self.endpoint_rows:
             values = [str(row.get(header, "")).replace("|", "\\|").replace("\n", " ") for header in headers]
             lines.append("| " + " | ".join(values) + " |")
-        self._save_file("\n".join(lines) + "\n", "Markdown", "kiway_endpoint_trace.md")
+        self._save_file("\n".join(lines) + "\n", "Markdown", "wayricad_endpoint_trace.md")
 
     # Controller-to-connector mapping handlers
     def OnControllerMapUseSelection(self, event):
@@ -1611,7 +1611,7 @@ setTimeout(fitView,50);
             self._save_file(
                 rows_to_markdown(self.controller_map_rows),
                 "Markdown",
-                "kiway_controller_connector_map.md",
+                "wayricad_controller_connector_map.md",
             )
             return
         headers = [key for key in self.controller_map_rows[0] if not key.startswith("_")]
@@ -1622,7 +1622,7 @@ setTimeout(fitView,50);
         self._save_file(
             stream.getvalue(),
             "CSV",
-            "kiway_controller_connector_map.csv",
+            "wayricad_controller_connector_map.csv",
         )
 
     # Signal Flow handlers
@@ -1893,7 +1893,7 @@ setTimeout(fitView,50);
         if not self.current_diagram_svg:
             wx.MessageBox("Refresh the visual preview first.", "Preview required", wx.OK | wx.ICON_INFORMATION)
             return
-        self._save_file(self.current_diagram_svg, "SVG", "kiway_block_diagram.svg")
+        self._save_file(self.current_diagram_svg, "SVG", "wayricad_block_diagram.svg")
 
     def _save_file(self, content, format_name, default_name):
         """Show save dialog and write file."""

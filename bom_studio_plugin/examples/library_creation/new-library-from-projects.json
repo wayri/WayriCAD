@@ -1,0 +1,12 @@
+{
+  "mode": "projects",
+  "destination": "C:/Users/You/Documents/NewParts",
+  "name": "NewParts",
+  "actor": "Replace with your name",
+  "projects": [
+    "C:/Projects/Board/Board.kicad_pro"
+  ],
+  "recursive": false,
+  "all_variants": true,
+  "require_complete": true
+}

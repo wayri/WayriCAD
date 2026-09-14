@@ -1,26 +1,27 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v1",
-    "name": "KiWay Signal Integrity Advisor",
-    "description": "Calculate I2C pull-up ranges and validate routed single-ended or differential impedance.",
-    "description_full": "Guided, read-only engineering checks for I2C pull-up resistance, routed impedance, differential skew, stackup/reference-layer use, vias, layer changes, zones, and unresolved topology. Includes editable protocol presets for CAN, Ethernet, RF, RS-485, SerDes, USB 2/3/4, and custom constraints.",
-    "identifier": "kiway.signal.integrity.advisor",
-    "type": "plugin",
-    "author": {
-        "name": "Wayri (Yawar)",
-        "contact": {
-            "github": "https://github.com/wayri"
-        }
-    },
-    "license": "GPL-3.0",
-    "resources": {
-        "homepage": "https://github.com/wayri/KiWay",
-        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/signal_integrity_advisor_plugin/icon.png"
-    },
-    "versions": [
-        {
-            "version": "0.3.0",
-            "status": "stable",
-            "kicad_version": "9.0"
-        }
-    ]
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Signal Integrity Advisor",
+  "description": "Calculate I2C pull-up ranges and validate routed single-ended or differential impedance.",
+  "description_full": "Guided, read-only engineering checks for I2C pull-up resistance, routed impedance, differential skew, stackup/reference-layer use, vias, layer changes, zones, and unresolved topology. Includes editable protocol presets for CAN, Ethernet, RF, RS-485, SerDes, USB 2/3/4, and custom constraints.",
+  "identifier": "com.github.wayri.wayricad.signal-integrity-advisor",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/signal_integrity_advisor_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
 }

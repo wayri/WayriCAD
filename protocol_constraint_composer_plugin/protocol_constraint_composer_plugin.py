@@ -18,25 +18,62 @@ def protocol_colour(name:str)->str:
     palette=tuple(PROTOCOL_COLOURS.values());return palette[sum(ord(c) for c in name)%len(palette)]
 
 class ProtocolConstraintComposerPlugin(pcbnew.ActionPlugin):
-    def defaults(self):self.name="KiWay Protocol Constraint Composer";self.category="Design Rules";self.description="Detect protocol nets and compose reviewed KiCad custom design rules.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"icon.png");self.dark_icon_file_name=self.icon_file_name;self.version="0.2.0"
+    def defaults(self):self.name="WayriCAD Protocol Constraint Composer";self.category="Design Rules";self.description="Detect protocol nets and compose reviewed KiCad custom design rules.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png");self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png");self.version="3.0.0"
     def Run(self):
         board=pcbnew.GetBoard()
         if board is None:return
         ConstraintFrame(None,board).Show()
 class ConstraintFrame(wx.Frame):
-    def __init__(self,parent,board):super().__init__(parent,title="KiWay Protocol Constraint Composer",size=(1200,820));self.board=board;self.assignments=[];self.generated="";self.presets=dict(PRESETS);self._build();self.Centre()
+    def __init__(self,parent,board):super().__init__(parent,title="WayriCAD Protocol Constraint Composer",size=(1200,820));self.board=board;self.assignments=[];self.generated="";self.presets=dict(PRESETS);self._build();self.Centre()
     def _build(self):
         p=wx.Panel(self);r=wx.BoxSizer(wx.VERTICAL)
-        self.guide=add_workflow(p,r,"Protocol Constraint Composer","Detect likely protocol nets and compose a reviewable KiCad managed-rule block with explicit geometry and backups.",("Detect","Assign","Preview","Apply"),lambda e:webbrowser.open(Path(__file__).with_name("help.html").as_uri()))
-        split=wx.SplitterWindow(p);left=wx.Panel(split);right=wx.Panel(split);ls=wx.BoxSizer(wx.VERTICAL);rs=wx.BoxSizer(wx.VERTICAL);detect=mark_primary(wx.Button(left,label="Detect From Current Board"),"Detect likely protocol nets without modifying design rules");detect.Bind(wx.EVT_BUTTON,self.detect);ls.Add(detect,0,wx.EXPAND|wx.ALL,6)
-        edit=wx.FlexGridSizer(0,4,5,6);edit.AddGrowableCol(1,1);self.protocol=wx.ComboBox(left,choices=list(self.presets),style=wx.CB_READONLY);self.protocol.SetSelection(0);self.width=wx.TextCtrl(left);self.clearance=wx.TextCtrl(left);self.gap=wx.TextCtrl(left);self.skew=wx.TextCtrl(left)
-        for label,control in (("Protocol",self.protocol),("Width (mm)",self.width),("Clearance (mm)",self.clearance),("Differential gap (mm)",self.gap),("Maximum skew (mm)",self.skew)):edit.Add(wx.StaticText(left,label=label));edit.Add(control,1,wx.EXPAND)
-        ls.Add(edit,0,wx.EXPAND|wx.ALL,6);self.protocol.Bind(wx.EVT_COMBOBOX,self.load_preset);self.load_preset(None)
-        edit_actions=wx.BoxSizer(wx.HORIZONTAL);assign=wx.Button(left,label="Assign Protocol to Selected Rows");assign.SetToolTip("Assign the selected preset to each selected net row");assign.Bind(wx.EVT_BUTTON,self.assign_protocol);update=wx.Button(left,label="Update Protocol Geometry");update.SetToolTip("Update this session's preset from the entered geometry");update.Bind(wx.EVT_BUTTON,self.update_preset);edit_actions.Add(assign,1,wx.RIGHT,6);edit_actions.Add(update,1);ls.Add(edit_actions,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,6)
-        self.table=wx.ListCtrl(left,style=wx.LC_REPORT);self.table.InsertColumn(0,"Protocol",width=150);self.table.InsertColumn(1,"Net",width=260);self.table.InsertColumn(2,"Detection",width=110);ls.Add(self.table,1,wx.EXPAND|wx.ALL,6);generate=wx.Button(left,label="Generate Rule Preview");generate.SetToolTip("Generate the exact managed rules for review");generate.Bind(wx.EVT_BUTTON,self.generate);ls.Add(generate,0,wx.EXPAND|wx.ALL,6);left.SetSizer(ls)
-        make_sortable(self.table)
-        chips_row=wx.BoxSizer(wx.HORIZONTAL);chips_label=wx.StaticText(left,label="Detected mix:");chips_label.SetFont(chips_label.GetFont().Bold());chips_row.Add(chips_label,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8);self.chips_host=wx.Panel(left);self.chips_sizer=wx.WrapSizer(wx.HORIZONTAL);self.chips_host.SetSizer(self.chips_sizer);chips_row.Add(self.chips_host,1,wx.EXPAND);ls.Add(chips_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,6)
-        self.preview=wx.TextCtrl(right,style=wx.TE_MULTILINE|wx.TE_RICH2);self.preview.SetFont(wx.Font(wx.FontInfo(10).Family(wx.FONTFAMILY_TELETYPE)));rs.Add(self.preview,1,wx.EXPAND|wx.ALL,6);buttons=wx.BoxSizer(wx.HORIZONTAL);copy_rules=wx.Button(right,label="Copy Rules");copy_rules.SetToolTip("Copy the reviewed rule block to the clipboard");copy_rules.Bind(wx.EVT_BUTTON,self.copy_rules);export=wx.Button(right,label="Export .kicad_dru…");export.Bind(wx.EVT_BUTTON,self.export);apply=wx.Button(right,label="Apply Managed Block…");apply.Bind(wx.EVT_BUTTON,self.apply);buttons.Add(copy_rules,0,wx.RIGHT,8);buttons.Add(export,0,wx.RIGHT,8);buttons.Add(apply);rs.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,6);right.SetSizer(rs);split.SplitVertically(left,right,500);r.Add(split,1,wx.EXPAND|wx.ALL,8);p.SetSizer(r)
+        self.guide=add_workflow(p,r,"Protocol Constraint Composer","Detect protocol nets and review their custom design rules.",("Detect","Assign","Preview","Apply"),lambda e:webbrowser.open(Path(__file__).with_name("help.html").as_uri()))
+        split=wx.SplitterWindow(p);left=wx.Panel(split);right=wx.Panel(split)
+        ls=wx.BoxSizer(wx.VERTICAL);rs=wx.BoxSizer(wx.VERTICAL)
+        detect=mark_primary(wx.Button(left,label="Detect Nets"),"Detect likely protocol nets without modifying design rules")
+        detect.Bind(wx.EVT_BUTTON,self.detect);ls.Add(detect,0,wx.EXPAND|wx.ALL,6)
+        assignment=wx.BoxSizer(wx.HORIZONTAL)
+        self.protocol=wx.ComboBox(left,choices=list(self.presets),style=wx.CB_READONLY);self.protocol.SetSelection(0)
+        assignment.Add(self.protocol,1,wx.RIGHT,6)
+        assign=wx.Button(left,label="Assign to Selection");assign.Bind(wx.EVT_BUTTON,self.assign_protocol)
+        assignment.Add(assign,0);ls.Add(assignment,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,6)
+        geometry=wx.CollapsiblePane(left,label="Protocol geometry",style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        pane=geometry.GetPane();options=wx.BoxSizer(wx.VERTICAL)
+        edit=wx.FlexGridSizer(0,2,5,8);edit.AddGrowableCol(1,1)
+        self.width=wx.TextCtrl(pane);self.clearance=wx.TextCtrl(pane);self.gap=wx.TextCtrl(pane);self.skew=wx.TextCtrl(pane)
+        for label,control in (("Width (mm)",self.width),("Clearance (mm)",self.clearance),("Differential gap (mm)",self.gap),("Maximum skew (mm)",self.skew)):
+            edit.Add(wx.StaticText(pane,label=label),0,wx.ALIGN_CENTER_VERTICAL);edit.Add(control,1,wx.EXPAND)
+        options.Add(edit,0,wx.EXPAND|wx.ALL,6)
+        update=wx.Button(pane,label="Update Geometry");update.Bind(wx.EVT_BUTTON,self.update_preset)
+        options.Add(update,0,wx.ALIGN_RIGHT|wx.ALL,6);pane.SetSizer(options)
+        geometry.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:left.Layout())
+        ls.Add(geometry,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,6)
+        self.protocol.Bind(wx.EVT_COMBOBOX,self.load_preset);self.load_preset(None)
+        self.table=wx.ListCtrl(left,style=wx.LC_REPORT)
+        for i,(label,width) in enumerate((("Protocol",130),("Net",230),("Detection",100))):self.table.InsertColumn(i,label,width=width)
+        make_sortable(self.table);ls.Add(self.table,1,wx.EXPAND|wx.ALL,6)
+        generate=wx.Button(left,label="Preview Rules");generate.Bind(wx.EVT_BUTTON,self.generate)
+        ls.Add(generate,0,wx.EXPAND|wx.ALL,6)
+        self.chips_host=wx.Panel(left);self.chips_sizer=wx.WrapSizer(wx.HORIZONTAL);self.chips_host.SetSizer(self.chips_sizer)
+        ls.Add(self.chips_host,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,6);left.SetSizer(ls)
+        self.preview=wx.TextCtrl(right,style=wx.TE_MULTILINE|wx.TE_RICH2)
+        self.preview.SetHint("Preview rules to review their exact text here.")
+        self.preview.SetFont(wx.Font(wx.FontInfo(10).Family(wx.FONTFAMILY_TELETYPE)))
+        rs.Add(self.preview,1,wx.EXPAND|wx.ALL,6)
+        buttons=wx.BoxSizer(wx.HORIZONTAL)
+        more=wx.Button(right,label="More");more.SetToolTip("Copy rules or export a .kicad_dru file")
+        more.Bind(wx.EVT_BUTTON,self.more_actions);buttons.Add(more,0,wx.RIGHT,8)
+        apply=wx.Button(right,label="Apply Rules…");apply.Bind(wx.EVT_BUTTON,self.apply);buttons.Add(apply)
+        rs.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,6);right.SetSizer(rs)
+        split.SplitVertically(left,right,480);split.SetMinimumPaneSize(340)
+        r.Add(split,1,wx.EXPAND|wx.ALL,8);p.SetSizer(r)
+
+    def more_actions(self,event):
+        menu=wx.Menu()
+        for label,handler in (("Copy Rules",self.copy_rules),("Export .kicad_dru…",self.export)):
+            item=menu.Append(wx.ID_ANY,label);menu.Bind(wx.EVT_MENU,handler,id=item.GetId())
+        try:event.GetEventObject().PopupMenu(menu)
+        finally:menu.Destroy()
     def refresh_chips(self):
         self.chips_sizer.Clear(delete_windows=True)
         counts={}
@@ -48,14 +85,14 @@ class ConstraintFrame(wx.Frame):
         self.chips_host.Layout()
     def copy_rules(self,_event):
         if not self.generated and not self.preview.GetValue():return
-        text=self.generated or self.preview.GetValue()
+        text=self.preview.GetValue()
         if wx.TheClipboard.Open():
             wx.TheClipboard.SetData(wx.TextDataObject(text));wx.TheClipboard.Close()
     def nets(self):return sorted({str(pad.GetNetname()) for fp in self.board.GetFootprints() for pad in fp.Pads() if str(pad.GetNetname())})
     def detect(self,_e):
         self.assignments=detect_protocols(self.nets(),self.presets);self.table.DeleteAllItems()
         for a in self.assignments:i=self.table.InsertItem(self.table.GetItemCount(),a.protocol);self.table.SetItem(i,1,a.net);self.table.SetItem(i,2,a.confidence)
-        self.guide.set_step(1,"Review detected assignments and adjust protocol geometry.")
+        self.refresh_chips();self.guide.set_step(1,"Review detected assignments and adjust protocol geometry.")
     def generate(self,_e):
         rows=[]
         for i in range(self.table.GetItemCount()):
@@ -78,7 +115,7 @@ class ConstraintFrame(wx.Frame):
     def apply(self,_e):
         board_file=Path(self.board.GetFileName())
         if not board_file or not self.preview.GetValue():return
-        if wx.MessageBox("Apply the reviewed KiWay managed rule block? A timestamped backup will be created. Close Board Setup first.","Confirm rule update",wx.YES_NO|wx.NO_DEFAULT|wx.ICON_WARNING)!=wx.YES:return
+        if wx.MessageBox("Apply the reviewed WayriCAD managed rule block? A timestamped backup will be created. Close Board Setup first.","Confirm rule update",wx.YES_NO|wx.NO_DEFAULT|wx.ICON_WARNING)!=wx.YES:return
         target=board_file.with_suffix('.kicad_dru');existing=target.read_text(encoding='utf-8') if target.exists() else '(version 1)\n';backup=target.with_name(target.name+f'.{time.strftime("%Y%m%d-%H%M%S")}.bak')
         if target.exists():shutil.copy2(target,backup)
         merged=merge_managed_rules(existing,self.preview.GetValue());fd,temp=tempfile.mkstemp(prefix=target.name,suffix='.tmp',dir=target.parent);os.close(fd);Path(temp).write_text(merged,encoding='utf-8');os.replace(temp,target);wx.MessageBox(f"Rules written to {target.name}.\nBackup: {backup.name if backup.exists() else 'new file'}\nOpen Board Setup and run Check rule syntax before DRC.","Rules applied",wx.OK|wx.ICON_INFORMATION)

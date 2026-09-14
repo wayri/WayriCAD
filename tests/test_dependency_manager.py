@@ -20,7 +20,7 @@ class DependencyManagerTests(unittest.TestCase):
 
     def test_unknown_dependency_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "Unknown dependencies"):
-            install_command(["not-a-kiway-dependency"])
+            install_command(["not-a-wayricad-dependency"])
 
     def test_recommended_missing_excludes_optional_by_default(self) -> None:
         rows = [

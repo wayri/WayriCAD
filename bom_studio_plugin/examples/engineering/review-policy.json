@@ -1,0 +1,11 @@
+{
+  "roles": [
+    "engineering"
+  ],
+  "check_level": "error",
+  "catalog_required": false,
+  "stock_required": false,
+  "qualification_required": false,
+  "market": "IN",
+  "freshness_hours": 24
+}

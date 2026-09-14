@@ -54,7 +54,7 @@ class ImpedanceResult:
 
 
 class SignalIntegrityEngine:
-    """Thin validation layer over KiWay's geometry-aware measurement engine."""
+    """Thin validation layer over WayriCAD's geometry-aware measurement engine."""
 
     E24 = (10, 11, 12, 13, 15, 16, 18, 20, 22, 24, 27, 30, 33, 36, 39, 43, 47, 51, 56, 62, 68, 75, 82, 91)
 

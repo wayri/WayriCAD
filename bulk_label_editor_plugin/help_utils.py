@@ -1,4 +1,4 @@
-"""Small, dependency-light help launcher used by the KiWay GUI."""
+"""Small, dependency-light help launcher used by the WayriCAD GUI."""
 
 from pathlib import Path
 import webbrowser
@@ -11,4 +11,4 @@ def open_help(parent, filename: str = "help.html") -> None:
     if path.exists():
         webbrowser.open(path.resolve().as_uri())
     else:
-        wx.MessageBox(f"Help file not found: {path}", "KiWay Help", wx.OK | wx.ICON_ERROR)
+        wx.MessageBox(f"Help file not found: {path}", "WayriCAD Help", wx.OK | wx.ICON_ERROR)

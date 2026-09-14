@@ -1,0 +1,29 @@
+{
+  "schema": "wayricad-build-plan-1",
+  "name": "Two-build example",
+  "market": "IN",
+  "stock_age_hours": 24,
+  "inventory_age_days": 30,
+  "allow_split": false,
+  "independent_pools_reviewed": false,
+  "supplier_priority": [],
+  "builds": [
+    {
+      "id": "Prototype",
+      "variant": "<Default>",
+      "boards": 5,
+      "priority": 1,
+      "due_date": "",
+      "attrition_percent": "2"
+    },
+    {
+      "id": "Production",
+      "variant": "Economy",
+      "boards": 30,
+      "priority": 2,
+      "due_date": "",
+      "attrition_percent": "2"
+    }
+  ],
+  "offers": []
+}

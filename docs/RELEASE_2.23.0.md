@@ -1,4 +1,4 @@
-# KiWay v2.23.0 Development Notes
+# WayriCAD v2.23.0 Development Notes
 
 This development release adds two independently installable KiCad 10 packages.
 

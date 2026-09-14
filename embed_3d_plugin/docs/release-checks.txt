@@ -1,0 +1,12 @@
+WayriCAD Embed3D 0.4.1 release checks — 10 September 2026
+
+PCM ZIP integrity: PASS (50 members)
+Source ZIP integrity: PASS (83 members)
+PCM metadata/layout/Python syntax/assets and DecRef guard: PASS
+Approved PNG/ICO assets unchanged: PASS (14 files)
+PCM runtime bytes match source tree: PASS
+Installed-style PCM backend imports/version: PASS (no native KiCad import/execution)
+Actual PCM association + saved-file scan + model enumeration: PASS (ownership/GUI double, not native wx)
+Independently extracted Source ZIP suite: 332 tests, 314 passed, 18 skipped, no failures
+Native KiCad/wx/Windows installation and GUI rendering: NOT RUN
+Official full JSON Schema download validation: NOT CLAIMED; built-in package checks executed

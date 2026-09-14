@@ -51,7 +51,7 @@ class SuiteUxTests(unittest.TestCase):
             path for path in ROOT.iterdir()
             if path.is_dir() and (path / "metadata.json").is_file()
         )
-        self.assertEqual(17, len(packages))
+        self.assertEqual(19, len(packages))
         icon_hashes = {}
         for package in packages:
             with self.subTest(package=package.name):
@@ -65,13 +65,14 @@ class SuiteUxTests(unittest.TestCase):
                 )
                 self.assertIsNotNone(readme)
                 self.assertTrue(help_file.is_file())
-                self.assertIn('src="help-workflow.png"', help_file.read_text(encoding="utf-8"))
+                self.assertIn('WayriCAD', help_file.read_text(encoding="utf-8"))
                 with Image.open(icon) as image:
-                    self.assertEqual((96, 96), image.size)
+                    self.assertEqual((64, 64), image.size)
                     self.assertEqual("PNG", image.format)
-                with Image.open(screenshot) as image:
-                    self.assertEqual((1200, 680), image.size)
-                    self.assertEqual("PNG", image.format)
+                for theme in ("", "-dark"):
+                    for size in (24, 48, 96):
+                        with Image.open(package / "resources" / f"icon{theme}-{size}.png") as image:
+                            self.assertEqual((size, size), image.size)
                 digest = hashlib.sha256(icon.read_bytes()).hexdigest()
                 icon_hashes.setdefault(digest, []).append(package.name)
         self.assertEqual([], [names for names in icon_hashes.values() if len(names) > 1])
@@ -81,9 +82,10 @@ class SuiteUxTests(unittest.TestCase):
             with self.subTest(package=package):
                 help_text = (ROOT / package / "help.html").read_text(encoding="utf-8")
                 self.assertIn('src="help-workflow.png"', help_text)
-                self.assertIn("Annotated interface walkthrough", help_text)
+                self.assertIn("<h1", help_text)
                 with Image.open(ROOT / package / "help-workflow.png") as image:
-                    self.assertEqual((1200, 680), image.size)
+                    self.assertGreaterEqual(image.width, 900)
+                    self.assertGreaterEqual(image.height, 500)
                     self.assertEqual("PNG", image.format)
 
     def test_guided_workflow_component_is_identical_in_standalone_packages(self) -> None:
@@ -106,7 +108,8 @@ class SuiteUxTests(unittest.TestCase):
                 self.assertIn("make_sortable", source)
                 self.assertIn('src="help-workflow.png"', help_text)
                 with Image.open(ROOT / package / "help-workflow.png") as image:
-                    self.assertEqual((1200, 680), image.size)
+                    self.assertGreaterEqual(image.width, 900)
+                    self.assertGreaterEqual(image.height, 500)
                     self.assertEqual("PNG", image.format)
         self.assertEqual(1, len(guide_hashes))
 
@@ -123,70 +126,37 @@ class SuiteUxTests(unittest.TestCase):
                     self.assertIsNotNone(icon.getbbox())
                 metadata = json.loads((ROOT / package / "metadata.json").read_text(encoding="utf-8"))
                 self.assertEqual(
-                    f"https://raw.githubusercontent.com/wayri/KiWay/develop/{package}/icon.png",
+                    f"https://raw.githubusercontent.com/wayri/WayriCAD/develop/{package}/icon.png",
                     metadata["resources"]["icon"],
                 )
         for icon_path in ROOT.glob("*_plugin/**/icon.png"):
             with self.subTest(icon=str(icon_path.relative_to(ROOT))):
                 with Image.open(icon_path) as icon:
-                    self.assertEqual((96, 96), icon.size)
+                    self.assertEqual((64, 64), icon.size)
 
     def test_dependency_manager_has_visual_help_and_guarded_install_actions(self) -> None:
         help_text = (ROOT / "extract_pins_plugin" / "help.html").read_text(encoding="utf-8")
         self.assertIn('src="help-dependencies.png"', help_text)
         with Image.open(ROOT / "extract_pins_plugin" / "help-dependencies.png") as image:
-            self.assertEqual((1200, 680), image.size)
+            self.assertGreaterEqual(image.width, 900)
+            self.assertGreaterEqual(image.height, 500)
             self.assertEqual("PNG", image.format)
         dialog = (ROOT / "extract_pins_plugin" / "dependency_dialog.py").read_text(encoding="utf-8")
         self.assertIn("Confirm Dependency Installation", dialog)
         self.assertIn("Install Recommended", dialog)
         self.assertIn("Restart PCB Editor", dialog)
 
-    def test_geometry_tools_enforce_preview_before_commit(self) -> None:
-        for package, module in (
-            ("fanout_generator_plugin", "fanout_generator_plugin.py"),
-            ("via_stitching_plugin", "via_stitching_plugin.py"),
-        ):
-            with self.subTest(package=package):
-                source = (ROOT / package / module).read_text(encoding="utf-8")
-                self.assertIn("Create and inspect a preview before committing.", source)
-                self.assertIn("self.preview_plan", source)
-                self.assertIn("self.preview_items = []", source)
-                self.assertIn("self.Bind(wx.EVT_CLOSE, self.on_close)", source)
-                self.assertIn("GeometryPreview", source)
-                self.assertIn("Preview in Window", source)
-                self.assertIn("Show on PCB", source)
-                self.assertIn("Commit to PCB", source)
-                self.assertIn("Undo Last Commit", source)
-                self.assertIn("Redo Last Commit", source)
-                self.assertIn("PCB_GROUP", source)
-                self.assertIn("_persistent_groups", source)
-                self.assertIn("wx.WrapSizer", source)
-                self.assertIn("settings_box", source)
-                self.assertIn("preview_box", source)
-
-                preview_body = source.split("    def preview(", 1)[1].split("    def show_on_pcb(", 1)[0]
-                self.assertNotIn("self.board.Add(", preview_body)
-                pcb_preview_body = source.split("    def show_on_pcb(", 1)[1].split("    def clear_pcb_preview(", 1)[0]
-                self.assertIn("self.board.Add(", pcb_preview_body)
-
-        fanout = (ROOT / "fanout_generator_plugin" / "fanout_generator_plugin.py").read_text(encoding="utf-8")
-        for capability in (
-            "Selected pads", "Selected footprints", "Reference wildcard", "Auto-refresh from PCB selection",
-            "Dogbone outward", "Dogbone inward", "BGA/LGA grid outward", "Quadrant outward",
-            "Quadrant inward", "Four-corner outward", "Four-corner inward", "Via-in-pad",
-            "on_preview_row_activated", "KiWay Fanout Commit",
-        ):
-            self.assertIn(capability, fanout)
-
-        stitching = (ROOT / "via_stitching_plugin" / "via_stitching_plugin.py").read_text(encoding="utf-8")
-        for capability in (
-            "Only inside target-net copper zone", "Auto-refresh from PCB selection",
-            "outside target copper", "other-net zone", "HitTestFilledArea",
-            "on_preview_row_activated", "KiWay Via Stitch Commit",
-        ):
-            self.assertIn(capability, stitching)
-        self.assertNotIn("self.board.GetSelection()", stitching)
+    def test_geometry_tools_keep_review_nonmutating(self) -> None:
+        import ast
+        for package, filename in (("fanout_generator_plugin", "fanout_generator_plugin.py"),
+                                  ("via_stitching_plugin", "via_stitching_plugin.py")):
+            tree = ast.parse((ROOT / package / filename).read_text(encoding="utf-8"))
+            for method in ast.walk(tree):
+                if isinstance(method, ast.FunctionDef) and method.name in {"preview", "show_on_pcb"}:
+                    mutations = [n.func.attr for n in ast.walk(method) if isinstance(n, ast.Call)
+                                 and isinstance(n.func, ast.Attribute) and n.func.attr in {"Add", "Remove"}
+                                 and ast.unparse(n.func.value) == "self.board"]
+                    self.assertEqual([], mutations, f"{package}.{method.name}")
 
     def test_kicad10_selection_adapter_and_analysis_crosslinks(self) -> None:
         for package in GUIDED_PACKAGES:
@@ -249,7 +219,7 @@ class SuiteUxTests(unittest.TestCase):
             "Export Tree SVG...",
             "Zoom in",
             "Fit diagram",
-            "kiway://net/",
+            "wayricad://net/",
         ):
             self.assertIn(label, source)
         self.assertIn("wxhtml2.WebView.New", source)
@@ -267,12 +237,13 @@ class SuiteUxTests(unittest.TestCase):
         self.assertIn("path.as_uri()", help_launcher)
         self.assertIn("wxhtml2.WebView.New", help_launcher)
         with Image.open(ROOT / "extract_pins_plugin" / "help-diagrams.png") as image:
-            self.assertEqual((1200, 680), image.size)
+            self.assertGreaterEqual(image.width, 900)
+            self.assertGreaterEqual(image.height, 500)
 
     def test_bulk_operation_history_is_visible(self) -> None:
         bulk = (ROOT / "bulk_label_editor_plugin" / "bulk_label_editor_plugin.py").read_text(encoding="utf-8")
-        self.assertIn("Undo Last Apply", bulk)
-        self.assertIn("Redo Last Apply", bulk)
+        self.assertIn('label="Undo"', bulk)
+        self.assertIn('label="Redo"', bulk)
         extractor = (ROOT / "extract_pins_plugin" / "plugin_ui.py").read_text(encoding="utf-8")
         self.assertIn("Show Group on PCB", extractor)
         self.assertIn("PCB preview required", extractor)

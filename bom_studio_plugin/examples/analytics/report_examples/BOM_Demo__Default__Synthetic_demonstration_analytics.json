@@ -1,0 +1,1738 @@
+{
+  "schema": "wayricad-analytics-1",
+  "app_version": "0.5.0",
+  "generated_at": "2026-09-09T16:33:31+00:00",
+  "project": "BOM_Demo",
+  "variant": "<Default>",
+  "revision": 0,
+  "config": {
+    "schema": "wayricad-analytics-config-1",
+    "metrics": [
+      "pricing",
+      "mass",
+      "thermal"
+    ],
+    "scenario_name": "Synthetic demonstration",
+    "price_field": "Rate",
+    "currency_field": "Currency",
+    "currency_default": "INR",
+    "price_per": "1",
+    "price_per_field": "",
+    "moq_field": "MOQ",
+    "multiple_field": "OrderMultiple",
+    "supplier_field": "Supplier",
+    "sku_field": "SKU",
+    "quote_date_field": "PriceDate",
+    "quote_max_age_days": 90,
+    "mass_field": "Mass",
+    "mass_unit": "g",
+    "power_field": "Dissipation",
+    "power_unit": "W",
+    "power_basis": "average",
+    "duty_field": "",
+    "duty_percent": "100",
+    "rating_field": "",
+    "temperature_field": "Temp_Max",
+    "temperature_unit": "C",
+    "temperature_requirement_c": null,
+    "type_field": "ComponentType",
+    "group_by": [
+      "@type"
+    ],
+    "statistics": {
+      "Mass": "g",
+      "Temp_Max": "C"
+    },
+    "field_units": {},
+    "query": "",
+    "case_sensitive": false,
+    "physical_include_bom_excluded": true,
+    "boards": 10,
+    "attrition_percent": "5",
+    "scenario_boards": [
+      1,
+      10,
+      100
+    ],
+    "budgets": {
+      "cost_per_board": {
+        "INR": "100"
+      },
+      "mass_g": "2",
+      "power_w": "0.05"
+    },
+    "fx": {
+      "base_currency": "",
+      "rates": {},
+      "as_of": "",
+      "source": ""
+    }
+  },
+  "source_sha256": {
+    "/mnt/data/wayricad-bom-studio-0.5.0/wayricad_bom_studio/examples/analytics/BOM_Demo.kicad_sch": "6f917f24941f90a238b55f347e48b0166e4ef7a8a1562e399bc72fff2ee98082",
+    "/mnt/data/wayricad-bom-studio-0.5.0/wayricad_bom_studio/examples/analytics/Channel.kicad_sch": "bdb4abf1272b50bd3b6ef4ce1e7e099072e5a24fabf7c57161f455d3b9988a28",
+    "/mnt/data/wayricad-bom-studio-0.5.0/wayricad_bom_studio/examples/analytics/BOM_Demo.kicad_pro": "ebffecf4f1f9792f0585a94f1fee7170a38d0580d6bf438ee817524b37606d21"
+  },
+  "workspace_sha256": "5969ee1f3c02cde9ce8f656b3a7ddfbf58f7a84240a94ec39838b6aae541bd0a",
+  "scope": {
+    "query": "",
+    "matched_components": 11,
+    "project_components": 11,
+    "pricing_components": 10,
+    "physical_components": 10,
+    "not_fitted_components": 1,
+    "bom_excluded_physical_components": 0,
+    "type_heuristic_components": 0
+  },
+  "pricing": {
+    "eligible_components": 10,
+    "priced_components": 10,
+    "missing_or_invalid_components": 0,
+    "coverage_percent": "100",
+    "currency_defaulted_components": 0,
+    "quote_status_counts": {
+      "dated_within_window": 10
+    },
+    "currencies": {
+      "INR": {
+        "eligible_components": 10,
+        "priced_components": 10,
+        "missing_or_invalid_components": 0,
+        "known_cost_per_board": "53",
+        "known_build_cost": "530",
+        "known_required_cost": "577.5",
+        "known_order_cost": "1000",
+        "known_overbuy_cost": "422.5",
+        "procurement_lines": 6,
+        "unpriced_or_invalid_order_lines": 0
+      }
+    },
+    "fx": {
+      "enabled": false
+    },
+    "pareto": {
+      "INR": [
+        {
+          "group_id": "c4ef0516b9ce920e6726",
+          "label": "Connector",
+          "known_amount": "25",
+          "share_percent": "47.16981132075471698113207547169811320755",
+          "cumulative_percent": "47.16981132075471698113207547169811320755",
+          "abc": "A",
+          "ids": [
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/d1e84ca9-23f4-5c16-af70-71b89ffb6f12"
+          ],
+          "references": [
+            "J1"
+          ]
+        },
+        {
+          "group_id": "fdb26141fb416244f32b",
+          "label": "Capacitor",
+          "known_amount": "13.5",
+          "share_percent": "25.47169811320754716981132075471698113208",
+          "cumulative_percent": "72.64150943396226415094339622641509433962",
+          "abc": "A",
+          "ids": [
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/95907355-ee25-5d41-ad1e-d7411712a718",
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/cb7334c5-268f-5ee1-b832-155f0f3e5fbe",
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/c1778752-62dc-5fa1-b986-9c9688f7ccd1"
+          ],
+          "references": [
+            "C1",
+            "C2",
+            "C3"
+          ]
+        },
+        {
+          "group_id": "b1d7143e61d8dadea244",
+          "label": "Diode",
+          "known_amount": "12",
+          "share_percent": "22.64150943396226415094339622641509433962",
+          "cumulative_percent": "95.28301886792452830188679245283018867925",
+          "abc": "A",
+          "ids": [
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/244db78e-02e7-53c0-b93f-73a04ec97161"
+          ],
+          "references": [
+            "D1"
+          ]
+        },
+        {
+          "group_id": "e11e4baa06379956036d",
+          "label": "Resistor",
+          "known_amount": "2.5",
+          "share_percent": "4.716981132075471698113207547169811320755",
+          "cumulative_percent": "100",
+          "abc": "C",
+          "ids": [
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/936d48b1-8570-5c59-a906-7f1b28c129e6",
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/11e51a3d-eee6-50a1-823b-f057b3c0c6c9",
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/cde31206-8fa7-592d-81b0-2f8601bbad12",
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/07792e4d-02f2-5b1b-8f58-cf1c06f46127",
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/0cbc449e-b544-5971-be97-75f9bfc23ce1/3a75e9a2-a6b2-535d-a7c3-6875e6d85f40",
+            "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/8248a0eb-eda6-54b9-9d64-87bbe95dea45/3a75e9a2-a6b2-535d-a7c3-6875e6d85f40"
+          ],
+          "references": [
+            "R1",
+            "R2",
+            "R3",
+            "R4",
+            "R101",
+            "R201"
+          ]
+        }
+      ]
+    }
+  },
+  "mass": {
+    "status": "partial",
+    "eligible_components": 10,
+    "known_components": 9,
+    "missing_components": 1,
+    "invalid_components": 0,
+    "coverage_percent": "90",
+    "known_per_board": "1.43",
+    "known_build_total": "14.3",
+    "unit": "g"
+  },
+  "thermal": {
+    "status": "complete",
+    "eligible_components": 10,
+    "known_components": 10,
+    "missing_components": 0,
+    "invalid_components": 0,
+    "coverage_percent": "100",
+    "known_per_board": "0.038",
+    "unit": "W",
+    "scenario_name": "Synthetic demonstration",
+    "basis": "average",
+    "minimum_known_temp_max_c": "70",
+    "temperature_ratings_known": 10,
+    "temperature_ratings_missing_or_invalid": 0,
+    "temperature_requirement_c": null
+  },
+  "groups": [
+    {
+      "id": "fdb26141fb416244f32b",
+      "keys": {
+        "@type": "Capacitor"
+      },
+      "label": "Capacitor",
+      "references": [
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/95907355-ee25-5d41-ad1e-d7411712a718",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/cb7334c5-268f-5ee1-b832-155f0f3e5fbe",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/c1778752-62dc-5fa1-b986-9c9688f7ccd1"
+      ],
+      "components": 3,
+      "pricing_components": 3,
+      "physical_components": 3,
+      "cost_per_board": {
+        "INR": "13.5"
+      },
+      "price_missing_or_invalid": 0,
+      "mass_per_board": "0.07",
+      "mass_known": 2,
+      "mass_missing_or_invalid": 1,
+      "power_per_board": "0.003",
+      "power_known": 3,
+      "power_missing_or_invalid": 0,
+      "min_temp_max_c": "85"
+    },
+    {
+      "id": "c4ef0516b9ce920e6726",
+      "keys": {
+        "@type": "Connector"
+      },
+      "label": "Connector",
+      "references": [
+        "J1"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/d1e84ca9-23f4-5c16-af70-71b89ffb6f12"
+      ],
+      "components": 1,
+      "pricing_components": 1,
+      "physical_components": 1,
+      "cost_per_board": {
+        "INR": "25"
+      },
+      "price_missing_or_invalid": 0,
+      "mass_per_board": "1.2",
+      "mass_known": 1,
+      "mass_missing_or_invalid": 0,
+      "power_per_board": "0",
+      "power_known": 1,
+      "power_missing_or_invalid": 0,
+      "min_temp_max_c": "70"
+    },
+    {
+      "id": "b1d7143e61d8dadea244",
+      "keys": {
+        "@type": "Diode"
+      },
+      "label": "Diode",
+      "references": [
+        "D1"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/244db78e-02e7-53c0-b93f-73a04ec97161"
+      ],
+      "components": 1,
+      "pricing_components": 1,
+      "physical_components": 1,
+      "cost_per_board": {
+        "INR": "12"
+      },
+      "price_missing_or_invalid": 0,
+      "mass_per_board": "0.1",
+      "mass_known": 1,
+      "mass_missing_or_invalid": 0,
+      "power_per_board": "0.025",
+      "power_known": 1,
+      "power_missing_or_invalid": 0,
+      "min_temp_max_c": "85"
+    },
+    {
+      "id": "e11e4baa06379956036d",
+      "keys": {
+        "@type": "Resistor"
+      },
+      "label": "Resistor",
+      "references": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R101",
+        "R201"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/936d48b1-8570-5c59-a906-7f1b28c129e6",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/11e51a3d-eee6-50a1-823b-f057b3c0c6c9",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/cde31206-8fa7-592d-81b0-2f8601bbad12",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/07792e4d-02f2-5b1b-8f58-cf1c06f46127",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/0cbc449e-b544-5971-be97-75f9bfc23ce1/3a75e9a2-a6b2-535d-a7c3-6875e6d85f40",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/8248a0eb-eda6-54b9-9d64-87bbe95dea45/3a75e9a2-a6b2-535d-a7c3-6875e6d85f40"
+      ],
+      "components": 6,
+      "pricing_components": 5,
+      "physical_components": 5,
+      "cost_per_board": {
+        "INR": "2.5"
+      },
+      "price_missing_or_invalid": 0,
+      "mass_per_board": "0.06",
+      "mass_known": 5,
+      "mass_missing_or_invalid": 0,
+      "power_per_board": "0.01",
+      "power_known": 5,
+      "power_missing_or_invalid": 0,
+      "min_temp_max_c": "125"
+    }
+  ],
+  "procurement": [
+    {
+      "references": [
+        "C1",
+        "C2"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/95907355-ee25-5d41-ad1e-d7411712a718",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/cb7334c5-268f-5ee1-b832-155f0f3e5fbe"
+      ],
+      "manufacturer": "DEMO Components",
+      "mpn": "DEMO-C0603-100N",
+      "value": "100n",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "supplier": "DEMO Supplier — offline",
+      "sku": "SKU-DEMO-C0603-100N",
+      "currency": "INR",
+      "unit_price": "4.5",
+      "moq": 10,
+      "order_multiple": 10,
+      "qty_per_board": 2,
+      "policy_valid": true,
+      "identity_complete": true,
+      "quote_date": "2026-09-09",
+      "installed_qty": 20,
+      "required_qty": 21,
+      "order_qty": 30,
+      "attrition_qty": 1,
+      "overbuy_qty": 9,
+      "installed_cost": "90",
+      "required_cost": "94.5",
+      "order_cost": "135",
+      "overbuy_cost": "40.5"
+    },
+    {
+      "references": [
+        "C3"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/c1778752-62dc-5fa1-b986-9c9688f7ccd1"
+      ],
+      "manufacturer": "DEMO Components",
+      "mpn": "DEMO-C0603-10U",
+      "value": "10u",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "supplier": "DEMO Supplier — offline",
+      "sku": "SKU-DEMO-C0603-10U",
+      "currency": "INR",
+      "unit_price": "4.5",
+      "moq": 10,
+      "order_multiple": 10,
+      "qty_per_board": 1,
+      "policy_valid": true,
+      "identity_complete": true,
+      "quote_date": "2026-09-09",
+      "installed_qty": 10,
+      "required_qty": 11,
+      "order_qty": 20,
+      "attrition_qty": 1,
+      "overbuy_qty": 9,
+      "installed_cost": "45",
+      "required_cost": "49.5",
+      "order_cost": "90",
+      "overbuy_cost": "40.5"
+    },
+    {
+      "references": [
+        "D1"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/244db78e-02e7-53c0-b93f-73a04ec97161"
+      ],
+      "manufacturer": "DEMO Components",
+      "mpn": "DEMO-LED-GREEN",
+      "value": "LED Green",
+      "footprint": "LED_SMD:LED_0603_1608Metric",
+      "supplier": "DEMO Supplier — offline",
+      "sku": "SKU-DEMO-LED-GREEN",
+      "currency": "INR",
+      "unit_price": "12",
+      "moq": 10,
+      "order_multiple": 10,
+      "qty_per_board": 1,
+      "policy_valid": true,
+      "identity_complete": true,
+      "quote_date": "2026-09-09",
+      "installed_qty": 10,
+      "required_qty": 11,
+      "order_qty": 20,
+      "attrition_qty": 1,
+      "overbuy_qty": 9,
+      "installed_cost": "120",
+      "required_cost": "132",
+      "order_cost": "240",
+      "overbuy_cost": "108"
+    },
+    {
+      "references": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/936d48b1-8570-5c59-a906-7f1b28c129e6",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/11e51a3d-eee6-50a1-823b-f057b3c0c6c9",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/cde31206-8fa7-592d-81b0-2f8601bbad12"
+      ],
+      "manufacturer": "DEMO Components",
+      "mpn": "DEMO-R0603-10K",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "supplier": "DEMO Supplier — offline",
+      "sku": "SKU-DEMO-R0603-10K",
+      "currency": "INR",
+      "unit_price": "0.5",
+      "moq": 10,
+      "order_multiple": 10,
+      "qty_per_board": 3,
+      "policy_valid": true,
+      "identity_complete": true,
+      "quote_date": "2026-09-09",
+      "installed_qty": 30,
+      "required_qty": 32,
+      "order_qty": 40,
+      "attrition_qty": 2,
+      "overbuy_qty": 8,
+      "installed_cost": "15",
+      "required_cost": "16",
+      "order_cost": "20",
+      "overbuy_cost": "4"
+    },
+    {
+      "references": [
+        "R101",
+        "R201"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/0cbc449e-b544-5971-be97-75f9bfc23ce1/3a75e9a2-a6b2-535d-a7c3-6875e6d85f40",
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/8248a0eb-eda6-54b9-9d64-87bbe95dea45/3a75e9a2-a6b2-535d-a7c3-6875e6d85f40"
+      ],
+      "manufacturer": "DEMO Components",
+      "mpn": "DEMO-R0603-1K",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "supplier": "DEMO Supplier — offline",
+      "sku": "SKU-DEMO-R0603-1K",
+      "currency": "INR",
+      "unit_price": "0.5",
+      "moq": 10,
+      "order_multiple": 10,
+      "qty_per_board": 2,
+      "policy_valid": true,
+      "identity_complete": true,
+      "quote_date": "2026-09-09",
+      "installed_qty": 20,
+      "required_qty": 21,
+      "order_qty": 30,
+      "attrition_qty": 1,
+      "overbuy_qty": 9,
+      "installed_cost": "10",
+      "required_cost": "10.5",
+      "order_cost": "15",
+      "overbuy_cost": "4.5"
+    },
+    {
+      "references": [
+        "J1"
+      ],
+      "ids": [
+        "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/d1e84ca9-23f4-5c16-af70-71b89ffb6f12"
+      ],
+      "manufacturer": "DEMO Components",
+      "mpn": "DEMO-TERM-2P",
+      "value": "Terminal 2P",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "supplier": "DEMO Supplier — offline",
+      "sku": "SKU-DEMO-TERM-2P",
+      "currency": "INR",
+      "unit_price": "25",
+      "moq": 10,
+      "order_multiple": 10,
+      "qty_per_board": 1,
+      "policy_valid": true,
+      "identity_complete": true,
+      "quote_date": "2026-09-09",
+      "installed_qty": 10,
+      "required_qty": 11,
+      "order_qty": 20,
+      "attrition_qty": 1,
+      "overbuy_qty": 9,
+      "installed_cost": "250",
+      "required_cost": "275",
+      "order_cost": "500",
+      "overbuy_cost": "225"
+    }
+  ],
+  "scenarios": [
+    {
+      "boards": 10,
+      "currency": "INR",
+      "known_installed_cost": "530",
+      "known_order_cost": "1000",
+      "known_order_cost_per_board": "100",
+      "known_overbuy_cost": "422.5",
+      "incomplete_order_lines": 0,
+      "mass_g_per_board": "1.43",
+      "known_installed_mass_g": "14.3",
+      "power_w_per_board": "0.038",
+      "price_assumption": "Same entered rate at every quantity; no inferred volume discount."
+    },
+    {
+      "boards": 1,
+      "currency": "INR",
+      "known_installed_cost": "53",
+      "known_order_cost": "470",
+      "known_order_cost_per_board": "470",
+      "known_overbuy_cost": "370",
+      "incomplete_order_lines": 0,
+      "mass_g_per_board": "1.43",
+      "known_installed_mass_g": "1.43",
+      "power_w_per_board": "0.038",
+      "price_assumption": "Same entered rate at every quantity; no inferred volume discount."
+    },
+    {
+      "boards": 100,
+      "currency": "INR",
+      "known_installed_cost": "5300",
+      "known_order_cost": "5775",
+      "known_order_cost_per_board": "57.75",
+      "known_overbuy_cost": "210",
+      "incomplete_order_lines": 0,
+      "mass_g_per_board": "1.43",
+      "known_installed_mass_g": "143",
+      "power_w_per_board": "0.038",
+      "price_assumption": "Same entered rate at every quantity; no inferred volume discount."
+    }
+  ],
+  "statistics": {
+    "Mass": {
+      "field": "Mass",
+      "input_unit": "g",
+      "canonical_unit": "g",
+      "scope": "all query-matched physical component records",
+      "known": 10,
+      "missing": 1,
+      "invalid": 0,
+      "minimum": "0.012",
+      "maximum": "1.2",
+      "mean": "0.1442",
+      "median": "0.012",
+      "p95_nearest_rank": "1.2",
+      "histogram": [
+        {
+          "lower": "0.012",
+          "upper": "0.1605",
+          "upper_inclusive": false,
+          "count": 9
+        },
+        {
+          "lower": "0.1605",
+          "upper": "0.309",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "0.309",
+          "upper": "0.4575",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "0.4575",
+          "upper": "0.606",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "0.606",
+          "upper": "0.7545",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "0.7545",
+          "upper": "0.903",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "0.903",
+          "upper": "1.0515",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "1.0515",
+          "upper": "1.2",
+          "upper_inclusive": true,
+          "count": 1
+        }
+      ],
+      "minimum_references": [
+        "R1",
+        "R101",
+        "R2",
+        "R201",
+        "R3",
+        "R4"
+      ],
+      "maximum_references": [
+        "J1"
+      ]
+    },
+    "Temp_Max": {
+      "field": "Temp_Max",
+      "input_unit": "C",
+      "canonical_unit": "C",
+      "scope": "all query-matched physical component records",
+      "known": 10,
+      "missing": 1,
+      "invalid": 0,
+      "minimum": "70",
+      "maximum": "125",
+      "mean": "103.5",
+      "median": "105",
+      "p95_nearest_rank": "125",
+      "histogram": [
+        {
+          "lower": "70",
+          "upper": "76.875",
+          "upper_inclusive": false,
+          "count": 1
+        },
+        {
+          "lower": "76.875",
+          "upper": "83.75",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "83.75",
+          "upper": "90.625",
+          "upper_inclusive": false,
+          "count": 4
+        },
+        {
+          "lower": "90.625",
+          "upper": "97.5",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "97.5",
+          "upper": "104.375",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "104.375",
+          "upper": "111.25",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "111.25",
+          "upper": "118.125",
+          "upper_inclusive": false,
+          "count": 0
+        },
+        {
+          "lower": "118.125",
+          "upper": "125",
+          "upper_inclusive": true,
+          "count": 5
+        }
+      ],
+      "minimum_references": [
+        "J1"
+      ],
+      "maximum_references": [
+        "R1",
+        "R101",
+        "R2",
+        "R201",
+        "R3"
+      ]
+    }
+  },
+  "components": [
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/95907355-ee25-5d41-ad1e-d7411712a718",
+      "reference": "C1",
+      "value": "100n",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "mpn": "DEMO-C0603-100N",
+      "manufacturer": "DEMO Components",
+      "type": "Capacitor",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "4.5",
+        "price_per": 1,
+        "unit_price": "4.5",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": "0.035",
+        "status": "known",
+        "input_unit": "mg",
+        "assumed_unit": false,
+        "reason": ""
+      },
+      "power": {
+        "value": "0.001",
+        "status": "known",
+        "input_unit": "mW",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0.001",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "85",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "4.50",
+          "resolved_value": "4.50"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "35mg",
+          "resolved_value": "35mg"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "1mW",
+          "resolved_value": "1mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "85",
+          "resolved_value": "85"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/cb7334c5-268f-5ee1-b832-155f0f3e5fbe",
+      "reference": "C2",
+      "value": "100n",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "mpn": "DEMO-C0603-100N",
+      "manufacturer": "DEMO Components",
+      "type": "Capacitor",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "4.5",
+        "price_per": 1,
+        "unit_price": "4.5",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": "0.035",
+        "status": "known",
+        "input_unit": "mg",
+        "assumed_unit": false,
+        "reason": ""
+      },
+      "power": {
+        "value": "0.001",
+        "status": "known",
+        "input_unit": "mW",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0.001",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "85",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "4.50",
+          "resolved_value": "4.50"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "35mg",
+          "resolved_value": "35mg"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "1mW",
+          "resolved_value": "1mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "85",
+          "resolved_value": "85"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/c1778752-62dc-5fa1-b986-9c9688f7ccd1",
+      "reference": "C3",
+      "value": "10u",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "mpn": "DEMO-C0603-10U",
+      "manufacturer": "DEMO Components",
+      "type": "Capacitor",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "4.5",
+        "price_per": 1,
+        "unit_price": "4.5",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": null,
+        "status": "missing",
+        "input_unit": null,
+        "assumed_unit": false,
+        "reason": "No numeric observation."
+      },
+      "power": {
+        "value": "0.001",
+        "status": "known",
+        "input_unit": "mW",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0.001",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "85",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "4.50",
+          "resolved_value": "4.50"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "1mW",
+          "resolved_value": "1mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "85",
+          "resolved_value": "85"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/244db78e-02e7-53c0-b93f-73a04ec97161",
+      "reference": "D1",
+      "value": "LED Green",
+      "footprint": "LED_SMD:LED_0603_1608Metric",
+      "mpn": "DEMO-LED-GREEN",
+      "manufacturer": "DEMO Components",
+      "type": "Diode",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "12",
+        "price_per": 1,
+        "unit_price": "12",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": "0.1",
+        "status": "known",
+        "input_unit": "g",
+        "assumed_unit": false,
+        "reason": ""
+      },
+      "power": {
+        "value": "0.025",
+        "status": "known",
+        "input_unit": "mW",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0.025",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "85",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "12",
+          "resolved_value": "12"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "0.1g",
+          "resolved_value": "0.1g"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "25mW",
+          "resolved_value": "25mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "85",
+          "resolved_value": "85"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/d1e84ca9-23f4-5c16-af70-71b89ffb6f12",
+      "reference": "J1",
+      "value": "Terminal 2P",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "mpn": "DEMO-TERM-2P",
+      "manufacturer": "DEMO Components",
+      "type": "Connector",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "25",
+        "price_per": 1,
+        "unit_price": "25",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": "1.2",
+        "status": "known",
+        "input_unit": "g",
+        "assumed_unit": false,
+        "reason": ""
+      },
+      "power": {
+        "value": "0",
+        "status": "known",
+        "input_unit": "W",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "70",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "25",
+          "resolved_value": "25"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "1.2g",
+          "resolved_value": "1.2g"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "0W",
+          "resolved_value": "0W"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "70",
+          "resolved_value": "70"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/936d48b1-8570-5c59-a906-7f1b28c129e6",
+      "reference": "R1",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "mpn": "DEMO-R0603-10K",
+      "manufacturer": "DEMO Components",
+      "type": "Resistor",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "0.5",
+        "price_per": 1,
+        "unit_price": "0.5",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": "0.012",
+        "status": "known",
+        "input_unit": "mg",
+        "assumed_unit": false,
+        "reason": ""
+      },
+      "power": {
+        "value": "0.002",
+        "status": "known",
+        "input_unit": "mW",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0.002",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "125",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "0.50",
+          "resolved_value": "0.50"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "12mg",
+          "resolved_value": "12mg"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "2mW",
+          "resolved_value": "2mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "125",
+          "resolved_value": "125"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/11e51a3d-eee6-50a1-823b-f057b3c0c6c9",
+      "reference": "R2",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "mpn": "DEMO-R0603-10K",
+      "manufacturer": "DEMO Components",
+      "type": "Resistor",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "0.5",
+        "price_per": 1,
+        "unit_price": "0.5",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": "0.012",
+        "status": "known",
+        "input_unit": "mg",
+        "assumed_unit": false,
+        "reason": ""
+      },
+      "power": {
+        "value": "0.002",
+        "status": "known",
+        "input_unit": "mW",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0.002",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "125",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "0.50",
+          "resolved_value": "0.50"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "12mg",
+          "resolved_value": "12mg"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "2mW",
+          "resolved_value": "2mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "125",
+          "resolved_value": "125"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/cde31206-8fa7-592d-81b0-2f8601bbad12",
+      "reference": "R3",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "mpn": "DEMO-R0603-10K",
+      "manufacturer": "DEMO Components",
+      "type": "Resistor",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "0.5",
+        "price_per": 1,
+        "unit_price": "0.5",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": "0.012",
+        "status": "known",
+        "input_unit": "mg",
+        "assumed_unit": false,
+        "reason": ""
+      },
+      "power": {
+        "value": "0.002",
+        "status": "known",
+        "input_unit": "mW",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0.002",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "125",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "0.50",
+          "resolved_value": "0.50"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "12mg",
+          "resolved_value": "12mg"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "2mW",
+          "resolved_value": "2mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "125",
+          "resolved_value": "125"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/07792e4d-02f2-5b1b-8f58-cf1c06f46127",
+      "reference": "R4",
+      "value": "0R",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "mpn": "DEMO-R0603-0R",
+      "manufacturer": "DEMO Components",
+      "type": "Resistor",
+      "type_source": "field:ComponentType",
+      "assembly": "DNP",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": false,
+      "physical_eligible": false,
+      "cost": null,
+      "mass": null,
+      "power": null,
+      "temperature": null,
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "0.50",
+          "resolved_value": "0.50"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "12mg",
+          "resolved_value": "12mg"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "2mW",
+          "resolved_value": "2mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "unknown",
+          "resolved_value": "unknown"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/0cbc449e-b544-5971-be97-75f9bfc23ce1/3a75e9a2-a6b2-535d-a7c3-6875e6d85f40",
+      "reference": "R101",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "mpn": "DEMO-R0603-1K",
+      "manufacturer": "DEMO Components",
+      "type": "Resistor",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "0.5",
+        "price_per": 1,
+        "unit_price": "0.5",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": "0.012",
+        "status": "known",
+        "input_unit": "mg",
+        "assumed_unit": false,
+        "reason": ""
+      },
+      "power": {
+        "value": "0.002",
+        "status": "known",
+        "input_unit": "mW",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0.002",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "125",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "0.50",
+          "resolved_value": "0.50"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "12mg",
+          "resolved_value": "12mg"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "2mW",
+          "resolved_value": "2mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "125",
+          "resolved_value": "125"
+        }
+      }
+    },
+    {
+      "id": "/49ab0e27-e35a-54c9-b54d-aaec6120e0a7/8248a0eb-eda6-54b9-9d64-87bbe95dea45/3a75e9a2-a6b2-535d-a7c3-6875e6d85f40",
+      "reference": "R201",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "mpn": "DEMO-R0603-1K",
+      "manufacturer": "DEMO Components",
+      "type": "Resistor",
+      "type_source": "field:ComponentType",
+      "assembly": "FIT",
+      "in_bom": true,
+      "on_board": true,
+      "price_eligible": true,
+      "physical_eligible": true,
+      "cost": {
+        "status": "known",
+        "currency": "INR",
+        "currency_source": "field",
+        "entered_rate": "0.5",
+        "price_per": 1,
+        "unit_price": "0.5",
+        "reason": "",
+        "quote_status": "dated_within_window",
+        "quote_date": "2026-09-09"
+      },
+      "mass": {
+        "value": "0.012",
+        "status": "known",
+        "input_unit": "mg",
+        "assumed_unit": false,
+        "reason": ""
+      },
+      "power": {
+        "value": "0.002",
+        "status": "known",
+        "input_unit": "mW",
+        "assumed_unit": false,
+        "reason": "",
+        "input_power_w": "0.002",
+        "basis": "average",
+        "duty_percent": "100"
+      },
+      "temperature": {
+        "value": "125",
+        "status": "known",
+        "input_unit": "C",
+        "assumed_unit": true,
+        "reason": ""
+      },
+      "rating": null,
+      "source_fields": {
+        "price_field": {
+          "field": "Rate",
+          "raw_name": "Rate",
+          "raw_value": "0.50",
+          "resolved_value": "0.50"
+        },
+        "currency_field": {
+          "field": "Currency",
+          "raw_name": "Currency",
+          "raw_value": "INR",
+          "resolved_value": "INR"
+        },
+        "mass_field": {
+          "field": "Mass",
+          "raw_name": "Mass",
+          "raw_value": "12mg",
+          "resolved_value": "12mg"
+        },
+        "power_field": {
+          "field": "Dissipation",
+          "raw_name": "Dissipation",
+          "raw_value": "2mW",
+          "resolved_value": "2mW"
+        },
+        "rating_field": {
+          "field": "",
+          "raw_name": "",
+          "raw_value": "",
+          "resolved_value": ""
+        },
+        "temperature_field": {
+          "field": "Temp_Max",
+          "raw_name": "Temp_Max",
+          "raw_value": "125",
+          "resolved_value": "125"
+        }
+      }
+    }
+  ],
+  "budgets": [
+    {
+      "metric": "cost_per_board",
+      "unit": "INR",
+      "limit": "100",
+      "known_subtotal": "53",
+      "unknown_components": 0,
+      "status": "within_known_budget",
+      "remaining_against_known": "47"
+    },
+    {
+      "metric": "mass_g",
+      "unit": "g",
+      "limit": "2",
+      "known_subtotal": "1.43",
+      "unknown_components": 1,
+      "status": "unknown",
+      "remaining_against_known": "0.57"
+    },
+    {
+      "metric": "power_w",
+      "unit": "W",
+      "limit": "0.05",
+      "known_subtotal": "0.038",
+      "unknown_components": 0,
+      "status": "within_known_budget",
+      "remaining_against_known": "0.012"
+    }
+  ],
+  "issues": [
+    {
+      "severity": "unknown",
+      "code": "MASS_MISSING",
+      "message": "No numeric observation.",
+      "reference": "C3",
+      "field": "Mass"
+    },
+    {
+      "severity": "unknown",
+      "code": "BUDGET_UNKNOWN",
+      "message": "mass_g (g) budget unknown. Known subtotal is not a complete total when observations are missing.",
+      "reference": "",
+      "field": ""
+    }
+  ],
+  "summary": {
+    "unknown": 2
+  },
+  "limits": [
+    "Advisory arithmetic over saved/committed component fields, not engineering or purchasing approval.",
+    "Missing/invalid values are never zero; shares and Pareto percentages use known subtotals only.",
+    "Pricing counts fitted BOM-included parts. Physical metrics count fitted on-board parts under the selected exclusion policy.",
+    "Mass excludes PCB substrate, solder, coatings, wiring and unrepresented hardware unless entered as component records.",
+    "Dissipation is user-supplied average or duty-weighted active power. Rated power is not operating heat.",
+    "No junction-temperature, airflow, coupling, land-pattern, derating or thermal simulation is performed.",
+    "Exact manufacturer/MPN plus value, footprint, supplier/SKU, price, currency and order policy guard procurement pooling.",
+    "Scenario rates do not change with volume; taxes, shipping, NRE and labor are not included.",
+    "FX rates and price dates are user-entered observations, never live or independently verified.",
+    "Native files and component fields are not changed by analytics or threshold highlighting."
+  ],
+  "fingerprint": "168e11630d0ed4c6281be091792af20c8c532ea239704ca4346c3169e649c962"
+}

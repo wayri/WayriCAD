@@ -1,0 +1,64 @@
+{
+  "schema": "wayricad-land-pattern-1",
+  "manufacturer": "DEMO Components",
+  "mpn": "DEMO-R0603-10K",
+  "source_url": "https://example.invalid/SYNTHETIC-DRAWING",
+  "document_revision": "DEMO ONLY - NOT MANUFACTURER DATA",
+  "document_sha256": "176e373c044a44bb82c90bfdb8d1229a27ad7a3b3f9e29dfa48afe7d25f82b9c",
+  "page": 1,
+  "reviewed_by": "Synthetic initializer",
+  "frame": "top-view-mm",
+  "tolerance_mm": 0.02,
+  "angle_tolerance_deg": 0.1,
+  "pads": [
+    {
+      "number": "1",
+      "kind": "smd",
+      "shape": "rect",
+      "x": -0.8,
+      "y": 0.0,
+      "width": 0.9,
+      "height": 1.0,
+      "rotation": 0.0,
+      "layers": [
+        "F.Cu",
+        "F.Mask",
+        "F.Paste"
+      ],
+      "drill": null,
+      "mask_margin": 0.0,
+      "paste_margin": 0.0,
+      "paste_ratio": 0.0,
+      "roundrect_ratio": null
+    },
+    {
+      "number": "2",
+      "kind": "smd",
+      "shape": "rect",
+      "x": 0.8,
+      "y": 0.0,
+      "width": 0.9,
+      "height": 1.0,
+      "rotation": 0.0,
+      "layers": [
+        "F.Cu",
+        "F.Mask",
+        "F.Paste"
+      ],
+      "drill": null,
+      "mask_margin": 0.0,
+      "paste_margin": 0.0,
+      "paste_ratio": 0.0,
+      "roundrect_ratio": null
+    }
+  ],
+  "pin_functions": {
+    "1": [
+      "1"
+    ],
+    "2": [
+      "2"
+    ]
+  },
+  "notes": "Schema and comparison demo only. Do not use this drawing as a qualified production land pattern."
+}

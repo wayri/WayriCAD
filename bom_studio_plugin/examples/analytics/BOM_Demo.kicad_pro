@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "filename": "BOM_Demo.kicad_pro",
+    "version": 1
+  },
+  "text_variables": {
+    "REV": "A",
+    "BUILD_CODE": "DEMO-${REV}"
+  },
+  "schematic": {
+    "top_level_sheets": [
+      {
+        "uuid": "00000000-0000-0000-0000-000000000000",
+        "name": "BOM_Demo",
+        "filename": "BOM_Demo.kicad_sch"
+      }
+    ],
+    "variants": [
+      {
+        "name": "Economy",
+        "description": "Lower-cost demo with fewer fitted parts"
+      },
+      {
+        "name": "Qualification",
+        "description": "Includes the optional zero-ohm link"
+      }
+    ],
+    "bom_presets": []
+  }
+}

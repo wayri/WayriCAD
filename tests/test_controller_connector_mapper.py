@@ -17,11 +17,11 @@ def load_module(name, path):
 
 
 graph_module = load_module(
-    "kiway_mapper_graph_test",
+    "wayricad_mapper_graph_test",
     ROOT / "extract_pins_plugin" / "core" / "schematic_graph.py",
 )
 mapper_module = load_module(
-    "kiway_controller_mapper_test",
+    "wayricad_controller_mapper_test",
     ROOT / "extract_pins_plugin" / "core" / "controller_connector_mapper.py",
 )
 

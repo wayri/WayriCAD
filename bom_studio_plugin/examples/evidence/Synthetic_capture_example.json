@@ -1,0 +1,21 @@
+{
+  "schema": "wayricad-evidence-1",
+  "records": [
+    {
+      "mpn": "DEMO-R0603-10K",
+      "manufacturer": "DEMO Components",
+      "supplier": "Manual",
+      "stock": "",
+      "observed_at": "",
+      "source_url": "https://example.invalid/synthetic-only",
+      "region": "IN",
+      "package": "0603_1608Metric",
+      "pin_numbers": [
+        "1",
+        "2"
+      ],
+      "mounting": "SMD",
+      "notes": "Synthetic example only, not purchasable or live stock."
+    }
+  ]
+}

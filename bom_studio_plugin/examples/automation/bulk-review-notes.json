@@ -1,0 +1,19 @@
+{
+  "schema": "wayricad-bulk-recipe-1",
+  "query": "Reference~\"R*\" AND is:fit",
+  "operations": [
+    {
+      "op": "set",
+      "field": "ReviewNote",
+      "value": "  engineering review requested  "
+    },
+    {
+      "op": "trim",
+      "field": "ReviewNote"
+    },
+    {
+      "op": "upper",
+      "field": "ReviewNote"
+    }
+  ]
+}

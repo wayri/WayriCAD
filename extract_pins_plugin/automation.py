@@ -1,4 +1,4 @@
-"""Machine-facing KiWay capability registry and JSON-RPC control plane."""
+"""Machine-facing WayriCAD capability registry and JSON-RPC control plane."""
 
 from __future__ import annotations
 
@@ -11,36 +11,38 @@ from pathlib import Path
 from typing import Any, Callable, TextIO
 
 
-SCHEMA = "kiway.control/v1"
+SCHEMA = "wayricad.control/v1"
 JSONRPC = "2.0"
 ROOT = Path(__file__).resolve().parent.parent
 
 
 PLUGIN_CAPABILITIES = (
-    ("bulk-label-editor", "KiWay Bulk Label Editor", ("preview", "apply"), True, "board"),
-    ("extract-pins", "KiWay Pin Extractor", ("inspect", "extract", "crosslink", "report"), False, "netlist"),
-    ("fanout-generator", "KiWay Fanout Generator", ("plan", "preview", "apply"), True, "board"),
-    ("harness-workbench", "KiWay Harness and Cable Workbench", ("build", "validate", "export"), False, "documents"),
-    ("heater-designer", "KiWay PCB / Foil Heater Designer", ("analyze", "simulate", "apply"), True, "model"),
-    ("kilo", "Kilo - KiCad Localizer", ("scan", "validate", "localize", "repair"), True, "project"),
-    ("manufacturing-readiness", "KiWay Manufacturing Readiness Manager", ("audit", "release"), True, "project"),
-    ("pdn-decoupling", "KiWay PDN and Decoupling Planner", ("analyze",), False, "geometry"),
-    ("planar-magnetics", "KiWay Planar Magnetics & Actuator Workbench", ("analyze", "simulate", "apply"), True, "model"),
-    ("portable-assets", "KiWay Portable Assets", ("analyze", "apply", "restore"), True, "project"),
-    ("protocol-constraints", "KiWay Protocol Constraint Composer", ("detect", "compose", "apply"), True, "nets"),
-    ("return-path-auditor", "KiWay Return-Path Auditor", ("audit",), False, "geometry"),
-    ("signal-integrity", "KiWay Signal Integrity Advisor", ("i2c-pullup", "impedance"), False, "geometry"),
-    ("test-point-descriptor", "KiWay Test Point Descriptor Extractor", ("extract", "fixture"), True, "board"),
-    ("trace-impedance", "KiWay Trace RLC / Impedance Analyzer", ("measure",), False, "board"),
-    ("variant-workbench", "KiWay Design Variant Workbench", ("inspect", "plan", "apply"), True, "project"),
-    ("via-stitching", "KiWay Via Stitching", ("plan", "preview", "apply"), True, "board"),
+    ("bom-studio", "WayriCAD BOM Studio", ("inspect", "export", "variants"), True, "project"),
+    ("embed-3d", "WayriCAD Embed3D", ("plan", "apply", "verify"), True, "project"),
+    ("bulk-label-editor", "WayriCAD Bulk Label Editor", ("preview", "apply"), True, "board"),
+    ("extract-pins", "WayriCAD Pin Extractor", ("inspect", "extract", "crosslink", "report"), False, "netlist"),
+    ("fanout-generator", "WayriCAD Fanout Generator", ("plan", "preview", "apply"), True, "board"),
+    ("harness-workbench", "WayriCAD Harness and Cable Workbench", ("build", "validate", "export"), False, "documents"),
+    ("heater-designer", "WayriCAD PCB / Foil Heater Designer", ("analyze", "simulate", "apply"), True, "model"),
+    ("kilo", "WayriCAD Localizer", ("scan", "validate", "localize", "repair"), True, "project"),
+    ("manufacturing-readiness", "WayriCAD Manufacturing Readiness Manager", ("audit", "release"), True, "project"),
+    ("pdn-decoupling", "WayriCAD PDN and Decoupling Planner", ("analyze",), False, "geometry"),
+    ("planar-magnetics", "WayriCAD Planar Magnetics & Actuator Workbench", ("analyze", "simulate", "apply"), True, "model"),
+    ("portable-assets", "WayriCAD Portable Assets", ("analyze", "apply", "restore"), True, "project"),
+    ("protocol-constraints", "WayriCAD Protocol Constraint Composer", ("detect", "compose", "apply"), True, "nets"),
+    ("return-path-auditor", "WayriCAD Return-Path Auditor", ("audit",), False, "geometry"),
+    ("signal-integrity", "WayriCAD Signal Integrity Advisor", ("i2c-pullup", "impedance"), False, "geometry"),
+    ("test-point-descriptor", "WayriCAD Test Point Descriptor Extractor", ("extract", "fixture"), True, "board"),
+    ("trace-impedance", "WayriCAD Trace RLC / Impedance Analyzer", ("measure",), False, "board"),
+    ("variant-workbench", "WayriCAD Design Variant Workbench", ("inspect", "plan", "apply"), True, "project"),
+    ("via-stitching", "WayriCAD Via Stitching", ("plan", "preview", "apply"), True, "board"),
 )
 
 
 def capabilities() -> dict[str, Any]:
     return {
         "schema": SCHEMA,
-        "transport": {"one_shot": "kiway run --request FILE|-", "stdio": "kiway serve --stdio", "protocol": "JSON-RPC 2.0 / NDJSON"},
+        "transport": {"one_shot": "wayricad run --request FILE|-", "stdio": "wayricad serve --stdio", "protocol": "JSON-RPC 2.0 / NDJSON"},
         "safety": {"writes_require_apply": True, "stdout_is_machine_data": True, "stderr_is_diagnostics": True},
         "plugins": [
             {"id": key, "name": name, "actions": list(actions), "mutating_actions_present": mutating,
@@ -48,17 +50,32 @@ def capabilities() -> dict[str, Any]:
             for key, name, actions, mutating, input_kind in PLUGIN_CAPABILITIES
         ],
         "operations": sorted(HANDLERS),
+        "additional_cli": {
+            "fanout-generator": "python -m wayricad_runtime.cli fanout --help (KiCad 10 Python)",
+            "via-stitching": "python -m wayricad_runtime.cli stitching --help (KiCad 10 Python)",
+            "embed-3d": "python -m embed_3d_plugin --help (source checkout)",
+            "bom-studio": "python -m bomstudio --help (from bom_studio_plugin in the source checkout)",
+        },
     }
 
 
 def _module(relative: str, key: str):
     path = ROOT / relative
-    name = f"_kiway_headless_{key}"
+    if not path.is_file():
+        path = Path(__file__).resolve().parent / "_suite_backends" / relative
+    # Namespace loading keeps relative backend imports working without installing siblings.
+    import types
+    package_name = "_wayricad_backend_" + path.parent.name
+    if package_name not in sys.modules:
+        package = types.ModuleType(package_name)
+        package.__path__ = [str(path.parent)]
+        sys.modules[package_name] = package
+    name = package_name + "." + path.stem
     if name in sys.modules:
         return sys.modules[name]
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"Cannot load KiWay backend: {relative}")
+        raise RuntimeError(f"Cannot load WayriCAD backend: {relative}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
@@ -111,9 +128,9 @@ def _harness_build(params: dict[str, Any]) -> dict[str, Any]:
         "findings": module.validate_pin_map(records, rows) + module.validate_links(links),
     }
     if params.get("include_html", False):
-        from harness_workbench_plugin.report import interactive_harness_html
+        interactive_harness_html = _module("harness_workbench_plugin/report.py", "harness_report").interactive_harness_html
         result["html"] = interactive_harness_html(records, links, system_paths=system_paths,
-                                                   title=params.get("title", "KiWay Interactive System Harness"))
+                                                   title=params.get("title", "WayriCAD Interactive System Harness"))
     return result
 
 

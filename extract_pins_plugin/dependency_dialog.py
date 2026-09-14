@@ -1,4 +1,4 @@
-"""wxPython dependency manager for the complete KiWay suite."""
+"""wxPython dependency manager for the complete WayriCAD suite."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class DependencyManagerDialog(wx.Dialog):
     def __init__(self, parent: Any) -> None:
         super().__init__(
             parent,
-            title="KiWay Suite Dependencies",
+            title="WayriCAD Suite Dependencies",
             size=(940, 720),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
@@ -32,12 +32,12 @@ class DependencyManagerDialog(wx.Dialog):
         panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
 
-        heading = wx.StaticText(panel, label="KiWay Suite Dependency Manager")
+        heading = wx.StaticText(panel, label="WayriCAD Suite Dependency Manager")
         heading.SetFont(heading.GetFont().Bold().Larger())
         root.Add(heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
         summary = wx.StaticText(
             panel,
-            label="Checks the active KiCad Python environment and every installed KiWay package. Installations use KiCad's user-site and never modify Program Files.",
+            label="Checks the active KiCad Python environment and every installed WayriCAD package. Installations use KiCad's user-site and never modify Program Files.",
         )
         summary.Wrap(880)
         root.Add(summary, 0, wx.EXPAND | wx.ALL, 10)
@@ -54,7 +54,7 @@ class DependencyManagerDialog(wx.Dialog):
         dependencies_box.Add(self.dependencies, 1, wx.EXPAND | wx.ALL, 6)
         root.Add(dependencies_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
 
-        suite_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="KiWay Plugin Packages"), wx.VERTICAL)
+        suite_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="WayriCAD Plugin Packages"), wx.VERTICAL)
         self.suite = wx.ListCtrl(suite_box.GetStaticBox(), style=wx.LC_REPORT)
         for index, (label, width) in enumerate((("Plugin", 360), ("Status", 120), ("Version", 100), ("Package Folder", 260))):
             self.suite.InsertColumn(index, label, width=width)
@@ -127,13 +127,13 @@ class DependencyManagerDialog(wx.Dialog):
     def install_selected(self, _event: Any) -> None:
         keys = self._selected_keys()
         if not keys:
-            wx.MessageBox("Select one or more missing dependency rows first.", "KiWay Dependencies", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Select one or more missing dependency rows first.", "WayriCAD Dependencies", wx.OK | wx.ICON_INFORMATION)
             return
         self._install(keys)
 
     def _install(self, keys: List[str]) -> None:
         if not keys:
-            wx.MessageBox("All recommended dependencies are already installed.", "KiWay Dependencies", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("All recommended dependencies are already installed.", "WayriCAD Dependencies", wx.OK | wx.ICON_INFORMATION)
             return
         command = subprocess.list2cmdline(install_command(keys))
         answer = wx.MessageBox(
@@ -152,7 +152,7 @@ class DependencyManagerDialog(wx.Dialog):
         self.refresh(None)
         wx.MessageBox(
             "Dependencies installed successfully. Restart PCB Editor before using newly enabled features.",
-            "KiWay Dependencies",
+            "WayriCAD Dependencies",
             wx.OK | wx.ICON_INFORMATION,
         )
 

@@ -1,6 +1,6 @@
 # data_extractor.py
 """
-Core data extraction logic for KiWay Extract Pins Plugin.
+Core data extraction logic for WayriCAD Extract Pins Plugin.
 This module is shared between GUI and CLI interfaces.
 
 @author - Wayri (Yawar)

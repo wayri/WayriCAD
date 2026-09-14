@@ -1,4 +1,4 @@
-# KiWay Extract Pins Plugin
+# WayriCAD Extract Pins Plugin
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
@@ -86,8 +86,8 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 
 ### Method 1: Plugin Manager (Recommended)
 1. Open KiCAD → `Plugin and Content Manager`
-2. Add repository: `https://raw.githubusercontent.com/wayri/KiWay/develop/pcm/repo.json`
-3. Search for "KiWay" and install
+2. Add repository: `https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json`
+3. Search for "WayriCAD" and install
 
 ### Method 2: Manual Installation
 1. Enable the KiCAD API: `Preferences → Preferences → Plugins → Enable`
@@ -150,7 +150,7 @@ connector, peripheral, and component exports.
 
 ### Cross-Project Pin Linking
 
-Use the **Cross-Link** tab to import KiWay CSV or Markdown pin documents from
+Use the **Cross-Link** tab to import WayriCAD CSV or Markdown pin documents from
 multiple projects. The current PCB can be added directly. Exact and normalized
 label matching are available by default; power rails are opt-in.
 

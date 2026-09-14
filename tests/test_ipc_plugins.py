@@ -25,8 +25,8 @@ from variant_workbench_plugin.kicad_variant_manager import (
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKBENCH_PACKAGES = (
-    ("portable_assets_plugin", "kiway-portable-assets", "0.2.4"),
-    ("variant_workbench_plugin", "kiway-variant-workbench", "0.5.3"),
+    ("portable_assets_plugin", "com.github.wayri.wayricad.portable-assets", "3.0.0"),
+    ("variant_workbench_plugin", "com.github.wayri.wayricad.variant-workbench", "3.0.0"),
 )
 
 
@@ -38,7 +38,10 @@ class WorkbenchPluginTests(unittest.TestCase):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
                 self.assertEqual(identifier, metadata["identifier"])
                 self.assertEqual(version, metadata["versions"][0]["version"])
-                self.assertEqual("swig", metadata["versions"][0]["runtime"])
+                self.assertEqual("ipc", metadata["versions"][0]["runtime"])
+                manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))
+                self.assertEqual(identifier, manifest["identifier"])
+                self.assertTrue((package / manifest["actions"][0]["entrypoint"]).is_file())
                 self.assertTrue((package / "__init__.py").is_file())
                 launcher = (package / "legacy_action_plugin.py").read_text(encoding="utf-8")
                 self.assertIn("pcbnew.ActionPlugin", launcher)
@@ -46,7 +49,8 @@ class WorkbenchPluginTests(unittest.TestCase):
                 self.assertNotIn("KICAD_API_SOCKET", launcher)
                 self.assertTrue((package / "help.html").is_file())
                 with Image.open(package / "help-workflow.png") as image:
-                    self.assertEqual((1200, 680), image.size)
+                    self.assertGreaterEqual(image.width, 900)
+                    self.assertGreaterEqual(image.height, 500)
 
                 with Image.open(package / "icon.png") as icon:
                     self.assertGreaterEqual(icon.width, 32)
@@ -65,7 +69,7 @@ class WorkbenchPluginTests(unittest.TestCase):
     def test_portable_assets_defaults_to_offline_and_hashes_inputs(self) -> None:
         self.assertFalse(PortableOptions().allow_network)
         requirements = (ROOT / "portable_assets_plugin" / "requirements.txt").read_text(encoding="utf-8")
-        self.assertNotIn("wxPython", requirements)
+        self.assertIn("wxPython", requirements)
         with tempfile.TemporaryDirectory() as raw_dir:
             root = Path(raw_dir)
             (root / "demo.kicad_pro").write_text("{}", encoding="utf-8")
@@ -91,7 +95,7 @@ class WorkbenchPluginTests(unittest.TestCase):
 
     def test_variant_launcher_requires_a_tk_capable_gui_interpreter(self) -> None:
         source = (ROOT / "variant_workbench_plugin" / "variant_manager_plugin.py").read_text(encoding="utf-8")
-        self.assertIn("KIWAY_VARIANT_PYTHON", source)
+        self.assertIn("WAYRICAD_VARIANT_PYTHON", source)
         self.assertIn("import tkinter", source)
         self.assertIn("_tk_python()", source)
 

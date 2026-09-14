@@ -1,4 +1,4 @@
-"""Small pcbnew selection adapter shared by KiWay result windows.
+"""Small pcbnew selection adapter shared by WayriCAD result windows.
 
 KiCad has changed selection APIs between releases, so this deliberately uses
 the stable BOARD_ITEM.SetSelected interface and refreshes the canvas once.

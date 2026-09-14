@@ -1,0 +1,11 @@
+{
+  "schema": "wayricad-bulk-recipe-1",
+  "query": "Reference~\"R*\" AND Value=10k",
+  "operations": [
+    {
+      "op": "set",
+      "field": "Value",
+      "value": "10000Ohm"
+    }
+  ]
+}

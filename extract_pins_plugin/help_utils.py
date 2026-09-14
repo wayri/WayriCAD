@@ -1,4 +1,4 @@
-"""Native, path-safe help launcher for KiWay Extract Pins."""
+"""Native, path-safe help launcher for WayriCAD Extract Pins."""
 
 from pathlib import Path
 from typing import Any, List
@@ -25,10 +25,10 @@ def open_help(parent: Any = None, filename: str = "help.html") -> None:
     """Open packaged help inside KiCad instead of relying on file URL shells."""
     path = _resolve_help_file(filename)
     if not path.is_file():
-        wx.MessageBox(f"Help file not found: {path}", "KiWay Help", wx.OK | wx.ICON_ERROR)
+        wx.MessageBox(f"Help file not found: {path}", "WayriCAD Help", wx.OK | wx.ICON_ERROR)
         return
 
-    frame = wx.Frame(parent, title="KiWay Extract Pins Help", size=(1040, 760))
+    frame = wx.Frame(parent, title="WayriCAD Extract Pins Help", size=(1040, 760))
     panel = wx.Panel(frame)
     root = wx.BoxSizer(wx.VERTICAL)
     if wxhtml2 is not None:

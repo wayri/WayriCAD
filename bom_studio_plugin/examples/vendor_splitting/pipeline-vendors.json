@@ -1,0 +1,43 @@
+{
+  "schema": "wayricad-pipeline-1",
+  "name": "WayriCAD_BOM",
+  "variants": [
+    "<Default>"
+  ],
+  "template": "Purchasing",
+  "formats": [
+    "csv"
+  ],
+  "reports": [
+    "checks"
+  ],
+  "analytics": null,
+  "analytics_formats": [
+    "json"
+  ],
+  "policy": {
+    "checks": "error",
+    "health": "none",
+    "require_stock": false,
+    "analytics": "none"
+  },
+  "vendor_exports": {
+    "schema": "wayricad-vendor-config-1",
+    "vendor_field": "Supplier",
+    "mpn_field": "",
+    "manufacturer_field": "",
+    "sku_field": "",
+    "customer_field": "",
+    "moq_field": "",
+    "multiple_field": "",
+    "boards": 10,
+    "attrition_percent": "5",
+    "quantity_basis": "order",
+    "formats": [
+      "csv",
+      "xlsx"
+    ],
+    "profiles": {},
+    "assignments": {}
+  }
+}

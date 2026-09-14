@@ -1,4 +1,4 @@
-"""KiWay Planar Magnetics & Actuator Workbench plugin entry point."""
+"""WayriCAD Planar Magnetics & Actuator Workbench plugin entry point."""
 
 try:
     from .planar_magnetics_plugin import PlanarMagneticsPlugin

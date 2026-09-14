@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "trace_impedance_plugin" / "measurement.py"
-SPEC = importlib.util.spec_from_file_location("kiway_trace_measurement_test", MODULE_PATH)
+SPEC = importlib.util.spec_from_file_location("wayricad_trace_measurement_test", MODULE_PATH)
 measurement = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = measurement
 SPEC.loader.exec_module(measurement)

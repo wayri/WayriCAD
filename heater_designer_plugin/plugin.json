@@ -1,0 +1,32 @@
+{
+  "$schema": "https://go.kicad.org/api/schemas/v1",
+  "identifier": "com.github.wayri.wayricad.heater-designer",
+  "name": "WayriCAD PCB / Foil Heater Designer",
+  "description": "Design zoned PCB heaters and preview electrical and thermal behavior.",
+  "runtime": {
+    "type": "python",
+    "min_version": "3.10.0"
+  },
+  "actions": [
+    {
+      "identifier": "open",
+      "name": "WayriCAD PCB / Foil Heater Designer",
+      "description": "Design zoned PCB heaters and preview electrical and thermal behavior.",
+      "show-button": true,
+      "scopes": [
+        "pcb"
+      ],
+      "entrypoint": "ipc_entrypoint.py",
+      "icons-light": [
+        "resources/icon-24.png",
+        "resources/icon-48.png",
+        "resources/icon-96.png"
+      ],
+      "icons-dark": [
+        "resources/icon-dark-24.png",
+        "resources/icon-dark-48.png",
+        "resources/icon-dark-96.png"
+      ]
+    }
+  ]
+}

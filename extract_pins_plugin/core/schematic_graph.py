@@ -1,5 +1,5 @@
 """
-Advanced graph construction and signal intelligence for KiWay Extract Pins.
+Advanced graph construction and signal intelligence for WayriCAD Extract Pins.
 
 The parser builds a networkx graph from the currently open pcbnew board and,
 optionally, from KiCad XML netlists.  KiCad does not expose full schematic
@@ -35,7 +35,7 @@ TMT_C_TOKENS = {"TM", "TC", "TA", "TD", "CA", "CD"}
 
 @dataclass
 class InterfaceSignal:
-    """A signal parsed from a KiWay net label convention."""
+    """A signal parsed from a WayriCAD net label convention."""
 
     net_name: str
     source_board: str = ""
@@ -80,7 +80,7 @@ class SchematicGraphParser:
     ) -> None:
         if nx is None:
             raise ImportError(
-                "networkx is required for advanced KiWay graph tracing. "
+                "networkx is required for advanced WayriCAD graph tracing. "
                 "Install it into KiCad's Python environment."
             ) from NETWORKX_IMPORT_ERROR
 

@@ -1,0 +1,537 @@
+{
+  "format": "wayricad-bom-template-bundle",
+  "schema": 1,
+  "app_version": "0.2.0",
+  "notice": "Definitions only. No component rows, source paths or project variable definitions. Review literal defaults/expressions before sharing.",
+  "templates": [
+    {
+      "name": "Engineering",
+      "columns": [
+        {
+          "field": "Reference",
+          "label": "Reference"
+        },
+        {
+          "field": "Value",
+          "label": "Value"
+        },
+        {
+          "field": "Footprint",
+          "label": "Footprint"
+        },
+        {
+          "field": "MPN",
+          "label": "MPN"
+        },
+        {
+          "field": "Manufacturer",
+          "label": "Manufacturer"
+        },
+        {
+          "field": "Assembly",
+          "label": "Assembly"
+        },
+        {
+          "field": "Qty",
+          "label": "Qty"
+        },
+        {
+          "field": "Required",
+          "label": "Required"
+        },
+        {
+          "field": "UnitPrice",
+          "label": "UnitPrice"
+        },
+        {
+          "field": "Currency",
+          "label": "Currency"
+        },
+        {
+          "field": "LineCost",
+          "label": "LineCost"
+        }
+      ],
+      "group_by": [
+        "Value",
+        "Footprint",
+        "MPN",
+        "Manufacturer"
+      ],
+      "population": "all",
+      "include_excluded": false,
+      "delimiter": ",",
+      "ref_ranges": true
+    },
+    {
+      "name": "Assembly",
+      "columns": [
+        {
+          "field": "Reference",
+          "label": "Reference"
+        },
+        {
+          "field": "Qty",
+          "label": "Qty"
+        },
+        {
+          "field": "Value",
+          "label": "Value"
+        },
+        {
+          "field": "Footprint",
+          "label": "Footprint"
+        },
+        {
+          "field": "MPN",
+          "label": "MPN"
+        },
+        {
+          "field": "Assembly",
+          "label": "Assembly"
+        },
+        {
+          "field": "Notes",
+          "label": "Notes"
+        }
+      ],
+      "group_by": [
+        "Value",
+        "Footprint",
+        "MPN"
+      ],
+      "population": "all",
+      "include_excluded": false,
+      "delimiter": ",",
+      "ref_ranges": false
+    },
+    {
+      "name": "Purchasing",
+      "columns": [
+        {
+          "field": "MPN",
+          "label": "MPN"
+        },
+        {
+          "field": "Manufacturer",
+          "label": "Manufacturer"
+        },
+        {
+          "field": "Supplier",
+          "label": "Supplier"
+        },
+        {
+          "field": "SKU",
+          "label": "SKU"
+        },
+        {
+          "field": "Required",
+          "label": "Required"
+        },
+        {
+          "field": "OrderQty",
+          "label": "OrderQty"
+        },
+        {
+          "field": "UnitPrice",
+          "label": "UnitPrice"
+        },
+        {
+          "field": "Currency",
+          "label": "Currency"
+        },
+        {
+          "field": "OrderCost",
+          "label": "OrderCost"
+        },
+        {
+          "field": "Stock",
+          "label": "Stock"
+        },
+        {
+          "field": "MOQ",
+          "label": "MOQ"
+        },
+        {
+          "field": "OrderMultiple",
+          "label": "OrderMultiple"
+        },
+        {
+          "field": "LeadTime",
+          "label": "LeadTime"
+        },
+        {
+          "field": "PriceDate",
+          "label": "PriceDate"
+        },
+        {
+          "field": "Reference",
+          "label": "Reference"
+        }
+      ],
+      "group_by": [
+        "MPN",
+        "Manufacturer",
+        "Value",
+        "Footprint"
+      ],
+      "population": "fitted",
+      "include_excluded": false,
+      "delimiter": ",",
+      "ref_ranges": false
+    },
+    {
+      "name": "Not fitted",
+      "columns": [
+        {
+          "field": "Reference",
+          "label": "Reference"
+        },
+        {
+          "field": "Value",
+          "label": "Value"
+        },
+        {
+          "field": "Footprint",
+          "label": "Footprint"
+        },
+        {
+          "field": "MPN",
+          "label": "MPN"
+        },
+        {
+          "field": "Assembly",
+          "label": "Assembly"
+        },
+        {
+          "field": "Notes",
+          "label": "Notes"
+        }
+      ],
+      "group_by": [],
+      "population": "not_fitted",
+      "include_excluded": true,
+      "delimiter": ",",
+      "ref_ranges": false
+    },
+    {
+      "name": "Full audit",
+      "columns": [
+        {
+          "field": "Reference",
+          "label": "Reference"
+        },
+        {
+          "field": "Value",
+          "label": "Value"
+        },
+        {
+          "field": "Footprint",
+          "label": "Footprint"
+        },
+        {
+          "field": "MPN",
+          "label": "MPN"
+        },
+        {
+          "field": "Manufacturer",
+          "label": "Manufacturer"
+        },
+        {
+          "field": "Assembly",
+          "label": "Assembly"
+        },
+        {
+          "field": "InBOM",
+          "label": "InBOM"
+        },
+        {
+          "field": "OnBoard",
+          "label": "OnBoard"
+        },
+        {
+          "field": "InPosFiles",
+          "label": "InPosFiles"
+        },
+        {
+          "field": "ExcludeFromSim",
+          "label": "ExcludeFromSim"
+        },
+        {
+          "field": "Sheet",
+          "label": "Sheet"
+        },
+        {
+          "field": "UUID",
+          "label": "UUID"
+        },
+        {
+          "field": "Source",
+          "label": "Source"
+        },
+        {
+          "field": "Notes",
+          "label": "Notes"
+        }
+      ],
+      "group_by": [],
+      "population": "all",
+      "include_excluded": true,
+      "delimiter": "\t",
+      "ref_ranges": false
+    },
+    {
+      "name": "Generic ERP CSV",
+      "columns": [
+        {
+          "field": "InternalPN",
+          "label": "Part Number"
+        },
+        {
+          "field": "Description",
+          "label": "Description"
+        },
+        {
+          "field": "Required",
+          "label": "Quantity"
+        },
+        {
+          "field": "MPN",
+          "label": "Manufacturer Part Number"
+        },
+        {
+          "field": "Manufacturer",
+          "label": "Manufacturer"
+        },
+        {
+          "field": "Currency",
+          "label": "Currency"
+        },
+        {
+          "field": "Reference",
+          "label": "References"
+        }
+      ],
+      "group_by": [
+        "Value",
+        "Footprint",
+        "MPN"
+      ],
+      "population": "all",
+      "include_excluded": false,
+      "delimiter": ",",
+      "ref_ranges": false
+    },
+    {
+      "name": "JLCPCB assembly CSV",
+      "columns": [
+        {
+          "field": "Value",
+          "label": "Comment"
+        },
+        {
+          "field": "Reference",
+          "label": "Designator"
+        },
+        {
+          "field": "Footprint",
+          "label": "Footprint"
+        },
+        {
+          "field": "LCSC",
+          "label": "LCSC Part #"
+        }
+      ],
+      "group_by": [
+        "Value",
+        "Footprint",
+        "MPN"
+      ],
+      "population": "fitted",
+      "include_excluded": false,
+      "delimiter": ",",
+      "ref_ranges": false
+    },
+    {
+      "name": "ASCII engineering report",
+      "columns": [
+        {
+          "field": "Item",
+          "label": "Item"
+        },
+        {
+          "field": "Reference",
+          "label": "Reference"
+        },
+        {
+          "field": "Qty",
+          "label": "Qty"
+        },
+        {
+          "field": "Value",
+          "label": "Value"
+        },
+        {
+          "field": "Footprint",
+          "label": "Footprint"
+        },
+        {
+          "field": "MPN",
+          "label": "MPN"
+        },
+        {
+          "field": "Assembly",
+          "label": "Assembly"
+        }
+      ],
+      "group_by": [
+        "Value",
+        "Footprint",
+        "MPN"
+      ],
+      "population": "all",
+      "include_excluded": false,
+      "delimiter": ",",
+      "ref_ranges": false
+    }
+  ],
+  "field_profiles": [
+    {
+      "name": "Engineering standard",
+      "revision": "1",
+      "author": "",
+      "description": "Normalize common purchasing fields. Existing expressions are preserved unless you explicitly bake or reset them.",
+      "fields": [
+        {
+          "name": "MPN",
+          "aliases": [
+            "Mfr Part Number",
+            "Manufacturer Part Number",
+            "Part Number"
+          ],
+          "default": "",
+          "visible": false,
+          "url": false,
+          "required": true
+        },
+        {
+          "name": "Manufacturer",
+          "aliases": [
+            "Mfr",
+            "MFG"
+          ],
+          "default": "",
+          "visible": false,
+          "url": false,
+          "required": false
+        },
+        {
+          "name": "InternalPN",
+          "aliases": [
+            "Internal Part Number"
+          ],
+          "default": "",
+          "visible": false,
+          "url": false,
+          "required": false
+        },
+        {
+          "name": "Supplier",
+          "aliases": [
+            "Vendor"
+          ],
+          "default": "",
+          "visible": false,
+          "url": false,
+          "required": false
+        },
+        {
+          "name": "SKU",
+          "aliases": [
+            "Supplier Part Number"
+          ],
+          "default": "",
+          "visible": false,
+          "url": false,
+          "required": false
+        },
+        {
+          "name": "UnitPrice",
+          "aliases": [
+            "Unit Price"
+          ],
+          "default": "",
+          "visible": false,
+          "url": false,
+          "required": false
+        },
+        {
+          "name": "Currency",
+          "aliases": [],
+          "default": "",
+          "visible": false,
+          "url": false,
+          "required": false
+        },
+        {
+          "name": "Notes",
+          "aliases": [
+            "Comment"
+          ],
+          "default": "",
+          "visible": false,
+          "url": false,
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "Project metadata (variable-safe)",
+      "revision": "1",
+      "author": "",
+      "description": "Example using native project variables; define REV before enforcement. Exact ${REV} is a linked generated field.",
+      "fields": [
+        {
+          "name": "ProjectCode",
+          "aliases": [],
+          "default": "${PROJECTNAME}",
+          "visible": false,
+          "url": false,
+          "required": false
+        },
+        {
+          "name": "${REV}",
+          "aliases": [],
+          "default": "${REV}",
+          "visible": false,
+          "url": false,
+          "required": false
+        }
+      ]
+    }
+  ],
+  "view_presets": [
+    {
+      "name": "Engineering review",
+      "columns": [
+        "Reference",
+        "MPN",
+        "Manufacturer",
+        "Value",
+        "Footprint",
+        "Assembly"
+      ]
+    },
+    {
+      "name": "Purchasing review",
+      "columns": [
+        "MPN",
+        "Manufacturer",
+        "Reference",
+        "UnitPrice",
+        "Currency",
+        "Stock"
+      ]
+    }
+  ]
+}

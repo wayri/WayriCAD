@@ -300,7 +300,7 @@ class SVGDiagramGenerator:
         }
 
         svg = [
-            f'<svg id="kiway-diagram" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}">',
+            f'<svg id="wayricad-diagram" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}">',
             f'<rect width="100%" height="100%" fill="{self.styles["background"]}"/>',
             '<style>',
             f'.title{{font:700 {self.styles["title_font_size"]}px {self.styles["font_family"]};fill:{self.styles["text_color"]}}}',
@@ -472,7 +472,7 @@ class SVGDiagramGenerator:
         svg.append(f'<text x="{width // 2}" y="{height - 18}" class="small" text-anchor="middle">{len(rows)} paths | {len(sources)} sources | {len(intermediates)} intermediates | {len(destinations)} destinations</text></svg>')
         return '\n'.join(svg)
 
-    def generate_interface_block_diagram(self, interfaces: Dict[str, Dict[str, Any]], title: str = "KiWay Interface Map", width: int = 1500) -> str:
+    def generate_interface_block_diagram(self, interfaces: Dict[str, Dict[str, Any]], title: str = "WayriCAD Interface Map", width: int = 1500) -> str:
         """Render board/interface maps as a left-to-right block diagram."""
         if not interfaces: return self._generate_empty_diagram("No interfaces found")
         box_w, box_h, gap, margin = 245, 78, 26, 55

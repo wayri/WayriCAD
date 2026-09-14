@@ -1,4 +1,4 @@
-"""KiWay Fanout Generator plugin entry point."""
+"""WayriCAD Fanout Generator plugin entry point."""
 
 try:
     from .fanout_generator_plugin import FanoutGeneratorPlugin

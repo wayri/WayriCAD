@@ -11,7 +11,7 @@ MODULE_PATH = (
     / "core"
     / "schematic_graph.py"
 )
-SPEC = importlib.util.spec_from_file_location("kiway_schematic_graph_test", MODULE_PATH)
+SPEC = importlib.util.spec_from_file_location("wayricad_schematic_graph_test", MODULE_PATH)
 schematic_graph = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = schematic_graph
 SPEC.loader.exec_module(schematic_graph)

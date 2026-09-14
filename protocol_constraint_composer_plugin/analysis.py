@@ -49,28 +49,28 @@ def detect_protocols(nets: list[str], presets: dict[str, ProtocolPreset] = PRESE
 
 
 def generate_rules(assignments: list[Assignment], presets: dict[str, ProtocolPreset] = PRESETS) -> str:
-    blocks = ["# BEGIN KIWAY MANAGED PROTOCOL RULES"]
+    blocks = ["# BEGIN WAYRICAD MANAGED PROTOCOL RULES"]
     by_protocol: dict[str, list[str]] = {}
     for assignment in assignments: by_protocol.setdefault(assignment.protocol, []).append(assignment.net)
     for protocol, nets in sorted(by_protocol.items()):
         preset = presets[protocol]
         condition = " || ".join(f"A.NetName == '{net.replace(chr(39), '')}'" for net in sorted(set(nets)))
         blocks.extend([
-            f'(rule "KiWay {protocol} geometry"', f'  (condition "{condition}")',
+            f'(rule "WayriCAD {protocol} geometry"', f'  (condition "{condition}")',
             f'  (constraint track_width (min {preset.width_mm:g}mm))',
             f'  (constraint clearance (min {preset.clearance_mm:g}mm))', ')',
         ])
         if preset.diff_gap_mm:
-            blocks.extend([f'(rule "KiWay {protocol} differential gap"',
+            blocks.extend([f'(rule "WayriCAD {protocol} differential gap"',
                            f'  (condition "{condition}")',
                            f'  (constraint diff_pair_gap (opt {preset.diff_gap_mm:g}mm))',
                            f'  (constraint skew (max {preset.max_skew_mm:g}mm))', ')'])
-    blocks.append("# END KIWAY MANAGED PROTOCOL RULES")
+    blocks.append("# END WAYRICAD MANAGED PROTOCOL RULES")
     return "\n".join(blocks) + "\n"
 
 
 def merge_managed_rules(existing: str, generated: str) -> str:
-    begin, end = "# BEGIN KIWAY MANAGED PROTOCOL RULES", "# END KIWAY MANAGED PROTOCOL RULES"
+    begin, end = "# BEGIN WAYRICAD MANAGED PROTOCOL RULES", "# END WAYRICAD MANAGED PROTOCOL RULES"
     if begin in existing and end in existing:
         prefix, remainder = existing.split(begin, 1); _old, suffix = remainder.split(end, 1)
         return prefix.rstrip() + "\n\n" + generated.rstrip() + suffix

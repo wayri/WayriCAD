@@ -1,6 +1,6 @@
-# KiWay Extract Pins Plugin
+# WayriCAD Extract Pins Plugin
 
-**KiWay Extract Pins** is a powerful KiCAD plugin designed to automate documentation and signal analysis. It allows you to extract pin data, trace signal flows, and generate diagrams directly from your PCB layout.
+**WayriCAD Extract Pins** is a powerful KiCAD plugin designed to automate documentation and signal analysis. It allows you to extract pin data, trace signal flows, and generate diagrams directly from your PCB layout.
 
 ## Features at a Glance
 
@@ -20,9 +20,9 @@
 1. Open **KiCAD 9.0+**.
 2. Go to **Plugin and Content Manager**.
 3. Click **Manage Repositories** -> **(+) Add**.
-4. URL: `https://raw.githubusercontent.com/wayri/KiWay/main/pcm/repo.json`
-5. Click **Save**, then select "KiWay Plugins" from the repository dropdown.
-6. Install **KiWay Extract Pins**.
+4. URL: `https://raw.githubusercontent.com/wayri/WayriCAD/main/pcm/repo.json`
+5. Click **Save**, then select "WayriCAD Plugins" from the repository dropdown.
+6. Install **WayriCAD Extract Pins**.
 
 ### Method 2: Manual Install
 Download the latest release zip and extract the `extract_pins_plugin` folder to:
@@ -40,7 +40,7 @@ The GUI is designed for interactive exploration.
 3. **Select Components**: You can select components on the PCB *before* or *during* the plugin session.
    - **Auto-Refresh**: Enable this checkbox to have the list update automatically as you click components on the board.
 
-![User Flow](https://raw.githubusercontent.com/wayri/KiWay/main/extract_pins_plugin/UserFlow.svg)
+![User Flow](https://raw.githubusercontent.com/wayri/WayriCAD/main/extract_pins_plugin/UserFlow.svg)
 
 ### Tabs Overview
 - **Extract Pins**: The main table view. Configure filters and export pin lists.
@@ -52,7 +52,7 @@ The GUI is designed for interactive exploration.
 
 # CLI Reference (Command Line)
 
-You can use KiWay without opening the KiCAD GUI. This is perfect for generating documentation automatically.
+You can use WayriCAD without opening the KiCAD GUI. This is perfect for generating documentation automatically.
 
 **Note**: You must run these commands using KiCAD's bundled Python environment.
 
@@ -61,7 +61,7 @@ Export pin data for components.
 
 ```bash
 # Export all connectors starting with J to CSV
-kiway-python -m extract_pins_plugin extract --refs "J*" --format csv board.kicad_pcb
+wayricad-python -m extract_pins_plugin extract --refs "J*" --format csv board.kicad_pcb
 ```
 
 **Options:**
@@ -74,7 +74,7 @@ Trace signals between two sets of components.
 
 ```bash
 # Trace signals from Connector J1 to Microcontroller U1
-kiway-python -m extract_pins_plugin signal-flow --source "J1" --dest "U1" --format md board.kicad_pcb
+wayricad-python -m extract_pins_plugin signal-flow --source "J1" --dest "U1" --format md board.kicad_pcb
 ```
 
 **Output Example (Markdown):**
@@ -88,7 +88,7 @@ Generate vector graphics of your components.
 
 ```bash
 # Create a block diagram for U1 and U2
-kiway-python -m extract_pins_plugin diagram --refs "U1,U2" -o schematic.svg board.kicad_pcb
+wayricad-python -m extract_pins_plugin diagram --refs "U1,U2" -o schematic.svg board.kicad_pcb
 ```
 
 ### 4. Path Finding (`find-path`)
@@ -96,7 +96,7 @@ Find specific signal paths designated by max hops.
 
 ```bash
 # How does signal get from TP1 to U1?
-kiway-python -m extract_pins_plugin find-path --start "TP1" --end "U1" --max-hops 5 board.kicad_pcb
+wayricad-python -m extract_pins_plugin find-path --start "TP1" --end "U1" --max-hops 5 board.kicad_pcb
 ```
 
 ---
@@ -105,7 +105,7 @@ kiway-python -m extract_pins_plugin find-path --start "TP1" --end "U1" --max-hop
 
 For contributors who want to understand the codebase structure.
 
-![Program Structure](https://raw.githubusercontent.com/wayri/KiWay/main/extract_pins_plugin/Program%20Structure.svg)
+![Program Structure](https://raw.githubusercontent.com/wayri/WayriCAD/main/extract_pins_plugin/Program%20Structure.svg)
 
 ---
 

@@ -1,0 +1,6 @@
+{
+  "tool": "via_stitching_plugin",
+  "name": "WayriCAD Via Stitching",
+  "module": "via_stitching_plugin",
+  "class": "ViaStitchingPlugin"
+}

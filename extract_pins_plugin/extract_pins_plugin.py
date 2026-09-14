@@ -1,7 +1,7 @@
 # extract_pins_plugin.py
 
 """
-KIWAY EXTRACT PINS PLUGIN
+WAYRICAD EXTRACT PINS PLUGIN
 
 @author - Wayri (Yawar)
 @version - 2.19.0
@@ -51,14 +51,14 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         """
         Sets the metadata for the plugin, which KiCad displays in its menus.
         """
-        self.name = "KiWay Pin Extractor"
+        self.name = "WayriCAD Pin Extractor"
         self.category = "Utilities" # Category under which the plugin will be listed
         self.description = "Select PCB components, preview pins, cross-select nets, and export tables or diagrams."
         self.show_toolbar_button = True # Set to True to display a button on the toolbar
         # Define the path to the optional icon file. It should be in the same directory.
         self.icon_file_name = os.path.join(os.path.dirname(__file__), 'icon.png')
-        self.dark_icon_file_name = self.icon_file_name
-        self.version = "2.20.0"
+        self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
+        self.version = "3.0.0"
 
     def Run(self):
         """
@@ -68,10 +68,10 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         try:
             board = pcbnew.GetBoard() # Get a reference to the currently active PCB board
         except Exception as exc:
-            wx.MessageBox(f"KiWay could not access the active board: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(f"WayriCAD could not access the active board: {exc}", "WayriCAD Extract Pins", wx.OK | wx.ICON_ERROR)
             return
         if board is None or not hasattr(board, "GetFootprints"):
-            wx.MessageBox("Open a PCB in PCB Editor before launching KiWay Extract Pins.", "KiWay Extract Pins", wx.OK | wx.ICON_INFORMATION)
+            wx.MessageBox("Open a PCB in PCB Editor before launching WayriCAD Extract Pins.", "WayriCAD Extract Pins", wx.OK | wx.ICON_INFORMATION)
             return
 
         # Retrieve all footprints on the board and filter for those that are currently selected.
@@ -79,7 +79,7 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         try:
             selected_footprints = [f for f in board.GetFootprints() if getattr(f, "IsSelected", lambda: False)()]
         except Exception as exc:
-            wx.MessageBox(f"Could not read PCB footprints: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(f"Could not read PCB footprints: {exc}", "WayriCAD Extract Pins", wx.OK | wx.ICON_ERROR)
             return
 
         try:
@@ -93,24 +93,24 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
             self._frame.Show()
             self._frame.Raise()
         except Exception as exc:
-            wx.MessageBox(f"The pin extractor could not start: {exc}", "KiWay Extract Pins", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(f"The pin extractor could not start: {exc}", "WayriCAD Extract Pins", wx.OK | wx.ICON_ERROR)
 
 
 class InterboardHarnessPlugin(pcbnew.ActionPlugin):
     """Separate entry point for project-level ICD and harness work."""
 
     def defaults(self):
-        self.name = "KiWay Interboard & Harness"
+        self.name = "WayriCAD Interboard & Harness"
         self.category = "Documentation"
         self.description = "Analyze multi-board interfaces, harnesses, TM/TC, test points, and ICD reports."
         self.show_toolbar_button = False
-        self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.dark_icon_file_name = self.icon_file_name
-        self.version = "2.20.0"
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
+        self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
+        self.version = "3.0.0"
 
     def Run(self):
         if PluginUI is None:
-            wx.MessageBox("The Interboard & Harness UI is unavailable.", "KiWay", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox("The Interboard & Harness UI is unavailable.", "WayriCAD", wx.OK | wx.ICON_ERROR)
             return
         board = pcbnew.GetBoard()
         try:
@@ -120,8 +120,8 @@ class InterboardHarnessPlugin(pcbnew.ActionPlugin):
                 existing.Show()
                 return
             self._frame = PluginUI(None, board=board)
-            self._frame.SetTitle("KiWay Interboard & Harness")
+            self._frame.SetTitle("WayriCAD Interboard & Harness")
             self._frame.Show()
             self._frame.Raise()
         except Exception as exc:
-            wx.MessageBox(f"The Interboard & Harness window could not start: {exc}", "KiWay", wx.OK | wx.ICON_ERROR)
+            wx.MessageBox(f"The Interboard & Harness window could not start: {exc}", "WayriCAD", wx.OK | wx.ICON_ERROR)

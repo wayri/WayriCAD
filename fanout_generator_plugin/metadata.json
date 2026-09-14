@@ -1,26 +1,27 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v1",
-    "name": "KiWay Fanout Generator",
-    "description": "Preview and generate advanced SMD, BGA, and LGA fanouts with persistent grouped commits.",
-    "description_full": "Creates reviewable dogbone, quadrant, four-corner, perimeter, radial, grid, and via-in-pad fanouts. Scope work to selected pads, selected footprints, reference wildcards, or all SMD pads; preview actual footprint extents, pad locations, tracks, and scaled vias in the window and on the PCB before committing a native KiCad group.",
-    "identifier": "kiway.fanout.generator",
-    "type": "plugin",
-    "author": {
-        "name": "Wayri (Yawar)",
-        "contact": {
-            "github": "https://github.com/wayri"
-        }
-    },
-    "license": "GPL-3.0",
-    "resources": {
-        "homepage": "https://github.com/wayri/KiWay",
-        "icon": "https://raw.githubusercontent.com/wayri/KiWay/develop/fanout_generator_plugin/icon.png"
-    },
-    "versions": [
-        {
-            "version": "0.10.0",
-            "status": "stable",
-            "kicad_version": "9.0"
-        }
-    ]
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Fanout Generator",
+  "description": "Preview and generate advanced SMD, BGA, and LGA fanouts with persistent grouped commits.",
+  "description_full": "Local, reviewable routing with configurable geometry, pad/net scope, clearance checks, zoomable preview, shared headless planners, and recoverable named commit groups. Preview does not modify PCB copper. JSON/SVG command-line planning and verified application write a new board copy.",
+  "identifier": "com.github.wayri.wayricad.fanout-generator",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/fanout_generator_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "3.0.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
 }

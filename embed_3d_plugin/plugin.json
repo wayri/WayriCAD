@@ -1,0 +1,32 @@
+{
+  "$schema": "https://go.kicad.org/api/schemas/v1",
+  "identifier": "com.github.wayri.wayricad.embed-3d",
+  "name": "WayriCAD Embed3D",
+  "description": "One component matrix: embed symbols, footprints and 3D models; unbundle, relink, or do both with checked selections.",
+  "runtime": {
+    "type": "python",
+    "min_version": "3.10.0"
+  },
+  "actions": [
+    {
+      "identifier": "open",
+      "name": "WayriCAD Embed3D",
+      "description": "One component matrix: embed symbols, footprints and 3D models; unbundle, relink, or do both with checked selections.",
+      "show-button": true,
+      "scopes": [
+        "pcb"
+      ],
+      "entrypoint": "ipc_entrypoint.py",
+      "icons-light": [
+        "resources/icon-24.png",
+        "resources/icon-48.png",
+        "resources/icon-96.png"
+      ],
+      "icons-dark": [
+        "resources/icon-dark-24.png",
+        "resources/icon-dark-48.png",
+        "resources/icon-dark-96.png"
+      ]
+    }
+  ]
+}

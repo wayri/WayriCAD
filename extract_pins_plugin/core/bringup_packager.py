@@ -61,11 +61,11 @@ def markdown(rows: list[BringUpPin]) -> str:
     return "\n".join(lines)
 
 
-def c_header(rows: list[BringUpPin], guard: str = "KIWAY_BRINGUP_PINS_H") -> str:
+def c_header(rows: list[BringUpPin], guard: str = "WAYRICAD_BRINGUP_PINS_H") -> str:
     lines = [f"#ifndef {guard}", f"#define {guard}", ""]
     seen = set()
     for row in rows:
-        name = "KIWAY_" + "".join(char if char.isalnum() else "_" for char in f"{row.interface}_{row.function}").upper().strip("_")
+        name = "WAYRICAD_" + "".join(char if char.isalnum() else "_" for char in f"{row.interface}_{row.function}").upper().strip("_")
         if name in seen: continue
         seen.add(name); lines.append(f'#define {name}_NET "{row.net}"'); lines.append(f'#define {name}_PIN "{row.reference}.{row.pin}"')
     lines.extend(["", f"#endif /* {guard} */", ""]); return "\n".join(lines)

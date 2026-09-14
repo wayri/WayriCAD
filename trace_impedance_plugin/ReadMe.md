@@ -1,4 +1,4 @@
-# KiWay Trace RLC / Impedance Analyzer
+# WayriCAD Trace RLC / Impedance Analyzer
 
 Measures routed PCB geometry between selected pads and produces first-order
 resistance, capacitance, inductance, and characteristic-impedance estimates.

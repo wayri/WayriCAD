@@ -18,7 +18,7 @@ try:
 except ImportError:  # Direct-file execution (tests/automation) has no package parent.
     import importlib.util as _ilu
 
-    _spec = _ilu.spec_from_file_location("_kiway_rlc_model", os.path.join(os.path.dirname(os.path.abspath(__file__)), "rlc_model.py"))
+    _spec = _ilu.spec_from_file_location("_wayricad_rlc_model", os.path.join(os.path.dirname(os.path.abspath(__file__)), "rlc_model.py"))
     _rlc = _ilu.module_from_spec(_spec)
     _spec.loader.exec_module(_rlc)
 

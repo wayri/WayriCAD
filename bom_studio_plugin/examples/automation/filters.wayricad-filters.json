@@ -1,0 +1,15 @@
+{
+  "schema": "wayricad-filters-1",
+  "filters": {
+    "Missing ordering identity": {
+      "query": "is:fit AND (missing:MPN OR missing:Manufacturer)",
+      "case_sensitive": false,
+      "description": "Review missing exact ordering identities"
+    },
+    "Raw value expressions": {
+      "query": "raw.Value:\"${\"",
+      "case_sensitive": false,
+      "description": "Value fields containing a stored variable expression"
+    }
+  }
+}

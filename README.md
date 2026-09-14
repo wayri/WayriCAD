@@ -1,344 +1,83 @@
-# KiWay Plugins for KiCad
+# WayriCAD 3.0.0
 
-KiWay is a focused parent repository for KiCad ActionPlugins that can be added to KiCad's Plugin and Content Manager (PCM). Each retained tool covers a substantial engineering workflow and is indexed through `pcm/repo.json` and `pcm/pkgs.json`.
+A suite of 19 local KiCad tools for PCB planning, design review, BOM management, and portable projects. This release brings the former suite and the supplied BOM Studio and Embed3D applications under one name.
 
-Current development suite: **v2.27.1**. The feed contains 17 independently installable
-packages. Every package provides a distinct 96 x 96 PCM icon and matching
-light/dark PCB Editor ActionPlugin icon.
+**Release status: testing.** KiCad 10 is the primary validation target. Packages now use KiCad's IPC plugin format, the forward path for KiCad 11. This does not constitute certification of every operation on KiCad 11; see [compatibility and verification](docs/COMPATIBILITY.md).
 
-## List of Plugins
+## Install
 
-### 1. KiWay Extract Pins (v2.20.0)
+1. Download the individual `WayriCAD-<tool>-3.0.0-PCM.zip` files from [Releases](https://github.com/wayri/WayriCAD/releases).
+2. In KiCad Manager, open **Plugin and Content Manager → Install from File** and select a ZIP directly.
+3. In Preferences → Plugins, enable the KiCad API and configure a supported Python interpreter. Restart KiCad after installation.
+4. Open a PCB and launch the installed tool from its toolbar action or plugin menu.
 
-A comprehensive interface documentation and test engineering tool.
+Each ZIP includes its own runtime, local help and icons. No other WayriCAD plugin is required. KiCad creates a Python environment and installs declared dependencies on first setup; internet or a pre-populated local wheel cache is needed for that step. Application pages, scripts, previews and project processing run locally. Optional network actions remain explicit.
 
-- **Graph Tracing**: Build a `networkx` graph from pcbnew board data and optional KiCad XML netlists
-- **Smart Paths**: Traverse passive in-path components and custom `NetTie_Path` pass-throughs
-- **Test Points**: Resolve TP nets back to source IC pins/functions
-- **TM/TC Tables**: Parse labels such as `DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD`, including `TM`, `TC`, `TA`, `TD`, `CA`, and `CD`
-- **Hierarchical Sheets**: Detect native sub-sheet paths and apply user-defined path/reference aliases to exported records
-- **Cross-Project Links**: Import pin CSV/Markdown documents, auto-link board endpoints, and export tracker and harness diagrams
-- **Power Architecture**: Define shared power/signal wildcards, inspect consolidated routes, and auto-build checked converter/filter power trees
-- **Endpoint Trace**: Resolve wildcard label families such as `*TM` to selected IC/connector pins through user-approved series components
-- **Controller-to-Connector Map**: Trace exact controller/IC pins across renamed nets and approved inline pin pairs to connector pins, retaining every intermediate component and net
-- **Active-Device Safeguards**: MOSFET, BJT, jumper-state, and other IC crossings require explicit pin-pair rules and opt-in; conditional and ambiguous paths are never presented as proven direction
-- **Interfaces**: Group buses, differential pairs, connectors, peripherals, and board-to-board signal maps
-- **Layout Assist**: Create native KiCad PCB groups for logical interfaces
-- **Docs**: Export Markdown, HTML, CSV, JSON, SVG diagrams, and automation-friendly CLI output
-- **Live PCB Selection**: Keep the modeless extractor open while selecting footprints and cross-selecting preview rows
-- **Visual Preview**: Explore pan/zoom system maps, signal topologies, and directed power-flow diagrams with unique component cards and color-coded net buses
-- **Focused Tasks**: Use the simple Pin Extractor for board work and the separate Interboard & Harness entry for system ICD work
-- **Programming & Bring-Up**: Detect SWD, JTAG, UART, reset, boot-strap, reference-voltage, power, and ground pins; export reviewed Markdown and C definitions
+To use the repository feed, add `https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json` to PCM's repository list once the release is published.
 
-### 2. KiWay Bulk Label Editor (v0.7.2)
+For a source install, build the packages, then run `python tools/install_suite.py` to inspect the destination and `python tools/install_suite.py --apply` to install. Use `--destination` for a redirected Documents directory. Existing installations are backed up outside the plugin directory. `install.bat` wraps the same installer.
 
-A preview-and-apply editor for repeated channel labels and component text.
+## Migration
 
-- Wildcard replacement, e.g. `CH*_MAIN` -> `CH*_REDUNDANT`
-- Regex replacement for advanced renaming
-- Scoped edits for footprint references, values, custom fields, and PCB text
+WayriCAD uses new package IDs. Remove the old suite's PCM entries to avoid duplicate toolbar actions, then install the new packages. Keep project backups and existing BOM workspaces; the installer does not delete project data. Do not install the original supplied ZIPs alongside their integrated replacements.
 
-### 3. KiWay Fanout Generator (v0.10.0)
+Historical release notes remain available under `docs/`. Their version-specific behavior is archival; this README describes 3.0.0. Original copyright and third-party license notices are preserved.
 
-Creates dogbone, BGA/LGA grid, quadrant, four-corner, perimeter, radial, and via-in-pad escapes. Scope generation to selected pads, selected footprints, reference wildcards, or all SMD pads; use the live KiCad-like preview before committing a persistent native PCB group.
+## Tools
 
-### 4. KiWay Via Stitching (v0.10.0)
+| Tool | Purpose |
+|---|---|
+| BOM Studio | Local component table, variants, catalogue, native KiCad BOM fields/grouping/format settings and exports |
+| Embed3D | Embed models, inspect project assets, archive footprints and rebuild portable project copies |
+| Fanout Generator | Configurable fanout patterns, placement review, obstacle rejection and grouped commits |
+| Via Stitching | Square or staggered stitching with copper, outline, clearance and exclusion checks |
+| Bulk Label Editor | Review references, values, fields and PCB text edits; undo and redo |
+| Pin Extractor | Pins, ICDs, connectivity, diagrams and document exports |
+| Harness Workbench | Connector maps, wire links, validation and system harness reports |
+| Heater Designer | PCB heater geometry and thermal estimates |
+| Planar Magnetics | Coils, actuators and engineering estimates |
+| Localizer | Project library and asset localization |
+| Manufacturing Readiness | Fabricator checks, DRC/jobset gates and hashed release archives |
+| PDN Decoupling | Decoupling placement analysis |
+| Portable Assets | Project asset analysis, localization and recovery |
+| Protocol Constraint Composer | Review and generate project rule blocks |
+| Return-Path Auditor | Return-path transitions and discontinuity review |
+| Signal Integrity Advisor | Electrical and layout estimates |
+| Test Point Descriptor | Test-point documentation and fixture generation |
+| Trace Impedance | Trace geometry, RLC and impedance estimates |
+| Variant Workbench | Review and generate design variants in project copies |
 
-Creates a configurable stitching grid inside the board outline or the current PCB selection. It can require filled copper on the selected target net and reports candidates rejected by footprint, other-net copper, track/via, keepout, and drawing exclusions before committing a persistent PCB group.
+## Routing workflow
 
-### 5. KiWay Test Point Descriptor Extractor (v0.8.0)
+Configure dimensions and scope, select **Preview**, inspect the pan/zoom canvas and optional candidate table, then **Apply**. The preview stays in the tool until commit. Geometry changes invalidate the reviewed plan. Undo/redo retain recovery information when a board operation fails.
 
-Extracts TP/TestPoint footprint descriptors, connected nets, board-to-board source/destination labels, and TM/TC classification to CSV, Markdown, or HTML.
+Fanout supports selected-footprint and detected net-class scope, a selectable output copper layer, and a dedicated via-in-pad output mode. Advanced controls include outward/inward dogbone, BGA/LGA grid, radial/quadrant/corner patterns, angle and XY offsets, track dimensions and via dimensions. Stitching controls include grid pattern, spacing, target net, layer span, edge inset, clearance and reference exclusions. Rejections are reported instead of silently omitted. Conservative obstacle checks can reject usable locations; KiCad DRC remains the final board check.
 
-- Configurable descriptor field, with fallback to `Descriptor`, `Function`, or `Description`
-- Parses labels such as `DEMO_CTRL_DEMO_SENSOR_SIGNAL_SPI1_CLK_1_TD`
-- Traces through common passives and `NetTie_Path` parts to connected IC reference, pin, pin function, terminal net, and complete intermediate path
-- Includes TP reference, value, footprint, pad, net, descriptor, signal, board endpoints, and notes
-- Exports documentation directly from the open PCB
+## CLI
 
-### 6. KiWay Trace RLC / Impedance Analyzer (v0.8.0)
+Install the source CLI with `python -m pip install -e .`. `wayricad --help` and `wayricad capabilities` describe the document and automation interfaces. [CLI guide](docs/CLI_USER_GUIDE.md).
 
-Measures routed net geometry between selected start/end pads and reports first-order resistance, capacitance, inductance, impedance, layer changes, vias, and same-net copper zones. The result identifies the selected reference layer, dielectric separation, permittivity, and complete parsed stackup used by the estimate.
+Routing uses KiCad 10's Python interpreter (the interpreter that can import `pcbnew`):
 
-The analyzer is intended for design review and estimation. Critical high-speed interfaces still require field-solver, TDR, or laboratory validation.
-
-### 7. KiWay Signal Integrity Advisor (v0.3.0)
-
-Calculates I2C pull-up resistor limits and validates explicit routed paths against editable single-ended or differential impedance constraints. Presets cover CAN, Ethernet, RF, RS-485, SerDes, and USB families, while every result records route resolution, stackup source, reference layer, vias, layer transitions, zones, error, and differential skew. This is a design-review aid; field-solver or measurement signoff remains required.
-
-### 8. Kilo - KiCad Localizer (v0.1.0)
-
-Packages reusable KiCad design blocks with their footprint and 3D-model dependencies, then installs them into other projects. Kilo can also localize an existing project into reversible project-local libraries.
-
-- Token-preserving updates for KiCad project, schematic, board, footprint, and library-table files
-- Project-local footprint and 3D-model dependencies, including embedded-model support
-- Dry-run previews, validation reports, transaction history, and restore points
-- Native KiCad 10 Action Plugin interface with built-in help
-- Reads legacy KiCad BlockPack packages and project state while writing new Kilo formats
-
-### 9. KiWay Portable Assets (v0.2.4)
-
-Makes a KiCad project self-contained by snapshotting placed footprints, localizing cached symbols, embedding resolvable 3D models, and repairing missing footprint links from PCB geometry.
-
-- Requires a fresh, unchanged analysis before every write
-- Disables network model retrieval by default
-- Refuses writes while KiCad project lock files are present
-- Uses explicit confirmation, S-expression validation, a conventional `<project>-backups` archive plus transactional backups, atomic replacement, and unresolved-asset reporting
-- Provides an optional native Embedded Files recovery vault
-
-### 10. KiWay Design Variant Workbench (v0.5.3)
-
-Provides semantic variant rebasing, matrix editing, comparison, linting, PCB synchronization auditing, guarded substitutions, lifecycle management, and manufacturing-release generation.
-
-- Preserves the effective behavior of other variants when setting a new Default
-- Previews semantic and file changes before Apply
-- Rejects active KiCad lock files and stale source hashes
-- Creates all backups before the first write and attempts rollback on failure
-- Launches as a detached workbench from a native PCB Editor ActionPlugin so editors can be closed before file changes
-
-### 11. KiWay Return-Path Auditor (v0.3.0)
-
-Screens routed geometry for unsupported signal layer transitions, missing nearby return vias, apparent reference-plane gaps, long branches that may be stubs, differential-pair skew, and uncoupled pair segments. Findings can be cross-selected and exported for review. It is not an electromagnetic field solver.
-
-### 12. KiWay Harness and Cable Workbench (v0.5.0)
-
-Ingests up to 50 board pin documents and builds system harness data using
-indexed net matching, connector rules, or arbitrary tabular pin maps. It joins
-safeguarded Pin Extractor controller-map exports into ordered IC-to-IC and
-IC-to-peripheral routes while retaining series parts, net changes, active-device
-conditions, connector pins, and harness wires. It supports virtual loads,
-bundles, splices, gauges, colors, shields, and cut lengths. Outputs include
-sortable pin, net, and system-path tables, wire-list and procurement BoM CSVs,
-a native draft, universal SVG, and a self-contained interactive HTML harness
-with zoom, pan, draggable nodes, filters, and clickable path details.
-
-### 13. KiWay Manufacturing Readiness Manager (v0.2.0)
-
-Combines fabricator capability profiles with board geometry audits, JSON DRC, `.kicad_jobset` execution, explicit release gates, and deterministic release ZIPs containing SHA-256 manifests. Fabricator limits remain user-controlled engineering inputs.
-
-### 14. KiWay PDN and Decoupling Planner (v0.3.0)
-
-Uses configurable rail, ground, load, capacitor, and regulator conventions to find power pins without nearby rail-to-ground capacitors. Results are cross-selectable and exportable; frequency-domain and transient PDN signoff still requires appropriate simulation and measurement.
-
-### 15. KiWay Protocol Constraint Composer (v0.2.0)
-
-Detects likely USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF nets, then generates a reviewable KiCad custom-rule block. Applying rules requires confirmation, creates a timestamped backup, and leaves rules outside the KiWay-managed markers untouched.
-
-### 16. KiWay PCB / Foil Heater Designer (v0.1.2)
-
-Synthesizes serpentine, zoned-raster, and concentric-spiral PCB heater copper.
-Users can vary regional resistance to create controlled hot or cold areas,
-continue a series path across multiple layers with transition vias, run a
-steady-state 2D thermal preview, inspect power density and temperature
-uniformity, and commit only the reviewed geometry.
-
-### 17. KiWay Planar Magnetics & Actuator Workbench (v0.2.2)
-
-Designs rectangular or circular multilayer PCB inductors, transformers, coils,
-voice-coil motors, linear actuators, and magnetic torquers. The coupled motion
-solver reports force or torque, acceleration, speed, travel, resonance, damping,
-settling, thermal force noise, and Brownian motion. A nanoscale preset supports
-feasibility screening while explicitly requiring process-calibrated
-multiphysics validation for MEMS/NEMS fabrication.
-
-## PCB Editor Workflow
-
-1. Launch **KiWay Pin Extractor** for normal component and net work.
-2. Select **PCB selection**, **Wildcard filters**, or **Selection + filters**.
-3. Keep **Follow PCB selection** enabled while clicking footprints in PCB Editor.
-4. Click **Preview Extraction** and review the native pin table.
-5. Double-click a preview row to select its footprint and highlight its net on the PCB.
-6. Export the reviewed rows, or open **Block Diagrams** for an interactive system map, signal topology, or directed power-flow preview.
-
-Launch **KiWay Interboard & Harness** separately for netlist directories, sheet aliases, multi-board cross-links, TM/TC, harnesses, and complete ICD reports. Fanout, via stitching, and bulk editing also use modeless staged-preview windows so the PCB remains inspectable while they are open.
-
-## Installation
-
-### Method 1: KiCad Plugin and Content Manager
-
-1. Open the **KiCad Project Manager**.
-2. Open **Plugin and Content Manager**.
-3. Select the **Repositories** tab.
-4. Click **Manage...**.
-5. Click the **Add repository** button, then enter this complete URL:
-
-   `https://raw.githubusercontent.com/wayri/KiWay/develop/pcm/repo.json`
-
-6. Confirm the repository and close the repository manager.
-7. Select **KiWay Plugin Repository** in the repository dropdown.
-8. Select a plugin and click **Install**.
-9. Apply the pending changes if KiCad shows an **Apply Pending Changes** button.
-10. Restart the KiCad PCB Editor.
-
-If the repository does not appear immediately, close and reopen the Plugin and Content Manager, or remove and re-add the repository URL to clear its cached feed.
-
-KiWay v2.22.0 removes the retired Connector ICD Builder, Net Hygiene, and Test
-Coverage Planner packages from the feed. Their useful workflows are covered by
-Pin Extractor, Test Point Descriptor Extractor, Harness and Cable Workbench, and
-the engineering audit tools. If an old package still appears, uninstall it and
-remove/re-add the repository URL to refresh KiCad's cached package index.
-
-The repository feed is also directly viewable here:
-
-`https://raw.githubusercontent.com/wayri/KiWay/develop/pcm/repo.json`
-
-### Method 2: Manual Installation
-
-1. Download a release zip from the repository releases page.
-2. For ActionPlugins, extract the plugin folder into your KiCad scripting plugin directory:
-   - Windows KiCad 10 scripting plugins: `%APPDATA%\kicad\10.0\scripting\plugins\`
-   - Linux KiCad 10 scripting plugins: `~/.local/share/kicad/10.0/scripting/plugins/`
-   - macOS KiCad 10 scripting plugins: `~/Library/Application Support/kicad/10.0/scripting/plugins/`
-3. Portable Assets and Design Variant Workbench use the same ActionPlugin directory and launch their workbenches as isolated GUI processes.
-4. Restart KiCad.
-
-For an existing KiCad 10 Windows installation, the scripting plugin directory is usually:
-
-`%APPDATA%\kicad\10.0\scripting\plugins\`
-
-## Building PCM Packages
-
-Run:
-
-```bash
-python build_pcm.py
+```text
+python -m wayricad_runtime.cli fanout plan --board board.kicad_pcb --settings fanout.json --output plan.json --svg preview.svg
+python -m wayricad_runtime.cli fanout apply --board board.kicad_pcb --plan plan.json --output board-fanout.kicad_pcb
+python -m wayricad_runtime.cli stitching plan --board board.kicad_pcb --output stitch-plan.json --svg stitch-preview.svg
 ```
 
-The builder discovers every top-level plugin directory containing `metadata.json`, creates a release zip under `releases/`, and updates `pcm/pkgs.json` plus `pcm/repo.json`.
+Apply recomputes the reviewed plan and refuses changed boards, changed geometry, or an existing output path. Run `python -m embed_3d_plugin --help` for saved-project embedding tools. From `bom_studio_plugin`, run `python -m bomstudio --help` for BOM Studio commands. The routing file CLI still uses KiCad 10 SWIG; IPC GUI packaging and headless file processing have different compatibility constraints.
 
-## KiWay CLI
+## Build and verify
 
-KiWay also installs a normal Python CLI that can run outside KiCad for netlist,
-ICD, validation, cross-project, and automation workflows:
-
-See the [detailed CLI user guide](docs/CLI_USER_GUIDE.md) for complete command
-coverage, configuration files, CI examples, and KiCad `.kicad_jobset`
-integration.
-
-External tools can discover the full plugin inventory with `kiway capabilities`,
-execute one JSON request with `kiway run --request`, or maintain an NDJSON
-JSON-RPC 2.0 session using `kiway serve --stdio`. The Harness Workbench also
-supports explicit tabular pin maps for non-corresponding and one-to-many
-connector wiring.
-
-```bash
-python -m pip install -e .
-kiway --help
-
-# Check the current Python environment and every KiWay suite package.
-kiway dependencies
-
-# Review the exact user-site pip command without changing the environment.
-kiway dependencies --install --dry-run
+```text
+python -m pip install -e ".[test]"
+python tools/prepare_suite.py
+python tools/generate_suite_icons.py
+python -m unittest discover -s tests
+python build_pcm.py --clean-feed --release-tag 3.0.0 --branch develop
+python tools/validate_packages.py
 ```
 
-KiCad PCB extraction still requires KiCad's `pcbnew` Python module, but XML
-netlist, CSV, Markdown, report, validation, cross-link, and benchmark commands
-run in standard Python.
+Run the imported applications' suites separately: `python -m unittest discover -s embed_3d_plugin/tests` and, from `bom_studio_plugin`, `python -m unittest discover -s tests`. Native geometry tests require KiCad's Python. Optional native tests and IPC tests report skips when their runtimes are unavailable; skips are not compatibility evidence.
 
-Common commands:
-
-```bash
-# Inspect one project or a directory of KiCad XML/.net exports.
-kiway inspect path/to/project_exports --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO --format json
-
-# Extract telemetry/command rows from hierarchical netlists.
-kiway extract project.xml --kind tm-tc --consolidate --board-sequence DEMO_CTRL,DEMO_SENSOR --format csv -o tm_tc.csv
-
-# Extract connector rows and preserve native sheet paths with aliases.
-kiway extract project.xml --kind connectors --sheet-alias "ADCS IMU:/Main/ADCS/*:U*" --format md
-
-# Link board exports with exact, normalized, wildcard, or regex rules.
-kiway crosslink demo_ctrl_pins.csv demo_sensor_pins.md --project DEMO_CTRL --project DEMO_SENSOR --rules "Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*" --format json -o cross_links.json
-
-# Generate a harness-style SVG from imported project documents.
-kiway crosslink demo_ctrl_pins.csv demo_sensor_pins.md --rules "Board prefix | wildcard | DEMO_CTRL_* | DEMO_SENSOR_*" --format svg -o harness.svg
-
-# Validate aerospace interface conventions with machine-readable diagnostics.
-kiway validate project.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --require-tm-consumer --require-tc-origin --diagnostics json --format json
-
-# Build a full ICD report.
-kiway report project.xml --board-sequence DEMO_CTRL,DEMO_SENSOR,DEMO_POWER,DEMO_IO --title "DEMO_CTRL Electrical ICD" --format html -o demo_ctrl_icd.html
-
-# Run a KiCad jobset using the native kicad-cli backend.
-kiway jobset-run project.kicad_pro --file release.kicad_jobset --stop-on-error
-
-# Run synthetic, non-flaky scaling checks.
-kiway benchmark --nets 10000 --boards 8 --threshold-ms 10000 --format json
-
-# Run the repository test suite.
-kiway test
-```
-
-Inside KiCad, open **KiWay Interboard & Harness** and click
-**Dependencies...** to check the bundled KiCad Python runtime, dependency
-versions, user-site target, and all installed KiWay packages. Install actions
-show the exact command for confirmation and never write into KiCad's
-`Program Files` directory. Restart PCB Editor after installing dependencies.
-
-ActionPlugin registration is guarded by a running wx application, so standalone
-module imports no longer call KiCad's registration API. Use `kiway dependencies`,
-`compileall`, or the integrated dependency manager for repeatable health checks.
-
-The CLI returns `0` for success, `1` for runtime failures, `2` for usage/config
-errors, and `3` for validation failures. JSON output is sorted and indented for
-deterministic automation diffs. Config files are JSON objects with optional
-`defaults` and per-command sections; CLI flags override config values.
-
-## Documentation
-
-- [Extract Pins Plugin Documentation](extract_pins_plugin/ReadMe.md)
-- [CLI User Guide and Jobset Integration](docs/CLI_USER_GUIDE.md)
-- [Fanout Generator Documentation](fanout_generator_plugin/ReadMe.md)
-- [Via Stitching Documentation](via_stitching_plugin/ReadMe.md)
-- [Test Point Descriptor Documentation](test_point_descriptor_plugin/ReadMe.md)
-- [Trace RLC / Impedance Documentation](trace_impedance_plugin/ReadMe.md)
-- [Kilo - KiCad Localizer Help](kilo_plugin/ReadMe.md)
-- [Portable Assets Documentation](portable_assets_plugin/README.md)
-- [Design Variant Workbench Documentation](variant_workbench_plugin/README.md)
-- [Return-Path Auditor Documentation](return_path_auditor_plugin/ReadMe.md)
-- [Harness and Cable Workbench Documentation](harness_workbench_plugin/ReadMe.md)
-- [Manufacturing Readiness Manager Documentation](manufacturing_readiness_plugin/ReadMe.md)
-- [PDN and Decoupling Planner Documentation](pdn_decoupling_plugin/ReadMe.md)
-- [Protocol Constraint Composer Documentation](protocol_constraint_composer_plugin/ReadMe.md)
-- [PCB / Foil Heater Designer Documentation](heater_designer_plugin/ReadMe.md)
-- [Planar Magnetics & Actuator Documentation](planar_magnetics_plugin/ReadMe.md)
-- [KiWay v2.22.0 Release Notes](docs/RELEASE_2.22.0.md)
-- [KiWay v2.25.0 Release Notes](docs/RELEASE_2.25.0.md)
-- [KiWay v2.26.0 Release Notes](docs/RELEASE_2.26.0.md)
-- [KiWay v2.27.0 Release Notes](docs/RELEASE_2.27.0.md)
-- [KiWay v2.27.1 Release Notes](docs/RELEASE_2.27.1.md)
-- [Contributing](CONTRIBUTING.md)
-- [Developer Wiki](https://github.com/wayri/KiCAD_Plugins/wiki/KiCad-Pin-Extraction-Plugin:-Developer-Documentation)
-
-## Acknowledgements
-
-KiWay is built on the work of the open-source electronic-design and Python
-communities. In particular, the project acknowledges:
-
-- [KiCad](https://www.kicad.org/) and its contributors for the EDA suite,
-  `pcbnew` Python API, file formats, and Plugin and Content Manager ecosystem.
-- [wxPython](https://wxpython.org/) for the native desktop user interfaces.
-- [NetworkX](https://networkx.org/) for connectivity graphs and path traversal.
-- [Matplotlib](https://matplotlib.org/) and
-  [Python-Markdown](https://python-markdown.github.io/) for optional diagrams
-  and documentation previews.
-- KiWay users and contributors who report PCB workflow issues, test releases,
-  propose features, and contribute code or documentation.
-
-KiCad and the named projects are independent projects. Their inclusion here
-does not imply sponsorship or endorsement of KiWay.
-
-## License
-
-KiWay is free software licensed under the
-[GNU General Public License, version 3 only](LICENSE) (`GPL-3.0-only`). You may
-use, study, modify, and redistribute it under the terms of that license. Any
-redistributed modified or unmodified KiWay source must retain the applicable
-license and copyright notices and provide the corresponding source as required
-by the GPL.
-
-Third-party projects and dependencies remain subject to their own licenses.
-Generated Markdown, CSV, HTML, JSON, and diagram exports describe the user's
-design data and are not automatically relicensed as KiWay source code merely
-because KiWay generated them.
+The builder creates independent, deterministic ZIPs, a clean PCM feed and a repository icon archive. PCM icons are 64×64; toolbar assets include 24, 48 and 96 pixel light/dark variants. Schemas are checked in from the official KiCad source mirror for local validation.

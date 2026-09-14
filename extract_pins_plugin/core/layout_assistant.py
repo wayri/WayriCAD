@@ -1,4 +1,4 @@
-"""pcbnew layout assist helpers for KiWay interface extraction."""
+"""pcbnew layout assist helpers for WayriCAD interface extraction."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class LayoutAssistant:
         if group_cls is None:
             raise RuntimeError("This KiCad pcbnew API does not expose PCB_GROUP.")
 
-        name = group_name or f"KiWay_{interface.get('name', 'Interface')}"
+        name = group_name or f"WayriCAD_{interface.get('name', 'Interface')}"
         footprints = self.interface_footprints(interface)
         if not footprints:
             raise ValueError(f"No board footprints matched interface group {name}.")

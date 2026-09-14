@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.12", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -33,13 +33,21 @@ jobs:
           protocol_constraint_composer_plugin return_path_auditor_plugin
           signal_integrity_advisor_plugin test_point_descriptor_plugin
           trace_impedance_plugin variant_workbench_plugin via_stitching_plugin
-          tools tests
+          bom_studio_plugin embed_3d_plugin wayricad_runtime tools tests
       - name: Unit and integration tests
+        run: python -m pytest tests -q -s
+      - name: Embed3D regressions
+        run: python -m unittest discover -s embed_3d_plugin/tests -v
+      - name: BOM Studio regressions
+        working-directory: bom_studio_plugin
         run: python -m unittest discover -s tests -v
       - name: CLI smoke
         run: |
-          kiway --help
-          kiway inspect tests/fixtures/simple_hierarchy.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --format json
-          kiway benchmark --nets 500 --boards 3 --threshold-ms 3000 --format json
+          wayricad --help
+          wayricad inspect tests/fixtures/simple_hierarchy.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --format json
+          wayricad benchmark --nets 500 --boards 3 --threshold-ms 3000 --format json
       - name: Package validation
-        run: python -m build && python build_pcm.py
+        run: |
+          python -m build
+          python build_pcm.py --clean-feed
+          python tools/validate_packages.py

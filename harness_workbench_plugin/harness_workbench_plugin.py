@@ -157,19 +157,19 @@ class HarnessCanvas(wx.Panel):
 
 class HarnessWorkbenchPlugin(pcbnew.ActionPlugin):
     def defaults(self):
-        self.name = "KiWay Harness and Cable Workbench"
+        self.name = "WayriCAD Harness and Cable Workbench"
         self.category = "Documentation"
         self.description = "Build multi-board harness maps, drawings, bundles, splices, and BoMs."
         self.show_toolbar_button = True
-        self.icon_file_name = os.path.join(os.path.dirname(__file__), "icon.png")
-        self.dark_icon_file_name = self.icon_file_name
-        self.version = "0.5.0"
+        self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
+        self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
+        self.version = "3.0.0"
     def Run(self): HarnessFrame(None).Show()
 
 
 class HarnessFrame(wx.Frame):
     def __init__(self, parent):
-        super().__init__(parent, title="KiWay Harness and Cable Workbench", size=(1400, 900))
+        super().__init__(parent, title="WayriCAD Harness and Cable Workbench", size=(1400, 900))
         self.records, self.virtual_loads, self.links, self.bundles, self.splices = [], [], [], [], []
         self.board_paths, self.system_paths = [], []
         self._build(); self.Centre()
@@ -545,10 +545,10 @@ class HarnessFrame(wx.Frame):
     def _html(self):
         return interactive_harness_html(self.records+virtual_load_records(self.virtual_loads),self.links,
                                         self.bundles,self.splices,self.system_paths,
-                                        "KiWay Interactive System Harness")
+                                        "WayriCAD Interactive System Harness")
     def _preview_html(self,_event):
         if not self.links:return
-        path=Path(tempfile.gettempdir())/"kiway-interactive-harness-preview.html"
+        path=Path(tempfile.gettempdir())/"wayricad-interactive-harness-preview.html"
         path.write_text(self._html(),encoding="utf-8");webbrowser.open(path.resolve().as_uri())
         self.status.SetLabel(f"Opened interactive preview: {path.name}")
     def _export(self,kind):

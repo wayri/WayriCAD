@@ -1,0 +1,6 @@
+{
+  "tool": "harness_workbench_plugin",
+  "name": "WayriCAD Harness and Cable Workbench",
+  "module": "harness_workbench_plugin",
+  "class": "HarnessWorkbenchPlugin"
+}

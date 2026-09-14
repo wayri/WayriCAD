@@ -1,6 +1,6 @@
 # formatters.py
 """
-Output formatters for KiWay Extract Pins Plugin.
+Output formatters for WayriCAD Extract Pins Plugin.
 Provides clean, well-structured output in multiple formats.
 
 @author - Wayri (Yawar)

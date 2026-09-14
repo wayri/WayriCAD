@@ -1,4 +1,4 @@
-"""Local documentation generation for KiWay extraction outputs."""
+"""Local documentation generation for WayriCAD extraction outputs."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ TYPE_LABELS = {
 class DocGenerator:
     """Generate Markdown, HTML, and CSV artifacts for software/test teams."""
 
-    def __init__(self, title: str = "KiWay Interface Control Document") -> None:
+    def __init__(self, title: str = "WayriCAD Interface Control Document") -> None:
         self.title = title
 
     def build_markdown(

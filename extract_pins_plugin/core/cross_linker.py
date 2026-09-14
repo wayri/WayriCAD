@@ -63,7 +63,7 @@ class LinkRule:
 
 
 class PinDocumentImporter:
-    """Read KiWay CSV and Markdown table exports into normalized endpoints."""
+    """Read WayriCAD CSV and Markdown table exports into normalized endpoints."""
 
     def load(self, path: str, project_name: str = "") -> ImportedPinDocument:
         source = os.path.abspath(path)
@@ -440,7 +440,7 @@ class CrossProjectLinker:
     def harness_svg(
         self,
         links: Sequence[Dict[str, str]],
-        title: str = "KiWay Cross-Project Harness",
+        title: str = "WayriCAD Cross-Project Harness",
     ) -> str:
         if not links:
             return self._empty_svg("No cross-project links found")

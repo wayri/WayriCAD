@@ -1,0 +1,6 @@
+{
+  "tool": "planar_magnetics_plugin",
+  "name": "WayriCAD Planar Magnetics & Actuator Workbench",
+  "module": "planar_magnetics_plugin",
+  "class": "PlanarMagneticsPlugin"
+}
