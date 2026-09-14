@@ -8,12 +8,12 @@
         }
     },
     "packages": {
-        "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1789376823",
-        "update_timestamp": 1789376823
+        "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1789377419",
+        "update_timestamp": 1789377419
     },
     "resources": {
         "url": "https://github.com/wayri/WayriCAD/releases/download/v3.1.0/resources.zip",
         "sha256": "1a3fc229fc8b923a6f92ba86cc2b165747d01dc67a8474401fb5318f6011ed88",
-        "update_timestamp": 1789376823
+        "update_timestamp": 1789377419
     }
 }

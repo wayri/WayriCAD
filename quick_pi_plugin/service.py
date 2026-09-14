@@ -86,9 +86,6 @@ def execute(request):
 
 def series_execute(board,path,request):
     """Separate copper domains joined only by explicit lumped components."""
-    from .board_geometry import extract
-    from .mesh import build_mesh
-    from .solver import solve
     import math
     inventory=[]
     for fp in board.GetFootprints():
@@ -119,6 +116,10 @@ def series_execute(board,path,request):
                          'from_terminal':a['id'],'to_terminal':b['id'],'resistance_ohm':resistance,'inductance_h':inductance})
         previous=b;nets.append(b['net'])
     if previous['net']!=end['net']:raise ValueError('The last component and ending pad do not share a net.')
+    # Validate the circuit before loading optional numerical dependencies.
+    from .board_geometry import extract
+    from .mesh import build_mesh
+    from .solver import solve
     mesh={'points_mm':[],'triangles':[],'triangle_thickness_mm':[],'triangle_layer':[],
           'vias':[],'terminal_nodes':{},'mesh_report':[],'lumped_branches':[],
           'edge_mm':float(request.get('edge_mm',.5)),'plating_mm':float(request.get('plating_mm',.025))}

@@ -464,10 +464,10 @@
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "a6cad9539f46d56e345ed641875f067a99af9de2e5fedd828982b3e79135e22d",
-                    "download_size": 623703,
+                    "download_sha256": "c0df7d61024339bd929f2d054ec05c511e13a67d1f6816fdd4f77979bfb15536",
+                    "download_size": 623739,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.1.0/WayriCAD-quick-pi-3.1.0-PCM.zip",
-                    "install_size": 857001,
+                    "install_size": 857076,
                     "platforms": [
                         "windows",
                         "linux",
