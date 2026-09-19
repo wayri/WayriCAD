@@ -25,7 +25,7 @@ from variant_workbench_plugin.kicad_variant_manager import (
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKBENCH_PACKAGES = (
-    ("variant_workbench_plugin", "com.github.wayri.wayricad.variant-workbench", "3.1.0"),
+    ("variant_workbench_plugin", "com.github.wayri.wayricad.variant-workbench", "3.1.1"),
 )
 
 

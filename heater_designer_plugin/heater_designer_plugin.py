@@ -14,7 +14,7 @@ from .guided_ui import add_workflow
 from .placement import validate_placement
 
 
-VERSION = "3.1.0"
+VERSION = "3.1.1"
 PALETTE = ("#157f74", "#d1495b", "#edae49", "#5267a5", "#8f5aa6", "#3c91a3")
 
 

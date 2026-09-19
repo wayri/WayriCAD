@@ -159,7 +159,7 @@ def hydrate_symbol(text, shared, reader):
 
 
 def library_text(definitions):
-    return '(kicad_symbol_lib (version %d) (generator "WayriCAD Embed3D") (generator_version "3.1.0")\n%s\n)\n' % (LIB_VERSION, '\n'.join(definitions))
+    return '(kicad_symbol_lib (version %d) (generator "WayriCAD Embed3D") (generator_version "3.1.1")\n%s\n)\n' % (LIB_VERSION, '\n'.join(definitions))
 
 
 def _source_meta(source, sheets):

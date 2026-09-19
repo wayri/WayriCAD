@@ -71,6 +71,9 @@ class QuickPIFrame(wx.Frame):
         console_panel.SetSizer(console_layout);root.Add(self.console,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         self.status=wx.StaticText(panel,label='Reading the saved board…');root.Add(self.status,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
         footer=wx.BoxSizer(wx.HORIZONTAL)
+        self.help_button=wx.Button(panel,wx.ID_HELP,label='Help')
+        self.help_button.Bind(wx.EVT_BUTTON,self.on_help)
+        footer.Add(self.help_button,0,wx.RIGHT,8)
         self.more=wx.Button(panel,label='More…');self.preview=wx.Button(panel,label='Preview copper');self.run=wx.Button(panel,label='Run analysis')
         self.export=wx.Button(panel,label='Export report…');self.cancel=wx.Button(panel,label='Cancel')
         self.gauge=wx.Gauge(panel,range=100,size=(140,-1))
@@ -287,6 +290,16 @@ class QuickPIFrame(wx.Frame):
         ax=draw_view(figure,self.bundle,('Net','Mesh','Results')[index],layer,metric)
         if limits:ax.set_xlim(*limits[0]);ax.set_ylim(*limits[1])
         self._plot_keys[index]=key;toolbar.update();canvas.draw_idle()
+
+    def on_help(self,event=None):
+        import wx.html
+        dialog=wx.Dialog(self,title='Quick PI · Help',size=(960,740),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        html=wx.html.HtmlWindow(dialog)
+        html.LoadPage(str(Path(__file__).with_name('help.html')))
+        layout=wx.BoxSizer(wx.VERTICAL);layout.Add(html,1,wx.EXPAND|wx.ALL,10)
+        layout.Add(dialog.CreateButtonSizer(wx.CLOSE),0,wx.ALIGN_RIGHT|wx.ALL,10)
+        dialog.SetSizer(layout);dialog.Bind(wx.EVT_BUTTON,lambda e:dialog.EndModal(wx.ID_CLOSE),id=wx.ID_CLOSE)
+        dialog.ShowModal();dialog.Destroy()
 
     def on_more(self,event):
         menu=wx.Menu();mesh=menu.Append(wx.ID_ANY,'Generate mesh only');self.Bind(wx.EVT_MENU,lambda e:self._analyze('mesh'),mesh)

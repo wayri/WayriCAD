@@ -11,7 +11,7 @@ import sys
 
 def launch(source='',advanced=False,library=False):
     from wayricad_runtime.native_analysis import native_python,child_environment
-    command=[str(native_python()),str(Path(__file__).resolve())]
+    command=[str(native_python()),'-I',str(Path(__file__).resolve())]
     if source:command.extend(['--source',str(source)])
     if advanced:command.append('--advanced')
     if library:command.append('--library')
@@ -46,7 +46,9 @@ def main(argv=None):
     parser.add_argument('--source',default='');parser.add_argument('--advanced',action='store_true');parser.add_argument('--library',action='store_true')
     args=parser.parse_args(argv)
     os.environ['WAYRICAD_EMBED3D_NO_REGISTER']='1'
-    root=Path(__file__).resolve().parent;name='wayricad_project_library_window'
+    root=Path(__file__).resolve().parent
+    sys.path.insert(0,str(root))
+    name='wayricad_project_library_window'
     if (root.parent/'wayricad_runtime').is_dir():sys.path.insert(0,str(root.parent))
     spec=importlib.util.spec_from_file_location(name,root/'__init__.py',submodule_search_locations=[str(root)])
     package=importlib.util.module_from_spec(spec);sys.modules[name]=package;spec.loader.exec_module(package)
@@ -60,7 +62,7 @@ def main(argv=None):
         else:dialog=importlib.import_module('.project_ui',name).ProjectLibraryDialog(None,bridge,args.source)
         dialog.ShowModal();dialog.Destroy()
     except Exception as exc:
-        wx.MessageBox(str(exc),'WayriCAD Project Library',wx.OK|wx.ICON_ERROR)
+        wx.MessageBox(str(exc),'WayriCAD Embed3D',wx.OK|wx.ICON_ERROR)
         return 1
     return 0
 

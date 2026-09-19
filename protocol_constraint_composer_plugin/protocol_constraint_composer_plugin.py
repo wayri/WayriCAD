@@ -18,7 +18,7 @@ def protocol_colour(name:str)->str:
     palette=tuple(PROTOCOL_COLOURS.values());return palette[sum(ord(c) for c in name)%len(palette)]
 
 class ProtocolConstraintComposerPlugin(pcbnew.ActionPlugin):
-    def defaults(self):self.name="WayriCAD Protocol Constraint Composer";self.category="Design Rules";self.description="Detect protocol nets and compose reviewed KiCad custom design rules.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png");self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png");self.version="3.1.0"
+    def defaults(self):self.name="WayriCAD Protocol Constraint Composer";self.category="Design Rules";self.description="Detect protocol nets and compose reviewed KiCad custom design rules.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png");self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png");self.version="3.1.1"
     def Run(self):
         board=pcbnew.GetBoard()
         if board is None:return

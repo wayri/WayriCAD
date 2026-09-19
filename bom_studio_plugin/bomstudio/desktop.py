@@ -169,7 +169,8 @@ def run_local_browser(server,on_ready=None,reason=''):
     """Own the loopback service until the page's authenticated Quit action."""
     server.app.ui_mode='browser'
     server.app.desktop_host=None
-    server.app.startup_note='Local browser mode: the embedded WebView is unavailable. All UI and project processing stay on this computer. Use Quit to stop the local service.'
+    previous_note=server.app.startup_note or ''
+    server.app.startup_note='Local browser mode: the embedded WebView is unavailable. All UI and project processing stay on this computer. Use Quit to stop the local service. '+reason+(' '+previous_note if previous_note else '')
     worker=threading.Thread(target=server.serve_forever,kwargs={'poll_interval':.15},daemon=True,name='wayricad-local-browser')
     worker.start()
     try:

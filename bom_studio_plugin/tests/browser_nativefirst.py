@@ -59,7 +59,7 @@ def main():
    check(page.locator('th[data-grid-column="@field:Reference"]').inner_text().startswith('Designators'),'Native BOM labels are inherited')
    check(page.evaluate('!S.asc'),'Native descending sort is inherited')
    check(page.evaluate("!S.data.rows[0].raw.hasOwnProperty('Approver')"),'Native field definition does not create properties on components')
-   check(page.locator('#runtimeBadgeNF').inner_text().startswith('v3.1.0'),'Running version and presentation mode visible')
+   check(page.locator('#runtimeBadgeNF').inner_text().startswith('v3.1.1'),'Running version and presentation mode visible')
    shot('01-following-kicad-bom.png')
    act('projectFields8');check(page.locator('[data-field-choice8="@field:MPN"]').count()==1,'Hidden physical field remains discoverable')
    check(page.locator('[data-field-choice8="@field:GlobalOnly"]').count()==1,'Unpopulated global template field remains discoverable');close()

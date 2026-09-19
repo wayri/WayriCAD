@@ -4,7 +4,7 @@
 WAYRICAD EXTRACT PINS PLUGIN
 
 @author - Wayri (Yawar)
-@version - 3.1.0
+@version - 3.1.1
 @date - 2025
 
 ALLOWS USER TO EXTRACT ALL THE NET NAMES IN MARKDOWN OR CSV FORMAT FROM CONNECTORS LIKE J1, J2 ETC, OR USER SELECTIONS OR ANY COMPONENT
@@ -58,7 +58,7 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         # Define the path to the optional icon file. It should be in the same directory.
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.1.0"
+        self.version = "3.1.1"
 
     def Run(self):
         """
@@ -106,7 +106,7 @@ class InterboardHarnessPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = False
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.1.0"
+        self.version = "3.1.1"
 
     def Run(self):
         if PluginUI is None:

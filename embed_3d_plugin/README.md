@@ -1,8 +1,8 @@
-# WayriCAD Project Library 3.1.0
+# WayriCAD Embed3D 3.1.1
 
 One native window combines Embed3D, Localizer and Portable Assets. Keep symbols, footprints and 3D models together in **`local/`**, or choose another relative project folder. The existing `embed-3d` package identifier is retained for upgrades.
 
-Install `WayriCAD-embed-3d-3.1.0-PCM.zip` using KiCad PCM **Install from File**. Enable the API in Preferences → Plugins. Local normalization and validation require KiCad 10 native Python; `WAYRICAD_KICAD_PYTHON` can select it. IPC is the forward integration path; KiCad 11 native acceptance remains unverified.
+Install `WayriCAD-embed-3d-3.1.1-PCM.zip` using KiCad PCM **Install from File**. Enable the API in Preferences → Plugins. Local normalization and validation require KiCad 10 native Python; `WAYRICAD_KICAD_PYTHON` can select it. IPC is the forward integration path; KiCad 11 native acceptance remains unverified.
 
 Choose a saved project, PCB or root schematic and preview exact files and links. Save and close the project editors, then localize with a backup. Reopen the project afterward. Settings remember your folder, additional model roots and explicit `NAME=FOLDER` path variables.
 
@@ -12,7 +12,7 @@ Writes are staged and natively validated before publication. Replaced files are 
 
 **More → Upgrade a project copy** converts older schematic hierarchies using the local KiCad CLI, preserving legacy reference/unit/page records and power-net semantics and comparing native connectivity. **Advanced asset tools** retains selective embed/unbundle/relink and footprint-file operations. The optional native **Advanced Live Assets** menu action retains tools requiring the actual PCB Editor context.
 
-![Native Project Library preview](help-project-library.png)
+![Native Embed3D preview](help-project-library.png)
 
 ```text
 wayricad-library localize-project board.kicad_pcb

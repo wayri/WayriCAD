@@ -285,7 +285,11 @@ class Board:
         # Read actual project rules; never invent a fabricator clearance.
         import json
         source=Path(self.GetFileName()).with_suffix('.kicad_pro')
-        data=json.loads(source.read_text(encoding='utf-8')) if source.exists() else {}
+        try:
+            data=json.loads(source.read_text(encoding='utf-8-sig')) if source.exists() else {}
+            if not isinstance(data,dict):raise ValueError('project root must be a JSON object')
+        except (OSError,ValueError) as exc:
+            raise UnsupportedCapability(f'Cannot read project design rules from {source}: {exc}. Repair or resave the project in KiCad before analysis.') from exc
         rules=data.get('board',{}).get('design_settings',{}).get('rules',{})
         clearance=rules.get('min_clearance')
         def minimum():
@@ -358,7 +362,9 @@ def module(client=None):
     from kipy import board_types as types
     from kipy.geometry import Vector2
     from kipy.proto.board.board_types_pb2 import BoardLayer,ViaType
-    client=client or KiCad()
+    if client is None:
+        from .context import connect
+        client=connect()
     version=client.get_version()
     if version.major < 10:
         raise UnsupportedCapability('WayriCAD IPC plugins require KiCad 10 or later; detected '+str(version)+'.')

@@ -14,12 +14,13 @@ def run_job(request, cancelled=None, timeout=300):
     if not math.isfinite(float(timeout)) or float(timeout)<=0:
         raise ValueError('Worker timeout must be finite and positive.')
     if cancelled and cancelled():raise InterruptedError('Quick PI cancelled before starting the worker.')
-    from wayricad_runtime.native_analysis import native_python, child_environment
+    from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_QUICK_PI, child_environment
+    python=ensure_runtime(REQUIREMENTS_QUICK_PI)
     with tempfile.TemporaryDirectory(prefix='wayricad-quick-pi-') as temporary:
         root=Path(temporary); source=root/'request.json';target=root/'response.json'
         source.write_text(json.dumps(request,allow_nan=False),encoding='utf-8')
         with (root/'worker.log').open('w+',encoding='utf-8') as log:
-            command=[str(native_python()),str(Path(__file__).with_name('quickmain.py')),'--worker',str(source),str(target)]
+            command=[str(python),'-I',str(Path(__file__).with_name('quickmain.py')),'--worker',str(source),str(target)]
             process=subprocess.Popen(command,env=child_environment(),stdin=subprocess.DEVNULL,
                 stdout=log,stderr=log,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             started=time.monotonic()
@@ -35,7 +36,11 @@ def run_job(request, cancelled=None, timeout=300):
                     except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
             log.seek(0); details=log.read()[-4000:]
             if not target.is_file():raise RuntimeError('Quick PI worker did not produce a result. '+details)
-            result=json.loads(target.read_text(encoding='utf-8'))
+            try:
+                result=json.loads(target.read_text(encoding='utf-8-sig'))
+            except (ValueError,OSError) as exc:
+                raise RuntimeError('Quick PI worker returned an incomplete or invalid result. '+details) from exc
+            if not isinstance(result,dict):raise RuntimeError('Quick PI worker returned an invalid result object. '+details)
             if result.get('error'):raise ValueError(result['error'])
             if process.returncode:raise RuntimeError('Quick PI worker failed: '+details)
             return result

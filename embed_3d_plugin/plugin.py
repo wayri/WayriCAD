@@ -7,7 +7,7 @@ from .assets import toolbar_icon_path
 
 class WayriCADEmbed3DPlugin(pcbnew.ActionPlugin):
     def defaults(self):
-        self.name = 'WayriCAD Project Library'
+        self.name = 'WayriCAD Embed3D'
         self.category = 'Footprints / Portability'
         self.description = 'Create project-local footprint, symbol and 3D libraries with reviewed links and a backup.'
         self.show_toolbar_button = True
@@ -36,7 +36,7 @@ class WayriCADEmbed3DPlugin(pcbnew.ActionPlugin):
             log = get_logger()
             log.exception('Plugin could not run')
             wx.MessageBox(str(exc)+'\n\nDiagnostic log: '+log.log_path,
-                          'WayriCAD Project Library', wx.OK | wx.ICON_ERROR)
+                          'WayriCAD Embed3D', wx.OK | wx.ICON_ERROR)
         finally:
             if dialog:
                 dialog.Destroy()
@@ -46,7 +46,7 @@ class WayriCADEmbed3DPlugin(pcbnew.ActionPlugin):
             def after_action():
                 leases.clear()
                 if result:
-                    wx.MessageBox(result, 'WayriCAD Project Library · Complete', wx.OK | wx.ICON_INFORMATION)
+                    wx.MessageBox(result, 'WayriCAD Embed3D · Complete', wx.OK | wx.ICON_INFORMATION)
             wx.CallAfter(after_action)
 
 

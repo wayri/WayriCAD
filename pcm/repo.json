@@ -1,4 +1,5 @@
 {
+    "schema_version": 2,
     "$schema": "https://go.kicad.org/pcm/schemas/v2",
     "name": "WayriCAD Plugin Repository",
     "maintainer": {
@@ -8,12 +9,13 @@
         }
     },
     "packages": {
-        "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1789377562",
-        "update_timestamp": 1789377562
+        "sha256": "e5622767fb0d7cab1584a9538223f35c2c9ddc79a9bdca34c06ac5ea75ee1574",
+        "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1789844079",
+        "update_timestamp": 1789844079
     },
     "resources": {
-        "url": "https://github.com/wayri/WayriCAD/releases/download/v3.1.0/resources.zip",
+        "url": "https://github.com/wayri/WayriCAD/releases/download/v3.1.1/resources.zip",
         "sha256": "1a3fc229fc8b923a6f92ba86cc2b165747d01dc67a8474401fb5318f6011ed88",
-        "update_timestamp": 1789377562
+        "update_timestamp": 1789844079
     }
 }

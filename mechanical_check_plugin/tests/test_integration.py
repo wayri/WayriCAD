@@ -61,7 +61,7 @@ class LaunchTests(unittest.TestCase):
 
     def test_missing_native_runtime_is_visible_and_fails(self):
         entry = load_entrypoint('desktop_entrypoint')
-        with patch.object(runtime, 'discover', return_value={'kicad_python': None}), \
+        with patch('wayricad_runtime.bootstrap.relaunch', side_effect=RuntimeError('Install KiCad 10 with native Python bindings.')), \
              patch.object(entry, 'notify_error', return_value=1) as notify:
             self.assertEqual(entry.main(), 1)
             self.assertIn('Install KiCad 10', notify.call_args.args[0])

@@ -5,6 +5,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0,str(ROOT))
+if not (ROOT/'wayricad_runtime').is_dir():sys.path.insert(0,str(ROOT.parent))
 sys.path.insert(0, str(ROOT / 'src'))
 
 
@@ -24,23 +26,20 @@ def saved_board_path(client):
 
 
 def main():
-    from wayricad_mechanical.runtime import discover
-    python = discover()['kicad_python']
-    if not python:
-        return notify_error('Install KiCad 10, or set WAYRICAD_MECHANICAL_KICAD_PYTHON to its Python executable. The mechanical extractor currently requires pcbnew from KiCad 10.')
-    board = None
+    from wayricad_runtime.bootstrap import relaunch
+    from wayricad_runtime.runtime_setup import child_environment
     try:
-        from kipy import KiCad
-        board = saved_board_path(KiCad(timeout_ms=1500))
+        if os.environ.get('WAYRICAD_MECHANICAL_KICAD_PYTHON'):
+            os.environ['WAYRICAD_KICAD_PYTHON']=os.environ['WAYRICAD_MECHANICAL_KICAD_PYTHON']
+        status=relaunch(ROOT,'desktop_entrypoint.py',profile='mechanical')
+        if status is not None:return status
+        from wayricad_runtime.context import saved_board
+        board=str(saved_board())
     except Exception as exc:
-        print('Saved board context unavailable; choose a board in the local window: ' + str(exc), file=sys.stderr)
-    args = [python, str(ROOT / 'launch.py'), '--gui']
-    if board:
-        args.append(board)
-    env = os.environ.copy()
-    # KiCad's managed IPC interpreter may point at incompatible Python/Tcl DLLs.
-    for key in ('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV'):
-        env.pop(key, None)
+        return notify_error(str(exc))
+    args = [sys.executable, '-I', str(ROOT / 'launch.py'), '--gui', board]
+    env = child_environment()
+    env['WAYRICAD_MECHANICAL_KICAD_PYTHON']=sys.executable
     try:
         child = subprocess.run(args, env=env, capture_output=True, text=True,
                                encoding='utf-8', errors='replace',

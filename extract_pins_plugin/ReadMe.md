@@ -2,7 +2,7 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-3.1.0-blue)
+![Version](https://img.shields.io/badge/Version-3.1.1-blue)
 ![KiCAD](https://img.shields.io/badge/KiCAD-10.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
@@ -84,7 +84,7 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 
 ## Installation
 
-1. Download `WayriCAD-extract-pins-3.1.0-PCM.zip` from the published WayriCAD release, or build it with the repository's `build_pcm.py`.
+1. Download `WayriCAD-extract-pins-3.1.1-PCM.zip` from the published WayriCAD release, or build it with the repository's `build_pcm.py`.
 2. In KiCad Manager, open **Plugin and Content Manager → Install from File** and select the ZIP.
 3. Enable the API in **Preferences → Plugins**, configure Python, and restart KiCad.
 

@@ -13,14 +13,31 @@ from jsonschema import Draft7Validator
 from PIL import Image
 
 
+def validate_repository(repo, feed_bytes, schema):
+    """Validate the protocol KiCad selects, not just the advertised $schema.
+
+    KiCad 10 FetchRepository defaults schema_version to 1 and uses that
+    validator for fetchPackages too. See kicad/pcm/pcm.cpp in KiCad's source.
+    """
+    if repo.get("schema_version") != 2:
+        raise ValueError("PCM repository must declare schema_version: 2; $schema alone does not select v2 in KiCad.")
+    Draft7Validator(dict(schema, **{"$ref": "#/definitions/Repository"})).validate(repo)
+    digest = repo["packages"].get("sha256")
+    if not digest or hashlib.sha256(feed_bytes).hexdigest() != digest:
+        raise ValueError("PCM packages SHA-256 missing or mismatched; publish repo.json and pkgs.json together.")
+    feed = json.loads(feed_bytes)
+    Draft7Validator(dict(schema, **{"$ref": "#/definitions/PackageArray"})).validate(feed)
+    if not feed["packages"]:
+        raise ValueError("PCM package feed is empty.")
+    return feed
+
+
 def validate():
     schemas = ROOT / "tools" / "schemas"
     pcm = json.loads((schemas / "pcm-v2.json").read_text())
     ipc = json.loads((schemas / "ipc-v1.json").read_text())
-    feed = json.loads((ROOT / "pcm/pkgs.json").read_text())
     repo = json.loads((ROOT / "pcm/repo.json").read_text())
-    Draft7Validator(dict(pcm, **{"$ref": "#/definitions/PackageArray"})).validate(feed)
-    Draft7Validator(dict(pcm, **{"$ref": "#/definitions/Repository"})).validate(repo)
+    feed = validate_repository(repo, (ROOT / "pcm/pkgs.json").read_bytes(), pcm)
     expected = {json.loads(p.read_text(encoding="utf-8"))["identifier"] for p in ROOT.glob("*_plugin/metadata.json")}
     assert expected and {p["identifier"] for p in feed["packages"]} == expected, "Feed differs from source plugin inventory"
     identifiers = set()

@@ -1,7 +1,7 @@
 {
   "$schema": "https://go.kicad.org/api/schemas/v1",
   "identifier": "com.github.wayri.wayricad.embed-3d",
-  "name": "WayriCAD Project Library",
+  "name": "WayriCAD Embed3D",
   "description": "Create project-local footprint, symbol and 3D libraries with reviewed links and a backup.",
   "runtime": {
     "type": "python",
@@ -10,7 +10,7 @@
   "actions": [
     {
       "identifier": "open",
-      "name": "WayriCAD Project Library",
+      "name": "WayriCAD Embed3D",
       "description": "Create project-local footprint, symbol and 3D libraries with reviewed links and a backup.",
       "show-button": true,
       "scopes": [

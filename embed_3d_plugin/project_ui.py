@@ -15,7 +15,7 @@ from .portability_io import saved_project_variables
 
 class ProjectLibraryDialog(wx.Dialog):
     def __init__(self,parent,bridge=None,source=None):
-        super().__init__(parent,title='WayriCAD Project Library',size=(850,660),
+        super().__init__(parent,title='WayriCAD Embed3D',size=(850,660),
                          style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         self.bridge=bridge;self.result_message='';self.plan=None;self._busy=False
         self._closed=False;self._closing=False;self._cancel=threading.Event();self._preview_inputs=None

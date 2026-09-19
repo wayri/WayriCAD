@@ -1,4 +1,4 @@
-# WayriCAD Planar Magnetics & Actuator Workbench 3.1.0
+# WayriCAD Planar Magnetics & Actuator Workbench 3.1.1
 
 Generate rectangular or circular planar windings across as many as 16 copper
 layers with series transitions, stitched vias, separate primary/secondary PCB

@@ -5,7 +5,6 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 import hmac
 import json
-import mimetypes
 import os
 import secrets
 import shutil
@@ -52,7 +51,7 @@ class Application:
         if self.workspace is None:raise ValueError('Open a KiCad project first.')
         return self.workspace
     def state(self,variant=BASE):
-        if not self.workspace:return {'project':None,'version':'3.1.0','ui_mode':self.ui_mode,'startup_note':self.startup_note,'runtime':runtime_info(self)}
+        if not self.workspace:return {'project':None,'version':'3.1.1','ui_mode':self.ui_mode,'startup_note':self.startup_note,'runtime':runtime_info(self)}
         result=self.workspace.public(variant);result['runtime']=runtime_info(self);result['ui_mode']=self.ui_mode;result['startup_note']=self.startup_note;result['demo']=bool(self.demo_directory and self.workspace.project.root.parent==self.demo_directory)
         return result
 
@@ -70,7 +69,7 @@ class Server(ThreadingHTTPServer):
         self.url=self.origin+'/#token='+app.token
 
 class Handler(BaseHTTPRequestHandler):
-    server_version='WayriCADBOM/3.1.0'
+    server_version='WayriCADBOM/3.1.1'
     def log_message(self,fmt,*args):
         # URLs/token fragments are deliberately never written to an access log.
         pass
@@ -118,10 +117,10 @@ class Handler(BaseHTTPRequestHandler):
                 app=self.server.app
                 if app.compat is None:app.compat=capabilities()
                 self.respond(app.compat);return
-            files={'/':'index.html','/app.js':'app.js','/workbench.js':'workbench.js','/intelligence.js':'intelligence.js','/automation.js':'automation.js','/engineering.js':'engineering.js','/assets.js':'assets.js','/analytics.js':'analytics.js','/style.css':'style.css','/studio8.js':'studio8.js','/library8.js':'library8.js','/nativefirst.js':'nativefirst.js','/vendors.js':'vendors.js','/assemblers.js':'assemblers.js'}
+            files={'/':'index.html','/app.js':'app.js','/workbench.js':'workbench.js','/intelligence.js':'intelligence.js','/automation.js':'automation.js','/engineering.js':'engineering.js','/assets.js':'assets.js','/analytics.js':'analytics.js','/style.css':'style.css','/studio8.js':'studio8.js','/library8.js':'library8.js','/nativefirst.js':'nativefirst.js','/vendors.js':'vendors.js','/assemblers.js':'assemblers.js','/workspace.js':'workspace.js'}
             if path not in files:self.respond({'error':'Not found.'},404);return
             file=ROOT/'web'/files[path]
-            self.respond(file.read_bytes(),content_type=mimetypes.guess_type(file.name)[0] or 'application/octet-stream')
+            self.respond(file.read_bytes(),content_type={'.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.html':'text/html; charset=utf-8'}[file.suffix])
         except (ValueError,KeyError,OSError) as exc:self.respond({'error':str(exc)},400)
         except Exception:
             traceback.print_exc();self.respond({'error':'Unexpected internal error. See launcher console; no operation was assumed successful.'},500)

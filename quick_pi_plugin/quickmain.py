@@ -10,6 +10,7 @@ import sys
 
 def package():
     root=Path(__file__).resolve().parent
+    sys.path.insert(0,str(root))
     if (root.parent/'wayricad_runtime').is_dir():sys.path.insert(0,str(root.parent))
     name='wayricad_quick_pi_worker'
     if name not in sys.modules:
@@ -33,6 +34,8 @@ def main(argv=None):
             if payload.get('board_path') and Path(payload['board_path']).resolve()==response.resolve():
                 print(json.dumps({'error':'Worker response must not overwrite the source PCB.'}));return 2
             result=importlib.import_module('.service',name).execute(payload)
+            if payload.get('html_output'):
+                importlib.import_module('.report',name).write_report(payload['html_output'],result)
             status=0
         except Exception as exc:
             result={'error':str(exc),'error_type':type(exc).__name__};status=2

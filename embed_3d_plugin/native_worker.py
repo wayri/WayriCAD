@@ -26,7 +26,7 @@ def run(payload):
         request = Path(tmp)/'request.json'; output = Path(tmp)/'normalized.json'
         request.write_text(json.dumps(payload), encoding='utf-8')
         try:
-            result = subprocess.run([str(native_python()), '-X', 'faulthandler', str(Path(__file__).resolve()), str(request), str(output)],
+            result = subprocess.run([str(native_python()), '-I', '-X', 'faulthandler', str(Path(__file__).resolve()), str(request), str(output)],
                                     env=child_environment(), capture_output=True, text=True, encoding='utf-8', errors='replace',
                                     timeout=180, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         except subprocess.TimeoutExpired as exc:
@@ -37,7 +37,11 @@ def run(payload):
                                + detail[-3000:]) from exc
         if result.returncode:
             raise RuntimeError('Native asset operation failed (exit '+str(result.returncode)+'): '+result.stderr[-3000:])
-        data = json.loads(output.read_text(encoding='utf-8'))
+        try:
+            data = json.loads(output.read_text(encoding='utf-8-sig'))
+        except (ValueError,OSError) as exc:
+            raise RuntimeError('Native asset worker returned no valid result. '+(result.stderr or result.stdout)[-3000:]) from exc
+        if not isinstance(data,dict):raise RuntimeError('Native asset worker returned an invalid result object.')
         return data
 
 
@@ -49,6 +53,8 @@ def main():
     parser.add_argument('request', type=Path); parser.add_argument('output', type=Path)
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
+    sys.path.insert(0,str(root))
+    if (root.parent/'wayricad_runtime').is_dir():sys.path.insert(0,str(root.parent))
     package = 'wayricad_asset_worker'
     spec = importlib.util.spec_from_file_location(package, root/'__init__.py', submodule_search_locations=[str(root)])
     loaded = importlib.util.module_from_spec(spec); sys.modules[package] = loaded; spec.loader.exec_module(loaded)

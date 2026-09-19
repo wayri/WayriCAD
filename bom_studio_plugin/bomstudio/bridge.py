@@ -10,10 +10,24 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import metadata
 from pathlib import Path
 import os
+import re
 import time
 import uuid
 
 class BridgeUnavailable(ValueError):pass
+
+
+def _check_sdk_version():
+    """Accept the stable SDK range declared by this plugin's requirements."""
+    version = metadata.version('kicad-python')
+    if not re.fullmatch(r'0\.8\.\d+', version):
+        raise BridgeUnavailable('Live link requires kicad-python>=0.8.0,<0.9; installed '+version+'. Recreate the plugin environment. Saved-project BOM tools remain available.')
+
+
+def _socket(value):
+    if value and (not isinstance(value,str) or len(value)>2048 or any(c in value for c in '\r\n\x00') or ('://' in value and not value.startswith('ipc://'))):
+        raise ValueError('Only a local IPC socket is allowed, not TCP/network endpoints.')
+    return value
 
 
 def identifier(value):
@@ -108,7 +122,7 @@ def document_identity(board):
 def diagnostic():
     try:version=metadata.version('kicad-python')
     except metadata.PackageNotFoundError:version=None
-    return {'schema':'wayricad-link-diagnostic-1','dependency':'kicad-python==0.8.0','installed':version,
+    return {'schema':'wayricad-link-diagnostic-1','dependency':'kicad-python>=0.8.0,<0.9','installed':version,
             'inherited_socket':bool(os.environ.get('KICAD_API_SOCKET')),'inherited_token':bool(os.environ.get('KICAD_API_TOKEN')),
             'pcb_selection':'optional IPC adapter','schematic_selection':'KiCad native relay, not a direct schematic API',
             'viewport':'optional experimental allowlisted RunAction; submission is not viewport verification',
@@ -139,10 +153,10 @@ class Bridge:
             else:
                 try:
                     from kipy import KiCad
-                    if metadata.version('kicad-python')!='0.8.0':raise BridgeUnavailable('Project discovery requires kicad-python==0.8.0.')
+                    _check_sdk_version()
                     factory=KiCad
-                except ImportError as exc:raise BridgeUnavailable('Optional kicad-python==0.8.0 is not installed; choose a saved project manually.') from exc
-            self.client=factory(client_name='org.wayricad.bomstudio',timeout_ms=1500)
+                except ImportError as exc:raise BridgeUnavailable('Optional kicad-python>=0.8.0,<0.9 is not installed; choose a saved project manually.') from exc
+            self.client=factory(client_name='org.wayricad.bomstudio',timeout_ms=1500,socket_path=_socket(os.environ['KICAD_API_SOCKET']))
             version=self.client.get_version()
             if getattr(version,'major',None)!=10:raise BridgeUnavailable('Automatic discovery is limited to KiCad 10; open/connect other hosts explicitly.')
             identity=document_identity(self.client.get_board())
@@ -155,17 +169,16 @@ class Bridge:
         for k in ('reference_fallback','experimental_focus','allow_untested'):
             if k in options and not isinstance(options[k],bool):raise ValueError(k+' must be a boolean.')
         socket=options.get('socket') or os.environ.get('KICAD_API_SOCKET')
-        if socket and (not isinstance(socket,str) or len(socket)>2048 or any(c in socket for c in '\r\n\x00') or ('://' in socket and not socket.startswith('ipc://'))):raise ValueError('Only a local IPC socket is allowed, not TCP/network endpoints.')
+        socket=_socket(socket)
         self.close();self.options=options;self.project=project
         try:
             if self.factory:factory=self.factory
             else:
                 try:
                     from kipy import KiCad
-                    installed=metadata.version('kicad-python')
-                    if installed!='0.8.0':raise BridgeUnavailable('This bridge is pinned to kicad-python 0.8.0. Use the supplied requirements.txt in this interpreter; core BOM tools still work without it.')
+                    _check_sdk_version()
                     factory=KiCad
-                except ImportError as e:raise BridgeUnavailable('Live link needs optional kicad-python==0.8.0. Install requirements.txt using the same Python interpreter, or launch through KiCad managed plugin support.') from e
+                except ImportError as e:raise BridgeUnavailable('Live link needs optional kicad-python>=0.8.0,<0.9. Install requirements.txt using the same Python interpreter, or launch through KiCad managed plugin support.') from e
             kwargs={'client_name':'org.wayricad.bomstudio','timeout_ms':1500}
             if socket:kwargs['socket_path']=socket
             self.client=factory(**kwargs);version=self.client.get_version();major=getattr(version,'major',None)

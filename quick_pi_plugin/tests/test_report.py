@@ -72,12 +72,12 @@ class ReportTests(unittest.TestCase):
     def test_report_is_offline_and_retains_all_numeric_results(self):
         with tempfile.TemporaryDirectory() as directory:
             b=bundle();paths=write_report(Path(directory)/'report.html',b,0)
-            html=Path(paths['html']).read_text()
+            html=Path(paths['html']).read_text(encoding='utf-8')
             self.assertEqual(html.count('data:image/png;base64,'),7)
             self.assertNotIn('https://',html)
             self.assertIn('Copper resistance uses the solved voltage drop',html)
             self.assertIn('Mesh convergence not verified',html)
-            stored=json.loads(Path(paths['json']).read_text())
+            stored=json.loads(Path(paths['json']).read_text(encoding='utf-8'))
             self.assertEqual(stored['result']['potential_V'],b['result']['potential_V'])
             self.assertEqual(stored['mesh']['triangles'],b['mesh']['triangles'])
 
@@ -88,7 +88,7 @@ class ReportTests(unittest.TestCase):
             b['result']['conductor_power_W']=b['result']['total_power_W']
             b['result']['component_power_W']=.02
             paths=write_report(Path(directory)/'series.html',b,0)
-            html=Path(paths['html']).read_text()
+            html=Path(paths['html']).read_text(encoding='utf-8')
             self.assertIn('Circuit resistance ΔV/I',html)
             self.assertIn('Component loss',html)
             self.assertIn('not an AC or transient solve',html)

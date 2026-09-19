@@ -12,6 +12,8 @@ import subprocess
 import sys
 
 
+sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
+
 FRAMES = {
     'trace_impedance_plugin': ('trace_impedance_plugin', 'TraceFrame'),
     'signal_integrity_advisor_plugin': ('signal_integrity_advisor_plugin', 'SignalIntegrityFrame'),
@@ -19,51 +21,23 @@ FRAMES = {
 
 
 def child_environment():
-    env = os.environ.copy()
-    for key in ('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV'):
-        env.pop(key, None)
-    return env
+    from wayricad_runtime.runtime_setup import child_environment as environment
+    return environment()
 
 
 def native_python():
-    candidates = [os.environ.get('WAYRICAD_KICAD_PYTHON', ''), sys.executable]
-    program_files = Path(os.environ.get('ProgramFiles', 'C:/Program Files'))
-    candidates.extend(sorted((program_files / 'KiCad').glob('10.*/bin/python.exe'), reverse=True))
-    candidates.extend(('/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3', '/usr/bin/python3'))
-    seen = set()
-    probe = ('import pcbnew as p,wx; assert str(p.Version()).startswith("10."); '
-             'assert hasattr(p,"SHAPE_POLY_SET") and hasattr(p,"LoadBoard")')
-    for candidate in candidates:
-        path = Path(candidate)
-        if not path.is_file() or str(path.resolve()).casefold() in seen:
-            continue
-        seen.add(str(path.resolve()).casefold())
-        try:
-            result = subprocess.run([str(path), '-c', probe], env=child_environment(),
-                                    capture_output=True, timeout=12,
-                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-            if result.returncode == 0:
-                return path
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-    raise RuntimeError('RLC and impedance analysis need KiCad 10 native Python geometry. '
-                       'Install KiCad 10 or set WAYRICAD_KICAD_PYTHON to its Python executable.')
+    from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_IPC
+    return ensure_runtime(REQUIREMENTS_IPC)
 
 
 def active_saved_board():
-    from kipy import KiCad
-    board = KiCad().get_board()
-    path = Path(board.name)
-    if not path.is_absolute():
-        path = Path(board.get_project().path) / path
-    if not path.is_file() or path.suffix.lower() != '.kicad_pcb':
-        raise ValueError('Save the PCB in KiCad before opening electrical analysis.')
-    return path.resolve()
+    from .context import saved_board
+    return saved_board()
 
 
 def launch(root, tool):
     source = active_saved_board()
-    process = subprocess.Popen([str(native_python()), str(Path(__file__).resolve()),
+    process = subprocess.Popen([str(native_python()), '-I', str(Path(__file__).resolve()),
                                 '--root', str(root), '--tool', tool, '--board', str(source)],
                                env=child_environment(),
                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
@@ -73,6 +47,9 @@ def launch(root, tool):
 def create_frame(root, tool, board_path):
     import pcbnew
     import wx
+    sys.path.insert(0,str(Path(root).resolve()))
+    if (Path(root).resolve().parent / 'wayricad_runtime').is_dir():
+        sys.path.insert(0,str(Path(root).resolve().parent))
     module_name, frame_name = FRAMES[tool]
     root = Path(root).resolve()
     # Installed PCM folders have arbitrary package IDs. Load their modules

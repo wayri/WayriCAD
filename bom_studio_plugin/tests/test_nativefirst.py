@@ -128,11 +128,11 @@ class NativeFirst(Fixture):
   with patch('sys.argv',['desktop_entrypoint.py','--ui','browser']),self.assertRaises(SystemExit):desktop_entrypoint.desktop_main()
  def test_desktop_entrypoint_forces_desktop(self):
   import desktop_entrypoint
-  with patch('sys.argv',['desktop_entrypoint.py']),patch.object(desktop_entrypoint,'main',return_value=0) as m:
+  with patch('sys.path',[str(Path(__file__).resolve().parents[2]),*os.sys.path]),patch('sys.argv',['desktop_entrypoint.py']),patch('wayricad_runtime.bootstrap.relaunch',return_value=None),patch.object(desktop_entrypoint,'main',return_value=0) as m:
    self.assertEqual(desktop_entrypoint.desktop_main(),0);self.assertEqual(os.sys.argv[-2:],['--ui','desktop'])
  def test_runtime_diagnostic_no_changes(self):
   from bomstudio.runtime_info import diagnostic
-  d=diagnostic(roots=[self.dir]);self.assertTrue(d['read_only']);self.assertEqual(d['runtime']['version'],'3.1.0');self.assertNotIn('token',d['runtime'])
+  d=diagnostic(roots=[self.dir]);self.assertTrue(d['read_only']);self.assertEqual(d['runtime']['version'],'3.1.1');self.assertNotIn('token',d['runtime'])
  def test_duplicate_manifest_detected(self):
   from bomstudio.runtime_info import diagnostic
   for n in ('a','b'):

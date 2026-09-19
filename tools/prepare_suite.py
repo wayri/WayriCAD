@@ -32,7 +32,7 @@ def main():
         # The distributed bundle includes the GPL suite runtime; imported MIT notices remain intact.
         metadata["license"] = "GPL-3.0-only"
         for version in metadata["versions"]:
-            version.update(version="3.1.0", runtime="ipc", kicad_version="10.0", status="testing")
+            version.update(version="3.1.1", runtime="ipc", kicad_version="10.0", status="testing")
             for key in list(version):
                 if key.startswith("download_") or key in {"install_size", "kicad_version_max"}:
                     del version[key]
@@ -51,8 +51,6 @@ def main():
                 "icons-light": [f"resources/icon-{n}.png" for n in (24, 48, 96)],
                 "icons-dark": [f"resources/icon-dark-{n}.png" for n in (24, 48, 96)]}],
         }
-        if folder.name == "visual_diff_plugin":
-            manifest["actions"][0]["scopes"] = ["pcb", "schematic", "project_manager"]
         if folder.name == "extract_pins_plugin":
             manifest["actions"].append(dict(manifest["actions"][0], **{
                 "identifier": "interboard", "name": "WayriCAD Interboard & Harness",
@@ -63,6 +61,7 @@ def main():
                 '"""Secondary IPC menu action for the existing system workbench."""\n'
                 'from pathlib import Path\nimport sys\n'
                 'ROOT = Path(__file__).resolve().parent\n'
+                'sys.path.insert(0,str(ROOT))\n'
                 'if not (ROOT / "wayricad_runtime").is_dir():\n'
                 '    sys.path.insert(0, str(ROOT.parent))\n'
                 'from wayricad_runtime.launcher import main\n'
@@ -88,11 +87,12 @@ def main():
                 '"""KiCad IPC entry point; shared runtime is bundled by build_pcm.py."""\n'
                 'from pathlib import Path\nimport sys\n'
                 'ROOT = Path(__file__).resolve().parent\n'
+                'sys.path.insert(0,str(ROOT))\n'
                 'if not (ROOT / "wayricad_runtime").is_dir():\n'
                 '    sys.path.insert(0, str(ROOT.parent))\n'
                 'from wayricad_runtime.launcher import main\n'
                 'if __name__ == "__main__":\n    main(ROOT)\n', encoding="utf-8")
-        requirements = ["kicad-python>=0.8.0,<0.9", "wxPython>=4.2.3,<5"]
+        requirements = ["kicad-python>=0.8.0,<0.9"]
         # Extractor graph backends and several engineering tools use NetworkX.
         if any("import networkx" in p.read_text(encoding="utf-8-sig", errors="replace") for p in folder.rglob("*.py")):
             requirements.append("networkx>=2.8,<4")

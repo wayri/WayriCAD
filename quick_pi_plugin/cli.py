@@ -25,6 +25,8 @@ def main(argv=None):
     try:
         if args.output and args.output.resolve()==args.board.resolve():
             raise ValueError('The result output must not overwrite the source PCB.')
+        if args.html:
+            request['html_output']=str(args.html.resolve())
         from .service import run_job
         if args.command:
             from .console import parse_command
@@ -32,12 +34,11 @@ def main(argv=None):
             parsed=parse_command(args.command,inventory)
             if 'console_output' in parsed:print(parsed['console_output']);return 0
             request.update(parsed)
+        if args.html and request['action']!='solve':
+            raise ValueError('HTML export needs a solved path. Supply --net, --source and --sink, or a run pi --command.')
         result=run_job(request,timeout=args.timeout)
         if args.output:
             args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(result,indent=2,allow_nan=False),encoding='utf-8')
-        if args.html:
-            from .report import write_report
-            write_report(args.html,result)
         summary={k:v for k,v in result.items() if k not in ('mesh','geometry')}
         if 'result' in summary:
             summary['result']={k:v for k,v in summary['result'].items() if not isinstance(v,(list,dict))}

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.1.0"
+version = "3.1.1"
 description = "WayriCAD KiCad electrical systems CLI and plugin package"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,6 +32,7 @@ include = ["*_plugin", "*_plugin.*", "wayricad_runtime"]
 exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.tests.*"]
 
 [tool.setuptools.package-data]
+wayricad_runtime = ["*.md"]
 "*" = ["LICENSE", "LICENSE.*", "SOURCE_PROVENANCE.json"]
 extract_pins_plugin = ["*.html", "*.md", "*.txt", "*.svg", "*.png", "metadata.json"]
 harness_workbench_plugin = ["*.html", "*.md", "*.png", "metadata.json"]

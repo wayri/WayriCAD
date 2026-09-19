@@ -405,7 +405,7 @@ This command has its own exit codes: 0 resolved, 1 input/runtime error,
 must not be treated as a complete RLC extraction. See the
 [RLC guide](../trace_impedance_plugin/ReadMe.md) for examples and assumptions.
 
-## Project Library and Quick PI
+## Embed3D and Quick PI
 
 `wayricad-library localize-project board.kicad_pcb` previews symbols, footprints and models in the project-local `local/` folder. Use `--library-folder` to change it, `--model-root` and `--var NAME=FOLDER` for explicit dependencies, and `--apply` after saving/closing editors. `restore-local BACKUP --apply` checks backup and published-file hashes.
 

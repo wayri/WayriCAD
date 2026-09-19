@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 
 os.environ['WAYRICAD_COPPER_NO_REGISTER'] = '1'
 
@@ -87,16 +89,18 @@ def cli(args):
     return 0
 
 
-def gui():
+def gui(initial=None):
     import wx
     from copper_balancer.dialog import CopperBalancerDialog
     app = wx.App.Get() or wx.App(False)
-    with wx.FileDialog(None, 'Open saved PCB — edits will be saved as a new copy',
-                       wildcard='KiCad board (*.kicad_pcb)|*.kicad_pcb',
-                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as picker:
-        if picker.ShowModal() != wx.ID_OK:
-            return 0
-        source, stamp, board = load_native(picker.GetPath())
+    if initial:
+        source, stamp, board = load_native(initial)
+    else:
+        with wx.FileDialog(None, 'Open saved PCB — edits will be saved as a new copy',
+                           wildcard='KiCad board (*.kicad_pcb)|*.kicad_pcb',
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as picker:
+            if picker.ShowModal() != wx.ID_OK:return 0
+            source, stamp, board = load_native(picker.GetPath())
 
     def save_result(operation):
         with wx.FileDialog(None, 'Save balanced PCB as a new copy', defaultDir=str(source.parent),
@@ -127,6 +131,7 @@ def gui():
 def main():
     parser = argparse.ArgumentParser(description='WayriCAD Copper Balancer: plan by default; --output writes a new board copy.')
     parser.add_argument('board', nargs='?')
+    parser.add_argument('--gui', action='store_true', help='Open the local window with the supplied board.')
     parser.add_argument('--settings', help='JSON fields from engine.Settings')
     parser.add_argument('--layer', action='append', help='Enabled copper layer name; repeat for multiple layers')
     parser.add_argument('--output', help='New .kicad_pcb destination; never overwrites')
@@ -134,7 +139,7 @@ def main():
     if not args.board and (args.settings or args.layer or args.output):
         parser.error('Supply a saved board when using CLI options.')
     try:
-        return cli(args) if args.board else gui()
+        return gui(args.board) if args.gui else (cli(args) if args.board else gui())
     except Exception as exc:
         if args.board:
             parser.exit(1, str(exc) + '\n')

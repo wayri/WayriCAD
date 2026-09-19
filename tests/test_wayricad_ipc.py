@@ -135,7 +135,7 @@ class LauncherTests(unittest.TestCase):
             root.joinpath('__init__.py').write_text('',encoding='utf-8')
             root.joinpath('action.py').write_text('ran=False\nclass Tool:\n    def Run(self):\n        global ran\n        ran=True\n',encoding='utf-8')
             root.joinpath('wayricad-tool.json').write_text(json.dumps({'tool':'test_plugin','module':'action','class':'Tool','name':'WayriCAD Test'}),encoding='utf-8')
-            with patch.dict(sys.modules,{'wx':wx}),patch('wayricad_runtime.ipc.module',return_value=SimpleNamespace(_wayricad_ipc=True)):
+            with patch('wayricad_runtime.bootstrap.relaunch',return_value=None),patch.dict(sys.modules,{'wx':wx}),patch('wayricad_runtime.ipc.module',return_value=SimpleNamespace(_wayricad_ipc=True)):
                 self.assertEqual(launcher.main(root),0)
                 self.assertTrue(sys.modules['wayricad_active_plugin.action'].ran)
                 app.MainLoop.assert_called_once()

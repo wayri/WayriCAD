@@ -13,7 +13,7 @@ PCM_DIR = "pcm"
 RELEASES_DIR = "releases"
 
 DEFAULT_BRANCH = os.environ.get("WAYRICAD_BRANCH", "develop")
-DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "3.1.0")
+DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "3.1.1")
 
 REPO_OWNER = "wayri"
 REPO_NAME = "WayriCAD"
@@ -519,7 +519,7 @@ def create_plugin_zip(
 
         # Every package carries its own runtime; installed tools never import siblings.
         runtime_root = Path(__file__).resolve().parent / "wayricad_runtime"
-        for source in sorted(runtime_root.rglob("*.py")):
+        for source in sorted(p for p in runtime_root.rglob("*") if p.is_file() and p.suffix in (".py", ".md")):
             zipf.writestr(zip_entry("plugins/wayricad_runtime/" + source.relative_to(runtime_root).as_posix(),
                                    compress_type=zipfile.ZIP_DEFLATED), source.read_bytes())
         zipf.writestr(zip_entry("plugins/wayricad_runtime/LICENSE"),
@@ -1331,6 +1331,10 @@ def main():
 
     repository = {
 
+        # KiCad chooses the repository validator using this integer, not
+        # $schema. Omitting it silently selects v1 even in KiCad 10.
+        "schema_version": 2,
+
         "$schema":
             PCM_SCHEMA,
 
@@ -1349,6 +1353,8 @@ def main():
         },
 
         "packages": {
+
+            "sha256": calculate_sha256(packages_file),
 
             "url":
                 packages_url,

@@ -13,10 +13,15 @@ def main(root, action_class=None):
     sys.path.insert(0,str(root))
     config={}
     try:
-        config=json.loads((root/'wayricad-tool.json').read_text(encoding='utf-8'))
+        config=json.loads((root/'wayricad-tool.json').read_text(encoding='utf-8-sig'))
+        if not isinstance(config, dict):
+            raise ValueError('The installed plugin launch metadata must be a JSON object. Reinstall its ZIP package.')
         for field in ('tool','module','class','name'):
             if not isinstance(config.get(field),str) or not config[field]:
                 raise ValueError('The installed plugin has invalid launch metadata: '+field+'. Reinstall its ZIP package.')
+        from .bootstrap import relaunch
+        status=relaunch(root, 'interboard_entrypoint.py' if action_class else 'ipc_entrypoint.py')
+        if status is not None:return status
         import wx
         app=wx.App.Get() or wx.App(False)
         if config['tool']=='bom_studio_plugin':
@@ -40,12 +45,8 @@ def main(root, action_class=None):
         if wx.GetTopLevelWindows():app.MainLoop()
         return 0
     except Exception as exc:
-        traceback.print_exc()
-        try:
-            import wx
-            app=wx.App.Get() or wx.App(False)
-            wx.MessageBox(str(exc)+'\n\nCheck Preferences > Plugins: enable the KiCad API and recreate this plugin environment if dependencies are missing.',
-                          config.get('name','WayriCAD'),wx.OK|wx.ICON_ERROR)
-        except Exception:
-            print('WayriCAD could not create its local UI.',file=sys.stderr)
-        return 1
+        from .bootstrap import failure
+        from .context import redact_error
+        print(redact_error(traceback.format_exc()), file=sys.stderr)
+        title=config.get('name','WayriCAD') if isinstance(config,dict) else 'WayriCAD'
+        return failure(exc, title)

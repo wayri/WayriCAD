@@ -1,4 +1,4 @@
-# WayriCAD Harness and Cable Workbench 3.1.0
+# WayriCAD Harness and Cable Workbench 3.1.1
 
 Builds a system-level harness definition from as many as 50 board pin exports.
 It supports indexed net matching and connector correspondence where pin 1 maps

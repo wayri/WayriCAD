@@ -1,6 +1,9 @@
 """Local wx/WebView host using the same authenticated, limited desktop API."""
 from concurrent.futures import Future
 import json
+import os
+import tempfile
+import shutil
 import threading
 import sys
 from urllib.parse import urlsplit
@@ -38,7 +41,20 @@ def run(server, on_ready=None):
             if not wx.html2.WebView.IsBackendAvailable(backend):
                 self.Destroy()
                 raise DesktopUnavailable('Local WebView runtime unavailable. On Windows install Microsoft Edge WebView2 Runtime.')
-            self.view = wx.html2.WebView.New(self, backend=backend)
+            # WebView2's default profile is shared by every python.exe plugin.
+            # Separate IPC processes cannot safely lock that same profile.
+            # Set before Create: Edge reads this for its child environment.
+            self.profile = tempfile.mkdtemp(prefix='wayricad-bom-webview-')
+            self.previous_profile = os.environ.get('WEBVIEW2_USER_DATA_FOLDER')
+            try:
+                if sys.platform == 'win32':
+                    os.environ['WEBVIEW2_USER_DATA_FOLDER'] = self.profile
+                self.view = wx.html2.WebView.New(self, backend=backend)
+            except Exception:
+                self.restore_profile()
+                shutil.rmtree(self.profile, ignore_errors=True)
+                self.Destroy()
+                raise
             layout = wx.BoxSizer(wx.VERTICAL)
             layout.Add(self.view, 1, wx.EXPAND)
             self.SetSizer(layout)
@@ -48,10 +64,15 @@ def run(server, on_ready=None):
                 self.Destroy()
                 raise DesktopUnavailable('This WebView lacks native message support. Update the local WebView runtime.')
             self.view.Bind(wx.html2.EVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, self.message)
+            self.ready = False
             self.view.Bind(wx.html2.EVT_WEBVIEW_LOADED, self.loaded)
             self.view.Bind(wx.html2.EVT_WEBVIEW_NAVIGATING, self.navigate)
             self.Bind(wx.EVT_CLOSE, self.close)
-            self.view.LoadURL(server.url)
+
+        def restore_profile(self):
+            if sys.platform == 'win32':
+                if self.previous_profile is None: os.environ.pop('WEBVIEW2_USER_DATA_FOLDER', None)
+                else: os.environ['WEBVIEW2_USER_DATA_FOLDER'] = self.previous_profile
 
         def get_current_url(self):
             return main_thread(self.view.GetCurrentURL)
@@ -75,10 +96,13 @@ def run(server, on_ready=None):
                   window.dispatchEvent(new Event('pywebviewready'));
                 })();
             """)
-            if on_ready:
-                on_ready('desktop')
+            if not self.ready:
+                self.ready = True
+                if on_ready: on_ready('desktop')
 
         def navigate(self, event):
+            if event.GetURL() == 'about:blank' and not self.ready:
+                return
             target = urlsplit(event.GetURL())
             origin = urlsplit(server.origin)
             if (target.scheme, target.netloc) != (origin.scheme, origin.netloc):
@@ -124,9 +148,21 @@ def run(server, on_ready=None):
     worker = threading.Thread(target=serve, name='wayricad-local-ui', daemon=True)
     worker.start()
     window.Show()
+    window.view.LoadURL(server.url)
+    startup_error = []
+    def check_startup():
+        if not window.ready and not closing.is_set():
+            startup_error.append('The embedded browser did not load the local BOM workspace within 20 seconds. Check WebView runtime installation or use local browser mode.')
+            closing.set()
+            window.Close(force=True)
+    startup_timer = wx.CallLater(20000, check_startup)
     try:
         app.MainLoop()
+        if startup_error: raise DesktopUnavailable(startup_error[0])
     finally:
+        startup_timer.Stop()
+        window.restore_profile()
         server.shutdown()
-        server.server_close()
+        if not startup_error: server.server_close()
         worker.join(timeout=5)
+        shutil.rmtree(window.profile, ignore_errors=True)

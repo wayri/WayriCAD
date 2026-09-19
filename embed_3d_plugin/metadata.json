@@ -1,6 +1,6 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
-  "name": "WayriCAD Project Library",
+  "name": "WayriCAD Embed3D",
   "description": "Create project-local footprint, symbol and 3D libraries with reviewed links and a backup.",
   "description_full": "A compact Preview \u2192 Localize workflow creates configurable project-local footprint and symbol libraries, copies linked 3D models, updates saved design references and library tables, and publishes only after native validation. Original files have a timestamped backup and changed inputs invalidate the preview. Additional model folders and path variables are remembered per project. The independent native window allows closing source editors before applying. Advanced embedding, extraction, relinking and standalone footprint-file tools remain available under More. Uses installed KiCad native helpers for geometry normalization; KiCad 11 compatibility is not certified.",
   "identifier": "com.github.wayri.wayricad.embed-3d",
@@ -12,7 +12,7 @@
   "license": "GPL-3.0-only",
   "versions": [
     {
-      "version": "3.1.0",
+      "version": "3.1.1",
       "status": "testing",
       "kicad_version": "10.0",
       "runtime": "ipc"

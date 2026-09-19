@@ -1,4 +1,4 @@
-# WayriCAD Protocol Constraint Composer 3.1.0
+# WayriCAD Protocol Constraint Composer 3.1.1
 
 Detects likely USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF nets from editable conventions and composes a reviewable KiCad custom-rule block. Export rules for inspection or apply only the delimited WayriCAD-managed section after a timestamped backup.
 

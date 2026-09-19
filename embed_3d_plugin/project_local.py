@@ -219,7 +219,7 @@ def restore(backup):
     backup = Path(backup).resolve(); record = backup/'restore.json'
     journal = json.loads(record.read_text(encoding='utf-8'))
     if journal.get('format') != 'wayricad-library-restore/v1' or journal.get('state') != 'complete':
-        raise ValueError('Choose a completed Project Library backup.')
+        raise ValueError('Choose a completed Embed3D backup.')
     project = Path(journal['project']).resolve()
     if backup.parent != project/'.wayricad-backups':
         raise ValueError('Backup must remain inside its original project.')

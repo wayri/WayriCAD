@@ -2,11 +2,59 @@
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
+import sys
 import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def windows_documents():
+    """Respect redirected/OneDrive Documents instead of guessing ~/Documents."""
+    import ctypes
+    from ctypes import wintypes
+    import uuid
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("data1", wintypes.DWORD), ("data2", wintypes.WORD),
+                    ("data3", wintypes.WORD), ("data4", ctypes.c_ubyte * 8)]
+
+    folder = GUID.from_buffer_copy(uuid.UUID("FDD39AD0-238F-46AF-ADB4-6C85480369C7").bytes_le)
+    result = ctypes.c_wchar_p()
+    shell = ctypes.windll.shell32.SHGetKnownFolderPath
+    shell.argtypes = [ctypes.POINTER(GUID), wintypes.DWORD, wintypes.HANDLE,
+                      ctypes.POINTER(ctypes.c_wchar_p)]
+    shell.restype = ctypes.c_long
+    code = shell(ctypes.byref(folder), 0, None, ctypes.byref(result))
+    if code != 0:
+        raise OSError("Cannot determine Windows Documents folder; use --destination.")
+    try:
+        return Path(result.value)
+    finally:
+        ctypes.windll.ole32.CoTaskMemFree(ctypes.cast(result, ctypes.c_void_p))
+
+
+def default_destination(version, *, platform=None, environ=None, home=None):
+    """Match KiCad IPC user-data paths on Windows, macOS and XDG Linux."""
+    platform = platform or sys.platform
+    environ = os.environ if environ is None else environ
+    home = Path.home() if home is None else Path(home)
+    configured = environ.get("KICAD_DOCUMENTS_HOME")
+    if configured:
+        # KiCad PATHS::getUserDocumentPath appends KiCad/<version> even
+        # when KICAD_DOCUMENTS_HOME overrides the platform documents path.
+        root = Path(configured).expanduser() / "KiCad"
+    elif platform == "win32":
+        root = windows_documents() / "KiCad"
+    elif platform == "darwin":
+        root = home / "Documents" / "KiCad"
+    else:
+        data_home = Path(environ.get("XDG_DATA_HOME", ""))
+        # The XDG specification requires absolute paths; relative values are ignored.
+        root = (data_home if data_home.is_absolute() else home / ".local" / "share") / "KiCad"
+    return root / version / "plugins"
 
 
 def main():
@@ -15,7 +63,7 @@ def main():
     parser.add_argument("--destination", type=Path, help="Override KiCad user plugins directory.")
     parser.add_argument("--apply", action="store_true", help="Copy plugins; existing installations are backed up.")
     args = parser.parse_args()
-    destination = (args.destination or Path.home() / "Documents" / "KiCad" / args.version / "plugins").resolve()
+    destination = (args.destination or default_destination(args.version)).resolve()
     versions = {json.loads(p.read_text(encoding='utf-8'))['versions'][0]['version'] for p in ROOT.glob('*_plugin/metadata.json')}
     if len(versions)!=1:parser.error('Source plugins must have one release version.')
     release=versions.pop()
@@ -60,14 +108,14 @@ def main():
                     if backup is not None:
                         backup.rename(target)
                     raise
-    # Retired tools are replaced by Project Library. Preserve installations in
+    # Retired tools are replaced by Embed3D. Preserve installations in
     # the same backup area so the suite no longer shows duplicate asset tools.
     for identifier in ('com.github.wayri.wayricad.kilo','com.github.wayri.wayricad.portable-assets'):
         retired=destination/identifier
         if retired.exists():
             if retired.is_symlink() or retired.resolve().parent != destination:
                 raise ValueError('Retired plugin path is not a direct child of the install directory.')
-            print('Consolidate into Project Library: '+str(retired))
+            print('Consolidate into Embed3D: '+str(retired))
             if args.apply:
                 backups=destination.parent/'wayricad-plugin-backups';backups.mkdir(exist_ok=True)
                 stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%f')
