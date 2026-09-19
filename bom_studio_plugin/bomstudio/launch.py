@@ -50,4 +50,6 @@ def detached(project=None,demo=False,no_browser=False,port=0,no_auto_link=False,
     process.terminate()
     try:process.wait(timeout=3)
     except subprocess.TimeoutExpired:process.kill();process.wait()
-    raise OSError('GUI startup did not publish readiness and was stopped. Inspect '+str(log))
+    # Before readiness the log contains startup diagnostics, never the session URL.
+    detail=log.read_text(encoding='utf-8',errors='replace')[-6000:]
+    raise OSError('GUI startup did not publish readiness and was stopped. Inspect '+str(log)+'\n'+detail)

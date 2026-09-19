@@ -35,6 +35,10 @@ def main():
     parser.add_argument('--pick',action='store_true',help=argparse.SUPPRESS)
     args=parser.parse_args()
     if args.pick:return pick()
+    # Detached callers need a diagnostic if imports or project loading stall.
+    if args.session_file:
+        import faulthandler
+        faulthandler.dump_traceback_later(12)
     if sys.version_info<(3,10):raise SystemExit('Python 3.10 or later is required.')
     from bomstudio.server import Application,Server
     from bomstudio.desktop import ui_mode, run, DesktopUnavailable, notify_failure
@@ -44,6 +48,7 @@ def main():
         if args.session_file:
             with open(args.session_file,'x',encoding='utf-8') as f:
                 json.dump({'pid':os.getpid(),'url':server.url,'ui_mode':actual_mode},f)
+            faulthandler.cancel_dump_traceback_later()
     try:
         app=Application(args.project,args.demo,auto_link=not args.no_auto_link,analytics_demo=args.analytics_demo,engineering_demo=args.engineering_demo)
         app.ui_mode=mode;server=Server(app,args.port)
