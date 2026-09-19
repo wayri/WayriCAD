@@ -8,6 +8,16 @@ from bomstudio.server import Application, Server
 
 
 class LocalFallback(unittest.TestCase):
+    def test_loopback_startup_never_resolves_dns(self):
+        with patch('socket.getfqdn',side_effect=AssertionError('Unexpected reverse DNS')):
+            server=Server(Application())
+            try:
+                self.assertEqual(server.server_name,'127.0.0.1')
+                self.assertGreater(server.server_port,0)
+                self.assertEqual(server.socket.getsockname(),('127.0.0.1',server.server_port))
+                self.assertEqual(server.origin,f'http://127.0.0.1:{server.server_port}')
+            finally:server.server_close()
+
     def test_fallback_serves_local_page_and_quits(self):
         server=Server(Application())
         modes=[]

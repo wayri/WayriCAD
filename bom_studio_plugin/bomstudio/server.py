@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import secrets
+from socketserver import TCPServer
 import shutil
 import subprocess
 import sys
@@ -57,6 +58,11 @@ class Application:
 
 class Server(ThreadingHTTPServer):
     daemon_threads=True
+    def server_bind(self):
+        # HTTPServer reverse-resolves the bind address, which can stall offline
+        # macOS startup. This private numeric loopback endpoint needs no DNS.
+        TCPServer.server_bind(self)
+        self.server_name,self.server_port=self.server_address[:2]
     def server_close(self):
         try:
             self.app.link.close()
