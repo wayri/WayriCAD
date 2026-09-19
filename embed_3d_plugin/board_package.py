@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sys
 import tempfile
 from typing import Callable
 from .codec import Codec, MAX_BYTES, sha256
@@ -393,6 +394,13 @@ def library_table(library: str, original=''):
 def _no_symlinks(path):
     for part in (path, *path.parents):
         if part.is_symlink():
+            # macOS publishes these OS-owned aliases at the filesystem root.
+            # Temporary projects normally live beneath /var/folders. Permit only
+            # the exact alias and canonical target, never a project-owned link.
+            aliases = {'/var': '/private/var', '/tmp': '/private/tmp', '/etc': '/private/etc'}
+            expected = aliases.get(part.as_posix()) if sys.platform == 'darwin' else None
+            if expected and part.resolve() == Path(expected):
+                continue
             raise ValueError('Refusing to write through a symlink: '+str(part))
 
 
