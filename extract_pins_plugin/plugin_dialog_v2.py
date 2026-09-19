@@ -17,6 +17,7 @@ THIS PLUGIN IS PROVIDED AS IS WITHOUT ANY GUARANTEE OR WARRANTY.
 """
 
 import wx
+from wayricad_runtime.local_webview import try_new_webview
 import pcbnew
 import csv
 from io import StringIO
@@ -681,12 +682,13 @@ class PluginDialogV2(wx.Frame):
             self.ic_preview.InsertColumn(index, label, width=width)
         self.ic_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnICChartRowActivated)
         ic_content.Add(self.ic_preview, 1, wx.EXPAND | wx.ALL, 2)
-        if wxhtml2 is not None:
-            self.ic_visual_preview = wxhtml2.WebView.New(preview_sizer.GetStaticBox())
+        self.ic_visual_preview, browser_error = try_new_webview(preview_sizer.GetStaticBox())
+        if self.ic_visual_preview is not None:
             self.ic_visual_is_web = True
         else:
             self.ic_visual_preview = wx.TextCtrl(preview_sizer.GetStaticBox(), style=wx.TE_MULTILINE | wx.TE_READONLY)
             self.ic_visual_is_web = False
+            self.ic_visual_preview.SetToolTip(browser_error)
         ic_content.Add(self.ic_visual_preview, 1, wx.EXPAND | wx.ALL, 2)
         preview_sizer.Add(ic_content, 1, wx.EXPAND)
         self.ic_summary = wx.StaticText(preview_sizer.GetStaticBox(), label="Preview an IC to generate both the table and visual flow chart.")
@@ -753,13 +755,14 @@ class PluginDialogV2(wx.Frame):
         sizer.Add(controls, 0, wx.EXPAND | wx.ALL, 8)
 
         preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Visual preview"), wx.VERTICAL)
-        if wxhtml2 is not None:
-            self.diagram_preview = wxhtml2.WebView.New(preview_box.GetStaticBox())
+        self.diagram_preview, browser_error = try_new_webview(preview_box.GetStaticBox())
+        if self.diagram_preview is not None:
             self.diagram_preview_is_web = True
             self.diagram_preview.Bind(wxhtml2.EVT_WEBVIEW_NAVIGATING, self.OnDiagramNavigation)
         else:
             self.diagram_preview = wx.TextCtrl(preview_box.GetStaticBox(), style=wx.TE_MULTILINE | wx.TE_READONLY)
             self.diagram_preview_is_web = False
+            self.diagram_preview.SetToolTip(browser_error)
         preview_box.Add(self.diagram_preview, 1, wx.EXPAND | wx.ALL, 4)
         self.diagram_summary = wx.StaticText(preview_box.GetStaticBox(), label="Choose components and refresh the preview. No PCB objects are changed.")
         preview_box.Add(self.diagram_summary, 0, wx.EXPAND | wx.ALL, 5)
@@ -829,12 +832,13 @@ class PluginDialogV2(wx.Frame):
         left.SetSizer(left_sizer)
 
         right_sizer = wx.BoxSizer(wx.VERTICAL)
-        if wxhtml2 is not None:
-            self.power_tree_preview = wxhtml2.WebView.New(right)
+        self.power_tree_preview, browser_error = try_new_webview(right)
+        if self.power_tree_preview is not None:
             self.power_tree_preview_is_web = True
         else:
             self.power_tree_preview = wx.TextCtrl(right, style=wx.TE_MULTILINE | wx.TE_READONLY)
             self.power_tree_preview_is_web = False
+            self.power_tree_preview.SetToolTip(browser_error)
         right_sizer.Add(self.power_tree_preview, 1, wx.EXPAND)
         self.power_tree_summary = wx.StaticText(right, label="Apply classification rules, then build the inferred rail topology.")
         right_sizer.Add(self.power_tree_summary, 0, wx.EXPAND | wx.ALL, 5)
@@ -1903,6 +1907,7 @@ setTimeout(fitView,50);
             self, f"Save {format_name}",
             wildcard=wildcard,
             defaultFile=default_name,
+            defaultDir=os.path.dirname(self.board.GetFileName()),
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
         ) as dlg:
             if dlg.ShowModal() == wx.ID_CANCEL:

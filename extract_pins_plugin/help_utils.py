@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, List
 
 import wx
+from wayricad_runtime.local_webview import try_new_webview
 import wx.html
 
 try:
@@ -31,8 +32,8 @@ def open_help(parent: Any = None, filename: str = "help.html") -> None:
     frame = wx.Frame(parent, title="WayriCAD Extract Pins Help", size=(1040, 760))
     panel = wx.Panel(frame)
     root = wx.BoxSizer(wx.VERTICAL)
-    if wxhtml2 is not None:
-        viewer = wxhtml2.WebView.New(panel)
+    viewer, browser_error = try_new_webview(panel)
+    if viewer is not None:
         def on_navigating(event: Any) -> None:
             url = str(event.GetURL())
             if url.startswith(("http://", "https://")):
@@ -43,6 +44,7 @@ def open_help(parent: Any = None, filename: str = "help.html") -> None:
     else:
         viewer = wx.html.HtmlWindow(panel, style=wx.html.HW_SCROLLBAR_AUTO)
         viewer.LoadPage(path.as_uri())
+        viewer.SetToolTip(browser_error)
     root.Add(viewer, 1, wx.EXPAND)
 
     actions = wx.BoxSizer(wx.HORIZONTAL)

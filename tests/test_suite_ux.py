@@ -220,7 +220,7 @@ class SuiteUxTests(unittest.TestCase):
             "wayricad://net/",
         ):
             self.assertIn(label, source)
-        self.assertIn("wxhtml2.WebView.New", source)
+        self.assertIn("new_webview", source)
         self.assertIn("fp.SetSelected()", source)
         self.assertIn("SetHighLightNet", source)
         self.assertIn("summarize_source_destination_table", source)
@@ -233,7 +233,7 @@ class SuiteUxTests(unittest.TestCase):
             self.assertIn(f'href="{anchor}"', help_text)
         help_launcher = (ROOT / "extract_pins_plugin" / "help_utils.py").read_text(encoding="utf-8")
         self.assertIn("path.as_uri()", help_launcher)
-        self.assertIn("wxhtml2.WebView.New", help_launcher)
+        self.assertIn("new_webview", help_launcher)
         with Image.open(ROOT / "extract_pins_plugin" / "help-diagrams.png") as image:
             self.assertGreaterEqual(image.width, 900)
             self.assertGreaterEqual(image.height, 500)

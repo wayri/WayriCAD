@@ -49,7 +49,12 @@ def owned_windows(pid):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--separate-temp', action='store_true', help='Use a separate IPC namespace per owned editor to test the Windows collision workaround.')
+    parser.add_argument('--plugin-smoke', action='store_true', help='Run installed-release Pin Extractor and Fanout windows on disposable footprints.')
+    parser.add_argument('--runtime-python', type=Path, help='Prepared native KiCad Python environment for plugin UI checks.')
+    parser.add_argument('--overlay-webview-fix', action='store_true', help='Overlay current Pin/WebView source into test payload; results are not release-archive validation.')
     args = parser.parse_args()
+    if args.plugin_smoke and (not args.runtime_python or not args.runtime_python.is_file()):
+        parser.error('--plugin-smoke requires --runtime-python pointing to a prepared native environment.')
     if sys.platform != 'win32':
         raise RuntimeError('This live validation harness targets the local Windows KiCad installation.')
     for name in ('config', 'config/10.0', 'temp', 'documents', 'cache', 'one', 'two'):
@@ -82,10 +87,20 @@ def main():
             socket_root.mkdir(parents=True, exist_ok=True)
             process_env = dict(env, TEMP=str(socket_root), TMP=str(socket_root))
             board = BASE / folder / ('fixture_' + folder + '.kicad_pcb')
-            code = "import pcbnew,sys; b=pcbnew.BOARD(); b.SetFileName(sys.argv[1]); pcbnew.SaveBoard(sys.argv[1],b)"
+            code = """import pcbnew,sys
+b=pcbnew.BOARD();b.SetFileName(sys.argv[1])
+n=pcbnew.NETINFO_ITEM(b,'SIGNAL');b.Add(n)
+for index,ref in enumerate(('J1','U1')):
+ f=pcbnew.FOOTPRINT(b);f.SetReference(ref);f.SetValue('Fixture');b.Add(f)
+ for number in (1,2):
+  p=pcbnew.PAD(f);p.SetNumber(str(number));p.SetAttribute(pcbnew.PAD_ATTRIB_SMD);p.SetShape(pcbnew.PAD_SHAPE_RECT);p.SetSize(pcbnew.VECTOR2I(1000000,1000000));p.SetPosition(pcbnew.VECTOR2I(10000000+index*10000000,number*2000000));ls=pcbnew.LSET();ls.AddLayer(pcbnew.F_Cu);p.SetLayerSet(ls);p.SetNet(n);f.Add(p)
+for a,z in (((0,0),(40,0)),((40,0),(40,40)),((40,40),(0,40)),((0,40),(0,0))):
+ s=pcbnew.PCB_SHAPE(b);s.SetShape(pcbnew.SHAPE_T_SEGMENT);s.SetLayer(pcbnew.Edge_Cuts);s.SetStart(pcbnew.VECTOR2I(a[0]*1000000,a[1]*1000000));s.SetEnd(pcbnew.VECTOR2I(z[0]*1000000,z[1]*1000000));b.Add(s)
+pcbnew.SaveBoard(sys.argv[1],b)
+"""
             subprocess.run([str(NATIVE / 'python.exe'), '-c', code, str(board)], env=env,
                            capture_output=True, check=True, timeout=15)
-            board.with_suffix('.kicad_pro').write_text('{}')
+            board.with_suffix('.kicad_pro').write_text(json.dumps({'board':{'design_settings':{'rules':{'min_clearance':.2}}}}))
             digest = hashlib.sha256(board.read_bytes()).hexdigest()
             handle = (BASE / (folder + '-editor.log')).open('w')
             handles.append(handle)
@@ -135,6 +150,51 @@ def main():
                 item['owned_window_captions'] = owned_windows(process.pid)
                 raise RuntimeError(f'Editor {index} failed within35s: ' + last)
             assert digest == hashlib.sha256(board.read_bytes()).hexdigest()
+            if args.plugin_smoke and index==1:
+                import zipfile
+                client.get_board().add_to_selection(client.get_board().get_footprints())
+                report['plugin_smoke']=[]
+                for short in ('fanout-generator','extract-pins'):
+                    version=json.loads((ROOT/'extract_pins_plugin/metadata.json').read_text())['versions'][0]['version']
+                    archive=ROOT/'releases'/('WayriCAD-'+short+'-'+version+'-PCM.zip')
+                    target=BASE/short
+                    with zipfile.ZipFile(archive) as z:z.extractall(target)
+                    if args.overlay_webview_fix and short=='extract-pins':
+                        for relative in ('plugin_dialog_v2.py',):
+                            (target/'plugins'/relative).write_bytes((ROOT/'extract_pins_plugin'/relative).read_bytes())
+                        (target/'plugins/wayricad_runtime/local_webview.py').write_bytes((ROOT/'wayricad_runtime/local_webview.py').read_bytes())
+                    python=args.runtime_python.resolve()
+                    run_env=dict(process_env,KICAD_API_SOCKET=socket,KICAD_API_TOKEN=token,WAYRICAD_KICAD_PYTHON=str(python))
+                    # The IPC endpoint is explicit; browser child-process caches
+                    # should use the usual short Windows temp root, not this
+                    # deeply nested validation artifact directory.
+                    for key in ('TEMP','TMP'):
+                        if key in os.environ:run_env[key]=os.environ[key]
+                    workers=[]
+                    try:
+                        for copy in range(2 if short=='extract-pins' else 1):
+                            output=BASE/(short+'-'+str(copy)+'-ui.json')
+                            command=[str(python),'-I',str(ROOT/'tools/validate_plugin_window_worker.py'),str(target/'plugins'),str(output)]
+                            log_path=output.with_suffix('.log');log=log_path.open('w')
+                            workers.append((subprocess.Popen(command,env=run_env,stdout=log,stderr=log,text=True),output,log))
+                        for worker,output,log in workers:
+                            try:worker.wait(timeout=45)
+                            except subprocess.TimeoutExpired:
+                                log.flush()
+                                report['plugin_smoke'].append({'plugin':short,'status':'timeout','windows':owned_windows(worker.pid),'stderr':output.with_suffix('.log').read_text(errors='replace')})
+                                raise
+                            log.flush();stderr=output.with_suffix('.log').read_text(errors='replace')
+                            record=json.loads(output.read_text()) if output.exists() else {'status':'failed','stderr':stderr}
+                            record.update(plugin=short,stderr=stderr,source_overlay=bool(args.overlay_webview_fix and short=='extract-pins'))
+                            record['base_archive_sha256']=hashlib.sha256(archive.read_bytes()).hexdigest()
+                            if worker.returncode or 'failed with error' in stderr.lower():record['status']='failed'
+                            report['plugin_smoke'].append(record)
+                    finally:
+                        for worker,output,log in workers:
+                            if worker.poll() is None:worker.terminate();worker.wait(timeout=5)
+                            log.close()
+                assert digest == hashlib.sha256(board.read_bytes()).hexdigest(), 'Plugin altered the fixture file.'
+                assert all(r['status']=='passed' for r in report['plugin_smoke']), 'A plugin UI check failed; inspect plugin_smoke results.'
         # Fresh connections with each captured token must keep their project
         # identity while both owned editors are still alive.
         for index, (socket, token, board) in enumerate(instances):

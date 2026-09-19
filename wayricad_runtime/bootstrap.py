@@ -31,6 +31,20 @@ def failure(error, title='WayriCAD'):
         app = wx.App.Get() or wx.App(False)
         wx.MessageBox(message, title, wx.OK | wx.ICON_ERROR)
     except Exception:
-        # KiCad 10.0.1+ retains stderr in its plugin warning messages.
-        pass
+        # The managed interpreter often has no wx precisely when setup fails.
+        # Keep an actionable message visible instead of requiring that dependency
+        # to explain why the dependency could not be prepared.
+        try:
+            if sys.platform == 'win32':
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(None, message, title, 0x10)
+            else:
+                import tkinter
+                from tkinter import messagebox
+                window = tkinter.Tk(); window.withdraw()
+                try: messagebox.showerror(title, message, parent=window)
+                finally: window.destroy()
+        except Exception:
+            # Headless hosts retain stderr; KiCad 10.0.1+ also shows plugin warnings.
+            pass
     return 1
