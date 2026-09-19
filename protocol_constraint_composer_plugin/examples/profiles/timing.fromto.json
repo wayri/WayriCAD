@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "id": "timing.fromto",
+  "name": "From\u2013to path delay",
+  "version": "1.0.0",
+  "parameters": {
+    "source": {
+      "type": "text",
+      "label": "Source pad e.g. U1-A1"
+    },
+    "sink": {
+      "type": "text",
+      "label": "Sink pad e.g. U2-B1"
+    },
+    "min": {
+      "type": "ps",
+      "label": "Minimum delay"
+    },
+    "target": {
+      "type": "ps",
+      "label": "Target delay"
+    },
+    "max": {
+      "type": "ps",
+      "label": "Maximum delay"
+    },
+    "vias": {
+      "type": "count",
+      "label": "Maximum vias"
+    }
+  },
+  "rules": [
+    {
+      "name": "Path budget",
+      "condition": "A.fromTo('{{source}}', '{{sink}}')",
+      "constraints": [
+        {
+          "kind": "length",
+          "values": {
+            "min": "{{min}}",
+            "opt": "{{target}}",
+            "max": "{{max}}"
+          }
+        },
+        {
+          "kind": "via_count",
+          "values": {
+            "max": "{{vias}}"
+          }
+        }
+      ]
+    }
+  ],
+  "description": "Native from-to path and timing intent. A series component is not assumed to be a same-net copper path.",
+  "floors": {}
+}

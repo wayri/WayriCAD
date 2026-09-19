@@ -1,0 +1,26 @@
+# DEMONSTRATION ONLY. Intentionally contains unrouted and violating objects.
+(version 1)
+
+
+
+(rule "Illustrative working dimensions"
+  (constraint clearance (min .2mm))
+  (constraint track_width (min .2mm))
+)
+
+(rule "U1 escape / clearance"
+  (severity error)
+  (condition "(A.enclosedByArea('DEMO_U1_ESCAPE') && B.enclosedByArea('DEMO_U1_ESCAPE'))")
+  # CS-PROFILE BGA; STRICT whole-object containment. Crossing segments are NOT relaxed.
+  (constraint clearance (min .12mm))
+)
+
+(rule "U1 escape / routing"
+  (severity error)
+  (condition "A.enclosedByArea('DEMO_U1_ESCAPE')")
+  # CS-PROFILE BGA; STRICT whole-object containment. Crossing segments are NOT relaxed.
+  (constraint track_width (min .12mm) (opt .12mm))
+  (constraint via_diameter (min .5mm) (opt .5mm))
+  (constraint hole_size (min .25mm) (opt .25mm))
+)
+

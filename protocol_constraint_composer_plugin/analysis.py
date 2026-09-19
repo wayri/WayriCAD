@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import fnmatch
+import json
+import math
 from dataclasses import dataclass
 
 
@@ -54,15 +56,24 @@ def generate_rules(assignments: list[Assignment], presets: dict[str, ProtocolPre
     for assignment in assignments: by_protocol.setdefault(assignment.protocol, []).append(assignment.net)
     for protocol, nets in sorted(by_protocol.items()):
         preset = presets[protocol]
-        condition = " || ".join(f"A.NetName == '{net.replace(chr(39), '')}'" for net in sorted(set(nets)))
+        if any(not math.isfinite(value) or value < 0 for value in
+               (preset.width_mm, preset.clearance_mm, preset.diff_gap_mm, preset.max_skew_mm)):
+            raise ValueError(f"{protocol}: geometry must contain finite, nonnegative values")
+        # This module is also shipped alone in Pin Extractor's CLI backends.
+        def expression_quote(value):
+            if '\n' in value or '\r' in value:
+                raise ValueError('Net names must be one line')
+            return "'" + value.replace('\\', '\\\\').replace("'", "\\'") + "'"
+        condition = " || ".join(f"A.NetName == {expression_quote(net)}" for net in sorted(set(nets)))
+        condition_clause = '  (condition ' + json.dumps(condition, ensure_ascii=False) + ')'
         blocks.extend([
-            f'(rule "WayriCAD {protocol} geometry"', f'  (condition "{condition}")',
+            f'(rule "WayriCAD {protocol} geometry"', condition_clause,
             f'  (constraint track_width (min {preset.width_mm:g}mm))',
             f'  (constraint clearance (min {preset.clearance_mm:g}mm))', ')',
         ])
         if preset.diff_gap_mm:
             blocks.extend([f'(rule "WayriCAD {protocol} differential gap"',
-                           f'  (condition "{condition}")',
+                           condition_clause,
                            f'  (constraint diff_pair_gap (opt {preset.diff_gap_mm:g}mm))',
                            f'  (constraint skew (max {preset.max_skew_mm:g}mm))', ')'])
     blocks.append("# END WAYRICAD MANAGED PROTOCOL RULES")
@@ -71,7 +82,9 @@ def generate_rules(assignments: list[Assignment], presets: dict[str, ProtocolPre
 
 def merge_managed_rules(existing: str, generated: str) -> str:
     begin, end = "# BEGIN WAYRICAD MANAGED PROTOCOL RULES", "# END WAYRICAD MANAGED PROTOCOL RULES"
-    if begin in existing and end in existing:
+    if begin in existing or end in existing:
+        if existing.count(begin) != 1 or existing.count(end) != 1 or existing.index(begin) > existing.index(end):
+            raise ValueError("Existing protocol block markers are incomplete or ambiguous; repair them before staging.")
         prefix, remainder = existing.split(begin, 1); _old, suffix = remainder.split(end, 1)
         return prefix.rstrip() + "\n\n" + generated.rstrip() + suffix
     base = existing.rstrip() or "(version 1)"

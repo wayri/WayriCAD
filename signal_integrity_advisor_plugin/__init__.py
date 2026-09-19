@@ -1,4 +1,4 @@
-"""WayriCAD Signal Integrity Advisor plugin entry point."""
+"""WayriCAD Quick SI plugin entry point."""
 
 try:
     from .signal_integrity_advisor_plugin import SignalIntegrityAdvisorPlugin

@@ -288,6 +288,14 @@ class QuickPIFrame(wx.Frame):
         key=(index,str(layer));limits=None
         if preserve and self._plot_keys.get(index)==key and figure.axes:limits=(figure.axes[0].get_xlim(),figure.axes[0].get_ylim())
         ax=draw_view(figure,self.bundle,('Net','Mesh','Results')[index],layer,metric)
+        result=self.bundle.get('result',{});analysis=result.get('analytics',{})
+        row=next((item for item in analysis.get('layers',[]) if str(item['layer'])==str(layer)),None)
+        if row:
+            from .analytics import thickness_label
+            losses=analysis['losses']
+            self.summary.SetLabel(f"ΔV {result['voltage_drop_V']*1000:.4g} mV | Sheets {losses['planar_W']:.4g} W | Vias {losses['via_W']:.4g} W | Components {losses['component_W']:.4g} W\n"
+                                  f"{row['name']}: {thickness_label(row)} copper | {row['area_mm2']:.4g} mm² | Layer loss {row['planar_power_W']:.4g} W · More → Layer details")
+            self.summary.GetParent().Layout()
         if limits:ax.set_xlim(*limits[0]);ax.set_ylim(*limits[1])
         self._plot_keys[index]=key;toolbar.update();canvas.draw_idle()
 
@@ -303,11 +311,22 @@ class QuickPIFrame(wx.Frame):
 
     def on_more(self,event):
         menu=wx.Menu();mesh=menu.Append(wx.ID_ANY,'Generate mesh only');self.Bind(wx.EVT_MENU,lambda e:self._analyze('mesh'),mesh)
+        details=menu.Append(wx.ID_ANY,'Layer thickness, losses and hotspots…');details.Enable(bool(self.bundle.get('result',{}).get('analytics')))
+        self.Bind(wx.EVT_MENU,self.on_details,details)
         focus=menu.Append(wx.ID_ANY,'Zoom to circuit terminals');self.Bind(wx.EVT_MENU,self._focus_terminals,focus)
         refine=menu.Append(wx.ID_ANY,'Refine mesh and rerun (half edge length)')
         self.Bind(wx.EVT_MENU,self._refine,refine)
         refresh=menu.Append(wx.ID_ANY,'Reload saved board');self.Bind(wx.EVT_MENU,lambda e:self._inspect(),refresh)
         self.PopupMenu(menu);menu.Destroy()
+
+    def on_details(self,event=None):
+        from .analytics import details_text
+        dialog=wx.Dialog(self,title='Quick PI · Layer details',size=(940,660),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        text=wx.TextCtrl(dialog,value=details_text(self.bundle.get('result',{})),style=wx.TE_MULTILINE|wx.TE_READONLY)
+        layout=wx.BoxSizer(wx.VERTICAL);layout.Add(text,1,wx.EXPAND|wx.ALL,12)
+        layout.Add(dialog.CreateButtonSizer(wx.CLOSE),0,wx.ALIGN_RIGHT|wx.ALL,12)
+        dialog.SetSizer(layout);dialog.Bind(wx.EVT_BUTTON,lambda e:dialog.EndModal(wx.ID_CLOSE),id=wx.ID_CLOSE)
+        dialog.ShowModal();dialog.Destroy()
 
     def _focus_terminals(self,event=None):
         request=self.bundle.get('request',{});mesh=self.bundle.get('mesh',{})

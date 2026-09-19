@@ -11,7 +11,7 @@ import fnmatch
 import re
 from .fanout_profiles import FANOUT_PATTERNS, SIGNAL_PROFILES, ANGLE_MODES, PAIR_MODES, profile_defaults
 from .geometry import (dimensions, positive, inside_native, segment_hits_box,
-                       segment_segment_distance, segment_inside_native, item_id)
+                       segment_segment_distance, segment_inside_native, item_id, segment_hits_pad)
 
 
 def _coord(value): return float(value) / 1_000_000.0
@@ -34,6 +34,9 @@ class FanoutPlan:
     path: list = field(default_factory=list)
     pair_id: str = ""
     length_mm: float = 0.0
+    group_name: str = "Defaults"
+    group_index: int = -1
+    clearance: int = 0
 
 
 
@@ -89,7 +92,7 @@ def copper_layer_names(board):
 
 
 class FanoutPlanner:
-    defaults = {'scope': 'All SMD pads', 'ref': '*', 'width': 0.2, 'length': 1.5, 'via_diameter': 0.6, 'via_drill': 0.3, 'pattern': 'Dogbone outward', 'angle_offset': 0, 'offset_x': 0, 'offset_y': 0, 'clearance': 0.2, 'add_vias': True, 'escape_layer': 'Pad layer', 'output_mode': 'Escape traces', 'netclass_filter': 'All netclasses', 'escape_angle': 45.0, 'angle_mode': 'Pattern', 'launch_length': 0.5, 'stagger_pitch': 0.5, 'signal_profile': 'Generic', 'net_filter': '*', 'pair_mode': 'Independent', 'pair_gap': 0.2, 'max_pair_skew': 0.1, 'use_netclass_rules': False}
+    defaults = {'scope': 'All SMD pads', 'ref': '*', 'width': 0.2, 'length': 1.5, 'via_diameter': 0.6, 'via_drill': 0.3, 'pattern': 'Perimeter pitch expansion', 'angle_offset': 0, 'offset_x': 0, 'offset_y': 0, 'clearance': 0.2, 'add_vias': True, 'escape_layer': 'Pad layer', 'output_mode': 'Escape traces', 'netclass_filter': 'All netclasses', 'escape_angle': 45.0, 'angle_mode': 'Pattern', 'launch_length': 0.5, 'stagger_pitch': 0.5, 'spread_pitch': 0.0, 'routing_mode': 'Fixed', 'adaptive_radius': 3.0, 'adaptive_step': 0.25, 'signal_profile': 'Generic', 'net_filter': '*', 'pair_mode': 'Independent', 'pair_gap': 0.2, 'max_pair_skew': 0.1, 'use_netclass_rules': False, 'groups': [], 'unmatched': 'defaults'}
     def __init__(self, board, api, settings):
         unknown = set(settings) - set(self.defaults)
         if unknown: raise ValueError('Unknown routing settings: ' + ', '.join(sorted(unknown)))
@@ -277,9 +280,13 @@ class FanoutPlanner:
                     raise ValueError('Selected netclass lacks diff_pair_gap.')
                 values['pair_gap'] = rule['diff_pair_gap']
         dimensions(values['width'], values['length'], values['via_diameter'], values['via_drill'])
-        for name in ('clearance', 'pair_gap', 'max_pair_skew', 'stagger_pitch'):
+        for name in ('clearance', 'pair_gap', 'max_pair_skew', 'stagger_pitch', 'spread_pitch'):
             positive(values[name], name, True)
         positive(values['launch_length'], 'Launch length')
+        positive(values['adaptive_radius'], 'Adaptive radius')
+        positive(values['adaptive_step'], 'Adaptive step')
+        if float(values['adaptive_radius'])/float(values['adaptive_step']) > 20:
+            raise ValueError('Adaptive radius/step must not exceed 20; use a coarser search step.')
         for name in ('escape_angle', 'angle_offset', 'offset_x', 'offset_y'):
             if not math.isfinite(float(values[name])):
                 raise ValueError(name + ' must be finite.')
@@ -298,6 +305,7 @@ class FanoutPlanner:
                           add_track=not via_in_pad, add_via=via_in_pad or pattern.startswith('Dogbone') or bool(values['add_vias']),
                           pattern=pattern, start=start, layer=layer, net_code=pad.GetNetCode(),
                           start_via=not via_in_pad and layer != pad.GetLayer(), path=path, pair_id=pair_id,
+                          clearance=self.api.FromMM(float(values['clearance'])),
                           length_mm=sum(math.hypot(b.x-a.x, b.y-a.y) for a,b in zip(path,path[1:])) / 1_000_000)
 
     def _paths(self, group, pair_id, values, pattern, row_index):
@@ -307,6 +315,11 @@ class FanoutPlanner:
         ox, oy = (self.api.FromMM(float(values[name])) for name in ('offset_x','offset_y'))
         if pattern == 'Via-in-pad':
             return [[point(p.GetPosition().x,p.GetPosition().y)] for _,p in group]
+        if pattern == 'Perimeter pitch expansion':
+            if pair_id:
+                raise ValueError('Use independent perimeter escapes or a paired style; pitch expansion does not infer differential coupling.')
+            from .perimeter_escape import path
+            return [path(fp, pad, self.api, values) for fp, pad in group]
         if pair_id:
             angles = [self._direction(fp,pad,pattern) for fp,pad in group]
             vx,vy = sum(math.cos(a) for a in angles),sum(math.sin(a) for a in angles)
@@ -382,9 +395,9 @@ class FanoutPlanner:
         obstacles=[item for item in pads+tracks if item.GetNetCode()!=plan.net_code]
         for item in obstacles:
             box=item.GetBoundingBox()
-            if any(segment_hits_box(v,v,box,plan.via_diameter/2+margin) for v in vias):
+            if any(segment_hits_pad(v,v,item,plan.via_diameter/2+margin,self.api) for v in vias):
                 return 'via clearance to other-net copper'
-            if self._on_layer(item,plan.layer) and any(segment_hits_box(a,b,box,plan.width/2+margin) for a,b in segments):
+            if self._on_layer(item,plan.layer) and any(segment_hits_pad(a,b,item,plan.width/2+margin,self.api) for a,b in segments):
                 return 'other-net copper'
         if any(not segment_inside_native(a,b,plan.width/2+margin,outline) for a,b in segments):
             return 'board edge/cutout'
@@ -399,20 +412,25 @@ class FanoutPlanner:
             if blocked_track and self._on_layer(zone,plan.layer) and any(segment_hits_box(a,b,box,plan.width/2+margin) for a,b in segments):return 'zone/keepout'
         def distance(a,b,c,d):return segment_segment_distance((a.x,a.y),(b.x,b.y),(c.x,c.y),(d.x,d.y))
         for other in accepted:
+            pair_margin=max(margin, getattr(other, 'clearance', 0))
             other_vias=([other.start] if other.start_via else [])+([other.end] if other.add_via else [])
-            if any(math.hypot(a.x-b.x,a.y-b.y)<(plan.via_diameter+other.via_diameter)/2+margin for a in vias for b in other_vias):
+            if any(math.hypot(a.x-b.x,a.y-b.y)<(plan.via_diameter+other.via_diameter)/2+pair_margin for a in vias for b in other_vias):
                 return 'generated via overlap'
             if other.net_code==plan.net_code:continue
             other_segments=self._segments(other)
-            if plan.layer==other.layer and any(distance(a,b,c,d)<(plan.width+other.width)/2+margin-2 for a,b in segments for c,d in other_segments):return 'generated copper collision'
-            if any(distance(v,v,a,b)<(plan.via_diameter+other.width)/2+margin-2 for v in vias for a,b in other_segments):return 'generated via/track collision'
-            if any(distance(v,v,a,b)<(other.via_diameter+plan.width)/2+margin-2 for v in other_vias for a,b in segments):return 'generated via/track collision'
+            if plan.layer==other.layer and any(distance(a,b,c,d)<(plan.width+other.width)/2+pair_margin-2 for a,b in segments for c,d in other_segments):return 'generated copper collision'
+            if any(distance(v,v,a,b)<(plan.via_diameter+other.width)/2+pair_margin-2 for v in vias for a,b in other_segments):return 'generated via/track collision'
+            if any(distance(v,v,a,b)<(other.via_diameter+plan.width)/2+pair_margin-2 for v in other_vias for a,b in segments):return 'generated via/track collision'
         return ''
 
-    def _plan(self) -> List[FanoutPlan]:
+    def _plan(self, eligible_override=None, accepted_seed=()) -> List[FanoutPlan]:
+        from .fanout_groups import validate_groups
+        validate_groups(self.settings['groups'], self.settings['unmatched'], self.defaults)
+        if self.settings['groups'] or self.settings['unmatched'] != 'defaults':
+            return self._plan_grouped()
         values=self._dimensions()
         for key, choices in [('pattern',FANOUT_PATTERNS+('Via-in-pad',)),('signal_profile',SIGNAL_PROFILES),
-                             ('angle_mode',ANGLE_MODES),('pair_mode',PAIR_MODES),
+                             ('angle_mode',ANGLE_MODES),('pair_mode',PAIR_MODES),('routing_mode',('Fixed','Adaptive')),
                              ('output_mode',('Escape traces','Via-in-pad')),
                              ('scope',('All SMD pads','Selected pads','Selected footprints','Reference wildcard'))]:
             if values[key] not in choices:raise ValueError('Unknown '+key+': '+str(values[key]))
@@ -430,7 +448,7 @@ class FanoutPlanner:
         pads=[p for f in self.board.GetFootprints() for p in f.Pads()]
         tracks=list(self.board.GetTracks());zones=list(self.board.Zones())
         margin=self.api.FromMM(float(values['clearance']))
-        eligible=sorted(self._eligible_pads(),key=lambda row:(str(row[0].GetReference()),row[1].GetPosition().x,row[1].GetPosition().y,str(row[1].GetNumber())))
+        eligible=sorted(self._eligible_pads() if eligible_override is None else eligible_override,key=lambda row:(str(row[0].GetReference()),row[1].GetPosition().x,row[1].GetPosition().y,str(row[1].GetNumber())))
         result=[]
         for index,(group,pair_id) in enumerate(self._groups(eligible)):
             reason=''
@@ -439,8 +457,16 @@ class FanoutPlanner:
             if pair_id and len({self._layer(pad) for _,pad in group})!=1:reason='pair members must use the same copper layer'
             if not reason:
                 try:
-                    paths=self._paths(group,pair_id,values,pattern,index)
-                    candidates=[self._candidate(fp,pad,path,values,pattern,pair_id) for (fp,pad),path in zip(group,paths)]
+                    if values['routing_mode']=='Adaptive' and pattern!='Via-in-pad':
+                        if pair_id:
+                            raise ValueError('Adaptive search currently requires independent escapes; use Fixed for differential pairs.')
+                        from .adaptive_fanout import adaptive_paths
+                        candidate,reason=adaptive_paths(self,group[0][0],group[0][1],values,pattern,
+                            list(accepted_seed)+result,pads,tracks,zones,outline,margin)
+                        candidates=[candidate] if candidate is not None else []
+                    else:
+                        paths=self._paths(group,pair_id,values,pattern,index)
+                        candidates=[self._candidate(fp,pad,path,values,pattern,pair_id) for (fp,pad),path in zip(group,paths)]
                 except ValueError as exc:reason=str(exc)
             if not reason and pair_id:
                 if len({p.start_via for p in candidates})!=1:reason='pair members must use the same via transitions'
@@ -453,11 +479,68 @@ class FanoutPlanner:
             accepted=[]
             for candidate in candidates:
                 if reason:break
-                reason=self._blocked(candidate,result+accepted,pads,tracks,zones,outline,margin)
+                reason=self._blocked(candidate,list(accepted_seed)+result+accepted,pads,tracks,zones,outline,margin)
                 if not reason:accepted.append(candidate)
             if reason:
                 for fp,pad in group:self.plan_rejections.append(f'{fp.GetReference()}.{pad.GetNumber()}: '+('differential pair rejected: ' if pair_id else '')+reason)
             else:result.extend(accepted)
+        self.group_report=[dict(name="Defaults",index=-1,matched=len(eligible),accepted=len(result),rejected=len(self.plan_rejections),skipped=0)]
+        return result
+
+
+    def _plan_grouped(self):
+        from .fanout_groups import matches
+        rules=self.settings['groups']
+        classes=project_netclasses(self.board)
+        eligible=self._eligible_pads()
+        buckets=[[] for _ in rules]+[[]]
+        owners={}
+        for fp,pad in eligible:
+            owner=next((i for i,rule in enumerate(rules) if matches(rule,fp,pad,classes,pad_in_netclass)),len(rules))
+            buckets[owner].append((fp,pad));owners[item_id(pad)]=owner
+        if buckets[-1] and self.settings['unmatched']=='error':
+            names=', '.join(f'{fp.GetReference()}.{pad.GetNumber()}' for fp,pad in buckets[-1][:8])
+            raise ValueError('Unmatched fanout pads: '+names)
+        self.plan_rejections=[]
+        self.group_report=[]
+        planners=[]
+        for index in range(len(buckets)):
+            settings=dict(self.settings,groups=[],unmatched='defaults')
+            if index<len(rules):
+                settings.update(rules[index].get('settings',{}))
+                # Netclass dimensions follow this rule's exact class, when set.
+                if 'netclass' in rules[index].get('match',{}):
+                    settings['netclass_filter']=rules[index]['match']['netclass']
+            planner=FanoutPlanner(self.board,self.api,settings)
+            # Validate even an empty rule; hidden invalid overrides must not wait
+            # until a future board selection happens to match the rule.
+            planner._dimensions()
+            planners.append(planner)
+        split=set()
+        pairs={}
+        for fp,pad in eligible:
+            parsed=self._pair_key(pad.GetNetname())
+            if parsed:pairs.setdefault((item_id(fp),parsed[0]),[]).append(pad)
+        for pads in pairs.values():
+            indices={owners[item_id(p)] for p in pads}
+            if len(indices)>1 and any(planners[i].settings['pair_mode']=='Auto differential pairs' for i in indices):
+                split.update(item_id(p) for p in pads)
+        result=[]
+        for index,entries in enumerate(buckets):
+            name=rules[index]['name'] if index<len(rules) else 'Defaults'
+            skipped=index==len(rules) and self.settings['unmatched']=='skip'
+            usable=[]
+            before=len(self.plan_rejections)
+            for fp,pad in entries:
+                reason='differential mates match different groups' if item_id(pad) in split else ('unmatched pad skipped' if skipped else '')
+                if reason:self.plan_rejections.append(f'{fp.GetReference()}.{pad.GetNumber()} [{name}]: '+reason)
+                else:usable.append((fp,pad))
+            plans=planners[index]._plan(usable,result)
+            for plan in plans:
+                plan.group_name=name;plan.group_index=index if index<len(rules) else -1
+            self.plan_rejections.extend(f'[{name}] '+r for r in planners[index].plan_rejections)
+            result.extend(plans)
+            self.group_report.append(dict(name=name,index=index if index<len(rules) else -1,matched=len(entries),accepted=len(plans),rejected=len(self.plan_rejections)-before,skipped=len(entries) if skipped else 0))
         return result
 
 
@@ -654,12 +737,15 @@ def fanout_items(board, api, plans):
 def plan_document(kind, board, api, settings=None):
     """JSON-ready review data; never modifies the board."""
     from .geometry import board_fingerprint
+    group_summary=[]
     if kind == 'fanout':
-        plans, rejected = plan_fanout(board, api, settings)
+        planner=FanoutPlanner(board,api,settings or {})
+        plans=planner._plan();rejected=planner.plan_rejections
+        group_summary=getattr(planner,'group_report',[])
         records=[dict(reference=p.footprint.GetReference(),pad=p.pad.GetNumber(),net=p.pad.GetNetname(),
                       start_mm=[api.ToMM(p.start.x),api.ToMM(p.start.y)],end_mm=[api.ToMM(p.end.x),api.ToMM(p.end.y)],
                       path_mm=[[api.ToMM(point.x),api.ToMM(point.y)] for point in (p.path or [p.start,p.end])],
-                      length_mm=p.length_mm,pair_id=p.pair_id,
+                      length_mm=p.length_mm,pair_id=p.pair_id,group_name=p.group_name,group_index=p.group_index,clearance_mm=api.ToMM(p.clearance),pattern=p.pattern,
                       width_mm=api.ToMM(p.width),via_diameter_mm=api.ToMM(p.via_diameter),via_drill_mm=api.ToMM(p.via_drill),
                       add_track=p.add_track,add_via=p.add_via,start_via=p.start_via,layer=board.GetLayerName(p.layer)) for p in plans]
     elif kind == 'stitching':
@@ -668,4 +754,4 @@ def plan_document(kind, board, api, settings=None):
                       diameter_mm=api.ToMM(p.GetWidth(api.F_Cu)),drill_mm=api.ToMM(p.GetDrillValue()),net=p.GetNetname()) for p in plans]
     else: raise ValueError('Routing kind must be fanout or stitching.')
     return dict(schema=1,kind=kind,settings=settings or {},board_fingerprint=board_fingerprint(board),
-                candidates=records,rejected=rejected,warning='Conservative geometry checks; run KiCad DRC before manufacturing.')
+                candidates=records,rejected=rejected,group_summary=group_summary,unmatched_count=sum(g['matched'] for g in group_summary if g['index']==-1),skipped_count=sum(g['skipped'] for g in group_summary),warning='Conservative geometry checks; run KiCad DRC before manufacturing.')

@@ -1,0 +1,38 @@
+(version 1)
+
+
+(rule "Matrix BGA pair types / Pad ↔ Pad"
+  (severity error)
+  (layer "F.Cu")
+  (condition "(A.Type == 'Pad' && B.Type == 'Pad' && A.enclosedByArea('BGA_ESCAPE') && B.enclosedByArea('BGA_ESCAPE'))")
+  # CS-MATRIX BGA pair types
+  # Symmetric pair; KiCad tests the A/B assignment both ways. Blank cells inherit.
+  (constraint clearance (min 0.12mm))
+)
+
+(rule "Matrix BGA pair types / Pad ↔ Track"
+  (severity error)
+  (layer "F.Cu")
+  (condition "(A.Type == 'Pad' && B.Type == 'Track' && A.enclosedByArea('BGA_ESCAPE') && B.enclosedByArea('BGA_ESCAPE'))")
+  # CS-MATRIX BGA pair types
+  # Symmetric pair; KiCad tests the A/B assignment both ways. Blank cells inherit.
+  (constraint clearance (min 0.12mm))
+)
+
+(rule "Matrix BGA pair types / Pad ↔ Via"
+  (severity error)
+  (layer "F.Cu")
+  (condition "(A.Type == 'Pad' && B.Type == 'Via' && A.enclosedByArea('BGA_ESCAPE') && B.enclosedByArea('BGA_ESCAPE'))")
+  # CS-MATRIX BGA pair types
+  # Symmetric pair; KiCad tests the A/B assignment both ways. Blank cells inherit.
+  (constraint clearance (min 0.15mm))
+)
+
+(rule "Matrix BGA pair types / Track ↔ Track"
+  (severity error)
+  (layer "F.Cu")
+  (condition "(A.Type == 'Track' && B.Type == 'Track' && A.enclosedByArea('BGA_ESCAPE') && B.enclosedByArea('BGA_ESCAPE'))")
+  # CS-MATRIX BGA pair types
+  # Symmetric pair; KiCad tests the A/B assignment both ways. Blank cells inherit.
+  (constraint clearance (min 0.15mm))
+)

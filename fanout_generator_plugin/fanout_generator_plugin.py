@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import hashlib
 import json
+from copy import deepcopy
 from typing import Any, List, Tuple
 
 import pcbnew
@@ -104,7 +105,9 @@ class FanoutFrame(wx.Frame):
         return plans
 
     def _settings_snapshot(self):
-        return {name:getattr(self,name).GetValue() for name in self._settings_names}
+        settings={name:getattr(self,name).GetValue() for name in self._settings_names}
+        settings.update(groups=deepcopy(self.fanout_groups),unmatched=self.group_unmatched)
+        return settings
 
     def _rules_fingerprint(self):
         canonical=json.dumps(project_netclasses(self.board),sort_keys=True,separators=(',',':'),ensure_ascii=True)
@@ -154,7 +157,7 @@ class FanoutFrame(wx.Frame):
                     point_diameters.append(pcbnew.ToMM(plan.via_diameter));point_drills.append(pcbnew.ToMM(plan.via_drill))
                 index = self.preview_list.InsertItem(self.preview_list.GetItemCount(), str(fp.GetReference()))
                 result_kind = "Via in pad" if not plan.add_track else ("Track + via" if plan.add_via or plan.start_via else "Track")
-                values = (str(pad.GetNumber()), str(pad.GetNetname()), str(self.board.GetLayerName(plan.layer)), f"{result_kind} | {plan.pattern}",f"{plan.length_mm:.3f}",plan.pair_id or '—')
+                values = (str(pad.GetNumber()), str(pad.GetNetname()), str(self.board.GetLayerName(plan.layer)), f"{result_kind} | {plan.pattern}",f"{plan.length_mm:.3f}",plan.pair_id or '—',plan.group_name)
                 for column, value in enumerate(values, 1):
                     self.preview_list.SetItem(index, column, value)
             self.geometry_preview.set_geometry(lines, points, pads=pads, outlines=outlines,

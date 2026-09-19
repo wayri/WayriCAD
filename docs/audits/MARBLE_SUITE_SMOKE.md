@@ -7,7 +7,7 @@ The source is Berkeley Lab Marble: 1,006 footprints, 41,044 tracks/vias and 12 c
 | Tool | Result and actual scope |
 | --- | --- |
 | BOM Studio | **PASS:** all 25 legacy screens upgraded in a project copy; 2,047 placement records preserved, 11 canonical/power-field restorations. Native XML retains exactly 998 components and 1,374 nets. U1's eight units across six sheets accept a BOM field edit and native CSV export. |
-| Project Library | **PASS for available assets:** copied Marble project localizes 1,006 footprints, 215 symbols, nine unique real models and 1,007 schematic assignments into `local/`. Prepare/apply/native validation completes in 96.33 s after a separate 23.42 s normalization. Native XML preserves all 1,374 nets. Missing external models/default libraries remain explicit partial-mode warnings. |
+| Embed3D | **PASS for available assets:** copied Marble project localizes 1,006 footprints, 215 symbols, nine unique real models and 1,007 schematic assignments into `local/`. Prepare/apply/native validation completes in 96.33 s after a separate 23.42 s normalization. Native XML preserves all 1,374 nets. Missing external models/default libraries remain explicit partial-mode warnings. |
 | Harness Workbench | **PASS:** 371 real Marble connector pins extracted. A separately identified two-board native fixture passes connection mapping, bundle/splice, BOM, CSV, SVG and offline HTML export. Marble alone does not supply an external harness board. |
 | Heater Designer | **PASS:** review/apply/undo/redo and native save/reload preserve 43 generated items including one via on a separate outlined coupon in a copied Marble board. Placement preflight now rejects occupied copper, same-net shunts, zones and keepouts. |
 | Planar Magnetics | **PASS:** equivalent operations preserve 23 generated items including one via on a separate copied-board coupon. Geometry review no longer invokes the unrelated mechanical-motion solver. |
@@ -20,7 +20,7 @@ The source is Berkeley Lab Marble: 1,006 footprints, 41,044 tracks/vias and 12 c
 
 The heater/magnetics copied-board DRC runs complete in 87.03/79.90 s with 467/466 findings versus the original 464. The added findings are dangling fixture endpoints; no new clearance findings are introduced. These coupons are validation fixtures, not proposed production-board modifications.
 
-Project Library also validates exported symbol defaults and native schematic caches, while each placed assignment keeps its own extracted footprint. Native parsing/reload, geometry fingerprints, stable repeated output names, stale-source rejection, rollback and backup restoration are exercised. The full localization preserves all 29 input files byte-for-byte in verified publication backups. Evidence: `project-library-acceptance.json` and `project-library-result.json` under the validation directory.
+Embed3D also validates exported symbol defaults and native schematic caches, while each placed assignment keeps its own extracted footprint. Native parsing/reload, geometry fingerprints, stable repeated output names, stale-source rejection, rollback and backup restoration are exercised. The full localization preserves all 29 input files byte-for-byte in verified publication backups. Evidence: `project-library-acceptance.json` and `project-library-result.json` under the validation directory.
 
 ## Other plugin checks
 
@@ -35,7 +35,6 @@ Project Library also validates exported symbol defaults and native schematic cac
 | Protocol Constraints | Detects 229 assignments, exports managed rules and verifies idempotent merging. |
 | Test Point Descriptor | Extracts 28 real test-point/function rows. |
 | Via Stitching | A 4×4 mm GND patch's four candidates are correctly rejected for target-copper or footprint conflicts. |
-| Visual Diff | Native Edge.Cuts SVG comparison between identical Git/working-tree snapshots produces self-contained HTML. |
 
 ## RLC and power-integrity values
 
@@ -52,7 +51,7 @@ The board's saved stackup supplies 0.105454 mm dielectric separation, Er 4.5 and
 
 ## Reproduce and inspect
 
-Final local release checks: 148 root tests and 86 subtests pass (40 optional/native skips); Project Library runs 315 tests with 19 skips and no failures; BOM Studio runs 1,170 tests with two skips and no failures; Quick PI passes all 49 tests in native KiCad Python. The 21 independent PCM ZIPs pass official schema, entrypoint, icon, payload syntax and SHA-256 checks. The rebuilt wheel passes isolated CLI and bundled report-asset checks. All 27 original Marble source hashes remain unchanged.
+Final local release checks: 148 root tests and 86 subtests pass (40 optional/native skips); Embed3D runs 315 tests with 19 skips and no failures; BOM Studio runs 1,170 tests with two skips and no failures; Quick PI passes all 49 tests in native KiCad Python. At the original 3.1.0 validation, the 21 independent PCM ZIPs passed official schema, entrypoint, icon, payload syntax and SHA-256 checks. The rebuilt wheel passes isolated CLI and bundled report-asset checks. All 27 original Marble source hashes remain unchanged.
 
 ```text
 python tools/smoke_marble_suite.py --project .validation/marble/Marble/design

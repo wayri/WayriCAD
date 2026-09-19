@@ -1,11 +1,105 @@
-# WayriCAD Signal Integrity Advisor
+# WayriCAD Quick SI
 
-This modeless PCB Editor plugin provides two guarded, read-only workflows:
+Quick SI answers a focused question: **does this routed source-to-receiver path
+need transmission-line and termination review at the entered edge rate?** It
+measures saved PCB copper, shows the route, screens delay and electrical length,
+and calculates ideal resistive endpoint reflections. It retains the existing
+**Impedance & pairs** and **I2C pull-ups** tabs. This is the former Signal Integrity
+Advisor package; its stable PCM identifier is unchanged, so it upgrades in place.
 
-- calculate the permissible I2C pull-up resistance range from bus voltage, total capacitance, rise-time limit, sink-current capability, and low-level voltage;
-- measure an explicitly selected routed path against an editable single-ended or differential impedance target.
+![Actual Quick SI screen on Marble](help-quick-si.png)
 
-The impedance estimate uses the KiCad board stackup, chosen reference layer, routed copper width/length, vias, layer transitions, and zones available through `pcbnew`. It is a first-order design check, not a substitute for a 2D/3D field solver, TDR, or protocol compliance test.
+The screenshot uses Marble `/USB/TxD_OUT`, `U23.42` to `U25.8`: **9.612525 mm,
+7 tracks and 2 vias**. The entered assumptions are **50 ohm uniform Z0** and
+**effective Er 3.2**, a 1 ns rise time, a 20 ohm resistive driver and an open load.
+The resulting 57.3577 ps delay and 30 ohm series-match candidate are **screening
+estimates under those assumptions**, not extracted USB compliance results.
 
-Open a PCB, launch **WayriCAD Signal Integrity Advisor**, select a workflow, review all inputs, and run the check. A result is never marked passing when the start/end route cannot be resolved.
+## Normal workflow
 
+1. Open the project in PCB Editor, save the board and refill zones. Launch
+   **WayriCAD Quick SI**. The originating editor supplies the saved board even
+   when other KiCad instances are open. A saved selection seeds the net/endpoints
+   when its objects still exist; otherwise review the proposed two-pad net.
+2. On **Quick SI**, choose the net, source pad and receiver pad. Labels such as
+   `U1.1` identify reference and pad number. Endpoints must be distinct and on
+   the same net. The tool does not silently bridge series components or gaps.
+3. Enter the actual driver rise time and output resistance from your device
+   information. The visible defaults, 1 ns and 20 ohm, are editable assumptions.
+4. Expand **Line and load assumptions** when needed. Enter frequency for phase
+   length, a resistive load, an explicit reference layer, or a clearly labelled
+   assumed Z0/effective Er. A blank load means ideal open circuit. Blank Z0/Er
+   asks the routed geometry/stackup model; unknown terms stay unknown.
+5. Choose **Screen selected path**. Pan, zoom or Fit the route. Read the model
+   basis and review notes as well as the numbers. Export a self-contained local
+   HTML report if useful; the save dialog defaults to the board's directory.
+
+Changing an input clears the previous result and disables export until a fresh
+screen is run. IPC analysis uses a saved snapshot; save/refill and reopen after
+editing the board. Analysis does not move copper or write project files.
+
+## Reading the results
+
+| Result | Meaning |
+|---|---|
+| One-way / round-trip delay | Complete modeled section delay, or total resolved route length times `sqrt(effective Er) / c` under an explicit assumption. Partial RLC delay is never presented as total delay. |
+| Electrical length | `360 × frequency × delay`; a phase estimate at the entered frequency, not a data-rate or protocol limit. |
+| Delay / rise time | Conservative screening requests transmission-line review when one-way delay is at least one sixth of the entered rise time. Being below this threshold is not signoff. |
+| Source / load reflection Γ | `(R − Z0) / (R + Z0)` for an ideal uniform, linear line with resistive endpoints. An open load gives +1; a short gives −1. |
+| First load step / source step | `Z0 / (Rsource + Z0) × (1 + Γload)`. This is the first lossless arrival, not maximum overshoot or a complete waveform. |
+| Series-match candidate | `Z0 − Rsource` when nonnegative. It is a candidate for review, not an instruction to add a resistor. Source resistance above Z0 cannot be fixed by adding positive series resistance. |
+
+`SCREENED` means the requested first-order calculations were available; it does
+not mean PASS. `INCOMPLETE` preserves unresolved delay/Z0. `UNRESOLVED` means no
+usable endpoint path; explicit assumptions cannot turn a disconnected route into
+a valid result. More than two terminals, vias, layer changes and zone corridors
+produce review notes. Other branches and stubs are not simulated.
+
+![The same Marble path with unresolved automatic line estimates](help-marble-unknown.png)
+
+## CLI
+
+The installed wheel provides `wayricad-si`; from the repository use
+`python -m signal_integrity_advisor_plugin.cli`. Ordinary Python automatically
+hands native geometry analysis to a compatible KiCad runtime. The initial runtime
+setup may install dependencies; calculations, interface assets and reports are
+local. `--help` needs no KiCad connection.
+
+```text
+wayricad-si inspect board.kicad_pcb --net "/USB/TxD_OUT"
+wayricad-si screen board.kicad_pcb --net "/USB/TxD_OUT" --start U23.42 --end U25.8 --rise-ns 1 --source-ohm 20 --z0-ohm 50 --epsilon-eff 3.2 --output quick-si.json --html quick-si.html
+```
+
+Omit `--z0-ohm` and `--epsilon-eff` to retain automatic geometry results and
+unknowns. Add `--load-ohm 50` for a 50 ohm resistive load; omit it for open load.
+Use `--reference In1.Cu` to request an explicit copper reference. JSON contains
+all assumptions, per-section route evidence and a SHA-256 of the analyzed file.
+Only separate `.json` and `.html` output files are accepted. Exit codes: 0 for
+inventory/screened results, 1 for input/runtime errors, 2 for unresolved routing,
+and 3 for incomplete line estimates. Code 0 is not an electrical PASS.
+
+## Other checks and limits
+
+**Impedance & pairs** retains editable targets, route/reference review and pair
+length skew. Two independent single-ended impedances are not summed into a
+claimed coupled differential Z0. **I2C pull-ups** retains the permitted resistor
+range from bus capacitance, rise time and sink-current limits.
+
+Quick SI does not provide full-wave simulation, IBIS driver/receiver behavior,
+receiver capacitance, coupled differential modes, crosstalk, eye diagrams or
+frequency-dependent discontinuity simulation. Zone paths are finite-width
+corridors, not full plane field solutions. Effective Er is not automatically the
+laminate's bulk Er. Use a suitable solver and measurements for signoff.
+
+Troubleshooting: verify endpoint spelling and connectivity for unresolved routes;
+refill saved zones; check reference-ground coverage and the physical stackup for
+unknown estimates; review every explicit assumption rather than entering a number
+only to obtain a result. A missing native runtime is reported by the launcher;
+install KiCad and retry instead of installing random `pcbnew` packages.
+
+Equations and screening context: [TI High-Speed DSP Systems Design](https://www.ti.com/lit/ug/spru889/spru889.pdf)
+and [TI endpoint termination discussion](https://www.ti.com/document-viewer/lit/html/SSZTB23A/GUID-B7704918-202D-4557-B6E0-F0BB82D05C97).
+
+Validation: six closed-form/unknown-input/export tests, a native Marble path run,
+and an actual native window check cover selected-pad defaults, calculation and
+result invalidation. The screenshots above are captured from the current window.

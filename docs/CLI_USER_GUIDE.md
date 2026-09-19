@@ -39,11 +39,9 @@ The additional development-folder tools expose separate local commands after ins
 ```text
 wayricad-copper --help
 wayricad-mechanical --help
-wayricad-diff --help
-wayricad-diff doctor
 ```
 
-Copper Balancer selects a native KiCad 10 interpreter for geometry work. Mechanical Check discovers native KiCad and FreeCAD runtimes. Visual Diff uses Git and `kicad-cli`; its offline HTML viewer is bundled in the wheel and PCM ZIP. These commands are listed in `wayricad capabilities` under `additional_cli`, rather than advertised as JSON-RPC operations. Detailed examples and engine requirements are in the individual plugin READMEs.
+Copper Balancer selects a native KiCad 10 interpreter for geometry work. Mechanical Check discovers native KiCad and FreeCAD runtimes. These commands are listed in `wayricad capabilities` under `additional_cli`, rather than advertised as JSON-RPC operations. Detailed examples and engine requirements are in the individual plugin READMEs.
 
 Schematic commands accept KiCad XML netlists, `.net` files, or directories. A
 directory is searched recursively and all matching inputs are processed in
@@ -388,6 +386,34 @@ approved interface-control review.
 ## Routing, BOM and design assets in 3.0.0
 
 `wayricad-route` (or `python -m wayricad_runtime.cli`) provides fanout and stitching plan/apply commands. Use KiCad 10 Python for board-file operations. Plan writes JSON and optional SVG; apply rechecks the board and candidate geometry and requires a new output filename. See `docs/examples/fanout.json` and `docs/examples/via-in-pad.json` for configurations. Net-class and layer selections use the same planner as the GUI.
+
+`wayricad-route fanout settings` also lists ordered group rules and an example.
+Groups match `net`, `netclass`, `ref` and `pad` inside the global scope; the first
+matching group supplies geometry overrides. Set `unmatched` to `defaults`,
+`skip` or `error`. Plan output retains `group_summary`, `unmatched_count` and
+`skipped_count` so automation can detect incomplete selections.
+
+Verify the saved board before planning and the new board after applying:
+
+```text
+wayricad-route verify --board original.kicad_pcb --output baseline-drc.json
+wayricad-route verify --board routed.kicad_pcb --output routed-drc.json --baseline baseline-drc.json
+```
+
+Verification works with ordinary Python and an installed `kicad-cli`; it does
+not import `pcbnew`. Use `--kicad-cli PATH` or `KICAD_CLI` for an explicit
+executable and `--timeout 120` to bound the run. It refills zones in memory,
+runs native PCB DRC without saving the board, writes the native JSON report,
+and prints a JSON verdict with counts and source/report hashes. Schematic
+parity is not requested. Exit codes are **0 accepted**, **1 rejected** and
+**2 input/engine/output failure**; failures also print a JSON error object.
+
+Without a baseline, errors or unconnected items reject the result. With a
+baseline, new errors or unconnected items reject it; existing findings remain
+visible and `clean` remains false. Warnings are reported without blocking
+acceptance. Comparison ignores ordering and item UUIDs, retains geometry and
+descriptions, and requires compatible engine versions and report settings.
+Acceptance is a DRC check, not signal-integrity or manufacturing approval.
 
 `python -m embed_3d_plugin --help` lists asset scanning, embedding, extraction, relinking and recovery commands. Writes require `--apply`. From the BOM Studio source directory, `python -m bomstudio --help` exposes native BOM export and workspace tools. These CLI modules do not require a browser.
 

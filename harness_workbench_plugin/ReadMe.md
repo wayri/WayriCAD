@@ -12,6 +12,14 @@ tables; a native pan/zoom system draft; and CSV/SVG/interactive HTML outputs. Ha
 entered without adding artificial components to a schematic. Selected wires
 can be assigned gauges, colors, lengths, shields, bundles, and splices.
 
+## Native interface
+
+![Native WayriCAD Harness and Cable Workbench window](help-workflow.png)
+
+Native connector and harness workspace before importing connectivity. This empty view is an interface overview, not a completed cable design.
+
+The installed package includes [offline help](help.html) with its workflow and limitations.
+
 ## IC and peripheral paths
 
 The workbench can join an internal controller or peripheral path on one board,

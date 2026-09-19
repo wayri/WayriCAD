@@ -1,0 +1,66 @@
+{
+  "kind": "source-derived-ui-renders",
+  "native_screenshot": false,
+  "runtime": "Chromium rendering static documentation HTML, not wxPython/KiCad",
+  "canvas": [
+    1600,
+    1000
+  ],
+  "network_used": false,
+  "images": [
+    {
+      "file": "01_workspace.png",
+      "sha256": "48018b0f6fddcff57c3d1f6e41c78cb473d77d59c2b16cd9dd13271825f2522a",
+      "html_sha256": "8558353f62f548f599765d8ffd092aed02f57e29d530bd1a7258edaa78cef627",
+      "label": "Source-derived UI render; demo values only; not a native screenshot."
+    },
+    {
+      "file": "02_bga_wizard.png",
+      "sha256": "de274e9992bbebf9c3d99d5fd6277d0262403c0b1bc5a00dee93efcfe5297e89",
+      "html_sha256": "db025ca1a4f3289f1ed9a7b3a4d15b81bb5a34159d9ec826fa406f892343a043",
+      "label": "Source-derived UI render; demo values only; not a native screenshot."
+    },
+    {
+      "file": "03_scope_builder.png",
+      "sha256": "0b04a868f8999ad2f0b42cff6db1ea58283fd9e3fad341a91db6c07c7e9f1c4c",
+      "html_sha256": "c24becd37861196136564b234aa1e23048b9bcfe39500398a112f7d32553ca77",
+      "label": "Source-derived UI render; demo values only; not a native screenshot."
+    },
+    {
+      "file": "04_clearance_matrix.png",
+      "sha256": "64017653d840061628eac6ca0fdb51a9d3cf4c4fd11f22ef2790e8efdc4ad666",
+      "html_sha256": "1083c2d424d803c6462f569dcc0bd7af69d78c62ccfe3a7f3ad60f6c3868eba3",
+      "label": "Source-derived UI render; demo values only; not a native screenshot."
+    },
+    {
+      "file": "05_constraint_sets.png",
+      "sha256": "fefe72f64cf88fe70c6d1a58f84aaf511cd576808ab70ed1d29183d3c35154f1",
+      "html_sha256": "2d3c5451f46105bed998d7781d2b56a41588b0ff1cb8f5e19b1ca5daf68273f1",
+      "label": "Source-derived UI render; demo values only; not a native screenshot."
+    },
+    {
+      "file": "06_field_solver.png",
+      "sha256": "9168566deaabb592b36c8995e8e298325dcb2bf9afb45ebcc64525438781c7b5",
+      "html_sha256": "13a8c719541df96c60b76f9cac68f768b235552c41a6ed1d033de52e7c37f736",
+      "label": "Source-derived UI render; demo values only; not a native screenshot."
+    },
+    {
+      "file": "07_signed_reviews.png",
+      "sha256": "bad7c560388cd77dcc7d10912928c37ab6ddf5d447ea054cbe7436f99cf08833",
+      "html_sha256": "a95c38c17466d76b6fc30de775d392593f6457ea599c331c7dccc1c2dba96cc7",
+      "label": "Source-derived UI render; demo values only; not a native screenshot."
+    },
+    {
+      "file": "08_review_export.png",
+      "sha256": "84b4cd1414898c5f0cbaf6324721506ec37e918ff24fd0012024de828852df73",
+      "html_sha256": "87081e932d252c5b2665bbfeae262fdd6c778c4ef134fcca7a4ba658e7c3f198",
+      "label": "Source-derived UI render; demo values only; not a native screenshot."
+    }
+  ],
+  "source_sha256": {
+    "ui.py": "e6358cf0f5d14ca9df0e178d6b8471000239800cdb9377a014b025968a348349",
+    "workbench_ui.py": "3c69ea9f6117c5e16fc5ce9b97a21235a0cd579126034fec74116f730232e09b",
+    "advanced_ui.py": "a38edeab0037c8a0fb49c4f75da6fa48e250be66bc6fc90cd7aa6bcde27d0677",
+    "help_ui.py": "24adeaf0bd4c05e1875d569e488db5639f40162964c27de28fc286b267f267a6"
+  }
+}

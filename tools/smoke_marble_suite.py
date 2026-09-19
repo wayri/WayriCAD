@@ -65,15 +65,6 @@ def operation(tool,project,out):
         selected=replace(discover_project(boardfile),root_schematic=project/'PMOD.kicad_sch')
         result=scan_project(selected);summary=result.summary();summary['sheet']='PMOD.kicad_sch';dump(out/'dependencies.json',summary)
         return 'LIMITED',summary,'PMOD sheet localization dependency scan against full real board; missing library/model coverage remains unresolved.'
-    if tool=='visual_diff_plugin':
-        from visual_diff_plugin.kicad_vizdiff.cli import main
-        repo=out/'git';repo.mkdir(exist_ok=True);shutil.copy2(boardfile,repo/boardfile.name)
-        def git(*args):subprocess.run(['git',*args],cwd=repo,check=True,capture_output=True,timeout=15)
-        git('init');git('add',boardfile.name);git('-c','user.name=WayriCAD smoke','-c','user.email=smoke@localhost','commit','--allow-empty','-m','Disposable Marble snapshot')
-        report=out/'visual-diff.html'
-        code=main(['diff',boardfile.name,'--repo',str(repo),'--layers','Edge.Cuts','--output',str(report),'--kicad-cli',str(Path(sys.executable).with_name('kicad-cli.exe'))])
-        assert code==0 and report.stat().st_size>1000
-        return 'PASS',{'html_bytes':report.stat().st_size,'layers':['Edge.Cuts']},'Native SVG Git HEAD-versus-identical-WORKTREE comparison; local report only.'
     import pcbnew as p
     p.ActionPlugin.register=lambda self:None
     board=p.LoadBoard(str(boardfile));assert board

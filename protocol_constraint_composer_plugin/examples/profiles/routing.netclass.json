@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "id": "routing.netclass",
+  "name": "Netclass routing",
+  "version": "1.0.0",
+  "parameters": {
+    "netclass": {
+      "type": "text",
+      "label": "Netclass"
+    },
+    "width": {
+      "type": "mm",
+      "label": "Track width"
+    },
+    "via": {
+      "type": "mm",
+      "label": "Via diameter"
+    },
+    "drill": {
+      "type": "mm",
+      "label": "Via drill"
+    }
+  },
+  "rules": [
+    {
+      "name": "Routing",
+      "condition": "A.hasNetclass('{{netclass}}')",
+      "constraints": [
+        {
+          "kind": "track_width",
+          "values": {
+            "min": "{{width}}",
+            "opt": "{{width}}"
+          }
+        },
+        {
+          "kind": "via_diameter",
+          "values": {
+            "min": "{{via}}",
+            "opt": "{{via}}"
+          }
+        },
+        {
+          "kind": "hole_size",
+          "values": {
+            "min": "{{drill}}",
+            "opt": "{{drill}}"
+          }
+        }
+      ]
+    }
+  ],
+  "description": "Reusable routing dimensions. No fabrication or impedance defaults are assumed.",
+  "floors": {}
+}

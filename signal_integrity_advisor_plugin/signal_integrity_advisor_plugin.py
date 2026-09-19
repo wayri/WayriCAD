@@ -27,6 +27,7 @@ class RoutePreview(PanZoomCanvas):
 
     def show_result(self, result: ImpedanceResult) -> None:
         self.result = result
+        self.route_endpoints = None
         self.tracks = []
         paths = [result.primary] + ([result.mate] if result.mate else [])
         for path in paths:
@@ -90,7 +91,7 @@ class RoutePreview(PanZoomCanvas):
             gc.SetPen(wx.Pen(wx.Colour(colour), 4))
             gc.StrokeLine(*project((x1, y1)), *project((x2, y2)))
         gc.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL), TEXT_COLOUR)
-        endpoints = ((self.tracks[0][0], self.tracks[0][1]), (self.tracks[-1][2], self.tracks[-1][3]))
+        endpoints = getattr(self,"route_endpoints",None) or ((self.tracks[0][0], self.tracks[0][1]), (self.tracks[-1][2], self.tracks[-1][3]))
         gc.SetPen(wx.Pen(wx.Colour("#f4d48d"), 2))
         gc.SetBrush(wx.Brush(wx.Colour("#5c4a1e")))
         for point in endpoints:
@@ -103,9 +104,9 @@ TEXT_COLOUR = "#aab7c4"
 
 class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
     def defaults(self) -> None:
-        self.name = "WayriCAD Signal Integrity Advisor"
+        self.name = "WayriCAD Quick SI"
         self.category = "Analysis"
-        self.description = "I2C pull-up recommendations and routed impedance validation."
+        self.description = "Routed signal timing, reflections and termination screening with impedance and I2C checks."
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
@@ -120,21 +121,26 @@ class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
 
 class SignalIntegrityFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any, saved_board: bool = False) -> None:
-        super().__init__(parent, title="WayriCAD Signal Integrity Advisor", size=(1220, 820), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        super().__init__(parent, title="WayriCAD Quick SI", size=(1220, 820), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.SetMinSize((980, 700)); self.board = board; self.saved_board = saved_board; self.engine = SignalIntegrityEngine(board)
         self._build(); self._load_board(); self.Centre()
 
     def _build(self) -> None:
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
         header = wx.BoxSizer(wx.HORIZONTAL)
-        title = wx.StaticText(panel, label="Signal Integrity Advisor"); title.SetFont(title.GetFont().Bold().Larger())
+        title = wx.StaticText(panel, label="Quick SI"); title.SetFont(title.GetFont().Bold().Larger())
         header.Add(title, 1, wx.ALIGN_CENTER_VERTICAL); help_btn = wx.Button(panel, label="Help"); help_btn.Bind(wx.EVT_BUTTON, open_help); header.Add(help_btn)
         root.Add(header, 0, wx.EXPAND | wx.ALL, 12)
         if self.saved_board:
             root.Add(wx.StaticText(panel, label="Saved board analysis — save/refill in KiCad and reopen to refresh."), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         intro = wx.StaticText(panel, label="1  Choose a check    2  Define electrical limits and routed endpoints    3  Review evidence and disposition")
         root.Add(intro, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
-        self.tabs = wx.Notebook(panel); self.tabs.AddPage(self._i2c_page(self.tabs), "I2C Pull-ups"); self.tabs.AddPage(self._impedance_page(self.tabs), "Impedance & Differential Pairs")
+        self.tabs = wx.Notebook(panel)
+        from .quick_ui import QuickSIPanel
+        self.quick_si=QuickSIPanel(self.tabs,self.board,RoutePreview,self.saved_board)
+        self.tabs.AddPage(self.quick_si,"Quick SI")
+        self.tabs.AddPage(self._impedance_page(self.tabs),"Impedance & pairs")
+        self.tabs.AddPage(self._i2c_page(self.tabs),"I2C pull-ups")
         root.Add(self.tabs, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         panel.SetSizer(root)
 

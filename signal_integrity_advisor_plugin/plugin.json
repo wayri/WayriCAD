@@ -1,8 +1,8 @@
 {
   "$schema": "https://go.kicad.org/api/schemas/v1",
   "identifier": "com.github.wayri.wayricad.signal-integrity-advisor",
-  "name": "WayriCAD Signal Integrity Advisor",
-  "description": "Calculate I2C pull-up ranges and validate routed single-ended or differential impedance.",
+  "name": "WayriCAD Quick SI",
+  "description": "Screen routed signal delay, electrical length and resistive terminations; retain impedance and I2C checks.",
   "runtime": {
     "type": "python",
     "min_version": "3.10.0"
@@ -10,8 +10,8 @@
   "actions": [
     {
       "identifier": "open",
-      "name": "WayriCAD Signal Integrity Advisor",
-      "description": "Calculate I2C pull-up ranges and validate routed single-ended or differential impedance.",
+      "name": "WayriCAD Quick SI",
+      "description": "Screen routed signal delay, electrical length and resistive terminations; retain impedance and I2C checks.",
       "show-button": true,
       "scopes": [
         "pcb"

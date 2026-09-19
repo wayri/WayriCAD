@@ -2,6 +2,22 @@
 
 A fully local routing tool for PCB Editor. No hosted UI or remote preview assets are required.
 
+![Current native fanout preview with via-in-pad and two escape angles](help-workflow.png)
+
+Actual 3.1.1 window on a disposable SOIC fixture: pads 2–3 use via-in-pad, corner pads use 45° escapes, and pads 6–7 use 30° escapes. Existing copper is muted; new copper is teal. These example dimensions are not manufacturing recommendations.
+
+## Fine-pitch perimeter packages
+
+**Perimeter pitch expansion** is the default for SOIC, QFP and aligned perimeter-pad packages. Tracks launch straight beyond the pad ends, use staggered 45° bends, then finish parallel at a wider pitch. Outer tracks bend first; inner tracks remain straight longer, avoiding a compressed diagonal bundle.
+
+![Actual QFP pitch-expansion preview](help-perimeter.png)
+
+This disposable 32-pin fixture expands 0.5 mm pad pitch to 0.8 mm outer pitch. All 32 escapes were accepted; native DRC found no clearance or unconnected-item violations. Its 32 dangling-via warnings are expected because this fixture stops at escape vias rather than complete routed connections.
+
+Under **Dimensions and advanced settings**, set **Straight launch** and **Outer pitch**. Zero outer pitch automatically accommodates the existing pad pitch and configured track/via clearance. Escape length is the minimum outward reach; the planner extends it when needed to fit the expansion and final straight section. An explicit pitch must not compress the pin bank. Direction/endpoint overrides are rejected for this style so the bends stay package-aligned.
+
+Choose a BGA/grid style for array pads; center exposed pads need a separate via-in-pad group. Independent perimeter escapes do not promise differential coupling, length matching or impedance. Other-net obstacles and neighboring groups still undergo clearance checks. Non-perimeter and custom-angle styles remain explicit alternatives.
+
 ## Workflow
 
 1. Configure geometry and pad scope or target net.
@@ -48,3 +64,32 @@ Plan is read-only and produces reviewable JSON plus an optional standalone local
 ## Compatibility
 
 Native in-memory board tests, file round-trips, and hidden wx frame smoke checks run against KiCad 10. The suite also packages an IPC entry point for forward compatibility; supported geometry depends on the live IPC API. Unsupported capabilities fail explicitly. Live KiCad 11 behavior must be validated against its released runtime.
+
+Use **Per-pin / net groups** to combine different styles, layers, dimensions and
+via-in-pad rules in one reviewed plan. Rules match net names, netclass, references
+and pad numbers in order; unmatched pads can use defaults, be skipped, or stop the
+preview. See [group workflow and JSON example](advanced-fanout.md#different-styles-for-different-pins-and-nets).
+
+
+## Different rules for different pins
+
+Expand **Per-pin / net groups** and open the rule list. Add a named rule, match its nets/netclass/references/pads, then override only the geometry you need. Put specific rules above broad rules: the first match wins. Preview again after changing rules and inspect the **Group** column under candidate details.
+
+![Ordered fanout groups](help-groups.png)
+
+The example separates via-in-pad and two escape angles. Each group can also select a different enabled copper layer. Group names describe user intent; the selectors determine which pads actually match.
+
+
+## Adaptive escapes around existing routing
+
+![Adaptive preview continuing an existing stub while avoiding nearby copper](help-adaptive.png)
+
+Four selected signals on a disposable SOIC fixture. Muted copper already exists; teal is the proposed addition. The right-hand upper escape continues the existing two-segment stub.
+
+Set **Routing → Adaptive**, choose a narrow pad/net scope and preview. This is a separate option from the fanout style. It searches nearby simple paths with up to two 45° bends, ranks shorter added copper before extra bends, and checks existing/generated copper and the board edge. Perimeter pads retain a straight outward launch before the search expands; BGA/grid styles can search all directions.
+
+A simple existing straight-track stub is continued from its open endpoint. Existing tracks are never moved, removed or rewritten. Already connected pads, branches, loops, arcs, existing via endpoints and same-net zone topology are reported for manual review rather than guessed. **Via-in-pad** remains a fixed placement; coupled differential pairs use Fixed routing.
+
+**Adaptive radius** limits endpoint distance from the pad or continued stub, and **Adaptive search step** sets the candidate lattice. Defaults are 3 mm and 0.25 mm. Search is limited to 4,096 checked candidates and three seconds per pad, with a maximum 20 mm radius and radius/step ratio of 20. This is the shortest valid result in the examined candidate family, not proof of a globally optimal route. Narrow the scope when reviewing dense designs. Failed searches retain an explicit rejection reason.
+
+CLI settings use `"routing_mode":"Adaptive"`, `"adaptive_radius":3`, `"adaptive_step":0.25`; they also work as per-group overrides. Preview/apply uses the same search and stale-board checks.

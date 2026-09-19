@@ -302,7 +302,7 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
     for via in via_results: via['thermal'] = thermal(via['power_W'], via['volume_mm3'])
     valid_j = np.linalg.norm(current_density[cell_active], axis=1)
     potential = source_voltage + voltage_offset
-    return {'model': '2.5D linear triangular DC conductivity FEM', 'frequency_dependent': False,
+    result = {'model': '2.5D linear triangular DC conductivity FEM', 'frequency_dependent': False,
             'potential_V': [float(v) if a else None for v, a in zip(potential, node_active)],
             'cell_J_A_mm2': [j.tolist() if a else None for j, a in zip(current_density, cell_active)],
             'cell_sheet_current_A_mm': [j.tolist() if a else None for j, a in zip(sheet_current, cell_active)],
@@ -328,3 +328,8 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
                 'ambient_c': ambient, 'temperature_limit_c': limit, 'pulse_duration_s': duration,
                 'density_kg_m3': density, 'specific_heat_J_kgK': heat,
                 'notice': 'No cooling, heat spreading, temperature feedback, melting or fuse-opening simulation. Not a fusing-current certification.'}}
+    from .analytics import summarize
+    result['analytics'] = summarize(mesh,result)
+    result['planar_power_W'] = result['analytics']['losses']['planar_W']
+    result['via_power_W'] = result['analytics']['losses']['via_W']
+    return result

@@ -1,0 +1,50 @@
+{
+  "component": "Constraint Studio",
+  "version": "0.3.1",
+  "source_archive": "Constraint_Studio_0.3.1_Source.zip",
+  "source_sha256": "b887580a6ab91c6d789bc3f44804e2ec0f91b2af6b59b86bde18faf772c71594",
+  "license": "GPL-3.0-only",
+  "authorization": "Source owner explicitly authorized inclusion under WayriCAD GPL-3.0 in this task on 2026-09-20. Original private-delivery notice retained for provenance; current distribution uses LICENSE.",
+  "omitted": [
+    "action.py (legacy SWIG registration; suite IPC launcher is used)"
+  ],
+  "pcm_comparison": {
+    "matched_files": 38,
+    "differences": []
+  },
+  "original_module_hashes": {
+    "acceptance.py": "919fb5ed959dcd81186bc1959da25267827104f90ece1a646ff88ccc1b5a3756",
+    "action.py": "7b1a20f8b41c658359986753a74344dd7dd220fed8d835cb1fa070045d2ff2e8",
+    "advanced_ui.py": "a38edeab0037c8a0fb49c4f75da6fa48e250be66bc6fc90cd7aa6bcde27d0677",
+    "board.py": "02f1290f7326d26ad18533966d2783906ded0ef18cf0f11ab0368b4fd1697b77",
+    "catalog.py": "c2314945bd2cff06e8bda2743dc1a9c9d2bf03ab021abc7f8869f43fde5bd80e",
+    "courtyards.py": "dc8eda77fb95c4baa5b980dea5d2daf5fbc8dcd23c3c9cb6806586448291f83b",
+    "engineering.py": "e3c84e5ab91d44e6a047f4e8bdadb1ef2a60a0e5bca789e5d9ae154250479f04",
+    "expressions.py": "281791a3028ecd85a537153e01ca4edf0a81d8e4fbfe0f3aea6ce7d599d56b14",
+    "field_solver.py": "a312e8576c69f40daa0aed8d0cbfe7f44fa26a18d938d810aaf9a1f1130be43d",
+    "help_system.py": "1dd34df4f384890b4b48bd7f380976d5991c2a6796aa1223688d6a9fafa6936b",
+    "help_ui.py": "24adeaf0bd4c05e1875d569e488db5639f40162964c27de28fc286b267f267a6",
+    "inspection.py": "52009d169a762866274f1a97a497e03363b3afcfe9f8781436199ab626c9b2ad",
+    "linked_areas.py": "8c82e58d1c926b1009cd471b2664f9703c6cc69e0db896d22e31aa99ed4bac49",
+    "model.py": "549dd7dd02ebd20e5c622bd0cb58a7ee6d4d3fb0260e19c54628450ba7ca1a89",
+    "native_bridge.py": "67c2a7373338ddbf158ff6733533624db2d843aa555fc81bd4b57c0ed8f3ab51",
+    "offline_gui.py": "e3175f9fb9590a34f519785934276a76659d51d716c62b505b1f9b81b9098b68",
+    "profiles.py": "94a76175b55f8901d2bcfb6dea03eaf31d114f476a0ffb5725719622392ee647",
+    "sexpr.py": "d1bbb6a4f8ba468642db156bb135ea9e804f6d5670c78eb2a9a7efd0940fc1e3",
+    "team.py": "15d3d810e57d0b01bdcfbc74939bf2618ce70d6c5b95dcb61bad6e0d43dad0b0",
+    "topology.py": "c3d607318c334de3cc6fcc64d4eebbb504826f0512373c8e5c0b22f42aede6aa",
+    "ui.py": "e6358cf0f5d14ca9df0e178d6b8471000239800cdb9377a014b025968a348349",
+    "validation.py": "36a4acb34ac5c8adb87369d62cdba6d0be05008f801fc5c4d9dba69d9e17a881",
+    "workbench_ui.py": "3c69ea9f6117c5e16fc5ce9b97a21235a0cd579126034fec74116f730232e09b",
+    "workspace.py": "2c5aa26fb238b415c8fbd8fc8b4e117c1a3183841b58e54714231e50befce9cb",
+    "__init__.py": "f2a5c82ae0357753bd0dd35588332fcdb1d2f8f222b1990825f991e1b4bc30b9"
+  },
+  "integration_changes": [
+    "WayriCAD visual overview and protocol staging adapter",
+    "Removed legacy action registration",
+    "GPL license supplied with exported helpers",
+    "Ignore delayed tree events during native window destruction",
+    "Compact native header actions",
+    "Upstream core tests retained with package-qualified imports and explicit UTF-8 source read"
+  ]
+}

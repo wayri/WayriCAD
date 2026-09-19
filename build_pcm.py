@@ -484,7 +484,7 @@ def create_plugin_zip(
                     ".vscode",
                     ".pytest_cache", "tests", "tools", "scripts", "docs",
                     "examples", "node_modules",
-                }
+                } - ({"docs", "examples"} if plugin_path.name == "protocol_constraint_composer_plugin" else set())
             ])
 
             for file in sorted(files):

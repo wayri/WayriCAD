@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SPECS = {
     "copper_balancer_plugin": ("#a66a23", "copper"),
     "mechanical_check_plugin": ("#446b8c", "mechanical"),
-    "visual_diff_plugin": ("#657b42", "diff"),
     "bom_studio_plugin": ("#17806d", "bom"),
     "embed_3d_plugin": ("#536d9c", "portable"),
     "bulk_label_editor_plugin": ("#247ba0", "labels"),

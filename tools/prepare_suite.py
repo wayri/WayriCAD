@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DESKTOP_TOOLS = {"bom_studio_plugin", "copper_balancer_plugin", "mechanical_check_plugin", "visual_diff_plugin", "quick_pi_plugin"}
+DESKTOP_TOOLS = {"bom_studio_plugin", "copper_balancer_plugin", "mechanical_check_plugin", "quick_pi_plugin"}
 
 
 def write_json(path, value):

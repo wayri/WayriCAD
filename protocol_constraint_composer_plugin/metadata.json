@@ -1,8 +1,8 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
-  "name": "WayriCAD Protocol Constraint Composer",
-  "description": "Detect protocol nets and compose reviewed KiCad custom design rules.",
-  "description_full": "Detects common USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485, and RF net-name conventions, presents editable assignments, and generates a clearly delimited WayriCAD-managed custom-rule block. Rules can be exported or applied to the project .kicad_dru after confirmation and timestamped backup.",
+  "name": "WayriCAD Constraint Studio",
+  "description": "Visually inspect, stage and review project constraints with protocol presets, matrices and scope feedback.",
+  "description_full": "Constraint Studio 0.3.1 integrated into WayriCAD: visual rule scope, local lint and changed-file overview, protocol presets, staged rule/netclass/board settings, clearance matrices, reusable sets, offline help and separate review exports. Native DRC runs on exported copies. Source updates use the offline helper after closing source editors. KiCad 10 validation target; broader acceptance remains incomplete.",
   "identifier": "com.github.wayri.wayricad.protocol-constraints",
   "type": "plugin",
   "author": {

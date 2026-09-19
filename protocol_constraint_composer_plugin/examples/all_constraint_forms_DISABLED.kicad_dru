@@ -1,0 +1,206 @@
+(version 1)
+
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIENvcHBlciBjbGVhcmFuY2UiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgY2xlYXJhbmNlIChtaW4gMC4yMG1tKSkKKQ==
+# | (rule "Catalog demo / Copper clearance"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint clearance (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFBoeXNpY2FsIGNsZWFyYW5jZSAoaW5jbHVkaW5nIHNhbWUgbmV0KSIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCBwaHlzaWNhbF9jbGVhcmFuY2UgKG1pbiAwLjIwbW0pKQop
+# | (rule "Catalog demo / Physical clearance (including same net)"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint physical_clearance (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFN1cmZhY2UgY3JlZXBhZ2UiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgY3JlZXBhZ2UgKG1pbiAwLjIwbW0pKQop
+# | (rule "Catalog demo / Surface creepage"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint creepage (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIENvcHBlciAvIG9iamVjdCB0byBib2FyZCBlZGdlIgogICMgRGlzYWJsZWQgZm9ybSBkZW1vbnN0cmF0aW9uOyBkbyBub3QgZW5hYmxlIHdob2xlc2FsZS4gUmVwbGFjZSBzY29wZSBhbmQgdmFsdWVzLgogIChjb25zdHJhaW50IGVkZ2VfY2xlYXJhbmNlIChtaW4gMC4yMG1tKSkKKQ==
+# | (rule "Catalog demo / Copper / object to board edge"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint edge_clearance (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIERpZmZlcmVudC1uZXQgY29wcGVyIHRvIGhvbGUiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgaG9sZV9jbGVhcmFuY2UgKG1pbiAwLjIwbW0pKQop
+# | (rule "Catalog demo / Different-net copper to hole"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint hole_clearance (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFBoeXNpY2FsIGhvbGUgY2xlYXJhbmNlIgogICMgRGlzYWJsZWQgZm9ybSBkZW1vbnN0cmF0aW9uOyBkbyBub3QgZW5hYmxlIHdob2xlc2FsZS4gUmVwbGFjZSBzY29wZSBhbmQgdmFsdWVzLgogIChjb25zdHJhaW50IHBoeXNpY2FsX2hvbGVfY2xlYXJhbmNlIChtaW4gMC4yMG1tKSkKKQ==
+# | (rule "Catalog demo / Physical hole clearance"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint physical_hole_clearance (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIENvdXJ0eWFyZC10by1jb3VydHlhcmQgc3BhY2luZyIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCBjb3VydHlhcmRfY2xlYXJhbmNlIChtaW4gMC4yMG1tKSkKKQ==
+# | (rule "Catalog demo / Courtyard-to-courtyard spacing"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint courtyard_clearance (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFBhZC10by16b25lIGNvbm5lY3Rpb24gd2lkdGgiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgY29ubmVjdGlvbl93aWR0aCAobWluIDAuMjBtbSkpCik=
+# | (rule "Catalog demo / Pad-to-zone connection width"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint connection_width (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIEFubnVsYXIgcmluZyB3aWR0aCIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCBhbm51bGFyX3dpZHRoIChtaW4gMC4yMG1tKSAobWF4IDAuMjBtbSkpCik=
+# | (rule "Catalog demo / Annular ring width"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint annular_width (min 0.20mm) (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIERyaWxsIC8gaG9sZSBzaXplIgogICMgRGlzYWJsZWQgZm9ybSBkZW1vbnN0cmF0aW9uOyBkbyBub3QgZW5hYmxlIHdob2xlc2FsZS4gUmVwbGFjZSBzY29wZSBhbmQgdmFsdWVzLgogIChjb25zdHJhaW50IGhvbGVfc2l6ZSAobWluIDAuMjBtbSkgKG9wdCAwLjIwbW0pIChtYXggMC4yMG1tKSkKKQ==
+# | (rule "Catalog demo / Drill / hole size"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint hole_size (min 0.20mm) (opt 0.20mm) (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIE1lY2hhbmljYWwgaG9sZS10by1ob2xlIHNwYWNpbmciCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgaG9sZV90b19ob2xlIChtaW4gMC4yMG1tKSkKKQ==
+# | (rule "Catalog demo / Mechanical hole-to-hole spacing"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint hole_to_hole (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFZpYSBjb3BwZXIgZGlhbWV0ZXIiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgdmlhX2RpYW1ldGVyIChtaW4gMC4yMG1tKSAob3B0IDAuMjBtbSkgKG1heCAwLjIwbW0pKQop
+# | (rule "Catalog demo / Via copper diameter"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint via_diameter (min 0.20mm) (opt 0.20mm) (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFRyYWNrIHdpZHRoIgogICMgRGlzYWJsZWQgZm9ybSBkZW1vbnN0cmF0aW9uOyBkbyBub3QgZW5hYmxlIHdob2xlc2FsZS4gUmVwbGFjZSBzY29wZSBhbmQgdmFsdWVzLgogIChjb25zdHJhaW50IHRyYWNrX3dpZHRoIChtaW4gMC4yMG1tKSAob3B0IDAuMjBtbSkgKG1heCAwLjIwbW0pKQop
+# | (rule "Catalog demo / Track width"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint track_width (min 0.20mm) (opt 0.20mm) (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIENvbm5lY3RlZCB0cmFjayBhbmdsZSIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCB0cmFja19hbmdsZSAobWluIDQ1ZGVnKSAobWF4IDQ1ZGVnKSkKKQ==
+# | (rule "Catalog demo / Connected track angle"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint track_angle (min 45deg) (max 45deg))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIEluZGl2aWR1YWwgdHJhY2sgLyBhcmMgbGVuZ3RoIgogICMgRGlzYWJsZWQgZm9ybSBkZW1vbnN0cmF0aW9uOyBkbyBub3QgZW5hYmxlIHdob2xlc2FsZS4gUmVwbGFjZSBzY29wZSBhbmQgdmFsdWVzLgogIChjb25zdHJhaW50IHRyYWNrX3NlZ21lbnRfbGVuZ3RoIChtaW4gMC4yMG1tKSAobWF4IDAuMjBtbSkpCik=
+# | (rule "Catalog demo / Individual track / arc length"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint track_segment_length (min 0.20mm) (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFRvdGFsIHJvdXRlZCAvIG1hdGNoZWQtcGF0aCBsZW5ndGgiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgbGVuZ3RoIChtaW4gMC4yMG1tKSAob3B0IDAuMjBtbSkgKG1heCAwLjIwbW0pKQop
+# | (rule "Catalog demo / Total routed / matched-path length"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint length (min 0.20mm) (opt 0.20mm) (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIExlbmd0aCBtaXNtYXRjaCAvIHNrZXciCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgc2tldyAobWluIDAuMjBtbSkgKG9wdCAwLjIwbW0pIChtYXggMC4yMG1tKSAod2l0aGluX2RpZmZfcGFpcnMpKQop
+# | (rule "Catalog demo / Length mismatch / skew"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint skew (min 0.20mm) (opt 0.20mm) (max 0.20mm) (within_diff_pairs))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIERpZmZlcmVudGlhbC1wYWlyIGdhcCIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCBkaWZmX3BhaXJfZ2FwIChtaW4gMC4yMG1tKSAob3B0IDAuMjBtbSkgKG1heCAwLjIwbW0pKQop
+# | (rule "Catalog demo / Differential-pair gap"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint diff_pair_gap (min 0.20mm) (opt 0.20mm) (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIERpZmZlcmVudGlhbC1wYWlyIHVuY291cGxlZCBsZW5ndGgiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgZGlmZl9wYWlyX3VuY291cGxlZCAobWF4IDAuMjBtbSkpCik=
+# | (rule "Catalog demo / Differential-pair uncoupled length"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint diff_pair_uncoupled (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFZpYXMgcGVyIG5ldCIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCB2aWFfY291bnQgKG1pbiAxKSAobWF4IDEpKQop
+# | (rule "Catalog demo / Vias per net"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint via_count (min 1) (max 1))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIERhbmdsaW5nLXZpYSBjaGVjayIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCB2aWFfZGFuZ2xpbmcpCik=
+# | (rule "Catalog demo / Dangling-via check"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint via_dangling)
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFRleHQgaGVpZ2h0IgogICMgRGlzYWJsZWQgZm9ybSBkZW1vbnN0cmF0aW9uOyBkbyBub3QgZW5hYmxlIHdob2xlc2FsZS4gUmVwbGFjZSBzY29wZSBhbmQgdmFsdWVzLgogIChjb25zdHJhaW50IHRleHRfaGVpZ2h0IChtaW4gMC4yMG1tKSAobWF4IDAuMjBtbSkpCik=
+# | (rule "Catalog demo / Text height"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint text_height (min 0.20mm) (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFRleHQgc3Ryb2tlIHRoaWNrbmVzcyIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCB0ZXh0X3RoaWNrbmVzcyAobWluIDAuMjBtbSkgKG1heCAwLjIwbW0pKQop
+# | (rule "Catalog demo / Text stroke thickness"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint text_thickness (min 0.20mm) (max 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFNpbGtzY3JlZW4gY2xlYXJhbmNlIgogICMgRGlzYWJsZWQgZm9ybSBkZW1vbnN0cmF0aW9uOyBkbyBub3QgZW5hYmxlIHdob2xlc2FsZS4gUmVwbGFjZSBzY29wZSBhbmQgdmFsdWVzLgogIChjb25zdHJhaW50IHNpbGtfY2xlYXJhbmNlIChtaW4gMC4yMG1tKSkKKQ==
+# | (rule "Catalog demo / Silkscreen clearance"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint silk_clearance (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFNvbGRlci1tYXNrIGJyaWRnaW5nIGNoZWNrIgogICMgRGlzYWJsZWQgZm9ybSBkZW1vbnN0cmF0aW9uOyBkbyBub3QgZW5hYmxlIHdob2xlc2FsZS4gUmVwbGFjZSBzY29wZSBhbmQgdmFsdWVzLgogIChjb25zdHJhaW50IGJyaWRnZWRfbWFzaykKKQ==
+# | (rule "Catalog demo / Solder-mask bridging check"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint bridged_mask)
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFNvbGRlci1tYXNrIGV4cGFuc2lvbiIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCBzb2xkZXJfbWFza19leHBhbnNpb24gKG9wdCAwLjIwbW0pKQop
+# | (rule "Catalog demo / Solder-mask expansion"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint solder_mask_expansion (opt 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIEFic29sdXRlIHNvbGRlci1wYXN0ZSBtYXJnaW4iCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgc29sZGVyX3Bhc3RlX2Fic19tYXJnaW4gKG9wdCAwLjIwbW0pKQop
+# | (rule "Catalog demo / Absolute solder-paste margin"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint solder_paste_abs_margin (opt 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFJlbGF0aXZlIHNvbGRlci1wYXN0ZSBtYXJnaW4iCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgc29sZGVyX3Bhc3RlX3JlbF9tYXJnaW4gKG9wdCAtMC4xMCkpCik=
+# | (rule "Catalog demo / Relative solder-paste margin"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint solder_paste_rel_margin (opt -0.10))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFRoZXJtYWwtcmVsaWVmIGdhcCIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCB0aGVybWFsX3JlbGllZl9nYXAgKG1pbiAwLjIwbW0pKQop
+# | (rule "Catalog demo / Thermal-relief gap"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint thermal_relief_gap (min 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFRoZXJtYWwtc3Bva2Ugd2lkdGgiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgdGhlcm1hbF9zcG9rZV93aWR0aCAob3B0IDAuMjBtbSkpCik=
+# | (rule "Catalog demo / Thermal-spoke width"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint thermal_spoke_width (opt 0.20mm))
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIE1pbmltdW0gcmVzb2x2ZWQgdGhlcm1hbCBzcG9rZXMiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgbWluX3Jlc29sdmVkX3Nwb2tlcyAwKQop
+# | (rule "Catalog demo / Minimum resolved thermal spokes"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint min_resolved_spokes 0)
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFBhZC10by16b25lIGNvbm5lY3Rpb24gc3R5bGUiCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgem9uZV9jb25uZWN0aW9uIHNvbGlkKQop
+# | (rule "Catalog demo / Pad-to-zone connection style"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint zone_connection solid)
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIERpc2FsbG93IG9iamVjdCB0eXBlcyIKICAjIERpc2FibGVkIGZvcm0gZGVtb25zdHJhdGlvbjsgZG8gbm90IGVuYWJsZSB3aG9sZXNhbGUuIFJlcGxhY2Ugc2NvcGUgYW5kIHZhbHVlcy4KICAoY29uc3RyYWludCBkaXNhbGxvdyB0cmFjaykKKQ==
+# | (rule "Catalog demo / Disallow object types"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint disallow track)
+# | )
+
+# CS-DISABLED KHJ1bGUgIkNhdGFsb2cgZGVtbyAvIFByb3BlcnR5IC8gZXhwcmVzc2lvbiBhc3NlcnRpb24iCiAgIyBEaXNhYmxlZCBmb3JtIGRlbW9uc3RyYXRpb247IGRvIG5vdCBlbmFibGUgd2hvbGVzYWxlLiBSZXBsYWNlIHNjb3BlIGFuZCB2YWx1ZXMuCiAgKGNvbnN0cmFpbnQgYXNzZXJ0aW9uICJBLldpZHRoID4gMC4xbW0iKQop
+# | (rule "Catalog demo / Property / expression assertion"
+# |   # Disabled form demonstration; do not enable wholesale. Replace scope and values.
+# |   (constraint assertion "A.Width > 0.1mm")
+# | )

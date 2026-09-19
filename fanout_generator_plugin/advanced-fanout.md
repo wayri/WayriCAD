@@ -40,3 +40,34 @@ python -m wayricad_runtime.cli fanout apply --board source.kicad_pcb --plan plan
 ```
 
 Use KiCad 10's native Python for file commands. The JSON and local SVG contain every bend, measured length and pair identity. Apply rechecks the source board and all reviewed geometry, then writes a new output file. In the GUI, settings changes invalidate the preview; Preview → Apply and grouped Undo/Redo remain the workflow.
+
+## Different styles for different pins and nets
+
+Expand **Per-pin / net groups → Manage groups**. Add named rules, choose net names,
+references, pad numbers and an optional exact netclass, then override only the
+geometry that differs. Blank override fields inherit the main settings. This lets
+one preview combine via-in-pad power pins, paired signal escapes and angled control
+pins. The preview table identifies each accepted pad's group.
+
+Rules run in displayed order; the **first matching rule wins**. Net, reference,
+pad and netclass selectors combine with AND. Comma-separated patterns within the
+net/reference/pad selector combine with OR (`*`, `?` and bracket glob patterns).
+Reference matching ignores case; net and pad names preserve case. The main pad
+scope, net filter and netclass filter still limit all rules. Use pad numbers such
+as `1,2,A3`, paired with the reference selector `U1`, to choose exact pins.
+
+Choose what happens to unmatched pads: **defaults** uses the main geometry,
+**skip** leaves them untouched and reports them, and **error** refuses the preview.
+With no groups, the existing default workflow is unchanged. All generated copper
+is checked together; clearance between groups uses the larger requested clearance.
+Differential mates cannot be split between rules when either rule requests paired
+routing. A collision rejects both members of a pair. Review rejected pads before
+committing; rules do not imply that every requested escape can be placed.
+
+The CLI accepts the same `groups` and `unmatched` fields in its settings JSON; see
+[grouped-fanout-settings.json](grouped-fanout-settings.json). Replace example net
+names and dimensions with your board's constraints. Plan JSON includes
+`group_name`, `group_index`, `clearance_mm`, per-group counts and explicit skipped
+pads. Preview, apply and undo use the same aggregate plan. Changing a group or the
+board requires a new preview. Vias remain through vias; a trace-layer override
+changes the escape trace and may add a source via.

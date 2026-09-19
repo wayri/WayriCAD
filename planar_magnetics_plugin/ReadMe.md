@@ -32,3 +32,12 @@ Placement review now checks existing copper, zones and keepouts before creating 
 **Analyze** reviews winding geometry and electrical estimates. **Run Coupled Motion Simulation** separately runs the bounded dynamics solver, so mechanical duration/step limits cannot block ordinary winding placement.
 
 Native operational validation uses `python tools/validate_marble_operations.py` from the suite root. It exercises review, apply, undo/redo, preserved net assignment, native saved-board reload and full DRC on explicit isolated test coupons in copies of Marble. These coupons are validation fixtures, not proposed Marble modifications.
+
+
+## Native interface
+
+![Native WayriCAD Planar Magnetics & Actuator Workbench window](help-workflow.png)
+
+Generated coil preview from the documentation fixture. Reduced engineering estimates require the stated geometry and material assumptions.
+
+The installed package includes [offline help](help.html) with its workflow and limitations.

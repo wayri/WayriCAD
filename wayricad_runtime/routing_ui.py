@@ -83,7 +83,8 @@ def build_fanout(frame,api,help_callback):
     frame.scope=_combo(left,['Selected pads','Selected footprints','Reference wildcard','All SMD pads'],'Selected footprints')
     frame.netclass_filter=_combo(left,['All netclasses']+netclass_names(frame.board),'All netclasses')
     frame.output_mode=_combo(left,['Escape traces','Via-in-pad'],'Escape traces')
-    frame.pattern=_combo(left,list(FANOUT_PATTERNS),'Dogbone outward')
+    frame.pattern=_combo(left,list(FANOUT_PATTERNS),'Perimeter pitch expansion')
+    frame.routing_mode=_combo(left,['Fixed','Adaptive'],'Fixed')
     frame.signal_profile=_combo(left,list(SIGNAL_PROFILES),'Generic')
     frame.escape_angle=wx.TextCtrl(left,value='45')
     frame.escape_layer=_combo(left,['Pad layer']+copper_layer_names(frame.board),'Pad layer')
@@ -94,21 +95,34 @@ def build_fanout(frame,api,help_callback):
     frame.signal_profile.SetToolTip('A family label does not select nets. Load defaults for suggested net filters, then review them in advanced settings.')
     profile_row.Add(load_profile,0)
     _row(left,settings,'Signal family',profile_row)
-    for label,control in (('Pads to fan out',frame.scope),('Netclass',frame.netclass_filter),('Output',frame.output_mode),('Fanout style',frame.pattern),('Angle (degrees)',frame.escape_angle),('Trace layer',frame.escape_layer)):
+    for label,control in (('Pads to fan out',frame.scope),('Netclass',frame.netclass_filter),('Output',frame.output_mode),('Fanout style',frame.pattern),('Routing',frame.routing_mode),('Angle (degrees)',frame.escape_angle),('Trace layer',frame.escape_layer)):
         text=_row(left,settings,label,control)
         if control is frame.escape_angle:frame.angle_label=text
     frame.selection_status=wx.StaticText(left,label='Select pads or footprints in PCB Editor.')
     frame.selection_status.Wrap(255);settings.Add(frame.selection_status,0,wx.TOP|wx.BOTTOM,8)
+    frame.fanout_groups=[];frame.group_unmatched='defaults'
+    group_pane=wx.CollapsiblePane(left,label='Per-pin / net groups')
+    group_sizer=wx.BoxSizer(wx.VERTICAL)
+    frame.group_summary=wx.StaticText(group_pane.GetPane(),label='0 groups; unmatched: defaults')
+    group_sizer.Add(frame.group_summary,0,wx.ALL,5)
+    edit_groups=wx.Button(group_pane.GetPane(),label='Manage groups…')
+    from .fanout_groups_ui import manage_groups
+    edit_groups.Bind(wx.EVT_BUTTON,lambda event:manage_groups(frame))
+    group_sizer.Add(edit_groups,0,wx.ALL,5);group_pane.GetPane().SetSizer(group_sizer)
+    group_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:(left.FitInside(),frame.Layout()))
+    settings.Add(group_pane,0,wx.EXPAND|wx.BOTTOM,8)
     parent,advanced=_advanced(frame,left,settings)
     frame.angle_mode=_combo(parent,list(ANGLE_MODES),'Pattern')
     frame.pair_mode=_combo(parent,list(PAIR_MODES),'Independent')
     _row(parent,advanced,'Direction reference',frame.angle_mode)
     _row(parent,advanced,'Pair handling',frame.pair_mode)
-    for name,label,value in (('net_filter','Net names (wildcards)','*'),('ref','Reference wildcard','*'),('launch_length','Straight launch (mm)','0.50'),('stagger_pitch','Row stagger (mm)','0.50'),('pair_gap','Pair edge gap (mm)','0.20'),('max_pair_skew','Maximum escape pair skew (mm)','0.10'),('width','Track width (mm)','0.20'),('length','Escape length (mm)','1.50'),('via_diameter','Via diameter (mm)','0.60'),('via_drill','Via drill (mm)','0.30'),('clearance','Copper clearance (mm)','0.20'),('angle_offset','Additional rotation (degrees)','0'),('offset_x','Endpoint X offset (mm)','0'),('offset_y','Endpoint Y offset (mm)','0')):
+    for name,label,value in (('net_filter','Net names (wildcards)','*'),('ref','Reference wildcard','*'),('launch_length','Straight launch (mm)','0.50'),('stagger_pitch','Row stagger (mm)','0.50'),('spread_pitch','Outer pitch (mm; 0 = auto)','0'),('adaptive_radius','Adaptive radius (mm)','3.0'),('adaptive_step','Adaptive search step (mm)','0.25'),('pair_gap','Pair edge gap (mm)','0.20'),('max_pair_skew','Maximum escape pair skew (mm)','0.10'),('width','Track width (mm)','0.20'),('length','Escape length (mm)','1.50'),('via_diameter','Via diameter (mm)','0.60'),('via_drill','Via drill (mm)','0.30'),('clearance','Copper clearance (mm)','0.20'),('angle_offset','Additional rotation (degrees)','0'),('offset_x','Endpoint X offset (mm)','0'),('offset_y','Endpoint Y offset (mm)','0')):
         control=wx.TextCtrl(parent,value=value);setattr(frame,name,control);_row(parent,advanced,label,control)
     frame.escape_angle.SetToolTip('Custom-angle spread and straight + angled styles use this angle. Board and footprint direction modes use it as the absolute or relative direction.')
     frame.net_filter.SetToolTip('Comma-separated net-name wildcards; this combines with the selected scope and netclass.')
     frame.pair_gap.SetToolTip('Requested edge spacing on the parallel escape run. Terminal vias may flare for clearance.')
+    frame.routing_mode.SetToolTip('Adaptive preserves existing copper and searches nearby short 45-degree escapes. Preview reports blocked or ambiguous existing routes. Fixed uses only the selected pattern.')
+    frame.spread_pitch.SetToolTip('Perimeter pitch expansion: target center-to-center spacing. Zero fits existing pitch and track/via clearance; outer traces bend first. Not a BGA style.')
     frame.max_pair_skew.SetToolTip('Maximum difference between the two generated escape lengths; excludes existing routing.')
     frame.use_netclass_rules=wx.CheckBox(parent,label='Use netclass track / via dimensions')
     advanced.Add(frame.use_netclass_rules,0,wx.TOP|wx.BOTTOM,8)
@@ -118,8 +132,8 @@ def build_fanout(frame,api,help_callback):
     frame.auto_refresh=wx.CheckBox(parent,label='Refresh when PCB selection changes');frame.auto_refresh.SetValue(False);advanced.Add(frame.auto_refresh,0,wx.BOTTOM,8)
     note=wx.StaticText(parent,label='Families provide escape geometry aids, not protocol signoff. Check stackup, impedance and whole-route timing separately. Changing trace layer adds a source via; through vias span all copper layers.')
     note.Wrap(235);advanced.Add(note,0,wx.BOTTOM,8)
-    for i,(label,width) in enumerate((('Footprint',80),('Pad',45),('Net',120),('Layer',70),('Result',220),('Length (mm)',95),('Pair',120))):frame.preview_list.InsertColumn(i,label,width=width)
-    frame._settings_names=tuple(FanoutPlanner.defaults)
+    for i,(label,width) in enumerate((('Footprint',80),('Pad',45),('Net',120),('Layer',70),('Result',220),('Length (mm)',95),('Pair',120),('Group',110))):frame.preview_list.InsertColumn(i,label,width=width)
+    frame._settings_names=tuple(k for k in FanoutPlanner.defaults if k not in ('groups','unmatched'))
     for name in frame._settings_names:
         control=getattr(frame,name);event=wx.EVT_COMBOBOX if isinstance(control,wx.ComboBox) else wx.EVT_CHECKBOX if isinstance(control,wx.CheckBox) else wx.EVT_TEXT
         control.Bind(event,frame.on_config_changed)

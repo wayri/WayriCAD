@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "courtyard_guards": [
+    {
+      "mode": "footprint-owned-linear-courtyard",
+      "reference": "U1",
+      "owner_uuid": "c77407eb-8aa5-4d52-9703-45593b757d76",
+      "name": "DEMO_U1_ESCAPE",
+      "area_uuid": "ce575dda-5a5b-4a9f-b09b-7c8c83ffde5c",
+      "layers": [
+        "F.Cu"
+      ],
+      "owner_layer": "F.Cu",
+      "rule_names": [
+        "U1 escape / clearance",
+        "U1 escape / routing"
+      ]
+    }
+  ]
+}

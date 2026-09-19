@@ -6,6 +6,14 @@ Install the independently built WayriCAD Mechanical Check ZIP with KiCad 10 Plug
 
 The compact Board → Rules → Run → Review → Report navigation retains clearances, hardware, enclosure/zone rules, search, severity filters, 3D inspection, reasoned waivers, and HTML/JSON/CSV exports. Advanced geometry settings stay behind one button. The canvas uses a neutral background with actual solid geometry and conflict volumes.
 
+## Native interface
+
+![Native WayriCAD Mechanical Check window](help-workflow.png)
+
+Saved-board setup using a small validation fixture. Model coverage and exact-solid findings are assessed after Run.
+
+The installed package includes [offline help](help.html) with its workflow and limitations.
+
 ## Runtime
 
 - Python 3.10+ CLI; the IPC environment uses `kicad-python>=0.8,<0.9`.

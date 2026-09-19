@@ -4,6 +4,7 @@ Widths, clearance, impedance and timing must come from the project's stackup and
 interface constraints. Selecting a profile does not replace user dimensions.
 """
 FANOUT_PATTERNS = (
+    'Perimeter pitch expansion',
     'Dogbone outward', 'Dogbone inward', 'BGA/LGA grid outward',
     'Quadrant outward', 'Quadrant inward', 'Four-corner outward',
     'Four-corner inward', 'Perimeter outward', 'Radial outward',
@@ -26,6 +27,6 @@ def profile_defaults(name):
                'PXI': '*PXI*,*PCI*,*AD[[]*,*CBE*,*TRIG*',
                'PXIe': '*PXIE*,*PXIe*,*PET*,*PER*,*REFCLK*', 'LVDS': '*LVDS*,*lvds*'}
     return dict(signal_profile=name, net_filter=filters[name],
-                pattern='Dogbone outward' if name == 'Generic' else 'Straight + angled escape',
+                pattern='Perimeter pitch expansion' if name == 'Generic' else 'Straight + angled escape',
                 angle_mode='Pattern', escape_angle=45.0, angle_offset=0.0,
                 pair_mode='Auto differential pairs' if name in ('SERDES', 'PCIe', 'PXIe', 'LVDS') else 'Independent')

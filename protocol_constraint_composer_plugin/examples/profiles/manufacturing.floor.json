@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "id": "manufacturing.floor",
+  "name": "Manufacturing floor + working defaults",
+  "version": "1.0.0",
+  "parameters": {
+    "floor_clearance": {
+      "type": "mm",
+      "label": "Fabrication clearance floor"
+    },
+    "floor_width": {
+      "type": "mm",
+      "label": "Fabrication width floor"
+    },
+    "working_clearance": {
+      "type": "mm",
+      "label": "Normal clearance"
+    },
+    "working_width": {
+      "type": "mm",
+      "label": "Normal track width"
+    }
+  },
+  "rules": [
+    {
+      "name": "Working defaults",
+      "constraints": [
+        {
+          "kind": "clearance",
+          "values": {
+            "min": "{{working_clearance}}"
+          }
+        },
+        {
+          "kind": "track_width",
+          "values": {
+            "min": "{{working_width}}"
+          }
+        }
+      ]
+    }
+  ],
+  "description": "Explicit floor changes require a separate checkbox. Obtain these values from your approved fabrication process.",
+  "floors": {
+    "min_clearance": "{{floor_clearance}}",
+    "min_track_width": "{{floor_width}}"
+  }
+}

@@ -1,5 +1,18 @@
 # Installation and launch troubleshooting
 
+[Illustrated user guide](USER_GUIDE.md) · [Runtime setup](../wayricad_runtime/RUNTIME_SETUP.md) · [Compatibility](COMPATIBILITY.md)
+
+Start with the stage that failed. Adding a repository, installing a package,
+preparing Python, opening the window and completing an analysis are separate steps.
+
+| Symptom | First check |
+|---|---|
+| Repository added, no packages | Raw `repo.json` address, selected repository and search filter |
+| Package installed, no action | PCB Editor, API enabled, environment preparation finished |
+| Action reports JSON or environment error | Capture the actual error; recreate the environment only after correcting dependencies |
+| Tool opens on an unexpected project | Launch from the saved project's PCB Editor; check multiple-instance notes below |
+| Analysis is partial or empty | Selected scope, source/sink connectivity, filled zones and required stackup/models |
+
 ## Repository added but packages are missing
 
 Add this exact repository descriptor in KiCad's Plugin and Content Manager (PCM):
@@ -25,6 +38,19 @@ Our v3.1.0 published feed returned 21 compatible packages during the September 2
 KiCad 10 IPC actions appear in the **PCB Editor** after their Python environment finishes preparing. Enable the API under **Preferences > Plugins**, inspect the editor's warning panel, and use **Recreate Plugin Environment** on a failed plugin after correcting its dependency/interpreter error. Repository discovery and plugin environment setup are separate steps.
 
 Do not share API tokens when reporting errors. Include KiCad version, operating system, plugin name, and the error text with private project paths removed.
+
+Current packages include local `help.html` and images. Start with the installed
+tool's Help action or open that file directly. Standalone launches may request
+a project; toolbar launches use their originating editor's context. Engines
+that read saved files cannot include unsaved editor changes.
+
+### BOM Studio stalls during startup on macOS
+
+The 3.1.1 startup fix removes an unnecessary reverse-DNS lookup of the numeric
+loopback address. The previous lookup could delay the readiness handshake past
+its deadline even in headless mode. Update the package if an older launcher
+log stops inside `socket.getfqdn` / `HTTPServer.server_bind`. This failure does
+not require a longer timeout or a network connection for the local UI.
 
 ## Windows: two open editors and an unreachable second instance
 

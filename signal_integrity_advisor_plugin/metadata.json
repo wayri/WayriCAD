@@ -1,8 +1,8 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
-  "name": "WayriCAD Signal Integrity Advisor",
-  "description": "Calculate I2C pull-up ranges and validate routed single-ended or differential impedance.",
-  "description_full": "Guided, read-only engineering checks for I2C pull-up resistance, routed impedance, differential skew, stackup/reference-layer use, vias, layer changes, zones, and unresolved topology. Includes editable protocol presets for CAN, Ethernet, RF, RS-485, SerDes, USB 2/3/4, and custom constraints.",
+  "name": "WayriCAD Quick SI",
+  "description": "Screen routed signal delay, electrical length and resistive terminations; retain impedance and I2C checks.",
+  "description_full": "Read-only Quick SI screening from actual routed endpoints: propagation delay, electrical length, lossless resistive reflections and series-termination candidates with explicit stackup assumptions. Native route preview, local HTML reports and CLI. Retains impedance, differential skew, reference-layer and I2C checks. This is engineering screening, not full-wave or eye simulation.",
   "identifier": "com.github.wayri.wayricad.signal-integrity-advisor",
   "type": "plugin",
   "author": {

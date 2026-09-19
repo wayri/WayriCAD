@@ -17,3 +17,12 @@ after reopening the plugin.
 Placement review now checks existing copper, zones and keepouts before creating a group, including copper on the selected net that would short around the designed conductor. Pad, text and zone bounding boxes are reserved conservatively. Choose a clear area and connect the generated terminals afterwards; KiCad DRC remains the final geometry check. Redo repeats the placement check.
 
 Native operational validation uses `python tools/validate_marble_operations.py` from the suite root. It exercises review, apply, undo/redo, preserved net assignment, native saved-board reload and full DRC on explicit isolated test coupons in copies of Marble. These coupons are validation fixtures, not proposed Marble modifications.
+
+
+## Native interface
+
+![Native WayriCAD PCB / Foil Heater Designer window](help-workflow.png)
+
+Generated serpentine preview from the documentation fixture. Geometry preview alone does not establish thermal performance or placement acceptance.
+
+The installed package includes [offline help](help.html) with its workflow and limitations.

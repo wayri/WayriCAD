@@ -1,0 +1,24 @@
+(version 1)
+
+
+(rule "Example working defaults"
+  # DEMONSTRATION ONLY. Verify project manufacturing floors and native scope before use.
+  (constraint clearance (min 0.20mm))
+  (constraint track_width (min 0.20mm))
+)
+
+(rule "U1 escape / clearance"
+  (severity error)
+  (layer "F.Cu")
+  (condition "(A.enclosedByArea('BGA_ESCAPE') && B.enclosedByArea('BGA_ESCAPE'))")
+  # CS-PROFILE BGA; STRICT whole-object containment. Crossing segments are NOT relaxed.
+  (constraint clearance (min 0.12mm))
+)
+
+(rule "U1 escape / routing"
+  (severity error)
+  (layer "F.Cu")
+  (condition "A.enclosedByArea('BGA_ESCAPE')")
+  # CS-PROFILE BGA; STRICT whole-object containment. Crossing segments are NOT relaxed.
+  (constraint track_width (min 0.15mm) (opt 0.15mm))
+)

@@ -2,6 +2,14 @@
 
 A fully local routing tool for PCB Editor. No hosted UI or remote preview assets are required.
 
+## Native interface
+
+![Native WayriCAD Via Stitching window](help-workflow.png)
+
+Synthetic GND-board preview illustrating candidate via placement. Preview candidates are reviewed before copper is modified.
+
+The installed package includes [offline help](help.html) with its workflow and limitations.
+
 ## Workflow
 
 1. Configure geometry and pad scope or target net.

@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "id": "spacing.classes",
+  "name": "Two-class spacing",
+  "version": "1.0.0",
+  "parameters": {
+    "class_a": {
+      "type": "text",
+      "label": "Netclass A"
+    },
+    "class_b": {
+      "type": "text",
+      "label": "Netclass B"
+    },
+    "clearance": {
+      "type": "mm",
+      "label": "Minimum copper clearance"
+    }
+  },
+  "rules": [
+    {
+      "name": "Spacing",
+      "condition": "A.hasNetclass('{{class_a}}') && B.hasNetclass('{{class_b}}')",
+      "constraints": [
+        {
+          "kind": "clearance",
+          "values": {
+            "min": "{{clearance}}"
+          }
+        }
+      ]
+    }
+  ],
+  "description": "Pairwise class exception. Later rules win; manufacturing floors remain separate.",
+  "floors": {}
+}

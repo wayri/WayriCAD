@@ -69,6 +69,28 @@ def segment_hits_box(start,end,box,margin=0):
     return True
 
 
+def segment_hits_pad(start, end, pad, margin, api):
+    """Use a pad-aligned conservative envelope instead of its rotated AABB."""
+    from types import SimpleNamespace
+    supported = tuple(getattr(api, name, object()) for name in
+                      ('PAD_SHAPE_RECT','PAD_SHAPE_ROUNDRECT','PAD_SHAPE_OVAL','PAD_SHAPE_CIRCLE'))
+    if not hasattr(pad,'GetAttribute') or pad.GetShape() not in supported:
+        return segment_hits_box(start,end,pad.GetBoundingBox(),margin)
+    angle = -math.radians(float(pad.GetOrientationDegrees()))
+    cosine,sine = math.cos(angle),math.sin(angle)
+    center = pad.GetPosition()
+    offset = getattr(pad,'GetOffset',lambda: SimpleNamespace(x=0,y=0))()
+    cx = center.x+cosine*offset.x-sine*offset.y
+    cy = center.y+sine*offset.x+cosine*offset.y
+    def local(point):
+        dx,dy = point.x-cx,point.y-cy
+        return SimpleNamespace(x=cosine*dx+sine*dy,y=-sine*dx+cosine*dy)
+    size = pad.GetSize()
+    box = SimpleNamespace(GetLeft=lambda:-size.x/2, GetRight=lambda:size.x/2,
+                          GetTop=lambda:-size.y/2, GetBottom=lambda:size.y/2)
+    return segment_hits_box(local(start),local(end),box,margin)
+
+
 def board_fingerprint(board,ignore=()):
     """Snapshot relevant geometry; ignore only objects owned by this preview."""
     import hashlib,json

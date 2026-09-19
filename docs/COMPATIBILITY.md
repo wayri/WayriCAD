@@ -18,7 +18,7 @@ Source ActionPlugin launches use KiCad's bundled `pcbnew` and wxPython. Selected
 
 
 
-**There has not yet been a complete live IPC transport integration run of all 21 tools.** Two concurrently open disposable KiCad 10.0.5 editors passed exact socket/token and originating-board checks, including five reconnects per editor, when each used a separate temporary directory. On Windows, two editors sharing the same temporary directory reproduced an upstream IPC endpoint collision. See [troubleshooting](TROUBLESHOOTING.md) for the isolated launch workaround. No per-tool live mutation acceptance is implied by that connection test.
+**There has not yet been a complete live IPC transport integration run of all 20 tools.** Two concurrently open disposable KiCad 10.0.5 editors passed exact socket/token and originating-board checks, including five reconnects per editor, when each used a separate temporary directory. On Windows, two editors sharing the same temporary directory reproduced an upstream IPC endpoint collision. See [troubleshooting](TROUBLESHOOTING.md) for the isolated launch workaround. No per-tool live mutation acceptance is implied by that connection test.
 
 
 
@@ -46,7 +46,6 @@ KiCad 11 removes the legacy SWIG `pcbnew` bindings. WayriCAD's forward path is t
 
 | Mechanical Check | The dedicated launcher requires native KiCad Python for extraction and wx/OpenGL viewing, plus FreeCAD Python for exact STEP geometry. The imported IPC action uses saved files; unsaved editor edits must be saved first. Its native engine remains KiCad 10 dependent. |
 
-| Visual Diff | Requires Git and `kicad-cli` for native SVG export; compares read-only Git snapshots and the working tree, then writes an offline HTML report. No live IPC mutation or automatic GitHub service is involved. Future CLI compatibility must be tested on that host. |
 
 | Variant Workbench | Uses a local Tk desktop window. The launcher now initializes Tcl during interpreter selection and reports a missing usable runtime explicitly. This sandbox could not open Tcl initialization files even when matching files existed; the final Variant window was not visually reverified. |
 

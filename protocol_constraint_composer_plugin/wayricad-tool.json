@@ -1,6 +1,6 @@
 {
   "tool": "protocol_constraint_composer_plugin",
-  "name": "WayriCAD Protocol Constraint Composer",
+  "name": "WayriCAD Constraint Studio",
   "module": "protocol_constraint_composer_plugin",
   "class": "ProtocolConstraintComposerPlugin"
 }

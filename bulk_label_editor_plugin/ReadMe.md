@@ -4,6 +4,14 @@ Bulk Label Editor performs reviewed, pattern-based renaming of supported KiCad
 objects. It is intended for channel, interface, rail, connector, and repeated
 hierarchy naming changes where manual editing would be slow or inconsistent.
 
+## Native interface
+
+![Native WayriCAD Bulk Label Editor window](help-workflow.png)
+
+Native rename preview workspace before applying a rule. Review every proposed change before Apply.
+
+The installed package includes [offline help](help.html) with its workflow and limitations.
+
 ## Workflow
 
 1. Save the board before beginning.

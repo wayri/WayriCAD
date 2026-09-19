@@ -37,7 +37,7 @@ jobs:
           signal_integrity_advisor_plugin test_point_descriptor_plugin
           trace_impedance_plugin variant_workbench_plugin via_stitching_plugin
           bom_studio_plugin embed_3d_plugin copper_balancer_plugin
-          mechanical_check_plugin visual_diff_plugin quick_pi_plugin wayricad_runtime tools tests
+          mechanical_check_plugin quick_pi_plugin wayricad_runtime tools tests
       - name: Unit and integration tests
         run: python -m pytest tests -q -s
       - name: Embed3D regressions
@@ -52,22 +52,29 @@ jobs:
           wayricad benchmark --nets 500 --boards 3 --threshold-ms 3000 --format json
           wayricad-copper --help
           wayricad-mechanical --help
-          wayricad-diff --help
           wayricad-rlc --help
           wayricad-library --help
           wayricad-pi --help
+          wayricad-si --help
           python -m unittest discover -s quick_pi_plugin/tests -p test_console.py -v
           python -m unittest discover -s quick_pi_plugin/tests -p test_service_guards.py -v
+          python -m unittest discover -s signal_integrity_advisor_plugin/tests -p test_quick_si.py -v
           python -m unittest discover -s manufacturing_readiness_plugin/tests -v
           python -m unittest discover -s variant_workbench_plugin/tests -p test_plan_apply.py -v
       - name: Development-folder plugin regressions
         run: |
           python -m unittest discover -s copper_balancer_plugin/tests -v
           python -m unittest discover -s mechanical_check_plugin/tests -v
-          python -m unittest discover -s visual_diff_plugin/tests -v
+          python -m unittest discover -s protocol_constraint_composer_plugin/tests -v
+      - name: Portable PI physics regressions
+        run: |
+          python -m pip install "numpy>=1.24,<3" "scipy>=1.10,<2"
+          python -m unittest discover -s quick_pi_plugin/tests -p test_solver.py -v
+          python -m unittest discover -s quick_pi_plugin/tests -p test_analytics.py -v
       - name: Package validation
         run: |
           python -m build
           python build_pcm.py --clean-feed
           python tools/validate_packages.py
+          python tools/validate_docs.py
           python tools/smoke_imported_packages.py dist/wayricad-3.1.1-py3-none-any.whl

@@ -2,6 +2,16 @@
 
 Inspect an existing connected route or a filled zone between two terminals. The local preview shows actual pads, copper, vias and filled islands. The section table records each layer transition, reference layer/net and model.
 
+## Native analysis views
+
+![Trace RLC path inspection on Berkeley Marble](help-marble-path.png)
+
+Actual saved-board path inspection, including layer transitions. Per-segment estimates and unresolved reference coverage should be reviewed before interpreting a single global impedance.
+
+![Plane and zone analysis view](help-marble-plane.png)
+
+Plane/zone estimates use the stated geometry and return assumptions; this is not a full-wave field solution. The installed [offline help](help.html) explains the available modes.
+
 ## Workflow
 
 1. Save and refill the PCB in KiCad, then launch the plugin. The PCM action opens a saved-board snapshot; reopen it after saving further changes. Choose a net and two different pads. Native in-editor use can also synchronize from PCB selection.
@@ -18,7 +28,7 @@ Paths follow existing layer transitions through vias and plated pads. Analysis d
 | Geometry | Estimate |
 |---|---|
 | Trace | DC conductor resistance; skin-effect estimate; closed-form microstrip or symmetric stripline L/C/Z0 where the reference geometry supports that model |
-| Via | Barrel resistance with assumed 25 µm plating and isolated partial inductance; capacitance remains unknown without antipad geometry |
+| Via | Barrel resistance with assumed 25 Âµm plating and isolated partial inductance; capacitance remains unknown without antipad geometry |
 | Zone/plane | Terminal-corridor resistance and inductance; capacitance from filled-island/reference overlap and stackup separation |
 | Trace + zone + via | Connected path and individual section models; unresolved terms remain identified |
 

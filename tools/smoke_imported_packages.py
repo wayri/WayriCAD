@@ -16,9 +16,11 @@ def main():
         with zipfile.ZipFile(wheel) as archive:
             if any(name.startswith(('build/', 'dist/', '.validation/')) for name in archive.namelist()):
                 raise RuntimeError('Wheel contains generated build or private validation directories.')
+            if any(name.startswith('visual_diff_plugin/') for name in archive.namelist()):
+                raise RuntimeError('Wheel contains retired Visual Diff files. Clean the wheel staging directory before rebuilding.')
             archive.extractall(root)
         modules = ('wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
-                   'visual_diff_plugin.kicad_vizdiff.cli', 'embed_3d_plugin.__main__', 'quick_pi_plugin.cli')
+                   'embed_3d_plugin.__main__', 'quick_pi_plugin.cli', 'signal_integrity_advisor_plugin.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'
                       'module=importlib.import_module(sys.argv[2]);'
@@ -36,14 +38,13 @@ from wayricad_runtime.cli import execute
 settings=execute(Namespace(kind='fanout',operation='settings',board=None))
 assert 'Custom-angle spread' in settings['choices']['pattern']
 assert 'PCIe' in settings['profiles']
-from visual_diff_plugin.kicad_vizdiff.cli import write_report
-output = Path(sys.argv[1]) / 'review.html'
-write_report(output, {'pages': [], 'file': 'board.kicad_pcb'})
-assert '__REPORT_DATA__' not in output.read_text(encoding='utf-8')
 from mechanical_check_plugin import cli
 assert cli.main(['--init-rules', str(Path(sys.argv[1])/'rules.json')]) == 0
 assert (Path(sys.argv[1])/'mechanical_check_plugin/src/wayricad_mechanical/report_scene.js').is_file()
 assert (Path(sys.argv[1])/'mechanical_check_plugin/resources/help.html').is_file()
+from protocol_constraint_composer_plugin.constraint_studio.help_system import HelpLibrary
+assert len(HelpLibrary().topics) >= 100
+assert (Path(sys.argv[1])/'protocol_constraint_composer_plugin/help-workflow.png').is_file()
 '''
         subprocess.run([sys.executable, '-c', script, str(root)], cwd=root, check=True, timeout=30)
         print('Isolated wheel: report assets and mechanical rules export passed')

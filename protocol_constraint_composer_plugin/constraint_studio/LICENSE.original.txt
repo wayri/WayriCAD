@@ -1,0 +1,9 @@
+PRIVATE DEVELOPMENT DELIVERY
+
+No public distribution license is granted by this package. The recipient may use,
+modify and test the original source delivered here. Choose appropriate licensing
+terms before publishing or redistributing a release. Third-party runtimes and
+external tools retain their own licenses.
+
+This development build is supplied without a claim of fitness for manufacturing,
+safety, electrical signoff or production use. Native host acceptance is outstanding.

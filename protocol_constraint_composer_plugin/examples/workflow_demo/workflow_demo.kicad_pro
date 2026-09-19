@@ -1,0 +1,37 @@
+{
+  "board": {
+    "design_settings": {
+      "rules": {
+        "min_clearance": 0.1,
+        "min_track_width": 0.1,
+        "min_via_diameter": 0.4,
+        "min_through_hole_diameter": 0.2
+      }
+    }
+  },
+  "net_settings": {
+    "classes": [
+      {
+        "name": "Default",
+        "clearance": 0.2,
+        "track_width": 0.2,
+        "via_diameter": 0.6,
+        "via_drill": 0.3
+      },
+      {
+        "name": "DemoSignals",
+        "clearance": 0.2,
+        "track_width": 0.2,
+        "via_diameter": 0.6,
+        "via_drill": 0.3
+      }
+    ],
+    "netclass_assignments": null,
+    "netclass_patterns": [
+      {
+        "netclass": "DemoSignals",
+        "pattern": "D*"
+      }
+    ]
+  }
+}

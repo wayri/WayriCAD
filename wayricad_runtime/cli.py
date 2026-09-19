@@ -1,4 +1,4 @@
-"""Local routing CLI. Run with KiCad 10's bundled Python, which provides pcbnew."""
+"""Local routing CLI. Planning needs pcbnew; verification uses kicad-cli."""
 import argparse
 import json
 from pathlib import Path
@@ -83,13 +83,17 @@ def load_api():
 
 
 def execute(args):
+    if args.kind == 'verify':
+        from .verification import verify_board
+        return verify_board(args.board, args.output, baseline=args.baseline,
+                            kicad_cli=args.kicad_cli, timeout=args.timeout)
     kind='stitching' if args.kind=='stitch' else args.kind
     if args.operation=='settings':
         defaults=dict(FanoutPlanner.defaults if kind=='fanout' else StitchingPlanner.defaults)
         choices={'pattern': ['Square grid','Staggered grid']} if kind=='stitching' else {
             'pattern':list(FANOUT_PATTERNS), 'signal_profile':list(SIGNAL_PROFILES),
             'angle_mode':list(ANGLE_MODES),'pair_mode':list(PAIR_MODES),
-            'output_mode':['Escape traces','Via-in-pad'],
+            'output_mode':['Escape traces','Via-in-pad'],'routing_mode':['Fixed','Adaptive'],
             'scope':['Selected pads','Selected footprints','Reference wildcard','All SMD pads'],
             'netclass_filter':['All netclasses','Default'],
             'escape_layer':['Pad layer']}
@@ -102,6 +106,14 @@ def execute(args):
         result = {'defaults':defaults,'choices':choices,'units':'Dimensions in mm; angles in degrees.',
                   'note':'Pass --board to list actual enabled copper layers and project netclasses. Changing fanout layer adds a source via.'}
         if kind=='fanout':
+            from .fanout_groups import MATCH_FIELDS, GROUP_CONTROL_FIELDS
+            result['group_rules'] = {
+                'precedence': 'First matching rule wins inside the global scope; match fields are ANDed.',
+                'match_fields': sorted(MATCH_FIELDS),
+                'override_fields': sorted(set(defaults) - GROUP_CONTROL_FIELDS),
+                'unmatched': ['defaults', 'skip', 'error'], 'max_rules': 64,
+                'example': {'groups': [{'name': 'Power', 'match': {'net': '+3V3,+5V'},
+                    'settings': {'width': 0.5, 'escape_layer': 'B.Cu'}}], 'unmatched': 'skip'}}
             result['profiles']={name:profile_defaults(name) for name in SIGNAL_PROFILES}
             result['high_speed_note']='Profiles suggest escape geometry and net-name filters. Pair length/skew describe generated traces only; use board-specific KiCad constraints for impedance, delay and full-channel matching.'
         return result
@@ -118,7 +130,8 @@ def execute(args):
         if args.svg and Path(args.svg).resolve() in (source,destination):raise ValueError('SVG output must have a separate path.')
         destination.write_text(json.dumps(document,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
         if args.svg:write_svg(document,args.svg,board,api)
-        return {'plan':str(destination),'accepted':len(document['candidates']),'rejected':document['rejected']}
+        return {'plan':str(destination),'accepted':len(document['candidates']),'rejected':document['rejected'],
+                **{key:document[key] for key in ('group_summary','unmatched_count','skipped_count') if key in document}}
     document=json.loads(Path(args.plan).read_text(encoding='utf-8-sig'))
     if document.get('schema')!=1 or document.get('kind')!=kind:raise ValueError('Plan schema or routing kind does not match.')
     current=plan_document(kind,board,api,document['settings'])
@@ -138,6 +151,12 @@ def execute(args):
 def main(argv=None):
     parser=argparse.ArgumentParser(description='WayriCAD local routing: review JSON/SVG, then apply to a new board copy.')
     kinds=parser.add_subparsers(dest='kind',required=True)
+    verify=kinds.add_parser('verify',help='Run native KiCad DRC without modifying the saved board; no pcbnew required.')
+    verify.add_argument('--board',required=True)
+    verify.add_argument('--output',required=True,help='Native DRC JSON report path.')
+    verify.add_argument('--baseline',help='Prior native DRC JSON report for regression comparison.')
+    verify.add_argument('--kicad-cli',help='Explicit kicad-cli executable; otherwise discover it.')
+    verify.add_argument('--timeout',type=float,default=120,help='Maximum engine runtime in seconds (default: 120).')
     for kind in ('fanout','stitching','stitch'):
         operations=kinds.add_parser(kind).add_subparsers(dest='operation',required=True)
         settings=operations.add_parser('settings',help='List JSON setting names/defaults; --board adds actual netclasses and enabled layers.')
@@ -147,10 +166,16 @@ def main(argv=None):
         plan.add_argument('--output',required=True);plan.add_argument('--svg',help='Optional local SVG preview.')
         apply=operations.add_parser('apply',help='Apply a verified plan to a new board file.')
         apply.add_argument('--board',required=True);apply.add_argument('--plan',required=True);apply.add_argument('--output',required=True)
+    args=parser.parse_args(argv)
     try:
-        result=execute(parser.parse_args(argv))
+        result=execute(args)
     except (ValueError,RuntimeError,OSError,KeyError,TypeError) as exc:
+        if args.kind == 'verify':
+            print(json.dumps({'schema':'wayricad.routing-verification.v1', 'status':'failed',
+                              'accepted':False, 'error':str(exc)},indent=2))
+            return 2
         print('WayriCAD: '+str(exc),file=sys.stderr);return 2
-    print(json.dumps(result,indent=2));return 0
+    print(json.dumps(result,indent=2))
+    return 1 if args.kind == 'verify' and not result['accepted'] else 0
 
 if __name__=='__main__':raise SystemExit(main())

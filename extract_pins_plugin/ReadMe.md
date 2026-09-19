@@ -6,6 +6,13 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 ![KiCAD](https://img.shields.io/badge/KiCAD-10.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
+![Native Extract Pins selection and preview workspace](help-workflow.png)
+
+Interface overview before selecting footprints. Choose components, refresh the
+preview, review pin/net rows, then export. An empty preview does not mean the board
+has no pins. The installed [offline guide](help.html) covers the selection,
+connector mapping, diagrams and bring-up workflows.
+
 ## Features
 
 ### Data Extraction
@@ -85,8 +92,8 @@ A comprehensive KiCAD plugin for extracting component/pin data and analyzing sig
 ## Installation
 
 1. Download `WayriCAD-extract-pins-3.1.1-PCM.zip` from the published WayriCAD release, or build it with the repository's `build_pcm.py`.
-2. In KiCad Manager, open **Plugin and Content Manager → Install from File** and select the ZIP.
-3. Enable the API in **Preferences → Plugins**, configure Python, and restart KiCad.
+2. In KiCad Manager, open **Plugin and Content Manager â†’ Install from File** and select the ZIP.
+3. Enable the API in **Preferences â†’ Plugins**, configure Python, and restart KiCad.
 
 The ZIP includes the shared runtime. For a source installation, use the repository's `tools/install_suite.py` after building the packages; copying this source folder alone omits its runtime.
 
@@ -277,7 +284,7 @@ Self-contained vector diagrams with:
 
 ## License
 
-GPL-3.0 - See [LICENSE](LICENSE) for details.
+GPL-3.0 - See [LICENSE](https://github.com/wayri/WayriCAD/blob/develop/LICENSE) for details.
 
 ## Author
 

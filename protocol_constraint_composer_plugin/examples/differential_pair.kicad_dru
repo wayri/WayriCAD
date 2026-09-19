@@ -1,0 +1,11 @@
+(version 1)
+
+
+
+(rule "Example USB length-domain constraints"
+  (condition "A.inDiffPair('USB')")
+  # DEMONSTRATION ONLY. Not an impedance or USB compliance specification.
+  (constraint diff_pair_gap (min 0.12mm) (opt 0.15mm) (max 0.18mm))
+  (constraint diff_pair_uncoupled (max 5mm))
+  (constraint skew (max 0.2mm) (within_diff_pairs))
+)

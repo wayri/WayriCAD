@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "id": "interface.differential",
+  "name": "Differential-pair interface",
+  "version": "1.0.0",
+  "parameters": {
+    "pair": {
+      "type": "text",
+      "label": "Pair base / pattern"
+    },
+    "width": {
+      "type": "mm",
+      "label": "Track width"
+    },
+    "gap": {
+      "type": "mm",
+      "label": "Coupled gap"
+    },
+    "skew": {
+      "type": "ps",
+      "label": "Maximum skew (ps)"
+    },
+    "uncoupled": {
+      "type": "mm",
+      "label": "Maximum uncoupled length"
+    }
+  },
+  "rules": [
+    {
+      "name": "Geometry",
+      "condition": "A.inDiffPair('{{pair}}')",
+      "constraints": [
+        {
+          "kind": "track_width",
+          "values": {
+            "opt": "{{width}}"
+          }
+        },
+        {
+          "kind": "diff_pair_gap",
+          "values": {
+            "opt": "{{gap}}"
+          }
+        },
+        {
+          "kind": "diff_pair_uncoupled",
+          "values": {
+            "max": "{{uncoupled}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Time skew",
+      "condition": "A.inDiffPair('{{pair}}')",
+      "constraints": [
+        {
+          "kind": "skew",
+          "values": {
+            "max": "{{skew}}"
+          },
+          "within_diff_pairs": true
+        }
+      ]
+    }
+  ],
+  "description": "Pair geometry plus native time-domain skew. Confirm the installed KiCad build and stackup. Opt values alone are not DRC limits.",
+  "floors": {}
+}

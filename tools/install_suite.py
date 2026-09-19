@@ -9,6 +9,33 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+RETIRED_PLUGINS = {
+    'com.github.wayri.wayricad.kilo': 'Consolidated into Embed3D',
+    'com.github.wayri.wayricad.portable-assets': 'Consolidated into Embed3D',
+    'com.github.wayri.wayricad.visual-diff': 'Retired from the suite',
+}
+
+
+def retire_plugins(destination, *, apply=False):
+    """Back up retired direct-child installs, including PCM's underscore names."""
+    destination = Path(destination).resolve()
+    moved = []
+    for identifier, reason in RETIRED_PLUGINS.items():
+        for folder in (identifier, identifier.replace('.', '_')):
+            retired = destination / folder
+            if not retired.exists() and not retired.is_symlink():
+                continue
+            if retired.is_symlink() or retired.resolve().parent != destination:
+                raise ValueError('Retired plugin path is not a direct child of the install directory.')
+            print(reason + ': ' + str(retired))
+            if apply:
+                backups = destination.parent / 'wayricad-plugin-backups'
+                backups.mkdir(exist_ok=True)
+                stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%f')
+                backup = backups / (folder + '-' + stamp)
+                retired.rename(backup)
+                moved.append(backup)
+    return moved
 
 
 def windows_documents():
@@ -108,18 +135,7 @@ def main():
                     if backup is not None:
                         backup.rename(target)
                     raise
-    # Retired tools are replaced by Embed3D. Preserve installations in
-    # the same backup area so the suite no longer shows duplicate asset tools.
-    for identifier in ('com.github.wayri.wayricad.kilo','com.github.wayri.wayricad.portable-assets'):
-        retired=destination/identifier
-        if retired.exists():
-            if retired.is_symlink() or retired.resolve().parent != destination:
-                raise ValueError('Retired plugin path is not a direct child of the install directory.')
-            print('Consolidate into Embed3D: '+str(retired))
-            if args.apply:
-                backups=destination.parent/'wayricad-plugin-backups';backups.mkdir(exist_ok=True)
-                stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%f')
-                retired.rename(backups/(identifier+'-'+stamp))
+    retire_plugins(destination, apply=args.apply)
     print("Installed. Restart KiCad and enable the API in Preferences > Plugins." if args.apply else
           "Preview only. Add --apply to install; existing installations will be backed up.")
 

@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "id": "placement.classes",
+  "name": "Component-class placement separation",
+  "version": "1.0.0",
+  "parameters": {
+    "class_a": {
+      "type": "text",
+      "label": "Component class A"
+    },
+    "class_b": {
+      "type": "text",
+      "label": "Component class B"
+    },
+    "distance": {
+      "type": "mm",
+      "label": "Courtyard spacing"
+    }
+  },
+  "rules": [
+    {
+      "name": "Placement",
+      "condition": "A.hasComponentClass('{{class_a}}') && B.hasComponentClass('{{class_b}}')",
+      "constraints": [
+        {
+          "kind": "courtyard_clearance",
+          "values": {
+            "min": "{{distance}}"
+          }
+        }
+      ]
+    }
+  ],
+  "description": "Courtyard spacing between component classes, not copper spacing inside a footprint.",
+  "floors": {}
+}

@@ -216,7 +216,7 @@ def write_report(path,bundle,layer=None):
             ('Current balance error',_number(result.get('current_balance_error_A'),'A')),
             ('Energy relative error',_number(result.get('energy_relative_error'))),
             ('Floating triangles',str(result.get('floating_triangles',0)))]
-    for key,label in [('conductor_power_W','Conductor loss'),('component_power_W','Component loss')]:
+    for key,label in [('planar_power_W','Copper sheet loss'),('via_power_W','Via barrel loss'),('conductor_power_W','Conductor loss'),('component_power_W','Component loss')]:
         if key in result:values.append((label,_number(result[key],'W')))
     table=''.join('<tr><th>'+escape(name)+'</th><td>'+escape(value)+'</td></tr>' for name,value in values)
     assumptions=result.get('thermal_assumptions',{})
@@ -227,6 +227,9 @@ def write_report(path,bundle,layer=None):
     html+='<p><strong>Mesh convergence not verified.</strong> Compare refined meshes before relying on resistance or localized current-density and pulse-risk peaks. These maps are screening estimates.</p>'
     html+='<p>The DC transfer-resistance map divides the source-to-cell potential drop by the specified sink current. It is not an AC impedance map.</p>'
     html+='<table>'+table+'</table><p>'+scope+' resistance uses the solved voltage drop divided by load current. Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><section>'+''.join(images)+'</section>'
+    if result.get('analytics'):
+        from .analytics import details_text
+        html+='<h2>Copper thickness, layer losses and hotspots</h2><pre>'+escape(details_text(result))+'</pre>'
     if result.get('components'):
         html+='<h2>Explicit component branches</h2><p>DC resistance contributes to the solved path. Inductance is reported as an input; this is not an AC or transient solve.</p><pre>'+escape(json.dumps(result['components'],indent=2))+'</pre>'
     if result.get('vias'):
