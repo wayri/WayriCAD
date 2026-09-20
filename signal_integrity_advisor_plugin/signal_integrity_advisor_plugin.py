@@ -155,6 +155,9 @@ class SignalIntegrityFrame(wx.Frame):
         self.return_path=ReturnPathFrame(self.tabs,self.board);self.tabs.AddPage(self.return_path,"Return path")
         self.test_points=TestPointFrame(self.tabs,self.board);self.tabs.AddPage(self.test_points,"Test point records")
         self.testpoint_labels=TestPointLabelsPanel(self.tabs,self.board,self.saved_board);self.tabs.AddPage(self.testpoint_labels,"Test point labels")
+        from .protocol_ui import ProtocolPanel
+        self.protocols=ProtocolPanel(self.tabs,self.quick_si,RoutePreview)
+        self.tabs.AddPage(self.protocols,"Protocol suites")
         root.Add(self.tabs, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         panel.SetSizer(root)
 

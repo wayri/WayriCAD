@@ -9,7 +9,7 @@ from .cli import write_report
 
 class QuickSIPanel(wx.Panel):
     def __init__(self,parent,board,preview_class,saved_board=False):
-        super().__init__(parent);self.board=board;self.saved_board=saved_board;self.report=None
+        super().__init__(parent);self.board=board;self.saved_board=saved_board;self.report=None;self.path=None
         root=wx.BoxSizer(wx.HORIZONTAL)
         left=wx.ScrolledWindow(self,size=(340,-1));left.SetScrollRate(0,12);form=wx.BoxSizer(wx.VERTICAL)
         self.fields={}
@@ -62,7 +62,7 @@ class QuickSIPanel(wx.Panel):
         left.FitInside()
 
     def changed(self,event):
-        self.report=None;self.export.Disable();self.results.DeleteAllItems();self.preview.show_result(SimpleNamespace(primary=None,mate=None))
+        self.report=None;self.path=None;self.export.Disable();self.results.DeleteAllItems();self.preview.show_result(SimpleNamespace(primary=None,mate=None))
         self.eye_preview.show_result(None)
         self.status.SetLabel('Inputs changed; run a fresh screen before exporting.')
         if event:event.Skip()
@@ -89,7 +89,7 @@ class QuickSIPanel(wx.Panel):
             if self.eye_enabled.GetValue() and values['eye_bitrate_mbps'] is None:raise ValueError('Enter a positive eye bit rate.')
             with wx.BusyCursor():
                 report,path=analyze(self.board,self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue(),self.fields['reference'].GetValue(),**values)
-            self.report=report;self.preview.show_result(SimpleNamespace(primary=path,mate=None))
+            self.report=report;self.path=path;self.preview.show_result(SimpleNamespace(primary=path,mate=None))
             pads={fp.GetReference()+'.'+pad.GetNumber():pad for fp in self.board.GetFootprints() for pad in fp.Pads() if pad.GetNetname()==path.net_name}
             self.preview.route_endpoints=[(pads[label].GetPosition().x/1e6,pads[label].GetPosition().y/1e6) for label in (path.start_pad,path.end_pad) if label in pads]
             for section in path.segments:

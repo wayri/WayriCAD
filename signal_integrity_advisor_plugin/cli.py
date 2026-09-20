@@ -8,9 +8,21 @@ import sys
 import tempfile
 
 
+def protocol_budgets(command):
+    for flag in ('max-delay-ns','max-skew-ps','max-impedance-error-percent','max-delay-to-rise-ratio'):
+        command.add_argument('--'+flag,type=float,help='Explicit user budget; not a protocol compliance limit.')
+
+
 def parser():
     root=argparse.ArgumentParser(description=__doc__)
     subs=root.add_subparsers(dest='command',required=True)
+    subs.add_parser('profiles',help='List protocol screening profiles; no KiCad runtime required.')
+    suite=subs.add_parser('suite',help='Screen saved Quick SI JSON reports; no KiCad runtime required.')
+    suite.add_argument('--profile',required=True,help='Profile ID from profiles.')
+    suite.add_argument('--reports',nargs='+',type=Path,required=True,help='Quick SI report files; set suite_role and suite_group for pairs/buses.')
+    suite.add_argument('--output',type=Path)
+    suite.add_argument('--html',type=Path)
+    protocol_budgets(suite)
     for name in ('inspect','screen'):
         sub=subs.add_parser(name)
         sub.add_argument('board',type=Path,help='Saved KiCad PCB; never modified.')
@@ -29,6 +41,8 @@ def parser():
             sub.add_argument('--html',type=Path,help='Self-contained local HTML with route geometry and evidence.')
             sub.add_argument('--eye-bitrate-mbps',type=float,help='Opt in to an illustrative uniform-line PRBS7 eye at this bit rate.')
             sub.add_argument('--eye-swing-v',type=float,default=1.,help='Eye source open-circuit swing, default 1 V; an explicit modeling assumption.')
+            sub.add_argument('--role',choices=['P','N','clock','data','control'],help='Optional protocol suite assignment for this route report.')
+            sub.add_argument('--group',default='',help='Pair/bus group for --role, e.g. lane0 or byte0.')
     eye=subs.add_parser('eye',help='Standalone illustrative eye/step model; no KiCad runtime required.')
     for flag,label in [('z0-ohm','Uniform line impedance'),('delay-ns','One-way line delay'),('source-ohm','Source resistance'),('rise-ns','10–90 percent driver rise time'),('bitrate-mbps','NRZ bit rate')]:
         eye.add_argument('--'+flag,type=float,required=True,help=label)
@@ -52,6 +66,29 @@ def write_report(destination,payload,source,extension):
 
 
 def execute(args):
+    if args.command=='profiles':
+        from .protocol_profiles import list_profiles
+        return {'schema':'wayricad.protocol-profiles/v1','profiles':list_profiles()}
+    if args.command=='suite':
+        from .protocol_suite import screen_suite
+        from .protocol_view import html_report
+        if len(args.reports)>64:raise ValueError('Use at most 64 report files per suite.')
+        sources={p.resolve() for p in args.reports}
+        for target in (args.output,args.html):
+            if target and target.resolve() in sources:raise ValueError('A suite output must not overwrite an input report.')
+        paths=[]
+        def reject_constant(value):raise ValueError('Non-finite JSON number: '+value)
+        for source in args.reports:
+            if source.stat().st_size>16*1024*1024:raise ValueError('Each input report must be smaller than 16 MiB.')
+            report=json.loads(source.read_text(encoding='utf-8-sig'),parse_constant=reject_constant)
+            if not isinstance(report,dict):raise ValueError('Each input must be one Quick SI JSON report object.')
+            paths.append(report)
+        budgets={key:getattr(args,key) for key in ('max_delay_ns','max_skew_ps','max_impedance_error_percent','max_delay_to_rise_ratio') if getattr(args,key) is not None}
+        report=screen_suite(args.profile,paths,budgets=budgets)
+        report['paths']=paths
+        if args.output:write_report(args.output,json.dumps(report,indent=2,allow_nan=False)+'\n',__file__,'.json')
+        if args.html:write_report(args.html,html_report(report),__file__,'.html')
+        return report
     if args.command=='eye':
         from .eye_model import simulate_eye
         from .eye_view import standalone_html
@@ -76,6 +113,10 @@ def execute(args):
         report,_=analyze(board,args.net,args.start,args.end,args.reference,**{name:getattr(args,name) for name in ('rise_ns','frequency_mhz','source_ohm','load_ohm','z0_ohm','epsilon_eff','eye_bitrate_mbps','eye_swing_v')})
     if hashlib.sha256(source.read_bytes()).hexdigest()!=original:raise ValueError('Board file changed during analysis; rerun before exporting.')
     report.update(board=str(source),board_sha256=original)
+    if args.command=='screen':
+        if args.role and not args.group.strip():raise ValueError('Supply --group with a protocol --role.')
+        if args.group.strip() and not args.role:raise ValueError('Supply --role with a protocol --group.')
+        if args.role:report.update(suite_role=args.role,suite_group=args.group.strip())
     if args.output:write_report(args.output,json.dumps(report,indent=2,allow_nan=False)+'\n',source,'.json')
     if getattr(args,'html',None):write_report(args.html,html_report(report),source,'.html')
     return report
@@ -84,14 +125,14 @@ def execute(args):
 def main(argv=None):
     args=parser().parse_args(argv)
     try:
-        if args.command!='eye':
+        if args.command in ('inspect','screen'):
             try:import pcbnew
             except ImportError:
                 from wayricad_runtime.native_analysis import run_cli
                 return run_cli(Path(__file__).resolve().parent,list(sys.argv[1:] if argv is None else argv))
         report=execute(args)
         print(json.dumps(report,indent=2,allow_nan=False))
-        return 2 if report.get('status')=='UNRESOLVED' else 3 if report.get('status')=='INCOMPLETE' or report.get('eye',{}).get('status')=='UNAVAILABLE' else 0
+        return 2 if report.get('status') in ('UNRESOLVED','BLOCKED') else 3 if report.get('status') in ('INCOMPLETE','REVIEW') or report.get('eye',{}).get('status')=='UNAVAILABLE' else 0
     except (ValueError,RuntimeError,OSError) as exc:
         print(json.dumps({'error':str(exc)}),file=sys.stderr);return 1
 

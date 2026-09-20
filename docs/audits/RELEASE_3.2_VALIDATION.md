@@ -37,3 +37,11 @@ A successful SI calculation initially concealed a paint failure on a KiCad 10 vi
 Full 3D PI is deferred. SI eye results use an explicitly uniform lossless model, not IBIS/compliance. RLC does not solve arbitrary neighboring-conductor proximity. Magnetic FEM is linear and axisymmetric; imported STEP inspection does not provide arbitrary-solid magnetic meshing. Current distribution and magnetic approximations are explained in each tool's help.
 
 The upstream shared-TEMP Windows IPC collision remains. Multi-editor checks use the documented private-TEMP workaround. Native macOS/Linux UI operation and KiCad 11 are not established by these Windows checks; see the compatibility guide and the release's platform CI run.
+
+## Protocol suite integration
+
+Seventeen portable backend/CLI tests cover profile units, budget boundaries, explicit pair/bus membership, duplicate and reversed routes, same-net rejection, malformed JSON, missing evidence, imported eye failures, escaping and input-file preservation. The native Quick SI package suite passes 38 tests.
+
+On a disposable Marble copy, the native seven-tab window screened `/USB/TxD_OUT` from U23.42 to U25.8 (9.612525 mm). With explicit effective Er 3.2, delay was 0.0573577 ns. UART example budgets were met, while reference coverage (3 of 7 sections) and two layer transitions correctly kept the overall suite INCOMPLETE. An intentionally incomplete LVDS group retained missing-mate/coupled-impedance warnings. Actual route drawing, snapshot addition/removal, budget invalidation, export disabling and stale saved-board refusal passed; the original PCB hash was unchanged. These are workflow checks, not measured channel validation.
+
+A high-DPI capture exposed clipped columns; protocol tables now use DPI-scaled widths, readable check names and a full evidence pane. Check selection cross-selects its route for visual review. See [the protocol guide](../QUICK_SI_PROTOCOL_SUITES.md) and the packaged native screenshot.

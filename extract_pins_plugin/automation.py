@@ -30,7 +30,7 @@ PLUGIN_CAPABILITIES = (
     ("planar-magnetics", "WayriCAD Planar Magnetics & Actuator Workbench", ("analyze", "simulate", "apply"), True, "model"),
     ("quick-pi", "WayriCAD Quick PI", ("inspect", "mesh", "solve", "report", "decoupling"), False, "saved-board"),
     ("protocol-constraints", "WayriCAD Protocol Constraint Composer", ("detect", "compose", "apply"), True, "nets"),
-    ("signal-integrity", "WayriCAD Quick SI", ("i2c-pullup", "impedance", "eye", "return-path", "test-points", "fixture"), True, "board"),
+    ("signal-integrity", "WayriCAD Quick SI", ("i2c-pullup", "impedance", "eye", "protocol-suites", "return-path", "test-points", "fixture"), True, "board"),
     ("trace-impedance", "WayriCAD Trace RLC / Impedance Analyzer", ("measure",), False, "board"),
     ("via-stitching", "WayriCAD Via Stitching", ("plan", "preview", "apply"), True, "board"),
 )

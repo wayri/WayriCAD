@@ -453,3 +453,7 @@ The native window's console accepts `help`, `nets`, `pads [net]`, and the same `
 SI prefixes are case-sensitive: `m` is milli, `M`/`Meg` mega, `u`/`µ`/`μ` micro; scientific notation and Ω/ohm/H units are accepted. A bare `5m` is 5 mΩ. `5mH+30m` is 5 mH plus 30 mΩ. Values are explicit models, not automatic guesses from the component name. The DC solve reports conductor/component losses separately; inductance stores energy and contributes zero steady-state DC voltage drop.
 
 `--mesh-edge` controls mesh size in mm, `--plating` gives barrel plating in mm, and `--pulse`, `--ambient`, `--temperature` and `--temperature-limit` set the electrical/adiabatic screening assumptions. Numerical conservation is checked separately from mesh convergence. Neither the RLC approximations nor Quick PI claim AC full-wave or fuse-opening-time signoff.
+
+## Quick SI protocol suites
+
+`wayricad-si profiles` lists 33 interface profiles. `wayricad-si suite --profile uart --reports route.json --html suite.html` evaluates saved Quick SI evidence without KiCad. See [protocol suites](QUICK_SI_PROTOCOL_SUITES.md) for pair/bus assignments, explicit budgets, return-path uncertainty, examples and exit codes.
