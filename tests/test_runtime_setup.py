@@ -4,11 +4,24 @@ from unittest.mock import patch
 import subprocess
 import tempfile
 import unittest
+import json
 
 from wayricad_runtime import runtime_setup as runtime
 
 
 class RuntimeSetupTests(unittest.TestCase):
+    def test_magnetics_launch_selects_complete_scientific_runtime(self):
+        from wayricad_runtime import launcher, bootstrap
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'wayricad-tool.json').write_text(json.dumps(dict(tool='planar_magnetics_plugin', module='plugin', **{'class':'Plugin'}, name='Magnetics')))
+            with patch.object(bootstrap, 'relaunch', return_value=0) as launch:
+                self.assertEqual(launcher.main(root), 0)
+                self.assertEqual(launch.call_args.kwargs['profile'], 'magnetics')
+        with patch.object(runtime, 'ensure_runtime', return_value=Path('fake-python')) as ensure, patch.object(bootstrap.subprocess, 'call', return_value=0):
+            bootstrap.relaunch(Path('plugin'), 'ipc_entrypoint.py', profile='magnetics')
+        self.assertEqual(ensure.call_args.args[0], {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_MAGNETICS})
+
     def test_environment_keeps_invoking_instance_but_not_foreign_python(self):
         with patch.dict(runtime.os.environ, {
             'KICAD_API_SOCKET': 'instance-a', 'KICAD_API_TOKEN': 'secret',

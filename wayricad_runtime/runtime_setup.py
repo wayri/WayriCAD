@@ -53,6 +53,10 @@ REQUIREMENTS_QUICK_PI = {
     'matplotlib': 'matplotlib>=3.7,<4', 'vtk': 'vtk>=9.3,<10',
     'kipy': 'kicad-python>=0.8.0,<0.9',
 }
+REQUIREMENTS_MAGNETICS = {
+    'numpy': 'numpy>=1.26,<3', 'scipy': 'scipy>=1.11,<2',
+    'matplotlib': 'matplotlib>=3.8,<4',
+}
 
 
 def child_environment():

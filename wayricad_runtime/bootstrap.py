@@ -6,10 +6,12 @@ import sys
 
 
 def relaunch(root, entrypoint, *, profile='ipc'):
-    from .runtime_setup import ensure_runtime, child_environment, REQUIREMENTS_IPC, REQUIREMENTS_QUICK_PI
+    from .runtime_setup import ensure_runtime, child_environment, REQUIREMENTS_IPC, REQUIREMENTS_QUICK_PI, REQUIREMENTS_MAGNETICS
     requirements = dict(REQUIREMENTS_IPC)
     if profile == 'quick-pi':
         requirements.update(REQUIREMENTS_QUICK_PI)
+    if profile == 'magnetics':
+        requirements.update(REQUIREMENTS_MAGNETICS)
     if profile == 'mechanical':
         requirements['OpenGL'] = 'PyOpenGL>=3.1,<4'
     python = ensure_runtime(requirements)

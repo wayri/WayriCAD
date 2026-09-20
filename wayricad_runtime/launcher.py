@@ -20,7 +20,8 @@ def main(root, action_class=None):
             if not isinstance(config.get(field),str) or not config[field]:
                 raise ValueError('The installed plugin has invalid launch metadata: '+field+'. Reinstall its ZIP package.')
         from .bootstrap import relaunch
-        status=relaunch(root, 'interboard_entrypoint.py' if action_class else 'ipc_entrypoint.py')
+        profile='magnetics' if config['tool']=='planar_magnetics_plugin' else 'ipc'
+        status=relaunch(root, 'interboard_entrypoint.py' if action_class else 'ipc_entrypoint.py', profile=profile)
         if status is not None:return status
         import wx
         app=wx.App.Get() or wx.App(False)
