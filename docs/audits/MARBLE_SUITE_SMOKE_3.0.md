@@ -42,7 +42,7 @@ The harness runs each tool in a separate KiCad Python worker with a 45-second op
 
 The full-board Localizer scan initially completed in 81.39 seconds, outside the desired small smoke budget. The reproducible test now selects the real PMOD schematic while retaining the complete PCB. The initial full-copper Visual Diff exceeded the bound; the reproducible test uses actual Edge.Cuts native SVG. These narrower tests do not certify full-board processing performance.
 
-The source folder `C:/Projects/Kicad-plugins-dev/3d-interference-check/examples/Marble` is read-only input. Work uses `.validation/marble/Marble/design`; geometry mutations remain in memory or disposable worker output. Each completed harness run hashes copied PCB/schematic/project inputs before/after and verifies every original path recorded in `.validation/marble/source-manifest.json`.
+The external `3d-interference-check/examples/Marble` source fixture is read-only input. Work uses `.validation/marble/Marble/design`; geometry mutations remain in memory or disposable worker output. Each completed harness run hashes copied PCB/schematic/project inputs before/after and verifies every original path recorded in `.validation/marble/source-manifest.json`.
 
 ## Validation boundaries
 

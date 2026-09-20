@@ -1,6 +1,6 @@
 # Development-folder integration — 2026-09-14
 
-Imported three distinct applications from the user-provided `C:/Projects/Kicad-plugins-dev` directory, bringing the WayriCAD 3.0.0 testing suite to 22 independent PCM packages. Source directories were read only. Git internals, caches, large third-party examples, generated reports and old build products were excluded. Each imported directory records source provenance and retains available license notices.
+Imported three distinct applications from a user-provided external source directory, bringing the WayriCAD 3.0.0 testing suite to 22 independent PCM packages. Source directories were read only. Git internals, caches, large third-party examples, generated reports and old build products were excluded. Each imported directory records source provenance and retains available license notices.
 
 | Source | Integrated package | Integration and verification |
 | --- | --- | --- |

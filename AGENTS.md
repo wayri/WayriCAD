@@ -95,6 +95,12 @@ citations must distinguish implemented methods from future capabilities.
 For documentation-only changes, check links, images and formatting. Published
 binaries do not need rebuilding for a repository README update.
 
+Use generic project paths such as `C:/Projects/Example/board.kicad_pcb` in
+documentation and examples. Check screenshot headers, status bars, dialogs and
+embedded metadata for personal usernames, local folder paths and private network
+addresses before publishing. Redact only those details, preserve numerical
+results, and record any redaction in screenshot provenance where provided.
+
 ## Packaging and maintainer releases
 
 1. Align active package versions and release notes for a new software release.

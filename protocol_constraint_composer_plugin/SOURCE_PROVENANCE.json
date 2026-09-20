@@ -52,11 +52,18 @@
     "Persistent KiCad 10 per-layer routing profiles, stackup review, native DRC limits and managed ownership checks",
     "Native numeric constraint tokens normalized with leading zero while preserving source comments and expressions",
     "Multiple protocol instances with exact-net group selection, overlap checks, clone/edit/remove and native routing conditions"
+    ,"Documentation screenshots privacy-redacted on 2026-09-20 by replacing only the displayed local project-path line with a generic example path; dimensions and remaining pixels preserved"
   ],
   "visual_evidence": {
     "help-workflow.png": "Chromium render of shipped UI with supplied demo snapshot; native WebView interactions separately verified",
     "help-matrix.png": "Chromium render of shipped matrix page with inherited draft cells",
     "help-sets.png": "Chromium render of shipped reusable set page",
     "help-layer-routing.png": "Chromium render of shipped multi-protocol editor using illustrative CAN1, CAN2, DDR data and Ethernet fixture; native checkbox/stage/undo interactions tested separately"
+  },
+  "visual_evidence_sha256_after_privacy_redaction": {
+    "help-workflow.png": "1129fec94d27ba657a2ae1cd174da6094e7c750c0a1c8a23866c7199e675b54f",
+    "help-matrix.png": "e53fe4092aed18ea8c2181edcc7063905e2a510a9dc13eccd3438bb9c70ae17b",
+    "help-sets.png": "12b0370142a7d5c7b01831f670ade43098a1a7d95e957fb78fdd644ae955b52c",
+    "help-layer-routing.png": "f5c5d035dc66a869d1176df22ab2d08d2ec763068e4fe4c3f2c61a02629082ef"
   }
 }

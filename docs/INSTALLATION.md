@@ -122,10 +122,10 @@ does not install or register GUI plugins.
   PCM packages. It backs up replaced and retired direct installations. Build
   the packages first when the checkout does not already contain the matching
   release ZIPs.
-- For terminal commands, download the release's `wayricad-3.2.0-py3-none-any.whl` and use Python 3.10 or newer. From the folder containing that file, run:
+- For terminal commands, download the release's `wayricad-3.2.1-py3-none-any.whl` and use Python 3.10 or newer. From the folder containing that file, run:
 
   ```console
-  python -m pip install ./wayricad-3.2.0-py3-none-any.whl
+  python -m pip install ./wayricad-3.2.1-py3-none-any.whl
   python -m quick_pi_plugin.cli --help
   ```
 

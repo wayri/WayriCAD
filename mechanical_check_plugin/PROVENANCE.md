@@ -1,6 +1,6 @@
 # Mechanical Check provenance
 
-Imported from the user-supplied `C:/Projects/Kicad-plugins-dev/3d-interference-check` source directory on 2026-09-14. Upstream project: **3Dvalid 0.1.0**, MIT, Copyright (c) 2026 3Dvalid contributors. The original LICENSE is retained verbatim. WayriCAD modifications cover branding, saved-file launch behavior, compact native navigation, neutral canvas, stale-result clearing, runtime discovery/isolation, documentation and tests.
+Imported from the user-supplied external `3d-interference-check` source directory on 2026-09-14. Upstream project: **3Dvalid 0.1.0**, MIT, Copyright (c) 2026 3Dvalid contributors. The original LICENSE is retained verbatim. WayriCAD modifications cover branding, saved-file launch behavior, compact native navigation, neutral canvas, stale-result clearing, runtime discovery/isolation, documentation and tests.
 
 The imported code comprises `src/three_d_valid`, renamed `src/wayricad_mechanical`, the launcher, original tests, and a small synthetic PCB/rules fixture. Source hashes are in `upstream-sha256.json`. They record provenance and are not runtime integrity checks for the modified files.
 

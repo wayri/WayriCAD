@@ -4,13 +4,13 @@
 
 Previously named **KiWay**, the project is now maintained as **WayriCAD** by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current suite: 3.2.0 · [GPL-3.0 license](LICENSE).**
+**Current suite: 3.2.1 · [GPL-3.0 license](LICENSE).**
 
 **Use Releases for published packages. KiCad 10 is the validated target.** KiCad 11-only installations are not supported yet: several engines still need KiCad 10 native Python. See [compatibility and known limits](docs/COMPATIBILITY.md).
 
 [Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
 
-[3.2 changes](docs/RELEASE_NOTES_3.2.0.md) · [Validation and limitations](docs/audits/RELEASE_3.2_VALIDATION.md)
+[3.2.1 privacy update](docs/RELEASE_NOTES_3.2.1.md) · [3.2 changes](docs/RELEASE_NOTES_3.2.0.md) · [Validation and limitations](docs/audits/RELEASE_3.2_VALIDATION.md)
 
 ## Install and open
 
@@ -32,6 +32,8 @@ Initial dependency setup needs internet access or a prepared wheel cache. Once p
 ## Plugin previews
 
 Application captures and rendered interface previews; select a tool title for its guide. Example values are not predictions for your board.
+
+Machine-specific paths in screenshots are replaced with generic project locations; surrounding UI and numerical results are preserved.
 
 <table>
 <tr>
@@ -97,7 +99,7 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --clean-feed --release-tag 3.2.0 --branch develop
+python build_pcm.py --clean-feed --release-tag 3.2.1 --branch develop
 python tools/validate_packages.py
 ```
 

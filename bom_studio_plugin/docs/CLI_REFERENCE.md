@@ -56,7 +56,7 @@ py -3 .\cli.py gui "C:\Projects\Board\Board.kicad_pro" --ui browser
 `library-create` inputs are JSON; `-` accepts stdin. Empty example:
 
 ```json
-{"mode":"empty","destination":"C:/Users/You/Documents/NewParts","name":"NewParts","actor":"Your name","require_complete":true}
+{"mode":"empty","destination":"C:/Projects/NewParts","name":"NewParts","actor":"Your name","require_complete":true}
 ```
 
 For projects, set `mode:"projects"` and add `projects:["C:/Projects/Board/Board.kicad_pro"]`. A new catalogue is created automatically. Optional `recursive`, `all_variants`, `asset_options`, `allow_partial_projects`, and strict `require_complete` are described in V8_WORKFLOWS. Existing-catalogue mode needs `library` and `ids` or an explicit `all_parts:true`. `choices` maps part IDs to captured set IDs. Existing destinations are refused. No `--overwrite` exists. Apply rechecks sources/revisions and the reviewed native bytes. This CLI writes the new directory only; GUI attach/remember are not implicit CLI actions. Native table registration remains explicit in KiCad.

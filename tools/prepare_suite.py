@@ -30,7 +30,7 @@ def main():
                 continue
             original = code_path.read_text(encoding='utf-8-sig')
             updated = re.sub(r'((?:self\.version|__version__|VERSION)\s*=\s*[\"\'])3\.1\.1([\"\'])',
-                             r'\g<1>3.2.0\2', original)
+                             r'\g<1>3.2.1\2', original)
             if updated != original:
                 code_path.write_text(updated, encoding='utf-8')
         metadata = json.loads(source.read_text(encoding="utf-8"))
@@ -41,7 +41,7 @@ def main():
         # The distributed bundle includes the GPL suite runtime; imported MIT notices remain intact.
         metadata["license"] = "GPL-3.0-only"
         for version in metadata["versions"]:
-            version.update(version="3.2.0", runtime="ipc", kicad_version="10.0", status="testing")
+            version.update(version="3.2.1", runtime="ipc", kicad_version="10.0", status="testing")
             for key in list(version):
                 if key.startswith("download_") or key in {"install_size", "kicad_version_max"}:
                     del version[key]
