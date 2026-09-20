@@ -457,3 +457,8 @@ SI prefixes are case-sensitive: `m` is milli, `M`/`Meg` mega, `u`/`µ`/`μ` micr
 ## Quick SI protocol suites
 
 `wayricad-si profiles` lists 33 interface profiles. `wayricad-si suite --profile uart --reports route.json --html suite.html` evaluates saved Quick SI evidence without KiCad. See [protocol suites](QUICK_SI_PROTOCOL_SUITES.md) for pair/bus assignments, explicit budgets, return-path uncertainty, examples and exit codes.
+
+
+## Jobset sequences and automatic reports
+
+Use `wayricad jobs init Example.kicad_pro --preset fabrication`, then `wayricad jobs run --config wayricad-jobs.json --keep-going`. For native KiCad integration, generate a `.kicad_jobset` with `wayricad jobs jobset --config wayricad-jobs.json --output WayriCAD.kicad_jobset`. See the [complete jobset guide](../wayricad_runtime/JOBSETS.md) for presets, existing-sequence insertion, automatic HTML/JSON reports, runtimes and failure handling.

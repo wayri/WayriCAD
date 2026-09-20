@@ -49,6 +49,8 @@ jobs:
       - name: CLI smoke
         run: |
           wayricad --help
+          wayricad-jobs --help
+          wayricad jobs presets
           wayricad inspect tests/fixtures/simple_hierarchy.xml --board-sequence DEMO_CTRL,DEMO_SENSOR --format json
           wayricad benchmark --nets 500 --boards 3 --threshold-ms 3000 --format json
           wayricad-copper --help
@@ -81,7 +83,7 @@ jobs:
           python build_pcm.py --clean-feed
           python tools/validate_packages.py
           python tools/validate_docs.py
-          python tools/smoke_imported_packages.py dist/wayricad-3.2.1-py3-none-any.whl
+          python tools/smoke_imported_packages.py dist/wayricad-3.3.0-py3-none-any.whl
 
   pi-reference:
     name: PI known-answer benchmarks

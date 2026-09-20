@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.2.1"
+version = "3.3.0"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,6 +25,7 @@ test = ["Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9",
 
 [project.scripts]
 wayricad = "extract_pins_plugin.cli:main"
+wayricad-jobs = "wayricad_runtime.jobs:main"
 wayricad-route = "wayricad_runtime.cli:main"
 wayricad-rlc = "trace_impedance_plugin.cli:main"
 wayricad-mechanical = "mechanical_check_plugin.cli:main"

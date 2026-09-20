@@ -31,7 +31,7 @@ def main():
                     'Wheel contains inactive plugin files: ' + ', '.join(sorted(stale_plugins))
                 )
             archive.extractall(root)
-        modules = ('wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
+        modules = ('wayricad_runtime.jobs', 'wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
                    'embed_3d_plugin.__main__', 'quick_pi_plugin.cli', 'signal_integrity_advisor_plugin.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'

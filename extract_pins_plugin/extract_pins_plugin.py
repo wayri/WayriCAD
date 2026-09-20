@@ -58,7 +58,7 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         # Define the path to the optional icon file. It should be in the same directory.
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.2.1"
+        self.version = "3.3.0"
 
     def Run(self):
         """
@@ -106,7 +106,7 @@ class InterboardHarnessPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = False
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.2.1"
+        self.version = "3.3.0"
 
     def Run(self):
         if PluginUI is None:

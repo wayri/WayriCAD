@@ -31,7 +31,7 @@ from .core.controller_connector_mapper import (
     parse_traversal_rules,
 )
 
-VERSION = "3.2.1"
+VERSION = "3.3.0"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3
@@ -48,8 +48,12 @@ class CliError(Exception):
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if raw and raw[0] == "jobs":
+        from wayricad_runtime.jobs import main as jobs_main
+        return jobs_main(raw[1:])
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw)
     if not hasattr(args, "func"):
         parser.print_help()
         return EXIT_USAGE
@@ -82,6 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_validate(sub)
     add_report(sub)
     add_jobset_run(sub)
+    add_jobs(sub)
     add_benchmark(sub)
     add_dependencies(sub)
     add_test(sub)
@@ -167,6 +172,17 @@ def add_report(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--rules", default="", help="Cross-link rules for imports.")
     p.add_argument("--rules-file", help="File containing cross-link rules for imports.")
     p.set_defaults(func=cmd_report)
+
+
+def add_jobs(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("jobs", add_help=False, help="Configure report sequences and native KiCad jobset integration.")
+    p.add_argument("jobs_args", nargs=argparse.REMAINDER)
+    p.set_defaults(func=cmd_jobs)
+
+
+def cmd_jobs(args: argparse.Namespace) -> int:
+    from wayricad_runtime.jobs import main as jobs_main
+    return jobs_main(args.jobs_args)
 
 
 def add_jobset_run(sub: argparse._SubParsersAction) -> None:

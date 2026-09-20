@@ -12,7 +12,7 @@ class PackageContentsTests(unittest.TestCase):
         plugin=Path(__file__).resolve().parents[1]/'extract_pins_plugin'
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)
-            path,_=create_plugin_zip(plugin,'3.2.1',root/'out',{})
+            path,_=create_plugin_zip(plugin,'3.3.0',root/'out',{})
             with zipfile.ZipFile(path) as archive:
                 archive.extractall(root/'installed')
             code=("import sys;sys.path.insert(0,"+repr(str(root/'installed'))+");"

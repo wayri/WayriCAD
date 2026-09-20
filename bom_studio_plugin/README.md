@@ -123,3 +123,8 @@ The **Alt (plugin only)** column searches catalogue candidates and shows matchin
 *Disposable one-part catalogue preview in the native window; no global registration applied in this validation.*
 
 OEM / assembly export also includes AISLER, PC Process and Krypton Solutions recipient handoffs. These editable generic mappings require review and are not verified vendor portal templates.
+
+
+## Jobsets and automatic reports
+
+Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
