@@ -1,8 +1,8 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Constraint Studio",
-  "description": "Visually inspect, stage and review project constraints with protocol presets, matrices and scope feedback.",
-  "description_full": "Constraint Studio 0.3.1 integrated into WayriCAD: visual rule scope, local lint and changed-file overview, protocol presets, staged rule/netclass/board settings, clearance matrices, reusable sets, offline help and separate review exports. Native DRC runs on exported copies. Source updates use the offline helper after closing source editors. KiCad 10 validation target; broader acceptance remains incomplete.",
+  "description": "Visual constraint worksheets, matrices, layout scope and reviewed project rules.",
+  "description_full": "Constraint Studio with a BOM Studio-style native desktop WebView: editable constraint worksheets, all 34 rule forms, linked scope preview, A/B priority traces, clearance matrices, reusable sets, netclass dimensions and reviewed export. Original BGA, engineering, team and native help workspaces remain available. Saved-project staging with offline apply; KiCad 10 testing target. Layer routing profiles persist native per-layer widths and differential gaps, with stackup fingerprints and reviewed DRC limits.",
   "identifier": "com.github.wayri.wayricad.protocol-constraints",
   "type": "plugin",
   "author": {
@@ -18,7 +18,7 @@
   },
   "versions": [
     {
-      "version": "3.1.1",
+      "version": "3.2.0",
       "status": "testing",
       "kicad_version": "10.0",
       "runtime": "ipc"

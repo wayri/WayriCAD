@@ -46,12 +46,15 @@ def audit_metrics(metrics: BoardMetrics, profile: FabricatorProfile) -> list[Rea
     validate_profile(profile)
     checks = []
     def minimum(item: str, actual: float, required: float, unit: str = "mm") -> None:
+        if actual == float('inf'):
+            checks.append(ReadinessCheck('N/A',item,'No applicable objects',f'>= {required:g} {unit}'))
+            return
         checks.append(ReadinessCheck("PASS" if actual >= required else "FAIL", item,
                                      f"{actual:g} {unit}", f">= {required:g} {unit}"))
     minimum("Minimum routed track", metrics.minimum_track_mm, profile.minimum_track_mm)
     minimum("Minimum copper clearance", metrics.minimum_clearance_mm, profile.minimum_clearance_mm)
-    minimum("Minimum finished drill", metrics.minimum_drill_mm, profile.minimum_drill_mm)
-    minimum("Minimum annular ring", metrics.minimum_annular_ring_mm, profile.minimum_annular_ring_mm)
+    minimum("Minimum finished drill (pads and vias)", metrics.minimum_drill_mm, profile.minimum_drill_mm)
+    minimum("Minimum annular ring (plated pads and vias)", metrics.minimum_annular_ring_mm, profile.minimum_annular_ring_mm)
     checks.append(ReadinessCheck("PASS" if metrics.maximum_via_aspect_ratio <= profile.maximum_via_aspect_ratio else "FAIL",
                                  "Maximum via aspect ratio", f"{metrics.maximum_via_aspect_ratio:g}:1",
                                  f"<= {profile.maximum_via_aspect_ratio:g}:1"))
@@ -122,13 +125,37 @@ def saved_metrics(board_bytes,project_bytes):
     vias=children(root,'via')
     if any(children(via,'padstack') for via in vias):raise ValueError('Non-uniform via padstacks require a per-layer manufacturing audit in KiCad.')
     drills=[number(via,'drill') for via in vias]
+    via_drills=list(drills)
     rings=[(number(via,'size')-drill)/2 for via,drill in zip(vias,drills)]
+    for footprint in children(root,'footprint')+children(root,'module'):
+        for pad in children(footprint,'pad'):
+            if len(pad)<4 or pad[2] not in ('thru_hole','np_thru_hole'):continue
+            hole=children(pad,'drill');size=children(pad,'size')
+            if len(hole)!=1:raise ValueError('A drilled pad is missing its unambiguous drill dimensions.')
+            hole=hole[0];oval=len(hole)>1 and hole[1]=='oval';offset=2 if oval else 1
+            try:
+                dx=float(hole[offset]);dy=float(hole[offset+1]) if oval else dx
+            except (IndexError,ValueError) as exc:raise ValueError('Invalid pad drill dimensions.') from exc
+            if not all(math.isfinite(v) and v>0 for v in (dx,dy)):raise ValueError('Pad drill dimensions must be positive and finite.')
+            drills.append(min(dx,dy))
+            if pad[2]=='np_thru_hole':continue
+            if pad[3] not in ('circle','oval','rect','roundrect') or children(pad,'padstack'):
+                raise ValueError('Custom plated pad shape/padstack needs a native per-layer annular-ring audit.')
+            if len(size)!=1 or len(size[0])!=3:raise ValueError('Plated pad size is missing.')
+            sx,sy=map(float,size[0][1:])
+            offsets=children(hole,'offset')
+            if len(offsets)>1 or (offsets and len(offsets[0])!=3):raise ValueError('Ambiguous drill offset.')
+            ox,oy=map(float,offsets[0][1:]) if offsets else (0.,0.)
+            if not all(math.isfinite(v) for v in (sx,sy,ox,oy)) or min(sx,sy)<=0:raise ValueError('Invalid plated pad size or drill offset.')
+            # Bounding dimensions alone overestimate corner clearance for oblique
+            # offsets on curved pads; subtract the full offset magnitude instead.
+            rings.append(min((sx-dx)/2,(sy-dy)/2)-math.hypot(ox,oy))
     project=json.loads(project_bytes.decode('utf-8-sig'))
     clearance=project.get('board',{}).get('design_settings',{}).get('rules',{}).get('min_clearance')
     if clearance is None or not math.isfinite(float(clearance)) or float(clearance)<0:
         raise ValueError('Save the project minimum clearance rule before auditing.')
     return BoardMetrics(min(tracks,default=float('inf')),float(clearance),min(drills,default=float('inf')),
-                        min(rings,default=float('inf')),max((thickness/d for d in drills),default=0),count)
+                        min(rings,default=float('inf')),max((thickness/d for d in via_drills),default=0),count)
 
 
 def gate_key(files,profile,jobset,live_text):

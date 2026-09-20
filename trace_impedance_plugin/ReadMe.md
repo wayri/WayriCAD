@@ -51,3 +51,32 @@ Replace the example net/pad/zone identifiers with those returned by `inspect`. `
 See the [Marble smoke report](../docs/audits/MARBLE_SUITE_SMOKE.md) for measured coverage and limitations. KiCad 10 is the native geometry target; KiCad 11 operation requires validation against its available native geometry API.
 
 Model references: [TI Analog Engineer's Pocket Reference](https://www.ti.com/seclit/eb/slyw038d/slyw038d.pdf) for the approximate via inductance relation; [Analog Devices PCB layout guidance](https://www.analog.com/en/resources/analog-dialogue/articles/high-speed-printed-circuit-board-layout.html) for plane-overlap capacitance. These references do not validate this implementation against measurements.
+
+## Visual AC loss review
+
+The copper preview can colour the actual route by layer, DC resistance
+contribution, AC resistance contribution or model coverage. Select a section
+row to highlight its copper; click a route/via marker to inspect the section.
+Changing path inputs clears the reviewed geometry and frequency results.
+
+![Actual copper coloured by AC resistance, linked to section rows](help-ac-geometry.png)
+
+The **AC loss sweep** tab plots 41 frequency points with editable start/stop
+frequencies and CSV export. It includes trace, corridor and plated-via copper.
+Move the pointer over the plot to inspect frequency, resistance and skin depth.
+One-face and two-face curves compare assumed through-thickness excitation:
+`R/Rdc = Re(q coth(q))`, `q=(1+j)t/(faces*skin_depth)`. This gives a continuous
+DC-to-skin transition. It does not extract arbitrary neighboring-conductor
+proximity, edge crowding, roughness or return-plane loss. These curves are not
+rigorous upper/lower bounds on your real board. Narrow traces need field review.
+
+![Native AC resistance sweep on Marble](help-ac-sweep.png)
+
+The fixture is a selected signal path, not a power-rail voltage-drop claim.
+Via plating defaults to 25 um; the thin annulus is treated as a sheet. Series
+R+jωL uses the available lumped section contributions, and is not characteristic
+impedance or terminated input impedance. Missing L remains unknown.
+
+CLI: add `--sweep-mhz 0.001 1000` to a `path` or `zone` command to include the
+same model, assumptions and points in JSON. Ordinary AC result totals now
+include via resistance, which earlier versions omitted.

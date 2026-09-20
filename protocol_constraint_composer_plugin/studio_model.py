@@ -15,6 +15,7 @@ from .constraint_studio.model import Rule, Constraint, RuleDocument, lint
 from .constraint_studio.profiles import matrix_rules, replace_generated
 from .constraint_studio.workspace import get_path, set_path, parse_scalar
 from .studio_bridge import overview
+from .constraint_studio import routing_profiles
 
 
 def index(value, rows):
@@ -49,6 +50,7 @@ def snapshot(workspace):
         'patterns': copy.deepcopy(workspace.project.get('net_settings', {}).get('netclass_patterns', [])),
         'settings': [dict(path=list(path), value=value) for path, value in workspace.settings_rows()],
         'profiles': builtin_profiles(),
+        'routing': routing_profiles.status(workspace),
     }
 
 
@@ -67,7 +69,11 @@ def mutation(workspace, method, data):
         raise ValueError('Workspace changed since this view was loaded. Refresh before editing.')
     w = workspace.clone()
     rules = w.document.rules
-    if method == 'save_rule':
+    if method == 'routing_profile':
+        routing_profiles.install(w, data)
+    elif method == 'routing_remove':
+        routing_profiles.remove(w, data['name'])
+    elif method == 'save_rule':
         i = data.get('index')
         rule = copy.deepcopy(rules[index(i, rules)]) if i is not None else Rule('New rule')
         values = data['rule']
@@ -111,7 +117,7 @@ def mutation(workspace, method, data):
         compiled = compile_matrix(data)
         if not compiled: raise ValueError('Enter at least one matrix value before staging.')
         for rule in compiled: checked_rule(rule)
-        replace_generated(w.document, compiled, 'CS-MATRIX ' + data['group'])
+        replace_generated(w.document, compiled, 'CS-MATRIX ' + data['group'].strip())
     elif method == 'profile':
         profiles = {p['id']: p for p in builtin_profiles()}
         if data['id'] not in profiles: raise ValueError('Unknown constraint set')

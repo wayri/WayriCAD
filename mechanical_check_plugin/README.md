@@ -14,11 +14,21 @@ Saved-board setup using a small validation fixture. Model coverage and exact-sol
 
 The installed package includes [offline help](help.html) with its workflow and limitations.
 
+## Quick in-editor screening
+
+Choose **Quick 2D footprint screen (no FreeCAD)** on the Board page, then Run. The saved originating board is screened for same-side footprint bounding-box overlap and XY clearance. DNP filtering, searchable findings, native geometry preview and HTML/JSON/CSV reports work in this mode. No STEP models are resolved or copied.
+
+![Native 2D envelope review](help-quick2d.png)
+
+This conservative screen can report harmless bounding-box overlap, particularly for rotated parts. It is **always INCOMPLETE for mechanical sign-off**: height, enclosure, exact solid interference, hardware and assembly access are unchecked. Opposite-side components are not compared. Choose **Exact 3D solids** for the existing detailed FreeCAD workflow; that mode remains the default. CLI rules use `"mode": "quick2d"` or `"mode": "exact3d"`.
+
+The pictured synthetic fixture returned two warnings across six footprint envelopes in about 0.4 seconds, with FreeCAD and STEP-export discovery disabled and the source hash unchanged.
+
 ## Runtime
 
 - Python 3.10+ CLI; the IPC environment uses `kicad-python>=0.8,<0.9`.
 - KiCad 10 Python with `pcbnew`, `wxPython` and `PyOpenGL` for extraction/native UI, plus `kicad-cli` STEP export.
-- FreeCAD Python with `FreeCAD`, `Part` and `Import` for Open CASCADE solid checks.
+- **Exact 3D mode only:** FreeCAD Python with `FreeCAD`, `Part` and `Import` for Open CASCADE solid checks.
 
 `python launch.py --doctor` prints executable discovery. Set `WAYRICAD_MECHANICAL_KICAD_CLI`, `WAYRICAD_MECHANICAL_KICAD_PYTHON`, or `WAYRICAD_MECHANICAL_FREECAD_PYTHON` to override paths. The Windows auto-discovery intentionally selects KiCad 10 because the extraction worker uses SWIG. KiCad 11 live integration and extraction are unverified; installation metadata does not claim runtime certification.
 

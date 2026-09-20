@@ -90,13 +90,21 @@ class RoutePreview(PanZoomCanvas):
             colour = mate_shades.get(base_colour, base_colour) if lane else base_colour
             gc.SetPen(wx.Pen(wx.Colour(colour), 4))
             gc.StrokeLine(*project((x1, y1)), *project((x2, y2)))
+            if _item is not None and 'VIA' in str(getattr(_item,'GetClass',lambda:'')()):
+                sx,sy=project((x1,y1));diameter=max(6,float(_item.GetWidth(_item.TopLayer()))/1e6*self.scale)
+                gc.SetBrush(wx.Brush(wx.Colour('#f8fafc')));gc.DrawEllipse(sx-diameter/2,sy-diameter/2,diameter,diameter);gc.SetBrush(wx.TRANSPARENT_BRUSH)
         gc.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL), TEXT_COLOUR)
         endpoints = getattr(self,"route_endpoints",None) or ((self.tracks[0][0], self.tracks[0][1]), (self.tracks[-1][2], self.tracks[-1][3]))
-        gc.SetPen(wx.Pen(wx.Colour("#f4d48d"), 2))
-        gc.SetBrush(wx.Brush(wx.Colour("#5c4a1e")))
-        for point in endpoints:
-            sx, sy = project(point)
-            gc.DrawEllipse(sx - 6, sy - 6, 12, 12)
+        path=getattr(self.result,'primary',None)
+        labels=('Source '+str(getattr(path,'start_pad','')),'Receiver '+str(getattr(path,'end_pad','')))
+        for index,point in enumerate(endpoints):
+            sx,sy=project(point);colour=wx.Colour('#13854c' if index==0 else '#b94535')
+            gc.SetPen(wx.Pen(colour,2));gc.SetBrush(wx.Brush(colour))
+            if index==0:gc.DrawEllipse(sx-6,sy-6,12,12)
+            else:gc.DrawRectangle(sx-6,sy-6,12,12)
+            gc.SetFont(wx.Font(9,wx.FONTFAMILY_DEFAULT,wx.FONTSTYLE_NORMAL,wx.FONTWEIGHT_BOLD),colour)
+            gc.DrawText(labels[min(index,1)],sx+9,sy-20 if index==0 else sy+8)
+
 
 
 TEXT_COLOUR = "#aab7c4"
@@ -110,7 +118,7 @@ class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.1.1"
+        self.version = "3.2.0"
 
     def Run(self) -> None:
         board = pcbnew.GetBoard()
@@ -132,7 +140,7 @@ class SignalIntegrityFrame(wx.Frame):
         header.Add(title, 1, wx.ALIGN_CENTER_VERTICAL); help_btn = wx.Button(panel, label="Help"); help_btn.Bind(wx.EVT_BUTTON, open_help); header.Add(help_btn)
         root.Add(header, 0, wx.EXPAND | wx.ALL, 12)
         if self.saved_board:
-            root.Add(wx.StaticText(panel, label="Saved board analysis — save/refill in KiCad and reopen to refresh."), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+            root.Add(wx.StaticText(panel, label="Electrical checks use saved copper. Test point labels connect separately to this originating editor."), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         intro = wx.StaticText(panel, label="1  Choose a check    2  Define electrical limits and routed endpoints    3  Review evidence and disposition")
         root.Add(intro, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         self.tabs = wx.Notebook(panel)
@@ -141,6 +149,12 @@ class SignalIntegrityFrame(wx.Frame):
         self.tabs.AddPage(self.quick_si,"Quick SI")
         self.tabs.AddPage(self._impedance_page(self.tabs),"Impedance & pairs")
         self.tabs.AddPage(self._i2c_page(self.tabs),"I2C pull-ups")
+        from .return_path.return_path_auditor_plugin import ReturnPathFrame
+        from .test_points.test_point_descriptor_plugin import TestPointFrame
+        from .testpoint_ui import TestPointLabelsPanel
+        self.return_path=ReturnPathFrame(self.tabs,self.board);self.tabs.AddPage(self.return_path,"Return path")
+        self.test_points=TestPointFrame(self.tabs,self.board);self.tabs.AddPage(self.test_points,"Test point records")
+        self.testpoint_labels=TestPointLabelsPanel(self.tabs,self.board,self.saved_board);self.tabs.AddPage(self.testpoint_labels,"Test point labels")
         root.Add(self.tabs, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         panel.SetSizer(root)
 

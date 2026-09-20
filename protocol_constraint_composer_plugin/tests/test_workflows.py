@@ -67,7 +67,7 @@ def test_export_leaves_source_untouched(project,tmp_path):
     original={p.name:p.read_bytes() for p in project.parent.iterdir() if p.is_file()}
     w=Workspace.load(project);w.document.rules[0].constraints[0].values['min']='.3mm';out=w.export_bundle(tmp_path/'review')
     assert all((project.parent/n).read_bytes()==b for n,b in original.items())
-    assert (out/'demo.kicad_pcb').read_bytes()==project.read_bytes();assert '0.3' not in (out/'REVIEW.diff').read_text() # value was .3mm
+    assert (out/'demo.kicad_pcb').read_bytes()==project.read_bytes();assert '0.3mm' in (out/'REVIEW.diff').read_text() # native lexer requires leading zero
     assert '.3mm' in (out/'REVIEW.diff').read_text()
 
 def test_export_disallows_source_directory(project):

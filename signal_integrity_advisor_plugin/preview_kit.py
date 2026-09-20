@@ -295,9 +295,11 @@ class PanZoomCanvas(wx.Panel):
             return
         if getattr(self, "show_grid", False):
             self._draw_grid(gc, size)
+        self.draw_error=None
         try:
             self.draw_scene(gc, self.project)
-        except Exception:
+        except Exception as exc:
+            self.draw_error=f"{type(exc).__name__}: {exc}"
             gc.SetFont(self.GetFont(), wx.Colour(TEXT))
             gc.DrawText("Preview could not be drawn. Refresh the analysis.", 16, 16)
         self._draw_picks_and_highlight(gc)

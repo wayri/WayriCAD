@@ -258,6 +258,12 @@ class ConstraintStudioFrame(StudioFrame):
         area = wx.GetClientDisplayRect()
         self.SetSize((min(1500, area.width - 32), min(940, area.height - 48)))
         self.Center()
+        self.visual = None
+        try:
+            from .studio_webview import VisualWorkspace
+            self.visual = VisualWorkspace(self)
+        except (ImportError, RuntimeError) as exc:
+            self.SetStatusText('Visual shell unavailable; full native workspace is available. ' + str(exc))
 
     def page_changed(self, event):
         super().page_changed(event)
@@ -283,6 +289,7 @@ class ConstraintStudioFrame(StudioFrame):
         self.checkpoint(); self.w = trial
         self.index = None; self.editing = None; self.refresh_rules()
         self.overview_panel.refresh(); self.select_page(self.overview_panel)
+        if getattr(self, 'visual', None): self.visual.show()
 
 
 def main():

@@ -80,7 +80,7 @@ def cli(args):
     previews, warnings = backend.build_preview(board, [names[name] for name in requested], settings)
     report = {'tool': 'WayriCAD Copper Balancer', 'source_sha256': stamp, 'settings': asdict(settings),
               'warnings': warnings, 'layers': [dict(name=p.name, shapes=len(p.plan.shapes),
-              added_area_mm2=p.plan.added_area, coverage_percent=p.plan.density) for p in previews]}
+              added_area_mm2=p.plan.added_area, coverage_percent=p.plan.density, diagnostics=p.plan.diagnostics(settings.target)) for p in previews]}
     if args.output:
         validate_output(source, args.output)
         backend.apply_preview(board, previews, settings)

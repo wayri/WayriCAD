@@ -16,8 +16,9 @@ def main():
         with zipfile.ZipFile(wheel) as archive:
             if any(name.startswith(('build/', 'dist/', '.validation/')) for name in archive.namelist()):
                 raise RuntimeError('Wheel contains generated build or private validation directories.')
-            if any(name.startswith('visual_diff_plugin/') for name in archive.namelist()):
-                raise RuntimeError('Wheel contains retired Visual Diff files. Clean the wheel staging directory before rebuilding.')
+            retired = ('visual_diff_plugin/', 'pdn_decoupling_plugin/', 'return_path_auditor_plugin/', 'test_point_descriptor_plugin/', 'variant_workbench_plugin/', 'portable_assets_plugin/', 'kilo_plugin/')
+            if any(name.startswith(retired) for name in archive.namelist()):
+                raise RuntimeError('Wheel contains retired standalone plugin files. Clean the wheel staging directory before rebuilding.')
             archive.extractall(root)
         modules = ('wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
                    'embed_3d_plugin.__main__', 'quick_pi_plugin.cli', 'signal_integrity_advisor_plugin.cli')
@@ -45,6 +46,14 @@ assert (Path(sys.argv[1])/'mechanical_check_plugin/resources/help.html').is_file
 from protocol_constraint_composer_plugin.constraint_studio.help_system import HelpLibrary
 assert len(HelpLibrary().topics) >= 100
 assert (Path(sys.argv[1])/'protocol_constraint_composer_plugin/help-workflow.png').is_file()
+for relative in ('quick_pi_plugin/decoupling', 'signal_integrity_advisor_plugin/return_path', 'signal_integrity_advisor_plugin/test_points'):
+    folder=Path(sys.argv[1])/relative
+    for asset in ('__init__.py','help.html','help-workflow.png','icon.png'):
+        assert (folder/asset).is_file(), str(folder/asset)
+from quick_pi_plugin.decoupling.analysis import analyze_decoupling
+from signal_integrity_advisor_plugin.return_path.analysis import ReturnPathAnalyzer
+from signal_integrity_advisor_plugin.test_points.fixture import FixturePoint
+
 '''
         subprocess.run([sys.executable, '-c', script, str(root)], cwd=root, check=True, timeout=30)
         print('Isolated wheel: report assets and mechanical rules export passed')

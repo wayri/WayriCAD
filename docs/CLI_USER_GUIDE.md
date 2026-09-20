@@ -323,6 +323,11 @@ test-point, pin, and interface CSV files are required.
 their actions, input type, and whether mutating actions exist. This lets a
 workflow engine discover the suite without scraping help text.
 
+Version 3.2 lists 16 active packages. Decoupling is integrated into Quick PI;
+return-path and test-point tools are integrated into Quick SI. Existing JSON-RPC
+analysis method names remain compatible; the retired standalone package names
+are no longer entries in the active package inventory.
+
 ```bash
 wayricad capabilities --output artifacts/wayricad-capabilities.json
 ```

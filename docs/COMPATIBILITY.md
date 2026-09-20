@@ -18,7 +18,7 @@ Source ActionPlugin launches use KiCad's bundled `pcbnew` and wxPython. Selected
 
 
 
-**There has not yet been a complete live IPC transport integration run of all 20 tools.** Two concurrently open disposable KiCad 10.0.5 editors passed exact socket/token and originating-board checks, including five reconnects per editor, when each used a separate temporary directory. On Windows, two editors sharing the same temporary directory reproduced an upstream IPC endpoint collision. See [troubleshooting](TROUBLESHOOTING.md) for the isolated launch workaround. No per-tool live mutation acceptance is implied by that connection test.
+**There has not yet been a complete live IPC transport integration run of all 16 active tools.** Two concurrently open disposable KiCad 10.0.5 editors passed exact socket/token and originating-board checks, including five reconnects per editor, when each used a separate temporary directory. On Windows, two editors sharing the same temporary directory reproduced an upstream IPC endpoint collision. See [troubleshooting](TROUBLESHOOTING.md) for the isolated launch workaround. No per-tool live mutation acceptance is implied by that connection test.
 
 
 

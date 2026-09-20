@@ -454,11 +454,13 @@ class TraceMeasurementEngine:
                 result.board_items.append(item)
             section = dict(kind=kind,layer=layer,length_mm=length,reference_layer="",reference_net="",
                            resistance_ohm=0.,inductance_nh=None,capacitance_pf=None,impedance_ohm=None,status="partial")
+            section['item_uuid']=uid
             section['geometry']=edge.get('geometry','barrel' if kind=='via' else 'straight')
             if 'a' in edge:
                 section['start_mm']=[v/1e6 for v in edge['a']]
                 section['end_mm']=[v/1e6 for v in edge['b']]
             copper = (rows[layer].thickness_mm if layer in rows else 0.) or .035
+            section['copper_thickness_mm']=copper
             result.copper_thickness_mm = copper
             if kind == "via":
                 via_ids.add(uid)
@@ -468,7 +470,9 @@ class TraceMeasurementEngine:
                 result.layer_changes += 1
                 if end_layer not in result.layers:
                     result.layers.append(end_layer)
-                model = _rlc.via_barrel(length, edge["drill_mm"])
+                model = _rlc.via_barrel(length, edge["drill_mm"],frequency_mhz=frequency)
+                section.update(drill_mm=edge['drill_mm'],plating_mm=model['plating_mm'],resistance_ac_ohm=model['resistance_ac_ohm'])
+                result.resistance_ac_ohm += model['resistance_ac_ohm']
                 section.update(resistance_ohm=model["resistance_ohm"],inductance_nh=model["inductance_nh"],
                                model="Plated barrel: assumed 25 um plating; isolated partial inductance")
                 result.status = "partial"
@@ -478,7 +482,8 @@ class TraceMeasurementEngine:
                 widths.append((width,length))
                 section["width_mm"] = width
                 section["resistance_ohm"] = _rlc.dc_resistance_per_m(width,copper) * length/1000
-                result.resistance_ac_ohm += _rlc.ac_resistance_per_m(frequency,width,copper) * length/1000
+                section['resistance_ac_ohm']=_rlc.ac_resistance_per_m(frequency,width,copper) * length/1000
+                result.resistance_ac_ohm += section['resistance_ac_ohm']
                 coverage_width=width+(.002 if section['geometry'].startswith('arc') else 0.)
                 ref = geometry.reference(edge["layer"],edge["a"],edge["b"],coverage_width,reference,result.net_name)
                 if ref:
@@ -535,6 +540,7 @@ class TraceMeasurementEngine:
             result.inductance_nh += section["inductance_nh"] or 0.
             result.capacitance_pf += section["capacitance_pf"] or 0.
             result.segments.append(section)
+        result.notes.append('AC resistance includes plated vias and wide-sheet skin diffusion with one-face excitation. Arbitrary conductor proximity, edge crowding, return-conductor loss and roughness are not solved; compare one/two-face excitation in the frequency sweep.')
         result.track_count, result.via_count, result.zone_count = len(track_ids),len(via_ids),len(zone_ids)
         if not result.segments:
             result.status = "partial"

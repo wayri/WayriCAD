@@ -1,6 +1,6 @@
 'use strict';
 // Keep everyday work visible while retaining every advanced workflow.
-const essentials = new Set(['bom','variants','exports','review','about']);
+const essentials = new Set(['bom','exports','review']);
 const moreTools = document.createElement('details');
 moreTools.className = 'more-tools';
 const moreSummary = document.createElement('summary');
@@ -52,4 +52,21 @@ document.addEventListener('click',event=>{
   }
   document.querySelector('#nativeColumnEditor').innerHTML=nativeFieldsTable();
 });
+// A small everyday export surface, with the complete template/native UI below it.
+const detailedExports = renderExportsV2;
+const quickExport = {kind:'bom',template:'Engineering',grouped:true,exclude_testpoints:true,exclude_dnp:true};
+renderExportsV2 = function () {
+  if(!S.data.templates[quickExport.template])quickExport.template=Object.keys(S.data.templates)[0];
+  return `<section class="panel"><div class="panel-title"><h2>Export a component list</h2></div><div class="panel-body"><p>Uses current workspace edits and the active variant. Preview the exact rows before exporting.</p><div class="columns2"><div class="field"><label for="quickKind">List</label><select id="quickKind" data-quick="kind">${optionList([['bom','Bill of materials'],['testpoints','Test points only'],['dnp','DNP only']],quickExport.kind)}</select></div><div class="field"><label for="quickTemplate">Template</label><select id="quickTemplate" data-quick="template">${Object.keys(S.data.templates).map(t=>`<option ${t===quickExport.template?'selected':''}>${esc(t)}</option>`).join('')}</select></div></div><div class="toolbar"><label><input type="checkbox" data-quick="grouped" ${checked(quickExport.grouped)}> Group matching components</label><label><input type="checkbox" data-quick="exclude_testpoints" ${checked(quickExport.exclude_testpoints)} ${quickExport.kind!=='bom'?'disabled':''}> Exclude test points</label><label><input type="checkbox" data-quick="exclude_dnp" ${checked(quickExport.exclude_dnp)} ${quickExport.kind!=='bom'?'disabled':''}> Exclude DNP</label></div><p class="fine">Test points: TP-number references, or an explicit TestPoint=yes field. TestPoint=no overrides detection. Separate lists include components excluded from the BOM; DNP means the native DNP flag.</p><div class="toolbar">${b8('quickPreview','Preview rows')}<select id="quickFormat" aria-label="Export file type">${optionList(FORMAT_CHOICES,'csv')}</select><label><input id="quickDraft" type="checkbox"> Mark as draft (allow check errors)</label>${b8('quickDownload','Export')}</div><div id="quickRows" aria-live="polite"></div></div></section><details><summary>Templates, native exports and advanced settings</summary>${detailedExports()}</details>`;
+};
+document.addEventListener('change',e=>{
+  const key=e.target.dataset.quick;if(!key)return;
+  quickExport[key]=e.target.type==='checkbox'?e.target.checked:e.target.value;
+  render();
+});
+handlers.quickPreview=async()=>{
+  const p=await api('simple-export/preview',{options:quickExport});
+  $('#quickRows').innerHTML=`<p>${p.groups} rows · ${p.issues.filter(i=>i.severity==='error').length} blocking checks</p><div class="table-wrap"><table class="data-table"><thead><tr>${p.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${p.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+};
+handlers.quickDownload=async()=>download('simple-export/download',{options:quickExport,format:$('#quickFormat').value,draft:$('#quickDraft').checked});
 if(S.data?.project)render();

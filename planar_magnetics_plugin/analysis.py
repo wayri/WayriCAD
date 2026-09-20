@@ -27,6 +27,7 @@ class MagneticCore:
     loss_k: float = 0.0
     loss_alpha: float = 1.5
     loss_beta: float = 2.5
+    bh_points: tuple = ()
 
 
 CORE_CATALOG = {
@@ -169,11 +170,15 @@ class MagneticResult:
 
 
 def load_core_catalog(path: str | Path) -> dict[str, MagneticCore]:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    rows = payload.get("cores", payload)
+    from .magnetic_circuit import validate_core
+    payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    rows = payload.get("cores") if isinstance(payload, dict) else payload
+    if not isinstance(rows, list) or len(rows) > 4096:
+        raise ValueError('Core catalog must contain a list of at most 4096 cores')
     result = dict(CORE_CATALOG)
     for row in rows:
-        core = MagneticCore(**row); result[core.name] = core
+        if not isinstance(row, dict): raise ValueError('Each core must be an object')
+        core = MagneticCore(**row); validate_core(core); result[core.name] = core
     return result
 
 
@@ -187,6 +192,12 @@ class MagneticsEngine:
                 actuator: str = "Voice coil") -> MagneticResult:
         catalog = core_catalog or CORE_CATALOG
         if spec.core_name not in catalog: raise ValueError(f"Unknown magnetic core: {spec.core_name}")
+        from .magnetic_circuit import validate_core
+        validate_core(catalog[spec.core_name])
+        if any(isinstance(value, (int, float)) and not math.isfinite(value) for value in asdict(spec).values()):
+            raise ValueError('All winding inputs must be finite')
+        if spec.spacing_mm < 0 or spec.frequency_khz < 0 or spec.secondary_turns < 0:
+            raise ValueError('Spacing, frequency and secondary turns cannot be negative')
         if min(spec.outer_width_mm,spec.outer_height_mm,spec.turns,spec.trace_width_mm,spec.copper_um,spec.layers) <= 0:
             raise ValueError("Winding dimensions, turns, copper, and layers must be positive.")
         total_layers = spec.layers + (spec.secondary_layers if spec.secondary_turns else 0)
@@ -226,13 +237,20 @@ class MagneticsEngine:
         rac=rdc*skin_factor*proximity
         layer_turns=spec.turns;effective_turns=layer_turns*spec.layers if spec.layer_connection=="Series" else layer_turns
         core=catalog[spec.core_name];inductance=MagneticsEngine._inductance(spec,effective_turns,core)
+        from .magnetic_circuit import operating_point
+        circuit=operating_point(core,effective_turns,spec.current_a)
+        if core.family != 'Air':
+            if not circuit['model_valid']:
+                raise ValueError('Linear core model exceeds saturation. Reduce current or supply measured B-H samples in Core tools.')
+            inductance=circuit['differential_inductance_h']*1e6
         avg_perimeter=2*(spec.outer_width_mm+spec.outer_height_mm-2*spec.turns*pitch)/1000
         capacitance=EPS0*4.2*(length_mm/1000)*(spec.trace_width_mm/1000)/max(spec.spacing_mm/1000,25e-6)
         capacitance*=1+0.35*(spec.layers-1)
         srf=1/(2*math.pi*math.sqrt(max(inductance*1e-6*capacitance,1e-30)))/1e6
         q=omega*(inductance*1e-6)/max(rac,1e-12)
-        reluctance=MagneticsEngine._reluctance(core);flux=effective_turns*spec.current_a/max(reluctance,1e-12);field=min(flux/(core.effective_area_mm2*1e-6),core.saturation_t)
-        saturation=core.saturation_t*core.effective_area_mm2*1e-6*reluctance/max(effective_turns,1)
+        reluctance=MagneticsEngine._reluctance(core);field=abs(circuit['flux_density_t'])
+        from .magnetic_circuit import saturation_current
+        saturation=saturation_current(core,effective_turns)
         copper_loss=spec.current_a**2*rac
         volume_cm3=core.effective_area_mm2*core.path_length_mm/1000.0
         core_loss=core.loss_k*(max(spec.frequency_khz,0.001)/100.0)**core.loss_alpha*(max(field,1e-6)/0.1)**core.loss_beta*volume_cm3
@@ -247,12 +265,16 @@ class MagneticsEngine:
         else:force=field*spec.current_a*wire_active;travel=min(spec.outer_width_mm,spec.outer_height_mm)*0.15
         torque=effective_turns*spec.current_a*area_m2*(spec.external_field_ut*1e-6)*1e6
         notes=["Inductance uses planar Wheeler/Mohan or magnetic-reluctance approximations.","AC resistance includes first-order skin and proximity multipliers; validate at frequency with an impedance analyzer.","Field, force, torque, saturation, and core loss are reduced-order estimates and require FEA plus prototype correlation."]
+        if core.bh_points:
+            notes.append('Inductance is differential at the entered DC current; B-H circuit is anhysteretic and omits fringing/leakage.')
         return MagneticResult(spec,core,segments,vias,length_mm,rdc,rac,inductance,capacitance*1e12,srf,q,field*1000,saturation,copper_loss,core_loss,secondary,mutual,ratio,force,travel,torque,notes)
 
     @staticmethod
     def simulate_dynamics(result: MagneticResult, motion: MotionSpec,
                           actuator: str = "Voice coil") -> DynamicsResult:
         """Integrate a coupled coil/1-DOF mechanical model with hard travel stops."""
+        if result.core.bh_points:
+            raise ValueError('Tabulated B-H cores support static analysis and current sweeps; nonlinear coupled motion is not implemented.')
         if min(motion.moving_mass_kg, motion.spring_n_m, motion.mechanical_q,
                motion.initial_gap_m, motion.stroke_limit_m, motion.duration_s,
                motion.time_step_s, motion.temperature_k) <= 0:

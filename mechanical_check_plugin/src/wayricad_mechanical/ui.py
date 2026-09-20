@@ -124,6 +124,9 @@ class Window(wx.Frame):
         self.board_stats=label(p,'Choose a board to inspect its model inventory.',12,True)
         s.Add(self.board_stats,0,wx.BOTTOM,18)
         runtime=discover()
+        self.mode=wx.Choice(p,choices=['Quick 2D footprint screen (no FreeCAD)', 'Exact 3D solids (FreeCAD)'])
+        self.mode.SetSelection(0 if self.config['mode']=='quick2d' else 1)
+        s.Add(self.mode,0,wx.EXPAND|wx.BOTTOM,12)
         s.Add(label(p,'GEOMETRY ENGINE',9,True,MUTED),0,wx.BOTTOM,8)
         s.Add(label(p,'KiCad STEP exporter + FreeCAD / Open CASCADE\n'+('Executables found — Run checks runtime compatibility' if all(runtime.values()) else 'Setup needed — open Help'),11,False,MUTED),0,wx.BOTTOM,15)
         s.AddStretchSpacer()
@@ -166,7 +169,7 @@ class Window(wx.Frame):
         s.Add(self.progress,0,wx.EXPAND|wx.TOP,30)
         self.progress_text=label(p,'Ready when you are.',11,False,TEAL);s.Add(self.progress_text,0,wx.TOP,12)
         row=wx.BoxSizer(wx.HORIZONTAL)
-        self.run_button=button(p,'Run 3D validation',self.start)
+        self.run_button=button(p,'Run selected check',self.start)
         self.run_button.SetMinSize((200,44))
         self.cancel_button=button(p,'Cancel',lambda e:self.cancel.set());self.cancel_button.Disable()
         row.Add(self.run_button,0,wx.RIGHT,12);row.Add(self.cancel_button,0,wx.ALIGN_CENTER_VERTICAL)
@@ -197,7 +200,8 @@ class Window(wx.Frame):
             control.Bind(wx.EVT_CHECKBOX,lambda e,k=key:(setattr(self.scene,k,e.IsChecked()),self.scene.Refresh()))
             toggles.Add(control,0,wx.RIGHT,10)
         ls.Add(toggles,0,wx.BOTTOM,8)
-        ls.Add(label(left,'Red: exact contact volume (X-ray) · Gold: hardware allowance\nDrag: orbit · Right-drag: pan · Wheel: zoom',9,False,MUTED),0,wx.BOTTOM,8)
+        self.scene_legend=label(left,'Red: exact contact volume (X-ray) · Gold: hardware allowance\nDrag: orbit · Right-drag: pan · Wheel: zoom',9,False,MUTED)
+        ls.Add(self.scene_legend,0,wx.BOTTOM,8)
         left.SetSizer(ls)
         right=wx.Panel(split);rs=wx.BoxSizer(wx.VERTICAL)
         self.list=wx.ListCtrl(right,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
@@ -274,6 +278,7 @@ class Window(wx.Frame):
             self.mount_grid.SaveEditControlValue();self.mount_grid.DisableCellEditControl()
         c=deepcopy(self.config)
         c.update(project_name=self.project.GetValue().strip(),project_revision=self.revision.GetValue().strip(),reviewer=self.reviewer.GetValue().strip(),include_dnp=self.dnp.GetValue())
+        c['mode']='quick2d' if self.mode.GetSelection()==0 else 'exact3d'
         c.update({key:control.GetValue() for key,control in self.numbers.items()})
         c['mounts']={}
         for row,(ref,actual) in enumerate(self.mount_rows):
@@ -338,6 +343,7 @@ class Window(wx.Frame):
 
     def refresh_result(self):
         r=self.result
+        self.scene_legend.SetLabel('Flat footprint envelopes only; no model height or solid collision.\nDrag: orbit · Right-drag: pan · Wheel: zoom' if r['rules'].get('mode')=='quick2d' else 'Red: exact contact volume (X-ray) · Gold: hardware allowance\nDrag: orbit · Right-drag: pan · Wheel: zoom')
         self.summary.SetLabel(f"{r['status'].replace('_',' ').upper()}   ·   {len(r['findings'])} findings   ·   {len(r['coverage']['gaps'])} coverage gaps")
         self.status.SetLabel('Completed '+r['local_timestamp'][:19].replace('T',' '))
         self.report_info.SetValue(f"Project: {r['project_name']}\nRevision: {r['project_revision'] or 'Unspecified'}\nBoard: {r['board_name']}\nReviewer: {r['reviewer'] or 'Unspecified'}\n\nStarted (UTC): {r['started_at']}\nCompleted (UTC): {r['completed_at']}\nLocal time: {r['local_timestamp']}\nDuration: {r['duration_seconds']} s\n\nResult: {r['status']}\nBoard SHA-256: {r['board_sha256']}\n\nEvery finding includes rule, affected references, evidence, measurement, corrective action and waiver reason.")
@@ -408,6 +414,7 @@ class Window(wx.Frame):
                 self.config=load(dlg.GetPath());self.rules_path=dlg.GetPath()
                 for key,control in self.numbers.items():control.SetValue(self.config[key])
                 self.project.SetValue(self.config['project_name']);self.revision.SetValue(self.config['project_revision']);self.reviewer.SetValue(self.config['reviewer']);self.dnp.SetValue(self.config['include_dnp'])
+                self.mode.SetSelection(0 if self.config['mode']=='quick2d' else 1)
                 self.load_board()
             except Exception as exc:wx.MessageBox(str(exc),'Invalid rules',wx.OK|wx.ICON_ERROR,self)
 

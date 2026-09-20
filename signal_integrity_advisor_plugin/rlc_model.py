@@ -17,6 +17,7 @@ runtimes keep working.
 from __future__ import annotations
 
 import math
+import cmath
 
 try:  # CODATA values via SciPy when available.
     from scipy.constants import epsilon_0 as EPS0  # type: ignore
@@ -29,19 +30,21 @@ C_LIGHT = 299792458.0
 COPPER_RESISTIVITY = 1.724e-8
 
 
-def via_barrel(length_mm: float, drill_mm: float, plating_mm: float = .025) -> dict:
+def via_barrel(length_mm: float, drill_mm: float, plating_mm: float = .025, frequency_mhz: float = 0.) -> dict:
     """First-order barrel DC resistance and isolated partial inductance.
 
     L = mu0*l/(2*pi)*(ln(4*l/d)+1), the thin-via estimate in TI's
     Analog Engineer's Pocket Reference (slyw038). Antipad capacitance and
     return-path loop inductance require additional geometry and are unknown.
     """
-    if min(length_mm, drill_mm, plating_mm) <= 0:
+    if not all(math.isfinite(v) and v > 0 for v in (length_mm, drill_mm, plating_mm)):
         raise ValueError("Via length, drill and plating must be positive.")
     length, drill, plating = length_mm/1000, drill_mm/1000, plating_mm/1000
     area = math.pi * ((drill/2+plating)**2-(drill/2)**2)
     inductance = MU0*length/(2*math.pi)*(math.log(4*length/drill)+1)*1e9 if length >= drill/4 else None
-    return dict(resistance_ohm=COPPER_RESISTIVITY*length/area, inductance_nh=inductance,
+    rdc=COPPER_RESISTIVITY*length/area
+    rac=rdc*slab_skin_factor(frequency_mhz,plating_mm,1)
+    return dict(resistance_ohm=rdc,resistance_ac_ohm=rac, inductance_nh=inductance,
                 capacitance_pf=None, plating_mm=plating_mm)
 
 
@@ -98,15 +101,26 @@ def ac_resistance_per_m(
     width_mm: float,
     copper_mm: float,
     resistivity: float = COPPER_RESISTIVITY,
+    excited_faces: int = 1,
 ) -> float:
-    """Conductor loss per metre including skin effect at ``frequency_mhz``."""
-    w = max(float(width_mm), 1e-6) / 1000.0
-    t = max(float(copper_mm), 1e-6) / 1000.0
-    delta = skin_depth_m(float(frequency_mhz) * 1e6, resistivity)
-    if delta >= t:  # Low frequency: current fills the conductor.
-        return dc_resistance_per_m(width_mm, copper_mm, resistivity)
-    surface_resistance = resistivity / delta
-    return max(surface_resistance / max(w + t, 1e-9), dc_resistance_per_m(width_mm, copper_mm, resistivity))
+    """Wide-sheet skin diffusion, with explicitly assumed one/two-face excitation.
+
+    This models through-thickness redistribution, not arbitrary neighboring
+    conductor proximity, edge crowding, roughness or return-plane loss.
+    """
+    return dc_resistance_per_m(width_mm,copper_mm,resistivity)*slab_skin_factor(frequency_mhz,copper_mm,excited_faces,resistivity)
+
+
+def slab_skin_factor(frequency_mhz,copper_mm,excited_faces=1,resistivity=COPPER_RESISTIVITY):
+    if excited_faces not in (1,2):raise ValueError('Choose one or two excited sheet faces.')
+    if not all(math.isfinite(v) for v in (frequency_mhz,copper_mm,resistivity)) or frequency_mhz<0 or min(copper_mm,resistivity)<=0:
+        raise ValueError('Frequency must be finite/nonnegative; copper thickness and resistivity must be positive.')
+    if frequency_mhz==0:return 1.
+    ratio=copper_mm/1000/skin_depth_m(frequency_mhz*1e6,resistivity)/excited_faces
+    if ratio<1e-3:return 1+4*ratio**4/45
+    if ratio>40:return ratio
+    q=complex(ratio,ratio)
+    return max(1.,(q/cmath.tanh(q)).real)
 
 
 def solve(

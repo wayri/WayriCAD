@@ -22,6 +22,16 @@ Eight shapes (circle, square, diamond, hexagon, octagon, rounded square, organic
 
 Previews are nonmutating. Settings and actual board geometry invalidate stale plans. Application restores objects, nets and group membership on failure. The output writer checks that the source file is unchanged and exclusively creates a new destination. Candidate/shape limits and cancellation keep generation bounded. Density targets are ceilings, not guaranteed final coverage or plating simulation.
 
+## Density diagnostics
+
+![Native copper density diagnostics on a synthetic board](help-diagnostics.png)
+
+Synthetic fixture, limited to 50 proposed shapes; no board modification.
+
+Each preview explains rejected sites by region boundary, per-tile density ceiling and geometry/clearance. The summary reports minimum/maximum tile coverage, tiles below target, the remaining target-area deficit, and tiles already above target before generation. The latter cannot be repaired by adding copper. CLI JSON exposes the same `diagnostics` object per layer. Geometry/clearance is one combined conservative rejection category, not a guessed obstacle diagnosis.
+
+Settings reject booleans disguised as dimensions, nonfinite coordinates and noninteger shape limits/seeds. Impossible geometry-adapter areas fail the preview instead of producing misleading density. Tiny polygon-rounding deviations are clamped within a numerical tolerance. These diagnostics quantify copper coverage, not electroplating or thermal performance.
+
 ## Command line
 
 The suite console command discovers KiCad's native interpreter automatically. `--help` needs no KiCad installation.

@@ -41,3 +41,19 @@ Native operational validation uses `python tools/validate_marble_operations.py` 
 Generated coil preview from the documentation fixture. Reduced engineering estimates require the stated geometry and material assumptions.
 
 The installed package includes [offline help](help.html) with its workflow and limitations.
+
+## Custom cores, saturation and STEP inspection
+
+**Core tools** adds dimensional core editing, measured B-H tables, current/saturation, incremental-inductance and ideal-gap-force plots, transformer volt-second checks, and CSV export. Optional FreeCAD STEP inspection shows solid geometry, dimensions and volume while requiring explicit magnetic dimensions/material inputs. See [equations, workflow, installation and limits](MAGNETICS_MODELS.md).
+
+![Native magnetic circuit sweep with synthetic B-H material](help-core-sweep.png)
+
+These are magnetic-circuit calculations and a STEP surface preview; full-field transformer/actuator FEA remains unimplemented.
+
+
+**Axisymmetric field** adds a real linear FEM subset for dimensioned annular
+windings and optional bore cores. Inspect native |B|/Br/Bz maps, mesh cells,
+energy-derived inductance and three-case mesh/air-domain convergence. This does
+not import arbitrary STEP into a field solve or replace nonlinear transformer FEA.
+
+![Native axisymmetric field visualization](help-axisymmetric.png)

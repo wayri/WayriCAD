@@ -9,15 +9,15 @@ from pathlib import Path
 from extract_pins_plugin.core.bringup_packager import c_header, collect_bringup_rows, markdown
 from harness_workbench_plugin.analysis import PinRecord, auto_link, harness_svg, validate_links
 from manufacturing_readiness_plugin.analysis import BoardMetrics, FabricatorProfile, audit_metrics, build_release
-from pdn_decoupling_plugin.analysis import PadNode, analyze_decoupling, infer_regulators
+from quick_pi_plugin.decoupling.analysis import PadNode, analyze_decoupling, infer_regulators
 from protocol_constraint_composer_plugin.analysis import detect_protocols, generate_rules, merge_managed_rules
-from return_path_auditor_plugin.analysis import CopperSegment, ReferenceRegion, ReturnPathAnalyzer, ViaPoint
+from signal_integrity_advisor_plugin.return_path.analysis import CopperSegment, ReferenceRegion, ReturnPathAnalyzer, ViaPoint
 
 
 ROOT = Path(__file__).resolve().parents[1]
 NEW_PACKAGES = (
-    "return_path_auditor_plugin", "harness_workbench_plugin", "manufacturing_readiness_plugin",
-    "pdn_decoupling_plugin", "protocol_constraint_composer_plugin",
+    "signal_integrity_advisor_plugin", "harness_workbench_plugin", "manufacturing_readiness_plugin",
+    "protocol_constraint_composer_plugin",
 )
 
 

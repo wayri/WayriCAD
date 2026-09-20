@@ -1,6 +1,7 @@
 """Regenerate the common IPC manifests and package dependencies."""
 import ast
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,14 @@ def main():
         migration.replace('from .sexpr import', 'from .schematic_sexpr import'), encoding='utf-8')
     for source in sorted(ROOT.glob("*/metadata.json")):
         folder = source.parent
+        for code_path in folder.rglob('*.py'):
+            if 'tests' in code_path.parts:
+                continue
+            original = code_path.read_text(encoding='utf-8-sig')
+            updated = re.sub(r'((?:self\.version|__version__|VERSION)\s*=\s*[\"\'])3\.1\.1([\"\'])',
+                             r'\g<1>3.2.0\2', original)
+            if updated != original:
+                code_path.write_text(updated, encoding='utf-8')
         metadata = json.loads(source.read_text(encoding="utf-8"))
         short_name = folder.name.removesuffix("_plugin").replace("_", "-")
         short_name = {"protocol-constraint-composer": "protocol-constraints", "test-point-descriptor": "test-points"}.get(short_name, short_name)
@@ -32,7 +41,7 @@ def main():
         # The distributed bundle includes the GPL suite runtime; imported MIT notices remain intact.
         metadata["license"] = "GPL-3.0-only"
         for version in metadata["versions"]:
-            version.update(version="3.1.1", runtime="ipc", kicad_version="10.0", status="testing")
+            version.update(version="3.2.0", runtime="ipc", kicad_version="10.0", status="testing")
             for key in list(version):
                 if key.startswith("download_") or key in {"install_size", "kicad_version_max"}:
                     del version[key]
@@ -78,6 +87,9 @@ def main():
                         candidates.append((path, node.name))
             if not candidates:
                 raise ValueError(f"No action class in {folder}")
+            # Internal consolidated tools must never replace the package's
+            # top-level action merely because their directory sorts first.
+            candidates.sort(key=lambda pair:(len(pair[0].relative_to(folder).parts),str(pair[0]),pair[1]))
             path, classname = candidates[0]
             write_json(folder / "wayricad-tool.json", {
                 "tool": folder.name, "name": metadata["name"],

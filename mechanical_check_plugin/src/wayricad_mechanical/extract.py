@@ -106,6 +106,8 @@ def prepare(board, workdir, project_dir, config):
         if dnp and not config['include_dnp']:
             fp.Models().clear()
             continue
+        if config.get('mode') == 'quick2d':
+            continue  # No STEP resolution/copy is needed for footprint envelopes.
         for model_index, model in enumerate(fp.Models()):
             if hasattr(model, 'm_Show') and not model.m_Show:
                 continue

@@ -146,3 +146,38 @@ and [TI endpoint termination discussion](https://www.ti.com/document-viewer/lit/
 Validation: six closed-form/unknown-input/export tests, a native Marble path run,
 and an actual native window check cover selected-pad defaults, calculation and
 result invalidation. The screenshots above are captured from the current window.
+
+
+## Return paths and test points, in one window
+
+The standalone Return-Path Auditor and Test Point Descriptor workflows now live
+inside Quick SI. No second installation is needed.
+
+- **Return path** retains return-net patterns, transition-via proximity, plane
+  coverage, stubs, differential geometry, board preview and CSV findings. These
+  are conservative geometric checks, not coupled electromagnetic simulation.
+- **Test point records** retains descriptor parsing, connected-IC/series-path
+  records, CSV/HTML exports and the separate bed-of-nails fixture draft.
+- **Test point labels** loads current test points from the *originating editor*.
+  Enter a reference pattern (default `TP*`) and value template (`{net}` or
+  `{ref}: {net}`), then **Load test points**. Edit individual proposed-value
+  cells when required. **Review changes** shows pads, existing value anchors,
+  proposed names and the optional table in a pan/zoom preview.
+
+![Native test point label and set-table preview on a disposable three-point board](help-testpoints.png)
+
+Expand **Silkscreen and table options** to expose values on front/back silk or
+place a two-column test-point/net table at entered board coordinates. The table
+uses editable KiCad text cells. Existing footprint value positions and sizes
+are preserved. The preview shows anchor geometry with approximate glyphs;
+inspect actual rotated/mirrored text, pad clearances and silk DRC before saving.
+
+**Apply to editor** performs one native IPC undo transaction. Nothing is applied
+until that button is clicked. Any board change after review rejects the stale
+plan. **Undo last apply** reverses the operation only if the board has not
+changed since applying; otherwise use KiCad's normal undo history. Locked,
+unconnected and ambiguous multi-net footprints are excluded. Standalone saved-
+board runs can preview but cannot write to an unrelated editor.
+
+Editing PCB footprint values does not update schematic values; a later
+Update PCB from Schematic can overwrite them. Use a reviewed project convention.

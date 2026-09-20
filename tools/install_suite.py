@@ -13,6 +13,10 @@ RETIRED_PLUGINS = {
     'com.github.wayri.wayricad.kilo': 'Consolidated into Embed3D',
     'com.github.wayri.wayricad.portable-assets': 'Consolidated into Embed3D',
     'com.github.wayri.wayricad.visual-diff': 'Retired from the suite',
+    'com.github.wayri.wayricad.variant-workbench': 'Retired: use native KiCad variants',
+    'com.github.wayri.wayricad.pdn-decoupling': 'Consolidated into Quick PI',
+    'com.github.wayri.wayricad.return-path-auditor': 'Consolidated into Quick SI',
+    'com.github.wayri.wayricad.test-points': 'Consolidated into Quick SI',
 }
 
 

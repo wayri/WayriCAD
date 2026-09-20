@@ -94,6 +94,8 @@ class Workspace:
     def floors(self):return self.project.get('board',{}).get('design_settings',{}).get('rules',{})
     def issues(self):
         out=lint(self.document,self.floors)
+        from .routing_profiles import issues as routing_issues
+        out.extend(routing_issues(self))
         for g in self.guards:
             if g.get('mode')=='footprint-owned-contours-v1':
                 from .courtyards import check_regions
@@ -169,7 +171,7 @@ class Workspace:
         # Carry a small, offline GUI apply utility with each review. No installation,
         # service or network; it still requires Python with wx or Tk on the host.
         helper=directory/'_apply'/'constraint_studio';helper.mkdir(parents=True)
-        for name in ('__init__.py','catalog.py','sexpr.py','expressions.py','model.py','board.py','workspace.py','offline_gui.py','linked_areas.py','courtyards.py','LICENSE','LICENSE.original.txt'):
+        for name in ('__init__.py','catalog.py','sexpr.py','expressions.py','model.py','board.py','workspace.py','offline_gui.py','linked_areas.py','courtyards.py','routing_profiles.py','LICENSE','LICENSE.original.txt'):
             source=pathlib.Path(__file__).with_name(name)
             if source.exists():shutil.copy2(source,helper/name)
         launcher="import pathlib, sys\nsys.path.insert(0, str(pathlib.Path(__file__).parent / '_apply'))\nfrom constraint_studio.offline_gui import main\nmain(str(pathlib.Path(__file__).parent))\n"

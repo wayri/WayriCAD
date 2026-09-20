@@ -1,4 +1,5 @@
 from __future__ import annotations
+from wayricad_runtime.help import open_help as open_native_help
 import os,webbrowser
 from pathlib import Path
 import pcbnew,wx
@@ -18,7 +19,7 @@ def protocol_colour(name:str)->str:
     palette=tuple(PROTOCOL_COLOURS.values());return palette[sum(ord(c) for c in name)%len(palette)]
 
 class ProtocolConstraintComposerPlugin(pcbnew.ActionPlugin):
-    def defaults(self):self.name="WayriCAD Constraint Studio";self.category="Design Rules";self.description="Detect protocol nets and compose reviewed KiCad custom design rules.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png");self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png");self.version="3.1.1"
+    def defaults(self):self.name="WayriCAD Constraint Studio";self.category="Design Rules";self.description="Detect protocol nets and compose reviewed KiCad custom design rules.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png");self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png");self.version="3.2.0"
     def Run(self):
         board=pcbnew.GetBoard()
         if board is None:return
@@ -28,7 +29,7 @@ class ConstraintFrame(wx.Frame):
     def __init__(self,parent,board):super().__init__(parent,title="WayriCAD Protocol Constraint Composer",size=(1200,820));self.board=board;self.assignments=[];self.generated="";self.presets=dict(PRESETS);self._build();self.Centre()
     def _build(self):
         p=wx.Panel(self);r=wx.BoxSizer(wx.VERTICAL)
-        self.guide=add_workflow(p,r,"Protocol Constraint Composer","Detect protocol nets and review their custom design rules.",("Detect","Assign","Preview","Stage"),lambda e:webbrowser.open(Path(__file__).with_name("help.html").as_uri()))
+        self.guide=add_workflow(p,r,"Protocol Constraint Composer","Detect protocol nets and review their custom design rules.",("Detect","Assign","Preview","Stage"),lambda e:open_native_help(self,Path(__file__).with_name("help.html")))
         split=wx.SplitterWindow(p);left=wx.Panel(split);right=wx.Panel(split)
         ls=wx.BoxSizer(wx.VERTICAL);rs=wx.BoxSizer(wx.VERTICAL)
         detect=mark_primary(wx.Button(left,label="Detect Nets"),"Detect likely protocol nets without modifying design rules")

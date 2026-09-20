@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.1.1"
+version = "3.2.0"
 description = "WayriCAD KiCad electrical systems CLI and plugin package"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,7 +29,7 @@ wayricad-si = "signal_integrity_advisor_plugin.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["*_plugin", "*_plugin.*", "wayricad_runtime"]
-exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.tests.*", "visual_diff_plugin", "visual_diff_plugin.*"]
+exclude = ["kilo_plugin", "kilo_plugin.*", "portable_assets_plugin", "portable_assets_plugin.*", "build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.tests.*", "visual_diff_plugin", "visual_diff_plugin.*", "pdn_decoupling_plugin", "pdn_decoupling_plugin.*", "return_path_auditor_plugin", "return_path_auditor_plugin.*", "test_point_descriptor_plugin", "test_point_descriptor_plugin.*", "variant_workbench_plugin", "variant_workbench_plugin.*"]
 
 [tool.setuptools.package-data]
 wayricad_runtime = ["*.md"]
@@ -38,12 +38,15 @@ extract_pins_plugin = ["*.html", "*.md", "*.txt", "*.svg", "*.png", "metadata.js
 harness_workbench_plugin = ["*.html", "*.md", "*.png", "metadata.json"]
 fanout_generator_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 trace_impedance_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
+"signal_integrity_advisor_plugin.return_path" = ["*.html", "*.md", "*.png"]
+"signal_integrity_advisor_plugin.test_points" = ["*.html", "*.md", "*.png"]
+"quick_pi_plugin.decoupling" = ["*.html", "*.md", "*.png"]
 signal_integrity_advisor_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 mechanical_check_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "resources/*.html", "src/wayricad_mechanical/*.py", "src/wayricad_mechanical/*.html", "src/wayricad_mechanical/*.js"]
 copper_balancer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 quick_pi_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 embed_3d_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
-protocol_constraint_composer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "docs/*.md", "examples/*", "examples/profiles/*.json", "examples/workflow_demo/*"]
+protocol_constraint_composer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "docs/*.md", "examples/*", "examples/profiles/*.json", "examples/workflow_demo/*", "web/*.html", "web/*.css", "web/*.js"]
 "protocol_constraint_composer_plugin.constraint_studio" = ["*.html", "*.png", "LICENSE*", "help/*.json", "help/images/*"]
 
 [tool.pytest.ini_options]

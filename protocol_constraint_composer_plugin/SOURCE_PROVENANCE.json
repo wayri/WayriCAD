@@ -45,6 +45,18 @@
     "GPL license supplied with exported helpers",
     "Ignore delayed tree events during native window destruction",
     "Compact native header actions",
-    "Upstream core tests retained with package-qualified imports and explicit UTF-8 source read"
-  ]
+    "Upstream core tests retained with package-qualified imports and explicit UTF-8 source read",
+    "BOM Studio-style local WebView shell backed by staged worksheet/rule/matrix/profile/netclass commands",
+    "Original specialist editors and native help share the same workspace and history",
+    "Asynchronous WebView bridge and unavailable-runtime fallback",
+    "Persistent KiCad 10 per-layer routing profiles, stackup review, native DRC limits and managed ownership checks",
+    "Native numeric constraint tokens normalized with leading zero while preserving source comments and expressions",
+    "Multiple protocol instances with exact-net group selection, overlap checks, clone/edit/remove and native routing conditions"
+  ],
+  "visual_evidence": {
+    "help-workflow.png": "Chromium render of shipped UI with supplied demo snapshot; native WebView interactions separately verified",
+    "help-matrix.png": "Chromium render of shipped matrix page with inherited draft cells",
+    "help-sets.png": "Chromium render of shipped reusable set page",
+    "help-layer-routing.png": "Chromium render of shipped multi-protocol editor using illustrative CAN1, CAN2, DDR data and Ethernet fixture; native checkbox/stage/undo interactions tested separately"
+  }
 }

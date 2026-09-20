@@ -163,7 +163,7 @@ class HarnessWorkbenchPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.1.1"
+        self.version = "3.2.0"
     def Run(self): HarnessFrame(None).Show()
 
 
@@ -566,4 +566,6 @@ class HarnessFrame(wx.Frame):
             elif kind=="html":Path(path).write_text(self._html(),encoding="utf-8")
             else:Path(path).write_text(universal_harness_svg(self.links),encoding="utf-8")
             self.status.SetLabel(f"Exported {Path(path).name}")
-    def _help(self,_event):webbrowser.open(Path(__file__).with_name("help.html").resolve().as_uri())
+    def _help(self,_event):
+        from wayricad_runtime.help import open_help
+        open_help(self,Path(__file__).with_name("help.html"))

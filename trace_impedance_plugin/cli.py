@@ -23,6 +23,7 @@ def parser():
             command.add_argument('--end',required=True,help='End pad, e.g. J1.1.')
             command.add_argument('--reference',default='Auto',help='Auto ground reference, or an explicit copper layer.')
             command.add_argument('--frequency-mhz',type=float,default=100.)
+            command.add_argument('--sweep-mhz',type=float,nargs=2,metavar=('MIN','MAX'),help='Add a 41-point AC resistance/series-impedance estimate sweep.')
         if name=='zone':
             command.add_argument('--zone-id',required=True,help='Filled-island ID from inspect --net.')
             command.add_argument('--corridor-width-mm',type=float,default=.2,
@@ -52,6 +53,9 @@ def analyze(args):
         report=engine.measure_zone(args.net,args.start,args.end,args.zone_id,
             reference_layer=args.reference,frequency_mhz=args.frequency_mhz,
             corridor_width_mm=args.corridor_width_mm).as_report()
+    if getattr(args,'sweep_mhz',None):
+        from .frequency_analysis import sweep
+        report['frequency_sweep']=sweep(report,*args.sweep_mhz)
     return {'schema':'wayricad.rlc/v1','board':str(source),
             'board_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
             'operation':args.command,'result':report}

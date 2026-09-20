@@ -5,6 +5,24 @@ from .catalog import CATALOG, SEVERITIES
 from .sexpr import parse, quote, scalar, ParseError
 from .expressions import parse_expression
 
+def native_numeric_tokens(text):
+    # Native KiCad's rule lexer rejects a bare .2mm even though our numeric
+    # evaluator accepts it. Preserve all other source text, including comments.
+    if not re.search(r'\((?:min|opt|max)\s+[+-]?\.\d', text): return text
+    replacements=[]
+    def visit(node):
+        if node.head()=='constraint':
+            for field in node.children:
+                if field.head() in ('min','opt','max') and len(field.children)==2:
+                    atom=field.children[1];raw=text[atom.start:atom.end]
+                    if re.match(r'^[+-]?\.\d',raw):
+                        replacements.append((atom.start,atom.end,re.sub(r'^([+-]?)\.',r'\g<1>0.',raw)))
+        for child in node.children:
+            if child.is_list:visit(child)
+    for node in parse(text):visit(node)
+    for start,end,value in sorted(replacements,reverse=True):text=text[:start]+value+text[end:]
+    return text
+
 @dataclass
 class Constraint:
     kind: str
@@ -19,7 +37,7 @@ class Constraint:
         parts.extend(f'({k} {v.strip()})' for k,v in self.values.items() if str(v).strip())
         if self.within_diff_pairs:parts.append('(within_diff_pairs)')
         parts.extend(self.extras)
-        return '(' + ' '.join(parts) + ')'
+        return native_numeric_tokens('(' + ' '.join(parts) + ')')
 
 @dataclass
 class Rule:
@@ -38,7 +56,7 @@ class Rule:
         return json.dumps({k:v for k,v in asdict(self).items() if k not in ('original','baseline','leading')},sort_keys=True)
     def emit_active(self):
         if self.original and self.state()==self.baseline:
-            return self.original
+            return native_numeric_tokens(self.original)
         lines=[f'(rule {quote(self.name)}']
         if self.severity:lines.append(f'  (severity {self.severity})')
         if self.layer and self.layer!='Any':

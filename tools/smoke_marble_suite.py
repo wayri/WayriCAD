@@ -40,31 +40,12 @@ def operation(tool,project,out):
         result=Project(schematic);status=result.status();dump(out/'project.json',status)
         assert len(result.components)>500
         return 'LIMITED',status,'Native schematic hierarchy/BOM inventory; old format blockers preserved; no browser acceptance.'
-    if tool=='variant_workbench_plugin':
-        from variant_workbench_plugin.kicad_variant_manager import discover_hierarchy,load_project_variants
-        documents=discover_hierarchy(schematic)
-        variants=load_project_variants(project/'Marble.kicad_pro')
-        result={'sheets':len(documents),'objects':sum(len(d.objects) for d in documents),'variants':variants[0]}
-        assert result['objects']>500;dump(out/'variants.json',result)
-        return 'LIMITED',result,'Read-only native variant inventory; no fabricated variant, promotion or Tk GUI acceptance.'
     if tool=='embed_3d_plugin':
         from embed_3d_plugin.workspace import scan_design
         inv=scan_design(pcb=boardfile,follow=False)
         result={'components':len(inv.rows),'models':sum(len(r.models) for r in inv.rows),'model_status':dict(Counter(m['status'] for r in inv.rows for m in r.models)),'warnings':inv.warnings}
         assert result['components']>500;dump(out/'inventory.json',result)
         return 'LIMITED',result,'Read-only asset inventory; missing external CERN models cannot be embedded.'
-    if tool=='portable_assets_plugin':
-        from portable_assets_plugin.portable_assets.core.engine import ProjectContext,scan_project
-        result=scan_project(ProjectContext(project));dump(out/'inventory.json',result)
-        return 'LIMITED',{'report':str(out/'inventory.json')},'Read-only saved project dependency scan; no portability writes or GUI acceptance.'
-    if tool=='kilo_plugin':
-        sys.path.insert(0,str(ROOT/tool))
-        from kilo.kicad.project import discover_project
-        from dataclasses import replace
-        from kilo.dependencies.scanner import scan_project
-        selected=replace(discover_project(boardfile),root_schematic=project/'PMOD.kicad_sch')
-        result=scan_project(selected);summary=result.summary();summary['sheet']='PMOD.kicad_sch';dump(out/'dependencies.json',summary)
-        return 'LIMITED',summary,'PMOD sheet localization dependency scan against full real board; missing library/model coverage remains unresolved.'
     import pcbnew as p
     p.ActionPlugin.register=lambda self:None
     board=p.LoadBoard(str(boardfile));assert board
@@ -106,21 +87,20 @@ def operation(tool,project,out):
     if tool=='mechanical_check_plugin':
         sys.path.insert(0,str(ROOT/tool/'src'))
         from wayricad_mechanical.extract import prepare
-        from wayricad_mechanical.config import load
-        result=prepare(board,out/'extraction',project,load());dump(out/'coverage.json',result)
-        data={'components':len(result['components']),'coverage_gaps':len(result['gaps']),'pads':len(result['pads'])}
-        return 'LIMITED',data,'Native extraction/model coverage only; missing CERN models prevent complete solid-check acceptance.'
-    if tool=='test_point_descriptor_plugin':
-        from test_point_descriptor_plugin.test_point_descriptor_plugin import extract_test_points
-        rows=extract_test_points(board);dump(out/'test-points.json',rows)
-        return 'PASS',dict(base,test_points=len(rows)),'Actual board test-point/function extraction; zero is valid if none match.'
+        from wayricad_mechanical.config import validate
+        from wayricad_mechanical.quick import screen
+        config=validate({'mode':'quick2d'})
+        result=prepare(board,out/'extraction',project,config)
+        screening=screen(result,config);dump(out/'quick-screen.json',screening)
+        data={'components':len(result['components']),'coverage_gaps':screening['coverage']['gaps'],'pads':len(result['pads']),'envelope_findings':len(screening['findings'])}
+        return 'LIMITED',data,'Native no-FreeCAD same-side footprint envelope screening; exact 3D, heights and hardware are explicitly unchecked.'
     pads=[(fp,pad) for fp in fps for pad in fp.Pads() if pad.GetNetname()]
-    if tool=='pdn_decoupling_plugin':
-        from pdn_decoupling_plugin.analysis import PadNode,analyze_decoupling,infer_regulators
+    if tool=='quick_pi_plugin':
+        from quick_pi_plugin.decoupling.analysis import PadNode,analyze_decoupling,infer_regulators
         nodes=[PadNode(fp.GetReference(),a.GetNumber(),a.GetNetname(),*point(a.GetPosition()),fp.GetValue()) for fp,a in pads]
         rail=next((a.net for a in nodes if a.net in ('+3V3','3V3','VCC3V3')),'*3V3*')
         results=analyze_decoupling(nodes,rail,'GND');dump(out/'decoupling.json',results)
-        return 'PASS',dict(base,pads=len(nodes),rail=rail,findings=len(results),regulators=infer_regulators(nodes)),'Real pad/rail/ground topology and capacitor-distance analysis; heuristic, not power-integrity simulation.'
+        return 'LIMITED',dict(base,pads=len(nodes),rail=rail,findings=len(results),regulators=infer_regulators(nodes)),'Quick PI integrated decoupling tab: actual pad/rail/ground placement heuristic; the DC mesh solver is covered by separate PI smoke tests, not this check.'
     if tool=='protocol_constraint_composer_plugin':
         from protocol_constraint_composer_plugin.analysis import detect_protocols,generate_rules,merge_managed_rules
         names=sorted({a.GetNetname() for fp,a in pads});assignments=detect_protocols(names);rules=generate_rules(assignments)
@@ -152,7 +132,7 @@ def operation(tool,project,out):
             result=MagneticsEngine.analyze(CoilSpec(outer_width_mm=width,outer_height_mm=height,turns=3,layers=2));data={'width_mm':width,'height_mm':height,'result':result}
         dump(out/'design.json',data)
         return 'LIMITED',dict(base,width_mm=width,height_mm=height),'Bounded generated design derived from actual Marble board size/thickness; no claim it fits occupied copper or is a Marble requirement.'
-    if tool in ('trace_impedance_plugin','signal_integrity_advisor_plugin','return_path_auditor_plugin'):
+    if tool in ('trace_impedance_plugin','signal_integrity_advisor_plugin'):
         from trace_impedance_plugin.measurement import TraceMeasurementEngine
         engine=TraceMeasurementEngine(board);counts=Counter(a.GetNetname() for fp,a in pads)
         candidate=[name for name,count in counts.items() if count==2 and not name.startswith(('+','-')) and any(s in name.upper() for s in ('CLK','USB','TX','RX','SCL'))]
@@ -165,13 +145,15 @@ def operation(tool,project,out):
         if tool=='signal_integrity_advisor_plugin':
             from signal_integrity_advisor_plugin.analysis import SignalIntegrityEngine
             result=SignalIntegrityEngine(board).validate_impedance(net,*ends,'In1.Cu',100,50,10);dump(out/'signal-integrity.json',result)
-            return 'LIMITED',dict(base,net=net,endpoints=ends,result=result),'One actual route against explicit illustrative 50-ohm/10% target, not approved system constraints.'
-        from return_path_auditor_plugin.analysis import CopperSegment,ViaPoint,ReturnPathAnalyzer
+            signal_result=result
+        from signal_integrity_advisor_plugin.return_path.analysis import CopperSegment,ViaPoint,ReturnPathAnalyzer
         selected=[t for t in tracks if t.GetNetname()==net];ground=[t for t in tracks if isinstance(t,p.PCB_VIA) and t.GetNetname()=='GND']
         segments=[CopperSegment(net,board.GetLayerName(t.GetLayer()),point(t.GetStart()),point(t.GetEnd()),mm(t.GetWidth())) for t in selected if not isinstance(t,p.PCB_VIA)]
         vias=[ViaPoint(t.GetNetname(),point(t.GetPosition()),tuple(board.GetLayerName(l) for l in board.GetEnabledLayers().CuStack() if t.IsOnLayer(l))) for t in selected+ground if isinstance(t,p.PCB_VIA)]
         result=ReturnPathAnalyzer().audit(segments,vias,[]);dump(out/'return-path.json',result)
-        return 'LIMITED',dict(base,net=net,segments=len(segments),vias=len(vias),findings=len(result.findings)),'Real signal/ground via transition and stub audit; reference-plane polygons omitted and not certified.'
+        from signal_integrity_advisor_plugin.test_points.test_point_descriptor_plugin import extract_test_points
+        test_points=extract_test_points(board);dump(out/'test-points.json',test_points)
+        return 'LIMITED',dict(base,net=net,segments=len(segments),vias=len(vias),return_path_findings=len(result.findings),test_points=len(test_points),signal_result=signal_result),'Quick SI integrated impedance, return-path and test-point extraction; reference-plane polygons omitted, illustrative 50-ohm target, no silkscreen write or channel compliance claim.'
     raise ValueError('Unimplemented smoke: '+tool)
 
 def worker(args):
@@ -222,7 +204,7 @@ def main():
     source_checks=[]
     if manifest.exists():
         for row in json.loads(manifest.read_text(encoding='utf-8-sig')):source_checks.append({'path':row['path'],'unchanged':digest(row['path'])==row['sha256']})
-    results=[json.loads(p.read_text(encoding='utf-8')) for p in sorted(output.glob('*/result.json'))]
+    results=[json.loads((output/tool/'result.json').read_text(encoding='utf-8')) for tool in (args.tools or TOOLS) if (output/tool/'result.json').exists()]
     summary={'project':str(project),'project_files_unchanged':unchanged,'original_source_checks':source_checks,'results':results}
     dump(output/'summary.json',summary)
     assert unchanged and all(r['unchanged'] for r in source_checks),'Input/source hash changed'

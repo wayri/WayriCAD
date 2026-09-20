@@ -94,7 +94,9 @@ class ConstraintStudioTests(unittest.TestCase):
             archive, _ = create_plugin_zip(PLUGIN, '3.1.1', Path(raw), {})
             with zipfile.ZipFile(archive) as z:
                 names = z.namelist()
-                for suffix in ['studio_ui.py', 'studio_bridge.py', 'constraint_studio/ui.py',
+                for suffix in ['studio_ui.py', 'studio_bridge.py', 'studio_model.py', 'studio_webview.py',
+                               'web/index.html', 'web/studio.css', 'web/studio.js', 'web/routing.js', 'constraint_studio/ui.py',
+                               'constraint_studio/routing_profiles.py', 'docs/LAYER_ROUTING.md',
                                'constraint_studio/help/topics.json', 'constraint_studio/LICENSE', 'SOURCE_PROVENANCE.json',
                                'docs/USER_GUIDE.md', 'examples/workflow_demo/workflow_demo.kicad_pcb']:
                     self.assertIn('plugins/' + suffix, names)

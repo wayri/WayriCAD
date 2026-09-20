@@ -2,7 +2,7 @@
   "$schema": "https://go.kicad.org/api/schemas/v1",
   "identifier": "com.github.wayri.wayricad.protocol-constraints",
   "name": "WayriCAD Constraint Studio",
-  "description": "Visually inspect, stage and review project constraints with protocol presets, matrices and scope feedback.",
+  "description": "Visual constraint worksheets, matrices, layout scope and reviewed project rules.",
   "runtime": {
     "type": "python",
     "min_version": "3.10.0"
@@ -11,7 +11,7 @@
     {
       "identifier": "open",
       "name": "WayriCAD Constraint Studio",
-      "description": "Visually inspect, stage and review project constraints with protocol presets, matrices and scope feedback.",
+      "description": "Visual constraint worksheets, matrices, layout scope and reviewed project rules.",
       "show-button": true,
       "scopes": [
         "pcb"

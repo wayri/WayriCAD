@@ -120,3 +120,29 @@ electrical suitability or convergence.
 
 **Help** opens the bundled local guide; **More → Layer thickness, losses and hotspots**
 opens numerical details. No external website is needed to use either.
+
+
+## Decoupling placement
+
+The **Decoupling placement** tab incorporates the former PDN and Decoupling
+Planner. Set rail/ground patterns, load-reference patterns and the maximum
+capacitor distance; run **Analyze PDN**, inspect the linked placement map and
+export findings as CSV. Rail-to-ground capacitor qualification, proximity
+checks and regulator candidates are retained. These placement heuristics are
+separate from the DC copper solver and do not predict AC PDN impedance.
+
+The tab uses the same saved originating board as the solver. **More → Reload
+saved board** refreshes both. Save/refill in KiCad first; the tab does not move
+components. [Detailed placement help](decoupling/help.html).
+
+![Integrated decoupling placement map on a disposable board with one load and one capacitor](help-decoupling.png)
+
+## Zoned power-rail example
+
+![Native voltage-drop view of Marble MGTAVCC, zoomed to In7.Cu](help-power-rail.png)
+
+This is the actual MGTAVCC copper between L34.2 and U1.C6 with an explicit,
+hypothetical 1 A load at one FPGA ball. The pictured coarse mesh gives 2.483 mV;
+refinement gives 2.640 mV with a further 1.96% change. Peak current density is
+not converged. This does not model the FPGA's distributed load or regulator.
+See the [validation record](../docs/audits/QUICK_PI_3.2_VALIDATION.md).

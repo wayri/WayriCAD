@@ -6,6 +6,7 @@ from pathlib import Path
 
 DEFAULTS = {
     "schema_version": 1,
+    "mode": "exact3d",
     "project_name": "",
     "project_revision": "",
     "reviewer": "",
@@ -42,6 +43,8 @@ def validate(config):
         if key.endswith('_mm') or key.endswith('_mm3'):
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
                 raise ValueError(key + ' must be a finite, non-negative number')
+    if out['mode'] not in ('quick2d', 'exact3d'):
+        raise ValueError('Choose quick2d or exact3d mode')
     if not isinstance(out['include_dnp'], bool):
         raise ValueError('include_dnp must be true or false')
     for key in ('project_name', 'project_revision', 'reviewer'):

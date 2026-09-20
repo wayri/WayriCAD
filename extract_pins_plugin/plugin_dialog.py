@@ -231,10 +231,11 @@ class PluginDialog(wx.Dialog):
         
         if os.path.exists(help_file_path):
             try:
-                webbrowser.open_new_tab(f"file:///{help_file_path}")
+                from wayricad_runtime.help import open_help
+                open_help(self, help_file_path)
                 print(f"DEBUG: Opened help file: {help_file_path}")
             except Exception as e:
-                wx.MessageBox(f"Could not open help file in browser.\nError: {e}", "Error Opening Help", wx.OK | wx.ICON_ERROR)
+                wx.MessageBox(f"Could not open native help.\nError: {e}", "Error Opening Help", wx.OK | wx.ICON_ERROR)
                 print(f"ERROR: Failed to open help file: {e}")
         else:
             wx.MessageBox(f"Help file not found: {help_file_path}", "Help File Missing", wx.OK | wx.ICON_ERROR)

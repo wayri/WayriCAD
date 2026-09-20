@@ -1,4 +1,5 @@
 from __future__ import annotations
+from wayricad_runtime.help import open_help as open_native_help
 import json,os,subprocess,sys,webbrowser,threading,tempfile
 from pathlib import Path
 import pcbnew,wx
@@ -6,7 +7,7 @@ from .analysis import BoardMetrics,FabricatorProfile,audit_metrics,build_release
 from .verification import capture_inputs,VerificationSnapshot,find_cli,drc_evidence
 from .guided_ui import add_workflow, mark_primary
 
-VERSION="3.1.1"
+VERSION="3.2.0"
 STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","FAIL":"#e34a43","INFO":"#3399cc"}
 
 class ReadinessMeter(wx.Panel):
@@ -47,7 +48,7 @@ class ManufacturingFrame(wx.Frame):
         self.refresh_actions()
     def _build(self):
         p=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL)
-        self.guide=add_workflow(p,root,"Manufacturing Readiness Manager","Save the board and project first. Audit and CLI checks use one private saved-design copy; changing inputs invalidates the release gates.",("Profile","Audit","Verify","Release"),lambda e:webbrowser.open(Path(__file__).with_name("help.html").as_uri()))
+        self.guide=add_workflow(p,root,"Manufacturing Readiness Manager","Save the board and project first. Audit and CLI checks use one private saved-design copy; changing inputs invalidates the release gates.",("Profile","Audit","Verify","Release"),lambda e:open_native_help(self,Path(__file__).with_name("help.html")))
         self.tabs=wx.Notebook(p)
         profile=self.profile_page(self.tabs)
         review=wx.Panel(self.tabs);review_sizer=wx.BoxSizer(wx.VERTICAL)

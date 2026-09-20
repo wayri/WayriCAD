@@ -323,6 +323,11 @@ class Handler(BaseHTTPRequestHandler):
         elif path=='/api/alternate':ws.alternate(b['mpn'],b['record'])
         elif path=='/api/import/preview':return ws.csv_preview(b['text'],variant)
         elif path=='/api/import/apply':return {'affected':ws.csv_apply(b['text'],variant)}
+        elif path in ('/api/simple-export/preview','/api/simple-export/download'):
+            from . import simple_exports
+            if path.endswith('/preview'):
+                return simple_exports.preview(ws,variant,b.get('options',{}))
+            return simple_exports.download(ws,variant,b.get('options',{}),b.get('format','csv'),b.get('draft') is True)
         elif path=='/api/export/preview':
             if not b.get('template'):raise ValueError('Choose an explicit custom template or use the inherited Native BOM preview.')
             return table(ws,variant,b['template'])

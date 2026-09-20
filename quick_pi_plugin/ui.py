@@ -19,9 +19,9 @@ class QuickPIFrame(wx.Frame):
         self._series_request=None
         self._cancel=threading.Event();self._terminals=[];self._layers=[];self._plot_keys={}
         self._history=[];self._history_index=0;self._completions=[];self._completion_prefix=None;self._completion_index=0
-        panel=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL)
+        panel=wx.Panel(self);self.main_panel=panel;root=wx.BoxSizer(wx.VERTICAL)
         title=wx.BoxSizer(wx.HORIZONTAL)
-        label=wx.StaticText(panel,label='Quick PI · DC copper conduction')
+        label=wx.StaticText(panel,label='Quick PI · Copper and decoupling')
         font=label.GetFont();font.SetWeight(wx.FONTWEIGHT_BOLD);label.SetFont(font)
         title.Add(label,1,wx.ALIGN_CENTER_VERTICAL)
         filename=wx.StaticText(panel,label=Path(self.board_path).name);filename.SetToolTip(self.board_path)
@@ -34,6 +34,7 @@ class QuickPIFrame(wx.Frame):
         for name,control in [('Net',self.net),('Source pad',self.source),('Sink pad',self.sink),
                              ('Source V',self.voltage),('Sink A',self.current),('',self.operation_note)]:
             form.Add(wx.StaticText(panel,label=name),0,wx.ALIGN_CENTER_VERTICAL);form.Add(control,1,wx.EXPAND)
+        self.dc_form=form
         root.Add(form,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
         self.options=wx.CollapsiblePane(panel,label='Mesh and material options',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         pane=self.options.GetPane();grid=wx.FlexGridSizer(2,6,6,10)
@@ -51,6 +52,7 @@ class QuickPIFrame(wx.Frame):
         viewer.Add(wx.StaticText(panel,label='Result'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
         self.metric=wx.Choice(panel,choices=[value[0] for value in METRICS.values()]);self.metric.SetSelection(1)
         viewer.Add(self.metric,0,wx.RIGHT,12);self.mesh_count=wx.StaticText(panel,label='');viewer.Add(self.mesh_count,1,wx.ALIGN_CENTER_VERTICAL)
+        self.dc_viewer=viewer
         root.Add(viewer,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         self.book=wx.Notebook(panel);self.views=[]
         for name in ('Net','Mesh','Results'):
@@ -59,6 +61,10 @@ class QuickPIFrame(wx.Frame):
             toolbar=NavigationToolbar2WxAgg(canvas);toolbar.Realize()
             layout.Add(canvas,1,wx.EXPAND);layout.Add(toolbar,0,wx.EXPAND);page.SetSizer(layout)
             self.book.AddPage(page,name);self.views.append((figure,canvas,toolbar))
+        from .decoupling.pdn_decoupling_plugin import PdnFrame
+        import pcbnew
+        self.decoupling=PdnFrame(self.book,pcbnew.LoadBoard(self.board_path))
+        self.book.AddPage(self.decoupling,"Decoupling placement")
         root.Add(self.book,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
         self.summary=wx.StaticText(panel,label='Choose two pads on one net. Run creates the mesh and solves the DC current path.')
         root.Add(self.summary,0,wx.EXPAND|wx.ALL,12)
@@ -98,15 +104,23 @@ class QuickPIFrame(wx.Frame):
         self._buttons();self._draw();self.Centre();wx.CallAfter(self._inspect)
 
     def _buttons(self):
+        placement=self.book.GetSelection()>=len(self.views)
+        self.dc_form.ShowItems(not placement);self.dc_viewer.ShowItems(not placement)
+        for window in (self.options,self.console,self.summary,self.preview,self.run,self.export,self.status):window.Show(not placement)
+        self.main_panel.Layout()
         for control in self._controls:control.Enable(not self._busy)
         self.preview.Enable(not self._busy and bool(self.net.GetValue()))
         self.run.Enable(not self._busy and len(self._terminals)>1)
         self.export.Enable(not self._busy and bool(self.bundle.get('result')))
-        self.cancel.Enable(self._busy);self.gauge.Show(self._busy)
+        self.cancel.Enable(self._busy);self.cancel.Show(not placement);self.gauge.Show(self._busy and not placement)
+        self.more.SetLabel("Reload saved board" if placement else "More…")
+        self.more.InvalidateBestSize();self.more.SetMinSize(self.more.GetBestSize());self.main_panel.Layout()
         if not self._busy:self.metric.Enable(self.book.GetSelection()==2)
         if self._series_request:
             self.source.Disable();self.sink.Disable()
             self.preview.Enable(not self._busy and bool(self.bundle.get('geometry')))
+        if self.book.GetSelection()>=len(self.views):
+            for control in (self.net,self.source,self.sink,self.voltage,self.current,self.layer,self.metric,self.preview,self.run,self.export):control.Disable()
 
     def _task(self,operation,finished,message):
         if self._busy:return
@@ -141,6 +155,10 @@ class QuickPIFrame(wx.Frame):
     def _inspect(self):
         self._series_request=None;self.bundle={}
         def finished(result):
+            import pcbnew
+            self.decoupling.board=pcbnew.LoadBoard(self.board_path)
+            self.decoupling.invalidate()
+            self.decoupling.summary.SetLabel('Saved board reloaded; run a fresh placement check.')
             self.inventory=result;names=result.get('nets',[]);self.net.Set(names)
             if names:
                 choice=next((n for n in names if n.startswith(('+','VCC','VDD'))),names[0]);self.net.SetValue(choice)
@@ -282,7 +300,9 @@ class QuickPIFrame(wx.Frame):
 
     def _draw(self,preserve=False):
         if self._closed or not self.views:return
-        index=max(0,self.book.GetSelection());figure,canvas,toolbar=self.views[index]
+        index=max(0,self.book.GetSelection())
+        if index>=len(self.views):return
+        figure,canvas,toolbar=self.views[index]
         selected=self.layer.GetSelection();layer=self._layers[selected]['id'] if 0<=selected<len(self._layers) else None
         metric=list(METRICS)[max(0,self.metric.GetSelection())]
         key=(index,str(layer));limits=None
@@ -310,6 +330,7 @@ class QuickPIFrame(wx.Frame):
         dialog.ShowModal();dialog.Destroy()
 
     def on_more(self,event):
+        if self.book.GetSelection()>=len(self.views):self._inspect();return
         menu=wx.Menu();mesh=menu.Append(wx.ID_ANY,'Generate mesh only');self.Bind(wx.EVT_MENU,lambda e:self._analyze('mesh'),mesh)
         details=menu.Append(wx.ID_ANY,'Layer thickness, losses and hotspots…');details.Enable(bool(self.bundle.get('result',{}).get('analytics')))
         self.Bind(wx.EVT_MENU,self.on_details,details)
@@ -340,6 +361,7 @@ class QuickPIFrame(wx.Frame):
         if not points:return
         xs=[p[0] for p in points];ys=[p[1] for p in points]
         pad=max(.5,max(max(xs)-min(xs),max(ys)-min(ys))*.2)
+        if self.book.GetSelection()>=len(self.views):return
         figure,canvas,_=self.views[max(0,self.book.GetSelection())]
         if figure.axes:
             figure.axes[0].set_xlim(min(xs)-pad,max(xs)+pad)

@@ -24,33 +24,28 @@ from variant_workbench_plugin.kicad_variant_manager import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKBENCH_PACKAGES = (
-    ("variant_workbench_plugin", "com.github.wayri.wayricad.variant-workbench", "3.1.1"),
-)
+
 
 
 class WorkbenchPluginTests(unittest.TestCase):
-    def test_pcm_packages_have_visible_action_plugin_launchers(self) -> None:
-        for folder, identifier, version in WORKBENCH_PACKAGES:
-            with self.subTest(folder=folder):
-                package = ROOT / folder
+    def test_active_pcm_packages_have_visible_ipc_actions(self) -> None:
+        from build_pcm import discover_plugins
+        packages = discover_plugins(ROOT)
+        self.assertEqual(16, len(packages))
+        for package in packages:
+            with self.subTest(folder=package.name):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
-                self.assertEqual(identifier, metadata["identifier"])
-                self.assertEqual(version, metadata["versions"][0]["version"])
+                self.assertEqual("3.2.0", metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))
-                self.assertEqual(identifier, manifest["identifier"])
-                self.assertTrue((package / manifest["actions"][0]["entrypoint"]).is_file())
-                self.assertTrue((package / "__init__.py").is_file())
-                launcher = (package / "legacy_action_plugin.py").read_text(encoding="utf-8")
-                self.assertIn("pcbnew.ActionPlugin", launcher)
-                self.assertIn("show_toolbar_button = True", launcher)
-                self.assertNotIn("KICAD_API_SOCKET", launcher)
+                self.assertEqual(metadata["identifier"], manifest["identifier"])
+                self.assertEqual("python", manifest["runtime"]["type"])
+                self.assertTrue(manifest["actions"])
+                self.assertTrue(any(action.get("show-button") for action in manifest["actions"]))
+                for action in manifest["actions"]:
+                    self.assertTrue((package / action["entrypoint"]).is_file())
+                    self.assertIn("pcb", action["scopes"])
                 self.assertTrue((package / "help.html").is_file())
-                with Image.open(package / "help-workflow.png") as image:
-                    self.assertGreaterEqual(image.width, 900)
-                    self.assertGreaterEqual(image.height, 500)
-
                 with Image.open(package / "icon.png") as icon:
                     self.assertGreaterEqual(icon.width, 32)
                     self.assertGreaterEqual(icon.height, 32)

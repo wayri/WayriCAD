@@ -1,12 +1,6 @@
-"""Small, dependency-light help launcher used by the WayriCAD GUI."""
+"""Packaged help stays in the native WayriCAD desktop."""
 from pathlib import Path
-import webbrowser
-import wx
+from wayricad_runtime.help import open_help as show_help
 
-
-def open_help(parent, filename: str = "help.html") -> None:
-    path = Path(__file__).with_name(filename)
-    if path.exists():
-        webbrowser.open(path.resolve().as_uri())
-    else:
-        wx.MessageBox(f"Help file not found: {path}", "WayriCAD Help", wx.OK | wx.ICON_ERROR)
+def open_help(parent=None, filename="help.html"):
+    return show_help(parent, Path(__file__).with_name(filename))

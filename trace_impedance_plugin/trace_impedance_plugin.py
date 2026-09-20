@@ -29,7 +29,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.1.1"
+        self.version = "3.2.0"
 
     def Run(self) -> None:
         try:
@@ -118,6 +118,8 @@ class TraceFrame(wx.Frame):
         self.measure_button = wx.Button(panel, label="Analyze")
         self.measure_button.Bind(wx.EVT_BUTTON, self.analyze)
         export = wx.Button(panel, label="Export CSV")
+        self.export_button = export
+        export.Disable()
         export.Bind(wx.EVT_BUTTON, self.export_csv)
         more = wx.Button(panel, label="More")
         more.Bind(wx.EVT_BUTTON, self._more)
@@ -133,8 +135,15 @@ class TraceFrame(wx.Frame):
         self.route_preview = RoutePreview(preview_page, self.board)
         self.route_preview.SetMinSize((-1, 145))
         self.route_preview.on_pick = self._on_route_pick
-        preview_sizer.Add(self.route_preview, 1, wx.EXPAND | wx.ALL, 6)
+        preview_sizer.Add(self.route_preview, 2, wx.EXPAND | wx.ALL, 6)
         add_zoom_toolbar(preview_page, self.route_preview, preview_sizer)
+        display=wx.BoxSizer(wx.HORIZONTAL)
+        display.Add(wx.StaticText(preview_page,label='Colour geometry by'),0,wx.ALL|wx.ALIGN_CENTER_VERTICAL,5)
+        self.route_colours=wx.Choice(preview_page,choices=['Copper layer','DC resistance contribution','AC resistance contribution','Model coverage'])
+        self.route_colours.SetSelection(0)
+        self.route_colours.Bind(wx.EVT_CHOICE,lambda e:self.route_preview.set_colour_mode(self.route_colours.GetSelection()))
+        display.Add(self.route_colours,0,wx.ALL,5)
+        preview_sizer.Add(display,0,wx.EXPAND)
         preview_page.SetSizer(preview_sizer)
         result_page = wx.Panel(notebook)
         result_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -155,9 +164,10 @@ class TraceFrame(wx.Frame):
         result_sizer.Add(self.table, 1, wx.EXPAND | wx.ALL, 6)
         self.sections = wx.ListCtrl(preview_page, style=wx.LC_REPORT)
         self.sections.SetMinSize((-1, 100))
-        for index, label in enumerate(("Section", "Layer / transition", "Reference", "Length mm", "R Ω", "L nH", "C pF", "Z₀ Ω")):
+        for index, label in enumerate(("Section", "Layer / transition", "Reference", "Length mm", "R DC Ω", "R AC Ω", "L nH", "C pF", "Z₀ Ω")):
             self.sections.InsertColumn(index, label, width=135 if index < 3 else 88)
         preview_sizer.Add(self.sections, 1, wx.EXPAND | wx.ALL, 6)
+        self.sections.Bind(wx.EVT_LIST_ITEM_SELECTED,self._section_selected)
         result_page.SetSizer(result_sizer)
         self.notes = wx.TextCtrl(notes_page, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
         notes_sizer.Add(self.notes, 1, wx.EXPAND | wx.ALL, 6)
@@ -174,6 +184,9 @@ class TraceFrame(wx.Frame):
         notebook.AddPage(preview_page, "Copper & sections")
         notebook.AddPage(result_page, "Results")
         notebook.AddPage(model_page, "RLC Model")
+        from .frequency_ui import FrequencyPanel
+        self.frequency_panel=FrequencyPanel(notebook)
+        notebook.AddPage(self.frequency_panel,"AC loss sweep")
         notebook.AddPage(stackup_page, "Board Stackup")
         notebook.AddPage(notes_page, "Engineering Notes")
         root.Add(notebook, 1, wx.EXPAND | wx.ALL, 8)
@@ -208,6 +221,7 @@ class TraceFrame(wx.Frame):
             self.summary.SetLabel(f"{len(pads)} terminals touch this filled island. R/L uses the assumed current width; C uses reference overlap.")
 
     def _invalidate(self, _event: Any) -> None:
+        self.export_button.Disable()
         if self.current is None:
             return
         self.current = self.mate_result = None
@@ -216,6 +230,7 @@ class TraceFrame(wx.Frame):
         self.route_preview.show_measurement(None)
         self.sweep_canvas.curve = []; self.sweep_canvas.marker = None
         self.sweep_canvas.Refresh()
+        self.frequency_panel.set_path(None)
         self.summary.SetLabel("Settings changed. Analyze the selected copper to refresh results.")
 
     def _more(self, _event: Any) -> None:
@@ -309,6 +324,13 @@ class TraceFrame(wx.Frame):
 
     def _on_route_pick(self, data: Any) -> None:
         """Click a preview segment: cross-select it and highlight its net."""
+        if isinstance(data,tuple) and data[0]=='section' and self.current:
+            for index,section in enumerate(self.current.segments):
+                if section.get('item_uuid')==data[1]:
+                    for row in range(self.sections.GetItemCount()):self.sections.Select(row,False)
+                    self.sections.Select(index);self.sections.EnsureVisible(index)
+                    break
+            return
         if self.saved_board:
             return
         if not isinstance(data, tuple) or len(data) < 2:
@@ -320,6 +342,13 @@ class TraceFrame(wx.Frame):
         pcb_select_items(items + pads_on_net(self.board, net))
         pcb_highlight_net(self.board, net)
         self.summary.SetLabel(f"Selected and highlighted {net} from the route preview.")
+
+    def _section_selected(self,event):
+        if self.current is None or event.GetIndex()>=len(self.current.segments):return
+        section=self.current.segments[event.GetIndex()]
+        self.route_preview.selected_uuid=section.get('item_uuid');self.route_preview.Refresh()
+        self.summary.SetLabel(f"{section['kind']} on {section['layer']} · {section.get('length_mm',0):.3f} mm · R DC {section.get('resistance_ohm',0):.5g} Ω · R AC {section.get('resistance_ac_ohm',0):.5g} Ω · {section.get('model','Model unresolved')}")
+        self.summary.Wrap(max(500,self.GetClientSize().width-35))
 
     def highlight_net(self, _event: Any = None) -> None:
         if self.saved_board:
@@ -352,6 +381,8 @@ class TraceFrame(wx.Frame):
         self.summary.SetLabel(f"Selected {count} pads/tracks on {net_name} in PCB Editor.")
 
     def _show(self, result: PathMeasurement) -> None:
+        self.export_button.Enable()
+        self.frequency_panel.set_path(result.as_report())
         self.table.DeleteAllItems()
         for key, value in result.as_dict().items():
             index = self.table.InsertItem(self.table.GetItemCount(), key); self.table.SetItem(index, 1, str(value))
@@ -392,7 +423,7 @@ class TraceFrame(wx.Frame):
         if section.get("end_layer") and section["end_layer"] != layer:
             layer += " → " + str(section["end_layer"])
         reference = " / ".join(str(section[key]) for key in ("reference_net", "reference_layer") if section.get(key)) or "Unavailable"
-        return [str(section.get("kind", "section")), layer, reference, *[number(key) for key in ("length_mm", "resistance_ohm", "inductance_nh", "capacitance_pf", "impedance_ohm")]]
+        return [str(section.get("kind", "section")), layer, reference, *[number(key) for key in ("length_mm", "resistance_ohm", "resistance_ac_ohm", "inductance_nh", "capacitance_pf", "impedance_ohm")]]
 
     def _show_model(self, result: PathMeasurement) -> None:
         self.model_table.DeleteAllItems()
@@ -488,6 +519,24 @@ class RoutePreview(PanZoomCanvas):
         self.terminals = []
         self.corridor = None
         self.colours = {}
+        self.colour_mode=0;self.selected_uuid=None;self.section_metrics={};self.metric_max={}
+
+    def set_colour_mode(self,mode):
+        self.colour_mode=mode
+        maximum=self.metric_max.get('resistance_ohm' if mode==1 else 'resistance_ac_ohm',0)
+        self.set_legend([(colour,layer) for layer,colour in self.colours.items()] if mode==0 else
+            [('#b34c39',f'{maximum:.4g} Ω / item'),('#298fac','0 Ω / item')] if mode in (1,2) else
+            [('#25855e','Modeled line'),('#c39236','Partial / unresolved')])
+        self.Refresh()
+
+    def item_colour(self,item,layer):
+        if not self.colour_mode:return self.colours.get(layer,'#718096')
+        section=self.section_metrics.get(str(item.m_Uuid.AsString()),{})
+        if self.colour_mode==3:return '#25855e' if section.get('status')=='ok' else '#c39236'
+        key='resistance_ohm' if self.colour_mode==1 else 'resistance_ac_ohm'
+        maximum=self.metric_max.get(key,0)
+        fraction=math.sqrt(max(0,section.get(key,0))/maximum) if maximum else 0
+        return wx.Colour(round(41+138*fraction),round(143-67*fraction),round(172-115*fraction))
 
     @staticmethod
     def _point(point):
@@ -523,6 +572,18 @@ class RoutePreview(PanZoomCanvas):
 
     def show_measurement(self, result, mate=None, selected_zone=None) -> None:
         self.measurement = result
+        self.selected_uuid=None
+        self.section_metrics={}
+        for measurement in (result,mate):
+            for section in getattr(measurement,'segments',[]):
+                uid=section.get('item_uuid')
+                if uid:
+                    previous=self.section_metrics.get(uid)
+                    if previous:
+                        previous['resistance_ohm']+=section.get('resistance_ohm',0)
+                        previous['resistance_ac_ohm']+=section.get('resistance_ac_ohm',0)
+                    else:self.section_metrics[uid]=dict(section)
+        self.metric_max={key:max((row.get(key,0) for row in self.section_metrics.values()),default=0) for key in ('resistance_ohm','resistance_ac_ohm')}
         self.segments, self.copper, self.vias, self.terminals = [], [], [], []
         self.corridor = None
         for measurement, lane in ((result, 0), (mate, 1)):
@@ -584,7 +645,9 @@ class RoutePreview(PanZoomCanvas):
             self.corridor = (self.terminals[0][0], self.terminals[1][0], result.average_width_mm)
             legend.append(("#245f91", "Assumed current corridor"))
         self.set_legend(legend)
-        picks = [{"x": points[len(points)//2][0], "y": points[len(points)//2][1], "r": max(width, .3), "data": ("net", item.GetNetname(), layer), "marker": False} for points, layer, width, lane, item in self.segments]
+        self.set_colour_mode(self.colour_mode)
+        picks = [{"x": points[len(points)//2][0], "y": points[len(points)//2][1], "r": max(width, .3), "data": ("section",str(item.m_Uuid.AsString())), "marker": False} for points, layer, width, lane, item in self.segments]
+        picks += [dict(x=point[0],y=point[1],r=max(width,.3),data=('section',str(item.m_Uuid.AsString())),marker=False) for point,width,drill,layer,item in self.vias]
         self.set_picks(picks)
         self.Refresh()
         if self.scene_bounds():
@@ -616,13 +679,15 @@ class RoutePreview(PanZoomCanvas):
             gc.SetBrush(wx.Brush(fill))
             gc.DrawPath(path, wx.ODDEVEN_RULE)
         for points, layer, width, lane, item in self.segments:
-            gc.SetPen(wx.Pen(wx.Colour(self.colours.get(layer, "#718096")), max(1, round(width * self.scale))))
+            if str(item.m_Uuid.AsString())==self.selected_uuid:
+                gc.SetPen(wx.Pen('#ecb943',max(5,round(width*self.scale)+5)));gc.StrokeLines([project(point) for point in points])
+            gc.SetPen(wx.Pen(wx.Colour(self.item_colour(item,layer)), max(1, round(width * self.scale))))
             gc.StrokeLines([project(point) for point in points])
         for point, width, drill, layer, item in self.vias:
             x, y = project(point)
             diameter = max(2., width * self.scale)
-            gc.SetPen(wx.Pen(wx.Colour(self.colours.get(layer, "#718096")), 1))
-            gc.SetBrush(wx.Brush(wx.Colour(self.colours.get(layer, "#718096"))))
+            gc.SetPen(wx.Pen('#ecb943' if str(item.m_Uuid.AsString())==self.selected_uuid else wx.Colour(self.item_colour(item,layer)), 3))
+            gc.SetBrush(wx.Brush(wx.Colour(self.item_colour(item,layer))))
             gc.DrawEllipse(x-diameter/2, y-diameter/2, diameter, diameter)
             diameter = max(1., drill * self.scale)
             gc.SetBrush(wx.Brush(wx.Colour("#f8fafc")))

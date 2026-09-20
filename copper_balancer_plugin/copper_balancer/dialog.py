@@ -401,6 +401,12 @@ class CopperBalancerDialog(wx.Dialog):
                 messages.append("The target is a per-tile ceiling. Obstacles, existing copper and shape spacing may keep coverage below it.")
             if count == 0:
                 messages.append("No fill fits. Reduce shape size, adjust the region, or check zone coverage and clearances.")
+            for preview in previews:
+                d = preview.plan.diagnostics(settings.target)
+                reasons = ', '.join(f"{k.replace('_',' ')}: {v}" for k,v in d['rejections'].items())
+                messages.append(f"{preview.name}: {preview.plan.candidates} sites; {reasons}. Tile density {d['minimum_density']:.1f}–{d['maximum_density']:.1f}%; {d['tiles_below_target']}/{d['tiles']} below target; deficit {d['deficit_area_mm2']:.2f} mm².")
+                if d['tiles_initially_above_target']:
+                    messages.append(f"{d['tiles_initially_above_target']} tile(s) already exceed the target. Existing copper is preserved.")
             messages.extend(warnings)
             self.status.SetValue("\n".join(messages))
             self.apply_button.Enable(count>0)

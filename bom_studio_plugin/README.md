@@ -12,15 +12,27 @@ The UI is a separate local desktop window. Windows requires a working WebView2 r
 
 ![Current WayriCAD BOM Studio desktop](help-workflow.png)
 
-The built-in sample contains 11 components and fictional part/pricing data. The screenshot shows the five primary views; it is not an electrically validated circuit.
+The built-in sample contains 11 components and fictional part/pricing data. The screenshot shows the three primary views; it is not an electrically validated circuit.
 
 ## Everyday workflow
 
-1. Open your `.kicad_pro` or root `.kicad_sch`, or explore the built-in sample.
+1. Launch from PCB Editor to use its saved project automatically. Standalone mode can open a `.kicad_pro` or root `.kicad_sch`, or explore the built-in sample.
 2. Use **BOM settings** to arrange fields, labels, visibility, grouping, sorting, DNP filtering and CSV delimiters.
-3. Work in the five main views: **BOM workspace**, **Variants**, **Exports & templates**, **Review & native sync**, and **Compatibility & help**. Catalogue, sourcing, checks and automation remain under **More tools**.
+3. Work in three main views: **BOM workspace**, **Exports & templates**, and **Review & native sync**. Variants, help, catalogue, sourcing, checks and automation remain under **More tools**.
 4. Save workspace changes to the adjacent `.wayricad-bom.json` sidecar. Undo restores settings as well as component edits.
 5. Export using the saved KiCad native engine, or select a custom workspace template for staged edits. Native export reads saved KiCad source files; it does not automatically apply staged component edits. Review & native sync handles explicit backed-up source changes.
+
+## Simple exports
+
+![Native simplified export preview](help-simple-exports.png)
+
+Choose **Exports & templates**, a saved template, then **Bill of materials**, **Test points only**, or **DNP only**. The default BOM excludes test points and DNP components. Toggle either condition as required. **Group matching components** produces quantities and reference groups; turn it off for one component per row. Existing safety grouping separates differing packages and procurement data.
+
+**Preview rows** shows the staged workspace data that the export uses. Choose CSV, XLSX, HTML or another supported format and Export. Errors still block release exports unless you explicitly mark the output as draft. Separate test-point and DNP lists include parts excluded from the normal BOM.
+
+Test-point detection uses TP-number references (for example TP12) or the component field `TestPoint=yes`; `TestPoint=no` explicitly opts out. Use bulk field editing to classify nonstandard reference names. DNP lists use the native DNP flag. These are schematic component lists, not PCB test-pad coordinate reports.
+
+Expand **Templates, native exports and advanced settings** to edit, duplicate, import or share full templates, and to use saved-source KiCad exports. Quick export conditions are session choices; saved templates and project files are unchanged by preview or export. Editing and bulk editing remain in BOM workspace. Native source changes still require reviewed sync.
 
 ## CLI
 

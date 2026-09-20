@@ -41,16 +41,18 @@ class Settings:
         if self.shape not in SHAPES or self.mode not in MODES or self.lattice not in LATTICES:
             raise ValueError("Choose a supported pattern, mode, and lattice.")
         for name in ("size", "gap", "clearance", "edge_clearance", "rotation", "target", "tile_size", "band_width"):
-            if not math.isfinite(getattr(self, name)):
+            if isinstance(getattr(self, name), bool) or not isinstance(getattr(self, name), (int,float)) or not math.isfinite(getattr(self, name)):
                 raise ValueError(name.replace("_", " ").title() + " must be a finite number.")
         for name, lower, upper in (("size", .2, 20), ("gap", .1, 20), ("clearance", .1, 20),
                                    ("edge_clearance", .1, 50), ("tile_size", 2, 100), ("band_width", .2, 100), ("target", 1, 90)):
             if not lower <= getattr(self, name) <= upper:
                 raise ValueError(f"{name.replace('_', ' ').title()} must be between {lower} and {upper}.")
-        if not 1 <= self.max_shapes <= 50000:
+        if type(self.seed) is not int or type(self.replace) is not bool:
+            raise ValueError("Seed must be an integer and replace must be a boolean.")
+        if type(self.max_shapes) is not int or not 1 <= self.max_shapes <= 50000:
             raise ValueError("Shape limit must be between 1 and 50,000.")
         if self.region is not None:
-            if len(self.region) != 4 or not all(math.isfinite(v) for v in self.region):
+            if not isinstance(self.region, (tuple,list)) or len(self.region) != 4 or not all(type(v) in (int,float) and math.isfinite(v) for v in self.region):
                 raise ValueError("Region coordinates must be finite numbers.")
             x0, y0, x1, y1 = self.region
             if x1 <= x0 or y1 <= y0:
@@ -78,6 +80,20 @@ class Plan:
     limited: bool = False
     board_area: float = 0
     existing_area: float = 0
+    rejection_reasons: dict = field(default_factory=lambda: dict(region_boundary=0, density_ceiling=0, geometry_clearance=0))
+
+    def reject(self, reason):
+        self.rejected += 1
+        self.rejection_reasons[reason] += 1
+
+    def diagnostics(self, target):
+        cells = [t for t in self.tiles.values() if t.board_area > 0]
+        return dict(rejections=dict(self.rejection_reasons), tiles=len(cells),
+                    minimum_density=min((t.density for t in cells), default=0),
+                    maximum_density=max((t.density for t in cells), default=0),
+                    tiles_below_target=sum(t.density < target-1e-6 for t in cells),
+                    tiles_initially_above_target=sum(100*t.existing_area/t.board_area > target+1e-6 for t in cells),
+                    deficit_area_mm2=sum(max(0,t.board_area*target/100-t.existing_area-t.added_area) for t in cells))
 
     @property
     def added_area(self):
@@ -147,6 +163,8 @@ def generate(settings: Settings, bounds, accepts: Callable, measure: Callable, p
     """
     settings.validate()
     plan = Plan()
+    if not isinstance(bounds, (tuple,list)) or len(bounds) != 4 or not all(type(v) in (int,float) and math.isfinite(v) for v in bounds):
+        raise ValueError("Board bounds must contain four finite numbers.")
     x0,y0,x1,y1 = bounds
     if settings.region:
         rx0,ry0,rx1,ry1 = settings.region
@@ -163,6 +181,11 @@ def generate(settings: Settings, bounds, accepts: Callable, measure: Callable, p
         for ix in range(nx):
             rect = (x0+ix*tile,y0+iy*tile,min(x1,x0+(ix+1)*tile),min(y1,y0+(iy+1)*tile))
             ba,ca = measure(rect)
+            rect_area = (rect[2]-rect[0])*(rect[3]-rect[1])
+            tolerance = max(1e-7,rect_area*1e-7)
+            if any(type(v) not in (int,float) or not math.isfinite(v) for v in (ba,ca)) or ba < -tolerance or ca < -tolerance or ca > ba+tolerance or ba > rect_area+tolerance:
+                raise ValueError("Geometry adapter returned invalid board/copper areas; refill zones and inspect the outline.")
+            ba,ca = max(0,min(ba,rect_area)),max(0,min(ca,ba))
             plan.tiles[ix,iy] = Tile(rect,ba,ca)
             plan.board_area += ba
             plan.existing_area += ca
@@ -183,7 +206,7 @@ def generate(settings: Settings, bounds, accepts: Callable, measure: Callable, p
         poly = tuple((px+x,py+y) for px,py in base)
         plan.candidates += 1
         if any(px < x0 or px > x1 or py < y0 or py > y1 for px,py in poly):
-            plan.rejected += 1
+            plan.reject('region_boundary')
             continue
         covered = []
         bx0,by0 = min(p[0] for p in poly),min(p[1] for p in poly)
@@ -198,10 +221,10 @@ def generate(settings: Settings, bounds, accepts: Callable, measure: Callable, p
             cell.existing_area + cell.added_area + amount > cell.board_area*settings.target/100 + 1e-9
             for cell,amount in covered
         ):
-            plan.rejected += 1
+            plan.reject('density_ceiling')
             continue
         if not accepts(poly):
-            plan.rejected += 1
+            plan.reject('geometry_clearance')
             continue
         plan.shapes.append(poly)
         for cell,amount in covered:

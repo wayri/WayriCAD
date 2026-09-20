@@ -1,4 +1,5 @@
 from __future__ import annotations
+from wayricad_runtime.help import open_help as open_native_help
 
 import csv
 import json
@@ -16,7 +17,7 @@ from .guided_ui import add_workflow
 from .placement import validate_placement
 
 
-VERSION="3.1.1";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
+VERSION="3.2.0";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
 def point(x,y):return pcbnew.VECTOR2I(pcbnew.FromMM(x),pcbnew.FromMM(y))
 def copper_layer(index,count):
     if index<=0:return int(pcbnew.F_Cu)
@@ -115,7 +116,7 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
     def __init__(self,parent,board):
         super().__init__(parent,title="WayriCAD Planar Magnetics & Actuator Workbench",size=(1320,880));self.SetMinSize((1080,740));self.board=board;self.catalog=dict(CORE_CATALOG);self.result=None;self.preview_items=[];self.undo_stack=[];self.redo_stack=[];self._build();self.undo_stack=self._persistent_groups();self.Bind(wx.EVT_CLOSE,self.on_close);self.Centre()
     def _build(self):
-        p=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL);self.guide=add_workflow(p,root,"Planar Magnetics and Actuator Workbench","Generate multilayer/via-connected windings, apply core and frequency models, inspect fields and motion, then commit only reviewed copper.",("Winding","Model","Field and motion","PCB commit"),lambda e:webbrowser.open(Path(__file__).with_name("help.html").as_uri()));self.tabs=wx.Notebook(p);self.tabs.AddPage(self.design_page(self.tabs),"Winding and Core");self.tabs.AddPage(self.model_page(self.tabs),"LCR / Parasitics");self.tabs.AddPage(self.actuator_page(self.tabs),"Field and Actuator");root.Add(self.tabs,1,wx.EXPAND|wx.ALL,8);p.SetSizer(root)
+        p=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL);self.guide=add_workflow(p,root,"Planar Magnetics and Actuator Workbench","Generate multilayer/via-connected windings, apply core and frequency models, inspect fields and motion, then commit only reviewed copper.",("Winding","Model","Field and motion","PCB commit"),lambda e:open_native_help(self,Path(__file__).with_name("help.html")));self.tabs=wx.Notebook(p);self.tabs.AddPage(self.design_page(self.tabs),"Winding and Core");self.tabs.AddPage(self.model_page(self.tabs),"LCR / Parasitics");self.tabs.AddPage(self.actuator_page(self.tabs),"Field and Actuator");root.Add(self.tabs,1,wx.EXPAND|wx.ALL,8);p.SetSizer(root)
     def design_page(self,parent):
         try:
             from .wayricad_runtime.ui import form_page, field, choice, more_button
@@ -138,7 +139,7 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
             for label,key,value in entries:self.fields[key]=field(page,form,label,value)
         self.connection=choice(geometry,grid,"Connection",["Series","Parallel"])
         self.core=choice(drive,drive_grid,"Core",sorted(self.catalog));self.core.SetValue("Air / no core")
-        drive_layout.Add(more_button(drive,[("Import cores…",self.load_cores),("Export cores…",self.save_cores)],"Core catalogue…"),0,wx.ALL,12)
+        drive_layout.Add(more_button(drive,[("Edit custom core…",self.edit_core),("Inspect STEP core…",self.inspect_step_core),("Current / saturation sweep…",self.core_sweep),("Axisymmetric field…",self.axisymmetric_field),("Import cores…",self.load_cores),("Export cores…",self.save_cores)],"Core tools…"),0,wx.ALL,12)
         nets=["<no net>"]+self._nets()
         self.net=choice(placement,placement_grid,"Primary net",nets)
         self.secondary_net=choice(placement,placement_grid,"Secondary net",nets)
@@ -208,10 +209,12 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
         for row in rows:i=table.InsertItem(table.GetItemCount(),row[0]);table.SetItem(i,1,row[1]);table.SetItem(i,2,row[2])
     def _fill_results(self):
         r=self.result;rows=[("Conductor length",f"{r.conductor_length_mm:.2f} mm","Includes approximate via barrel length"),("DC resistance",f"{r.resistance_dc_ohm:.5f} ohm","Copper bulk resistivity"),("AC resistance",f"{r.resistance_ac_ohm:.5f} ohm",f"First-order skin/proximity at {r.spec.frequency_khz:g} kHz"),("Inductance",f"{r.inductance_uh:.3f} uH",f"{r.core.name}; reduced-order winding/core model"),("Parasitic capacitance",f"{r.capacitance_pf:.2f} pF","Geometry-based estimate"),("Self resonance",f"{r.self_resonance_mhz:.3f} MHz","L-C estimate; stay well below for lumped operation"),("Quality factor",f"{r.quality_factor:.2f}","omega L / Rac"),("Copper loss",f"{r.copper_loss_w:.4f} W","I^2 Rac"),("Core loss",f"{r.core_loss_w:.4f} W","Catalog Steinmetz-like estimate"),("Saturation current",f"{r.saturation_current_a:.3f} A","Gap/core reluctance estimate")]
+        if r.core.family!='Air' and r.core.loss_k==0:
+            rows=[('Core loss','Uncharacterized','Supply calibrated loss coefficients; zero coefficient is not zero physical loss') if row[0]=='Core loss' else row for row in rows]
         if r.spec.secondary_turns:rows.extend((("Secondary inductance",f"{r.secondary_inductance_uh:.3f} uH","Turns-ratio estimate"),("Mutual inductance",f"{r.mutual_inductance_uh:.3f} uH",f"k={r.spec.coupling:g}"),("Turns ratio",f"1:{r.turns_ratio:.3f}","Primary effective turns to secondary")))
         self._fill(self.results,rows)
         d=r.dynamics
-        motion_rows=[("Center field",f"{r.field_center_mt:.3f} mT","Limited at catalog saturation flux density")]
+        motion_rows=[("Circuit field",f"{r.field_center_mt:.3f} mT","1D circuit; no spatial field solution")]
         if d:
             unit="rad" if d.mode=="Rotary" else "m"
             motion_rows.extend([
@@ -235,7 +238,31 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
     def load_cores(self,_e):
         with wx.FileDialog(self,"Import core catalog",wildcard="JSON (*.json)|*.json",style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as d:
             if d.ShowModal()!=wx.ID_OK:return
-            self.catalog=load_core_catalog(d.GetPath());self.core.SetItems(sorted(self.catalog));self.core.SetValue("Air / no core")
+            try:self.catalog=load_core_catalog(d.GetPath())
+            except (OSError,ValueError,TypeError) as exc:
+                wx.MessageBox(str(exc),'Core import failed',wx.OK|wx.ICON_ERROR,parent=self);return
+            self.core.SetItems(sorted(self.catalog));self.core.SetValue("Air / no core")
+    def edit_core(self,_e):
+        from .core_ui import CoreEditor
+        with CoreEditor(self,self.catalog.get(self.core.GetValue(),CORE_CATALOG['Air / no core'])) as dialog:
+            if dialog.ShowModal()!=wx.ID_OK:return
+            self.catalog[dialog.result.name]=dialog.result;self.core.SetItems(sorted(self.catalog));self.core.SetValue(dialog.result.name)
+    def inspect_step_core(self,_e):
+        from .core_ui import StepCoreDialog
+        with wx.FileDialog(self,'Inspect STEP core',wildcard='STEP (*.step;*.stp)|*.step;*.stp',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as file_dialog:
+            if file_dialog.ShowModal()!=wx.ID_OK:return
+            path=file_dialog.GetPath()
+        with StepCoreDialog(self,path) as dialog:dialog.ShowModal()
+    def core_sweep(self,_e):
+        from .core_ui import CoreSweep
+        try:
+            spec=self._spec();turns=spec.turns*spec.layers if spec.layer_connection=='Series' else spec.turns
+            if spec.core_name not in self.catalog:raise ValueError('Select a core first')
+            with CoreSweep(self,self.catalog[spec.core_name],turns,spec.current_a) as dialog:dialog.ShowModal()
+        except (TypeError,ValueError) as exc:wx.MessageBox(str(exc),'Core sweep failed',wx.OK|wx.ICON_ERROR,parent=self)
+    def axisymmetric_field(self,_e):
+        from .axisymmetric_ui import FieldDialog
+        with FieldDialog(self) as dialog:dialog.ShowModal()
     def save_cores(self,_e):
         with wx.FileDialog(self,"Export core catalog",wildcard="JSON (*.json)|*.json",style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:
             if d.ShowModal()==wx.ID_OK:save_core_catalog(d.GetPath(),self.catalog)

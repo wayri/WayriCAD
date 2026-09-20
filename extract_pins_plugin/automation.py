@@ -27,15 +27,11 @@ PLUGIN_CAPABILITIES = (
     ("harness-workbench", "WayriCAD Harness and Cable Workbench", ("build", "validate", "export"), False, "documents"),
     ("heater-designer", "WayriCAD PCB / Foil Heater Designer", ("analyze", "simulate", "apply"), True, "model"),
     ("manufacturing-readiness", "WayriCAD Manufacturing Readiness Manager", ("audit", "release"), True, "project"),
-    ("pdn-decoupling", "WayriCAD PDN and Decoupling Planner", ("analyze",), False, "geometry"),
     ("planar-magnetics", "WayriCAD Planar Magnetics & Actuator Workbench", ("analyze", "simulate", "apply"), True, "model"),
-    ("quick-pi", "WayriCAD Quick PI", ("inspect", "mesh", "solve", "report"), False, "saved-board"),
+    ("quick-pi", "WayriCAD Quick PI", ("inspect", "mesh", "solve", "report", "decoupling"), False, "saved-board"),
     ("protocol-constraints", "WayriCAD Protocol Constraint Composer", ("detect", "compose", "apply"), True, "nets"),
-    ("return-path-auditor", "WayriCAD Return-Path Auditor", ("audit",), False, "geometry"),
-    ("signal-integrity", "WayriCAD Signal Integrity Advisor", ("i2c-pullup", "impedance"), False, "geometry"),
-    ("test-point-descriptor", "WayriCAD Test Point Descriptor Extractor", ("extract", "fixture"), True, "board"),
+    ("signal-integrity", "WayriCAD Quick SI", ("i2c-pullup", "impedance", "eye", "return-path", "test-points", "fixture"), True, "board"),
     ("trace-impedance", "WayriCAD Trace RLC / Impedance Analyzer", ("measure",), False, "board"),
-    ("variant-workbench", "WayriCAD Design Variant Workbench", ("inspect", "plan", "apply"), True, "project"),
     ("via-stitching", "WayriCAD Via Stitching", ("plan", "preview", "apply"), True, "board"),
 )
 
@@ -183,7 +179,7 @@ def _heater_analyze(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _pdn_analyze(params: dict[str, Any]) -> dict[str, Any]:
-    module = _module("pdn_decoupling_plugin/analysis.py", "pdn")
+    module = _module("quick_pi_plugin/decoupling/analysis.py", "pdn")
     pads = [module.PadNode(**item) for item in params.get("pads", [])]
     findings = module.analyze_decoupling(pads, params.get("rail_patterns", "VCC*,VDD*,*V"),
                                          params.get("ground_patterns", "GND*,VSS*"),
@@ -220,7 +216,7 @@ def _bulk_preview(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _return_path_audit(params: dict[str, Any]) -> dict[str, Any]:
-    module = _module("return_path_auditor_plugin/analysis.py", "return_path")
+    module = _module("signal_integrity_advisor_plugin/return_path/analysis.py", "return_path")
     segments = [module.CopperSegment(**item) for item in params.get("segments", [])]
     vias = [module.ViaPoint(**item) for item in params.get("vias", [])]
     references = [module.ReferenceRegion(**item) for item in params.get("references", [])]
@@ -244,7 +240,7 @@ def _magnetics_analyze(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _fixture_generate(params: dict[str, Any]) -> dict[str, Any]:
-    module = _module("test_point_descriptor_plugin/fixture.py", "fixture")
+    module = _module("signal_integrity_advisor_plugin/test_points/fixture.py", "fixture")
     points = [module.FixturePoint(**item) for item in params.get("points", [])]
     board = module.generate_fixture_board(points, str(params.get("probe_type", "P75")),
                                           float(params.get("connector_pitch_mm", 2.54)),
