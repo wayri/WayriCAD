@@ -26,3 +26,15 @@ The known KiCad 10 Windows shared-TEMP IPC collision still requires distinct edi
 - **PI verification:** eight analytical/reference cases, automated fixed-input refinement, native convergence plots and exported evidence. Marble's four-mesh 1% study correctly remains NOT_STABLE; local peak current is not certified. [Methods and references](https://github.com/wayri/WayriCAD/blob/develop/docs/PI_REFERENCE_BENCHMARKS.md).
 
 - **Installation and documentation:** illustrated PCM/ZIP guide, six native workflow previews, all 16 plugin icons and direct README links, separate CLI-wheel instructions, and project-folder defaults for PI/RLC exports.
+
+- **Magnetic extraction and equivalents:** two-winding linear coaxial FEM extracts a reciprocal inductance matrix, mutual coupling and short-circuit leakage with B/H inspection. Explicit parasitics and motor/actuator parameters support project-local HTML/JSON/SPICE equivalents. Independent filament integration and KiCad-bundled ngspice checks are documented in [Magnetics verification](https://github.com/wayri/WayriCAD/blob/develop/docs/MAGNETICS_VERIFICATION.md).
+- **BOM cost and mass:** component coverage, explicit bare-PCB mass/material estimates and quoted PCB cost with setup allocation. Missing values and mixed currencies prevent misleading combined totals; project-local reports preserve assumptions.
+
+- **BOM startup:** asynchronous native bridge initialization fixes a managed-runtime WebView startup stall; two simultaneous configured-runtime windows and project exports passed.
+
+- **KiCad SPICE integration:** magnetic equivalents now run bounded AC sweeps or mechanical DC operating points through KiCad's ngspice library in an isolated worker. Native results, engine provenance and simulation exports accompany the reviewed model.
+
+- **Capacitance:** explicit-dielectric axisymmetric electrostatics separates interwinding and environment branches, with analytical coaxial refinement checks. Actual single-layer PCB sidewall energy is available as a clearly partial intrawinding estimate.
+
+- **Motor workbench:** phase-coloured winding synthesis, concentrated/distributed/chorded styles, balanced 2–12-phase presets, geometry-derived EMF, force/torque and directional phase-event references. Small ideal-current mechanics simulations use KiCad ngspice transient analysis. [Research, equations and boundaries](https://github.com/wayri/WayriCAD/blob/develop/docs/MOTOR_MODELS.md) distinguish the reduced synchronous/linear model from a full machine or inverter solve.
+- **Shared parts:** reusable local catalogue and reviewed native-library snapshot preview. Publication rechecks the exact immutable payload hash before writing; newly added recipient BOM templates remain explicit review-required handoffs.

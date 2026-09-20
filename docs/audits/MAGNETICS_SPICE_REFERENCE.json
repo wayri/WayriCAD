@@ -1,0 +1,123 @@
+{
+  "engine": "KiCad 10 bundled ngspice 46",
+  "checks": [
+    {
+      "check": "inductor DC current",
+      "actual": [
+        6.0,
+        -0.0
+      ],
+      "expected": [
+        6.0,
+        0.0
+      ],
+      "relative_error": 0.0,
+      "pass_": true
+    },
+    {
+      "check": "transformer AC input current",
+      "actual": [
+        0.07550902529755721,
+        -0.1721032207915056
+      ],
+      "expected": [
+        0.07550902529755717,
+        -0.17210322079150558
+      ],
+      "relative_error": 2.6624080339654926e-16,
+      "pass_": true
+    },
+    {
+      "check": "transformer AC load voltage",
+      "actual": [
+        0.4291328482487887,
+        -0.5970634868849827
+      ],
+      "expected": [
+        0.4291328482487886,
+        -0.5970634868849827
+      ],
+      "relative_error": 1.5099279327724777e-16,
+      "pass_": true
+    },
+    {
+      "check": "linear current",
+      "actual": [
+        1.0,
+        -0.0
+      ],
+      "expected": [
+        1.0,
+        0.0
+      ],
+      "relative_error": 0.0,
+      "pass_": true
+    },
+    {
+      "check": "linear speed",
+      "actual": [
+        4.0,
+        0.0
+      ],
+      "expected": [
+        4.0,
+        0.0
+      ],
+      "relative_error": 0.0,
+      "pass_": true
+    },
+    {
+      "check": "linear converted mechanical power",
+      "actual": [
+        8.0,
+        0.0
+      ],
+      "expected": [
+        8.0,
+        0.0
+      ],
+      "relative_error": 0.0,
+      "pass_": true
+    },
+    {
+      "check": "rotary current",
+      "actual": [
+        1.0,
+        -0.0
+      ],
+      "expected": [
+        1.0,
+        0.0
+      ],
+      "relative_error": 0.0,
+      "pass_": true
+    },
+    {
+      "check": "rotary speed",
+      "actual": [
+        4.0,
+        0.0
+      ],
+      "expected": [
+        4.0,
+        0.0
+      ],
+      "relative_error": 0.0,
+      "pass_": true
+    },
+    {
+      "check": "rotary converted mechanical power",
+      "actual": [
+        8.0,
+        0.0
+      ],
+      "expected": [
+        8.0,
+        0.0
+      ],
+      "relative_error": 0.0,
+      "pass_": true
+    }
+  ],
+  "scope": "Exported linear lumped equivalent circuits; not a validation of geometry-derived parameters."
+}

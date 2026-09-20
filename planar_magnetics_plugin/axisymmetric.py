@@ -37,6 +37,27 @@ def validate(spec):
 
 
 def solve(spec):
+    return _solve(spec)
+
+
+def solve_coupled(spec, secondary):
+    """Two linear coaxial windings; signed mutual uses identical azimuthal sense."""
+    validate(spec)
+    if not isinstance(secondary, dict):raise ValueError("Secondary must be a winding specification object")
+    allowed={"winding_inner_mm","winding_outer_mm","winding_height_mm","z_offset_mm","turns"}
+    if set(secondary)-allowed:raise ValueError("Unknown secondary winding field")
+    second=dict(secondary);second.setdefault("z_offset_mm",0.)
+    if set(second)!=allowed:raise ValueError("Secondary requires inner/outer radius, height and turns")
+    if any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) for v in second.values()):raise ValueError("Secondary inputs must be finite numbers")
+    ri,ro,h,z,n=(second[k] for k in ("winding_inner_mm","winding_outer_mm","winding_height_mm","z_offset_mm","turns"))
+    if not 0<ri<ro or h<=0 or n<=0 or int(n)!=n:raise ValueError("Secondary requires positive height/integer turns and 0 < inner < outer")
+    def overlap(a,b,c,d):return min(b,d)>max(a,c)
+    if overlap(ri,ro,spec.winding_inner_mm,spec.winding_outer_mm) and overlap(z-h/2,z+h/2,-spec.winding_height_mm/2,spec.winding_height_mm/2):raise ValueError("Winding volumes overlap")
+    if overlap(ri,ro,spec.core_inner_mm,spec.core_outer_mm) and overlap(z-h/2,z+h/2,-spec.core_height_mm/2,spec.core_height_mm/2):raise ValueError("Secondary overlaps magnetic core")
+    return _solve(spec,second)
+
+
+def _solve(spec, secondary=None):
     validate(spec)
     try:
         import numpy as np
@@ -46,9 +67,22 @@ def solve(spec):
     ri,ro,height=spec.winding_inner_mm*.001,spec.winding_outer_mm*.001,spec.winding_height_mm*.001
     ci,co,ch=spec.core_inner_mm*.001,spec.core_outer_mm*.001,spec.core_height_mm*.001
     radius=ro*spec.air_extent;half=max(height,ch)*.5*spec.air_extent
+    if secondary:
+        sri,sro,sh,sz=(secondary[k]*.001 for k in ("winding_inner_mm","winding_outer_mm","winding_height_mm","z_offset_mm"))
+        radius=max(ro,sro)*spec.air_extent;half=max(height/2,ch/2,abs(sz)+sh/2)*spec.air_extent
     # Feature-aligned grid avoids changing NI with centroid region rounding.
     radial=np.unique(np.r_[np.linspace(0,radius,int(spec.radial_cells)+1),ri,ro,ci,co])
     axial=np.unique(np.r_[np.linspace(-half,half,int(spec.axial_cells)+1),-height/2,height/2,-ch/2,ch/2,0.])
+    if secondary:
+        radial=np.unique(np.r_[radial,sri,sro]);axial=np.unique(np.r_[axial,sz-sh/2,sz+sh/2])
+        # Feature insertion must not create roundoff-width cells where a
+        # regular-grid coordinate already coincides with a material boundary.
+        def aligned(grid,features):
+            features=np.unique(features);features=features[np.r_[True,np.diff(features)>1e-12]];keep=np.ones(len(grid),dtype=bool)
+            for value in features:keep &= abs(grid-value)>1e-12
+            return np.unique(np.r_[grid[keep],features])
+        radial=aligned(radial,[0.,radius,ri,ro,ci,co,sri,sro])
+        axial=aligned(axial,[-half,half,-height/2,height/2,-ch/2,ch/2,0.,sz-sh/2,sz+sh/2])
     nr,nz=len(radial),len(axial)
     if nr*nz>60000:raise ValueError('Field mesh exceeds 60,000 vertices')
     r,z=np.meshgrid(radial,axial);points=np.column_stack((r.ravel(),z.ravel()))
@@ -63,17 +97,38 @@ def solve(spec):
     core=(co>ci)&(centers[:,0]>ci)&(centers[:,0]<co)&(abs(centers[:,1])<ch/2)
     mu=np.where(core,MU0*spec.core_mu_r,MU0)
     density=np.where(winding,spec.turns*spec.current_a/((ro-ri)*height),0.)
+    if secondary:
+        second_region=(centers[:,0]>sri)&(centers[:,0]<sro)&(abs(centers[:,1]-sz)<sh/2)
+        densities=np.column_stack((density/spec.current_a,np.where(second_region,secondary["turns"]/((sro-sri)*sh),0.)))
+        coupled_rhs_element=np.zeros((len(triangles),3,2))
     element=np.zeros((len(triangles),3,3));rhs_element=np.zeros((len(triangles),3))
     for basis in (np.array([2/3,1/6,1/6]),np.array([1/6,2/3,1/6]),np.array([1/6,1/6,2/3])):
         rq=coords[:,:,0]@basis;bz=grad_r+basis[None,:]/rq[:,None]
         weight=2*math.pi*rq*area/3
         element+=(weight/mu)[:,None,None]*(grad_z[:,:,None]*grad_z[:,None,:]+bz[:,:,None]*bz[:,None,:])
         rhs_element+=weight[:,None]*density[:,None]*basis[None,:]
+        if secondary:coupled_rhs_element+=weight[:,None,None]*densities[:,None,:]*basis[None,:,None]
     rows=np.repeat(triangles,3,axis=1).ravel();columns=np.tile(triangles,(1,3)).ravel()
     matrix=coo_matrix((element.ravel(),(rows,columns)),shape=(len(points),len(points))).tocsr()
     rhs=np.zeros(len(points));np.add.at(rhs,triangles.ravel(),rhs_element.ravel())
     boundary=(points[:,0]==0)|(points[:,0]==radius)|(abs(points[:,1])==half)
-    free=np.flatnonzero(~boundary);a=np.zeros(len(points));a[free]=spsolve(matrix[free][:,free],rhs[free])
+    free=np.flatnonzero(~boundary);a=np.zeros(len(points))
+    if secondary:
+        loads=np.zeros((len(points),2));np.add.at(loads,triangles.ravel(),coupled_rhs_element.reshape(-1,2))
+        potentials=np.zeros_like(loads);potentials[free]=spsolve(matrix[free][:,free],loads[free])
+        a=potentials[:,0]*spec.current_a
+        lm=loads.T@potentials
+        errors=np.linalg.norm((matrix@potentials-loads)[free],axis=0)/np.maximum(np.linalg.norm(loads[free],axis=0),1e-30)
+        reciprocity=float(abs(lm[0,1]-lm[1,0])/max(abs(lm).max(),1e-30))
+        energy_matrix=potentials.T@(matrix@potentials)
+        energy_error=float(np.linalg.norm(energy_matrix-lm)/max(np.linalg.norm(lm),1e-30))
+        if not np.isfinite(lm).all() or max(errors)>1e-7 or reciprocity>1e-7 or energy_error>1e-7:raise ValueError("Coupled residual/reciprocity/energy check failed")
+        lm=(lm+lm.T)/2
+        eigenvalues=np.linalg.eigvalsh(lm)
+        if eigenvalues.min()<=0:raise ValueError("Coupled inductance matrix is not positive definite")
+        mutual=float(lm[0,1]);coupling=mutual/math.sqrt(lm[0,0]*lm[1,1])
+        if abs(coupling)>=1:raise ValueError("Coupling violates positive-energy bound")
+    else:a[free]=spsolve(matrix[free][:,free],rhs[free])
     residual=float(np.linalg.norm((matrix@a-rhs)[free])/max(np.linalg.norm(rhs[free]),1e-30))
     if not np.isfinite(a).all() or residual>1e-7:raise ValueError(f'Field solve failed residual check ({residual:g})')
     values=a[triangles];br=-np.sum(grad_z*values,axis=1);bz=np.sum(grad_r*values,axis=1)+values.mean(axis=1)/centers[:,0]
@@ -81,13 +136,22 @@ def solve(spec):
     if energy<=0 or abs(energy-source_work)>1e-7*energy:raise ValueError('Field energy/source-work consistency failed')
     mid=int(np.argmin(abs(axial)));axis_b=float(2*a[mid*nr+1]/radial[1])
     magnitude=np.hypot(br,bz)
-    return dict(spec=asdict(spec),vertices_m=points.tolist(),triangles=triangles.tolist(),
+    field=dict(spec=asdict(spec),vertices_m=points.tolist(),triangles=triangles.tolist(),
         br_t=br.tolist(),bz_t=bz.tolist(),regions=np.where(winding,1,np.where(core,2,0)).tolist(),
         axis_center_b_t=axis_b,energy_j=energy,inductance_h=2*energy/spec.current_a**2,
         source_ampere_turns=float(np.sum(density*area)),relative_residual=residual,
         source_work_j=source_work,vertex_count=len(points),triangle_count=len(triangles),
         peak_b_t=float(magnitude.max()),core_peak_b_t=float(magnitude[core].max()) if np.any(core) else None,
         limitation='Linear axisymmetric magnetostatics; Aphi=0 finite external boundary; no eddy currents, hysteresis, nonlinear saturation or force integration.')
+    if not secondary:return field
+    field["regions"]=np.where(second_region,3,np.where(winding,1,np.where(core,2,0))).tolist()
+    return dict(L_matrix_H=lm.tolist(),k=float(coupling),mutual_H=mutual,
+        primary_short_circuit_leakage_H=float(lm[0,0]-mutual**2/lm[1,1]),
+        secondary_short_circuit_leakage_H=float(lm[1,1]-mutual**2/lm[0,0]),primary_field=field,
+        evidence=dict(relative_residuals=errors.tolist(),reciprocity_relative_error=reciprocity,energy_relative_error=energy_error,
+            eigenvalues_H=eigenvalues.tolist(),source_ampere_turns=np.sum(densities*area[:,None],axis=0).tolist(),
+            secondary=secondary,method="Common feature-aligned mesh; unit-current excitations; Lij=fi.T K^-1 fj",
+            limitation="Linear coaxial axisymmetric windings only. Finite air boundary and mesh require refinement; no saturation, eddy currents, STEP geometry or frequency-dependent leakage."))
 
 
 def analytic_air_axis_b(spec,z_m=0.):

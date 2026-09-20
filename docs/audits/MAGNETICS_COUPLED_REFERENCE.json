@@ -1,0 +1,98 @@
+{
+  "scope": "Independent air-core mutual reference; not arbitrary core validation",
+  "quadrature_M_H": {
+    "5": 2.9340697107033203e-06,
+    "8": 2.9340698508812066e-06,
+    "12": 2.9340698508854227e-06
+  },
+  "reference_sources": [
+    "https://dlmf.nist.gov/19.34",
+    "https://nvlpubs.nist.gov/nistpubs/jres/1/jresv1n4p487_A1b.pdf"
+  ],
+  "mesh_levels": [
+    {
+      "radial_cells": 64,
+      "axial_cells": 128,
+      "mutual_H": 2.9532817791529807e-06,
+      "relative_error_to_12pt": 0.006547876923161944,
+      "L_matrix_H": [
+        [
+          7.556225770987889e-06,
+          2.9532817791529807e-06
+        ],
+        [
+          2.9532817791529807e-06,
+          1.6976419678889885e-05
+        ]
+      ],
+      "k": 0.26075303474447104,
+      "evidence": {
+        "relative_residuals": [
+          7.872200045604071e-15,
+          7.581238319758047e-15
+        ],
+        "reciprocity_relative_error": 9.97893505551801e-17,
+        "energy_relative_error": 7.719099410743048e-16,
+        "eigenvalues_H": [
+          6.706926482297474e-06,
+          1.78257189675803e-05
+        ],
+        "source_ampere_turns": [
+          20.0,
+          30.0
+        ],
+        "secondary": {
+          "winding_inner_mm": 8,
+          "winding_outer_mm": 10,
+          "winding_height_mm": 6,
+          "z_offset_mm": 9,
+          "turns": 30
+        },
+        "method": "Common feature-aligned mesh; unit-current excitations; Lij=fi.T K^-1 fj",
+        "limitation": "Linear coaxial axisymmetric windings only. Finite air boundary and mesh require refinement; no saturation, eddy currents, STEP geometry or frequency-dependent leakage."
+      }
+    },
+    {
+      "radial_cells": 128,
+      "axial_cells": 256,
+      "mutual_H": 2.9307429897202403e-06,
+      "relative_error_to_12pt": 0.001133872516422385,
+      "L_matrix_H": [
+        [
+          7.746215060287256e-06,
+          2.9307429897202403e-06
+        ],
+        [
+          2.9307429897202403e-06,
+          1.7434403146601022e-05
+        ]
+      ],
+      "k": 0.2521909035186149,
+      "evidence": {
+        "relative_residuals": [
+          2.6737508059595755e-14,
+          2.6142184396526974e-14
+        ],
+        "reciprocity_relative_error": 2.429199726918774e-17,
+        "energy_relative_error": 2.4458766250896422e-15,
+        "eigenvalues_H": [
+          6.9286395996014495e-06,
+          1.8251978607286828e-05
+        ],
+        "source_ampere_turns": [
+          19.99999999999999,
+          29.999999999999996
+        ],
+        "secondary": {
+          "winding_inner_mm": 8,
+          "winding_outer_mm": 10,
+          "winding_height_mm": 6,
+          "z_offset_mm": 9,
+          "turns": 30
+        },
+        "method": "Common feature-aligned mesh; unit-current excitations; Lij=fi.T K^-1 fj",
+        "limitation": "Linear coaxial axisymmetric windings only. Finite air boundary and mesh require refinement; no saturation, eddy currents, STEP geometry or frequency-dependent leakage."
+      }
+    }
+  ]
+}

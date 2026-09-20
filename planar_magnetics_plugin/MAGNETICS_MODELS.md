@@ -117,7 +117,7 @@ refined axis-field error was 3.95%. Those differences demonstrate why one solve
 is insufficient; they are not hidden in an accuracy claim.
 
 This subset excludes nonlinear B-H FEM, saturation feedback, eddy currents,
-hysteresis, multiwinding transformer excitation, arbitrary non-axisymmetric
+hysteresis, arbitrary multiwinding geometry, arbitrary non-axisymmetric
 planar windings, STEP volume meshing and Maxwell-stress force extraction.
 Core B is displayed so the designer can compare against the material threshold;
 constant permeability does not automatically saturate. Force remains the
@@ -137,3 +137,16 @@ python -m planar_magnetics_plugin.axisymmetric --input winding.json --output fie
 Dimensions are millimeters; current is amperes. The output file contains the mesh
 and cell fields while stdout returns a short JSON summary. Invalid input returns
 exit code 2. The input file is never overwritten by this command.
+
+
+## Coupled axisymmetric extraction and equivalent exports
+
+`solve_coupled(spec, secondary)` adds a second non-overlapping annular winding to the common linear mesh. Secondary fields are `winding_inner_mm`, `winding_outer_mm`, `winding_height_mm`, `z_offset_mm`, `turns`. For unit-current load vectors f1/f2 and constrained stiffness K, Lij = fiᵀ K⁻¹ fj. The solver checks residuals, reciprocity, positive eigenvalues and energy. M = L12, k = M/sqrt(L11 L22); short-circuit leakage Lsc1 = L11−M²/L22 (and conversely). These are static incremental lumped parameters. They do not separate a local leakage field region or predict frequency-dependent leakage. Full `primary_field` represents the primary's specified current with secondary current zero; the new native extraction dialog uses 1 A.
+
+In linear cells H=B/(mu0 mu_r); the air/winding regions use mu_r=1. No unique closed mean magnetic path is inferred for an open coaxial field geometry. For the dimensional circuit, H follows NI=H le+B gap/mu0, secant reluctance is NI/flux and differential reluctance is N²/Lincremental. Supplied le is a model input, not a STEP-derived effective length.
+
+`equivalent.py` keeps geometry provenance explicit. A coupled field result cannot inherit the unrelated planar winding's resistance; primary and secondary Rdc must be supplied. Unknown capacitance is omitted, not replaced with the legacy capacitance estimate. The SPICE L matrix must be strictly passive (|k|<1). The export is a frozen incremental model at the stated bias, not a nonlinear saturation/core-loss model. Optional interwinding capacitance connects the two dotted terminals; more detailed distributed capacitance requires another model.
+
+Mechanical equivalents use the force-current analogy: C=mass (or rotor inertia), R=1/damping and L=1/spring stiffness. A dependent current source applies Bl*i force and a dependent voltage source applies Bl*v back EMF; rotary mode uses reciprocal Kt=Ke, torque and angular speed. Thus conversion is power conserving in SI. Constants are explicit inputs, initial state is zero, and magnetic-position dependence, stroke stops, commutation and friction are omitted. KiCad ngspice execution was checked against independent transformer AC equations and linear/rotary DC balances, not merely netlist string matching.
+
+Project-local unique HTML/JSON/SPICE bundles contain assumptions, units, board context and (for field extraction) full field/mesh JSON and an SVG field plot. Numerical reference verification is documented in the repository's `docs/MAGNETICS_VERIFICATION.md`; it is not measured device validation.

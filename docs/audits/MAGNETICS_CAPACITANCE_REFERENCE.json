@@ -1,0 +1,273 @@
+{
+  "coaxial": [
+    {
+      "radial_cells": 16,
+      "reference_F": 2.4078220758592093e-12,
+      "actual_F": 2.4109306108281283e-12,
+      "relative_error": 0.001291015229109016,
+      "evidence": {
+        "relative_residuals": [
+          2.974446520278076e-16,
+          2.192980579042878e-16
+        ],
+        "reciprocity_relative_error": 4.644412048971441e-17,
+        "energy_relative_error": 2.7476712227304206e-16,
+        "epsilon_r": 3.0,
+        "domain_radius_mm": 3,
+        "domain_half_height_mm": 5,
+        "axial_boundary": "insulated",
+        "primary": {
+          "winding_inner_mm": 0.5,
+          "winding_outer_mm": 1,
+          "winding_height_mm": 10
+        },
+        "secondary": {
+          "winding_inner_mm": 2,
+          "winding_outer_mm": 2.5,
+          "winding_height_mm": 10
+        },
+        "vertex_count": 357,
+        "triangle_count": 384,
+        "eigenvalues_F": [
+          1.814950260451298e-12,
+          1.216391392068534e-11
+        ],
+        "assumptions": [
+          "Uniform explicitly supplied dielectric everywhere outside the conductors; no inferred core/insulation permittivity.",
+          "Each complete winding is equipotential. Mutual branch C=-C12; environment branches are Maxwell row sums to the specified enclosure.",
+          "This common-mode surrogate is not a turn-distributed terminal capacitance. Do not automatically add it to an intrawinding estimate.",
+          "Finite grounded enclosure, linear dielectric, no conductive/magnetic core model. Mesh and enclosure sensitivity require review."
+        ]
+      }
+    },
+    {
+      "radial_cells": 32,
+      "reference_F": 2.4078220758592093e-12,
+      "actual_F": 2.408697457755885e-12,
+      "relative_error": 0.0003635575508058597,
+      "evidence": {
+        "relative_residuals": [
+          2.7865896297881507e-16,
+          2.7169039134630356e-16
+        ],
+        "reciprocity_relative_error": 4.6464655808845206e-17,
+        "energy_relative_error": 2.260112694203967e-15,
+        "epsilon_r": 3.0,
+        "domain_radius_mm": 3,
+        "domain_half_height_mm": 5,
+        "axial_boundary": "insulated",
+        "primary": {
+          "winding_inner_mm": 0.5,
+          "winding_outer_mm": 1,
+          "winding_height_mm": 10
+        },
+        "secondary": {
+          "winding_inner_mm": 2,
+          "winding_outer_mm": 2.5,
+          "winding_height_mm": 10
+        },
+        "vertex_count": 629,
+        "triangle_count": 768,
+        "eigenvalues_F": [
+          1.8136335965573889e-12,
+          1.2158614771360679e-11
+        ],
+        "assumptions": [
+          "Uniform explicitly supplied dielectric everywhere outside the conductors; no inferred core/insulation permittivity.",
+          "Each complete winding is equipotential. Mutual branch C=-C12; environment branches are Maxwell row sums to the specified enclosure.",
+          "This common-mode surrogate is not a turn-distributed terminal capacitance. Do not automatically add it to an intrawinding estimate.",
+          "Finite grounded enclosure, linear dielectric, no conductive/magnetic core model. Mesh and enclosure sensitivity require review."
+        ]
+      }
+    },
+    {
+      "radial_cells": 64,
+      "reference_F": 2.4078220758592093e-12,
+      "actual_F": 2.408048423550756e-12,
+      "relative_error": 9.400515669999443e-05,
+      "evidence": {
+        "relative_residuals": [
+          5.4271517390981e-16,
+          4.51153962866804e-16
+        ],
+        "reciprocity_relative_error": 9.294121603099798e-17,
+        "energy_relative_error": 1.7747270611302563e-15,
+        "epsilon_r": 3.0,
+        "domain_radius_mm": 3,
+        "domain_half_height_mm": 5,
+        "axial_boundary": "insulated",
+        "primary": {
+          "winding_inner_mm": 0.5,
+          "winding_outer_mm": 1,
+          "winding_height_mm": 10
+        },
+        "secondary": {
+          "winding_inner_mm": 2,
+          "winding_outer_mm": 2.5,
+          "winding_height_mm": 10
+        },
+        "vertex_count": 1173,
+        "triangle_count": 1408,
+        "eigenvalues_F": [
+          1.8132511589129135e-12,
+          1.2157079824520675e-11
+        ],
+        "assumptions": [
+          "Uniform explicitly supplied dielectric everywhere outside the conductors; no inferred core/insulation permittivity.",
+          "Each complete winding is equipotential. Mutual branch C=-C12; environment branches are Maxwell row sums to the specified enclosure.",
+          "This common-mode surrogate is not a turn-distributed terminal capacitance. Do not automatically add it to an intrawinding estimate.",
+          "Finite grounded enclosure, linear dielectric, no conductive/magnetic core model. Mesh and enclosure sensitivity require review."
+        ]
+      }
+    }
+  ],
+  "domain_sensitivity": [
+    {
+      "C_matrix_F": [
+        [
+          2.271630764009677e-12,
+          -2.009449562266814e-12
+        ],
+        [
+          -2.009449562266814e-12,
+          3.52507436667247e-12
+        ]
+      ],
+      "interwinding_F": 2.009449562266814e-12,
+      "primary_environment_F": 2.6218120174286297e-13,
+      "secondary_environment_F": 1.515624804405656e-12,
+      "evidence": {
+        "relative_residuals": [
+          6.52457828586082e-16,
+          7.948127388835037e-16
+        ],
+        "reciprocity_relative_error": 1.1275561807488091e-16,
+        "energy_relative_error": 1.1443445411969185e-15,
+        "epsilon_r": 2.0,
+        "domain_radius_mm": 10,
+        "domain_half_height_mm": 10,
+        "axial_boundary": "grounded",
+        "primary": {
+          "winding_inner_mm": 2,
+          "winding_outer_mm": 3,
+          "winding_height_mm": 4
+        },
+        "secondary": {
+          "winding_inner_mm": 4,
+          "winding_outer_mm": 5,
+          "winding_height_mm": 4
+        },
+        "vertex_count": 1428,
+        "triangle_count": 2560,
+        "eigenvalues_F": [
+          7.934374222632436e-13,
+          5.0032677084189035e-12
+        ],
+        "assumptions": [
+          "Uniform explicitly supplied dielectric everywhere outside the conductors; no inferred core/insulation permittivity.",
+          "Each complete winding is equipotential. Mutual branch C=-C12; environment branches are Maxwell row sums to the specified enclosure.",
+          "This common-mode surrogate is not a turn-distributed terminal capacitance. Do not automatically add it to an intrawinding estimate.",
+          "Finite grounded enclosure, linear dielectric, no conductive/magnetic core model. Mesh and enclosure sensitivity require review."
+        ]
+      }
+    },
+    {
+      "C_matrix_F": [
+        [
+          2.2596502121886248e-12,
+          -2.0624576334960124e-12
+        ],
+        [
+          -2.0624576334960124e-12,
+          3.1549868316936552e-12
+        ]
+      ],
+      "interwinding_F": 2.0624576334960124e-12,
+      "primary_environment_F": 1.9719257869261237e-13,
+      "secondary_environment_F": 1.0925291981976428e-12,
+      "evidence": {
+        "relative_residuals": [
+          8.059265401615374e-16,
+          1.256558337545911e-15
+        ],
+        "reciprocity_relative_error": 1.1766013302703324e-16,
+        "energy_relative_error": 7.760218748987386e-16,
+        "epsilon_r": 2.0,
+        "domain_radius_mm": 20,
+        "domain_half_height_mm": 20,
+        "axial_boundary": "grounded",
+        "primary": {
+          "winding_inner_mm": 2,
+          "winding_outer_mm": 3,
+          "winding_height_mm": 4
+        },
+        "secondary": {
+          "winding_inner_mm": 4,
+          "winding_outer_mm": 5,
+          "winding_height_mm": 4
+        },
+        "vertex_count": 5148,
+        "triangle_count": 9856,
+        "eigenvalues_F": [
+          5.968355427340947e-13,
+          4.817801501148185e-12
+        ],
+        "assumptions": [
+          "Uniform explicitly supplied dielectric everywhere outside the conductors; no inferred core/insulation permittivity.",
+          "Each complete winding is equipotential. Mutual branch C=-C12; environment branches are Maxwell row sums to the specified enclosure.",
+          "This common-mode surrogate is not a turn-distributed terminal capacitance. Do not automatically add it to an intrawinding estimate.",
+          "Finite grounded enclosure, linear dielectric, no conductive/magnetic core model. Mesh and enclosure sensitivity require review."
+        ]
+      }
+    },
+    {
+      "C_matrix_F": [
+        [
+          2.2571942119348684e-12,
+          -2.0758131803616442e-12
+        ],
+        [
+          -2.0758131803616442e-12,
+          3.0782111969366355e-12
+        ]
+      ],
+      "interwinding_F": 2.0758131803616442e-12,
+      "primary_environment_F": 1.8138103157322423e-13,
+      "secondary_environment_F": 1.0023980165749913e-12,
+      "evidence": {
+        "relative_residuals": [
+          8.727684613659956e-16,
+          1.8676018002876276e-15
+        ],
+        "reciprocity_relative_error": 1.1861806574471634e-16,
+        "energy_relative_error": 4.516841374841038e-16,
+        "epsilon_r": 2.0,
+        "domain_radius_mm": 30,
+        "domain_half_height_mm": 30,
+        "axial_boundary": "grounded",
+        "primary": {
+          "winding_inner_mm": 2,
+          "winding_outer_mm": 3,
+          "winding_height_mm": 4
+        },
+        "secondary": {
+          "winding_inner_mm": 4,
+          "winding_outer_mm": 5,
+          "winding_height_mm": 4
+        },
+        "vertex_count": 11172,
+        "triangle_count": 21760,
+        "eigenvalues_F": [
+          5.516881529313273e-13,
+          4.783717255940177e-12
+        ],
+        "assumptions": [
+          "Uniform explicitly supplied dielectric everywhere outside the conductors; no inferred core/insulation permittivity.",
+          "Each complete winding is equipotential. Mutual branch C=-C12; environment branches are Maxwell row sums to the specified enclosure.",
+          "This common-mode surrogate is not a turn-distributed terminal capacitance. Do not automatically add it to an intrawinding estimate.",
+          "Finite grounded enclosure, linear dielectric, no conductive/magnetic core model. Mesh and enclosure sensitivity require review."
+        ]
+      }
+    }
+  ]
+}

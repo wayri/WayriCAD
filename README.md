@@ -43,8 +43,8 @@ Actual application captures; select a tool title for its guide. Example values a
 <td width="50%"><h3><a href="trace_impedance_plugin/ReadMe.md">Trace RLC</a></h3><a href="trace_impedance_plugin/help-ac-geometry.png"><img src="trace_impedance_plugin/help-ac-geometry.png" width="480" alt="Trace RLC native window preview"></a><p>Inspect the connected copper path and per-section electrical coverage.</p></td>
 </tr>
 <tr>
-<td width="50%"><h3><a href="bom_studio_plugin/README.md">BOM Studio</a></h3><a href="bom_studio_plugin/help-simple-exports.png"><img src="bom_studio_plugin/help-simple-exports.png" width="480" alt="BOM Studio native window preview"></a><p>Templates, editing, grouping and conditional BOM/DNP/test-point exports.</p></td>
-<td width="50%"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/help-axisymmetric.png"><img src="planar_magnetics_plugin/help-axisymmetric.png" width="480" alt="Magnetics native window preview"></a><p>Linear axisymmetric field and mesh preview; see the model limits.</p></td>
+<td width="50%"><h3><a href="bom_studio_plugin/README.md">BOM Studio</a></h3><a href="bom_studio_plugin/help-cost-mass.png"><img src="bom_studio_plugin/help-cost-mass.png" width="480" alt="BOM Studio native window preview"></a><p>Templates, bulk editing, conditional exports and explicit cost/mass coverage.</p></td>
+<td width="50%"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/help-motor-emf.png"><img src="planar_magnetics_plugin/help-motor-emf.png" width="480" alt="Magnetics native window preview"></a><p>Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.</p></td>
 </tr>
 </table>
 
@@ -67,7 +67,7 @@ Every name below opens that plugin’s README. The [full tool directory](docs/US
 | <img src="copper_balancer_plugin/icon.png" width="28" height="28" alt="Copper Balancer icon"> | [Copper Balancer](copper_balancer_plugin/README.md) | Saved board, region and density settings |
 | <img src="mechanical_check_plugin/icon.png" width="28" height="28" alt="Mechanical Check icon"> | [Mechanical Check](mechanical_check_plugin/README.md) | Saved board, component models and enclosure |
 | <img src="heater_designer_plugin/icon.png" width="28" height="28" alt="Heater Designer icon"> | [Heater Designer](heater_designer_plugin/ReadMe.md) | Region, geometry, material and thermal assumptions |
-| <img src="planar_magnetics_plugin/icon.png" width="28" height="28" alt="Planar Magnetics icon"> | [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Coil geometry and material/drive assumptions |
+| <img src="planar_magnetics_plugin/icon.png" width="28" height="28" alt="Planar Magnetics icon"> | [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Coils, magnetic equivalents, motor windings and declared material/drive inputs |
 | <img src="manufacturing_readiness_plugin/icon.png" width="28" height="28" alt="Manufacturing Readiness icon"> | [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Board, fabricator profile and release inputs |
 | <img src="protocol_constraint_composer_plugin/icon.png" width="28" height="28" alt="Constraint Studio icon"> | [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Saved board, protocol assignments, net scope and desired rules |
 

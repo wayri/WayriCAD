@@ -61,3 +61,23 @@ Native light and confirmed dark convergence dialogs display both plots and all s
 
 
 The isolated CLI exposed orientation-sensitive constrained triangulation at the second Marble mesh. A bounded rotated-coordinate Delaunay fallback now preserves exact original coordinates and all contour/hole/manifold/area checks. A regression forces the original attempt to fail and requires this fallback with ear clipping disabled. The actual cached-worker CLI plus HTML export now completes all three requested meshes, reproducing the recorded counts/drops and returning exit 3 for NOT_STABLE. The precise startup-state trigger remains unproven; no tolerance was relaxed. The eight reference cases also pass from an isolated PCM ZIP. Linux CI resistance results agree with this Windows run within 9.1e-8 relative.
+
+## Magnetic extraction and BOM analysis integration
+
+The 33 magnetic tests pass, including reciprocal two-winding FEM, invalid geometry, explicit parasitics, equivalent exports and source-file preservation. Independent filament quadrature gives a 0.1134% mutual-inductance error for the finer tested air-core mesh. Four exported circuits passed nine independent reference checks against KiCad 10's bundled ngspice 46. [Methods and recorded references](../MAGNETICS_VERIFICATION.md) separate circuit correctness from physical model accuracy.
+
+BOM Studio's exact configured IPC Python runtime initially timed out despite successfully fetching its HTML, scripts and project data. Synchronous bridge injection in the WebView load event re-entered native event handling. Guarded asynchronous initialization fixes that failure. Two simultaneous isolated hosts using the configured runtime and sanitized environment each displayed 11 demo rows, all three workspace views, a declared 30 g PCB estimate, the native bridge, and four project-local reports, then exited cleanly. This specifically validates parallel BOM windows; it does not remove KiCad's separate shared-TEMP IPC limitation.
+
+The repository suite at this integration point passes 286 tests and 138 subtests, with 67 dependency-specific skips. These counts overlap earlier runs and are not summed.
+
+The complete BOM regression suite passes 1,189 tests with two optional skips. Six shared SPICE-backend tests cover engine discovery, input bounds, worker errors, native crashes and timeouts; actual KiCad-ngspice DC, loaded-transformer AC, motor and 51-point sweep checks also pass.
+
+Native shared-parts acceptance in the configured BOM IPC runtime reached all 11 assembler cards, opened the shared-library pane, and reviewed one captured part. No JavaScript errors or unhandled rejections were observed; source bytes and global KiCad tables stayed unchanged. Sixteen shared-parts and 72 assembler regressions pass, including a catalogue-publication race that now rejects changed payload bytes before filesystem writes.
+
+Capacitance known-answer and domain-sensitivity checks are recorded in [the electrostatic reference](MAGNETICS_CAPACITANCE_REFERENCE.json). Motor winding, phase-balance and native transient references are recorded [separately](MOTOR_REFERENCE.json). Two simultaneous isolated KiCad-ngspice workers also returned correct independent resistor results.
+
+Final integrated checks at this stage: 293 repository tests and 138 subtests pass (67 dependency-specific skips), 1,211 BOM tests pass (two optional skips), and 52 magnetic/capacitance/motor tests pass, including native KiCad-ngspice execution. The guarded final BOM startup also passed again in two simultaneous isolated configured-runtime windows. These test sets overlap earlier counts.
+
+A final launch audit found magnetics was incorrectly selecting the basic IPC environment, despite declaring scientific dependencies. The launcher now selects a dedicated NumPy/SciPy/Matplotlib profile. The exact new managed runtime was created successfully; a regression verifies the launch/profile contract.
+
+Final exact-profile native acceptance passed for coupled FEM/equivalent review, capacitance extraction and explicit passive-network mapping, 51-point transformer AC and 2,015-point motor transient. Each used the newly selected managed runtime with isolated Python and sanitized environment. Motor actions remained enabled after an actual Review button event and event-loop settling; source-file stale guards and project-local report exports passed. Repository tests now pass 294 cases plus 138 subtests, with 67 dependency-specific skips.

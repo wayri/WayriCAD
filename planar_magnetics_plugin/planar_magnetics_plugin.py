@@ -139,7 +139,7 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
             for label,key,value in entries:self.fields[key]=field(page,form,label,value)
         self.connection=choice(geometry,grid,"Connection",["Series","Parallel"])
         self.core=choice(drive,drive_grid,"Core",sorted(self.catalog));self.core.SetValue("Air / no core")
-        drive_layout.Add(more_button(drive,[("Edit custom core…",self.edit_core),("Inspect STEP core…",self.inspect_step_core),("Current / saturation sweep…",self.core_sweep),("Axisymmetric field…",self.axisymmetric_field),("Import cores…",self.load_cores),("Export cores…",self.save_cores)],"Core tools…"),0,wx.ALL,12)
+        drive_layout.Add(more_button(drive,[("Edit custom core…",self.edit_core),("Inspect STEP core…",self.inspect_step_core),("Current / saturation sweep…",self.core_sweep),("Axisymmetric field…",self.axisymmetric_field),("Motor winding / EMF…",self.motor_workbench),("Import cores…",self.load_cores),("Export cores…",self.save_cores)],"Core tools…"),0,wx.ALL,12)
         nets=["<no net>"]+self._nets()
         self.net=choice(placement,placement_grid,"Primary net",nets)
         self.secondary_net=choice(placement,placement_grid,"Secondary net",nets)
@@ -152,6 +152,7 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
             actions.Add(button,0,wx.RIGHT,6)
         actions.Add(more_button(panel,[("Review placement",self.show_pcb),("Clear placement",self.clear_preview),
                                       ("Undo last apply",self.undo),("Redo",self.redo),
+                                      ("Equivalent model & report…",self.equivalent_model),
                                       ("Export JSON…",self.export_json),("Export geometry CSV…",self.export_csv)]))
         right.Add(actions,0,wx.TOP,10)
         self.status=wx.StaticText(panel,label="Configure the winding, then preview.");right.Add(self.status,0,wx.TOP,8)
@@ -308,6 +309,14 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
         if not self.result:return
         with wx.FileDialog(self,"Export magnetic model",wildcard="JSON (*.json)|*.json",style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:
             if d.ShowModal()==wx.ID_OK:Path(d.GetPath()).write_text(json.dumps(asdict(self.result),indent=2),encoding="utf-8")
+    def equivalent_model(self,_e):
+        if not self.result:self.analyze(None)
+        if not self.result:return
+        from .equivalent_ui import EquivalentDialog
+        with EquivalentDialog(self,self.result,self.board.GetFileName()) as dialog:dialog.ShowModal()
+    def motor_workbench(self,_e):
+        from .motor_ui import MotorDialog
+        with MotorDialog(self,self.board.GetFileName()) as dialog:dialog.ShowModal()
     def export_csv(self,_e):
         if not self.result:return
         with wx.FileDialog(self,"Export winding geometry",wildcard="CSV (*.csv)|*.csv",style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:

@@ -133,3 +133,7 @@ does not install or register GUI plugins.
 
 KiCad also documents [PCB action plugins](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#action-plugins),
 including where their commands appear and how toolbar visibility is managed.
+
+## KiCad SPICE engine
+
+Magnetic equivalent AC/DC and motor mechanical transient simulations use the ngspice shared library supplied with KiCad (or its distribution-provided simulation library on Linux). No separate simulator executable is needed. The simulation result records the engine version and library path. For a nonstandard KiCad installation, set `WAYRICAD_KICAD_NGSPICE` to the exact ngspice shared-library file used by that installation, then restart the plugin. An unavailable or incompatible library produces an actionable error; the plugin does not silently substitute another engine. Native execution has been verified on Windows KiCad 10; macOS/Linux discovery still needs native acceptance testing.

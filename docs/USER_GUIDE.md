@@ -42,7 +42,7 @@ Select the linked name for detailed instructions. “Review” below means that 
 | <img src="../copper_balancer_plugin/icon.png" width="28" height="28" alt="Copper Balancer icon"> | [Copper Balancer](../copper_balancer_plugin/README.md) | Saved board, region and density settings | Preview copper thieving, density deficits and rejection counts; save an explicit board copy |
 | <img src="../mechanical_check_plugin/icon.png" width="28" height="28" alt="Mechanical Check icon"> | [Mechanical Check](../mechanical_check_plugin/README.md) | Saved board, component models and enclosure | Quick 2D footprint-envelope screen without FreeCAD; exact-solid checks use FreeCAD; unknown 3D coverage never passes |
 | <img src="../heater_designer_plugin/icon.png" width="28" height="28" alt="Heater Designer icon"> | [Heater Designer](../heater_designer_plugin/ReadMe.md) | Region, geometry, material and thermal assumptions | Heater geometry and estimates; review before placement/application |
-| <img src="../planar_magnetics_plugin/icon.png" width="28" height="28" alt="Planar Magnetics icon"> | [Planar Magnetics](../planar_magnetics_plugin/ReadMe.md) | Coil geometry and material/drive assumptions | Coil/actuator geometry and estimates; generated copper needs review |
+| <img src="../planar_magnetics_plugin/icon.png" width="28" height="28" alt="Planar Magnetics icon"> | [Planar Magnetics](../planar_magnetics_plugin/ReadMe.md) | Coils, magnetic equivalents, motor windings and declared material/drive inputs | Magnetic fields, capacitance, motor EMF/force and SPICE review; generated copper needs review |
 | <img src="../manufacturing_readiness_plugin/icon.png" width="28" height="28" alt="Manufacturing Readiness icon"> | [Manufacturing Readiness](../manufacturing_readiness_plugin/ReadMe.md) | Board, fabricator profile and release inputs | Check reports and explicit DRC/jobset/release operations |
 | <img src="../protocol_constraint_composer_plugin/icon.png" width="28" height="28" alt="Constraint Studio icon"> | [Constraint Studio](../protocol_constraint_composer_plugin/ReadMe.md) | Saved board, protocol assignments, net scope and desired rules | Stage rules/project settings, review diffs, export a separate bundle and validate with native DRC; offline apply requires closed editors and source-hash checks |
 
@@ -102,11 +102,30 @@ BOM Studio's primary workflow is **open the originating project → edit fields 
 
 ![Native simplified BOM export workflow](../bom_studio_plugin/help-simple-exports.png)
 
+Open **Cost & mass** to review component coverage and enter a bare-board mass or a material-volume estimate. PCB cost uses an explicit quote, setup charge, quantity and currency. Missing component values and mixed currencies keep combined totals unknown. Save the HTML/JSON/CSV report in the originating project's `reports/wayricad-bom/` folder.
+
+![BOM cost and mass coverage](../bom_studio_plugin/help-cost-mass.png)
+
+## Magnetic equivalents
+
+Use the magnetic designer for winding geometry and reduced core calculations. The separate two-winding coaxial FEM workflow extracts self/mutual inductance, coupling and short-circuit leakage, with field and mesh previews. Its explicit coaxial geometry is independent of the generated PCB winding. Supply winding resistance explicitly. Capacitance can be entered or computed in the separate geometry/dielectric workflow; inspect its terminal mapping and partial-coverage limits before use. Review B/H, model assumptions and the equivalent before exporting project-local HTML, JSON and SPICE files.
+
+![Two-winding magnetic field review](../planar_magnetics_plugin/help-coupled-field.png)
+
+[Magnetic reference checks and model boundaries](MAGNETICS_VERIFICATION.md) explain independent magnetic/electrostatic field and KiCad ngspice validation. [Motor models and research](MOTOR_MODELS.md) explain winding factors, phase topology, geometry-derived EMF and the small-motion model.
+
+
 Embed3D consolidates library localization and model portability. Its default library folder is `local/` inside the project, and the destination is editable. Resolve missing dependencies, review proposed copies/relinks, save and close project editors, then apply with backups. Missing external models are not generated automatically.
 
 ![Embed3D project library localization workflow](../embed_3d_plugin/help-project-library.png)
 
 The current window shows the project-local folder, reviewed relinks and backup workflow.
+
+## Motor windings and phase review
+
+Choose a balanced preset, inspect the logical coil connections, then review EMF/effort and phase events. Field and drive inputs are separated into tabs. The mechanics view runs KiCad SPICE with explicit ideal-current assumptions; export preserves plots, coil assignments, inputs and the circuit. Logical layouts are not manufactured copper geometry.
+
+![Native motor EMF and effort review](../planar_magnetics_plugin/help-motor-emf.png)
 
 ## When something does not work
 
