@@ -30,6 +30,10 @@ Document pcbnew API assumptions and engineering limitations. Generated results
 must not be presented as replacing ERC, DRC, field solving, SI simulation, or
 physical measurement.
 
+## AI-assisted contributions
+
+AI-assisted contributions follow the same correctness, licensing and validation expectations as other changes. Describe material AI assistance in the pull request, verify cited sources and applicable attribution, and list checks actually run along with unresolved limitations. Do not describe AI review as independent human review. See the project's [AI-development disclosure and acknowledgements](ACKNOWLEDGEMENTS.md).
+
 ## Safety expectations
 
 - Never write board geometry before an explicit commit action.
