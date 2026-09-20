@@ -1,6 +1,10 @@
-# WayriCAD — 3.2.0
+# WayriCAD — KiCad Plugins for PCB Design and Analysis
 
-16 local KiCad tools for routing preparation, electrical checks, BOM work and portable projects. Start with the tool that solves your immediate task; each package installs independently.
+**WayriCAD** is an open-source suite of **16 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes fanout routing, via stitching, trace impedance and RLC analysis, power integrity and signal integrity checks, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
+
+Previously named **KiWay**, the project is now maintained as **WayriCAD** by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
+
+**Current suite: 3.2.0 · [GPL-3.0 license](LICENSE).**
 
 **Use Releases for published packages. KiCad 10 is the validated target.** KiCad 11-only installations are not supported yet: several engines still need KiCad 10 native Python. See [compatibility and known limits](docs/COMPATIBILITY.md).
 
