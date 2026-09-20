@@ -11,6 +11,28 @@ def rectangle(x0,y0,x1,y1):
 
 
 class MeshTests(unittest.TestCase):
+    def test_rotated_delaunay_recovers_primary_failure_without_moving_contours(self):
+        import vtk
+        factory=vtk.vtkDelaunay2D
+        calls=[]
+        class EmptyPrimary:
+            def __getattr__(self,name):
+                if name=='GetOutput':return lambda: vtk.vtkPolyData()
+                return lambda *args: None
+        def injected():
+            calls.append(True)
+            return EmptyPrimary() if len(calls)==1 else factory()
+        polygon=rectangle(100,100,102,102)
+        polygon['holes']=[[[100.5,100.5],[100.5,101.5],[101.5,101.5],[101.5,100.5]]]
+        with patch.object(vtk,'vtkDelaunay2D',side_effect=injected), patch.object(vtk,'vtkContourTriangulator',side_effect=AssertionError('Delaunay fallback should recover')):
+            p,t,report=triangulate([polygon],.5)
+        self.assertGreaterEqual(len(calls),2)
+        self.assertAlmostEqual(report['area_mm2'],3.,places=8)
+        for ring in [polygon['outer'],*polygon['holes']]:
+            for vertex in ring:
+                self.assertTrue(np.any(np.all(p[:,:2]==vertex,axis=1)))
+        self.assertTrue(contains(p[t].mean(axis=1),[polygon]).all())
+
     def test_nearly_collinear_contour_keeps_uniform_strip_flux(self):
         # Quantized board contours can contain tiny kinks at large absolute XY.
         # Ear-clipped slivers must not turn a uniform strip into a false hotspot.

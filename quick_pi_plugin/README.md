@@ -148,8 +148,8 @@ components. [Detailed placement help](decoupling/help.html).
 ![Native voltage-drop view of Marble MGTAVCC, zoomed to In7.Cu](help-power-rail.png)
 
 This is the actual MGTAVCC copper between L34.2 and U1.C6 with an explicit,
-hypothetical 1 A load at one FPGA ball. The pictured coarse mesh gives 2.483 mV;
-refinement gives 2.640 mV with a further 1.96% change. Peak current density is
+hypothetical 1 A load at one FPGA ball. The pictured coarse mesh gives 2.520 mV;
+refinement to 0.0625 mm gives 2.657 mV. The two-step 1% stability criterion fails. Peak current density is
 not converged. This does not model the FPGA's distributed load or regulator.
 See the [validation record](../docs/audits/QUICK_PI_3.2_VALIDATION.md).
 

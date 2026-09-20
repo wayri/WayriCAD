@@ -64,6 +64,7 @@ def _case(name, mesh, source, sink, resistance, current=1., rho=RHO):
 def run_benchmarks():
     """Return JSON-safe evidence; dependency/meshing failures propagate to caller."""
     import numpy as np
+    import scipy, vtk, platform
     cases = []
     strip_r = RHO*.01/(.001*.000035)
     a, sa, ta = _strip()
@@ -134,6 +135,7 @@ def run_benchmarks():
                 'J_error_decreases': all(a['checks']['J_vector_L2']['relative_error']>b['checks']['J_vector_L2']['relative_error'] for a,b in zip(radial,radial[1:]))}
     for case in cases: case['pass']=all(m['pass'] for m in case['checks'].values())
     return {'schema_version':1,'scope':'Numerical verification against analytic DC answers; not measured validation or peak-current certification.',
+            'runtime':{'python':platform.python_version(),'platform':platform.platform(),'numpy':np.__version__,'scipy':scipy.__version__,'vtk':vtk.vtkVersion.GetVTKVersion()},
             'references':REFERENCES,'resistivity_ohm_m':RHO,'temperature_c':20.,'cases':cases,'annulus_refinement':refinement,
             'pass':all(c['pass'] for c in cases) and all(refinement.values())}
 

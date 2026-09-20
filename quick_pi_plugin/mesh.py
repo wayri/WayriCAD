@@ -222,11 +222,24 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
                         keep[near[np.linalg.norm(seeds[near]-(a+fraction[:,None]*delta),axis=1)<clearance]]=False
                 for x,y in seeds[keep]:seeded.InsertNextPoint(x,y,0.)
         attempts=[seeded,points] if seeded.GetNumberOfPoints()>points.GetNumberOfPoints() else [points]
-        for trial_points in attempts:
+        # Near-collinear contour vertices can defeat VTK's edge recovery in
+        # one orientation. Retry the same constrained topology in rotated
+        # coordinates, then validate and restore the exact input coordinates.
+        # Never accept a relaxed boundary, discarded hole or moved vertex.
+        for trial_points,angle in [(p,a) for a in (0.,.1,.7,1.3) for p in attempts]:
             if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
-            seeded_poly=vtk.vtkPolyData();seeded_poly.SetPoints(trial_points)
             seeded_original=vtk_to_numpy(trial_points.GetData())
-            delaunay=vtk.vtkDelaunay2D();delaunay.SetInputData(seeded_poly);delaunay.SetSourceData(constrained)
+            working_points=trial_points
+            source=constrained
+            if angle:
+                xy=seeded_original[:,:2]-original[:,:2].mean(axis=0)
+                rotation=np.array([[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]])
+                xy=xy@rotation
+                working_points=vtk.vtkPoints();working_points.SetDataTypeToDouble()
+                for x,y in xy:working_points.InsertNextPoint(x,y,0.)
+                source=vtk.vtkPolyData();source.SetPoints(working_points);source.SetPolys(loops)
+            seeded_poly=vtk.vtkPolyData();seeded_poly.SetPoints(working_points)
+            delaunay=vtk.vtkDelaunay2D();delaunay.SetInputData(seeded_poly);delaunay.SetSourceData(source)
             delaunay.SetTolerance(1e-12);delaunay.SetOffset(10);delaunay.Update()
             output=delaunay.GetOutput();cells=output.GetPolys()
             if output.GetNumberOfPoints()!=len(seeded_original) or not np.all(np.diff(vtk_to_numpy(cells.GetOffsetsArray()))==3):continue

@@ -1,6 +1,13 @@
 {
   "schema_version": 1,
   "scope": "Numerical verification against analytic DC answers; not measured validation or peak-current certification.",
+  "runtime": {
+    "python": "3.11.5",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.4.2",
+    "scipy": "1.17.1",
+    "vtk": "9.7.0"
+  },
   "references": [
     "https://ocw.mit.edu/courses/res-6-002-electromagnetic-field-theory-a-problem-solving-approach-spring-2008/2cccce322d387cccbc78c3ed65843f49_MITRES_6_002S08_chp03_text.pdf",
     "https://github.com/ElmerCSC/elmerfem/tree/b461e4be77d0ca13bada61f04819fccb20a524ab/fem/tests/ConstantUnknownPotStatCurrent",
@@ -267,38 +274,38 @@
       "triangles": 768,
       "checks": {
         "resistance_ohm": {
-          "computed": 0.00010693293548689823,
+          "computed": 0.00010693295572367513,
           "reference": 0.00010867879276090611,
-          "relative_error": 0.016064378612014683,
+          "relative_error": 0.016064192404785283,
           "relative_tolerance": 0.02,
           "pass": true
         },
         "voltage_drop_V": {
-          "computed": 0.00010693293548689823,
+          "computed": 0.00010693295572367513,
           "reference": 0.00010867879276090611,
-          "relative_error": 0.016064378612014683,
+          "relative_error": 0.016064192404785283,
           "relative_tolerance": 0.02,
           "pass": true
         },
         "power_W": {
-          "computed": 0.00010693293548689787,
+          "computed": 0.00010693295572367504,
           "reference": 0.00010867879276090611,
-          "relative_error": 0.016064378612018048,
+          "relative_error": 0.01606419240478603,
           "relative_tolerance": 0.02,
           "pass": true
         },
         "energy_balance": {
-          "relative_error": 3.4219413462065784e-15,
+          "relative_error": 7.604312663585108e-16,
           "relative_tolerance": 1e-06,
           "pass": true
         },
         "current_balance": {
-          "relative_error": 1.887379141862766e-15,
+          "relative_error": 1.1102230246251565e-16,
           "relative_tolerance": 1e-06,
           "pass": true
         },
         "J_vector_L2": {
-          "relative_error": 0.07655747996273159,
+          "relative_error": 0.07655533197393284,
           "relative_tolerance": 0.1,
           "pass": true
         }
@@ -306,7 +313,7 @@
       "edge_mm": 0.8,
       "contour_segments": 24,
       "outer_sagitta_mm": 0.03422055450475847,
-      "mesh_area_mm2": 46.587428118453744,
+      "mesh_area_mm2": 46.58742811845374,
       "pass": true
     },
     {
