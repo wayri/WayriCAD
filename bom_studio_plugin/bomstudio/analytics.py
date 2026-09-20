@@ -459,10 +459,14 @@ def _run(ws, variant, config):
                 'Native files and component fields are not changed by analytics or threshold highlighting.']}
     from .pcb_estimates import estimate
     report['pcb']=estimate(c['pcb'],boards,mass,pricing)
+    from .component_analytics import board_geometry, summarize
+    geometry, geometry_source = board_geometry(ws, rows)
+    report['component_analysis'] = summarize(parts, geometry)
+    report['component_analysis']['geometry_source'] = geometry_source
     for warning in report['pcb']['warnings']:
         issue('warning','PCB_CURRENCY_MISMATCH',warning)
     report['summary']=dict(Counter(i['severity'] for i in issues))
-    report['fingerprint']=sha((report['workspace_sha256']+json.dumps(c,sort_keys=True)).encode())
+    report['fingerprint']=sha((report['workspace_sha256']+json.dumps(c,sort_keys=True)+str(geometry_source['sha256'])).encode())
     return _json(report)
 
 

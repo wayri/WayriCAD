@@ -19,7 +19,7 @@ from .native import sha
 MIME={'json':'application/json', 'csv':'text/csv; charset=utf-8', 'tsv':'text/tab-separated-values; charset=utf-8',
       'xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'html':'text/html; charset=utf-8',
       'txt':'text/plain; charset=utf-8', 'ascii':'text/plain; charset=us-ascii', 'md':'text/markdown; charset=utf-8', 'zip':'application/zip'}
-TABLES=('summary','components','groups','procurement','scenarios','statistics','issues')
+TABLES=('summary','components','groups','procurement','scenarios','statistics','issues','families')
 STATUS='ADVISORY ANALYTICS SNAPSHOT — NOT A MANUFACTURING APPROVAL'
 
 
@@ -51,6 +51,13 @@ def tables(r):
     tables={}
     def put(name, columns, rows, numeric=()):
         tables[name]={'columns':columns, 'rows':rows, 'numeric':{columns.index(x) for x in numeric}}
+    cols=['Breakdown level','Category','Physical components','Currency','Known cost per board','Price known','Price eligible','Known mass g','Mass known','Known dissipation W','Power known','Courtyard area mm2','Pad copper area mm2','Paired courtyard power W','Paired courtyard area mm2','Power per courtyard W/mm2','Paired pad power W','Paired pad area mm2','Power per pad W/mm2','Courtyard paired components','Pad paired components']
+    rows=[]
+    for group in r.get('component_analysis',{}).get('groups',[]):
+        for currency,cost in (group['costs'].items() or [('',{})]):
+            fa,pa=group['footprint_area_mm2'],group['pad_area_mm2']
+            rows.append([group['level'],group['label'],group['physical_components'],currency,cost.get('known_total'),cost.get('known'),cost.get('eligible'),group['mass']['known_total'],group['mass']['known'],group['power']['known_total'],group['power']['known'],fa['known_total'],pa['known_total'],fa['paired_power_W'],fa['paired_area_mm2'],fa['paired_W_per_mm2'],pa['paired_power_W'],pa['paired_area_mm2'],pa['paired_W_per_mm2'],fa['paired_components'],pa['paired_components']])
+    family_table={'columns':cols,'rows':rows,'numeric':{cols.index(x) for x in cols[2:3]+cols[4:]}}
     summary=[]
     def add(metric,scope,unit,value,known=None,eligible=None,note=''):
         summary.append([metric,scope,unit,value,known,eligible,note])
@@ -100,6 +107,7 @@ def tables(r):
     cols=['Field','Canonical unit','Scope','Known','Missing','Invalid','Minimum','Maximum','Mean','Median','P95 nearest rank','Minimum references','Maximum references']
     put('statistics',cols,[[field,s['canonical_unit'],s['scope'],s['known'],s['missing'],s['invalid'],s['minimum'],s['maximum'],s['mean'],s['median'],s['p95_nearest_rank'],', '.join(s.get('minimum_references',[])),', '.join(s.get('maximum_references',[]))] for field,s in r['statistics'].items()],cols[3:11])
     put('issues',['Severity','Reference','Field','Code','Message'],[[i['severity'],i['reference'],i['field'],i['code'],i['message']] for i in r['issues']])
+    tables['families']=family_table
     return tables
 
 
@@ -140,6 +148,21 @@ def html_bytes(report, all_tables):
             share=x['share_percent'];numeric=float(share) if share is not None else 0
             out.append('<tr><td>'+esc(x['label'])+'</td><td class="num">'+esc(x['known_amount'])+'</td><td><meter min="0" max="100" value="'+str(numeric)+'"></meter> '+esc(share)+'%</td><td>'+esc(x['abc'])+'</td></tr>')
         out.append('</table></div>')
+    analysis=report.get('component_analysis',{})
+    if analysis:
+        out.append('<h2>Component insights and distributions</h2><ul>'+''.join('<li>'+esc(v)+'</li>' for v in analysis['insights']+analysis['limits'])+'</ul>')
+        for group in analysis['groups']:
+            out.append('<details'+(' open' if group['level']=='family' else '')+'><summary>'+esc(group['label'])+' — '+esc(group['level'])+'</summary>')
+            for label,bins in group['histograms'].items():
+                if not bins:continue
+                maximum=max(b['count'] for b in bins);width=320/len(bins)
+                out.append('<figure><figcaption>'+esc(label)+' — component count</figcaption><svg role="img" aria-label="'+esc(label)+' histogram" viewBox="0 0 360 150" width="360" style="max-width:100%">')
+                for i,bin_ in enumerate(bins):
+                    h=90*bin_['count']/maximum
+                    out.append(f'<rect x="{20+i*width}" y="{115-h}" width="{width-3}" height="{h}" fill="#148078"><title>'+esc(bin_['lower'])+' to '+esc(bin_['upper'])+': '+str(bin_['count'])+' components</title></rect>')
+                out.append('<text x="20" y="140" font-size="11">'+esc(bins[0]['lower'])+'</text><text x="340" y="140" text-anchor="end" font-size="11">'+esc(bins[-1]['upper'])+'</text></svg></figure>')
+            out.append('</details>')
+        out.append('<details><summary>Geometry source and coverage</summary><pre>'+esc(json.dumps(analysis['geometry_source'],indent=2,ensure_ascii=False))+'</pre></details>')
     for name,t in all_tables.items():
         out.append('<h2 id="'+name+'">'+name.title()+'</h2><div class="panel"><table><thead><tr>'+''.join('<th>'+esc(x)+'</th>' for x in t['columns'])+'</tr></thead><tbody>')
         for row in t['rows']:out.append('<tr>'+''.join('<td'+(' class="num"' if i in t['numeric'] else '')+'>'+esc(v)+'</td>' for i,v in enumerate(row))+'</tr>')

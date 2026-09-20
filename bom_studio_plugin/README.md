@@ -38,6 +38,16 @@ Expand **Templates, native exports and advanced settings** to edit, duplicate, i
 
 ## Cost and mass, including the bare PCB
 
+### Custom mappings and component analytics
+
+Use **Cost, mass & power → field mappings** to select your own KiCad fields for unit cost, currency, mass, operating dissipation and component type. For example, map `PurchasePrice`, `PartWeight` and `OperatingLoss`; values such as `100 mg` and `250 mW` retain their units. Resolved KiCad variables are supported, with raw/resolved source values recorded. **Export mapping template** and **Import mapping template** share these settings as JSON; Save settings, then Save workspace, persists them. These are analytics profiles, separate from BOM export-layout templates, and do not rename or overwrite native properties. Power rating is not operating dissipation.
+
+After **Run analytics**, **Components & area** shows passive, active and other-component cost, mass and dissipation, plus separate R, L, C and combined RLC views. Component-type fields override reference-prefix guesses; unknown types stay unclassified. Diodes/LEDs are grouped with actives by convention. Histograms show component cost, mass, dissipation and available power/area distributions. Cost currencies remain separate; the existing **Cost & Pareto** view and summary provide total known BOM costs and build scenarios. RLC is an overlapping rollup, not another amount to add to the family totals.
+
+Area analytics read the saved PCB beside the project (or the PCB path configured in Project health), matching reference, footprint identifier and UUID path when available. Footprint area uses the placement-side courtyard. The pad-contact proxy sums supported numbered copper lands on the placement side, subtracting supported drill openings. It is nominal copper area, not measured solder contact. Missing/mismatched footprints, open/curved courtyards, custom pads and potentially overlapping pad bounds remain unknown. Overlap bounds are conservative and can reject closely spaced disjoint pads. Unsaved PCB changes are not included.
+
+Power/area uses **only components with both known power and known area**, with coverage shown beside results. These figures are descriptive densities, not temperature or cooling predictions. Expand geometry coverage to inspect source/hash and per-component reasons. **Download analytics → families** exports the breakdown; HTML reports include histograms and assumptions, and full JSON/XLSX exports include the new analysis. Saved project HTML/JSON reports include it too.
+
 Open **Cost & mass…** beside BOM settings, or use **More tools → Cost, mass & power**. Map the component `UnitPrice`, `Currency` and `Mass` fields (custom field names are supported). Bulk-edit these fields in BOM workspace. Enter build quantity, pricing basis and mass units; explicit units such as `100 mg` override the default mass unit. Each physical component is counted once, even when represented by several schematic units.
 
 ![Native cost and mass summary with deliberately incomplete component coverage](help-cost-mass.png)

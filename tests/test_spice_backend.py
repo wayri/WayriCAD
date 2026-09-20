@@ -32,7 +32,7 @@ class SpiceBackendTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'singular generated circuit'):simulate(DECK,vectors=['p'])
     def test_active_library_and_numeric_fallback(self):
         with tempfile.TemporaryDirectory() as root:
-            root=Path(root)
+            root=Path(root).resolve()
             for version in ('9.0','10.0'):
                 lib=root/'KiCad'/version/'bin/ngspice.dll';lib.parent.mkdir(parents=True);lib.touch()
             with patch.dict('os.environ',{'ProgramFiles':str(root),'WAYRICAD_KICAD_NGSPICE':'','WAYRICAD_KICAD_PYTHON':''}),patch('wayricad_runtime.spice_backend.sys.platform','win32'):

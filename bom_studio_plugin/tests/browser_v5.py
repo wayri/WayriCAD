@@ -92,6 +92,9 @@ def main():
    check(ws._serialize()==before,'Running analytics does not mutate workspace or native files')
    check('undefined' not in page.locator('.ana-metrics').inner_text(),'KPI cards show real values/coverage, never undefined data')
    check(not page.locator('.ana-mapping').evaluate('(x)=>x.open'),'Mapping editor collapses after a run so results are visible')
+   page.locator('[data-tab=families]').click()
+   check(page.locator('svg[aria-label*=histogram]').count()>0,'Component-family distributions render histogram charts')
+   check('Passive, active and other parts' in page.locator('#main').inner_text(),'Family analytics renders alongside field mappings')
    shot('01-analytics-dashboard.png')
    page.locator('[data-tab=pricing]').click()
    check(page.locator('meter').count()>0,'Cost Pareto shares are rendered from report groups')
@@ -116,7 +119,7 @@ def main():
    with page.expect_download() as d:page.locator('[data-act=analyticsExport]').click()
    xlsx=output/'browser-analytics.xlsx';d.value.save_as(xlsx)
    import zipfile
-   with zipfile.ZipFile(xlsx) as z:check(z.testzip() is None and len([n for n in z.namelist() if n.startswith('xl/worksheets/')])==8,'Browser Excel export downloads a valid eight-sheet workbook')
+   with zipfile.ZipFile(xlsx) as z:check(z.testzip() is None and len([n for n in z.namelist() if n.startswith('xl/worksheets/')])==9,'Browser Excel export downloads a valid nine-sheet workbook')
    page.locator('#analyticsFormat').select_option('csv');page.locator('#analyticsTable').select_option('groups')
    with page.expect_download() as d:page.locator('[data-act=analyticsExport]').click()
    csv=output/'browser-mass-table.csv';d.value.save_as(csv)

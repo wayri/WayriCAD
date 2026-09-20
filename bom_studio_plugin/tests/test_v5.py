@@ -276,7 +276,7 @@ class AnalyticsExportTests(AnalyticsFixture):
  def test_ascii_7bit(self):
   r=self.run_report(scenario_name='μ thermal ₹');raw,_,_=ex.render(r,'ascii');self.assertTrue(all(b<128 for b in raw))
  def test_xlsx_readable_xml_no_formulas(self):
-  self.edit('R1',{'ComponentType':'=1+1'});raw,_,_=ex.render(self.run_report(),'xlsx');z=zipfile.ZipFile(io.BytesIO(raw));self.assertIsNone(z.testzip());sheets=[n for n in z.namelist() if n.startswith('xl/worksheets/')];self.assertEqual(len(sheets),8)
+  self.edit('R1',{'ComponentType':'=1+1'});raw,_,_=ex.render(self.run_report(),'xlsx');z=zipfile.ZipFile(io.BytesIO(raw));self.assertIsNone(z.testzip());sheets=[n for n in z.namelist() if n.startswith('xl/worksheets/')];self.assertEqual(len(sheets),9)
   for name in sheets:
    data=z.read(name);ET.fromstring(data);self.assertNotIn(b'<f>',data)
   self.assertTrue(any(b'=1+1' in z.read(n) for n in sheets))
@@ -327,7 +327,7 @@ class AnalyticsCLITests(AnalyticsFixture):
 class AnalyticsPipelineTests(Fixture):
  def config(self):return {'schema':'wayricad-pipeline-1','variants':[BASE],'reports':['analytics'],'analytics':{'metrics':['pricing']},'analytics_formats':['json','csv','xlsx','html']}
  def test_analytics_pipeline_reports(self):
-  result=automation.pipeline(self.ws,self.config(),self.dir/'run');self.assertEqual(result['status'],'PASSED');files=list((self.dir/'run/001').glob('analytics*'));self.assertEqual(len(files),10);self.assertTrue(automation.verify_run(self.dir/'run')['valid'])
+  result=automation.pipeline(self.ws,self.config(),self.dir/'run');self.assertEqual(result['status'],'PASSED');files=list((self.dir/'run/001').glob('analytics*'));self.assertEqual(len(files),11);self.assertTrue(automation.verify_run(self.dir/'run')['valid'])
  def test_analytics_gate_error_suppresses_boms(self):
   c=self.config();c['analytics']['budgets']={'cost_per_board':{'INR':'0'}};c['policy']={'analytics':'error'};r=automation.pipeline(self.ws,c,self.dir/'run');self.assertEqual(r['status'],'FAILED');self.assertTrue(any(g['kind']=='analytics' for g in r['gates']));self.assertEqual(list((self.dir/'run/001').glob('*Purchasing*')),[])
  def test_analytics_gate_unknown(self):
