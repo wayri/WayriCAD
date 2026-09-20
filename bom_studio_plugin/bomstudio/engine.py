@@ -163,8 +163,10 @@ class Workspace:
         if self.state.get('native_bom_settings') is not None:validate_native(self.state['native_bom_settings'])
         if self.state.get('native_export_settings') is not None:validate_native(self.state['native_export_settings'])
         eng=self.state.get('engineering',{})
-        if not isinstance(eng,dict) or set(eng)-{'library'} or not isinstance(eng.get('library',''),str) or len(eng.get('library',''))>4096:
+        if not isinstance(eng,dict) or set(eng)-{'library','shared_alternates'} or not isinstance(eng.get('library',''),str) or len(eng.get('library',''))>4096:
             raise ValueError('Invalid engineering library settings.')
+        from .sharedparts import validate_alternates
+        validate_alternates(eng.get('shared_alternates',{}))
         from .analytics import validate_config
         validate_config(self.state.get('analytics_settings',{}))
         from .search import validate_filters

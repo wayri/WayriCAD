@@ -79,6 +79,16 @@ PROFILES = {
         'status':'review_required', 'source':'',
         'note':'Editable general assembly mapping; agree the column contract with the recipient before use.'}
 }
+# Editable recipient handoffs: these are not claims of portal/template approval.
+for _id,_name,_source,_note in [
+    ('aisler','AISLER','https://aisler.net/en-US/products/supply',
+     'Simple Supply accepts CSV/XLSX. This editable handoff is not its verified importer schema; Amazing Assembly may derive the BOM from design files. Review the selected service before upload.'),
+    ('pcprocess','PC Process','',
+     'Recipient-specific editable handoff. Current official workbook and portal requirements are unverified; obtain the recipient template before ordering.'),
+    ('krypton','Krypton Solutions','https://www.krypton-solutions.com/our-services/assembly/',
+     'Recipient-specific editable handoff. Assembly service is documented; its current BOM workbook is unverified. Confirm fields with the recipient.')]:
+    PROFILES[_id]={**deepcopy(PROFILES['generic']),'name':_name,'source':_source,'note':_note}
+
 COLUMNS={'item','references','qty_per_board','value','comment','description','footprint','manufacturer','mpn','sku','customer','dnp'}
 MAPPINGS={'value':'Value','comment':'','description':'','footprint':'Footprint','manufacturer':'','mpn':'','customer':''}
 DEFAULT={'schema':SCHEMA, 'profiles':['jlcpcb'], 'formats':['csv','xlsx'],

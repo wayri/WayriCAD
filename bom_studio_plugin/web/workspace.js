@@ -16,8 +16,9 @@ const originalAuthority = authorityBarNF;
 authorityBarNF = function () {
   const workspaceSettings=ctxNF().preferences.preset==='@workspace';
   const authority=workspaceSettings ? originalAuthority().replace('Following KiCad','Workspace BOM settings').replace('Saved columns, labels and format; no native files changed.','Workspace columns, labels and format; native files unchanged.') : originalAuthority();
-  return authority + `<div class="toolbar compact-settings">${b8('editNativeSettings','BOM settings…')}<span class="fine">Columns, grouping, sorting, DNP and CSV formatting</span></div>`;
+  return authority + `<div class="toolbar compact-settings">${b8('editNativeSettings','BOM settings…')}${b8('openCostMass','Cost & mass…')}<span class="fine">Columns, grouping, sorting, DNP and CSV formatting</span></div>`;
 };
+handlers.openCostMass=()=>{S.view='analytics';render();};
 let nativeDraft;
 function nativeFieldsTable() {
   return `<div class="table-wrap"><table class="data-table"><thead><tr><th>Order</th><th>Field</th><th>Heading</th><th>Show</th><th>Group</th></tr></thead><tbody>${nativeDraft.bom_settings.fields_ordered.map((c,i)=>`<tr data-native-column="${i}"><td><button type="button" data-native-move="${i}" data-direction="-1" aria-label="Move ${esc(c.name)} up">↑</button><button type="button" data-native-move="${i}" data-direction="1" aria-label="Move ${esc(c.name)} down">↓</button></td><td>${esc(c.name)}</td><td><input data-native-label="${i}" aria-label="Heading for ${esc(c.name)}" value="${esc(c.label)}"></td><td><input type="checkbox" data-native-show="${i}" aria-label="Show ${esc(c.name)}" ${c.show?'checked':''}></td><td><input type="checkbox" data-native-group="${i}" aria-label="Group by ${esc(c.name)}" ${c.group_by?'checked':''}></td></tr>`).join('')}</tbody></table></div>`;

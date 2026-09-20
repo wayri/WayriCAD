@@ -123,7 +123,7 @@ class Handler(BaseHTTPRequestHandler):
                 app=self.server.app
                 if app.compat is None:app.compat=capabilities()
                 self.respond(app.compat);return
-            files={'/':'index.html','/app.js':'app.js','/workbench.js':'workbench.js','/intelligence.js':'intelligence.js','/automation.js':'automation.js','/engineering.js':'engineering.js','/assets.js':'assets.js','/analytics.js':'analytics.js','/style.css':'style.css','/studio8.js':'studio8.js','/library8.js':'library8.js','/nativefirst.js':'nativefirst.js','/vendors.js':'vendors.js','/assemblers.js':'assemblers.js','/workspace.js':'workspace.js'}
+            files={'/':'index.html','/app.js':'app.js','/workbench.js':'workbench.js','/intelligence.js':'intelligence.js','/automation.js':'automation.js','/engineering.js':'engineering.js','/assets.js':'assets.js','/analytics.js':'analytics.js','/style.css':'style.css','/studio8.js':'studio8.js','/library8.js':'library8.js','/nativefirst.js':'nativefirst.js','/vendors.js':'vendors.js','/assemblers.js':'assemblers.js','/workspace.js':'workspace.js','/sharedparts.js':'sharedparts.js'}
             if path not in files:self.respond({'error':'Not found.'},404);return
             file=ROOT/'web'/files[path]
             self.respond(file.read_bytes(),content_type={'.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.html':'text/html; charset=utf-8'}[file.suffix])
@@ -186,6 +186,9 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith('/api/engineering/'):
             from .engineering import dispatch
             return dispatch(app,path[len('/api/engineering/'):],b)
+        if path.startswith('/api/shared-parts/'):
+            from .sharedparts import dispatch
+            return dispatch(app,path[len('/api/shared-parts/'):],b)
         if path.startswith('/api/library/'):
             from .librarymaker import dispatch
             return dispatch(app,path[len('/api/library/'):],b)
@@ -249,6 +252,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/analytics/validate':return {'config':analytics.validate_config(b['config'])}
         if path=='/api/analytics/settings':return analytics.configure(ws,b['settings'])
         if path=='/api/analytics/run':return analytics.run(ws,variant,b.get('config'))
+        if path=='/api/analytics/save-project':return analytics_exports.save_project_report(ws,analytics.run(ws,variant,b.get('config')))
         if path=='/api/analytics/export':return analytics_exports.render(analytics.run(ws,variant,b.get('config')),b.get('format','json'),b.get('table','summary'))
         if path=='/api/threshold':return analytics.threshold(ws,variant,b['field'],b['condition'],b.get('unit'),b.get('query',''),b.get('rows') is True)
         if path=='/api/query':return search.run(ws,variant,b.get('query',''),b.get('case_sensitive') is True)

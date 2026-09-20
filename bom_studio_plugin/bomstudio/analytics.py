@@ -19,6 +19,7 @@ from .engine import now
 D = Decimal
 SCHEMA = 'wayricad-analytics-config-1'
 DEFAULT = {
+    'pcb': {},
     'schema': SCHEMA, 'metrics': ['pricing', 'mass', 'thermal'], 'scenario_name': 'Nominal',
     'price_field': 'UnitPrice', 'currency_field': 'Currency', 'currency_default': '',
     'price_per': '1', 'price_per_field': '', 'moq_field': 'MOQ', 'multiple_field': 'OrderMultiple',
@@ -75,6 +76,8 @@ def validate_config(config=None):
     if not isinstance(config, dict) or set(config) - set(DEFAULT):
         raise ValueError('Unknown analytics configuration keys.')
     c = deepcopy(DEFAULT); c.update(deepcopy(config))
+    from .pcb_estimates import validate as validate_pcb
+    c['pcb']=validate_pcb(c['pcb'])
     if c['schema'] != SCHEMA: raise ValueError('Expected ' + SCHEMA + '.')
     if not isinstance(c['metrics'], list) or not c['metrics'] or len(c['metrics']) > 3 or any(not isinstance(x,str) or x not in ('pricing','mass','thermal') for x in c['metrics']) or len(set(c['metrics'])) != len(c['metrics']):
         raise ValueError('Choose unique analytics metrics: pricing, mass, thermal.')
@@ -454,6 +457,11 @@ def _run(ws, variant, config):
                 'Scenario rates do not change with volume; taxes, shipping, NRE and labor are not included.',
                 'FX rates and price dates are user-entered observations, never live or independently verified.',
                 'Native files and component fields are not changed by analytics or threshold highlighting.']}
+    from .pcb_estimates import estimate
+    report['pcb']=estimate(c['pcb'],boards,mass,pricing)
+    for warning in report['pcb']['warnings']:
+        issue('warning','PCB_CURRENCY_MISMATCH',warning)
+    report['summary']=dict(Counter(i['severity'] for i in issues))
     report['fingerprint']=sha((report['workspace_sha256']+json.dumps(c,sort_keys=True)).encode())
     return _json(report)
 

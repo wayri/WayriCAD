@@ -23,6 +23,27 @@ TABLES=('summary','components','groups','procurement','scenarios','statistics','
 STATUS='ADVISORY ANALYTICS SNAPSHOT — NOT A MANUFACTURING APPROVAL'
 
 
+def save_project_report(workspace, report):
+    """Explicit export to a unique report folder beside the originating project."""
+    from pathlib import Path
+    import tempfile
+    workspace.project.check_unchanged()
+    project=workspace.project.pro_path.resolve().parent
+    parent=project/'reports'/'wayricad-bom'
+    if not parent.resolve().is_relative_to(project):
+        raise ValueError('Project reports folder must not redirect outside the project.')
+    parent.mkdir(parents=True,exist_ok=True)
+    folder=Path(tempfile.mkdtemp(prefix='cost-mass-',dir=parent))
+    outputs=[]
+    for fmt,table,name in [('json','summary','analysis.json'),('html','summary','analysis.html'),
+                           ('csv','summary','summary.csv'),('csv','components','components.csv')]:
+        data,_,_=render(report,fmt,table)
+        path=folder/name
+        with path.open('xb') as stream:stream.write(data)
+        outputs.append(str(path))
+    return {'folder':str(folder),'files':outputs,'native_files_written':False}
+
+
 def json_bytes(value):return (json.dumps(value,ensure_ascii=False,allow_nan=False,indent=2)+'\n').encode('utf-8')
 
 
@@ -49,6 +70,12 @@ def tables(r):
         p=r[key];add(metric,'Per board',unit,p['known_per_board'],p['known_components'],p['eligible_components'],p['status'])
     add('Installed component mass','Build','g',r['mass']['known_build_total'],r['mass']['known_components'],r['mass']['eligible_components'])
     add('Minimum recorded Temp_Max','Physical fitted parts','C',r['thermal']['minimum_known_temp_max_c'],r['thermal']['temperature_ratings_known'],r['scope']['physical_components'],'Not a predicted junction/ambient temperature.')
+    pcb=r.get('pcb',{})
+    for key,title,unit in [('mass_g','Bare PCB mass','g'),('assembly_mass_g','Complete component + PCB mass','g'),('expected_unit_cost','Quoted PCB cost with setup allocation',pcb.get('currency','')),('expected_batch_cost','Quoted PCB batch cost',pcb.get('currency','')),('assembly_cost_per_board','Complete component + PCB cost',pcb.get('currency',''))]:
+        add(title,'Declared PCB assumptions',unit,pcb.get(key),note=pcb.get('mass_basis','') if unit=='g' else pcb.get('cost_status','unknown'))
+    for key,value in pcb.get('assumptions',{}).items():
+        add('PCB input: '+key,'Declared inputs','',None,note=str(value) if value is not None else 'Unknown')
+    for note in pcb.get('limitations',[]):add('PCB boundary','','',None,note=note)
     for b in r['budgets']:add('Budget: '+b['metric'],b['status'],b['unit'],b['limit'],note='Known subtotal: '+str(b['known_subtotal'])+'; missing: '+str(b['unknown_components']))
     for note in r['limits']:add('Boundary','','',None,note=note)
     put('summary',['Metric','Scope','Unit / currency','Known value / limit','Known components','Eligible components','Notes'],summary,['Known value / limit','Known components','Eligible components'])

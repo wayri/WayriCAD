@@ -9,6 +9,40 @@ import sys
 from urllib.parse import urlsplit
 
 
+def _workspace_loaded(window, event, expected_url, on_ready=None):
+    """Ignore initial blank pages and subdocuments before bridging the workspace."""
+    # The app consumes and clears its session-token fragment during startup.
+    # Match the document (including query), not that transient fragment.
+    expected = urlsplit(expected_url)._replace(fragment='')
+    if (urlsplit(event.GetURL())._replace(fragment='') != expected
+            or urlsplit(window.view.GetCurrentURL())._replace(fragment='') != expected
+            or event.GetTarget()):
+        return
+    _initialize_bridge(window, on_ready)
+
+
+def _initialize_bridge(window, on_ready=None):
+    """Queue bridge setup once, without pumping a synchronous native event loop."""
+    if window.ready:
+        return
+    window.ready = True
+    try:
+        window.view.RunScriptAsync("""
+                (() => {
+                  let next = 0; const pending = new Map();
+                  window.wayricadReply = (id, result) => { const done=pending.get(id); if(done){pending.delete(id);done(result);} };
+                  const call=(method,args)=>new Promise(resolve=>{const id=++next;pending.set(id,resolve);window.wayricad.postMessage(JSON.stringify({id,method,args}));});
+                  window.pywebview={api:{save_download:(...args)=>call('save_download',args),open_external:(...args)=>call('open_external',args)}};
+                  window.dispatchEvent(new Event('pywebviewready'));
+                })();
+            """)
+    except Exception:
+        window.ready = False
+        raise
+    if on_ready:
+        on_ready('desktop')
+
+
 def run(server, on_ready=None):
     import wx
     import wx.html2
@@ -87,18 +121,9 @@ def run(server, on_ready=None):
             return main_thread(choose)
 
         def loaded(self, event):
-            self.view.RunScript("""
-                (() => {
-                  let next = 0; const pending = new Map();
-                  window.wayricadReply = (id, result) => { const done=pending.get(id); if(done){pending.delete(id);done(result);} };
-                  const call=(method,args)=>new Promise(resolve=>{const id=++next;pending.set(id,resolve);window.wayricad.postMessage(JSON.stringify({id,method,args}));});
-                  window.pywebview={api:{save_download:(...args)=>call('save_download',args),open_external:(...args)=>call('open_external',args)}};
-                  window.dispatchEvent(new Event('pywebviewready'));
-                })();
-            """)
-            if not self.ready:
-                self.ready = True
-                if on_ready: on_ready('desktop')
+            # Synchronous RunScript here re-enters LOADED in WebView2 and can
+            # stall until the startup watchdog despite a successfully loaded UI.
+            _workspace_loaded(self, event, server.url, on_ready)
 
         def navigate(self, event):
             if event.GetURL() == 'about:blank' and not self.ready:

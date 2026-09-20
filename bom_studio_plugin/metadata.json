@@ -2,7 +2,7 @@
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD BOM Studio",
   "description": "Review component fields, stage BOM edits, and export purchasing or assembly tables.",
-  "description_full": "WayriCAD BOM Studio opens the originating KiCad project for local component review, staged field edits, and purchasing or assembly BOM exports. Three primary views keep the workflow focused; variants, catalogues, checks and other advanced tools remain available. Supports native KiCad field/grouping/format preferences, CSV/XLSX/TSV and reviewed assembler mappings. No automatic purchasing or upload. Native desktop web view with a local browser fallback; first-time dependency setup may require internet access. Linux/macOS native desktop and KiCad 11 acceptance remain unverified.",
+  "description_full": "WayriCAD BOM Studio opens the originating KiCad project for local component review, staged field edits, and purchasing or assembly BOM exports. Three primary views keep the workflow focused; variants, catalogues, checks and other advanced tools remain available. Supports native KiCad field/grouping/format preferences, CSV/XLSX/TSV and reviewed assembler mappings. No automatic purchasing or upload. Native desktop web view with a local browser fallback; first-time dependency setup may require internet access. Linux/macOS native desktop and KiCad 11 acceptance remain unverified. Shared parts catalogue, reusable templates, reviewed native global library registration and plugin-only alternate suggestions are available from BOM workspace.",
   "identifier": "com.github.wayri.wayricad.bom-studio",
   "type": "plugin",
   "author": {

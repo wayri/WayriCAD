@@ -567,7 +567,7 @@ def normalize_footprint(raw):
     return apply_edits(s,edits)
 
 
-def export_library(lib,ids,choices=None,require_complete=False,model_prefix='${KIPRJMOD}/WayriCAD.3dshapes',library_name='WayriCAD'):
+def export_library(lib,ids,choices=None,require_complete=False,model_prefix='${KIPRJMOD}/WayriCAD.3dshapes',library_name='WayriCAD',readable_names=False):
     """Portable selected native definitions + all captured referenced model bytes."""
     from .partsdb import PROTECTED
     if not isinstance(ids,list) or not ids or len(ids)>10000 or len(ids)!=len(set(ids)):raise ValueError('Select 1..10,000 unique catalog parts.')
@@ -576,6 +576,10 @@ def export_library(lib,ids,choices=None,require_complete=False,model_prefix='${K
     choices=choices or {};files={};symbols=[];mapping=[];warnings=[]
     for pid in ids:
         p=lib.get(pid);sets=asset_sets(p);s=select_set(p,choices.get(pid));stem='KW_'+pid[2:]
+        if readable_names:
+            label='_'.join(str(p['fields'].get(k,'')) for k in ('Manufacturer','MPN')).strip('_') or p.get('internal_pn','Part')
+            label=re.sub(r'[^A-Za-z0-9_-]+','_',label).strip('_')[:72] or 'Part'
+            stem=label+'_'+pid[2:]
         usable={fingerprint([x.get('symbol_hash'),x.get('footprint_hash'),[{k:m.get(k) for k in ('hash','index','offset','scale','rotation','visible','uri')} for m in x.get('models',[])]]) for x in sets if x.get('symbol_hash') and x.get('footprint_name')==p['fields'].get('Footprint','')}
         if len(usable)>1 and pid not in choices:raise ValueError('Several observed asset assemblies for '+p['internal_pn']+'; choose one set explicitly.')
         if not s.get('symbol_hash'):

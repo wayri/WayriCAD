@@ -36,6 +36,22 @@ Test-point detection uses TP-number references (for example TP12) or the compone
 
 Expand **Templates, native exports and advanced settings** to edit, duplicate, import or share full templates, and to use saved-source KiCad exports. Quick export conditions are session choices; saved templates and project files are unchanged by preview or export. Editing and bulk editing remain in BOM workspace. Native source changes still require reviewed sync.
 
+## Cost and mass, including the bare PCB
+
+Open **Cost & mass…** beside BOM settings, or use **More tools → Cost, mass & power**. Map the component `UnitPrice`, `Currency` and `Mass` fields (custom field names are supported). Bulk-edit these fields in BOM workspace. Enter build quantity, pricing basis and mass units; explicit units such as `100 mg` override the default mass unit. Each physical component is counted once, even when represented by several schematic units.
+
+![Native cost and mass summary with deliberately incomplete component coverage](help-cost-mass.png)
+
+The screenshot uses fictional sample prices and an illustrative PCB quote: 30 g, USD 4 per board plus USD 20 setup over 10 boards = USD 6 per board. Component mass is missing and component currency differs, so complete assembly totals correctly remain unknown.
+
+Expand **Bare PCB mass and quoted cost** to enter either measured/declared PCB mass or all material-volume inputs: net laminate area in mm², dielectric thickness excluding copper in mm, dielectric density in g/cm³, summed copper thickness in mm, thickness-weighted copper coverage percent and copper density in g/cm³. This is an explicit material estimate, not an automatically extracted stackup. Cutouts, coatings, plating and solder need separate allowance; do not include a bare-PCB BOM component twice.
+
+PCB cost uses an entered supplier quote: `unit cost + setup cost / quote quantity`. Enter setup cost as **0** when none. Blank quote quantity uses build quantity. The quote currency is mandatory; no current market price or quantity discount is guessed. Taxes, shipping and assembly labor are excluded unless explicitly included in your quote. Record supplier/date or material provenance in Source.
+
+DNP parts are excluded from fitted cost and mass. Pricing also excludes BOM-excluded parts. Physical mass includes fitted on-board BOM-excluded parts only when its explicit scope checkbox is enabled. Build attrition applies to purchasing, not installed mass. Analytics query scope is independent of the BOM table’s temporary display filter. Missing values show coverage counts and known subtotals, never a complete zero. Complete component-plus-PCB totals require full relevant component coverage; cost totals also require one matching currency.
+
+**Save settings to workspace**, then Save workspace, retains assumptions in the project sidecar. **Save reports in project** recomputes the current settings and writes `analysis.json`, `analysis.html`, `summary.csv` and `components.csv` into a unique folder under `reports/wayricad-bom/` beside the originating project. Repeated exports preserve earlier reports. Saved-source changes require reload; reports cannot overwrite design files. The existing Download analytics action retains XLSX and other formats.
+
 ## CLI
 
 Older hierarchical projects can be upgraded through **Review & native sync > Upgrade project copy**. Select a new directory outside the source project. KiCad 10 upgrades every sheet; WayriCAD restores legacy annotation and power-net semantics, then compares native connectivity and component fields before publishing the copy. The original project stays unchanged. Unsupported or ambiguous hierarchies are rejected with a reason. Consistent multi-unit components spanning several sheets are grouped and edited together.
@@ -61,3 +77,21 @@ Advanced tools include assembler and distributor exports, reusable custom templa
 Run `python -m unittest discover -s tests` from this directory. Contract tests do not establish native-editor equivalence or manufacturing qualification. Read the suite release validation report for actual host checks.
 
 The imported BOM Studio implementation retains its original MIT license and copyright in [LICENSE](LICENSE). Suite bundles also include shared GPL-licensed runtime code with its own notice. The PCM package declares the combined distribution license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled asset attribution. Version-specific documents under `docs/` describe historical feature development; this README is the current installation guide.
+
+## Shared parts and plugin-only alternatives
+
+Use **Shared parts library** in BOM workspace to capture project assets, remember a catalogue across projects, share templates and review global KiCad registration. The **Alt (plugin only)** selectors provide keyword/regex suggestions with specification differences. [Workflow, safety boundaries and manufacturing formats](SHARED_PARTS.md).
+
+## Shared parts across projects
+
+Open **Shared parts library** in BOM workspace to create or attach a persistent catalogue outside the project. Save the workspace first, then review and capture reusable parts and their native assets. Templates can be saved to the catalogue and imported into other projects without replacing conflicting local names.
+
+The **Alt (plugin only)** column searches catalogue candidates and shows matching, differing and unknown specifications. Recording a candidate preserves the native part and exported BOM; it does not establish pin or electrical compatibility.
+
+**Review global registration** previews symbol and footprint table changes before the explicit REGISTER action. Complete captured assets are required; snapshots retain linked 3D models, preserve unrelated library entries and back up existing tables. Review the KiCad version configuration directory and close library managers before applying. Catalogue changes after preview require another review.
+
+![Native shared-library registration preview](help-shared-parts.png)
+
+*Disposable one-part catalogue preview in the native window; no global registration applied in this validation.*
+
+OEM / assembly export also includes AISLER, PC Process and Krypton Solutions recipient handoffs. These editable generic mappings require review and are not verified vendor portal templates.

@@ -13,6 +13,9 @@ from bomstudio.server import Application,Server
 
 class AssemblyConfigTests(unittest.TestCase):
  def test_all_requested_providers_present(self):self.assertTrue({'jlcpcb','pcbway','hqpcb','nextpcb','sierra','pcbpower'}<=set(ae.PROFILES))
+ def test_new_recipient_handoffs_require_review(self):
+  for name in ('aisler','pcprocess','krypton'):
+   p=ae.profiles()[name];self.assertEqual(p['status'],'review_required');self.assertFalse(p['portal_tested']);self.assertEqual(p['headers'],ae.PROFILES['generic']['headers'])
  def test_no_hq_next_alias(self):self.assertNotEqual(ae.PROFILES['hqpcb'],ae.PROFILES['nextpcb'])
  def test_jlc_four_columns_no_fake_quantity(self):self.assertEqual(ae.PROFILES['jlcpcb']['headers'],['Comment','Designator','Footprint','LCSC Part #'])
  def test_documentation_status_not_certified(self):self.assertTrue(all(not p['portal_tested'] for p in ae.profiles().values()))
@@ -101,7 +104,7 @@ class AssemblyFormatTests(Fixture):
  def test_excel_single_sheet_no_formulas_numeric_qty(self):
   self.edit('R1',{'MPN':'0000123-EXACT-CT'});b,_,_=ae.export(self.ws,config={'profiles':['pcbpower']},fmt='xlsx');z=zipfile.ZipFile(io.BytesIO(b));s=z.read('xl/worksheets/sheet1.xml');self.assertIn(b'0000123-EXACT-CT',s);self.assertNotIn(b'<f',s);self.assertNotIn('xl/worksheets/sheet2.xml',z.namelist());ns={'m':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'};root=ET.fromstring(s);qty=root.findall('.//m:row',ns)[1].findall('m:c',ns)[1];self.assertNotEqual(qty.attrib.get('t'),'inlineStr');self.assertIsNotNone(qty.find('m:v',ns))
  def test_package_files_all_profiles_and_hashes(self):
-  b,_,_=ae.export(self.ws,config=self.all_config());z=zipfile.ZipFile(io.BytesIO(b));self.assertIsNone(z.testzip());manifest=json.loads(z.read('manifest.json'));self.assertEqual(len([n for n in z.namelist() if n.startswith('uploads/')]),16)
+  b,_,_=ae.export(self.ws,config=self.all_config());z=zipfile.ZipFile(io.BytesIO(b));self.assertIsNone(z.testzip());manifest=json.loads(z.read('manifest.json'));self.assertEqual(len([n for n in z.namelist() if n.startswith('uploads/')]),2*len(ae.PROFILES))
   for n,meta in manifest['files'].items():self.assertEqual(meta['sha256'],sha(z.read(n)));self.assertEqual(meta['bytes'],len(z.read(n)))
  def test_all_dnp_audit_only(self):
   self.ws.edit([r['id'] for r in self.ws.rows()],BASE,{'dnp':True});b,_,_=ae.export(self.ws,config=self.all_config());z=zipfile.ZipFile(io.BytesIO(b));self.assertFalse(any(n.startswith('uploads/') for n in z.namelist()));self.assertEqual(json.loads(z.read('reports/REPORT.json'))['status'],'NO_ASSEMBLY_DEMAND')
@@ -138,7 +141,7 @@ class AssemblyHTTPTests(unittest.TestCase):
   c=http.client.HTTPConnection('127.0.0.1',self.server.server_port);headers={'Content-Type':'application/json','Origin':self.server.origin}
   if token:headers['X-Bom-Token']=self.app.token
   c.request('POST','/api/assemblers/'+path,json.dumps(body or {}),headers);r=c.getresponse();data=r.read();c.close();return r.status,data
- def test_list_profiles(self):s,b=self.post('profiles');self.assertEqual(s,200);self.assertEqual(len(json.loads(b)),8)
+ def test_list_profiles(self):s,b=self.post('profiles');self.assertEqual(s,200);self.assertEqual(set(json.loads(b)),set(ae.PROFILES))
  def test_preview(self):s,b=self.post('preview');self.assertEqual(s,200);self.assertEqual(json.loads(b)['schema'],ae.REPORT)
  def test_export(self):s,b=self.post('export',{'format':'zip'});self.assertEqual(s,200);self.assertTrue(zipfile.is_zipfile(io.BytesIO(b)))
  def test_auth_required(self):self.assertEqual(self.post('preview',token=False)[0],401)
