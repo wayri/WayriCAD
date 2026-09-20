@@ -152,3 +152,12 @@ hypothetical 1 A load at one FPGA ball. The pictured coarse mesh gives 2.483 mV;
 refinement gives 2.640 mV with a further 1.96% change. Peak current density is
 not converged. This does not model the FPGA's distributed load or regulator.
 See the [validation record](../docs/audits/QUICK_PI_3.2_VALIDATION.md).
+
+
+## Numerical verification and mesh refinement
+
+Run `wayricad-pi --verify --output pi-reference-results.json` to check eight production-mesher/solver cases against analytical references: strips, parallel current sharing, a plated via, the published Elmer beam/circuit operating point and three radial-annulus meshes. See [equations, tolerances and sources](../docs/PI_REFERENCE_BENCHMARKS.md).
+
+For a board path, use **More → Check mesh convergence** (3–5 levels) or add `--converge-levels 4` to the CLI solve. The viewer plots drop and peak current separately and reports conservation plus total/sheet loss stability. Two final steps must meet the selected tolerance; incomplete or unstable studies return CLI exit 3. HTML/JSON exports retain this evidence. This does not certify physical accuracy or local peak current/fusing limits.
+
+![Mesh refinement evidence](help-convergence.png)

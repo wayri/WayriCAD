@@ -39,11 +39,11 @@ values and screenshot below replace the earlier mesher run.
 | 0.5 mm | 13,382 | 2.519869 mV | 2.519869 mW | 81.5652 A/mm² |
 | 0.25 mm | 21,491 | 2.597100 mV | 2.597100 mW | 85.9836 A/mm² |
 | 0.125 mm | 64,383 | 2.641906 mV | 2.641906 mW | 90.9052 A/mm² |
+| 0.0625 mm | 292,974 | 2.657125 mV | 2.657125 mW | 100.1537 A/mm² |
 
-Successive drop changes were **2.97% and 1.70%**, relative to the finer result.
-The last pair is evidence of refinement behavior, not a proven convergence
-tolerance. Peak current density is particularly mesh-dependent and is **not
-converged** here. Do not derive a fuse rating or safe current from these peaks.
+Successive drop changes were **2.974%, 1.696% and 0.573%**, relative to the finer result. Copper-sheet loss changes were **5.839%, 3.274% and 1.098%**. The automated two-step 1% study correctly reports **NOT_STABLE**. Refinement to 0.03125 mm was refused by the mesh budget; no result is invented for that level. Peak sheet current rises on each mesh and is **not converged**. Do not derive a fuse rating or safe current from these peaks.
+
+The finest mesh had 156,815 nodes; current balance error was 5.28e-11 A and relative energy error 1.19e-11. These algebraic checks pass but do not establish discretization accuracy. See [reference benchmarks and criteria](../PI_REFERENCE_BENCHMARKS.md).
 
 On the 0.5 mm mesh, losses were **1.238179 mW in sheets + 1.281690 mW in via
 connections**, with an approximately `1.3e-18 W` accounting difference. The
@@ -51,7 +51,7 @@ current-balance error was `8.33e-11 A`, maximum nodal residual `2.65e-11 A`, and
 relative energy error `2.13e-11`. Those small algebraic errors do not erase
 geometric/material or mesh-discretization uncertainty.
 
-Thus this particular zoned rail and terminal pair gave about **2.5–2.6 mV at
+Thus this particular zoned rail and terminal pair gave about **2.5–2.7 mV at
 1 A**, not 35 mV. That does not establish a universal drop for Marble's other
 rails, different terminal pairs or distributed loads.
 

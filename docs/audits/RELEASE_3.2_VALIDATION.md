@@ -49,3 +49,12 @@ A high-DPI capture exposed clipped columns; protocol tables now use DPI-scaled w
 ## Final corpus-fix integration
 
 The integrated checkout passed 305 repository unittests (67 skipped) and 285 pytest tests (67 skipped, 138 subtests). These runs overlap. Native PI (56), SI (38), manufacturing (8) and focused trace/return/frequency tests (40) passed, together with five isolated affected ZIP checks. See [before/after corpus evidence and remaining limits](KICAD_MONKEY_FIX_FEEDBACK.md). Protocol GUI checks passed in light and confirmed native dark appearance; native CLI route assignments and ordinary-Python suite HTML/JSON export also passed.
+
+
+## PI numerical verification and convergence
+
+The native scientific-runtime PI suite passes 70 tests, including eight known-answer benchmark cases and CLI/study failure guards. The benchmarks use production meshing and solving: uniform and parallel copper, a series via, the published Elmer beam and resistor operating point, and three radial annuli. Finest annulus resistance error is 0.1023%; vector-current L2 error is 1.8647%. [Reference methods](../PI_REFERENCE_BENCHMARKS.md) and [recorded JSON](PI_REFERENCE_RESULTS.json) distinguish verification from measured validation.
+
+The fixed-input four-level Marble MGTAVCC study reports **NOT_STABLE** at 1%: final drop change 0.573%, preceding change 1.696%, final sheet-loss change 1.098%. The finest result is 2.657125 mV at 1 A; peak current is not certified. [Study JSON](MARBLE_PI_CONVERGENCE.json) retains current/energy checks and both board/geometry hashes. Further refinement hits the mesh budget.
+
+Native light and confirmed dark convergence dialogs display both plots and all seven table columns at 200% DPI. Invalid tolerance is rejected; accepting a result preserves its finest edge; changing current clears the study/result and disables export. A raw-pixel dialog sizing bug discovered during capture was corrected with DPI-aware sizing.

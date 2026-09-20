@@ -17,6 +17,30 @@ class ServiceGuards(unittest.TestCase):
                 job.assert_not_called()
             self.assertEqual(source.read_bytes(),b'original PCB')
 
+    def test_benchmark_cli_status_and_invalid_output(self):
+        with patch.object(service,'run_job',return_value={'pass':True}) as job, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main(['--verify']),0)
+            job.assert_called_once_with({'action':'verify'},timeout=300.)
+            job.return_value={'pass':False}
+            self.assertEqual(cli.main(['--verify']),1)
+            job.reset_mock()
+            self.assertEqual(cli.main(['--verify','--output','board.kicad_pcb']),2)
+            job.assert_not_called()
+
+    def test_convergence_cli_propagates_options_and_failure(self):
+        args=['board.kicad_pcb','--net','VCC','--source','C1.1','--sink','U1.2','--converge-levels','4']
+        with patch.object(service,'run_job',return_value={'convergence':{'status':'NOT_STABLE'}}) as job, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main(args),3)
+            request=job.call_args.args[0]
+            self.assertEqual(request['action'],'converge')
+            self.assertEqual(request['convergence_levels'],4)
+            self.assertEqual(request['convergence_tolerance_percent'],1.)
+            job.return_value={'convergence':{'status':'STABLE_WITHIN_TOLERANCE'}}
+            self.assertEqual(cli.main(args),0)
+            job.reset_mock()
+            self.assertEqual(cli.main(args+['--convergence-tolerance-percent','nan']),2)
+            job.assert_not_called()
+
     def test_nonfinite_timeout_or_precancelled_job_never_spawns(self):
         with patch.object(service.subprocess,'Popen') as spawn:
             for timeout in (0,-1,float('nan'),float('inf')):

@@ -61,6 +61,7 @@ jobs:
           wayricad-si --help
           python -m unittest discover -s quick_pi_plugin/tests -p test_console.py -v
           python -m unittest discover -s quick_pi_plugin/tests -p test_service_guards.py -v
+          python -m unittest discover -s quick_pi_plugin/tests -p test_convergence.py -v
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p test_quick_si.py -v
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p test_testpoint_labels.py -v
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p "test_eye*.py" -v
@@ -84,3 +85,23 @@ jobs:
           python tools/validate_packages.py
           python tools/validate_docs.py
           python tools/smoke_imported_packages.py dist/wayricad-3.2.0-py3-none-any.whl
+
+  pi-reference:
+    name: PI known-answer benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install scientific runtime
+        run: python -m pip install "numpy>=1.24,<3" "scipy>=1.10,<2" "matplotlib>=3.7,<4" "vtk>=9.3,<10"
+      - name: Verify production mesher and solver
+        run: |
+          python -m unittest discover -s quick_pi_plugin/tests -p test_verification.py -v
+          python -m quick_pi_plugin.verification --output pi-reference-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pi-reference-results
+          path: pi-reference-results.json

@@ -22,3 +22,5 @@ PI remains a 2.5D DC copper-conduction solver, not full 3D or AC electromagnetic
 Magnetic field FEM supports the explicit axisymmetric linear geometry only. Imported arbitrary STEP solids are inspected, not meshed for a full field solution. B-H circuit analysis and ideal-gap force are separate reduced models; no arbitrary transformer or nonlinear full-field/Maxwell-stress claim is made.
 
 The known KiCad 10 Windows shared-TEMP IPC collision still requires distinct editor temporary namespaces where it occurs; `tools/open_kicad.py` provides that workaround. Windows native checks do not establish native macOS/Linux or KiCad 11 compatibility.
+
+- **PI verification:** eight analytical/reference cases, automated fixed-input refinement, native convergence plots and exported evidence. Marble's four-mesh 1% study correctly remains NOT_STABLE; local peak current is not certified. [Methods and references](PI_REFERENCE_BENCHMARKS.md).

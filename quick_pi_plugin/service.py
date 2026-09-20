@@ -47,6 +47,12 @@ def run_job(request, cancelled=None, timeout=300):
 
 
 def execute(request):
+    if request.get('action')=='verify':
+        from .verification import run_benchmarks
+        return run_benchmarks()
+    if request.get('action')=='converge':
+        from .convergence import run_study
+        return run_study(request,execute)
     import pcbnew
     path=Path(request['board_path']).resolve()
     if not path.is_file() or path.suffix.lower()!='.kicad_pcb':raise ValueError('Choose a saved KiCad PCB.')

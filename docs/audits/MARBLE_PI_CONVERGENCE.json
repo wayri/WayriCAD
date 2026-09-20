@@ -1,0 +1,99 @@
+{
+  "schema": "wayricad.pi-convergence/v1",
+  "status": "NOT_STABLE",
+  "tolerance_percent": 1.0,
+  "samples": [
+    {
+      "edge_mm": 0.5,
+      "nodes": 11789,
+      "triangles": 13382,
+      "voltage_drop_V": 0.0025198694868470385,
+      "resistance_ohm": 0.0025198694868470385,
+      "power_W": 0.0025198694867936545,
+      "sheet_power_W": 0.0012381793627886373,
+      "current_A": 1.0,
+      "current_error_A": 8.296696663023795e-11,
+      "nodal_error_A": 2.5218261506809725e-11,
+      "energy_error": 2.1185202982729632e-11,
+      "peak_J_A_mm2": 81.5651703862159
+    },
+    {
+      "edge_mm": 0.25,
+      "nodes": 16086,
+      "triangles": 21491,
+      "voltage_drop_V": 0.0025971001450220115,
+      "resistance_ohm": 0.0025971001450220115,
+      "power_W": 0.002597100145013774,
+      "sheet_power_W": 0.0013149629172296991,
+      "current_A": 1.0,
+      "current_error_A": 2.4332647008407093e-11,
+      "nodal_error_A": 3.2271013443961605e-11,
+      "energy_error": 3.1717430848651597e-12,
+      "peak_J_A_mm2": 85.9836459149195
+    },
+    {
+      "edge_mm": 0.125,
+      "nodes": 38229,
+      "triangles": 64383,
+      "voltage_drop_V": 0.0026419064137707805,
+      "resistance_ohm": 0.0026419064137707805,
+      "power_W": 0.002641906413658024,
+      "sheet_power_W": 0.0013594753190830538,
+      "current_A": 1.0,
+      "current_error_A": 1.8837909010471776e-10,
+      "nodal_error_A": 2.780740794304167e-11,
+      "energy_error": 4.268001003740572e-11,
+      "peak_J_A_mm2": 90.90516268311171
+    },
+    {
+      "edge_mm": 0.0625,
+      "nodes": 156815,
+      "triangles": 292974,
+      "voltage_drop_V": 0.002657125035440607,
+      "resistance_ohm": 0.002657125035440607,
+      "power_W": 0.0026571250354085318,
+      "sheet_power_W": 0.001374564680397973,
+      "current_A": 1.0,
+      "current_error_A": 5.345768272491114e-11,
+      "nodal_error_A": 2.015912374177494e-11,
+      "energy_error": 1.2071331474054044e-11,
+      "peak_J_A_mm2": 100.15367476597088
+    }
+  ],
+  "successive_changes": [
+    {
+      "drop_percent": 2.9737266128533704,
+      "resistance_percent": 2.9737266128533704,
+      "power_percent": 2.9737266146011496,
+      "sheet_power_percent": 5.83921823459674,
+      "peak_J_percent": 5.1387394447959025
+    },
+    {
+      "drop_percent": 1.6959824358356896,
+      "resistance_percent": 1.6959824358356896,
+      "power_percent": 1.6959824319518684,
+      "sheet_power_percent": 3.274233906900025,
+      "peak_J_percent": 5.413902382363285
+    },
+    {
+      "drop_percent": 0.572747667755226,
+      "resistance_percent": 0.572747667755226,
+      "power_percent": 0.5727476707985628,
+      "sheet_power_percent": 1.0977556407567837,
+      "peak_J_percent": 9.234321261271907
+    }
+  ],
+  "failure": null,
+  "terminal_drop_stable": false,
+  "peak_current_converged": false,
+  "criteria": "At least three distinct successively finer meshes; both final refinement steps meet drop, resistance, total-power and copper-sheet-power tolerances; current/nodal/energy balance errors <= 1e-6.",
+  "limitations": [
+    "Observed stability of terminal quantities, not a rigorous error bound or measured PCB validation.",
+    "Geometry, contacts, source/load, layer thickness, plating and material inputs are held fixed; their modeling and measurement errors are not covered.",
+    "Peak current density and pulse/fusing risk remain unverified. Ideal contact edges and re-entrant corners can be singular; an unchanged terminal drop does not validate a local peak.",
+    "Richardson/GCI is not inferred from nominal edge size: these unstructured meshes are not demonstrated to form an asymptotic, uniformly refined family."
+  ],
+  "source_sha256": "3304ba37c2bd891849fc36b500cd940934aaf1f2013a95639c03564fb925c512",
+  "geometry_sha256": "fc2dbba11a7e81f6d40f5a010b3b0f8da0d339f990142e155ce414529828faa0",
+  "requested_levels": 4
+}

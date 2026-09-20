@@ -145,8 +145,9 @@ class QuickPIFrame(wx.Frame):
 
     def _job(self,request,finished,message):
         from .service import run_job
-        if request.get('action') in ('geometry','mesh','solve'):
+        if request.get('action') in ('geometry','mesh','solve','converge'):
             self.bundle.pop('result',None)
+            self.bundle.pop('convergence',None)
             self.summary.SetLabel('Waiting for the current request. No current electrical result is available.')
             self._draw(preserve=True)
         self._console_write('Job: '+json.dumps(request,ensure_ascii=False))
@@ -179,6 +180,7 @@ class QuickPIFrame(wx.Frame):
         self.status.SetLabel('Preview this net or run the analysis.')
 
     def _invalidate(self,event=None):
+        self.bundle.pop('convergence',None)
         self.bundle.pop('result',None);self._buttons();self.summary.SetLabel('Inputs changed. Run again to update the electrical results.')
         request=self.bundle.setdefault('request',{})
         for control,key in ((self.source,'source_terminal'),(self.sink,'sink_terminal')):
@@ -238,6 +240,12 @@ class QuickPIFrame(wx.Frame):
             if r.get('negative_sink_voltage'):
                 self.status.SetLabel('Requested current makes the sink voltage negative. Review source voltage and load. Mesh convergence is not verified.')
                 self._console_write('Warning: the requested sink current exceeds the available source voltage for this resistive path.')
+            if result.get('convergence'):
+                from .convergence import summary
+                self.status.SetLabel(summary(result['convergence'])+(' Sink voltage is negative; review the load.' if r.get('negative_sink_voltage') else ''))
+                self.status.Wrap(max(600,self.GetClientSize().width-32))
+                self.edge.ChangeValue(str(result['request']['edge_mm']))
+                self._console_write(summary(result['convergence']))
         else:self.summary.SetLabel('Actual filled copper, pad contacts and via barrels. Pan and zoom to inspect the selected layer.');self.status.SetLabel('Preview ready.')
         self._draw()
 
@@ -337,8 +345,61 @@ class QuickPIFrame(wx.Frame):
         focus=menu.Append(wx.ID_ANY,'Zoom to circuit terminals');self.Bind(wx.EVT_MENU,self._focus_terminals,focus)
         refine=menu.Append(wx.ID_ANY,'Refine mesh and rerun (half edge length)')
         self.Bind(wx.EVT_MENU,self._refine,refine)
+        study=menu.Append(wx.ID_ANY,'Check mesh convergence…');self.Bind(wx.EVT_MENU,self.on_convergence,study)
+        study.Enable(len(self._terminals)>1)
+        history=menu.Append(wx.ID_ANY,'View convergence plots…');history.Enable(bool(self.bundle.get('convergence')))
+        self.Bind(wx.EVT_MENU,self.on_convergence_details,history)
         refresh=menu.Append(wx.ID_ANY,'Reload saved board');self.Bind(wx.EVT_MENU,lambda e:self._inspect(),refresh)
         self.PopupMenu(menu);menu.Destroy()
+
+    def on_convergence(self,event=None):
+        if self._busy:return
+        try:request=self._request('solve')
+        except (ValueError,KeyError) as exc:self.status.SetLabel(str(exc));return
+        dialog=wx.Dialog(self,title='Check mesh convergence',size=self.FromDIP((510,280)),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        box=wx.BoxSizer(wx.VERTICAL)
+        note=wx.StaticText(dialog,label=f"Start at {request['edge_mm']:g} mm and halve mesh edge each level. The board, contacts and material inputs stay fixed. Cancellation and mesh limits remain active.");note.Wrap(self.FromDIP(465));box.Add(note,0,wx.ALL,12)
+        form=wx.FlexGridSizer(2,2,10,12);form.Add(wx.StaticText(dialog,label='Refinement levels'))
+        levels=wx.SpinCtrl(dialog,min=3,max=5,initial=4);form.Add(levels)
+        form.Add(wx.StaticText(dialog,label='Final two changes, maximum %'));tolerance=wx.TextCtrl(dialog,value='1');form.Add(tolerance)
+        box.Add(form,0,wx.ALL,12);box.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,12);dialog.SetSizer(box)
+        try:
+            if dialog.ShowModal()!=wx.ID_OK:return
+            from .convergence import assess
+            value=float(tolerance.GetValue());assess([],value)
+            request.update(action='converge',convergence_levels=levels.GetValue(),convergence_tolerance_percent=value)
+        except ValueError as exc:self.status.SetLabel(str(exc));return
+        finally:dialog.Destroy()
+        def finished(bundle):
+            self._accept_result(bundle,request,'solve')
+            self.on_convergence_details()
+        self._job(request,finished,'Running fixed-input refinement study; this takes several solves…')
+
+    def on_convergence_details(self,event=None):
+        study=self.bundle.get('convergence')
+        if not study:return
+        from .convergence import summary
+        dialog=wx.Dialog(self,title='Quick PI · Mesh refinement evidence',size=self.FromDIP((1100,800)),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        box=wx.BoxSizer(wx.VERTICAL);label=wx.StaticText(dialog,label=summary(study));label.Wrap(self.FromDIP(1020));box.Add(label,0,wx.ALL,12)
+        figure=Figure(figsize=(10,4),dpi=100);canvas=FigureCanvasWxAgg(dialog,wx.ID_ANY,figure)
+        canvas.SetMinSize(self.FromDIP((-1,220)))
+        samples=study['samples'];edges=[row['edge_mm'] for row in samples]
+        for index,key,scale,title,unit in [(1,'voltage_drop_V',1000,'Terminal drop','mV'),(2,'peak_J_A_mm2',1,'Local peak — not certified','A/mm²')]:
+            ax=figure.add_subplot(1,2,index);ax.plot(edges,[row[key]*scale for row in samples],'o-');ax.set_xscale('log',base=2);ax.invert_xaxis();ax.set_xlabel('Mesh edge (mm), finer →');ax.set_ylabel(unit);ax.set_title(title);ax.grid(True,alpha=.25)
+        figure.tight_layout();box.Add(canvas,1,wx.EXPAND|wx.ALL,8)
+        table=wx.ListCtrl(dialog,style=wx.LC_REPORT,size=self.FromDIP((-1,130)))
+        for col,(name,width) in enumerate([('Edge mm',100),('Triangles',100),('Drop mV',120),('R mΩ',120),('Loss mW',120),('Sheet loss mW',130),('Peak J A/mm²',145)]):table.InsertColumn(col,name,width=self.FromDIP(width))
+        for row in samples:
+            values=[row['edge_mm'],row['triangles'],row['voltage_drop_V']*1000,row['resistance_ohm']*1000,row['power_W']*1000,row['sheet_power_W']*1000,row['peak_J_A_mm2']]
+            i=table.InsertItem(table.GetItemCount(),f'{values[0]:.6g}')
+            for col,value in enumerate(values[1:],1):table.SetItem(i,col,f'{value:.7g}')
+        box.Add(table,0,wx.EXPAND|wx.ALL,8)
+        evidence=study['criteria']+'\n'+'\n'.join(study['limitations'])
+        if study.get('failure'):evidence+='\nStopped: '+str(study['failure'])
+        box.Add(wx.TextCtrl(dialog,value=evidence,style=wx.TE_MULTILINE|wx.TE_READONLY,size=self.FromDIP((-1,110))),0,wx.EXPAND|wx.ALL,8)
+        box.Add(dialog.CreateButtonSizer(wx.CLOSE),0,wx.ALIGN_RIGHT|wx.ALL,8);dialog.SetSizer(box)
+        dialog.Bind(wx.EVT_BUTTON,lambda e:dialog.EndModal(wx.ID_CLOSE),id=wx.ID_CLOSE)
+        canvas.draw();dialog.ShowModal();dialog.Destroy()
 
     def on_details(self,event=None):
         from .analytics import details_text

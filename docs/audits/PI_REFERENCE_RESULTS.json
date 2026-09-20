@@ -1,0 +1,412 @@
+{
+  "schema_version": 1,
+  "scope": "Numerical verification against analytic DC answers; not measured validation or peak-current certification.",
+  "references": [
+    "https://ocw.mit.edu/courses/res-6-002-electromagnetic-field-theory-a-problem-solving-approach-spring-2008/2cccce322d387cccbc78c3ed65843f49_MITRES_6_002S08_chp03_text.pdf",
+    "https://github.com/ElmerCSC/elmerfem/tree/b461e4be77d0ca13bada61f04819fccb20a524ab/fem/tests/ConstantUnknownPotStatCurrent",
+    "https://www.grc.nasa.gov/www/wind/valid/tutorial/overview.html",
+    "https://www.grc.nasa.gov/www/wind/valid/tutorial/spatconv.html"
+  ],
+  "resistivity_ohm_m": 1.724e-08,
+  "temperature_c": 20.0,
+  "cases": [
+    {
+      "name": "uniform_copper_strip",
+      "triangles": 268,
+      "checks": {
+        "resistance_ohm": {
+          "computed": 0.004925714285713802,
+          "reference": 0.004925714285714287,
+          "relative_error": 9.843348262031967e-14,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "voltage_drop_V": {
+          "computed": 0.009851428571427604,
+          "reference": 0.009851428571428573,
+          "relative_error": 9.843348262031967e-14,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "power_W": {
+          "computed": 0.019702857142853275,
+          "reference": 0.019702857142857147,
+          "relative_error": 1.9651478820085288e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "energy_balance": {
+          "relative_error": 9.808130558054285e-14,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "current_balance": {
+          "relative_error": 1.5565326805244695e-13,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "J_vector_relative_L2": {
+          "relative_error": 1.1598154458543827e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "parallel_layers",
+      "triangles": 1084,
+      "checks": {
+        "resistance_ohm": {
+          "computed": 0.0016419047619045345,
+          "reference": 0.0016419047619047622,
+          "relative_error": 1.3866970941592443e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "voltage_drop_V": {
+          "computed": 0.004925714285713603,
+          "reference": 0.004925714285714287,
+          "relative_error": 1.3875775367587103e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "power_W": {
+          "computed": 0.014777142857138763,
+          "reference": 0.01477714285714286,
+          "relative_error": 2.7728072265855104e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "energy_balance": {
+          "relative_error": 1.3852296898269927e-13,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "current_balance": {
+          "relative_error": 2.1227464230832993e-13,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "layer_0_current_A": {
+          "computed": 0.9999999999998607,
+          "reference": 1.0,
+          "relative_error": 1.3933298959045715e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "layer_1.0_current_A": {
+          "computed": 1.9999999999997158,
+          "reference": 2.0,
+          "relative_error": 1.4210854715202004e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "two_layers_series_via",
+      "triangles": 536,
+      "checks": {
+        "resistance_ohm": {
+          "computed": 0.010932075943792956,
+          "reference": 0.010932075943797026,
+          "relative_error": 3.722679293085919e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "voltage_drop_V": {
+          "computed": 0.021864151887585913,
+          "reference": 0.021864151887594052,
+          "relative_error": 3.722679293085919e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "power_W": {
+          "computed": 0.043728303775155554,
+          "reference": 0.043728303775188104,
+          "relative_error": 7.443771766353813e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "energy_balance": {
+          "relative_error": 3.7210924732692797e-13,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "current_balance": {
+          "relative_error": 5.607736497381666e-13,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "via_current_A": {
+          "computed": 1.9999999999991753,
+          "reference": 2.0,
+          "relative_error": 4.1233683134578314e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "via_loss_W": {
+          "computed": 0.004322589489470248,
+          "reference": 0.004322589489473813,
+          "relative_error": 8.247039770520257e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "elmer_published_beam_resistance",
+      "triangles": 816,
+      "checks": {
+        "resistance_ohm": {
+          "computed": 0.9999999999999971,
+          "reference": 1.0,
+          "relative_error": 2.886579864025407e-15,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "voltage_drop_V": {
+          "computed": 0.9999999999999971,
+          "reference": 1.0,
+          "relative_error": 2.886579864025407e-15,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "power_W": {
+          "computed": 0.9999999999999943,
+          "reference": 1.0,
+          "relative_error": 5.662137425588298e-15,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "energy_balance": {
+          "relative_error": 2.7755575615628992e-15,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "current_balance": {
+          "relative_error": 9.103828801926284e-15,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        }
+      },
+      "scope": "Published beam subproblem: 1 m x 0.2 m x 1 m, sigma=5 S/m. Elmer not executed.",
+      "pass": true
+    },
+    {
+      "name": "elmer_published_beam_and_circuit",
+      "triangles": 816,
+      "checks": {
+        "resistance_ohm": {
+          "computed": 2.9999999999998037,
+          "reference": 3.0,
+          "relative_error": 6.54291435845759e-14,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "voltage_drop_V": {
+          "computed": 2.9999999999998037,
+          "reference": 3.0,
+          "relative_error": 6.54291435845759e-14,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "power_W": {
+          "computed": 2.9999999999996074,
+          "reference": 3.0,
+          "relative_error": 1.308582871691518e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "energy_balance": {
+          "relative_error": 6.542914358458018e-14,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "current_balance": {
+          "relative_error": 5.162537064506978e-14,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "beam_right_voltage_V": {
+          "computed": 1.0000000000001033,
+          "reference": 1.0,
+          "relative_error": 1.0325074129013956e-13,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "ground_voltage_V": {
+          "computed": 1.9628743075372768e-13,
+          "reference": 0.0,
+          "absolute_tolerance_V": 1e-07,
+          "pass": true
+        },
+        "resistor_drop_V": {
+          "computed": 1.9999999999998967,
+          "reference": 2.0,
+          "relative_error": 5.162537064506978e-14,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        },
+        "resistor_current_A": {
+          "computed": 0.9999999999999484,
+          "reference": 1.0,
+          "relative_error": 5.162537064506978e-14,
+          "relative_tolerance": 1e-07,
+          "pass": true
+        }
+      },
+      "scope": "Published 3 V / 1 A operating point reproduced with current-sink boundary; grounded sink verified. Elmer not executed.",
+      "pass": true
+    },
+    {
+      "name": "annulus_24",
+      "triangles": 768,
+      "checks": {
+        "resistance_ohm": {
+          "computed": 0.00010693293548689823,
+          "reference": 0.00010867879276090611,
+          "relative_error": 0.016064378612014683,
+          "relative_tolerance": 0.02,
+          "pass": true
+        },
+        "voltage_drop_V": {
+          "computed": 0.00010693293548689823,
+          "reference": 0.00010867879276090611,
+          "relative_error": 0.016064378612014683,
+          "relative_tolerance": 0.02,
+          "pass": true
+        },
+        "power_W": {
+          "computed": 0.00010693293548689787,
+          "reference": 0.00010867879276090611,
+          "relative_error": 0.016064378612018048,
+          "relative_tolerance": 0.02,
+          "pass": true
+        },
+        "energy_balance": {
+          "relative_error": 3.4219413462065784e-15,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "current_balance": {
+          "relative_error": 1.887379141862766e-15,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "J_vector_L2": {
+          "relative_error": 0.07655747996273159,
+          "relative_tolerance": 0.1,
+          "pass": true
+        }
+      },
+      "edge_mm": 0.8,
+      "contour_segments": 24,
+      "outer_sagitta_mm": 0.03422055450475847,
+      "mesh_area_mm2": 46.587428118453744,
+      "pass": true
+    },
+    {
+      "name": "annulus_48",
+      "triangles": 4080,
+      "checks": {
+        "resistance_ohm": {
+          "computed": 0.00010823094646868173,
+          "reference": 0.00010867879276090611,
+          "relative_error": 0.00412082505562642,
+          "relative_tolerance": 0.006,
+          "pass": true
+        },
+        "voltage_drop_V": {
+          "computed": 0.00010823094646868173,
+          "reference": 0.00010867879276090611,
+          "relative_error": 0.00412082505562642,
+          "relative_tolerance": 0.006,
+          "pass": true
+        },
+        "power_W": {
+          "computed": 0.00010823094646868507,
+          "reference": 0.00010867879276090611,
+          "relative_error": 0.004120825055595743,
+          "relative_tolerance": 0.006,
+          "pass": true
+        },
+        "energy_balance": {
+          "relative_error": 3.0803774605793054e-14,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "current_balance": {
+          "relative_error": 3.064215547965432e-14,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "J_vector_L2": {
+          "relative_error": 0.03787918472097825,
+          "relative_tolerance": 0.05,
+          "pass": true
+        }
+      },
+      "edge_mm": 0.4,
+      "contour_segments": 48,
+      "outer_sagitta_mm": 0.008564307045586084,
+      "mesh_area_mm2": 46.98942919921858,
+      "pass": true
+    },
+    {
+      "name": "annulus_96",
+      "triangles": 23712,
+      "checks": {
+        "resistance_ohm": {
+          "computed": 0.00010856766746650735,
+          "reference": 0.00010867879276090611,
+          "relative_error": 0.0010225113067204676,
+          "relative_tolerance": 0.002,
+          "pass": true
+        },
+        "voltage_drop_V": {
+          "computed": 0.00010856766746650735,
+          "reference": 0.00010867879276090611,
+          "relative_error": 0.0010225113067204676,
+          "relative_tolerance": 0.002,
+          "pass": true
+        },
+        "power_W": {
+          "computed": 0.00010856766746649473,
+          "reference": 0.00010867879276090611,
+          "relative_error": 0.0010225113068365657,
+          "relative_tolerance": 0.002,
+          "pass": true
+        },
+        "energy_balance": {
+          "relative_error": 1.1621694632237054e-13,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "current_balance": {
+          "relative_error": 1.4288570326925765e-13,
+          "relative_tolerance": 1e-06,
+          "pass": true
+        },
+        "J_vector_L2": {
+          "relative_error": 0.018646977492745208,
+          "relative_tolerance": 0.025,
+          "pass": true
+        }
+      },
+      "edge_mm": 0.2,
+      "contour_segments": 96,
+      "outer_sagitta_mm": 0.002141650094537262,
+      "mesh_area_mm2": 47.09025304570301,
+      "pass": true
+    }
+  ],
+  "annulus_refinement": {
+    "resistance_error_decreases": true,
+    "J_error_decreases": true
+  },
+  "pass": true
+}

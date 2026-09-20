@@ -224,7 +224,11 @@ def write_report(path,bundle,layer=None):
     json_path.write_text(json.dumps(bundle,indent=2,allow_nan=False),encoding='utf-8')
     html='''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WayriCAD Quick PI</title><style>body{font:15px system-ui,sans-serif;margin:32px auto;max-width:1080px;padding:0 20px;color:#172a2b;background:#fff}h1{font-size:26px}p{line-height:1.5}table{border-collapse:collapse}th,td{text-align:left;padding:7px 20px 7px 0;border-bottom:1px solid #e0e6e5}section{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:18px}figure{margin:0;border:1px solid #e0e6e5;border-radius:5px;padding:12px}figcaption{font-weight:600}img{width:100%;height:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f6;padding:14px}</style><h1>WayriCAD Quick PI</h1>'''
     html+='<p>2.5D DC copper conduction · plotted layer '+escape(selected)+'. All layer mesh and numerical data are in <a href="'+escape(json_path.name)+'">the paired JSON report</a>.</p>'
-    html+='<p><strong>Mesh convergence not verified.</strong> Compare refined meshes before relying on resistance or localized current-density and pulse-risk peaks. These maps are screening estimates.</p>'
+    if bundle.get('convergence'):
+        from .convergence import html_section
+        html+=html_section(bundle['convergence'])
+    else:
+        html+='<p><strong>Mesh convergence not verified.</strong> Run a fixed-input refinement study before relying on terminal drop. Localized current-density and pulse-risk peaks need separate verification.</p>'
     html+='<p>The DC transfer-resistance map divides the source-to-cell potential drop by the specified sink current. It is not an AC impedance map.</p>'
     html+='<table>'+table+'</table><p>'+scope+' resistance uses the solved voltage drop divided by load current. Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><section>'+''.join(images)+'</section>'
     if result.get('analytics'):
