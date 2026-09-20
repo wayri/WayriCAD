@@ -39,7 +39,7 @@ class PCMPackageTests(unittest.TestCase):
  def assert_invalid(self,payload,pattern):
   with self.assertRaisesRegex(v.PackageError,pattern):v.validate(self.archive(payload))
  def test_valid_flat_package(self):
-  r=v.validate(self.archive());self.assertEqual(r['version'],'3.1.1');self.assertFalse(r['host_installation_tested']);self.assertEqual(r['installed_plugin_relative_path'],'plugins/com_github_wayri_wayricad_bom-studio/plugin.json')
+  r=v.validate(self.archive());self.assertEqual(r['version'],json.loads((Path(__file__).resolve().parents[1]/'metadata.json').read_text(encoding='utf-8'))['versions'][0]['version']);self.assertFalse(r['host_installation_tested']);self.assertEqual(r['installed_plugin_relative_path'],'plugins/com_github_wayri_wayricad_bom-studio/plugin.json')
  def test_root_metadata_required(self):
   p=dict(self.payload);p.pop('metadata.json');self.assert_invalid(p,'Missing metadata.json')
  def test_old_wrapper_rejected(self):self.assert_invalid({'outer/'+k:d for k,d in self.payload.items()},'Unexpected archive wrapper')

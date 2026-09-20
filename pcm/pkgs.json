@@ -3,7 +3,7 @@
         {
             "name": "WayriCAD BOM Studio",
             "description": "Review component fields, stage BOM edits, and export purchasing or assembly tables.",
-            "description_full": "WayriCAD BOM Studio opens the originating KiCad project for local component review, staged field edits, and purchasing or assembly BOM exports. Five primary views keep the workflow focused; variants, catalogues, checks and other advanced tools remain available. Supports native KiCad field/grouping/format preferences, CSV/XLSX/TSV and reviewed assembler mappings. No automatic purchasing or upload. Native desktop web view with a local browser fallback; first-time dependency setup may require internet access. Linux/macOS native desktop and KiCad 11 acceptance remain unverified.",
+            "description_full": "WayriCAD BOM Studio opens the originating KiCad project for local component review, staged field edits, and purchasing or assembly BOM exports. Three primary views keep the workflow focused; variants, catalogues, checks and other advanced tools remain available. Supports native KiCad field/grouping/format preferences, CSV/XLSX/TSV and reviewed assembler mappings. No automatic purchasing or upload. Native desktop web view with a local browser fallback; first-time dependency setup may require internet access. Linux/macOS native desktop and KiCad 11 acceptance remain unverified.",
             "identifier": "com.github.wayri.wayricad.bom-studio",
             "type": "plugin",
             "author": {
@@ -27,10 +27,10 @@
                         "linux",
                         "macos"
                     ],
-                    "download_sha256": "df659ebb2e5473be105f0b9bb6ab462fe2aedc03c612b810aae9941c60b3cdec",
-                    "download_size": 771626,
+                    "download_sha256": "d5f3abc61e4143d58118cf6964a322995ff9edd3b3f3f6d973fc5f85f1ff5d25",
+                    "download_size": 771627,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.2.0/WayriCAD-bom-studio-3.2.0-PCM.zip",
-                    "install_size": 1762605
+                    "install_size": 1762606
                 }
             ]
         },

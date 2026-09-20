@@ -46,6 +46,13 @@ def main():
                 if key.startswith("download_") or key in {"install_size", "kicad_version_max"}:
                     del version[key]
         write_json(source, metadata)
+        if folder.name == 'bom_studio_plugin':
+            standalone_path = folder / 'tools' / 'pcm-package.json'
+            standalone = json.loads(standalone_path.read_text(encoding='utf-8'))
+            standalone['description_full'] = metadata['description_full']
+            for version in standalone['versions']:
+                version['version'] = metadata['versions'][0]['version']
+            write_json(standalone_path, standalone)
         entrypoint = "desktop_entrypoint.py" if folder.name in DESKTOP_TOOLS else "ipc_entrypoint.py"
         if folder.name in DESKTOP_TOOLS and not (folder / entrypoint).is_file():
             raise ValueError(f"Missing desktop launcher: {folder / entrypoint}")

@@ -7,6 +7,7 @@ Validated on Windows with KiCad 10.0.5. These checks establish their stated scop
 | Root integration tests | 256 passed, 67 native/optional skips, 133 subtests passed |
 | Constraint Studio package | 323 passed; 11 optional-signing skips |
 | Native Constraint Studio | Worksheet edit, undo, matrix/sets/review, help and layer-routing bridge passed |
+| Native DRC rules | Deliberately violating disposable fixture triggered distinct front/back width and differential-gap rules as expected; not a clean-board claim |
 | BOM Studio | 1,180 tests passed, 2 skipped; native three-view workspace and conditioned export preview passed |
 | Quick PI | 53 numerical, analytics, console and service tests passed |
 | Quick SI | 37 tests passed under native KiCad, including direct via rendering and no paint fallback |
@@ -19,6 +20,7 @@ Validated on Windows with KiCad 10.0.5. These checks establish their stated scop
 | PCM packages | 16 ZIPs: official schemas, entrypoints, icons, payload syntax and SHA-256 validated |
 | Isolated wheel | CLI help, merged module imports, nested help/assets and absence of retired root packages checked |
 | Documentation | Source links and packaged images validated; screenshots inspected for real rendering, not just successful calculations |
+| Native light/dark appearance | PI net/mesh/results/placement, SI route/eye/test-point views and RLC geometry/AC plot inspected; process-local dark appearance asserted, user settings untouched |
 
 ## Marble scope
 
