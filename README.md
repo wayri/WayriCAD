@@ -31,25 +31,25 @@ Initial dependency setup needs internet access or a prepared wheel cache. Once p
 
 ## Plugin previews
 
-Application captures and rendered interface previews; select a tool title for its guide. Example values are not predictions for your board.
+Application captures and rendered interface previews; select a picture or tool title for its guide. Example values are not predictions for your board.
 
 Machine-specific paths in screenshots are replaced with generic project locations; surrounding UI and numerical results are preserved.
 
 <table>
 <tr>
-<td width="50%"><h3><a href="fanout_generator_plugin/ReadMe.md">Adaptive fanout</a></h3><a href="fanout_generator_plugin/help-adaptive.png"><img src="fanout_generator_plugin/help-adaptive.png" width="480" alt="Adaptive fanout native window preview"></a><p>Review pads, existing copper and proposed tracks/vias before applying.</p></td>
-<td width="50%"><h3><a href="quick_pi_plugin/README.md">Quick PI</a></h3><a href="quick_pi_plugin/help-power-rail.png"><img src="quick_pi_plugin/help-power-rail.png" width="480" alt="Quick PI native window preview"></a><p>Marble MGTAVCC at a hypothetical 1 A; a selected rail path, not a whole-board load.</p></td>
+<td width="50%"><h3><a href="fanout_generator_plugin/ReadMe.md">Adaptive fanout</a></h3><a href="fanout_generator_plugin/ReadMe.md"><img src="fanout_generator_plugin/help-adaptive.png" width="480" alt="Adaptive fanout native window preview"></a><p>Review pads, existing copper and proposed tracks/vias before applying.</p></td>
+<td width="50%"><h3><a href="quick_pi_plugin/README.md">Quick PI</a></h3><a href="quick_pi_plugin/README.md"><img src="quick_pi_plugin/help-power-rail.png" width="480" alt="Quick PI native window preview"></a><p>Marble MGTAVCC at a hypothetical 1 A; a selected rail path, not a whole-board load.</p></td>
 </tr>
 <tr>
-<td width="50%"><h3><a href="signal_integrity_advisor_plugin/ReadMe.md">Quick SI</a></h3><a href="signal_integrity_advisor_plugin/help-protocols.png"><img src="signal_integrity_advisor_plugin/help-protocols.png" width="480" alt="Quick SI native window preview"></a><p>Protocol screening keeps missing models and reference coverage visible.</p></td>
-<td width="50%"><h3><a href="trace_impedance_plugin/ReadMe.md">Trace RLC</a></h3><a href="trace_impedance_plugin/help-ac-geometry.png"><img src="trace_impedance_plugin/help-ac-geometry.png" width="480" alt="Trace RLC native window preview"></a><p>Inspect the connected copper path and per-section electrical coverage.</p></td>
+<td width="50%"><h3><a href="signal_integrity_advisor_plugin/ReadMe.md">Quick SI</a></h3><a href="signal_integrity_advisor_plugin/ReadMe.md"><img src="signal_integrity_advisor_plugin/help-protocols.png" width="480" alt="Quick SI native window preview"></a><p>Protocol screening keeps missing models and reference coverage visible.</p></td>
+<td width="50%"><h3><a href="trace_impedance_plugin/ReadMe.md">Trace RLC</a></h3><a href="trace_impedance_plugin/ReadMe.md"><img src="trace_impedance_plugin/help-ac-geometry.png" width="480" alt="Trace RLC native window preview"></a><p>Inspect the connected copper path and per-section electrical coverage.</p></td>
 </tr>
 <tr>
-<td width="50%"><h3><a href="bom_studio_plugin/README.md">BOM Studio</a></h3><a href="bom_studio_plugin/help-cost-mass.png"><img src="bom_studio_plugin/help-cost-mass.png" width="480" alt="BOM Studio native window preview"></a><p>Templates, bulk editing, conditional exports and explicit cost/mass coverage.</p></td>
-<td width="50%"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/help-motor-emf.png"><img src="planar_magnetics_plugin/help-motor-emf.png" width="480" alt="Magnetics native window preview"></a><p>Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.</p></td>
+<td width="50%"><h3><a href="bom_studio_plugin/README.md">BOM Studio</a></h3><a href="bom_studio_plugin/README.md"><img src="bom_studio_plugin/help-cost-mass.png" width="480" alt="BOM Studio native window preview"></a><p>Templates, bulk editing, conditional exports and explicit cost/mass coverage.</p></td>
+<td width="50%"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/ReadMe.md"><img src="planar_magnetics_plugin/help-motor-emf.png" width="480" alt="Magnetics native window preview"></a><p>Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.</p></td>
 </tr>
 <tr>
-<td colspan="2"><h3><a href="protocol_constraint_composer_plugin/ReadMe.md">Constraint Studio — visual constraint manager</a></h3><a href="protocol_constraint_composer_plugin/help-workflow.png"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="960" alt="Constraint Studio visual worksheet with rule priorities, layout scope and context inspector"></a><p>Edit custom DRC rules visually, manage clearance matrices and reusable constraint sets, and stage per-layer routing profiles for reviewed export. Shipped interface rendered with a demonstration snapshot; scope colours are condition matches, not native DRC results.</p></td>
+<td colspan="2"><h3><a href="protocol_constraint_composer_plugin/ReadMe.md">Constraint Studio — visual constraint manager</a></h3><a href="protocol_constraint_composer_plugin/ReadMe.md"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="960" alt="Constraint Studio visual worksheet with rule priorities, layout scope and context inspector"></a><p>Edit custom DRC rules visually, manage clearance matrices and reusable constraint sets, and stage per-layer routing profiles for reviewed export. Shipped interface rendered with a demonstration snapshot; scope colours are condition matches, not native DRC results.</p></td>
 </tr>
 </table>
 
