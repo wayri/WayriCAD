@@ -74,6 +74,12 @@ The mini console accepts pad references such as `U8.2` and series branches such 
 
 For connected RLC extraction, use explicit start/end pads or zone/plane terminals and verify stackup/reference assumptions. A result marked unknown or partial must remain so until the missing inputs or connectivity are resolved.
 
+Quick SI also offers an optional **Eye / step** preview: a uniform lossless-line
+PRBS7 model using explicit bit rate, driver swing and resistive endpoints.
+It can illustrate ringing and sampled eye closure, but does not simulate IBIS
+drivers, coupled crosstalk or protocol compliance. See the
+[model assumptions and CLI examples](../signal_integrity_advisor_plugin/ReadMe.md#illustrative-eye-and-step-response).
+
 ![Trace RLC analyzer showing a Marble connected-path result](../trace_impedance_plugin/help-marble-path.png)
 
 ## BOM and project libraries

@@ -59,6 +59,7 @@ jobs:
           python -m unittest discover -s quick_pi_plugin/tests -p test_console.py -v
           python -m unittest discover -s quick_pi_plugin/tests -p test_service_guards.py -v
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p test_quick_si.py -v
+          python -m unittest discover -s signal_integrity_advisor_plugin/tests -p "test_eye*.py" -v
           python -m unittest discover -s manufacturing_readiness_plugin/tests -v
           python -m unittest discover -s variant_workbench_plugin/tests -p test_plan_apply.py -v
       - name: Development-folder plugin regressions

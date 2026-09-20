@@ -27,6 +27,15 @@ def parser():
             sub.add_argument('--z0-ohm',type=float,help='Explicit assumed uniform Z0 when geometry cannot establish one.')
             sub.add_argument('--epsilon-eff',type=float,help='Explicit effective permittivity for total-route delay screening.')
             sub.add_argument('--html',type=Path,help='Self-contained local HTML with route geometry and evidence.')
+            sub.add_argument('--eye-bitrate-mbps',type=float,help='Opt in to an illustrative uniform-line PRBS7 eye at this bit rate.')
+            sub.add_argument('--eye-swing-v',type=float,default=1.,help='Eye source open-circuit swing, default 1 V; an explicit modeling assumption.')
+    eye=subs.add_parser('eye',help='Standalone illustrative eye/step model; no KiCad runtime required.')
+    for flag,label in [('z0-ohm','Uniform line impedance'),('delay-ns','One-way line delay'),('source-ohm','Source resistance'),('rise-ns','10–90 percent driver rise time'),('bitrate-mbps','NRZ bit rate')]:
+        eye.add_argument('--'+flag,type=float,required=True,help=label)
+    eye.add_argument('--load-ohm',type=float,help='Resistive load; omitted means open.')
+    eye.add_argument('--swing-v',type=float,default=1.,help='Source open-circuit swing; default 1 V.')
+    eye.add_argument('--output',type=Path)
+    eye.add_argument('--html',type=Path)
     return root
 
 
@@ -43,6 +52,13 @@ def write_report(destination,payload,source,extension):
 
 
 def execute(args):
+    if args.command=='eye':
+        from .eye_model import simulate_eye
+        from .eye_view import standalone_html
+        report=simulate_eye(**{name:getattr(args,name) for name in ('z0_ohm','delay_ns','source_ohm','load_ohm','rise_ns','bitrate_mbps','swing_v')})
+        if args.output:write_report(args.output,json.dumps(report,indent=2,allow_nan=False)+'\n',__file__,'.json')
+        if args.html:write_report(args.html,standalone_html(report),__file__,'.html')
+        return report
     try:import pcbnew
     except ImportError as exc:raise RuntimeError("Use KiCad's Python interpreter for saved-board SI analysis; --help works with ordinary Python.") from exc
     source=args.board.resolve()
@@ -57,7 +73,7 @@ def execute(args):
         report={'schema':'wayricad.quick-si-inventory/v1','nets':engine.net_names(),'layers':engine.available_layers(),'ground_nets':engine.ground_nets()}
         if args.net:report['pads']=engine.pads_for_net(args.net)
     else:
-        report,_=analyze(board,args.net,args.start,args.end,args.reference,**{name:getattr(args,name) for name in ('rise_ns','frequency_mhz','source_ohm','load_ohm','z0_ohm','epsilon_eff')})
+        report,_=analyze(board,args.net,args.start,args.end,args.reference,**{name:getattr(args,name) for name in ('rise_ns','frequency_mhz','source_ohm','load_ohm','z0_ohm','epsilon_eff','eye_bitrate_mbps','eye_swing_v')})
     if hashlib.sha256(source.read_bytes()).hexdigest()!=original:raise ValueError('Board file changed during analysis; rerun before exporting.')
     report.update(board=str(source),board_sha256=original)
     if args.output:write_report(args.output,json.dumps(report,indent=2,allow_nan=False)+'\n',source,'.json')
@@ -68,13 +84,14 @@ def execute(args):
 def main(argv=None):
     args=parser().parse_args(argv)
     try:
-        try:import pcbnew
-        except ImportError:
-            from wayricad_runtime.native_analysis import run_cli
-            return run_cli(Path(__file__).resolve().parent,list(sys.argv[1:] if argv is None else argv))
+        if args.command!='eye':
+            try:import pcbnew
+            except ImportError:
+                from wayricad_runtime.native_analysis import run_cli
+                return run_cli(Path(__file__).resolve().parent,list(sys.argv[1:] if argv is None else argv))
         report=execute(args)
         print(json.dumps(report,indent=2,allow_nan=False))
-        return 2 if report.get('status')=='UNRESOLVED' else 3 if report.get('status')=='INCOMPLETE' else 0
+        return 2 if report.get('status')=='UNRESOLVED' else 3 if report.get('status')=='INCOMPLETE' or report.get('eye',{}).get('status')=='UNAVAILABLE' else 0
     except (ValueError,RuntimeError,OSError) as exc:
         print(json.dumps({'error':str(exc)}),file=sys.stderr);return 1
 

@@ -38,7 +38,50 @@ Changing an input clears the previous result and disables export until a fresh
 screen is run. IPC analysis uses a saved snapshot; save/refill and reopen after
 editing the board. Analysis does not move copper or write project files.
 
-## Reading the results
+## Illustrative eye and step response
+
+Expand **Illustrative eye (optional)** and enable the model. Enter the NRZ bit
+rate and the driver's **open-circuit source swing**, then run the path screen.
+The **Eye / step** tab draws a local PRBS7 eye and receiver step response.
+The HTML export includes both plots, model inputs and limitations.
+
+![Native illustrative eye and step response](help-eye.png)
+
+The capture uses the Marble path above with assumed 50 ohm Z0, effective Er 3.2,
+100 ps rise time, 1 Gbps bit rate, 1 V source swing, 20 ohm source and open load.
+This is an illustrative what-if calculation, not USB signaling validation.
+
+This is a uniform **lossless transmission-line** model with the screen's delay,
+Z0 and resistive source/load. Rise time means **10–90%**; rising and falling edges
+use equal linear ramps. The periodic 127-bit pattern includes settled history.
+The ideal clock is aligned to first arrival. Center opening is minimum high
+minus maximum low at **0.5 UI**; it is not optimized eye height, eye width, BER
+or a protocol pass/fail. Negative opening means overlap at that sampling phase.
+64 samples/UI can miss narrow peaks. No random jitter or noise is added.
+
+Unknown delay/Z0, extra net terminals and zone routes disable the routed eye.
+Vias may contribute to the path's delay estimate, but the eye model does **not**
+simulate their discontinuities. Non-decaying ideal reflections and excessive
+settling workloads produce an actionable error. Source/load matching can be
+compared by changing resistance and rerunning; changing inputs clears old plots.
+
+The standalone model needs ordinary Python only, with no KiCad or numerical
+library dependency:
+
+```text
+wayricad-si eye --z0-ohm 50 --delay-ns 0.4 --source-ohm 20 --rise-ns 0.1 --bitrate-mbps 1000 --swing-v 1 --output eye.json --html eye.html
+```
+
+Add `--eye-bitrate-mbps 1000 --eye-swing-v 1` to a `screen` command to use a
+resolved board path. Omitting these flags preserves the original screen.
+An explicitly requested but unavailable routed eye returns CLI exit code 3.
+The standalone model does not infer geometry from a board.
+
+Model basis: successive load arrivals have amplitudes
+`swing × Z0/(Rs+Z0) × (1+ΓL) × (ΓS×ΓL)^n` and delays `(2n+1)×td`.
+See [TI AN-807: Reflections—Computations and Waveforms](https://www.ti.com/lit/an/snla027b/snla027b.pdf).
+
+## Path screening results
 
 | Result | Meaning |
 |---|---|
@@ -86,7 +129,7 @@ claimed coupled differential Z0. **I2C pull-ups** retains the permitted resistor
 range from bus capacitance, rise time and sink-current limits.
 
 Quick SI does not provide full-wave simulation, IBIS driver/receiver behavior,
-receiver capacitance, coupled differential modes, crosstalk, eye diagrams or
+receiver capacitance, coupled differential modes, crosstalk, IBIS-derived eyes or
 frequency-dependent discontinuity simulation. Zone paths are finite-width
 corridors, not full plane field solutions. Effective Er is not automatically the
 laminate's bulk Er. Use a suitable solver and measurements for signoff.

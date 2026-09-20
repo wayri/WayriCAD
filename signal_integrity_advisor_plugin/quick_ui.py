@@ -26,13 +26,24 @@ class QuickSIPanel(wx.Panel):
         for name,label,value in [('frequency_mhz','Frequency (MHz)','100'),('load_ohm','Load resistance (ohm; blank = open)',''),('z0_ohm','Assumed uniform Z0 (ohm; blank = geometry)',''),('epsilon_eff','Assumed effective Er (blank = stackup)','')]:row(name,label,value,parent=host,sizer=details)
         row('reference','Reference layer','Auto',['Auto']+self.engine.available_layers(),host,details)
         host.SetSizer(details);form.Add(pane,0,wx.EXPAND|wx.TOP,10);pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.FitInside(),self.Layout()))
-        note=wx.StaticText(left,label='Inputs are editable assumptions. Screening does not simulate drivers, stubs, coupling or an eye diagram.');note.Wrap(300);form.Add(note,0,wx.EXPAND|wx.TOP,10)
+        eye_pane=wx.CollapsiblePane(left,label='Illustrative eye (optional)');eye_form=wx.BoxSizer(wx.VERTICAL);eye_host=eye_pane.GetPane()
+        self.eye_enabled=wx.CheckBox(eye_host,label='Generate ideal NRZ eye and step response')
+        eye_form.Add(self.eye_enabled,0,wx.TOP,6)
+        row('eye_bitrate_mbps','Bit rate (Mbps)','1000',parent=eye_host,sizer=eye_form)
+        row('eye_swing_v','Source open-circuit swing (V)','1',parent=eye_host,sizer=eye_form)
+        eye_host.SetSizer(eye_form);form.Add(eye_pane,0,wx.EXPAND|wx.TOP,10)
+        eye_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.FitInside(),self.Layout()))
+        self.eye_enabled.Bind(wx.EVT_CHECKBOX,self.changed)
+        note=wx.StaticText(left,label='Inputs are assumptions. The optional eye uses a uniform lossless line, ideal clock and resistive endpoints. No IBIS, coupling or protocol signoff.');note.Wrap(300);form.Add(note,0,wx.EXPAND|wx.TOP,10)
         run=wx.Button(left,label='Screen selected path');run.Bind(wx.EVT_BUTTON,self.run);form.Add(run,0,wx.EXPAND|wx.TOP,12)
         self.export=wx.Button(left,label='Export local HTML report');self.export.Disable();self.export.Bind(wx.EVT_BUTTON,self.export_report);form.Add(self.export,0,wx.EXPAND|wx.TOP,6)
         left.SetSizer(form);root.Add(left,0,wx.EXPAND|wx.ALL,10)
-        right=wx.BoxSizer(wx.VERTICAL);self.preview=preview_class(self);right.Add(self.preview,1,wx.EXPAND)
+        right=wx.BoxSizer(wx.VERTICAL);self.views=wx.Notebook(self)
+        route=wx.Panel(self.views);route_sizer=wx.BoxSizer(wx.VERTICAL);self.preview=preview_class(route);route_sizer.Add(self.preview,1,wx.EXPAND)
         from .preview_kit import add_zoom_toolbar
-        add_zoom_toolbar(self,self.preview,right)
+        add_zoom_toolbar(route,self.preview,route_sizer);route.SetSizer(route_sizer);self.views.AddPage(route,'Route')
+        from .eye_ui import EyePanel
+        self.eye_preview=EyePanel(self.views);self.views.AddPage(self.eye_preview,'Eye / step');right.Add(self.views,2,wx.EXPAND)
         self.status=wx.StaticText(self,label='Choose the source and receiver, review the inputs, then screen the path.');right.Add(self.status,0,wx.EXPAND|wx.ALL,7)
         self.results=wx.ListCtrl(self,style=wx.LC_REPORT);self.results.InsertColumn(0,'Measure',width=210);self.results.InsertColumn(1,'Result / evidence',width=620);right.Add(self.results,1,wx.EXPAND)
         root.Add(right,1,wx.EXPAND|wx.ALL,10);self.SetSizer(root)
@@ -52,6 +63,7 @@ class QuickSIPanel(wx.Panel):
 
     def changed(self,event):
         self.report=None;self.export.Disable();self.results.DeleteAllItems();self.preview.show_result(SimpleNamespace(primary=None,mate=None))
+        self.eye_preview.show_result(None)
         self.status.SetLabel('Inputs changed; run a fresh screen before exporting.')
         if event:event.Skip()
 
@@ -73,7 +85,8 @@ class QuickSIPanel(wx.Panel):
     def run(self,event):
         self.changed(None)
         try:
-            values={key:(float(control.GetValue()) if control.GetValue().strip() else None) for key,control in self.fields.items() if key not in ('net','start','end','reference')}
+            values={key:(float(control.GetValue()) if control.GetValue().strip() else None) for key,control in self.fields.items() if key not in ('net','start','end','reference') and (self.eye_enabled.GetValue() or not key.startswith('eye_'))}
+            if self.eye_enabled.GetValue() and values['eye_bitrate_mbps'] is None:raise ValueError('Enter a positive eye bit rate.')
             with wx.BusyCursor():
                 report,path=analyze(self.board,self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue(),self.fields['reference'].GetValue(),**values)
             self.report=report;self.preview.show_result(SimpleNamespace(primary=path,mate=None))
@@ -87,6 +100,12 @@ class QuickSIPanel(wx.Panel):
             for key,label,unit in [('delay_ns','One-way delay',' ns'),('electrical_length_deg','Electrical length',' deg'),('delay_to_rise_ratio','Delay / rise time',''),('z0_ohm','Uniform Z0',' ohm'),('source_reflection','Source reflection Γ',''),('load_reflection','Load reflection Γ',''),('first_load_step_per_source_step','First load step / source step',''),('series_match_candidate_ohm','Series-match candidate',' ohm')]:
                 value=report[key];rows.append((label,'Unknown / not applicable' if value is None else f'{value:.5g}'+unit))
             rows += [('Delay basis',report['delay_source']),('Z0 basis',report['z0_source'])]+[('Review',note) for note in report['notes']]
+            if 'eye' in report:
+                eye=report['eye'];self.eye_preview.show_result(eye);self.views.SetSelection(1)
+                if eye.get('status')=='UNAVAILABLE':rows.append(('Eye unavailable',eye['reason']))
+                else:
+                    rows += [('Eye center opening',f"{eye['center_opening_v']:.5g} V (sampled, ideal clock)"),('Eye sampled voltage range',f"{eye['min_v']:.5g} to {eye['max_v']:.5g} V")]
+                    rows += [('Eye model',note) for note in eye['limitations']]
             for label,value in rows:index=self.results.InsertItem(self.results.GetItemCount(),label);self.results.SetItem(index,1,value)
             self.status.SetLabel(report['status']+' — '+report['edge_screen']);self.export.Enable()
         except Exception as exc:self.status.SetLabel(str(exc));wx.MessageBox(str(exc),'Quick SI',wx.OK|wx.ICON_ERROR,self)
