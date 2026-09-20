@@ -31,7 +31,7 @@ Initial dependency setup needs internet access or a prepared wheel cache. Once p
 
 ## Plugin previews
 
-Actual application captures; select a tool title for its guide. Example values are not predictions for your board.
+Application captures and rendered interface previews; select a tool title for its guide. Example values are not predictions for your board.
 
 <table>
 <tr>
@@ -45,6 +45,9 @@ Actual application captures; select a tool title for its guide. Example values a
 <tr>
 <td width="50%"><h3><a href="bom_studio_plugin/README.md">BOM Studio</a></h3><a href="bom_studio_plugin/help-cost-mass.png"><img src="bom_studio_plugin/help-cost-mass.png" width="480" alt="BOM Studio native window preview"></a><p>Templates, bulk editing, conditional exports and explicit cost/mass coverage.</p></td>
 <td width="50%"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/help-motor-emf.png"><img src="planar_magnetics_plugin/help-motor-emf.png" width="480" alt="Magnetics native window preview"></a><p>Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.</p></td>
+</tr>
+<tr>
+<td colspan="2"><h3><a href="protocol_constraint_composer_plugin/ReadMe.md">Constraint Studio — visual constraint manager</a></h3><a href="protocol_constraint_composer_plugin/help-workflow.png"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="960" alt="Constraint Studio visual worksheet with rule priorities, layout scope and context inspector"></a><p>Edit custom DRC rules visually, manage clearance matrices and reusable constraint sets, and stage per-layer routing profiles for reviewed export. Shipped interface rendered with a demonstration snapshot; scope colours are condition matches, not native DRC results.</p></td>
 </tr>
 </table>
 
@@ -75,6 +78,8 @@ Every name below opens that plugin’s README. The [full tool directory](docs/US
 
 BOM Studio keeps templates, cell and bulk editing, grouping, and conditional exports in three primary views. Mechanical Check retains exact solids and adds a quick 2D envelope screen without FreeCAD. Copper Balancer reports rejected sites and per-tile density deficits. Quick PI includes decoupling placement, and Quick SI includes return-path and test-point workflows. These are distinct checks inside shared tools, not claims of full electrical or mechanical certification.
 
+[Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) is the suite's visual constraint manager: custom DRC rule forms, clearance matrices, netclasses, reusable sets and per-layer routing profiles share a staged workspace. Review generated rules and file diffs before offline apply, then validate with KiCad's native DRC.
+
 ## Upgrade safely
 
 Remove obsolete suite package entries to avoid duplicate actions. Embed3D combines the former Localizer and Portable Assets workflows and keeps the `embed-3d` package ID. Visual Diff and Design Variant Workbench are retired. PDN Decoupling is now a tab in Quick PI. Return-Path Auditor and Test Point Descriptor are tabs in Quick SI; their separate packages are retired. Native KiCad variants replace the standalone variant tool. The source installer backs up retired installations; it does not delete project data. Keep existing BOM workspaces and project backups.
@@ -84,6 +89,8 @@ For a source installation, build packages and run `python tools/install_suite.py
 ## Automation and development
 
 Install the source interfaces with `python -m pip install -e .`. Use the [CLI guide](docs/CLI_USER_GUIDE.md) for reviewed plan/apply routing, native DRC verification, PI, RLC and library commands. Apply writes a new board copy; verification reports native DRC findings and preserves source hashes.
+
+For repository work, start with [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md): architecture, validation, runtime checks and release safeguards.
 
 ```text
 python -m pip install -e ".[test]"
