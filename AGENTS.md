@@ -11,7 +11,7 @@ branch is `develop`; open contribution branches and pull requests against it.
 
 | Location | Purpose |
 |---|---|
-| `*_plugin/metadata.json` | Active plugin inventory and PCM metadata; some other plugin directories contain retired source |
+| `*_plugin/metadata.json` | Active plugin inventory and PCM metadata; retired standalone sources are removed |
 | `wayricad_runtime/` | Shared launchers, IPC integration, managed runtimes and CLI support |
 | `build_pcm.py` | Builds independent PCM ZIPs and candidate repository metadata |
 | `bom_studio_plugin/bomstudio/` and `bom_studio_plugin/web/` | BOM services and local web interface |

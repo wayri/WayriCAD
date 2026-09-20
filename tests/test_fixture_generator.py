@@ -9,7 +9,7 @@ try:
 except ImportError:  # pragma: no cover - pcbnew ships inside KiCad only
     pcbnew = None
 
-from test_point_descriptor_plugin.fixture import FixturePoint, generate_fixture_board
+from signal_integrity_advisor_plugin.test_points.fixture import FixturePoint, generate_fixture_board
 
 
 class FixtureGeneratorTests(unittest.TestCase):

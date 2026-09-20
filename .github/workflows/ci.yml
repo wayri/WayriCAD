@@ -30,12 +30,10 @@ jobs:
         run: >-
           python -m compileall -q
           bulk_label_editor_plugin extract_pins_plugin fanout_generator_plugin
-          harness_workbench_plugin heater_designer_plugin kilo_plugin
-          manufacturing_readiness_plugin pdn_decoupling_plugin
-          planar_magnetics_plugin portable_assets_plugin
-          protocol_constraint_composer_plugin return_path_auditor_plugin
-          signal_integrity_advisor_plugin test_point_descriptor_plugin
-          trace_impedance_plugin variant_workbench_plugin via_stitching_plugin
+          harness_workbench_plugin heater_designer_plugin
+          manufacturing_readiness_plugin planar_magnetics_plugin
+          protocol_constraint_composer_plugin signal_integrity_advisor_plugin
+          trace_impedance_plugin via_stitching_plugin
           bom_studio_plugin embed_3d_plugin copper_balancer_plugin
           mechanical_check_plugin quick_pi_plugin wayricad_runtime tools tests
       # Keep the checked-in PCM feed on the published release; test fresh candidate metadata.
@@ -66,7 +64,6 @@ jobs:
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p test_testpoint_labels.py -v
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p "test_eye*.py" -v
           python -m unittest discover -s manufacturing_readiness_plugin/tests -v
-          python -m unittest discover -s variant_workbench_plugin/tests -p test_plan_apply.py -v
       - name: Development-folder plugin regressions
         run: |
           python -m unittest discover -s copper_balancer_plugin/tests -v

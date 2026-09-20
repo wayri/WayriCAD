@@ -13,15 +13,15 @@ GUIDED_PACKAGES = (
     "bulk_label_editor_plugin",
     "extract_pins_plugin",
     "fanout_generator_plugin",
-    "test_point_descriptor_plugin",
+    "signal_integrity_advisor_plugin/test_points",
     "trace_impedance_plugin",
     "via_stitching_plugin",
 )
 ENGINEERING_WORKBENCHES = (
-    ("return_path_auditor_plugin", "return_path_auditor_plugin.py"),
+    ("quick_pi_plugin/decoupling", "pdn_decoupling_plugin.py"),
+    ("signal_integrity_advisor_plugin/return_path", "return_path_auditor_plugin.py"),
     ("harness_workbench_plugin", "harness_workbench_plugin.py"),
     ("manufacturing_readiness_plugin", "manufacturing_readiness_plugin.py"),
-    ("pdn_decoupling_plugin", "pdn_decoupling_plugin.py"),
     ("protocol_constraint_composer_plugin", "protocol_constraint_composer_plugin.py"),
 )
 ACTION_PLUGIN_MODULES = (
@@ -31,14 +31,10 @@ ACTION_PLUGIN_MODULES = (
     ("harness_workbench_plugin", "harness_workbench_plugin.py"),
     ("heater_designer_plugin", "heater_designer_plugin.py"),
     ("manufacturing_readiness_plugin", "manufacturing_readiness_plugin.py"),
-    ("pdn_decoupling_plugin", "pdn_decoupling_plugin.py"),
     ("planar_magnetics_plugin", "planar_magnetics_plugin.py"),
     ("protocol_constraint_composer_plugin", "protocol_constraint_composer_plugin.py"),
-    ("return_path_auditor_plugin", "return_path_auditor_plugin.py"),
     ("signal_integrity_advisor_plugin", "signal_integrity_advisor_plugin.py"),
-    ("test_point_descriptor_plugin", "test_point_descriptor_plugin.py"),
     ("trace_impedance_plugin", "trace_impedance_plugin.py"),
-    ("variant_workbench_plugin", "legacy_action_plugin.py"),
     ("via_stitching_plugin", "via_stitching_plugin.py"),
 )
 
@@ -113,10 +109,6 @@ class SuiteUxTests(unittest.TestCase):
 
     def test_every_action_plugin_defines_light_and_dark_icons(self) -> None:
         for package, module in ACTION_PLUGIN_MODULES:
-            if not (ROOT / package / "metadata.json").exists():
-                # Archived launchers remain covered by historical algorithm tests.
-                self.assertTrue((ROOT / package / "metadata.legacy.json").is_file())
-                continue
             with self.subTest(package=package):
                 source = (ROOT / package / module).read_text(encoding="utf-8")
                 self.assertIn("icon_file_name", source)
@@ -167,7 +159,7 @@ class SuiteUxTests(unittest.TestCase):
             self.assertIn("setter()", source)
             self.assertNotIn("setter(id(item) in target_ids)", source)
 
-        tp = (ROOT / "test_point_descriptor_plugin" / "test_point_descriptor_plugin.py").read_text(encoding="utf-8")
+        tp = (ROOT / "signal_integrity_advisor_plugin" / "test_points" / "test_point_descriptor_plugin.py").read_text(encoding="utf-8")
         for field in ("Connected IC", "IC Pin", "IC Pin Function", "Terminal Net", "Intermediate Components", "Trace Path"):
             self.assertIn(field, tp)
         self.assertIn("resolve_connected_ics", tp)

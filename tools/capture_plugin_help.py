@@ -6,7 +6,6 @@ import time
 import os
 import sys
 import ctypes
-import subprocess
 import tempfile
 import traceback
 from pathlib import Path
@@ -19,27 +18,20 @@ pcbnew.ActionPlugin.register = lambda self: None
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "kilo_plugin"))
 
 # Some package UI helpers construct wx.Colour during import and need a live wx.App.
 from bulk_label_editor_plugin.bulk_label_editor_plugin import BulkLabelEditorFrame
 from fanout_generator_plugin.fanout_generator_plugin import FanoutFrame
 from extract_pins_plugin.plugin_dialog_v2 import PluginDialogV2
 from signal_integrity_advisor_plugin.signal_integrity_advisor_plugin import SignalIntegrityFrame
-from test_point_descriptor_plugin.test_point_descriptor_plugin import TestPointFrame
 from trace_impedance_plugin.trace_impedance_plugin import TraceFrame
 from via_stitching_plugin.via_stitching_plugin import ViaFrame
-from portable_assets_plugin.portable_assets.app import PortableAssetsFrame
-from portable_assets_plugin.portable_assets.core.engine import ProjectContext
-from variant_workbench_plugin.variant_manager_plugin import _tk_python
-from return_path_auditor_plugin.return_path_auditor_plugin import ReturnPathFrame
 from harness_workbench_plugin.harness_workbench_plugin import HarnessFrame
 from manufacturing_readiness_plugin.manufacturing_readiness_plugin import ManufacturingFrame
-from pdn_decoupling_plugin.pdn_decoupling_plugin import PdnFrame
 from protocol_constraint_composer_plugin.protocol_constraint_composer_plugin import ConstraintFrame
 from heater_designer_plugin.heater_designer_plugin import HeaterFrame
 from planar_magnetics_plugin.planar_magnetics_plugin import MagneticsFrame
-from kilo.ui.main_frame import MainFrame as KiloFrame
+from quick_pi_plugin.ui import QuickPIFrame
 import wx
 from PIL import Image
 
@@ -88,55 +80,6 @@ def capture(frame: wx.Frame, destination: Path) -> None:
             wx.Yield()
 
 
-def capture_variant(destination: Path) -> None:
-    script = ROOT / "variant_workbench_plugin" / "kicad_variant_manager.py"
-    interpreter=_tk_python()
-    # The Windows Python manager may spawn a different PID; capture the actual interpreter process.
-    with tempfile.TemporaryDirectory(prefix='wayricad-capture-python-') as folder:
-        marker=Path(folder)/'interpreter.txt'
-        subprocess.run([interpreter,'-c','import sys;from pathlib import Path;Path(sys.argv[1]).write_text(sys.executable)',str(marker)],check=True,timeout=10)
-        if marker.exists():interpreter=marker.read_text().strip()
-    process = subprocess.Popen([interpreter, str(script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    hwnd = 0
-    try:
-        for _ in range(100):
-            if process.poll() is not None:
-                output,error=process.communicate()
-                raise RuntimeError("Variant Workbench exited before capture: "+(error or output))
-            time.sleep(0.1)
-            matches: list[int] = []
-
-            @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)
-            def visit(candidate: int, _unused: int) -> bool:
-                owner = ctypes.c_ulong()
-                ctypes.windll.user32.GetWindowThreadProcessId(candidate, ctypes.byref(owner))
-                if owner.value != process.pid or not ctypes.windll.user32.IsWindowVisible(candidate):
-                    return True
-                length = ctypes.windll.user32.GetWindowTextLengthW(candidate)
-                if length:
-                    title = ctypes.create_unicode_buffer(length + 1)
-                    ctypes.windll.user32.GetWindowTextW(candidate, title, length + 1)
-                    if title.value.startswith("WayriCAD Design Variant Workbench"):
-                        matches.append(candidate)
-                return True
-
-            ctypes.windll.user32.EnumWindows(visit, 0)
-            if matches:
-                hwnd = matches[0]
-                break
-        if not hwnd:
-            raise RuntimeError("Variant Workbench window did not appear")
-        ctypes.windll.user32.SetWindowPos(hwnd, 0, 30, 30, 1200, 680, 0x0040)
-        time.sleep(0.4)
-        save_window(hwnd, destination, "WayriCAD Design Variant Workbench")
-        ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)
-        process.wait(timeout=5)
-    finally:
-        if process.poll() is None:
-            process.terminate()
-            process.wait(timeout=5)
-
-
 def demo_board():
     board=pcbnew.BOARD()
     net=pcbnew.NETINFO_ITEM(board,'GND');board.Add(net)
@@ -171,19 +114,15 @@ def main() -> None:
             ("bulk_label_editor_plugin", lambda: BulkLabelEditorFrame(None, board)),
             ("extract_pins_plugin", lambda: PluginDialogV2(None, [])),
             ("fanout_generator_plugin", lambda: FanoutFrame(None, board)),
-            ("test_point_descriptor_plugin", lambda: TestPointFrame(None, board)),
             ("trace_impedance_plugin", lambda: TraceFrame(None, board)),
             ("via_stitching_plugin", lambda: ViaFrame(None, board)),
             ("signal_integrity_advisor_plugin", lambda: SignalIntegrityFrame(None, board)),
-            ("portable_assets_plugin", lambda: PortableAssetsFrame(ProjectContext.discover(demo))),
-            ("return_path_auditor_plugin", lambda: ReturnPathFrame(None, board)),
             ("harness_workbench_plugin", lambda: HarnessFrame(None)),
             ("manufacturing_readiness_plugin", lambda: ManufacturingFrame(None, board)),
-            ("pdn_decoupling_plugin", lambda: PdnFrame(None, board)),
+            ("quick_pi_plugin", lambda: QuickPIFrame(None, demo / "demo.kicad_pcb")),
             ("protocol_constraint_composer_plugin", lambda: ConstraintFrame(None, board)),
             ("heater_designer_plugin", lambda: HeaterFrame(None, board)),
             ("planar_magnetics_plugin", lambda: MagneticsFrame(None, board)),
-            ("kilo_plugin", lambda: KiloFrame()),
         )
         for package, factory in frames:
             if requested and package not in requested:
@@ -199,15 +138,8 @@ def main() -> None:
                 frame.generate(None)
             if isinstance(frame, MagneticsFrame):
                 frame.analyze(None)
-            if isinstance(frame, KiloFrame):
-                frame.notebook.SetSelection(frame.help_page)
             destination = ROOT / package / "help-workflow.png"
             capture(frame, destination)
-    if not requested or "variant_workbench_plugin" in requested:
-        try:
-            capture_variant(ROOT / "variant_workbench_plugin" / "help-workflow.png")
-        except RuntimeError as exc:
-            print(f"Variant Workbench capture skipped: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":

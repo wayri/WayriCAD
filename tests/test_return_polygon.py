@@ -1,12 +1,7 @@
 """Return-reference checks must inspect complete filled copper corridors."""
-import importlib.util
-from pathlib import Path
-import sys
 import unittest
 
-path=Path(__file__).resolve().parents[1]/'return_path_auditor_plugin'/'analysis.py'
-spec=importlib.util.spec_from_file_location('_return_polygon_test',path)
-analysis=importlib.util.module_from_spec(spec);sys.modules[spec.name]=analysis;spec.loader.exec_module(analysis)
+from signal_integrity_advisor_plugin.return_path import analysis
 
 
 class ReturnPolygonTests(unittest.TestCase):

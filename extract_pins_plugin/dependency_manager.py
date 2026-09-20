@@ -36,15 +36,22 @@ DEPENDENCIES: tuple[DependencySpec, ...] = (
 )
 
 SUITE_PACKAGES: tuple[tuple[str, str], ...] = (
-    ("bulk_label_editor_plugin", "Bulk Label Editor"),
-    ("extract_pins_plugin", "Extract Pins and Build ICD"),
-    ("fanout_generator_plugin", "Fanout Generator"),
-    ("kilo_plugin", "Kilo Localizer"),
-    ("portable_assets_plugin", "Portable Assets"),
-    ("test_point_descriptor_plugin", "Test Point Descriptor"),
-    ("trace_impedance_plugin", "Trace RLC / Impedance"),
-    ("variant_workbench_plugin", "Design Variant Workbench"),
-    ("via_stitching_plugin", "Via Stitching"),
+    ('bom_studio_plugin', 'BOM Studio'),
+    ('bulk_label_editor_plugin', 'Bulk Label Editor'),
+    ('copper_balancer_plugin', 'Copper Balancer'),
+    ('embed_3d_plugin', 'Embed3D'),
+    ('extract_pins_plugin', 'Extract Pins'),
+    ('fanout_generator_plugin', 'Fanout Generator'),
+    ('harness_workbench_plugin', 'Harness and Cable Workbench'),
+    ('heater_designer_plugin', 'PCB / Foil Heater Designer'),
+    ('manufacturing_readiness_plugin', 'Manufacturing Readiness Manager'),
+    ('mechanical_check_plugin', 'Mechanical Check'),
+    ('planar_magnetics_plugin', 'Planar Magnetics & Actuator Workbench'),
+    ('protocol_constraint_composer_plugin', 'Constraint Studio'),
+    ('quick_pi_plugin', 'Quick PI'),
+    ('signal_integrity_advisor_plugin', 'Quick SI'),
+    ('trace_impedance_plugin', 'Trace RLC / Impedance Analyzer'),
+    ('via_stitching_plugin', 'Via Stitching'),
 )
 
 

@@ -36,7 +36,7 @@ wayricad-si = "signal_integrity_advisor_plugin.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["*_plugin", "*_plugin.*", "wayricad_runtime"]
-exclude = ["kilo_plugin", "kilo_plugin.*", "portable_assets_plugin", "portable_assets_plugin.*", "build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.tests.*", "visual_diff_plugin", "visual_diff_plugin.*", "pdn_decoupling_plugin", "pdn_decoupling_plugin.*", "return_path_auditor_plugin", "return_path_auditor_plugin.*", "test_point_descriptor_plugin", "test_point_descriptor_plugin.*", "variant_workbench_plugin", "variant_workbench_plugin.*"]
+exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.tests.*"]
 
 [tool.setuptools.package-data]
 wayricad_runtime = ["*.md"]

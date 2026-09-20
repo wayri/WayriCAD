@@ -51,13 +51,14 @@ The board's saved stackup supplies 0.105454 mm dielectric separation, Er 4.5 and
 
 ## Reproduce and inspect
 
+Retired standalone plugin sources and their historical paths have been removed. Earlier variant/localizer results below are historical evidence, not instructions to install those tools.
+
 Final local release checks: 148 root tests and 86 subtests pass (40 optional/native skips); Embed3D runs 315 tests with 19 skips and no failures; BOM Studio runs 1,170 tests with two skips and no failures; Quick PI passes all 49 tests in native KiCad Python. At the original 3.1.0 validation, the 21 independent PCM ZIPs passed official schema, entrypoint, icon, payload syntax and SHA-256 checks. The rebuilt wheel passes isolated CLI and bundled report-asset checks. All 27 original Marble source hashes remain unchanged.
 
 ```text
 python tools/smoke_marble_suite.py --project .validation/marble/Marble/design
 python tools/validate_marble_operations.py --help
 python -m unittest discover -s quick_pi_plugin/tests -v
-python variant_workbench_plugin/tests/validate_native_project.py --help
 wayricad-pi Marble.kicad_pcb --net Net-(R161-Pad1) --source U1.M6 --sink R161.1 --voltage 1 --current 1 --html pi.html
 ```
 

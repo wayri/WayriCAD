@@ -129,7 +129,7 @@ class WayriCADCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertIn("runtime", payload)
-        self.assertEqual(len(payload["suite"]), 9)
+        self.assertEqual(len(payload["suite"]), 16)
         self.assertEqual(
             {row["key"] for row in payload["dependencies"]},
             {"networkx", "markdown", "matplotlib", "pillow"},

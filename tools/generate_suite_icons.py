@@ -16,18 +16,12 @@ SPECS = {
     "fanout_generator_plugin": ("#c66a1b", "fanout"),
     "harness_workbench_plugin": ("#2e8b57", "harness"),
     "heater_designer_plugin": ("#c74f3d", "heater"),
-    "kilo_plugin": ("#3b6ea8", "localize"),
     "manufacturing_readiness_plugin": ("#d9822b", "factory"),
-    "pdn_decoupling_plugin": ("#c23b53", "pdn"),
     "planar_magnetics_plugin": ("#3d6591", "magnetics"),
-    "portable_assets_plugin": ("#417f62", "portable"),
     "protocol_constraint_composer_plugin": ("#6b5ca5", "rules"),
-    "return_path_auditor_plugin": ("#1f77b4", "return"),
     "signal_integrity_advisor_plugin": ("#00838f", "signal"),
-    "test_point_descriptor_plugin": ("#a23c64", "probe"),
     "trace_impedance_plugin": ("#536d9c", "impedance"),
     "quick_pi_plugin": ("#af4e37", "pdn"),
-    "variant_workbench_plugin": ("#7b6d3d", "variants"),
     "via_stitching_plugin": ("#397a9b", "stitch"),
 }
 
@@ -169,8 +163,6 @@ def main() -> None:
             for size in (24,48,96):
                 suffix = "-dark" if theme == "dark" else ""
                 source.resize((size,size), Image.Resampling.LANCZOS).save(resources / f"icon{suffix}-{size}.png", optimize=True)
-        if folder == "kilo_plugin":
-            generated.resize((64,64), Image.Resampling.LANCZOS).save(ROOT / folder / "kilo" / "icon.png", optimize=True)
         if folder == "copper_balancer_plugin":
             generated.resize((64,64), Image.Resampling.LANCZOS).save(ROOT / folder / "copper_balancer" / "icon.png", optimize=True)
         if folder == "embed_3d_plugin":

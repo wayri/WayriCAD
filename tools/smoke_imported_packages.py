@@ -11,14 +11,25 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('wheel', type=Path)
     wheel = parser.parse_args().wheel.resolve()
+    source_root = Path(__file__).resolve().parents[1]
+    active_plugins = {
+        path.name for path in source_root.glob('*_plugin')
+        if (path / 'metadata.json').is_file()
+    }
     with tempfile.TemporaryDirectory(prefix='wayricad-wheel-') as temporary:
         root = Path(temporary)
         with zipfile.ZipFile(wheel) as archive:
             if any(name.startswith(('build/', 'dist/', '.validation/')) for name in archive.namelist()):
                 raise RuntimeError('Wheel contains generated build or private validation directories.')
-            retired = ('visual_diff_plugin/', 'pdn_decoupling_plugin/', 'return_path_auditor_plugin/', 'test_point_descriptor_plugin/', 'variant_workbench_plugin/', 'portable_assets_plugin/', 'kilo_plugin/')
-            if any(name.startswith(retired) for name in archive.namelist()):
-                raise RuntimeError('Wheel contains retired standalone plugin files. Clean the wheel staging directory before rebuilding.')
+            stale_plugins = {
+                Path(name).parts[0] for name in archive.namelist()
+                if Path(name).parts and Path(name).parts[0].endswith('_plugin')
+                and Path(name).parts[0] not in active_plugins
+            }
+            if stale_plugins:
+                raise RuntimeError(
+                    'Wheel contains inactive plugin files: ' + ', '.join(sorted(stale_plugins))
+                )
             archive.extractall(root)
         modules = ('wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
                    'embed_3d_plugin.__main__', 'quick_pi_plugin.cli', 'signal_integrity_advisor_plugin.cli')
