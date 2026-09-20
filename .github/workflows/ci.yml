@@ -38,6 +38,9 @@ jobs:
           trace_impedance_plugin variant_workbench_plugin via_stitching_plugin
           bom_studio_plugin embed_3d_plugin copper_balancer_plugin
           mechanical_check_plugin quick_pi_plugin wayricad_runtime tools tests
+      # Keep the checked-in PCM feed on the published release; test fresh candidate metadata.
+      - name: Build candidate PCM feed for tests
+        run: python build_pcm.py --clean-feed
       - name: Unit and integration tests
         run: python -m pytest tests -q -s
       - name: Embed3D regressions
