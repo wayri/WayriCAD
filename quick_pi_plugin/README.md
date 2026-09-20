@@ -42,6 +42,10 @@ total resistance does not establish convergence of local current-density peaks.
 
 Expand **Console** to enter commands. `help`, `nets`, and `pads <net>` list available names. **Tab** cycles context-aware completions; **Up/Down** recall commands. Commands run through the same cancellable worker as the controls; the pane does not execute Python or shell commands.
 
+**Series elements and CLI support are retained in v3.2.0.** Press **Enter** to run
+a console command. Use `run pi NET START END` for an explicitly named net, or
+`run pi START END` to infer the net from the pads. Quote net names containing spaces.
+
 ```text
 run pi "Net-(R161-Pad1)" U1.M6 R161.1
 ```
@@ -58,6 +62,27 @@ second assigns 5 mH and 30 mΩ in series. These values are user assumptions, not
 automatic identification of R161's actual component. In DC, the inductance adds
 no voltage drop; its stored energy is reported. `m` means milli, `M`/`Meg` mega,
 and `u`, `µ`, `n`, `p`, scientific notation and explicit `H`/`ohm`/`Ω` are supported.
+
+### Multiple series components
+
+Repeat `FROM_PAD VALUE TO_PAD` triplets between the starting and ending pads:
+
+```text
+run pi C1.1 R1.1 5m R1.2 L1.1 5mH+30m L1.2 U8.2
+```
+
+This models R1 as **5 mΩ**, followed by L1 as **5 mH with 30 mΩ series
+resistance**. Pad names can include ICs and transistors, such as `U8.2` or
+`Q2.3`. Each component triplet must join two distinct pads of the same component;
+the intervening copper sections must belong to the corresponding actual nets
+and be electrically connected. Replace these illustrative references with pads
+on your board. Values are explicit user-supplied models, not inferred part ratings.
+
+**DC limitation:** resistance contributes voltage drop and power loss. Inductance
+is retained for stored-energy reporting and contributes no steady-state DC drop.
+Quick PI does not simulate RL transients or AC impedance; entering an inductance
+or a pulse duration does not enable a transient circuit simulation. Copper and
+component losses are reported separately.
 
 ## Reading results
 
@@ -105,6 +130,17 @@ wayricad-pi board.kicad_pcb
 wayricad-pi board.kicad_pcb --net "Net-(R161-Pad1)" --source U1.M6 --sink R161.1 --voltage 1 --current 1 --mesh-edge 0.5 --pulse 1 --temperature-limit 150 --html pi.html --output pi.json
 wayricad-pi board.kicad_pcb --command "run pi U1.M6 R161.1 5mH+30m R161.2 U1.M5" --voltage 1 --current 1 --html series.html
 ```
+
+The same multiple-component path used in the native console can run from a shell:
+
+```text
+wayricad-pi board.kicad_pcb --command "run pi C1.1 R1.1 5m R1.2 L1.1 5mH+30m L1.2 U8.2" --voltage 3.3 --current 1 --html report.html
+```
+
+Quote the entire `--command` value. `--voltage` is the source voltage in volts
+and `--current` is the load current in amperes. The native console instead uses
+the visible voltage/current controls. Both interfaces use the same path parser
+and analysis worker, with the DC limitations described above.
 
 The first command lists saved nets, pads and layers. Replace the example pad/net
 names with ones from your own board. `--mesh-only` builds a mesh without solving;
