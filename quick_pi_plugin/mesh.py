@@ -111,9 +111,52 @@ def _split_point_contacts(points, triangles):
     return points,triangles,len(added)
 
 
+def _improve_angles(points, triangles, regions, passes=32, cancelled=None):
+    """Lawson flips within one copper/contact region, preserving all constraints.
+
+    Only convex pairs sharing an interior edge may flip. Edges between contact
+    regions, exterior boundaries and holes remain untouched. Disjoint pairs are
+    processed together so no triangle participates in two flips in one pass.
+    """
+    t=triangles.copy();xy=points[:,:2]
+    cross=lambda a,b:a[:,0]*b[:,1]-a[:,1]*b[:,0]
+    for _ in range(passes):
+        if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
+        edges=np.sort(np.concatenate((t[:,[0,1]],t[:,[1,2]],t[:,[2,0]])),axis=1)
+        owners=np.tile(np.arange(len(t)),3)
+        opposite=np.concatenate((t[:,2],t[:,0],t[:,1]))
+        order=np.lexsort((edges[:,1],edges[:,0]));ordered=edges[order]
+        shared=np.flatnonzero(np.all(ordered[1:]==ordered[:-1],axis=1))
+        if not len(shared):break
+        i,j=order[shared],order[shared+1]
+        left,right=owners[i],owners[j]
+        a,b=edges[i].T;c,d=opposite[i],opposite[j]
+        ab=xy[b]-xy[a];cd=xy[d]-xy[c]
+        side_c=cross(ab,xy[c]-xy[a]);side_d=cross(ab,xy[d]-xy[a])
+        side_a=cross(cd,xy[a]-xy[c]);side_b=cross(cd,xy[b]-xy[c])
+        convex=(side_c*side_d<0)&(side_a*side_b<0)&(regions[left]==regions[right])
+        # The sum of opposite cotangents is negative exactly when an interior
+        # edge violates the local Delaunay criterion; avoid co-circular flips.
+        denominator_c=np.abs(cross(xy[a]-xy[c],xy[b]-xy[c]))
+        denominator_d=np.abs(cross(xy[a]-xy[d],xy[b]-xy[d]))
+        cot_c=np.sum((xy[a]-xy[c])*(xy[b]-xy[c]),axis=1)/np.maximum(denominator_c,1e-300)
+        cot_d=np.sum((xy[a]-xy[d])*(xy[b]-xy[d]),axis=1)/np.maximum(denominator_d,1e-300)
+        chosen=np.flatnonzero(convex & (cot_c+cot_d < -1e-10))
+        if not len(chosen):break
+        first=np.full(len(t),len(chosen),dtype=np.int64);rank=np.arange(len(chosen))
+        np.minimum.at(first,left[chosen],rank);np.minimum.at(first,right[chosen],rank)
+        chosen=chosen[(first[left[chosen]]==rank)&(first[right[chosen]]==rank)]
+        l,r=left[chosen],right[chosen]
+        t[l]=np.column_stack((c[chosen],d[chosen],a[chosen]))
+        t[r]=np.column_stack((d[chosen],c[chosen],b[chosen]))
+    signed=cross(xy[t[:,1]]-xy[t[:,0]],xy[t[:,2]]-xy[t[:,0]])
+    t[signed<0]=t[signed<0][:,[0,2,1]]
+    return t
+
+
 def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
     import vtk
-    from vtk.util.numpy_support import vtk_to_numpy
+    from vtk.util.numpy_support import vtk_to_numpy,numpy_to_vtkIdTypeArray
     edge_mm = float(edge_mm)
     if not math.isfinite(edge_mm) or edge_mm <= 0:
         raise ValueError('Mesh edge length must be positive and finite.')
@@ -125,7 +168,7 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
     expected_area = 0.
     def signed_area(ring):
         return sum(a[0]*b[1]-a[1]*b[0] for a,b in zip(ring,ring[1:]+ring[:1]))/2
-    for polygon in polygons:
+    for region_id,polygon in enumerate(polygons):
         if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
         points=vtk.vtkPoints(); points.SetDataTypeToDouble(); lines=vtk.vtkCellArray();loops=vtk.vtkCellArray()
         for index, ring in enumerate([polygon['outer'],*polygon.get('holes',[])]):
@@ -147,8 +190,56 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
         original=vtk_to_numpy(points.GetData()).copy()
         required={tuple(sorted((int(a),int(b)))) for a,b in
                   vtk_to_numpy(lines.GetConnectivityArray()).reshape(-1,2)}
+        # Start with constrained Delaunay rather than ear clipping. Ear clipping
+        # routinely joins three almost-collinear rounded contour vertices,
+        # creating nanometre-altitude slivers and excessive edge subdivision.
+        # Delaunay retains every contact/hole boundary while improving angles.
         accepted=None
+        constrained=vtk.vtkPolyData();constrained.SetPoints(points);constrained.SetPolys(loops)
+        # Give broad planes interior vertices before triangulation. Refining a
+        # boundary-only fan spends the budget splitting long skinny diagonals
+        # instead of resolving area. The source retains the original boundary
+        # indices, so interior seeds cannot relax any contour/contact constraint.
+        seeded=vtk.vtkPoints();seeded.SetDataTypeToDouble();seeded.DeepCopy(points)
+        low=original[:,:2].min(axis=0);high=original[:,:2].max(axis=0)
+        spacing=edge_mm*.7
+        grid_shape=np.maximum(0,np.ceil((high-low)/spacing).astype(np.int64)-1)
+        if len(original)>1000 and int(grid_shape[0])*int(grid_shape[1]) <= max_cells//2:
+            xx,yy=np.meshgrid(low[0]+spacing*np.arange(1,grid_shape[0]+1),
+                             low[1]+spacing*np.arange(1,grid_shape[1]+1))
+            seeds=np.column_stack((xx.ravel(),yy.ravel()))
+            seeds=seeds[contains(seeds,[polygon])]
+            if len(seeds):
+                from scipy.spatial import cKDTree
+                tree=cKDTree(seeds);keep=np.ones(len(seeds),dtype=bool)
+                clearance=.15*spacing
+                for ring in [polygon['outer'],*polygon.get('holes',[])]:
+                    for a,b in zip(np.asarray(ring),np.roll(ring,-1,axis=0)):
+                        delta=b-a;length=np.linalg.norm(delta)
+                        near=np.asarray(tree.query_ball_point((a+b)/2,length/2+clearance),dtype=np.int64)
+                        if not len(near):continue
+                        fraction=np.clip((seeds[near]-a)@delta/max(length*length,1e-30),0,1)
+                        keep[near[np.linalg.norm(seeds[near]-(a+fraction[:,None]*delta),axis=1)<clearance]]=False
+                for x,y in seeds[keep]:seeded.InsertNextPoint(x,y,0.)
+        attempts=[seeded,points] if seeded.GetNumberOfPoints()>points.GetNumberOfPoints() else [points]
+        for trial_points in attempts:
+            if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
+            seeded_poly=vtk.vtkPolyData();seeded_poly.SetPoints(trial_points)
+            seeded_original=vtk_to_numpy(trial_points.GetData())
+            delaunay=vtk.vtkDelaunay2D();delaunay.SetInputData(seeded_poly);delaunay.SetSourceData(constrained)
+            delaunay.SetTolerance(1e-12);delaunay.SetOffset(10);delaunay.Update()
+            output=delaunay.GetOutput();cells=output.GetPolys()
+            if output.GetNumberOfPoints()!=len(seeded_original) or not np.all(np.diff(vtk_to_numpy(cells.GetOffsetsArray()))==3):continue
+            tris=vtk_to_numpy(cells.GetConnectivityArray()).reshape(-1,3)
+            first=seeded_original[tris[:,1],:2]-seeded_original[tris[:,0],:2]
+            second=seeded_original[tris[:,2],:2]-seeded_original[tris[:,0],:2]
+            nondegenerate=not np.any(abs(first[:,0]*second[:,1]-first[:,1]*second[:,0])<1e-16)
+            edges=np.sort(np.concatenate((tris[:,[0,1]],tris[:,[1,2]],tris[:,[2,0]])),axis=1)
+            unique,counts=np.unique(edges,axis=0,return_counts=True)
+            if nondegenerate and contains(seeded_original[tris].mean(axis=1),[polygon]).all() and {tuple(map(int,e)) for e in unique[counts==1]}==required and not np.any(counts>2):
+                accepted=vtk.vtkPolyData();accepted.DeepCopy(output);accepted.SetPoints(trial_points);break
         for angle in (0.,.1,.7,1.3):
+            if accepted is not None:break
             if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
             trial=vtk.vtkPolyData();trial.DeepCopy(poly)
             if angle:
@@ -174,24 +265,10 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
             if boundary!=required or np.any(counts>2):continue
             accepted=vtk.vtkPolyData();accepted.DeepCopy(output);accepted.SetPoints(points);break
         if accepted is None:
-            # Constrained Delaunay recovers difficult many-hole regions that
-            # ear clipping cannot bridge. Boundary subdivision above prevents
-            # excessively long recovery edges; strict edge/area checks remain.
-            constrained=vtk.vtkPolyData();constrained.SetPoints(points);constrained.SetPolys(loops)
-            delaunay=vtk.vtkDelaunay2D();delaunay.SetInputData(constrained);delaunay.SetSourceData(constrained)
-            delaunay.SetTolerance(1e-12);delaunay.SetOffset(10);delaunay.Update()
-            output=delaunay.GetOutput();cells=output.GetPolys()
-            if output.GetNumberOfPoints()==len(original) and np.all(np.diff(vtk_to_numpy(cells.GetOffsetsArray()))==3):
-                tris=vtk_to_numpy(cells.GetConnectivityArray()).reshape(-1,3)
-                first=original[tris[:,1],:2]-original[tris[:,0],:2]
-                second=original[tris[:,2],:2]-original[tris[:,0],:2]
-                nondegenerate=not np.any(abs(first[:,0]*second[:,1]-first[:,1]*second[:,0])<1e-16)
-                edges=np.sort(np.concatenate((tris[:,[0,1]],tris[:,[1,2]],tris[:,[2,0]])),axis=1)
-                unique,counts=np.unique(edges,axis=0,return_counts=True)
-                if nondegenerate and contains(original[tris].mean(axis=1),[polygon]).all() and {tuple(map(int,e)) for e in unique[counts==1]}==required and not np.any(counts>2):
-                    accepted=vtk.vtkPolyData();accepted.DeepCopy(output);accepted.SetPoints(points)
-            if accepted is None:
-                raise ValueError('Copper triangulation failed to preserve all contour edges. Inspect filled geometry or relax polygon tolerance.')
+            raise ValueError('Copper triangulation failed to preserve all contour edges. Inspect filled geometry or relax polygon tolerance.')
+        region=vtk.vtkIntArray();region.SetName('copper_region')
+        region.SetNumberOfTuples(accepted.GetNumberOfCells());region.Fill(region_id)
+        accepted.GetCellData().AddArray(region)
         append.AddInputData(accepted)
     append.Update()
     clean=vtk.vtkCleanPolyData();clean.SetInputConnection(append.GetOutputPort())
@@ -208,6 +285,12 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
     for _ in range(24):
         if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
         p,t=arrays(poly)
+        regions=vtk_to_numpy(poly.GetCellData().GetArray('copper_region'))
+        t=_improve_angles(p,t,regions,cancelled=cancelled)
+        cells=vtk.vtkCellArray()
+        cells.SetData(numpy_to_vtkIdTypeArray(np.arange(0,3*len(t)+1,3,dtype=np.int64),deep=True),
+                      numpy_to_vtkIdTypeArray(t.ravel(),deep=True))
+        poly.SetPolys(cells)
         if len(t)>max_cells:raise ValueError(f'Mesh exceeds {max_cells:,} triangles. Increase mesh edge length.')
         lengths=np.linalg.norm(p[t]-np.roll(p[t],-1,axis=1),axis=2)
         if float(lengths.max())<=edge_mm*(1+1e-8):break

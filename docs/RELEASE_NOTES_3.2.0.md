@@ -10,8 +10,9 @@ This release consolidates the suite into 16 independently installable plugins an
 - **Magnetics:** dimensioned cores, measured B-H interpolation, saturation/current sweeps, transformer volt-second screening and reduced magnetic-circuit force estimates. Read-only STEP import shows solid volume, bounds and wireframe. A separate linear axisymmetric triangular FEM model visualizes field/mesh for an annular winding and optional cylindrical or annular core, with energy inductance and convergence checks.
 - **Copper Balancer:** clearer density range, remaining deficit, over-target regions and rejection reasons, with stricter geometry and numeric validation.
 - **Mechanical Check:** optional quick 2D envelope screening without FreeCAD, with native geometry feedback. Exact STEP checks remain available; a quick screen cannot provide 3D mechanical sign-off.
-- **Manufacturing Readiness:** includes footprint pad drills, plated-pad annulus and slots; absent objects report N/A. Unsupported custom hole geometry is refused rather than silently certified.
+- **Manufacturing Readiness:** includes footprint pad drills, plated-pad annulus and slots; absent objects report N/A. Custom-anchor and offset-hole bounds are conservative; insufficient or unsupported geometry reports UNKNOWN and blocks manufacturing release export.
 - **Constraint Studio:** visual worksheet, rule matrices/sets and per-layer width/gap profiles retain native custom-rule output, staging and undo.
+- **Corpus fixes:** improved PI triangle quality and bounded plane meshing; indexed return-path audits; actionable SI blockers with no invented missing dielectric defaults; restored the bundled return-path helper in automation ZIPs. [Native corpus evidence](https://github.com/wayri/WayriCAD/blob/develop/docs/audits/KICAD_MONKEY_FIX_FEEDBACK.md) retains unconverged peak-current and incomplete-model limits.
 - Current guides and local help include new screenshots. Legacy standalone PDN, Return-Path, Test Point and Design Variant packages leave the active feed/wheel. The installer backs up their existing installations; source is retained for reference.
 
 ## Scope and interpretation

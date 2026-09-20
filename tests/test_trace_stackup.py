@@ -55,6 +55,72 @@ class TraceStackupTests(unittest.TestCase):
         self.assertAlmostEqual(0.18, height)
         self.assertAlmostEqual(4.1, er)
 
+    def test_missing_dielectric_is_not_replaced_with_a_physical_guess(self):
+        board_text = """(kicad_pcb (version 20250114)
+  (setup (stackup
+    (layer "F.Cu" (type "copper") (thickness 0.035))
+    (layer "B.Cu" (type "copper") (thickness 0.035))
+  )))"""
+        with tempfile.NamedTemporaryFile("w", suffix=".kicad_pcb", delete=False) as handle:
+            handle.write(board_text)
+            path = handle.name
+        try:
+            engine = measurement.TraceMeasurementEngine(FakeBoard(path))
+            height, er = engine.dielectric_to_reference("F.Cu", "B.Cu")
+        finally:
+            Path(path).unlink(missing_ok=True)
+        self.assertEqual((0.0, 0.0), (height, er))
+
+    def test_saved_dielectric_without_epsilon_is_unavailable(self):
+        board_text = """(kicad_pcb (version 20250114)
+  (setup (stackup
+    (layer "F.Cu" (type "copper") (thickness 0.035))
+    (layer "dielectric 1" (type "core") (thickness 1.5))
+    (layer "B.Cu" (type "copper") (thickness 0.035))
+  )))"""
+        with tempfile.NamedTemporaryFile("w", suffix=".kicad_pcb", delete=False) as handle:
+            handle.write(board_text)
+            path = handle.name
+        try:
+            engine = measurement.TraceMeasurementEngine(FakeBoard(path))
+            height, er = engine.dielectric_to_reference("F.Cu", "B.Cu")
+            dielectric = engine.stackup_layers()[1]
+        finally:
+            Path(path).unlink(missing_ok=True)
+        self.assertEqual(0.0, dielectric.relative_permittivity)
+        self.assertEqual((0.0, 0.0), (height, er))
+
+    def test_every_saved_dielectric_row_requires_finite_positive_inputs(self):
+        cases = (
+            '(epsilon_r 4.1)',
+            '(thickness -0.1) (epsilon_r 4.1)',
+            '(thickness nan) (epsilon_r 4.1)',
+            '(thickness 0.1) (epsilon_r nan)',
+            '(thickness 0.1) (epsilon_r -2)',
+        )
+        for invalid_row in cases:
+            with self.subTest(invalid_row=invalid_row):
+                board_text = f"""(kicad_pcb (version 20250114)
+  (setup (stackup
+    (layer "F.Cu" (type "copper") (thickness 0.035))
+    (layer "dielectric 1" (type "prepreg") (thickness 0.1) (epsilon_r 4.2))
+    (layer "dielectric 2" (type "core") {invalid_row})
+    (layer "B.Cu" (type "copper") (thickness 0.035))
+  )))"""
+                with tempfile.NamedTemporaryFile("w", suffix=".kicad_pcb", delete=False) as handle:
+                    handle.write(board_text)
+                    path = handle.name
+                try:
+                    engine = measurement.TraceMeasurementEngine(FakeBoard(path))
+                    result = engine.dielectric_to_reference("F.Cu", "B.Cu")
+                finally:
+                    Path(path).unlink(missing_ok=True)
+                self.assertEqual((0.0, 0.0), result)
+
+    def test_synthetic_layer_defaults_carry_no_physical_guess(self):
+        layer = measurement.StackupLayer("dielectric")
+        self.assertEqual((0.0, 0.0), (layer.dielectric_height_mm, layer.relative_permittivity))
+
 
 if __name__ == "__main__":
     unittest.main()

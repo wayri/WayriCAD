@@ -98,6 +98,11 @@ usable endpoint path; explicit assumptions cannot turn a disconnected route into
 a valid result. More than two terminals, vias, layer changes and zone corridors
 produce review notes. Other branches and stubs are not simulated.
 
+JSON and HTML reports include structured **blockers** with a stable code, the
+missing evidence, and a next action. Automatic impedance needs saved dielectric
+thickness and Er between the routed layer and a continuously filled adjacent
+reference. Missing stackup values are never replaced by generic FR-4 dimensions.
+
 ![The same Marble path with unresolved automatic line estimates](help-marble-unknown.png)
 
 ## CLI
@@ -115,8 +120,9 @@ wayricad-si screen board.kicad_pcb --net "/USB/TxD_OUT" --start U23.42 --end U25
 
 Omit `--z0-ohm` and `--epsilon-eff` to retain automatic geometry results and
 unknowns. Add `--load-ohm 50` for a 50 ohm resistive load; omit it for open load.
-Use `--reference In1.Cu` to request an explicit copper reference. JSON contains
-all assumptions, per-section route evidence and a SHA-256 of the analyzed file.
+Use `--reference In1.Cu` to request an explicit copper reference. It still needs
+actual filled coverage and saved dielectric data. JSON contains all assumptions,
+structured blockers, per-section route evidence and a SHA-256 of the analyzed file.
 Only separate `.json` and `.html` output files are accepted. Exit codes: 0 for
 inventory/screened results, 1 for input/runtime errors, 2 for unresolved routing,
 and 3 for incomplete line estimates. Code 0 is not an electrical PASS.
@@ -181,3 +187,11 @@ board runs can preview but cannot write to an unrelated editor.
 
 Editing PCB footprint values does not update schematic values; a later
 Update PCB from Schematic can overwrite them. Use a reviewed project convention.
+
+## Protocol suites
+
+The **Protocol suites** tab offers 33 interface profiles: I2C, SPI, UART, CAN, I2S/TDM, GPIO, SDIO, USB, LVDS, SerDes, PCI/PCIe, DDR, Ethernet and M.2 PCIe/SATA. Screen paths in Quick SI, add their snapshots, assign P/N or clock/data roles with explicit groups, then review timing, impedance and reference evidence against your budgets. Missing coupled impedance and via-transition models stay unknown. Optional eye-rate checks do not establish compliance.
+
+![Native protocol suite review](help-protocols.png)
+
+Use `wayricad-si profiles` to list profile IDs and sources. `wayricad-si suite --profile uart --reports route.json --html suite.html` screens saved reports without KiCad. Generate paired reports with `screen ... --role P --group lane0` and `--role N --group lane0`. See the [protocol suite guide](../docs/QUICK_SI_PROTOCOL_SUITES.md) for full CLI examples, budget units and limitations; local help includes the workflow.

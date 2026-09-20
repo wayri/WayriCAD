@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 import zipfile
 
-from manufacturing_readiness_plugin.analysis import FabricatorProfile,ReadinessCheck,build_release,saved_metrics
+from manufacturing_readiness_plugin.analysis import FabricatorProfile,ReadinessCheck,audit_metrics,build_release,saved_metrics
 from manufacturing_readiness_plugin.verification import capture_inputs,VerificationSnapshot
 
 PCB='(kicad_pcb (general (thickness 1.6)) (layers (0 "F.Cu" signal) (31 "B.Cu" signal)) (segment (width 0.2)) (via (size 0.6) (drill 0.3)))'
@@ -27,6 +27,43 @@ class ManufacturingGateTests(unittest.TestCase):
         self.assertEqual(metrics.copper_layers,2)
         with self.assertRaisesRegex(ValueError,'minimum clearance'):
             saved_metrics(PCB.encode(),b'{}')
+
+    def test_custom_anchor_and_uniform_per_layer_padstack_are_bounded(self):
+        pads='''
+        (footprint "test"
+          (pad "1" thru_hole custom (size 1 1) (drill 0.6)
+            (layers "*.Cu") (options (clearance outline) (anchor circle))
+            (primitives (gr_poly (pts (xy -2 -2) (xy 2 -2) (xy 2 2)) (width 0) (fill yes))))
+          (pad "2" thru_hole circle (size 0.8 0.8) (drill 0.4) (layers "*.Cu")
+            (padstack (mode front_inner_back)
+              (layer "Inner" (shape circle) (size 0.7 0.7))
+              (layer "B.Cu" (shape circle) (size 0.6 0.6)))))'''
+        board=PCB.replace('(via (size 0.6) (drill 0.3))','')[:-1]+pads+')'
+        metrics=saved_metrics(board.encode(),PROJECT.encode())
+        self.assertAlmostEqual(metrics.minimum_annular_ring_mm,0.1)
+
+    def test_custom_anchor_lower_bound_cannot_prove_failure(self):
+        pad='''(footprint "test" (pad "1" thru_hole custom (size 1 1) (drill 0.9)
+          (layers "*.Cu") (options (clearance outline) (anchor circle))
+          (primitives (gr_circle (center 0 0) (end 1 0) (width 0) (fill yes)))))'''
+        board=PCB.replace('(via (size 0.6) (drill 0.3))','')[:-1]+pad+')'
+        metrics=saved_metrics(board.encode(),PROJECT.encode())
+        self.assertAlmostEqual(metrics.minimum_annular_ring_mm,.05)
+        self.assertEqual(audit_metrics(metrics,FabricatorProfile())[3].status,'UNKNOWN')
+
+    def test_unsupported_padstack_preserves_other_checks_and_blocks_release(self):
+        pad='''(footprint "test" (pad "1" thru_hole circle (size 0.8 0.8) (drill 0.4)
+          (layers "*.Cu") (padstack (mode front_inner_back)
+            (layer "Inner" (shape custom) (size 0.7 0.7)))))'''
+        board=PCB[:-1]+pad+')'
+        checks=audit_metrics(saved_metrics(board.encode(),PROJECT.encode()),FabricatorProfile())
+        statuses={check.item:check.status for check in checks}
+        self.assertEqual(statuses['Minimum routed track'],'PASS')
+        self.assertEqual(statuses['Minimum annular ring (plated pads and vias)'],'UNKNOWN')
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/'board.kicad_pcb';source.write_text(board)
+            with self.assertRaisesRegex(ValueError,'unknown'):
+                build_release(Path(directory)/'release.zip',[source],checks,'test')
 
     def test_changes_in_each_gate_input_invalidate_evidence(self):
         with tempfile.TemporaryDirectory() as directory:

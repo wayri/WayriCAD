@@ -67,6 +67,7 @@ class ProtocolPanel(wx.Panel):
         return hashlib.sha256(self.source.read_bytes()).hexdigest() if self.source and self.source.is_file() else None
 
     def fresh(self):
+        if self.digest is None:raise ValueError('Save the PCB, reopen Quick SI, and screen its paths before collecting a protocol suite.')
         if self.digest!=self._digest():raise ValueError('The saved board changed. Reopen Quick SI and screen fresh paths before running or exporting this suite.')
 
     def invalidate(self,event=None):

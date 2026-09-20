@@ -53,6 +53,7 @@ def screen(path, *, rise_ns=1., frequency_mhz=100., source_ohm=20., load_ohm=Non
     notes.append('Resistive, linear, uniform-line screening only. Receiver capacitance, driver IBIS/nonlinearity, crosstalk, differential coupling and eye diagrams are not solved.')
     report = {'schema':'wayricad.quick-si/v1','status':'UNRESOLVED' if not resolved else 'SCREENED' if delay is not None and z0 is not None else 'INCOMPLETE',
             'path':path.as_report(),'inputs':dict(rise_ns=rise_ns,frequency_mhz=frequency_mhz,source_ohm=source_ohm,load_ohm=load_ohm,assumed_z0_ohm=z0_ohm,assumed_epsilon_eff=epsilon_eff),
+            'blockers':list(getattr(path,'blockers',[])),
             'delay_ns':delay,'round_trip_ns':None if delay is None else 2*delay,
             'electrical_length_deg':None if delay is None else 360*frequency_mhz*delay/1000,
             'delay_to_rise_ratio':ratio,'edge_screen':edge_review,'z0_ohm':z0,
@@ -60,6 +61,13 @@ def screen(path, *, rise_ns=1., frequency_mhz=100., source_ohm=20., load_ohm=Non
             'first_load_step_per_source_step':None if z0 is None else z0/(source_ohm+z0)*(1+gamma_load),
             'series_match_candidate_ohm':series,'delay_source':delay_source,'z0_source':z0_source,
             'terminal_count':terminal_count,'notes':list(dict.fromkeys(notes))}
+    if delay is None:
+        report['blockers'].append({'code':'COMPLETE_DELAY_UNAVAILABLE','message':'Complete propagation delay is unavailable.',
+            'action':'Complete the physical stackup/reference model or enter an explicit effective-permittivity assumption for screening.'})
+    if z0 is None:
+        report['blockers'].append({'code':'UNIFORM_Z0_UNAVAILABLE','message':'A uniform characteristic impedance is unavailable.',
+            'action':'Resolve every routed section or enter an explicit Z0 assumption for termination screening.'})
+    report['blockers']=[dict(item) for item in {json.dumps(item,sort_keys=True):item for item in report['blockers']}.values()]
     if eye_bitrate_mbps is not None:
         finite(eye_bitrate_mbps,'Eye bit rate',strict=True)
         finite(eye_swing_v,'Eye source swing',strict=True)
@@ -90,7 +98,7 @@ def analyze(board,net,start,end,reference='Auto',**inputs):
 def html_report(report):
     escape=lambda value:html.escape(str(value))
     rows=''.join('<tr><th>'+escape(key.replace('_',' '))+'</th><td>'+escape('Unknown' if value is None else value)+'</td></tr>'
-                 for key,value in report.items() if key not in ('path','inputs','notes','schema','eye'))
+                 for key,value in report.items() if key not in ('path','inputs','notes','blockers','schema','eye'))
     points=[]
     for segment in report['path'].get('segments',[]):
         if segment.get('start_mm') and segment.get('end_mm'):points.append((segment['start_mm'],segment['end_mm']))
@@ -101,4 +109,5 @@ def html_report(report):
         svg=f'<svg viewBox="{x} {y} {w} {h}" width="100%" height="280" aria-label="Resolved route geometry">'+''.join(f'<line x1="{a[0]}" y1="{a[1]}" x2="{b[0]}" y2="{b[1]}" stroke="#287a9a" stroke-width=".12"/>' for a,b in points)+'</svg>'
     from .eye_view import eye_section
     eye=eye_section(report['eye']) if 'eye' in report else ''
-    return '<!doctype html><meta charset="utf-8"><title>WayriCAD Quick SI</title><style>body{font:15px system-ui;max-width:950px;margin:30px auto;color:#20303c}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}pre{white-space:pre-wrap}</style><h1>WayriCAD Quick SI</h1><p>Read-only first-order screening, not protocol signoff.</p>'+svg+'<table>'+rows+'</table>'+eye+'<h2>Assumptions and limitations</h2><ul>'+''.join('<li>'+escape(n)+'</li>' for n in report['notes'])+'</ul><h2>Inputs and path evidence</h2><pre>'+escape(json.dumps({'inputs':report['inputs'],'path':report['path']},indent=2,allow_nan=False))+'</pre>'
+    blockers=''.join('<li><strong>'+escape(b['code'])+':</strong> '+escape(b['message'])+' <em>Next: '+escape(b['action'])+'</em></li>' for b in report.get('blockers',[]))
+    return '<!doctype html><meta charset="utf-8"><title>WayriCAD Quick SI</title><style>body{font:15px system-ui;max-width:950px;margin:30px auto;color:#20303c}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}pre{white-space:pre-wrap}</style><h1>WayriCAD Quick SI</h1><p>Read-only first-order screening, not protocol signoff.</p>'+svg+'<table>'+rows+'</table>'+eye+'<h2>Blocking inputs and next actions</h2><ul>'+blockers+'</ul><h2>Assumptions and limitations</h2><ul>'+''.join('<li>'+escape(n)+'</li>' for n in report['notes'])+'</ul><h2>Inputs and path evidence</h2><pre>'+escape(json.dumps({'inputs':report['inputs'],'path':report['path']},indent=2,allow_nan=False))+'</pre>'

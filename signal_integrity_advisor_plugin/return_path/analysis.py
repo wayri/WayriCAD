@@ -47,13 +47,18 @@ class ReferenceRegion:
     holes: tuple[tuple[tuple[float,float], ...], ...] = ()
     native_poly: object = field(default=None,repr=False,compare=False)
     _edge_bins: dict = field(default_factory=dict,repr=False,compare=False)
+    _hole_edges: set = field(default_factory=set,repr=False,compare=False)
+    _ray_bins: dict = field(default_factory=dict,repr=False,compare=False)
 
     def __post_init__(self):
         x1,y1,x2,y2=self.bounds
         outline=self.outline or ((x1,y1),(x2,y1),(x2,y2),(x1,y2))
         object.__setattr__(self,'outline',tuple(outline))
-        for ring in (outline,)+self.holes:
+        for ring_index,ring in enumerate((outline,)+self.holes):
             for a,b in zip(ring,ring[1:]+ring[:1]):
+                if ring_index:self._hole_edges.add((a,b))
+                for y in range(math.floor(min(a[1],b[1])/.25),math.floor(max(a[1],b[1])/.25)+1):
+                    self._ray_bins.setdefault(y,[]).append((a,b))
                 for x in range(math.floor(min(a[0],b[0])/5),math.floor(max(a[0],b[0])/5)+1):
                     for y in range(math.floor(min(a[1],b[1])/5),math.floor(max(a[1],b[1])/5)+1):
                         self._edge_bins.setdefault((x,y),[]).append((a,b))
@@ -62,16 +67,26 @@ class ReferenceRegion:
         x1, y1, x2, y2 = self.bounds
         if not (min(x1,x2)<=point[0]<=max(x1,x2) and min(y1,y2)<=point[1]<=max(y1,y2)):
             return False
-        if self.native_poly is not None:
-            import pcbnew
-            return bool(self.native_poly.Contains(pcbnew.VECTOR2I(round(point[0]*1e6),round(point[1]*1e6))))
-        return _inside(point,self.outline) and not any(_inside(point,hole) for hole in self.holes)
+        # Filled polygon edges are indexed in 0.25 mm horizontal bands. Cast a ray
+        # through that index instead of making a costly SWIG Contains call or
+        # walking every vertex in large zone outlines.
+        inside=False
+        for a,b in self._ray_bins.get(math.floor(point[1]/.25),()):
+            cross=(point[0]-a[0])*(b[1]-a[1])-(point[1]-a[1])*(b[0]-a[0])
+            if abs(cross)<1e-10 and min(a[0],b[0])-1e-10<=point[0]<=max(a[0],b[0])+1e-10 and min(a[1],b[1])-1e-10<=point[1]<=max(a[1],b[1])+1e-10:
+                return (a,b) not in self._hole_edges
+            if (a[1]>point[1])!=(b[1]>point[1]) and point[0]<(b[0]-a[0])*(point[1]-a[1])/(b[1]-a[1])+a[0]:inside=not inside
+        return inside
 
     def covers(self,segment):
         a,b=segment.start,segment.end;length=math.hypot(b[0]-a[0],b[1]-a[1])
         if length<1e-12:return self.contains(a)
         dx=(b[0]-a[0])*segment.width_mm/(2*length);dy=(b[1]-a[1])*segment.width_mm/(2*length)
         rectangle=((a[0]-dy,a[1]+dx),(b[0]-dy,b[1]+dx),(b[0]+dy,b[1]-dx),(a[0]+dy,a[1]-dx))
+        rx1,ry1,rx2,ry2=self.bounds
+        if (min(p[0] for p in rectangle)<min(rx1,rx2) or max(p[0] for p in rectangle)>max(rx1,rx2)
+                or min(p[1] for p in rectangle)<min(ry1,ry2) or max(p[1] for p in rectangle)>max(ry1,ry2)):
+            return False
         if not all(self.contains(p) for p in rectangle):return False
         x1,y1=min(p[0] for p in rectangle),min(p[1] for p in rectangle)
         x2,y2=max(p[0] for p in rectangle),max(p[1] for p in rectangle)
@@ -192,21 +207,52 @@ class ReturnPathAnalyzer:
         return_vias = [via for via in all_vias if self.is_return_net(via.net)]
         order={layer:i for i,layer in enumerate(layer_order)}
 
+        # Nearby transition checks are local.  Bucketing avoids comparing every
+        # signal via with every return via on via-dense boards.
+        via_cell=max(return_via_radius_mm,1e-9)
+        via_bins={}
+        for ground in return_vias:
+            key=(math.floor(ground.position[0]/via_cell),math.floor(ground.position[1]/via_cell))
+            via_bins.setdefault(key,[]).append(ground)
+
         for via in (item for item in all_vias if item.net and not self.is_return_net(item.net)):
-            nearest = min((self._distance(via.position, ground.position) for ground in return_vias
-                           if via.layers and set(via.layers).issubset(ground.layers)), default=math.inf)
+            x,y=(math.floor(via.position[0]/via_cell),math.floor(via.position[1]/via_cell))
+            nearby=(ground for dx in (-1,0,1) for dy in (-1,0,1) for ground in via_bins.get((x+dx,y+dy),()))
+            via_layers=set(via.layers)
+            nearest = min((self._distance(via.position, ground.position) for ground in nearby
+                           if via.layers and via_layers.issubset(ground.layers)), default=math.inf)
             if nearest > return_via_radius_mm:
                 findings.append(Finding(
                     "warning", "Layer transition return via", via.net, "/".join(via.layers), *via.position,
-                    f"No configured return-net via covering these layers within {return_via_radius_mm:g} mm; nearest is " +
-                    ("unavailable." if math.isinf(nearest) else f"{nearest:.2f} mm."),
+                    f"No configured return-net via covering these layers within {return_via_radius_mm:g} mm.",
                     "Add a return via beside the signal transition or verify an uninterrupted plane transition.",
                 ))
 
+        reference_by_signal_layer={}
+        return_regions=[region for region in regions if self.is_return_net(region.net)]
+        region_cell=10.0
+        for layer in {segment.layer for segment in signal_segments}:
+            candidates=[region for region in return_regions if region.layer != layer
+                        and (not order or layer in order and region.layer in order and abs(order[layer]-order[region.layer])==1)]
+            bins={}
+            for region in candidates:
+                x1,y1,x2,y2=region.bounds
+                for x in range(math.floor(min(x1,x2)/region_cell),math.floor(max(x1,x2)/region_cell)+1):
+                    for y in range(math.floor(min(y1,y2)/region_cell),math.floor(max(y1,y2)/region_cell)+1):
+                        bins.setdefault((x,y),[]).append(region)
+            reference_by_signal_layer[layer]=bins
         for segment in signal_segments:
             midpoint = ((segment.start[0] + segment.end[0]) / 2, (segment.start[1] + segment.end[1]) / 2)
-            candidates = [region for region in regions if self.is_return_net(region.net) and region.layer != segment.layer
-                          and (not order or segment.layer in order and region.layer in order and abs(order[segment.layer]-order[region.layer])==1)]
+            bins=reference_by_signal_layer[segment.layer];margin=segment.width_mm/2
+            x1=math.floor((min(segment.start[0],segment.end[0])-margin)/region_cell)
+            x2=math.floor((max(segment.start[0],segment.end[0])+margin)/region_cell)
+            y1=math.floor((min(segment.start[1],segment.end[1])-margin)/region_cell)
+            y2=math.floor((max(segment.start[1],segment.end[1])+margin)/region_cell)
+            candidates=[];seen=set()
+            for x in range(x1,x2+1):
+                for y in range(y1,y2+1):
+                    for region in bins.get((x,y),()):
+                        if id(region) not in seen:seen.add(id(region));candidates.append(region)
             if not any(region.covers(segment) for region in candidates):
                 findings.append(Finding(
                     "warning", "Reference-plane coverage", segment.net, segment.layer, *midpoint,
@@ -233,8 +279,9 @@ class ReturnPathAnalyzer:
                         "Confirm intended topology; shorten/remove the branch or validate it with SI simulation.",
                     ))
         checked_pairs = set()
+        net_lookup={value.casefold():value for value in by_net}
         for net, net_segments in by_net.items():
-            mate = differential_mate(net, by_net)
+            mate = differential_mate(net, by_net, net_lookup)
             pair_key = tuple(sorted((net, mate))) if mate else ()
             if not mate or pair_key in checked_pairs:
                 continue
@@ -252,9 +299,20 @@ class ReturnPathAnalyzer:
                     "Length-match the pair using the protocol timing budget and KiCad constraints.",
                 ))
             uncoupled = 0
+            coupling_cell=max(differential_gap_limit_mm,1.0)
+            primary_margin=max((item.width_mm for item in net_segments),default=0)/2
+            mate_bins={}
+            for item in mate_segments:
+                margin=differential_gap_limit_mm+(item.width_mm/2)+primary_margin
+                x1=math.floor((min(item.start[0],item.end[0])-margin)/coupling_cell)
+                x2=math.floor((max(item.start[0],item.end[0])+margin)/coupling_cell)
+                y1=math.floor((min(item.start[1],item.end[1])-margin)/coupling_cell)
+                y2=math.floor((max(item.start[1],item.end[1])+margin)/coupling_cell)
+                for x in range(x1,x2+1):
+                    for y in range(y1,y2+1):mate_bins.setdefault((item.layer,x,y),[]).append(item)
             for segment in net_segments:
                 midpoint = ((segment.start[0] + segment.end[0]) / 2, (segment.start[1] + segment.end[1]) / 2)
-                same_layer = [item for item in mate_segments if item.layer == segment.layer]
+                same_layer = mate_bins.get((segment.layer,math.floor(midpoint[0]/coupling_cell),math.floor(midpoint[1]/coupling_cell)),())
                 nearest = min((max(0.,_point_segment_distance(midpoint,item.start,item.end)-(segment.width_mm+item.width_mm)/2)
                                for item in same_layer), default=math.inf)
                 if nearest > differential_gap_limit_mm:
@@ -268,10 +326,23 @@ class ReturnPathAnalyzer:
         return AuditResult(findings, signal_segments, all_vias)
 
 
-def differential_mate(net: str, available: Iterable[str]) -> str:
+def differential_mate(net: str, available: Iterable[str], lookup: dict[str,str] | None = None) -> str:
     """Shared pattern detector with the legacy suffix fallbacks."""
     names = list(available)
-    mate = _shared_find_mate(net, names)
+    mate = ""
+    if lookup is None:
+        mate = _shared_find_mate(net, names)
+    else:
+        rules=(("_p","_n"),("_dp","_dn"),("_dp","_dm"),("+","-"),("_+","_-"),("p","n"))
+        folded=net.casefold()
+        for positive,negative in rules:
+            for suffix,replacement in ((positive,negative),(negative,positive)):
+                if len(net)>len(suffix)+1 and folded.endswith(suffix):
+                    base=net[:-len(suffix)]
+                    if (positive,negative)==("p","n") and base[-1:].casefold() in 'aeiou':continue
+                    mate=lookup.get((base+replacement).casefold(),"")
+                    if mate:break
+            if mate:break
     if mate:
         return mate
     candidates = []
@@ -279,5 +350,5 @@ def differential_mate(net: str, available: Iterable[str]) -> str:
     if net.endswith("_N"): candidates.append(net[:-2] + "_P")
     if net.endswith("+"): candidates.append(net[:-1] + "-")
     if net.endswith("-"): candidates.append(net[:-1] + "+")
-    lookup = {value.casefold(): value for value in names}
+    lookup = lookup or {value.casefold(): value for value in names}
     return next((lookup[value.casefold()] for value in candidates if value.casefold() in lookup), "")

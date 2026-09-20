@@ -34,7 +34,7 @@ Paths follow existing layer transitions through vias and plated pads. Analysis d
 
 Plane R/L depends on the selected terminals and assumed corridor width. It is not a spreading-resistance solution. Full-island capacitance and corridor R/L are different estimates and must not be interpreted as one series RLC circuit. Mixed routes have section impedances; they do not have a single uniform Z0. Partial totals contain modeled sections only. Disconnected endpoints produce an unresolved result instead of an aggregate-net fallback.
 
-The stackup source, copper thickness, dielectric separation and permittivity are recorded. A manufacturing document can disagree with embedded board data; resolve that discrepancy before using these estimates for design decisions. Models exclude copper roughness, etch shape, solder mask, dielectric loss, pad and thermal-spoke impedance, full return-current distribution, and connector/package effects. Critical high-speed work needs field simulation or measurement beyond this preliminary geometry analysis.
+The stackup source, copper thickness, dielectric separation and permittivity are recorded. Automatic transmission-line estimates require saved dielectric thickness and Er; missing values remain structured blockers and are not replaced by generic FR-4 dimensions. A manufacturing document can disagree with embedded board data; resolve that discrepancy before using these estimates for design decisions. Models exclude copper roughness, etch shape, solder mask, dielectric loss, pad and thermal-spoke impedance, full return-current distribution, and connector/package effects. Critical high-speed work needs field simulation or measurement beyond this preliminary geometry analysis.
 
 ## Read-only CLI
 

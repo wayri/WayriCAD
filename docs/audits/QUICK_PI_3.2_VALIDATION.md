@@ -31,21 +31,24 @@ was 0.005 mm, with no gap snapping. The solver reported no floating triangles.
 
 ## Mesh refinement results
 
+These results were rerun after the final 3.2 mesher update; the triangle counts,
+values and screenshot below replace the earlier mesher run.
+
 | Requested edge | Triangles | Drop at 1 A | Copper loss | Peak sheet J |
 |---|---:|---:|---:|---:|
-| 0.5 mm | 15,904 | 2.483072 mV | 2.483072 mW | 76.5549 A/mm² |
-| 0.25 mm | 36,423 | 2.588338 mV | 2.588338 mW | 77.5549 A/mm² |
-| 0.125 mm | 127,201 | 2.640042 mV | 2.640042 mW | 91.3942 A/mm² |
+| 0.5 mm | 13,382 | 2.519869 mV | 2.519869 mW | 81.5652 A/mm² |
+| 0.25 mm | 21,491 | 2.597100 mV | 2.597100 mW | 85.9836 A/mm² |
+| 0.125 mm | 64,383 | 2.641906 mV | 2.641906 mW | 90.9052 A/mm² |
 
-Successive drop changes were **4.07% and 1.96%**, relative to the finer result.
+Successive drop changes were **2.97% and 1.70%**, relative to the finer result.
 The last pair is evidence of refinement behavior, not a proven convergence
 tolerance. Peak current density is particularly mesh-dependent and is **not
 converged** here. Do not derive a fuse rating or safe current from these peaks.
 
-On the 0.5 mm mesh, losses were **1.201490 mW in sheets + 1.281583 mW in via
+On the 0.5 mm mesh, losses were **1.238179 mW in sheets + 1.281690 mW in via
 connections**, with an approximately `1.3e-18 W` accounting difference. The
-current-balance error was `1.16e-10 A`, maximum nodal residual `4.56e-11 A`, and
-relative energy error `4.45e-11`. Those small algebraic errors do not erase
+current-balance error was `8.33e-11 A`, maximum nodal residual `2.65e-11 A`, and
+relative energy error `2.13e-11`. Those small algebraic errors do not erase
 geometric/material or mesh-discretization uncertainty.
 
 Thus this particular zoned rail and terminal pair gave about **2.5–2.6 mV at
@@ -63,7 +66,7 @@ The native window executed the real inspection/solver worker and displayed:
 - a self-contained local HTML report.
 
 All render calls completed with no caught native/main-loop rendering exception.
-The worker/window/report sequence took about 21 seconds on this machine; this is
+The worker/window/report sequence took about 23 seconds on this machine; this is
 an observed smoke duration, not a portable performance guarantee. KiCad's duplicate
 image-handler warnings were emitted during imports, without stopping operation.
 

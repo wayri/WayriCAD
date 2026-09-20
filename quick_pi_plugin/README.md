@@ -30,6 +30,12 @@ results, not measurements or proof of mesh convergence.
 
 **Mesh and material options** contains mesh size, assumed via plating, copper temperature, ambient temperature, pulse duration and a temperature limit. A smaller mesh costs more time and memory. Compare successive mesh sizes before relying on localized peaks. The default 25 µm plating is an assumption, not a measured board property.
 
+The mesher preserves copper, hole and terminal boundaries while improving triangle
+angles. Broad, complex planes receive interior mesh points to avoid spending the
+cell budget on long, thin triangles. Geometry, area and electrical conservation
+checks still apply; the mesh budget is unchanged. A successful solve or stable
+total resistance does not establish convergence of local current-density peaks.
+
 ## Console
 
 Expand **Console** to enter commands. `help`, `nets`, and `pads <net>` list available names. **Tab** cycles context-aware completions; **Up/Down** recall commands. Commands run through the same cancellable worker as the controls; the pane does not execute Python or shell commands.

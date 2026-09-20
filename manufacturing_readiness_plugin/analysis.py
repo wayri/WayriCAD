@@ -29,9 +29,11 @@ class BoardMetrics:
     minimum_track_mm: float
     minimum_clearance_mm: float
     minimum_drill_mm: float
-    minimum_annular_ring_mm: float
+    minimum_annular_ring_mm: float | None
     maximum_via_aspect_ratio: float
     copper_layers: int
+    minimum_exact_annular_ring_mm: float = float('inf')
+    annular_ring_is_lower_bound: bool = False
 
 
 @dataclass(frozen=True)
@@ -49,12 +51,24 @@ def audit_metrics(metrics: BoardMetrics, profile: FabricatorProfile) -> list[Rea
         if actual == float('inf'):
             checks.append(ReadinessCheck('N/A',item,'No applicable objects',f'>= {required:g} {unit}'))
             return
+        if actual is None:
+            checks.append(ReadinessCheck('UNKNOWN',item,'Unsupported saved pad geometry',f'>= {required:g} {unit}'))
+            return
         checks.append(ReadinessCheck("PASS" if actual >= required else "FAIL", item,
                                      f"{actual:g} {unit}", f">= {required:g} {unit}"))
     minimum("Minimum routed track", metrics.minimum_track_mm, profile.minimum_track_mm)
     minimum("Minimum copper clearance", metrics.minimum_clearance_mm, profile.minimum_clearance_mm)
     minimum("Minimum finished drill (pads and vias)", metrics.minimum_drill_mm, profile.minimum_drill_mm)
-    minimum("Minimum annular ring (plated pads and vias)", metrics.minimum_annular_ring_mm, profile.minimum_annular_ring_mm)
+    ring_item="Minimum annular ring (plated pads and vias)";ring=metrics.minimum_annular_ring_mm;required=profile.minimum_annular_ring_mm
+    if metrics.minimum_exact_annular_ring_mm < required:
+        checks.append(ReadinessCheck('FAIL',ring_item,f'{metrics.minimum_exact_annular_ring_mm:g} mm',f'>= {required:g} mm'))
+    elif ring is None:
+        checks.append(ReadinessCheck('UNKNOWN',ring_item,'Unsupported saved pad geometry',f'>= {required:g} mm'))
+    elif metrics.annular_ring_is_lower_bound:
+        checks.append(ReadinessCheck('PASS' if ring >= required else 'UNKNOWN',ring_item,
+                                     f'>= {ring:g} mm conservative lower bound',f'>= {required:g} mm'))
+    else:
+        minimum(ring_item,ring,required)
     checks.append(ReadinessCheck("PASS" if metrics.maximum_via_aspect_ratio <= profile.maximum_via_aspect_ratio else "FAIL",
                                  "Maximum via aspect ratio", f"{metrics.maximum_via_aspect_ratio:g}:1",
                                  f"<= {profile.maximum_via_aspect_ratio:g}:1"))
@@ -91,8 +105,8 @@ def sexpr_tokens(text):
 def saved_metrics(board_bytes,project_bytes):
     """Read the exact saved inputs supplied to CLI, without a live SWIG object.
 
-    Via aspect ratios conservatively use full board thickness. Non-uniform
-    via padstacks are refused until per-layer manufacturing metrics are available.
+    Via aspect ratios conservatively use full board thickness. Annular ring is
+    reported as unknown when a saved padstack cannot be bounded safely.
     """
     tokens=sexpr_tokens(board_bytes.decode('utf-8-sig'));stack=[];root=None
     for token in tokens:
@@ -123,10 +137,13 @@ def saved_metrics(board_bytes,project_bytes):
     if count<1:raise ValueError('Saved PCB has no copper layers.')
     tracks=[number(node,'width') for name in ('segment','arc') for node in children(root,name)]
     vias=children(root,'via')
-    if any(children(via,'padstack') for via in vias):raise ValueError('Non-uniform via padstacks require a per-layer manufacturing audit in KiCad.')
     drills=[number(via,'drill') for via in vias]
     via_drills=list(drills)
-    rings=[(number(via,'size')-drill)/2 for via,drill in zip(vias,drills)]
+    exact_rings=[];lower_ring_bounds=[];rings_unknown=False
+    for via,drill in zip(vias,drills):
+        if children(via,'padstack'):
+            rings_unknown=True
+        else:exact_rings.append((number(via,'size')-drill)/2)
     for footprint in children(root,'footprint')+children(root,'module'):
         for pad in children(footprint,'pad'):
             if len(pad)<4 or pad[2] not in ('thru_hole','np_thru_hole'):continue
@@ -139,23 +156,49 @@ def saved_metrics(board_bytes,project_bytes):
             if not all(math.isfinite(v) and v>0 for v in (dx,dy)):raise ValueError('Pad drill dimensions must be positive and finite.')
             drills.append(min(dx,dy))
             if pad[2]=='np_thru_hole':continue
-            if pad[3] not in ('circle','oval','rect','roundrect') or children(pad,'padstack'):
-                raise ValueError('Custom plated pad shape/padstack needs a native per-layer annular-ring audit.')
             if len(size)!=1 or len(size[0])!=3:raise ValueError('Plated pad size is missing.')
             sx,sy=map(float,size[0][1:])
             offsets=children(hole,'offset')
             if len(offsets)>1 or (offsets and len(offsets[0])!=3):raise ValueError('Ambiguous drill offset.')
             ox,oy=map(float,offsets[0][1:]) if offsets else (0.,0.)
             if not all(math.isfinite(v) for v in (sx,sy,ox,oy)) or min(sx,sy)<=0:raise ValueError('Invalid plated pad size or drill offset.')
+            dimensions=[(sx,sy)]
+            supported=pad[3] in ('circle','oval','rect','roundrect')
+            if pad[3]=='custom':
+                options=children(pad,'options')
+                anchors=children(options[0],'anchor') if len(options)==1 else []
+                supported=len(anchors)==1 and len(anchors[0])==2 and anchors[0][1] in ('circle','rect')
+                if supported and anchors[0][1]=='circle' and not math.isclose(sx,sy,rel_tol=0,abs_tol=1e-12):supported=False
+            padstacks=children(pad,'padstack')
+            if padstacks:
+                supported=supported and len(padstacks)==1
+                for layer in children(padstacks[0],'layer'):
+                    shapes=children(layer,'shape');sizes=children(layer,'size')
+                    if len(shapes)!=1 or len(shapes[0])!=2 or shapes[0][1] not in ('circle','oval','rect','roundrect') or len(sizes)!=1 or len(sizes[0])!=3:
+                        supported=False;continue
+                    try:dimensions.append(tuple(map(float,sizes[0][1:])))
+                    except ValueError:supported=False
+                    if shapes and len(shapes[0])==2 and shapes[0][1]=='circle' and len(sizes)==1 and len(sizes[0])==3:
+                        try:
+                            if not math.isclose(float(sizes[0][1]),float(sizes[0][2]),rel_tol=0,abs_tol=1e-12):supported=False
+                        except ValueError:pass
+            if not supported or any(not all(math.isfinite(v) and v>0 for v in dims) for dims in dimensions):
+                rings_unknown=True;continue
             # Bounding dimensions alone overestimate corner clearance for oblique
             # offsets on curved pads; subtract the full offset magnitude instead.
-            rings.append(min((sx-dx)/2,(sy-dy)/2)-math.hypot(ox,oy))
+            measured=[min((px-dx)/2,(py-dy)/2)-math.hypot(ox,oy) for px,py in dimensions]
+            if pad[3]=='custom' or ox or oy:lower_ring_bounds.extend(measured)
+            else:exact_rings.extend(measured)
     project=json.loads(project_bytes.decode('utf-8-sig'))
     clearance=project.get('board',{}).get('design_settings',{}).get('rules',{}).get('min_clearance')
     if clearance is None or not math.isfinite(float(clearance)) or float(clearance)<0:
         raise ValueError('Save the project minimum clearance rule before auditing.')
+    exact_annular=min(exact_rings,default=float('inf'))
+    lower_annular=min(lower_ring_bounds,default=float('inf'))
+    annular=None if rings_unknown else min(exact_annular,lower_annular)
     return BoardMetrics(min(tracks,default=float('inf')),float(clearance),min(drills,default=float('inf')),
-                        min(rings,default=float('inf')),max((thickness/d for d in via_drills),default=0),count)
+                        annular,max((thickness/d for d in via_drills),default=0),count,exact_annular,
+                        lower_annular < exact_annular)
 
 
 def gate_key(files,profile,jobset,live_text):
@@ -169,8 +212,8 @@ def gate_key(files,profile,jobset,live_text):
 def build_release(output_zip: str | Path, files: list[str | Path], checks: list[ReadinessCheck],
                   tool_version: str, *, expected_hashes=None, base_directory=None, evidence=None) -> dict:
     if not checks:raise ValueError('Release requires a completed board audit.')
-    failed = [check.item for check in checks if check.status == "FAIL"]
-    if failed: raise ValueError("Release blocked by failed checks: " + ", ".join(failed))
+    failed = [check.item for check in checks if check.status not in ("PASS", "N/A")]
+    if failed: raise ValueError("Release blocked by failed or unknown checks: " + ", ".join(failed))
     source_files = [Path(path) for path in files]
     if not source_files:raise ValueError('Release has no source files.')
     base=Path(base_directory).resolve() if base_directory else None

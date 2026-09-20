@@ -1,0 +1,1061 @@
+{
+  "schema": "wayricad.corpus-fix-verification/v1",
+  "date": "2026-09-20",
+  "environment": "Windows, KiCad 10.0.5 bundled Python",
+  "corpus_commit": "bc6796c1b8ce55bfbcb8b1771f3ecbc70658d34d",
+  "field_solver_or_measurement_accuracy_validated": false,
+  "runs": {
+    "pi_projects": {
+      "evidence": ".validation/kicad-monkey/fixes/pi-projects-final/summary.json",
+      "source_files_unchanged": true,
+      "counts": {
+        "pi": {
+          "COMPLETED": 13,
+          "NOT_APPLICABLE": 5
+        }
+      },
+      "boards": [
+        {
+          "path": "4-ch-backplane\\input\\4-ch-backplane.kicad_pcb",
+          "sha256": "3586465b7c307b4bf662fdd0dc616999c612abd40e6e8dcaf4bce4deefdedd01",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "Net-(J6-VCC)",
+                "start": "J6.9",
+                "end": "R96.1",
+                "terminals": 2,
+                "tracks_and_vias": 2,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 5.764831800013781,
+              "last_refinement_relative_R_change": 0.0,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 241,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.00321292228148901,
+                    "max_current_density_A_mm2": 125.75362506253488,
+                    "energy_relative_error": 1.889722699145094e-15
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 565,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.00321292228148901,
+                    "max_current_density_A_mm2": 125.75362506253488,
+                    "energy_relative_error": 1.889722699145094e-15
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "canbob\\input\\CANBOB (MAGE-CANBOB-003).kicad_pcb",
+          "sha256": "17f13d4fbc775cd76c77a49e3f3eb7c999e8004a137e8ddb74933530fcdbd2c1",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "/MCU_5V",
+                "start": "J8.6",
+                "end": "SW2.1",
+                "terminals": 3,
+                "tracks_and_vias": 10,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 2.2047378999996,
+              "last_refinement_relative_R_change": 0.0033607507774331548,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 444,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.03994903590629979,
+                    "max_current_density_A_mm2": 80.86855026417673,
+                    "energy_relative_error": 2.242385035512603e-13
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 658,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.04008374739150824,
+                    "max_current_density_A_mm2": 95.29433550327143,
+                    "energy_relative_error": 1.949217586740597e-13
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "celebration_led_assembly\\input\\celebration_LED_daisy_chain__A.kicad_pcb",
+          "sha256": "c55259b48db3adfa2a3685a2764aa207575727ef229bcd7eebbedd6cc3f5dc96",
+          "operations": {
+            "pi": {
+              "status": "NOT_APPLICABLE",
+              "wall_s": 0.4102233999874443
+            }
+          }
+        },
+        {
+          "path": "cern_wren_eda_04903\\input\\EDA-04903-V1-0.kicad_pcb",
+          "sha256": "e2bf0579d5b4abca77bf442dbd9352d2387bf426850c7b580d1f46aa2823941e",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "/SFP0/SFP_VCCR",
+                "start": "C381.2",
+                "end": "L14.1",
+                "terminals": 7,
+                "tracks_and_vias": 3,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 38.67322370002512,
+              "last_refinement_relative_R_change": 0.03243930889996757,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 791,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.0015463867855825216,
+                    "max_current_density_A_mm2": 46.215663618810225,
+                    "energy_relative_error": 5.896836986014174e-12
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 1115,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.001598232338091799,
+                    "max_current_density_A_mm2": 52.389829578591005,
+                    "energy_relative_error": 2.713503278953752e-16
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "charge_indicator\\input\\11-10043__charge_indicator__C.kicad_pcb",
+          "sha256": "11cc053d095d220dfcdc726f5c2f5a34a9447140cc75f471b5dd723738866c2e",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "+5v0",
+                "start": "C1.1",
+                "end": "C2.1",
+                "terminals": 58,
+                "tracks_and_vias": 151,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 21.097398899961263,
+              "last_refinement_relative_R_change": 0.006174416112012611,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 54300,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.004396174268146868,
+                    "max_current_density_A_mm2": 156.93683634029142,
+                    "energy_relative_error": 1.9729921633748725e-16
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 168420,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.004423486715796153,
+                    "max_current_density_A_mm2": 156.93683634029142,
+                    "energy_relative_error": 0.0
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "charge_indicator_assembly\\input\\12-10005__charge-indicator-assembly__0.kicad_pcb",
+          "sha256": "e6bbe70a552e54a7c9d46fe2c719f05bdc6468a4b8fe09a6aa0344e53d99779d",
+          "operations": {
+            "pi": {
+              "status": "NOT_APPLICABLE",
+              "wall_s": 0.3593527000048198
+            }
+          }
+        },
+        {
+          "path": "cm5_minima_rev2\\input\\CM5_MINIMA_2.kicad_pcb",
+          "sha256": "f8c36f12708f0b9831bda76bdcdd8e89ec75b2b2b620b5dce83b4bd07e991fdf",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "Net-(T401-VCC)",
+                "start": "C401.1",
+                "end": "T401.11",
+                "terminals": 2,
+                "tracks_and_vias": 2,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 2.550502000027336,
+              "last_refinement_relative_R_change": 0.0,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 52,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.0024390270282061274,
+                    "max_current_density_A_mm2": 101.58548803178081,
+                    "energy_relative_error": 2.8449434236121174e-15
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 86,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.0024390270282061274,
+                    "max_current_density_A_mm2": 101.58548803178081,
+                    "energy_relative_error": 3.0227523875878748e-15
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "eez_dcp405plus\\input\\EEZ DIB DCP405plus front mask.kicad_pcb",
+          "sha256": "3fabfc35bcf92d0a41417b5d79416c92cef0a6219368418bac2fa120b0bb6a34",
+          "operations": {
+            "pi": {
+              "status": "NOT_APPLICABLE",
+              "wall_s": 0.528652599954512
+            }
+          }
+        },
+        {
+          "path": "eez_dcp405plus\\input\\EEZ DIB DCP405plus.kicad_pcb",
+          "sha256": "399b27fdff469f3c87c36dc22be989b377ffd5a022e58d4028fcee5afde1063e",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "Net-(IC1-AVDD)",
+                "start": "C13.2",
+                "end": "R9.2",
+                "terminals": 4,
+                "tracks_and_vias": 6,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 2.5612707000109367,
+              "last_refinement_relative_R_change": 0.01153809526479728,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 131,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.002907158384910105,
+                    "max_current_density_A_mm2": 182.14795838810136,
+                    "energy_relative_error": 1.369443920920008e-13
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 197,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.0029410929960815217,
+                    "max_current_density_A_mm2": 182.1430652987713,
+                    "energy_relative_error": 1.029394003425577e-10
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "icepi_sbc\\input\\cm0.kicad_pcb",
+          "sha256": "2fc964823f2a54dc4792339d4c668521676abe46d40d8810ae73fcafbfa58d74",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "Net-(U24-VIN_LDO_OUT)",
+                "start": "L7.1",
+                "end": "U24.21",
+                "terminals": 2,
+                "tracks_and_vias": 2,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 3.0056984000257216,
+              "last_refinement_relative_R_change": 1.669690944128351e-07,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 59,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.000912281291321162,
+                    "max_current_density_A_mm2": 79.97124534914806,
+                    "energy_relative_error": 2.9711290333362186e-15
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 91,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.0009122814436439685,
+                    "max_current_density_A_mm2": 79.96065797141803,
+                    "energy_relative_error": 2.139212546819636e-15
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "icepi_zero_v13\\input\\icepi-zero.kicad_pcb",
+          "sha256": "e1b48d4d9784551923deb75dbaef188da3a4adc726e0f288f233d45d33664402",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "/GPDI/GPDI_SDA_5V",
+                "start": "J2.16",
+                "end": "U6.5",
+                "terminals": 3,
+                "tracks_and_vias": 7,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": true
+              },
+              "wall_s": 2.1124258000054397,
+              "last_refinement_relative_R_change": 0.004098676218495411,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 98,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.010344151721711053,
+                    "max_current_density_A_mm2": 198.6296064646714,
+                    "energy_relative_error": 6.41211070542884e-11
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 102,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.010386723538466251,
+                    "max_current_density_A_mm2": 198.62960646373193,
+                    "energy_relative_error": 6.789785191021127e-11
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "jumperless_v5r7\\input\\JumperlessV5r7.kicad_pcb",
+          "sha256": "713cbbb1833085a57fb7f0c9c969046e983287dce45584ed8a5e85cf2dffbdad",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "+9V_C",
+                "start": "C26.38",
+                "end": "R56.2",
+                "terminals": 2,
+                "tracks_and_vias": 4,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 16.397484000015538,
+              "last_refinement_relative_R_change": 1.3699236856787193e-10,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 81,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.013732570084926081,
+                    "max_current_density_A_mm2": 669.7857291350855,
+                    "energy_relative_error": 1.2632183671729242e-16
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 101,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.013732570086807339,
+                    "max_current_density_A_mm2": 669.7857291350855,
+                    "energy_relative_error": 1.263218366999873e-16
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "kibuzzard\\input\\kibuzzard.kicad_pcb",
+          "sha256": "ce2b06d729a46295cd1ef834a1f2e1546998045803faf4932fb8b9c1bb44d973",
+          "operations": {
+            "pi": {
+              "status": "NOT_APPLICABLE",
+              "wall_s": 0.391043699986767
+            }
+          }
+        },
+        {
+          "path": "led_component\\input\\led_component.kicad_pcb",
+          "sha256": "ab63ac84698dd96d4ef2daa35a9cae887bafc35393a99ade2a43bf7cb5499018",
+          "operations": {
+            "pi": {
+              "status": "NOT_APPLICABLE",
+              "wall_s": 0.3811020999564789
+            }
+          }
+        },
+        {
+          "path": "nrf9151_feather\\input\\nRF9151_Feather.kicad_pcb",
+          "sha256": "6356d27404c258e740b980a0d3b4044801362f5a444ca44ec51195afc1a29f99",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "Net-(U2-PVDD)",
+                "start": "C36.1",
+                "end": "FB4.1",
+                "terminals": 6,
+                "tracks_and_vias": 1,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 2.11522460001288,
+              "last_refinement_relative_R_change": 0.008902665884078002,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 357,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.0012379042208764718,
+                    "max_current_density_A_mm2": 47.832223352391615,
+                    "energy_relative_error": 2.8329644603644292e-11
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 477,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.001249023863010091,
+                    "max_current_density_A_mm2": 53.32013894743455,
+                    "energy_relative_error": 2.3778035112064934e-11
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "speedy_processing_module\\input\\11-10084__speedy_processing_module__B.kicad_pcb",
+          "sha256": "0251e15de1dbd4569978081a1e7d7f07433a700d3739406ee11df9c6c5aba776",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "/TOP_LEVEL_IO/ZYNQ_PWR/TPS62A02_BUCK_3V3/FB",
+                "start": "C223.1",
+                "end": "R81.2",
+                "terminals": 4,
+                "tracks_and_vias": 5,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 4.26050590001978,
+              "last_refinement_relative_R_change": 0.0,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 55,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.002722408529351643,
+                    "max_current_density_A_mm2": 191.7055271465251,
+                    "energy_relative_error": 6.21271705125091e-15
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 59,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.002722408529351643,
+                    "max_current_density_A_mm2": 191.7055271465251,
+                    "energy_relative_error": 6.21271705125091e-15
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "taillight\\input\\11-10045__taillight__C.kicad_pcb",
+          "sha256": "0028f9c09622157a841cabdba793a958d09b8779868f44f22ed33e7fbe7d3140",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "+5v0",
+                "start": "C10.2",
+                "end": "R22.1",
+                "terminals": 57,
+                "tracks_and_vias": 170,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 4.685231799958274,
+              "last_refinement_relative_R_change": 0.005862955804802052,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 14909,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.004264741248333264,
+                    "max_current_density_A_mm2": 85.43031214890098,
+                    "energy_relative_error": 2.0337968647626246e-16
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 37221,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.004289892699638588,
+                    "max_current_density_A_mm2": 85.43031214890098,
+                    "energy_relative_error": 2.0218728036285766e-16
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "yoshi_mainboard\\input\\11-10080__yoshi-mainboard__A.kicad_pcb",
+          "sha256": "3e63bacb2f7b7817736ba75b45e9745b1d0db1f81b5baa1e1c93142d9416a099",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "+VBUS",
+                "start": "C4.2",
+                "end": "U5.4",
+                "terminals": 8,
+                "tracks_and_vias": 38,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 2.061833999992814,
+              "last_refinement_relative_R_change": 7.299711646831181e-07,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 1266,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.0396777092346402,
+                    "max_current_density_A_mm2": 294.6190327870966,
+                    "energy_relative_error": 0.0
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 1274,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.039677738198244966,
+                    "max_current_density_A_mm2": 294.6190327870966,
+                    "energy_relative_error": 1.748812865601838e-16
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "pi_refinement": {
+      "evidence": ".validation/kicad-monkey/fixes/pi-refinement-final/summary.json",
+      "source_files_unchanged": true,
+      "counts": {
+        "pi": {
+          "COMPLETED": 2,
+          "BLOCKED": 1
+        }
+      },
+      "boards": [
+        {
+          "path": "canbob\\input\\CANBOB (MAGE-CANBOB-003).kicad_pcb",
+          "sha256": "17f13d4fbc775cd76c77a49e3f3eb7c999e8004a137e8ddb74933530fcdbd2c1",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "/MCU_5V",
+                "start": "J8.6",
+                "end": "SW2.1",
+                "terminals": 3,
+                "tracks_and_vias": 10,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 2.5115805999957956,
+              "last_refinement_relative_R_change": 0.0023135593507974343,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 444,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.03994903538023193,
+                    "max_current_density_A_mm2": 81.05325929083165,
+                    "energy_relative_error": 2.8051525019689007e-13
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 658,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.04008374739150824,
+                    "max_current_density_A_mm2": 95.29433550327143,
+                    "energy_relative_error": 1.949217586740597e-13
+                  }
+                },
+                {
+                  "edge_mm": 0.25,
+                  "triangles": 2253,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.040306916940936244,
+                    "max_current_density_A_mm2": 92.80043386789947,
+                    "energy_relative_error": 4.0558879910267085e-13
+                  }
+                },
+                {
+                  "edge_mm": 0.125,
+                  "triangles": 10199,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.04040038563088841,
+                    "max_current_density_A_mm2": 115.44624796322924,
+                    "energy_relative_error": 2.744615499404063e-13
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "eez_dcp405plus\\input\\EEZ DIB DCP405plus.kicad_pcb",
+          "sha256": "399b27fdff469f3c87c36dc22be989b377ffd5a022e58d4028fcee5afde1063e",
+          "operations": {
+            "pi": {
+              "status": "COMPLETED",
+              "selection": {
+                "net": "Net-(IC1-AVDD)",
+                "start": "C13.2",
+                "end": "R9.2",
+                "terminals": 4,
+                "tracks_and_vias": 6,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 3.0077711999765597,
+              "last_refinement_relative_R_change": 0.0099970870027933,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 131,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.002907158384910105,
+                    "max_current_density_A_mm2": 182.14795838810136,
+                    "energy_relative_error": 1.369443920920008e-13
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 197,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.0029410929960815217,
+                    "max_current_density_A_mm2": 182.1430652987713,
+                    "energy_relative_error": 1.029394003425577e-10
+                  }
+                },
+                {
+                  "edge_mm": 0.25,
+                  "triangles": 699,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.0030155666126379203,
+                    "max_current_density_A_mm2": 111.57035287998353,
+                    "energy_relative_error": 4.28565890133728e-13
+                  }
+                },
+                {
+                  "edge_mm": 0.125,
+                  "triangles": 2966,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.003046017918784072,
+                    "max_current_density_A_mm2": 102.5094901996623,
+                    "energy_relative_error": 7.604747205438018e-12
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "path": "taillight\\input\\11-10045__taillight__C.kicad_pcb",
+          "sha256": "0028f9c09622157a841cabdba793a958d09b8779868f44f22ed33e7fbe7d3140",
+          "operations": {
+            "pi": {
+              "status": "BLOCKED",
+              "selection": {
+                "net": "+5v0",
+                "start": "C10.2",
+                "end": "R22.1",
+                "terminals": 57,
+                "tracks_and_vias": 170,
+                "power_named": true,
+                "ground_named": false,
+                "signal_named": false
+              },
+              "wall_s": 22.890242099994794,
+              "last_refinement_relative_R_change": 0.004176643917600291,
+              "meshes": [
+                {
+                  "edge_mm": 1.0,
+                  "triangles": 14909,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.004264741248333264,
+                    "max_current_density_A_mm2": 85.43031214890098,
+                    "energy_relative_error": 2.0337968647626246e-16
+                  }
+                },
+                {
+                  "edge_mm": 0.5,
+                  "triangles": 37221,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.004289892699638588,
+                    "max_current_density_A_mm2": 85.43031214890098,
+                    "energy_relative_error": 2.0218728036285766e-16
+                  }
+                },
+                {
+                  "edge_mm": 0.25,
+                  "triangles": 130216,
+                  "metrics": {
+                    "drop_over_current_ohm": 0.004307885202165935,
+                    "max_current_density_A_mm2": 73.4201623386845,
+                    "energy_relative_error": 2.0134281608811398e-16
+                  }
+                },
+                {
+                  "edge_mm": 0.125,
+                  "error": "Further refinement exceeds the mesh budget. Increase mesh edge length.",
+                  "metrics": {
+                    "drop_over_current_ohm": null,
+                    "max_current_density_A_mm2": null,
+                    "energy_relative_error": null
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "return_wren": {
+      "evidence": ".validation/kicad-monkey/scoped-ray025-wren/summary.json",
+      "source_files_unchanged": true,
+      "counts": {
+        "return_path": {
+          "COMPLETED": 1
+        }
+      },
+      "boards": [
+        {
+          "path": "cern_wren_eda_04903\\input\\EDA-04903-V1-0.kicad_pcb",
+          "sha256": "e2bf0579d5b4abca77bf442dbd9352d2387bf426850c7b580d1f46aa2823941e",
+          "operations": {
+            "return_path": {
+              "status": "COMPLETED",
+              "wall_s": 27.252682999998797
+            }
+          }
+        }
+      ]
+    },
+    "return_jumperless": {
+      "evidence": ".validation/kicad-monkey/scoped-ray025-jumperless/summary.json",
+      "source_files_unchanged": true,
+      "counts": {
+        "return_path": {
+          "COMPLETED": 1
+        }
+      },
+      "boards": [
+        {
+          "path": "jumperless_v5r7\\input\\JumperlessV5r7.kicad_pcb",
+          "sha256": "713cbbb1833085a57fb7f0c9c969046e983287dce45584ed8a5e85cf2dffbdad",
+          "operations": {
+            "return_path": {
+              "status": "COMPLETED",
+              "wall_s": 12.998470599995926
+            }
+          }
+        }
+      ]
+    },
+    "manufacturing_backplane": {
+      "evidence": ".validation/kicad-monkey/scoped-mfg2-backplane/summary.json",
+      "source_files_unchanged": true,
+      "counts": {
+        "manufacturing": {
+          "COMPLETED": 1
+        }
+      },
+      "boards": [
+        {
+          "path": "4-ch-backplane\\input\\4-ch-backplane.kicad_pcb",
+          "sha256": "3586465b7c307b4bf662fdd0dc616999c612abd40e6e8dcaf4bce4deefdedd01",
+          "operations": {
+            "manufacturing": {
+              "status": "COMPLETED",
+              "wall_s": 2.4020864000194706,
+              "checks": [
+                {
+                  "status": "FAIL",
+                  "item": "Minimum routed track",
+                  "actual": "0.12 mm",
+                  "requirement": ">= 0.15 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Minimum copper clearance",
+                  "actual": "0.1 mm",
+                  "requirement": ">= 0.15 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Minimum finished drill (pads and vias)",
+                  "actual": "0.1 mm",
+                  "requirement": ">= 0.2 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Minimum annular ring (plated pads and vias)",
+                  "actual": "-0.2995 mm",
+                  "requirement": ">= 0.1 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Maximum via aspect ratio",
+                  "actual": "12.238:1",
+                  "requirement": "<= 10:1"
+                },
+                {
+                  "status": "PASS",
+                  "item": "Copper layers",
+                  "actual": "4",
+                  "requirement": "<= 12"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "manufacturing_jumperless": {
+      "evidence": ".validation/kicad-monkey/scoped-mfg2-jumperless/summary.json",
+      "source_files_unchanged": true,
+      "counts": {
+        "manufacturing": {
+          "COMPLETED": 1
+        }
+      },
+      "boards": [
+        {
+          "path": "jumperless_v5r7\\input\\JumperlessV5r7.kicad_pcb",
+          "sha256": "713cbbb1833085a57fb7f0c9c969046e983287dce45584ed8a5e85cf2dffbdad",
+          "operations": {
+            "manufacturing": {
+              "status": "COMPLETED",
+              "wall_s": 6.846234699944034,
+              "checks": [
+                {
+                  "status": "FAIL",
+                  "item": "Minimum routed track",
+                  "actual": "0.08 mm",
+                  "requirement": ">= 0.15 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Minimum copper clearance",
+                  "actual": "0.06 mm",
+                  "requirement": ">= 0.15 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Minimum finished drill (pads and vias)",
+                  "actual": "0.15 mm",
+                  "requirement": ">= 0.2 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Minimum annular ring (plated pads and vias)",
+                  "actual": "0.05 mm",
+                  "requirement": ">= 0.1 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Maximum via aspect ratio",
+                  "actual": "10.6667:1",
+                  "requirement": "<= 10:1"
+                },
+                {
+                  "status": "PASS",
+                  "item": "Copper layers",
+                  "actual": "4",
+                  "requirement": "<= 12"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "manufacturing_speedy": {
+      "evidence": ".validation/kicad-monkey/scoped-mfg2-speedy/summary.json",
+      "source_files_unchanged": true,
+      "counts": {
+        "manufacturing": {
+          "COMPLETED": 1
+        }
+      },
+      "boards": [
+        {
+          "path": "speedy_processing_module\\input\\11-10084__speedy_processing_module__B.kicad_pcb",
+          "sha256": "0251e15de1dbd4569978081a1e7d7f07433a700d3739406ee11df9c6c5aba776",
+          "operations": {
+            "manufacturing": {
+              "status": "COMPLETED",
+              "wall_s": 2.0135094000143,
+              "checks": [
+                {
+                  "status": "FAIL",
+                  "item": "Minimum routed track",
+                  "actual": "0.1 mm",
+                  "requirement": ">= 0.15 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Minimum copper clearance",
+                  "actual": "0.1 mm",
+                  "requirement": ">= 0.15 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Minimum finished drill (pads and vias)",
+                  "actual": "0.15 mm",
+                  "requirement": ">= 0.2 mm"
+                },
+                {
+                  "status": "FAIL",
+                  "item": "Minimum annular ring (plated pads and vias)",
+                  "actual": "0.075 mm",
+                  "requirement": ">= 0.1 mm"
+                },
+                {
+                  "status": "PASS",
+                  "item": "Maximum via aspect ratio",
+                  "actual": "8.38053:1",
+                  "requirement": "<= 10:1"
+                },
+                {
+                  "status": "PASS",
+                  "item": "Copper layers",
+                  "actual": "10",
+                  "requirement": "<= 12"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "si": {
+    "schema": "wayricad.si-before-after/v1",
+    "original_paths": 111,
+    "rerun_paths": 111,
+    "matched_original_selections": 111,
+    "before_statuses": {
+      "INCOMPLETE": 78,
+      "SCREENED": 30,
+      "UNRESOLVED": 3
+    },
+    "after_statuses": {
+      "SCREENED": 30,
+      "INCOMPLETE": 78,
+      "UNRESOLVED": 3
+    },
+    "status_changes": {},
+    "newly_downgraded_missing_input_claims": [],
+    "blocker_occurrences": {
+      "REFERENCE_PLANE_MISSING": 223,
+      "COMPLETE_DELAY_UNAVAILABLE": 81,
+      "UNIFORM_Z0_UNAVAILABLE": 81,
+      "VIA_DISCONTINUITY_UNMODELED": 28,
+      "ROUTE_DISCONNECTED": 3,
+      "ZONE_DISTRIBUTED_MODEL_UNAVAILABLE": 1,
+      "ASYMMETRIC_INTERNAL_LINE": 1
+    },
+    "source_files_unchanged": true,
+    "runs": [
+      ".validation/kicad-monkey/fixes/si-projects-final-v2/summary.json",
+      ".validation/kicad-monkey/fixes/si-extra-final-v2/summary.json"
+    ]
+  },
+  "tests": {
+    "root_unittest": {
+      "run": 305,
+      "skipped": 67,
+      "failures": 0
+    },
+    "root_pytest": {
+      "passed": 285,
+      "skipped": 67,
+      "subtests_passed": 138
+    },
+    "native_quick_pi": 56,
+    "native_quick_si": 38,
+    "native_manufacturing": 8,
+    "native_trace_return_uncertainty_frequency": 40,
+    "isolated_packages": 5
+  }
+}

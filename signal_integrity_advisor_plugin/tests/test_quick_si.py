@@ -33,6 +33,16 @@ class QuickSITests(unittest.TestCase):
         assumed=screen(self.path(status='partial',impedance_valid=False),epsilon_eff=4,z0_ohm=60)
         self.assertAlmostEqual(assumed['delay_ns'],2);self.assertEqual(assumed['z0_ohm'],60)
         self.assertIn('User-assumed',assumed['delay_source']);self.assertIn('User-assumed',assumed['z0_source'])
+        self.assertEqual({'COMPLETE_DELAY_UNAVAILABLE','UNIFORM_Z0_UNAVAILABLE'},
+                         {item['code'] for item in r['blockers']})
+
+    def test_path_blockers_are_preserved_with_actions(self):
+        path=self.path(status='partial',impedance_valid=False)
+        path.blockers=[{'code':'STACKUP_DIELECTRIC_MISSING','message':'missing','action':'define stackup'}]
+        report=screen(path)
+        blocker=next(item for item in report['blockers'] if item['code']=='STACKUP_DIELECTRIC_MISSING')
+        self.assertEqual('define stackup',blocker['action'])
+        self.assertIn('STACKUP_DIELECTRIC_MISSING',html_report(report))
 
     def test_disconnected_route_cannot_be_overridden_into_result(self):
         r=screen(self.path(status='disconnected'),epsilon_eff=4,z0_ohm=50)

@@ -20,14 +20,20 @@ class PadDrillTests(unittest.TestCase):
         metrics=self.metrics('(pad "1" thru_hole oval (size 2 1) (drill oval 1.2 .4 (offset .1 .1)))')
         self.assertEqual(metrics.minimum_drill_mm,.4)
         self.assertAlmostEqual(metrics.minimum_annular_ring_mm,.3-2**.5*.1)
+        profile=FabricatorProfile(minimum_annular_ring_mm=.2)
+        self.assertEqual(audit_metrics(metrics,profile)[3].status,'UNKNOWN')
 
     def test_nonplated_hole_has_no_ring_requirement(self):
         metrics=self.metrics('(pad "" np_thru_hole circle (size .1 .1) (drill .1))')
         self.assertEqual(metrics.minimum_annular_ring_mm,float('inf'))
         self.assertEqual(audit_metrics(metrics,FabricatorProfile())[3].status,'N/A')
 
-    def test_unresolved_shapes_and_malformed_holes_refused(self):
-        for pad in ('(pad "1" thru_hole custom (size 1 1) (drill .4))',
-                    '(pad "1" thru_hole circle (size 1 1) (drill nan))',
+    def test_unresolved_custom_shape_is_unknown(self):
+        metrics=self.metrics('(pad "1" thru_hole custom (size 1 1) (drill .4))')
+        self.assertIsNone(metrics.minimum_annular_ring_mm)
+        self.assertEqual(audit_metrics(metrics,FabricatorProfile())[3].status,'UNKNOWN')
+
+    def test_malformed_holes_are_refused(self):
+        for pad in ('(pad "1" thru_hole circle (size 1 1) (drill nan))',
                     '(pad "1" thru_hole circle (size 1 1))'):
             with self.subTest(pad=pad),self.assertRaises(ValueError):self.metrics(pad)

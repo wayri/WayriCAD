@@ -532,7 +532,7 @@ def create_plugin_zip(
                 "manufacturing_readiness_plugin": ("analysis.py",),
                 "heater_designer_plugin": ("analysis.py",),
                 "quick_pi_plugin/decoupling": ("analysis.py",),
-                "signal_integrity_advisor_plugin/return_path": ("analysis.py",),
+                "signal_integrity_advisor_plugin/return_path": ("analysis.py", "diff_pairs.py"),
                 "planar_magnetics_plugin": ("analysis.py", "magnetic_circuit.py"),
                 "signal_integrity_advisor_plugin/test_points": ("fixture.py",),
             }

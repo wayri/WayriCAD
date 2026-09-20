@@ -109,7 +109,15 @@ class NativeCopper(unittest.TestCase):
         return zone
 
     def engine(self):
-        return measurement.TraceMeasurementEngine(self.board)
+        engine = measurement.TraceMeasurementEngine(self.board)
+        # The in-memory fixture has no saved Board Setup stackup. Supply its
+        # explicit test geometry instead of relying on production defaults.
+        engine._stackup_cache = [
+            measurement.StackupLayer('F.Cu', 'copper', .035),
+            measurement.StackupLayer('dielectric 1', 'core', .2, .2, 4.2),
+            measurement.StackupLayer('B.Cu', 'copper', .035),
+        ]
+        return engine
 
     def test_disconnected_pad_cannot_teleport_to_nearest_track(self):
         self.pad('A',0,0); self.pad('B',10,0)

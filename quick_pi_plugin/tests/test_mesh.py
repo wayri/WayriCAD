@@ -1,7 +1,8 @@
 """Native VTK copper meshing acceptance, including physical FEM integration."""
 import unittest
+from unittest.mock import patch
 import numpy as np
-from quick_pi_plugin.mesh import triangulate, contains, build_mesh
+from quick_pi_plugin.mesh import triangulate, contains, build_mesh, _improve_angles
 from quick_pi_plugin.solver import solve
 
 
@@ -10,6 +11,53 @@ def rectangle(x0,y0,x1,y1):
 
 
 class MeshTests(unittest.TestCase):
+    def test_nearly_collinear_contour_keeps_uniform_strip_flux(self):
+        # Quantized board contours can contain tiny kinks at large absolute XY.
+        # Ear-clipped slivers must not turn a uniform strip into a false hotspot.
+        polygon={'outer':[[100,100],[105,100.0000001],[110,100],[110,101],[100,101]],'holes':[]}
+        p,t,_=triangulate([polygon],.25,max_cells=10000)
+        mesh={'points_mm':p,'triangles':t,'triangle_thickness_mm':np.full(len(t),.035)}
+        result=solve(mesh,np.flatnonzero(p[:,0]==100),np.flatnonzero(p[:,0]==110))
+        expected=1.724e-8*.01/(.001*.000035)
+        self.assertAlmostEqual(result['drop_over_current_ohm']/expected,1.,places=6)
+        np.testing.assert_allclose(np.linalg.norm(result['cell_J_A_mm2'],axis=1),1/.035,rtol=1e-6)
+        self.assertLess(result['energy_relative_error'],1e-9)
+
+    def test_quality_flips_preserve_boundary_winding_and_contact_regions(self):
+        p=np.array([[0.,0.,0.],[2.,0.,0.],[2.,1.,0.],[0.,2.,0.]])
+        t=np.array([[0,1,3],[1,2,3]])
+        improved=_improve_angles(p,t,np.array([0,0]))
+        def boundary(cells):
+            edges=np.sort(np.concatenate((cells[:,[0,1]],cells[:,[1,2]],cells[:,[2,0]])),axis=1)
+            edges,count=np.unique(edges,axis=0,return_counts=True)
+            return set(map(tuple,edges[count==1]))
+        self.assertEqual(boundary(t),boundary(improved))
+        self.assertTrue(any(set(row)=={0,1,2} for row in improved))
+        v=p[improved]
+        cross=(v[:,1,0]-v[:,0,0])*(v[:,2,1]-v[:,0,1])-(v[:,1,1]-v[:,0,1])*(v[:,2,0]-v[:,0,0])
+        self.assertTrue(np.all(cross>0));self.assertAlmostEqual(cross.sum()/2,3.)
+        np.testing.assert_array_equal(_improve_angles(p,t,np.array([0,1])),t)
+        with self.assertRaises(InterruptedError):
+            _improve_angles(p,t,np.array([0,0]),cancelled=lambda:True)
+
+    def test_refinement_preserves_slanted_contact_region_labels(self):
+        polygons=[{'outer':[[0,0],[1,0],[2,2],[0,2]],'holes':[]},
+                  {'outer':[[1,0],[3,0],[3,2],[2,2]],'holes':[]}]
+        calls=[]
+        def checked(points,triangles,regions,**kwargs):
+            self.assertEqual(len(triangles),len(regions))
+            result=_improve_angles(points,triangles,regions,**kwargs)
+            for cells in (triangles,result):
+                for region in (0,1):
+                    centers=points[cells[regions==region]].mean(axis=1)
+                    self.assertTrue(contains(centers,[polygons[region]]).all())
+            calls.append(len(result))
+            return result
+        with patch('quick_pi_plugin.mesh._improve_angles',side_effect=checked):
+            _,_,report=triangulate(polygons,.15)
+        self.assertGreater(len(calls),1)
+        self.assertAlmostEqual(report['area_mm2'],6.,9)
+
     def test_hole_area_and_boundary_containment(self):
         polygon=rectangle(0,0,4,4);polygon['holes']=[[[1,1],[1,3],[3,3],[3,1]]]
         p,t,r=triangulate([polygon],.4)

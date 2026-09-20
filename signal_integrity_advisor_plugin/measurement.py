@@ -29,11 +29,11 @@ def mm(value: Any) -> float:
 
 @dataclass
 class StackupInfo:
-    copper_thickness_mm: float = 0.035
-    dielectric_height_mm: float = 0.20
-    relative_permittivity: float = 4.2
+    copper_thickness_mm: float = 0.0
+    dielectric_height_mm: float = 0.0
+    relative_permittivity: float = 0.0
     reference_layer: str = "F.Cu"
-    source: str = "KiCad stackup/default estimate"
+    source: str = "KiCad stackup/unavailable"
 
 
 @dataclass
@@ -43,8 +43,8 @@ class StackupLayer:
     name: str
     kind: str = "unknown"
     thickness_mm: float = 0.0
-    dielectric_height_mm: float = 0.20
-    relative_permittivity: float = 4.2
+    dielectric_height_mm: float = 0.0
+    relative_permittivity: float = 0.0
     material: str = ""
     loss_tangent: float = 0.0
 
@@ -83,6 +83,7 @@ class PathMeasurement:
     ground_nets: List[str] = field(default_factory=list)
     zone_area_mm2: float = 0.0
     overlap_area_mm2: float = 0.0
+    blockers: List[Dict[str, Any]] = field(default_factory=list)
 
     def as_report(self) -> Dict[str, Any]:
         """Numeric JSON report without live board object references."""
@@ -172,6 +173,12 @@ class TraceMeasurementEngine:
         """Read all board stackup layers with fallbacks for KiCad API variants."""
         if self._stackup_cache is not None:
             return self._stackup_cache
+        # The saved S-expression is the authoritative source and preserves
+        # dielectric rows that some SWIG versions omit from GetStackup().
+        saved_rows = self._stackup_from_board_file()
+        if saved_rows:
+            self._stackup_cache = saved_rows
+            return saved_rows
         settings = getattr(self.board, "GetStackupSettings", lambda: None)()
         raw = None
         if settings is not None:
@@ -196,13 +203,11 @@ class TraceMeasurementEngine:
             thickness = self._number(self._value(properties, "thickness", "thickness_mm", default=0.0))
             if thickness > 10.0:
                 thickness /= 1000.0
-            er = self._number(self._value(properties, "epsilon_r", "er", "dielectric_constant", default=4.2)) or 4.2
-            dielectric = self._number(self._value(properties, "dielectric_height", "height", "dielectric_mm", default=0.20)) or 0.20
+            er = self._number(self._value(properties, "epsilon_r", "er", "dielectric_constant", default=0.0))
+            dielectric = self._number(self._value(properties, "dielectric_height", "height", "dielectric_mm", default=0.0))
             if dielectric > 10.0:
                 dielectric /= 1000.0
             rows.append(StackupLayer(name=name, kind=kind, thickness_mm=thickness, dielectric_height_mm=dielectric, relative_permittivity=er, material=str(self._value(properties, "material", "material_name", default="")), loss_tangent=self._number(self._value(properties, "loss_tangent", "tan_delta", default=0.0))))
-        if not rows:
-            rows = self._stackup_from_board_file()
         if not rows:
             names = []
             for track in getattr(self.board, "GetTracks", lambda: [])():
@@ -244,7 +249,7 @@ class TraceMeasurementEngine:
                 return (match.group(1) or match.group(2)) if match else default
             kind = token("type", "unknown")
             thickness = self._number(token("thickness", "0"))
-            er = self._number(token("epsilon_r", "4.2")) or 4.2
+            er = self._number(token("epsilon_r", "0"))
             rows.append(StackupLayer(
                 name=name,
                 kind=kind,
@@ -285,15 +290,27 @@ class TraceMeasurementEngine:
         rows = self.stackup_layers()
         indices = {row.name: index for index, row in enumerate(rows)}
         if signal_layer not in indices or reference_layer not in indices:
-            stack = self.stackup(reference_layer)
-            return stack.dielectric_height_mm, stack.relative_permittivity
+            return 0.0, 0.0
         low, high = sorted((indices[signal_layer], indices[reference_layer]))
         dielectrics = [row for row in rows[low + 1:high] if "copper" not in row.kind.lower() and not row.name.endswith(".Cu")]
         if not dielectrics:
-            return 0.20, 4.2
-        total = sum(row.thickness_mm or row.dielectric_height_mm for row in dielectrics)
-        weighted_er = sum((row.thickness_mm or row.dielectric_height_mm) * row.relative_permittivity for row in dielectrics) / max(total, 1e-9)
-        return total or 0.20, weighted_er or 4.2
+            return 0.0, 0.0
+        thicknesses = [row.thickness_mm if row.thickness_mm != 0 else row.dielectric_height_mm for row in dielectrics]
+        if any(not math.isfinite(value) or value <= 0 for value in thicknesses):
+            return 0.0, 0.0
+        if any(not math.isfinite(row.relative_permittivity) or row.relative_permittivity < 1 for row in dielectrics):
+            return 0.0, 0.0
+        total = sum(thicknesses)
+        weighted_er = sum(value * row.relative_permittivity for value, row in zip(thicknesses, dielectrics)) / total
+        return total, weighted_er
+
+    @staticmethod
+    def _block(result: PathMeasurement, code: str, message: str, action: str, **context: Any) -> None:
+        blocker = {"code": code, "message": message, "action": action}
+        if context:
+            blocker["context"] = context
+        if blocker not in result.blockers:
+            result.blockers.append(blocker)
 
     def topology_for_layers(self, layers: Iterable[str], reference_layer: str) -> str:
         """Display topology only; measurement additionally verifies plane coverage."""
@@ -384,6 +401,8 @@ class TraceMeasurementEngine:
         edges, notes = self._geometry().path(net_name, start_pad, end_pad)
         result.notes.extend(notes)
         if edges is None:
+            self._block(result, "ROUTE_DISCONNECTED", "No connected finite-width copper path joins the selected terminals.",
+                        "Check pad/net assignment, track endpoints, filled zones, and the selected zone corridor width.")
             result.notes.append("No connected finite-width path between these terminals. Check copper connectivity, zone fills and corridor width; aggregate net geometry is never substituted.")
             return result
         self._measure_edges(result, edges, frequency_mhz, reference_layer)
@@ -447,6 +466,8 @@ class TraceMeasurementEngine:
             if previous_layer is not None and previous_layer != layer:
                 result.layer_changes += 1
                 result.status = "partial"  # plated-pad transition impedance is not modeled
+                self._block(result, "LAYER_TRANSITION_UNMODELED", "The path changes copper layers.",
+                            "Review the transition with a via/connector field model; the route screen does not infer its discontinuity.")
             previous_layer = layer
             item = edge["item"]
             uid = str(item.m_Uuid.AsString())
@@ -476,6 +497,8 @@ class TraceMeasurementEngine:
                 section.update(resistance_ohm=model["resistance_ohm"],inductance_nh=model["inductance_nh"],
                                model="Plated barrel: assumed 25 um plating; isolated partial inductance")
                 result.status = "partial"
+                self._block(result, "VIA_DISCONTINUITY_UNMODELED", "Via capacitance and return-loop inductance are unavailable.",
+                            "Provide antipad, reference-transition, and return-via geometry to a 3D or validated via model.", item_uuid=uid)
             else:
                 (track_ids if kind == "track" else zone_ids).add(uid)
                 width = edge["width_mm"]
@@ -488,6 +511,15 @@ class TraceMeasurementEngine:
                 ref = geometry.reference(edge["layer"],edge["a"],edge["b"],coverage_width,reference,result.net_name)
                 if ref:
                     height, name, er, island = ref
+                    if height <= 0 or er < 1:
+                        section["model"] = "Reference copper found, but saved dielectric thickness/permittivity is unavailable"
+                        result.status = "partial"
+                        self._block(result, "STACKUP_DIELECTRIC_MISSING", "Reference copper exists but its dielectric spacing or permittivity is not saved.",
+                                    "Define the physical stackup in Board Setup, including dielectric thickness and Er, then refill zones and rerun.",
+                                    signal_layer=layer, reference_layer=name)
+                        result.segments.append(section)
+                        result.resistance_ohm += section["resistance_ohm"]
+                        continue
                     section.update(reference_layer=name,reference_net=island["net"],dielectric_height_mm=height,relative_permittivity=er)
                     result.dielectric_height_mm = height
                     result.relative_permittivity = er
@@ -504,6 +536,8 @@ class TraceMeasurementEngine:
                                        capacitance_pf=EPS0*er*(area/1e6)/(height/1000)*1e12,
                                        model="Terminal corridor R/L; parallel-plate overlap C", overlap_area_mm2=area)
                         result.status = "partial"
+                        self._block(result, "ZONE_DISTRIBUTED_MODEL_UNAVAILABLE", "A filled-zone corridor is not a uniform transmission line.",
+                                    "Use a field solver with the actual plane boundary and terminal geometry.", layer=layer)
                     else:
                         # Internal copper with one known plane is an asymmetric
                         # line, not automatically a symmetric stripline.
@@ -531,9 +565,14 @@ class TraceMeasurementEngine:
                         else:
                             section["model"] = "Internal layer: asymmetric/multiple-plane field model unresolved"
                             result.status = "partial"
+                            self._block(result, "ASYMMETRIC_INTERNAL_LINE", "The internal trace does not have two verified symmetric reference planes.",
+                                        "Use a field solver or provide a validated asymmetric transmission-line model.", layer=layer)
                 else:
                     section["model"] = "No adjacent named-ground filled reference covers this section"
                     result.status = "partial"
+                    self._block(result, "REFERENCE_PLANE_MISSING", "No adjacent named-ground filled copper covers this trace section.",
+                                "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+                                layer=layer, item_uuid=uid)
                 if kind == "zone":
                     result.zone_area_mm2 = max(result.zone_area_mm2,edge["island"]["area_mm2"])
             result.resistance_ohm += section["resistance_ohm"]
@@ -552,6 +591,9 @@ class TraceMeasurementEngine:
             result.impedance_valid = max(values)-min(values) <= .01*max(values)
             if result.impedance_valid:
                 result.impedance_ohm = sum(z*l for z,l in impedances)/sum(l for _,l in impedances)
+            else:
+                self._block(result, "NONUNIFORM_IMPEDANCE", "Modeled section impedances vary by more than 1%.",
+                            "Inspect width, layer, and reference changes per section; no single Z0 is reported.")
         result.impedance_model = "Per-section geometry; see segments"
         if result.status != "ok":
             result.notes.append("R/L/C totals include modeled sections only; unresolved terms are null in the section report. They are not a complete equivalent-circuit extraction.")
