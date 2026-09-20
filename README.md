@@ -59,22 +59,22 @@ Every name below opens that plugin’s README. The [full tool directory](docs/US
 
 | Icon | Plugin and guide | Start here |
 |---|---|---|
-| <img src="bom_studio_plugin/icon.png" width="28" height="28" alt="BOM Studio icon"> | [BOM Studio](bom_studio_plugin/README.md) | Saved schematic/project and desired fields |
-| <img src="embed_3d_plugin/icon.png" width="28" height="28" alt="Embed3D icon"> | [Embed3D](embed_3d_plugin/README.md) | Project plus library/model search paths |
-| <img src="quick_pi_plugin/icon.png" width="28" height="28" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) | Net, source/sink pads, voltage/current |
-| <img src="trace_impedance_plugin/icon.png" width="28" height="28" alt="Trace RLC / Impedance icon"> | [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Connected path or zone terminals and stackup |
-| <img src="signal_integrity_advisor_plugin/icon.png" width="28" height="28" alt="Quick SI icon"> | [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal path, stackup and driver/load assumptions |
-| <img src="fanout_generator_plugin/icon.png" width="28" height="28" alt="Fanout Generator icon"> | [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Footprints/pads, netclass, pattern and layer |
-| <img src="via_stitching_plugin/icon.png" width="28" height="28" alt="Via Stitching icon"> | [Via Stitching](via_stitching_plugin/ReadMe.md) | Net, layer span, region and spacing |
-| <img src="bulk_label_editor_plugin/icon.png" width="28" height="28" alt="Bulk Label Editor icon"> | [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Selected references, values or PCB text |
-| <img src="extract_pins_plugin/icon.png" width="28" height="28" alt="Pin Extractor icon"> | [Pin Extractor](extract_pins_plugin/ReadMe.md) | Board/connector scope and fields |
-| <img src="harness_workbench_plugin/icon.png" width="28" height="28" alt="Harness Workbench icon"> | [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Connector maps and explicit external wire links |
-| <img src="copper_balancer_plugin/icon.png" width="28" height="28" alt="Copper Balancer icon"> | [Copper Balancer](copper_balancer_plugin/README.md) | Saved board, region and density settings |
-| <img src="mechanical_check_plugin/icon.png" width="28" height="28" alt="Mechanical Check icon"> | [Mechanical Check](mechanical_check_plugin/README.md) | Saved board, component models and enclosure |
-| <img src="heater_designer_plugin/icon.png" width="28" height="28" alt="Heater Designer icon"> | [Heater Designer](heater_designer_plugin/ReadMe.md) | Region, geometry, material and thermal assumptions |
-| <img src="planar_magnetics_plugin/icon.png" width="28" height="28" alt="Planar Magnetics icon"> | [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Coils, magnetic equivalents, motor windings and declared material/drive inputs |
-| <img src="manufacturing_readiness_plugin/icon.png" width="28" height="28" alt="Manufacturing Readiness icon"> | [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Board, fabricator profile and release inputs |
-| <img src="protocol_constraint_composer_plugin/icon.png" width="28" height="28" alt="Constraint Studio icon"> | [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Saved board, protocol assignments, net scope and desired rules |
+| <img src="bom_studio_plugin/icon.png" width="64" height="64" alt="BOM Studio icon"> | [BOM Studio](bom_studio_plugin/README.md) | Saved schematic/project and desired fields |
+| <img src="embed_3d_plugin/icon.png" width="64" height="64" alt="Embed3D icon"> | [Embed3D](embed_3d_plugin/README.md) | Project plus library/model search paths |
+| <img src="quick_pi_plugin/icon.png" width="64" height="64" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) | Net, source/sink pads, voltage/current |
+| <img src="trace_impedance_plugin/icon.png" width="64" height="64" alt="Trace RLC / Impedance icon"> | [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Connected path or zone terminals and stackup |
+| <img src="signal_integrity_advisor_plugin/icon.png" width="64" height="64" alt="Quick SI icon"> | [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal path, stackup and driver/load assumptions |
+| <img src="fanout_generator_plugin/icon.png" width="64" height="64" alt="Fanout Generator icon"> | [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Footprints/pads, netclass, pattern and layer |
+| <img src="via_stitching_plugin/icon.png" width="64" height="64" alt="Via Stitching icon"> | [Via Stitching](via_stitching_plugin/ReadMe.md) | Net, layer span, region and spacing |
+| <img src="bulk_label_editor_plugin/icon.png" width="64" height="64" alt="Bulk Label Editor icon"> | [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Selected references, values or PCB text |
+| <img src="extract_pins_plugin/icon.png" width="64" height="64" alt="Pin Extractor icon"> | [Pin Extractor](extract_pins_plugin/ReadMe.md) | Board/connector scope and fields |
+| <img src="harness_workbench_plugin/icon.png" width="64" height="64" alt="Harness Workbench icon"> | [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Connector maps and explicit external wire links |
+| <img src="copper_balancer_plugin/icon.png" width="64" height="64" alt="Copper Balancer icon"> | [Copper Balancer](copper_balancer_plugin/README.md) | Saved board, region and density settings |
+| <img src="mechanical_check_plugin/icon.png" width="64" height="64" alt="Mechanical Check icon"> | [Mechanical Check](mechanical_check_plugin/README.md) | Saved board, component models and enclosure |
+| <img src="heater_designer_plugin/icon.png" width="64" height="64" alt="Heater Designer icon"> | [Heater Designer](heater_designer_plugin/ReadMe.md) | Region, geometry, material and thermal assumptions |
+| <img src="planar_magnetics_plugin/icon.png" width="64" height="64" alt="Planar Magnetics icon"> | [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Coils, magnetic equivalents, motor windings and declared material/drive inputs |
+| <img src="manufacturing_readiness_plugin/icon.png" width="64" height="64" alt="Manufacturing Readiness icon"> | [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Board, fabricator profile and release inputs |
+| <img src="protocol_constraint_composer_plugin/icon.png" width="64" height="64" alt="Constraint Studio icon"> | [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Saved board, protocol assignments, net scope and desired rules |
 
 ## Focused workflows, shared tools
 

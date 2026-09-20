@@ -1,6 +1,6 @@
 # WayriCAD Via Stitching
 
-<img src="icon.png" width="32" height="32" alt="WayriCAD Via Stitching icon">
+<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Via Stitching icon">
 
 ## Capabilities
 

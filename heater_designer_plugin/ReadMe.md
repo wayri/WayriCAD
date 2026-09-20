@@ -1,6 +1,6 @@
 # WayriCAD PCB / Foil Heater Designer
 
-<img src="icon.png" width="32" height="32" alt="WayriCAD PCB / Foil Heater Designer icon">
+<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD PCB / Foil Heater Designer icon">
 
 ## Capabilities
 

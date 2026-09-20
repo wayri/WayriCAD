@@ -1,6 +1,6 @@
 # WayriCAD Trace, Via and Plane RLC
 
-<img src="icon.png" width="32" height="32" alt="WayriCAD Trace RLC / Impedance Analyzer icon">
+<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Trace RLC / Impedance Analyzer icon">
 
 ## Capabilities
 
