@@ -39,7 +39,7 @@ wayricad-jobs jobset --config wayricad-jobs.json --merge fabrication.kicad_jobse
 
 Positions are zero-based; omit `--position` to append. Existing jobs, settings and destinations are preserved. The report job is inserted into every destination, including destinations with explicit job-selection lists. Review that choice in KiCad before running. Use separate configurations/jobs when different destinations require different analyses.
 
-If KiCad cannot find `wayricad-jobs`, use `--python` with the Python executable where the wheel is installed, or `--runner` with the full `wayricad-jobs` executable path. Example on Windows:
+Generated jobsets use the current Python executable directly, so its Scripts folder does not need to be on `PATH`. Install the wheel in that interpreter first. To use another environment, select `--python`, or supply `--runner` with the full `wayricad-jobs` executable path. Example on Windows:
 
 ```text
 wayricad-jobs jobset --config wayricad-jobs.json --python "C:/Tools/WayriCAD/python.exe" --output WayriCAD.kicad_jobset

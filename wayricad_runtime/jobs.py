@@ -342,9 +342,11 @@ def shell_command(argv, platform=None):
     return shlex.join(argv)
 
 
-def jobset_document(project, config_path, *, existing=None, position=None, runner='wayricad-jobs', python=None, platform=None):
+def jobset_document(project, config_path, *, existing=None, position=None, runner=None, python=None, platform=None):
     config = validate(load_json(config_path))
-    command = [python, '-m', 'wayricad_runtime.jobs'] if python else [runner]
+    if runner and python:
+        raise ValueError('Choose either --runner or --python, not both.')
+    command = [runner] if runner else [python or sys.executable, '-m', 'wayricad_runtime.jobs']
     command += ['run', str(project), '--config', str(Path(config_path).resolve()), '--keep-going']
     job = {'id': str(uuid.uuid4()), 'type': 'special_execute', 'description': config.get('name', 'WayriCAD reports'),
            'settings': {'command': shell_command(command, platform), 'ignore_exit_code': False, 'record_output': True}}
@@ -402,7 +404,7 @@ def main(argv=None):
             sub.add_argument('--output', required=True, type=Path)
             sub.add_argument('--merge', type=Path, help='Read an existing jobset and write a new copy.')
             sub.add_argument('--position', type=int, help='Zero-based insertion position; default append.')
-            sub.add_argument('--runner', default='wayricad-jobs');sub.add_argument('--python')
+            sub.add_argument('--runner');sub.add_argument('--python')
             sub.add_argument('--platform', choices=('windows','posix'))
     args = parser.parse_args(argv)
     try:

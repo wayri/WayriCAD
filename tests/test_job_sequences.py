@@ -151,6 +151,11 @@ class SequenceTests(unittest.TestCase):
         self.assertFalse(inserted['settings']['ignore_exit_code'])
         self.assertEqual(output['outputs'][0]['only'], ['first', inserted['id'], 'last'])
         self.assertEqual(output['outputs'][1]['only'], [])
+        automatic = jobs.jobset_document(self.project, self.config_path)
+        self.assertIn(sys.executable, automatic['jobs'][0]['settings']['command'])
+        self.assertIn('wayricad_runtime.jobs', automatic['jobs'][0]['settings']['command'])
+        with self.assertRaisesRegex(ValueError, 'either'):
+            jobs.jobset_document(self.project, self.config_path, runner='runner', python=sys.executable)
 
     def test_native_jobset_merge_rejects_ambiguous_ids_and_only_lists(self):
         self.config['steps'] = [self.step()];self.config_path.write_text(json.dumps(self.config))
