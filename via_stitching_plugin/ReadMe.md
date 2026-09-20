@@ -2,6 +2,23 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Via Stitching icon">
 
+## Capabilities
+
+- Preview square/staggered via grids on a chosen net with configurable spacing, diameter, drill and clearance.
+- Use uniform/density profiles, rectangular or selected-item bounds and footprint exclusions.
+- Check filled target-net copper, other-net obstacles, keepouts and board outline/cutouts before placement.
+- Review contextual geometry and rejection reasons, then apply recoverable groups with stale-preview checks.
+- Use CLI plan/apply to export JSON/SVG and write a separately reviewed board copy.
+
+## Limitations
+
+- Filled target-net zones are required by default; missing or unfilled zones fail explicitly.
+- Conservative obstacle envelopes can reject valid placements; arc previews are approximate and native DRC is still required.
+- Grids are bounded to 50,000 candidates; the tool does not establish RF shielding, return-path quality or manufacturing suitability.
+- IPC geometry coverage depends on the host API. Native KiCad 11 behavior remains unverified.
+
+## Overview
+
 A fully local routing tool for PCB Editor. No hosted UI or remote preview assets are required.
 
 ## Native interface

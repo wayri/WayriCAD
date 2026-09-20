@@ -2,6 +2,25 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Planar Magnetics &amp; Actuator Workbench icon">
 
+## Capabilities
+
+- Generate rectangular/circular planar windings with multilayer transitions, primary/secondary nets and reviewed, recoverable PCB placement.
+- Estimate winding electrical properties and reduced actuator motion; inspect dimensioned cores, B-H sweeps, reluctance, saturation and ideal-gap force.
+- Solve explicit linear axisymmetric winding fields, mutual coupling and leakage; inspect mesh, B/H and convergence evidence.
+- Compute explicit-dielectric coaxial capacitance matrices and partial single-layer PCB sidewall capacitance.
+- Synthesize logical concentrated/distributed/chorded motor windings with balanced 2–12-phase presets, EMF, ideal-current torque/force and phase-event references.
+- Run supported equivalent-circuit AC/DC and motor-mechanics transient simulations using KiCad ngspice; export project-local HTML, JSON, SPICE, CSV and plots.
+
+## Limitations
+
+- Field FEM covers explicit linear axisymmetric geometry; arbitrary STEP field meshing, nonlinear full-field and frequency-dependent eddy/core-loss extraction are not implemented.
+- Capacitance models have explicit voltage, dielectric and geometry assumptions; PCB sidewall estimates are partial, not total winding capacitance or SRF validation.
+- Motor layouts are logical connections, not manufactured stator or routed PCB geometry. Phase events are not inverter gate commands.
+- The motor winding workbench’s ideal-current transient omits winding-voltage dynamics, current control, cogging, saliency, saturation and end effects.
+- Reduced force/motion models and MEMS/NEMS presets need material, boundary and prototype validation; native DRC is still required for generated copper.
+
+## Overview
+
 Generate rectangular or circular planar windings across as many as 16 copper
 layers with series transitions, stitched vias, separate primary/secondary PCB
 nets, independently layered secondary turns, and an extensible JSON magnetic-core catalog. The workbench

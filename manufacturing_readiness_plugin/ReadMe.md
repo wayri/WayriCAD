@@ -2,6 +2,22 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Manufacturing Readiness Manager icon">
 
+## Capabilities
+
+- Audit saved track, via, pad-drill, slot and supported annular-ring geometry against a fabricator profile.
+- Capture project inputs and run local KiCad JSON DRC and a selected jobset against that snapshot.
+- Block release on failed or unknown checks and invalidate evidence when inputs or verified artifacts change.
+- Build a release ZIP with stable archive metadata and SHA-256 hashes of the verified files.
+
+## Limitations
+
+- Focused geometry/profile checks are not a complete fabrication-process, assembly or electrical qualification.
+- Clearance-profile checks do not replace native geometric DRC; unsupported annular geometry remains UNKNOWN and blocks release.
+- Via aspect ratio uses full board thickness conservatively; actual fabrication stack/process details need separate review.
+- Only jobset outputs inside the captured project copy enter the archive. Live IPC transport and KiCad 11 acceptance remain unverified.
+
+## Overview
+
 Audit a saved PCB against a fabricator profile, run local KiCad checks, and package the exact verified files with a SHA-256 manifest. The UI stays responsive while DRC and jobsets run.
 
 1. Save the PCB and its matching project in KiCad. Select its own project directory and, optionally, a jobset saved inside that directory.

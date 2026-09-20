@@ -2,6 +2,22 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Mechanical Check icon">
 
+## Capabilities
+
+- Run a quick saved-board 2D footprint-envelope overlap and XY-clearance screen without FreeCAD.
+- Use optional FreeCAD exact-solid intersection/distance checks with STEP models and enclosure geometry.
+- Review height/keepout rules, hardware and access envelopes, severity filters and reasoned waivers.
+- Inspect local geometry/conflict surfaces and export HTML, JSON or CSV through the GUI or CLI.
+
+## Limitations
+
+- Quick 2D mode is always incomplete for mechanical sign-off: it omits height, enclosure and exact solids, and can flag harmless bounding-box overlaps.
+- Exact 3D checks require FreeCAD and usable models; model gaps and unconfirmed mounting intent prevent a complete pass.
+- Hardware and assembly-access checks use conservative envelopes; static fit does not validate manufacturing processes or electrical DRC.
+- Analysis uses the saved board, not unsaved edits. Native KiCad 11 extraction remains unverified.
+
+## Overview
+
 Local, read-only board mechanical validation with actual STEP conflict surfaces and offline reports.
 
 Install the independently built WayriCAD Mechanical Check ZIP with KiCad 10 Plugin and Content Manager. The IPC action opens a native window through installed KiCad 10 Python. Save PCB edits first: launch context identifies the saved file and does not capture unsaved changes. If context is unavailable, choose a board manually.

@@ -2,6 +2,24 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD BOM Studio icon">
 
+## Capabilities
+
+- Edit component fields individually or in bulk, with grouping, reusable templates and a local desktop/browser interface.
+- Export grouped or individual BOMs with DNP/test-point filters, plus separate DNP and test-point lists.
+- Review staged changes before native source sync; save workspace settings and edits alongside the project.
+- Analyze declared component cost, mass and power, bare-PCB estimates, component families and supported saved-board areas.
+- Reuse local shared-parts catalogues and export recipient-specific assembler handoffs.
+
+## Limitations
+
+- Native KiCad exports read saved source; staged workspace edits require a workspace export or reviewed native sync.
+- Costs, masses and operating power depend on supplied fields and assumptions; missing values and mixed currencies prevent complete combined totals.
+- Area/power-density analytics are descriptive, not thermal simulation; unsupported PCB geometry remains unknown.
+- Legacy source formats can restrict native writes. New recipient templates require review against the assembler’s requirements.
+- The desktop UI needs a working WebView runtime or the local-browser fallback; native KiCad 11 acceptance remains unverified.
+
+## Overview
+
 Local BOM editing and exports for KiCad 10. The desktop window runs the bundled interface through wxPython WebView and a session-authenticated loopback server. UI assets are local; no CDN, account or cloud service is needed. Dependency installation may require internet access once.
 
 ## Install

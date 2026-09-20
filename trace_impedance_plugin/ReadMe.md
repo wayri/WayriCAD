@@ -2,6 +2,24 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Trace RLC / Impedance Analyzer icon">
 
+## Capabilities
+
+- Inspect connected trace/via/zone paths or terminal-defined filled-zone/plane corridors, with actual copper previews.
+- Identify candidate grounds and verify adjacent reference-copper coverage, or select a reference layer explicitly.
+- Estimate section DC resistance, supported transmission-line L/C/Z0, isolated via terms and plane-overlap capacitance.
+- Plot AC conductor-loss sweeps with skin-effect models, layer/section highlighting and CSV export.
+- Export read-only CLI JSON with source hashes, units, modeled sections and unresolved terms.
+
+## Limitations
+
+- Zone R/L uses an assumed current corridor, not spreading resistance; full-island C and corridor R/L are not one extracted series circuit.
+- Mixed routes do not have a single uniform Z0. Via capacitance remains unknown without antipad geometry; partial totals omit unresolved terms.
+- Arbitrary proximity, roughness, dielectric loss, full return-current distribution and connector/package effects are not solved.
+- Trace arcs and complex obstacle paths can remain unresolved; automatic search omits zone islands with more than 128 contacts.
+- Analysis follows existing layer transitions and never reroutes copper. Saved stackup/reference data and native KiCad geometry support are required.
+
+## Overview
+
 Inspect an existing connected route or a filled zone between two terminals. The local preview shows actual pads, copper, vias and filled islands. The section table records each layer transition, reference layer/net and model.
 
 ## Native analysis views

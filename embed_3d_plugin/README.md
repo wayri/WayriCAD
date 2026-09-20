@@ -2,6 +2,25 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Embed3D icon">
 
+## Capabilities
+
+- Localizes symbols, footprints, and 3D models into a project-relative folder.
+- Previews the exact files and links before applying a change.
+- Updates schematic assignments, library IDs, PCB footprint IDs, and model addresses together.
+- Writes staged, natively validated output with backups and rollback on failed publication.
+- Supports project-copy upgrades, selective embed/unbundle/relink operations, and backup restore.
+- Provides dry-run CLI localization and content manifests for managed assets.
+
+## Limitations
+
+- Local normalization and validation require KiCad 10 native Python; KiCad 11 native acceptance is unverified.
+- Source project editors must be saved and closed before localization.
+- Missing external models cannot be recreated from their filenames; complete localization requires their source folders.
+- The workflow does not collect arbitrary SPICE models, datasheets, drawings, project resources, or independent top-level sheets.
+- Native tests are opt-in, so pure-Python test results do not establish native compatibility.
+
+## Overview
+
 One native window combines Embed3D, Localizer and Portable Assets. Keep symbols, footprints and 3D models together in **`local/`**, or choose another relative project folder. The existing `embed-3d` package identifier is retained for upgrades.
 
 Install `WayriCAD-embed-3d-3.1.1-PCM.zip` using KiCad PCM **Install from File**. Enable the API in Preferences → Plugins. Local normalization and validation require KiCad 10 native Python; `WAYRICAD_KICAD_PYTHON` can select it. IPC is the forward integration path; KiCad 11 native acceptance remains unverified.

@@ -2,6 +2,23 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Bulk Label Editor icon">
 
+## Capabilities
+
+- Renames PCB text, footprint references, values, and supported fields in bulk.
+- Matches names with wildcard `*` and `?` patterns or regular expressions.
+- Uses regex capture groups for structured replacements.
+- Builds a sortable, reviewed preview before any write.
+- Records old and new values in operation history and supports KiCad undo where available.
+
+## Limitations
+
+- Operates on PCB-exposed data and does not write schematic labels.
+- Renames do not update firmware, external documentation, test scripts, or manufacturing systems.
+- Changing a rule or object scope invalidates the preview and requires regeneration.
+- Cross-session undo depends on the edited KiCad object and editor state.
+
+## Overview
+
 Bulk Label Editor performs reviewed, pattern-based renaming of supported KiCad
 objects. It is intended for channel, interface, rail, connector, and repeated
 hierarchy naming changes where manual editing would be slow or inconsistent.
@@ -45,7 +62,7 @@ scope invalidates the previous preview and requires regeneration.
 - Operation history records the old and new values.
 - The plugin does not silently rename schematic labels through the PCB API.
 
-## Limitations
+## Detailed limitations
 
 Renaming PCB references, values, or text does not automatically update firmware,
 external documentation, test scripts, schematic source data, or manufacturing

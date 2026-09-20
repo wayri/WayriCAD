@@ -2,6 +2,23 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Fanout Generator icon">
 
+## Capabilities
+
+- Generate perimeter pitch expansion, BGA/grid dogbones, 45-degree/custom-angle spreads, staggered escapes and via-in-pad placements.
+- Assign different styles, dimensions and copper layers by ordered pad, reference, net or netclass groups.
+- Use optional adaptive routing to avoid existing copper or continue a supported simple open stub.
+- Review named differential-pair escapes, shared parallel sections, escape lengths and configured gap/skew checks.
+- Preview actual board context and rejection reasons before applying recoverable groups; use CLI plan/apply with JSON and SVG.
+
+## Limitations
+
+- This generates fanout seeds, not complete autorouting or guaranteed impedance, timing or protocol compliance.
+- Adaptive routing searches a bounded candidate family; branches, loops, arcs, existing-via endpoints and same-net zone topology require manual review. Coupled pairs use fixed routing.
+- Via-in-pad needs fabricator review; through vias span F.Cu to B.Cu. Through-hole pads and pads without nets are excluded.
+- Conservative obstacle checks can reject feasible layouts; native KiCad DRC remains required. KiCad 11 live behavior is unverified.
+
+## Overview
+
 A fully local routing tool for PCB Editor. No hosted UI or remote preview assets are required.
 
 ![Current native fanout preview with via-in-pad and two escape angles](help-workflow.png)

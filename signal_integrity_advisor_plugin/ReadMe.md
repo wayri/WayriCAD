@@ -2,6 +2,24 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Quick SI icon">
 
+## Capabilities
+
+- Inspect a saved routed source-to-receiver path and screen delay, electrical length and transmission-line relevance.
+- Estimate ideal resistive endpoint reflections and series-match candidates; retain impedance/pair and I2C pull-up tools.
+- Generate illustrative PRBS7 eye and step plots for a supported uniform lossless-line model.
+- Apply 33 protocol screening profiles with explicit timing, pair/bus and reference assumptions.
+- Review return paths and test points, preview bulk test-point labels and prepare a silkscreen table.
+- Use read-only analysis CLI commands and export local HTML/JSON evidence.
+
+## Limitations
+
+- Screening is not IBIS simulation, coupled-crosstalk analysis, BER measurement or protocol compliance certification.
+- The illustrative eye omits loss, jitter/noise, branches and via discontinuities; unresolved parameters, zone routes and extra terminals can disable it.
+- Path endpoints must be on the same net; the tool does not silently bridge series components or disconnected copper.
+- Saved-board geometry and explicit source/load/stackup assumptions determine coverage. Unknown results are not passes; test-point edits require separate review.
+
+## Overview
+
 Quick SI answers a focused question: **does this routed source-to-receiver path
 need transmission-line and termination review at the entered edge rate?** It
 measures saved PCB copper, shows the route, screens delay and electrical length,

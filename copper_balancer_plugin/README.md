@@ -2,6 +2,25 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Copper Balancer icon">
 
+## Capabilities
+
+- Creates nonmutating previews for uniform thieving, local density balancing, and edge bands.
+- Offers eight fill shapes with square or hexagonal lattices.
+- Plans whole-board or manual-rectangle scopes on saved board copies.
+- Shows per-layer density maps, tile coverage, deficits, and rejected-site diagnostics.
+- Regenerates recognized CopperBalancer/WayriCADCopper fill without duplicating it.
+- Saves validated geometry only to a new output board and exposes the same planning workflow through CLI JSON.
+
+## Limitations
+
+- The PCM workflow requires a saved board, omits unsaved editor changes, and does not alter the open editor board.
+- The native geometry backend requires KiCad 10.x; KiCad 11 acceptance is unverified.
+- Density targets are ceilings, not guaranteed coverage, plating, or thermal-performance predictions.
+- Existing output files cannot be replaced; users must refill zones and run KiCad DRC on the copy.
+- Selection-bounds scope is available only through the native editor action.
+
+## Overview
+
 Local copper thieving and density balancing, integrated from CopperBalancer 0.2.0. Uses KiCad 10 native integer polygon booleans; no geometry server or remote UI assets.
 
 ![Copper preview](help-workflow.png)

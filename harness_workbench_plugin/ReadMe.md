@@ -2,6 +2,25 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Harness and Cable Workbench icon">
 
+## Capabilities
+
+- Builds a harness definition from up to 50 board pin exports and harness-only loads.
+- Matches connectors by index, offset, explicit rules, or spreadsheet-style pin maps.
+- Captures wire gauges, colors, lengths, shields, bundles, splices, and procurement data.
+- Produces sortable wire, pin, net, system-path, and procurement tables.
+- Exports CSV, SVG, and self-contained interactive HTML reports with a pan/zoom draft.
+- Joins reviewed IC/peripheral paths with harness wires across board projects.
+
+## Limitations
+
+- The workbench reads project data and does not modify PCBs.
+- Controller-map records join only when project, connector reference, and connector pin match exactly.
+- Active-device crossings require explicit Pin Extractor rules and remain conditional pending review.
+- Automatic correspondence does not establish polarity, mating orientation, electrical compatibility, ampacity, derating, or regulatory compliance.
+- Connector ratings, insulation, creepage, shielding, bend radius, assembly, and test coverage require independent verification.
+
+## Overview
+
 Builds a system-level harness definition from as many as 50 board pin exports.
 It supports indexed net matching and connector correspondence where pin 1 maps
 to pin 1, pin 2 to pin 2, and so on. Offset and explicit pin maps cover

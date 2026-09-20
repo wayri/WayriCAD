@@ -2,6 +2,23 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Constraint Studio icon">
 
+## Capabilities
+
+- Author 34 custom-constraint forms through a visual worksheet, with scope, priority, severity and linked layout inspection.
+- Build nested AND/OR/NOT conditions and assertions using object properties and supported functions, with advanced text fallback.
+- Manage clearance matrices, netclasses, reusable constraint sets and per-layer routing widths/differential gaps.
+- Stage protocol presets and retain BGA, timing, field-solver and other specialist engineering worksheets.
+- Review generated rules and file diffs, export a separate project copy, and apply through the guarded offline review workflow.
+
+## Limitations
+
+- Not every native expression has a visual control; unfamiliar or version-specific syntax may need advanced text entry.
+- Condition colours and priority traces use a conservative subset, not KiCad’s native effective-rule or DRC engine; unresolved matches stay unknown.
+- The workspace uses a saved project snapshot. Save first, review the exported copy, and close source-project editors before offline apply.
+- Preset dimensions are illustrative, not stackup-derived compliance. Native syntax checks and DRC remain necessary; full host/PCM/DPI and KiCad 11 acceptance are incomplete.
+
+## Overview
+
 Constraint Studio 0.3.1 is integrated into the existing Protocol Constraint Composer package. Its package ID stays `com.github.wayri.wayricad.protocol-constraints`; it uses the suite's IPC launcher and wx runtime. It edits a saved project snapshot, not the live board. Save the board and Board Setup before opening it.
 
 The **Constraint worksheet** uses an embedded desktop WebView with BOM Studio's visual language: scope navigation, directly editable constraint cells, priority controls, a linked layout preview and a context inspector. All 34 constraint forms can be authored from **New rule / Edit rule**. The map distinguishes condition matches, unknowns and non-matches. Select objects A and B for a conservative priority trace. Colours are not native DRC violations or effective-rule certification.

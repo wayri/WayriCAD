@@ -2,6 +2,24 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD PCB / Foil Heater Designer icon">
 
+## Capabilities
+
+- Designs series-connected serpentine, zoned-raster, and concentric-spiral copper heaters.
+- Adjusts regional trace resistance to bias local Joule heating.
+- Continues multilayer heater paths through transition vias.
+- Previews geometry and runs a steady-state 2D conduction/convection thermal model.
+- Reviews existing copper, zones, and keepouts before applying a recoverable named group.
+- Supports persistent heater-group undo after reopening the plugin.
+
+## Limitations
+
+- The thermal model is reduced-order and steady-state; it does not establish thermal performance or safety acceptance.
+- It does not solve enclosure airflow, radiation, anisotropic laminate, adhesive interfaces, attached masses, or closed-loop control dynamics.
+- Generated terminals must be connected afterward, and KiCad DRC remains the final geometry check.
+- Fabrication requires coupled-solver and physical-prototype validation of temperature, current density, materials, airflow, and control stability.
+
+## Overview
+
 Design series-connected serpentine, zoned-raster, or concentric-spiral copper
 heaters. Regional resistance factors narrow or widen the trace to bias local
 Joule heating, while multilayer mode continues the path through transition

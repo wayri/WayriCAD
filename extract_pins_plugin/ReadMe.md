@@ -2,6 +2,25 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Extract Pins icon">
 
+## Capabilities
+
+- Extracts component, pin, and net data with reference, value, and connector-type filters.
+- Exports reviewed data to CSV, Markdown, JSON, and self-contained SVG diagrams.
+- Traces signal flow, endpoint paths, controller-to-connector maps, and IC signal charts.
+- Builds power trees and programming/bring-up packages with editable classification rules.
+- Links pin documents across projects and produces tracker tables and harness-style diagrams.
+- Provides GUI and command-line workflows for board analysis and automation.
+
+## Limitations
+
+- PCB nets do not inherently encode signal direction, so endpoint traces do not claim an unverified source.
+- Controller maps cross components only through exact approved pin pairs; capacitors are excluded from safe defaults.
+- Active-device paths require explicit rules and enablement, remain conditional, and do not infer device state or electrical direction.
+- Full native hierarchical sheet coverage comes from a KiCad XML netlist; PCB-only coverage depends on saved fields.
+- Generated tables and diagrams do not replace ERC, DRC, or engineering review of ambiguous cross-board links.
+
+## Overview
+
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
 ![Version](https://img.shields.io/badge/Version-3.1.1-blue)

@@ -2,6 +2,23 @@
 
 <img src="icon.png" width="32" height="32" alt="WayriCAD Quick PI icon">
 
+## Capabilities
+
+- Analyze saved traces, filled zones, pads and plated vias using a layered 2.5D DC conduction mesh and saved copper thicknesses.
+- Select source/sink pads and voltage/current; inspect native net, mesh and per-layer result views.
+- Visualize voltage/drop, current density/flow, loss density and pulse-risk screening; separate sheet, via and component losses.
+- Define repeated series resistance/RL elements through the console or CLI, with engineering notation and console completion/history.
+- Run bounded mesh-refinement studies and reference benchmarks; export local HTML and JSON reports.
+
+## Limitations
+
+- This is DC conduction, not full 3D/AC electromagnetics or a thermal-field solve. Series inductance adds stored-energy reporting, not RL transient behavior.
+- Zones must be filled when included in the path; valid connectivity and explicit material/stackup inputs are required. Assumed via plating is not a measured property.
+- Local current-density peaks depend on mesh/contact assumptions; stable total resistance alone does not certify hotspot convergence.
+- Pulse-risk estimates omit cooling, heat spreading and fuse-opening dynamics. They are not fusing-time predictions or manufacturing sign-off.
+
+## Overview
+
 Quick PI estimates DC voltage drop and current flow through saved PCB copper. It uses the board's filled copper polygons, pads, holes, layer thicknesses and plated via barrels to build a layered finite-element conduction model. Analysis runs in a cancellable worker process and does not edit the board.
 
 ## Workflow
