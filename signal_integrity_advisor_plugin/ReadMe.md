@@ -1,5 +1,7 @@
 # WayriCAD Quick SI
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD Quick SI icon">
+
 Quick SI answers a focused question: **does this routed source-to-receiver path
 need transmission-line and termination review at the entered edge rate?** It
 measures saved PCB copper, shows the route, screens delay and electrical length,

@@ -1,5 +1,7 @@
 # WayriCAD Quick PI
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD Quick PI icon">
+
 Quick PI estimates DC voltage drop and current flow through saved PCB copper. It uses the board's filled copper polygons, pads, holes, layer thicknesses and plated via barrels to build a layered finite-element conduction model. Analysis runs in a cancellable worker process and does not edit the board.
 
 ## Workflow
@@ -161,3 +163,6 @@ Run `wayricad-pi --verify --output pi-reference-results.json` to check eight pro
 For a board path, use **More → Check mesh convergence** (3–5 levels) or add `--converge-levels 4` to the CLI solve. The viewer plots drop and peak current separately and reports conservation plus total/sheet loss stability. Two final steps must meet the selected tolerance; incomplete or unstable studies return CLI exit 3. HTML/JSON exports retain this evidence. This does not certify physical accuracy or local peak current/fusing limits.
 
 ![Mesh refinement evidence](help-convergence.png)
+
+
+Report export starts in the originating board’s project folder and proposes `<board>-quick-pi.html`; its JSON companion preserves all layers and convergence evidence.

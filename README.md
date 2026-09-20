@@ -8,11 +8,15 @@ Previously named **KiWay**, the project is now maintained as **WayriCAD** by [Wa
 
 **Use Releases for published packages. KiCad 10 is the validated target.** KiCad 11-only installations are not supported yet: several engines still need KiCad 10 native Python. See [compatibility and known limits](docs/COMPATIBILITY.md).
 
-[Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
+[Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
 
 [3.2 changes](docs/RELEASE_NOTES_3.2.0.md) · [Validation and limitations](docs/audits/RELEASE_3.2_VALIDATION.md)
 
 ## Install and open
+
+![Illustrated KiCad 10 installation workflow](docs/images/install-workflow.svg)
+
+**New to KiCad plugins?** Follow the [step-by-step GUI guide](docs/INSTALLATION.md), including ZIP installation, first launch and troubleshooting.
 
 1. In KiCad Manager, open **Plugin and Content Manager**. Add the repository URL below, select **WayriCAD Plugin Repository**, and install the tools you need.
 2. Alternatively, download an individual `WayriCAD-<tool>-<version>-PCM.zip` from Releases and use **Install from File**. Do not unpack the ZIP yourself.
@@ -25,39 +29,51 @@ https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json
 
 Initial dependency setup needs internet access or a prepared wheel cache. Once prepared, application pages, previews and project processing run locally. Some tools use a separate native KiCad runtime; [runtime setup](wayricad_runtime/RUNTIME_SETUP.md) explains overrides and offline installation.
 
-## See the workflows
+## Plugin previews
 
-### Review fanout before changing copper
+Actual application captures; select a tool title for its guide. Example values are not predictions for your board.
 
-![Fanout preview showing pads, existing copper and proposed escapes](fanout_generator_plugin/help-perimeter.png)
+<table>
+<tr>
+<td width="50%"><h3><a href="fanout_generator_plugin/ReadMe.md">Adaptive fanout</a></h3><a href="fanout_generator_plugin/help-adaptive.png"><img src="fanout_generator_plugin/help-adaptive.png" width="480" alt="Adaptive fanout native window preview"></a><p>Review pads, existing copper and proposed tracks/vias before applying.</p></td>
+<td width="50%"><h3><a href="quick_pi_plugin/README.md">Quick PI</a></h3><a href="quick_pi_plugin/help-power-rail.png"><img src="quick_pi_plugin/help-power-rail.png" width="480" alt="Quick PI native window preview"></a><p>Marble MGTAVCC at a hypothetical 1 A; a selected rail path, not a whole-board load.</p></td>
+</tr>
+<tr>
+<td width="50%"><h3><a href="signal_integrity_advisor_plugin/ReadMe.md">Quick SI</a></h3><a href="signal_integrity_advisor_plugin/help-protocols.png"><img src="signal_integrity_advisor_plugin/help-protocols.png" width="480" alt="Quick SI native window preview"></a><p>Protocol screening keeps missing models and reference coverage visible.</p></td>
+<td width="50%"><h3><a href="trace_impedance_plugin/ReadMe.md">Trace RLC</a></h3><a href="trace_impedance_plugin/help-ac-geometry.png"><img src="trace_impedance_plugin/help-ac-geometry.png" width="480" alt="Trace RLC native window preview"></a><p>Inspect the connected copper path and per-section electrical coverage.</p></td>
+</tr>
+<tr>
+<td width="50%"><h3><a href="bom_studio_plugin/README.md">BOM Studio</a></h3><a href="bom_studio_plugin/help-simple-exports.png"><img src="bom_studio_plugin/help-simple-exports.png" width="480" alt="BOM Studio native window preview"></a><p>Templates, editing, grouping and conditional BOM/DNP/test-point exports.</p></td>
+<td width="50%"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/help-axisymmetric.png"><img src="planar_magnetics_plugin/help-axisymmetric.png" width="480" alt="Magnetics native window preview"></a><p>Linear axisymmetric field and mesh preview; see the model limits.</p></td>
+</tr>
+</table>
 
-Choose scope, style and layer, preview candidate tracks/vias, inspect rejections, then apply. Per-pin/net groups can override geometry within one review. **Routing → Adaptive** preserves existing copper, continues unambiguous open stubs and searches nearby escapes. Signal-family presets suggest geometry; they do not prove high-speed channel compliance. [Fanout guide](fanout_generator_plugin/ReadMe.md).
+## All 16 plugins
 
-### Inspect power paths and losses
+Every name below opens that plugin’s README. The [full tool directory](docs/USER_GUIDE.md#tool-directory) explains inputs, outputs and write boundaries.
 
-![Quick PI native result view with layer selection and voltage-drop colour scale](quick_pi_plugin/help-results.png)
-
-Select the net and source/sink pads, inspect extracted copper and mesh, then solve local DC conduction. This saved Marble example is a small selected net, not the complete power distribution network. [Quick PI guide](quick_pi_plugin/README.md) covers zones, vias, series components and numerical limits.
-
-## Choose a tool
-
-The [user guide's tool directory](docs/USER_GUIDE.md#tool-directory) links all 16 tools and explains their inputs, outputs and write boundaries. Common starting points:
-
-| Task | Tool |
-|---|---|
-| Escape component pads; add ground stitching | [Fanout Generator](fanout_generator_plugin/ReadMe.md), [Via Stitching](via_stitching_plugin/ReadMe.md) |
-| Measure connected copper; screen power and signal paths | [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md), [Quick PI](quick_pi_plugin/README.md), [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) |
-| Stage and review design rules | [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md), including protocol presets and native DRC handoff |
-| Edit fields and export grouped/individual BOM, DNP and test-point lists | [BOM Studio](bom_studio_plugin/README.md) |
-| Check signal return paths; preview test-point names and silkscreen tables | [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) |
-| Make project libraries and models portable | [Embed3D](embed_3d_plugin/README.md) |
-| Export pins, connectivity and harness documentation | [Pin Extractor](extract_pins_plugin/ReadMe.md), [Harness Workbench](harness_workbench_plugin/ReadMe.md) |
+| Icon | Plugin and guide | Start here |
+|---|---|---|
+| <img src="bom_studio_plugin/icon.png" width="28" height="28" alt="BOM Studio icon"> | [BOM Studio](bom_studio_plugin/README.md) | Saved schematic/project and desired fields |
+| <img src="embed_3d_plugin/icon.png" width="28" height="28" alt="Embed3D icon"> | [Embed3D](embed_3d_plugin/README.md) | Project plus library/model search paths |
+| <img src="quick_pi_plugin/icon.png" width="28" height="28" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) | Net, source/sink pads, voltage/current |
+| <img src="trace_impedance_plugin/icon.png" width="28" height="28" alt="Trace RLC / Impedance icon"> | [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Connected path or zone terminals and stackup |
+| <img src="signal_integrity_advisor_plugin/icon.png" width="28" height="28" alt="Quick SI icon"> | [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal path, stackup and driver/load assumptions |
+| <img src="fanout_generator_plugin/icon.png" width="28" height="28" alt="Fanout Generator icon"> | [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Footprints/pads, netclass, pattern and layer |
+| <img src="via_stitching_plugin/icon.png" width="28" height="28" alt="Via Stitching icon"> | [Via Stitching](via_stitching_plugin/ReadMe.md) | Net, layer span, region and spacing |
+| <img src="bulk_label_editor_plugin/icon.png" width="28" height="28" alt="Bulk Label Editor icon"> | [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Selected references, values or PCB text |
+| <img src="extract_pins_plugin/icon.png" width="28" height="28" alt="Pin Extractor icon"> | [Pin Extractor](extract_pins_plugin/ReadMe.md) | Board/connector scope and fields |
+| <img src="harness_workbench_plugin/icon.png" width="28" height="28" alt="Harness Workbench icon"> | [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Connector maps and explicit external wire links |
+| <img src="copper_balancer_plugin/icon.png" width="28" height="28" alt="Copper Balancer icon"> | [Copper Balancer](copper_balancer_plugin/README.md) | Saved board, region and density settings |
+| <img src="mechanical_check_plugin/icon.png" width="28" height="28" alt="Mechanical Check icon"> | [Mechanical Check](mechanical_check_plugin/README.md) | Saved board, component models and enclosure |
+| <img src="heater_designer_plugin/icon.png" width="28" height="28" alt="Heater Designer icon"> | [Heater Designer](heater_designer_plugin/ReadMe.md) | Region, geometry, material and thermal assumptions |
+| <img src="planar_magnetics_plugin/icon.png" width="28" height="28" alt="Planar Magnetics icon"> | [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Coil geometry and material/drive assumptions |
+| <img src="manufacturing_readiness_plugin/icon.png" width="28" height="28" alt="Manufacturing Readiness icon"> | [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Board, fabricator profile and release inputs |
+| <img src="protocol_constraint_composer_plugin/icon.png" width="28" height="28" alt="Constraint Studio icon"> | [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Saved board, protocol assignments, net scope and desired rules |
 
 ## Focused workflows, shared tools
 
 BOM Studio keeps templates, cell and bulk editing, grouping, and conditional exports in three primary views. Mechanical Check retains exact solids and adds a quick 2D envelope screen without FreeCAD. Copper Balancer reports rejected sites and per-tile density deficits. Quick PI includes decoupling placement, and Quick SI includes return-path and test-point workflows. These are distinct checks inside shared tools, not claims of full electrical or mechanical certification.
-
-![BOM Studio grouped export preview with DNP and test-point filters](bom_studio_plugin/help-simple-exports.png)
 
 ## Upgrade safely
 

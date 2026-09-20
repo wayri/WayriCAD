@@ -13,6 +13,7 @@ PNG = buffer.getvalue()
 
 def test_missing_broken_and_invalid_images_are_actionable():
     assert 'illustration' in check_document('README.md', '# Tool', lambda _: b'', require_image=True)[0]
+    assert 'illustration' in check_document('README.md', '![icon](icon.png)', lambda _: PNG, require_image=True)[0]
     def missing(_):raise FileNotFoundError()
     assert 'missing local target' in check_document('README.md', '![view](missing.png)', missing)[0]
     assert 'invalid' in check_document('help.html', '<img src="bad.png">', lambda _: b'not a png')[0]
@@ -27,8 +28,11 @@ def test_titles_and_remote_links_do_not_hide_missing_local_help():
 def test_inventory_and_zip_image_validation(tmp_path):
     folder = tmp_path/'one_plugin';folder.mkdir()
     (tmp_path/'docs').mkdir();(tmp_path/'pcm').mkdir();(tmp_path/'releases').mkdir()
-    (tmp_path/'README.md').write_text('[guide](docs/USER_GUIDE.md)')
-    (tmp_path/'docs/USER_GUIDE.md').write_text('# Guide')
+    (tmp_path/'README.md').write_text('[guide](docs/USER_GUIDE.md) [tool](one_plugin/README.md) ![icon](one_plugin/icon.png)')
+    (tmp_path/'docs/USER_GUIDE.md').write_text('# Guide\n[tool](../one_plugin/README.md) ![icon](../one_plugin/icon.png)')
+    (tmp_path/'docs/INSTALLATION.md').write_text('# Install')
+    (tmp_path/'docs/PI_REFERENCE_BENCHMARKS.md').write_text('# Benchmarks')
+    (folder/'icon.png').write_bytes(PNG)
     metadata = {'identifier': 'example.one', 'name': 'WayriCAD One'}
     (folder/'metadata.json').write_text(json.dumps(metadata))
     readme = '# WayriCAD One\n![view](screen.png)\n[guide](../docs/USER_GUIDE.md)'
@@ -45,3 +49,15 @@ def test_inventory_and_zip_image_validation(tmp_path):
     (tmp_path/'retired_plugin').mkdir()
     (tmp_path/'retired_plugin/metadata.legacy.json').write_text('{}')
     assert validate(tmp_path,packages=False) == []
+
+
+def test_catalog_cannot_omit_plugin_guide_or_icon(tmp_path):
+    folder=tmp_path/'one_plugin';folder.mkdir();(tmp_path/'docs').mkdir()
+    (folder/'metadata.json').write_text(json.dumps({'identifier':'example.one','name':'WayriCAD One'}))
+    for name in ('README.md','help.html'):(folder/name).write_text('# WayriCAD One\n![view](screen.png)')
+    (folder/'screen.png').write_bytes(PNG)
+    for name in ('README.md','docs/USER_GUIDE.md','docs/INSTALLATION.md','docs/PI_REFERENCE_BENCHMARKS.md'):
+        (tmp_path/name).write_text('# Guide')
+    errors=validate(tmp_path,packages=False)
+    assert sum('missing guide link' in e for e in errors)==2
+    assert sum('missing icon' in e for e in errors)==2

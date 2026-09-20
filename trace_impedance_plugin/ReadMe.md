@@ -1,5 +1,7 @@
 # WayriCAD Trace, Via and Plane RLC
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD Trace RLC / Impedance Analyzer icon">
+
 Inspect an existing connected route or a filled zone between two terminals. The local preview shows actual pads, copper, vias and filled islands. The section table records each layer transition, reference layer/net and model.
 
 ## Native analysis views
@@ -80,3 +82,6 @@ impedance or terminated input impedance. Missing L remains unknown.
 CLI: add `--sweep-mhz 0.001 1000` to a `path` or `zone` command to include the
 same model, assumptions and points in JSON. Ordinary AC result totals now
 include via resistance, which earlier versions omitted.
+
+
+Trace measurement and AC-sweep CSV exports start in the originating board’s project folder with board-specific filenames. Export refuses a non-CSV destination for measurements.

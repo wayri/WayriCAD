@@ -1,5 +1,7 @@
 # WayriCAD Via Stitching
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD Via Stitching icon">
+
 A fully local routing tool for PCB Editor. No hosted UI or remote preview assets are required.
 
 ## Native interface

@@ -56,7 +56,7 @@ def image_valid(data, suffix):
 def check_document(label, text, read, *, require_image=False, check_links=True, name=''):
     errors = []; links, images = references(text)
     local_images = [p for url in images if (p := local_path(url))]
-    if require_image and not local_images:errors.append(f'{label}: add a local application illustration')
+    if require_image and not any(PurePosixPath(p).stem not in ('icon','icon_dark') for p in local_images):errors.append(f'{label}: add a local application illustration')
     for target in set([p for url in links if (p := local_path(url))] if check_links else local_images):
         try:data = read(target)
         except (OSError, KeyError, ValueError):
@@ -74,7 +74,7 @@ def check_document(label, text, read, *, require_image=False, check_links=True, 
 def validate(root=ROOT, packages=True):
     root = Path(root); errors = []; inventory = sorted(root.glob('*_plugin/metadata.json'))
     if not inventory:return ['No active plugin metadata found']
-    for path in [root/'README.md', root/'docs/USER_GUIDE.md']:
+    for path in [root/'README.md', root/'docs/USER_GUIDE.md', root/'docs/INSTALLATION.md', root/'docs/PI_REFERENCE_BENCHMARKS.md']:
         if not path.is_file():errors.append(f'{path}: missing document');continue
         errors += check_document(str(path), path.read_text(encoding='utf-8-sig'), lambda target, p=path: (p.parent/target).read_bytes())
     for metadata_path in inventory:
@@ -82,6 +82,13 @@ def validate(root=ROOT, packages=True):
         readmes = [p for p in folder.iterdir() if p.name.lower() == 'readme.md']
         docs = readmes + [folder/'help.html']
         if len(readmes) != 1:errors.append(f'{folder}: expected one README.md')
+        if len(readmes)==1:
+            for catalog in (root/'README.md',root/'docs/USER_GUIDE.md'):
+                links,images=references(catalog.read_text(encoding='utf-8-sig'))
+                targets={(catalog.parent/p).resolve() for url in links if (p:=local_path(url))}
+                icons={(catalog.parent/p).resolve() for url in images if (p:=local_path(url))}
+                if readmes[0].resolve() not in targets:errors.append(f'{catalog}: missing guide link for {folder.name}')
+                if (folder/'icon.png').resolve() not in icons:errors.append(f'{catalog}: missing icon for {folder.name}')
         for path in docs:
             if not path.is_file():errors.append(f'{path}: missing document');continue
             errors += check_document(str(path), path.read_text(encoding='utf-8-sig'), lambda target, p=path: (p.parent/target).read_bytes(), require_image=True, name=metadata['name'])

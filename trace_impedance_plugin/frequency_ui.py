@@ -1,13 +1,14 @@
 """Compact native AC-loss sweep and export for reviewed copper geometry."""
 import csv
 import math
+from pathlib import Path
 import wx
 from .frequency_analysis import sweep
 
 
 class FrequencyPanel(wx.Panel):
-    def __init__(self,parent):
-        super().__init__(parent);self.path=None;self.result=None;self.hover=None
+    def __init__(self,parent,board_path=None):
+        super().__init__(parent);self.board_path=Path(board_path).resolve() if board_path else None;self.path=None;self.result=None;self.hover=None
         s=wx.BoxSizer(wx.VERTICAL);controls=wx.BoxSizer(wx.HORIZONTAL)
         self.lo=wx.TextCtrl(self,value='0.001',size=(90,-1));self.hi=wx.TextCtrl(self,value='1000',size=(90,-1))
         for label,control in [('Start MHz',self.lo),('Stop MHz',self.hi)]:
@@ -74,9 +75,8 @@ class FrequencyPanel(wx.Panel):
 
     def save(self,event):
         if self.result is None:return
-        with wx.FileDialog(self,'Export AC sweep',wildcard='CSV (*.csv)|*.csv',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+        with wx.FileDialog(self,'Export AC sweep',defaultDir=str(self.board_path.parent) if self.board_path else '',defaultFile=(self.board_path.stem if self.board_path else 'WayriCAD')+'-rlc-ac.csv',wildcard='CSV (*.csv)|*.csv',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
-            from pathlib import Path
             target=Path(dialog.GetPath())
             if target.suffix.lower()!='.csv':wx.MessageBox('Choose a separate .csv report.','Export',parent=self);return
             try:

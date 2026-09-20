@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import math
 import os
+from pathlib import Path
 from typing import Any, List, Optional
 
 import pcbnew
@@ -185,7 +186,7 @@ class TraceFrame(wx.Frame):
         notebook.AddPage(result_page, "Results")
         notebook.AddPage(model_page, "RLC Model")
         from .frequency_ui import FrequencyPanel
-        self.frequency_panel=FrequencyPanel(notebook)
+        self.frequency_panel=FrequencyPanel(notebook,self.board.GetFileName())
         notebook.AddPage(self.frequency_panel,"AC loss sweep")
         notebook.AddPage(stackup_page, "Board Stackup")
         notebook.AddPage(notes_page, "Engineering Notes")
@@ -498,11 +499,18 @@ class TraceFrame(wx.Frame):
     def export_csv(self, _event: Any) -> None:
         if not self.current:
             wx.MessageBox("Analyze copper first.", "WayriCAD", wx.OK | wx.ICON_INFORMATION); return
-        with wx.FileDialog(self, "Export trace measurement", wildcard="CSV files (*.csv)|*.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
+        source=Path(self.board.GetFileName()).resolve()
+        with wx.FileDialog(self, "Export trace measurement", defaultDir=str(source.parent), defaultFile=source.stem+"-trace-rlc.csv", wildcard="CSV files (*.csv)|*.csv", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal() != wx.ID_OK: return
+            target=Path(dialog.GetPath()).resolve()
+            if target==source or target.suffix.lower()!=".csv":
+                wx.MessageBox("Choose a separate .csv report.", "Export", parent=self); return
             row = self.current.as_dict()
-            with open(dialog.GetPath(), "w", newline="", encoding="utf-8") as handle:
-                writer = csv.DictWriter(handle, fieldnames=list(row)); writer.writeheader(); writer.writerow(row)
+            try:
+                with target.open("w", newline="", encoding="utf-8") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=list(row)); writer.writeheader(); writer.writerow(row)
+            except OSError as exc:
+                wx.MessageBox(str(exc), "Export failed", parent=self); return
             self.workflow.set_step(3, "Validate critical results with a field solver or measurement before release.")
 
 

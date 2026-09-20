@@ -1,5 +1,7 @@
 # WayriCAD Fanout Generator
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD Fanout Generator icon">
+
 A fully local routing tool for PCB Editor. No hosted UI or remote preview assets are required.
 
 ![Current native fanout preview with via-in-pad and two escape angles](help-workflow.png)

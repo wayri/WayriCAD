@@ -24,3 +24,5 @@ Magnetic field FEM supports the explicit axisymmetric linear geometry only. Impo
 The known KiCad 10 Windows shared-TEMP IPC collision still requires distinct editor temporary namespaces where it occurs; `tools/open_kicad.py` provides that workaround. Windows native checks do not establish native macOS/Linux or KiCad 11 compatibility.
 
 - **PI verification:** eight analytical/reference cases, automated fixed-input refinement, native convergence plots and exported evidence. Marble's four-mesh 1% study correctly remains NOT_STABLE; local peak current is not certified. [Methods and references](https://github.com/wayri/WayriCAD/blob/develop/docs/PI_REFERENCE_BENCHMARKS.md).
+
+- **Installation and documentation:** illustrated PCM/ZIP guide, six native workflow previews, all 16 plugin icons and direct README links, separate CLI-wheel instructions, and project-folder defaults for PI/RLC exports.

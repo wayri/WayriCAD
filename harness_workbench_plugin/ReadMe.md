@@ -1,4 +1,6 @@
-# WayriCAD Harness and Cable Workbench 3.1.1
+# WayriCAD Harness and Cable Workbench
+
+<img src="icon.png" width="32" height="32" alt="WayriCAD Harness and Cable Workbench icon">
 
 Builds a system-level harness definition from as many as 50 board pin exports.
 It supports indexed net matching and connector correspondence where pin 1 maps

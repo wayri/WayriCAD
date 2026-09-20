@@ -441,7 +441,7 @@ class QuickPIFrame(wx.Frame):
 
     def on_export(self,event=None):
         if not self.bundle.get('result'):return
-        with wx.FileDialog(self,'Export self-contained results',defaultFile='WayriCAD-Quick-PI.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+        with wx.FileDialog(self,'Export self-contained results',defaultDir=str(Path(self.board_path).parent),defaultFile=Path(self.board_path).stem+'-quick-pi.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             path=dialog.GetPath()
         selected=self.layer.GetSelection();layer=self._layers[selected]['id'] if selected>=0 else None

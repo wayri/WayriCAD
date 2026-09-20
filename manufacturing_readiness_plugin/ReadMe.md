@@ -1,5 +1,7 @@
 # WayriCAD Manufacturing Readiness Manager
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD Manufacturing Readiness Manager icon">
+
 Audit a saved PCB against a fabricator profile, run local KiCad checks, and package the exact verified files with a SHA-256 manifest. The UI stays responsive while DRC and jobsets run.
 
 1. Save the PCB and its matching project in KiCad. Select its own project directory and, optionally, a jobset saved inside that directory.

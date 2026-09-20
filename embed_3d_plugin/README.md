@@ -1,4 +1,6 @@
-# WayriCAD Embed3D 3.1.1
+# WayriCAD Embed3D
+
+<img src="icon.png" width="32" height="32" alt="WayriCAD Embed3D icon">
 
 One native window combines Embed3D, Localizer and Portable Assets. Keep symbols, footprints and 3D models together in **`local/`**, or choose another relative project folder. The existing `embed-3d` package identifier is retained for upgrades.
 

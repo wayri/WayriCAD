@@ -1,4 +1,6 @@
-# WayriCAD Bulk Label Editor 3.1.1
+# WayriCAD Bulk Label Editor
+
+<img src="icon.png" width="32" height="32" alt="WayriCAD Bulk Label Editor icon">
 
 Bulk Label Editor performs reviewed, pattern-based renaming of supported KiCad
 objects. It is intended for channel, interface, rail, connector, and repeated

@@ -1,5 +1,7 @@
 # WayriCAD Copper Balancer
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD Copper Balancer icon">
+
 Local copper thieving and density balancing, integrated from CopperBalancer 0.2.0. Uses KiCad 10 native integer polygon booleans; no geometry server or remote UI assets.
 
 ![Copper preview](help-workflow.png)

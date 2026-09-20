@@ -1,5 +1,7 @@
 # WayriCAD Extract Pins Plugin
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD Extract Pins icon">
+
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
 ![Version](https://img.shields.io/badge/Version-3.1.1-blue)

@@ -1,5 +1,7 @@
 # WayriCAD Mechanical Check
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD Mechanical Check icon">
+
 Local, read-only board mechanical validation with actual STEP conflict surfaces and offline reports.
 
 Install the independently built WayriCAD Mechanical Check ZIP with KiCad 10 Plugin and Content Manager. The IPC action opens a native window through installed KiCad 10 Python. Save PCB edits first: launch context identifies the saved file and does not capture unsaved changes. If context is unavailable, choose a board manually.

@@ -1,10 +1,12 @@
 # WayriCAD user guide
 
-[Install](#install-and-first-launch) · [Choose a tool](#tool-directory) · [Routing](#routing-review) · [Electrical analysis](#electrical-analysis) · [BOM and libraries](#bom-and-project-libraries) · [Troubleshooting](TROUBLESHOOTING.md) · [CLI](CLI_USER_GUIDE.md)
+[Install](INSTALLATION.md) · [Choose a tool](#tool-directory) · [Routing](#routing-review) · [Electrical analysis](#electrical-analysis) · [BOM and libraries](#bom-and-project-libraries) · [Troubleshooting](TROUBLESHOOTING.md) · [CLI](CLI_USER_GUIDE.md)
 
 This guide describes the 16-tool 3.2.0 development suite; published releases may contain the earlier inventory. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
 
 ## Install and first launch
+
+[Step-by-step installation guide](INSTALLATION.md) · [Visual installation map](images/install-workflow.svg)
 
 1. Open **KiCad Manager → Plugin and Content Manager** and add:
 
@@ -25,24 +27,24 @@ Help is also shipped inside each package as `help.html`, with local images. Use 
 
 Select the linked name for detailed instructions. “Review” below means that the output still needs engineering assessment; it is not a manufacturing or electrical sign-off.
 
-| Tool | Start with | Result and write boundary |
-|---|---|---|
-| [BOM Studio](../bom_studio_plugin/README.md) | Saved schematic/project and desired fields | Review staged component data, export purchasing/assembly BOMs; native writes require a reviewed operation |
-| [Embed3D](../embed_3d_plugin/README.md) | Project plus library/model search paths | Preview then copy/relink symbols, footprints and models with backups |
-| [Quick PI](../quick_pi_plugin/README.md) | Net, source/sink pads, voltage/current | Read-only layered DC mesh, fields, losses and risk screening; integrated decoupling placement review; export reports |
-| [Trace RLC / Impedance](../trace_impedance_plugin/ReadMe.md) | Connected path or zone terminals and stackup | Read-only trace/via/zone/plane estimates; unknown assumptions stay explicit |
-| [Quick SI](../signal_integrity_advisor_plugin/ReadMe.md) | Signal path, stackup and driver/load assumptions | Delay/reflection/eye screening, return-path review and test-point lists; explicit reviewed test-point silkscreen writes; not a full channel solver |
-| [Fanout Generator](../fanout_generator_plugin/ReadMe.md) | Footprints/pads, netclass, pattern and layer | Preview candidate escapes/vias, then explicitly apply copper |
-| [Via Stitching](../via_stitching_plugin/ReadMe.md) | Net, layer span, region and spacing | Preview accepted/rejected vias, then explicitly apply |
-| [Bulk Label Editor](../bulk_label_editor_plugin/ReadMe.md) | Selected references, values or PCB text | Review and apply edits with undo/redo |
-| [Pin Extractor](../extract_pins_plugin/ReadMe.md) | Board/connector scope and fields | Extract pin tables, connectivity diagrams and document exports |
-| [Harness Workbench](../harness_workbench_plugin/ReadMe.md) | Connector maps and explicit external wire links | Validate and export harness documentation; board connectivity alone cannot infer external wiring |
-| [Copper Balancer](../copper_balancer_plugin/README.md) | Saved board, region and density settings | Preview copper thieving, density deficits and rejection counts; save an explicit board copy |
-| [Mechanical Check](../mechanical_check_plugin/README.md) | Saved board, component models and enclosure | Quick 2D footprint-envelope screen without FreeCAD; exact-solid checks use FreeCAD; unknown 3D coverage never passes |
-| [Heater Designer](../heater_designer_plugin/ReadMe.md) | Region, geometry, material and thermal assumptions | Heater geometry and estimates; review before placement/application |
-| [Planar Magnetics](../planar_magnetics_plugin/ReadMe.md) | Coil geometry and material/drive assumptions | Coil/actuator geometry and estimates; generated copper needs review |
-| [Manufacturing Readiness](../manufacturing_readiness_plugin/ReadMe.md) | Board, fabricator profile and release inputs | Check reports and explicit DRC/jobset/release operations |
-| [Constraint Studio](../protocol_constraint_composer_plugin/ReadMe.md) | Saved board, protocol assignments, net scope and desired rules | Stage rules/project settings, review diffs, export a separate bundle and validate with native DRC; offline apply requires closed editors and source-hash checks |
+| Icon | Tool and detailed guide | Start with | Result and write boundary |
+|---|---|---|---|
+| <img src="../bom_studio_plugin/icon.png" width="28" height="28" alt="BOM Studio icon"> | [BOM Studio](../bom_studio_plugin/README.md) | Saved schematic/project and desired fields | Review staged component data, export purchasing/assembly BOMs; native writes require a reviewed operation |
+| <img src="../embed_3d_plugin/icon.png" width="28" height="28" alt="Embed3D icon"> | [Embed3D](../embed_3d_plugin/README.md) | Project plus library/model search paths | Preview then copy/relink symbols, footprints and models with backups |
+| <img src="../quick_pi_plugin/icon.png" width="28" height="28" alt="Quick PI icon"> | [Quick PI](../quick_pi_plugin/README.md) | Net, source/sink pads, voltage/current | Read-only layered DC mesh, fields, losses and risk screening; integrated decoupling placement review; export reports |
+| <img src="../trace_impedance_plugin/icon.png" width="28" height="28" alt="Trace RLC / Impedance icon"> | [Trace RLC / Impedance](../trace_impedance_plugin/ReadMe.md) | Connected path or zone terminals and stackup | Read-only trace/via/zone/plane estimates; unknown assumptions stay explicit |
+| <img src="../signal_integrity_advisor_plugin/icon.png" width="28" height="28" alt="Quick SI icon"> | [Quick SI](../signal_integrity_advisor_plugin/ReadMe.md) | Signal path, stackup and driver/load assumptions | Delay/reflection/eye screening, return-path review and test-point lists; explicit reviewed test-point silkscreen writes; not a full channel solver |
+| <img src="../fanout_generator_plugin/icon.png" width="28" height="28" alt="Fanout Generator icon"> | [Fanout Generator](../fanout_generator_plugin/ReadMe.md) | Footprints/pads, netclass, pattern and layer | Preview candidate escapes/vias, then explicitly apply copper |
+| <img src="../via_stitching_plugin/icon.png" width="28" height="28" alt="Via Stitching icon"> | [Via Stitching](../via_stitching_plugin/ReadMe.md) | Net, layer span, region and spacing | Preview accepted/rejected vias, then explicitly apply |
+| <img src="../bulk_label_editor_plugin/icon.png" width="28" height="28" alt="Bulk Label Editor icon"> | [Bulk Label Editor](../bulk_label_editor_plugin/ReadMe.md) | Selected references, values or PCB text | Review and apply edits with undo/redo |
+| <img src="../extract_pins_plugin/icon.png" width="28" height="28" alt="Pin Extractor icon"> | [Pin Extractor](../extract_pins_plugin/ReadMe.md) | Board/connector scope and fields | Extract pin tables, connectivity diagrams and document exports |
+| <img src="../harness_workbench_plugin/icon.png" width="28" height="28" alt="Harness Workbench icon"> | [Harness Workbench](../harness_workbench_plugin/ReadMe.md) | Connector maps and explicit external wire links | Validate and export harness documentation; board connectivity alone cannot infer external wiring |
+| <img src="../copper_balancer_plugin/icon.png" width="28" height="28" alt="Copper Balancer icon"> | [Copper Balancer](../copper_balancer_plugin/README.md) | Saved board, region and density settings | Preview copper thieving, density deficits and rejection counts; save an explicit board copy |
+| <img src="../mechanical_check_plugin/icon.png" width="28" height="28" alt="Mechanical Check icon"> | [Mechanical Check](../mechanical_check_plugin/README.md) | Saved board, component models and enclosure | Quick 2D footprint-envelope screen without FreeCAD; exact-solid checks use FreeCAD; unknown 3D coverage never passes |
+| <img src="../heater_designer_plugin/icon.png" width="28" height="28" alt="Heater Designer icon"> | [Heater Designer](../heater_designer_plugin/ReadMe.md) | Region, geometry, material and thermal assumptions | Heater geometry and estimates; review before placement/application |
+| <img src="../planar_magnetics_plugin/icon.png" width="28" height="28" alt="Planar Magnetics icon"> | [Planar Magnetics](../planar_magnetics_plugin/ReadMe.md) | Coil geometry and material/drive assumptions | Coil/actuator geometry and estimates; generated copper needs review |
+| <img src="../manufacturing_readiness_plugin/icon.png" width="28" height="28" alt="Manufacturing Readiness icon"> | [Manufacturing Readiness](../manufacturing_readiness_plugin/ReadMe.md) | Board, fabricator profile and release inputs | Check reports and explicit DRC/jobset/release operations |
+| <img src="../protocol_constraint_composer_plugin/icon.png" width="28" height="28" alt="Constraint Studio icon"> | [Constraint Studio](../protocol_constraint_composer_plugin/ReadMe.md) | Saved board, protocol assignments, net scope and desired rules | Stage rules/project settings, review diffs, export a separate bundle and validate with native DRC; offline apply requires closed editors and source-hash checks |
 
 ## Routing review
 

@@ -1,4 +1,6 @@
-# WayriCAD Constraint Studio 3.1.1
+# WayriCAD Constraint Studio
+
+<img src="icon.png" width="32" height="32" alt="WayriCAD Constraint Studio icon">
 
 Constraint Studio 0.3.1 is integrated into the existing Protocol Constraint Composer package. Its package ID stays `com.github.wayri.wayricad.protocol-constraints`; it uses the suite's IPC launcher and wx runtime. It edits a saved project snapshot, not the live board. Save the board and Board Setup before opening it.
 

@@ -1,4 +1,6 @@
-# WayriCAD BOM Studio 3.1.1
+# WayriCAD BOM Studio
+
+<img src="icon.png" width="32" height="32" alt="WayriCAD BOM Studio icon">
 
 Local BOM editing and exports for KiCad 10. The desktop window runs the bundled interface through wxPython WebView and a session-authenticated loopback server. UI assets are local; no CDN, account or cloud service is needed. Dependency installation may require internet access once.
 

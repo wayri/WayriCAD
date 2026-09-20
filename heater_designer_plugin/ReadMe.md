@@ -1,5 +1,7 @@
 # WayriCAD PCB / Foil Heater Designer
 
+<img src="icon.png" width="32" height="32" alt="WayriCAD PCB / Foil Heater Designer icon">
+
 Design series-connected serpentine, zoned-raster, or concentric-spiral copper
 heaters. Regional resistance factors narrow or widen the trace to bias local
 Joule heating, while multilayer mode continues the path through transition
