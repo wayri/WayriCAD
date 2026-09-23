@@ -85,8 +85,8 @@ def number(value, label, allow_zero=False):
     return value
 
 
-def cross_section(w, row):
-    """Validate reference ordering, return physical dielectric spans without averaging Dk."""
+def native_layer_references(w, row):
+    """Allow the layer/reference combinations KiCad can store in a profile."""
     layers = stackup(w)
     copper = [r['name'] for r in layers if r['name'].endswith('.Cu')]
     signal, bottom, top = (str(row.get(k, '')) for k in ('signal_layer', 'bottom_reference_layer', 'top_reference_layer'))
@@ -94,6 +94,12 @@ def cross_section(w, row):
         raise ValueError('Select signal and reference copper layers from the saved physical stackup')
     if signal == bottom or top and len({signal, bottom, top}) != 3:
         raise ValueError('Signal and reference layers must be different')
+    return layers, copper, signal, bottom, top
+
+
+def cross_section(w, row):
+    """Validate the smaller set handled by our screening estimator."""
+    layers, copper, signal, bottom, top = native_layer_references(w, row)
     si = copper.index(signal)
     if top and not copper.index(top) < si < copper.index(bottom):
         raise ValueError('Stripline requires the top reference above and bottom reference below the signal')
@@ -212,7 +218,7 @@ def install(w, data):
     def limits(value):
         return {k: f'{v:.6f}mm' for k,v in [('min',value*(1-tolerance/100)),('opt',value),('max',value*(1+tolerance/100))]}
     for row in rows:
-        cross_section(w, row)
+        native_layer_references(w, row)
         layer = row['signal_layer']
         if layer in seen: raise ValueError('A signal layer may appear only once')
         seen.add(layer)

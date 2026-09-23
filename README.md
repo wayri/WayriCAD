@@ -2,15 +2,15 @@
 
 **WayriCAD** is an open-source suite of **16 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes fanout routing, via stitching, trace impedance and RLC analysis, power integrity and signal integrity checks, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
 
-Previously named **KiWay**, the project is now maintained as **WayriCAD** by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
+**WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current suite: 3.3.0 · [GPL-3.0 license](LICENSE).**
+**Development suite: 3.4.0 release candidate · current published release: 3.3.0 · [GPL-3.0 license](LICENSE).**
 
 **Use Releases for published packages. KiCad 10 is the validated target.** KiCad 11-only installations are not supported yet: several engines still need KiCad 10 native Python. See [compatibility and known limits](docs/COMPATIBILITY.md).
 
 [Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
 
-[3.3 jobset automation](docs/RELEASE_NOTES_3.3.0.md) · [3.2.1 privacy update](docs/RELEASE_NOTES_3.2.1.md) · [3.2 changes](docs/RELEASE_NOTES_3.2.0.md) · [Validation and limitations](docs/audits/RELEASE_3.2_VALIDATION.md)
+[3.4 release candidate notes](docs/RELEASE_NOTES_3.4.0.md) · [3.3 jobset automation](docs/RELEASE_NOTES_3.3.0.md) · [3.2.1 privacy update](docs/RELEASE_NOTES_3.2.1.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
 
 ## Install and open
 
@@ -21,7 +21,7 @@ Previously named **KiWay**, the project is now maintained as **WayriCAD** by [Wa
 1. In KiCad Manager, open **Plugin and Content Manager**. Add the repository URL below, select **WayriCAD Plugin Repository**, and install the tools you need.
 2. Alternatively, download an individual `WayriCAD-<tool>-<version>-PCM.zip` from Releases and use **Install from File**. Do not unpack the ZIP yourself.
 3. In **Preferences → Plugins**, enable the API and configure Python. Let KiCad finish preparing each plugin environment, then restart the PCB Editor.
-4. Open and save your board/project, then launch the tool from the PCB Editor. Toolbar launches use the originating project; standalone launches may need a file selection.
+4. Open and save your board/project, then launch a WayriCAD action from **Tools → External Plugins** or the **PCB Editor's top toolbar**. The KiCad 10 packages include lightweight menu launchers alongside their IPC toolbar actions. Maximize the editor if the toolbar is crowded; use **Preferences → PCB Editor → Plugins** to show or hide individual buttons. Toolbar launches use the originating project; standalone launches may need a file selection.
 
 ```text
 https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json
@@ -101,8 +101,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --clean-feed --release-tag 3.3.0 --branch develop
-python tools/validate_packages.py
+python build_pcm.py --output-dir .validation/candidate-pcm-3.4.0
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.4.0
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.

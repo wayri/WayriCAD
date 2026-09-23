@@ -7,22 +7,21 @@ from .analysis import BoardMetrics,FabricatorProfile,audit_metrics,build_release
 from .verification import capture_inputs,VerificationSnapshot,find_cli,drc_evidence
 from .guided_ui import add_workflow, mark_primary
 
-VERSION="3.3.0"
-STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","FAIL":"#e34a43","INFO":"#3399cc"}
+VERSION="3.4.0"
+STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","FAIL":"#e34a43","UNKNOWN":"#d4a62a","INFO":"#3399cc"}
 
 class ReadinessMeter(wx.Panel):
     """Native text status keeps the audit table central."""
     def __init__(self,parent):
-        super().__init__(parent);self.counts={"PASS":0,"WARN":0,"FAIL":0};self.total=0
+        super().__init__(parent);self.counts={"PASS":0,"WARN":0,"FAIL":0,"UNKNOWN":0};self.total=0
         row=wx.BoxSizer(wx.HORIZONTAL);self.label=wx.StaticText(self,label='No audit yet')
         row.Add(self.label,0,wx.ALIGN_CENTER_VERTICAL|wx.ALL,6);self.SetSizer(row)
     def update(self,checks):
-        self.counts={"PASS":0,"WARN":0,"FAIL":0};self.total=len(checks)
+        self.counts={"PASS":0,"WARN":0,"FAIL":0,"UNKNOWN":0};self.total=len(checks)
         for c in checks:
-            key=c.status.upper()[:4]
-            for name in self.counts:
-                if key.startswith(name[:4].lower()) or key==name:self.counts[name]+=1;break
-        self.label.SetLabel(f"{self.counts['PASS']} passed · {self.counts['FAIL']} failed · {self.counts['WARN']} warnings")
+            key=c.status.upper()
+            if key in self.counts:self.counts[key]+=1
+        self.label.SetLabel(f"{self.counts['PASS']} passed · {self.counts['FAIL']} failed · {self.counts['UNKNOWN']} unknown")
         self.Layout()
 
 
@@ -41,6 +40,7 @@ class ManufacturingReadinessPlugin(pcbnew.ActionPlugin):
 class ManufacturingFrame(wx.Frame):
     def __init__(self,parent,board):
         super().__init__(parent,title="WayriCAD Manufacturing Readiness Manager",size=(1200,820))
+        self.SetIcon(wx.Icon(str(Path(__file__).with_name("resources") / "icon-48.png"), wx.BITMAP_TYPE_PNG))
         self.board=board;self.profile=FabricatorProfile();self.checks=[];self.snapshot=None
         self.busy=False;self.closing=False;self.process=None
         self._build();self.Centre();self.Bind(wx.EVT_CLOSE,self.on_close)
@@ -63,7 +63,7 @@ class ManufacturingFrame(wx.Frame):
         root.Add(self.tabs,1,wx.EXPAND|wx.ALL,8);p.SetSizer(root)
     def profile_page(self,parent):
         p=wx.Panel(parent);r=wx.BoxSizer(wx.VERTICAL);g=wx.FlexGridSizer(0,2,7,10);g.AddGrowableCol(1,1);self.fields={}
-        for label,key,value in (("Profile name","name",self.profile.name),("Minimum track (mm)","minimum_track_mm",str(self.profile.minimum_track_mm)),("Minimum clearance (mm)","minimum_clearance_mm",str(self.profile.minimum_clearance_mm)),("Minimum drill (mm)","minimum_drill_mm",str(self.profile.minimum_drill_mm)),("Minimum annular ring (mm)","minimum_annular_ring_mm",str(self.profile.minimum_annular_ring_mm)),("Maximum via aspect ratio","maximum_via_aspect_ratio",str(self.profile.maximum_via_aspect_ratio)),("Maximum copper layers","maximum_layers",str(self.profile.maximum_layers))):c=wx.TextCtrl(p,value=value);self.fields[key]=c;g.Add(wx.StaticText(p,label=label));g.Add(c,1,wx.EXPAND)
+        for label,key,value in (("Profile name","name",self.profile.name),("Minimum track (mm)","minimum_track_mm",str(self.profile.minimum_track_mm)),("Minimum clearance (mm)","minimum_clearance_mm",str(self.profile.minimum_clearance_mm)),("Routed copper to edge (mm)","minimum_routed_edge_mm",str(self.profile.minimum_routed_edge_mm)),("Minimum drill (mm)","minimum_drill_mm",str(self.profile.minimum_drill_mm)),("Minimum annular ring (mm)","minimum_annular_ring_mm",str(self.profile.minimum_annular_ring_mm)),("Maximum via aspect ratio","maximum_via_aspect_ratio",str(self.profile.maximum_via_aspect_ratio)),("Maximum copper layers","maximum_layers",str(self.profile.maximum_layers))):c=wx.TextCtrl(p,value=value);self.fields[key]=c;g.Add(wx.StaticText(p,label=label));g.Add(c,1,wx.EXPAND)
         r.Add(g,0,wx.EXPAND|wx.ALL,14);buttons=wx.BoxSizer(wx.HORIZONTAL);load=wx.Button(p,label="Load Profile JSON…");load.Bind(wx.EVT_BUTTON,self.load);save=wx.Button(p,label="Save Profile JSON…");save.Bind(wx.EVT_BUTTON,self.save);buttons.Add(load,0,wx.RIGHT,8);buttons.Add(save);r.Add(buttons,0,wx.ALL,14);p.SetSizer(r);return p
     def audit_page(self,parent):
         p=wx.Panel(parent);r=wx.BoxSizer(wx.VERTICAL)
@@ -86,7 +86,7 @@ class ManufacturingFrame(wx.Frame):
         p=wx.Panel(parent);r=wx.BoxSizer(wx.VERTICAL);self.project=wx.TextCtrl(p,value=str(Path(self.board.GetFileName()).parent if self.board.GetFileName() else ""));self.jobset=wx.TextCtrl(p);g=wx.FlexGridSizer(2,3,7,8);g.AddGrowableCol(1,1);g.Add(wx.StaticText(p,label="Project directory"));g.Add(self.project,1,wx.EXPAND);g.Add(wx.StaticText(p,label=""));g.Add(wx.StaticText(p,label="Optional .kicad_jobset"));g.Add(self.jobset,1,wx.EXPAND);browse=wx.Button(p,label="Browse…");browse.Bind(wx.EVT_BUTTON,self.pick_jobset);g.Add(browse);r.Add(g,0,wx.EXPAND|wx.ALL,10)
         self.log=wx.TextCtrl(p,style=wx.TE_MULTILINE|wx.TE_READONLY);r.Add(self.log,1,wx.EXPAND|wx.ALL,10);p.SetSizer(r);return p
     def current_profile(self):
-        f=self.fields;return FabricatorProfile(f['name'].GetValue(),float(f['minimum_track_mm'].GetValue()),float(f['minimum_clearance_mm'].GetValue()),float(f['minimum_drill_mm'].GetValue()),float(f['minimum_annular_ring_mm'].GetValue()),float(f['maximum_via_aspect_ratio'].GetValue()),int(f['maximum_layers'].GetValue()))
+        f=self.fields;return FabricatorProfile(f['name'].GetValue(),float(f['minimum_track_mm'].GetValue()),float(f['minimum_clearance_mm'].GetValue()),float(f['minimum_drill_mm'].GetValue()),float(f['minimum_annular_ring_mm'].GetValue()),float(f['maximum_via_aspect_ratio'].GetValue()),int(f['maximum_layers'].GetValue()),float(f['minimum_routed_edge_mm'].GetValue()))
     def load(self,_e):
         with wx.FileDialog(self,"Load profile",wildcard="JSON (*.json)|*.json",style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as d:
             if d.ShowModal()!=wx.ID_OK:return
@@ -152,7 +152,7 @@ class ManufacturingFrame(wx.Frame):
             self.meter.update(self.checks)
         except Exception as exc:wx.MessageBox(str(exc),"Audit failed",wx.OK|wx.ICON_ERROR)
         else:
-            self.log.AppendText('Captured saved inputs. Via metrics use saved sizes; aspect ratio conservatively uses full board thickness. Clearance is the saved minimum rule; DRC verifies actual geometry.\n')
+            self.log.AppendText('Captured saved inputs. Via aspect ratio uses full board thickness. Copper clearance checks the saved rule; routed copper-to-edge uses supported saved outline/track/via geometry. DRC verifies the full board.\n')
             self.guide.set_step(1,"Review the saved-design audit, then run DRC followed by the selected jobset.")
         finally:self.refresh_actions()
     def pick_jobset(self,_e):

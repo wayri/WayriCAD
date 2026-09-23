@@ -7,16 +7,21 @@ not remain open. This is persistent setup, not a background routing hook.
 ## Setup and routing
 
 1. Configure and save the actual physical stackup in KiCad Board Setup.
-2. Create a named instance such as CAN1, CAN2, Ethernet1 TX or DDR1 Data. Select
+2. Create a named instance such as CAN1, CAN2, Ethernet1 TX or DDR1 Data. Each
+   saved instance has its own tab; switch tabs to review its nets and dimensions. Select
    its protocol family and exact nets using checkboxes, search and Select visible.
    One net or a group is supported. Existing-netclass scope remains available.
    Differential routing requires
    KiCad-recognized pair naming; a protocol label alone does not establish a pair.
 3. Open **Layer routing profiles** in Studio. Select the instance's signal type,
    target impedance and geometry tolerance. Add each permitted signal layer.
-4. Select adjacent reference planes. Outer layers use one reference; internal
-   layers use references above and below. Enter fabricator/field-solver width and
-   gap values, or estimate a width while keeping the pair gap fixed.
+4. Select the actual continuous reference plane(s). Outer layers commonly use one;
+   internal layers commonly use references above and below. Verified values can
+   use other valid stackups, including one-sided internal references. Enter
+   fabricator/field-solver width and gap values, or estimate a width while
+   keeping the pair gap fixed where the approximation supports the geometry.
+   The per-layer preview shows vertical trace/pair copper at a common scale;
+   Trace, Pair and Trace + pair modes update as dimensions are edited.
 5. Review reference-plane continuity and layer-transition return paths, then
    stage and export. Close the source project before applying the review with
    its bundled Apply Review utility. Reopen the project in KiCad.
@@ -65,6 +70,10 @@ fixed-gap differential coupling. It rejects mixed dielectrics, composite
 sublayers, asymmetric stripline, intervening copper and dimensions outside its
 screening range. Verified external dimensions may be entered for asymmetric or
 mixed-dielectric cross-sections with supported stackup representation.
+The native profile accepts manually verified dimensions for any distinct signal
+and reference copper layers in the saved stackup, including intervening copper
+and one-sided internal references. The approximation still rejects unsupported
+cross-sections; the preview is a geometry illustration, not an impedance solver.
 
 The estimate excludes mask, roughness, weave, dispersion, plane voids and via
 discontinuities. It is not a field-solver or fabricator sign-off. Geometry

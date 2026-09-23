@@ -23,9 +23,11 @@ body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;pad
 <li>Optionally enter comma-separated reference patterns such as <code>J*, U1, P?</code>, net patterns such as <code>CAN_*, 28V*</code>, and a value pattern.</li>
 <li>Choose whether to hide unconnected pins or power/ground nets, then click <b>Preview Extraction</b>.</li>
 <li>Double-click a preview row to select its footprint and highlight its net on the PCB.</li>
-<li>Click <b>Export Preview...</b> and choose CSV or Markdown. Export uses the exact reviewed data, not a new implicit selection.</li>
+<li>Click <b>View connector tables</b> to see labelled pin rows and the nets shared by multiple extracted components. The embedded summary is a native preview; export interactive HTML to click nets and highlight matching rows in the full report.</li>
+<li>Click <b>Export Preview...</b> and choose interactive HTML, CSV, or Markdown. Export uses the exact reviewed data, not a new implicit selection. The HTML file works offline and marks pin 1 and available footprint bounding-box dimensions.</li>
 </ol>
 <div class="callout"><b>Connector shortcut:</b> <b>Use connector preset (J*)</b> switches to wildcard mode, applies <code>J*</code>, and immediately refreshes the preview.</div>
+<div class="callout warn"><b>Geometry:</b> The HTML pin-order diagram is a readable connector table, not a scale drawing of physical pad locations or pitch. When KiCad does not provide a footprint bounding box, the report says dimensions are unavailable. Changing any extraction input clears the reviewed export until you preview again.</div>
 
 <h2 id="endpoint-trace">Wildcard Label Endpoint Trace</h2>
 <p>Open <b>2 Endpoint Trace</b> to resolve a family of labels to selected component pins. Enter a net wildcard such as <code>*TM</code>, <code>*_TD</code>, or <code>DEMO_CTRL_*</code>. Under <b>Resolve endpoint refs</b>, enter exact references or wildcards such as <code>U1,U2</code>, <code>J1,U1</code>, or <code>U*</code>.</p>
@@ -63,7 +65,7 @@ U7 | IN-OUT | active | explicitly reviewed pass-through IC</pre>
 <li>Open <b>6 Block Diagrams</b> and enter references or wildcards, or click <b>Use Extraction Preview</b>.</li>
 <li>Select <b>System map</b> for all classified nets, <b>Signal flow</b> for signal topology, or <b>Power flow</b> for the inferred directed converter/filter tree.</li>
 <li>Click <b>Refresh Visual Preview</b>. Components appear once and unique nets become color-coded, labeled bus lanes with explicit pin membership.</li>
-<li>Use the mouse wheel or + / - controls to zoom, drag empty space to pan, and use <b>Fit</b> or <b>100%</b> to reset the view. Click a net lane to highlight it in PCB Editor.</li>
+<li>Use the mouse wheel to zoom, drag to pan, and double-click to fit the native SVG preview. Click a net lane to highlight it in PCB Editor.</li>
 <li>Click <b>Export This SVG...</b> to save exactly the displayed diagram.</li>
 </ol>
 

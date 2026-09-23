@@ -5,6 +5,7 @@
 ## Capabilities
 
 - Audit saved track, via, pad-drill, slot and supported annular-ring geometry against a fabricator profile.
+- Check routed copper-to-board-edge clearance for straight tracks and ordinary vias against a configurable profile limit.
 - Capture project inputs and run local KiCad JSON DRC and a selected jobset against that snapshot.
 - Block release on failed or unknown checks and invalidate evidence when inputs or verified artifacts change.
 - Build a release ZIP with stable archive metadata and SHA-256 hashes of the verified files.
@@ -12,7 +13,7 @@
 ## Limitations
 
 - Focused geometry/profile checks are not a complete fabrication-process, assembly or electrical qualification.
-- Clearance-profile checks do not replace native geometric DRC; unsupported annular geometry remains UNKNOWN and blocks release.
+- Copper-clearance rules and the focused routed-edge check do not replace native geometric DRC. Unsupported annular or outline/routing geometry remains UNKNOWN and blocks release.
 - Via aspect ratio uses full board thickness conservatively; actual fabrication stack/process details need separate review.
 - Only jobset outputs inside the captured project copy enter the archive. Live IPC transport and KiCad 11 acceptance remain unverified.
 
@@ -27,7 +28,7 @@ Audit a saved PCB against a fabricator profile, run local KiCad checks, and pack
 
 Archive members use stable names, ordering and timestamps. The manifest hashes the same bytes that are written to the archive; an interrupted or rejected build preserves an existing destination ZIP.
 
-The audit reads saved track widths, ordinary via sizes/drills, full board thickness, copper-layer count and the project minimum-clearance rule. Via aspect ratio conservatively uses the full thickness. Clearance is a rule check; KiCad DRC provides the geometry check. These are focused routed-track/via checks, not a complete fabrication-process audit. Footprint PTH/NPTH drills and slots are included. Custom plated through-hole pads with a declared circle or rectangular anchor and pads with offset drills use conservative annular-ring lower bounds. A bound at or above the profile proves PASS; a smaller bound is UNKNOWN unless an independently exact pad or via proves FAIL. Explicit per-layer padstacks are included only when every saved layer has a supported shape and size. Other custom or per-layer geometry also makes the annular-ring check UNKNOWN unless an exact violation is present. Independent checks remain available, and UNKNOWN blocks release. Missing routed tracks or plated holes are explicitly N/A, rather than an infinite passing measurement.
+The audit reads saved track widths, ordinary via sizes/drills, full board thickness, copper-layer count and the project minimum-clearance rule. Via aspect ratio conservatively uses the full thickness. Copper clearance is a rule check; KiCad DRC provides the full geometry check. The routed-edge check measures the outer copper of straight track segments and ordinary vias against a single closed Edge.Cuts outline made of straight `gr_line` or `gr_rect` items. Routed arcs, via padstacks, multiple loops, incomplete/self-intersecting outlines and unsupported edge shapes produce UNKNOWN unless another exact routed violation proves FAIL. This check does not cover pads, copper zones or fabrication tolerances; run KiCad DRC and review those with the fabricator. Footprint PTH/NPTH drills and slots are included. Custom plated through-hole pads with a declared circle or rectangular anchor and pads with offset drills use conservative annular-ring lower bounds. A bound at or above the profile proves PASS; a smaller bound is UNKNOWN unless an independently exact pad or via proves FAIL. Explicit per-layer padstacks are included only when every saved layer has a supported shape and size. Other custom or per-layer geometry also makes the annular-ring check UNKNOWN unless an exact violation is present. Independent checks remain available, and UNKNOWN blocks release. Missing routed tracks or plated holes are explicitly N/A, rather than an infinite passing measurement.
 
 All parsing, UI, CLI execution and release files stay local. The CLI is located beside the runtime, on PATH, or in standard KiCad 10/11 Windows installations. Closing the window terminates the active CLI process.
 

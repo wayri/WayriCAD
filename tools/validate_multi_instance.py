@@ -9,13 +9,15 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = ROOT / '.validation' / 'multi-instance' / str(time.time_ns())
+BASE = Path(tempfile.gettempdir()) / 'WayriCAD-validation' / 'multi-instance' / str(time.time_ns())
 NATIVE = Path('C:/Program Files/KiCad/10.0/bin')
 
 
@@ -49,12 +51,42 @@ def owned_windows(pid):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--separate-temp', action='store_true', help='Use a separate IPC namespace per owned editor to test the Windows collision workaround.')
+    parser.add_argument('--single-editor', action='store_true',
+                        help='Use one disposable PCB Editor for plugin checks; skips the two-editor token isolation check.')
     parser.add_argument('--plugin-smoke', action='store_true', help='Run installed-release Pin Extractor and Fanout windows on disposable footprints.')
+    parser.add_argument('--extract-copies', type=int, choices=(1, 2), default=2,
+                        help='Number of concurrent Pin Extractor windows for plugin smoke (default: 2).')
+    parser.add_argument('--skip-extract', action='store_true',
+                        help='Skip the Pin Extractor window when isolating other plugin failures.')
     parser.add_argument('--runtime-python', type=Path, help='Prepared native KiCad Python environment for plugin UI checks.')
+    parser.add_argument('--extra-plugin-smoke', action='store_true',
+                        help='Open additional direct IPC plugin first windows from disposable ZIPs.')
+    parser.add_argument('--extra-plugin-id', choices=('embed-3d', 'harness-workbench', 'heater-designer',
+                        'manufacturing-readiness', 'planar-magnetics', 'protocol-constraint-composer'),
+                        help='Limit additional first-window smoke to one named plugin.')
+    parser.add_argument('--runtime-python-heavy', type=Path,
+                        help='Prepared KiCad runtime with scientific dependencies for Planar Magnetics.')
+    parser.add_argument('--archive-dir', type=Path, default=ROOT/'releases',
+                        help='PCM ZIP source for plugin UI checks; defaults to published releases.')
+    parser.add_argument('--board-source', type=Path,
+                        help='Copy a saved PCB into the disposable editor for additional first-window checks.')
     parser.add_argument('--overlay-webview-fix', action='store_true', help='Overlay current Pin/WebView source into test payload; results are not release-archive validation.')
     args = parser.parse_args()
+    if args.board_source and (not args.board_source.is_file() or not args.single_editor):
+        parser.error('--board-source requires an existing board and --single-editor.')
     if args.plugin_smoke and (not args.runtime_python or not args.runtime_python.is_file()):
         parser.error('--plugin-smoke requires --runtime-python pointing to a prepared native environment.')
+    if args.extra_plugin_smoke and not args.plugin_smoke:
+        parser.error('--extra-plugin-smoke requires --plugin-smoke.')
+    if args.extra_plugin_smoke and (not args.runtime_python_heavy or not args.runtime_python_heavy.is_file()):
+        parser.error('--extra-plugin-smoke requires --runtime-python-heavy.')
+    if args.extra_plugin_id and not args.extra_plugin_smoke:
+        parser.error('--extra-plugin-id requires --extra-plugin-smoke.')
+    if args.extra_plugin_smoke:
+        # Plugin-only validation needs one originating editor. Starting a
+        # second visible editor after the UI workers can trigger a KiCad open
+        # confirmation unrelated to plugin behavior.
+        args.single_editor = True
     if sys.platform != 'win32':
         raise RuntimeError('This live validation harness targets the local Windows KiCad installation.')
     for name in ('config', 'config/10.0', 'temp', 'documents', 'cache', 'one', 'two'):
@@ -82,11 +114,12 @@ def main():
     report = {'status': 'starting', 'live_ipc_verified': False, 'instances': [],
               'separate_temp_namespaces': args.separate_temp}
     try:
-        for index, folder in enumerate(('one', 'two'), 1):
+        folders = ('one',) if args.single_editor else ('one', 'two')
+        for index, folder in enumerate(folders, 1):
             socket_root = BASE / 'temp' / folder if args.separate_temp else BASE / 'temp'
             socket_root.mkdir(parents=True, exist_ok=True)
             process_env = dict(env, TEMP=str(socket_root), TMP=str(socket_root))
-            board = BASE / folder / ('fixture_' + folder + '.kicad_pcb')
+            board = BASE / folder / (args.board_source.name if args.board_source else 'fixture_' + folder + '.kicad_pcb')
             code = """import pcbnew,sys
 b=pcbnew.BOARD();b.SetFileName(sys.argv[1])
 n=pcbnew.NETINFO_ITEM(b,'SIGNAL');b.Add(n)
@@ -98,9 +131,15 @@ for a,z in (((0,0),(40,0)),((40,0),(40,40)),((40,40),(0,40)),((0,40),(0,0))):
  s=pcbnew.PCB_SHAPE(b);s.SetShape(pcbnew.SHAPE_T_SEGMENT);s.SetLayer(pcbnew.Edge_Cuts);s.SetStart(pcbnew.VECTOR2I(a[0]*1000000,a[1]*1000000));s.SetEnd(pcbnew.VECTOR2I(z[0]*1000000,z[1]*1000000));b.Add(s)
 pcbnew.SaveBoard(sys.argv[1],b)
 """
-            subprocess.run([str(NATIVE / 'python.exe'), '-c', code, str(board)], env=env,
-                           capture_output=True, check=True, timeout=15)
-            board.with_suffix('.kicad_pro').write_text(json.dumps({'board':{'design_settings':{'rules':{'min_clearance':.2}}}}))
+            if args.board_source:
+                shutil.copy2(args.board_source, board)
+                source_project = args.board_source.with_suffix('.kicad_pro')
+                if source_project.is_file():
+                    shutil.copy2(source_project, board.with_suffix('.kicad_pro'))
+            else:
+                subprocess.run([str(NATIVE / 'python.exe'), '-c', code, str(board)], env=env,
+                               capture_output=True, check=True, timeout=15)
+                board.with_suffix('.kicad_pro').write_text(json.dumps({'board':{'design_settings':{'rules':{'min_clearance':.2}}}}))
             digest = hashlib.sha256(board.read_bytes()).hexdigest()
             handle = (BASE / (folder + '-editor.log')).open('w')
             handles.append(handle)
@@ -112,7 +151,7 @@ pcbnew.SaveBoard(sys.argv[1],b)
             processes.append(process)
             item = {'pid': process.pid, 'board': str(board), 'connected': False}
             report['instances'].append(item)
-            deadline, last = time.monotonic() + 35, ''
+            deadline, last = time.monotonic() + (90 if args.board_source else 35), ''
             while time.monotonic() < deadline and process.poll() is None:
                 # Both candidates belong exclusively to our private namespace.
                 names = ('api.sock', f'api-{process.pid}.sock')
@@ -148,19 +187,22 @@ pcbnew.SaveBoard(sys.argv[1],b)
                 time.sleep(.25)
             if not item['connected']:
                 item['owned_window_captions'] = owned_windows(process.pid)
-                raise RuntimeError(f'Editor {index} failed within35s: ' + last)
+                raise RuntimeError(f'Editor {index} did not become ready: ' + last)
             assert digest == hashlib.sha256(board.read_bytes()).hexdigest()
             if args.plugin_smoke and index==1:
                 import zipfile
-                client.get_board().add_to_selection(client.get_board().get_footprints())
+                version=json.loads((ROOT/'extract_pins_plugin/metadata.json').read_text())['versions'][0]['version']
+                if not args.board_source:
+                    client.get_board().add_to_selection(client.get_board().get_footprints())
                 report['plugin_smoke']=[]
-                for short in ('fanout-generator','extract-pins'):
-                    version=json.loads((ROOT/'extract_pins_plugin/metadata.json').read_text())['versions'][0]['version']
-                    archive=ROOT/'releases'/('WayriCAD-'+short+'-'+version+'-PCM.zip')
+                for short in (() if args.board_source else ('fanout-generator','extract-pins')):
+                    if short == 'extract-pins' and args.skip_extract:
+                        continue
+                    archive=args.archive_dir/('WayriCAD-'+short+'-'+version+'-PCM.zip')
                     target=BASE/short
                     with zipfile.ZipFile(archive) as z:z.extractall(target)
                     if args.overlay_webview_fix and short=='extract-pins':
-                        for relative in ('plugin_dialog_v2.py',):
+                        for relative in ('plugin_dialog_v2.py', 'native_visual.py'):
                             (target/'plugins'/relative).write_bytes((ROOT/'extract_pins_plugin'/relative).read_bytes())
                         (target/'plugins/wayricad_runtime/local_webview.py').write_bytes((ROOT/'wayricad_runtime/local_webview.py').read_bytes())
                     python=args.runtime_python.resolve()
@@ -172,7 +214,7 @@ pcbnew.SaveBoard(sys.argv[1],b)
                         if key in os.environ:run_env[key]=os.environ[key]
                     workers=[]
                     try:
-                        for copy in range(2 if short=='extract-pins' else 1):
+                        for copy in range(args.extract_copies if short=='extract-pins' else 1):
                             output=BASE/(short+'-'+str(copy)+'-ui.json')
                             command=[str(python),'-I',str(ROOT/'tools/validate_plugin_window_worker.py'),str(target/'plugins'),str(output)]
                             log_path=output.with_suffix('.log');log=log_path.open('w')
@@ -187,7 +229,9 @@ pcbnew.SaveBoard(sys.argv[1],b)
                             record=json.loads(output.read_text()) if output.exists() else {'status':'failed','stderr':stderr}
                             record.update(plugin=short,stderr=stderr,source_overlay=bool(args.overlay_webview_fix and short=='extract-pins'))
                             record['base_archive_sha256']=hashlib.sha256(archive.read_bytes()).hexdigest()
-                            if worker.returncode or 'failed with error' in stderr.lower():record['status']='failed'
+                            if (worker.returncode or 'failed with error' in stderr.lower()
+                                    or 'wxAssertionError' in stderr or 'C++ assertion' in stderr):
+                                record['status']='failed'
                             report['plugin_smoke'].append(record)
                     finally:
                         for worker,output,log in workers:
@@ -195,6 +239,42 @@ pcbnew.SaveBoard(sys.argv[1],b)
                             log.close()
                 assert digest == hashlib.sha256(board.read_bytes()).hexdigest(), 'Plugin altered the fixture file.'
                 assert all(r['status']=='passed' for r in report['plugin_smoke']), 'A plugin UI check failed; inspect plugin_smoke results.'
+                if args.extra_plugin_smoke:
+                    report['plugin_open_smoke'] = []
+                    for short in ((args.extra_plugin_id,) if args.extra_plugin_id else
+                                  ('embed-3d', 'harness-workbench', 'heater-designer',
+                                   'manufacturing-readiness', 'planar-magnetics',
+                                   'protocol-constraint-composer')):
+                        archive = args.archive_dir / ('WayriCAD-'+short+'-'+version+'-PCM.zip')
+                        target = BASE / short
+                        with zipfile.ZipFile(archive) as z:
+                            manifest = json.loads(z.read('plugins/plugin.json'))
+                            z.extractall(target)
+                        entrypoint = manifest['actions'][0]['entrypoint']
+                        runtime = (args.runtime_python_heavy if short == 'planar-magnetics'
+                                   else args.runtime_python).resolve()
+                        output = BASE / (short+'-open.json')
+                        command = [str(runtime), '-I', str(ROOT/'tools/validate_plugin_open_worker.py'),
+                                   str(target/'plugins'), entrypoint, str(output)]
+                        run_env = dict(process_env, KICAD_API_SOCKET=socket, KICAD_API_TOKEN=token,
+                                       WAYRICAD_KICAD_PYTHON=str(runtime))
+                        log_path = output.with_suffix('.log')
+                        with log_path.open('w') as log:
+                            worker = subprocess.Popen(command, env=run_env, stdout=log, stderr=log)
+                            try:
+                                worker.wait(timeout=75 if args.board_source else 25)
+                            except subprocess.TimeoutExpired:
+                                subprocess.run(['taskkill', '/PID', str(worker.pid), '/T', '/F'],
+                                               capture_output=True, timeout=8, check=False)
+                                worker.wait(timeout=5)
+                        record = json.loads(output.read_text()) if output.exists() else {'status': 'failed'}
+                        record.update(plugin=short, returncode=worker.returncode,
+                                      stderr=log_path.read_text(errors='replace'))
+                        if worker.returncode or record.get('errors'):
+                            record['status'] = 'failed'
+                        report['plugin_open_smoke'].append(record)
+                    assert digest == hashlib.sha256(board.read_bytes()).hexdigest(), 'Plugin altered the fixture file.'
+                    assert all(r['status']=='passed' for r in report['plugin_open_smoke']), 'An additional plugin UI check failed.'
         # Fresh connections with each captured token must keep their project
         # identity while both owned editors are still alive.
         for index, (socket, token, board) in enumerate(instances):
@@ -202,6 +282,8 @@ pcbnew.SaveBoard(sys.argv[1],b)
                 client = KiCad(socket_path=socket, kicad_token=token, timeout_ms=1000)
                 assert context.saved_board(client) == board.resolve()
             report['instances'][index]['concurrent_reconnections'] = 5
+            if args.single_editor:
+                continue
             other_token = instances[1 - index][1]
             assert other_token != token, 'Owned editors unexpectedly share an instance token.'
             rejected = False

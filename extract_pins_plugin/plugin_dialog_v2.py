@@ -17,7 +17,7 @@ THIS PLUGIN IS PROVIDED AS IS WITHOUT ANY GUARANTEE OR WARRANTY.
 """
 
 import wx
-from wayricad_runtime.local_webview import try_new_webview
+import wx.html as wxhtml
 import pcbnew
 import csv
 from io import StringIO
@@ -25,13 +25,9 @@ import os
 import re
 from urllib.parse import unquote
 
-try:
-    import wx.html2 as wxhtml2
-except ImportError:
-    wxhtml2 = None
-
 # Import core modules
 try:
+    from .native_visual import NativeSvgPreview
     from .core.data_extractor import DataExtractor
     from .core.signal_flow import SignalFlowAnalyzer
     from .core.formatters import get_formatter, MarkdownFormatter, CSVFormatter
@@ -47,8 +43,10 @@ try:
     )
     from .help_utils import open_help
     from .core.bringup_packager import collect_bringup_rows, markdown as bringup_markdown, c_header as bringup_c_header
+    from .core.connector_report import common_net_rows, render_connector_report
 except ImportError:
     # Fallback for direct execution
+    from native_visual import NativeSvgPreview
     from core.data_extractor import DataExtractor
     from core.signal_flow import SignalFlowAnalyzer
     from core.formatters import get_formatter, MarkdownFormatter, CSVFormatter
@@ -64,6 +62,7 @@ except ImportError:
     )
     from help_utils import open_help
     from core.bringup_packager import collect_bringup_rows, markdown as bringup_markdown, c_header as bringup_c_header
+    from core.connector_report import common_net_rows, render_connector_report
 
 
 class PluginDialogV2(wx.Frame):
@@ -78,6 +77,7 @@ class PluginDialogV2(wx.Frame):
             size=(1120, 760),
             style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER,
         )
+        self.SetIcon(wx.Icon(os.path.join(os.path.dirname(__file__), "resources", "icon-48.png"), wx.BITMAP_TYPE_PNG))
         
         self.board = pcbnew.GetBoard()
         self.extractor = DataExtractor(self.board)
@@ -88,6 +88,7 @@ class PluginDialogV2(wx.Frame):
         self.preview_footprints = []
         self.preview_data = {}
         self.preview_rows = []
+        self.preview_html = ""
         self.endpoint_rows = []
         self.controller_map_rows = []
         self.sf_rows = []
@@ -126,6 +127,9 @@ class PluginDialogV2(wx.Frame):
         # Keep the original extraction workflow first and separate visualization tasks.
         self.extract_panel = self._create_extract_tab()
         self.notebook.AddPage(self.extract_panel, "1  Extract Pins")
+
+        self.connector_panel = self._create_connector_tab()
+        self.notebook.AddPage(self.connector_panel, "Connector Preview")
 
         self.endpoint_trace_panel = self._create_endpoint_trace_tab()
         self.notebook.AddPage(self.endpoint_trace_panel, "2  Endpoint Trace")
@@ -259,7 +263,7 @@ class PluginDialogV2(wx.Frame):
         sizer.Add(intro, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
 
         source_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="1. Choose components"), wx.VERTICAL)
-        source_row = wx.BoxSizer(wx.HORIZONTAL)
+        source_row = wx.BoxSizer(wx.VERTICAL)
         self.source_mode = wx.RadioBox(
             source_box.GetStaticBox(),
             label="Use",
@@ -269,7 +273,8 @@ class PluginDialogV2(wx.Frame):
         )
         self.source_mode.SetSelection(2)
         self.source_mode.SetToolTip("Combined mode exports the union of the live PCB selection and wildcard matches.")
-        source_row.Add(self.source_mode, 0, wx.RIGHT, 10)
+        self.source_mode.Bind(wx.EVT_RADIOBOX, self.InvalidatePreview)
+        source_row.Add(self.source_mode, 0, wx.EXPAND | wx.BOTTOM, 6)
 
         selection_box = wx.BoxSizer(wx.VERTICAL)
         live_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -294,7 +299,7 @@ class PluginDialogV2(wx.Frame):
         clear_btn.Bind(wx.EVT_BUTTON, self.OnClearList)
         selection_buttons.Add(clear_btn, 0)
         selection_box.Add(selection_buttons, 0)
-        source_row.Add(selection_box, 1, wx.ALIGN_CENTER_VERTICAL)
+        source_row.Add(selection_box, 0, wx.EXPAND)
         source_box.Add(source_row, 0, wx.EXPAND | wx.ALL, 6)
 
         content_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -316,14 +321,17 @@ class PluginDialogV2(wx.Frame):
         self.ref_filter = wx.TextCtrl(filter_box.GetStaticBox())
         self.ref_filter.SetValue("J*")
         self.ref_filter.SetToolTip("Comma-separated patterns, for example J*, U1, U2, P?.")
+        self.ref_filter.Bind(wx.EVT_TEXT, self.InvalidatePreview)
         grid.Add(self.ref_filter, 1, wx.EXPAND)
         grid.Add(wx.StaticText(filter_box.GetStaticBox(), label="Net names"), 0, wx.ALIGN_CENTER_VERTICAL)
         self.net_filter_ctrl = wx.ComboBox(filter_box.GetStaticBox(), choices=sorted(self.extractor.all_nets)[:100])
         self.net_filter_ctrl.SetToolTip("Optional. Comma-separated wildcard patterns, for example CAN_*, 28V*.")
+        self.net_filter_ctrl.Bind(wx.EVT_TEXT, self.InvalidatePreview)
         grid.Add(self.net_filter_ctrl, 1, wx.EXPAND)
         grid.Add(wx.StaticText(filter_box.GetStaticBox(), label="Component value"), 0, wx.ALIGN_CENTER_VERTICAL)
         self.value_filter_ctrl = wx.ComboBox(filter_box.GetStaticBox(), choices=sorted(set(fp.GetValue() for fp in self.extractor.footprints)))
         self.value_filter_ctrl.SetToolTip("Optional wildcard filter for component values.")
+        self.value_filter_ctrl.Bind(wx.EVT_TEXT, self.InvalidatePreview)
         grid.Add(self.value_filter_ctrl, 1, wx.EXPAND)
         filter_box.Add(grid, 1, wx.EXPAND | wx.ALL, 5)
         preset = wx.Button(filter_box.GetStaticBox(), label="Use connector preset (J*)")
@@ -334,20 +342,20 @@ class PluginDialogV2(wx.Frame):
         sizer.Add(source_box, 0, wx.EXPAND | wx.ALL, 8)
 
         preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="2. Review extracted pins"), wx.VERTICAL)
-        options_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        options_sizer = wx.WrapSizer(wx.HORIZONTAL)
         self.ignore_unconnected_cb = wx.CheckBox(preview_box.GetStaticBox(), label="Hide unconnected")
         self.ignore_power_cb = wx.CheckBox(preview_box.GetStaticBox(), label="Hide power and ground")
         self.sort_by_type_cb = wx.CheckBox(preview_box.GetStaticBox(), label="Group by net type")
         self.highlight_nets_cb = wx.CheckBox(preview_box.GetStaticBox(), label="Highlight nets in Markdown")
         for control in (self.ignore_unconnected_cb, self.ignore_power_cb, self.sort_by_type_cb, self.highlight_nets_cb):
             options_sizer.Add(control, 0, wx.RIGHT, 14)
-        options_sizer.AddStretchSpacer()
+            control.Bind(wx.EVT_CHECKBOX, self.InvalidatePreview)
         preview_button = wx.Button(preview_box.GetStaticBox(), label="Preview Extraction")
         preview_button.Bind(wx.EVT_BUTTON, self.OnPreviewExtraction)
         options_sizer.Add(preview_button, 0)
         preview_box.Add(options_sizer, 0, wx.EXPAND | wx.ALL, 5)
 
-        net_action_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        net_action_sizer = wx.WrapSizer(wx.HORIZONTAL)
         net_action_sizer.Add(wx.StaticText(preview_box.GetStaticBox(), label="PCB net:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         self.net_action_combo = wx.ComboBox(
             preview_box.GetStaticBox(),
@@ -355,7 +363,8 @@ class PluginDialogV2(wx.Frame):
             style=wx.CB_DROPDOWN,
         )
         self.net_action_combo.SetToolTip("Choose any board net to highlight or select its routed copper.")
-        net_action_sizer.Add(self.net_action_combo, 1, wx.RIGHT, 6)
+        self.net_action_combo.SetMinSize((230, -1))
+        net_action_sizer.Add(self.net_action_combo, 0, wx.RIGHT, 6)
         highlight_net_btn = wx.Button(preview_box.GetStaticBox(), label="Highlight Net")
         highlight_net_btn.Bind(wx.EVT_BUTTON, self.OnHighlightChosenNet)
         net_action_sizer.Add(highlight_net_btn, 0, wx.RIGHT, 6)
@@ -368,7 +377,7 @@ class PluginDialogV2(wx.Frame):
         preview_box.Add(net_action_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
 
         self.pin_preview = wx.ListCtrl(preview_box.GetStaticBox(), style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        for index, (label, width) in enumerate((("Reference", 90), ("Value", 170), ("Pad", 70), ("Net", 270), ("Type", 90))):
+        for index, (label, width) in enumerate((("Reference", 90), ("Value", 150), ("Pad", 65), ("Function", 130), ("Net", 230), ("Type", 85))):
             self.pin_preview.InsertColumn(index, label, width=width)
         self.pin_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnPreviewRowActivated)
         preview_box.Add(self.pin_preview, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
@@ -382,11 +391,26 @@ class PluginDialogV2(wx.Frame):
         self.export_selected_btn.Bind(wx.EVT_BUTTON, self.OnExportPreview)
         self.export_selected_btn.Enable(False)
         export_sizer.Add(self.export_selected_btn, 0, wx.RIGHT, 6)
+        connector_btn = wx.Button(panel, label="View connector tables")
+        connector_btn.Bind(wx.EVT_BUTTON, self.OnViewConnectorTables)
+        export_sizer.Add(connector_btn, 0, wx.RIGHT, 6)
         export_nets_btn = wx.Button(panel, label="Export Unique Nets...")
         export_nets_btn.Bind(wx.EVT_BUTTON, self.OnExtractUniqueNets)
         export_sizer.Add(export_nets_btn, 0)
         sizer.Add(export_sizer, 0, wx.EXPAND | wx.ALL, 10)
 
+        panel.SetSizer(sizer)
+        return panel
+
+    def _create_connector_tab(self):
+        """Show the reviewed pins and shared nets in an embedded visual report."""
+        panel = wx.Panel(self.notebook)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.connector_summary = wx.StaticText(panel, label="Preview pins on the Extract Pins tab to populate this view.")
+        sizer.Add(self.connector_summary, 0, wx.EXPAND | wx.ALL, 10)
+        self.connector_webview = wxhtml.HtmlWindow(panel, style=wx.BORDER_SIMPLE)
+        self.connector_webview.SetPage('<h2>Connector preview</h2><p>Preview extraction to show pins and shared nets.</p>')
+        sizer.Add(self.connector_webview, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         panel.SetSizer(sizer)
         return panel
 
@@ -682,13 +706,7 @@ class PluginDialogV2(wx.Frame):
             self.ic_preview.InsertColumn(index, label, width=width)
         self.ic_preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnICChartRowActivated)
         ic_content.Add(self.ic_preview, 1, wx.EXPAND | wx.ALL, 2)
-        self.ic_visual_preview, browser_error = try_new_webview(preview_sizer.GetStaticBox())
-        if self.ic_visual_preview is not None:
-            self.ic_visual_is_web = True
-        else:
-            self.ic_visual_preview = wx.TextCtrl(preview_sizer.GetStaticBox(), style=wx.TE_MULTILINE | wx.TE_READONLY)
-            self.ic_visual_is_web = False
-            self.ic_visual_preview.SetToolTip(browser_error)
+        self.ic_visual_preview = NativeSvgPreview(preview_sizer.GetStaticBox())
         ic_content.Add(self.ic_visual_preview, 1, wx.EXPAND | wx.ALL, 2)
         preview_sizer.Add(ic_content, 1, wx.EXPAND)
         self.ic_summary = wx.StaticText(preview_sizer.GetStaticBox(), label="Preview an IC to generate both the table and visual flow chart.")
@@ -755,14 +773,7 @@ class PluginDialogV2(wx.Frame):
         sizer.Add(controls, 0, wx.EXPAND | wx.ALL, 8)
 
         preview_box = wx.StaticBoxSizer(wx.StaticBox(panel, label="Visual preview"), wx.VERTICAL)
-        self.diagram_preview, browser_error = try_new_webview(preview_box.GetStaticBox())
-        if self.diagram_preview is not None:
-            self.diagram_preview_is_web = True
-            self.diagram_preview.Bind(wxhtml2.EVT_WEBVIEW_NAVIGATING, self.OnDiagramNavigation)
-        else:
-            self.diagram_preview = wx.TextCtrl(preview_box.GetStaticBox(), style=wx.TE_MULTILINE | wx.TE_READONLY)
-            self.diagram_preview_is_web = False
-            self.diagram_preview.SetToolTip(browser_error)
+        self.diagram_preview = NativeSvgPreview(preview_box.GetStaticBox(), self._diagram_net_selected)
         preview_box.Add(self.diagram_preview, 1, wx.EXPAND | wx.ALL, 4)
         self.diagram_summary = wx.StaticText(preview_box.GetStaticBox(), label="Choose components and refresh the preview. No PCB objects are changed.")
         preview_box.Add(self.diagram_summary, 0, wx.EXPAND | wx.ALL, 5)
@@ -832,13 +843,7 @@ class PluginDialogV2(wx.Frame):
         left.SetSizer(left_sizer)
 
         right_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.power_tree_preview, browser_error = try_new_webview(right)
-        if self.power_tree_preview is not None:
-            self.power_tree_preview_is_web = True
-        else:
-            self.power_tree_preview = wx.TextCtrl(right, style=wx.TE_MULTILINE | wx.TE_READONLY)
-            self.power_tree_preview_is_web = False
-            self.power_tree_preview.SetToolTip(browser_error)
+        self.power_tree_preview = NativeSvgPreview(right, self._diagram_net_selected)
         right_sizer.Add(self.power_tree_preview, 1, wx.EXPAND)
         self.power_tree_summary = wx.StaticText(right, label="Apply classification rules, then build the inferred rail topology.")
         right_sizer.Add(self.power_tree_summary, 0, wx.EXPAND | wx.ALL, 5)
@@ -1020,14 +1025,7 @@ class PluginDialogV2(wx.Frame):
                 self.power_issue_list.SetItem(index, column, str(issue.get(key, "")))
             self.power_issue_list.SetItemBackgroundColour(index, severity_colors.get(issue["Severity"], "#ffffff"))
             self.power_issue_list.SetItemTextColour(index, "#202124")
-        if self.power_tree_preview_is_web:
-            self.power_tree_preview.SetPage(self._svg_html(self.current_power_tree_svg), "")
-        else:
-            self.power_tree_preview.SetValue(
-                f"Power tree visual preview requires wx.html2.\n\n"
-                f"{len(self.power_tree_result['nodes'])} rails, {len(self.power_tree_result['edges'])} paths, "
-                f"{len(self.power_tree_result['issues'])} findings are ready for export."
-            )
+        self.power_tree_preview.SetSVG(self.current_power_tree_svg)
         self.export_power_tree_svg.Enable(True)
         self.export_power_tree_csv.Enable(True)
         self.power_tree_summary.SetLabel(
@@ -1151,6 +1149,7 @@ setTimeout(fitView,50);
         self.status_text.SetLabel("List cleared.")
 
     def _update_footprint_list_display(self, footprints_list):
+        self.InvalidatePreview(None)
         self.footprint_list_ctrl.DeleteAllItems()
         self.current_display_footprints = list(footprints_list)
         
@@ -1159,6 +1158,23 @@ setTimeout(fitView,50);
             self.footprint_list_ctrl.SetItem(i, 1, fp.GetValue())
         
         self.details_text.SetValue("")
+
+    def InvalidatePreview(self, event):
+        """Make reviewed exports unavailable as soon as their inputs change."""
+        self.preview_data = {}
+        self.preview_footprints = []
+        self.preview_rows = []
+        self.preview_html = ""
+        if hasattr(self, "pin_preview"):
+            self.pin_preview.DeleteAllItems()
+            self.preview_summary.SetLabel("Inputs changed. Preview the extraction again before exporting.")
+            self.export_selected_btn.Enable(False)
+        if hasattr(self, "connector_summary"):
+            self.connector_summary.SetLabel("Inputs changed. Preview pins on the Extract Pins tab again.")
+            if self.connector_webview is not None:
+                self.connector_webview.SetPage("<!doctype html><title>Preview changed</title><p>Preview the extraction again.</p>")
+        if event is not None:
+            event.Skip()
 
     def OnRefreshSelection(self, event):
         newly_selected = [f for f in self.board.GetFootprints() if f.IsSelected()]
@@ -1236,22 +1252,39 @@ setTimeout(fitView,50);
                     "Reference": ref,
                     "Value": value,
                     "Pad": pin.get("Pad Name/Number", ""),
+                    "Function": pin.get("Pin Function", ""),
                     "Net": pin.get("Net Name", ""),
                     "Type": pin.get("Net Type", ""),
                 }
                 self.preview_rows.append(row)
                 index = self.pin_preview.InsertItem(self.pin_preview.GetItemCount(), row["Reference"])
-                for column, key in enumerate(("Value", "Pad", "Net", "Type"), 1):
+                for column, key in enumerate(("Value", "Pad", "Function", "Net", "Type"), 1):
                     self.pin_preview.SetItem(index, column, str(row[key]))
         count = len(self.preview_rows)
+        self.preview_html = render_connector_report(
+            self.preview_data,
+            {fp.GetReference(): fp for fp in self.preview_footprints},
+        )
+        shared_count = len(common_net_rows(self.preview_data))
+        self.connector_summary.SetLabel(
+            f"{len(self.preview_data)} components · {count} pins · {shared_count} nets shared by multiple components. "
+            "Export interactive HTML to cross-highlight matching nets."
+        )
+        if self.connector_webview is not None:
+            self.connector_webview.SetPage(self.preview_html)
         self.export_selected_btn.Enable(count > 0)
         self.preview_summary.SetLabel(
-            f"Preview: {count} pin rows from {len(self.preview_data)} components. "
+            f"Preview: {count} pin rows from {len(self.preview_data)} components; {shared_count} common nets. "
             "Double-click a row to select its footprint and highlight its net on the PCB."
             if count else
             "No rows match this scope. Adjust the source or filters and preview again."
         )
         self.status_text.SetLabel(f"Previewed {count} pin rows; the PCB was not changed.")
+
+    def OnViewConnectorTables(self, event):
+        if not self.preview_data:
+            self.OnPreviewExtraction(event)
+        self.notebook.SetSelection(self.notebook.FindPage(self.connector_panel))
 
     def OnPreviewRowActivated(self, event):
         index = event.GetIndex()
@@ -1278,11 +1311,13 @@ setTimeout(fitView,50);
         if not self.preview_data:
             wx.MessageBox("Create a preview first.", "Preview required", wx.OK | wx.ICON_INFORMATION)
             return
-        choices = ("CSV (.csv)", "Markdown (.md)")
+        choices = ("Interactive HTML (.html)", "CSV (.csv)", "Markdown (.md)")
         with wx.SingleChoiceDialog(self, "Choose an export format for the reviewed rows.", "Export Preview", choices) as dialog:
             if dialog.ShowModal() != wx.ID_OK:
                 return
             if dialog.GetSelection() == 0:
+                self._save_file(self.preview_html, "HTML", "wayricad_pin_report.html")
+            elif dialog.GetSelection() == 1:
                 content = CSVFormatter().format_component_data(self.preview_data)
                 self._save_file(content, "CSV", "wayricad_pin_preview.csv")
             else:
@@ -1752,12 +1787,7 @@ setTimeout(fitView,50);
         ic_fp = self.extractor.get_footprint_by_reference(ic_ref)
         ic_value = ic_fp.GetValue() if ic_fp else ""
         self.current_ic_svg = self.diagram_gen.generate_ic_signal_chart(ic_ref, ic_value, data)
-        if self.ic_visual_is_web:
-            self.ic_visual_preview.SetPage(self._svg_html(self.current_ic_svg), "")
-        else:
-            self.ic_visual_preview.SetValue(
-                f"Visual preview requires wx.html2.\n\n{len(data)} IC connection rows are ready for SVG export."
-            )
+        self.ic_visual_preview.SetSVG(self.current_ic_svg)
         unique_nets = {row.get("Net Name", "") for row in data}
         destinations = {row.get("Destination Reference", "") for row in data if row.get("Destination Reference") != "N/C"}
         self.ic_summary.SetLabel(
@@ -1880,18 +1910,16 @@ setTimeout(fitView,50);
             )
             unique_nets = {row.get("Net Name", "") for row in filtered if row.get("Net Name", "")}
             diagram_detail = f"{len(unique_nets)} unique net lanes across {len(refs)} components"
-        if self.diagram_preview_is_web:
-            self.diagram_preview.SetPage(self._interactive_svg_html(self.current_diagram_svg), "")
-        else:
-            self.diagram_preview.SetValue(
-                f"Visual web preview is unavailable in this KiCad Python build.\n\n"
-                f"{len(filtered)} connections are ready for SVG export."
-            )
+        self.diagram_preview.SetSVG(self.current_diagram_svg)
         self.export_diagram_btn.Enable(bool(self.current_diagram_svg))
         self.diagram_summary.SetLabel(
             f"Preview: {diagram_detail}. Mouse wheel zooms; drag empty space to pan; click a net lane to highlight it."
         )
-        self.status_text.SetLabel(f"Rendered interactive {self.diagram_mode.GetStringSelection().lower()} in the plugin window.")
+        self.status_text.SetLabel(f"Rendered {self.diagram_mode.GetStringSelection().lower()} in the native preview.")
+
+    def _diagram_net_selected(self, net_name):
+        self.net_action_combo.SetValue(net_name)
+        self._highlight_net(net_name)
 
     def OnExportDiagramPreview(self, event):
         if not self.current_diagram_svg:

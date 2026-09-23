@@ -46,8 +46,9 @@ def _pip_source_options(python):
             options.extend(['--' + name, value])
     return options
 
-REQUIREMENTS_IPC = {'kipy': 'kicad-python>=0.8.0,<0.9',
-                    'networkx': 'networkx>=2.8,<4', 'zstandard': 'zstandard>=0.25,<1'}
+REQUIREMENTS_IPC = {'kipy': 'kicad-python>=0.8.0,<0.9'}
+REQUIREMENTS_EXTRACT = {'networkx': 'networkx>=2.8,<4'}
+REQUIREMENTS_BOM = {'zstandard': 'zstandard>=0.25,<1'}
 REQUIREMENTS_QUICK_PI = {
     'numpy': 'numpy>=1.24,<3', 'scipy': 'scipy>=1.10,<2',
     'matplotlib': 'matplotlib>=3.7,<4', 'vtk': 'vtk>=9.3,<10',

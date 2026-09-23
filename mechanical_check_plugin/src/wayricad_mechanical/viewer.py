@@ -122,7 +122,8 @@ class Scene(glcanvas.GLCanvas):
         factor=self.GetContentScaleFactor();size=self.GetClientSize();width,height=int(size.width*factor),int(size.height*factor)
         if width<=0 or height<=0:return
         gl.glViewport(0,0,width,height)
-        gl.glClearColor(.97,.97,.97,1);gl.glClear(gl.GL_COLOR_BUFFER_BIT|gl.GL_DEPTH_BUFFER_BIT)
+        gl.glClearColor(*((.10,.14,.17,1) if wx.SystemSettings.GetAppearance().IsDark() else (.97,.97,.97,1)))
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT|gl.GL_DEPTH_BUFFER_BIT)
         gl.glEnable(gl.GL_MULTISAMPLE);gl.glEnable(gl.GL_DEPTH_TEST);gl.glDepthFunc(gl.GL_LEQUAL)
         gl.glEnable(gl.GL_BLEND);gl.glBlendFunc(gl.GL_SRC_ALPHA,gl.GL_ONE_MINUS_SRC_ALPHA)
         gl.glDisable(gl.GL_CULL_FACE)

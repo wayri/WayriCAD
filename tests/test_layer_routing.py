@@ -114,9 +114,18 @@ class LayerRoutingTests(unittest.TestCase):
 
     def test_intervening_copper_and_asymmetric_estimate_rejected(self):
         d=copy.deepcopy(self.data);d['rows'][0]['bottom_reference_layer']='In2.Cu'
-        with self.assertRaisesRegex(ValueError,'intervening'):self.change(d)
+        self.assertEqual('In2.Cu',rp.native_profiles(self.change(d))[0]['layer_entries'][0]['bottom_reference_layer'])
+        with self.assertRaisesRegex(ValueError,'intervening'):
+            rp.estimate(self.w,dict(row=d['rows'][0],type='differential',target_impedance=120))
         r=dict(signal_layer='In1.Cu',top_reference_layer='F.Cu',bottom_reference_layer='In2.Cu',gap=.2)
         with self.assertRaisesRegex(ValueError,'Asymmetric'):rp.estimate(self.w,dict(row=r,type='differential',target_impedance=120))
+
+    def test_verified_dimensions_allow_internal_single_reference(self):
+        d=copy.deepcopy(self.data)
+        d['rows']=[dict(signal_layer='In1.Cu',top_reference_layer='',bottom_reference_layer='F.Cu',width=.17,gap=.14)]
+        self.assertEqual('In1.Cu',rp.native_profiles(self.change(d))[0]['layer_entries'][0]['signal_layer'])
+        with self.assertRaisesRegex(ValueError,'Internal signal layers'):
+            rp.estimate(self.w,dict(row=d['rows'][0],type='differential',target_impedance=120))
 
     def test_single_ended_and_unrestricted_layer_policy(self):
         self.data.update(type='single',restrict_layers=False)

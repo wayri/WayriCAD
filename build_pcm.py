@@ -13,7 +13,7 @@ PCM_DIR = "pcm"
 RELEASES_DIR = "releases"
 
 DEFAULT_BRANCH = os.environ.get("WAYRICAD_BRANCH", "develop")
-DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "3.3.0")
+DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "3.4.0")
 
 REPO_OWNER = "wayri"
 REPO_NAME = "WayriCAD"
@@ -492,6 +492,12 @@ def create_plugin_zip(
                 if file.endswith((".pyc", ".log")):
                     continue
 
+                # The ZIP gets a lightweight generated initializer below.
+                # Source initializers may import whole tools during KiCad's
+                # legacy ActionPlugin scan and fail before the UI is ready.
+                if file == "__init__.py" and Path(root) == plugin_path:
+                    continue
+
                 if file == "metadata.json":
                     continue
 
@@ -516,6 +522,18 @@ def create_plugin_zip(
                     ),
                     file_path.read_bytes(),
                 )
+
+        zipf.writestr(
+            zip_entry("plugins/__init__.py", compress_type=zipfile.ZIP_DEFLATED),
+            ("\"\"\"KiCad 10 menu bridge; the IPC action remains the toolbar entry.\"\"\"\n"
+             + "__version__ = " + repr(version) + "\n"
+             "from pathlib import Path\n"
+             "import sys\n"
+             "_root = Path(__file__).resolve().parent\n"
+             "if str(_root) not in sys.path: sys.path.insert(0, str(_root))\n"
+             "from wayricad_runtime.legacy_menu import register\n"
+             "register(__name__, _root)\n"),
+        )
 
         # Every package carries its own runtime; installed tools never import siblings.
         runtime_root = Path(__file__).resolve().parent / "wayricad_runtime"
@@ -854,6 +872,12 @@ def parse_args():
         ),
     )
 
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Build disposable current-source PCM ZIPs in this directory without changing releases/ or pcm/.",
+    )
+
     return parser.parse_args()
 
 
@@ -868,6 +892,32 @@ def main():
     branch = args.branch
 
     base_path = Path(".")
+
+    if args.output_dir is not None:
+        if args.clean_feed:
+            raise ValueError("--clean-feed cannot be used with --output-dir.")
+        output_dir = args.output_dir.resolve()
+        if output_dir == (Path(__file__).resolve().parent / RELEASES_DIR).resolve():
+            raise ValueError("Use the default build for releases/; --output-dir is for disposable ZIPs.")
+        plugin_paths = discover_plugins(base_path)
+        if not plugin_paths:
+            raise RuntimeError("No plugin directories containing metadata.json found.")
+        for plugin_path in plugin_paths:
+            metadata = normalize_metadata(
+                load_json(plugin_path / "metadata.json"), plugin_path, branch
+            )
+            archive_path, _ = create_plugin_zip(
+                plugin_path, metadata["versions"][0]["version"], output_dir, metadata
+            )
+            with zipfile.ZipFile(archive_path) as archive:
+                corrupt_entry = archive.testzip()
+                if corrupt_entry is not None:
+                    raise ValueError(f"Corrupt entry in {archive_path}: {corrupt_entry}")
+                manifest = json.loads(archive.read("plugins/plugin.json"))
+                if manifest.get("identifier") != metadata["identifier"]:
+                    raise ValueError(f"Plugin identifier mismatch in {archive_path}")
+        print(f"Built {len(plugin_paths)} disposable PCM ZIPs in {output_dir}")
+        return
 
     pcm_dir = Path(
         PCM_DIR

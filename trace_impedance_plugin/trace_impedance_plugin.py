@@ -30,7 +30,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.3.0"
+        self.version = "3.4.0"
 
     def Run(self) -> None:
         try:
@@ -251,12 +251,18 @@ class TraceFrame(wx.Frame):
         if names: self.net.SetSelection(0); self._load_pads(None)
 
     def _load_stackup(self, _event: Any = None) -> None:
+        previous_reference = self.reference.GetValue()
+        if _event is not None:
+            # The explicit Refresh action must reread the saved stackup and
+            # invalidate a result computed from the old material geometry.
+            self.engine._stackup_cache = None
+            self._invalidate(None)
         layers = self.engine.stackup_layers()
-        names = [layer.name for layer in layers]
         self.reference.Clear()
         reference_names = [layer.name for layer in layers if layer.name.endswith(".Cu") or "copper" in layer.kind.lower() or layer.kind == "routed"]
         self.reference.AppendItems(["Auto", *reference_names])
-        self.reference.SetSelection(0)
+        selected = self.reference.FindString(previous_reference)
+        self.reference.SetSelection(selected if selected != wx.NOT_FOUND else 0)
         self.reference.SetToolTip("Auto chooses ground copper per section. Choosing a layer explicitly overrides layer selection; see reference coverage in Notes.")
         self.stackup_list.DeleteAllItems()
         for layer in layers:
@@ -265,7 +271,7 @@ class TraceFrame(wx.Frame):
             for column, value in enumerate(values, 1):
                 self.stackup_list.SetItem(index, column, str(value))
         grounds = self.engine.ground_nets()
-        self.summary.SetLabel(f"{len(reference_names)} copper layers · Ground candidates: {', '.join(grounds) or 'none detected'} · Reference: Auto")
+        self.summary.SetLabel(f"{len(reference_names)} copper layers · Ground candidates: {', '.join(grounds) or 'none detected'} · Reference: {self.reference.GetValue()}")
 
     def _load_pads(self, _event: Any) -> None:
         pads = self.engine.pads_for_net(self.net.GetValue())
@@ -400,7 +406,6 @@ class TraceFrame(wx.Frame):
         index = self.zone_layer.GetSelection()
         selected_zone = self.zone_options[index] if self.mode.GetSelection() == 1 and index != wx.NOT_FOUND else None
         self.route_preview.show_measurement(result, self.mate_result, selected_zone)
-        self._show_model(result)
         if self.mate_result:
             skew_mm = abs(result.length_mm - self.mate_result.length_mm)
             extra = (

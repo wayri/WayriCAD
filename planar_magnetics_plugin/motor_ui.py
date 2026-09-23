@@ -9,22 +9,26 @@ import threading
 import uuid
 import wx
 from matplotlib.figure import Figure
+from matplotlib.patches import Circle, Polygon
 from .plot_canvas import FigureCanvasWxAgg
 from .motor_model import synthesize_winding,build_motor,pm_airgap_fundamental,evaluate,phase_events,simulate_motion_spice
+from .motor_layout import annular_coil_paths
 
 
 class MotorDialog(wx.Dialog):
     def __init__(self,parent,board_path):
         super().__init__(parent,title='Motor winding studio · model, review, simulate',size=(1180,800),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        self.SetIcon(wx.Icon(str(Path(__file__).with_name('resources')/'icon-48.png'),wx.BITMAP_TYPE_PNG))
         self.SetSize(self.FromDIP((1120,800)));self.SetMinSize(self.FromDIP((980,650)))
-        self.board_path=Path(board_path);self.source_hash=self._hash();self.model=None;self.simulation=None;self.review=None;self.generation=0;self.fields={};self.busy=False
+        self.board_path=Path(board_path);self.source_hash=self._hash();self.model=None;self.simulation=None;self.review=None;self.layout_paths=None;self.generation=0;self.fields={};self.busy=False
         root=wx.BoxSizer(wx.VERTICAL)
         note=wx.StaticText(self,label='1 Configure a winding   →   2 Review layout and EMF   →   3 Simulate with KiCad SPICE\nGenerated two-layer coil layout and sinusoidal machine model; no PCB copper is changed.')
         root.Add(note,0,wx.ALL,10)
         body=wx.BoxSizer(wx.HORIZONTAL);settings=wx.Notebook(self,size=self.FromDIP((330,-1)));self.settings=settings;body.Add(settings,0,wx.EXPAND|wx.ALL,6)
         self.setting_pages={}
         for title in ('Winding','Field','Drive'):
-            panel=wx.Panel(settings);box=wx.BoxSizer(wx.VERTICAL);panel.SetSizer(box);settings.AddPage(panel,title);self.setting_pages[title]=(panel,box)
+            panel=wx.ScrolledWindow(settings,style=wx.VSCROLL);panel.SetScrollRate(0,self.FromDIP(12))
+            box=wx.BoxSizer(wx.VERTICAL);panel.SetSizer(box);settings.AddPage(panel,title);self.setting_pages[title]=(panel,box)
         def choice(page,key,label,items):
             panel,box=self.setting_pages[page];box.Add(wx.StaticText(panel,label=label),0,wx.TOP|wx.LEFT,8);ctrl=wx.Choice(panel,choices=items);ctrl.SetSelection(0);box.Add(ctrl,0,wx.EXPAND|wx.ALL,7);self.fields[key]=ctrl;ctrl.Bind(wx.EVT_CHOICE,self.invalidate);return ctrl
         def value(page,key,label,text):
@@ -33,14 +37,23 @@ class MotorDialog(wx.Dialog):
         self.preset.Unbind(wx.EVT_CHOICE);self.preset.Bind(wx.EVT_CHOICE,self.preset_changed)
         for key,label,text in [('slots','Slots','36'),('poles','Poles','4'),('phases','Phases','3'),('coil_pitch_slots','Coil pitch (slots)','9'),('turns_per_coil','Turns per coil','10')]:value('Winding',key,label,text)
         choice('Winding','style','Coil style',['distributed','concentrated','chorded'])
+        for key,label,text in [('preview_inner_radius_mm','Preview inner radius (mm)','10'),('preview_outer_radius_mm','Preview outer radius (mm)','35')]:value('Winding',key,label,text)
+        panel,box=self.setting_pages['Winding'];warning=wx.StaticText(panel,label='Annular view is a phase/slot projection only. It does not generate PCB copper or check trace packing.');warning.Wrap(self.FromDIP(295));box.Add(warning,0,wx.ALL,8)
         choice('Field','kind','Machine',['Rotary PMSM','Linear synchronous','Rotary wound-field'])
         choice('Field','flux_source','Air-gap field input',['Supplied fundamental B','Simple PM magnet / gap estimate'])
         for key,label,text in [('fundamental_b_t','Fundamental B (T)','0.5'),('active_length_mm','Active length (mm)','50'),('airgap_radius_mm','Rotary radius (mm)','20'),('pole_pitch_mm','Linear pole pitch (mm)','30'),('remanence_t','Magnet Br (T)','1.2'),('magnet_thickness_mm','Magnet thickness (mm)','3'),('gap_mm','Air gap (mm)','1')]:value('Field',key,label,text)
         for key,label,text in [('preview_speed','EMF speed (rad/s or m/s)','10'),('peak_current','Peak phase current (A)','2'),('inertia_or_mass','Inertia (kg m²) / mass (kg)','0.01'),('damping','Viscous damping (SI)','0.02'),('load','Signed load (N m / N)','0'),('duration','Duration (s)','0.2'),('dt','Maximum step (s)','0.0001')]:value('Drive',key,label,text)
         panel,box=self.setting_pages['Drive'];text=wx.StaticText(panel,label='Ideal position-synchronous currents. SPICE solves inertia/mass and damping; this is not an inverter or voltage-driven winding simulation.');text.Wrap(self.FromDIP(295));box.Add(text,0,wx.ALL,8)
+        for panel,_box in self.setting_pages.values():panel.FitInside()
         self.tabs=wx.Notebook(self);body.Add(self.tabs,1,wx.EXPAND|wx.ALL,6);self.figures={};self.canvases={}
         for title in ('Layout','EMF and effort','Mechanics'):
-            panel=wx.Panel(self.tabs);sizer=wx.BoxSizer(wx.VERTICAL);figure=Figure(figsize=(7,5),layout='constrained');canvas=FigureCanvasWxAgg(panel,-1,figure);sizer.Add(canvas,1,wx.EXPAND);panel.SetSizer(sizer);self.tabs.AddPage(panel,title);self.figures[title]=figure;self.canvases[title]=canvas
+            panel=wx.Panel(self.tabs);sizer=wx.BoxSizer(wx.VERTICAL)
+            if title=='Layout':
+                row=wx.BoxSizer(wx.HORIZONTAL);row.Add(wx.StaticText(panel,label='Show winding phase'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+                self.phase_view=wx.Choice(panel,choices=['All phases']);self.phase_view.SetSelection(0);self.phase_view.Bind(wx.EVT_CHOICE,self.on_phase_view)
+                row.Add(self.phase_view,0,wx.RIGHT,12);row.Add(wx.StaticText(panel,label='Phase lanes and coil outlines are logical, not routed copper.'),0,wx.ALIGN_CENTER_VERTICAL)
+                sizer.Add(row,0,wx.EXPAND|wx.ALL,8)
+            figure=Figure(figsize=(7,5),layout='constrained');canvas=FigureCanvasWxAgg(panel,-1,figure);sizer.Add(canvas,1,wx.EXPAND);panel.SetSizer(sizer);self.tabs.AddPage(panel,title);self.figures[title]=figure;self.canvases[title]=canvas
         self.timing=wx.ListCtrl(self.tabs,style=wx.LC_REPORT)
         for label,width in [('Phase',65),('Reference event',210),('Electrical °',105),('Position (rad / m)',120),('Time (s)',105)]:self.timing.InsertColumn(self.timing.GetColumnCount(),label,width=self.FromDIP(width))
         self.tabs.AddPage(self.timing,'Phase timing');self.details=wx.TextCtrl(self.tabs,style=wx.TE_MULTILINE|wx.TE_READONLY);self.tabs.AddPage(self.details,'Model evidence')
@@ -59,7 +72,7 @@ class MotorDialog(wx.Dialog):
     def number(self,key):return float(self.fields[key].GetValue())
     def text(self,key):return self.fields[key].GetStringSelection()
     def invalidate(self,event=None):
-        self.generation+=1;self.model=None;self.review=None;self.simulation=None;self.sim_button.Enable(False);self.export_button.Enable(False)
+        self.generation+=1;self.model=None;self.review=None;self.layout_paths=None;self.simulation=None;self.sim_button.Enable(False);self.export_button.Enable(False)
         self.status.SetLabel('Inputs changed · review the winding before simulation or export.');self.timing.DeleteAllItems();self.details.SetValue('')
         for title,figure in self.figures.items():
             figure.clear();axis=figure.add_subplot();axis.axis('off');axis.text(.5,.5,'Review the winding to see '+title.lower(),ha='center',va='center',transform=axis.transAxes);self.canvases[title].draw()
@@ -70,6 +83,7 @@ class MotorDialog(wx.Dialog):
         self.fields['fundamental_b_t'].Enable(not pm)
         for key in ('remanence_t','magnet_thickness_mm','gap_mm'):self.fields[key].Enable(pm)
         self.fields['airgap_radius_mm'].Enable(not linear);self.fields['pole_pitch_mm'].Enable(linear)
+        for key in ('preview_inner_radius_mm','preview_outer_radius_mm'):self.fields[key].Enable(not linear)
         if event:event.Skip()
     def preset_changed(self,event):
         index=self.preset.GetSelection();m=3 if index==0 else index+1
@@ -90,28 +104,58 @@ class MotorDialog(wx.Dialog):
             flux=pm_airgap_fundamental(**{k:self.number(k) for k in ('remanence_t','magnet_thickness_mm','gap_mm')});b=flux['fundamental_b_t']
         else:b=self.number('fundamental_b_t')
         kind='linear' if self.text('kind').startswith('Linear') else 'rotary'
+        layout_paths=annular_coil_paths(winding,self.number('preview_inner_radius_mm'),self.number('preview_outer_radius_mm')) if kind=='rotary' else None
         model=build_motor(winding,kind=kind,fundamental_b_t=b,active_length_mm=self.number('active_length_mm'),airgap_radius_mm=self.number('airgap_radius_mm') if kind=='rotary' else None,pole_pitch_mm=self.number('pole_pitch_mm') if kind=='linear' else None,excitation='wound_field' if self.text('kind')=='Rotary wound-field' else 'permanent_magnet')
         speed=self.number('preview_speed');peak=self.number('peak_current');timing=phase_events(model,speed);wave=[]
         for index in range(181):
             angle=2*math.pi*index/180;position=angle/model['electrical_radians_per_mechanical_unit'];currents=[-peak*math.sin(angle-p['axis_rad']) for p in model['phase_data']]
             wave.append(dict(electrical_angle_deg=math.degrees(angle),**evaluate(model,position,speed,currents)))
-        self.model=model;self.review=dict(model=model,flux_estimate=flux,timing=timing,waveforms=wave,inputs={key:(control.GetStringSelection() if isinstance(control,wx.Choice) else control.GetValue()) for key,control in self.fields.items()},source_board=str(self.board_path),source_sha256=self.source_hash)
+        self.model=model;self.layout_paths=layout_paths
+        self.phase_view.SetItems(['All phases']+[f"Phase {chr(65+phase)}" for phase in range(winding['phases'])]);self.phase_view.SetSelection(0)
+        self.review=dict(model=model,flux_estimate=flux,timing=timing,waveforms=wave,inputs={key:(control.GetStringSelection() if isinstance(control,wx.Choice) else control.GetValue()) for key,control in self.fields.items()},source_board=str(self.board_path),source_sha256=self.source_hash,
+            layout_note='Annular phase/slot projection; radial phase lanes are for visual separation only, not a copper pattern, spacing check, or manufacturable layout.' if kind=='rotary' else 'Linear logical coil connections; not manufactured geometry.')
         self.draw_review();self.sim_button.Enable(True);self.export_button.Enable(True)
         self.status.SetLabel(f"Balanced · {winding['phase_topology']} · kw {winding['phase_data'][0]['kw']:.5f} · B₁ {b:.4g} T. Timing is a reference, not PWM.")
         return self.review
+    def on_phase_view(self,event):
+        if self.model:self.draw_layout()
+        event.Skip()
+
+    def draw_layout(self):
+        model=self.model;w=model['winding'];fig=self.figures['Layout'];fig.clear();ax=fig.add_subplot()
+        colors=['#0072b2','#d55e00','#009e73','#cc79a7','#e69f00','#56b4e9','#725a9b','#a74747','#658144','#477777','#aa8855','#555555']
+        selected=self.phase_view.GetSelection()-1
+        if model['kind']=='linear':
+            for coil in w['coils']:
+                if selected>=0 and coil['phase']!=selected:continue
+                color=colors[coil['phase']%len(colors)]
+                ax.plot([coil['start_slot'],coil['end_slot']],[1,0],color=color,alpha=.65,lw=1.2)
+                ax.text(coil['start_slot'],1.06,str(coil['start_slot']),ha='center',fontsize=8)
+            ax.set_ylim(-.2,1.3)
+            ax.set_title('Linear logical coil connections · not copper geometry',fontsize=12)
+        else:
+            inner=self.number('preview_inner_radius_mm');outer=self.number('preview_outer_radius_mm')
+            ax.add_patch(Circle((0,0),inner,fill=False,edgecolor='#667986',lw=1.2,ls='--'))
+            ax.add_patch(Circle((0,0),outer,fill=False,edgecolor='#667986',lw=1.2,ls='--'))
+            for coil in self.layout_paths:
+                if selected>=0 and coil['phase']!=selected:continue
+                phase=coil['phase'];color=colors[phase%len(colors)]
+                ax.add_patch(Polygon(coil['points_mm'],closed=True,facecolor=color,
+                                     edgecolor=color,alpha=.25 if selected<0 else .55,lw=.8 if selected<0 else 1.4))
+                if selected>=0:
+                    x,y=coil['start_mm'];ax.plot(x,y,'o',color=color,markersize=4)
+                    label=f"{chr(65+phase)}{'+' if coil['polarity']>0 else '−'} {coil['start_slot']}→{coil['end_slot']}"
+                    ax.annotate(label,(x,y),xytext=(3,3),textcoords='offset points',fontsize=6,color=color)
+            ax.set_aspect('equal');ax.set_xlim(-outer*1.2,outer*1.2);ax.set_ylim(-outer*1.2,outer*1.2)
+            ax.set_title(f"Annular phase/slot projection · ID {2*inner:g} mm · OD {2*outer:g} mm\nLogical phase lanes, not routed copper or checked spacing",fontsize=11)
+        for phase in w['phase_data']:
+            if selected<0 or phase['phase']==selected:
+                name=chr(65+phase['phase']);count=phase['coil_count']
+                ax.plot([],[],color=colors[phase['phase']%len(colors)],lw=3,label=f"Phase {name} · {count} coils · kw {phase['kw']:.3f}")
+        ax.axis('off');ax.legend(loc='upper left',bbox_to_anchor=(1.,1.),fontsize=8);self.canvases['Layout'].draw()
+
     def draw_review(self):
-        model=self.model;w=model['winding'];fig=self.figures['Layout'];fig.clear();ax=fig.add_subplot();colors=['#0072b2','#d55e00','#009e73','#cc79a7','#e69f00','#56b4e9','#725a9b','#a74747','#658144','#477777','#aa8855','#555555']
-        for coil in w['coils']:
-            a=2*math.pi*(coil['start_slot']-1)/w['slots'];b=2*math.pi*(coil['end_slot']-1)/w['slots'];color=colors[coil['phase']%len(colors)]
-            if model['kind']=='linear':
-                ax.plot([coil['start_slot'],coil['end_slot']],[1,0],color=color,alpha=.55,lw=1);ax.text(coil['start_slot'],1.06,str(coil['start_slot']),ha='center',fontsize=8)
-            else:
-                ax.plot([math.cos(a),.88*math.cos(b)],[math.sin(a),.88*math.sin(b)],color=color,alpha=.55,lw=1)
-                ax.text(1.1*math.cos(a),1.1*math.sin(a),str(coil['start_slot']),ha='center',va='center',fontsize=8)
-        for phase in w['phase_data']:ax.plot([],[],color=colors[phase['phase']%len(colors)],label=f"Phase {phase['phase']+1} · {math.degrees(phase['axis_rad'])%360:.1f}° · kw {phase['kw']:.3f}")
-        if model['kind']!='linear':ax.set_aspect('equal');ax.set_xlim(-1.4,1.4)
-        else:ax.set_ylim(-.2,1.3)
-        ax.axis('off');ax.set_title('Logical two-layer coil connections · not manufactured geometry',fontsize=13);ax.legend(loc='upper left',bbox_to_anchor=(1.,1.),fontsize=10);self.canvases['Layout'].draw()
+        model=self.model;w=model['winding'];self.draw_layout()
         fig=self.figures['EMF and effort'];fig.clear();a,b=fig.subplots(2,1);wave=self.review['waveforms'];x=[r['electrical_angle_deg'] for r in wave]
         for phase in range(w['phases']):a.plot(x,[r['back_emf_V'][phase] for r in wave],label=str(phase+1))
         a.set_ylabel('Phase back EMF (V)');a.legend(title='Phase',ncol=min(6,w['phases']),fontsize=8);a.grid(alpha=.2)

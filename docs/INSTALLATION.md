@@ -34,9 +34,10 @@ release; see [compatibility and known limits](COMPATIBILITY.md).
 6. In KiCad Manager, open **Preferences → Plugins**. Turn on **Enable KiCad
    API** and let KiCad detect or select its Python interpreter.
 7. Restart the **PCB Editor**, open the project through KiCad Manager, and save
-   its board. Launch a WayriCAD command from **Tools → External Plugins**. A
-   toolbar button may also appear when enabled in the PCB Editor's Action
-   Plugins preferences.
+   its board. Launch WayriCAD from **Tools → External Plugins** or the **top
+   toolbar**. The KiCad 10 packages include menu launchers alongside their IPC
+   actions. Maximize the editor if the toolbar is crowded. Show or hide
+   individual buttons under **Preferences → PCB Editor → Plugins**.
 
 KiCad's [PCM manual](https://docs.kicad.org/10.0/en/kicad/kicad.html#plugin-and-content-manager)
 describes repository management, pending changes, updates, and package
@@ -58,6 +59,24 @@ the repository.
 
 Each PCM ZIP is a complete, independent package. Install a separate ZIP for
 each tool you want.
+
+### Install the 3.4.0 development candidate from a source checkout
+
+The public PCM repository still serves 3.3.0 until the new ZIPs are published
+and verified. To test the 3.4.0 candidate locally on KiCad 10, build and
+validate independent packages, preview the destination, then install with
+backups:
+
+```console
+python build_pcm.py --output-dir .validation/candidate-pcm-3.4.0
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.4.0
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.4.0
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.4.0 --apply
+```
+
+Restart PCB Editor after installation. These local candidate ZIPs can also be
+installed individually with PCM's **Install from File…** command. Do not upload
+them under the already published 3.3.0 tag.
 
 ## First launch and project context
 
@@ -131,8 +150,8 @@ does not install or register GUI plugins.
 
   The wheel provides commands such as `wayricad-pi` and `wayricad-si`. Module commands work when Python's scripts folder is not on `PATH`. Developers can instead run `python -m pip install -e .` from the source checkout. See the [CLI guide](CLI_USER_GUIDE.md).
 
-KiCad also documents [PCB action plugins](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#action-plugins),
-including where their commands appear and how toolbar visibility is managed.
+KiCad documents [IPC plugin actions](https://dev-docs.kicad.org/en/apis-and-binding/ipc-api/for-addon-developers/#plugin-action-registration)
+and their toolbar registration and environment setup.
 
 ## KiCad SPICE engine
 

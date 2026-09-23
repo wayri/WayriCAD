@@ -130,11 +130,13 @@ class ComponentIntegrationTests(Fixture):
         self.assertEqual(g['costs'],{})
         self.assertIsNone(g['power']['known_total'])
 
-    def test_export_charts_and_family_table(self):
+    def test_export_small_sample_evidence_and_family_table(self):
         self.write_board();r=self.report()
         self.assertIn('families',ex.tables(r))
         raw,_,_=ex.render(r,'html')
-        self.assertIn(b'<svg',raw);self.assertIn(b'Passives',raw)
+        self.assertIn(b'individual observations are shown instead of sparse histogram bins',raw)
+        self.assertIn(b'<th>Reference</th><th>Value</th>',raw)
+        self.assertIn(b'Passives',raw)
         raw,_,_=ex.render(r,'csv','families')
         self.assertIn(b'Paired pad power W',raw)
         r['component_analysis']['groups'][0]['label']='<script>alert(1)</script>'

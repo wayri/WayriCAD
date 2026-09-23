@@ -29,7 +29,7 @@ class WorkbenchPluginTests(unittest.TestCase):
         for package in packages:
             with self.subTest(folder=package.name):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
-                self.assertEqual("3.3.0", metadata["versions"][0]["version"])
+                self.assertEqual("3.4.0", metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))
                 self.assertEqual(metadata["identifier"], manifest["identifier"])

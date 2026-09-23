@@ -42,7 +42,14 @@ def main():
                 if args.net_groups:
                     d.update(name='CAN1',protocol='CAN',scope='nets',nets=[])
                     picker="document.querySelector('[data-routing-net=\"D1\"]').click();document.querySelector('[data-routing-net=\"D2\"]').click();"
-                script("window.routingDone=false;window.routingErrors=[];window.addEventListener('error',e=>routingErrors.push(e.message));window.addEventListener('unhandledrejection',e=>routingErrors.push(String(e.reason)));view='routing';render();routingDraft="+json.dumps(d)+";render();"+picker+"document.querySelector('[data-routing-calc=\"0\"]').click();void 0;")
+                script("window.routingDone=false;window.routingErrors=[];window.addEventListener('error',e=>routingErrors.push(e.message));window.addEventListener('unhandledrejection',e=>routingErrors.push(String(e.reason)));view='routing';render();routingDraft="+json.dumps(d)+";render();"+picker+"void 0;")
+                assert script("String(!!document.querySelector('.routing-tabs') && document.querySelectorAll('.routing-preview-card').length===2)").strip('"')=='true'
+                before=script("document.querySelector('.routing-preview-svg rect').getAttribute('width')")
+                script("const input=document.querySelector('[data-routing-row=\"0\"][data-routing-field=\"width\"]');input.value=String(Number(input.value)*1.5);input.dispatchEvent(new Event('input',{bubbles:true}));void 0;")
+                after=script("document.querySelector('.routing-preview-svg rect').getAttribute('width')")
+                assert before!=after,(before,after)
+                result['layer_preview']='passed'
+                script("document.querySelector('[data-routing-calc=\"0\"]').click();void 0;")
                 phase=1
             elif phase==1:
                 if script("String(pending.size===0 && !!routingMessage)").strip('"')!='true':wx.CallLater(250,check);return
@@ -57,6 +64,10 @@ def main():
                 if args.net_groups:
                     assert frame.w.metadata['routing_profiles']['CAN1']['nets']==['D1','D2']
                     result['native_net_picker']='passed'
+                    assert script("String(!!document.querySelector('[data-routing-tab=\"CAN1\"]'))").strip('"')=='true'
+                    script("document.querySelector('[data-routing-tab-new]').click();document.querySelector('[data-routing-tab=\"CAN1\"]').click();void 0;")
+                    assert script('routingDraft.name').strip('"')=='CAN1'
+                    result['protocol_tabs']='passed'
                 result['native_bridge_stage']='passed'
                 out=args.output.parent/'native-roundtrip';out.mkdir(exist_ok=True)
                 for ext,raw in frame.w.outputs().items():(out/('routing'+ext)).write_bytes(raw)

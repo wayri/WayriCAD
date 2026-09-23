@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.3.0"
+version = "3.4.0"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-only"
 authors = [{name = "Wayri (Yawar)"}]
 dependencies = ["networkx>=2.8"]
-keywords = ["wayricad", "kiway", "kicad", "kicad-plugins", "pcb-design", "eda", "routing", "signal-integrity", "power-integrity", "bom", "icd", "cli", "aerospace", "harness"]
+keywords = ["wayricad", "kicad", "kicad-plugins", "pcb-design", "eda", "routing", "signal-integrity", "power-integrity", "bom", "icd", "cli", "aerospace", "harness"]
 
 [project.urls]
 Homepage = "https://github.com/wayri/WayriCAD"

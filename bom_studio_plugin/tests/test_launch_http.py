@@ -44,7 +44,9 @@ class LaunchHTTPTests(unittest.TestCase):
                     status, mime, body = self.get(0, path)
                     self.assertEqual(status, 200)
                     self.assertTrue(body)
-                    self.assertEqual(mime.split(';')[0], 'text/javascript' if path.endswith('.js') else 'text/css')
+                    expected = ('text/javascript' if path.endswith('.js') else
+                                'image/x-icon' if path.endswith('.ico') else 'text/css')
+                    self.assertEqual(mime.split(';')[0], expected)
         self.assertEqual(self.get(0, '/not-a-file.js')[0], 404)
 
     def test_independent_projects_ports_and_authentication(self):

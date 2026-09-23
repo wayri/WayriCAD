@@ -401,9 +401,14 @@ class DataExtractor:
                     continue
 
                 net_type = self.classify_net(net_name) if net_name else ""
+                try:
+                    pin_function = str(pad.GetPinFunction() or "") if hasattr(pad, "GetPinFunction") else ""
+                except (RuntimeError, TypeError, AttributeError):
+                    pin_function = ""
                 
                 pins.append({
                     "Pad Name/Number": pad.GetPadName(),
+                    "Pin Function": pin_function,
                     "Net Name": net_name,
                     "Net Type": net_type
                 })

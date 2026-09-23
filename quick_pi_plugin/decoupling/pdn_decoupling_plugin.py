@@ -54,7 +54,7 @@ class PdnMapPreview(PanZoomCanvas):
                 gc.SetPen(wx.Pen(wx.Colour(STATUS_COLOURS["FAIL"]),2));gc.SetBrush(wx.TRANSPARENT_BRUSH);gc.DrawEllipse(sx-9,sy-9,18,18)
 
 class PdnDecouplingPlugin(pcbnew.ActionPlugin):
-    def defaults(self):self.name="WayriCAD PDN and Decoupling Planner";self.category="Analysis";self.description="Audit power-rail topology and local decoupling placement.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png");self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png");self.version="3.3.0"
+    def defaults(self):self.name="WayriCAD PDN and Decoupling Planner";self.category="Analysis";self.description="Audit power-rail topology and local decoupling placement.";self.show_toolbar_button=True;self.icon_file_name=os.path.join(os.path.dirname(__file__),"resources","icon-24.png");self.dark_icon_file_name=self.icon_file_name.replace("icon-24.png", "icon-dark-24.png");self.version="3.4.0"
     def Run(self):
         board=pcbnew.GetBoard()
         if board is None:return

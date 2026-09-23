@@ -3,6 +3,7 @@
 <style>body{font:16px system-ui;max-width:1100px;margin:32px auto;line-height:1.55;color:#17202a}img{max-width:100%;border:1px solid #9aa6b2}code,pre{background:#eef2f5;padding:2px 5px}pre{padding:12px;overflow:auto}h1,h2{color:#17365d}table{border-collapse:collapse;width:100%}th,td{border:1px solid #b8c2cc;padding:7px;text-align:left}.warn{border-left:5px solid #c47718;padding:10px;background:#fff7e8}</style>
 </head><body><h1>WayriCAD Harness and Cable Workbench 3.1.1</h1>
 <p>Build a reviewed system harness from board pin exports and endpoint loads. The workbench reads project data only and never modifies the PCB.</p>
+<p>The summary strip stays visible on every tab: project, connector, mapped-wire, and end-to-end-path counts plus the next workflow action. It updates after source imports, harness builds, and path previews.</p>
 <img src="help-workflow.png" alt="Actual Harness Workbench window">
 <h2>1. Import sources</h2>
 <p>Import multiple CSV files or scan a directory recursively. A project set may contain up to 50 unique project names.</p>
@@ -32,6 +33,7 @@ DEMO_CTRL,J1,2,DEMO_IO,J7,12,24,1.25</pre>
 LOADS,MOTOR_A,1,MOTOR_POS,Drive motor,24V,3.5,DEMO-CONN</pre>
 <h2>5. Review construction</h2>
 <p>Sort tables by clicking a header. Select wires, then apply AWG, color, bundle, splice, length, and shielding. With no selection, the action applies to every link. Review unmatched, ambiguous, duplicate-destination, and voltage-conflict findings.</p>
+<p>Select one or more rows in <b>Wire List</b> and click <b>View selected on draft</b> to highlight those exact wires. The draft legend identifies bundle colours and wire counts; choosing no rows restores the full-colour view.</p>
 <h2>6. Build IC / peripheral paths</h2>
 <p>In Pin Extractor, build and export a <b>Controller Map CSV</b> for each board. Its exact traversal retains net changes, resistors, inductors, ferrites, fuses, and user-authorized active-device pin transitions. Import those CSV files with <b>Import IC / Connector Paths</b>.</p>
 <p>The controller-map filename without <code>.csv</code>, or a <code>Project</code> column, must equal the board project name used in the connector pin document. The workbench joins records only when project, connector reference, and connector pin all match exactly.</p>
@@ -40,7 +42,7 @@ LOADS,MOTOR_A,1,MOTOR_POS,Drive motor,24V,3.5,DEMO-CONN</pre>
   -- W00003 / DATA-A --&gt;
 DEMO_SENSOR:J2.8 -&gt; R7.2 -&gt; R7.1 -&gt; U3.5</pre>
 <h2>7. Draft and outputs</h2>
-<p>The native Draft Canvas shows each connector once. Mouse wheel zooms, drag pans, and double-click inspects a connector. The self-contained interactive HTML adds separate IC/peripheral, connector, and bundle stages; wheel zoom, empty-space pan, draggable nodes, clickable path details, search, bundle/status filters, sortable tables, findings, and the procurement BoM. It requires no web connection or external script.</p>
+<p>The native Draft Canvas shows each connector once. Mouse wheel zooms, drag pans, and double-click inspects a connector. Its bundle colours and selected-wire emphasis describe connectivity, not cable length or physical placement. The self-contained interactive HTML adds separate IC/peripheral, connector, and bundle stages; wheel zoom, empty-space pan, draggable nodes, clickable path details, search, bundle/status filters, sortable tables, findings, and the procurement BoM. It requires no web connection or external script.</p>
 <img src="help-interactive-report.png" alt="Actual generated interactive system harness report">
 <p>Export pin map, net map, wire list, system paths, procurement BoM, universal SVG, or interactive HTML. The native UI displays at most 10,000 rows; exports contain every generated row.</p>
 <h2>Troubleshooting</h2><ul>

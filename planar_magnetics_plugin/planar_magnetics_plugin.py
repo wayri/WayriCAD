@@ -17,7 +17,7 @@ from .guided_ui import add_workflow
 from .placement import validate_placement
 
 
-VERSION="3.3.0";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
+VERSION="3.4.0";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
 def point(x,y):return pcbnew.VECTOR2I(pcbnew.FromMM(x),pcbnew.FromMM(y))
 def copper_layer(index,count):
     if index<=0:return int(pcbnew.F_Cu)
@@ -114,7 +114,7 @@ except ImportError:
 class MagneticsFrame(ReviewedGeometry, wx.Frame):
     group_prefix = 'WayriCAD Planar Magnetics Commit'
     def __init__(self,parent,board):
-        super().__init__(parent,title="WayriCAD Planar Magnetics & Actuator Workbench",size=(1320,880));self.SetMinSize((1080,740));self.board=board;self.catalog=dict(CORE_CATALOG);self.result=None;self.preview_items=[];self.undo_stack=[];self.redo_stack=[];self._build();self.undo_stack=self._persistent_groups();self.Bind(wx.EVT_CLOSE,self.on_close);self.Centre()
+        super().__init__(parent,title="WayriCAD Planar Magnetics & Actuator Workbench",size=(1320,880));self.SetIcon(wx.Icon(str(Path(__file__).with_name("resources") / "icon-48.png"), wx.BITMAP_TYPE_PNG));self.SetMinSize((1080,740));self.board=board;self.catalog=dict(CORE_CATALOG);self.result=None;self.preview_items=[];self.undo_stack=[];self.redo_stack=[];self._build();self.undo_stack=self._persistent_groups();self.Bind(wx.EVT_CLOSE,self.on_close);self.Centre()
     def _build(self):
         p=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL);self.guide=add_workflow(p,root,"Planar Magnetics and Actuator Workbench","Generate multilayer/via-connected windings, apply core and frequency models, inspect fields and motion, then commit only reviewed copper.",("Winding","Model","Field and motion","PCB commit"),lambda e:open_native_help(self,Path(__file__).with_name("help.html")));self.tabs=wx.Notebook(p);self.tabs.AddPage(self.design_page(self.tabs),"Winding and Core");self.tabs.AddPage(self.model_page(self.tabs),"LCR / Parasitics");self.tabs.AddPage(self.actuator_page(self.tabs),"Field and Actuator");root.Add(self.tabs,1,wx.EXPAND|wx.ALL,8);p.SetSizer(root)
     def design_page(self,parent):

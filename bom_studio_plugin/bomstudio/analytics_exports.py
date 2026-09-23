@@ -150,11 +150,34 @@ def html_bytes(report, all_tables):
         out.append('</table></div>')
     analysis=report.get('component_analysis',{})
     if analysis:
-        out.append('<h2>Component insights and distributions</h2><ul>'+''.join('<li>'+esc(v)+'</li>' for v in analysis['insights']+analysis['limits'])+'</ul>')
+        out.append('<h2>Component insights and evidence</h2><ul>'+''.join('<li>'+esc(v)+'</li>' for v in analysis['insights']+analysis['limits'])+'</ul>')
         for group in analysis['groups']:
-            out.append('<details'+(' open' if group['level']=='family' else '')+'><summary>'+esc(group['label'])+' — '+esc(group['level'])+'</summary>')
+            out.append('<details><summary>'+esc(group['label'])+' — '+esc(group['level'])+'</summary>')
             for label,bins in group['histograms'].items():
                 if not bins:continue
+                sample_size=sum(bin_['count'] for bin_ in bins)
+                if sample_size<8:
+                    members=[part for part in report['components'] if part['id'] in group['ids']]
+                    if label.startswith('Unit cost '):
+                        currency=label[len('Unit cost '):]
+                        observations=[(part['reference'],part['cost']['unit_price']) for part in members
+                                      if part.get('cost') and part['cost']['currency']==currency
+                                      and part['cost']['unit_price'] is not None]
+                    elif label=='Mass (g)':
+                        observations=[(part['reference'],part['mass']['value']) for part in members
+                                      if part.get('mass') and part['mass']['status']=='known']
+                    elif label=='Dissipation (W)':
+                        observations=[(part['reference'],part['power']['value']) for part in members
+                                      if part.get('power') and part['power']['status']=='known']
+                    else:
+                        continue
+                    out.append('<h3>'+esc(label)+'</h3><p>'+str(len(observations))+' of '
+                               +str(len(members))+' components with known values; individual observations are shown instead of sparse histogram bins.</p>')
+                    out.append('<div class="panel"><table><tr><th>Reference</th><th>Value</th></tr>')
+                    for reference,value in sorted(observations,key=lambda item:item[1],reverse=True):
+                        out.append('<tr><td>'+esc(reference)+'</td><td class="num">'+esc(value)+'</td></tr>')
+                    out.append('</table></div>')
+                    continue
                 maximum=max(b['count'] for b in bins);width=320/len(bins)
                 out.append('<figure><figcaption>'+esc(label)+' — component count</figcaption><svg role="img" aria-label="'+esc(label)+' histogram" viewBox="0 0 360 150" width="360" style="max-width:100%">')
                 for i,bin_ in enumerate(bins):

@@ -20,6 +20,7 @@ from .analysis import (
 )
 from .guided_ui import add_workflow, mark_primary, section
 from .report import interactive_harness_html
+from .overview import overview_state
 
 MAX_PROJECTS = 50
 MAX_VISIBLE_ROWS = 10000
@@ -69,6 +70,7 @@ class HarnessCanvas(wx.Panel):
         super().__init__(parent, style=wx.BORDER_SIMPLE)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.links, self.positions = [], {}
+        self.highlight_wires = set()
         self.scale, self.pan, self.drag_start = 1.0, wx.Point2D(0, 0), None
         self.on_node = on_node
         self.Bind(wx.EVT_PAINT, self._paint)
@@ -79,6 +81,9 @@ class HarnessCanvas(wx.Panel):
         self.Bind(wx.EVT_LEFT_DCLICK, self._double_click)
 
     def set_links(self, links): self.links = list(links); self.fit()
+    def set_highlight_wires(self, wire_ids):
+        self.highlight_wires = set(wire_ids)
+        self.Refresh()
     def fit(self): self.scale, self.pan = 1.0, wx.Point2D(0, 0); self.Refresh()
     def _screen(self, x, y): return x * self.scale + self.pan.x, y * self.scale + self.pan.y
 
@@ -101,6 +106,16 @@ class HarnessCanvas(wx.Panel):
         gc = wx.GraphicsContext.Create(dc); self.positions = self._layout()
         bundles = sorted({link.bundle or "Unbundled" for link in self.links})
         colors = {name: self.COLORS[i % len(self.COLORS)] for i, name in enumerate(bundles)}
+        legend_x = 12
+        visible_bundles = bundles[:max(1, (self.GetClientSize().width - 80) // 190)]
+        for name in visible_bundles:
+            dc.SetPen(wx.Pen(colors[name], 4))
+            dc.DrawLine(legend_x, 18, legend_x + 22, 18)
+            dc.SetTextForeground(fg)
+            dc.DrawText(f"{name} ({sum((link.bundle or 'Unbundled') == name for link in self.links)})", legend_x + 28, 10)
+            legend_x += 190
+        if len(visible_bundles) < len(bundles):
+            dc.DrawText(f"+{len(bundles) - len(visible_bundles)} bundles", legend_x, 10)
         grouped = {}
         for source, destination, link in connector_graph(self.links)[1]:
             grouped.setdefault((source, destination), []).append(link)
@@ -112,8 +127,9 @@ class HarnessCanvas(wx.Panel):
                 ex, ey = self._screen(x2 - 105, y2 + offset)
                 path = gc.CreatePath(); path.MoveToPoint(sx, sy)
                 path.AddCurveToPoint((sx + ex) / 2, sy, (sx + ex) / 2, ey, ex, ey)
-                gc.SetPen(wx.Pen(colors[link.bundle or "Unbundled"],
-                                max(1, int(2 * self.scale))))
+                selected = link.wire_id in self.highlight_wires
+                stroke = colors[link.bundle or "Unbundled"] if not self.highlight_wires or selected else "#89949a"
+                gc.SetPen(wx.Pen(stroke, max(1, int((5 if selected else 2) * self.scale))))
                 gc.StrokePath(path)
         for node, (x, y) in self.positions.items():
             sx, sy = self._screen(x - 105, y - 42)
@@ -155,6 +171,54 @@ class HarnessCanvas(wx.Panel):
         if nearest and distance < (120 * self.scale) ** 2: self.on_node(nearest)
 
 
+class HarnessOverview(wx.Panel):
+    """Persistent at-a-glance progress and coverage above the workbench tabs."""
+
+    LABELS = ("Projects", "Connectors", "Mapped wires", "End-to-end paths")
+    KEYS = ("projects", "connectors", "wires", "paths")
+    ACCENTS = ("#348ca3", "#528ab8", "#258d79", "#b17a39")
+
+    def __init__(self, parent):
+        super().__init__(parent, style=wx.BORDER_NONE)
+        self.state = overview_state([], [], [])
+        self.SetMinSize((-1, 112))
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.Bind(wx.EVT_PAINT, self._paint)
+
+    def update(self, state):
+        self.state = state
+        self.Refresh()
+
+    def _paint(self, _event):
+        dc = wx.AutoBufferedPaintDC(self)
+        bg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+        fg = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
+        dc.SetBackground(wx.Brush(bg))
+        dc.Clear()
+        width, height = self.GetClientSize()
+        gap = 8
+        card_width = max(80, (width - 5 * gap) // 4)
+        for index, (key, label) in enumerate(zip(self.KEYS, self.LABELS)):
+            x = gap + index * (card_width + gap)
+            dc.SetPen(wx.Pen(self.ACCENTS[index], 2))
+            dc.SetBrush(wx.Brush(bg))
+            dc.DrawRoundedRectangle(x, 3, card_width, 70, 6)
+            dc.SetTextForeground(fg)
+            dc.SetFont(wx.Font(wx.FontInfo(22).Bold()))
+            dc.DrawText(str(self.state[key]), x + 12, 8)
+            dc.SetFont(wx.Font(wx.FontInfo(10)))
+            dc.DrawText(label, x + 12, 47)
+        steps = ("Import", "Map", "Review", "Report")
+        stage = self.state["stage"]
+        for index, step in enumerate(steps):
+            x = gap + index * (card_width + gap)
+            dc.SetPen(wx.Pen(self.ACCENTS[index] if index <= stage else "#87939a"))
+            dc.SetBrush(wx.Brush(self.ACCENTS[index] if index <= stage else bg))
+            dc.DrawRoundedRectangle(x, height - 22, card_width, 8, 4)
+        dc.SetTextForeground(fg)
+        dc.DrawText("Next: " + self.state["next_step"] + (f" · {self.state['unresolved']} unresolved" if self.state["unresolved"] else ""), gap, height - 39)
+
+
 class HarnessWorkbenchPlugin(pcbnew.ActionPlugin):
     def defaults(self):
         self.name = "WayriCAD Harness and Cable Workbench"
@@ -163,13 +227,14 @@ class HarnessWorkbenchPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.3.0"
+        self.version = "3.4.0"
     def Run(self): HarnessFrame(None).Show()
 
 
 class HarnessFrame(wx.Frame):
     def __init__(self, parent):
         super().__init__(parent, title="WayriCAD Harness and Cable Workbench", size=(1400, 900))
+        self.SetIcon(wx.Icon(str(Path(__file__).with_name("resources") / "icon-48.png"), wx.BITMAP_TYPE_PNG))
         self.records, self.virtual_loads, self.links, self.bundles, self.splices = [], [], [], [], []
         self.board_paths, self.system_paths = [], []
         self._build(); self.Centre()
@@ -180,6 +245,8 @@ class HarnessFrame(wx.Frame):
             panel, root, "Harness and Cable Workbench",
             "Ingest up to 50 board pin documents, map connector families, and release reviewed harness data.",
             ("Sources", "Link rules", "Pin map", "Wire review", "System paths", "Report"), self._help)
+        self.overview = HarnessOverview(panel)
+        root.Add(self.overview, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
         self.notebook = wx.Notebook(panel)
         self._build_sources(); self._build_rules(); self._build_pin_editor(); self._build_wires()
         self._build_system_map(); self._build_canvas(); self._build_outputs()
@@ -276,9 +343,13 @@ class HarnessFrame(wx.Frame):
         fields = ("Wire", "Source", "Source Net", "Destination", "Destination Net", "AWG",
                   "Color", "Bundle", "Splice", "Length m", "Shield", "Status")
         self.wire_table = _table(page, fields, (85, 210, 160, 210, 160, 65, 85, 120, 100, 80, 120, 90))
+        self.wire_table.Bind(wx.EVT_LIST_ITEM_SELECTED, self._on_wire_selection)
+        self.wire_table.Bind(wx.EVT_LIST_ITEM_DESELECTED, self._on_wire_selection)
         root.Add(self.wire_table, 1, wx.EXPAND | wx.ALL, 8)
         props = section(page, "Selected Wire / Bundle Properties"); parent = props.GetStaticBox()
-        grid = wx.FlexGridSizer(2, 12, 6, 7)
+        grid = wx.FlexGridSizer(0, 4, 6, 10)
+        grid.AddGrowableCol(1)
+        grid.AddGrowableCol(3)
         self.awg = wx.ComboBox(parent, choices=["30","28","26","24","22","20","18","16","14","12"], value="24", style=wx.CB_READONLY)
         self.color = wx.TextCtrl(parent); self.bundle_name = wx.TextCtrl(parent, value="MAIN")
         self.splice_name = wx.TextCtrl(parent); self.length = wx.TextCtrl(parent, value="1.0")
@@ -291,10 +362,14 @@ class HarnessFrame(wx.Frame):
                                ("Create / Update Bundle", self._apply_bundle),
                                ("Create / Update Splice", self._apply_splice)):
             button=wx.Button(parent,label=label); button.Bind(wx.EVT_BUTTON,handler); buttons.Add(button,0,wx.RIGHT,8)
+        inspect = wx.Button(parent, label="View selected on draft")
+        inspect.Bind(wx.EVT_BUTTON, self._view_selected_on_draft)
+        buttons.Add(inspect, 0, wx.RIGHT, 8)
         props.Add(buttons,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,8); root.Add(props,0,wx.EXPAND|wx.ALL,8); page.SetSizer(root)
 
     def _build_canvas(self):
         page=self._page("6  Draft Canvas"); root=wx.BoxSizer(wx.VERTICAL); tools=wx.BoxSizer(wx.HORIZONTAL)
+        self.canvas_page_index = self.notebook.GetPageCount() - 1
         fit=wx.Button(page,label="Fit Drawing"); fit.Bind(wx.EVT_BUTTON,lambda _e:self.canvas.fit())
         refresh=wx.Button(page,label="Refresh Draft"); refresh.Bind(wx.EVT_BUTTON,lambda _e:self.canvas.set_links(self.links))
         tools.Add(fit,0,wx.RIGHT,8); tools.Add(refresh); tools.AddStretchSpacer()
@@ -395,6 +470,10 @@ class HarnessFrame(wx.Frame):
         for control in (self.map_source, self.map_destination):
             current = control.GetValue(); control.SetItems(choices)
             if current in choices: control.SetValue(current)
+        self._refresh_overview()
+
+    def _refresh_overview(self):
+        self.overview.update(overview_state(self.records, self.links, self.system_paths))
     def _parse_loads(self):
         loads=[]
         for number,line in enumerate(self.load_text.GetValue().splitlines(),1):
@@ -436,6 +515,7 @@ class HarnessFrame(wx.Frame):
                 "Destination Connector","Destination IC / Peripheral","Destination Function","Destination Net",
                 "Protocol","Inline Components","Status","Confidence")
         _fill(self.system_table,system_signal_rows(self.system_paths),fields)
+        self._refresh_overview()
 
     def _append_pin_map_rows(self, rows):
         data = pin_map_editor_rows(rows); start = self.pin_grid.GetNumberRows()
@@ -514,6 +594,24 @@ class HarnessFrame(wx.Frame):
         _fill(self.net_table,nets,("Net / Signal","Endpoints","Wires","Bundles","Loads (A)"))
         _fill(self.bom_table,bom,("Category","Part Number","Description","Quantity","Unit","Notes"));self.canvas.set_links(self.links)
         self._refresh_system_paths()
+        self._refresh_overview()
+
+    def _on_wire_selection(self, event):
+        selected = []
+        index = self.wire_table.GetFirstSelected()
+        while index != -1:
+            selected.append(self.wire_table.GetItemText(index, 0))
+            index = self.wire_table.GetNextSelected(index)
+        self.canvas.set_highlight_wires(selected)
+        self.canvas_detail.SetLabel(
+            f"{len(selected)} selected wire(s) highlighted in the draft."
+            if selected else "Select wires in Wire List to highlight them here."
+        )
+        event.Skip()
+
+    def _view_selected_on_draft(self, _event):
+        self.notebook.SetSelection(self.canvas_page_index)
+        self.canvas.Refresh()
     def _selected(self):
         result=[];index=self.wire_table.GetFirstSelected()
         while index!=-1:result.append(self.wire_table.GetItemText(index,0));index=self.wire_table.GetNextSelected(index)

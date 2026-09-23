@@ -1,4 +1,7 @@
 import json,runpy,sys,traceback,time,faulthandler
+if sys.platform == 'win32':
+ import ctypes
+ ctypes.windll.kernel32.SetErrorMode(0x0002)  # Crash in this owned probe must not leave a blocking error dialog.
 from pathlib import Path
 import wx
 root=Path(sys.argv[1]);output=Path(sys.argv[2])
@@ -19,16 +22,15 @@ def check_views(frame,index=0):
  try:
   name=('ic_visual_preview','diagram_preview','power_tree_preview')[index]
   result['phase']='checking '+name;output.write_text(json.dumps(result,indent=2))
-  frame.notebook.SetSelection((4,5,6)[index])
+  # Connector Preview occupies page 1; the visual pages are now 5, 6, 7.
+  frame.notebook.SetSelection((5,6,7)[index])
   view=getattr(frame,name)
-  dom=view.RunScript("String(document.querySelectorAll('svg').length)")
-  count=str(dom[1]).strip('"')
-  loaded=bool(dom[0] and count.isdigit() and int(count)>0)
-  result.setdefault('webviews',{})[name]={'class':type(view).__name__,'svg_loaded':loaded,'url':view.GetCurrentURL(),'dom_svg_count':dom}
-  if not loaded and time.monotonic()<deadline:
-   (frame.OnICChartPreview,frame.OnDiagramPreview,frame.OnBuildPowerTree)[index](None)
-   wx.CallLater(700,check_views,frame,index);return
-  assert loaded,'Native WebView did not load generated SVG: '+name
+  (frame.OnICChartPreview,frame.OnDiagramPreview,frame.OnBuildPowerTree)[index](None)
+  dimensions=view.rendered_size
+  loaded=dimensions[0]>0 and dimensions[1]>0 and not view.render_error
+  result.setdefault('visual_previews',{})[name]={'class':type(view).__name__,
+    'rendered':loaded,'bitmap_size':dimensions,'error':view.render_error}
+  assert loaded,'Native SVG preview did not render: '+name+' '+view.render_error
   if index<2:wx.CallLater(100,check_views,frame,index+1);return
   result['status']='passed' if not result['errors'] else 'failed'
  except Exception:result.update(status='failed',traceback=traceback.format_exc())
@@ -46,6 +48,8 @@ def inspect():
    frame.OnPreviewExtraction(None)
    result['preview_rows']=len(frame.preview_rows)
    assert result['preview_rows']>=2,'No extracted pin preview rows'
+   result['connector_preview_text']=frame.connector_webview.ToText()[:300]
+   assert 'J1' in result['connector_preview_text'],'Native connector preview did not display the extracted reference'
    frame.ic_combo.SetValue('U1')
    wx.CallLater(500,check_views,frame);return
   frame.preview(None,silent=True)

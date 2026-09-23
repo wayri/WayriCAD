@@ -37,7 +37,10 @@ const exited=once(python,'exit');
   await page.waitForFunction(()=>S.analytics5.report!==null);
   await page.locator('[data-tab=families]').click();
   assert(await page.getByRole('heading',{name:'Passive, active and other parts'}).isVisible());
-  assert(await page.locator('svg[aria-label*=histogram]').count()>0);
+  await page.evaluate(()=>{const item=[...document.querySelectorAll('details')].find(el=>el.querySelector('summary')?.textContent?.includes('Passives · family'));if(item)item.open=true;});
+  assert((await page.locator('#main').innerText()).includes('Component evidence'));
+  assert(await page.locator('svg[aria-label*=histogram]').count()>0 ||
+    (await page.locator('#main').innerText()).includes('individual observations are clearer than histogram bins'));
   assert(!(await page.locator('#main').innerText()).includes('undefined'));
   const report=await page.evaluate(()=>S.analytics5.report);
   assert(report.component_analysis.groups.some(g=>g.label==='RLC combined'));
@@ -55,7 +58,7 @@ const exited=once(python,'exit');
   await page.setViewportSize({width:780,height:1000});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   assert.deepEqual(errors,[]);
-  console.log('PASS: family UI, histogram rendering, unknown geometry, CSV download, dark/compact layout, no JS errors');
+  console.log('PASS: family evidence UI, unknown geometry, CSV download, dark/compact layout, no JS errors');
  } finally {
   if(browser)await browser.close();python.stdin.end('\n');await exited;
  }

@@ -10,6 +10,29 @@ from wayricad_runtime import runtime_setup as runtime
 
 
 class RuntimeSetupTests(unittest.TestCase):
+    def test_ipc_launch_only_installs_tool_specific_dependencies(self):
+        from wayricad_runtime import bootstrap, launcher
+
+        with patch.object(runtime, 'ensure_runtime', return_value=Path('fake-python')) as ensure, \
+             patch.object(bootstrap.subprocess, 'call', return_value=0):
+            bootstrap.relaunch(Path('plugin'), 'ipc_entrypoint.py')
+            self.assertEqual(ensure.call_args.args[0], runtime.REQUIREMENTS_IPC)
+            bootstrap.relaunch(Path('plugin'), 'ipc_entrypoint.py', profile='extract')
+            self.assertEqual(ensure.call_args.args[0],
+                             {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_EXTRACT})
+            bootstrap.relaunch(Path('plugin'), 'desktop_entrypoint.py', profile='bom')
+            self.assertEqual(ensure.call_args.args[0],
+                             {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_BOM})
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'wayricad-tool.json').write_text(json.dumps(dict(
+                tool='extract_pins_plugin', module='plugin',
+                **{'class': 'Plugin'}, name='Extract Pins')))
+            with patch.object(bootstrap, 'relaunch', return_value=0) as launch:
+                self.assertEqual(launcher.main(root), 0)
+                self.assertEqual(launch.call_args.kwargs['profile'], 'extract')
+
     def test_magnetics_launch_selects_complete_scientific_runtime(self):
         from wayricad_runtime import launcher, bootstrap
         with tempfile.TemporaryDirectory() as directory:
@@ -21,6 +44,24 @@ class RuntimeSetupTests(unittest.TestCase):
         with patch.object(runtime, 'ensure_runtime', return_value=Path('fake-python')) as ensure, patch.object(bootstrap.subprocess, 'call', return_value=0):
             bootstrap.relaunch(Path('plugin'), 'ipc_entrypoint.py', profile='magnetics')
         self.assertEqual(ensure.call_args.args[0], {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_MAGNETICS})
+
+    def test_relaunch_preserves_editor_socket_and_argument_boundaries(self):
+        from wayricad_runtime import bootstrap
+
+        root = Path('C:/Projects/Example Board/WayriCAD')
+        env = {'KICAD_API_SOCKET': 'editor-pipe', 'KICAD_API_TOKEN': 'editor-token'}
+        with patch.object(bootstrap.sys, 'argv', ['ipc_entrypoint.py', '--board', 'C:/Projects/Example Board/board.kicad_pcb']), \
+             patch.object(runtime, 'ensure_runtime', return_value=Path('managed-python')), \
+             patch.object(runtime, 'child_environment', return_value=env), \
+             patch.object(bootstrap.subprocess, 'call', return_value=0) as call:
+            self.assertEqual(bootstrap.relaunch(root, 'ipc_entrypoint.py'), 0)
+        self.assertEqual(call.call_args.args[0], ['managed-python', '-I', str(root/'ipc_entrypoint.py'),
+                                                 '--board', 'C:/Projects/Example Board/board.kicad_pcb'])
+        self.assertIs(call.call_args.kwargs['env'], env)
+        self.assertNotIn('shell', call.call_args.kwargs)
+        self.assertIs(call.call_args.kwargs['stdin'], subprocess.DEVNULL)
+        self.assertIs(call.call_args.kwargs['stdout'], subprocess.DEVNULL)
+        self.assertIs(call.call_args.kwargs['stderr'], subprocess.DEVNULL)
 
     def test_environment_keeps_invoking_instance_but_not_foreign_python(self):
         with patch.dict(runtime.os.environ, {

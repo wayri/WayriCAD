@@ -54,6 +54,8 @@ estimates under those assumptions**, not extracted USB compliance results.
    basis and review notes as well as the numbers. Export a self-contained local
    HTML report if useful; the save dialog defaults to the board's directory.
 
+For a large saved board, a WayriCAD loading window appears during the PCB read and window setup. Closing it cancels opening Quick SI after the current read finishes. The source board remains unchanged.
+
 Changing an input clears the previous result and disables export until a fresh
 screen is run. IPC analysis uses a saved snapshot; save/refill and reopen after
 editing the board. Analysis does not move copper or write project files.
@@ -220,3 +222,33 @@ Use `wayricad-si profiles` to list profile IDs and sources. `wayricad-si suite -
 ## Jobsets and automatic reports
 
 Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
+
+## Optional Nubis SignalIntegrity interoperability
+
+The CLI now reads Touchstone 1.0 networks through the optional
+[SignalIntegrity](https://github.com/Nubis-Communications/SignalIntegrity)
+library. Install `SignalIntegrity==1.5.2` in the Python environment running
+`wayricad-si`; installation is explicit and analysis runs offline afterward.
+
+```text
+wayricad-si network channel.s2p --to-port 2 --from-port 1 --output channel.json
+wayricad-si line-network route.json --stop-hz 1000000000 --points 1001 --output ideal-line.s2p
+```
+
+`network` retains the source hash, backend version, frequency grid and selected
+complex S response with dB magnitude and wrapped phase. Use `--to-port 1` for
+S11; zero response has null dB and phase. Only Touchstone 1.0 S data with an
+explicit option line is accepted (32 ports, 10001 frequency records, 16 MiB).
+
+`line-network` requires a complete two-terminal Quick SI route report without
+zone corridors. It exports an **ideal lossless uniform line**, not extracted
+board S-parameters, and needs no optional library. Its explicit stop frequency
+is in Hz; source/load, loss, vias and coupling are omitted. The upstream desktop,
+calibration, advanced eye and other capabilities are not embedded in this phase.
+Use `wayricad-si desktop --check` to verify the installed full upstream desktop
+and `wayricad-si desktop [trusted-project.si]` to run it in a separate process.
+An optional `--python` chooses its Python executable. The command waits until
+the application closes and surfaces failures. This exposes the original desktop
+workflow; it does not embed it in the Quick SI window or validate every upstream
+analysis. Upstream ERL, PZ and IXT remain their own installed console commands.
+See the [integration scope, setup, numerical checks and roadmap](https://github.com/wayri/WayriCAD/blob/develop/docs/QUICK_SI_SIGNALINTEGRITY.md).

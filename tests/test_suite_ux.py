@@ -216,7 +216,7 @@ class SuiteUxTests(unittest.TestCase):
             "wayricad://net/",
         ):
             self.assertIn(label, source)
-        self.assertIn("new_webview", source)
+        self.assertIn("NativeSvgPreview", source)
         self.assertIn("fp.SetSelected()", source)
         self.assertIn("SetHighLightNet", source)
         self.assertIn("summarize_source_destination_table", source)

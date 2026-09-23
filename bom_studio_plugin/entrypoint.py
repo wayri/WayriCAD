@@ -34,6 +34,10 @@ def main():
     parser.add_argument('--session-file',help=argparse.SUPPRESS)
     parser.add_argument('--pick',action='store_true',help=argparse.SUPPRESS)
     args=parser.parse_args()
+    # wx.App parses process arguments again on Windows.  Project paths and our
+    # --ui/--port switches are already consumed here; leaving them in argv can
+    # produce KiCad's spurious "Unknown option" dialog before the window opens.
+    sys.argv[:]=sys.argv[:1]
     if args.pick:return pick()
     # Detached callers need a diagnostic if imports or project loading stall.
     if args.session_file:
@@ -50,7 +54,11 @@ def main():
                 json.dump({'pid':os.getpid(),'url':server.url,'ui_mode':actual_mode},f)
             faulthandler.cancel_dump_traceback_later()
     try:
-        app=Application(args.project,args.demo,auto_link=not args.no_auto_link,analytics_demo=args.analytics_demo,engineering_demo=args.engineering_demo)
+        from bomstudio.startup import load_with_progress
+        app=load_with_progress(
+            lambda: Application(args.project,args.demo,auto_link=not args.no_auto_link,
+                                analytics_demo=args.analytics_demo,engineering_demo=args.engineering_demo),
+            enabled=mode=='desktop')
         app.ui_mode=mode;server=Server(app,args.port)
         if mode=='desktop':
             run(server,on_ready=ready)

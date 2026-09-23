@@ -19,6 +19,9 @@ class VisualWorkspace:
         self.ready = False
         self.connected = False
         self.failed = False
+        self.last_navigation = ''
+        self.last_loaded = ''
+        self.last_error = ''
         self.native_menu = frame.GetMenuBar()
         self.view = new_webview(frame)
         if not self.view.AddScriptMessageHandler('wayricad'):
@@ -31,22 +34,46 @@ class VisualWorkspace:
         self.view.Bind(wx.html2.EVT_WEBVIEW_NAVIGATING, self.navigate)
         self.view.Bind(wx.html2.EVT_WEBVIEW_NEWWINDOW, lambda event: event.Veto())
         self.view.Bind(wx.html2.EVT_WEBVIEW_LOADED, self.loaded)
+        self.view.Bind(wx.html2.EVT_WEBVIEW_ERROR, self.load_error)
         self.view.Bind(wx.html2.EVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, self.message)
         self.show()
         self.view.LoadURL(self.url)
-        wx.CallLater(10000, self.check_connection)
+        self.startup_timer = wx.CallLater(10000, self.check_connection)
+        frame.Bind(wx.EVT_WINDOW_DESTROY, self._destroyed)
+
+    def _destroyed(self, event):
+        if event.GetEventObject() is self.frame:
+            self.startup_timer.Stop()
+            self.frame = None
+        event.Skip()
 
     def check_connection(self):
-        if not self.frame or self.frame.IsBeingDeleted() or self.connected: return
+        try:
+            if not self.frame or self.frame.IsBeingDeleted() or self.connected: return
+        except RuntimeError:  # The native frame was destroyed before this callback ran.
+            return
         self.failed = True
         self.native('workbench'); self.back.Hide()
-        self.frame.SetStatusText('Embedded visual workspace could not start. The complete native worksheet and help remain available.')
+        reason = (' ' + self.last_error) if self.last_error else ''
+        self.frame.SetStatusText('Embedded visual workspace could not start.' + reason +
+                                 ' The complete native worksheet and help remain available.')
         self.frame.Layout()
 
     def navigate(self, event):
-        if event.GetURL() not in (self.url, 'about:blank'): event.Veto()
+        self.last_navigation = event.GetURL()
+        if self.last_navigation not in (self.url, 'about:blank'):
+            event.Veto()
+        else:
+            event.Skip()
+
+    def load_error(self, event):
+        self.last_error = event.GetString() or event.GetURL()
+        if not self.connected:
+            wx.CallAfter(self.check_connection)
+        event.Skip()
 
     def loaded(self, event):
+        self.last_loaded = event.GetURL()
         if self.view.GetCurrentURL() == self.url and not self.ready:
             self.ready = True
             self.view.RunScriptAsync('setTimeout(() => window.studio.connect(), 0); void 0;')

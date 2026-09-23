@@ -88,34 +88,51 @@ def default_destination(version, *, platform=None, environ=None, home=None):
     return root / version / "plugins"
 
 
+def installation_target(destination, identifier):
+    """Update the copy KiCad discovers first when PCM already owns the plugin."""
+    destination = Path(destination).resolve()
+    pcm_plugins = destination.parent / "3rdparty" / "plugins"
+    pcm_target = pcm_plugins / identifier.replace(".", "_")
+    if pcm_target.exists() or pcm_target.is_symlink():
+        if pcm_target.is_symlink() or pcm_target.resolve().parent != pcm_plugins.resolve():
+            raise ValueError("PCM plugin path is not a direct directory under the PCM install path.")
+        manifest = pcm_target / "plugin.json"
+        if not manifest.is_file() or json.loads(manifest.read_text(encoding="utf-8"))["identifier"] != identifier:
+            raise ValueError(f"Unexpected PCM plugin at {pcm_target}")
+        return pcm_target
+    return destination / identifier
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", choices=("10.0", "11.0"), default="10.0")
     parser.add_argument("--destination", type=Path, help="Override KiCad user plugins directory.")
+    parser.add_argument("--archive-dir", type=Path, default=ROOT / "releases",
+                        help="Directory of current-version PCM ZIPs (defaults to releases/).")
     parser.add_argument("--apply", action="store_true", help="Copy plugins; existing installations are backed up.")
     args = parser.parse_args()
     destination = (args.destination or default_destination(args.version)).resolve()
     versions = {json.loads(p.read_text(encoding='utf-8'))['versions'][0]['version'] for p in ROOT.glob('*_plugin/metadata.json')}
     if len(versions)!=1:parser.error('Source plugins must have one release version.')
     release=versions.pop()
-    packages = sorted((ROOT / "releases").glob("WayriCAD-*-"+release+"-PCM.zip"))
+    packages = sorted(args.archive_dir.glob("WayriCAD-*-"+release+"-PCM.zip"))
     expected = {"WayriCAD-" + p.parent.name.removesuffix("_plugin").replace("_", "-") + "-"+release+"-PCM.zip"
                 for p in ROOT.glob("*_plugin/metadata.json")}
     if not expected or {p.name for p in packages} != expected:
-        parser.error("Release ZIPs differ from the source inventory. Run python build_pcm.py --clean-feed first.")
+        parser.error("PCM ZIPs differ from the source inventory. Build all current-version packages first.")
     for package in packages:
         with zipfile.ZipFile(package) as archive:
             manifest = json.loads(archive.read("plugins/plugin.json"))
             identifier = manifest["identifier"]
             if not identifier.startswith("com.github.wayri.wayricad.") or any(c in identifier for c in "/\\"):
                 raise ValueError("Unexpected package identifier")
-            target = destination / identifier
+            target = installation_target(destination, identifier)
             print(f"{manifest['name']} -> {target}")
             if not args.apply:
                 continue
-            destination.mkdir(parents=True, exist_ok=True)
-            with tempfile.TemporaryDirectory(prefix=".wayricad-install-", dir=destination) as temporary:
-                stage = Path(temporary) / identifier
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(prefix=".wayricad-install-", dir=target.parent) as temporary:
+                stage = Path(temporary) / target.name
                 stage.mkdir()
                 for info in archive.infolist():
                     if not info.filename.startswith("plugins/") or info.is_dir():

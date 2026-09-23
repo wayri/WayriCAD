@@ -7,6 +7,7 @@
 - Run a quick saved-board 2D footprint-envelope overlap and XY-clearance screen without FreeCAD.
 - Use optional FreeCAD exact-solid intersection/distance checks with STEP models and enclosure geometry.
 - Review height/keepout rules, hardware and access envelopes, severity filters and reasoned waivers.
+- Configure a circular PnP nozzle tip and wider head with a live dimensioned side view; review conservative tip/head access warnings in the offline report.
 - Inspect local geometry/conflict surfaces and export HTML, JSON or CSV through the GUI or CLI.
 
 ## Limitations
@@ -23,6 +24,8 @@ Local, read-only board mechanical validation with actual STEP conflict surfaces 
 Install the independently built WayriCAD Mechanical Check ZIP with KiCad 10 Plugin and Content Manager. The IPC action opens a native window through installed KiCad 10 Python. Save PCB edits first: launch context identifies the saved file and does not capture unsaved changes. If context is unavailable, choose a board manually.
 
 The compact Board → Rules → Run → Review → Report navigation retains clearances, hardware, enclosure/zone rules, search, severity filters, 3D inspection, reasoned waivers, and HTML/JSON/CSV exports. Advanced geometry settings stay behind one button. The canvas uses a neutral background with actual solid geometry and conflict volumes.
+
+On Rules, enter the PnP **tip radius**, **head radius**, **head setback** above the pickup plane, and **access travel** in millimetres. The side-view diagram updates as values change. The head radius must be at least the tip radius, and setback cannot exceed travel. Exact 3D runs screen same-side obstacles against each circular section and identify which one triggered a warning. The HTML report shows the configured profile and a schematic obstacle for a selected nozzle warning; use the 3D viewer for actual locations. This is an access envelope, not a machine-path or certified nozzle simulation.
 
 ## Native interface
 
