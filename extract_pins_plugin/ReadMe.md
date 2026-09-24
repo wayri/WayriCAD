@@ -10,6 +10,9 @@
 - Builds power trees and programming/bring-up packages with editable classification rules.
 - Links pin documents across projects and produces tracker tables and harness-style diagrams.
 - Provides GUI and command-line workflows for board analysis and automation.
+- Shows a live selection basket and reference wildcards (for example `J*`), then previews exact pin rows and common nets before export.
+- Produces a self-contained, interactive HTML report for selected components and connectors. Net clicks cross-highlight matching pin rows; pin 1 and available board bounding-box dimensions are marked.
+- Renders IC charts, block diagrams, and power trees in a native SVG viewer, so these previews do not depend on Edge WebView2.
 
 ## Limitations
 
@@ -18,12 +21,13 @@
 - Active-device paths require explicit rules and enablement, remain conditional, and do not infer device state or electrical direction.
 - Full native hierarchical sheet coverage comes from a KiCad XML netlist; PCB-only coverage depends on saved fields.
 - Generated tables and diagrams do not replace ERC, DRC, or engineering review of ambiguous cross-board links.
+- The embedded connector table is a native HTML summary; use **Export Preview → Interactive HTML** for searchable, cross-highlighting pin rows.
 
 ## Overview
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-3.1.1-blue)
+![Version](https://img.shields.io/badge/Version-3.4.0-blue)
 ![KiCAD](https://img.shields.io/badge/KiCAD-10.0+-green)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
@@ -33,6 +37,16 @@ Interface overview before selecting footprints. Choose components, refresh the
 preview, review pin/net rows, then export. An empty preview does not mean the board
 has no pins. The installed [offline guide](help.html) covers the selection,
 connector mapping, diagrams and bring-up workflows.
+
+On **Extract Pins**, leave **Follow PCB selection** on to add footprints as you
+select them in PCB Editor, or enter comma-separated reference patterns such as
+`J*,P1`. Choose whether to use the selection, patterns, or their union, then
+click **Preview Extraction**. **View connector tables** opens the embedded
+pin-order view and a table of nets shared by two or more extracted components.
+**Export Preview → Interactive HTML** saves the same view as a portable offline
+file. Its row diagram describes pin order, not physical pad pitch; dimensions
+are shown only when KiCad supplies the footprint's board bounding box. Changing
+the scope or filters invalidates the previous export until it is previewed again.
 
 ## Features
 
@@ -85,7 +99,7 @@ connector mapping, diagrams and bring-up workflows.
 - Show every component once in a harness-style component/net topology
 - Use distinct signal, supply, power, and ground bus colors with pin labels
 - Switch between system map, signal topology, and directed power flow
-- Zoom with the mouse wheel, drag to pan, fit/restore the image, and click nets to highlight them in KiCad
+- Zoom with the mouse wheel, drag to pan, double-click to fit, and click nets to highlight them in KiCad
 
 ### Power Net Classification
 - Automatic detection of power/ground nets (VCC, VDD, GND, VSS, voltage rails, etc.)

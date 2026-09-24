@@ -46,6 +46,8 @@ def main(argv=None):
         response.write_text(json.dumps(result,default=convert,allow_nan=False),encoding='utf-8')
         return status
     if not args.board:parser.error('--board is required for the native window')
+    # wx may parse process arguments again when creating the app on Windows.
+    sys.argv = sys.argv[:1]
     import wx
     app=wx.App(False)
     try:

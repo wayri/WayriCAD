@@ -10,6 +10,8 @@
 - Produces sortable wire, pin, net, system-path, and procurement tables.
 - Exports CSV, SVG, and self-contained interactive HTML reports with a pan/zoom draft.
 - Joins reviewed IC/peripheral paths with harness wires across board projects.
+- Keeps project, connector, wire, and end-to-end path counts visible across every tab, with a four-stage progress strip and the next useful action.
+- Shows bundle colours and wire counts on the native draft; selecting wires in the Wire List highlights those exact routes.
 
 ## Limitations
 
@@ -38,6 +40,13 @@ can be assigned gauges, colors, lengths, shields, bundles, and splices.
 ![Native WayriCAD Harness and Cable Workbench window](help-workflow.png)
 
 Native connector and harness workspace before importing connectivity. This empty view is an interface overview, not a completed cable design.
+
+The summary strip follows the current imported and mapped state. In **Wire List**, select
+one or more wires and choose **View selected on draft** to inspect them in the
+native drawing. Its bundle legend shows wire counts. The wire property controls
+use three rows so gauges, colours, lengths, and shields remain readable at
+normal window widths. The draft is a connectivity layout, not a length- or
+geometry-accurate cable drawing.
 
 The installed package includes [offline help](help.html) with its workflow and limitations.
 

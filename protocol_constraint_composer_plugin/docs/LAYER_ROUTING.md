@@ -6,23 +6,50 @@ not remain open. This is persistent setup, not a background routing hook.
 
 ## Setup and routing
 
-1. Configure and save the actual physical stackup in KiCad Board Setup.
-2. Create a named instance such as CAN1, CAN2, Ethernet1 TX or DDR1 Data. Select
+1. Configure and save the actual physical stackup in KiCad Board Setup. Studio
+   reads the saved board, including nets and copper geometry. A clean workspace
+   reloads it when Studio regains focus; use **Reload saved board** when needed.
+   Export or undo staged edits before reloading, so they cannot be discarded.
+2. Create a named instance such as CAN1, CAN2, Ethernet1 TX or DDR1 Data. Each
+   saved instance has its own tab; switch tabs to review its nets and dimensions. Select
    its protocol family and exact nets using checkboxes, search and Select visible.
    One net or a group is supported. Existing-netclass scope remains available.
    Differential routing requires
    KiCad-recognized pair naming; a protocol label alone does not establish a pair.
 3. Open **Layer routing profiles** in Studio. Select the instance's signal type,
    target impedance and geometry tolerance. Add each permitted signal layer.
-4. Select adjacent reference planes. Outer layers use one reference; internal
-   layers use references above and below. Enter fabricator/field-solver width and
-   gap values, or estimate a width while keeping the pair gap fixed.
-5. Review reference-plane continuity and layer-transition return paths, then
-   stage and export. Close the source project before applying the review with
-   its bundled Apply Review utility. Reopen the project in KiCad.
-6. Use KiCad's **netclass/rule-driven sizing** for tracks and differential pairs.
-   Width and gap then update on routing layer changes, without selecting a new
-   size each time. A manually selected explicit size can override the defaults.
+4. Select the actual continuous reference plane(s). Outer layers commonly use one;
+   internal layers commonly use references above and below. Verified values can
+   use other valid stackups, including one-sided internal references. Enter
+   fabricator/field-solver width and gap values, or estimate a width while
+   keeping the pair gap fixed where the approximation supports the geometry.
+   The side-by-side comparison cards show the selected stackup layer and
+   parallel trace/pair copper at one scale. Trace, Pair and Trace + pair modes
+   update as dimensions are edited. They are illustrations, not routed copper.
+5. Optionally choose one via recipe for the instance: through, microvia, blind
+   or buried, with copper diameter and drill. Microvias, blind vias and buried
+   vias also require a specific copper-layer span and must be enabled in KiCad
+   Board Setup. **Use saved sizes** copies the netclass dimensions for review.
+   Studio validates board floors and stages scoped via-dimension/type DRC
+   rules. KiCad's tuning-profile format does not store per-protocol via type,
+   and the router does not automatically select it; choose the via type in
+   KiCad while routing.
+6. Review reference-plane continuity and layer-transition return paths, then
+   stage and export. On **Review & export**, click **Open Apply Review** to
+   launch the exported helper without searching for its file. Close every
+   KiCad editor for the source project, review the helper's listed files and
+   confirmations, then apply with fingerprint checks and backups. Reopen the
+   project in KiCad. The profile and scoped rules are now persistent; Studio
+   can be closed. KiCad cannot safely hot-apply a saved project file to an open
+   PCB Editor, so closing and reopening is the supported transition.
+7. Use KiCad's **netclass/rule-driven sizing** for tracks and differential pairs.
+   Turn off KiCad's **Auto track width** toolbar button: when it is on, starting
+   from an existing segment inherits that segment's width even on a different
+   layer. KiCad 10 keeps one width during an active route. After placing the
+   transition via, finish the route and start the next route on the destination
+   layer. KiCad then selects that layer's saved width or pair gap without
+   manually choosing a size. A manually selected explicit size can override
+   the defaults.
 
 Existing copper is not automatically resized. Existing higher-priority scoped
 rules can override the profile, including local BGA neckdowns. Generated rules
@@ -65,6 +92,10 @@ fixed-gap differential coupling. It rejects mixed dielectrics, composite
 sublayers, asymmetric stripline, intervening copper and dimensions outside its
 screening range. Verified external dimensions may be entered for asymmetric or
 mixed-dielectric cross-sections with supported stackup representation.
+The native profile accepts manually verified dimensions for any distinct signal
+and reference copper layers in the saved stackup, including intervening copper
+and one-sided internal references. The approximation still rejects unsupported
+cross-sections; the preview is a geometry illustration, not an impedance solver.
 
 The estimate excludes mask, roughness, weave, dispersion, plane voids and via
 discontinuities. It is not a field-solver or fabricator sign-off. Geometry
@@ -93,11 +124,24 @@ destination layer. Manual sizing modes remain native overrides.
 - [Siemens Xpedition constraint management](https://blogs.sw.siemens.com/xcelerator-academy/2023/03/27/how-to-master-the-game-of-setting-rules-constraint-manager/): inspiration for net/layer constraint tables and central review.
 
 Development validation includes backend persistence/staleness/ownership tests,
-real native WebView calculate/stage/undo, native KiCad 10.0.5 DRC acceptance of
-different widths and gaps on two layers, and a native project load/save
+real native WebView preview/calculate/via-stage/undo, native KiCad 10.0.5 DRC acceptance of
+different widths and gaps on two layers, a KiCad 10.0.6 DRC rejection of an
+incorrect microvia type/span and dimensions, and a native project load/save
 round-trip. The native DRC fixture is deliberately violating, not a clean board.
-Interactive routing transitions were verified in official native source;
-an end-to-end mouse-driven route/via test has not been performed.
+An end-to-end mouse-driven route/via test on KiCad 10.0.6 verified 0.20 mm
+`F.Cu` and 0.30 mm `B.Cu` tracks after restarting at the via with **Auto track
+width** off. Both an exact-net custom-rule profile and a netclass-assigned
+native tuning profile selected 0.30 mm on `B.Cu`; the saved board widths were
+read back through `pcbnew`. With **Auto track width** on, KiCad inherited 0.20
+mm from the `F.Cu` segment on `B.Cu`. This is a native router limitation, not
+a condition that Studio can override while closed. Differential pair spacing
+across a live layer transition remains unverified by this mouse-driven test;
+native DRC and profile persistence were checked separately.
+
+The user subsequently confirmed live differential-pair routing across layers
+works in their KiCad session. This report does not include a captured board,
+route geometry or automated measurement from that session; the quantitative
+single-track and native DRC evidence above remain the recorded local checks.
 
 Native acceptance uncovered an imported numeric-format defect: bare `.2mm`
 constraint values are rejected by KiCad's rule lexer. Export now normalizes

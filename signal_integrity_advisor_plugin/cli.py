@@ -16,6 +16,21 @@ def protocol_budgets(command):
 def parser():
     root=argparse.ArgumentParser(description=__doc__)
     subs=root.add_subparsers(dest='command',required=True)
+    desktop=subs.add_parser('desktop',help='Run the complete optional upstream SignalIntegrity desktop; waits until it closes.')
+    desktop.add_argument('project',type=Path,nargs='?',help='Optional trusted upstream .si project.')
+    desktop.add_argument('--python',type=Path,help='Python executable with SignalIntegrity and Tk; defaults to this interpreter.')
+    desktop.add_argument('--check',action='store_true',help='Check desktop imports/version without opening a window.')
+    network=subs.add_parser('network',help='Read Touchstone 1.0 with optional Nubis SignalIntegrity; no KiCad required.')
+    network.add_argument('source',type=Path)
+    network.add_argument('--to-port',type=int,default=2,help='One-based receiving port; default 2.')
+    network.add_argument('--from-port',type=int,default=1,help='One-based driven port; default 1.')
+    network.add_argument('--output',type=Path)
+    line=subs.add_parser('line-network',help='Export a screened route as an explicitly ideal lossless Touchstone two-port.')
+    line.add_argument('source',type=Path,help='Complete Quick SI JSON route report.')
+    line.add_argument('--stop-hz',type=float,required=True,help='Explicit final frequency in Hz; grid starts at DC.')
+    line.add_argument('--points',type=int,default=1001)
+    line.add_argument('--reference-ohm',type=float,default=50.)
+    line.add_argument('--output',type=Path,required=True,help='Separate .s2p file.')
     subs.add_parser('profiles',help='List protocol screening profiles; no KiCad runtime required.')
     suite=subs.add_parser('suite',help='Screen saved Quick SI JSON reports; no KiCad runtime required.')
     suite.add_argument('--profile',required=True,help='Profile ID from profiles.')
@@ -66,6 +81,26 @@ def write_report(destination,payload,source,extension):
 
 
 def execute(args):
+    if args.command=='desktop':
+        from .signalintegrity_backend import run_desktop
+        return run_desktop(python=args.python,project=args.project,check=args.check)
+    if args.command=='network':
+        from .signalintegrity_backend import analyze_touchstone
+        report=analyze_touchstone(args.source,to_port=args.to_port,from_port=args.from_port)
+        if args.output:write_report(args.output,json.dumps(report,indent=2,allow_nan=False)+'\n',args.source,'.json')
+        return report
+    if args.command=='line-network':
+        from .signalintegrity_backend import ideal_line_touchstone
+        if args.source.stat().st_size>16*1024*1024:raise ValueError('Input route report must be smaller than 16 MiB.')
+        def reject_constant(value):raise ValueError('Non-finite JSON number: '+value)
+        original=args.source.read_bytes()
+        report=json.loads(original.decode('utf-8-sig'),parse_constant=reject_constant)
+        if not isinstance(report,dict):raise ValueError('Input must be a Quick SI report object.')
+        payload=ideal_line_touchstone(report,stop_hz=args.stop_hz,points=args.points,reference_ohm=args.reference_ohm)
+        write_report(args.output,payload,args.source,'.s2p')
+        return {'schema':'wayricad.ideal-line-export/v1','status':'ILLUSTRATIVE','output':str(args.output.resolve()),
+                'source_sha256':hashlib.sha256(original).hexdigest(),
+                'model':'Lossless uniform line only; not extracted board S-parameters.'}
     if args.command=='profiles':
         from .protocol_profiles import list_profiles
         return {'schema':'wayricad.protocol-profiles/v1','profiles':list_profiles()}

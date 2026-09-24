@@ -294,9 +294,11 @@ class ConstraintStudioFrame(StudioFrame):
 
 def main():
     import argparse
+    import sys
     parser = argparse.ArgumentParser(description='WayriCAD Constraint Studio (saved-project editor)')
     parser.add_argument('board', nargs='?', default='')
     args = parser.parse_args()
+    sys.argv[:] = sys.argv[:1]  # wx.App must not reparse the saved-board path.
     app = wx.App(False)
     frame = ConstraintStudioFrame(board_path=args.board)
     frame.Show(); app.MainLoop()

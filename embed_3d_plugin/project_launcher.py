@@ -45,6 +45,10 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source',default='');parser.add_argument('--advanced',action='store_true');parser.add_argument('--library',action='store_true')
     args=parser.parse_args(argv)
+    # wx.App reparses process arguments on Windows. The project path and our
+    # switches were consumed above; leaving them triggers a KiCad "Unknown option"
+    # dialog before the Embed3D window appears.
+    sys.argv[:] = sys.argv[:1]
     os.environ['WAYRICAD_EMBED3D_NO_REGISTER']='1'
     root=Path(__file__).resolve().parent
     sys.path.insert(0,str(root))

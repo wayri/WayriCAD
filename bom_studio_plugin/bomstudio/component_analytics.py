@@ -217,14 +217,25 @@ def summarize(parts, geometry):
     insights=[]
     families=[g for g in output if g['level']=='family']
     known=[g for g in families if g['power']['known_total'] is not None]
-    if known:
+    if len(known)>1:
         largest=max(known,key=lambda g:g['power']['known_total'])
-        insights.append(largest['label']+' has the largest known dissipation subtotal ('+str(largest['power']['known_total'])+' W); unknown observations may change this ranking.')
+        insights.append(largest['label']+' has the largest entered dissipation subtotal ('+str(largest['power']['known_total'])+' W from '+str(largest['power']['known'])+' of '+str(largest['power']['eligible'])+' eligible components); missing observations may change this ranking.')
+    physical=[p for p in parts if p['physical_eligible']]
+    for metric,label,unit in [('mass','Mass','g'),('power','Dissipation','W')]:
+        measured=[p for p in physical if p.get(metric) and p[metric]['status']=='known']
+        if physical and not measured:
+            insights.append(label+' comparison is unavailable: 0 of '+str(len(physical))+' physical components have known values in this run. Enable and map a valid '+unit+' field to compare them.')
     for currency in sorted({c for g in families for c in g['costs']}):
         known=[g for g in families if g['costs'].get(currency,{}).get('known_total') is not None]
-        if known:
+        if len(known)>1:
             largest=max(known,key=lambda g:g['costs'][currency]['known_total'])
-            insights.append(largest['label']+' has the largest known '+currency+' cost subtotal. Currencies are not implicitly combined.')
+            coverage=largest['costs'][currency]
+            insights.append(largest['label']+' has the largest entered '+currency+' cost subtotal ('+str(coverage['known'])+' of '+str(coverage['eligible'])+' eligible components priced). Currencies are not combined.')
+        priced=[p for p in parts if p['price_eligible'] and p['cost']['currency']==currency]
+        observed=[p for p in priced if p['cost']['unit_price'] is not None]
+        if observed:
+            highest=max(observed,key=lambda p:p['cost']['unit_price'])
+            insights.append('Highest entered '+currency+' unit cost: '+highest['reference']+' at '+str(highest['cost']['unit_price'])+' per component; '+str(len(observed))+' of '+str(len(priced))+' eligible components have known prices.')
     return {'groups':output,'insights':insights,'limits':['Family and type tables are alternative breakdowns; RLC combined is an overlapping rollup, never an additional population.',
         'Type fields take precedence; reference-prefix classifications remain heuristic. Diodes and LEDs are grouped with actives by declared convention.',
         'Power/area is arithmetic over matched known components, not a thermal simulation, heat-flux boundary condition or cooling capability.']}

@@ -1,6 +1,6 @@
 # Third-party notices
 
-KiWay BOM Studio code and original synthetic examples use the MIT license in LICENSE.
+WayriCAD BOM Studio code and original synthetic examples use the MIT license in LICENSE.
 
 The standard KiCad BOM icon SVGs and derived PNGs, including the PCM `resources/icon.png`, use **CC-BY-SA-4.0**, not MIT. See `resources/ICON_LICENSE.md` for authorship, exact sources, license links and changes. Root PCM metadata uses the schema-compatible general license label `open-source`; the specific per-component licenses in these notices govern distribution.
 

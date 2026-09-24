@@ -144,6 +144,7 @@ class QuickPIFrame(wx.Frame):
         if self._closing:self._end()
 
     def _job(self,request,finished,message):
+        if self._closed or self._closing:return
         from .service import run_job
         if request.get('action') in ('geometry','mesh','solve','converge'):
             self.bundle.pop('result',None)
@@ -154,6 +155,7 @@ class QuickPIFrame(wx.Frame):
         self._task(lambda:run_job(request,cancelled=self._cancel.is_set,timeout=300),finished,message)
 
     def _inspect(self):
+        if self._closed or self._closing:return
         self._series_request=None;self.bundle={}
         def finished(result):
             import pcbnew

@@ -16,6 +16,8 @@ DEFAULTS = {
     "top_height_mm": 12.0,
     "bottom_height_mm": 3.0,
     "nozzle_radius_mm": 1.5,
+    "nozzle_head_radius_mm": 1.5,
+    "nozzle_head_setback_mm": 0.0,
     "nozzle_travel_mm": 15.0,
     "screw_clearance_mm": 0.5,
     "volume_tolerance_mm3": 0.0001,
@@ -37,6 +39,10 @@ def validate(config):
         raise ValueError('Unknown settings: ' + ', '.join(sorted(unknown)))
     out = deepcopy(DEFAULTS)
     out.update(config)
+    # Older project files had one cylinder radius. Keep that geometry when
+    # loading them, even if their radius differs from today's default.
+    if 'nozzle_head_radius_mm' not in config:
+        out['nozzle_head_radius_mm'] = out['nozzle_radius_mm']
     if out['schema_version'] != 1:
         raise ValueError('Unsupported settings schema')
     for key, value in out.items():
@@ -45,6 +51,10 @@ def validate(config):
                 raise ValueError(key + ' must be a finite, non-negative number')
     if out['mode'] not in ('quick2d', 'exact3d'):
         raise ValueError('Choose quick2d or exact3d mode')
+    if out['nozzle_head_radius_mm'] < out['nozzle_radius_mm']:
+        raise ValueError('Nozzle head radius must be at least the tip radius')
+    if out['nozzle_head_setback_mm'] > out['nozzle_travel_mm']:
+        raise ValueError('Nozzle head setback must not exceed nozzle travel')
     if not isinstance(out['include_dnp'], bool):
         raise ValueError('include_dnp must be true or false')
     for key in ('project_name', 'project_revision', 'reviewer'):

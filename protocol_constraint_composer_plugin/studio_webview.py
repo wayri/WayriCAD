@@ -1,7 +1,10 @@
 """Native, local-only visual shell sharing the original specialist workspaces."""
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import wx
 import wx.html2
 from wayricad_runtime.local_webview import new_webview
@@ -12,6 +15,24 @@ MUTATIONS = {'save_rule', 'set_value', 'toggle', 'duplicate', 'delete', 'move', 
 PAGES = {'workbench', 'rule_page', 'matrix_page', 'netclass_page', 'settings_page', 'profile_panel', 'reports_panel', 'advanced_panel', 'help_page', 'review_page'}
 
 
+def launch_apply_helper(folder):
+    """Open the exported offline apply UI as an independent desktop process."""
+    launcher = Path(folder) / 'Apply Review.pyw'
+    if not launcher.is_file():
+        raise FileNotFoundError('Apply Review helper is missing; export a new review bundle.')
+    executable = Path(sys.executable)
+    if os.name == 'nt' and executable.name.lower() == 'python.exe':
+        windowless = executable.with_name('pythonw.exe')
+        if windowless.is_file():
+            executable = windowless
+    kwargs = {'cwd': str(launcher.parent), 'close_fds': True}
+    if os.name == 'nt':
+        kwargs['creationflags'] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        kwargs['start_new_session'] = True
+    subprocess.Popen([str(executable), str(launcher)], **kwargs)
+
+
 class VisualWorkspace:
     def __init__(self, frame):
         self.frame = frame
@@ -19,6 +40,9 @@ class VisualWorkspace:
         self.ready = False
         self.connected = False
         self.failed = False
+        self.last_navigation = ''
+        self.last_loaded = ''
+        self.last_error = ''
         self.native_menu = frame.GetMenuBar()
         self.view = new_webview(frame)
         if not self.view.AddScriptMessageHandler('wayricad'):
@@ -31,22 +55,46 @@ class VisualWorkspace:
         self.view.Bind(wx.html2.EVT_WEBVIEW_NAVIGATING, self.navigate)
         self.view.Bind(wx.html2.EVT_WEBVIEW_NEWWINDOW, lambda event: event.Veto())
         self.view.Bind(wx.html2.EVT_WEBVIEW_LOADED, self.loaded)
+        self.view.Bind(wx.html2.EVT_WEBVIEW_ERROR, self.load_error)
         self.view.Bind(wx.html2.EVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, self.message)
         self.show()
         self.view.LoadURL(self.url)
-        wx.CallLater(10000, self.check_connection)
+        self.startup_timer = wx.CallLater(10000, self.check_connection)
+        frame.Bind(wx.EVT_WINDOW_DESTROY, self._destroyed)
+
+    def _destroyed(self, event):
+        if event.GetEventObject() is self.frame:
+            self.startup_timer.Stop()
+            self.frame = None
+        event.Skip()
 
     def check_connection(self):
-        if not self.frame or self.frame.IsBeingDeleted() or self.connected: return
+        try:
+            if not self.frame or self.frame.IsBeingDeleted() or self.connected: return
+        except RuntimeError:  # The native frame was destroyed before this callback ran.
+            return
         self.failed = True
         self.native('workbench'); self.back.Hide()
-        self.frame.SetStatusText('Embedded visual workspace could not start. The complete native worksheet and help remain available.')
+        reason = (' ' + self.last_error) if self.last_error else ''
+        self.frame.SetStatusText('Embedded visual workspace could not start.' + reason +
+                                 ' The complete native worksheet and help remain available.')
         self.frame.Layout()
 
     def navigate(self, event):
-        if event.GetURL() not in (self.url, 'about:blank'): event.Veto()
+        self.last_navigation = event.GetURL()
+        if self.last_navigation not in (self.url, 'about:blank'):
+            event.Veto()
+        else:
+            event.Skip()
+
+    def load_error(self, event):
+        self.last_error = event.GetString() or event.GetURL()
+        if not self.connected:
+            wx.CallAfter(self.check_connection)
+        event.Skip()
 
     def loaded(self, event):
+        self.last_loaded = event.GetURL()
         if self.view.GetCurrentURL() == self.url and not self.ready:
             self.ready = True
             self.view.RunScriptAsync('setTimeout(() => window.studio.connect(), 0); void 0;')
@@ -86,6 +134,19 @@ class VisualWorkspace:
         if method == 'snapshot':
             self.connected = True
             return self.state()
+        if method == 'reload_saved':
+            if not f.w.board_path: raise ValueError('Open a saved board before reloading its layout.')
+            if f.w.dirty:
+                raise ValueError('Export or undo staged changes before reloading the saved board; reload would discard them.')
+            f.load(f.w.board_path)
+            return self.state()
+        if method == 'open_apply':
+            if not f.last_export:
+                raise ValueError('Export a reviewed bundle before opening Apply Review.')
+            if f.w.dirty:
+                raise ValueError('Workspace changed since export. Export a new review bundle first.')
+            launch_apply_helper(f.last_export)
+            return None
         if method in MUTATIONS:
             self.replace(studio_model.mutation(f.w, method, args)); return self.state()
         if method == 'inspect': return studio_model.inspect_scope(f.w, args)

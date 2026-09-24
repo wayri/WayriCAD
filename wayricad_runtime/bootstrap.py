@@ -6,8 +6,14 @@ import sys
 
 
 def relaunch(root, entrypoint, *, profile='ipc'):
-    from .runtime_setup import ensure_runtime, child_environment, REQUIREMENTS_IPC, REQUIREMENTS_QUICK_PI, REQUIREMENTS_MAGNETICS
+    from .runtime_setup import (ensure_runtime, child_environment, REQUIREMENTS_IPC,
+                                REQUIREMENTS_EXTRACT, REQUIREMENTS_BOM,
+                                REQUIREMENTS_QUICK_PI, REQUIREMENTS_MAGNETICS)
     requirements = dict(REQUIREMENTS_IPC)
+    if profile == 'extract':
+        requirements.update(REQUIREMENTS_EXTRACT)
+    if profile == 'bom':
+        requirements.update(REQUIREMENTS_BOM)
     if profile == 'quick-pi':
         requirements.update(REQUIREMENTS_QUICK_PI)
     if profile == 'magnetics':
@@ -20,7 +26,12 @@ def relaunch(root, entrypoint, *, profile='ipc'):
         return None
     # Preserve lexical venv paths: Unix venv executables symlink to the base Python.
     command = [str(python), '-I', str(Path(root) / entrypoint), *sys.argv[1:]]
+    # KiCad's GUI host may expose invalid inherited console handles on Windows.
+    # Give the managed GUI process valid standard handles or Python can exit 1
+    # before the plugin has a chance to display its own error dialog.
     return subprocess.call(command, env=child_environment(),
+                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL,
                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
 
 

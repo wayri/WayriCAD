@@ -8,7 +8,7 @@
 - Estimate winding electrical properties and reduced actuator motion; inspect dimensioned cores, B-H sweeps, reluctance, saturation and ideal-gap force.
 - Solve explicit linear axisymmetric winding fields, mutual coupling and leakage; inspect mesh, B/H and convergence evidence.
 - Compute explicit-dielectric coaxial capacitance matrices and partial single-layer PCB sidewall capacitance.
-- Synthesize logical concentrated/distributed/chorded motor windings with balanced 2–12-phase presets, EMF, ideal-current torque/force and phase-event references.
+- Synthesize logical concentrated/distributed/chorded motor windings with balanced 2–12-phase presets, a dimensioned annular phase/slot preview, EMF, ideal-current torque/force and phase-event references.
 - Run supported equivalent-circuit AC/DC and motor-mechanics transient simulations using KiCad ngspice; export project-local HTML, JSON, SPICE, CSV and plots.
 
 ## Limitations
@@ -123,9 +123,9 @@ Manual pF overrides remain available and remove the corresponding computed prove
 
 ## Motor winding, EMF and phase timing
 
-Open **Core tools → Motor winding / EMF**. The separate workbench synthesizes logical two-layer coil connections for distributed full-pitch, concentrated tooth and chorded windings, with balanced presets for 2–12 phases. Review slots, poles, coil pitch, turns and phase balance before simulation. The layout and exported `coils.csv` describe slot/phase/polarity assignments, **not manufactured stator geometry, end-turn packing or routed PCB copper**.
+Open **Core tools → Motor winding / EMF**. The separate workbench synthesizes logical two-layer coil connections for distributed full-pitch, concentrated tooth and chorded windings, with balanced presets for 2–12 phases. Review slots, poles, coil pitch, turns and phase balance before simulation. In rotary mode, enter preview inner/outer radii and use **Show winding phase** to inspect one phase or all phases. The annular view draws every start/return slot as a phase-coloured loop inside a separate radial display lane, labels selected-phase polarity and slot endpoints, and shows inner/outer diameters. It is a **logical projection**: lane separation does not allocate real copper layers or prove trace clearance, winding resistance, end-turn routing, pad placement or manufacturability. The model's EMF and torque calculations do not use the preview radii. The layout and exported `coils.csv` describe slot/phase/polarity assignments, **not manufactured stator geometry, end-turn packing or routed PCB copper**.
 
-![Native logical winding layout](help-motor.png)
+![Earlier logical winding layout example](help-motor.png)
 ![Phase EMF and ideal-current effort](help-motor-emf.png)
 
 Supply the fundamental air-gap B and active geometry, or use the explicitly limited PM magnet/gap estimate. Wound-field mode requires supplied B; no rotor excitation circuit is solved. Rotary and linear modes show phase EMF, torque/force and constant-speed zero/peak timing events. Timing is a reference, not PWM, commutation or dead-time instructions. Even-phase presets use independent H-bridge phase axes, not an assumed shared neutral. The [model equations and research review](../docs/MOTOR_MODELS.md) state exactly which baseline is implemented.

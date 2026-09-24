@@ -17,17 +17,23 @@ from .runtime import Cancelled, discover
 from .viewer import Scene
 from .extract import is_mounting
 
-INK, MUTED, BG, TEAL = '#242424', '#656565', '#f7f7f7', '#267269'
+INK, MUTED, BG, TEAL = '#243444', '#5c7180', '#f7fafc', '#267269'
 
 
-def label(parent, text, size=11, bold=False, color=INK):
+def theme_palette(dark):
+    """Keep wx-owned surfaces and custom labels in one OS appearance."""
+    return ('#eef5f8', '#bacbd4', '#1d252d', '#68d0c0') if dark else (
+        '#243444', '#5c7180', '#f7fafc', '#267269')
+
+
+def label(parent, text, size=11, bold=False, color=None):
     widget = wx.StaticText(parent, label=text)
     font = widget.GetFont()
     font.SetPointSize(size)
     if bold:
         font.SetWeight(wx.FONTWEIGHT_BOLD)
     widget.SetFont(font)
-    widget.SetForegroundColour(color)
+    widget.SetForegroundColour(INK if color is None else color)
     return widget
 
 
@@ -37,8 +43,61 @@ def button(parent, text, action):
     return widget
 
 
+class NozzleProfilePreview(wx.Panel):
+    """Live, dimensioned side view of the conservative PnP nozzle envelope."""
+    def __init__(self, parent):
+        super().__init__(parent, style=wx.BORDER_SIMPLE)
+        self.SetMinSize((-1, 154))
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.values = (1.5, 1.5, 0.0, 15.0)
+        self.Bind(wx.EVT_PAINT, self.paint)
+
+    def set_profile(self, tip, head, setback, travel):
+        self.values = tuple(float(value) for value in (tip, head, setback, travel))
+        self.Refresh()
+
+    def paint(self, _event):
+        dc = wx.AutoBufferedPaintDC(self)
+        self.draw(dc, *self.GetClientSize())
+
+    def draw(self, dc, width, height):
+        dc.SetBackground(wx.Brush(BG));dc.Clear()
+        if width < 200 or height < 100:return
+        tip, head, setback, travel = self.values
+        dark = wx.SystemSettings.GetAppearance().IsDark()
+        copper = '#d59a53' if dark else '#9a682e'
+        nozzle = '#68d0c0' if dark else '#177f83'
+        outline = '#a9c1ce' if dark else '#426073'
+        centre = min(width * .38, 230)
+        pickup_y = height - 32
+        top_y = 25
+        span = max(1.0, travel)
+        setback_y = pickup_y - (pickup_y-top_y)*min(1.0,setback/span)
+        radius_scale = min(16.0, (width*.24)/max(1.0,head,tip))
+        tip_px = max(3,tip*radius_scale)
+        head_px = max(tip_px,head*radius_scale)
+        dc.SetPen(wx.Pen(outline,1,wx.PENSTYLE_DOT))
+        dc.DrawLine(round(centre),top_y-7,round(centre),pickup_y+8)
+        dc.SetPen(wx.Pen(copper,2));dc.DrawLine(20,pickup_y,width-18,pickup_y)
+        dc.SetTextForeground(copper);dc.DrawText('Component pickup plane',20,pickup_y+4)
+        dc.SetPen(wx.Pen(nozzle,2));dc.SetBrush(wx.Brush(nozzle))
+        if setback_y>top_y:
+            dc.DrawRectangle(round(centre-head_px),top_y,round(2*head_px),round(setback_y-top_y))
+        dc.DrawRectangle(round(centre-tip_px),round(setback_y),round(2*tip_px),round(pickup_y-setback_y))
+        dc.SetTextForeground(INK)
+        x = round(width*.63)
+        for offset, line in enumerate((f'Tip Ø {2*tip:g} mm', f'Head Ø {2*head:g} mm',
+                                       f'Head setback {setback:g} mm', f'Access travel {travel:g} mm')):
+            dc.DrawText(line,x,20+offset*26)
+        dc.SetPen(wx.Pen(outline,1))
+        dc.DrawLine(round(centre-head_px),top_y-3,round(centre+head_px),top_y-3)
+        dc.DrawLine(round(centre-tip_px),pickup_y-8,round(centre+tip_px),pickup_y-8)
+
+
 class Window(wx.Frame):
     def __init__(self, board_path=None, rules_path=None, live_board=None, snapshot_of=None):
+        global INK, MUTED, BG, TEAL
+        INK, MUTED, BG, TEAL = theme_palette(wx.SystemSettings.GetAppearance().IsDark())
         super().__init__(None, title='WayriCAD Mechanical Check — Board validation', size=(1160, 820))
         self.SetMinSize((980, 700))
         self.SetBackgroundColour(BG)
@@ -55,7 +114,7 @@ class Window(wx.Frame):
         self.mount_rows = []
         self.filtered = []
         self.step = 0
-        root = wx.Panel(self)
+        root = wx.Panel(self);root.SetBackgroundColour(BG)
         layout = wx.BoxSizer(wx.VERTICAL)
         navigation = wx.BoxSizer(wx.HORIZONTAL)
         navigation.Add(label(root, 'Mechanical Check', 12, True), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 18)
@@ -67,7 +126,7 @@ class Window(wx.Frame):
         navigation.AddStretchSpacer()
         navigation.Add(button(root,'Help',self.help))
         layout.Add(navigation,0,wx.EXPAND|wx.ALL,12)
-        content=wx.Panel(root)
+        content=wx.Panel(root);content.SetBackgroundColour(BG)
         vertical=wx.BoxSizer(wx.VERTICAL)
         header=wx.BoxSizer(wx.HORIZONTAL)
         self.heading=label(content,'Board',14,True)
@@ -78,6 +137,7 @@ class Window(wx.Frame):
         self.pages=[]
         for _ in range(5):
             page=wx.Panel(self.book)
+            page.SetBackgroundColour(BG)
             self.book.AddPage(page,'')
             self.pages.append(page)
         self.board_page()
@@ -138,11 +198,18 @@ class Window(wx.Frame):
         s.Add(label(p,'Set the physical limits for this assembly.',14,True),0,wx.BOTTOM,14)
         fields=wx.FlexGridSizer(cols=4,vgap=10,hgap=14);fields.AddGrowableCol(1);fields.AddGrowableCol(3)
         self.numbers={}
-        for title,key in [('3D clearance','clearance_mm'),('Top height','top_height_mm'),('Horizontal allowance','xy_clearance_mm'),('Bottom height','bottom_height_mm'),('Vertical allowance','z_clearance_mm'),('Nozzle radius','nozzle_radius_mm'),('Hardware clearance','screw_clearance_mm'),('Nozzle travel','nozzle_travel_mm')]:
+        for title,key in [('3D clearance','clearance_mm'),('Top height','top_height_mm'),('Horizontal allowance','xy_clearance_mm'),('Bottom height','bottom_height_mm'),('Vertical allowance','z_clearance_mm'),('PnP tip radius','nozzle_radius_mm'),('Hardware clearance','screw_clearance_mm'),('PnP head radius','nozzle_head_radius_mm'),('PnP head setback','nozzle_head_setback_mm'),('Nozzle travel','nozzle_travel_mm')]:
             control=wx.SpinCtrlDouble(p,min=0,max=10000,inc=.1,initial=self.config[key]);control.SetDigits(3)
             fields.Add(label(p,title+' (mm)'),0,wx.ALIGN_CENTER_VERTICAL);fields.Add(control,1,wx.EXPAND)
             self.numbers[key]=control
         s.Add(fields,0,wx.EXPAND|wx.BOTTOM,14)
+        self.nozzle_preview=NozzleProfilePreview(p)
+        s.Add(self.nozzle_preview,0,wx.EXPAND|wx.BOTTOM,8)
+        s.Add(label(p,'PnP nozzle: vertical circular tip and wider head. The diagram is a screening envelope; confirm actual tooling and pickup offset with the assembler.',10,False,MUTED),0,wx.BOTTOM,12)
+        for key in ('nozzle_radius_mm','nozzle_head_radius_mm','nozzle_head_setback_mm','nozzle_travel_mm'):
+            self.numbers[key].Bind(wx.EVT_SPINCTRLDOUBLE,self.refresh_nozzle)
+            self.numbers[key].Bind(wx.EVT_TEXT,self.refresh_nozzle)
+        self.refresh_nozzle()
         self.dnp=wx.CheckBox(p,label='Include components marked Do Not Populate')
         self.dnp.SetValue(self.config['include_dnp']);s.Add(self.dnp,0,wx.BOTTOM,16)
         s.Add(label(p,'Mounting intent',13,True),0,wx.BOTTOM,5)
@@ -153,6 +220,12 @@ class Window(wx.Frame):
             self.mount_grid.SetColLabelValue(i,title)
             self.mount_grid.SetColSize(i,90 if i!=2 else 112)
         self.mount_grid.SetRowLabelSize(0)
+        if wx.SystemSettings.GetAppearance().IsDark():
+            self.mount_grid.SetDefaultCellBackgroundColour('#202a32')
+            self.mount_grid.SetDefaultCellTextColour(INK)
+            self.mount_grid.SetLabelBackgroundColour('#28343d')
+            self.mount_grid.SetLabelTextColour(INK)
+            self.mount_grid.SetGridLineColour('#465865')
         s.Add(self.mount_grid,1,wx.EXPAND|wx.BOTTOM,12)
         actions=wx.BoxSizer(wx.HORIZONTAL)
         for title,fn in [('Load rules…',self.import_rules),('Save rules…',self.save_rules),('Zones / enclosure / advanced…',self.advanced)]:
@@ -186,7 +259,7 @@ class Window(wx.Frame):
         row.Add(self.search,1,wx.RIGHT,10);row.Add(self.severity)
         s.Add(row,0,wx.EXPAND|wx.BOTTOM,10)
         split=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE)
-        left=wx.Panel(split);ls=wx.BoxSizer(wx.VERTICAL)
+        left=wx.Panel(split);left.SetBackgroundColour(BG);ls=wx.BoxSizer(wx.VERTICAL)
         self.scene=Scene(left);ls.Add(self.scene,1,wx.EXPAND)
         controls=wx.BoxSizer(wx.HORIZONTAL)
         controls.Add(button(left,'Fit board',lambda e:self.scene.fit()),0,wx.RIGHT,8)
@@ -203,7 +276,7 @@ class Window(wx.Frame):
         self.scene_legend=label(left,'Red: exact contact volume (X-ray) · Gold: hardware allowance\nDrag: orbit · Right-drag: pan · Wheel: zoom',9,False,MUTED)
         ls.Add(self.scene_legend,0,wx.BOTTOM,8)
         left.SetSizer(ls)
-        right=wx.Panel(split);rs=wx.BoxSizer(wx.VERTICAL)
+        right=wx.Panel(split);right.SetBackgroundColour(BG);rs=wx.BoxSizer(wx.VERTICAL)
         self.list=wx.ListCtrl(right,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
         for i,(title,width) in enumerate([('Level',75),('Parts',100),('Finding',340)]):self.list.InsertColumn(i,title,width=width)
         self.list.Bind(wx.EVT_LIST_ITEM_SELECTED,self.select_finding)
@@ -272,6 +345,14 @@ class Window(wx.Frame):
             g.SetCellEditor(row,2,grid.GridCellChoiceEditor(['Unconfirmed','NPTH','PTH','either']))
             g.SetCellEditor(row,3,grid.GridCellChoiceEditor(['top','bottom','both']))
             for col in range(4,9):g.SetCellEditor(row,col,grid.GridCellFloatEditor(precision=3))
+
+    def refresh_nozzle(self, event=None):
+        try:
+            self.nozzle_preview.set_profile(*(self.numbers[key].GetValue() for key in (
+                'nozzle_radius_mm','nozzle_head_radius_mm','nozzle_head_setback_mm','nozzle_travel_mm')))
+        except (TypeError, ValueError):
+            pass  # Native spin controls may briefly contain incomplete typed text.
+        if event is not None:event.Skip()
 
     def get_config(self):
         if self.mount_grid.IsCellEditControlEnabled():

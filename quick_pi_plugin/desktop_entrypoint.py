@@ -1,5 +1,6 @@
 """IPC action opens a native saved-board Quick PI window."""
 from pathlib import Path
+import argparse
 import subprocess
 import sys
 
@@ -14,7 +15,12 @@ def main():
         status=relaunch(ROOT, 'desktop_entrypoint.py', profile='quick-pi')
         if status is not None:return status
         from wayricad_runtime.native_analysis import child_environment,active_saved_board
-        board=active_saved_board()
+        parser=argparse.ArgumentParser(description=__doc__)
+        parser.add_argument('--board',type=Path)
+        args=parser.parse_args()
+        board=args.board.resolve() if args.board else active_saved_board()
+        if not board.is_file() or board.suffix.lower() != '.kicad_pcb':
+            raise ValueError('Choose a saved KiCad PCB.')
         process=subprocess.Popen([sys.executable,'-I',str(ROOT/'quickmain.py'),'--board',str(board),'--ui'],
             env=child_environment(),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         return process.wait()

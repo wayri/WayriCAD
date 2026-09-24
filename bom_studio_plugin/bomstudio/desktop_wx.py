@@ -6,7 +6,24 @@ import tempfile
 import shutil
 import threading
 import sys
+from pathlib import Path
 from urllib.parse import urlsplit
+
+
+def _set_window_icon(window, wx):
+    """Give the preferred wx/WebView window its own taskbar identity."""
+    icon_path = Path(__file__).resolve().parents[1] / 'resources' / 'icon.ico'
+    if sys.platform != 'win32' or not icon_path.is_file():
+        return False
+    try:
+        icon = wx.Icon(str(icon_path), wx.BITMAP_TYPE_ICO)
+        if not icon.IsOk():
+            return False
+        window.SetIcon(icon)
+    except Exception:
+        # Optional branding must never prevent the editor action from opening.
+        return False
+    return True
 
 
 def _workspace_loaded(window, event, expected_url, on_ready=None):
@@ -39,6 +56,9 @@ def _initialize_bridge(window, on_ready=None):
     except Exception:
         window.ready = False
         raise
+    if hasattr(window, 'loading'):
+        window.loading.Hide()
+        window.Layout()
     if on_ready:
         on_ready('desktop')
 
@@ -71,6 +91,7 @@ def run(server, on_ready=None):
         def __init__(self):
             super().__init__(None, title='WayriCAD BOM Studio', size=(1280, 850))
             self.SetMinSize((860, 620))
+            _set_window_icon(self, wx)
             backend = wx.html2.WebViewBackendEdge if sys.platform == 'win32' else wx.html2.WebViewBackendDefault
             if not wx.html2.WebView.IsBackendAvailable(backend):
                 self.Destroy()
@@ -90,6 +111,8 @@ def run(server, on_ready=None):
                 self.Destroy()
                 raise
             layout = wx.BoxSizer(wx.VERTICAL)
+            self.loading = wx.StaticText(self, label='  Loading the local BOM workspace…')
+            layout.Add(self.loading, 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 8)
             layout.Add(self.view, 1, wx.EXPAND)
             self.SetSizer(layout)
             self.api = DesktopAPI(server, Dialogs)

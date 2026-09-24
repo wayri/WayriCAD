@@ -16,7 +16,7 @@ def desktop_main():
     if '--help' not in sys.argv[1:] and '-h' not in sys.argv[1:]:
         from wayricad_runtime.bootstrap import relaunch, failure
         try:
-            status = relaunch(root, 'desktop_entrypoint.py', profile='ipc')
+            status = relaunch(root, 'desktop_entrypoint.py', profile='bom')
             if status is not None: return status
         except Exception as exc:
             return failure(exc, 'WayriCAD BOM Studio')

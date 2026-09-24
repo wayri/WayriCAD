@@ -123,6 +123,9 @@ class Handler(BaseHTTPRequestHandler):
                 app=self.server.app
                 if app.compat is None:app.compat=capabilities()
                 self.respond(app.compat);return
+            if path=='/favicon.ico':
+                self.respond((ROOT/'resources'/'icon.ico').read_bytes(),content_type='image/x-icon')
+                return
             files={'/':'index.html','/app.js':'app.js','/workbench.js':'workbench.js','/intelligence.js':'intelligence.js','/automation.js':'automation.js','/engineering.js':'engineering.js','/assets.js':'assets.js','/analytics.js':'analytics.js','/style.css':'style.css','/studio8.js':'studio8.js','/library8.js':'library8.js','/nativefirst.js':'nativefirst.js','/vendors.js':'vendors.js','/assemblers.js':'assemblers.js','/workspace.js':'workspace.js','/sharedparts.js':'sharedparts.js'}
             if path not in files:self.respond({'error':'Not found.'},404);return
             file=ROOT/'web'/files[path]

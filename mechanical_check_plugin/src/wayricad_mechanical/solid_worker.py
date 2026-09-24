@@ -237,9 +237,26 @@ def hardware_checks(board, config, bodies, issues, missing, App, Part):
     bodies.extend(hardware_bodies)
 
 
+def nozzle_profile_clash(bounds, side, pickup_z, distance_mm, config):
+    """Return the first interfering stepped-nozzle section, if any."""
+    travel = config['nozzle_travel_mm']
+    setback = config.get('nozzle_head_setback_mm', 0.0)
+    sections = (
+        ('tip', config['nozzle_radius_mm'], 0.0, setback),
+        ('head', config.get('nozzle_head_radius_mm', config['nozzle_radius_mm']), setback, travel),
+    )
+    for name, radius, low, high in sections:
+        if radius <= 0 or high <= low or distance_mm >= radius:
+            continue
+        overlap = (bounds[5] > pickup_z + low + 1e-6 and bounds[2] < pickup_z + high) if side == 'top' else (
+            bounds[2] < pickup_z - low - 1e-6 and bounds[5] > pickup_z - high)
+        if overlap:
+            return name, radius
+    return None
+
+
 def nozzle_checks(board, config, bodies, issues):
-    radius, travel = config['nozzle_radius_mm'], config['nozzle_travel_mm']
-    if radius <= 0 or travel <= 0:
+    if config['nozzle_radius_mm'] <= 0 or config['nozzle_travel_mm'] <= 0:
         return
     components = {c['ref']: c for c in board['components']}
     for target in bodies:
@@ -251,11 +268,14 @@ def nozzle_checks(board, config, bodies, issues):
             if obstacle is target or obstacle['side'] not in (side, 'both'):
                 continue
             o = obstacle['bounds']
-            z_overlap = o[5] > top + 1e-6 and o[2] < top + travel if side == 'top' else o[2] < top - 1e-6 and o[5] > top - travel
             distance = math.hypot(max(o[0]-c['x'], c['x']-o[3], 0), max(o[1]+c['y'], -c['y']-o[4], 0))
-            if z_overlap and distance < radius:
+            clash = nozzle_profile_clash(o, side, top, distance, config)
+            if clash:
+                section, radius = clash
                 issues.append(finding('assembly.nozzle_access', [target['ref'], obstacle['ref']], 'Vertical nozzle access may be blocked for ' + target['ref'],
-                                      'Confirm pickup point and nozzle geometry with the assembler; consider placement order.', 'conservative', severity='warning', location_key=target['ref']))
+                                      f'The {section} envelope intersects the obstacle. Confirm pickup point, nozzle geometry and placement order with the assembler.',
+                                      'conservative', severity='warning', measured=distance, limit=radius, unit='mm',
+                                      nozzle_section=section, location_key=target['ref'] + ':' + section))
 
 
 if __name__ == '__main__':

@@ -132,12 +132,12 @@ class LauncherTests(unittest.TestCase):
         import sys
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
-            root.joinpath('__init__.py').write_text('',encoding='utf-8')
-            root.joinpath('action.py').write_text('ran=False\nclass Tool:\n    def Run(self):\n        global ran\n        ran=True\n',encoding='utf-8')
+            root.joinpath('__init__.py').write_text("__version__ = '3.3.0'\nraise RuntimeError('legacy SWIG initializer executed')\n",encoding='utf-8')
+            root.joinpath('action.py').write_text('from . import __version__\nran_version=None\nclass Tool:\n    def Run(self):\n        global ran_version\n        ran_version=__version__\n',encoding='utf-8')
             root.joinpath('wayricad-tool.json').write_text(json.dumps({'tool':'test_plugin','module':'action','class':'Tool','name':'WayriCAD Test'}),encoding='utf-8')
             with patch('wayricad_runtime.bootstrap.relaunch',return_value=None),patch.dict(sys.modules,{'wx':wx}),patch('wayricad_runtime.ipc.module',return_value=SimpleNamespace(_wayricad_ipc=True)):
                 self.assertEqual(launcher.main(root),0)
-                self.assertTrue(sys.modules['wayricad_active_plugin.action'].ran)
+                self.assertEqual(sys.modules['wayricad_active_plugin.action'].ran_version,'3.3.0')
                 app.MainLoop.assert_called_once()
 
     def test_bad_metadata_returns_failure_and_local_error(self):

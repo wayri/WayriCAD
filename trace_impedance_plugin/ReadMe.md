@@ -15,7 +15,7 @@
 - Zone R/L uses an assumed current corridor, not spreading resistance; full-island C and corridor R/L are not one extracted series circuit.
 - Mixed routes do not have a single uniform Z0. Via capacitance remains unknown without antipad geometry; partial totals omit unresolved terms.
 - Arbitrary proximity, roughness, dielectric loss, full return-current distribution and connector/package effects are not solved.
-- Trace arcs and complex obstacle paths can remain unresolved; automatic search omits zone islands with more than 128 contacts.
+- Copper arcs retain their circular length, with small chords used for coverage checks. Complex current paths around zone obstacles can still remain unresolved.
 - Analysis follows existing layer transitions and never reroutes copper. Saved stackup/reference data and native KiCad geometry support are required.
 
 ## Overview
@@ -39,16 +39,20 @@ Plane/zone estimates use the stated geometry and return assumptions; this is not
 3. Leave the reference at **Auto**, or choose a copper layer explicitly.
 4. Analyze, inspect the geometry and section status, then export the results.
 
+For a large saved board, a small WayriCAD loading window appears while KiCad reads the PCB and prepares the analyzer. Closing that window cancels opening the analyzer after the current read finishes; it does not change the board.
+
+In the native editor window, **More → Refresh stackup** rereads the saved stackup, retains the chosen reference layer when it still exists, and clears the previous result and AC sweep. Run Analyze again before exporting. The PCM saved-board window must be reopened after saving PCB changes.
+
 Auto ground recognition uses names such as GND, AGND, DGND and VSS. A name alone does not establish a reference: the engine checks filled copper coverage on adjacent copper layers. Explicit reference selection still requires copper coverage. Unfilled zones must be filled in KiCad first.
 
-Paths follow existing layer transitions through vias and plated pads. Analysis does not shift or reroute the board's copper. Crossings on different layers are not connections. Zone links require a finite-width corridor inside one filled island; holes and disconnected islands cannot be crossed by a shortcut. Complex current paths around obstacles and trace arcs remain unresolved. Automatic path search omits islands with more than 128 contacts; use terminal-defined zone mode for those islands.
+Paths follow existing layer transitions through vias and plated pads. Analysis does not shift or reroute the board's copper. Crossings on different layers are not connections. Zone links require a finite-width corridor inside one filled island; holes and disconnected islands cannot be crossed by a shortcut. Circular arcs retain their exact length; coverage/contact checks use small chords. Large filled islands are no longer excluded by a fixed contact-count limit, although obstacle geometry can still leave a path unresolved. Use terminal-defined zone mode to review a specific island.
 
 ## What the numbers mean
 
 | Geometry | Estimate |
 |---|---|
 | Trace | DC conductor resistance; skin-effect estimate; closed-form microstrip or symmetric stripline L/C/Z0 where the reference geometry supports that model |
-| Via | Barrel resistance with assumed 25 Âµm plating and isolated partial inductance; capacitance remains unknown without antipad geometry |
+| Via | Barrel resistance with assumed 25 µm plating and isolated partial inductance; capacitance remains unknown without antipad geometry |
 | Zone/plane | Terminal-corridor resistance and inductance; capacitance from filled-island/reference overlap and stackup separation |
 | Trace + zone + via | Connected path and individual section models; unresolved terms remain identified |
 

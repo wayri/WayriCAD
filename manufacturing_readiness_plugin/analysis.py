@@ -22,6 +22,7 @@ class FabricatorProfile:
     minimum_annular_ring_mm: float = 0.10
     maximum_via_aspect_ratio: float = 10.0
     maximum_layers: int = 12
+    minimum_routed_edge_mm: float = 0.25
 
 
 @dataclass
@@ -34,6 +35,8 @@ class BoardMetrics:
     copper_layers: int
     minimum_exact_annular_ring_mm: float = float('inf')
     annular_ring_is_lower_bound: bool = False
+    minimum_routed_edge_mm: float = float('inf')
+    routed_edge_unknown: bool = False
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,18 @@ def audit_metrics(metrics: BoardMetrics, profile: FabricatorProfile) -> list[Rea
                                  f"<= {profile.maximum_via_aspect_ratio:g}:1"))
     checks.append(ReadinessCheck("PASS" if metrics.copper_layers <= profile.maximum_layers else "FAIL",
                                  "Copper layers", str(metrics.copper_layers), f"<= {profile.maximum_layers}"))
+    edge=metrics.minimum_routed_edge_mm;required=profile.minimum_routed_edge_mm
+    item='Routed copper to board edge (tracks and vias)'
+    if edge < required:
+        checks.append(ReadinessCheck('FAIL',item,f'{edge:g} mm',f'>= {required:g} mm'))
+    elif metrics.routed_edge_unknown:
+        actual='Unsupported or incomplete saved outline/routing geometry'
+        if edge!=float('inf'):actual+=f'; known minimum {edge:g} mm'
+        checks.append(ReadinessCheck('UNKNOWN',item,actual,f'>= {required:g} mm'))
+    elif edge==float('inf'):
+        checks.append(ReadinessCheck('N/A',item,'No routed tracks or vias',f'>= {required:g} mm'))
+    else:
+        checks.append(ReadinessCheck('PASS',item,f'{edge:g} mm',f'>= {required:g} mm'))
     return checks
 
 
@@ -100,6 +115,120 @@ def validate_profile(profile):
 def sexpr_tokens(text):
     """Whitespace-independent comparison preserving every serialized token."""
     return re.findall(r'"(?:\\.|[^"\\])*"|[()]|[^\s()]+',text)
+
+
+def _routed_edge_metric(root, children):
+    """Exact clearance for straight routing inside one closed straight outline.
+
+    Other outline shapes and routed arcs remain unknown. Pads and filled zones
+    are deliberately outside this focused check and belong to KiCad DRC.
+    """
+    tracks=children(root,'segment');vias=children(root,'via');arcs=children(root,'arc')
+    if not tracks and not vias and not arcs:return float('inf'),False
+
+    def point(node,name):
+        found=children(node,name)
+        if len(found)!=1 or len(found[0])!=3:raise ValueError(name)
+        result=tuple(float(v) for v in found[0][1:])
+        if not all(math.isfinite(v) for v in result):raise ValueError(name)
+        return result
+    def positive(node,name):
+        found=children(node,name)
+        if len(found)!=1 or len(found[0])!=2:raise ValueError(name)
+        value=float(found[0][1])
+        if not math.isfinite(value) or value<=0:raise ValueError(name)
+        return value
+    def edge_layer(node):
+        layers=children(node,'layer')
+        return len(layers)==1 and len(layers[0])==2 and layers[0][1].strip('"')=='Edge.Cuts'
+    def key(a,b):return tuple(sorted((a,b)))
+    outline=[];unsupported=False;routed_unknown=bool(arcs)
+    for node in root:
+        if not isinstance(node,list) or not node or not edge_layer(node):continue
+        try:
+            if node[0]=='gr_line':
+                outline.append((point(node,'start'),point(node,'end')))
+            elif node[0]=='gr_rect':
+                x1,y1=point(node,'start');x2,y2=point(node,'end')
+                corners=[(x1,y1),(x2,y1),(x2,y2),(x1,y2)]
+                outline.extend((corners[i],corners[(i+1)%4]) for i in range(4))
+            else:unsupported=True
+        except (ValueError,OverflowError):unsupported=True
+    # Footprint-local Edge.Cuts need a rotation/translation that this audit
+    # cannot infer from a root-level line, so they never prove a pass.
+    for footprint in children(root,'footprint')+children(root,'module'):
+        if any(isinstance(node,list) and node and edge_layer(node) for node in footprint):
+            unsupported=True
+
+    adjacency={};segments=set()
+    for a,b in outline:
+        if a==b or key(a,b) in segments:unsupported=True;continue
+        segments.add(key(a,b));adjacency.setdefault(a,[]).append(b);adjacency.setdefault(b,[]).append(a)
+    if not outline or any(len(neighbors)!=2 for neighbors in adjacency.values()):unsupported=True
+    polygon=[]
+    if not unsupported:
+        start=next(iter(adjacency));current=start;previous=None;seen=set()
+        while True:
+            polygon.append(current)
+            next_point=next((neighbor for neighbor in adjacency[current] if neighbor!=previous),None)
+            if next_point is None or key(current,next_point) in seen:unsupported=True;break
+            seen.add(key(current,next_point));previous,current=current,next_point
+            if current==start:break
+        if len(seen)!=len(segments) or len(polygon)<3:unsupported=True
+
+    def point_distance(p,a,b):
+        dx=b[0]-a[0];dy=b[1]-a[1];length=dx*dx+dy*dy
+        if length==0:return math.dist(p,a)
+        t=max(0.,min(1.,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/length))
+        return math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy)
+    def crossing(a,b,c,d):
+        def orient(p,q,r):return (q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0])
+        o1,o2,o3,o4=orient(a,b,c),orient(a,b,d),orient(c,d,a),orient(c,d,b)
+        if o1*o2<0 and o3*o4<0:return True
+        near=lambda distance:math.isclose(distance,0.,rel_tol=0,abs_tol=1e-9)
+        return (o1==0 and near(point_distance(c,a,b)) or o2==0 and near(point_distance(d,a,b)) or
+                o3==0 and near(point_distance(a,c,d)) or o4==0 and near(point_distance(b,c,d)))
+    if not unsupported:
+        for i,(a,b) in enumerate(outline):
+            for c,d in outline[i+1:]:
+                shared={a,b}&{c,d}
+                if shared:
+                    # A legitimate corner touches at exactly one endpoint.
+                    if len(shared)!=1 or any(math.isclose(point_distance(p,c,d),0.,rel_tol=0,abs_tol=1e-9)
+                                                  for p in (a,b) if p not in shared) or any(
+                            math.isclose(point_distance(p,a,b),0.,rel_tol=0,abs_tol=1e-9)
+                            for p in (c,d) if p not in shared):unsupported=True;break
+                    continue
+                if crossing(a,b,c,d):unsupported=True;break
+            if unsupported:break
+
+    def inside(p):
+        crossings=0
+        for a,b in outline:
+            if (a[1]>p[1]) != (b[1]>p[1]):
+                x=a[0]+(p[1]-a[1])*(b[0]-a[0])/(b[1]-a[1])
+                if p[0]<x:crossings+=1
+        return bool(crossings%2)
+    measured=[]
+    if not unsupported:
+        for track in tracks:
+            try:
+                a,b=point(track,'start'),point(track,'end')
+                width=positive(track,'width')
+            except (IndexError,ValueError,OverflowError):routed_unknown=True;continue
+            distance=min(min(point_distance(p,c,d) for p in (a,b)) for c,d in outline)
+            for c,d in outline:
+                if crossing(a,b,c,d):distance=0.;break
+                distance=min(distance,point_distance(c,a,b),point_distance(d,a,b))
+            measured.append(0. if not inside(a) or not inside(b) else max(0.,distance-width/2))
+        for via in vias:
+            try:
+                if children(via,'padstack'):raise ValueError('padstack')
+                center=point(via,'at');size=positive(via,'size')
+            except (IndexError,ValueError,OverflowError):routed_unknown=True;continue
+            distance=min(point_distance(center,a,b) for a,b in outline)
+            measured.append(0. if not inside(center) else max(0.,distance-size/2))
+    return min(measured,default=float('inf')),unsupported or routed_unknown
 
 
 def saved_metrics(board_bytes,project_bytes):
@@ -196,9 +325,10 @@ def saved_metrics(board_bytes,project_bytes):
     exact_annular=min(exact_rings,default=float('inf'))
     lower_annular=min(lower_ring_bounds,default=float('inf'))
     annular=None if rings_unknown else min(exact_annular,lower_annular)
+    routed_edge,routed_edge_unknown=_routed_edge_metric(root,children)
     return BoardMetrics(min(tracks,default=float('inf')),float(clearance),min(drills,default=float('inf')),
                         annular,max((thickness/d for d in via_drills),default=0),count,exact_annular,
-                        lower_annular < exact_annular)
+                        lower_annular < exact_annular,routed_edge,routed_edge_unknown)
 
 
 def gate_key(files,profile,jobset,live_text):

@@ -7,12 +7,15 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+from collections import Counter
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from wayricad_mechanical.config import load, validate, mount_defaults
 from wayricad_mechanical.findings import bbox_distance, candidate_pairs, finding, finish
 from wayricad_mechanical.extract import resolve_model
 from wayricad_mechanical.report import export
+from wayricad_mechanical.solid_worker import nozzle_profile_clash
 
 
 class RulesTests(unittest.TestCase):
@@ -37,8 +40,23 @@ class RulesTests(unittest.TestCase):
     def test_blank_waivers_rejected(self):
         with self.assertRaises(ValueError):validate({'waivers':{'id':' '}})
 
+    def test_stepped_nozzle_dimensions_are_validated(self):
+        self.assertEqual(validate({'nozzle_radius_mm':3.0})['nozzle_head_radius_mm'],3.0)
+        with self.assertRaisesRegex(ValueError, 'head radius'):
+            validate({'nozzle_head_radius_mm': 1.0})
+        with self.assertRaisesRegex(ValueError, 'setback'):
+            validate({'nozzle_head_setback_mm': 16.0})
+
 
 class GeometryTests(unittest.TestCase):
+    def test_stepped_nozzle_detects_tip_and_head_clashes(self):
+        rules=validate({'nozzle_radius_mm':1.0,'nozzle_head_radius_mm':2.0,
+                        'nozzle_head_setback_mm':3.0,'nozzle_travel_mm':8.0})
+        self.assertEqual(nozzle_profile_clash([1.4,0,4,2,1,5],'top',0,1.4,rules),('head',2.0))
+        self.assertIsNone(nozzle_profile_clash([1.4,0,.5,2,1,2],'top',0,1.4,rules))
+        self.assertEqual(nozzle_profile_clash([.7,0,.5,2,1,2],'top',0,.7,rules),('tip',1.0))
+        self.assertEqual(nozzle_profile_clash([1.4,0,-5,2,1,-4],'bottom',0,1.4,rules),('head',2.0))
+
     def test_sweep_preserves_all_near_pairs(self):
         rng=random.Random(19)
         bodies=[]
@@ -83,9 +101,28 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(data,report)
             markup=Path(paths['html']).read_text(encoding='utf-8')
             self.assertNotIn('<script>alert(1)</script>',markup)
+            self.assertIn('id="nozzle-profile"',markup)
             with open(paths['csv'],encoding='utf-8-sig',newline='') as stream:
                 row=next(csv.DictReader(stream));self.assertTrue(row['refs'].startswith("'="))
             datetime.fromisoformat(data['completed_at'])
+
+
+class NozzlePreviewTests(unittest.TestCase):
+    def test_stepped_nozzle_diagram_has_visible_head_and_tip(self):
+        try:
+            import wx
+        except ImportError:
+            self.skipTest('Native wxPython is supplied by KiCad, not the portable CI environment')
+        from wayricad_mechanical.ui import NozzleProfilePreview
+
+        app=wx.GetApp() or wx.App(False)
+        bitmap=wx.Bitmap(640,190)
+        dc=wx.MemoryDC(bitmap)
+        NozzleProfilePreview.draw(SimpleNamespace(values=(1.0,2.0,3.0,8.0)),dc,640,190)
+        dc.SelectObject(wx.NullBitmap)
+        data=bitmap.ConvertToImage().GetData()
+        colours=Counter(tuple(data[i:i+3]) for i in range(0,len(data),3))
+        self.assertGreater(colours[(23,127,131)],1000)
 
 if __name__=='__main__':unittest.main()
 
