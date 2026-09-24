@@ -35,8 +35,13 @@ not remain open. This is persistent setup, not a background routing hook.
    and the router does not automatically select it; choose the via type in
    KiCad while routing.
 6. Review reference-plane continuity and layer-transition return paths, then
-   stage and export. Close the source project before applying the review with
-   its bundled Apply Review utility. Reopen the project in KiCad.
+   stage and export. On **Review & export**, click **Open Apply Review** to
+   launch the exported helper without searching for its file. Close every
+   KiCad editor for the source project, review the helper's listed files and
+   confirmations, then apply with fingerprint checks and backups. Reopen the
+   project in KiCad. The profile and scoped rules are now persistent; Studio
+   can be closed. KiCad cannot safely hot-apply a saved project file to an open
+   PCB Editor, so closing and reopening is the supported transition.
 7. Use KiCad's **netclass/rule-driven sizing** for tracks and differential pairs.
    Turn off KiCad's **Auto track width** toolbar button: when it is on, starting
    from an existing segment inherits that segment's width even on a different
@@ -132,6 +137,11 @@ mm from the `F.Cu` segment on `B.Cu`. This is a native router limitation, not
 a condition that Studio can override while closed. Differential pair spacing
 across a live layer transition remains unverified by this mouse-driven test;
 native DRC and profile persistence were checked separately.
+
+The user subsequently confirmed live differential-pair routing across layers
+works in their KiCad session. This report does not include a captured board,
+route geometry or automated measurement from that session; the quantitative
+single-track and native DRC evidence above remain the recorded local checks.
 
 Native acceptance uncovered an imported numeric-format defect: bare `.2mm`
 constraint values are rejected by KiCad's rule lexer. Export now normalizes

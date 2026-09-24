@@ -14,4 +14,15 @@ Evidence:
 - KiCad 10.0.6 CLI DRC parsed a generated microvia rule and reported a deliberately incorrect through via's type/span and dimensions. Output: ignored `.validation/via-rule-native/drc.json`. This is a negative test fixture, not a clean production board.
 - `python build_pcm.py --output-dir .validation/current-routing-candidate`: 16 disposable PCM ZIPs; `python tools/validate_packages.py --archive-dir .validation/current-routing-candidate` and `python tools/validate_docs.py` passed.
 
-The native WebView startup aborted with `COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_ABORTED` under the filesystem sandbox in both KiCad's base Python and the prepared runtime. The identical prepared-runtime smoke passed outside the sandbox. No owned user PCB was written. The live differential-pair layer-transition mouse test remains unverified; passing rules, staging and preview tests do not establish that router behavior.
+The native WebView startup aborted with `COREWEBVIEW2_WEB_ERROR_STATUS_CONNECTION_ABORTED` under the filesystem sandbox in both KiCad's base Python and the prepared runtime. The identical prepared-runtime smoke passed outside the sandbox. No owned user PCB was written. A live differential-pair layer-transition mouse test was not part of these automated checks; passing rules, staging and preview tests do not establish that router behavior.
+
+Follow-up acceptance: the user confirmed that differential-pair routing across
+layers works in their KiCad session. This is user-reported acceptance, without a
+captured board or measured trace/gap values in this audit. A separate disposable
+source fixture passed stage → export → `apply_bundle(project_closed=True)` →
+reopen: the reopened project contained the native two-layer profile (0.20/0.30
+mm), through-via recipe and generated via rules, with a backup directory
+created. No owned user board was modified. The new **Open Apply Review** action
+launches the exported helper; a mocked launch check confirmed its path and
+stale-export guard. The helper retains its own project-closed acknowledgement
+and confirmation before writing.

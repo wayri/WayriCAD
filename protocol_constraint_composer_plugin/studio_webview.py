@@ -1,7 +1,10 @@
 """Native, local-only visual shell sharing the original specialist workspaces."""
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import wx
 import wx.html2
 from wayricad_runtime.local_webview import new_webview
@@ -10,6 +13,24 @@ from .constraint_studio.ui import ConditionDialog
 
 MUTATIONS = {'save_rule', 'set_value', 'toggle', 'duplicate', 'delete', 'move', 'matrix', 'profile', 'netclass', 'setting', 'routing_profile', 'routing_remove'}
 PAGES = {'workbench', 'rule_page', 'matrix_page', 'netclass_page', 'settings_page', 'profile_panel', 'reports_panel', 'advanced_panel', 'help_page', 'review_page'}
+
+
+def launch_apply_helper(folder):
+    """Open the exported offline apply UI as an independent desktop process."""
+    launcher = Path(folder) / 'Apply Review.pyw'
+    if not launcher.is_file():
+        raise FileNotFoundError('Apply Review helper is missing; export a new review bundle.')
+    executable = Path(sys.executable)
+    if os.name == 'nt' and executable.name.lower() == 'python.exe':
+        windowless = executable.with_name('pythonw.exe')
+        if windowless.is_file():
+            executable = windowless
+    kwargs = {'cwd': str(launcher.parent), 'close_fds': True}
+    if os.name == 'nt':
+        kwargs['creationflags'] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        kwargs['start_new_session'] = True
+    subprocess.Popen([str(executable), str(launcher)], **kwargs)
 
 
 class VisualWorkspace:
@@ -119,6 +140,13 @@ class VisualWorkspace:
                 raise ValueError('Export or undo staged changes before reloading the saved board; reload would discard them.')
             f.load(f.w.board_path)
             return self.state()
+        if method == 'open_apply':
+            if not f.last_export:
+                raise ValueError('Export a reviewed bundle before opening Apply Review.')
+            if f.w.dirty:
+                raise ValueError('Workspace changed since export. Export a new review bundle first.')
+            launch_apply_helper(f.last_export)
+            return None
         if method in MUTATIONS:
             self.replace(studio_model.mutation(f.w, method, args)); return self.state()
         if method == 'inspect': return studio_model.inspect_scope(f.w, args)

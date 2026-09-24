@@ -31,7 +31,7 @@ The **Constraint worksheet** uses an embedded desktop WebView with BOM Studio's 
 
 **Protocol presets** retains USB, CAN, Ethernet, PCIe/SerDes, DDR, RS-485 and RF detection. Preview and **Stage in Constraint Studio** merge the managed block into the workspace, preserving other rules. Geometry and assignment changes invalidate the old preview. The other pages provide constraint worksheets, BGA regions, clearance matrices, netclasses, board settings, reusable sets, timing, engineering tools and DRC evidence.
 
-**Review & export** shows local lint, file diffs and generated native rules. Export to a separate empty folder, run native DRC on that copy, and use its **Apply Review** helper after closing every source-project editor. Hash checks and backups protect the offline apply. The old direct-write Apply button is replaced by staging. Review exports include the helper's GPL license.
+**Review & export** shows local lint, file diffs and generated native rules. Export to a separate empty folder, run native DRC on that copy, then click **Open Apply Review** in Studio to launch its bundled helper. Close every source-project editor before confirming the helper's write; reopen the project in KiCad to use the profile. Hash checks and backups protect the offline apply. The old direct-write Apply button is replaced by staging. Review exports include the helper's GPL license.
 
 Open Help/F1 inside the application for the bundled searchable native reference, or read [the original development guide](docs/USER_GUIDE.md). Installation instructions in that original guide describe the standalone development package; use the WayriCAD package for this integration. Do not install the original Constraint Studio PCM beside it.
 
