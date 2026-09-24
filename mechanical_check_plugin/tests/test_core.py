@@ -109,7 +109,10 @@ class ReportTests(unittest.TestCase):
 
 class NozzlePreviewTests(unittest.TestCase):
     def test_stepped_nozzle_diagram_has_visible_head_and_tip(self):
-        import wx
+        try:
+            import wx
+        except ImportError:
+            self.skipTest('Native wxPython is supplied by KiCad, not the portable CI environment')
         from wayricad_mechanical.ui import NozzleProfilePreview
 
         app=wx.GetApp() or wx.App(False)

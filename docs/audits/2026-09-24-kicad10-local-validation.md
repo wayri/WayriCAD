@@ -52,6 +52,28 @@ This audit does **not** prove all 16 complete UI workflows on Marble: every plug
 
 The additional Constraint Studio visual-routing smoke passed under the prepared KiCad-compatible Python runtime: protocol tabs, grouped net selection, dimension-changing preview, width estimator, native rule staging and undo. The same source smoke timed out under the machine's default Python 3.14 WebView2 host, including outside the file sandbox; that host is not the installed runtime. No saved Marble board was changed by this smoke.
 
+## Live Constraint Studio routing check (same day)
+
+On Windows with KiCad 10.0.6, a disposable two-layer D4 board was opened in
+PCB Editor. An exact-net Constraint Studio rule set specified 0.20 mm on F.Cu
+and 0.30 mm on B.Cu. Starting an F.Cu route displayed “from rule D4 interactive
+test / F.Cu” at 0.20 mm. After placing a via, starting a B.Cu route with
+KiCad's **Auto track width** toolbar option enabled inherited the existing
+0.20 mm segment; saved B.Cu tracks were 0.20 mm. With the option disabled,
+starting a new B.Cu route from that via displayed “from rule D4 interactive
+test / B.Cu” at 0.30 mm, and saved B.Cu tracks were 0.30 mm. A separate
+netclass-assigned native tuning-profile fixture gave the same 0.20/0.30 mm
+result with Auto track width disabled. Widths and layers were read back from
+the saved fixture boards with `pcbnew`.
+
+The route tools did not change width within one active route after a layer
+transition. The user must finish at the via and start a new route on the
+destination layer, with Auto track width off. This is native KiCad router
+behavior and remains so while Studio is closed. Live differential-pair gap
+switching at a via was not visually verified here; rule generation, native DRC
+acceptance and persistence have separate checks. These routing fixtures are
+disposable and contain no Marble project changes.
+
 ## Scope limits
 
 These checks establish packaging, imports, offline UI rendering, source behavior, and the specific live Fanout Generator / Extract Pins IPC workflows above. They do not establish a completed click-through for every plugin in a running PCB Editor after restart. KiCad must be restarted before an already-open editor loads the newly installed menu registrations.

@@ -71,7 +71,8 @@ class LaunchArguments(unittest.TestCase):
         icon = SimpleNamespace(IsOk=lambda: True)
         wx = SimpleNamespace(Icon=Mock(return_value=icon), BITMAP_TYPE_ICO=7)
         window = SimpleNamespace(SetIcon=Mock())
-        self.assertTrue(_set_window_icon(window, wx))
+        with patch('bomstudio.desktop_wx.sys.platform', 'win32'):
+            self.assertTrue(_set_window_icon(window, wx))
         self.assertEqual(Path(wx.Icon.call_args.args[0]).name, 'icon.ico')
         window.SetIcon.assert_called_once_with(icon)
 

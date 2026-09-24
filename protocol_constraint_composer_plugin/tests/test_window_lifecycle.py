@@ -4,6 +4,10 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
+
+pytest.importorskip('wx', reason='Native wxPython is supplied by KiCad')
+
 from protocol_constraint_composer_plugin import studio_ui, studio_webview
 
 

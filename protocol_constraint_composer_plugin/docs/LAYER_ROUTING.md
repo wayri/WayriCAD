@@ -26,8 +26,13 @@ not remain open. This is persistent setup, not a background routing hook.
    stage and export. Close the source project before applying the review with
    its bundled Apply Review utility. Reopen the project in KiCad.
 6. Use KiCad's **netclass/rule-driven sizing** for tracks and differential pairs.
-   Width and gap then update on routing layer changes, without selecting a new
-   size each time. A manually selected explicit size can override the defaults.
+   Turn off KiCad's **Auto track width** toolbar button: when it is on, starting
+   from an existing segment inherits that segment's width even on a different
+   layer. KiCad 10 keeps one width during an active route. After placing the
+   transition via, finish the route and start the next route on the destination
+   layer. KiCad then selects that layer's saved width or pair gap without
+   manually choosing a size. A manually selected explicit size can override
+   the defaults.
 
 Existing copper is not automatically resized. Existing higher-priority scoped
 rules can override the profile, including local BGA neckdowns. Generated rules
@@ -105,8 +110,15 @@ Development validation includes backend persistence/staleness/ownership tests,
 real native WebView calculate/stage/undo, native KiCad 10.0.5 DRC acceptance of
 different widths and gaps on two layers, and a native project load/save
 round-trip. The native DRC fixture is deliberately violating, not a clean board.
-Interactive routing transitions were verified in official native source;
-an end-to-end mouse-driven route/via test has not been performed.
+An end-to-end mouse-driven route/via test on KiCad 10.0.6 verified 0.20 mm
+`F.Cu` and 0.30 mm `B.Cu` tracks after restarting at the via with **Auto track
+width** off. Both an exact-net custom-rule profile and a netclass-assigned
+native tuning profile selected 0.30 mm on `B.Cu`; the saved board widths were
+read back through `pcbnew`. With **Auto track width** on, KiCad inherited 0.20
+mm from the `F.Cu` segment on `B.Cu`. This is a native router limitation, not
+a condition that Studio can override while closed. Differential pair spacing
+across a live layer transition remains unverified by this mouse-driven test;
+native DRC and profile persistence were checked separately.
 
 Native acceptance uncovered an imported numeric-format defect: bare `.2mm`
 constraint values are rejected by KiCad's rule lexer. Export now normalizes
