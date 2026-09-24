@@ -13,7 +13,7 @@ from .constraint_studio.inspection import items_from_board, priority_trace, rule
 from .constraint_studio.linked_areas import all_areas, area_polygon
 from .constraint_studio.model import Rule, Constraint, RuleDocument, lint
 from .constraint_studio.profiles import matrix_rules, replace_generated
-from .constraint_studio.workspace import get_path, set_path, parse_scalar
+from .constraint_studio.workspace import digest, get_path, read_bytes, set_path, parse_scalar
 from .studio_bridge import overview
 from .constraint_studio import routing_profiles
 
@@ -34,6 +34,8 @@ def snapshot(workspace):
         except ValueError: omitted.append(area['name'])
     return {
         'revision': workspace.state(), 'board': str(workspace.board_path or ''),
+        'board_revision': digest(workspace.board_text.encode('utf-8')),
+        'source_board_changed': (read_bytes(workspace.board_path) != workspace.originals.get('.kicad_pcb')) if workspace.board_path else False,
         'name': workspace.board_path.name if workspace.board_path else 'No project open',
         'dirty': workspace.dirty, 'rules': [dict(asdict(rule), index=i) for i, rule in enumerate(workspace.document.rules)],
         'summary': {k: v for k, v in summary.items() if k != 'issues'},

@@ -49,6 +49,18 @@ class BoardContext:
             elif h=='layers':
                 c.layers=[x.children[1].value for x in n.children[1:] if x.is_list and len(x.children)>1]
             elif h=='group':c.groups.append(scalar(n))
+        # KiCad 10 can save the net name directly on each pad/track without
+        # emitting a top-level (net ID "name") table. These are still real
+        # board nets and must remain selectable for exact-net routing profiles.
+        seen_nets=set(c.nets)
+        for owner in root.children:
+            sources = owner.find('pad') if owner.head()=='footprint' else [owner] if owner.head() in ('segment','arc','via','zone') else []
+            for source in sources:
+                net = source.first('net')
+                if net and len(net.children)==2 and text[net.children[1].start] in ('"', "'"):
+                    name=net.children[1].value
+                    if name and name not in seen_nets:
+                        c.nets.append(name);seen_nets.add(name)
         c.footprints.sort(key=lambda x: natural_key(x.reference))
         return c
     def footprint(self,reference):

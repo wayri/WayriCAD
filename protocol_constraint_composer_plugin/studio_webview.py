@@ -113,6 +113,12 @@ class VisualWorkspace:
         if method == 'snapshot':
             self.connected = True
             return self.state()
+        if method == 'reload_saved':
+            if not f.w.board_path: raise ValueError('Open a saved board before reloading its layout.')
+            if f.w.dirty:
+                raise ValueError('Export or undo staged changes before reloading the saved board; reload would discard them.')
+            f.load(f.w.board_path)
+            return self.state()
         if method in MUTATIONS:
             self.replace(studio_model.mutation(f.w, method, args)); return self.state()
         if method == 'inspect': return studio_model.inspect_scope(f.w, args)

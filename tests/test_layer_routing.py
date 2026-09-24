@@ -203,5 +203,66 @@ class LayerRoutingTests(unittest.TestCase):
         self.w.board_text=self.w.board_text.replace('"D1"','"RENAMED"');self.w.refresh_board_context()
         self.assertTrue(any('renamed' in i.message for i in rp.issues(self.w)))
 
+    def test_via_recipe_is_scoped_and_survives_export(self):
+        data=dict(self.data,scope='nets',nets=['D1','D2'],via_type='through',
+                  via_diameter=.7,via_drill=.3)
+        staged=self.change(data)
+        self.assertEqual({'via_type':'through','via_diameter':.6,'via_drill':.3},
+                         rp.status(self.w)['suggested_via'])
+        self.assertEqual('through',staged.metadata['routing_profiles']['CAN routing']['via_type'])
+        sizes=next(r for r in staged.document.rules if r.name=='CAN routing / via dimensions')
+        self.assertIn("A.NetName == 'D1'",sizes.condition)
+        self.assertIn("A.Type == 'Via'",sizes.condition)
+        self.assertEqual(['via_diameter','hole_size'],[c.kind for c in sizes.constraints])
+        self.assertEqual('0.700000mm',sizes.constraints[0].values['opt'])
+        kind=next(r for r in staged.document.rules if r.name=='CAN routing / via type')
+        self.assertEqual('micro_via blind_via buried_via',kind.constraints[0].argument)
+        self.assertNotIn('via_diameter',rp.native_profiles(staged)[0])
+        with tempfile.TemporaryDirectory() as tmp:
+            for ext,raw in staged.outputs().items():Path(tmp,'board'+ext).write_bytes(raw)
+            loaded=Workspace.load(Path(tmp,'board.kicad_pcb'))
+            self.assertFalse(rp.issues(loaded))
+            self.assertIn('CAN routing / via dimensions',loaded.document.emit())
+
+    def test_non_through_via_checks_board_capability_and_span(self):
+        base=dict(self.data,via_type='micro',via_diameter=.4,via_drill=.15,
+                  via_start_layer='F.Cu',via_end_layer='In1.Cu')
+        with self.assertRaisesRegex(ValueError,'Enable microvias'):
+            self.change(base)
+        rules=self.w.floors
+        rules.update(allow_microvias=True,allow_blind_buried_vias=True,
+                     min_microvia_diameter=.2,min_microvia_drill=.1,
+                     min_via_annular_width=.05)
+        data=copy.deepcopy(base)
+        data['rows'].append(dict(signal_layer='In1.Cu',top_reference_layer='F.Cu',
+                                 bottom_reference_layer='In2.Cu',width=.2,gap=.18))
+        staged=self.change(data)
+        transition=next(r for r in staged.document.rules if r.name=='CAN routing / via transition')
+        self.assertIn("A.Via_Type != 'Micro'",transition.condition)
+        self.assertIn("A.Layer_Top != 'F.Cu'",transition.condition)
+        self.assertIn("A.Layer_Bottom != 'In1.Cu'",transition.condition)
+        with self.assertRaisesRegex(ValueError,'adjacent'):
+            self.change(dict(data,via_end_layer='B.Cu'))
+        with self.assertRaisesRegex(ValueError,'inner copper'):
+            self.change(dict(data,via_type='buried'))
+        with self.assertRaisesRegex(ValueError,'one outer'):
+            self.change(dict(data,via_type='blind',via_start_layer='F.Cu',via_end_layer='B.Cu'))
+
+    def test_invalid_via_dimensions_rejected_atomically(self):
+        self.w.floors['min_through_hole_diameter']=.2
+        base=dict(self.data,via_type='through',via_diameter=.6,via_drill=.3)
+        for overrides in ({'via_diameter':.3}, {'via_drill':.01},
+                          {'via_diameter':float('nan')}, {'via_type':'unknown'},
+                          {'via_start_layer':'In1.Cu'}):
+            with self.subTest(overrides=overrides),self.assertRaises(ValueError):
+                self.change(dict(base,**overrides))
+        self.assertFalse(rp.native_profiles(self.w))
+
+    def test_broad_clearance_above_pair_gap_is_advisory(self):
+        staged=self.change()
+        messages=[item['message'] for item in rp.status(staged)['advisories']]
+        self.assertTrue(any('0.18 mm' in m and '0.2 mm clearance' in m for m in messages))
+        self.assertFalse(rp.issues(staged))
+
 
 if __name__=='__main__':unittest.main()

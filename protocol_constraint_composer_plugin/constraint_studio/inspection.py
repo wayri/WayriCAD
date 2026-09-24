@@ -31,10 +31,13 @@ class Item:
         return ' / '.join(s for s in (self.kind,self.reference,self.properties.get('Pad_Number',''),self.net,self.uid[:8]) if s)
 
 
-def _net(node,netmap):
+def _net(node,netmap,text=''):
     n=node.first('net')
     if not n:return ''
-    return n.children[2].value if len(n.children)>2 else netmap.get(scalar(n),'')
+    if len(n.children)>2:return n.children[2].value
+    if len(n.children)>1 and text[n.children[1].start:n.children[1].start+1] in ('"', "'"):
+        return n.children[1].value
+    return netmap.get(scalar(n),'')
 
 
 def _layers(node,context):
@@ -79,7 +82,7 @@ def items_from_board(context,project):
         item=Item(fp.uid,'Footprint',fp.reference,layers=(fp.layer,),points=[(fp.x,fp.y)],properties=props,fields=fields)
         out.append(item)
         for pad in fp.node.find('pad'):
-            uid=scalar(pad.first('uuid'));net=_net(pad,netmap);lay=_layers(pad,context)
+            uid=scalar(pad.first('uuid'));net=_net(pad,netmap,context.text);lay=_layers(pad,context)
             at=pad.first('at');xy=_point(at) if at else (0,0);center=world_polygon(fp,[xy])[0]
             size=pad.first('size');sx,sy=_point(size) if size else (0,0)
             shape=pad.children[3].value if len(pad.children)>3 else ''
@@ -102,7 +105,7 @@ def items_from_board(context,project):
     for node in context.root.children:
         h=node.head()
         if h not in ('segment','arc','via'):continue
-        net=_net(node,netmap);lay=_layers(node,context);uid=scalar(node.first('uuid'))
+        net=_net(node,netmap,context.text);lay=_layers(node,context);uid=scalar(node.first('uuid'))
         if h=='via':
             pos=_point(node.first('at'));r=float(scalar(node.first('size'),'0'))/2
             p=dict(Type='Via',NetName=net,Diameter=2*r,Hole=float(scalar(node.first('drill'),'0')),Position_X=pos[0],Position_Y=pos[1])

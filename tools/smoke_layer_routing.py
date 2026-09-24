@@ -33,7 +33,19 @@ def main():
     def check():
         nonlocal phase
         try:
-            if time.monotonic()-started>45:raise TimeoutError('Layer routing UI did not complete')
+            if time.monotonic()-started>45:
+                result['phase']=phase
+                result['webview']=dict(ready=frame.visual.ready,connected=frame.visual.connected,
+                                       failed=frame.visual.failed,last_loaded=frame.visual.last_loaded,
+                                       last_error=frame.visual.last_error)
+                if frame.visual.ready:
+                    for key,code in [('pending', 'String(pending.size)'),
+                                     ('routing_message', 'routingMessage'),
+                                     ('page', 'view'),
+                                     ('errors', 'JSON.stringify(window.routingErrors||[])')]:
+                        try: result[key]=script(code)
+                        except Exception as error: result[key]=str(error)
+                raise TimeoutError('Layer routing UI did not complete')
             if not frame.visual or not frame.visual.ready:wx.CallLater(250,check);return
             if phase==0:
                 if script("String(!!state && pending.size===0)").strip('"')!='true':wx.CallLater(250,check);return
@@ -44,11 +56,16 @@ def main():
                     picker="document.querySelector('[data-routing-net=\"D1\"]').click();document.querySelector('[data-routing-net=\"D2\"]').click();"
                 script("window.routingDone=false;window.routingErrors=[];window.addEventListener('error',e=>routingErrors.push(e.message));window.addEventListener('unhandledrejection',e=>routingErrors.push(String(e.reason)));view='routing';render();routingDraft="+json.dumps(d)+";render();"+picker+"void 0;")
                 assert script("String(!!document.querySelector('.routing-tabs') && document.querySelectorAll('.routing-preview-card').length===2)").strip('"')=='true'
-                before=script("document.querySelector('.routing-preview-svg rect').getAttribute('width')")
+                before=script("document.querySelector('.routing-preview-svg rect').getAttribute('height')")
                 script("const input=document.querySelector('[data-routing-row=\"0\"][data-routing-field=\"width\"]');input.value=String(Number(input.value)*1.5);input.dispatchEvent(new Event('input',{bubbles:true}));void 0;")
-                after=script("document.querySelector('.routing-preview-svg rect').getAttribute('width')")
+                after=script("document.querySelector('.routing-preview-svg rect').getAttribute('height')")
                 assert before!=after,(before,after)
+                assert script("String(document.querySelectorAll('.routing-mini-stack').length===2 && !!document.querySelector('.routing-preview-comparison'))").strip('"')=='true'
                 result['layer_preview']='passed'
+                script("const via=document.querySelector('[data-routing=\"via_type\"]');via.value='through';via.dispatchEvent(new Event('change',{bubbles:true}));void 0;")
+                script("for(const [key,value] of [['via_diameter','.7'],['via_drill','.3']]){const field=document.querySelector('[data-routing=\"'+key+'\"]');field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));}void 0;")
+                assert script("String(!!document.querySelector('.routing-via-preview') && routingDraft.via_diameter==='.7' && routingDraft.via_drill==='.3')").strip('"')=='true'
+                result['via_preview']='passed'
                 script("document.querySelector('[data-routing-calc=\"0\"]').click();void 0;")
                 phase=1
             elif phase==1:
@@ -61,6 +78,8 @@ def main():
                 if not rp.native_profiles(frame.w):wx.CallLater(250,check);return
                 assert len(rp.native_profiles(frame.w)[0]['layer_entries'])==2
                 assert not rp.issues(frame.w)
+                assert frame.w.metadata['routing_profiles'][next(iter(frame.w.metadata['routing_profiles']))]['via_type']=='through'
+                result['via_native_stage']='passed'
                 if args.net_groups:
                     assert frame.w.metadata['routing_profiles']['CAN1']['nets']==['D1','D2']
                     result['native_net_picker']='passed'
