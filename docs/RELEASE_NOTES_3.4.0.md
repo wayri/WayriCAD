@@ -1,6 +1,6 @@
-# WayriCAD 3.4.0 release candidate
+# WayriCAD 3.4.0
 
-This candidate updates the 16 independent KiCad 10 PCM packages. The public PCM feed remains on 3.3.0 until the 3.4.0 source commit, CI, uploaded ZIPs and hashes have been verified. Do not replace published 3.3.0 assets with these builds.
+This release updates the 16 independent KiCad 10 PCM packages. The public PCM feed is promoted only after the tagged source commit, uploaded ZIPs and hashes are verified. Published 3.3.0 assets remain unchanged.
 
 ## Changes
 
