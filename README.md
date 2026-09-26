@@ -88,6 +88,8 @@ Remove obsolete suite package entries to avoid duplicate actions. Embed3D combin
 
 For a source installation, build packages and run `python tools/install_suite.py` to preview the destination, then repeat with `--apply`. Use `--destination` for an explicit location. [Installation details](docs/TROUBLESHOOTING.md#installation-paths).
 
+On Windows, the source installer automatically repairs KiCad's known malformed `pythonw/.exe` interpreter setting before copying packages, after checking the matching `bin/python.exe` and backing up the KiCad settings file. Close KiCad before running `--apply`. For plugins already installed through PCM, close KiCad and run `python tools/check_kicad_python.py --repair` once, then restart KiCad. A PCM ZIP cannot repair this setting before KiCad creates its Python environment. The repair leaves valid and unrelated interpreter settings unchanged; see [interpreter troubleshooting](docs/TROUBLESHOOTING.md#all-ipc-plugins-fail-while-creating-python-environments-on-windows).
+
 ## Automation and development
 
 Use `wayricad jobs` to create repeatable analysis/report sequences and insert them into KiCad jobsets. Native DRC/ERC, BOM, PI, SI and RLC presets collect a local HTML index, logs and JSON/hash evidence. [Setup and examples](wayricad_runtime/JOBSETS.md).
