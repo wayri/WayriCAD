@@ -31,8 +31,11 @@ release; see [compatibility and known limits](COMPATIBILITY.md).
 5. Open the **Pending** tab and choose **Apply Pending Changes**. An Install
    click only queues the operation; the package is not installed until pending
    changes are applied.
-6. In KiCad Manager, open **Preferences → Plugins**. Turn on **Enable KiCad
-   API** and let KiCad detect or select its Python interpreter.
+6. In KiCad Manager, open **Preferences → Plugins** and turn on **Enable KiCad
+   API**. KiCad's Python interpreter must be an existing executable on this
+   computer. The WayriCAD source installer repairs the known `pythonw/.exe`
+   typo once with a backup; existing PCM installs can use its one-time
+   [repair helper](TROUBLESHOOTING.md#all-ipc-plugins-fail-while-creating-python-environments-on-windows).
 7. Restart the **PCB Editor**, open the project through KiCad Manager, and save
    its board. Launch WayriCAD from **Tools → External Plugins** or the **top
    toolbar**. The KiCad 10 packages include menu launchers alongside their IPC

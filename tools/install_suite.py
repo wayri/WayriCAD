@@ -120,6 +120,22 @@ def main():
                 for p in ROOT.glob("*_plugin/metadata.json")}
     if not expected or {p.name for p in packages} != expected:
         parser.error("PCM ZIPs differ from the source inventory. Build all current-version packages first.")
+    if sys.platform == 'win32':
+        try:
+            from check_kicad_python import check, repair_malformed, settings_path
+        except ImportError:
+            from tools.check_kicad_python import check, repair_malformed, settings_path
+        settings = settings_path(args.version)
+        if settings.is_file():
+            okay, message = check(settings)
+            if not okay:
+                if args.apply:
+                    try:
+                        print(repair_malformed(settings))
+                    except RuntimeError as exc:
+                        parser.error(str(exc) + '; no plugins were copied')
+                else:
+                    print('WARNING: ' + message + '; --apply will repair only the known pythonw/.exe typo after KiCad is closed.', file=sys.stderr)
     for package in packages:
         with zipfile.ZipFile(package) as archive:
             manifest = json.loads(archive.read("plugins/plugin.json"))
