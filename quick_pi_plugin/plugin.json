@@ -27,6 +27,24 @@
         "resources/icon-dark-48.png",
         "resources/icon-dark-96.png"
       ]
+    },
+    {
+      "identifier": "quick-therm",
+      "name": "WayriCAD QuickTherm",
+      "description": "Screen board and component temperatures with mapped thermal inputs and visual results.",
+      "show-button": true,
+      "scopes": ["pcb"],
+      "entrypoint": "quick_therm_entrypoint.py",
+      "icons-light": [
+        "resources/quicktherm-24.png",
+        "resources/quicktherm-48.png",
+        "resources/quicktherm-96.png"
+      ],
+      "icons-dark": [
+        "resources/quicktherm-dark-24.png",
+        "resources/quicktherm-dark-48.png",
+        "resources/quicktherm-dark-96.png"
+      ]
     }
   ]
 }

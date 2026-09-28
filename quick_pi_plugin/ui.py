@@ -34,8 +34,15 @@ def _parse_sink_areas(text,references):
 
 
 class QuickPIFrame(wx.Frame):
-    def __init__(self,parent,board_path):
-        super().__init__(parent,title='WayriCAD Quick PI',size=(1180,800))
+    def __init__(self,parent,board_path,start_tab=None):
+        super().__init__(parent,title='WayriCAD QuickTherm' if start_tab=='QuickTherm' else 'WayriCAD Quick PI',size=(1180,800))
+        icon_prefix='quicktherm-' if start_tab=='QuickTherm' else 'icon-'
+        icon_dir=Path(__file__).with_name('resources')
+        icons=wx.IconBundle()
+        for size in (24,48,96):
+            icon_path=icon_dir/f'{icon_prefix}{size}.png'
+            if icon_path.is_file():icons.AddIcon(wx.Icon(str(icon_path),wx.BITMAP_TYPE_PNG))
+        if icons.GetIcon(wx.Size(48,48)).IsOk():self.SetIcons(icons)
         self.SetMinSize((940,680));self.board_path=str(Path(board_path).resolve())
         self.bundle={};self.inventory={};self.thermal_bundle={};self.return_bundle={};self.sweep_bundle={}
         self.virtual_heatsinks={}
@@ -90,6 +97,7 @@ class QuickPIFrame(wx.Frame):
             self.book.AddPage(page,name);self.views.append((figure,canvas,toolbar))
         self._build_thermal_page()
         self._build_return_page()
+        if start_tab=='QuickTherm':self.book.SetSelection(len(self.views))
         from .decoupling.pdn_decoupling_plugin import PdnFrame
         import pcbnew
         self.decoupling=PdnFrame(self.book,pcbnew.LoadBoard(self.board_path))

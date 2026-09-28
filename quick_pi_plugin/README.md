@@ -11,6 +11,7 @@
 - Build the same saved-net series path in a native editor, including source/sink pad selection from the originating PCB Editor, ordered components, and reusable JSON paths.
 - Solve a voltage-driven resistive load or sweep a bounded range of prescribed DC currents on one extracted path.
 - Screen selected return nets against saved filled copper and local return vias, and estimate component temperatures from mapped board fields in air or vacuum.
+- Open QuickTherm directly from its own PCB Editor action and icon; it shares the Quick PI package and opens the thermal workspace first.
 - Run bounded mesh-refinement studies and reference benchmarks; export local HTML and JSON reports.
 
 ## Limitations

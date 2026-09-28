@@ -27,7 +27,9 @@ junction markers; the 3D geometry is illustrative.*
 
 ## 1. Prepare the saved board
 
-1. In KiCad PCB Editor, save the board you intend to analyze. QuickTherm reads
+1. In KiCad PCB Editor, save the board you intend to analyze and choose
+   **WayriCAD QuickTherm** from the plugins menu. Its thermometer icon opens
+   directly on the thermal tab of the Quick PI package. QuickTherm reads
    the saved `.kicad_pcb` file; unsaved editor changes are not included.
 2. Add custom **footprint properties** with the power dissipated at the chosen
    operating point and the appropriate component thermal resistances. You choose
