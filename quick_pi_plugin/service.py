@@ -98,6 +98,7 @@ def execute(request):
 def series_execute(board,path,request):
     """Separate copper domains joined only by explicit lumped components."""
     import math
+    from .series_models import validate_model
     inventory=[]
     for fp in board.GetFootprints():
         for pad in fp.Pads():
@@ -120,13 +121,20 @@ def series_execute(board,path,request):
             raise ValueError('Repeated series endpoint. Each component pad must occur once in the requested path.')
         seen.update((a['id'],b['id']))
         if previous['net']!=a['net']:raise ValueError(f"Copper path changes net without a component: {previous['label']} → {a['label']}")
-        resistance=float(branch['resistance_ohm']);inductance=float(branch.get('inductance_h',0.))
+        validate_model(branch)
+        resistance=float(branch.get('resistance_ohm',0.));inductance=float(branch.get('inductance_h',0.))
         if not all(math.isfinite(v) and v>=0 for v in (resistance,inductance)):
             raise ValueError('Series R and L must be finite and nonnegative.')
+        if not (resistance or inductance or 'fixed_drop_v' in branch or 'diode' in branch):
+            raise ValueError('A series component needs resistance, inductance or a forward-drop model.')
         branches.append({**branch,'id':str(branch.get('id',a['label'].split('.')[0]))+f':{index}',
-                         'from_terminal':a['id'],'to_terminal':b['id'],'resistance_ohm':resistance,'inductance_h':inductance})
+                         'from_terminal':a['id'],'to_terminal':b['id'],'resistance_ohm':resistance,'inductance_h':inductance,
+                         'from_domain':index,'to_domain':index+1})
         previous=b;nets.append(b['net'])
     if previous['net']!=end['net']:raise ValueError('The last component and ending pad do not share a net.')
+    has_drop=any('fixed_drop_v' in branch or 'diode' in branch for branch in branches)
+    if has_drop and len(set(nets))!=len(nets):
+        raise ValueError('Forward-drop paths must cross each net only once; a repeated net creates an alternate path.')
     # Validate the circuit before loading optional numerical dependencies.
     from .board_geometry import extract
     from .mesh import build_mesh
@@ -139,6 +147,7 @@ def series_execute(board,path,request):
         geometry=extract(board,net,source_path=path,stackup_override=request.get('stackup_override'))
         local=build_mesh(geometry,edge_mm=mesh['edge_mm'],plating_mm=mesh['plating_mm'])
         offset=len(mesh['points_mm']);mesh['points_mm'].extend(local['points_mm'])
+        if has_drop:mesh.setdefault('series_domains',[]).append({'net':net,'start':offset,'end':len(mesh['points_mm'])})
         mesh['triangles'].extend([[i+offset for i in t] for t in local['triangles']])
         if len(mesh['points_mm'])>250000 or len(mesh['triangles'])>500000:
             raise ValueError('The complete series circuit exceeds the mesh budget. Increase mesh edge length.')
@@ -165,4 +174,4 @@ def series_execute(board,path,request):
         source_voltage=float(request.get('source_voltage',1.)),sink_current=float(request.get('sink_current',1.)),
         options=request.get('options'))
     return {'geometry':geometry,'mesh':mesh,'result':result,'request':request,
-            'model':'2.5D DC copper conduction with explicit series RL components; inductors are steady-state DC branches'}
+            'model':'2.5D DC copper conduction with explicit series R/L and forward-drop branches at prescribed current'}

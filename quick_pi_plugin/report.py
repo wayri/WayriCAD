@@ -10,7 +10,7 @@ from pathlib import Path
 METRICS={
     'voltage':('Potential','V','viridis'),
     'drop':('Voltage drop','mV','magma'),
-    'resistance':('DC transfer resistance ΔV/I','mΩ','magma'),
+    'resistance':('DC drop / current ΔV/I','mΩ','magma'),
     'density':('Current density','A/mm²','inferno'),
     'flow':('Current flow','A/mm','viridis'),
     'loss':('Copper loss density','W/mm²','inferno'),
@@ -206,7 +206,8 @@ def write_report(path,bundle,layer=None):
         images.append('<figure><figcaption>'+escape(METRICS[metric][0])+'</figcaption><img alt="'+escape(METRICS[metric][0])+'" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'"></figure>')
         figure.clear()
     scope='Circuit' if bundle.get('request',{}).get('series') else 'Copper'
-    values=[(scope+' resistance ΔV/I',_number(result.get('drop_over_current_ohm'),'mΩ',1000)),
+    ratio_name=scope+(' apparent ΔV/I' if result.get('contains_forward_drop') else ' resistance ΔV/I')
+    values=[(ratio_name,_number(result.get('drop_over_current_ohm'),'mΩ',1000)),
             ('Voltage drop',_number(result.get('voltage_drop_V'),'mV',1000)),
             ('Total loss',_number(result.get('total_power_W'),'W')),
             ('Peak copper-sheet current density',_number(result.get('max_current_density_A_mm2'),'A/mm²')),
@@ -230,12 +231,28 @@ def write_report(path,bundle,layer=None):
     else:
         html+='<p><strong>Mesh convergence not verified.</strong> Run a fixed-input refinement study before relying on terminal drop. Localized current-density and pulse-risk peaks need separate verification.</p>'
     html+='<p>The DC transfer-resistance map divides the source-to-cell potential drop by the specified sink current. It is not an AC impedance map.</p>'
-    html+='<table>'+table+'</table><p>'+scope+' resistance uses the solved voltage drop divided by load current. Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><section>'+''.join(images)+'</section>'
+    ratio_note=(scope+' ΔV/I is an apparent operating-point ratio at the specified load current, not resistance.'
+                if result.get('contains_forward_drop') else
+                scope+' resistance uses the solved voltage drop divided by load current.')
+    html+='<table>'+table+'</table><p>'+ratio_note+' Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><section>'+''.join(images)+'</section>'
+    if result.get('negative_sink_voltage'):
+        html+='<p><strong>Operating-point warning:</strong> The requested current makes sink voltage negative; check source voltage and load. The imposed-current path may be infeasible.</p>'
     if result.get('analytics'):
         from .analytics import details_text
         html+='<h2>Copper thickness, layer losses and hotspots</h2><pre>'+escape(details_text(result))+'</pre>'
     if result.get('components'):
-        html+='<h2>Explicit component branches</h2><p>DC resistance contributes to the solved path. Inductance is reported as an input; this is not an AC or transient solve.</p><pre>'+escape(json.dumps(result['components'],indent=2))+'</pre>'
+        html+='<h2>Explicit component branches</h2><p>Fixed and diode forward drops are evaluated at the specified DC load current. Before/after voltages follow the selected path. Inductance is reported as an input; this is not an AC or transient solve.</p>'
+        html+='<table><tr><th>Component</th><th>Model</th><th>Current</th><th>Before</th><th>Drop</th><th>After</th><th>Power</th></tr>'
+        for component in result['components']:
+            values=[str(component.get('id','')),
+                    str(component.get('model','RL')),
+                    _number(component.get('current_A'),'A'),
+                    _number(component.get('voltage_before_V'),'V'),
+                    _number(component.get('voltage_drop_V'),'V'),
+                    _number(component.get('voltage_after_V'),'V'),
+                    _number(component.get('power_W'),'W')]
+            html+='<tr>'+''.join('<td>'+escape(value)+'</td>' for value in values)+'</tr>'
+        html+='</table><pre>'+escape(json.dumps(result['components'],indent=2))+'</pre>'
     if result.get('vias'):
         html+='<h2>Via barrels</h2><p>Positive current follows the recorded top-to-bottom barrel direction. The current-density and pulse-risk maps also color via annuli.</p><table><tr><th>Barrel</th><th>Current A</th><th>R mΩ</th><th>J A/mm²</th><th>Loss W</th><th>Pulse energy / limit</th></tr>'
         for via in result['vias']:

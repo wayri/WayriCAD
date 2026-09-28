@@ -7,7 +7,7 @@
 - Analyze saved traces, filled zones, pads and plated vias using a layered 2.5D DC conduction mesh and saved copper thicknesses.
 - Select source/sink pads and voltage/current; inspect native net, mesh and per-layer result views.
 - Visualize voltage/drop, current density/flow, loss density and pulse-risk screening; separate sheet, via and component losses.
-- Define repeated series resistance/RL elements through the console or CLI, with engineering notation and console completion/history.
+- Define repeated series resistance/RL, fixed-drop and current-dependent diode elements through the console or CLI, with engineering notation and console completion/history.
 - Run bounded mesh-refinement studies and reference benchmarks; export local HTML and JSON reports.
 
 ## Limitations
@@ -67,11 +67,13 @@ a console command. Use `run pi NET START END` for an explicitly named net, or
 run pi "Net-(R161-Pad1)" U1.M6 R161.1
 ```
 
-The console also accepts explicitly defined series components. Use `help` for the supported resistance/inductance syntax. Component links are drawn as dashed lines and recorded in the report; they are not invented board tracks. Source voltage, load current and material settings come from the visible controls.
+The console also accepts explicitly defined series components. Use `help` for resistance, inductance, fixed-drop and diode syntax. Component links are drawn as dashed lines and recorded in the report; they are not invented board tracks. Source voltage, load current and material settings come from the visible controls.
 
 ```text
 run pi U1.M6 R161.1 5m R161.2 U1.M5
 run pi U1.M6 R161.1 5mH+30m R161.2 U1.M5
+run pi VIN.1 D1.1 1V D1.2 LOAD.1
+run pi VIN.1 D1.1 diode(Vf=0.7V,Iref=1A,n=2,T=25C) D1.2 LOAD.1
 ```
 
 The first command assigns 5 mΩ to the explicitly named two-pad component. The
@@ -79,6 +81,25 @@ second assigns 5 mH and 30 mΩ in series. These values are user assumptions, not
 automatic identification of R161's actual component. In DC, the inductance adds
 no voltage drop; its stored energy is reported. `m` means milli, `M`/`Meg` mega,
 and `u`, `µ`, `n`, `p`, scientific notation and explicit `H`/`ohm`/`Ω` are supported.
+
+For a forward-drop component, select its two pads in the source-to-load order.
+`1V` or `500mV` imposes a fixed forward drop. The `diode(...)` form uses a
+user-supplied forward-voltage/current anchor, ideality factor and temperature:
+it evaluates the ideal diode equation at the specified DC load current. `Vf`
+and `Iref` must be positive; `n` is 1–4; `T` is in °C. No model is read from the
+KiCad symbol. The result lists each component's current, forward drop, voltage
+before and after, and dissipated power. The same fields appear in exported JSON
+and HTML. The console accepts the same syntax in two-pad shortcuts, such as
+`D1:1V`, when the incoming net identifies one pad unambiguously.
+
+Quick PI prescribes load current; it does not derive it from the source voltage
+or solve reverse bias, turn-off, transients or temperature feedback. A diode Vf
+is therefore a **DC operating-point** value, not an instantaneous waveform.
+If the requested current and path drops make the sink voltage negative, Quick PI
+warns that the operating point may be infeasible. Forward-drop paths must cross
+each net once, so an alternate path cannot silently bypass the selected diode.
+With a forward drop, circuit ΔV/I is an apparent ratio at that current, not a
+resistance; copper losses and device power remain separate.
 
 ### Multiple series components
 
@@ -95,7 +116,7 @@ the intervening copper sections must belong to the corresponding actual nets
 and be electrically connected. Replace these illustrative references with pads
 on your board. Values are explicit user-supplied models, not inferred part ratings.
 
-**DC limitation:** resistance contributes voltage drop and power loss. Inductance
+**DC limitation:** resistance and forward-drop elements contribute voltage drop and power loss. Inductance
 is retained for stored-energy reporting and contributes no steady-state DC drop.
 Quick PI does not simulate RL transients or AC impedance; entering an inductance
 or a pulse duration does not enable a transient circuit simulation. Copper and

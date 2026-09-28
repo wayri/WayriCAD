@@ -72,7 +72,7 @@ class QuickPIFrame(wx.Frame):
         console_panel=self.console.GetPane();console_layout=wx.BoxSizer(wx.VERTICAL)
         self.console_log=wx.TextCtrl(console_panel,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,95))
         self.console_input=wx.TextCtrl(console_panel,style=wx.TE_PROCESS_ENTER)
-        self.console_input.SetHint('help   ·   run pi <net> <source pad> <sink pad>   ·   Tab completes names')
+        self.console_input.SetHint('help · run pi START D1.1 1V D1.2 END · diode(Vf=0.7V,Iref=1A,n=2,T=25C)')
         console_layout.Add(self.console_log,1,wx.EXPAND|wx.BOTTOM,5);console_layout.Add(self.console_input,0,wx.EXPAND)
         console_panel.SetSizer(console_layout);root.Add(self.console,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         self.status=wx.StaticText(panel,label='Reading the saved board…');root.Add(self.status,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
@@ -236,12 +236,16 @@ class QuickPIFrame(wx.Frame):
         self._plot_keys.clear();self.book.SetSelection(2 if action=='solve' else 1 if action=='mesh' else 0)
         if result.get('result'):
             r=result['result'];scope='Circuit' if request.get('series') else 'Copper'
-            self.summary.SetLabel(f"ΔV {r['voltage_drop_V']*1000:.4g} mV   |   {scope} ΔV/I {r['drop_over_current_ohm']*1000:.4g} mΩ   |   Total loss {r['total_power_W']:.4g} W   |   Peak sheet J {r['max_current_density_A_mm2']:.4g} A/mm²")
+            ratio_label=f'{scope} ΔV/I'+(' (apparent)' if r.get('contains_forward_drop') else '')
+            self.summary.SetLabel(f"ΔV {r['voltage_drop_V']*1000:.4g} mV   |   {ratio_label} {r['drop_over_current_ohm']*1000:.4g} mΩ   |   Total loss {r['total_power_W']:.4g} W   |   Peak sheet J {r['max_current_density_A_mm2']:.4g} A/mm²")
             self.status.SetLabel('Mesh convergence not verified. Pulse risk is an adiabatic screen; peaks depend on mesh size and exclude cooling/fuse-opening physics.')
-            self._console_write(f"Solved: drop={r['voltage_drop_V']:.8g} V; {scope.lower()} R={r['drop_over_current_ohm']:.8g} ohm; power={r['total_power_W']:.8g} W; source V/I={r['V_over_I_ohm']:.8g} ohm")
+            self._console_write(f"Solved: drop={r['voltage_drop_V']:.8g} V; {ratio_label}={r['drop_over_current_ohm']:.8g} ohm; power={r['total_power_W']:.8g} W; source V/I={r['V_over_I_ohm']:.8g} ohm")
+            for branch in r.get('components',[]):
+                if branch.get('model') in ('diode','fixed_drop'):
+                    self._console_write(f"{branch['id']}: {branch['model']} at {branch['current_A']:.6g} A, Vf={branch['forward_drop_V']:.6g} V, before={branch['voltage_before_V']:.6g} V, after={branch['voltage_after_V']:.6g} V")
             if r.get('negative_sink_voltage'):
                 self.status.SetLabel('Requested current makes the sink voltage negative. Review source voltage and load. Mesh convergence is not verified.')
-                self._console_write('Warning: the requested sink current exceeds the available source voltage for this resistive path.')
+                self._console_write('Warning: the requested sink current exceeds the available source voltage for this path; the DC operating point may be infeasible.')
             if result.get('convergence'):
                 from .convergence import summary
                 self.status.SetLabel(summary(result['convergence'])+(' Sink voltage is negative; review the load.' if r.get('negative_sink_voltage') else ''))

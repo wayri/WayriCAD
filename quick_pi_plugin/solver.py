@@ -123,14 +123,18 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
         barrel_area_mm2 = math.pi * plating * (drill + plating)
         resistance = rho * (length * 1e-3) / (barrel_area_mm2 * 1e-6)
         via_segments.append((via.get('id', str(index)), top[0], bottom[0], resistance, barrel_area_mm2, length))
-    branches=[]
+    from .series_models import forward_drop, validate_model
+    branches=[];branch_models=[]
     for index,branch in enumerate(mesh.get('lumped_branches', [])):
+        try:validate_model(branch)
+        except (TypeError,ValueError) as exc:raise SolverError(str(exc)) from exc
         top=nodes(branch.get('top_nodes'),'Component first terminal')
         bottom=nodes(branch.get('bottom_nodes'),'Component second terminal')
         resistance=number(branch.get('resistance_ohm',0),'Component resistance',nonnegative=True)
         inductance=number(branch.get('inductance_h',0),'Component inductance',nonnegative=True)
         union.merge(top);union.merge(bottom)
         branches.append((branch.get('id',str(index)),top[0],bottom[0],resistance,inductance))
+        branch_models.append(branch)
     # Preserve the contact grouping before ideal DC shorts. It lets us recover
     # unique ideal-inductor currents from Kirchhoff balance on a shorting tree.
     _, pre_groups=np.unique([union.find(i) for i in range(n)],return_inverse=True)
@@ -264,20 +268,47 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
                 parent,index,direction=parents[vertex]
                 branch_currents[index]=float(imbalance[vertex]*direction)
                 imbalance[parent]+=imbalance[vertex]
+    forward_drops={}
+    if any('fixed_drop_v' in b or 'diode' in b for b in branch_models):
+        domains=mesh.get('series_domains')
+        if not isinstance(domains,list) or len(domains)!=len(branches)+1:
+            raise SolverError('Forward-drop models require a verified, ordered series path with one copper domain per net.')
+        cursor=0
+        for domain in domains:
+            if not isinstance(domain,dict) or domain.get('start')!=cursor or not isinstance(domain.get('end'),int) or not cursor<domain['end']<=n:
+                raise SolverError('Forward-drop series domains must cover the mesh in path order.')
+            cursor=domain['end']
+        if cursor!=n or any(b.get('from_domain')!=i or b.get('to_domain')!=i+1 for i,b in enumerate(branch_models)):
+            raise SolverError('Forward-drop branches must connect consecutive copper domains in path order.')
+        shifts=np.zeros(len(domains))
+        for index,branch in enumerate(branch_models):
+            if 'fixed_drop_v' not in branch and 'diode' not in branch:continue
+            current=branch_currents.get(index)
+            try:drop_v=forward_drop(branch,current)
+            except (TypeError,ValueError) as exc:raise SolverError(str(exc)) from exc
+            forward_drops[index]=drop_v
+            shifts[index+1:]-=drop_v
+        for index,domain in enumerate(domains):
+            voltage_offset[domain['start']:domain['end']]+=shifts[index]
     component_results=[]
     for index,(identifier,a,b,resistance,inductance) in enumerate(branches):
         connected=bool(node_active[a] and node_active[b]);current=branch_currents.get(index)
+        forward_v=forward_drops.get(index,0.)
         component_results.append({'id':identifier.item() if isinstance(identifier,np.generic) else identifier,
             'connected':connected,'current_A':current,'direction':'top_to_bottom_positive',
             'current_status':'known' if current is not None else 'indeterminate_ideal_short_loop' if connected else 'disconnected',
             'resistance_ohm':resistance,'inductance_h':inductance,
+            'model':'diode' if 'diode' in branch_models[index] else 'fixed_drop' if 'fixed_drop_v' in branch_models[index] else 'RL',
+            'forward_drop_V':forward_v,
+            'voltage_before_V':float(source_voltage+voltage_offset[a]) if connected else None,
+            'voltage_after_V':float(source_voltage+voltage_offset[b]) if connected else None,
             'voltage_drop_V':float(voltage_offset[a]-voltage_offset[b]) if connected else None,
-            'power_W':current*current*resistance if current is not None else 0. if connected and resistance==0 else None,
+            'power_W':current*current*resistance+current*forward_v if current is not None else 0. if connected and resistance==0 else None,
             'magnetic_energy_J':.5*inductance*current*current if current is not None else None,
             'inductive_voltage_drop_V':0. if connected else None})
     component_loss=sum(c['power_W'] or 0 for c in component_results)
     loss = conductor_loss+component_loss
-    drop = float(-offset[sink]); terminal_loss = sink_current * drop
+    drop = float(-voltage_offset[sink_nodes[0]]); terminal_loss = sink_current * drop
     energy_error = abs(loss-terminal_loss)/max(abs(terminal_loss), 1e-30)
     if drop <= 0 or energy_error > 1e-6: raise SolverError('FEM energy balance failed; inspect mesh conditioning.')
 
@@ -310,6 +341,7 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
             'cell_centroid_mm': (points[triangles].mean(axis=1)).tolist(),
             'cell_layer': list(layers), 'cell_thermal': cell_thermal, 'vias': via_results,
             'components':component_results,
+            'contains_forward_drop':bool(forward_drops),
             'source_voltage_V': source_voltage, 'sink_voltage_V': source_voltage-drop,
             'source_current_A': float(reaction[source]), 'sink_current_A': sink_current,
             'voltage_drop_V': drop, 'drop_over_current_ohm': drop/sink_current,

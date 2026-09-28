@@ -8,7 +8,8 @@ Run the tests from the repository root using KiCad's Python runtime:
 
 The solver tests compare copper-strip resistance, voltage, current density and
 Joule power against analytical equations. They cover parallel layers, barrel
-resistance, positive and ideal series RL branches, disconnected copper, current
+resistance, positive and ideal series RL branches, fixed forward drops and
+anchored diode DC operating points, disconnected copper, current
 and energy conservation, winding reversal, nonuniform contact-current spreading
 under mesh refinement, and ill-conditioned equipotential slivers. Ideal-inductor
 loops report indeterminate individual currents rather than inventing them.
