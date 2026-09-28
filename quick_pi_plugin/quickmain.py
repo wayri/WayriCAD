@@ -24,6 +24,7 @@ def main(argv=None):
     parser.add_argument('--worker',nargs=2,metavar=('REQUEST','RESPONSE'))
     parser.add_argument('--board',type=Path)
     parser.add_argument('--ui',action='store_true')
+    parser.add_argument('--start-tab',choices=('QuickTherm',))
     args=parser.parse_args(argv);name=package()
     if args.worker:
         request,response=map(Path,args.worker)
@@ -35,7 +36,11 @@ def main(argv=None):
                 print(json.dumps({'error':'Worker response must not overwrite the source PCB.'}));return 2
             result=importlib.import_module('.service',name).execute(payload)
             if payload.get('html_output'):
-                importlib.import_module('.report',name).write_report(payload['html_output'],result)
+                report=importlib.import_module('.report',name)
+                if result.get('sweep'):report.write_sweep_report(payload['html_output'],result)
+                elif result.get('quick_therm') or result.get('return_path'):
+                    report.write_diagnostic_report(payload['html_output'],result)
+                else:report.write_report(payload['html_output'],result)
             status=0
         except Exception as exc:
             result={'error':str(exc),'error_type':type(exc).__name__};status=2
@@ -51,7 +56,7 @@ def main(argv=None):
     import wx
     app=wx.App(False)
     try:
-        frame=importlib.import_module('.ui',name).QuickPIFrame(None,args.board)
+        frame=importlib.import_module('.ui',name).QuickPIFrame(None,args.board,start_tab=args.start_tab)
         frame.Show();app.MainLoop();return 0
     except Exception as exc:
         wx.MessageBox(str(exc),'WayriCAD Quick PI',wx.OK|wx.ICON_ERROR);return 2

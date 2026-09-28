@@ -20,7 +20,7 @@ class PackageContentsTests(unittest.TestCase):
                   "module=automation._module('signal_integrity_advisor_plugin/return_path/analysis.py','return_test');"
                   "assert module.ReturnPathAnalyzer().audit([],[],[]).findings==[]")
             result=subprocess.run([sys.executable,'-I','-c',code],cwd=root,
-                                  capture_output=True,text=True)
+                                  stdin=subprocess.DEVNULL,capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
 
     def test_runtime_test_point_module_is_shipped_and_test_directory_is_omitted(self):

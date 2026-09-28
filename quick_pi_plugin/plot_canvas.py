@@ -68,6 +68,11 @@ except (ImportError,ModuleNotFoundError):
         def _up(self,event):
             self._drag=None
             if self.HasCapture():self.ReleaseMouse()
+            from matplotlib.backend_bases import MouseEvent
+            mouse=MouseEvent('button_release_event',self,event.GetX(),
+                             self.GetClientSize().height-event.GetY(),button=1,guiEvent=event)
+            self.callbacks.process('button_release_event',mouse)
+            event.Skip()
 
         def _wheel(self,event):self.zoom(.8 if event.GetWheelRotation()>0 else 1.25,self._coordinate(event))
 

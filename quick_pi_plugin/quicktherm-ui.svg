@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1220" height="790" viewBox="0 0 1220 790">
+<defs><linearGradient id="hot" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#177e89"/><stop offset=".5" stop-color="#e7a040"/><stop offset="1" stop-color="#d95049"/></linearGradient></defs>
+<rect width="1220" height="790" fill="#1d2227"/><rect width="1220" height="34" fill="#11171b"/>
+<text x="18" y="23" fill="#e9f1f3" font-family="Arial" font-size="14">WayriCAD Quick PI · example-board.kicad_pcb</text>
+<text x="22" y="65" fill="#fff" font-family="Arial" font-size="22" font-weight="bold">Quick PI · Copper and decoupling</text>
+<rect x="20" y="83" width="1180" height="88" rx="4" fill="#262d33" stroke="#4b5963"/>
+<text x="35" y="109" fill="#d5e6e9" font-family="Arial" font-size="13">Source / sink and copper-path settings (inactive on QuickTherm tab)</text>
+<g fill="#343d44" stroke="#61717a"><rect x="35" y="121" width="175" height="33"/><rect x="222" y="121" width="175" height="33"/><rect x="409" y="121" width="175" height="33"/><rect x="596" y="121" width="175" height="33"/><rect x="783" y="121" width="175" height="33"/><rect x="970" y="121" width="210" height="33"/></g>
+<g font-family="Arial" font-size="13" fill="#cde0e5"><text x="43" y="143">Net</text><text x="230" y="143">Source pad</text><text x="417" y="143">Sink pad</text><text x="604" y="143">Source V</text><text x="791" y="143">Current / load</text><text x="978" y="143">Mode</text></g>
+<rect x="20" y="183" width="1180" height="583" fill="#242a30" stroke="#4b5963"/>
+<g font-family="Arial" font-size="13" fill="#e2edef"><text x="39" y="207">Net</text><text x="123" y="207">Mesh</text><text x="216" y="207">Results</text><text x="318" y="207" font-weight="bold">QuickTherm</text><text x="459" y="207">Return path</text><text x="579" y="207">Decoupling placement</text></g>
+<rect x="292" y="184" width="142" height="33" fill="#206b76"/>
+<text x="311" y="206" fill="#fff" font-family="Arial" font-weight="bold" font-size="13">QuickTherm</text>
+<text x="38" y="243" fill="#fff" font-family="Arial" font-size="17" font-weight="bold">QuickTherm</text>
+<text x="168" y="243" fill="#a7c8d1" font-family="Arial" font-size="13">Map saved footprint properties, choose parts, and run the lumped thermal screen.</text>
+<g font-family="Arial" font-size="12" fill="#bdcbd0"><text x="39" y="266">Dissipation field</text><text x="408" y="266">RθJA field</text><text x="777" y="266">Environment</text><text x="39" y="323">RθJC field · heatsinks</text><text x="408" y="323">Ambient °C</text><text x="777" y="323">Board to environment K/W</text></g>
+<g fill="#343d44" stroke="#71818a"><rect x="38" y="274" width="345" height="31"/><rect x="407" y="274" width="345" height="31"/><rect x="776" y="274" width="405" height="31"/><rect x="38" y="331" width="345" height="31"/><rect x="407" y="331" width="345" height="31"/><rect x="776" y="331" width="405" height="31"/></g>
+<g font-family="Arial" fill="#f1f5f5" font-size="13"><text x="49" y="294">Power_W ▾</text><text x="418" y="294">RthetaJA ▾</text><text x="787" y="294">Air ▾</text><text x="49" y="351">RthetaJC ▾</text><text x="418" y="351">25</text><text x="787" y="351">—</text></g>
+<text x="38" y="394" fill="#e6eeee" font-family="Arial" font-size="13">Dissipating components in scope</text>
+<g fill="#326477" stroke="#83a4aa"><rect x="732" y="373" width="151" height="30" rx="4"/><rect x="893" y="373" width="143" height="30" rx="4"/><rect x="1046" y="373" width="135" height="30" rx="4"/></g>
+<g font-family="Arial" fill="white" font-size="12"><text x="748" y="393">Virtual heatsinks…</text><text x="911" y="393">Run QuickTherm</text><text x="1066" y="393">Export report…</text></g>
+<rect x="38" y="416" width="185" height="213" fill="#303940" stroke="#647780"/>
+<g font-family="Arial" fill="#e6eeee" font-size="13"><text x="50" y="441">☑ U1</text><text x="50" y="464">☑ U2</text><text x="50" y="487">☑ U3</text></g>
+<rect x="232" y="416" width="949" height="213" fill="#e9f0ef"/>
+<text x="248" y="440" fill="#29444b" font-family="Arial" font-size="12">Board view: Top-side contour ▾</text><text x="510" y="440" fill="#24627a" font-family="Arial" font-size="12">Read PCB selection</text>
+<text x="248" y="457" fill="#4d6066" font-family="Arial" font-size="11">Component junction estimates · select a marker or table row to locate the footprint in PCB Editor</text>
+<rect x="330" y="470" width="726" height="140" rx="11" fill="#f6f9f7" stroke="#386875" stroke-width="3"/>
+<path d="M 465 555 Q 622 497 849 530" fill="none" stroke="url(#hot)" stroke-width="26" opacity=".47"/>
+<g fill="#248591" stroke="white" stroke-width="3"><circle cx="465" cy="555" r="10"/><circle cx="615" cy="515" r="10"/></g><circle cx="849" cy="530" r="13" fill="#d95049" stroke="#0dbba6" stroke-width="4"/>
+<g fill="#21383e" font-family="Arial" font-size="13" font-weight="bold"><text x="475" y="550">U1 35.2 °C</text><text x="626" y="509">U2 45 °C</text><text x="863" y="524">U3 58 °C</text></g>
+<text x="38" y="652" fill="#c5e7de" font-family="Arial" font-size="13">Min 35.2 °C  ·  Max 58 °C  ·  Mean 46.1 °C  ·  Median 45 °C  ·  Power 2.5 W  ·  Hottest U3</text>
+<rect x="38" y="665" width="1143" height="75" fill="#e5eeed"/>
+<rect x="38" y="665" width="1143" height="24" fill="#cbdcde"/>
+<g fill="#25444b" font-family="Arial" font-size="11"><text x="47" y="682">Reference</text><text x="149" y="682">Side</text><text x="225" y="682">Heat path</text><text x="382" y="682">Power W</text><text x="482" y="682">Rθ K/W</text><text x="591" y="682">Junction °C</text><text x="716" y="682">Rise K</text><text x="824" y="682">X mm</text><text x="924" y="682">Y mm</text><text x="1027" y="682">Status</text>
+<text x="47" y="706">U3</text><text x="149" y="706">top</text><text x="225" y="706">RθJA air</text><text x="382" y="706">1.2</text><text x="482" y="706">27.5</text><text x="591" y="706">58</text><text x="716" y="706">33</text><text x="824" y="706">48</text><text x="924" y="706">23</text><text x="1027" y="706">Solved</text>
+<text x="47" y="728">U2</text><text x="149" y="728">top</text><text x="225" y="728">RθJA air</text><text x="382" y="728">0.5</text><text x="482" y="728">40</text><text x="591" y="728">45</text><text x="716" y="728">20</text><text x="824" y="728">31</text><text x="924" y="728">11</text><text x="1027" y="728">Solved</text></g>
+<text x="22" y="782" fill="#a9bac0" font-family="Arial" font-size="11">ILLUSTRATION · Synthetic values. Switch to bottom, 3D or optional board model; contour alone is not a board-surface solution.</text>
+</svg>

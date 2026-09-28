@@ -4,13 +4,13 @@
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Development suite: 3.4.0 release candidate · current published release: 3.3.0 · [GPL-3.0 license](LICENSE).**
+**Development suite: 3.5.0 release candidate · current published release: 3.4.0 · [GPL-3.0 license](LICENSE).**
 
 **Use Releases for published packages. KiCad 10 is the validated target.** KiCad 11-only installations are not supported yet: several engines still need KiCad 10 native Python. See [compatibility and known limits](docs/COMPATIBILITY.md).
 
 [Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
 
-[3.4 release candidate notes](docs/RELEASE_NOTES_3.4.0.md) · [3.3 jobset automation](docs/RELEASE_NOTES_3.3.0.md) · [3.2.1 privacy update](docs/RELEASE_NOTES_3.2.1.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
+[3.5 release candidate notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [3.3 jobset automation](docs/RELEASE_NOTES_3.3.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
 
 ## Install and open
 
@@ -101,8 +101,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.4.0
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.4.0
+python build_pcm.py --output-dir .validation/candidate-pcm-3.5.0
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.5.0
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.
