@@ -113,6 +113,7 @@ def render_interface_svg(
     """
     placed, height = _layout(data, center_ref)
     net_rows = interface_net_rows(data, protocol_overrides=protocol_overrides)
+    height = max(height, 200 + 24 * sum(len(row["endpoints"]) > 1 for row in net_rows))
     net_sides = {
         row["net"]: {placed[p["reference"]]["side"] for p in row["endpoints"] if p["reference"] in placed}
         for row in net_rows
@@ -143,6 +144,7 @@ def render_interface_svg(
     ]
     # Draw links first so cards and pin labels stay readable. One net hub makes
     # fanout (including duplicate/shared nets) explicit without fake pair links.
+    occupied_hubs: dict[int, list[int]] = defaultdict(list)
     for row in net_rows:
         net = row["net"]
         endpoints = row["endpoints"]
@@ -164,6 +166,9 @@ def render_interface_svg(
         endpoint_sides = {placed[p["reference"]]["side"] for p in endpoints if p["reference"] in placed}
         hub_x = 416 if "left" in endpoint_sides else 850
         hub_y = sum(y for _, y in coords) // len(coords)
+        while any(abs(hub_y - previous) < 24 for previous in occupied_hubs[hub_x]):
+            hub_y += 24
+        occupied_hubs[hub_x].append(hub_y)
         color = _color(row["protocol"])
         parts.append(f'<g class="net-row" data-net="{_e(net)}" data-protocol="{_e(row["protocol"])}">')
         # Native preview hit-testing reads this immediate rect child. It is a
