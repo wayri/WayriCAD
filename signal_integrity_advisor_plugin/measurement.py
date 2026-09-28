@@ -545,7 +545,12 @@ class TraceMeasurementEngine:
                         both = [] if outer else geometry.reference(edge["layer"],edge["a"],edge["b"],width,"Auto",result.net_name,all_matches=True)
                         by_layer = {r[1]:r for r in both}
                         symmetric = len(by_layer) == 2 and abs(max(r[0] for r in by_layer.values())-min(r[0] for r in by_layer.values())) < .01*height and abs(max(r[2] for r in by_layer.values())-min(r[2] for r in by_layer.values())) < .01*er
-                        if outer or symmetric:
+                        if outer and geometry.lateral_copper_near(edge["layer"], edge["a"], edge["b"], width):
+                            section["model"] = "Nearby same-layer copper: coplanar/coupled impedance unresolved"
+                            result.status = "partial"
+                            self._block(result, "LATERAL_COPPER_UNMODELED", "Nearby same-layer copper changes the plain microstrip field geometry.",
+                                        "Measure the coplanar gap and use a validated CPW/coupled-line field model.", layer=layer, item_uuid=uid)
+                        elif outer or symmetric:
                             if symmetric and not outer:
                                 height = sum(r[0] for r in by_layer.values())
                                 result.dielectric_height_mm = height

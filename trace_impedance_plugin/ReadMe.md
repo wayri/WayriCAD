@@ -17,6 +17,7 @@
 - Arbitrary proximity, roughness, dielectric loss, full return-current distribution and connector/package effects are not solved.
 - Copper arcs retain their circular length, with small chords used for coverage checks. Complex current paths around zone obstacles can still remain unresolved.
 - Analysis follows existing layer transitions and never reroutes copper. Saved stackup/reference data and native KiCad geometry support are required.
+- Characteristic impedance is a first-order **single-ended microstrip or symmetric stripline** estimate. Differential-pair mode measures the two paths and skew, not coupled odd-mode or differential impedance. CPWG/CPW, asymmetric/embedded stripline, broadside coupling and other cross-sections have no solved Z0 here. Nearby same-layer copper blocks a plain-microstrip Z0 instead of reporting a misleading value.
 
 ## Overview
 
@@ -72,7 +73,7 @@ Run with KiCad 10's Python, from this repository or with the wheel installed:
 
 Replace the example net/pad/zone identifiers with those returned by `inspect`. `wayricad-rlc` is the installed entrypoint. JSON contains numeric values, source-board SHA-256 and section status. Exit codes: 0 resolved, 1 input/runtime error, 2 disconnected (also argparse usage errors), 3 partial. Reports use a separate `.json` file and never save the source board.
 
-See the [Marble smoke report](../docs/audits/MARBLE_SUITE_SMOKE.md) for measured coverage and limitations. KiCad 10 is the native geometry target; KiCad 11 operation requires validation against its available native geometry API.
+See the [Marble smoke report](../docs/audits/MARBLE_SUITE_SMOKE.md) and [open-board impedance validation](../docs/audits/RLC_OPEN_BOARD_VALIDATION.md) for measured coverage and limitations. KiCad 10 is the native geometry target; KiCad 11 operation requires validation against its available native geometry API.
 
 Model references: [TI Analog Engineer's Pocket Reference](https://www.ti.com/seclit/eb/slyw038d/slyw038d.pdf) for the approximate via inductance relation; [Analog Devices PCB layout guidance](https://www.analog.com/en/resources/analog-dialogue/articles/high-speed-printed-circuit-board-layout.html) for plane-overlap capacitance. These references do not validate this implementation against measurements.
 

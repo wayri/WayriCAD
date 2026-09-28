@@ -136,7 +136,9 @@ def solve(
     w, h, t, er = map(float, (width_mm,height_mm,copper_mm,relative_permittivity))
     if not all(math.isfinite(v) for v in (w,h,t,er,length_mm,frequency_mhz)) or min(w,h,t) <= 0 or er < 1 or length_mm < 0 or frequency_mhz < 0:
         raise ValueError("Geometry/material values must be finite and positive; length and frequency cannot be negative.")
-    name = "stripline" if str(topology).lower().startswith("strip") else "microstrip"
+    name = str(topology).strip().lower()
+    if name not in ("microstrip", "stripline"):
+        raise ValueError(f"Unsupported transmission-line topology: {topology}. Only microstrip and symmetric stripline are modeled.")
     if name == "stripline":
         # Symmetric planes: h spans the full plane-to-plane dielectric.
         z0 = z0_stripline_symmetric(w, h, t, er)
@@ -185,8 +187,10 @@ def z0_width_sweep(
             widths = [0.08 * (100.0 ** (index / 95.0)) for index in range(96)]
     else:
         widths = list(widths_mm)
-    stripline = str(topology).lower().startswith("strip")
-    solver = z0_stripline_symmetric if stripline else z0_microstrip
+    name = str(topology).strip().lower()
+    if name not in ("microstrip", "stripline"):
+        raise ValueError(f"Unsupported transmission-line topology: {topology}. Only microstrip and symmetric stripline are modeled.")
+    solver = z0_stripline_symmetric if name == "stripline" else z0_microstrip
     points = []
     for w in widths:
         try:
