@@ -93,11 +93,11 @@ class WayriCADCliTests(unittest.TestCase):
         self.assertIn("WayriCAD Interactive System Harness", result["html"])
 
     def test_jobset_run_builds_native_kicad_command(self):
-        project = FIXTURES / "sample.kicad_pro"
-        jobset = FIXTURES / "release.kicad_jobset"
-        project.write_text("{}", encoding="utf-8")
-        jobset.write_text("{}", encoding="utf-8")
-        try:
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "sample.kicad_pro"
+            jobset = Path(directory) / "release.kicad_jobset"
+            project.write_text("{}", encoding="utf-8")
+            jobset.write_text("{}", encoding="utf-8")
             with mock.patch.object(cli, "find_kicad_cli", return_value="kicad-cli"), mock.patch.object(cli.subprocess, "run") as run:
                 run.return_value.returncode = 0
                 result = cli.main([
@@ -110,9 +110,6 @@ class WayriCADCliTests(unittest.TestCase):
             self.assertIn("--output", command)
             self.assertEqual(command[-1], str(project.resolve()))
             self.assertEqual(run.call_args.kwargs["cwd"], str(project.parent.resolve()))
-        finally:
-            project.unlink(missing_ok=True)
-            jobset.unlink(missing_ok=True)
 
     def test_jobset_run_rejects_wrong_input_type(self):
         result = self.run_cli("jobset-run", str(FIXTURES / "simple_hierarchy.xml"), "--file", "missing.kicad_jobset")
