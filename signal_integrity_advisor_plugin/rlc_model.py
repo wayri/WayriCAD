@@ -3,9 +3,8 @@
 Closed-form references used here are the same equations published by the
 industry standards and textbooks:
 
-* IPC-2141A microstrip characteristic impedance,
-* symmetric stripline impedance,
-* Hammerstad approximation of effective permittivity,
+* EMerge finite-thickness microstrip and centered-stripline cross sections,
+* thickness-corrected effective permittivity,
 * telegrapher relations linking Z0 to distributed L and C,
 * skin-depth surface resistance for AC conductor loss.
 
@@ -18,6 +17,17 @@ from __future__ import annotations
 
 import math
 import cmath
+
+try:
+    from . import emerge_lines as _emerge
+except ImportError:  # Standalone source-test loader without package context.
+    import importlib.util as _importlib_util
+    import os as _os
+
+    _emerge_path = _os.path.join(_os.path.dirname(__file__), "emerge_lines.py")
+    _emerge_spec = _importlib_util.spec_from_file_location("_wayricad_emerge_lines", _emerge_path)
+    _emerge = _importlib_util.module_from_spec(_emerge_spec)
+    _emerge_spec.loader.exec_module(_emerge)
 
 try:  # CODATA values via SciPy when available.
     from scipy.constants import epsilon_0 as EPS0  # type: ignore
@@ -49,32 +59,18 @@ def via_barrel(length_mm: float, drill_mm: float, plating_mm: float = .025, freq
 
 
 def eps_effective(relative_permittivity: float, width_mm: float, height_mm: float) -> float:
-    """Hammerstad effective permittivity for a microstrip."""
-    er = max(float(relative_permittivity), 1.0)
-    ratio = width_mm / max(height_mm, 1e-9)
-    return 0.5 * (er + 1.0) + 0.5 * (er - 1.0) / math.sqrt(1.0 + 12.0 / max(ratio, 1e-6))
+    """Quasi-static effective permittivity for zero-thickness microstrip."""
+    return _emerge.microstrip(width_mm, height_mm, 0.0, relative_permittivity)[1]
 
 
 def z0_microstrip(width_mm: float, height_mm: float, copper_mm: float, relative_permittivity: float) -> float:
-    """IPC-2141A microstrip characteristic impedance (ohm)."""
-    w = max(float(width_mm), 1e-6)
-    h = max(float(height_mm), 1e-6)
-    t = min(max(float(copper_mm), 0.0), h)
-    ratio = 5.98 * h / (0.8 * w + t)
-    if ratio <= 1 or width_mm <= 0 or height_mm <= 0 or copper_mm < 0 or copper_mm >= height_mm:
-        raise ValueError("Geometry lies outside the positive-impedance IPC microstrip approximation; use a field solver.")
-    return (87.0 / math.sqrt(max(relative_permittivity, 1.0) + 1.41)) * math.log(ratio)
+    """EMerge finite-thickness microstrip characteristic impedance (ohm)."""
+    return _emerge.microstrip(width_mm, height_mm, copper_mm, relative_permittivity)[0]
 
 
 def z0_stripline_symmetric(width_mm: float, height_mm: float, copper_mm: float, relative_permittivity: float) -> float:
-    """Symmetric stripline characteristic impedance (ohm)."""
-    w = max(float(width_mm), 1e-6)
-    h = max(float(height_mm), 1e-6)
-    t = min(max(float(copper_mm), 0.0), h)
-    ratio = 4.0 * h / (math.pi * 0.67 * (0.8 * w + t))
-    if ratio <= 1 or width_mm <= 0 or height_mm <= 0 or copper_mm < 0 or copper_mm >= height_mm:
-        raise ValueError("Geometry lies outside the positive-impedance symmetric stripline approximation; use a field solver.")
-    return (60.0 / math.sqrt(max(relative_permittivity, 1.0))) * math.log(ratio)
+    """EMerge centered finite-thickness stripline impedance (ohm)."""
+    return _emerge.stripline(width_mm, height_mm, copper_mm, relative_permittivity)[0]
 
 
 def tl_l_c_per_meter(z0_ohm: float, effective_permittivity: float) -> tuple[float, float]:
@@ -141,11 +137,9 @@ def solve(
         raise ValueError(f"Unsupported transmission-line topology: {topology}. Only microstrip and symmetric stripline are modeled.")
     if name == "stripline":
         # Symmetric planes: h spans the full plane-to-plane dielectric.
-        z0 = z0_stripline_symmetric(w, h, t, er)
-        eeff = er
+        z0, eeff = _emerge.stripline(w, h, t, er)
     else:
-        z0 = z0_microstrip(w, h, t, er)
-        eeff = eps_effective(er, w, h)
+        z0, eeff = _emerge.microstrip(w, h, t, er)
     l_per_m, c_per_m = tl_l_c_per_meter(z0, eeff)
     length_m = max(float(length_mm), 0.0) / 1000.0
     r_dc = dc_resistance_per_m(w, t) * length_m
@@ -153,7 +147,7 @@ def solve(
     velocity = C_LIGHT / math.sqrt(eeff)
     delay_ns = length_m / velocity * 1e9
     return {
-        "model": f"IPC-2141A {name}" if name == "microstrip" else "symmetric stripline",
+        "model": f"EMerge quasi-static {name}",
         "topology": name,
         "z0_ohm": z0,
         "effective_permittivity": eeff,

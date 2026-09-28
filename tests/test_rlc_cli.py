@@ -41,7 +41,7 @@ def test_missing_board_returns_actionable_error(tmp_path, capsys):
 
 def test_independent_si_bundle_uses_current_engine():
     root = Path(__file__).resolve().parents[1]
-    for name in ('measurement.py', 'rlc_model.py', 'copper_path.py'):
+    for name in ('measurement.py', 'rlc_model.py', 'emerge_lines.py', 'copper_path.py'):
         assert (root / 'trace_impedance_plugin' / name).read_bytes() == (
             root / 'signal_integrity_advisor_plugin' / name).read_bytes(), (
                 'Run tools/prepare_suite.py to synchronize the independent SI bundle')

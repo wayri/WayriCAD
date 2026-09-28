@@ -6,7 +6,8 @@
 
 - Inspect connected trace/via/zone paths or terminal-defined filled-zone/plane corridors, with actual copper previews.
 - Identify candidate grounds and verify adjacent reference-copper coverage, or select a reference layer explicitly.
-- Estimate section DC resistance, supported transmission-line L/C/Z0, isolated via terms and plane-overlap capacitance.
+- Estimate section DC resistance, supported transmission-line L/C/Z0, isolated via terms and plane-overlap capacitance. The board microstrip and centered-stripline models now use the corrected EMerge cross-section equations.
+- Open **Line cross section** to estimate manually entered CPW, grounded CPW or edge-coupled stripline impedance with a live diagram. This does not substitute for extracting the actual selected copper.
 - Plot AC conductor-loss sweeps with skin-effect models, layer/section highlighting and CSV export.
 - Export read-only CLI JSON with source hashes, units, modeled sections and unresolved terms.
 
@@ -17,7 +18,7 @@
 - Arbitrary proximity, roughness, dielectric loss, full return-current distribution and connector/package effects are not solved.
 - Copper arcs retain their circular length, with small chords used for coverage checks. Complex current paths around zone obstacles can still remain unresolved.
 - Analysis follows existing layer transitions and never reroutes copper. Saved stackup/reference data and native KiCad geometry support are required.
-- Characteristic impedance is a first-order **single-ended microstrip or symmetric stripline** estimate. Differential-pair mode measures the two paths and skew, not coupled odd-mode or differential impedance. CPWG/CPW, asymmetric/embedded stripline, broadside coupling and other cross-sections have no solved Z0 here. Nearby same-layer copper blocks a plain-microstrip Z0 instead of reporting a misleading value.
+- Automatic characteristic impedance covers verified **single-ended microstrip or symmetric stripline** sections. Differential-pair board mode measures the two paths and skew, not coupled odd-mode or differential impedance. A separate manual cross-section calculator supports zero-thickness CPW, grounded CPW and edge-coupled symmetric stripline; it requires measured gaps and assumes continuous grounds. Automatic CPWG/CPW gap extraction, asymmetric/embedded stripline, broadside coupling and differential CPW remain unresolved. Nearby same-layer copper blocks a plain-microstrip Z0 instead of reporting a misleading value.
 
 ## Overview
 
@@ -52,7 +53,8 @@ Paths follow existing layer transitions through vias and plated pads. Analysis d
 
 | Geometry | Estimate |
 |---|---|
-| Trace | DC conductor resistance; skin-effect estimate; closed-form microstrip or symmetric stripline L/C/Z0 where the reference geometry supports that model |
+| Trace | DC conductor resistance; skin-effect estimate; EMerge-derived quasi-static microstrip or centered-stripline L/C/Z0 where the reference geometry supports that model |
+| Manual line cross section | Single-ended CPW/GCPW Z0 or edge-coupled centered-stripline differential Z0 from entered dimensions; not linked to a board section |
 | Via | Barrel resistance with assumed 25 µm plating and isolated partial inductance; capacitance remains unknown without antipad geometry |
 | Zone/plane | Terminal-corridor resistance and inductance; capacitance from filled-island/reference overlap and stackup separation |
 | Trace + zone + via | Connected path and individual section models; unresolved terms remain identified |
@@ -69,11 +71,16 @@ Run with KiCad 10's Python, from this repository or with the wheel installed:
 & 'C:/Program Files/KiCad/10.0/bin/python.exe' -m trace_impedance_plugin.cli inspect board.kicad_pcb --net MDI0_P
 & 'C:/Program Files/KiCad/10.0/bin/python.exe' -m trace_impedance_plugin.cli path board.kicad_pcb --net MDI0_P --start U1.1 --end J1.1 --output route.json
 & 'C:/Program Files/KiCad/10.0/bin/python.exe' -m trace_impedance_plugin.cli zone board.kicad_pcb --net +3V3 --start C1.1 --end C2.1 --zone-id '<ID from inspect>' --corridor-width-mm 0.2 --output plane.json
+& 'C:/Program Files/KiCad/10.0/bin/python.exe' -m trace_impedance_plugin.cli cross-section --topology grounded-cpw --width-mm 1.5 --gap-mm 0.3 --height-mm 1.53 --er 4.5 --output gcpw-estimate.json
 ```
 
 Replace the example net/pad/zone identifiers with those returned by `inspect`. `wayricad-rlc` is the installed entrypoint. JSON contains numeric values, source-board SHA-256 and section status. Exit codes: 0 resolved, 1 input/runtime error, 2 disconnected (also argparse usage errors), 3 partial. Reports use a separate `.json` file and never save the source board.
 
-See the [Marble smoke report](../docs/audits/MARBLE_SUITE_SMOKE.md) and [open-board impedance validation](../docs/audits/RLC_OPEN_BOARD_VALIDATION.md) for measured coverage and limitations. KiCad 10 is the native geometry target; KiCad 11 operation requires validation against its available native geometry API.
+`cross-section` needs no board and therefore has no board hash. Its `--height-mm` is trace-to-plane dielectric height for microstrip/grounded CPW and full plane-to-plane spacing for centered stripline. `--gap-mm` is the edge-to-ground slot for CPW/GCPW or trace-to-trace gap for edge-coupled stripline. The coplanar/coupled formulas require `--copper-mm 0`; finite-thickness versions need further validation. The normal PCB path still uses the saved stackup and actual filled-reference coverage.
+
+See the [RLC/EMerge capability matrix](../docs/audits/RLC_EMERGE_CAPABILITY_MATRIX.md), [Marble smoke report](../docs/audits/MARBLE_SUITE_SMOKE.md) and [open-board impedance validation](../docs/audits/RLC_OPEN_BOARD_VALIDATION.md) for coverage and limitations. KiCad 10 is the native geometry target; KiCad 11 operation requires validation against its available native geometry API.
+
+The scalar formulas are ported from [EMerge's calculator](https://github.com/wayri/EMerge/blob/codex/calculator-validation/src/emerge/_emerge/geo/pcb_tools/calculator.py), revision `50283a2`, with no NumPy/SciPy runtime dependency. EMerge's [validation PR](https://github.com/wayri/EMerge/pull/1) corrects the source equations. The automatic board estimate is quasi-static; the entered analysis frequency affects AC resistance, not Z0 dispersion. Physical line and protocol compliance still require the actual dielectric and conductor profile, return geometry, transitions and often field/channel simulation or measurement.
 
 Model references: [TI Analog Engineer's Pocket Reference](https://www.ti.com/seclit/eb/slyw038d/slyw038d.pdf) for the approximate via inductance relation; [Analog Devices PCB layout guidance](https://www.analog.com/en/resources/analog-dialogue/articles/high-speed-printed-circuit-board-layout.html) for plane-overlap capacitance. These references do not validate this implementation against measurements.
 

@@ -185,6 +185,9 @@ class TraceFrame(wx.Frame):
         notebook.AddPage(preview_page, "Copper & sections")
         notebook.AddPage(result_page, "Results")
         notebook.AddPage(model_page, "RLC Model")
+        from .cross_section_ui import CrossSectionPanel
+        self.cross_section_panel = CrossSectionPanel(notebook)
+        notebook.AddPage(self.cross_section_panel, "Line cross section")
         from .frequency_ui import FrequencyPanel
         self.frequency_panel=FrequencyPanel(notebook,self.board.GetFileName())
         notebook.AddPage(self.frequency_panel,"AC loss sweep")
