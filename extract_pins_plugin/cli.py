@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import fnmatch
 import json
 import os
 import shlex
@@ -248,6 +249,15 @@ def add_legacy_board_commands(sub: argparse._SubParsersAction) -> None:
         p.add_argument("-f", "--format", choices=("json", "csv", "md", "markdown"), default="json")
         p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
         p.set_defaults(func=cmd_board_list if name == "board-list" else cmd_board_extract)
+
+    p = sub.add_parser("board-interface-diagram", help="Draw selected PCB pin-to-pin interfaces as SVG or offline HTML.")
+    p.add_argument("pcb", help="Path to .kicad_pcb")
+    p.add_argument("--refs", required=True, help="Comma-separated component references or wildcards, e.g. U1,J*.")
+    p.add_argument("--center", required=True, help="Center component reference, included in --refs.")
+    p.add_argument("--protocol", action="append", default=[], help="Net wildcard and label: NET_PATTERN=Protocol. Repeatable.")
+    p.add_argument("-f", "--format", choices=("svg", "html"), default="html")
+    p.add_argument("-o", "--output", help="Output path. Defaults to stdout.")
+    p.set_defaults(func=cmd_board_interface_diagram)
 
 
 def merge_config(args: argparse.Namespace) -> argparse.Namespace:
@@ -554,6 +564,41 @@ def cmd_board_extract(args: argparse.Namespace) -> int:
     board = load_board(args.pcb)
     rows = extract_board_pin_rows(board, reference_filter=args.refs, net_filter=args.net_filter, include_power=args.include_power)
     return write_rows(rows, args.format, args.output, title="WayriCAD Board Extract")
+
+
+def cmd_board_interface_diagram(args: argparse.Namespace) -> int:
+    from .core.data_extractor import DataExtractor
+    from .core.interface_diagram import render_interface_html, render_interface_svg
+
+    board = load_board(args.pcb)
+    patterns = split_csv(args.refs)
+    footprints = [fp for fp in board.GetFootprints()
+                  if any(fnmatch.fnmatchcase(fp.GetReference().upper(), pattern.upper()) for pattern in patterns)]
+    if not footprints:
+        raise CliError("No footprints match --refs.", EXIT_USAGE)
+    refs = {fp.GetReference() for fp in footprints}
+    if args.center not in refs:
+        raise CliError("--center must match a footprint selected by --refs.", EXIT_USAGE)
+    overrides = {}
+    for rule in args.protocol:
+        if "=" not in rule:
+            raise CliError("--protocol must be NET_PATTERN=Protocol.", EXIT_USAGE)
+        pattern, label = (part.strip() for part in rule.split("=", 1))
+        if not pattern or not label:
+            raise CliError("--protocol must be NET_PATTERN=Protocol.", EXIT_USAGE)
+        overrides[pattern] = label
+    data = DataExtractor(board).extract_footprint_data(footprints,
+                                                        ignore_unconnected=False,
+                                                        ignore_power_nets=False)
+    title = f"{args.center} pin-to-pin interfaces"
+    if args.format == "svg":
+        content = render_interface_svg(data, center_ref=args.center,
+                                       protocol_overrides=overrides, title=title)
+    else:
+        content = render_interface_html(data, center_ref=args.center,
+                                        protocol_overrides=overrides, title=title)
+    write_text(content, args.output)
+    return EXIT_OK
 
 
 def cmd_board_list(args: argparse.Namespace) -> int:
