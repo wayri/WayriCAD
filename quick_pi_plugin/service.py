@@ -53,6 +53,14 @@ def execute(request):
     if request.get('action')=='converge':
         from .convergence import run_study
         return run_study(request,execute)
+    original_request=request
+    requested_action=request.get('action','inspect')
+    voltage_mode=request.get('load_resistance_ohm') is not None
+    sweep_mode=requested_action=='sweep'
+    if sweep_mode or voltage_mode:
+        if requested_action not in ('solve','sweep'):
+            raise ValueError('Voltage-driven load and sweep modes require a solved path.')
+        request={**request,'action':'solve','sink_current':1.}
     import pcbnew
     path=Path(request['board_path']).resolve()
     if not path.is_file() or path.suffix.lower()!='.kicad_pcb':raise ValueError('Choose a saved KiCad PCB.')
@@ -64,14 +72,83 @@ def execute(request):
         nets=sorted({str(p.GetNetname()) for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0})
         terminals=[{'id':p.m_Uuid.AsString(),'label':f'{fp.GetReference()}.{p.GetNumber()}', 'net':str(p.GetNetname())}
                    for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0]
+        from .quick_therm import _footprint_properties
+        footprints=list(board.GetFootprints())
+        field_names=sorted({name for fp in footprints for name in _footprint_properties(fp)})
+        mounting_holes=[]
+        for fp in footprints:
+            for pad in fp.Pads():
+                if pad.GetAttribute() not in (pcbnew.PAD_ATTRIB_PTH,pcbnew.PAD_ATTRIB_NPTH):continue
+                drill=pcbnew.ToMM(pad.GetDrillSize().x)
+                if drill<=0:continue
+                mounting_holes.append({'id':pad.m_Uuid.AsString(),'reference':fp.GetReference(),
+                    'pad_number':str(pad.GetNumber()),'net':str(pad.GetNetname()),
+                    'plated':pad.GetAttribute()==pcbnew.PAD_ATTRIB_PTH,'drill_mm':drill})
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:
             raise ValueError('The board changed during inspection. Reload and run again.')
         return {'nets':nets,'terminals':terminals,'layers':[{'id':layer,'name':board.GetLayerName(layer)}
-                for layer in board.GetEnabledLayers().CuStack()],'source_sha256':before}
+                for layer in board.GetEnabledLayers().CuStack()],'source_sha256':before,
+                'component_references':sorted(fp.GetReference() for fp in footprints),'field_names':field_names,
+                'mounting_holes':mounting_holes}
+    if action=='quick_therm':
+        from .quick_therm import analyze_board
+        from .thermal_board_view import build_board_thermal_view
+        result=analyze_board(board,request['field_map'],environment=request['environment'],
+            ambient_c=request.get('ambient_c',20.),references=request.get('references'),
+            vacuum_board_to_environment_k_per_w=request.get('vacuum_board_to_environment_k_per_w'),
+            heatsinks=request.get('heatsinks'))
+        view=build_board_thermal_view(board,result)
+        thermal_network=None
+        if request.get('thermal_network_settings') is not None:
+            settings=dict(request['thermal_network_settings'])
+            settings['board_thickness_mm']=view.get('board_thickness_mm')
+            board_field=request.get('thermal_network_component_field')
+            if board_field:
+                from .quick_therm import _footprint_properties,parse_field_quantity
+                footprints={fp.GetReference():fp for fp in board.GetFootprints()}
+                resistances={};missing=[]
+                for row in result['components']:
+                    if row['heat_path']!='board':continue
+                    raw=_footprint_properties(footprints[row['reference']]).get(board_field)
+                    if raw is None or not str(raw).strip():
+                        missing.append(row['reference']);continue
+                    resistances[row['reference']]=parse_field_quantity(raw,'theta_jb_k_per_w')
+                settings['component_to_board_k_per_w']=resistances
+            else:missing=[]
+            sink_resistances={}
+            sink_key='theta_sa_air_k_per_w' if request['environment']=='air' else 'theta_sa_vacuum_k_per_w'
+            for row in result['components']:
+                if row['heat_path']=='heatsink':
+                    sink_resistances[row['reference']]=row['resistance_k_per_w']-row['heatsink'][sink_key]
+            if sink_resistances:settings['component_to_sink_k_per_w']=sink_resistances
+            if request.get('thermal_model_kind')=='multilayer':
+                from .thermal_geometry import collect_thermal_geometry
+                from .thermal_multilayer import solve_multilayer_thermal
+                geometry=collect_thermal_geometry(board,path)
+                thermal_network=solve_multilayer_thermal(geometry,view,result,settings)
+            else:
+                from .thermal_network import solve_thermal_network
+                thermal_network=solve_thermal_network(view,result,settings)
+            thermal_network['junction_mapping']={'board_field':board_field,
+                'board_references_with_field':sorted(settings.get('component_to_board_k_per_w',{})),
+                'board_references_missing_field':missing,
+                'sink_references_from_explicit_rtheta_jc_and_contact':sorted(sink_resistances)}
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during QuickTherm analysis. Reload and run again.')
+        return {'quick_therm':result,'board_thermal_view':view,'thermal_network':thermal_network,
+                'request':request,'source_sha256':before}
+    if action=='return_path':
+        from .return_path import collect_board_evidence,audit_return_path
+        evidence=collect_board_evidence(board,request['signal_net'],request['return_nets'])
+        result=audit_return_path(evidence,
+            sample_pitch_mm=float(request.get('sample_pitch_mm',.25)),
+            return_via_radius_mm=float(request.get('return_via_radius_mm',2.)))
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during return-path review. Reload and run again.')
+        return {'return_path':result,'evidence':evidence,'request':request,'source_sha256':before}
     if action not in ('geometry','mesh','solve'):raise ValueError('Unknown Quick PI action: '+str(action))
     from .board_geometry import extract
     if request.get('series'):
         output=series_execute(board,path,request)
+        output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
         return output
     geometry=extract(board,request['net'],source_path=path,stackup_override=request.get('stackup_override'))
@@ -91,7 +168,48 @@ def execute(request):
             output['result']=solve(mesh,nodes('source_terminal'),nodes('sink_terminal'),
                 source_voltage=float(request.get('source_voltage',1.)),sink_current=float(request.get('sink_current',1.)),
                 options=request.get('options'))
+    output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
     if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
+    return output
+
+
+def _operating_result(output,request,original_request,voltage_mode,sweep_mode):
+    """Reuse one mesh for a bounded voltage-driven operating point or sweep."""
+    if not (voltage_mode or sweep_mode):return output
+    from .operating_point import current_sweep,load_current
+    from .solver import solve
+    base=output['result'];mesh=output['mesh']
+    branches=mesh.get('lumped_branches',[])
+    forward=sum(float(row.get('forward_drop_V',0.)) for row in base.get('components',[]))
+    linear=base['voltage_drop_V']-forward  # one-ampere solve, so V/A = ohms
+    if linear < -1e-8:raise ValueError('The one-ampere path resistance is inconsistent; review the mesh and component models.')
+    linear=max(0.,linear)
+    source=float(request.get('source_voltage',1.))
+    if sweep_mode:
+        sweep=request.get('sweep')
+        if not isinstance(sweep,dict):raise ValueError('Specify sweep start_A, stop_A and points.')
+        start,stop=float(sweep['start_A']),float(sweep['stop_A']);points=int(sweep['points'])
+        if not all(math.isfinite(v) for v in (start,stop)) or start<=0 or stop<=start or not 2<=points<=200:
+            raise ValueError('Sweep requires 0 < start < stop and 2–200 points.')
+        currents=[start+(stop-start)*i/(points-1) for i in range(points)]
+        output['sweep']={'rows':current_sweep(source,linear,branches,currents),'linear_path_ohm':linear,
+                         'source_voltage_V':source,'model':'fixed-temperature DC path sweep; no transient or thermal feedback'}
+        output.pop('result',None)
+    else:
+        load=float(request['load_resistance_ohm'])
+        current=load_current(source,linear,load,branches)
+        def terminal(key):
+            chosen=request[key]
+            if chosen in mesh['terminal_nodes']:return mesh['terminal_nodes'][chosen]
+            matches=[t['id'] for t in output['geometry']['terminals'] if t['label']==chosen]
+            if len(matches)!=1:raise ValueError('Select one unambiguous source and sink pad: '+str(chosen))
+            return mesh['terminal_nodes'][matches[0]]
+        output['result']=solve(mesh,terminal('source_terminal'),terminal('sink_terminal'),
+                               source_voltage=source,sink_current=current,options=request.get('options'))
+        output['result']['load_resistance_ohm']=load
+        output['result']['load_power_W']=current*current*load
+        output['result']['operating_mode']='voltage_driven_resistive_load'
+    output['request']=original_request
     return output
 
 

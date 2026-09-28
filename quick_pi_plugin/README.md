@@ -8,6 +8,9 @@
 - Select source/sink pads and voltage/current; inspect native net, mesh and per-layer result views.
 - Visualize voltage/drop, current density/flow, loss density and pulse-risk screening; separate sheet, via and component losses.
 - Define repeated series resistance/RL, fixed-drop and current-dependent diode elements through the console or CLI, with engineering notation and console completion/history.
+- Build the same saved-net series path in a native editor, including source/sink pad selection from the originating PCB Editor, ordered components, and reusable JSON paths.
+- Solve a voltage-driven resistive load or sweep a bounded range of prescribed DC currents on one extracted path.
+- Screen selected return nets against saved filled copper and local return vias, and estimate component temperatures from mapped board fields in air or vacuum.
 - Run bounded mesh-refinement studies and reference benchmarks; export local HTML and JSON reports.
 
 ## Limitations
@@ -92,9 +95,10 @@ before and after, and dissipated power. The same fields appear in exported JSON
 and HTML. The console accepts the same syntax in two-pad shortcuts, such as
 `D1:1V`, when the incoming net identifies one pad unambiguously.
 
-Quick PI prescribes load current; it does not derive it from the source voltage
-or solve reverse bias, turn-off, transients or temperature feedback. A diode Vf
-is therefore a **DC operating-point** value, not an instantaneous waveform.
+The default mode prescribes load current. **Resistive load** mode solves a DC
+current from source voltage, path drop and the specified load resistance.
+Neither mode solves reverse bias, turn-off, transients or temperature feedback.
+A diode Vf is therefore a **DC operating-point** value, not an instantaneous waveform.
 If the requested current and path drops make the sink voltage negative, Quick PI
 warns that the operating point may be infeasible. Forward-drop paths must cross
 each net once, so an alternate path cannot silently bypass the selected diode.
@@ -150,6 +154,20 @@ limit. It does not mean a trace will fuse in that time.
 - Floating copper has no solved potential. Geometry extraction and meshing issues are reported rather than silently connecting disconnected islands.
 - This is a **2.5D DC conduction model**, not an AC, electromagnetic or thermal field solver. Explicit inductance does not change the DC solution. Contact-current peaks depend on mesh refinement and terminal assumptions.
 
+## Series editor, sweep and board screens
+
+Use **Build series path…** in the native window to choose source and sink pads, then add compatible two-pad parts in source-to-load order. **Use KiCad selected pads** reads one or two pads from the PCB Editor that opened Quick PI; review pad order before running. **Use selected component** adds one compatible selected two-pad footprint at the next net transition. The editor validates each net transition with the same parser as the console and can save or reload a JSON path. Its component values are explicit models, not values inferred from the symbol or footprint.
+
+Choose **Resistive load** beside the voltage/current controls to enter a load in ohms. Quick PI solves the positive DC current for that source voltage using the saved copper and explicit components. **More → DC current sweep** plots path drop and sink voltage over 2–200 prescribed positive current points. Both retain the fixed-temperature and mesh assumptions of the main solve; the sweep does not represent a time waveform. The HTML export includes a chart and paired JSON.
+
+The **Return path** tab asks for one signal net and explicit return net(s). It maps saved straight tracks, adjacent filled return zones, sampled coverage gaps and return vias near evidenced layer transitions. Warnings identify missing local evidence; a clear sampled route is not proof of a continuous return-current path or controlled impedance. Refill zones and save before running. [Return-path method and limits](RETURN_PATH.md).
+
+The **QuickTherm** tab lists saved footprint field names. Map dissipation and the applicable thermal resistance field, choose dissipating component references, then select air or vacuum. Air uses user-supplied RθJA for the actual board/airflow. Vacuum uses RθJB plus an explicit board-to-environment K/W value representing its real radiative/conductive sink. Saved-board top and mirrored bottom views mark component junction estimates, with same-side illustrative contours, a ranked chart and a rotatable 3D overview of the saved outline and component markers. An optional thin-sheet board model screens lateral conduction, radiation and virtual airflow over the board and sinks, and reports a heat balance; it does not perform CFD or resolve through-thickness gradients. Min/max/mean/median analytics and a sortable results table include coverage and excluded parts; map/table clicks cross-select the exact footprint in the originating PCB Editor. The original junction calculation remains lumped; its contour interpolates component junctions, while the optional board model solves a separate thin-sheet field. Neither provides CFD airflow, radiation view factors or transients. Incomplete air records are excluded and reported; vacuum requires complete scoped data. [Field units, equations and limitations](QUICK_THERM.md).
+
+The optional **Copper layers + vertical paths** model uses saved stackup and filled copper, plated via barrels, explicit dielectric conductivity and via plating, with per-layer temperature previews and selected fixed-temperature mounting contacts. It reports signed fixture heat flow and conservation; NPTH requires explicit mechanical fixture contact. This is a steady-state screening model, not CFD or coupled electrothermal simulation. The [step-by-step QuickTherm user guide](QUICK_THERM_USER_GUIDE.md) covers setup, air and vacuum runs, layered geometry, fixture contacts, virtual heatsinks, exports and troubleshooting. An [offline HTML version](QUICK_THERM_USER_GUIDE.html) opens in the bundled help viewer. Whole-circuit transient and coupled electrothermal simulation is tracked in [SPIKE #1](https://github.com/wayri/SPIKE-Main/issues/1).
+
+**Virtual heatsinks…** assigns a sink to each selected part. Choose an editable straight-fin, pin-fin, radial-fin or plate envelope, or **Resistance only** with no envelope. The live sketch shows the chosen shape and dimensions. Map the part's RθJC field, then enter contact Rθ and sink-to-environment Rθ for air and/or vacuum. The shape presets are illustrative dimensions, not vendor SKUs or thermal ratings; the explicit resistances alone determine the estimate. In vacuum, a heatsink path must include a real conductive/radiative connection to the chamber environment. The separate board-node load excludes heatsink-assigned power, so parallel heat flow through the board is not resolved.
+
 ## Runtime and installation
 
 Install the WayriCAD PCM ZIP through KiCad's Plugin and Content Manager, or use the suite's documented manual installation. KiCad 10's native Python needs NumPy, SciPy, VTK, Matplotlib and wxPython. The UI uses Matplotlib's wx canvas when available and a native wx/Agg canvas when the optional wx SVG backend is missing. Everything renders locally.
@@ -167,7 +185,15 @@ performs the analysis and report generation.
 wayricad-pi board.kicad_pcb
 wayricad-pi board.kicad_pcb --net "Net-(R161-Pad1)" --source U1.M6 --sink R161.1 --voltage 1 --current 1 --mesh-edge 0.5 --pulse 1 --temperature-limit 150 --html pi.html --output pi.json
 wayricad-pi board.kicad_pcb --command "run pi U1.M6 R161.1 5mH+30m R161.2 U1.M5" --voltage 1 --current 1 --html series.html
+wayricad-pi board.kicad_pcb --net VIN --source J1.1 --sink U1.1 --voltage 5 --load-ohms 10 --html load.html
+wayricad-pi board.kicad_pcb --net VIN --source J1.1 --sink U1.1 --voltage 5 --sweep 0.1 2 20 --html sweep.html
+wayricad-pi board.kicad_pcb --return-path --net VIN --return-nets GND --html return.html
+wayricad-pi board.kicad_pcb --quick-therm air --power-field Power_W --theta-ja-field RthetaJA_K_per_W --thermal-refs U1 U2 --html thermal.html
+wayricad-pi board.kicad_pcb --quick-therm vacuum --power-field Power_W --theta-jb-field RthetaJB_K_per_W --board-rtheta 8 --thermal-refs U1 U2 --html vacuum.html
+wayricad-pi board.kicad_pcb --quick-therm air --power-field Power_W --theta-jc-field RthetaJC_K_per_W --thermal-refs U1 --heatsinks sinks.json --html heatsinks.html
 ```
+
+For that last example, `sinks.json` can contain `{"U1":{"shape":"resistance_only","contact_k_per_w":0.2,"theta_sa_air_k_per_w":8}}`. Replace these illustrative resistance values with characterized values for the actual component, contact and environment. Fin and plate shapes additionally require positive `width_mm`, `depth_mm` and `height_mm`.
 
 The same multiple-component path used in the native console can run from a shell:
 
@@ -184,7 +210,7 @@ The first command lists saved nets, pads and layers. Replace the example pad/net
 names with ones from your own board. `--mesh-only` builds a mesh without solving;
 `--plating` and `--mesh-edge` use mm, `--pulse` seconds, and temperatures °C.
 Without `--pulse`, CLI thermal screening is marked as requiring a pulse duration.
-HTML is available after a solve; its paired JSON contains all layers and analytics.
+HTML is available after a solve, sweep or board screen; its paired JSON contains the corresponding evidence.
 Exit code 0 indicates successful execution, 2 a command/model error—not proof of
 electrical suitability or convergence.
 
