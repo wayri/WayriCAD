@@ -7,6 +7,10 @@ release; see [compatibility and known limits](COMPATIBILITY.md).
 
 ![Illustrated installation workflow](images/install-workflow.svg)
 
+## QuickTherm in 3.6.0
+
+Install **WayriCAD QuickTherm** as its own package. If you used the QuickTherm action bundled with Quick PI 3.5.0, update Quick PI to 3.6.0 as well, then restart KiCad. QuickTherm has a separate thermometer icon and does not require Quick PI.
+
 ## Before you start
 
 - Install and open KiCad 10.
