@@ -10,6 +10,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from quick_therm_plugin.ui import QuickThermFrame
 
 
+def save_capture(bitmap, path):
+    """Discard undefined Windows DC alpha while preserving captured RGB pixels."""
+    capture = bitmap.ConvertToImage()
+    if capture.HasAlpha():
+        capture.ClearAlpha()
+    capture.SaveFile(str(path), wx.BITMAP_TYPE_PNG)
+
+
 def main():
     folder = Path(__file__).resolve().parent
     bundle = json.loads((folder / "thermal-demo-report.json").read_text(encoding="utf-8"))
@@ -31,6 +39,7 @@ def main():
     frame._accept_therm(bundle)
     frame.status.SetLabel("Ready. Example result loaded from the saved board.")
     frame.Show()
+    frame.Maximize()
 
     def capture(name):
         frame.Raise()
@@ -41,7 +50,7 @@ def main():
         memory = wx.MemoryDC(bitmap)
         memory.Blit(0, 0, size.width, size.height, wx.ClientDC(frame.main_panel), 0, 0)
         memory.SelectObject(wx.NullBitmap)
-        bitmap.SaveFile(str(folder / name), wx.BITMAP_TYPE_PNG)
+        save_capture(bitmap, folder / name)
 
     def capture_results():
         page = frame.book.GetPage(0)
@@ -73,7 +82,7 @@ def main():
         memory.SelectObject(wx.NullBitmap)
         name = ("quicktherm-board-model-view.png" if frame.therm_mode.GetStringSelection() == "Top board model"
                 else "quicktherm-large-board-view.png")
-        bitmap.SaveFile(str(folder / name), wx.BITMAP_TYPE_PNG)
+        save_capture(bitmap, folder / name)
         dialog.EndModal(wx.ID_CLOSE)
 
     wx.CallLater(1800, lambda: (capture("quicktherm-native-window.png"), capture_results()))
