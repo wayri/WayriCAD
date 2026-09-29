@@ -53,6 +53,14 @@ def execute(request):
     if request.get('action')=='converge':
         from .convergence import run_study
         return run_study(request,execute)
+    original_request=request
+    requested_action=request.get('action','inspect')
+    voltage_mode=request.get('load_resistance_ohm') is not None
+    sweep_mode=requested_action=='sweep'
+    if sweep_mode or voltage_mode:
+        if requested_action not in ('solve','sweep'):
+            raise ValueError('Voltage-driven load and sweep modes require a solved path.')
+        request={**request,'action':'solve','sink_current':1.}
     import pcbnew
     path=Path(request['board_path']).resolve()
     if not path.is_file() or path.suffix.lower()!='.kicad_pcb':raise ValueError('Choose a saved KiCad PCB.')
@@ -68,10 +76,19 @@ def execute(request):
             raise ValueError('The board changed during inspection. Reload and run again.')
         return {'nets':nets,'terminals':terminals,'layers':[{'id':layer,'name':board.GetLayerName(layer)}
                 for layer in board.GetEnabledLayers().CuStack()],'source_sha256':before}
+    if action=='return_path':
+        from .return_path import collect_board_evidence,audit_return_path
+        evidence=collect_board_evidence(board,request['signal_net'],request['return_nets'])
+        result=audit_return_path(evidence,
+            sample_pitch_mm=float(request.get('sample_pitch_mm',.25)),
+            return_via_radius_mm=float(request.get('return_via_radius_mm',2.)))
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during return-path review. Reload and run again.')
+        return {'return_path':result,'evidence':evidence,'request':request,'source_sha256':before}
     if action not in ('geometry','mesh','solve'):raise ValueError('Unknown Quick PI action: '+str(action))
     from .board_geometry import extract
     if request.get('series'):
         output=series_execute(board,path,request)
+        output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
         return output
     geometry=extract(board,request['net'],source_path=path,stackup_override=request.get('stackup_override'))
@@ -91,13 +108,55 @@ def execute(request):
             output['result']=solve(mesh,nodes('source_terminal'),nodes('sink_terminal'),
                 source_voltage=float(request.get('source_voltage',1.)),sink_current=float(request.get('sink_current',1.)),
                 options=request.get('options'))
+    output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
     if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
+    return output
+
+
+def _operating_result(output,request,original_request,voltage_mode,sweep_mode):
+    """Reuse one mesh for a bounded voltage-driven operating point or sweep."""
+    if not (voltage_mode or sweep_mode):return output
+    from .operating_point import current_sweep,load_current
+    from .solver import solve
+    base=output['result'];mesh=output['mesh']
+    branches=mesh.get('lumped_branches',[])
+    forward=sum(float(row.get('forward_drop_V',0.)) for row in base.get('components',[]))
+    linear=base['voltage_drop_V']-forward  # one-ampere solve, so V/A = ohms
+    if linear < -1e-8:raise ValueError('The one-ampere path resistance is inconsistent; review the mesh and component models.')
+    linear=max(0.,linear)
+    source=float(request.get('source_voltage',1.))
+    if sweep_mode:
+        sweep=request.get('sweep')
+        if not isinstance(sweep,dict):raise ValueError('Specify sweep start_A, stop_A and points.')
+        start,stop=float(sweep['start_A']),float(sweep['stop_A']);points=int(sweep['points'])
+        if not all(math.isfinite(v) for v in (start,stop)) or start<=0 or stop<=start or not 2<=points<=200:
+            raise ValueError('Sweep requires 0 < start < stop and 2–200 points.')
+        currents=[start+(stop-start)*i/(points-1) for i in range(points)]
+        output['sweep']={'rows':current_sweep(source,linear,branches,currents),'linear_path_ohm':linear,
+                         'source_voltage_V':source,'model':'fixed-temperature DC path sweep; no transient or thermal feedback'}
+        output.pop('result',None)
+    else:
+        load=float(request['load_resistance_ohm'])
+        current=load_current(source,linear,load,branches)
+        def terminal(key):
+            chosen=request[key]
+            if chosen in mesh['terminal_nodes']:return mesh['terminal_nodes'][chosen]
+            matches=[t['id'] for t in output['geometry']['terminals'] if t['label']==chosen]
+            if len(matches)!=1:raise ValueError('Select one unambiguous source and sink pad: '+str(chosen))
+            return mesh['terminal_nodes'][matches[0]]
+        output['result']=solve(mesh,terminal('source_terminal'),terminal('sink_terminal'),
+                               source_voltage=source,sink_current=current,options=request.get('options'))
+        output['result']['load_resistance_ohm']=load
+        output['result']['load_power_W']=current*current*load
+        output['result']['operating_mode']='voltage_driven_resistive_load'
+    output['request']=original_request
     return output
 
 
 def series_execute(board,path,request):
     """Separate copper domains joined only by explicit lumped components."""
     import math
+    from .series_models import validate_model
     inventory=[]
     for fp in board.GetFootprints():
         for pad in fp.Pads():
@@ -120,13 +179,20 @@ def series_execute(board,path,request):
             raise ValueError('Repeated series endpoint. Each component pad must occur once in the requested path.')
         seen.update((a['id'],b['id']))
         if previous['net']!=a['net']:raise ValueError(f"Copper path changes net without a component: {previous['label']} → {a['label']}")
-        resistance=float(branch['resistance_ohm']);inductance=float(branch.get('inductance_h',0.))
+        validate_model(branch)
+        resistance=float(branch.get('resistance_ohm',0.));inductance=float(branch.get('inductance_h',0.))
         if not all(math.isfinite(v) and v>=0 for v in (resistance,inductance)):
             raise ValueError('Series R and L must be finite and nonnegative.')
+        if not (resistance or inductance or 'fixed_drop_v' in branch or 'diode' in branch):
+            raise ValueError('A series component needs resistance, inductance or a forward-drop model.')
         branches.append({**branch,'id':str(branch.get('id',a['label'].split('.')[0]))+f':{index}',
-                         'from_terminal':a['id'],'to_terminal':b['id'],'resistance_ohm':resistance,'inductance_h':inductance})
+                         'from_terminal':a['id'],'to_terminal':b['id'],'resistance_ohm':resistance,'inductance_h':inductance,
+                         'from_domain':index,'to_domain':index+1})
         previous=b;nets.append(b['net'])
     if previous['net']!=end['net']:raise ValueError('The last component and ending pad do not share a net.')
+    has_drop=any('fixed_drop_v' in branch or 'diode' in branch for branch in branches)
+    if has_drop and len(set(nets))!=len(nets):
+        raise ValueError('Forward-drop paths must cross each net only once; a repeated net creates an alternate path.')
     # Validate the circuit before loading optional numerical dependencies.
     from .board_geometry import extract
     from .mesh import build_mesh
@@ -139,6 +205,7 @@ def series_execute(board,path,request):
         geometry=extract(board,net,source_path=path,stackup_override=request.get('stackup_override'))
         local=build_mesh(geometry,edge_mm=mesh['edge_mm'],plating_mm=mesh['plating_mm'])
         offset=len(mesh['points_mm']);mesh['points_mm'].extend(local['points_mm'])
+        if has_drop:mesh.setdefault('series_domains',[]).append({'net':net,'start':offset,'end':len(mesh['points_mm'])})
         mesh['triangles'].extend([[i+offset for i in t] for t in local['triangles']])
         if len(mesh['points_mm'])>250000 or len(mesh['triangles'])>500000:
             raise ValueError('The complete series circuit exceeds the mesh budget. Increase mesh edge length.')
@@ -165,4 +232,4 @@ def series_execute(board,path,request):
         source_voltage=float(request.get('source_voltage',1.)),sink_current=float(request.get('sink_current',1.)),
         options=request.get('options'))
     return {'geometry':geometry,'mesh':mesh,'result':result,'request':request,
-            'model':'2.5D DC copper conduction with explicit series RL components; inductors are steady-state DC branches'}
+            'model':'2.5D DC copper conduction with explicit series R/L and forward-drop branches at prescribed current'}

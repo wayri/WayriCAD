@@ -142,6 +142,30 @@ def test_quick_pi_menu_passes_saved_board_without_ipc_socket(tmp_path):
     assert spawn.call_args.args[0][-2:] == ["--board", str(board.resolve())]
 
 
+def test_quick_therm_menu_passes_saved_board_without_ipc_socket(tmp_path):
+    _manifest(tmp_path, "WayriCAD QuickTherm", "quick-therm")
+    board = tmp_path / "demo.kicad_pcb"
+    board.write_text("board", encoding="utf-8")
+    (tmp_path / "desktop_entrypoint.py").write_text("", encoding="utf-8")
+    actions = []
+
+    class FakeActionPlugin:
+        def register(self):
+            self.defaults()
+            actions.append(self)
+
+    wx = SimpleNamespace(GetApp=lambda: object(), MessageBox=Mock(), OK=1, ICON_ERROR=2)
+    pcbnew = SimpleNamespace(ActionPlugin=FakeActionPlugin,
+                             GetBoard=lambda: SimpleNamespace(GetFileName=lambda: str(board)))
+    with patch.dict(sys.modules, {"pcbnew": pcbnew, "wx": wx}), patch(
+            "wayricad_runtime.runtime_setup.native_python", return_value=Path("python")), patch(
+            "wayricad_runtime.runtime_setup.child_environment", return_value={}), patch.object(
+            legacy_menu.subprocess, "Popen") as spawn:
+        legacy_menu.register("installed_quick_therm", tmp_path)
+        actions[-1].Run()
+    assert spawn.call_args.args[0][-2:] == ["--board", str(board.resolve())]
+
+
 def test_quick_pi_desktop_accepts_explicit_board_without_ipc(tmp_path):
     from quick_pi_plugin import desktop_entrypoint
 
@@ -155,4 +179,21 @@ def test_quick_pi_desktop_accepts_explicit_board_without_ipc(tmp_path):
         spawn.return_value.wait.return_value = 0
         assert desktop_entrypoint.main() == 0
     active.assert_not_called()
+    assert spawn.call_args.args[0][-3:] == ["--board", str(board.resolve()), "--ui"]
+
+
+def test_quick_therm_action_opens_its_tab_on_explicit_board(tmp_path):
+    from quick_therm_plugin import desktop_entrypoint
+
+    board = tmp_path / "demo.kicad_pcb"
+    board.write_text("board", encoding="utf-8")
+    with patch.object(sys, "argv", ["desktop_entrypoint.py", "--board", str(board)]), patch(
+            "wayricad_runtime.bootstrap.relaunch", return_value=None) as relaunch, patch(
+            "wayricad_runtime.native_analysis.active_saved_board") as active, patch(
+            "wayricad_runtime.native_analysis.child_environment", return_value={}), patch.object(
+            desktop_entrypoint.subprocess, "Popen") as spawn:
+        spawn.return_value.wait.return_value = 0
+        assert desktop_entrypoint.main() == 0
+    active.assert_not_called()
+    assert relaunch.call_args.args[1] == "desktop_entrypoint.py"
     assert spawn.call_args.args[0][-3:] == ["--board", str(board.resolve()), "--ui"]

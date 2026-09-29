@@ -13,7 +13,7 @@ PCM_DIR = "pcm"
 RELEASES_DIR = "releases"
 
 DEFAULT_BRANCH = os.environ.get("WAYRICAD_BRANCH", "develop")
-DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "3.4.0")
+DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "3.6.0")
 
 REPO_OWNER = "wayri"
 REPO_NAME = "WayriCAD"
@@ -484,7 +484,7 @@ def create_plugin_zip(
                     ".vscode",
                     ".pytest_cache", "tests", "tools", "scripts", "docs",
                     "examples", "node_modules",
-                } - ({"docs", "examples"} if plugin_path.name == "protocol_constraint_composer_plugin" else set())
+                } - ({"docs", "examples"} if plugin_path.name in {"protocol_constraint_composer_plugin", "quick_therm_plugin"} else set())
             ])
 
             for file in sorted(files):

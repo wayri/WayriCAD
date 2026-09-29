@@ -39,6 +39,16 @@ class ConsoleTest(unittest.TestCase):
         self.assertEqual(model['resistance_ohm'], .03)
         self.assertEqual(self.model('30mΩ+5mH'), model)
 
+    def test_fixed_drop_and_parameterized_diode(self):
+        fixed=self.model('1V')
+        self.assertEqual(fixed['fixed_drop_v'],1.)
+        self.assertEqual(self.model('500mV')['fixed_drop_v'],.5)
+        diode=self.model('diode(Vf=0.7V,Iref=1A,n=2,T=25C)')
+        self.assertEqual(diode['diode']['vf_ref_v'],.7)
+        self.assertEqual(diode['diode']['reference_current_a'],1.)
+        self.assertEqual(diode['diode']['ideality'],2.)
+        self.assertEqual(self.parse('run pi C1.1 R1:1V U8.2')['series'][0],fixed)
+
     def test_si_prefixes_units_and_scientific_notation(self):
         for value, expected in [('1m', 1e-3), ('1M', 1e6), ('1Megohm', 1e6),
                                 ('1k', 1e3), ('1KΩ', 1e3), ('1u', 1e-6),
@@ -58,7 +68,9 @@ class ConsoleTest(unittest.TestCase):
 
     def test_bad_values_are_rejected_without_execution(self):
         for text in ['nan', 'inf', '1e999', '-1m', '0', '5m+30m', '1h',
-                     '1mH+', '1mH+2mH', '1m;print(1)', '__import__("os")', '1m+-2H']:
+                     '1mH+', '1mH+2mH', '1m;print(1)', '__import__("os")', '1m+-2H',
+                     '0V','-1V','diode(Vf=0.7V,Iref=0A,n=2,T=25C)',
+                     'diode(Vf=0.7V,Iref=1A,n=0,T=25C)']:
             with self.subTest(text=text), self.assertRaises(ValueError):
                 self.model(text)
 

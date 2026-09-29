@@ -21,7 +21,8 @@ def main():
         board=args.board.resolve() if args.board else active_saved_board()
         if not board.is_file() or board.suffix.lower() != '.kicad_pcb':
             raise ValueError('Choose a saved KiCad PCB.')
-        process=subprocess.Popen([sys.executable,'-I',str(ROOT/'quickmain.py'),'--board',str(board),'--ui'],
+        command=[sys.executable,'-I',str(ROOT/'quickmain.py'),'--board',str(board),'--ui']
+        process=subprocess.Popen(command,
             env=child_environment(),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         return process.wait()
     except Exception as exc:

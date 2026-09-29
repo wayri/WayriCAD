@@ -93,5 +93,19 @@ class ReportTests(unittest.TestCase):
             self.assertIn('Component loss',html)
             self.assertIn('not an AC or transient solve',html)
 
+    def test_forward_drop_report_labels_apparent_ratio_and_voltage_warning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            b=bundle();b['request']['series']=[{'id':'D1','fixed_drop_v':1.}]
+            b['result']['contains_forward_drop']=True
+            b['result']['negative_sink_voltage']=True
+            b['result']['components']=[{'id':'D1','model':'fixed_drop','current_A':2.,
+                'voltage_before_V':.8,'voltage_drop_V':1.,'voltage_after_V':-.2,'power_W':2.}]
+            path=write_report(Path(directory)/'diode.html',b,0)['html']
+            html=Path(path).read_text(encoding='utf-8')
+            self.assertIn('Circuit apparent ΔV/I',html)
+            self.assertIn('not resistance',html)
+            self.assertIn('Operating-point warning',html)
+            self.assertIn('D1</td><td>fixed_drop',html)
+
 
 if __name__=='__main__':unittest.main()

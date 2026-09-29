@@ -2,7 +2,7 @@
 
 [Install](INSTALLATION.md) · [Choose a tool](#tool-directory) · [Routing](#routing-review) · [Electrical analysis](#electrical-analysis) · [BOM and libraries](#bom-and-project-libraries) · [Troubleshooting](TROUBLESHOOTING.md) · [CLI](CLI_USER_GUIDE.md)
 
-This guide describes the 16-tool 3.4.0 development suite; published releases may contain the earlier inventory. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
+This guide describes the 17-tool 3.6.0 release, including the independently installable QuickTherm plugin. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
 
 ## Install and first launch
 
@@ -32,6 +32,7 @@ Select the linked name for detailed instructions. “Review” below means that 
 | <img src="../bom_studio_plugin/icon.png" width="28" height="28" alt="BOM Studio icon"> | [BOM Studio](../bom_studio_plugin/README.md) | Saved schematic/project and desired fields | Review staged component data, export purchasing/assembly BOMs; native writes require a reviewed operation |
 | <img src="../embed_3d_plugin/icon.png" width="28" height="28" alt="Embed3D icon"> | [Embed3D](../embed_3d_plugin/README.md) | Project plus library/model search paths | Preview then copy/relink symbols, footprints and models with backups |
 | <img src="../quick_pi_plugin/icon.png" width="28" height="28" alt="Quick PI icon"> | [Quick PI](../quick_pi_plugin/README.md) | Net, source/sink pads, voltage/current | Read-only layered DC mesh, fields, losses and risk screening; integrated decoupling placement review; export reports |
+| <img src="../quick_therm_plugin/icon.png" width="28" height="28" alt="QuickTherm icon"> | [QuickTherm](../quick_therm_plugin/README.md) | Saved board, mapped loss fields and thermal resistances | Independent thermal screening with board views, component temperatures and explicit model coverage |
 | <img src="../trace_impedance_plugin/icon.png" width="28" height="28" alt="Trace RLC / Impedance icon"> | [Trace RLC / Impedance](../trace_impedance_plugin/ReadMe.md) | Connected path or zone terminals and stackup | Read-only trace/via/zone/plane estimates; unknown assumptions stay explicit |
 | <img src="../signal_integrity_advisor_plugin/icon.png" width="28" height="28" alt="Quick SI icon"> | [Quick SI](../signal_integrity_advisor_plugin/ReadMe.md) | Signal path, stackup and driver/load assumptions | Delay/reflection/eye screening, return-path review and test-point lists; explicit reviewed test-point silkscreen writes; not a full channel solver |
 | <img src="../fanout_generator_plugin/icon.png" width="28" height="28" alt="Fanout Generator icon"> | [Fanout Generator](../fanout_generator_plugin/ReadMe.md) | Footprints/pads, netclass, pattern and layer | Preview candidate escapes/vias, then explicitly apply copper |

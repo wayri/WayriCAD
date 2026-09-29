@@ -62,5 +62,21 @@ class ServiceGuards(unittest.TestCase):
         with patch.dict('sys.modules',{'quick_pi_plugin.mesh':None}), self.assertRaisesRegex(ValueError,'Repeated series endpoint'):
             service.series_execute(board,Path('unused.kicad_pcb'),request)
 
+    def test_forward_drop_cannot_use_a_repeated_net_bypass(self):
+        def pad(uid,number,net):
+            p=Mock();p.GetNetCode.return_value=1;p.m_Uuid.AsString.return_value=uid
+            p.GetNumber.return_value=number;p.GetNetname.return_value=net;return p
+        def footprint(ref,pads):
+            f=Mock();f.GetReference.return_value=ref;f.m_Uuid.AsString.return_value=ref;f.Pads.return_value=pads;return f
+        board=Mock();board.GetFootprints.return_value=[
+            footprint('C1',[pad('start','1','A')]),footprint('C2',[pad('end','1','A')]),
+            footprint('D1',[pad('d1a','1','A'),pad('d1b','2','B')]),
+            footprint('D2',[pad('d2a','1','B'),pad('d2b','2','A')])]
+        request={'source_terminal':'start','sink_terminal':'end','net':'A',
+                 'series':[{'from_pad':'d1a','to_pad':'d1b','fixed_drop_v':1.},
+                           {'from_pad':'d2a','to_pad':'d2b','resistance_ohm':.1}]}
+        with patch.dict('sys.modules',{'quick_pi_plugin.mesh':None}),self.assertRaisesRegex(ValueError,'cross each net only once'):
+            service.series_execute(board,Path('unused.kicad_pcb'),request)
+
 
 if __name__=='__main__':unittest.main()

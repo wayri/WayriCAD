@@ -1,7 +1,7 @@
 """Local, non-executable QuickPI command language and completions.
 
 All electrical connectivity comes from the supplied terminal inventory. Series
-components describe user-specified R/L models; their values are never inferred.
+components describe user-specified R/L and forward-drop models; their values are never inferred.
 """
 from __future__ import annotations
 
@@ -16,12 +16,15 @@ HELP = '''QuickPI commands:
   run pi [net-name] START END
   run pi START R1.1 5m R1.2 END
   run pi START L1.1 5mH+30m L1.2 END
+  run pi START D1.1 1V D1.2 END
+  run pi START D1.1 diode(Vf=0.7V,Iref=1A,n=2,T=25C) D1.2 END
   run pi START R1:5m:10nH END
 Quote names containing spaces. Pads use reference.number or their unique ID.
 Each intervening copper section must share an actual net. Component shortcuts
 require exactly two distinct pads and an unambiguous incoming net.
 Resistance defaults to ohms; inductance requires H. Prefixes are case-sensitive:
-m = milli, M/Meg = mega, u/µ/μ = micro. All series values must be nonnegative.'''
+m = milli, M/Meg = mega, u/µ/μ = micro. Forward-drop models use the
+specified DC load current; they do not infer a part model or solve transients.'''
 
 _PREFIX = {'': 1., 'f': 1e-15, 'p': 1e-12, 'n': 1e-9,
            'u': 1e-6, 'µ': 1e-6, 'μ': 1e-6, 'm': 1e-3,
@@ -60,6 +63,11 @@ def _rl(text):
     if not any(result.values()):
         raise ValueError('A series component needs positive resistance or inductance.')
     return result
+
+
+def _model(text):
+    from .series_models import parse_drop
+    return parse_drop(text) or _rl(text)
 
 
 def _inventory(inventory):
@@ -155,13 +163,13 @@ def parse_command(text, inventory):
                 raise ValueError('Shortcut direction is ambiguous or disconnected: ' + reference)
             entry = _terminal(str(incoming[0]['id']), lookup)
             exit_pad = _terminal(str(next(p for p in pads if p['id'] != entry['id'])['id']), lookup)
-            model = _rl('+'.join(parts[1:]))
+            model = _model('+'.join(parts[1:]))
             index += 1
         else:
             if len(middle) - index < 3:
                 raise ValueError('A series branch needs FROM_PAD VALUE TO_PAD.')
             entry = _terminal(token, lookup)
-            model = _rl(middle[index + 1])
+            model = _model(middle[index + 1])
             exit_pad = _terminal(middle[index + 2], lookup)
             reference = _reference(entry)
             if reference != _reference(exit_pad):

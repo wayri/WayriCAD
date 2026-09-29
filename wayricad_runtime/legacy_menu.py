@@ -102,7 +102,7 @@ def _launch_desktop(root, identifier, pcbnew, title):
                           wx.OK | wx.ICON_INFORMATION)
             return
         args.append(str(source))
-    elif identifier == "quick-pi":
+    elif identifier in {"quick-pi", "quick-therm"}:
         args.extend(("--board", str(board)))
     subprocess.Popen(args, env=child_environment(),
                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -153,7 +153,7 @@ def register(package_name, root):
 
         def Run(self):
             try:
-                if identifier in {"bom-studio", "quick-pi"}:
+                if identifier in {"bom-studio", "quick-pi", "quick-therm"}:
                     _launch_desktop(root, identifier, pcbnew, self.name)
                     return
                 module_name, class_name = (

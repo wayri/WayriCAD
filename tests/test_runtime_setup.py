@@ -23,6 +23,9 @@ class RuntimeSetupTests(unittest.TestCase):
             bootstrap.relaunch(Path('plugin'), 'desktop_entrypoint.py', profile='bom')
             self.assertEqual(ensure.call_args.args[0],
                              {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_BOM})
+            bootstrap.relaunch(Path('plugin'), 'desktop_entrypoint.py', profile='quick-therm')
+            self.assertEqual(ensure.call_args.args[0],
+                             {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_QUICK_THERM})
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

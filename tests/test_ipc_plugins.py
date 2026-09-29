@@ -25,11 +25,11 @@ class WorkbenchPluginTests(unittest.TestCase):
     def test_active_pcm_packages_have_visible_ipc_actions(self) -> None:
         from build_pcm import discover_plugins
         packages = discover_plugins(ROOT)
-        self.assertEqual(16, len(packages))
+        self.assertEqual(17, len(packages))
         for package in packages:
             with self.subTest(folder=package.name):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
-                self.assertEqual("3.4.0", metadata["versions"][0]["version"])
+                self.assertEqual("3.6.0", metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))
                 self.assertEqual(metadata["identifier"], manifest["identifier"])

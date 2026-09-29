@@ -2,7 +2,7 @@
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Quick PI",
   "description": "Local 2.5D power-integrity simulation with source/sink terminals, copper meshes and native result views.",
-  "description_full": "Solve DC voltage drop, current density and Joule loss on actual filled traces, pads, zones and plated via barrels. Inspect net geometry, conforming mesh and field results in a native window; export a self-contained HTML report. Includes current/energy checks, explicit stackup and plating inputs, and a pulse-duration temperature-risk screen. KiCad 10 native Python with NumPy, SciPy, VTK and Matplotlib is required. This is a layered DC model, not a full-wave AC or thermal-field solver.",
+  "description_full": "Solve DC voltage drop, current density and Joule loss on actual filled traces, pads, zones and plated via barrels. Inspect net geometry, conforming mesh and field results in a native window; export a self-contained HTML report. KiCad 10 native Python with NumPy, SciPy, VTK and Matplotlib is required. This is a screening model, not a full-wave AC or coupled electrothermal solver.",
   "identifier": "com.github.wayri.wayricad.quick-pi",
   "type": "plugin",
   "author": {
@@ -12,7 +12,7 @@
   "license": "GPL-3.0-only",
   "versions": [
     {
-      "version": "3.4.0",
+      "version": "3.6.0",
       "status": "testing",
       "kicad_version": "10.0",
       "runtime": "ipc"

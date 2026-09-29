@@ -149,6 +149,62 @@ class AnalyticalSolverTests(unittest.TestCase):
         self.assertAlmostEqual(r['conductor_power_W'],4*copper_r,11)
         self.assertAlmostEqual(r['component_power_W'],.4,10)
 
+    def test_fixed_forward_drop_shifts_downstream_voltage_and_energy(self):
+        a,sa,ta=strip();b,sb,tb=strip(z=1);mesh,n=combine(a,b)
+        mesh['series_domains']=[{'net':'VIN','start':0,'end':n},
+                                {'net':'VOUT','start':n,'end':len(mesh['points_mm'])}]
+        mesh['lumped_branches']=[{'id':'D1','top_nodes':ta,'bottom_nodes':[i+n for i in sb],
+            'resistance_ohm':0.,'inductance_h':0.,'fixed_drop_v':.5,
+            'from_domain':0,'to_domain':1}]
+        result=solve(mesh,sa,[i+n for i in tb],source_voltage=1.,sink_current=2.)
+        copper_r=2*1.724e-8*.01/(.001*.000035)
+        self.assertAlmostEqual(result['voltage_drop_V'],.5+2*copper_r,10)
+        self.assertAlmostEqual(result['component_power_W'],1.,10)
+        self.assertAlmostEqual(result['components'][0]['voltage_drop_V'],.5,10)
+        self.assertAlmostEqual(result['components'][0]['voltage_before_V']-.5,
+                               result['components'][0]['voltage_after_V'],10)
+        self.assertLess(result['energy_relative_error'],1e-8)
+        self.assertTrue(result['contains_forward_drop'])
+
+    def test_diode_forward_drop_changes_with_prescribed_current(self):
+        a,sa,ta=strip();b,sb,tb=strip(z=1);mesh,n=combine(a,b)
+        mesh['series_domains']=[{'net':'VIN','start':0,'end':n},
+                                {'net':'VOUT','start':n,'end':len(mesh['points_mm'])}]
+        mesh['lumped_branches']=[{'id':'D1','top_nodes':ta,'bottom_nodes':[i+n for i in sb],
+            'resistance_ohm':0.,'diode':{'vf_ref_v':.7,'reference_current_a':1.,'ideality':2.,'temperature_c':25.},
+            'from_domain':0,'to_domain':1}]
+        one=solve(mesh,sa,[i+n for i in tb],source_voltage=1.,sink_current=1.)
+        two=solve(mesh,sa,[i+n for i in tb],source_voltage=1.,sink_current=2.)
+        self.assertAlmostEqual(one['components'][0]['forward_drop_V'],.7,8)
+        self.assertGreater(two['components'][0]['forward_drop_V'],.7)
+        self.assertAlmostEqual(two['components'][0]['forward_drop_V']-.7,
+                               2*8.617333262145e-5*298.15*math.log(2),6)
+        self.assertLess(two['energy_relative_error'],1e-8)
+
+    def test_two_forward_drops_accumulate_along_three_nets(self):
+        a,sa,ta=strip();b,sb,tb=strip(z=1);c,sc,tc=strip(z=2)
+        ab,n=combine(a,b);mesh,m=combine(ab,c)
+        mesh['series_domains']=[{'net':'VIN','start':0,'end':n},
+                                {'net':'MID','start':n,'end':m},
+                                {'net':'VOUT','start':m,'end':len(mesh['points_mm'])}]
+        mesh['lumped_branches']=[
+            {'id':'D1','top_nodes':ta,'bottom_nodes':[i+n for i in sb],
+             'resistance_ohm':0.,'fixed_drop_v':.5,'from_domain':0,'to_domain':1},
+            {'id':'D2','top_nodes':[i+n for i in tb],'bottom_nodes':[i+m for i in sc],
+             'resistance_ohm':0.,'fixed_drop_v':1.,'from_domain':1,'to_domain':2}]
+        result=solve(mesh,sa,[i+m for i in tc],source_voltage=3.,sink_current=1.)
+        copper_r=3*1.724e-8*.01/(.001*.000035)
+        self.assertAlmostEqual(result['voltage_drop_V'],1.5+copper_r,10)
+        self.assertAlmostEqual(result['component_power_W'],1.5,10)
+        self.assertLess(result['energy_relative_error'],1e-8)
+
+    def test_forward_drop_requires_verified_series_domains(self):
+        a,sa,ta=strip();b,sb,tb=strip(z=1);mesh,n=combine(a,b)
+        mesh['lumped_branches']=[{'id':'D1','top_nodes':ta,'bottom_nodes':[i+n for i in sb],
+                                 'resistance_ohm':0.,'fixed_drop_v':1.}]
+        with self.assertRaisesRegex(SolverError,'ordered series path'):
+            solve(mesh,sa,[i+n for i in tb])
+
     def test_ideal_inductor_short_tree_current_is_recovered(self):
         a,sa,ta=strip();b,sb,tb=strip(z=1);mesh,n=combine(a,b)
         mesh['lumped_branches']=[{'id':'L1','top_nodes':ta,'bottom_nodes':[i+n for i in sb],

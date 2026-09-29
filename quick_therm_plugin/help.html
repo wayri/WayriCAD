@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>WayriCAD QuickTherm help</title>
+<style>body{font:16px/1.55 system-ui,sans-serif;max-width:900px;margin:2rem auto;color:#173047}img{max-width:100%;border:1px solid #ccd5db}code{background:#eef2f4;padding:.1rem .3rem}</style></head>
+<body><h1>WayriCAD QuickTherm</h1>
+<p>Open a saved PCB, map the footprint fields containing dissipated power and thermal resistance, select the components to analyze, then run the steady-state screen. Review the coverage and assumptions before interpreting temperatures.</p>
+<img src="quicktherm-board-map-illustration.png" alt="QuickTherm board view and mapped temperature estimates">
+<h2>First run</h2><ol><li>Set <code>Power_W</code> and an air <code>RthetaJA</code> field, or use your own exact field names. Map optional minimum and maximum junction-temperature fields.</li><li>Select the dissipating components and choose air or vacuum.</li><li>Run, inspect top/bottom views, sort the component table and review PASS/FAIL/UNKNOWN limits.</li><li>Expand the board view and click Place probe for virtual temperature probes. Export local HTML/JSON evidence.</li></ol>
+<p>Airflow, board conduction, heatsinks and fixed-temperature boundaries are optional models requiring explicit assumptions. This is a screening tool, not CFD or a transient solver.</p>
+<p>The full step-by-step guide is <a href="QUICK_THERM_USER_GUIDE.html">included locally</a>.</p></body></html>
