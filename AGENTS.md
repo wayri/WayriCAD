@@ -24,7 +24,7 @@ branch is `develop`; open contribution branches and pull requests against it.
 | `releases/` | Locally built release assets |
 
 Constraint Studio retains the `protocol-constraints` package identifier.
-Use active metadata and the [plugin catalogue](README.md#all-16-plugins) when
+Use active metadata and the [plugin catalogue](README.md#all-17-plugins) when
 changing names or inventory; directory names do not always match product names.
 
 ## Local development

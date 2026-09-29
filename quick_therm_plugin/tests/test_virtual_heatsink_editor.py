@@ -1,6 +1,6 @@
 import pytest
 
-from quick_pi_plugin.virtual_heatsink_editor import parse_heatsink_inputs
+from quick_therm_plugin.virtual_heatsink_editor import parse_heatsink_inputs
 
 
 def test_resistance_only_path_has_no_fabricated_envelope():

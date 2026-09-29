@@ -301,111 +301,26 @@ def write_sweep_report(path,bundle):
     return {'html':str(path),'json':str(json_path)}
 
 
-def write_diagnostic_report(path,bundle):
-    """Export mapped QuickTherm or return-path findings without remote assets."""
-    thermal=bundle.get('quick_therm');return_path=bundle.get('return_path')
-    if not thermal and not return_path:raise ValueError('No QuickTherm or return-path result is available.')
-    path=Path(path).with_suffix('.html');path.parent.mkdir(parents=True,exist_ok=True)
-    json_path=path.with_suffix('.json')
-    json_path.write_text(json.dumps(bundle,indent=2,allow_nan=False),encoding='utf-8')
-    heading='QuickTherm' if thermal else 'Return-path review'
-    html=('<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD '+heading+'</title>'
-          '<style>body{font:15px system-ui,sans-serif;max-width:1050px;margin:32px auto;padding:0 20px;color:#173039}'
-          'table{border-collapse:collapse;width:100%}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}</style>'
-          '<h1>WayriCAD '+heading+'</h1><p>Read-only saved-board analysis. '
-          '<a href="'+escape(json_path.name)+'">Complete JSON evidence</a>.</p>')
-    if thermal:
-        html+='<p>'+escape(thermal['model'])+' · '+escape(thermal['environment'])+' · ambient '+_number(thermal['ambient_c'],'°C')+'</p>'
-        html+='<p>Coverage: '+str(thermal['coverage']['solved'])+'/'+str(thermal['coverage']['scoped'])+' scoped components solved.</p>'
-        view=bundle.get('board_thermal_view',{});analytics=view.get('analytics',{})
-        network=bundle.get('thermal_network')
-        if view:
-            from matplotlib.figure import Figure
-            from matplotlib.backends.backend_agg import FigureCanvasAgg
-            from .thermal_plot import draw_thermal_view
-            modes=['Top-side map','Bottom-side map','Top-side contour','Bottom-side contour','3D overview']
-            if network:modes.extend(['Top board model','Bottom board model'])
-            if network and network.get('layers'):
-                modes.extend('Layer model: '+row['name'] for row in network['layers'])
-            for mode in modes:
-                figure=Figure(figsize=(10,5),dpi=115);FigureCanvasAgg(figure)
-                draw_thermal_view(figure,view,mode,network=network)
-                image=io.BytesIO();figure.savefig(image,format='png',dpi=115)
-                html+='<h2>'+escape(mode)+'</h2><img style="max-width:100%" alt="'+escape(mode)+'" src="data:image/png;base64,'+base64.b64encode(image.getvalue()).decode('ascii')+'">'
-            html+='<p>Contour: '+escape(view.get('field',{}).get('meaning','Interpolation of component junction estimates; not a physical board-surface solve.'))+'</p>'
-            stats=analytics.get('temperature_c',{})
-            summary=' · '.join(escape(label)+' '+_number(stats.get(key),'°C') for label,key in
-                               (('Minimum','min'),('Maximum','max'),('Mean','mean'),('Median','median')))
-            html+='<h2>Temperature analytics</h2><p>'+summary+' · Hottest '+escape(str(analytics.get('hottest_reference') or '—'))+'</p>'
-        if network:
-            balance=network['heat_balance']
-            html+='<h2>Optional board heat model</h2><p>'+escape(network['model'])+' · '+escape(network['status'])+'</p>'
-            if network.get('layers'):
-                html+='<p>Saved copper geometry and stackup; user-supplied material and fixture data. This is a layer-resolved steady-state approximation, not validated CFD or a measurement.</p>'
-                html+='<table><tr><th>Copper layer</th><th>Depth mm</th><th>Minimum °C</th><th>Maximum °C</th></tr>'
-                for layer in network['layers']:
-                    html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (layer['name'],
-                        _number(layer['z_mm']),_number(layer['sampled_min_c']),_number(layer['sampled_max_c'])))+'</tr>'
-                html+='</table>'
-                html+=('<p>Input '+_number(balance.get('input_w'),'W')+' · convection '+_number(balance.get('convection_w'),'W')+
-                    ' · radiation '+_number(balance.get('radiation_w'),'W')+' · fixture flux '+_number(balance.get('mount_flux_w'),'W')+
-                    ' · residual '+_number(balance.get('residual_w'),'W')+'</p>')
-                if network.get('mounts'):
-                    html+='<h3>Fixed-temperature contacts</h3><table><tr><th>Pad ID</th><th>Setpoint °C</th><th>Heat flow to fixture W</th></tr>'
-                    for mount in network['mounts']:
-                        html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (
-                            mount['id'],_number(mount['temperature_c']),_number(mount['heat_flux_w'])))+'</tr>'
-                    html+='</table><p>Positive fixture heat flow leaves the board; negative flow enters it.</p>'
-            else:
-                field=network['board_field']
-                html+='<p>The top and bottom board views show one shared thin-sheet midplane field, not separate surface solves.</p>'
-                html+=('<p>Board cell range '+_number(field.get('sampled_min_c'),'°C')+' to '+_number(field.get('sampled_max_c'),'°C')+
-                    ' · mesh '+str(field.get('grid_cells_long_axis','—'))+' long-axis / '+str(field.get('active_cells','—'))+' active cells'+
-                    ' · input '+_number(balance.get('input_w'),'W')+' · board convection '+_number(balance.get('board_convection_w'),'W')+
-                    ' · board radiation '+_number(balance.get('board_radiation_w'),'W')+' · sink convection '+_number(balance.get('sink_convection_w'),'W')+
-                    ' · sink radiation '+_number(balance.get('sink_radiation_w'),'W')+' · residual '+_number(balance.get('residual_w'),'W')+'</p>')
-            html+='<h3>Model inputs and assumptions</h3><pre>'+escape(json.dumps(network['settings'],indent=2))+'</pre><ul>'+''.join(
-                '<li>'+escape(item)+'</li>' for item in network.get('assumptions',[]))+'</ul>'
-        html+='<h2>Component results</h2><table><tr><th>Reference</th><th>Side</th><th>Heat path</th><th>Power W</th><th>Rθ K/W</th><th>Junction °C</th><th>Rise K</th><th>X mm</th><th>Y mm</th><th>Status</th></tr>'
-        solved={row['reference']:row for row in thermal['components']}
-        parts=[(item,solved.get(item['reference'])) for item in view.get('components',[]) if item.get('in_scope')] if view else [(None,row) for row in thermal['components']]
-        for item,row in parts:
-            if row is None:
-                xy=item.get('position_mm') or [None,None]
-                values=(item['reference'],item.get('side','—'),'—','—','—','—','—',_number(xy[0]),_number(xy[1]),'; '.join(item.get('issues',[])) or 'Excluded')
-                html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in values)+'</tr>'
-                continue
-            sink=row.get('heatsink')
-            heat_path=(sink['shape'].replace('_',' ') +
-                       (' · '+ ' × '.join(_number(sink[key], 'mm') for key in ('width_mm','depth_mm','height_mm'))
-                        if sink.get('width_mm') is not None else ' · no envelope')) if sink else (
-                        'Air RθJA' if thermal['environment']=='air' else 'Shared board')
-            xy=item.get('position_mm') or [None,None] if item else [None,None]
-            html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (
-                row['reference'],item.get('side','—') if item else '—',heat_path,_number(row['power_w']),
-                _number(row['resistance_k_per_w']),_number(row['junction_c']),_number(row.get('rise_above_ambient_k')),
-                _number(xy[0]),_number(xy[1]),'Solved'))+'</tr>'
-        html+='</table>'
-        if network:
-            html+='<h3>Board-network component sites</h3><table><tr><th>Reference</th><th>Side</th><th>Source path</th><th>Board site °C</th><th>Virtual sink °C</th><th>Model junction °C</th></tr>'
-            for row in network.get('components',[]):
-                html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (
-                    row['reference'],row.get('side','—'),row.get('source_heat_path',row.get('heat_path',row.get('source_distribution','board'))),
-                    _number(row.get('board_site_c'),'°C'),_number(row.get('sink_c'),'°C'),
-                    _number(row.get('junction_c'),'°C')))+'</tr>'
-            html+='</table><p>A model junction value appears only with a separately supplied component-to-board or component-to-sink resistance. Legacy RθJA is not substituted.</p>'
-        if thermal['coverage']['excluded']:
-            html+='<h2>Incomplete field mapping</h2><ul>'+''.join('<li>'+escape(row['reference']+': '+', '.join(row['issues']))+'</li>'
-                for row in thermal['coverage']['excluded'])+'</ul>'
-        html+='<h2>Assumptions</h2><ul>'+''.join('<li>'+escape(note)+'</li>' for note in thermal['assumptions'])+'</ul>'
-    else:
-        html+='<p>'+escape(return_path['basis'])+'</p>'
-        html+='<p>'+str(return_path['warning_count'])+' warnings · '+str(return_path['unknown_count'])+' unknowns</p>'
-        html+='<table><tr><th>Level</th><th>Code</th><th>Layer</th><th>Position mm</th><th>Detail</th></tr>'
-        for row in return_path['findings']:
-            position=', '.join(f'{value:.4g}' for value in row['position_mm']) if row['position_mm'] else '—'
-            html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (
-                row['level'],row['code'],row['layer'],position,row['detail']))+'</tr>'
-        html+='</table>'
-    path.write_text(html+'</html>',encoding='utf-8')
-    return {'html':str(path),'json':str(json_path)}
+def write_diagnostic_report(path, bundle):
+    """Export return-path findings without remote assets."""
+    result = bundle.get('return_path')
+    if not result:
+        raise ValueError('No return-path result is available.')
+    path = Path(path).with_suffix('.html')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    json_path = path.with_suffix('.json')
+    json_path.write_text(json.dumps(bundle, indent=2, allow_nan=False), encoding='utf-8')
+    html = ('<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD Return-path review</title>'
+            '<style>body{font:15px system-ui,sans-serif;max-width:1050px;margin:32px auto;padding:0 20px;color:#173039}'
+            'table{border-collapse:collapse;width:100%}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}</style>'
+            '<h1>WayriCAD Return-path review</h1><p>Read-only saved-board analysis. '
+            '<a href="' + escape(json_path.name) + '">Complete JSON evidence</a>.</p>')
+    html += '<p>' + escape(result['basis']) + '</p>'
+    html += '<p>' + str(result['warning_count']) + ' warnings · ' + str(result['unknown_count']) + ' unknowns</p>'
+    html += '<table><tr><th>Level</th><th>Code</th><th>Layer</th><th>Position mm</th><th>Detail</th></tr>'
+    for row in result['findings']:
+        position = ', '.join(f'{value:.4g}' for value in row['position_mm']) if row['position_mm'] else '—'
+        html += '<tr>' + ''.join('<td>' + escape(str(value)) + '</td>' for value in (
+            row['level'], row['code'], row['layer'], position, row['detail'])) + '</tr>'
+    path.write_text(html + '</table></html>', encoding='utf-8')
+    return {'html': str(path), 'json': str(json_path)}

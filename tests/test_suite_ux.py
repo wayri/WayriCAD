@@ -45,7 +45,7 @@ class SuiteUxTests(unittest.TestCase):
             path for path in ROOT.iterdir()
             if path.is_dir() and (path / "metadata.json").is_file()
         )
-        self.assertEqual(16, len(packages))
+        self.assertEqual(17, len(packages))
         icon_hashes = {}
         for package in packages:
             with self.subTest(package=package.name):

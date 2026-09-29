@@ -1,0 +1,17 @@
+{
+  "$schema": "https://go.kicad.org/api/schemas/v1",
+  "identifier": "com.github.wayri.wayricad.quick-therm",
+  "name": "WayriCAD QuickTherm",
+  "description": "Saved-board thermal screening with mapped component losses, copper layers and visual results.",
+  "runtime": {"type": "python", "min_version": "3.10.0"},
+  "actions": [{
+    "identifier": "open",
+    "name": "WayriCAD QuickTherm",
+    "description": "Map component thermal inputs and inspect saved-board thermal results.",
+    "show-button": true,
+    "scopes": ["pcb"],
+    "entrypoint": "desktop_entrypoint.py",
+    "icons-light": ["resources/icon-24.png", "resources/icon-48.png", "resources/icon-96.png"],
+    "icons-dark": ["resources/icon-dark-24.png", "resources/icon-dark-48.png", "resources/icon-dark-96.png"]
+  }]
+}

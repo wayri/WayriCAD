@@ -12,7 +12,7 @@ def _origin(board_path, expected_sha256=None):
         raise ValueError('The saved PCB changed after QuickTherm ran. Reload and rerun before cross-selection.')
     client = connect()
     if saved_board(client) != path:
-        raise ValueError('The originating PCB Editor changed boards. Reopen Quick PI from this board.')
+        raise ValueError('The originating PCB Editor changed boards. Reopen QuickTherm from this board.')
     return client, client.get_board()
 
 

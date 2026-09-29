@@ -1,18 +1,18 @@
 # WayriCAD — KiCad Plugins for PCB Design and Analysis
 
-**WayriCAD** is an open-source suite of **16 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes fanout routing, via stitching, trace impedance and RLC analysis, power integrity and signal integrity checks, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
+**WayriCAD** is an open-source suite of **17 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes fanout routing, via stitching, trace impedance and RLC analysis, power integrity and signal integrity checks, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
 **Current published release: 3.5.0 · [GPL-3.0 license](LICENSE).**
 
-**Looking for QuickTherm?** It ships in the 3.5.0 [Quick PI PCM package](quick_pi_plugin/README.md) as a separate **WayriCAD QuickTherm** PCB Editor action with its own icon. It is one of the two actions in that package, so there is no separate QuickTherm plugin directory or ZIP. Start with the [step-by-step QuickTherm guide](quick_pi_plugin/QUICK_THERM_USER_GUIDE.md), or inspect the [thermal implementation](quick_pi_plugin/quick_therm.py), [action entry point](quick_pi_plugin/quick_therm_entrypoint.py), and [plugin manifest](quick_pi_plugin/plugin.json).
+**QuickTherm is a standalone plugin in the 3.6.0 source.** Its own [package and example results](quick_therm_plugin/README.md), [step-by-step guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md), [source](quick_therm_plugin/quick_therm.py), and [KiCad manifest](quick_therm_plugin/plugin.json) are separate from Quick PI. The published 3.5.0 release still contains QuickTherm as a second Quick PI action until 3.6.0 packages are published.
 
 **Use Releases for published packages. KiCad 10 is the validated target.** KiCad 11-only installations are not supported yet: several engines still need KiCad 10 native Python. See [compatibility and known limits](docs/COMPATIBILITY.md).
 
 [Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
 
-[3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [3.3 jobset automation](docs/RELEASE_NOTES_3.3.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
+[3.6 source release notes](docs/RELEASE_NOTES_3.6.0.md) · [3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
 
 ## Install and open
 
@@ -47,6 +47,9 @@ Machine-specific paths in screenshots are replaced with generic project location
 <td width="50%"><h3><a href="trace_impedance_plugin/ReadMe.md">Trace RLC</a></h3><a href="trace_impedance_plugin/ReadMe.md"><img src="trace_impedance_plugin/help-ac-geometry.png" width="480" alt="Trace RLC native window preview"></a><p>Inspect the connected copper path and per-section electrical coverage.</p></td>
 </tr>
 <tr>
+<td colspan="2"><h3><a href="quick_therm_plugin/README.md">QuickTherm — independent thermal plugin</a></h3><a href="quick_therm_plugin/README.md"><img src="quick_therm_plugin/examples/quicktherm-board-model-view.png" width="960" alt="QuickTherm resizable native board view with modeled temperature overlay and virtual probes"></a><p>Map saved footprint thermal inputs and per-part temperature limits, inspect board overlays and sortable component results, place probes, and export HTML/JSON evidence. The pictured board model uses declared demonstration material and airflow inputs.</p></td>
+</tr>
+<tr>
 <td width="50%"><h3><a href="bom_studio_plugin/README.md">BOM Studio</a></h3><a href="bom_studio_plugin/README.md"><img src="bom_studio_plugin/help-cost-mass.png" width="480" alt="BOM Studio native window preview"></a><p>Templates, bulk editing, conditional exports and explicit cost/mass coverage.</p></td>
 <td width="50%"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/ReadMe.md"><img src="planar_magnetics_plugin/help-motor-emf.png" width="480" alt="Magnetics native window preview"></a><p>Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.</p></td>
 </tr>
@@ -55,7 +58,7 @@ Machine-specific paths in screenshots are replaced with generic project location
 </tr>
 </table>
 
-## All 16 plugins
+## All 17 plugins
 
 Every name below opens that plugin’s README. The [full tool directory](docs/USER_GUIDE.md#tool-directory) explains inputs, outputs and write boundaries.
 
@@ -63,7 +66,8 @@ Every name below opens that plugin’s README. The [full tool directory](docs/US
 |---|---|---|
 | <img src="bom_studio_plugin/icon.png" width="64" height="64" alt="BOM Studio icon"> | [BOM Studio](bom_studio_plugin/README.md) | Saved schematic/project and desired fields |
 | <img src="embed_3d_plugin/icon.png" width="64" height="64" alt="Embed3D icon"> | [Embed3D](embed_3d_plugin/README.md) | Project plus library/model search paths |
-| <img src="quick_pi_plugin/icon.png" width="64" height="64" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) and [QuickTherm](quick_pi_plugin/QUICK_THERM_USER_GUIDE.md) | DC rail inputs, or thermal field mapping and boundary conditions; two PCB Editor actions in one package |
+| <img src="quick_pi_plugin/icon.png" width="64" height="64" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) | DC rail inputs, series paths and decoupling review |
+| <img src="quick_therm_plugin/icon.png" width="64" height="64" alt="QuickTherm icon"> | [QuickTherm](quick_therm_plugin/README.md) | Saved board, mapped component losses and thermal resistances; independent PCM package |
 | <img src="trace_impedance_plugin/icon.png" width="64" height="64" alt="Trace RLC / Impedance icon"> | [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Connected path or zone terminals and stackup |
 | <img src="signal_integrity_advisor_plugin/icon.png" width="64" height="64" alt="Quick SI icon"> | [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal path, stackup and driver/load assumptions |
 | <img src="fanout_generator_plugin/icon.png" width="64" height="64" alt="Fanout Generator icon"> | [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Footprints/pads, netclass, pattern and layer |
@@ -80,7 +84,7 @@ Every name below opens that plugin’s README. The [full tool directory](docs/US
 
 ## Focused workflows, shared tools
 
-BOM Studio keeps templates, cell and bulk editing, grouping, and conditional exports in three primary views. Mechanical Check retains exact solids and adds a quick 2D envelope screen without FreeCAD. Copper Balancer reports rejected sites and per-tile density deficits. Quick PI includes decoupling placement and a separate QuickTherm action; Quick SI includes return-path and test-point workflows. These are distinct checks inside shared tools, not claims of full electrical or mechanical certification.
+BOM Studio keeps templates, cell and bulk editing, grouping, and conditional exports in three primary views. Mechanical Check retains exact solids and adds a quick 2D envelope screen without FreeCAD. Copper Balancer reports rejected sites and per-tile density deficits. Quick PI includes decoupling placement; QuickTherm is separately installable; Quick SI includes return-path and test-point workflows. These are distinct checks inside the suite, not claims of full electrical or mechanical certification.
 
 [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) is the suite's visual constraint manager: custom DRC rule forms, clearance matrices, netclasses, reusable sets and per-layer routing profiles share a staged workspace. Review generated rules and file diffs before offline apply, then validate with KiCad's native DRC.
 
@@ -103,8 +107,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.5.0
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.5.0
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.0
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.0
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.

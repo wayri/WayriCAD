@@ -25,6 +25,7 @@ REQUIRED_VARIABLES = {
         "frequency_mhz",
     ),
     "bom": ("bom_pipeline",),
+    "thermal": ("thermal_config",),
 }
 
 
@@ -47,6 +48,10 @@ DESCRIPTIONS = {
         "Runs an explicit BOM Studio data-only pipeline in a fresh subdirectory. "
         "Its manifest records hashes and policy gates; it does not certify ERC, DRC, "
         "or manufacturing approval."
+    ),
+    "thermal": (
+        "Runs standalone QuickTherm on a saved board using a reviewed configuration. "
+        "Mapped component-temperature limits gate the job; model assumptions remain explicit."
     ),
 }
 
@@ -177,6 +182,19 @@ PRESETS = {
             ],
             "outputs": ["bom/manifest.json"],
             "timeout_seconds": 300,
+        },
+    ],
+    "thermal": [
+        {
+            "id": "quick_therm",
+            "label": "QuickTherm board and component report",
+            "argv": [
+                "${native_python}", "-m", "quick_therm_plugin.cli", "${board}",
+                "--config", "${thermal_config}", "--output", "${step_dir}/thermal.json",
+                "--html", "${step_dir}/thermal.html", "--require-limits-pass",
+            ],
+            "outputs": ["thermal.json", "thermal.html"],
+            "timeout_seconds": 600,
         },
     ],
 }

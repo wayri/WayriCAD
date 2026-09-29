@@ -83,7 +83,7 @@ components outside that scope are not counted.
 An adapter with a loaded `pcbnew.BOARD` can call:
 
 ```python
-from quick_pi_plugin.quick_therm import analyze_board
+from quick_therm_plugin.quick_therm import analyze_board
 
 field_map = {
     'power_w': 'Dissipation',

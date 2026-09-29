@@ -59,6 +59,7 @@ Run `wayricad-jobs presets` for the installed catalog.
 | `inventory` | RLC, Quick PI and Quick SI inventory JSON | Saved board and prepared native runtimes. Lists available analysis inputs; no selected-path solve. |
 | `electrical` | PI JSON/HTML, SI JSON/HTML and RLC JSON | Explicit net, pads, voltage, current, rise time and frequency. Each tool retains its own coverage and approximation limits. |
 | `bom` | Existing BOM Studio pipeline exports, reports and checked manifest | Explicit BOM pipeline configuration; retains its templates, conditional exports and policy gates. |
+| `thermal` | Standalone QuickTherm JSON and HTML, including probes and component limit checks | A reviewed QuickTherm JSON config with mapped power, Rθ, temperature-limit fields, scope and optional board model. Failed or unknown limits fail the job. |
 
 Configure an electrical path without baking demo values into the preset:
 

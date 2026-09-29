@@ -1,6 +1,6 @@
 import unittest
 
-from quick_pi_plugin.ui import _parse_sink_areas
+from quick_therm_plugin.ui import _parse_sink_areas
 
 
 class SinkAreaInputTests(unittest.TestCase):

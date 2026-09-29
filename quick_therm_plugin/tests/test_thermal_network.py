@@ -1,7 +1,7 @@
 """Reference checks for the bounded QuickTherm thermal network."""
 import unittest
 
-from quick_pi_plugin.thermal_network import solve_thermal_network
+from quick_therm_plugin.thermal_network import solve_thermal_network
 
 
 def view(*, sink=False):

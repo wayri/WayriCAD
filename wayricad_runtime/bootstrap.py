@@ -8,7 +8,8 @@ import sys
 def relaunch(root, entrypoint, *, profile='ipc'):
     from .runtime_setup import (ensure_runtime, child_environment, REQUIREMENTS_IPC,
                                 REQUIREMENTS_EXTRACT, REQUIREMENTS_BOM,
-                                REQUIREMENTS_QUICK_PI, REQUIREMENTS_MAGNETICS)
+                                REQUIREMENTS_QUICK_PI, REQUIREMENTS_QUICK_THERM,
+                                REQUIREMENTS_MAGNETICS)
     requirements = dict(REQUIREMENTS_IPC)
     if profile == 'extract':
         requirements.update(REQUIREMENTS_EXTRACT)
@@ -16,6 +17,8 @@ def relaunch(root, entrypoint, *, profile='ipc'):
         requirements.update(REQUIREMENTS_BOM)
     if profile == 'quick-pi':
         requirements.update(REQUIREMENTS_QUICK_PI)
+    if profile == 'quick-therm':
+        requirements.update(REQUIREMENTS_QUICK_THERM)
     if profile == 'magnetics':
         requirements.update(REQUIREMENTS_MAGNETICS)
     if profile == 'mechanical':

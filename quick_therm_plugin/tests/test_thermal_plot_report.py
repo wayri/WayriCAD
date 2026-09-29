@@ -5,8 +5,8 @@ import unittest
 
 from matplotlib.figure import Figure
 
-from quick_pi_plugin.thermal_plot import draw_thermal_view
-from quick_pi_plugin.report import write_diagnostic_report
+from quick_therm_plugin.thermal_plot import draw_thermal_view
+from quick_therm_plugin.report import write_diagnostic_report
 
 
 VIEW={'outline':[{'outer_mm':[[0,0],[10,0],[10,8],[0,8]],'holes_mm':[]}],

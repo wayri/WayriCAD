@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 from matplotlib import colormaps
-from matplotlib.patches import Polygon
+from matplotlib.patches import Polygon, Rectangle
 
 
 def _draw_3d(figure,view,selected_id,network,azim,elev):
@@ -60,7 +60,7 @@ def _draw_3d(figure,view,selected_id,network,azim,elev):
 
 
 def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
-                      network=None,azim=-60,elev=28):
+                      network=None,azim=-60,elev=28,probes=None):
     figure.clear()
     if mode=='3D overview':return _draw_3d(figure,view,selected_id,network,azim,elev)
     ax=figure.add_subplot(111)
@@ -81,13 +81,13 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
     contour='contour' in mode.lower()
     board_model='board model' in mode.lower() or bool(layer_name)
     field=view.get('fields_by_side',{}).get(side,field)
-    if contour and field.get('status')=='available':
+    if not board_model and field.get('status')=='available':
         values=np.ma.masked_invalid(np.asarray([[np.nan if value is None else value for value in row]
                                                 for row in field['values_c']],dtype=float))
         if values.count():
             x=np.asarray(field['x_centers_mm']);y=np.asarray(field['y_centers_mm'])
-            mesh=ax.contourf(x,y,values,levels=24,cmap='inferno',alpha=.75)
-            figure.colorbar(mesh,ax=ax,label='Interpolated junction estimate °C')
+            mesh=ax.contourf(x,y,values,levels=24,cmap='inferno',alpha=.82 if contour else .58)
+            figure.colorbar(mesh,ax=ax,label='Interpolated junction estimate °C (not board temperature)')
     elif contour:
         ax.text(.5,.05,field.get('reason') or 'Contour unavailable',ha='center',va='bottom',
                 transform=ax.transAxes,bbox={'facecolor':'white','alpha':.9,'edgecolor':'none'})
@@ -120,18 +120,37 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
     solved=[item for item in shown if item.get('solved') and item.get('position_mm')]
     temps=[item['junction_c'] for item in solved]
     low=min(temps) if temps else None;high=max(temps) if temps else None
+    modeled={item['reference']:item for item in (network or {}).get('components',[])} if board_model else {}
     for item in shown:
         position=item.get('position_mm')
         if not position:continue
         current=item['id']==selected_id
-        value=item.get('junction_c')
-        color='#697985' if value is None else colormaps['inferno'](
-            .5 if high==low else (value-low)/(high-low))
+        value=(modeled.get(item['reference'],{}).get('junction_c') if board_model
+               else item.get('junction_c'))
+        color=('#f7fafc' if value is not None else '#697985') if board_model else (
+            '#697985' if value is None else colormaps['inferno'](
+                .5 if high==low else (value-low)/(high-low)))
+        box=item.get('bbox_mm')
+        if box and len(box)==4:
+            ax.add_patch(Rectangle((box[0],box[1]),box[2]-box[0],box[3]-box[1],
+                                   fill=False,edgecolor='#315e68',linewidth=.6,alpha=.55,zorder=3))
         ax.scatter(*position,s=195 if current else 95,marker='o',
-                   facecolor=color,edgecolor='#00d3b1' if current else 'white',linewidth=2 if current else .8,zorder=4)
+                   facecolor=color,edgecolor='#00d3b1' if current else ('#344b56' if board_model else 'white'),
+                   linewidth=2 if current else .8,zorder=4)
         if item.get('in_scope'):
-            ax.annotate(item['reference'],position,xytext=(5,5),textcoords='offset points',
+            label=item['reference']+(f" Tj≈{value:.1f}°C" if value is not None else '')
+            ax.annotate(label,position,xytext=(5,5),textcoords='offset points',
                         fontsize=8,fontweight='bold' if current else 'normal',zorder=5)
+    for probe in probes or []:
+        if probe.get('side') != side:
+            continue
+        x,y=probe['x_mm'],probe['y_mm']
+        ax.scatter([x],[y],s=120,marker='x',color='#00d3b1',linewidth=2.5,zorder=6)
+        value=probe.get('temperature_c')
+        label=probe['label']+(f" ≈{value:.1f}°C" if value is not None else ' unknown')
+        ax.annotate(label,(x,y),xytext=(7,-10),textcoords='offset points',
+                    fontsize=9,color='#074f49',fontweight='bold',zorder=7,
+                    bbox={'facecolor':'white','alpha':.82,'edgecolor':'none','pad':1.5})
     if not shown:
         ax.text(.5,.5,'No saved '+side+'-side footprints',ha='center',transform=ax.transAxes)
     if bbox:
@@ -140,5 +159,5 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
     else:ax.invert_yaxis()
     ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X mm'+(' · mirrored bottom view' if bottom else ''));ax.set_ylabel('Y mm')
     ax.set_title('Saved PCB '+side+' view · '+((layer_name+' copper layer' if layer_name else 'approximate board midplane') if board_model else
-                 'same-side junction interpolation' if contour else 'component junction estimates'))
+                 'same-side junction interpolation' if contour else 'component estimates with interpolated overlay'))
     figure.tight_layout();return ax
