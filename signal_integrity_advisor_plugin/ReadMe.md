@@ -17,6 +17,7 @@
 - The illustrative eye omits loss, jitter/noise, branches and via discontinuities; unresolved parameters, zone routes and extra terminals can disable it.
 - Path endpoints must be on the same net; the tool does not silently bridge series components or disconnected copper.
 - Saved-board geometry and explicit source/load/stackup assumptions determine coverage. Unknown results are not passes; test-point edits require separate review.
+- Automatic line Z0 uses only single-ended microstrip or symmetric stripline screening formulas. Nearby same-layer copper leaves plain-microstrip Z0 unresolved; CPWG and coupled differential impedance need a validated field model.
 
 ## Overview
 

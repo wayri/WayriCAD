@@ -11,6 +11,14 @@ import tempfile
 def parser():
     root=argparse.ArgumentParser(description=__doc__)
     commands=root.add_subparsers(dest='command',required=True)
+    line=commands.add_parser('cross-section',help='Calculate an explicit manual line cross section without opening a board.')
+    line.add_argument('--topology',required=True,choices=('microstrip','symmetric-stripline','cpw','grounded-cpw','edge-coupled-stripline'))
+    line.add_argument('--width-mm',type=float,required=True)
+    line.add_argument('--height-mm',type=float,required=True,help='Reference separation; plane-to-plane spacing for stripline.')
+    line.add_argument('--copper-mm',type=float,default=0.,help='Coplanar and coupled calculations require zero thickness.')
+    line.add_argument('--gap-mm',type=float,help='Lateral-ground slot for CPW or pair gap for coupled stripline.')
+    line.add_argument('--er',type=float,required=True)
+    line.add_argument('--output',type=Path,help='Separate JSON report path.')
     for name in ('inspect','path','zone'):
         command=commands.add_parser(name)
         command.add_argument('board',type=Path)
@@ -32,6 +40,11 @@ def parser():
 
 
 def analyze(args):
+    if args.command=='cross-section':
+        from .cross_section import estimate
+        return {'schema':'wayricad.rlc-cross-section/v1','operation':'cross-section',
+                'result':estimate(args.topology,args.width_mm,args.height_mm,args.er,
+                                  copper_mm=args.copper_mm,gap_mm=args.gap_mm)}
     source=args.board.resolve()
     if not source.is_file() or source.suffix.lower()!='.kicad_pcb':
         raise ValueError('Choose an existing .kicad_pcb file.')
@@ -79,7 +92,7 @@ def main(argv=None):
     args=parser().parse_args(argv)
     try:
         report=analyze(args)
-        if args.output:write_report(args.output,report,args.board)
+        if args.output:write_report(args.output,report,getattr(args,'board',Path.cwd()))
         else:print(json.dumps(report,indent=2,allow_nan=False))
         status=report['result'].get('status','ok')
         return 2 if status=='disconnected' else 3 if status=='partial' else 0

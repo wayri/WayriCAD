@@ -78,6 +78,11 @@ class CopperGeometry:
         self.notes = []
         self._navigation_cache = {}
         self._routing_prepared = set()
+        self._lateral_drawings = {}
+        for shape in self.board.GetDrawings():
+            layer = shape.GetLayer()
+            if layer in self.layers and hasattr(shape, 'TransformShapeToPolygon'):
+                self._lateral_drawings.setdefault(layer, []).append(shape)
         for zone in self.board.Zones():
             if getattr(zone, 'GetIsRuleArea', lambda: False)():
                 continue
@@ -211,6 +216,36 @@ class CopperGeometry:
         clipped = self.pcb.SHAPE_POLY_SET(polygon)
         clipped.BooleanIntersection(reference['poly'])
         return max(0., clipped.Area() / IU ** 2)
+
+    def lateral_copper_near(self, layer, a, b, width_mm):
+        """Detect same-layer copper close enough to invalidate plain microstrip.
+
+        This is a conservative topology guard, not a CPW gap measurement or
+        a coupled-line solver. Filled zones and copper graphics are included.
+        """
+        probe = self.corridor(a, b, width_mm + 2 * max(.5, width_mm))
+        probe.BooleanSubtract(self.corridor(a, b, width_mm))
+        box = probe.BBox()
+        candidates = (island['poly'] for island in self.islands if island['layer'] == layer)
+        for poly in candidates:
+            if not box.Intersects(poly.BBox()):
+                continue
+            overlap = self.pcb.SHAPE_POLY_SET(poly)
+            overlap.BooleanIntersection(probe)
+            if overlap.Area() > 4:
+                return True
+        for shape in self._lateral_drawings.get(layer, ()):
+            if not box.Intersects(shape.GetBoundingBox()):
+                continue
+            poly = self.pcb.SHAPE_POLY_SET()
+            try:
+                shape.TransformShapeToPolygon(poly, layer, 0, 1000, self.pcb.ERROR_INSIDE)
+            except (TypeError, RuntimeError):
+                continue
+            poly.BooleanIntersection(probe)
+            if poly.Area() > 4:
+                return True
+        return False
 
     def pads(self, net):
         out = {}

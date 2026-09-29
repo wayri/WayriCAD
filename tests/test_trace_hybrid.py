@@ -38,6 +38,21 @@ class PureModels(unittest.TestCase):
                 solver(20, .1, .035, 4.5)
         self.assertTrue(all(z > 0 for _, z in model.z0_width_sweep(.1, .035, 4.5)))
 
+    def test_public_rf_validation_geometries_and_unsupported_topologies(self):
+        # NBalciunas/kicad-rfsim validation: 2.9 mm microstrip on 1.53 mm
+        # FR-4 has a published 49.8 ohm theory reference. Its 0.6 mm,
+        # 1.53 mm symmetric stripline theory is 50.2494 ohm. These are
+        # screening comparisons, not measured fabrication tolerances.
+        micro = model.z0_microstrip(2.9, 1.53, .035, 4.5)
+        strip = model.z0_stripline_symmetric(.6, 1.53, .035, 4.5)
+        self.assertLess(abs(micro - 49.8) / 49.8, .05)
+        self.assertLess(abs(strip - 50.2494) / 50.2494, .05)
+        for name in ('cpwg', 'coplanar', 'differential', 'asymmetric-stripline'):
+            with self.assertRaisesRegex(ValueError, 'Unsupported transmission-line topology'):
+                model.solve(1.5, 1.53, .035, 4.5, 30, topology=name)
+            with self.assertRaisesRegex(ValueError, 'Unsupported transmission-line topology'):
+                model.z0_width_sweep(1.53, .035, 4.5, topology=name)
+
     def test_barrel_r_and_l_scale_and_capacitance_is_unknown(self):
         short, long = model.via_barrel(.8,.3), model.via_barrel(1.6,.3)
         self.assertAlmostEqual(long['resistance_ohm'],2*short['resistance_ohm'])
@@ -139,6 +154,16 @@ class NativeCopper(unittest.TestCase):
         reverse = self.engine().measure('SIGNAL','B.1','A.1')
         self.assertEqual(reverse.layer_changes,1)
         self.assertAlmostEqual(reverse.resistance_ohm,result.resistance_ohm)
+
+    def test_nearby_same_layer_ground_blocks_plain_microstrip_z0(self):
+        self.pad('A', 0, 0); self.pad('B', 10, 0)
+        self.track((0, 0), (10, 0))
+        self.zone([(-1, .4), (11, .4), (11, 2), (-1, 2)], ground=True)
+        self.zone([(-1, -2), (11, -2), (11, 2), (-1, 2)], layer=pcb.B_Cu, ground=True)
+        result = self.engine().measure('SIGNAL', 'A.1', 'B.1')
+        self.assertEqual(result.status, 'partial')
+        self.assertIsNone(result.segments[0]['impedance_ohm'])
+        self.assertIn('LATERAL_COPPER_UNMODELED', [item['code'] for item in result.blockers])
 
     def test_zone_hole_does_not_become_a_direct_copper_shortcut(self):
         self.pad('A',1,5); self.pad('B',9,5)

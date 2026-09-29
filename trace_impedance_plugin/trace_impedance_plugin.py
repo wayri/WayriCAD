@@ -30,7 +30,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.0"
+        self.version = "3.6.1"
 
     def Run(self) -> None:
         try:
@@ -185,6 +185,9 @@ class TraceFrame(wx.Frame):
         notebook.AddPage(preview_page, "Copper & sections")
         notebook.AddPage(result_page, "Results")
         notebook.AddPage(model_page, "RLC Model")
+        from .cross_section_ui import CrossSectionPanel
+        self.cross_section_panel = CrossSectionPanel(notebook)
+        notebook.AddPage(self.cross_section_panel, "Line cross section")
         from .frequency_ui import FrequencyPanel
         self.frequency_panel=FrequencyPanel(notebook,self.board.GetFileName())
         notebook.AddPage(self.frequency_panel,"AC loss sweep")
@@ -412,10 +415,12 @@ class TraceFrame(wx.Frame):
                 ("Differential mate", f"{self.mate_result.net_name} ({self.mate_result.length_mm:.3f} mm)"),
                 ("Intra-pair skew", f"{skew_mm:.4f} mm"),
                 ("Skew scope", "Measured selected terminal paths; check timing budget and pair endpoint mapping."),
+                ("Differential impedance", "Unresolved — coupled P/N field model is not available."),
             )
             for key, value in extra:
                 index = self.table.InsertItem(self.table.GetItemCount(), key); self.table.SetItem(index, 1, str(value))
             result.notes.append(f"Pair {result.net_name} + {self.mate_result.net_name}: intra-pair skew {skew_mm:.4f} mm.")
+            result.notes.append("Individual trace Z0 values are single-ended; they cannot establish the pair's odd-mode or differential impedance.")
         self._show_model(result)
         self.notes.SetValue("\n".join(result.notes))
         self.Layout()

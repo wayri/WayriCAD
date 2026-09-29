@@ -15,7 +15,7 @@ from .guided_ui import add_workflow
 from .placement import validate_placement
 
 
-VERSION = "3.6.0"
+VERSION = "3.6.1"
 PALETTE = ("#157f74", "#d1495b", "#edae49", "#5267a5", "#8f5aa6", "#3c91a3")
 ORGANIC_DEFAULT_TEXT = "\n".join(f"{x:g},{y:g}" for x,y in ORGANIC_DEFAULT_POINTS)
 

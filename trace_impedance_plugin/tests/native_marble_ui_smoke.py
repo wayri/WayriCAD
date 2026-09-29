@@ -55,6 +55,11 @@ def main() -> None:
     frame = frame_class(None, board, saved_board=True)
     frame.Show()
     wx.Yield()
+    assert "single ended z0" in frame.cross_section_panel.answer.GetLabel().lower()
+    frame.cross_section_panel.topology.SetStringSelection("grounded-cpw")
+    frame.cross_section_panel._mode(None)
+    wx.Yield()
+    assert "single ended z0" in frame.cross_section_panel.answer.GetLabel().lower()
     frame_seconds = time.perf_counter() - frame_started
     assert frame.net.SetStringSelection(args.net), f"Net not listed: {args.net}"
     frame._load_pads(None)

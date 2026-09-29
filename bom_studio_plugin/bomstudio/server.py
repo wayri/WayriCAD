@@ -141,10 +141,15 @@ class Handler(BaseHTTPRequestHandler):
             if self.headers.get_content_type()!='application/json':raise ValueError('JSON content type required.')
             body=automation.strict_loads(self.rfile.read(length).decode('utf-8'))
             if not isinstance(body,dict):raise ValueError('JSON object required.')
+            path=urlsplit(self.path).path
             with self.server.app.lock:
-                result=self.dispatch(urlsplit(self.path).path,body)
+                result=self.dispatch(path,body)
             if isinstance(result,tuple):self.respond(result[0],content_type=result[2],name=result[1])
             else:self.respond(result)
+            if path=='/api/quit':
+                # Let the client receive the complete reply before stopping the server.
+                self.wfile.flush()
+                threading.Thread(target=self.server.shutdown,daemon=True).start()
         except (ValueError,KeyError,TypeError,OSError) as exc:self.respond({'error':str(exc)},400)
         except Exception:
             traceback.print_exc();self.respond({'error':'Unexpected internal error. Review source/backups before proceeding; see launcher console.'},500)
@@ -175,7 +180,6 @@ class Handler(BaseHTTPRequestHandler):
             return result
         if path=='/api/quit':
             if app.workspace and app.workspace.dirty and b.get('discard') is not True:raise ValueError('Save changes or confirm discarding before quitting.')
-            threading.Thread(target=self.server.shutdown,daemon=True).start()
             return {'ok':True}
         if path=='/api/link/diagnostic':
             from .bridge import diagnostic

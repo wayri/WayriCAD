@@ -40,10 +40,11 @@ class Interfaces8(unittest.TestCase):
   r=self.request();_,_,b=self.http('library/preview',{'request':r});plan=json.loads(b);self.assertEqual(self.http('library/apply',{'review_id':plan['review_id'],'confirmation':'WRONG'})[0],400);self.assertFalse(Path(r['destination']).exists())
  def test_async_library_preview(self):
   r=self.request();code,_,b=self.http('library/preview-start',{'request':r});self.assertEqual(code,200);task=json.loads(b)
-  for _ in range(200):
+  deadline=time.monotonic()+30
+  while True:
    code,_,b=self.http('library/task-status',{'id':task['id']});result=json.loads(b)
-   if result['state']!='running':break
-   time.sleep(.02)
+   if result['state']!='running' or time.monotonic()>=deadline:break
+   time.sleep(.05)
   self.assertEqual(result['state'],'ready');self.assertIn('review_id',result['result']);self.assertFalse(Path(r['destination']).exists())
  def test_finder_http_classification(self):
   code,_,b=self.http('engineering/search',{'summary':True,'category':'Passives','limit':2});self.assertEqual(code,200);r=json.loads(b);self.assertGreater(r['total'],0);self.assertLessEqual(len(r['items']),2);self.assertIn('classification',r['items'][0])

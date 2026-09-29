@@ -4,15 +4,17 @@
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current published release: 3.6.0 · [GPL-3.0 license](LICENSE).**
+**Current published release: 3.6.1 · [GPL-3.0 license](LICENSE).**
 
 **QuickTherm is a standalone plugin in 3.6.0.** Its own [package and example results](quick_therm_plugin/README.md), [step-by-step guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md), [source](quick_therm_plugin/quick_therm.py), and [KiCad manifest](quick_therm_plugin/plugin.json) are separate from Quick PI. Install its own [QuickTherm PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.0/WayriCAD-quick-therm-3.6.0-PCM.zip). Upgrade Quick PI to 3.6.0 to remove its former thermal action, then restart KiCad.
+
+**Trace RLC and Quick SI in 3.6.1** include corrected microstrip and stripline estimates and a manual CPW/GCPW or coupled-stripline cross-section view. See the [capability matrix](docs/audits/RLC_EMERGE_CAPABILITY_MATRIX.md) for supported geometry and unresolved cases.
 
 **Use Releases for published packages. KiCad 10 is the validated target.** KiCad 11-only installations are not supported yet: several engines still need KiCad 10 native Python. See [compatibility and known limits](docs/COMPATIBILITY.md).
 
 [Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
 
-[3.6 release notes](docs/RELEASE_NOTES_3.6.0.md) · [3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
+[3.6.1 release notes](docs/RELEASE_NOTES_3.6.1.md) · [3.6 release notes](docs/RELEASE_NOTES_3.6.0.md) · [3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
 
 ## Install and open
 
@@ -107,8 +109,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.0
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.0
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.1
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.1
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.
