@@ -338,10 +338,12 @@ path resistance, or environment-specific heatsink value is missing.
 | Heatsink shape changes but temperature does not | This is expected: geometry is visual only; the entered Rθ values drive the calculation. |
 | Temperature seems implausible | Recheck the operating-point power, thermal characterization conditions, units, missing heat sources, contact path and mounting. |
 
-QuickTherm omits spatial gradients, component-to-component heat spreading,
-parallel heatsink/board paths, temperature-dependent power and materials,
-transients, chamber view factors and nonlinear radiation. A virtual sink with
-no real path to the environment cannot establish a finite vacuum steady state.
+The base lumped calculation omits spatial board gradients. Optional thin-sheet
+and layered models approximate heat spreading, convection and radiation using
+the declared inputs. They do not resolve airflow fields, package internals,
+temperature-dependent electrical losses, transients or chamber view factors.
+A virtual sink with no real path to the environment cannot establish a finite
+vacuum steady state.
 Use measurements or a qualified thermal model for design sign-off.
 
 The two SVG figures in this guide are **UI illustrations derived from the
