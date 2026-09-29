@@ -6,6 +6,8 @@
 
 **Current published release: 3.5.0 · [GPL-3.0 license](LICENSE).**
 
+**Looking for QuickTherm?** It ships in the 3.5.0 [Quick PI PCM package](quick_pi_plugin/README.md) as a separate **WayriCAD QuickTherm** PCB Editor action with its own icon. It is one of the two actions in that package, so there is no separate QuickTherm plugin directory or ZIP. Start with the [step-by-step QuickTherm guide](quick_pi_plugin/QUICK_THERM_USER_GUIDE.md), or inspect the [thermal implementation](quick_pi_plugin/quick_therm.py), [action entry point](quick_pi_plugin/quick_therm_entrypoint.py), and [plugin manifest](quick_pi_plugin/plugin.json).
+
 **Use Releases for published packages. KiCad 10 is the validated target.** KiCad 11-only installations are not supported yet: several engines still need KiCad 10 native Python. See [compatibility and known limits](docs/COMPATIBILITY.md).
 
 [Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
@@ -61,7 +63,7 @@ Every name below opens that plugin’s README. The [full tool directory](docs/US
 |---|---|---|
 | <img src="bom_studio_plugin/icon.png" width="64" height="64" alt="BOM Studio icon"> | [BOM Studio](bom_studio_plugin/README.md) | Saved schematic/project and desired fields |
 | <img src="embed_3d_plugin/icon.png" width="64" height="64" alt="Embed3D icon"> | [Embed3D](embed_3d_plugin/README.md) | Project plus library/model search paths |
-| <img src="quick_pi_plugin/icon.png" width="64" height="64" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) | Net, source/sink pads, voltage/current |
+| <img src="quick_pi_plugin/icon.png" width="64" height="64" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) and [QuickTherm](quick_pi_plugin/QUICK_THERM_USER_GUIDE.md) | DC rail inputs, or thermal field mapping and boundary conditions; two PCB Editor actions in one package |
 | <img src="trace_impedance_plugin/icon.png" width="64" height="64" alt="Trace RLC / Impedance icon"> | [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Connected path or zone terminals and stackup |
 | <img src="signal_integrity_advisor_plugin/icon.png" width="64" height="64" alt="Quick SI icon"> | [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal path, stackup and driver/load assumptions |
 | <img src="fanout_generator_plugin/icon.png" width="64" height="64" alt="Fanout Generator icon"> | [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Footprints/pads, netclass, pattern and layer |
@@ -78,7 +80,7 @@ Every name below opens that plugin’s README. The [full tool directory](docs/US
 
 ## Focused workflows, shared tools
 
-BOM Studio keeps templates, cell and bulk editing, grouping, and conditional exports in three primary views. Mechanical Check retains exact solids and adds a quick 2D envelope screen without FreeCAD. Copper Balancer reports rejected sites and per-tile density deficits. Quick PI includes decoupling placement, and Quick SI includes return-path and test-point workflows. These are distinct checks inside shared tools, not claims of full electrical or mechanical certification.
+BOM Studio keeps templates, cell and bulk editing, grouping, and conditional exports in three primary views. Mechanical Check retains exact solids and adds a quick 2D envelope screen without FreeCAD. Copper Balancer reports rejected sites and per-tile density deficits. Quick PI includes decoupling placement and a separate QuickTherm action; Quick SI includes return-path and test-point workflows. These are distinct checks inside shared tools, not claims of full electrical or mechanical certification.
 
 [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) is the suite's visual constraint manager: custom DRC rule forms, clearance matrices, netclasses, reusable sets and per-layer routing profiles share a staged workspace. Review generated rules and file diffs before offline apply, then validate with KiCad's native DRC.
 
