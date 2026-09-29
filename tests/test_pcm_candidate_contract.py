@@ -38,7 +38,7 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({'actions':actions,'version':pac
 
 def test_all_current_pcm_packages_validate_and_register_independently(tmp_path):
     plugin_paths=sorted(ROOT.glob('*_plugin/metadata.json'))
-    assert len(plugin_paths)==16
+    assert len(plugin_paths)==17
     output=tmp_path/'archives'
     for metadata_path in plugin_paths:
         plugin=metadata_path.parent
