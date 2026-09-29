@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import unittest
 
-from quick_pi_plugin.thermal_multilayer import solve_multilayer_thermal
+from quick_therm_plugin.thermal_multilayer import solve_multilayer_thermal
 
 
 def rectangle(x0=0, x1=12):

@@ -9,10 +9,10 @@ sys.path.insert(0,str(ROOT))
 if not (ROOT/'wayricad_runtime').is_dir():sys.path.insert(0,str(ROOT.parent))
 
 
-def main(*, entrypoint='desktop_entrypoint.py', start_tab=None):
+def main():
     from wayricad_runtime.bootstrap import relaunch, failure
     try:
-        status=relaunch(ROOT, entrypoint, profile='quick-pi')
+        status=relaunch(ROOT, 'desktop_entrypoint.py', profile='quick-pi')
         if status is not None:return status
         from wayricad_runtime.native_analysis import child_environment,active_saved_board
         parser=argparse.ArgumentParser(description=__doc__)
@@ -22,7 +22,6 @@ def main(*, entrypoint='desktop_entrypoint.py', start_tab=None):
         if not board.is_file() or board.suffix.lower() != '.kicad_pcb':
             raise ValueError('Choose a saved KiCad PCB.')
         command=[sys.executable,'-I',str(ROOT/'quickmain.py'),'--board',str(board),'--ui']
-        if start_tab:command.extend(('--start-tab',start_tab))
         process=subprocess.Popen(command,
             env=child_environment(),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         return process.wait()

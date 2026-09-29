@@ -3,7 +3,7 @@ import json
 import unittest
 from pathlib import Path
 
-from quick_pi_plugin.thermal_board_view import _hull, _inside, build_board_thermal_view
+from quick_therm_plugin.thermal_board_view import _hull, _inside, build_board_thermal_view
 
 
 FIXTURE = (Path(__file__).resolve().parents[2] / "mechanical_check_plugin" /
@@ -73,7 +73,7 @@ class NativeBoardViewTests(unittest.TestCase):
             build_board_thermal_view(self.board, data)
 
     def test_native_outline_feeds_conduction_radiation_airflow_model(self):
-        from quick_pi_plugin.thermal_network import solve_thermal_network
+        from quick_therm_plugin.thermal_network import solve_thermal_network
         data=result()
         data.update(environment='air',ambient_c=25.)
         for row in data['components']:row['heat_path']='air'

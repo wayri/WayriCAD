@@ -12,4 +12,4 @@ The suite still contains 16 independently installable PCM packages. Quick PI now
 - Run the affected Quick PI and QuickTherm tests, the repository CI matrix, and the native KiCad 10 launch and saved-board checks. Record skipped tests separately.
 - The merged source commit `52038ca` passed all eight jobs in [GitHub CI](https://github.com/wayri/WayriCAD/actions/runs/36498089796). All 19 uploaded asset digests and sizes matched the local build before publication.
 
-The [QuickTherm guide](../quick_pi_plugin/QUICK_THERM_USER_GUIDE.md) explains field mapping, virtual heatsinks, board models, result views, and unsupported physics.
+The [QuickTherm guide](../quick_therm_plugin/QUICK_THERM_USER_GUIDE.md) explains field mapping, virtual heatsinks, board models, result views, and unsupported physics. In 3.5.0, QuickTherm was a second Quick PI action; it became a standalone plugin in the 3.6.0 source.

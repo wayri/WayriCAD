@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from quick_pi_plugin import thermal_selection
+from quick_therm_plugin import thermal_selection
 from wayricad_runtime import context
 
 

@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from quick_pi_plugin.quick_therm import (
+from quick_therm_plugin.quick_therm import (
     analyze_board, extract_mapped_components, parse_field_quantity,
     simulate_steady_state,
 )

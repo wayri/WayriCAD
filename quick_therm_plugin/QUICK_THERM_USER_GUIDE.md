@@ -1,6 +1,6 @@
 # QuickTherm: step-by-step user guide
 
-QuickTherm is the **QuickTherm tab inside WayriCAD Quick PI**. It reads saved
+QuickTherm is the **standalone WayriCAD QuickTherm plugin**. It reads saved
 footprint properties, estimates steady-state component junction temperatures,
 and exports an HTML report with paired JSON evidence. It does not edit the PCB.
 The base component calculation is a lumped thermal screen. Optional board
@@ -11,6 +11,10 @@ Neither is CFD, a transient simulation or a qualified measurement.
 
 *UI illustration based on the implemented wxPython controls. The 1 W and 0.5 W
 results shown are synthetic examples, not a screen capture or a measured board.*
+
+![Native QuickTherm enlarged board heat-model view](examples/quicktherm-board-model-view.png)
+
+*Native KiCad 10.0.6 run on the public thermal demo board. The 10 m/s forced-air input and material values are illustrative; the overlay is an approximate board-midplane model, not a measurement.*
 
 ![Top-side board contour illustration from a public test fixture](quicktherm-board-map-illustration.png)
 
@@ -29,7 +33,7 @@ junction markers; the 3D geometry is illustrative.*
 
 1. In KiCad PCB Editor, save the board you intend to analyze and choose
    **WayriCAD QuickTherm** from the plugins menu. Its thermometer icon opens
-   directly on the thermal tab of the Quick PI package. QuickTherm reads
+   the independent QuickTherm window. QuickTherm reads
    the saved `.kicad_pcb` file; unsaved editor changes are not included.
 2. Add custom **footprint properties** with the power dissipated at the chosen
    operating point and the appropriate component thermal resistances. You choose
@@ -58,8 +62,7 @@ positive. Component power may be zero but cannot be negative.
 
 ## 2. Open QuickTherm and map fields
 
-1. Open **WayriCAD Quick PI** from the intended saved PCB Editor, then select
-   the **QuickTherm** tab.
+1. Open **WayriCAD QuickTherm** from the intended saved PCB Editor.
 2. Set **Dissipation field** to the PCB property containing power, such as
    `Power_W`.
 3. Choose **Environment**: **Air** or **Vacuum**. Enter the ambient or chamber
@@ -75,14 +78,20 @@ positive. Component power may be zero but cannot be negative.
    **Board to environment K/W**. This is the effective resistance of the actual
    board-to-chamber radiation and mechanical conduction path. It is not the
    in-air RθJA and cannot be derived from the UI preview.
+7. Optionally choose saved PCB property names for **Minimum Tj limit field**
+   and **Maximum Tj limit field**. The fields may contain bare Celsius numbers,
+   `85 °C`, or an absolute Kelvin value. Each selected component is checked
+   against its own mapped values. Missing or invalid limits show **UNKNOWN**;
+   values outside a valid bound show **FAIL**. The table sorts by clicking its
+   headings and colors each row by status.
 
 The field selectors list names found on the saved board. If a property is
 missing, save the PCB after adding it and use **Reload saved board** from the
-Quick PI window before remapping.
+QuickTherm window before remapping.
 
 ## 3. Choose the study scope
 
-Use the component checklist on the left of the QuickTherm tab. **Select all**
+Use the component checklist on the left of the QuickTherm window. **Select all**
 checks every saved footprint; **Clear** empties the scope. For a useful thermal
 screen, select the actual dissipating references and any explicitly zero-power
 parts you want recorded. Check that the selected list covers all power sources
@@ -245,22 +254,54 @@ electrothermal simulation is tracked in [SPIKE #1](https://github.com/wayri/SPIK
 
 ## 7. Export and repeat
 
+Use **Expand board view…** for a large, resizable top, bottom, contour, 3D or
+board-model viewport. Select **Place probe** and click a board coordinate to
+add a labeled virtual temperature probe. The probe table lists side,
+coordinates, temperature, source and status. A probe samples the nearest valid
+field cell; it is **UNKNOWN** outside the board or field coverage. With only
+the basic lumped screen, a probe samples interpolated junction estimates, not
+a board-surface temperature. Run the optional board model for an approximate
+board-temperature probe. **Clear probes** removes them from the next report.
+
+The component table places estimated junction, selected minimum/maximum limit
+and **PASS / FAIL / UNKNOWN** status in its first columns. Click a heading to
+sort. A passing limit check is only as sound as its power, Rθ and temperature
+limits; missing property values never silently pass.
+
 Click **Export report…** after a successful run. QuickTherm writes a local
 `.html` summary and paired `.json` file with the saved-board top view, labeled
 contour, per-component table and analytics, plus exact mapped fields, scope,
-heatsink definitions, assumptions and coverage. Keep the files
+probe rows, temperature-limit decisions, heatsink definitions, assumptions and coverage. Keep the files
 together so the HTML link to JSON works. The report does not modify the PCB.
 After editing fields or replacing a component, save the PCB, reload it in Quick
-PI, review mapping and scope, and rerun. An old export is not automatically
+QuickTherm, review mapping and scope, and rerun. An old export is not automatically
 updated.
 
 The same read-only analysis can be scripted. Replace the example field names
 and resistance values with those on your saved board:
 
 ```text
-wayricad-pi C:/Projects/Example/board.kicad_pcb --quick-therm air --power-field Power_W --theta-ja-field RthetaJA --thermal-refs U1 U2 --html quicktherm-air.html
-wayricad-pi C:/Projects/Example/board.kicad_pcb --quick-therm vacuum --power-field Power_W --theta-jb-field RthetaJB --board-rtheta 10 --thermal-refs U2 --html quicktherm-vacuum.html
+wayricad-therm C:/Projects/Example/board.kicad_pcb --environment air --power-field Power_W --theta-ja-field RthetaJA --thermal-refs U1 U2 --html quicktherm-air.html
+wayricad-therm C:/Projects/Example/board.kicad_pcb --environment vacuum --power-field Power_W --theta-jb-field RthetaJB --board-rtheta 10 --thermal-refs U2 --html quicktherm-vacuum.html
+wayricad-therm C:/Projects/Example/board.kicad_pcb --environment air --power-field Power_W --theta-ja-field RthetaJA --temp-min-field Tmin_C --temp-max-field Tmax_C --probe Centre:30,20:top --thermal-refs U1 U2 --html quicktherm-check.html --require-limits-pass
 ```
+
+`--require-limits-pass` exits nonzero if any selected part fails or has an
+unknown limit, while still writing the reviewable output. For a repeatable
+board-model run, place the mapped fields, selected references, probes and
+thermal-network settings in a JSON config like the
+[public example](examples/thermal-demo-config.json), then run
+`wayricad-therm board.kicad_pcb --config thermal-config.json --html result.html --require-limits-pass`.
+
+For a native jobset, run:
+
+```text
+wayricad-jobs init Example.kicad_pro --preset thermal --output thermal-jobs.json --set thermal_config=thermal-config.json
+```
+
+Review the generated configuration, then use `wayricad-jobs run thermal-jobs.json`
+or add it to a KiCad jobset using `wayricad-jobs jobset`. The thermal preset
+uses the standalone QuickTherm CLI and fails on failed or unknown mapped limits.
 
 For virtual heatsinks, put a reference-to-sink mapping in `sinks.json`:
 
@@ -281,7 +322,7 @@ For virtual heatsinks, put a reference-to-sink mapping in `sinks.json`:
 Then map the component's RθJC and pass the same scope:
 
 ```text
-wayricad-pi C:/Projects/Example/board.kicad_pcb --quick-therm air --power-field Power_W --theta-jc-field RthetaJC --thermal-refs U1 --heatsinks sinks.json --html quicktherm-sink.html
+wayricad-therm C:/Projects/Example/board.kicad_pcb --environment air --power-field Power_W --theta-jc-field RthetaJC --thermal-refs U1 --heatsinks sinks.json --html quicktherm-sink.html
 ```
 
 The CLI returns an error if a required mapping, selected reference, thermal
@@ -297,10 +338,12 @@ path resistance, or environment-specific heatsink value is missing.
 | Heatsink shape changes but temperature does not | This is expected: geometry is visual only; the entered Rθ values drive the calculation. |
 | Temperature seems implausible | Recheck the operating-point power, thermal characterization conditions, units, missing heat sources, contact path and mounting. |
 
-QuickTherm omits spatial gradients, component-to-component heat spreading,
-parallel heatsink/board paths, temperature-dependent power and materials,
-transients, chamber view factors and nonlinear radiation. A virtual sink with
-no real path to the environment cannot establish a finite vacuum steady state.
+The base lumped calculation omits spatial board gradients. Optional thin-sheet
+and layered models approximate heat spreading, convection and radiation using
+the declared inputs. They do not resolve airflow fields, package internals,
+temperature-dependent electrical losses, transients or chamber view factors.
+A virtual sink with no real path to the environment cannot establish a finite
+vacuum steady state.
 Use measurements or a qualified thermal model for design sign-off.
 
 The two SVG figures in this guide are **UI illustrations derived from the

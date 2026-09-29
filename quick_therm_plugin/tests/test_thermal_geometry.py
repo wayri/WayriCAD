@@ -10,8 +10,8 @@ try:
 except ImportError:
     p = None
 
-from quick_pi_plugin.thermal_geometry import collect_thermal_geometry
-from quick_pi_plugin.thermal_multilayer import solve_multilayer_thermal
+from quick_therm_plugin.thermal_geometry import collect_thermal_geometry
+from quick_therm_plugin.thermal_multilayer import solve_multilayer_thermal
 
 
 FIXTURE = (Path(__file__).resolve().parents[2] / "mechanical_check_plugin" /
@@ -103,7 +103,7 @@ class ThermalGeometryTests(unittest.TestCase):
     def test_native_geometry_solves_with_selected_plated_mount(self):
         geometry = collect_thermal_geometry(self.board, self.path)
         mount = next(row for row in geometry["mounting_holes"] if row["reference"] == "H1")
-        from quick_pi_plugin.service import execute
+        from quick_therm_plugin.service import execute
         inventory = execute({"action": "inspect", "board_path": str(self.path)})
         self.assertIn(mount["id"], {row["id"] for row in inventory["mounting_holes"]})
         view = {"components": [{"reference": "U1", "side": "top", "position_mm": [30, 20],
@@ -122,7 +122,7 @@ class ThermalGeometryTests(unittest.TestCase):
         self.assertLess(abs(solved["heat_balance"]["residual_w"]), 1e-4)
 
     def test_saved_board_quicktherm_service_layered_path(self):
-        from quick_pi_plugin.service import execute
+        from quick_therm_plugin.service import execute
         source = next(fp for fp in self.board.GetFootprints() if fp.GetReference() == "C1")
         source.SetField("Power_W", "1")
         source.SetField("Theta_JA", "40")

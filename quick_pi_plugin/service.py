@@ -72,70 +72,10 @@ def execute(request):
         nets=sorted({str(p.GetNetname()) for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0})
         terminals=[{'id':p.m_Uuid.AsString(),'label':f'{fp.GetReference()}.{p.GetNumber()}', 'net':str(p.GetNetname())}
                    for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0]
-        from .quick_therm import _footprint_properties
-        footprints=list(board.GetFootprints())
-        field_names=sorted({name for fp in footprints for name in _footprint_properties(fp)})
-        mounting_holes=[]
-        for fp in footprints:
-            for pad in fp.Pads():
-                if pad.GetAttribute() not in (pcbnew.PAD_ATTRIB_PTH,pcbnew.PAD_ATTRIB_NPTH):continue
-                drill=pcbnew.ToMM(pad.GetDrillSize().x)
-                if drill<=0:continue
-                mounting_holes.append({'id':pad.m_Uuid.AsString(),'reference':fp.GetReference(),
-                    'pad_number':str(pad.GetNumber()),'net':str(pad.GetNetname()),
-                    'plated':pad.GetAttribute()==pcbnew.PAD_ATTRIB_PTH,'drill_mm':drill})
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:
             raise ValueError('The board changed during inspection. Reload and run again.')
         return {'nets':nets,'terminals':terminals,'layers':[{'id':layer,'name':board.GetLayerName(layer)}
-                for layer in board.GetEnabledLayers().CuStack()],'source_sha256':before,
-                'component_references':sorted(fp.GetReference() for fp in footprints),'field_names':field_names,
-                'mounting_holes':mounting_holes}
-    if action=='quick_therm':
-        from .quick_therm import analyze_board
-        from .thermal_board_view import build_board_thermal_view
-        result=analyze_board(board,request['field_map'],environment=request['environment'],
-            ambient_c=request.get('ambient_c',20.),references=request.get('references'),
-            vacuum_board_to_environment_k_per_w=request.get('vacuum_board_to_environment_k_per_w'),
-            heatsinks=request.get('heatsinks'))
-        view=build_board_thermal_view(board,result)
-        thermal_network=None
-        if request.get('thermal_network_settings') is not None:
-            settings=dict(request['thermal_network_settings'])
-            settings['board_thickness_mm']=view.get('board_thickness_mm')
-            board_field=request.get('thermal_network_component_field')
-            if board_field:
-                from .quick_therm import _footprint_properties,parse_field_quantity
-                footprints={fp.GetReference():fp for fp in board.GetFootprints()}
-                resistances={};missing=[]
-                for row in result['components']:
-                    if row['heat_path']!='board':continue
-                    raw=_footprint_properties(footprints[row['reference']]).get(board_field)
-                    if raw is None or not str(raw).strip():
-                        missing.append(row['reference']);continue
-                    resistances[row['reference']]=parse_field_quantity(raw,'theta_jb_k_per_w')
-                settings['component_to_board_k_per_w']=resistances
-            else:missing=[]
-            sink_resistances={}
-            sink_key='theta_sa_air_k_per_w' if request['environment']=='air' else 'theta_sa_vacuum_k_per_w'
-            for row in result['components']:
-                if row['heat_path']=='heatsink':
-                    sink_resistances[row['reference']]=row['resistance_k_per_w']-row['heatsink'][sink_key]
-            if sink_resistances:settings['component_to_sink_k_per_w']=sink_resistances
-            if request.get('thermal_model_kind')=='multilayer':
-                from .thermal_geometry import collect_thermal_geometry
-                from .thermal_multilayer import solve_multilayer_thermal
-                geometry=collect_thermal_geometry(board,path)
-                thermal_network=solve_multilayer_thermal(geometry,view,result,settings)
-            else:
-                from .thermal_network import solve_thermal_network
-                thermal_network=solve_thermal_network(view,result,settings)
-            thermal_network['junction_mapping']={'board_field':board_field,
-                'board_references_with_field':sorted(settings.get('component_to_board_k_per_w',{})),
-                'board_references_missing_field':missing,
-                'sink_references_from_explicit_rtheta_jc_and_contact':sorted(sink_resistances)}
-        if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during QuickTherm analysis. Reload and run again.')
-        return {'quick_therm':result,'board_thermal_view':view,'thermal_network':thermal_network,
-                'request':request,'source_sha256':before}
+                for layer in board.GetEnabledLayers().CuStack()],'source_sha256':before}
     if action=='return_path':
         from .return_path import collect_board_evidence,audit_return_path
         evidence=collect_board_evidence(board,request['signal_net'],request['return_nets'])

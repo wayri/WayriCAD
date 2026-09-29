@@ -1,0 +1,25 @@
+{
+  "environment": "air",
+  "ambient_c": 20,
+  "field_map": {
+    "power_w": "Power_W",
+    "theta_ja_air_k_per_w": "RthetaJA"
+  },
+  "references": ["C1", "C2", "C3", "J1"],
+  "limit_fields": {
+    "minimum_c": "Tmin_C",
+    "maximum_c": "Tmax_C"
+  },
+  "probes": [
+    {"label": "Centre", "x_mm": 30, "y_mm": 20, "side": "top"},
+    {"label": "Near_C2", "x_mm": 47, "y_mm": 10, "side": "top"}
+  ],
+  "thermal_network_component_field": "RthetaJB",
+  "thermal_network_settings": {
+    "board_k_w_mk": 35,
+    "board_emissivity": 0.8,
+    "board_airflow_m_s": 10,
+    "sink_airflow_m_s": 0,
+    "grid_cells_long_axis": 48
+  }
+}

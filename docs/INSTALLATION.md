@@ -68,10 +68,10 @@ validate independent packages, preview the destination, then install with
 backups:
 
 ```console
-python build_pcm.py --output-dir .validation/candidate-pcm-3.5.0
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.5.0
-python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.5.0
-python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.5.0 --apply
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.0
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.0
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.0
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.0 --apply
 ```
 
 Restart PCB Editor after installation. These local candidate ZIPs can also be
