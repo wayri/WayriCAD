@@ -2,6 +2,8 @@
 
 This audit separates **PCB extraction**, **closed-form formula agreement**, and **physical accuracy**. A routed open-source board establishes copper geometry, not measured characteristic impedance. The comparisons below do not certify a fabrication stackup or frequency-dependent channel behavior.
 
+This records the **pre-3.6.1 baseline** and the topology guard. WayriCAD 3.6.1 adds corrected line models and a separate manual CPW/GCPW cross-section calculator; see the [current capability matrix](RLC_EMERGE_CAPABILITY_MATRIX.md) for its results. Automatic CPWG extraction from board copper remains unresolved.
+
 ## Inputs and provenance
 
 - [Berkeley Lab Marble](https://github.com/BerkeleyLab/Marble), local saved board SHA-256 `3304ba37c2bd891849fc36b500cd940934aaf1f2013a95639c03564fb925c512`. Its embedded stackup was read without substituting a separate manufacturing document.
