@@ -4,9 +4,9 @@
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current published release: 3.6.1 · [GPL-3.0 license](LICENSE).**
+**Current published release: 3.6.2 · [GPL-3.0 license](LICENSE).**
 
-**3.6.2 release candidate:** plugin startup has a loading window and suppresses wx's spurious command-line option dialog. See the [3.6.2 release notes](docs/RELEASE_NOTES_3.6.2.md).
+**New in 3.6.2:** plugin startup has a loading window and suppresses wx's spurious command-line option dialog. See the [3.6.2 release notes](docs/RELEASE_NOTES_3.6.2.md).
 
 **QuickTherm is a standalone plugin in 3.6.0.** Its own [package and example results](quick_therm_plugin/README.md), [step-by-step guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md), [source](quick_therm_plugin/quick_therm.py), and [KiCad manifest](quick_therm_plugin/plugin.json) are separate from Quick PI. Install its own [QuickTherm PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.0/WayriCAD-quick-therm-3.6.0-PCM.zip). Upgrade Quick PI to 3.6.0 to remove its former thermal action, then restart KiCad.
 
