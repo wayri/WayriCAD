@@ -13,3 +13,25 @@ def test_deferred_inspection_and_job_ignore_closed_window():
     closed = SimpleNamespace(_closed=True, _closing=False)
     QuickPIFrame._inspect(closed)
     QuickPIFrame._job(closed, {'action': 'inspect'}, lambda value: value, 'Reading board')
+
+
+def test_analysis_request_accepts_finite_inputs_and_rejects_nan():
+    def control(value):
+        return SimpleNamespace(GetValue=lambda: value)
+
+    selection = SimpleNamespace(GetSelection=lambda: 0)
+    sink = SimpleNamespace(GetSelection=lambda: 1)
+    frame = SimpleNamespace(
+        board_path='C:/Projects/Example/board.kicad_pcb',
+        net=control('VCC'), edge=control('0.5'), plating=control('0.025'),
+        source=selection, sink=sink, voltage=control('12'), current=control('1'),
+        temperature=control('20'), ambient=control('20'), limit=control('150'),
+        pulse=control('1'), load_mode=selection, _series_request=None,
+        _terminals=[{'id': 'R1.1'}, {'id': 'J1.1'}],
+    )
+    request = QuickPIFrame._request(frame, 'solve')
+    assert request['sink_current'] == 1
+    assert request['source_terminal'] == 'R1.1'
+    frame.current = control('nan')
+    with pytest.raises(ValueError, match='finite'):
+        QuickPIFrame._request(frame, 'solve')

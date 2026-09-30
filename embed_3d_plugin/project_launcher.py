@@ -1,4 +1,4 @@
-"""Independent project-library window; closing PCB Editor does not close it."""
+"""Independent Embed3D window; closing PCB Editor does not close it."""
 from __future__ import annotations
 import argparse
 import importlib
@@ -9,12 +9,13 @@ import subprocess
 import sys
 
 
-def launch(source='',advanced=False,library=False):
+def launch(source='',advanced=False,library=False,project_library=False):
     from wayricad_runtime.native_analysis import native_python,child_environment
     command=[str(native_python()),'-I',str(Path(__file__).resolve())]
     if source:command.extend(['--source',str(source)])
     if advanced:command.append('--advanced')
     if library:command.append('--library')
+    if project_library:command.append('--project-library')
     env=child_environment();env['WAYRICAD_EMBED3D_NO_REGISTER']='1'
     return subprocess.Popen(command,env=env,stdin=subprocess.DEVNULL,
                             creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
@@ -44,6 +45,7 @@ def saved_bridge(source):
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source',default='');parser.add_argument('--advanced',action='store_true');parser.add_argument('--library',action='store_true')
+    parser.add_argument('--project-library',action='store_true')
     args=parser.parse_args(argv)
     # wx.App reparses process arguments on Windows. The project path and our
     # switches were consumed above; leaving them triggers a KiCad "Unknown option"
@@ -62,8 +64,8 @@ def main(argv=None):
         launcher=importlib.import_module('.project_launcher',name)
         bridge=launcher.saved_bridge(args.source)
         if args.library:dialog=importlib.import_module('.ui',name).EmbedDialog(None,bridge)
-        elif args.advanced:dialog=importlib.import_module('.workspace_ui',name).WorkspaceDialog(None,bridge)
-        else:dialog=importlib.import_module('.project_ui',name).ProjectLibraryDialog(None,bridge,args.source)
+        elif args.project_library:dialog=importlib.import_module('.project_ui',name).ProjectLibraryDialog(None,bridge,args.source)
+        else:dialog=importlib.import_module('.workspace_ui',name).WorkspaceDialog(None,bridge)
         dialog.ShowModal();dialog.Destroy()
     except Exception as exc:
         wx.MessageBox(str(exc),'WayriCAD Embed3D',wx.OK|wx.ICON_ERROR)

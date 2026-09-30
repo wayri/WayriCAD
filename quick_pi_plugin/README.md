@@ -206,6 +206,11 @@ electrical suitability or convergence.
 
 ## If a run fails
 
+The console starts folded so the copper preview has more room. Expand it when
+you need job details; the plot supports Fit, wheel zoom and drag panning.
+If an older installation reports `name 'math' is not defined` after **Run
+analysis**, update Quick PI to 3.6.3 and restart PCB Editor.
+
 | Message or symptom | Next action |
 |---|---|
 | Missing/ambiguous stackup | Save explicit copper and dielectric thicknesses in Board Setup; retry the saved board. |

@@ -35,11 +35,10 @@ junction markers; the 3D geometry is illustrative.*
    **WayriCAD QuickTherm** from the plugins menu. Its thermometer icon opens
    the independent QuickTherm window. QuickTherm reads
    the saved `.kicad_pcb` file; unsaved editor changes are not included.
-2. Add custom **footprint properties** with the power dissipated at the chosen
-   operating point and the appropriate component thermal resistances. You choose
-   which property name means which quantity in QuickTherm. Names are
-   case-sensitive. A schematic field is useful only if its value is present in
-   the saved PCB footprint property that QuickTherm reads.
+2. You can enter dissipated power and thermal resistance directly in the
+   QuickTherm window. The values remain in the window and the PCB is not
+   modified. Alternatively, add custom **footprint properties** with those
+   values on the saved board and map their case-sensitive names in QuickTherm.
 3. Enter actual, characterized values. No power, thermal resistance, airflow,
    board radiation, or heatsink rating is inferred from a part number or shape.
    Keep the selected operating point and environmental assumptions together.
@@ -60,13 +59,32 @@ numbers mean watts. Accepted resistances include `40`, `40 K/W`, `40 °C/W`;
 bare resistance numbers mean kelvins per watt. Thermal resistances must be
 positive. Component power may be zero but cannot be negative.
 
-## 2. Open QuickTherm and map fields
+## 2. Open QuickTherm and enter component inputs
+
+1. Open **WayriCAD QuickTherm** from the intended saved PCB Editor. Choose
+   **Air** or **Vacuum** and review **Ambient °C**.
+2. In the checklist, select only parts whose power you intend to include.
+   Unselected heat sources are outside the estimate.
+3. Leave **Input source** at **Enter values per component** and click
+   **Enter component inputs…**. For every selected part, enter its power in W
+   and the applicable thermal resistance in K/W. In air this is RθJA; in
+   vacuum it is RθJB; for a virtual heatsink it is RθJC. Blank, invalid and
+   nonfinite values are rejected. Nothing is inferred from the PCB geometry.
+4. In vacuum, also enter the reviewed board-to-environment resistance for any
+   selected part without a virtual heatsink. This must represent the actual
+   radiation and conductive heat path, not an in-air RθJA.
+5. Click **Run QuickTherm**. The table, temperature chart and map identify the
+   parts that were solved. Exported HTML and JSON record every entered value
+   and identify the input source. These are estimates under your assumptions.
+
+### Saved footprint field workflow
+
+Choose **Use saved footprint fields** to reveal the field mappings, then:
 
 1. Open **WayriCAD QuickTherm** from the intended saved PCB Editor.
 2. Set **Dissipation field** to the PCB property containing power, such as
    `Power_W`.
-3. Choose **Environment**: **Air** or **Vacuum**. Enter the ambient or chamber
-   environment temperature in **Ambient °C**.
+3. Confirm **Environment** and **Ambient °C** in the setup row.
 4. For components **without** a virtual heatsink, map **RθJA field** in air or
    **RθJB field** in vacuum. The inactive field is not used. Air RθJA must be
    applicable to the actual PCB, mounting, orientation and airflow; a package

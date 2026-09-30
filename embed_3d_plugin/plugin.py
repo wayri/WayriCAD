@@ -9,14 +9,14 @@ class WayriCADEmbed3DPlugin(pcbnew.ActionPlugin):
     def defaults(self):
         self.name = 'WayriCAD Embed3D'
         self.category = 'Footprints / Portability'
-        self.description = 'Create project-local footprint, symbol and 3D libraries with reviewed links and a backup.'
+        self.description = 'Scan and select design assets to embed, relink or unwind into local files.'
         self.show_toolbar_button = True
         self.icon_file_name = toolbar_icon_path()
         self.dark_icon_file_name = toolbar_icon_path(dark=True)
 
     def Run(self):
         from .native import NativeBridge
-        from .project_ui import ProjectLibraryDialog
+        from .workspace_ui import WorkspaceDialog
         bridge, dialog, result = None, None, ''
         try:
             if getattr(pcbnew,'_wayricad_ipc',False):
@@ -29,7 +29,7 @@ class WayriCADEmbed3DPlugin(pcbnew.ActionPlugin):
                 launch(str(board.GetFileName()) if board is not None else '')
                 return  # independent window survives closing the source editor
             parent = wx.GetActiveWindow()
-            dialog = ProjectLibraryDialog(parent, bridge)
+            dialog = WorkspaceDialog(parent, bridge)
             dialog.ShowModal()
             result = dialog.result_message
         except Exception as exc:

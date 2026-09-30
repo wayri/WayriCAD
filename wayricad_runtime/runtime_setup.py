@@ -112,7 +112,13 @@ def _probe(python, requirements=()):
 
 def native_python():
     override = os.environ.get('WAYRICAD_KICAD_PYTHON')
-    candidates = [override] if override else [sys.executable]
+    candidates = [override] if override else []
+    python_names = {'python', 'python.exe', 'pythonw.exe'}
+    if not override and (sys.platform != 'win32' or
+                         Path(sys.executable).name.lower() in python_names):
+        # In PCB Editor, sys.executable can be pcbnew.exe. Probing it with
+        # Python's -I flag opens a second KiCad window and an option dialog.
+        candidates.append(sys.executable)
     if not override:
         for root in (os.environ.get('ProgramFiles', 'C:/Program Files'),
                      os.environ.get('ProgramW6432', 'C:/Program Files')):
@@ -123,6 +129,8 @@ def native_python():
             '/usr/bin/python3', '/usr/local/bin/python3',
         ])
     for candidate in dict.fromkeys(str(p) for p in candidates if p):
+        if sys.platform == 'win32' and Path(candidate).name.lower() not in python_names:
+            continue
         if Path(candidate).is_file() and _probe(candidate):
             # Resolving a POSIX venv executable symlink loses its site-packages.
             return Path(os.path.abspath(candidate))

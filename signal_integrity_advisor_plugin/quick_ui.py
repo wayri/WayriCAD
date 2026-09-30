@@ -45,7 +45,8 @@ class QuickSIPanel(wx.Panel):
         from .eye_ui import EyePanel
         self.eye_preview=EyePanel(self.views);self.views.AddPage(self.eye_preview,'Eye / step');right.Add(self.views,2,wx.EXPAND)
         self.status=wx.StaticText(self,label='Choose the source and receiver, review the inputs, then screen the path.');right.Add(self.status,0,wx.EXPAND|wx.ALL,7)
-        self.results=wx.ListCtrl(self,style=wx.LC_REPORT);self.results.InsertColumn(0,'Measure',width=210);self.results.InsertColumn(1,'Result / evidence',width=620);right.Add(self.results,1,wx.EXPAND)
+        self.results=wx.ListCtrl(self,style=wx.LC_REPORT);self.results.InsertColumn(0,'Measure',width=210);self.results.InsertColumn(1,'Result / evidence',width=620);right.Add(self.results,0,wx.EXPAND)
+        self.results.SetMinSize((-1, 175))
         root.Add(right,1,wx.EXPAND|wx.ALL,10);self.SetSizer(root)
         for name,control in self.fields.items():
             control.Bind(wx.EVT_COMBOBOX if isinstance(control,wx.ComboBox) else wx.EVT_TEXT,self.changed)

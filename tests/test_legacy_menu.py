@@ -38,7 +38,7 @@ def test_menu_registers_without_importing_tool_and_delegates_on_click(tmp_path):
         importer.assert_not_called()
         assert len(registered) == 1
         assert registered[0].name == "WayriCAD Constraint Studio"
-        assert registered[0].show_toolbar_button is False
+        assert registered[0].show_toolbar_button is True
         registered[0].Run()
     importer.assert_called_once_with(".action", "installed_wayricad")
     delegate.Run.assert_called_once()

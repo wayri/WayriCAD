@@ -10,6 +10,21 @@ from wayricad_runtime import runtime_setup as runtime
 
 
 class RuntimeSetupTests(unittest.TestCase):
+    def test_native_python_never_probes_kicad_gui_host(self):
+        with tempfile.TemporaryDirectory() as directory:
+            python = Path(directory) / 'KiCad' / '10.0' / 'bin' / 'python.exe'
+            python.parent.mkdir(parents=True)
+            python.touch()
+            with patch.object(runtime.sys, 'platform', 'win32'), \
+                 patch.object(runtime.sys, 'executable', 'C:/Program Files/KiCad/10.0/bin/pcbnew.exe'), \
+                 patch.dict(runtime.os.environ, {'ProgramFiles': directory,
+                                                 'ProgramW6432': directory}, clear=True), \
+                 patch.object(runtime, '_probe', return_value='KiCad Python') as probe:
+                chosen = runtime.native_python()
+            self.assertEqual(chosen, python)
+            self.assertTrue(all(Path(call.args[0]).name.lower() != 'pcbnew.exe'
+                                for call in probe.call_args_list))
+
     def test_ipc_launch_only_installs_tool_specific_dependencies(self):
         from wayricad_runtime import bootstrap, launcher
 
@@ -26,6 +41,14 @@ class RuntimeSetupTests(unittest.TestCase):
             bootstrap.relaunch(Path('plugin'), 'desktop_entrypoint.py', profile='quick-therm')
             self.assertEqual(ensure.call_args.args[0],
                              {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_QUICK_THERM})
+            bootstrap.relaunch(Path('plugin'), 'desktop_entrypoint.py', profile='quick-pi-board')
+            self.assertEqual(ensure.call_args.args[0],
+                             {key: value for key, value in runtime.REQUIREMENTS_QUICK_PI.items()
+                              if key != 'kipy'})
+            bootstrap.relaunch(Path('plugin'), 'desktop_entrypoint.py', profile='quick-therm-board')
+            self.assertEqual(ensure.call_args.args[0],
+                             {key: value for key, value in runtime.REQUIREMENTS_QUICK_THERM.items()
+                              if key != 'kipy'})
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

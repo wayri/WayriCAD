@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 from bomstudio.server import Application, Server
 from bomstudio.bridge import _check_sdk_version, BridgeUnavailable
+from bomstudio.desktop import DesktopUnavailable, run
 
 
 class LaunchHTTPTests(unittest.TestCase):
@@ -56,6 +57,46 @@ class LaunchHTTPTests(unittest.TestCase):
         for i in range(2):
             self.assertEqual(self.get(i, '/api/state')[0], 200)
             self.assertEqual(self.get(i, '/api/state', self.apps[1-i].token)[0], 401)
+
+    def test_embedded_startup_failure_opens_usable_local_browser(self):
+        # Use an unstarted server: the fallback itself must start and own it.
+        app = Application(demo=True)
+        server = Server(app)
+        opened = []
+        ready = []
+
+        def browser_open(url, new):
+            opened.append(url)
+            conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=10)
+            try:
+                conn.request('GET', '/')
+                page = conn.getresponse()
+                self.assertEqual(page.status, 200)
+                self.assertIn(b'BOM', page.read())
+                conn.request('GET', '/api/state', headers={'X-Bom-Token': app.token})
+                state = conn.getresponse()
+                self.assertEqual(state.status, 200)
+                payload = json.loads(state.read())
+                self.assertEqual(payload['ui_mode'], 'browser')
+                self.assertIsNotNone(payload['project'])
+                conn.request('POST', '/api/quit', body='{}', headers={
+                    'X-Bom-Token': app.token, 'Content-Type': 'application/json'})
+                self.assertEqual(conn.getresponse().status, 200)
+            finally:
+                conn.close()
+            return True
+
+        try:
+            with patch('bomstudio.desktop._run_embedded', side_effect=DesktopUnavailable('renderer timed out')), \
+                 patch('bomstudio.desktop.webbrowser.open', side_effect=browser_open):
+                run(server, on_ready=ready.append)
+            self.assertEqual(opened, [server.url])
+            self.assertEqual(ready, ['browser'])
+            self.assertIn('renderer timed out', app.startup_note)
+        finally:
+            server.server_close()
+            import shutil
+            shutil.rmtree(app.demo_directory)
 
 
 class SDKRangeTests(unittest.TestCase):

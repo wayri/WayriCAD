@@ -117,6 +117,36 @@ def sexpr_tokens(text):
     return re.findall(r'"(?:\\.|[^"\\])*"|[()]|[^\s()]+',text)
 
 
+def comparable_board_tokens(text):
+    """Ignore only KiCad IPC's transient direct footprint header metadata.
+
+    ``get_as_string()`` adds these three clauses to every footprint even when
+    the saved PCB omits them; saving the board does not remove the IPC-only
+    additions. All geometry, references, pad data, and other tokens remain
+    exact. Saved source bytes are still hashed separately by the release gate.
+    """
+    tokens=sexpr_tokens(text)
+    result=[];parents=[];skip_depth=0
+    transient={'version','generator','generator_version'}
+    for index,token in enumerate(tokens):
+        if skip_depth:
+            if token=='(':skip_depth+=1
+            elif token==')':skip_depth-=1
+            continue
+        if token=='(':
+            head=tokens[index+1] if index+1<len(tokens) else ''
+            if parents and parents[-1]=='footprint' and head in transient:
+                skip_depth=1
+                continue
+            parents.append(head)
+        elif token==')':
+            if not parents:raise ValueError('Malformed serialized PCB.')
+            parents.pop()
+        result.append(token)
+    if parents or skip_depth:raise ValueError('Malformed serialized PCB.')
+    return result
+
+
 def _routed_edge_metric(root, children):
     """Exact clearance for straight routing inside one closed straight outline.
 
@@ -335,7 +365,7 @@ def gate_key(files,profile,jobset,live_text):
     validate_profile(profile)
     payload={'files':{str(name):hashlib.sha256(data).hexdigest() for name,data in files.items()},
              'profile':asdict(profile),'jobset':str(jobset),
-             'live':hashlib.sha256(json.dumps(sexpr_tokens(live_text)).encode()).hexdigest()}
+             'live':hashlib.sha256(json.dumps(comparable_board_tokens(live_text)).encode()).hexdigest()}
     return hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()
 
 

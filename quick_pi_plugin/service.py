@@ -15,7 +15,7 @@ def run_job(request, cancelled=None, timeout=300):
         raise ValueError('Worker timeout must be finite and positive.')
     if cancelled and cancelled():raise InterruptedError('Quick PI cancelled before starting the worker.')
     from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_QUICK_PI, child_environment
-    python=ensure_runtime(REQUIREMENTS_QUICK_PI)
+    python=ensure_runtime({name: spec for name, spec in REQUIREMENTS_QUICK_PI.items() if name != 'kipy'})
     with tempfile.TemporaryDirectory(prefix='wayricad-quick-pi-') as temporary:
         root=Path(temporary); source=root/'request.json';target=root/'response.json'
         source.write_text(json.dumps(request,allow_nan=False),encoding='utf-8')

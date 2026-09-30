@@ -96,6 +96,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop'):
     ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X (mm)');ax.set_ylabel('Y (mm)')
     ax.grid(False)
     if not selected:
+        ax.set_aspect('auto')
         ax.text(.5,.5,'Choose a net and preview its copper.',ha='center',va='center',transform=ax.transAxes)
         figure.tight_layout();return ax
     for polygon in selected.get('polygons',[]):ax.add_patch(_polygon_patch(polygon))
@@ -180,7 +181,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop'):
     ax.autoscale_view();ax.invert_yaxis();ax.set_title(title,loc='left',fontsize=10)
     ax._wayricad_home=(ax.get_xlim(),ax.get_ylim())
     ax.set_anchor('C')
-    figure.subplots_adjust(left=.08,right=.90,bottom=.20,top=.90)
+    figure.subplots_adjust(left=.08,right=.90,bottom=.12,top=.94)
     return ax
 
 

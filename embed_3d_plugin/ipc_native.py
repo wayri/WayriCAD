@@ -12,7 +12,8 @@ class IPCBridge:
     supports_normalization=True
     supports_live_tools=False
     supports_native_roundtrip=False
-    capability_note=('Embed3D updates saved project files with backups. Save and close editors before applying. '
+    capability_note=('Selective Embed3D actions write new design copies or local asset folders. Save before scanning. '
+                     'Full-project localization updates saved files with a backup and requires closed editors. '
                      'As-placed normalization uses the installed KiCad 10 native helper; live-board tools require the legacy adapter.')
     model_structure=staticmethod(NativeBridge.model_structure)
     check_payloads=NativeBridge.check_payloads

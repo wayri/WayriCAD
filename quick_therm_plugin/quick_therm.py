@@ -78,6 +78,8 @@ def extract_mapped_components(board, field_map: Mapping[str, str], *, references
     seen = set()
     for footprint in board.GetFootprints():
         reference = str(footprint.GetReference())
+        if "*" in reference:
+            continue
         if wanted is not None and reference not in wanted:
             continue
         if reference in seen:
@@ -261,4 +263,46 @@ def analyze_board(board, field_map, *, environment, ambient_c,
                                    heatsinks=sinks)
     result["field_map"] = dict(field_map)
     result["references"] = None if references is None else sorted({str(ref) for ref in references})
+    return result
+
+
+def analyze_manual_board(board, values_by_reference, *, environment, ambient_c,
+                         references, vacuum_board_to_environment_k_per_w=None,
+                         heatsinks=None):
+    """Screen explicitly entered component values without changing the saved PCB."""
+    if not isinstance(values_by_reference, Mapping):
+        raise ValueError("Enter power and thermal resistance for each selected component.")
+    selected = [str(ref).strip() for ref in references or ()]
+    if not selected or any(not ref for ref in selected) or len(set(selected)) != len(selected):
+        raise ValueError("Select distinct dissipating components before entering thermal values.")
+    board_refs = {str(fp.GetReference()) for fp in board.GetFootprints()
+                  if "*" not in str(fp.GetReference())}
+    missing_refs = set(selected) - board_refs
+    if missing_refs:
+        raise ValueError("Selected references absent from saved board: " + ", ".join(sorted(missing_refs)))
+    sinks = _normalize_heatsinks(heatsinks, environment)
+    quantity = "theta_ja_air_k_per_w" if environment == "air" else "theta_jb_k_per_w"
+    rows = []
+    for ref in selected:
+        raw = values_by_reference.get(ref)
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"{ref}: enter explicit power and thermal resistance.")
+        required = "theta_jc_k_per_w" if ref in sinks else quantity
+        values = {}
+        for key in ("power_w", required):
+            if key not in raw or str(raw[key]).strip() == "":
+                raise ValueError(f"{ref}: enter {key}; no default is assumed.")
+            try:
+                values[key] = parse_field_quantity(raw[key], key)
+            except ValueError as exc:
+                raise ValueError(f"{ref}: {exc}") from exc
+        rows.append({"reference": ref, "values": values, "issues": [],
+                     "source_fields": {key: "Manual entry" for key in values}})
+    result = simulate_steady_state(rows, environment=environment, ambient_c=ambient_c,
+                                   vacuum_board_to_environment_k_per_w=vacuum_board_to_environment_k_per_w,
+                                   heatsinks=sinks)
+    result["field_map"] = {}
+    result["references"] = sorted(selected)
+    result["input_source"] = "Explicit values entered in QuickTherm; saved PCB was not modified."
+    result["manual_values"] = {row["reference"]: row["values"] for row in rows}
     return result

@@ -28,6 +28,8 @@ In KiCad Manager, open Plugin and Content Manager â†’ Install from File and
 
 The UI is a separate local desktop window. Windows requires a working WebView2 runtime; Linux requires wxGTK WebKit support. If an embedded runtime is unavailable, the launcher opens the same authenticated local interface in your installed browser. Use the pageâ€™s Quit button to stop the local service. KiCad 11 compatibility is based on capability checks and an open-ended minimum version; live KiCad 11 acceptance has not been run.
 
+In local browser mode, **Open project** uses KiCad's bundled wx file picker. You can also paste the absolute path to a saved `.kicad_pro` or root `.kicad_sch` file.
+
 When a saved project takes time to parse, a native WayriCAD loading window shows indeterminate progress, then the desktop window shows a loading message until its local workspace is ready. Neither stage edits the KiCad project. First-time dependency setup occurs before the GUI runtime is available and can still take longer without a loading window; startup failures use the existing error dialog and setup log.
 
 ## Current desktop workspace

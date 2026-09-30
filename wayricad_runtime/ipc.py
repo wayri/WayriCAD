@@ -197,10 +197,52 @@ class Item:
 
 
 def polygon_points(poly):
+    def arc_points(arc):
+        start=(arc.start.x,arc.start.y);mid=(arc.mid.x,arc.mid.y);end=(arc.end.x,arc.end.y)
+        if start==end and mid!=start:
+            # KiCad uses coincident endpoints with the midpoint opposite the
+            # start to encode a complete circular zone boundary.
+            cx=(start[0]+mid[0])/2;cy=(start[1]+mid[1])/2
+            radius=math.hypot(mid[0]-start[0],mid[1]-start[1])/2
+            angle=math.atan2(start[1]-cy,start[0]-cx)
+            step=min(math.pi/36,2*math.acos(max(-1.,1.-min(1000./radius,2.))))
+            count=max(72,math.ceil(2*math.pi/step))
+            if count>8192:
+                raise UnsupportedCapability('A curved polygon boundary needs more than 8192 tessellation segments.')
+            return [(round(cx+radius*math.cos(angle+2*math.pi*i/count)),
+                     round(cy+radius*math.sin(angle+2*math.pi*i/count))) for i in range(count)]
+        mx,my=mid[0]-start[0],mid[1]-start[1]
+        ex,ey=end[0]-start[0],end[1]-start[1]
+        cross=2*(mx*ey-my*ex)
+        if abs(cross)<1:
+            raise UnsupportedCapability('A curved polygon boundary has a degenerate arc.')
+        m2=mx*mx+my*my;e2=ex*ex+ey*ey
+        cx=(m2*ey-e2*my)/cross;cy=(e2*mx-m2*ex)/cross
+        radius=math.hypot(cx,cy)
+        start_angle=math.atan2(-cy,-cx)
+        mid_angle=math.atan2(my-cy,mx-cx)
+        end_angle=math.atan2(ey-cy,ex-cx)
+        ccw=(end_angle-start_angle)%(2*math.pi)
+        sweep=ccw if (mid_angle-start_angle)%(2*math.pi)<=ccw else ccw-2*math.pi
+        if abs(sweep)<1e-9 or not math.isfinite(radius):
+            raise UnsupportedCapability('A curved polygon boundary has an invalid sweep.')
+        # One micrometre maximum chord error; never silently truncate an arc.
+        step=min(math.pi/36,2*math.acos(max(-1.,1.-min(1000./radius,2.))))
+        count=max(2,math.ceil(abs(sweep)/step))
+        if count>8192:
+            raise UnsupportedCapability('A curved polygon boundary needs more than 8192 tessellation segments.')
+        return [start,*[(round(start[0]+cx+radius*math.cos(start_angle+sweep*i/count)),
+                         round(start[1]+cy+radius*math.sin(start_angle+sweep*i/count)))
+                        for i in range(1,count)],end]
+
     def ring(line):
-        if any(node.has_arc for node in line.nodes):
-            raise UnsupportedCapability('Curved polygon boundaries require polygon tessellation before geometry generation.')
-        return [(node.point.x,node.point.y) for node in line.nodes]
+        points=[]
+        for node in line.nodes:
+            segment=arc_points(node.arc) if node.has_arc else [(node.point.x,node.point.y)]
+            for point in segment:
+                if not points or point!=points[-1]:points.append(point)
+        if len(points)>1 and points[-1]==points[0]:points.pop()
+        return points
     return ring(poly.outline),[ring(h) for h in poly.holes]
 
 

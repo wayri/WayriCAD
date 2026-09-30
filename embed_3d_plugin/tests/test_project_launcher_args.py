@@ -18,8 +18,8 @@ def test_project_window_receives_source_without_wx_reparsing():
     def module(name, _package):
         if name == '.project_launcher':
             return SimpleNamespace(saved_bridge=lambda value: ('bridge', value))
-        assert name == '.project_ui'
-        return SimpleNamespace(ProjectLibraryDialog=lambda parent, bridge, value: dialog)
+        assert name == '.workspace_ui'
+        return SimpleNamespace(WorkspaceDialog=lambda parent, bridge: dialog)
 
     with patch.object(sys, 'argv', ['project_launcher.py', '--source', source]), \
          patch.dict(sys.modules, {'wx': SimpleNamespace(App=app)}), \

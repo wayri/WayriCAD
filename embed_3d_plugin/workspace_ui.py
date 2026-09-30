@@ -25,8 +25,16 @@ from . import workspace as ws
 from .cli_validation import find_cli, validate_schematic
 
 KIND_COLUMNS = {2:'symbols', 3:'footprints', 4:'models'}
-ACTION_LABELS = {'embed':'Embed checked','embed-all':'Embed all', 'unbundle':'Unbundle',
+ACTION_LABELS = {'embed':'Embed + relink selected','embed-all':'Embed all', 'unbundle':'Unwind to local folder',
                  'relink':'Relink', 'unbundle-relink':'Unbundle & relink'}
+
+
+def restore_selection(inventory, previous):
+    """New scans need an explicit choice; rescans retain available choices."""
+    inventory.select_all(value=False)
+    for row in inventory.rows:
+        for kind in ws.TYPES:
+            row.checked[kind] = bool(previous.get(row.key, {}).get(kind) and row.available(kind))
 
 
 class ComponentModel(dv.DataViewIndexListModel):
@@ -98,12 +106,38 @@ def attach_component_model(control, changed):
     return model
 
 
+class LiveText(wx.TextCtrl):
+    """Read-only result text that avoids wx.StaticText measurement assertions.
+
+    KiCad's Windows wx build can reject a dynamic StaticText.SetLabel call after
+    a scan or preview worker completes. TextCtrl.ChangeValue updates its native
+    text control without requesting a non-native measuring DC.
+    """
+
+    def __init__(self, parent, label, *, multiline=False, size=(-1, -1)):
+        style=wx.TE_READONLY|wx.BORDER_NONE
+        if multiline:style|=wx.TE_MULTILINE|wx.TE_WORDWRAP
+        super().__init__(parent,value=label,style=style,size=size)
+        self.SetBackgroundColour(parent.GetBackgroundColour())
+
+    def SetLabel(self, label):
+        self.ChangeValue(str(label))
+
+    def GetLabel(self):
+        return self.GetValue()
+
+    def Wrap(self, width):
+        # Multiline controls wrap natively; this keeps existing call sites.
+        return None
+
+
 class WorkspaceDialog(wx.Dialog):
     def __init__(self, parent, bridge, *, auto_scan=True):
         super().__init__(parent, title='WayriCAD Embed3D '+__version__+' · Design assets',
                          style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         self.bridge=bridge; self.result_message=''; self.inventory=None; self.resolver=None
         self.plan=None; self.valid=False; self.busy=False; self.closing=False; self.destroying=False
+        self._modal_active=False
         self.cancel_event=threading.Event(); self.worker=None; self.source_signature=None
         self.cli=find_cli(); self._updating=False
         self.task=''; self.last_error=''; self.last_traceback=''; self.scan_report={}
@@ -113,6 +147,13 @@ class WorkspaceDialog(wx.Dialog):
         self.timer=wx.Timer(self); self.Bind(wx.EVT_TIMER,self.on_timer,self.timer)
         self.CentreOnParent(); self.refresh_controls()
         if auto_scan and (self.pcb_text.GetValue() or self.sch_text.GetValue()): wx.CallAfter(self.scan)
+
+    def ShowModal(self):
+        self._modal_active=True
+        try:
+            return super().ShowModal()
+        finally:
+            self._modal_active=False
 
     def _label(self,parent,label,bold=False):
         control=wx.StaticText(parent,label=label)
@@ -135,7 +176,7 @@ class WorkspaceDialog(wx.Dialog):
         box=wx.BoxSizer(wx.VERTICAL)
         header=wx.BoxSizer(wx.HORIZONTAL)
         words=wx.BoxSizer(wx.VERTICAL)
-        title=self._label(p,'Design assets',True)
+        title=self._label(p,'Scan · select · embed',True)
         font=title.GetFont();font.SetPointSize(font.GetPointSize()+2);title.SetFont(font)
         words.Add(title,0,wx.BOTTOM,self.FromDIP(3))
         title.SetToolTip('Select component assets, choose an operation, preview it, then apply to a new saved copy.')
@@ -160,7 +201,7 @@ class WorkspaceDialog(wx.Dialog):
         self.source_pane.GetPane().SetSizer(source_sizer)
         if not boardname:self.source_pane.Expand()
         box.Add(self.source_pane,0,wx.EXPAND|wx.BOTTOM,self.FromDIP(5))
-        saved=self._label(p,'Save in KiCad first. Changes create new design copies.')
+        saved=self._label(p,'Scan the saved design, check the assets you want, then preview Embed + relink or Unwind. Original files stay unchanged.')
         saved.Wrap(self.FromDIP(820));box.Add(saved,0,wx.EXPAND|wx.BOTTOM,self.FromDIP(8))
         if getattr(self.bridge,'capability_note',''):
             note=self._label(p,'IPC mode · saved designs · archived footprints')
@@ -181,7 +222,7 @@ class WorkspaceDialog(wx.Dialog):
         searchrow=wx.BoxSizer(wx.HORIZONTAL)
         self.search=wx.SearchCtrl(p,style=wx.TE_PROCESS_ENTER);self.search.SetDescriptiveText('Find reference, value, library or status…')
         self.search.ShowCancelButton(True);self.search.SetMinSize(self.FromDIP((210,-1)))
-        self.summary=self._label(p,'No saved design scanned yet.',True)
+        self.summary=LiveText(p,'No saved design scanned yet.',size=self.FromDIP((410,25)))
         searchrow.Add(self.search,1,wx.RIGHT,self.FromDIP(10));searchrow.Add(self.summary,0,wx.ALIGN_CENTER_VERTICAL)
         box.Add(searchrow,0,wx.EXPAND|wx.BOTTOM,self.FromDIP(5))
         self.table=dv.DataViewCtrl(p,style=dv.DV_ROW_LINES|dv.DV_VERT_RULES|dv.DV_SINGLE)
@@ -194,7 +235,8 @@ class WorkspaceDialog(wx.Dialog):
         self.table.AppendTextColumn('Status',5,width=self.FromDIP(260),flags=dv.DATAVIEW_COL_RESIZABLE|dv.DATAVIEW_COL_SORTABLE)
         self.table.SetMinSize(self.FromDIP((360,155)))
         box.Add(self.table,1,wx.EXPAND)
-        self.list_notice=self._label(p,'Choose a saved PCB or schematic, then Scan to list components.')
+        self.list_notice=LiveText(p,'Choose a saved PCB or schematic, then Scan to list components.',
+                                  multiline=True,size=self.FromDIP((-1,43)))
         self.list_notice.Wrap(self.FromDIP(840))
         box.Add(self.list_notice,0,wx.EXPAND|wx.TOP,self.FromDIP(5))
         self.table.SetToolTip('Blank cells mean the asset is unavailable. Each row checkbox controls that component; a 3D checkbox includes all its model entries.')
@@ -204,12 +246,12 @@ class WorkspaceDialog(wx.Dialog):
         dest=wx.FlexGridSizer(2,3,self.FromDIP(5),self.FromDIP(8));dest.AddGrowableCol(1,1)
         base=Path(boardname).parent if boardname else Path(self.bridge.project_path())
         stamp=datetime.now().strftime('%Y%m%d-%H%M%S')
-        self.assets_text=wx.TextCtrl(dp,value=str(base/('WayriCAD Embed3D-assets-'+stamp)))
+        self.assets_text=wx.TextCtrl(dp,value=str(base/'local'/('WayriCAD Embed3D-assets-'+stamp)))
         self.output_text=wx.TextCtrl(dp,value=str(base/('WayriCAD Embed3D-output-'+stamp)))
         for label,ctrl,handler in [('Asset folder',self.assets_text,self.browse_assets),('New design folder',self.output_text,self.browse_output)]:
             dest.Add(self._label(dp,label),0,wx.ALIGN_CENTER_VERTICAL);dest.Add(ctrl,1,wx.EXPAND)
             dest.Add(self._button(dp,'Choose…',handler))
-        self.assets_text.SetToolTip('Unbundle writes here. Relink reads this exact extraction folder, including its manifest.')
+        self.assets_text.SetToolTip('Unwind writes checked assets into this local folder. Relink reads this exact extraction folder and manifest.')
         self.output_text.SetToolTip('Embed and relink create this NEW folder, including both selected source designs. It must not already exist.')
         dp.SetSizer(dest)
         destination_sizer=wx.BoxSizer(wx.VERTICAL);destination_sizer.Add(dp,1,wx.EXPAND|wx.TOP,self.FromDIP(6))
@@ -250,7 +292,18 @@ class WorkspaceDialog(wx.Dialog):
         self.variables=wx.TextCtrl(op,style=wx.TE_MULTILINE,size=self.FromDIP((-1,46)))
         self.variables.SetHint('Optional path variables, one NAME=folder per line')
         opt.Add(self.variables,0,wx.EXPAND|wx.BOTTOM,self.FromDIP(6))
+        advanced_actions=wx.BoxSizer(wx.HORIZONTAL)
+        advanced_actions.Add(self._label(op,'Other actions'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,self.FromDIP(8))
+        self.operation_keys=['embed-all','relink','unbundle-relink']
+        self.operation=wx.Choice(op,choices=[ACTION_LABELS[key] for key in self.operation_keys]);self.operation.SetSelection(0)
+        self.operation.Bind(wx.EVT_CHOICE,self.invalidate_plan)
+        self.preview_button=self._button(op,'Preview other action',lambda event:self.preview(self.operation_keys[self.operation.GetSelection()]))
+        advanced_actions.Add(self.operation,0,wx.RIGHT,self.FromDIP(8))
+        advanced_actions.Add(self.preview_button)
+        opt.Add(advanced_actions,0,wx.BOTTOM,self.FromDIP(8))
         advbuttons=wx.BoxSizer(wx.HORIZONTAL)
+        self.project_button=self._button(op,'Localize entire project with backup…',self.open_project_library,
+            'Existing full-project workflow for project-local libraries and backup restore.')
         self.legacy_button=self._button(op,'Standalone library / live-board tools…',self.open_legacy,
             'Existing footprint-file, supplied-library, repair and live-model workflows. The main embed/unbundle/relink actions stay in this window.')
         if not (getattr(self.bridge,'supports_live_tools',True) or getattr(self.bridge,'supports_file_tools',False)):
@@ -259,7 +312,7 @@ class WorkspaceDialog(wx.Dialog):
         self.report_button=self._button(op,'Save preview report…',self.save_report)
         self.diagnostics_button=self._button(op,'Save scan diagnostics…',self.save_diagnostics,
             'Works even when Scan fails. Saves versions, source paths, counts and the error traceback locally; no model payloads or environment dump.')
-        advbuttons.Add(self.legacy_button,0,wx.RIGHT,self.FromDIP(8));advbuttons.Add(self.report_button,0,wx.RIGHT,self.FromDIP(8))
+        advbuttons.Add(self.project_button,0,wx.RIGHT,self.FromDIP(8));advbuttons.Add(self.legacy_button,0,wx.RIGHT,self.FromDIP(8));advbuttons.Add(self.report_button,0,wx.RIGHT,self.FromDIP(8))
         advbuttons.Add(self.diagnostics_button)
         opt.Add(advbuttons);op.SetSizer(opt)
         box.Add(self.options_pane,0,wx.EXPAND|wx.BOTTOM,self.FromDIP(6))
@@ -268,20 +321,20 @@ class WorkspaceDialog(wx.Dialog):
         self.details.SetValue('Select a component to inspect its symbol, footprint and model paths.\nChoose an action below to review the operation here before applying it.')
         box.Add(self.details,0,wx.EXPAND)
         p.SetSizer(box);outer.Add(p,1,wx.EXPAND|wx.ALL,self.FromDIP(14))
-        # A two-line fixed footer remains visible at small window sizes.
+        # Keep the common workflow visible even on small windows.
         bottom=wx.Panel(self);foot=wx.BoxSizer(wx.VERTICAL)
-        self.status=self._label(bottom,'No changes made. Scan, choose assets, then select an action.')
+        self.status=LiveText(bottom,'No changes made. Scan, choose assets, then select an action.',
+                             multiline=True,size=self.FromDIP((-1,43)))
         self.status.Wrap(self.FromDIP(860));foot.Add(self.status,0,wx.EXPAND|wx.BOTTOM,self.FromDIP(5))
         self.gauge=wx.Gauge(bottom,range=100,size=self.FromDIP((-1,4)));foot.Add(self.gauge,0,wx.EXPAND|wx.BOTTOM,self.FromDIP(7))
         runline=wx.BoxSizer(wx.HORIZONTAL)
-        self.operation_keys=list(ACTION_LABELS)
-        self.operation=wx.Choice(bottom,choices=list(ACTION_LABELS.values()));self.operation.SetSelection(0)
-        self.operation.SetToolTip('Embed all includes every available asset, regardless of the row checkboxes.')
-        self.operation.Bind(wx.EVT_CHOICE,self.invalidate_plan)
-        runline.Add(self.operation,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,self.FromDIP(8))
-        self.preview_button=self._button(bottom,'Preview',lambda event:self.preview(self.operation_keys[self.operation.GetSelection()]))
-        runline.Add(self.preview_button,0,wx.RIGHT,self.FromDIP(8))
-        self.footer_hint=self._label(bottom,'Filtered-out checks stay selected.')
+        self.embed_button=self._button(bottom,'Preview embed + relink',lambda event:self.preview('embed'),
+            'Embed checked component assets and relink the new saved design copy to local libraries.')
+        self.unwind_button=self._button(bottom,'Preview unwind',lambda event:self.preview('unbundle'),
+            'Extract checked embedded assets into the local folder without changing the saved design.')
+        runline.Add(self.embed_button,0,wx.RIGHT,self.FromDIP(8))
+        runline.Add(self.unwind_button,0,wx.RIGHT,self.FromDIP(8))
+        self.footer_hint=self._label(bottom,'Check component assets above.')
         runline.Add(self.footer_hint,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,self.FromDIP(8))
         self.close_button=self._button(bottom,'Close',self.on_close)
         self.apply_button=self._button(bottom,'Apply preview',self.apply_preview)
@@ -332,6 +385,8 @@ class WorkspaceDialog(wx.Dialog):
         checked=has and self.inventory.selection().any()
         key=self.operation_keys[self.operation.GetSelection()]
         self.preview_button.Enable(bool(has if key=='embed-all' else checked) and not self.busy)
+        self.embed_button.Enable(bool(checked) and not self.busy)
+        self.unwind_button.Enable(bool(checked) and not self.busy)
         self.operation.Enable(not self.busy)
         self.scan_button.Enable(not self.busy)
         for ctrl in (self.source_pane,self.destination_pane,self.options_pane,self.search,self.selection_panel):ctrl.Enable(not self.busy)
@@ -380,8 +435,13 @@ class WorkspaceDialog(wx.Dialog):
             notice=f'No search matches. {len(self.inventory.rows)} components were scanned; clear the search box to show them.'
         else:
             notice=''
-        self.list_notice.SetLabel(notice);self.list_notice.Show(bool(notice))
-        self.list_notice.Wrap(self.FromDIP(840))
+        # wx.StaticText.SetLabel('') can enter non-native text measurement while
+        # this scrolled dialog is being refreshed after a worker callback.
+        # Keep the previous hint while hidden and measure only visible text.
+        if notice:
+            self.list_notice.SetLabel(notice)
+            self.list_notice.Wrap(self.FromDIP(840))
+        self.list_notice.Show(bool(notice))
         self.refresh_summary()
         self.panel.FitInside()
 
@@ -400,7 +460,7 @@ class WorkspaceDialog(wx.Dialog):
             sibling=path.with_suffix('.kicad_sch' if kind=='pcb' else '.kicad_pcb')
             if not other.GetValue() and sibling.is_file():other.SetValue(str(sibling))
             stamp=datetime.now().strftime('%Y%m%d-%H%M%S')
-            self.assets_text.SetValue(str(path.parent/('WayriCAD Embed3D-assets-'+stamp)))
+            self.assets_text.SetValue(str(path.parent/'local'/('WayriCAD Embed3D-assets-'+stamp)))
             self.output_text.SetValue(str(path.parent/('WayriCAD Embed3D-output-'+stamp)))
         self.scan()
 
@@ -447,9 +507,7 @@ class WorkspaceDialog(wx.Dialog):
             def work():return ws.scan_design(pcb or None,sch or None,follow=follow,resolver=resolver,cancelled=self.cancel_event.is_set)
             def done(inventory):
                 self.inventory=inventory;self.resolver=resolver;self.source_signature=signature
-                for row in inventory.rows:
-                    if row.key in previous:
-                        for kind in ws.TYPES:row.checked[kind]=previous[row.key][kind] and row.available(kind)
+                restore_selection(inventory,previous)
                 # Only enable actions after the real view/model refresh succeeds.
                 self.filter_rows()
                 self.valid=True;self.refresh_controls()
@@ -463,7 +521,7 @@ class WorkspaceDialog(wx.Dialog):
                                           '\nSchematic: '+(sch or '(not selected)'))
                     self.status.SetLabel('Scan finished: 0 components in the saved files. Check the source paths and save the design in KiCad.')
                 else:
-                    self.details.SetValue(f'Scan complete: {count} components. Select assets, then choose Embed, Unbundle or Relink.\n'
+                    self.details.SetValue(f'Scan complete: {count} components. Check assets, then preview Embed + relink or Unwind.\n'
                         'The global checkboxes select assets; they do not hide components.\n\n'+'\n'.join(inventory.warnings))
                     message=f'Scan complete: {count} components. Original designs are unchanged.'
                     if not self.model.rows:message+=' Clear the search box to show the scanned rows.'
@@ -538,7 +596,7 @@ class WorkspaceDialog(wx.Dialog):
         self.timer.Stop();self.gauge.SetValue(0);self.busy=False
         if self.closing:
             self.destroying=True
-            if self.IsModal():self.EndModal(wx.ID_CANCEL)
+            if self._modal_active:self.EndModal(wx.ID_CANCEL)
             else:self.Hide()
             return
         if error:self.error(error)
@@ -613,6 +671,20 @@ class WorkspaceDialog(wx.Dialog):
         finally:dialog.Destroy()
         self.valid=False;self.status.SetLabel('Library tools closed. Save any live PCB changes, then Scan again.');self.refresh_controls()
 
+    def open_project_library(self,event=None):
+        if self.busy:return
+        from .project_ui import ProjectLibraryDialog
+        source=self.pcb_text.GetValue().strip() or self.sch_text.GetValue().strip()
+        dialog=ProjectLibraryDialog(self,self.bridge,source)
+        try:
+            dialog.ShowModal()
+            if dialog.result_message:self.result_message=dialog.result_message
+        finally:dialog.Destroy()
+        # The project-local workflow can change the saved sources. Require a new
+        # scan before this window can preview a selective operation.
+        self.valid=False;self.invalidate_plan()
+        self.status.SetLabel('Project-local tools closed. Scan saved files again before selecting assets.')
+
     def save_report(self,event=None):
         if self.plan is None:return
         with wx.FileDialog(self,'Save preview report',defaultFile='WayriCAD Embed3D-preview.json',wildcard='JSON (*.json)|*.json',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dlg:
@@ -658,5 +730,5 @@ class WorkspaceDialog(wx.Dialog):
             if event and hasattr(event,'Veto'):event.Veto()
             return
         self.timer.Stop();self.destroying=True
-        if self.IsModal():self.EndModal(wx.ID_CANCEL)
+        if self._modal_active:self.EndModal(wx.ID_CANCEL)
         else:self.Hide()

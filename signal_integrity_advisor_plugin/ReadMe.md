@@ -1,5 +1,9 @@
 # WayriCAD Quick SI
 
+The Quick SI route preview uses the available window height; its result table
+stays compact below the preview. Resize the window or use the preview's Fit
+control to inspect a route in more detail.
+
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
 ## Capabilities
