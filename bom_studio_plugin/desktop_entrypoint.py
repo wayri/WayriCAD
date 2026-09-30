@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """PCM toolbar entrypoint: prefer embedded local desktop, with browser fallback."""
 import sys
+import os
 from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -15,11 +16,17 @@ def desktop_main():
         sys.path.insert(0, str(root.parent))
     if '--help' not in sys.argv[1:] and '-h' not in sys.argv[1:]:
         from wayricad_runtime.bootstrap import relaunch, failure
+        from wayricad_runtime.loading import LoadingWindow
+        loading = LoadingWindow('WayriCAD BOM Studio') if not os.environ.get('WAYRICAD_SPLASH_READY') else None
         try:
-            status = relaunch(root, 'desktop_entrypoint.py', profile='bom')
+            status = relaunch(root, 'desktop_entrypoint.py', profile='bom', loading=loading)
             if status is not None: return status
+            ready = os.environ.get('WAYRICAD_SPLASH_READY')
+            if ready: Path(ready).touch()
         except Exception as exc:
             return failure(exc, 'WayriCAD BOM Studio')
+        finally:
+            if loading: loading.finish()
     sys.argv += ['--ui','desktop']
     return main()
 

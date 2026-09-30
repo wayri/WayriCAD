@@ -4,6 +4,7 @@ import argparse
 import importlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -65,6 +66,9 @@ def main(argv=None):
     try:
         frame = importlib.import_module(".ui", name).QuickThermFrame(None, args.board)
         frame.Show()
+        ready = os.environ.get("WAYRICAD_SPLASH_READY")
+        if ready:
+            Path(ready).touch()
         app.MainLoop()
         return 0
     except Exception as exc:

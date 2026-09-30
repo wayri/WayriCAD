@@ -152,10 +152,13 @@ def register(package_name, root):
             self.dark_icon_file_name = str(root / action["icons-dark"][0])
 
         def Run(self):
+            loading = None
             try:
                 if identifier in {"bom-studio", "quick-pi", "quick-therm"}:
                     _launch_desktop(root, identifier, pcbnew, self.name)
                     return
+                from .loading import LoadingWindow
+                loading = LoadingWindow(self.name)
                 module_name, class_name = (
                     (config["module"], config["class"]) if config is not None
                     else _NATIVE_ACTIONS[identifier]
@@ -172,10 +175,16 @@ def register(package_name, root):
                         sys.modules[nested_name] = nested
                 module = importlib.import_module("." + module_name, package_name)
                 self._delegate = getattr(module, class_name)()
+                from .launcher import _finish_loading_on_window
+                finish_loading = _finish_loading_on_window(wx, loading, None)
                 self._delegate.Run()
+                finish_loading()
             except Exception as exc:
                 print(traceback.format_exc(), file=sys.stderr)
                 wx.MessageBox(str(exc), self.name, wx.OK | wx.ICON_ERROR)
+            finally:
+                if loading is not None:
+                    loading.finish()
 
     menu_action = MenuAction()
     menu_action.register()

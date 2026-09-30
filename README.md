@@ -6,6 +6,8 @@
 
 **Current published release: 3.6.1 · [GPL-3.0 license](LICENSE).**
 
+**3.6.2 release candidate:** plugin startup has a loading window and suppresses wx's spurious command-line option dialog. See the [3.6.2 release notes](docs/RELEASE_NOTES_3.6.2.md).
+
 **QuickTherm is a standalone plugin in 3.6.0.** Its own [package and example results](quick_therm_plugin/README.md), [step-by-step guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md), [source](quick_therm_plugin/quick_therm.py), and [KiCad manifest](quick_therm_plugin/plugin.json) are separate from Quick PI. Install its own [QuickTherm PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.0/WayriCAD-quick-therm-3.6.0-PCM.zip). Upgrade Quick PI to 3.6.0 to remove its former thermal action, then restart KiCad.
 
 **Trace RLC and Quick SI in 3.6.1** include corrected microstrip and stripline estimates and a manual CPW/GCPW or coupled-stripline cross-section view. See the [capability matrix](docs/audits/RLC_EMERGE_CAPABILITY_MATRIX.md) for supported geometry and unresolved cases.
@@ -14,7 +16,7 @@
 
 [Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
 
-[3.6.1 release notes](docs/RELEASE_NOTES_3.6.1.md) · [3.6 release notes](docs/RELEASE_NOTES_3.6.0.md) · [3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
+[3.6.2 release notes](docs/RELEASE_NOTES_3.6.2.md) · [3.6.1 release notes](docs/RELEASE_NOTES_3.6.1.md) · [3.6 release notes](docs/RELEASE_NOTES_3.6.0.md) · [3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
 
 ## Install and open
 
@@ -25,7 +27,7 @@
 1. In KiCad Manager, open **Plugin and Content Manager**. Add the repository URL below, select **WayriCAD Plugin Repository**, and install the tools you need.
 2. Alternatively, download an individual `WayriCAD-<tool>-<version>-PCM.zip` from Releases and use **Install from File**. Do not unpack the ZIP yourself.
 3. In **Preferences → Plugins**, enable the API and configure Python. Let KiCad finish preparing each plugin environment, then restart the PCB Editor.
-4. Open and save your board/project, then launch a WayriCAD action from **Tools → External Plugins** or the **PCB Editor's top toolbar**. The KiCad 10 packages include lightweight menu launchers alongside their IPC toolbar actions. Maximize the editor if the toolbar is crowded; use **Preferences → PCB Editor → Plugins** to show or hide individual buttons. Toolbar launches use the originating project; standalone launches may need a file selection.
+4. Open and save your board/project, then launch a WayriCAD action from **Tools → External Plugins** or the **PCB Editor's top toolbar**. Use **WayriCAD — All tools…** at the top of the External Plugins menu to search the full installed list when the flat KiCad menu does not fit on screen. The KiCad 10 packages include lightweight menu launchers alongside their IPC toolbar actions. Maximize the editor if the toolbar is crowded; use **Preferences → PCB Editor → Plugins** to show or hide individual buttons. Toolbar launches use the originating project; standalone launches may need a file selection. A loading window appears while a plugin prepares its runtime and opens its own window.
 
 ```text
 https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json
@@ -109,8 +111,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.1
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.1
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.2
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.2
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.

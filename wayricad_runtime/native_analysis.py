@@ -172,7 +172,8 @@ def create_frame(root, tool, board_path, selection_ids=(), status=None, cancelle
     if board is None:
         raise ValueError('KiCad could not load the saved board.')
     restore_selection(board, selection_ids)
-    app = wx.App.Get() or wx.App(False)
+    from .loading import ensure_wx_app
+    app = ensure_wx_app(wx)
     frame = getattr(module, frame_name)(None, board, saved_board=True)
     return app, frame
 
@@ -187,7 +188,8 @@ def main(argv=None):
     loading = None
     try:
         import wx
-        app = wx.App.Get() or wx.App(False)
+        from .loading import ensure_wx_app
+        app = ensure_wx_app(wx)
         loading = _loading_window(wx, args.tool)
         loading.start()
         app, frame = create_frame(args.root, args.tool, args.board,
@@ -209,7 +211,8 @@ def main(argv=None):
             loading.finish()
             loading = None
         import wx
-        app = wx.App.Get() or wx.App(False)
+        from .loading import ensure_wx_app
+        app = ensure_wx_app(wx)
         wx.MessageBox(str(exc), 'WayriCAD electrical analysis', wx.OK | wx.ICON_ERROR)
         return 1
     finally:

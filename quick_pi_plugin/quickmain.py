@@ -4,6 +4,7 @@ import argparse
 import importlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -56,7 +57,10 @@ def main(argv=None):
     app=wx.App(False)
     try:
         frame=importlib.import_module('.ui',name).QuickPIFrame(None,args.board)
-        frame.Show();app.MainLoop();return 0
+        frame.Show()
+        ready = os.environ.get('WAYRICAD_SPLASH_READY')
+        if ready:Path(ready).touch()
+        app.MainLoop();return 0
     except Exception as exc:
         wx.MessageBox(str(exc),'WayriCAD Quick PI',wx.OK|wx.ICON_ERROR);return 2
 

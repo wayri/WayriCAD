@@ -1,6 +1,7 @@
 """Open the independent QuickTherm workspace for the saved PCB Editor board."""
 
 import argparse
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -13,9 +14,11 @@ if not (ROOT / "wayricad_runtime").is_dir():
 
 def main():
     from wayricad_runtime.bootstrap import failure, relaunch
+    from wayricad_runtime.loading import LoadingWindow
+    loading = LoadingWindow("WayriCAD QuickTherm") if not os.environ.get("WAYRICAD_SPLASH_READY") else None
 
     try:
-        status = relaunch(ROOT, "desktop_entrypoint.py", profile="quick-therm")
+        status = relaunch(ROOT, "desktop_entrypoint.py", profile="quick-therm", loading=loading)
         if status is not None:
             return status
         from wayricad_runtime.native_analysis import active_saved_board, child_environment
@@ -34,6 +37,9 @@ def main():
         return process.wait()
     except Exception as exc:
         return failure(exc, "WayriCAD QuickTherm")
+    finally:
+        if loading:
+            loading.finish()
 
 
 if __name__ == "__main__":

@@ -3,9 +3,12 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 
-def relaunch(root, entrypoint, *, profile='ipc'):
+def relaunch(root, entrypoint, *, profile='ipc', loading=None):
     from .runtime_setup import (ensure_runtime, child_environment, REQUIREMENTS_IPC,
                                 REQUIREMENTS_EXTRACT, REQUIREMENTS_BOM,
                                 REQUIREMENTS_QUICK_PI, REQUIREMENTS_QUICK_THERM,
@@ -23,7 +26,17 @@ def relaunch(root, entrypoint, *, profile='ipc'):
         requirements.update(REQUIREMENTS_MAGNETICS)
     if profile == 'mechanical':
         requirements['OpenGL'] = 'PyOpenGL>=3.1,<4'
-    python = ensure_runtime(requirements)
+    if loading is not None and loading.window is not None:
+        # Dependency preparation can take minutes. Keep the splash painting
+        # while pip runs without moving any wx calls off the GUI thread.
+        with ThreadPoolExecutor(max_workers=1) as worker:
+            prepared = worker.submit(ensure_runtime, requirements)
+            while not prepared.done():
+                loading.tick()
+                time.sleep(0.05)
+            python = prepared.result()
+    else:
+        python = ensure_runtime(requirements)
     if (sys.flags.isolated and
             os.path.normcase(os.path.abspath(python)) == os.path.normcase(os.path.abspath(sys.executable))):
         return None
@@ -32,10 +45,21 @@ def relaunch(root, entrypoint, *, profile='ipc'):
     # KiCad's GUI host may expose invalid inherited console handles on Windows.
     # Give the managed GUI process valid standard handles or Python can exit 1
     # before the plugin has a chance to display its own error dialog.
-    return subprocess.call(command, env=child_environment(),
-                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL,
-                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    options = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL,
+                   creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    env = child_environment()
+    if loading is None or loading.window is None:
+        return subprocess.call(command, env=env, **options)
+    with tempfile.TemporaryDirectory(prefix='wayricad-loading-') as folder:
+        ready = Path(folder) / 'ready'
+        env['WAYRICAD_SPLASH_READY'] = str(ready)
+        process = subprocess.Popen(command, env=env, **options)
+        while process.poll() is None and not ready.is_file():
+            loading.tick()
+            time.sleep(0.05)
+        loading.finish()
+        return process.wait()
 
 
 def failure(error, title='WayriCAD'):
@@ -44,7 +68,8 @@ def failure(error, title='WayriCAD'):
     print(title + ': ' + message, file=sys.stderr)
     try:
         import wx
-        app = wx.App.Get() or wx.App(False)
+        from .loading import ensure_wx_app
+        app = ensure_wx_app(wx)
         wx.MessageBox(message, title, wx.OK | wx.ICON_ERROR)
     except Exception:
         # The managed interpreter often has no wx precisely when setup fails.
