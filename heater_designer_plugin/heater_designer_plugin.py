@@ -4,6 +4,7 @@ import csv
 import json
 import os
 import webbrowser
+from dataclasses import asdict
 from pathlib import Path
 
 import pcbnew
@@ -13,6 +14,9 @@ from .analysis import (GRADIENT_AXES, ORGANIC_DEFAULT_POINTS, HeatZone, HeaterEn
                        HeaterResult, HeaterSpec, ThermalResult, ThermalSpec)
 from .guided_ui import add_workflow
 from .placement import validate_placement
+from .materials import MATERIALS, custom_bulk, custom_sheet
+from .patterns import PATTERNS, circular_envelope, split_circular_envelope
+from .foil_export import export_svg
 
 
 VERSION = "3.6.3"
@@ -129,6 +133,13 @@ class HeaterPreview(wx.Panel):
         # brush fills its interior even when a transparent brush was requested.
         dc.SetPen(wx.Pen("#263744",2));dc.SetBrush(wx.Brush("#f7f9fb"))
         dc.DrawRectangle(x1,y1,x2-x1,y2-y1)
+        if spec.pattern in ('Circular serpentine','Circular foil','Split circular foil','Circular maze','Annular arc meander'):
+            lead=spec.terminal_length_mm if spec.pattern=='Annular arc meander' else 0
+            cx,cy,radius=(split_circular_envelope(spec.width_mm,spec.height_mm,spec.terminal_length_mm)
+                          if spec.pattern=='Split circular foil' else circular_envelope(spec.width_mm,spec.height_mm,lead))
+            dc.SetPen(wx.Pen('#85939c',1,wx.PENSTYLE_DOT));dc.SetBrush(wx.TRANSPARENT_BRUSH)
+            dc.DrawCircle(*project(cx,cy),round(radius*scale))
+            if spec.pattern=='Annular arc meander':dc.DrawCircle(*project(cx,cy),round(spec.inner_diameter_mm/2*scale))
         if self.mode=="draft":
             points=[project(spec.width_mm*x/100,spec.height_mm*y/100)
                     for x,y in self.draft_points_percent]
@@ -161,6 +172,10 @@ class HeaterPreview(wx.Panel):
             radius=max(0.6,spec.trace_width_mm*1.8)*scale/2;drill=max(0.3,spec.trace_width_mm*0.7)*scale/2
             dc.SetBrush(wx.Brush("#ac7c26"));dc.SetPen(wx.Pen("#674d00",1));dc.DrawCircle(*project(via.x_mm,via.y_mm),max(1,round(radius)))
             dc.SetBrush(wx.Brush("#f7f9fb"));dc.SetPen(wx.TRANSPARENT_PEN);dc.DrawCircle(*project(via.x_mm,via.y_mm),max(1,round(drill)))
+        first,last=self.heater.segments[0],self.heater.segments[-1]
+        for label,x,y in (('A',first.x1_mm,first.y1_mm),('B',last.x2_mm,last.y2_mm)):
+            px,py=project(x,y);dc.SetPen(wx.Pen('#9e4b0e',1));dc.SetBrush(wx.Brush('#f5c278'));dc.DrawCircle(px,py,4)
+            dc.SetTextForeground('#603c16');dc.DrawText(label,px+6,py-14)
         if spec.pattern=="Organic path":
             for index,(x,y) in enumerate(spec.organic_points_percent,1):
                 px,py=project(spec.width_mm*x/100,spec.height_mm*y/100)
@@ -210,6 +225,8 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
                                                 ("organic_points", self.organic_points.GetValue()),
                                                 ("gradient_axis", self.gradient_axis.GetStringSelection()),
                                                 ("gradient_ratio", self.gradient_ratio.GetValue()),
+                                                ("material", self.material.GetStringSelection()),
+                                                ("material_values", tuple((k,v.GetValue()) for k,v in sorted(self.material_fields.items()))),
                                                 ("target_gradient", self.thermal_fields['target'].GetValue()),
                                                 ("sensor_keepaway", self.thermal_fields['sensor_clearance'].GetValue()))
     def _build(self):
@@ -227,12 +244,38 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         geometry, geometry_layout, grid = form_page(controls, "Geometry")
         thermal, thermal_layout, thermal_grid = form_page(controls, "Thermal")
         placement, _, placement_grid = form_page(controls, "Placement")
+        patterns, patterns_layout, patterns_grid = form_page(controls, "Pattern setup")
+        material_page, material_layout, material_grid = form_page(controls, "Material")
         self.fields = {}
         for label, key, value in (("Width (mm)","width",80),("Height (mm)","height",50),
                                    ("Trace width (mm)","trace",0.5),("Spacing (mm)","spacing",0.5),
-                                   ("Copper (µm)","copper",35),("Supply (V)","voltage",12)):
+                                   ("Conductor thickness (µm)","copper",35),("Supply (V)","voltage",12)):
             self.fields[key] = field(geometry, grid, label, value)
-        self.pattern = choice(geometry, grid, "Pattern", ["Serpentine", "Concentric spiral", "Zoned raster", "Organic path"])
+        self.pattern = choice(geometry, grid, "Pattern", ["Serpentine", "Concentric spiral", "Zoned raster", "Organic path", *PATTERNS])
+        for label,key,value in (("Inner hole diameter (mm)","inner_diameter",30),
+                                ("Bottom slot angle (°)","slot_angle",24),
+                                ("Terminal lead length (mm)","terminal_length",10),
+                                ("Random / maze seed","seed",1)):
+            self.fields[key]=field(patterns,patterns_grid,label,value)
+        preset_hint=wx.StaticText(patterns,label="Choose a starting layout, then adjust width, gap, dimensions and heat regions. The same seed recreates a maze.")
+        preset_hint.Wrap(285);patterns_layout.Add(preset_hint,0,wx.ALL,12)
+        for label,preset in (("Annular arc + bottom terminals","annular"),("Circular wide foil / narrow cuts","foil"),
+                             ("Split circular foil + side terminals","split"),("Seeded maze fill","maze")):
+            button=wx.Button(patterns,label=label)
+            button.Bind(wx.EVT_BUTTON,lambda event,p=preset:self.load_pattern_preset(p))
+            patterns_layout.Add(button,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        self.material_keys=list(MATERIALS)
+        self.material=choice(material_page,material_grid,"Heating material",[MATERIALS[k].name for k in self.material_keys]+["Custom bulk alloy","Custom sheet / film"])
+        self.material_fields={}
+        for label,key,value in (("Bulk resistivity (Ω·m)","rho",1.03e-6),
+                                ("Sheet resistance (Ω/square)","sheet",1),
+                                ("Custom TCR (/K, blank=unknown)","tcr",""),
+                                ("Custom reference (°C)","reference",20)):
+            self.material_fields[key]=field(material_page,material_grid,label,value)
+        self.material_note=wx.StaticText(material_page,label="")
+        self.material_note.Wrap(285);material_layout.Add(self.material_note,0,wx.ALL,12)
+        self.material.Bind(wx.EVT_COMBOBOX,self.update_material_controls)
+        self.update_material_controls()
         self.gradient_axis = choice(geometry, grid, "Heat-bias direction", GRADIENT_AXES)
         self.gradient_ratio = field(geometry, grid, "Directional heat bias (0.5–4)", 1.0)
         for label, key, value in (("Copper layers","layers",1),("Origin X (mm)","origin_x",20),("Origin Y (mm)","origin_y",20)):
@@ -268,7 +311,7 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         hint = wx.StaticText(zone_parent, label="One region per line: name, X%, Y%, radius%, resistance factor. Above 1 narrows the trace and raises local heating.")
         hint.Wrap(275)
         zone_layout.Add(hint, 0, wx.ALL, 6)
-        self.zones = wx.TextCtrl(zone_parent, value="Hotspot,50,50,18,1.8\nCold edge,10,50,12,0.65", style=wx.TE_MULTILINE)
+        self.zones = wx.TextCtrl(zone_parent, value="", style=wx.TE_MULTILINE)
         self.zones.SetMinSize((-1,90))
         zone_layout.Add(self.zones, 0, wx.EXPAND | wx.ALL, 6)
         body.Add(controls, 0, wx.EXPAND | wx.RIGHT, 14)
@@ -293,7 +336,7 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
             actions.Add(button,0,wx.LEFT,6)
         actions.Add(more_button(panel, [("Review placement",self.show_pcb),("Clear placement",self.clear_preview),
                                        ("Undo last apply",self.undo),("Redo",self.redo),
-                                       ("Export CSV…",self.export_csv),("Export JSON…",self.export_json)]),0,wx.LEFT,6)
+                                       ("Export foil SVG…",self.export_svg),("Export CSV…",self.export_csv),("Export JSON…",self.export_json)]),0,wx.LEFT,6)
         root.Add(actions,0,wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,14)
         panel.SetSizer(root)
     def _net_names(self):
@@ -346,7 +389,46 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         else:
             self.status.SetLabel(f"Organic path: {len(points)} point(s). Add at least three.")
     def _spec(self):
-        f=self.fields;return HeaterSpec(float(f['width'].GetValue()),float(f['height'].GetValue()),float(f['trace'].GetValue()),float(f['spacing'].GetValue()),float(f['copper'].GetValue()),float(f['voltage'].GetValue()),int(f['layers'].GetValue()),self.pattern.GetStringSelection(),self._zones(),self._organic_points(),self.gradient_axis.GetStringSelection(),float(self.gradient_ratio.GetValue()))
+        f=self.fields
+        return HeaterSpec(width_mm=float(f['width'].GetValue()),height_mm=float(f['height'].GetValue()),
+                          trace_width_mm=float(f['trace'].GetValue()),spacing_mm=float(f['spacing'].GetValue()),
+                          copper_um=float(f['copper'].GetValue()),voltage_v=float(f['voltage'].GetValue()),
+                          layers=int(f['layers'].GetValue()),pattern=self.pattern.GetStringSelection(),
+                          zones=self._zones(),organic_points_percent=self._organic_points(),
+                          gradient_axis=self.gradient_axis.GetStringSelection(),gradient_ratio=float(self.gradient_ratio.GetValue()),
+                          material=self._material(),inner_diameter_mm=float(f['inner_diameter'].GetValue()),
+                          slot_angle_deg=float(f['slot_angle'].GetValue()),terminal_length_mm=float(f['terminal_length'].GetValue()),
+                          random_seed=int(f['seed'].GetValue()))
+
+    def _material(self):
+        index=self.material.GetSelection()
+        if index<len(self.material_keys):return MATERIALS[self.material_keys[index]]
+        f=self.material_fields
+        tcr=float(f['tcr'].GetValue()) if f['tcr'].GetValue().strip() else None
+        reference=float(f['reference'].GetValue())
+        if index==len(self.material_keys):return custom_bulk(float(f['rho'].GetValue()),tcr,reference)
+        return custom_sheet(float(f['sheet'].GetValue()),tcr,reference)
+
+    def update_material_controls(self,event=None):
+        index=self.material.GetSelection();custom=index>=len(self.material_keys)
+        for key,control in self.material_fields.items():
+            control.Enable(custom and (key not in ('rho','sheet') or (key=='rho')==(index==len(self.material_keys))))
+        if custom:note="Enter supplier or measured values. Blank TCR leaves temperature correction unknown. Sheet mode uses Ω/square and does not infer bulk resistivity. Export foil SVG/CSV; PCB apply requires copper."
+        else:
+            material=MATERIALS[self.material_keys[index]]
+            note=f"{material.grade}. Nominal reference {material.reference_c:g} °C. {material.applicability}"
+        self.material_note.SetLabel(note);self.material_note.Wrap(285)
+
+    def load_pattern_preset(self,preset):
+        values={'width':80,'height':80,'trace':1,'spacing':0.3,'layers':1,'voltage':1.0}
+        if preset=='annular':values.update(height=90,inner_diameter=30,terminal_length=10,slot_angle=24);pattern='Annular arc meander'
+        elif preset=='foil':values.update(trace=3,spacing=0.25);pattern='Circular foil'
+        elif preset=='split':values.update(width=90,trace=3,spacing=0.25,terminal_length=10);pattern='Split circular foil'
+        else:values.update(trace=1.5,spacing=0.4);pattern='Seeded maze'
+        for key,value in values.items():self.fields[key].SetValue(str(value))
+        self.pattern.SetStringSelection(pattern);self.zones.SetValue('')
+        self.gradient_axis.SetStringSelection('Uniform');self.gradient_ratio.SetValue('1')
+        self.generate(None)
     def generate(self,_e,*,quiet=False):
         draft=None
         try:
@@ -385,7 +467,7 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
             self.guide.set_step(2,"Review the model gradient, sensor markers and temperature limits before applying copper.")
         except Exception as exc:wx.MessageBox(str(exc),"Thermal simulation failed",wx.OK|wx.ICON_ERROR)
     def _metrics(self):
-        self.metrics.DeleteAllItems();r=self.result;rows=[("Resistance",f"{r.resistance_ohm:.4f} ohm","20 C copper estimate"),("Current",f"{r.current_a:.3f} A","Check connector, supply, and copper current limits"),("Power",f"{r.power_w:.3f} W",f"{r.watts_per_cm2:.3f} W/cm2"),("Layers / vias",f"{r.spec.layers} / {len(r.vias)}","Series-connected copper layers")]
+        self.metrics.DeleteAllItems();r=self.result;rows=[("Material",r.spec.material.name,r.spec.material.grade),("Resistance",f"{r.resistance_ohm:.4f} ohm",f"Nominal at {r.spec.material.reference_c:g} °C"),("Current",f"{r.current_a:.3f} A","Check conductor and supply limits"),("Power",f"{r.power_w:.3f} W",f"{r.watts_per_cm2:.3f} W/cm2 of envelope"),("Layers / vias",f"{r.spec.layers} / {len(r.vias)}","Series-connected layers")]
         if self.thermal:
             rows.extend((("Temperature min / avg / max",f"{self.thermal.minimum_c:.1f} / {self.thermal.average_c:.1f} / {self.thermal.maximum_c:.1f} C","Reduced-order steady-state estimate"),("Thermal nonuniformity",f"{self.thermal.uniformity_c:.1f} C","Max minus min across model grid")))
             if r.spec.gradient_axis!="Uniform":
@@ -400,6 +482,8 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         for row in rows:i=self.metrics.InsertItem(self.metrics.GetItemCount(),row[0]);self.metrics.SetItem(i,1,row[1]);self.metrics.SetItem(i,2,row[2])
     def _board_items(self):
         if not self.result:return []
+        if self.result.spec.material != MATERIALS['copper']:
+            raise ValueError('KiCad PCB layers represent copper. Export this alloy/film design as foil SVG or CSV for its fabrication workflow.')
         ox=float(self.fields['origin_x'].GetValue());oy=float(self.fields['origin_y'].GetValue());items=[];net=None
         if self.net.GetValue()!="<no net>":
             try:net=self.board.GetNetsByName()[self.net.GetValue()]
@@ -432,14 +516,36 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         return []
     def export_csv(self,_e):
         if not self.result:return
+        try:self._check_review()
+        except Exception as exc:self._report_error(exc);return
         with wx.FileDialog(self,"Export heater geometry",wildcard="CSV (*.csv)|*.csv",style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:
             if d.ShowModal()!=wx.ID_OK:return
             with open(d.GetPath(),"w",newline="",encoding="utf-8") as h:w=csv.writer(h);w.writerow(("layer","x1_mm","y1_mm","x2_mm","y2_mm","width_mm","zone"));w.writerows((s.layer,s.x1_mm,s.y1_mm,s.x2_mm,s.y2_mm,s.width_mm,s.zone) for s in self.result.segments)
+    def export_svg(self,_e):
+        if not self.result:return
+        try:
+            self._check_review()
+            with wx.FileDialog(self,"Export foil conductor artwork",wildcard="SVG (*.svg)|*.svg",style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:
+                if d.ShowModal()==wx.ID_OK:Path(d.GetPath()).write_text(export_svg(self.result),encoding='utf-8')
+        except Exception as exc:self._report_error(exc)
     def export_json(self,_e):
         if not self.result:return
+        try:self._check_review()
+        except Exception as exc:self._report_error(exc);return
         with wx.FileDialog(self,"Export heater report",wildcard="JSON (*.json)|*.json",style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:
             if d.ShowModal()!=wx.ID_OK:return
             origin=(float(self.fields['origin_x'].GetValue()),float(self.fields['origin_y'].GetValue()))
             markers=[] if not self.thermal else [{"kind":m.kind,"role":m.role,"local_x_mm":m.x_mm,"local_y_mm":m.y_mm,"pcb_x_mm":origin[0]+m.x_mm,"pcb_y_mm":origin[1]+m.y_mm,"estimated_c":m.estimated_c,"copper_clearance_mm":m.copper_clearance_mm} for m in self.thermal.sensors]
-            payload={"resistance_ohm":self.result.resistance_ohm,"current_a":self.result.current_a,"power_w":self.result.power_w,"zone_power_w":self.result.zone_power_w,"pattern":self.result.spec.pattern,"organic_points_percent":self.result.spec.organic_points_percent if self.result.spec.pattern=="Organic path" else [],"gradient_axis":self.result.spec.gradient_axis,"gradient_ratio":self.result.spec.gradient_ratio,"sensor_markers":markers,"thermal":None if not self.thermal else {"minimum_c":self.thermal.minimum_c,"average_c":self.thermal.average_c,"maximum_c":self.thermal.maximum_c,"uniformity_c":self.thermal.uniformity_c,"directional_hot_minus_cool_c":self.thermal.gradient_delta_c,"notes":self.thermal.notes}};Path(d.GetPath()).write_text(json.dumps(payload,indent=2),encoding="utf-8")
+            payload={"resistance_ohm":self.result.resistance_ohm,"current_a":self.result.current_a,
+                     "power_w":self.result.power_w,"zone_power_w":self.result.zone_power_w,
+                     "pattern":self.result.spec.pattern,"gradient_axis":self.result.spec.gradient_axis,
+                     "gradient_ratio":self.result.spec.gradient_ratio,"sensor_markers":markers,
+                     "organic_points_percent":self.result.spec.organic_points_percent if self.result.spec.pattern=="Organic path" else [],
+                     "thermal":None if not self.thermal else {
+                         "minimum_c":self.thermal.minimum_c,"average_c":self.thermal.average_c,
+                         "maximum_c":self.thermal.maximum_c,"uniformity_c":self.thermal.uniformity_c,
+                         "directional_hot_minus_cool_c":self.thermal.gradient_delta_c,"notes":self.thermal.notes}}
+            payload['spec']=asdict(self.result.spec)
+            payload['terminals_mm']=[(self.result.segments[0].x1_mm,self.result.segments[0].y1_mm),(self.result.segments[-1].x2_mm,self.result.segments[-1].y2_mm)]
+            Path(d.GetPath()).write_text(json.dumps(payload,indent=2),encoding="utf-8")
     def on_close(self,event):self.clear_preview(None);event.Skip()

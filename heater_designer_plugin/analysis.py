@@ -5,6 +5,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field, replace
 
+from .materials import MATERIALS, Material, segment_resistance_ohm, resistance_factor
+from .patterns import PATTERNS, generate_path
+
 
 COPPER_RESISTIVITY = 1.724e-8
 COPPER_TCR = 0.00393
@@ -39,6 +42,11 @@ class HeaterSpec:
     organic_points_percent: tuple[tuple[float, float], ...] = ORGANIC_DEFAULT_POINTS
     gradient_axis: str = "Uniform"
     gradient_ratio: float = 1.0
+    material: Material = MATERIALS["copper"]
+    inner_diameter_mm: float = 30.0
+    slot_angle_deg: float = 24.0
+    terminal_length_mm: float = 10.0
+    random_seed: int = 1
 
 
 @dataclass(frozen=True)
@@ -125,6 +133,15 @@ class HeaterEngine:
             raise ValueError("Dimensions, copper thickness, and voltage must be positive.")
         if spec.spacing_mm < 0 or not 1 <= spec.layers <= 16:
             raise ValueError("Spacing must be non-negative and layers must be between 1 and 16.")
+        if not isinstance(spec.material, Material):
+            raise ValueError("Choose a material preset or a validated custom material model.")
+        if spec.material != MATERIALS['copper'] and spec.layers != 1:
+            raise ValueError("Alloy and film designs require one layer; external interlayer connections are not modeled.")
+        for zone in spec.zones:
+            if (not all(math.isfinite(v) for v in (zone.x_percent,zone.y_percent,zone.radius_percent,zone.resistance_factor))
+                    or not 0<=zone.x_percent<=100 or not 0<=zone.y_percent<=100
+                    or zone.radius_percent<=0 or zone.resistance_factor<=0):
+                raise ValueError("Heat regions need finite coordinates from 0 to 100, positive radius and positive resistance factor.")
         if spec.gradient_axis not in GRADIENT_AXES or not 0.5 <= spec.gradient_ratio <= 4.0:
             raise ValueError("Choose a supported gradient direction and a heat-bias ratio from 0.5 to 4.")
         pitch = spec.trace_width_mm + spec.spacing_mm
@@ -137,6 +154,19 @@ class HeaterEngine:
             base = HeaterEngine._serpentine(spec, 0)
         elif spec.pattern == "Organic path":
             base = HeaterEngine._organic(spec)
+        elif spec.pattern in PATTERNS:
+            if spec.layers != 1:
+                raise ValueError("Circular and maze foil patterns currently require one layer; use a legacy pattern for multilayer copper.")
+            if any(zone.resistance_factor < 1.0 for zone in spec.zones):
+                raise ValueError("Circular and maze heat regions can narrow the conductor (factor >= 1); widening would reduce the specified cut gap.")
+            points = generate_path(spec.pattern, spec.width_mm, spec.height_mm,
+                                   spec.trace_width_mm, spec.spacing_mm,
+                                   inner_diameter_mm=spec.inner_diameter_mm,
+                                   slot_angle_deg=spec.slot_angle_deg,
+                                   terminal_length_mm=spec.terminal_length_mm,
+                                   random_seed=spec.random_seed)
+            base = [Segment(*a, *b, spec.trace_width_mm, 0)
+                    for a, b in zip(points, points[1:])]
         else:
             raise ValueError("Choose a supported heater pattern.")
         if not base:
@@ -165,16 +195,16 @@ class HeaterEngine:
             end = per_layer[layer][-1]
             vias.append(ViaTransition(end.x2_mm, end.y2_mm, layer, layer + 1))
 
-        thickness_m = spec.copper_um * 1e-6
         resistance = sum(
-            COPPER_RESISTIVITY * (segment.length_mm / 1000.0)
-            / max((segment.width_mm / 1000.0) * thickness_m, 1e-15)
+            segment_resistance_ohm(spec.material, segment.length_mm,
+                                   segment.width_mm, spec.copper_um)
             for segment in segments
         )
         current = spec.voltage_v / max(resistance, 1e-12)
         zone_power: dict[str, float] = {}
         for segment in segments:
-            r = COPPER_RESISTIVITY * (segment.length_mm / 1000.0) / ((segment.width_mm / 1000.0) * thickness_m)
+            r = segment_resistance_ohm(spec.material, segment.length_mm,
+                                      segment.width_mm, spec.copper_um)
             zone_power[segment.zone] = zone_power.get(segment.zone, 0.0) + current * current * r
         power = spec.voltage_v * current
         return HeaterResult(spec, segments, vias, resistance, current, power,
@@ -182,7 +212,7 @@ class HeaterEngine:
 
     @staticmethod
     def resistance_at_temperature(result: HeaterResult, temperature_c: float) -> float:
-        return result.resistance_ohm * (1.0 + COPPER_TCR * (temperature_c - 20.0))
+        return result.resistance_ohm * resistance_factor(result.spec.material, temperature_c)
 
     @staticmethod
     def _serpentine(spec: HeaterSpec, layer: int, reverse: bool = False) -> list[Segment]:
@@ -308,7 +338,7 @@ class HeaterEngine:
                            if spec.gradient_ratio >= 1.0 else
                            1.0 + (1.0/spec.gradient_ratio-1.0)*(1.0-position))
         factor = max(0.25, min(4.0, region_factor*gradient_factor))
-        width = max(0.08, segment.width_mm / factor)
+        width = segment.width_mm / factor
         return Segment(segment.x1_mm, segment.y1_mm, segment.x2_mm, segment.y2_mm,
                        width, segment.layer, selected.name if selected else "Uniform")
 
@@ -322,11 +352,11 @@ class HeaterEngine:
             raise ValueError("Thermal properties and grid dimensions must be positive.")
         nx, ny = max(8, thermal.grid_x), max(8, thermal.grid_y)
         q = [[0.0 for _ in range(nx)] for _ in range(ny)]
-        thickness_m = heater.spec.copper_um * 1e-6
         current2 = heater.current_a * heater.current_a
         for segment in heater.segments:
             samples = max(2, int(segment.length_mm / max(heater.spec.trace_width_mm, 0.2)))
-            resistance = COPPER_RESISTIVITY * (segment.length_mm / 1000.0) / ((segment.width_mm / 1000.0) * thickness_m)
+            resistance = segment_resistance_ohm(heater.spec.material, segment.length_mm,
+                                               segment.width_mm, heater.spec.copper_um)
             sample_power = current2 * resistance / samples
             for index in range(samples):
                 t = (index + 0.5) / samples
@@ -359,9 +389,15 @@ class HeaterEngine:
         hot_index = max(range(len(flat)), key=flat.__getitem__)
         notes = [
             "Steady-state 2D board-plane conduction with uniform two-sided convection.",
-            "Copper spreading, radiation, enclosure airflow, adhesives, and attached masses require higher-fidelity validation.",
-            f"Copper resistance at average temperature: {HeaterEngine.resistance_at_temperature(heater, average):.4f} ohm.",
+            "Conductor spreading, radiation, enclosure airflow, adhesives, and attached masses require higher-fidelity validation.",
+            "Power uses reference-temperature resistance; electrical/thermal feedback is not iterated.",
         ]
+        try:
+            notes.append(f"{heater.spec.material.name} resistance at average temperature: {HeaterEngine.resistance_at_temperature(heater, average):.4f} ohm.")
+        except ValueError as exc:
+            notes.append(f"Temperature-adjusted resistance unavailable: {exc}")
+        if heater.spec.pattern in PATTERNS:
+            notes.append("Thermal substrate is the rectangular bounding envelope; circular edges and cutouts are not thermal boundaries in this model.")
         if maximum > 180.0:
             notes.append("Predicted temperature exceeds 180 C. The simple model is outside a safe design range; review power and materials before placement or fabrication.")
         gradient = HeaterEngine._thermal_gradient(temperatures, heater.spec.gradient_axis)

@@ -37,6 +37,12 @@ This patch corrects failures reported after 3.6.2 on KiCad 10 for Windows.
 - Manufacturing Readiness compares saved and live boards while ignoring only
   transient KiCad footprint header metadata. It still requires every design
   token to match and retains exact saved-file hashes for release checks.
+- Heater Designer adds circular rasters, split circular foil, annular arc
+  meanders with bottom leads, and seeded rectangular/circular maze paths.
+  Grade-specific alloy and custom bulk/sheet-resistance models drive loading
+  calculations. Positive conductor SVG export supports external foil workflows;
+  PCB apply retains copper semantics. Circular/maze patterns currently use one
+  layer, and thermal previews retain a rectangular substrate envelope.
 
 Update each installed WayriCAD package to 3.6.3 in Plugin and Content Manager,
 including QuickTherm as an independent package, then restart PCB Editor. An

@@ -172,6 +172,12 @@ def _heater_analyze(params: dict[str, Any]) -> dict[str, Any]:
     module = _module("heater_designer_plugin/analysis.py", "heater")
     spec_data = dict(params.get("spec", {}))
     spec_data["zones"] = tuple(module.HeatZone(**item) for item in spec_data.get("zones", []))
+    if isinstance(spec_data.get("material"), str):
+        spec_data["material"] = module.MATERIALS[spec_data["material"]]
+    elif isinstance(spec_data.get("material"), dict):
+        data = dict(spec_data["material"])
+        if "temperature_factors" in data:data["temperature_factors"] = tuple(tuple(row) for row in data["temperature_factors"])
+        spec_data["material"] = module.Material(**data)
     result = module.HeaterEngine.generate(module.HeaterSpec(**spec_data))
     output = _plain(result)
     if params.get("thermal") is not None:

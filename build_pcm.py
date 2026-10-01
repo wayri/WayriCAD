@@ -548,7 +548,7 @@ def create_plugin_zip(
                 "harness_workbench_plugin": ("analysis.py", "report.py"),
                 "protocol_constraint_composer_plugin": ("analysis.py",),
                 "manufacturing_readiness_plugin": ("analysis.py",),
-                "heater_designer_plugin": ("analysis.py",),
+                "heater_designer_plugin": ("analysis.py", "materials.py", "patterns.py"),
                 "quick_pi_plugin/decoupling": ("analysis.py",),
                 "signal_integrity_advisor_plugin/return_path": ("analysis.py", "diff_pairs.py"),
                 "planar_magnetics_plugin": ("analysis.py", "magnetic_circuit.py"),
