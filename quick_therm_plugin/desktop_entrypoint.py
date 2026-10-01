@@ -18,14 +18,15 @@ def main():
     loading = LoadingWindow("WayriCAD QuickTherm") if not os.environ.get("WAYRICAD_SPLASH_READY") else None
 
     try:
-        status = relaunch(ROOT, "desktop_entrypoint.py", profile="quick-therm", loading=loading)
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument("--board", type=Path)
+        args = parser.parse_args()
+        status = relaunch(ROOT, "desktop_entrypoint.py",
+                          profile="quick-therm-board" if args.board else "quick-therm", loading=loading)
         if status is not None:
             return status
         from wayricad_runtime.native_analysis import active_saved_board, child_environment
 
-        parser = argparse.ArgumentParser(description=__doc__)
-        parser.add_argument("--board", type=Path)
-        args = parser.parse_args()
         board = args.board.resolve() if args.board else active_saved_board()
         if not board.is_file() or board.suffix.lower() != ".kicad_pcb":
             raise ValueError("Choose a saved KiCad PCB.")

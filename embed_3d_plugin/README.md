@@ -21,19 +21,21 @@
 
 ## Overview
 
-One native window combines Embed3D, Localizer and Portable Assets. Keep symbols, footprints and 3D models together in **`local/`**, or choose another relative project folder. The existing `embed-3d` package identifier is retained for upgrades.
+The default window is a selective asset workspace. It scans saved PCB and schematic files, lists components, and lets you check the symbols, footprints and 3D model sets to process. The existing `embed-3d` package identifier is retained for upgrades.
 
 Install `WayriCAD-embed-3d-3.1.1-PCM.zip` using KiCad PCM **Install from File**. Enable the API in Preferences → Plugins. Local normalization and validation require KiCad 10 native Python; `WAYRICAD_KICAD_PYTHON` can select it. IPC is the forward integration path; KiCad 11 native acceptance remains unverified.
 
-Choose a saved project, PCB or root schematic and preview exact files and links. Save and close the project editors, then localize with a backup. Reopen the project afterward. Settings remember your folder, additional model roots and explicit `NAME=FOLDER` path variables.
+For the usual workflow, save the PCB and schematic, open Embed3D, and click **Scan**. Check the wanted component assets, then click **Preview embed + relink** and review the new-design output before **Apply preview**. This embeds checked assets and relinks the new saved design copy; source designs are unchanged. To take embedded assets back out as files, click **Preview unwind** and apply. The default destination is a unique folder under the project's `local/` directory. Unwind does not change the design; choose **Relink** under Options if a new externally linked design copy is also needed.
 
-Output contains a `.pretty` footprint library, `symbols/WayriCAD_Project.kicad_sym`, `models/`, and a content manifest. Project tables use `${KIPRJMOD}` links. Placed schematic footprint assignments, symbol IDs/cache keys, PCB footprint IDs and model addresses are updated together. Native footprint normalization and model-transform checks preserve placement. Schematic-only designs also collect assigned footprints.
+**Options & library tools → Localize entire project with backup** retains the full-project workflow. It keeps symbols, footprints and 3D models together in **`local/`**, or another relative project folder, and updates the saved project with a backup after a separate preview. Save and close project editors before that in-place operation. Settings remember the folder, additional model roots and explicit `NAME=FOLDER` path variables.
+
+Full-project localization output contains a `.pretty` footprint library, `symbols/WayriCAD_Project.kicad_sym`, `models/`, and a content manifest. Project tables use `${KIPRJMOD}` links. Placed schematic footprint assignments, symbol IDs/cache keys, PCB footprint IDs and model addresses are updated together. Native footprint normalization and model-transform checks preserve placement. Schematic-only designs also collect assigned footprints.
 
 Writes are staged and natively validated before publication. Replaced files are backed up under `.wayricad-backups/`; stale sources, conflicting unmanaged assets and modified managed libraries are protected. Failed publication rolls back. Repeated extraction keeps stable asset filenames.
 
-**More → Upgrade a project copy** converts older schematic hierarchies using the local KiCad CLI, preserving legacy reference/unit/page records and power-net semantics and comparing native connectivity. **Advanced asset tools** retains selective embed/unbundle/relink and footprint-file operations. The optional native **Advanced Live Assets** menu action retains tools requiring the actual PCB Editor context.
+The selective workspace's Options retains Embed all, separate Relink, combined Unbundle & relink, path and normalization settings, diagnostics, and live-board tools. The full-project window's **More → Upgrade a project copy** converts older schematic hierarchies using the local KiCad CLI, preserving legacy reference/unit/page records and power-net semantics and comparing native connectivity. The optional native **Advanced Live Assets** menu action retains tools requiring the actual PCB Editor context.
 
-![Native Embed3D preview](help-project-library.png)
+The checked 3D-model box applies to all model links on that component. Inspect its details before applying when a footprint has multiple model files. Search filters the list without changing checked selections.
 
 ```text
 wayricad-library localize-project board.kicad_pcb

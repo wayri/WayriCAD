@@ -147,7 +147,7 @@ def register(package_name, root):
             self.name = action["name"]
             self.category = "WayriCAD"
             self.description = action.get("description", manifest.get("description", ""))
-            self.show_toolbar_button = False  # The IPC action already owns that button.
+            self.show_toolbar_button = True
             self.icon_file_name = str(root / action["icons-light"][0])
             self.dark_icon_file_name = str(root / action["icons-dark"][0])
 

@@ -26,6 +26,11 @@ def write_diagnostic_report(path,bundle):
           '<a href="'+escape(json_path.name)+'">Complete JSON evidence</a>.</p>')
     if thermal:
         html+='<p>'+escape(thermal['model'])+' · '+escape(thermal['environment'])+' · ambient '+_number(thermal['ambient_c'],'°C')+'</p>'
+        if thermal.get('input_source'):
+            html+='<p><strong>Input source:</strong> '+escape(thermal['input_source'])+'</p>'
+            html+='<h2>Explicit component inputs</h2><pre>'+escape(json.dumps(thermal['manual_values'],indent=2,sort_keys=True))+'</pre>'
+        else:
+            html+='<p><strong>Input source:</strong> saved footprint fields '+escape(json.dumps(thermal.get('field_map',{}),sort_keys=True))+'</p>'
         html+='<p>Coverage: '+str(thermal['coverage']['solved'])+'/'+str(thermal['coverage']['scoped'])+' scoped components solved.</p>'
         view=bundle.get('board_thermal_view',{});analytics=view.get('analytics',{})
         network=bundle.get('thermal_network')

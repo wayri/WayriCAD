@@ -6,7 +6,7 @@ import os
 import shutil
 import sys
 import tempfile
-from .analysis import gate_key, saved_metrics, sexpr_tokens
+from .analysis import comparable_board_tokens, gate_key, saved_metrics
 
 SOURCE_SUFFIXES={'.kicad_pcb','.kicad_sch','.kicad_pro','.kicad_dru','.kicad_jobset','.kicad_sym','.kicad_mod','.step','.stp','.wrl'}
 
@@ -56,8 +56,8 @@ def capture_inputs(board_path,project_directory,profile,jobset,live_text):
         if not job_path.is_relative_to(root):raise ValueError('Save the selected jobset inside this project directory.')
         job_name=job_path.relative_to(root).as_posix()
         if job_name not in files:raise ValueError('The selected jobset is missing or is not a .kicad_jobset file.')
-    if sexpr_tokens(files[board_path.name].decode('utf-8-sig'))!=sexpr_tokens(live_text):
-        raise ValueError('The open board differs from its saved file. Save it in KiCad, then repeat the audit. IPC releases require exact serialized saved/live agreement.')
+    if comparable_board_tokens(files[board_path.name].decode('utf-8-sig'))!=comparable_board_tokens(live_text):
+        raise ValueError('The open board differs from its saved file beyond KiCad’s transient footprint metadata. Save it in KiCad, then repeat the audit. Release requires exact saved/live design agreement.')
     return files,gate_key(files,profile,job_name,live_text),job_name
 
 

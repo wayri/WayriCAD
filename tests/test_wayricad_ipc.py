@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from wayricad_runtime.ipc import Board, IPCPolySet, UnsupportedCapability, module
+from wayricad_runtime.ipc import Board, IPCPolySet, UnsupportedCapability, module, polygon_points
 from wayricad_runtime import launcher
 
 try:
@@ -123,6 +123,34 @@ class SDKContractTests(unittest.TestCase):
         with self.assertRaises(UnsupportedCapability):self.board.wrap(types.Pad()).GetBoundingBox()
         self.client.get_version.return_value=KiCadVersion(9,0,0,'9.0.0')
         with self.assertRaisesRegex(UnsupportedCapability,'10 or later'):module(self.client)
+
+    def test_curved_polygon_is_tessellated_with_fixed_endpoints(self):
+        shape=PolygonWithHoles()
+        arc=shape.proto.outline.nodes.add().arc
+        arc.start.x_nm=0;arc.start.y_nm=0
+        arc.mid.x_nm=50_000_000;arc.mid.y_nm=50_000_000
+        arc.end.x_nm=100_000_000;arc.end.y_nm=0
+        outline,holes=polygon_points(shape)
+        self.assertEqual([],holes)
+        self.assertEqual((0,0),outline[0])
+        self.assertEqual((100_000_000,0),outline[-1])
+        self.assertGreater(len(outline),30)
+        self.assertAlmostEqual(50_000_000,max(y for _,y in outline),delta=1000)
+        arc.mid.y_nm=0
+        with self.assertRaisesRegex(UnsupportedCapability,'degenerate arc'):
+            polygon_points(shape)
+
+    def test_circular_zone_outline_with_coincident_arc_endpoints(self):
+        shape=PolygonWithHoles()
+        arc=shape.proto.outline.nodes.add().arc
+        arc.start.x_nm=10_000_000;arc.start.y_nm=20_000_000
+        arc.mid.x_nm=12_000_000;arc.mid.y_nm=20_000_000
+        arc.end.x_nm=10_000_000;arc.end.y_nm=20_000_000
+        outline,_=polygon_points(shape)
+        self.assertGreaterEqual(len(outline),72)
+        self.assertEqual(len(outline),len(set(outline)))
+        self.assertAlmostEqual(11_000_000,sum(x for x,_ in outline)/len(outline),delta=1000)
+        self.assertAlmostEqual(20_000_000,sum(y for _,y in outline)/len(outline),delta=1000)
 
 
 class LauncherTests(unittest.TestCase):

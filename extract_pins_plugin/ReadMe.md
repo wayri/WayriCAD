@@ -276,10 +276,12 @@ python3 -m extract_pins_plugin extract --refs "J*" board.kicad_pcb
 --max-hops      Maximum hops (default: 10)
 ```
 
-### `list` - List board components
+### `board-list` - List board components
 ```
 --refs          Filter by reference pattern
 ```
+
+For a saved PCB, run `python -m extract_pins_plugin board-list board.kicad_pcb --refs "J*" --format json`. The output includes each matching reference and its readable footprint library ID.
 
 ---
 

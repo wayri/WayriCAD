@@ -14,6 +14,21 @@ from bomstudio.startup import load_with_progress
 
 
 class LaunchArguments(unittest.TestCase):
+    def test_browser_fallback_project_picker_uses_kicad_wx(self):
+        dialog = Mock()
+        dialog.__enter__ = Mock(return_value=dialog)
+        dialog.__exit__ = Mock(return_value=False)
+        dialog.ShowModal.return_value = 7
+        dialog.GetPath.return_value = 'C:/Projects/Example/board.kicad_pro'
+        wx = SimpleNamespace(App=Mock(), FileDialog=Mock(return_value=dialog),
+                             FD_OPEN=1, FD_FILE_MUST_EXIST=2, ID_OK=7)
+        wx.App.Get = Mock(return_value=None)
+        self.assertEqual(entrypoint._pick_with_wx(wx), 'C:/Projects/Example/board.kicad_pro')
+        wx.App.assert_called_once_with(False)
+        self.assertEqual(wx.FileDialog.call_args.kwargs['style'], 3)
+        dialog.ShowModal.return_value = 0
+        self.assertEqual(entrypoint._pick_with_wx(wx), '')
+
     def test_long_project_load_shows_indeterminate_window_and_returns_value(self):
         calls = []
         def show(done):

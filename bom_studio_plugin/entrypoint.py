@@ -10,15 +10,21 @@ import webbrowser
 
 def pick():
     try:
-        import tkinter as tk
-        from tkinter import filedialog
-        root=tk.Tk();root.withdraw();root.attributes('-topmost',True)
-        path=filedialog.askopenfilename(title='Open KiCad project — WayriCAD BOM Studio',filetypes=[('KiCad project or root schematic','*.kicad_pro *.kicad_sch'),('All files','*.*')])
-        root.destroy()
+        import wx
+        path = _pick_with_wx(wx)
         if path:print(path)
     except Exception as exc:
         print(str(exc),file=sys.stderr);return 1
     return 0
+
+
+def _pick_with_wx(wx):
+    """Use KiCad's bundled wx runtime for the browser fallback file picker."""
+    app = wx.App.Get() or wx.App(False)
+    with wx.FileDialog(None, 'Open KiCad project — WayriCAD BOM Studio',
+                       wildcard='KiCad project or root schematic (*.kicad_pro;*.kicad_sch)|*.kicad_pro;*.kicad_sch|All files (*.*)|*.*',
+                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
+        return dialog.GetPath() if dialog.ShowModal() == wx.ID_OK else ''
 
 
 def main():

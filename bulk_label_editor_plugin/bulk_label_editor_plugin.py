@@ -37,7 +37,7 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.2"
+        self.version = "3.6.3"
 
     def Run(self) -> None:
         try:
@@ -178,7 +178,13 @@ class BulkLabelEditorFrame(wx.Frame):
             get_text = getattr(drawing, "GetText", None)
             set_text = getattr(drawing, "SetText", None)
             if callable(get_text) and callable(set_text):
-                self.items.append(EditableItem(type(drawing).__name__, "Board", get_text(), set_text, drawing, get_text))
+                # The IPC facade wraps both text and graphical shapes. Shapes
+                # expose the same method name but have no text value.
+                try:
+                    text = get_text()
+                except (AttributeError, TypeError):
+                    continue
+                self.items.append(EditableItem(type(drawing).__name__, "Board", text, set_text, drawing, get_text))
 
     def on_refresh(self, _event: Any) -> None:
         self.refresh_items()

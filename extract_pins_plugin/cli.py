@@ -31,7 +31,7 @@ from .core.controller_connector_mapper import (
     parse_traversal_rules,
 )
 
-VERSION = "3.6.2"
+VERSION = "3.6.3"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3
@@ -557,10 +557,21 @@ def cmd_board_extract(args: argparse.Namespace) -> int:
 
 
 def cmd_board_list(args: argparse.Namespace) -> int:
+    from .core.board_extract import _matches
+
     board = load_board(args.pcb)
     rows = []
     for fp in board.GetFootprints():
-        rows.append({"Reference": fp.GetReference(), "Value": fp.GetValue(), "Footprint": str(fp.GetFPID()), "Layer": fp.GetLayerName()})
+        reference = str(fp.GetReference())
+        if not _matches(reference, args.refs):
+            continue
+        footprint_id = fp.GetFPID()
+        rows.append({
+            "Reference": reference,
+            "Value": str(fp.GetValue()),
+            "Footprint": footprint_id.GetUniStringLibId(),
+            "Layer": str(fp.GetLayerName()),
+        })
     return write_rows(sorted(rows, key=lambda r: SchematicGraphParser.natural_sort_key(r["Reference"])), args.format, args.output, title="WayriCAD Board Components")
 
 

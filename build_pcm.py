@@ -13,7 +13,7 @@ PCM_DIR = "pcm"
 RELEASES_DIR = "releases"
 
 DEFAULT_BRANCH = os.environ.get("WAYRICAD_BRANCH", "develop")
-DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "3.6.2")
+DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "3.6.3")
 
 REPO_OWNER = "wayri"
 REPO_NAME = "WayriCAD"
@@ -548,7 +548,7 @@ def create_plugin_zip(
                 "harness_workbench_plugin": ("analysis.py", "report.py"),
                 "protocol_constraint_composer_plugin": ("analysis.py",),
                 "manufacturing_readiness_plugin": ("analysis.py",),
-                "heater_designer_plugin": ("analysis.py",),
+                "heater_designer_plugin": ("analysis.py", "materials.py", "patterns.py"),
                 "quick_pi_plugin/decoupling": ("analysis.py",),
                 "signal_integrity_advisor_plugin/return_path": ("analysis.py", "diff_pairs.py"),
                 "planar_magnetics_plugin": ("analysis.py", "magnetic_circuit.py"),

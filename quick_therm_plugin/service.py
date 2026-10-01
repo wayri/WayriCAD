@@ -18,7 +18,8 @@ def run_job(request, cancelled=None, timeout=300):
         REQUIREMENTS_QUICK_THERM, child_environment, ensure_runtime,
     )
 
-    python = ensure_runtime(REQUIREMENTS_QUICK_THERM)
+    python = ensure_runtime({name: spec for name, spec in REQUIREMENTS_QUICK_THERM.items()
+                             if name != "kipy"})
     with tempfile.TemporaryDirectory(prefix="wayricad-quick-therm-") as temporary:
         root = Path(temporary)
         source, target = root / "request.json", root / "response.json"
@@ -72,6 +73,8 @@ def execute(request):
     if not path.is_file() or path.suffix.lower() != ".kicad_pcb":
         raise ValueError("Choose a saved KiCad PCB.")
     before = hashlib.sha256(path.read_bytes()).hexdigest()
+    if request.get("expected_source_sha256") and request["expected_source_sha256"] != before:
+        raise ValueError("The saved PCB changed since it was loaded. Reload it and review the thermal inputs.")
     board = pcbnew.LoadBoard(str(path))
     if board is None:
         raise ValueError("KiCad could not load this PCB.")
@@ -80,7 +83,8 @@ def execute(request):
         from .quick_therm import _footprint_properties
 
         footprints = list(board.GetFootprints())
-        field_names = sorted({name for fp in footprints for name in _footprint_properties(fp)})
+        components = [fp for fp in footprints if "*" not in str(fp.GetReference())]
+        field_names = sorted({name for fp in components for name in _footprint_properties(fp)})
         mounting_holes = []
         for fp in footprints:
             for pad in fp.Pads():
@@ -98,22 +102,24 @@ def execute(request):
         if hashlib.sha256(path.read_bytes()).hexdigest() != before:
             raise ValueError("The board changed during inspection. Reload and run again.")
         return {
-            "component_references": sorted(fp.GetReference() for fp in footprints),
+            "component_references": sorted(fp.GetReference() for fp in components),
             "field_names": field_names, "mounting_holes": mounting_holes,
             "source_sha256": before,
         }
     if action != "quick_therm":
         raise ValueError("Unknown QuickTherm action: " + str(action))
 
-    from .quick_therm import analyze_board
+    from .quick_therm import analyze_board, analyze_manual_board
     from .thermal_board_view import build_board_thermal_view
 
-    result = analyze_board(
-        board, request["field_map"], environment=request["environment"],
-        ambient_c=request.get("ambient_c", 20.0), references=request.get("references"),
-        vacuum_board_to_environment_k_per_w=request.get("vacuum_board_to_environment_k_per_w"),
-        heatsinks=request.get("heatsinks"),
-    )
+    options = dict(environment=request["environment"], ambient_c=request.get("ambient_c", 20.0),
+                   references=request.get("references"),
+                   vacuum_board_to_environment_k_per_w=request.get("vacuum_board_to_environment_k_per_w"),
+                   heatsinks=request.get("heatsinks"))
+    if request.get("input_mode") == "manual":
+        result = analyze_manual_board(board, request.get("manual_values"), **options)
+    else:
+        result = analyze_board(board, request["field_map"], **options)
     view = build_board_thermal_view(board, result)
     thermal_network = None
     if request.get("thermal_network_settings") is not None:

@@ -19,6 +19,7 @@ class Item:
 
 def isolated_module():
     wx=types.ModuleType('wx');dv=types.ModuleType('wx.dataview');wx.Dialog=type('Dialog',(),{})
+    wx.TextCtrl=type('TextCtrl',(),{})
     dv.DataViewIndexListModel=FakeIndexModel;wx.dataview=dv
     name='embed_3d_plugin._workspace_ui_test'
     spec=importlib.util.spec_from_file_location(name,ROOT/'workspace_ui.py')
@@ -49,15 +50,23 @@ class MatrixContractTests(unittest.TestCase):
         self.a.checked['models']=True;self.model.replace([self.b]);self.assertTrue(self.a.checked['models'])
         self.model.replace([self.a,self.b]);self.assertTrue(self.model.GetValueByRow(0,4))
     def test_numeric_reference_sort(self):self.assertGreater(self.model.Compare(Item(0),Item(1),0,True),0)
+    def test_new_scan_requires_selection_and_rescan_preserves_it(self):
+        inventory=Inventory(None,None,[self.a,self.b],{},[]);inventory.select_all()
+        self.mod.restore_selection(inventory,{})
+        self.assertFalse(inventory.selection().any())
+        self.mod.restore_selection(inventory,{'a':{'models':True,'symbols':True}})
+        self.assertTrue(self.a.checked['models'])
+        self.assertTrue(self.a.checked['symbols'])
+        self.assertFalse(self.b.checked['footprints'])
     def test_buttons_include_separate_and_combined_actions(self):
-        self.assertEqual(set(self.mod.ACTION_LABELS.values()),{'Embed checked','Embed all','Unbundle','Relink','Unbundle & relink'})
-    def test_plugin_opens_project_library_and_retains_workspace_under_more(self):
+        self.assertEqual(set(self.mod.ACTION_LABELS.values()),{'Embed + relink selected','Embed all','Unwind to local folder','Relink','Unbundle & relink'})
+    def test_plugin_opens_selective_workspace_and_keeps_project_library(self):
         text=(ROOT/'plugin.py').read_text();tree=ast.parse(text)
         imports=[n for n in ast.walk(tree) if isinstance(n,ast.ImportFrom)]
-        self.assertTrue(any(n.module=='project_ui' for n in imports))
+        self.assertTrue(any(n.module=='workspace_ui' for n in imports))
         self.assertTrue(any(n.module=='project_launcher' for n in imports))
         self.assertNotIn('dialog = EmbedDialog',text)
-        self.assertIn('from .workspace_ui import WorkspaceDialog',(ROOT/'project_ui.py').read_text())
+        self.assertIn('from .project_ui import ProjectLibraryDialog',(ROOT/'workspace_ui.py').read_text())
     def test_ui_avoids_whole_window_fit_and_hardcoded_colours(self):
         text=(ROOT/'workspace_ui.py').read_text()
         self.assertNotIn('SetForegroundColour',text);self.assertNotIn('self.Fit()',text)

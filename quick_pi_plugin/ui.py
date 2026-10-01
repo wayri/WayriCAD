@@ -1,6 +1,7 @@
 """Native Quick PI window: saved copper, mesh and DC results in one workflow."""
 from __future__ import annotations
 from pathlib import Path
+import math
 import threading
 import wx
 from matplotlib.figure import Figure
@@ -82,6 +83,7 @@ class QuickPIFrame(wx.Frame):
         self.summary=wx.StaticText(panel,label='Choose two pads on one net. Run creates the mesh and solves the DC current path.')
         root.Add(self.summary,0,wx.EXPAND|wx.ALL,12)
         self.console=wx.CollapsiblePane(panel,label='Console',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        self.console.Collapse(True)
         console_panel=self.console.GetPane();console_layout=wx.BoxSizer(wx.VERTICAL)
         self.console_log=wx.TextCtrl(console_panel,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,95))
         self.console_input=wx.TextCtrl(console_panel,style=wx.TE_PROCESS_ENTER)

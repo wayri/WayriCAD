@@ -5,6 +5,12 @@
 ## Capabilities
 
 - Designs series-connected serpentine, zoned-raster, and concentric-spiral copper heaters.
+- Generates circular rasters, wide circular foil strips, annular arc meanders
+  with two bottom terminals, split circular foil with adjacent side terminals,
+  and seeded rectangular or circular maze fills.
+- Calculates loading for copper, Nikrothal 80, INCONEL 600, MANGANIN,
+  ISOTAN constantan, custom bulk alloys, and custom sheet-resistance films.
+- Exports positive conductor SVG artwork in millimetres for foil workflows.
 - Designs organic series paths from ordered control points entered as percentages or placed by clicking the preview.
 - Adjusts regional trace resistance to bias local Joule heating.
 - Provides directional width bias and a model-based search for a requested hot-to-cool temperature difference.
@@ -26,6 +32,65 @@
 - Fabrication requires coupled-solver and physical-prototype validation of temperature, current density, materials, airflow, and control stability.
 
 ## Overview
+
+### Circular, annular and maze layouts
+
+Use **Pattern setup** to load an annular, circular foil or maze preset, then
+adjust the Geometry dimensions, trace width and spacing. Spacing is the cut
+gap between conductor strips. Circular foil uses wide strips with narrow gaps;
+circular serpentine uses the same clipped series raster with user-selected
+width. Annular arc meanders alternate around a bottom slot, with one series
+path ending at the two bottom leads. Configure its inner diameter, slot angle
+and lead length. Width and height describe the complete envelope, including
+leads; the circle is inscribed in the available space.
+**Split circular foil** fills two half-disks with vertical strips, joins them
+at the opposite midline, and brings both terminals to the left. Its lead length
+reserves space on the left instead of the bottom.
+
+**Seeded maze** and **Circular maze** produce one connected, nonbranching series
+route. Changing the seed changes its turns; repeating a seed reproduces it.
+Circular maze coverage follows complete grid cells, so its edge is stepped.
+These six patterns currently use a single conductor layer. Heating regions
+may narrow their strips (resistance factor at least 1); widening is rejected
+because it would consume the specified gap. Directional heat bias remains
+available. The existing organic path supports manually drawn routes.
+
+### Materials and foil export
+
+Select the exact material on **Material**. Presets use nominal reference
+resistivity for annealed copper, Kanthal Nikrothal 80, Special Metals INCONEL
+alloy 600, Isabellenhuette MANGANIN and ISOTAN CuNi44. They are grade-specific
+bulk/wire data, not measurements of a deposited film. Enter actual supplier
+or measured resistivity and optional TCR using **Custom bulk alloy**.
+**Custom sheet / film** uses resistance in ohms per square directly:
+`R = sheet resistance × length / width`. Conductor thickness is used for bulk
+materials; sheet mode already includes thickness in its measured property.
+
+Reference resistance, current and power use the chosen material. Temperature
+correction uses the published table or coefficient where available and rejects
+extrapolation. MANGANIN and ISOTAN publish coefficient ranges; the tool leaves
+their unique TCR unknown. A blank custom TCR also remains unknown; enter zero
+only when an explicitly constant-resistance model is intended. Thermal previews
+continue with reference-temperature power and identify missing corrections.
+They do not iterate electrical/thermal feedback. Circular edges, slots and holes
+are geometry boundaries, while this thermal model still uses a rectangular
+substrate envelope. It is not a circular-film or cutout thermal solver.
+
+Use **More → Export foil SVG** for positive conductor artwork in physical
+millimetres, or CSV for ordered strip coordinates and widths. SVG records the
+material and design properties as metadata. It contains round-ended strips,
+not kerf-compensated cutting paths. Non-copper artwork is exported for an
+external foil process; **Apply to PCB** accepts the copper preset because KiCad
+PCB layers represent copper. No alloy assignment is written into a KiCad file.
+Nominal strip resistance omits contact resistance, bend current crowding,
+thermal expansion and process tolerances. Review those effects and measure
+the actual film before fabrication.
+
+Material data sources: [Copper Development Association](https://help.copper.fyi/hc/en-us/article_attachments/14627231747484),
+[Kanthal Nikrothal 80](https://www.kanthal.com/products/datasheets/material-datasheets/wire/resistance-heating-wire-and-resistance-wire/nikrothal-80/),
+[Special Metals INCONEL 600](https://www.specialmetals.com/documents/technical-bulletins/inconel/inconel-alloy-600.pdf),
+[Isabellenhuette MANGANIN](https://www.isabellenhuette.com/de/fileadmin/Daten/Praezisionslegierungen/Datenblaetter_Widerstand/MANGANIN.pdf),
+[Isabellenhuette ISOTAN](https://www.isabellenhuette.com/hubfs/Files/Data-sheets/LE/Resistor/ISOTAN.pdf).
 
 Design series-connected serpentine, zoned-raster, or concentric-spiral copper
 heaters. Regional resistance factors narrow or widen the trace to bias local

@@ -3,7 +3,7 @@ import json
 import unittest
 
 from quick_therm_plugin.quick_therm import (
-    analyze_board, extract_mapped_components, parse_field_quantity,
+    analyze_board, analyze_manual_board, extract_mapped_components, parse_field_quantity,
     simulate_steady_state,
 )
 
@@ -47,6 +47,29 @@ class QuickThermTests(unittest.TestCase):
         self.assertAlmostEqual(by_ref['U1']['junction_c'], 45)
         self.assertAlmostEqual(by_ref['U2']['junction_c'], 45)
         json.dumps(result, allow_nan=False)
+
+    def test_manual_inputs_screen_without_saved_thermal_fields(self):
+        bare = Board([Footprint('U1', {}), Footprint('U2', {})])
+        result = analyze_manual_board(bare, {
+            'U1': {'power_w': '500mW', 'theta_ja_air_k_per_w': '40 K/W'},
+            'U2': {'power_w': '1 W', 'theta_ja_air_k_per_w': '20 K/W'},
+        }, environment='air', ambient_c=25, references=['U1', 'U2'])
+        self.assertEqual(result['coverage']['solved'], 2)
+        self.assertEqual({row['junction_c'] for row in result['components']}, {45})
+        self.assertEqual(result['manual_values']['U1']['power_w'], .5)
+        self.assertIn('Explicit values', result['input_source'])
+
+    def test_manual_inputs_require_complete_explicit_values(self):
+        bare = Board([Footprint('U1', {})])
+        for values in ({}, {'U1': {'power_w': '1'}},
+                       {'U1': {'power_w': 'NaN', 'theta_ja_air_k_per_w': '10'}}):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                analyze_manual_board(bare, values, environment='air', ambient_c=20,
+                                     references=['U1'])
+        with self.assertRaisesRegex(ValueError, 'absent from saved board'):
+            analyze_manual_board(bare, {'U42': {'power_w': '1',
+                                 'theta_ja_air_k_per_w': '10'}}, environment='air',
+                                 ambient_c=20, references=['U42'])
 
     def test_vacuum_shared_board_analytical_and_ranking(self):
         result = analyze_board(self.board, self.map, environment='vacuum', ambient_c=20,

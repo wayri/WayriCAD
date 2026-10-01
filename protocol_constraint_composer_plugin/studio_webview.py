@@ -57,7 +57,10 @@ class VisualWorkspace:
         self.view.Bind(wx.html2.EVT_WEBVIEW_LOADED, self.loaded)
         self.view.Bind(wx.html2.EVT_WEBVIEW_ERROR, self.load_error)
         self.view.Bind(wx.html2.EVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, self.message)
-        self.show()
+        # Keep the native worksheet visible while WebView2 starts. A blocked
+        # browser runtime must never leave the plugin showing a blank pane.
+        self.view.Hide()
+        self.back.Hide()
         self.view.LoadURL(self.url)
         self.startup_timer = wx.CallLater(10000, self.check_connection)
         frame.Bind(wx.EVT_WINDOW_DESTROY, self._destroyed)
@@ -133,6 +136,7 @@ class VisualWorkspace:
         f = self.frame; f.collect()
         if method == 'snapshot':
             self.connected = True
+            wx.CallAfter(self.show)
             return self.state()
         if method == 'reload_saved':
             if not f.w.board_path: raise ValueError('Open a saved board before reloading its layout.')

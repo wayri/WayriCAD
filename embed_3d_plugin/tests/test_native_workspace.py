@@ -25,8 +25,10 @@ class NativeWorkspaceTests(unittest.TestCase):
     def tearDown(self):self.window.Destroy();self.app.Yield()
     def test_window_construction_and_title(self):self.assertIn('WayriCAD Embed3D',self.window.GetTitle())
     def test_all_primary_actions_exist(self):
-        self.assertEqual(self.window.operation.GetCount(),5)
-        self.assertIs(self.window.preview_button.GetParent(),self.window.apply_button.GetParent())
+        self.assertEqual(self.window.operation.GetCount(),3)
+        self.assertIs(self.window.embed_button.GetParent(),self.window.apply_button.GetParent())
+        self.assertIs(self.window.unwind_button.GetParent(),self.window.apply_button.GetParent())
+        self.assertEqual(Path(self.window.assets_text.GetValue()).parent.name,'local')
     def test_empty_window_disables_apply(self):self.assertFalse(self.window.apply_button.IsEnabled())
     def test_native_matrix_toggle_updates_global_state(self):
         from embed_3d_plugin.workspace import Component,Inventory
