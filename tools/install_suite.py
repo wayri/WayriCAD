@@ -88,7 +88,7 @@ def default_destination(version, *, platform=None, environ=None, home=None):
     return root / version / "plugins"
 
 
-def installation_target(destination, identifier):
+def installation_target(destination, identifier, runtime="ipc"):
     """Update the copy KiCad discovers first when PCM already owns the plugin."""
     destination = Path(destination).resolve()
     pcm_plugins = destination.parent / "3rdparty" / "plugins"
@@ -97,10 +97,13 @@ def installation_target(destination, identifier):
         if pcm_target.is_symlink() or pcm_target.resolve().parent != pcm_plugins.resolve():
             raise ValueError("PCM plugin path is not a direct directory under the PCM install path.")
         manifest = pcm_target / "plugin.json"
-        if not manifest.is_file() or json.loads(manifest.read_text(encoding="utf-8"))["identifier"] != identifier:
+        if runtime == "swig":
+            if manifest.exists() or not all((pcm_target / name).is_file() for name in ("__init__.py", "action.py")):
+                raise ValueError(f"Unexpected SWIG plugin at {pcm_target}")
+        elif not manifest.is_file() or json.loads(manifest.read_text(encoding="utf-8"))["identifier"] != identifier:
             raise ValueError(f"Unexpected PCM plugin at {pcm_target}")
         return pcm_target
-    return destination / identifier
+    return pcm_target if runtime == "swig" else destination / identifier
 
 
 def main():
@@ -112,22 +115,35 @@ def main():
     parser.add_argument("--apply", action="store_true", help="Copy plugins; existing installations are backed up.")
     args = parser.parse_args()
     destination = (args.destination or default_destination(args.version)).resolve()
-    versions = {json.loads(p.read_text(encoding='utf-8'))['versions'][0]['version'] for p in ROOT.glob('*_plugin/metadata.json')}
-    if len(versions)!=1:parser.error('Source plugins must have one release version.')
-    release=versions.pop()
-    packages = sorted(args.archive_dir.glob("WayriCAD-*-"+release+"-PCM.zip"))
-    expected = {"WayriCAD-" + p.parent.name.removesuffix("_plugin").replace("_", "-") + "-"+release+"-PCM.zip"
-                for p in ROOT.glob("*_plugin/metadata.json")}
+    inventory = {}
+    for path in ROOT.glob("*_plugin/metadata.json"):
+        metadata = json.loads(path.read_text(encoding="utf-8"))
+        version = metadata["versions"][0]["version"]
+        name = "WayriCAD-" + path.parent.name.removesuffix("_plugin").replace("_", "-") + "-" + version + "-PCM.zip"
+        inventory[name] = metadata
+    expected = set(inventory)
+    packages = sorted(args.archive_dir.glob("WayriCAD-*-PCM.zip"))
     if not expected or {p.name for p in packages} != expected:
         parser.error("PCM ZIPs differ from the source inventory. Build all current-version packages first.")
     for package in packages:
         with zipfile.ZipFile(package) as archive:
-            manifest = json.loads(archive.read("plugins/plugin.json"))
-            identifier = manifest["identifier"]
-            if not identifier.startswith("com.github.wayri.wayricad.") or any(c in identifier for c in "/\\"):
-                raise ValueError("Unexpected package identifier")
-            target = installation_target(destination, identifier)
-            print(f"{manifest['name']} -> {target}")
+            metadata = json.loads(archive.read("metadata.json"))
+            source = inventory[package.name]
+            identifier = metadata["identifier"]
+            runtime = metadata["versions"][0].get("runtime", "swig")
+            if (identifier != source["identifier"] or
+                metadata["versions"][0]["version"] != source["versions"][0]["version"] or
+                runtime != source["versions"][0].get("runtime", "swig") or
+                any(c in identifier for c in "/\\") or identifier in (".", "..")):
+                raise ValueError("Package metadata differs from source inventory")
+            if runtime == "ipc":
+                manifest = json.loads(archive.read("plugins/plugin.json"))
+                if manifest["identifier"] != identifier:
+                    raise ValueError("Unexpected IPC identifier")
+            elif runtime != "swig" or "plugins/plugin.json" in archive.namelist():
+                raise ValueError("Unexpected plugin runtime")
+            target = installation_target(destination, identifier, runtime)
+            print(f"{metadata['name']} -> {target}")
             if not args.apply:
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)

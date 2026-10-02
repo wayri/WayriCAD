@@ -1,0 +1,2 @@
+# KiCad's IPC loader requires this file before it marks a Python action ready.
+# Fusion's launcher uses only the standard library and probes native wxPython.

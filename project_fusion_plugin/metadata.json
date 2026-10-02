@@ -1,0 +1,42 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "Wayri Project Fusion",
+  "description": "Visual project and sheet merge workspace with draggable layout and sheet blocks, reviewed inline source repairs and linked updates.",
+  "description_full": "KiCad 10 testing release. Combine 1-100 saved project or extracted section instances with explicit variants, reviewed copper-layer mapping, dependency auditing and native netlist/parity checks. Preview source-copy repairs; synchronize supported footprint links and nets in isolated native workers. Merge BOMs with exact field/state grouping and provenance; preview bulk field edits/renames and create new candidate copies. Originals stay unchanged. New/unrouted parts, removed changed-net copper, source custom rules and DRC findings require engineering review. Local native wxPython GUI, legacy PCB Editor entry. IPC discovery is excluded in this compatibility candidate. Windows 10.0.6 focused native validation; other platforms and full manufacturing qualification remain unverified. Select exact schematic subsheet instances with descendants and a reviewed PCB rectangle; preserve contained routing, vias, zones, drawings and groups. Native electrical-partition, parity and geometry checks reject unsafe boundary cuts and omitted-parent wiring dependencies. Create a new extracted source copy for ordinary merge placement, annotation and BOM management. Footprint-owned keepouts follow merged and extracted layouts; source-copy footprint libraries normalize rule areas without changing placed geometry. Duplicate selected instances with unique aliases and independent placement, preserve exact section provenance in saved setups, and reuse native validation for identical saved inputs. Preview insertion into an existing saved project while preserving target references, connectivity, outline and settings; optional layout import and backed-up offline application. Persistent source links, native connectivity change classification, destination conflict detection, source relocation and reviewed offline linked updates. Tree overview and source-to-destination diagrams; optional read-only watching of saved sources. Universal create/import toggle, inline sheet tree and descendant-depth selection, optional layout and library/model copying, accessible icon actions and native saved-board preview. Offline application requires saved and closed target editors. Version 0.9 adds independent real PCB block previews, draggable root sheet blocks, placement undo and stale-preview invalidation; reviewed mechanical-reference and blank-variant-footprint repairs in detached source copies. An originating-editor IPC capability probe never enables or restarts KiCad. Live PCB transaction adapter supports only official typed existing-net geometry and existing unrouted same-side footprint moves. Live schematic insertion and new-net creation are unsupported; no cross-editor atomic apply is claimed. Native live transaction behavior remains unqualified when IPC is unavailable.",
+  "identifier": "org.wayri.projectfusion",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri Project Fusion contributors",
+    "contact": {}
+  },
+  "license": "MIT",
+  "resources": {},
+  "tags": [
+    "merge",
+    "schematic",
+    "pcb",
+    "variants",
+    "libraries",
+    "stackup",
+    "bom",
+    "fields",
+    "repair",
+    "subsheet",
+    "routing",
+    "linked-updates",
+    "change-review"
+  ],
+  "versions": [
+    {
+      "version": "0.9.3",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "kicad_version_max": "10.0",
+      "runtime": "swig",
+      "platforms": [
+        "windows",
+        "linux"
+      ]
+    }
+  ]
+}

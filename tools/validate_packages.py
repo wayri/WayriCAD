@@ -15,6 +15,28 @@ from jsonschema import Draft7Validator
 from PIL import Image
 
 
+def validate_swig_archive(archive, metadata):
+    """Validate native action registration without an IPC discovery manifest."""
+    names = archive.namelist()
+    if "plugins/plugin.json" in names:
+        raise ValueError("SWIG package must not enable IPC discovery")
+    for name in ("plugins/__init__.py", "plugins/action.py", "plugins/icon.png", "plugins/LICENSE"):
+        if name not in names:
+            raise ValueError("Missing SWIG entrypoint or asset: " + name)
+    tree = ast.parse(archive.read("plugins/__init__.py"))
+    versions = [node.value.value for node in tree.body if isinstance(node, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == "__version__" for t in node.targets)
+                and isinstance(node.value, ast.Constant)]
+    if versions != [metadata["versions"][0]["version"]]:
+        raise ValueError("SWIG initializer version differs from metadata")
+    for name in names:
+        if name.endswith(".py"):
+            compile(archive.read(name), name, "exec")
+    with Image.open(BytesIO(archive.read("resources/icon.png"))) as image:
+        if image.size != (64, 64):
+            raise ValueError("Wrong PCM icon size")
+
+
 def validate_candidate_archives(directory):
     """Validate disposable current-source ZIPs before anyone installs them."""
     directory = Path(directory)
@@ -44,6 +66,12 @@ def validate_candidate_archives(directory):
                    for name in names):
                 raise ValueError(f"Unexpected PCM archive path in {path.name}")
             metadata = json.loads(archive.read("metadata.json"))
+            if metadata["versions"][0].get("runtime") == "swig":
+                Draft7Validator(pcm).validate(metadata)
+                if metadata["identifier"] != identifier or metadata["versions"][0]["version"] != version:
+                    raise ValueError("SWIG metadata differs from source inventory")
+                validate_swig_archive(archive, metadata)
+                continue
             manifest = json.loads(archive.read("plugins/plugin.json"))
             Draft7Validator(pcm).validate(metadata)
             Draft7Validator(ipc).validate(manifest)
@@ -131,6 +159,9 @@ def validate():
                 Draft7Validator(pcm).validate(metadata)
                 assert metadata["identifier"] == identifier
                 assert all(not key.startswith("download_") for v in metadata["versions"] for key in v)
+                if metadata["versions"][0].get("runtime") == "swig":
+                    validate_swig_archive(archive, metadata)
+                    continue
                 manifest = json.loads(archive.read("plugins/plugin.json"))
                 Draft7Validator(ipc).validate(manifest)
                 assert manifest["identifier"] == identifier
@@ -147,7 +178,7 @@ def validate():
                 for name in names:
                     if name.endswith(".py"):
                         compile(archive.read(name), str(path) + ":" + name, "exec")
-    resources = ROOT / "releases/resources.zip"
+    resources = ROOT / "releases" / repo["resources"]["url"].rsplit("/", 1)[1]
     assert hashlib.sha256(resources.read_bytes()).hexdigest() == repo["resources"]["sha256"]
     with zipfile.ZipFile(resources) as archive:
         assert set(archive.namelist()) == {i + "/icon.png" for i in identifiers}

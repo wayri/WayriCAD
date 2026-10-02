@@ -22,3 +22,6 @@ This statement concerns development tooling. It does not claim that plugin calcu
 - **Researchers and open hardware contributors:** published methods and reference designs help make assumptions and verification reproducible. Specific sources and their implemented scope are recorded in the [motor models](docs/MOTOR_MODELS.md), [magnetics verification](docs/MAGNETICS_VERIFICATION.md) and [PI reference benchmarks](docs/PI_REFERENCE_BENCHMARKS.md).
 
 These acknowledgements are not an exhaustive dependency inventory and do not replace copyright notices or license obligations. Credit does not imply endorsement by KiCad, OpenAI, other named projects or publication authors. WayriCAD's project license is available in [LICENSE](LICENSE); third-party components retain their respective licenses.
+
+
+Project Fusion retains its [MIT license](project_fusion_plugin/LICENSE). Its source was developed and tested with AI assistance; see its guide for native validation scope and remaining limitations.

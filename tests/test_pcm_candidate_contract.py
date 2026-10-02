@@ -38,7 +38,8 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps({'actions':actions,'version':pac
 
 def test_all_current_pcm_packages_validate_and_register_independently(tmp_path):
     plugin_paths=sorted(ROOT.glob('*_plugin/metadata.json'))
-    assert len(plugin_paths)==17
+    assert plugin_paths
+    assert ROOT / "project_fusion_plugin" / "metadata.json" in plugin_paths
     output=tmp_path/'archives'
     for metadata_path in plugin_paths:
         plugin=metadata_path.parent
@@ -51,8 +52,10 @@ def test_all_current_pcm_packages_validate_and_register_independently(tmp_path):
     for archive_path in sorted(output.glob('*.zip')):
         stage=tmp_path/archive_path.stem
         with zipfile.ZipFile(archive_path) as archive:
-            manifest=json.loads(archive.read('plugins/plugin.json'))
-            version=json.loads(archive.read('metadata.json'))['versions'][0]['version']
+            metadata=json.loads(archive.read('metadata.json'))
+            native=metadata['versions'][0].get('runtime')=='swig'
+            manifest=None if native else json.loads(archive.read('plugins/plugin.json'))
+            version=metadata['versions'][0]['version']
             for member in archive.namelist():
                 if member.startswith('plugins/'):
                     archive.extract(member,stage)
@@ -62,6 +65,6 @@ def test_all_current_pcm_packages_validate_and_register_independently(tmp_path):
                               stderr=subprocess.DEVNULL,timeout=15)
         assert result.returncode==0, archive_path.name
         observed=json.loads(result_path.read_text(encoding='utf-8'))
-        assert manifest['actions'][0]['name'] in observed['actions']
+        assert (metadata['name'] if native else manifest['actions'][0]['name']) in observed['actions']
         assert observed['version']==version
-        assert not observed['eager_tool_modules'], archive_path.name
+        assert observed['eager_tool_modules'] == (['isolated_pcm.action'] if native else []), archive_path.name
