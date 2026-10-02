@@ -28,3 +28,8 @@ source-file preservation, cross-sections and offline report output. Source
 documentation validation passed. The wider repository suite had 333 passes,
 77 skips and one unrelated Windows subprocess-handle failure in a Trace RLC
 CLI test; this release does not claim that test passed locally.
+
+
+## Project Fusion addition
+
+Project Fusion 0.9.2 is an additional independent testing package. It provides visual saved-project/subsheet merging, draggable layout and root-sheet placement, source-copy issue repair, BOM/fields and linked updates. Its native SWIG entrypoint deliberately excludes IPC discovery. Whole-project apply requires saved and closed target editors; live schematic import is unsupported. Existing 3.6.4 ZIPs, wheel, source archive and resource archive are not replaced. The original tag predates this addition; Fusion source provenance is supplied separately.

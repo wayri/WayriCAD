@@ -523,25 +523,29 @@ def create_plugin_zip(
                     file_path.read_bytes(),
                 )
 
+        if metadata.get("versions", [{}])[0].get("runtime") == "swig":
+            # Native action plugins own registration; do not route through IPC discovery.
+            initializer = (plugin_path / "__init__.py").read_text(encoding="utf-8")
+        else:
+            initializer = ("\"\"\"KiCad menu bridge.\"\"\"\n"
+                + "__version__ = " + repr(version) + "\n"
+                "from pathlib import Path\nimport sys\n"
+                "_root = Path(__file__).resolve().parent\n"
+                "if str(_root) not in sys.path: sys.path.insert(0, str(_root))\n"
+                "from wayricad_runtime.legacy_menu import register\nregister(__name__, _root)\n")
         zipf.writestr(
             zip_entry("plugins/__init__.py", compress_type=zipfile.ZIP_DEFLATED),
-            ("\"\"\"KiCad 10 menu bridge; the IPC action remains the toolbar entry.\"\"\"\n"
-             + "__version__ = " + repr(version) + "\n"
-             "from pathlib import Path\n"
-             "import sys\n"
-             "_root = Path(__file__).resolve().parent\n"
-             "if str(_root) not in sys.path: sys.path.insert(0, str(_root))\n"
-             "from wayricad_runtime.legacy_menu import register\n"
-             "register(__name__, _root)\n"),
+            initializer,
         )
 
         # Every package carries its own runtime; installed tools never import siblings.
-        runtime_root = Path(__file__).resolve().parent / "wayricad_runtime"
-        for source in sorted(p for p in runtime_root.rglob("*") if p.is_file() and p.suffix in (".py", ".md")):
-            zipf.writestr(zip_entry("plugins/wayricad_runtime/" + source.relative_to(runtime_root).as_posix(),
-                                   compress_type=zipfile.ZIP_DEFLATED), source.read_bytes())
-        zipf.writestr(zip_entry("plugins/wayricad_runtime/LICENSE"),
-                      (Path(__file__).resolve().parent / "LICENSE").read_bytes())
+        if metadata.get("versions", [{}])[0].get("runtime") != "swig":
+            runtime_root = Path(__file__).resolve().parent / "wayricad_runtime"
+            for source in sorted(p for p in runtime_root.rglob("*") if p.is_file() and p.suffix in (".py", ".md")):
+                zipf.writestr(zip_entry("plugins/wayricad_runtime/" + source.relative_to(runtime_root).as_posix(),
+                                       compress_type=zipfile.ZIP_DEFLATED), source.read_bytes())
+            zipf.writestr(zip_entry("plugins/wayricad_runtime/LICENSE"),
+                          (Path(__file__).resolve().parent / "LICENSE").read_bytes())
         if plugin_path.name == "extract_pins_plugin":
             # The automation CLI advertises suite analyses, so its ZIP includes their pure backends.
             backends = {
@@ -913,9 +917,12 @@ def main():
                 corrupt_entry = archive.testzip()
                 if corrupt_entry is not None:
                     raise ValueError(f"Corrupt entry in {archive_path}: {corrupt_entry}")
-                manifest = json.loads(archive.read("plugins/plugin.json"))
-                if manifest.get("identifier") != metadata["identifier"]:
-                    raise ValueError(f"Plugin identifier mismatch in {archive_path}")
+                if metadata["versions"][0]["runtime"] == "ipc":
+                    manifest = json.loads(archive.read("plugins/plugin.json"))
+                    if manifest.get("identifier") != metadata["identifier"]:
+                        raise ValueError(f"Plugin identifier mismatch in {archive_path}")
+                elif "plugins/plugin.json" in archive.namelist():
+                    raise ValueError("SWIG packages must not enable IPC discovery")
         print(f"Built {len(plugin_paths)} disposable PCM ZIPs in {output_dir}")
         return
 

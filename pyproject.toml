@@ -34,6 +34,7 @@ wayricad-library = "embed_3d_plugin.__main__:main"
 wayricad-pi = "quick_pi_plugin.cli:main"
 wayricad-therm = "quick_therm_plugin.cli:main"
 wayricad-si = "signal_integrity_advisor_plugin.cli:main"
+wayricad-fusion = "project_fusion_plugin.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -42,6 +43,7 @@ exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.
 
 [tool.setuptools.package-data]
 wayricad_runtime = ["*.md"]
+project_fusion_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "*.svg"]
 "*" = ["LICENSE", "LICENSE.*", "SOURCE_PROVENANCE.json"]
 extract_pins_plugin = ["*.html", "*.md", "*.txt", "*.svg", "*.png", "metadata.json"]
 harness_workbench_plugin = ["*.html", "*.md", "*.png", "metadata.json"]

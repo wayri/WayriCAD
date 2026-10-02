@@ -1,6 +1,6 @@
 # WayriCAD — KiCad Plugins for PCB Design and Analysis
 
-**WayriCAD** is an open-source suite of **17 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes fanout routing, via stitching, trace impedance and RLC analysis, power integrity and signal integrity checks, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
+**WayriCAD** is an open-source suite of **18 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes fanout routing, via stitching, trace impedance and RLC analysis, power integrity and signal integrity checks, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
@@ -62,12 +62,13 @@ Machine-specific paths in screenshots are replaced with generic project location
 </tr>
 </table>
 
-## All 17 plugins
+## All 18 plugins
 
 Every name below opens that plugin’s README. The [full tool directory](docs/USER_GUIDE.md#tool-directory) explains inputs, outputs and write boundaries.
 
 | Icon | Plugin and guide | Start here |
 |---|---|---|
+| <img src="project_fusion_plugin/icon.png" width="64" height="64" alt="Project Fusion icon"> | [Project Fusion](project_fusion_plugin/README.md) | Saved projects and selected subsheets, visual placement and reviewed linked updates |
 | <img src="bom_studio_plugin/icon.png" width="64" height="64" alt="BOM Studio icon"> | [BOM Studio](bom_studio_plugin/README.md) | Saved schematic/project and desired fields |
 | <img src="embed_3d_plugin/icon.png" width="64" height="64" alt="Embed3D icon"> | [Embed3D](embed_3d_plugin/README.md) | Project plus library/model search paths |
 | <img src="quick_pi_plugin/icon.png" width="64" height="64" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) | DC rail inputs, series paths and decoupling review |
@@ -122,3 +123,6 @@ Imported applications have separate test suites. Native tests require the releva
 WayriCAD development has made substantial use of AI coding assistants and large language models (LLMs), including OpenAI Codex, for implementation, debugging, tests, documentation and research assistance. Project maintainers remain responsible for the code and release decisions. AI-generated code and explanations can contain errors; validation evidence and model limitations are documented separately.
 
 We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
+
+
+Project Fusion 0.9.2 is being added as an independent testing package to 3.6.4. It retains its MIT license and native KiCad loader. [Fusion guide](project_fusion_plugin/README.md).

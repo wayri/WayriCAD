@@ -60,11 +60,13 @@ def test_disposable_archive_updates_pcm_copy_with_backup(tmp_path, monkeypatch):
     source = tmp_path / "source"
     plugin = source / "sample_plugin"
     plugin.mkdir(parents=True)
-    (plugin / "metadata.json").write_text(json.dumps({"versions": [{"version": "3.3.0"}]}), encoding="utf-8")
+    metadata = {"identifier": identifier, "name": "Sample", "versions": [{"version": "3.3.0", "runtime": "ipc"}]}
+    (plugin / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
     archives = tmp_path / "archives"
     archives.mkdir()
     package = archives / "WayriCAD-sample-3.3.0-PCM.zip"
     with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("metadata.json", json.dumps(metadata))
         archive.writestr("plugins/plugin.json", json.dumps({"identifier": identifier, "name": "Sample"}))
         archive.writestr("plugins/entrypoint.py", "new source")
 

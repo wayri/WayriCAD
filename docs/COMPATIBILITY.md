@@ -117,3 +117,8 @@ Desktop actions provision dependencies in a private per-user virtual environment
 
 BOM Studio serves its packaged navigation script with an explicit JavaScript MIME type and uses per-window WebView profiles. If the native web view fails to initialize, it reports the failure and opens the same local project session in the system browser. This fallback does not upload the project.
 
+
+
+## Project Fusion
+
+Fusion 0.9.2 uses the KiCad 10 SWIG action loader and native wxPython, with focused Windows 10.0.6 validation. Linux is a target platform, not a native qualification claim; macOS and KiCad 11 are unsupported. Full-project changes use saved snapshots and offline apply. The limited live PCB adapter has protocol/serialization tests; connected-editor transactions remain unqualified.
