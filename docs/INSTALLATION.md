@@ -71,10 +71,10 @@ packages, preview the destination, then install with backups. The public PCM
 feed is promoted only after release assets are published and verified:
 
 ```console
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.3
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.3
-python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.3
-python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.3 --apply
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.4
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.4
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.4
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.4 --apply
 ```
 
 Restart PCB Editor after installation. These local candidate ZIPs can also be
@@ -144,10 +144,10 @@ does not install or register GUI plugins.
   PCM packages. It backs up replaced and retired direct installations. Build
   the packages first when the checkout does not already contain the matching
   release ZIPs.
-- For terminal commands, download the release's `wayricad-3.6.3-py3-none-any.whl` and use Python 3.10 or newer. From the folder containing that file, run:
+- For terminal commands, download the release's `wayricad-3.6.4-py3-none-any.whl` and use Python 3.10 or newer. From the folder containing that file, run:
 
   ```console
-  python -m pip install ./wayricad-3.6.3-py3-none-any.whl
+  python -m pip install ./wayricad-3.6.4-py3-none-any.whl
   python -m quick_pi_plugin.cli --help
   ```
 

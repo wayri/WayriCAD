@@ -1,3 +1,3 @@
 """WayriCAD Mechanical Check: evidence-based mechanical validation for KiCad."""
-__version__ = "3.6.3"
+__version__ = "3.6.4"
 
