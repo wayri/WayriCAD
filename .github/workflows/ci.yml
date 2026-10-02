@@ -47,7 +47,11 @@ jobs:
         working-directory: bom_studio_plugin
         run: python -m unittest discover -s tests -v
       - name: Fusion regressions
+        if: runner.os != 'macOS'
         run: python -m unittest discover -s project_fusion_plugin/tests -v
+      - name: Fusion portable protocol contracts on unsupported macOS
+        if: runner.os == 'macOS'
+        run: python -m unittest discover -s project_fusion_plugin/tests -p test_live_apply.py -v
       - name: CLI smoke
         run: |
           wayricad --help
