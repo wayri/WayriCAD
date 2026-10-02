@@ -96,7 +96,7 @@ class RepairTests(unittest.TestCase):
             root=Path(t);source,spec=self.fixture(root)
             plan={'specs':[asdict(spec)],'hashes':{'Example':repair.fingerprint(source)},'report':{'suggestions':[{'source':'Example','action':'path_remap','reference':'model.step','path':str(source/'local/model.step')}]}}
             result=dependencies.apply_dependencies(plan,root/'candidate')
-            self.assertEqual(result[0].path_remaps['model.step'],str(root/'candidate/Example/local/model.step'))
+            self.assertEqual(Path(result[0].path_remaps['model.step']).resolve(),(root/'candidate/Example/local/model.step').resolve())
             (source/'local/model.step').write_text('changed')
             with self.assertRaises(MergeError):dependencies.apply_dependencies(plan,root/'stale')
 

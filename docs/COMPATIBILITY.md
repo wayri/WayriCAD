@@ -121,4 +121,4 @@ BOM Studio serves its packaged navigation script with an explicit JavaScript MIM
 
 ## Project Fusion
 
-Fusion 0.9.2 uses the KiCad 10 SWIG action loader and native wxPython, with focused Windows 10.0.6 validation. Linux is a target platform, not a native qualification claim; macOS and KiCad 11 are unsupported. Full-project changes use saved snapshots and offline apply. The limited live PCB adapter has protocol/serialization tests; connected-editor transactions remain unqualified.
+Fusion 0.9.3 uses the KiCad 10 SWIG action loader and native wxPython, with focused Windows 10.0.6 validation. Linux is a target platform, not a native qualification claim; macOS and KiCad 11 are unsupported. Full-project changes use saved snapshots and offline apply. The limited live PCB adapter has protocol/serialization tests; connected-editor transactions remain unqualified.

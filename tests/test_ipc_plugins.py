@@ -31,7 +31,7 @@ class WorkbenchPluginTests(unittest.TestCase):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
                 if metadata["versions"][0]["runtime"] == "swig":
                     self.assertEqual("org.wayri.projectfusion", metadata["identifier"])
-                    self.assertEqual("0.9.2", metadata["versions"][0]["version"])
+                    self.assertEqual("0.9.3", metadata["versions"][0]["version"])
                     self.assertFalse((package / "plugin.json").exists())
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):
                         self.assertTrue((package / entry).is_file())

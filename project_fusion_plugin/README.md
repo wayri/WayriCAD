@@ -1,4 +1,4 @@
-# Wayri Project Fusion 0.9.2
+# Wayri Project Fusion 0.9.3
 
 **KiCad 10 · native wxPython plugin · testing release**
 
@@ -10,7 +10,7 @@ Combine 1–100 saved KiCad project instances or extracted routed subsheet insta
 
 ## Install or upgrade
 
-Use **`WayriCAD-project-fusion-0.9.2-PCM.zip`**, not the source ZIP. Open KiCad's Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
+Use **`WayriCAD-project-fusion-0.9.3-PCM.zip`**, not the source ZIP. Open KiCad's Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
 
 This retains the package identifier `org.wayri.projectfusion`. Remove an old manually installed copy before installing through PCM, so two versions are not loaded. The PCM archive puts the Python package directly inside `plugins/`; it does not add an extra nested source folder.
 
@@ -445,5 +445,7 @@ before installing this candidate through PCM; do not retain a stale
 ## WayriCAD integration
 
 ![Fusion workflow overview](help-workflow.svg)
+
+Version 0.9.3 avoids editor-only action registration during standalone native CLI imports.
 
 Fusion is an independently installable testing package in the WayriCAD suite. It retains its MIT license and `org.wayri.projectfusion` identifier. Install through PCM, then restart PCB Editor. Full project imports apply to saved files with closed target editors; live schematic insertion is unsupported.

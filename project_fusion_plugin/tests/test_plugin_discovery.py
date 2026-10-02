@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import sys
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -34,6 +35,8 @@ class DiscoveryTests(unittest.TestCase):
         except ImportError:
             self.skipTest('Native KiCad Python required')
         name = ROOT.name
+        import wx
+        app = wx.GetApp() or wx.App(False)
         registered = []
         # C++ registration needs a running PCB Editor. Intercept that one boundary,
         # retaining KiCad's actual Python import/discovery and ActionPlugin classes.
@@ -52,6 +55,19 @@ class DiscoveryTests(unittest.TestCase):
             for key in list(sys.modules):
                 if key == name or key.startswith(name + '.'):
                     sys.modules.pop(key, None)
+
+    def test_native_cli_help_does_not_register_an_editor_action(self):
+        try:
+            import pcbnew
+        except ImportError:
+            self.skipTest('Native KiCad Python required')
+        code = ('import sys;sys.path.insert(0,sys.argv[1]);'
+                'import project_fusion_plugin.__main__ as cli;'
+                'raise SystemExit(cli.main(["--help"]))')
+        result = subprocess.run([sys.executable, '-I', '-c', code, str(ROOT.parent)],
+                                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('usage:', result.stdout)
 
 
 if __name__ == '__main__':

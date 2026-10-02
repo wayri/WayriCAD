@@ -1,6 +1,6 @@
 # Project Fusion release addition
 
-Fusion 0.9.2 joins the WayriCAD inventory as an independent MIT-licensed testing
+Fusion 0.9.3 joins the WayriCAD inventory as an independent MIT-licensed testing
 package. Its native SWIG action loader retains `org.wayri.projectfusion` and
 deliberately excludes IPC discovery. It needs KiCad 10's wxPython and native CLI;
 it does not need another installed WayriCAD tool. Source tests and private
@@ -8,7 +8,7 @@ project data are excluded from the PCM payload.
 
 Local checks on 2026-10-03, Windows, KiCad 10.0.6.50883 / bundled Python 3.11.5:
 
-- Native Fusion suite: 165 tests, 138 passed, 27 skipped, with native GUI and
+- Native Fusion suite: 166 tests, 139 passed, 27 skipped, with native GUI and
   insertion GUI checks enabled. Discovery intercepts the C++ registration
   boundary; it does not establish connected-editor live transaction acceptance.
 - Source suite against 3.6.4: 344 passed, 68 skipped and 147 subtests passed on
@@ -20,6 +20,13 @@ Local checks on 2026-10-03, Windows, KiCad 10.0.6.50883 / bundled Python 3.11.5:
 - The extracted release ZIP registered its native action and constructed its wx
   dialog under bundled KiCad Python, with C++ registration intercepted. Isolated
   wheel CLI help and report assets passed, including Fusion.
+
+Version 0.9.3 additionally guards editor action registration behind an existing
+wx application. Standalone bundled-Python CLI help no longer triggers KiCad's
+`PgmOrNull()` registration assertion. A native subprocess regression covers that
+case. Windows short-path aliases are normalized in reconstruction and dependency
+test fixtures, including the undo failure injection; production rollback checks
+remain unchanged.
 
 Whole-project application remains offline: saved and closed target editors,
 source/target hashes, reviewed candidates and backups. The limited live PCB

@@ -104,7 +104,7 @@ class LinkedUnitTests(unittest.TestCase):
             before=l.fingerprint(root);plan=l.preview_undo(project,result['backup_directory'],Path(folder)/'undo')
             native_unlink=Path.unlink
             def fail_second(path,*args,**kwargs):
-                if path==root/'b.txt':raise OSError('injected undo removal failure')
+                if path.resolve()==(root/'b.txt').resolve():raise OSError('injected undo removal failure')
                 return native_unlink(path,*args,**kwargs)
             with patch.object(Path,'unlink',fail_second):
                 with self.assertRaisesRegex(OSError,'injected undo'):insertion.apply_import(plan)

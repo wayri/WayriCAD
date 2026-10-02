@@ -125,4 +125,4 @@ WayriCAD development has made substantial use of AI coding assistants and large 
 We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
 
 
-Project Fusion 0.9.2 is being added as an independent testing package to 3.6.4. It retains its MIT license and native KiCad loader. [Fusion guide](project_fusion_plugin/README.md).
+Project Fusion 0.9.3 is being added as an independent testing package to 3.6.4. It retains its MIT license and native KiCad loader. [Fusion guide](project_fusion_plugin/README.md).

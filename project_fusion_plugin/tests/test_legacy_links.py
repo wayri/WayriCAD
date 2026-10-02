@@ -32,7 +32,7 @@ class ArchiveTests(unittest.TestCase):
 
     def test_verified_reconstruction_preserves_ids_and_dependency_paths(self):
         with tempfile.TemporaryDirectory() as folder:
-            base=Path(folder);archive,project=self.archive(base)
+            base=Path(folder).resolve();archive,project=self.archive(base)
             value=restore(archive,'Module',base/'restored')
             self.assertEqual(value['original_project'],str(project))
             tree=sx.load(Path(value['spec'].project).with_suffix('.kicad_sch'))
