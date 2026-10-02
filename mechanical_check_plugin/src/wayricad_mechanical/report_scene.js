@@ -2,14 +2,14 @@
 class ConflictScene {
   constructor(canvas,report) {
     this.canvas=canvas;this.report=report;this.gl=canvas.getContext('webgl',{antialias:true,alpha:false,preserveDrawingBuffer:true});
-    this.yaw=-1;this.pitch=.75;this.zoom=1;this.center=[0,0,0];this.span=100;this.selected=null;this.isolate=true;this.ghost=true;this.section=false;
+    this.yaw=-1;this.pitch=.75;this.zoom=1;this.center=[0,0,0];this.span=100;this.selected=null;this.isolate=true;this.ghost=true;this.section=false;this.sectionDirection='Y';
     if(!this.gl){canvas.style.display='none';canvas.after(Object.assign(document.createElement('p'),{textContent:'WebGL is unavailable. Open this report in a browser with hardware acceleration to inspect 3D geometry.'}));return;}
     const g=this.gl;
     const vertex=`attribute vec3 p;attribute vec3 n;uniform mat4 m;varying vec3 normal;varying vec3 pos;void main(){normal=n;pos=p;gl_Position=m*vec4(p,1.);gl_PointSize=7.;}`;
-    const fragment=`precision highp float;varying vec3 normal;varying vec3 pos;uniform vec4 color;uniform vec3 eye;uniform float unlit;uniform float cut;uniform float cutY;void main(){if(cut>0.5&&pos.y<cutY)discard;vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 L=normalize(vec3(.2,-.4,1.));vec3 V=normalize(eye-pos);float d=max(dot(N,L),0.);float f=max(dot(N,normalize(vec3(-.8,.3,.3))),0.);float s=pow(max(dot(N,normalize(L+V)),0.),40.)*.3;vec3 shaded=color.rgb*(.30+.64*d+.25*f)+vec3(s);gl_FragColor=vec4(mix(shaded,color.rgb,unlit),color.a);}`;
+    const fragment=`precision highp float;varying vec3 normal;varying vec3 pos;uniform vec4 color;uniform vec3 eye;uniform float unlit;uniform float cut;uniform vec3 cutNormal;uniform float cutOffset;void main(){if(cut>0.5&&dot(pos,cutNormal)<cutOffset)discard;vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 L=normalize(vec3(.2,-.4,1.));vec3 V=normalize(eye-pos);float d=max(dot(N,L),0.);float f=max(dot(N,normalize(vec3(-.8,.3,.3))),0.);float s=pow(max(dot(N,normalize(L+V)),0.),40.)*.3;vec3 shaded=color.rgb*(.30+.64*d+.25*f)+vec3(s);gl_FragColor=vec4(mix(shaded,color.rgb,unlit),color.a);}`;
     const shader=(type,source)=>{const s=g.createShader(type);g.shaderSource(s,source);g.compileShader(s);if(!g.getShaderParameter(s,g.COMPILE_STATUS))throw Error(g.getShaderInfoLog(s));return s};
     this.program=g.createProgram();g.attachShader(this.program,shader(g.VERTEX_SHADER,vertex));g.attachShader(this.program,shader(g.FRAGMENT_SHADER,fragment));g.linkProgram(this.program);if(!g.getProgramParameter(this.program,g.LINK_STATUS))throw Error(g.getProgramInfoLog(this.program));g.useProgram(this.program);
-    this.attributes=['p','n'].map(n=>g.getAttribLocation(this.program,n));this.uniforms={};for(const n of ['m','color','eye','unlit','cut','cutY'])this.uniforms[n]=g.getUniformLocation(this.program,n);
+    this.attributes=['p','n'].map(n=>g.getAttribLocation(this.program,n));this.uniforms={};for(const n of ['m','color','eye','unlit','cut','cutNormal','cutOffset'])this.uniforms[n]=g.getUniformLocation(this.program,n);
     this.cache=new Map();this.bodies=report.bodies.map(b=>({...b,buffer:this.buffer(b.mesh)}));
     let drag=null;
     canvas.onpointerdown=e=>{drag=[e.clientX,e.clientY,e.button===2||e.shiftKey];canvas.setPointerCapture(e.pointerId)};
@@ -38,10 +38,10 @@ class ConflictScene {
     const z=norm(eye.map((v,i)=>v-this.center[i])),x=norm(cross([0,0,1],z)),y=cross(z,x),view=[x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1];
     const n=Math.max(.001,distance/1000),far=Math.max(10000,distance*100),f=1/Math.tan(18*Math.PI/180),projection=[f/(c.width/c.height),0,0,0,0,f,0,0,0,0,(far+n)/(n-far),-1,0,0,2*far*n/(n-far),0],m=new Float32Array(16);
     for(let col=0;col<4;col++)for(let row=0;row<4;row++)for(let k=0;k<4;k++)m[col*4+row]+=projection[k*4+row]*view[col*4+k];
-    g.uniformMatrix4fv(this.uniforms.m,false,m);g.uniform3fv(this.uniforms.eye,eye);g.uniform1f(this.uniforms.unlit,0);g.uniform1f(this.uniforms.cut,0);g.uniform1f(this.uniforms.cutY,this.center[1]);
+    g.uniformMatrix4fv(this.uniforms.m,false,m);g.uniform3fv(this.uniforms.eye,eye);g.uniform1f(this.uniforms.unlit,0);const dir=this.sectionDirection;const raw=dir==='Custom'?(this.report.rules.section_normal||[0,1,0]):dir==='X'?[1,0,0]:dir==='Z'?[0,0,1]:[0,1,0];const len=Math.hypot(...raw)||1;const normal=raw.map(v=>v/len);const origin=this.selected?.section_origin||this.center;g.uniform3fv(this.uniforms.cutNormal,normal);g.uniform1f(this.uniforms.cutOffset,normal.reduce((v,n,i)=>v+n*origin[i],0));g.uniform1f(this.uniforms.cut,this.section?1:0);
     const render=(buffer,color,mode=g.TRIANGLES)=>{if(!buffer)return;g.bindBuffer(g.ARRAY_BUFFER,buffer.buffer);for(let i=0;i<2;i++){g.enableVertexAttribArray(this.attributes[i]);g.vertexAttribPointer(this.attributes[i],3,g.FLOAT,false,24,i*12)}g.uniform4fv(this.uniforms.color,color);g.drawArrays(mode,0,buffer.count)};
-    for(const b of this.bodies){if(b.kind==='board')continue;if(this.selected&&this.isolate&&!this.selected.refs.includes(b.ref))continue;render(b.buffer,b.kind.includes('allowance')||b.kind.includes('envelope')?[.94,.65,.22,1]:[.64,.68,.74,1]);}
-    g.depthMask(!this.ghost);g.uniform1f(this.uniforms.cut,this.section?1:0);for(const b of this.bodies)if(b.kind==='board')render(b.buffer,[.17,.48,.39,this.ghost ? 0.24 : 1]);g.depthMask(true);g.uniform1f(this.uniforms.cut,0);
+    for(const b of this.bodies){if(b.kind==='board'||b.kind==='comparison_board')continue;if(this.selected&&this.isolate&&!this.selected.refs.includes(b.ref))continue;render(b.buffer,b.kind.includes('allowance')||b.kind.includes('envelope')?[.94,.65,.22,1]:b.kind==='comparison_component'?[.86,.56,.29,1]:[.64,.68,.74,1]);}
+    g.depthMask(!this.ghost);for(const b of this.bodies)if(b.kind==='board'||b.kind==='comparison_board')render(b.buffer,b.kind==='board'?[.17,.48,.39,this.ghost ? 0.24 : 1]:[.23,.43,.73,this.ghost ? 0.24 : 1]);g.depthMask(true);g.uniform1f(this.uniforms.cut,0);
     if(this.selected){g.disable(g.DEPTH_TEST);g.uniform1f(this.uniforms.unlit,1);render(this.cache.get(this.selected.id),[.96,.12,.1,.95]);const points=this.cache.get(this.selected.id+'points');render(points,[.96,.12,.1,1],g.LINES);render(points,[.96,.12,.1,1],g.POINTS);g.enable(g.DEPTH_TEST);}
   }
 }

@@ -44,6 +44,51 @@ def analyze(job):
             missing.append(ref + ': invalid or non-solid STEP geometry')
             continue
         bodies.append(dict(ref=ref, shape=shape, bounds=box(shape), kind='component', side=by_ref[ref]['side']))
+    comparison_bodies = []
+    comparison_doc = None
+    if job.get('comparison'):
+        other = job['comparison']
+        other_board = other['board']
+        if other_board['gaps']:
+            missing.append('Comparison board has %d unresolved model coverage gaps' % len(other_board['gaps']))
+        placement = other['placement']
+        transform = App.Placement(App.Vector(*placement['translation_mm']),
+                                  App.Rotation(App.Vector(0, 0, 1), placement['rotation_deg']))
+        comparison_doc = App.newDocument('ComparisonValid')
+        Import.insert(other['step'], comparison_doc.Name)
+        other_imported = set()
+        other_components = {c['ref']: c for c in other_board['components']}
+        other_shapes = {}
+        other_pcb = []
+        for obj in comparison_doc.Objects:
+            if obj.TypeId not in ('PartDesign::Feature', 'Part::Feature') or not hasattr(obj, 'Shape') or obj.Shape.isNull():
+                continue
+            shape = obj.Shape.copy()
+            shape.Placement = transform.multiply(obj.getGlobalPlacement())
+            token = re.search(r'TDV\d{6}M\d{3}', obj.Label)
+            if token and token[0] in other_board['model_map']:
+                other_imported.add(token[0])
+                other_shapes.setdefault(other_board['model_map'][token[0]], []).append(shape)
+            elif '_PCB' in obj.Label:
+                other_pcb.append(shape)
+        for token, ref in other_board['model_map'].items():
+            if token not in other_imported:
+                missing.append('Other:' + ref + ': model omitted by STEP exporter or importer (' + token + ')')
+        for ref, parts in other_shapes.items():
+            shape = Part.makeCompound(parts)
+            if not shape.isValid() or not shape.Solids:
+                missing.append('Other:' + ref + ': invalid or non-solid STEP geometry')
+                continue
+            comparison_bodies.append(dict(ref='Other:' + ref, shape=shape, bounds=box(shape),
+                                          kind='comparison_component', side=other_components[ref]['side']))
+        if not other_pcb:
+            missing.append('Comparison board solid unavailable: board-to-board and substrate clearance checks skipped')
+        else:
+            for i, shape in enumerate(other_pcb):
+                comparison_bodies.append(dict(ref='Other:PCB' + (str(i) if i else ''), shape=shape,
+                                              bounds=box(shape), kind='comparison_board', side='both'))
+        if not other_imported:
+            missing.append('No comparison-board component STEP solids were imported')
     if not pcb:
         missing.append('Board solid unavailable: board penetration checks skipped')
     for item in config['enclosures']:
@@ -99,6 +144,11 @@ def analyze(job):
                                       severity='warning', measured=round(gz, 6), limit=config['z_clearance_mm'], unit='mm', xy_gap_mm=xy))
         except Exception as exc:
             missing.append('Solid pair ' + a['ref'] + '/' + b['ref'] + ': ' + str(exc))
+    if comparison_bodies:
+        primary_bodies = [b for b in bodies if b['kind'] == 'component']
+        primary_bodies.extend(dict(ref='PCB' + (str(i) if i else ''), shape=shape,
+                                   bounds=box(shape), kind='board', side='both') for i, shape in enumerate(pcb))
+        interboard_checks(primary_bodies, comparison_bodies, config, issues, missing)
     thickness = board['thickness']
     for body in bodies:
         if body['kind'] != 'component':
@@ -144,6 +194,7 @@ def analyze(job):
     nozzle_checks(board, config, bodies, issues)
     for i, shape in enumerate(pcb):
         bodies.append(dict(ref='PCB' + (str(i) if i else ''), shape=shape, bounds=box(shape), kind='board', side='both'))
+    bodies.extend(comparison_bodies)
     for body in bodies:
         body['mesh'] = mesh(body['shape'])
     result = dict(findings=issues, bodies=[{k: v for k, v in b.items() if k != 'shape'} for b in bodies],
@@ -151,9 +202,84 @@ def analyze(job):
                                 expected_models=len(board['model_map']), imported_models=len(imported),
                                 components_with_solids=len([b for b in bodies if b['kind'] == 'component']),
                                 gaps=sorted(set(missing)),
+                                comparison_models=len([b for b in comparison_bodies if b['kind'] == 'comparison_component']),
                                 screening=['XY/Z envelopes', 'pad and pin proximity', 'pick-and-place vertical nozzle access', 'regional height envelopes']))
     App.closeDocument(doc.Name)
+    if comparison_doc:
+        App.closeDocument(comparison_doc.Name)
     return result
+
+
+
+def interboard_checks(primary, comparison, config, issues, missing):
+    """Compare only solids belonging to different boards in the same CAD frame."""
+    clearance = config['clearance_mm']
+    tolerance = config['volume_tolerance_mm3']
+    primary_ids = {id(body) for body in primary}
+    for first, second in candidate_pairs(primary + comparison, clearance):
+        if (id(first) in primary_ids) == (id(second) in primary_ids):
+            continue
+        a, b = (first, second) if id(first) in primary_ids else (second, first)
+        try:
+            distance, points, _ = a['shape'].distToShape(b['shape'])
+            overlap = a['shape'].common(b['shape']) if distance < 1e-7 else None
+            volume = overlap.Volume if overlap is not None else 0.0
+            refs = [a['ref'], b['ref']]
+            if volume > tolerance:
+                bounds = box(overlap)
+                issues.append(finding('interboard.collision', refs, 'Boards or components intersect',
+                                      'Adjust the comparison-board placement or component heights; inspect the contact section.',
+                                      measured=volume, limit=tolerance, unit='mm³',
+                                      conflict_mesh=mesh(overlap), conflict_bounds=bounds,
+                                      section_origin=[(bounds[i]+bounds[i+3])/2 for i in range(3)],
+                                      sections=sections_for_pair(a['shape'], b['shape'], bounds, config['section_normal'])))
+            elif distance < clearance - 1e-7:
+                origins = point_list(points)
+                origin = ([sum(p[i] for p in origins[0])/len(origins[0]) for i in range(3)]
+                          if origins else [(a['bounds'][i]+b['bounds'][i])/2 for i in range(3)])
+                issues.append(finding('interboard.clearance', refs, 'Interboard 3D clearance is below limit',
+                                      'Increase board separation or move the affected parts.',
+                                      measured=distance, limit=clearance, unit='mm', points=origins,
+                                      section_origin=origin,
+                                      sections=sections_for_pair(a['shape'], b['shape'], [*origin, *origin], config['section_normal'])))
+        except Exception as exc:
+            missing.append('Interboard pair ' + a['ref'] + '/' + b['ref'] + ': ' + str(exc))
+
+def sections_for_pair(first, second, bounds, custom_normal):
+    """Intersect two exact solids with X/Y/Z planes through the finding."""
+    import FreeCAD as App
+    import Part
+    origin = App.Vector(*[(bounds[i]+bounds[i+3])/2 for i in range(3)])
+    span = max(first.BoundBox.DiagonalLength, second.BoundBox.DiagonalLength, 10.0) * 2
+    sections = {}
+    planes = [('X', App.Vector(1, 0, 0), (1, 2)),
+              ('Y', App.Vector(0, 1, 0), (0, 2)),
+              ('Z', App.Vector(0, 0, 1), (0, 1)),
+              ('Custom', App.Vector(*custom_normal), None)]
+    for name, normal, uv in planes:
+        curves = []
+        try:
+            if uv is None:
+                unit = App.Vector(normal);unit.normalize()
+                basis_u = unit.cross(App.Vector(0, 0, 1) if abs(unit.z) < .9 else App.Vector(0, 1, 0))
+                basis_u.normalize();basis_v = unit.cross(basis_u);basis_v.normalize()
+            plane = Part.makePlane(span, span, App.Vector(0, 0, 0), normal)
+            plane.translate(origin - plane.CenterOfMass)
+            for ref, shape in (('A', first), ('B', second)):
+                cut = shape.section(plane)
+                for edge in cut.Edges:
+                    points = edge.discretize(Deflection=0.05)
+                    if len(points) >= 2:
+                        projected = ([[round((p.x,p.y,p.z)[i], 4) for i in uv] for p in points] if uv is not None else
+                                     [[round((p-origin).dot(basis_u), 4), round((p-origin).dot(basis_v), 4)] for p in points])
+                        curves.append(dict(ref=ref, points=projected))
+        except Exception as exc:
+            sections[name] = dict(error=str(exc), curves=[])
+        else:
+            sections[name] = dict(coordinate=(round((origin.x, origin.y, origin.z)['XYZ'.index(name)], 4) if uv is not None else None),
+                                  axes=(['XYZ'[i] for i in uv] if uv is not None else ['u', 'v']),
+                                  normal=[normal.x, normal.y, normal.z], curves=curves)
+    return sections
 
 
 def box(shape):

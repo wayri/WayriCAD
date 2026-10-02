@@ -26,6 +26,8 @@ DEFAULTS = {
     "height_zones": [],
     "keepouts": [],
     "enclosures": [],
+    "comparison_board": None,
+    "section_normal": [1.0, 1.0, 0.0],
     "waivers": {},
     "model_variables": {},
 }
@@ -92,6 +94,23 @@ def validate(config):
     for reason in out['waivers'].values():
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError('Every waiver must have a reason')
+    normal = out['section_normal']
+    if not isinstance(normal, list) or len(normal) != 3 or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in normal) or sum(v*v for v in normal) < 1e-12:
+        raise ValueError('Custom section normal must contain three finite values and a nonzero direction')
+    comparison = out['comparison_board']
+    if comparison is not None:
+        if not isinstance(comparison, dict) or set(comparison) != {'path', 'translation_mm', 'rotation_deg'}:
+            raise ValueError('Comparison board needs path, translation_mm and rotation_deg')
+        if not isinstance(comparison['path'], str) or not comparison['path'].strip():
+            raise ValueError('Comparison board path is required')
+        vector = comparison['translation_mm']
+        if not isinstance(vector, list) or len(vector) != 3 or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in vector):
+            raise ValueError('Comparison board translation must contain three finite millimetre values')
+        angle = comparison['rotation_deg']
+        if isinstance(angle, bool) or not isinstance(angle, (int, float)) or not math.isfinite(angle):
+            raise ValueError('Comparison board rotation must be a finite angle in degrees')
+        if out['mode'] != 'exact3d':
+            raise ValueError('Interboard collision checking requires Exact 3D solids mode')
     for item in out['enclosures']:
         if not isinstance(item.get('path'), str) or not item['path']:
             raise ValueError('Enclosures require a STEP path')

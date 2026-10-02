@@ -19,6 +19,7 @@ class Scene(glcanvas.GLCanvas):
         self.center=[0,0,0];self.span=100;self.zoom=1
         self.yaw=-1.0;self.pitch=.75
         self.isolate=True;self.ghost=True;self.section=False
+        self.section_normal=[0,1,0];self.section_offset=0.0
         self.lists={};self.initialized=False
         self.Bind(wx.EVT_PAINT,self.paint)
         self.Bind(wx.EVT_SIZE,lambda e:self.Refresh())
@@ -110,7 +111,7 @@ class Scene(glcanvas.GLCanvas):
     def draw_body(self,index,body,alpha=1):
         if not body.get('mesh'):return
         kind=body['kind'];active=body['ref'] in self.refs
-        color=(.17,.48,.39) if kind=='board' else (.64,.68,.74) if active else (.55,.62,.68)
+        color=(.17,.48,.39) if kind=='board' else (.23,.43,.73) if kind=='comparison_board' else (.86,.56,.29) if kind=='comparison_component' else (.64,.68,.74) if active else (.55,.62,.68)
         if kind in ('hardware envelope','hole allowance'):color=(.94,.65,.22)
         gl.glColor4f(*color,alpha)
         gl.glCallList(self.display_list(('body',index),body['mesh']))
@@ -141,17 +142,23 @@ class Scene(glcanvas.GLCanvas):
         gl.glEnable(gl.GL_NORMALIZE);gl.glEnable(gl.GL_COLOR_MATERIAL)
         gl.glColorMaterial(gl.GL_FRONT_AND_BACK,gl.GL_AMBIENT_AND_DIFFUSE)
         gl.glMaterialfv(gl.GL_FRONT_AND_BACK,gl.GL_SPECULAR,[.4,.4,.4,1]);gl.glMaterialf(gl.GL_FRONT_AND_BACK,gl.GL_SHININESS,45)
+        if self.section:
+            normal=self.section_normal
+            length=math.sqrt(sum(value*value for value in normal)) or 1.0
+            normal=[value/length for value in normal]
+            origin=(self.issue or {}).get('section_origin',self.center)
+            d=-sum(normal[i]*origin[i] for i in range(3))-self.section_offset
+            gl.glClipPlane(gl.GL_CLIP_PLANE0,[*normal,d]);gl.glEnable(gl.GL_CLIP_PLANE0)
         boards=[]
         for i,body in enumerate(self.bodies):
-            if body['kind']=='board':boards.append((i,body));continue
+            if body['kind'] in ('board','comparison_board'):boards.append((i,body));continue
             if self.refs and self.isolate and body['ref'] not in self.refs:continue
             self.draw_body(i,body)
         for i,body in boards:
-            if self.section:
-                gl.glClipPlane(gl.GL_CLIP_PLANE0,[0,1,0,-self.center[1]]);gl.glEnable(gl.GL_CLIP_PLANE0)
             gl.glDepthMask(not self.ghost)
             self.draw_body(i,body,.24 if self.ghost else 1)
-            gl.glDepthMask(True);gl.glDisable(gl.GL_CLIP_PLANE0)
+            gl.glDepthMask(True)
+        gl.glDisable(gl.GL_CLIP_PLANE0)
         if self.issue:
             gl.glDisable(gl.GL_LIGHTING)
             contact=self.issue.get('conflict_mesh')

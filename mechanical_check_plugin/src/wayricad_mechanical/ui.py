@@ -94,6 +94,41 @@ class NozzleProfilePreview(wx.Panel):
         dc.DrawLine(round(centre-tip_px),pickup_y-8,round(centre+tip_px),pickup_y-8)
 
 
+class SectionProfile(wx.Panel):
+    """Draw exact FreeCAD section-edge polylines for one selected finding."""
+    def __init__(self,parent,section):
+        super().__init__(parent,style=wx.BORDER_SIMPLE)
+        self.section=section
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.SetMinSize((420,320))
+        self.Bind(wx.EVT_PAINT,self.paint)
+
+    def paint(self,event):
+        dc=wx.AutoBufferedPaintDC(self)
+        dark=wx.SystemSettings.GetAppearance().IsDark()
+        dc.SetBackground(wx.Brush('#1d252d' if dark else '#ffffff'));dc.Clear()
+        curves=self.section.get('curves',[])
+        if not curves:
+            dc.SetTextForeground('#bacbd4' if dark else '#243444')
+            dc.DrawText(self.section.get('error') or 'No solid intersects this exact plane.',16,16)
+            return
+        points=[point for curve in curves for point in curve['points']]
+        width,height=self.GetClientSize()
+        lo=[min(point[i] for point in points) for i in range(2)]
+        hi=[max(point[i] for point in points) for i in range(2)]
+        scale=min((width-64)/max(hi[0]-lo[0],0.1),(height-64)/max(hi[1]-lo[1],0.1))
+        def project(point):
+            return (round(32+(point[0]-lo[0])*scale),round(height-32-(point[1]-lo[1])*scale))
+        for curve in curves:
+            dc.SetPen(wx.Pen('#2d9e95' if curve['ref']=='A' else '#d28b42',2))
+            coords=[project(point) for point in curve['points']]
+            if len(coords)>1:dc.DrawLines(coords)
+        dc.SetTextForeground('#bacbd4' if dark else '#243444')
+        dc.DrawText('Current board',16,8)
+        dc.DrawText('Comparison board',130,8)
+        dc.DrawText('Scale: %.2f px/mm' % scale,16,height-22)
+
+
 class Window(wx.Frame):
     def __init__(self, board_path=None, rules_path=None, live_board=None, snapshot_of=None):
         global INK, MUTED, BG, TEAL
@@ -173,7 +208,27 @@ class Window(wx.Frame):
         self.file=wx.FilePickerCtrl(p,path=self.board_path,message='Choose a KiCad board',wildcard='KiCad board (*.kicad_pcb)|*.kicad_pcb',style=wx.FLP_OPEN|wx.FLP_FILE_MUST_EXIST|wx.FLP_USE_TEXTCTRL)
         self.file.Enable(self.live_board is None)
         self.file.Bind(wx.EVT_FILEPICKER_CHANGED,lambda e:self.load_board())
-        s.Add(self.file,0,wx.EXPAND|wx.BOTTOM,22)
+        s.Add(self.file,0,wx.EXPAND|wx.BOTTOM,14)
+        s.Add(label(p,'COMPARISON BOARD — OPTIONAL',9,True,MUTED),0,wx.BOTTOM,5)
+        self.comparison_file=wx.FilePickerCtrl(p,path=(self.config['comparison_board'] or {}).get('path',''),
+            message='Choose another KiCad board',wildcard='KiCad board (*.kicad_pcb)|*.kicad_pcb',
+            style=wx.FLP_OPEN|wx.FLP_FILE_MUST_EXIST|wx.FLP_USE_TEXTCTRL)
+        self.comparison_file.Bind(wx.EVT_FILEPICKER_CHANGED,lambda e:self.load_board())
+        s.Add(self.comparison_file,0,wx.EXPAND|wx.BOTTOM,6)
+        placement=wx.BoxSizer(wx.HORIZONTAL)
+        self.comparison_position={}
+        saved=(self.config['comparison_board'] or {}).get('translation_mm',[0,0,0])
+        for index,axis in enumerate('XYZ'):
+            placement.Add(label(p,axis+' (mm)'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4)
+            control=wx.SpinCtrlDouble(p,min=-100000,max=100000,inc=1,initial=saved[index]);control.SetDigits(3)
+            placement.Add(control,1,wx.RIGHT,10)
+            self.comparison_position[axis]=control
+        placement.Add(label(p,'Z rotation (°)'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4)
+        self.comparison_rotation=wx.SpinCtrlDouble(p,min=-360,max=360,inc=5,
+            initial=(self.config['comparison_board'] or {}).get('rotation_deg',0));self.comparison_rotation.SetDigits(2)
+        placement.Add(self.comparison_rotation,1)
+        s.Add(placement,0,wx.EXPAND|wx.BOTTOM,8)
+        s.Add(label(p,'Position relative to the current board’s KiCad STEP export origin. Save both boards before checking.',10,False,MUTED),0,wx.BOTTOM,14)
         form=wx.FlexGridSizer(cols=2,hgap=18,vgap=14);form.AddGrowableCol(1)
         self.project=wx.TextCtrl(p,value=self.config['project_name'])
         self.revision=wx.TextCtrl(p,value=self.config['project_revision'])
@@ -203,6 +258,16 @@ class Window(wx.Frame):
             fields.Add(label(p,title+' (mm)'),0,wx.ALIGN_CENTER_VERTICAL);fields.Add(control,1,wx.EXPAND)
             self.numbers[key]=control
         s.Add(fields,0,wx.EXPAND|wx.BOTTOM,14)
+        section_row=wx.BoxSizer(wx.HORIZONTAL)
+        section_row.Add(label(p,'Custom section normal',10,True),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,12)
+        self.section_normal_inputs={}
+        for axis,value in zip('XYZ',self.config['section_normal']):
+            section_row.Add(label(p,axis),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4)
+            control=wx.SpinCtrlDouble(p,min=-1000,max=1000,inc=.1,initial=value);control.SetDigits(3)
+            section_row.Add(control,1,wx.RIGHT,9)
+            self.section_normal_inputs[axis]=control
+        s.Add(section_row,0,wx.EXPAND|wx.BOTTOM,5)
+        s.Add(label(p,'The custom plane cuts through each selected contact or close approach; X/Y/Z sections are always generated too.',10,False,MUTED),0,wx.BOTTOM,12)
         self.nozzle_preview=NozzleProfilePreview(p)
         s.Add(self.nozzle_preview,0,wx.EXPAND|wx.BOTTOM,8)
         s.Add(label(p,'PnP nozzle: vertical circular tip and wider head. The diagram is a screening envelope; confirm actual tooling and pickup offset with the assembler.',10,False,MUTED),0,wx.BOTTOM,12)
@@ -273,6 +338,19 @@ class Window(wx.Frame):
             control.Bind(wx.EVT_CHECKBOX,lambda e,k=key:(setattr(self.scene,k,e.IsChecked()),self.scene.Refresh()))
             toggles.Add(control,0,wx.RIGHT,10)
         ls.Add(toggles,0,wx.BOTTOM,8)
+        sections=wx.BoxSizer(wx.HORIZONTAL)
+        sections.Add(label(left,'Section plane',10,True),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,7)
+        self.section_axis=wx.Choice(left,choices=['X','Y','Z','Custom'])
+        self.section_axis.SetSelection(1)
+        self.section_axis.Bind(wx.EVT_CHOICE,self.change_section_axis)
+        sections.Add(self.section_axis,0,wx.RIGHT,8)
+        self.section_offset=wx.SpinCtrlDouble(left,min=-100000,max=100000,inc=.1,initial=0)
+        self.section_offset.SetDigits(2)
+        self.section_offset.Bind(wx.EVT_SPINCTRLDOUBLE,self.change_section_offset)
+        sections.Add(label(left,'Offset (mm)',10),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
+        sections.Add(self.section_offset,1,wx.RIGHT,8)
+        sections.Add(button(left,'2D section…',self.show_section_profile))
+        ls.Add(sections,0,wx.EXPAND|wx.BOTTOM,8)
         self.scene_legend=label(left,'Red: exact contact volume (X-ray) · Gold: hardware allowance\nDrag: orbit · Right-drag: pan · Wheel: zoom',9,False,MUTED)
         ls.Add(self.scene_legend,0,wx.BOTTOM,8)
         left.SetSizer(ls)
@@ -360,7 +438,11 @@ class Window(wx.Frame):
         c=deepcopy(self.config)
         c.update(project_name=self.project.GetValue().strip(),project_revision=self.revision.GetValue().strip(),reviewer=self.reviewer.GetValue().strip(),include_dnp=self.dnp.GetValue())
         c['mode']='quick2d' if self.mode.GetSelection()==0 else 'exact3d'
+        path=self.comparison_file.GetPath().strip()
+        c['comparison_board']=(dict(path=path,translation_mm=[self.comparison_position[axis].GetValue() for axis in 'XYZ'],
+                                    rotation_deg=self.comparison_rotation.GetValue()) if path else None)
         c.update({key:control.GetValue() for key,control in self.numbers.items()})
+        c['section_normal']=[self.section_normal_inputs[axis].GetValue() for axis in 'XYZ']
         c['mounts']={}
         for row,(ref,actual) in enumerate(self.mount_rows):
             expected=self.mount_grid.GetCellValue(row,2)
@@ -452,6 +534,34 @@ class Window(wx.Frame):
         measurement='' if f['measured'] is None else f"\nMeasured: {f['measured']:.4f} {f.get('unit','')}" + (f"   Required: {f['limit']} {f.get('unit','')}" if f['limit'] is not None else '')
         self.detail.SetValue(f"{f['summary']}\n{f['rule']}  ·  Evidence: {f['evidence']}  ·  {', '.join(f['refs'])}{measurement}\n{f['action']}\n"+('Waiver: '+f['waiver'] if f['waiver'] else ''))
 
+    def change_section_axis(self,event):
+        axis=self.section_axis.GetStringSelection()
+        self.scene.section_normal=(self.result['rules']['section_normal'] if axis=='Custom' and self.result else
+                                   [self.section_normal_inputs[key].GetValue() for key in 'XYZ'] if axis=='Custom' else
+                                   [[1,0,0],[0,1,0],[0,0,1]]['XYZ'.index(axis)])
+        self.scene.Refresh()
+
+    def change_section_offset(self,event):
+        self.scene.section_offset=self.section_offset.GetValue()
+        self.scene.Refresh()
+
+    def show_section_profile(self,event):
+        finding=self.selected()
+        if not finding or not finding.get('sections'):
+            wx.MessageBox('Select an interboard collision or close approach first.','2D section',wx.OK,self)
+            return
+        axis=self.section_axis.GetStringSelection()
+        section=finding['sections'][axis]
+        dlg=wx.Dialog(self,title=f"{axis} section — {', '.join(finding['refs'])}",size=(760,600),
+                      style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        layout=wx.BoxSizer(wx.VERTICAL)
+        position=(f"{axis} = {section['coordinate']} mm" if axis!='Custom' else f"Normal {section['normal']}")
+        layout.Add(label(dlg,f"{position} · axes {', '.join(section.get('axes',[]))} (mm)",11,True),0,wx.ALL,12)
+        profile=SectionProfile(dlg,section)
+        layout.Add(profile,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
+        layout.Add(dlg.CreateButtonSizer(wx.OK),0,wx.ALL|wx.ALIGN_RIGHT,12)
+        dlg.SetSizer(layout);dlg.ShowModal();dlg.Destroy()
+
     def set_view(self,yaw,pitch):
         self.scene.yaw=-1.5708 if pitch==0 else -1.0
         self.scene.pitch=1.5707 if pitch==0 else .75
@@ -494,8 +604,14 @@ class Window(wx.Frame):
             try:
                 self.config=load(dlg.GetPath());self.rules_path=dlg.GetPath()
                 for key,control in self.numbers.items():control.SetValue(self.config[key])
+                for axis,value in zip('XYZ',self.config['section_normal']):self.section_normal_inputs[axis].SetValue(value)
                 self.project.SetValue(self.config['project_name']);self.revision.SetValue(self.config['project_revision']);self.reviewer.SetValue(self.config['reviewer']);self.dnp.SetValue(self.config['include_dnp'])
                 self.mode.SetSelection(0 if self.config['mode']=='quick2d' else 1)
+                comparison=self.config['comparison_board'] or {}
+                self.comparison_file.SetPath(comparison.get('path',''))
+                for index,axis in enumerate('XYZ'):
+                    self.comparison_position[axis].SetValue(comparison.get('translation_mm',[0,0,0])[index])
+                self.comparison_rotation.SetValue(comparison.get('rotation_deg',0))
                 self.load_board()
             except Exception as exc:wx.MessageBox(str(exc),'Invalid rules',wx.OK|wx.ICON_ERROR,self)
 

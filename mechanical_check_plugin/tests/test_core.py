@@ -122,7 +122,7 @@ class NozzlePreviewTests(unittest.TestCase):
         dc.SelectObject(wx.NullBitmap)
         data=bitmap.ConvertToImage().GetData()
         colours=Counter(tuple(data[i:i+3]) for i in range(0,len(data),3))
-        self.assertGreater(colours[(23,127,131)],1000)
+        self.assertGreater(colours[(23,127,131)]+colours[(104,208,192)],1000)
 
 if __name__=='__main__':unittest.main()
 
