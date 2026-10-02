@@ -136,9 +136,10 @@ class LiveApplyTests(unittest.TestCase):
         item.proto.net.name='NEW'
         with self.assertRaises(live.UnsupportedLiveApply):live.preview_items(Board(),[item],'new')
     def test_connect_binds_exact_document_not_first_and_never_enables_ipc(self):
-        requested=Path('C:/Projects/Example/board.kicad_pcb')
-        docs=[NS(board_filename='C:/Projects/Other/board.kicad_pcb',project=NS(path='C:/Projects/Other')),
-              NS(board_filename=str(requested),project=NS(path='C:/Projects/Example'))]
+        requested=Path.cwd()/'Example'/'board.kicad_pcb'
+        other=Path.cwd()/'Other'
+        docs=[NS(board_filename=str(other/'board.kicad_pcb'),project=NS(path=str(other))),
+              NS(board_filename=str(requested),project=NS(path=str(requested.parent)))]
         client=NS(_client=object(),get_version=lambda:NS(major=10),get_open_documents=lambda kind:docs)
         selected=[]
         def factory(connection,doc):
