@@ -6,6 +6,23 @@ import pytest
 from tools import install_suite
 
 
+def test_feed_preserves_native_platform_restrictions(tmp_path, monkeypatch):
+    import build_pcm
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    plugin = tmp_path / 'project_fusion_plugin'
+    plugin.mkdir()
+    for name in ('metadata.json', '__init__.py', 'action.py', 'icon.png', 'LICENSE'):
+        (plugin / name).write_bytes((root / 'project_fusion_plugin' / name).read_bytes())
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, 'argv', ['build_pcm', '--clean-feed'])
+    build_pcm.main()
+    feed = json.loads((tmp_path / 'pcm/pkgs.json').read_text())
+    version = feed['packages'][0]['versions'][0]
+    assert version['platforms'] == ['windows', 'linux']
+    assert version['runtime'] == 'swig'
+
+
 def test_swig_install_and_backup_without_ipc(tmp_path, monkeypatch):
     source = tmp_path / 'source'
     folder = source / 'project_fusion_plugin'

@@ -1179,11 +1179,7 @@ def main():
                 "install_size":
                     install_size,
 
-                "platforms": [
-                    "windows",
-                    "linux",
-                    "macos",
-                ],
+                "platforms": current_version.get("platforms", ["windows", "linux", "macos"]),
             }
         )
 
