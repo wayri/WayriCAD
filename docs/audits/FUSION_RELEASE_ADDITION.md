@@ -11,11 +11,15 @@ Local checks on 2026-10-03, Windows, KiCad 10.0.6.50883 / bundled Python 3.11.5:
 - Native Fusion suite: 165 tests, 138 passed, 27 skipped, with native GUI and
   insertion GUI checks enabled. Discovery intercepts the C++ registration
   boundary; it does not establish connected-editor live transaction acceptance.
-- Source suite: 333 passed, 68 skipped and 144 subtests passed on Python 3.14.
+- Source suite against 3.6.4: 344 passed, 68 skipped and 147 subtests passed on
+  Python 3.14.
 - Mixed-runtime package tests cover isolated menu registration, installer backup
   and stale package rejection. Native packages cannot include an IPC manifest.
 - Official PCM schemas, payload Python syntax, icon sizes and standalone assets
   checked across 18 candidate archives. Source and packaged documentation checked.
+- The extracted release ZIP registered its native action and constructed its wx
+  dialog under bundled KiCad Python, with C++ registration intercepted. Isolated
+  wheel CLI help and report assets passed, including Fusion.
 
 Whole-project application remains offline: saved and closed target editors,
 source/target hashes, reviewed candidates and backups. The limited live PCB

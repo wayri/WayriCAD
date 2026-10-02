@@ -178,7 +178,7 @@ def validate():
                 for name in names:
                     if name.endswith(".py"):
                         compile(archive.read(name), str(path) + ":" + name, "exec")
-    resources = ROOT / "releases/resources.zip"
+    resources = ROOT / "releases" / repo["resources"]["url"].rsplit("/", 1)[1]
     assert hashlib.sha256(resources.read_bytes()).hexdigest() == repo["resources"]["sha256"]
     with zipfile.ZipFile(resources) as archive:
         assert set(archive.namelist()) == {i + "/icon.png" for i in identifiers}
