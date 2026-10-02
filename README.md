@@ -1,10 +1,12 @@
 # WayriCAD — KiCad Plugins for PCB Design and Analysis
 
-**WayriCAD** is an open-source suite of **18 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes fanout routing, via stitching, trace impedance and RLC analysis, power integrity and signal integrity checks, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
+**WayriCAD** is an open-source suite of **18 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes schematic and PCB project merging, hierarchical subsheet reuse, fanout routing, via stitching, trace impedance and RLC analysis, power integrity (PI), signal integrity (SI), thermal analysis, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current release: 3.6.4 · [GPL-3.0 license](LICENSE).**
+**Current suite release: [3.6.4](https://github.com/wayri/WayriCAD/releases/tag/v3.6.4) · [GPL-3.0 license](LICENSE); Project Fusion is MIT licensed.**
+
+**Project Fusion 0.9.3 is now available:** [Download the Fusion PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.4/WayriCAD-project-fusion-0.9.3-PCM.zip) or install it from the WayriCAD PCM repository. Merge up to 100 saved projects or selected hierarchical subsheets, optionally copy their routed PCB blocks and local libraries, arrange blocks in a visual preview, and review linked source updates. See the [KiCad project merge guide](project_fusion_plugin/README.md). This is a testing package for KiCad 10; full-project apply requires saved and closed target editors. The original 3.6.4 wheel predates the Fusion addition.
 
 **New in 3.6.4:** Mechanical Check can compare a second saved PCB at a specified 3D position, detect exact interboard collisions and close approaches, and show per-finding X/Y/Z or custom cross-sections. See the [3.6.4 release notes](docs/RELEASE_NOTES_3.6.4.md).
 
@@ -26,7 +28,7 @@
 
 1. In KiCad Manager, open **Plugin and Content Manager**. Add the repository URL below, select **WayriCAD Plugin Repository**, and install the tools you need.
 2. Alternatively, download an individual `WayriCAD-<tool>-<version>-PCM.zip` from Releases and use **Install from File**. Do not unpack the ZIP yourself.
-3. In **Preferences → Plugins**, enable the API and configure Python. Let KiCad finish preparing each plugin environment, then restart the PCB Editor.
+3. For the IPC tools, in **Preferences → Plugins**, enable the API and configure Python. Let KiCad finish preparing each plugin environment, then restart the PCB Editor. **Fusion uses the native SWIG loader and does not require enabling the API:** install its PCM ZIP, apply, restart PCB Editor, and choose **Tools → External Plugins → Wayri Project Fusion**.
 4. Open and save your board/project, then launch a WayriCAD action from **Tools → External Plugins** or the **PCB Editor's top toolbar**. Use **WayriCAD — All tools…** at the top of the External Plugins menu to search the full installed list when the flat KiCad menu does not fit on screen. The KiCad 10 packages include lightweight menu launchers alongside their IPC toolbar actions. Maximize the editor if the toolbar is crowded; use **Preferences → PCB Editor → Plugins** to show or hide individual buttons. Toolbar launches use the originating project; standalone launches may need a file selection. A loading window appears while a plugin prepares its runtime and opens its own window.
 
 ```text
@@ -34,6 +36,13 @@ https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json
 ```
 
 Initial dependency setup needs internet access or a prepared wheel cache. Once prepared, application pages, previews and project processing run locally. Some tools use a separate native KiCad runtime; [runtime setup](wayricad_runtime/RUNTIME_SETUP.md) explains overrides and offline installation.
+
+## Choose a KiCad workflow
+
+- **Combine designs or reuse a circuit:** [Project Fusion](project_fusion_plugin/README.md) merges projects and selected schematic sheets with optional routed layout, variant selection, visual placement, dependency copying and reviewed linked updates.
+- **Inspect PCB electrical behaviour:** [Quick PI](quick_pi_plugin/README.md), [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) and [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) report results with explicit model assumptions and coverage.
+- **Review component temperatures:** [QuickTherm](quick_therm_plugin/README.md) models declared losses and thermal inputs with a board result overlay.
+- **Prepare assembly and fabrication:** [BOM Studio](bom_studio_plugin/README.md), [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) and [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) provide field editing, rules and release checks.
 
 ## Plugin previews
 
@@ -125,4 +134,4 @@ WayriCAD development has made substantial use of AI coding assistants and large 
 We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
 
 
-Project Fusion 0.9.3 is being added as an independent testing package to 3.6.4. It retains its MIT license and native KiCad loader. [Fusion guide](project_fusion_plugin/README.md).
+[Project Fusion 0.9.3 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.4/WayriCAD-project-fusion-0.9.3-PCM.zip) is available as an independent testing package in 3.6.4. It retains its MIT license and native KiCad loader. [Fusion guide](project_fusion_plugin/README.md).
