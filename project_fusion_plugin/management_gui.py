@@ -20,7 +20,7 @@ class RepairDialog(wx.Dialog):
         self.result = None
         self.busy = False
         panel = wx.BoxSizer(wx.VERTICAL)
-        note = wx.StaticText(self, label='Preview first. Compile the selected variant as Default in a NEW copy; retain placed geometry, repair unambiguous links, add missing parts from matching placed templates and remove copper on changed nets. Placement, routing, DRC and engineering review remain required.')
+        note = wx.StaticText(self, label='Preview first. Compile the selected variant as Default in a NEW copy; retain placed geometry, repair unambiguous links, add missing parts from matching placed templates and stop for review when changed connections affect existing copper. Placement, routing, DRC and engineering review remain required.')
         note.Wrap(880)
         panel.Add(note, 0, wx.ALL | wx.EXPAND, 12)
         self.blank = wx.CheckBox(self, label='Retain placed footprints where the selected schematic footprint is blank')

@@ -48,7 +48,7 @@ def make_fixture(root):
     b=pcbnew.BOARD()
     io=pcbnew.PCB_IO_KICAD_SEXPR();fp=io.FootprintLoad(str(resources/'footprints/Resistor_SMD.pretty'),'R_0603_1608Metric')
     fp.SetFPID(pcbnew.LIB_ID('Resistor_SMD','R_0603_1608Metric'));fp.SetReference('R1');fp.SetValue('10k')
-    fp.SetPath(pcbnew.KIID_PATH('/'+rid+'/'+sheet+'/'+symbol));fp.SetPosition(pcbnew.VECTOR2I(pcbnew.FromMM(10),pcbnew.FromMM(10)));b.Add(fp)
+    fp.SetPath(pcbnew.KIID_PATH('/'+sheet+'/'+symbol));fp.SetPosition(pcbnew.VECTOR2I(pcbnew.FromMM(10),pcbnew.FromMM(10)));b.Add(fp)
     info={}
     for i,name in enumerate(sorted(xml.nets),1):
         info[name]=pcbnew.NETINFO_ITEM(b,name,i);b.Add(info[name])

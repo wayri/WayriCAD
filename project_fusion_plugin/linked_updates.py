@@ -391,7 +391,7 @@ def record_import(candidate,target_project,sources,parent,batch,imported,merged,
             durable=copy.deepcopy(origin_spec);durable['section_origin']=copy.deepcopy(spec.section_origin);durable['alias']=spec.alias
             durable['x_mm']=durable['y_mm']=None;link['source_spec']=durable;snapshot['variant']=original_snapshot['variant']
         link['target_baseline']=_scope(project,link,merged);manifest['links'].append(link)
-    manifest['target_root_uuid']=sx.value(root,'uuid');manifest['plugin_version']='0.8.0';_write(project.parent,manifest)
+    manifest['target_root_uuid']=sx.value(root,'uuid');manifest['plugin_version']='0.9.4';_write(project.parent,manifest)
 
 
 def _legacy_candidates(project,manifest,cli_path=''):
@@ -603,6 +603,8 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
                     elif len(net)>1 and isinstance(net[1],sx.Quoted):net[1]=sx.q(net_names.get(name,name))
             for net in sx.children(board,'net'):
                 if len(net)>2:net[2]=sx.q(net_names.get(str(net[2]),str(net[2])))
+            from .board import verify_native_associations
+            verify_native_associations(board,final_xml)
             sx.save(pcb,board)
         # Net-class assignments follow the stable, re-exported net names.
         data=json.loads(fresh_project.read_text());ns=data.get('net_settings') or {}
@@ -649,7 +651,7 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
         rendered.mkdir()
         cli.run(['sch','export','svg','--output',rendered,fresh_project.with_suffix('.kicad_sch')],cwd=candidate)
         erc=json.loads((candidate/'linked-update-erc.json').read_text(encoding='utf-8-sig'))
-        report={'plugin_version':'0.8.0','linked_update':True,'updated_links':[link['id'] for link in links],
+        report={'plugin_version':'0.9.4','linked_update':True,'updated_links':[link['id'] for link in links],
                 'major_changes':major,'acknowledged_major_changes':bool(acknowledge_major),'changes':all_changes,'conflicts':[],
                 'stable_references_and_uuids_preserved':True,'unrelated_destination_preserved':True,'manufacturing_approved':False,
                 'drc_findings':len(drc.get('violations',[])) if drc else None,'unconnected_findings':len(drc.get('unconnected_items',[])) if drc else None,
@@ -697,7 +699,7 @@ def preview_break_links(target,link_ids,candidate_directory,cli_path=''):
         if changes!={MANIFEST}:raise MergeError('Breaking links changed local design files; nothing published.')
         if fingerprint(project.parent)!=original:raise MergeError('Destination changed during break-links review.')
         publish(candidate,destination)
-    report={'plugin_version':'0.8.0','linked_break':True,'broken_links':sorted(requested),'local_design_preserved':True,'sources_accessed':False,'major_changes':0}
+    report={'plugin_version':'0.9.4','linked_break':True,'broken_links':sorted(requested),'local_design_preserved':True,'sources_accessed':False,'major_changes':0}
     return {'target_project':str(project),'target_hashes':original,'source_hashes':[],'source_file_hashes':[],
             'candidate_directory':str(destination),'candidate_hashes':fingerprint(destination),'report':report}
 
@@ -738,7 +740,7 @@ def preview_undo(target,backup_directory,candidate_directory,cli_path=''):
         candidate=Path(folder)/'candidate';copy_project(backup/'project',candidate)
         if fingerprint(candidate)!=restored or fingerprint(project.parent)!=current:raise MergeError('Destination or backup changed during undo preview.')
         publish(candidate,destination)
-    report={'plugin_version':'0.8.0','linked_undo':True,'undo_backup':str(backup),'restored_verified_snapshot':True,'major_changes':0}
+    report={'plugin_version':'0.9.4','linked_undo':True,'undo_backup':str(backup),'restored_verified_snapshot':True,'major_changes':0}
     return {'target_project':str(project),'target_hashes':current,'source_hashes':[{'root':str(backup/'project'),'hashes':restored}],
             'source_file_hashes':[],'candidate_directory':str(destination),'candidate_hashes':restored,'undo_backup':str(backup),
             'remove_files':sorted(set(current)-set(restored)),'report':report}

@@ -9,7 +9,7 @@ from pathlib import Path
 from . import sexpr as sx
 from .model import MergeError
 from .layers import apply_stack_header, remap_item, verify_layers
-from .schematic import new_uuid, canonical_path, namespace_text, remap_footprint_id
+from .schematic import new_uuid, canonical_path, pcb_association_path, namespace_text, remap_footprint_id
 
 HEADER={'kicad_pcb','version','generator','generator_version','general','paper','title_block','layers','setup','net','property','embedded_fonts','embedded_files','variants','variant'}
 ITEMS={'footprint','segment','arc','via','zone','group','gr_line','gr_arc','gr_circle','gr_rect','gr_poly',
@@ -319,7 +319,8 @@ def compose(sources,merged,outline,margin):
                 item[1]=sx.q(remap_footprint_id(str(item[1]),s))
                 if oldref not in s.board_ref_map:
                     rec=s.footprint_links[sx.value(orig,'uuid') or sx.value(orig,'tstamp')]
-                    sx.put(item,'path',sx.q(rec.new_path))
+                    root_uuid=rec.sheet.new_path.split('/')[1]
+                    sx.put(item,'path',sx.q(pcb_association_path(rec.new_path,root_uuid)))
                     sx.put(item,'sheetname',sx.q(rec.sheet.display_path))
                     sx.put(item,'sheetfile',sx.q(rec.sheet.relative_file))
                 else:
@@ -395,7 +396,8 @@ def verify_board(board,sources,merged):
                     raise MergeError('Final PCB item belongs to multiple groups.')
                 membership[str(uid)]=g
     table=net_table(board)
-    valid_paths={r.new_path:r.new_ref for s in sources for r in s.symbols}
+    valid_paths={pcb_association_path(r.new_path,r.sheet.new_path.split('/')[1]):r.new_ref
+                 for s in sources for r in s.symbols}
     board_only={s.ref_map[r] for s in sources for r in s.board_ref_map}
     unnumbered_expected={}
     for source in sources:
@@ -422,6 +424,21 @@ def verify_board(board,sources,merged):
             if net_name(pad,table)!=expected_net:
                 raise MergeError(f'Final pad net mismatch for {ref}.{pad[1]}')
     return len(refs)
+
+
+def verify_native_associations(board, exported):
+    """Check every schematic footprint against the literal native XML paths."""
+    for fp in sx.children(board,'footprint'):
+        attr=sx.child(fp,'attr',[])
+        if 'board_only' in [value for value in attr if isinstance(value,str)]:
+            continue
+        ref=fp_reference(fp)
+        path=canonical_path(sx.value(fp,'path'))
+        native=exported.components.get(ref,{}).get('paths',set())
+        if path not in native:
+            raise MergeError(f'PCB footprint {ref} has association path {path}, but KiCad exports '
+                             f'{sorted(native)}. Repair the saved PCB association before importing or updating; '
+                             'schematic instance paths must keep their root UUID.')
 
 
 def geometry_signature(board):
