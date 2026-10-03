@@ -39,14 +39,12 @@ class Netlist:
                 raise MergeError(f'Duplicate/missing component reference in exported netlist: {ref!r}')
             sp=comp.find('sheetpath')
             sheet=sp.get('tstamps','') if sp is not None else ''
-            # Native XML omits the owning root UUID from sheetpath stamps;
-            # PCB association paths include it. Restore only the actual root
-            # read from the exact schematic exported by KiCad.
+            # Native XML sheetpath stamps are the PCB association authority.
+            # Schematic instance records include the root UUID, but neither
+            # the XML exporter nor Update PCB from Schematic includes it here.
             if root_uuid:
                 if not re.fullmatch(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}',root_uuid):
                     raise MergeError('Invalid owning root UUID for native netlist.')
-                if canonical_path(sheet).split('/')[1:2] != [root_uuid]:
-                    sheet='/'+root_uuid+'/'+sheet.strip('/')
             ts=comp.find('tstamps')
             stamps=' '.join(ts.itertext()) if ts is not None else ''
             if not stamps:

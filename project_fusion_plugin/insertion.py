@@ -20,7 +20,7 @@ from .schematic import discover,new_uuid,natural_ref,transform_schematics,make_p
 from .repair import fingerprint,copy_project,project_files
 from .assets import prepare_assets,audit_assets,sha256
 from .netlist import KiCadCLI,compare_netlists
-from .board import prepare_board,compose,verify_board,geometry_signature,ITEMS,net_name,net_table,board_bounds,fp_reference
+from .board import prepare_board,compose,verify_board,verify_native_associations,geometry_signature,ITEMS,net_name,net_table,board_bounds,fp_reference
 from .layers import copper_sequence,plan_layers
 from .engine import export_selected_netlist,build_project,publish,_snapshot,_assert_sources_unchanged
 from .sections import _geometry_signature
@@ -227,6 +227,7 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
             imported=compose(incoming,merged,'preserve',0)
             verify_board(imported,incoming,merged)
             result=_append_board(copy.deepcopy(target.board),imported,merged)
+            verify_native_associations(result,merged)
             geometry_before=geometry_signature(result)
             other_before={sx.value(n,'uuid') or sx.value(n,'tstamp'):_geometry_signature(n) for n in sx.children(result)
                           if sx.tag(n) in ITEMS-{'group','footprint','segment','arc','via'}}
@@ -276,7 +277,7 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
         source_file_hashes=_snapshot(incoming,assets)
         from .linked_updates import record_import
         record_import(candidate,target_project,incoming,parent,batch,imported,merged,include_layout,cli_path)
-        report={'plugin_version':'0.9.3','target_project':str(target_project),'include_layout':include_layout,
+        report={'plugin_version':'0.9.4','target_project':str(target_project),'include_layout':include_layout,
                 'copy_assets':bool(copy_assets),'assets':asset_audit,
                 'incoming_designs':len(incoming),'incoming_sheets':sum(len(s.sheets) for s in incoming),
                 'incoming_symbols':sum(len(s.symbols) for s in incoming),

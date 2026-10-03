@@ -22,6 +22,15 @@ def canonical_path(path):
     return '/' + '/'.join(p for p in str(path).split('/') if p)
 
 
+def pcb_association_path(symbol_path, root_uuid):
+    """Convert a schematic instance path to KiCad's root-free PCB path."""
+    path = canonical_path(symbol_path)
+    prefix = '/' + str(root_uuid).strip('/') + '/'
+    if not sx.UUID_RE.fullmatch(str(root_uuid)) or not path.startswith(prefix) or path == prefix:
+        raise MergeError('Schematic symbol path does not belong to the expected root UUID: ' + path)
+    return canonical_path(path[len(prefix):])
+
+
 def expand_path(text, project_dir, relative_dir):
     text = str(text).replace('${KIPRJMOD}', str(project_dir))
     text = os.path.expandvars(text).replace('\\', '/')
