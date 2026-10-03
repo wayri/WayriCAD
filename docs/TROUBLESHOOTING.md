@@ -33,6 +33,18 @@ It reports endpoint/JSON/hash failures and the number of compatible packages. Us
 
 Our v3.1.0 published feed returned 21 compatible packages during the September 2026 investigation. It omitted `schema_version: 2`; the corrected builder includes it and a package-feed digest. KiCad selects its validator using that integer, not `$schema`. The previous feed also passed v1 validation, so that omission alone did not explain every missing-package report.
 
+## All IPC plugins fail while creating Python environments on Windows
+
+If every WayriCAD action reports `.../bin/pythonw/.exe -m venv --system-site-packages ...` with Windows error 2, KiCad cannot start its configured Python interpreter. This occurs before WayriCAD code can run. Reinstalling PCM ZIPs does not correct KiCad's saved setting.
+
+**Source installer:** close KiCad Manager and PCB Editor, then run `python tools/install_suite.py --apply` with the matching built release packages. Before copying any package, the installer detects the exact `pythonw/.exe` typo, checks the matching KiCad `bin/python.exe`, backs up `kicad_common.json` and repairs the interpreter setting. It refuses missing executables, other custom paths, or a running KiCad session rather than guessing. The repair is one-time; subsequent installations keep a valid setting unchanged.
+
+**Already installed through PCM:** close KiCad and run `python tools/check_kicad_python.py --repair` from a WayriCAD source checkout. This makes the same narrow, backed-up repair without reinstalling all 16 packages. Restart KiCad afterward. Its first successful startup should create the missing environments. If a plugin retained a failed environment, right-click its action in PCB Editor plugin preferences and choose **Recreate Plugin Environment**.
+
+If the helper cannot find a valid matching executable, open **KiCad Manager > Preferences > Plugins** and browse to the installed KiCad 10 `bin/python.exe` on that computer. Per-user installs often use `%LOCALAPPDATA%/Programs/KiCad/10.0/bin/python.exe`; machine-wide installs often use `%ProgramFiles%/KiCad/10.0/bin/python.exe`. If neither exists, repair KiCad itself. Do not copy another user's path.
+
+KiCad stores the setting in `%APPDATA%/kicad/10.0/kicad_common.json` as `api.interpreter_path` unless `KICAD_CONFIG_HOME` overrides the root. PCM has no way to run a Python plugin before KiCad creates its environment, so a PCM ZIP cannot safely repair this host setting at install time. [KiCad's Plugins preferences](https://docs.kicad.org/10.0/en/kicad/kicad.html#plugins-preferences) and [IPC plugin environment guide](https://dev-docs.kicad.org/en/apis-and-binding/ipc-api/for-addon-developers/) describe those host controls.
+
 ## Installed package has no action, or clicking it fails
 
 KiCad 10 IPC actions appear in the **PCB Editor** after their Python environment finishes preparing. Enable the API under **Preferences > Plugins**, inspect the editor's warning panel, and use **Recreate Plugin Environment** on a failed plugin after correcting its dependency/interpreter error. Repository discovery and plugin environment setup are separate steps.
