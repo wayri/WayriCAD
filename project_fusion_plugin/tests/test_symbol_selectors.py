@@ -71,14 +71,14 @@ class CompatibilityTests(unittest.TestCase):
   self.assertNotIsInstance(item[2][2],sx.Quoted)
   self.assertIsInstance(item[2][1],sx.Quoted)
 
- def test_native_xml_restores_exact_owning_root(self):
+ def test_native_xml_preserves_exported_association_path(self):
   root='11111111-1111-4111-8111-111111111111'; sheet='22222222-2222-4222-8222-222222222222'; symbol='33333333-3333-4333-8333-333333333333'
   with tempfile.TemporaryDirectory() as tmp:
    path=Path(tmp)/'net.xml'
    for stamps in ('/'+sheet+'/', '/'+root+'/'+sheet+'/'):
     path.write_text(f'<export><components><comp ref="R1"><sheetpath tstamps="{stamps}"/><tstamps>{symbol}</tstamps></comp></components><nets/></export>')
     parsed=netlist.Netlist.read(path,root_uuid=root)
-    self.assertEqual(parsed.components['R1']['paths'],{'/'+root+'/'+sheet+'/'+symbol})
+    self.assertEqual(parsed.components['R1']['paths'],{s.canonical_path(stamps+'/'+symbol)})
    with self.assertRaises(model.MergeError):netlist.Netlist.read(path,root_uuid='invalid')
 
  def test_null_netclass_metadata_uses_default(self):

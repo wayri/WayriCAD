@@ -1,0 +1,35 @@
+# Fusion 0.9.4 beta 1 validation
+
+3 October 2026, Windows, KiCad 10.0.6 bundled Python 3.11.5.
+
+The integrated beta source ran 177 tests: 136 passed,
+41 skipped, zero failures/errors. Native association and copper
+regressions were enabled. Skips cover other native opt-in workflows, GUI tests
+and unavailable official IPC SDK tests; skipped tests are not passes.
+
+The precursor source was additionally tested with the complete native backend
+matrix: 151 passed, 25 skipped, zero failures/errors. That included 100 mixed
+instances, extraction/insertion, linked updates and workspace creation. The beta
+retains those tested functional changes and incorporates the current upstream
+CLI action-registration guard and packaged help resources. The final native
+regressions exercise those together. A native plotted fixture visibly retained
+both imported blocks, tracks, vias and filled zones.
+
+Independent raw KiCad XML verifies PCB association paths. Copper regressions
+verify identity/geometry preservation, safe renames and all-or-nothing rejection
+of ambiguous changed connections. Original schematic/PCB files remain unchanged.
+Manufacturing approval and live editor Update PCB are not established. No
+installation, connected IPC transaction or light/dark GUI check was performed.
+
+The precursor's unrelated dirty repository suite had five failures involving
+concurrent QuickTherm inventory/icon edits. The beta uses a clean develop-based
+worktree; GitHub CI results for its exact release commit are recorded separately.
+
+This work was AI-assisted and verified by automated and native saved-file checks;
+it is not an independent human engineering review. Existing projects are not
+automatically migrated. The stable public feed and 0.9.3 assets remain unchanged.
+
+Historical reports below describe older versions. Their schematic parity checks
+did not independently establish literal UUID association matching; 0.9.4 adds
+that independent check and supersedes the old root-prefix assumption.
+

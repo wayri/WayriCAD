@@ -11,7 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class DiscoveryTests(unittest.TestCase):
     def test_ipc_readiness_inputs_are_bundled(self):
-        metadata=json.loads((ROOT/'metadata.json').read_text(encoding='utf-8'))
+        metadata_path=ROOT/'metadata.json'
+        if not metadata_path.is_file():metadata_path=ROOT.parent/'metadata.json'
+        metadata=json.loads(metadata_path.read_text(encoding='utf-8'))
         if metadata['versions'][0].get('runtime')=='swig':
             self.assertFalse((ROOT/'plugin.json').exists(),'Compatibility package must not enable IPC discovery')
             for name in ('__init__.py','action.py','icon.png','desktop_entrypoint.py'):
@@ -62,9 +64,9 @@ class DiscoveryTests(unittest.TestCase):
         except ImportError:
             self.skipTest('Native KiCad Python required')
         code = ('import sys;sys.path.insert(0,sys.argv[1]);'
-                'import project_fusion_plugin.__main__ as cli;'
+                'import importlib;cli=importlib.import_module(sys.argv[2]+".__main__");'
                 'raise SystemExit(cli.main(["--help"]))')
-        result = subprocess.run([sys.executable, '-I', '-c', code, str(ROOT.parent)],
+        result = subprocess.run([sys.executable, '-I', '-c', code, str(ROOT.parent), ROOT.name],
                                 stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('usage:', result.stdout)

@@ -17,7 +17,7 @@ import zipfile
 
 from . import sexpr as sx
 from .model import MergeError, SourceSpec, validate_source_aliases
-from .schematic import discover, new_uuid, canonical_path
+from .schematic import discover, new_uuid, canonical_path, pcb_association_path
 from .repair import fingerprint, copy_project, project_files
 from .netlist import KiCadCLI
 from .board import net_name, net_table, HEADER, ITEMS, prepare_board
@@ -177,6 +177,7 @@ def _build(spec, sheet_path, region, cli_path, stage, max_depth=None):
     if fingerprint(output)!=snapshot: raise MergeError('Copied source differs from the reviewed snapshot; retry after saving.')
     stem = source.project_file.stem
     paths = _write_hierarchy(source,selected,output,stem,max_depth)
+    root_uuid = paths[selected.old_path].split('/')[1]
     project = copy.deepcopy(source.project)
     for container in (project,project.setdefault('schematic',{})):
         for key in ('variants','variant','current_variant'): container.pop(key,None)
@@ -257,7 +258,9 @@ def _build(spec, sheet_path, region, cli_path, stage, max_depth=None):
     for n in retained:
         if sx.tag(n)=='footprint':
             old=canonical_path(source.link_map[canonical_path(sx.value(n,'path'))].old_path)
-            owning=old.rsplit('/',1)[0]; sx.put(n,'path',sx.q(paths[owning]+'/'+old.rsplit('/',1)[1]))
+            owning=old.rsplit('/',1)[0]
+            new_symbol_path=paths[owning]+'/'+old.rsplit('/',1)[1]
+            sx.put(n,'path',sx.q(pcb_association_path(new_symbol_path,root_uuid)))
         for child in sx.walk(n):
             layer=sx.child(child,'layer')
             if layer is not None and len(layer)>1 and str(layer[1])=='Edge.Cuts': layer[1]=sx.q('Dwgs.User')

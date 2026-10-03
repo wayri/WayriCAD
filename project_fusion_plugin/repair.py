@@ -1,7 +1,7 @@
 """Reviewed repairs on new source copies; never mutate the input project.
 
-Repairs compile the selected assembly into Default. Originals, other variants,
-and removed copper remain in the snapshot/repair report for design review.
+Repairs compile the selected assembly into Default. Originals and other variants
+remain in the source archive. Ambiguous copper blocks repair; it is never deleted.
 """
 from __future__ import annotations
 from collections import defaultdict
@@ -23,6 +23,7 @@ from .schematic import discover, new_uuid
 from .board import fp_reference, net_name, net_table, prepare_board
 from .netlist import KiCadCLI
 from .variants import effective_board_flags, set_field
+from .copper_preservation import copper_geometry, require_preservable_copper, remap_preserved_copper
 
 SKIP = {'.git', '.svn', '__pycache__', 'node_modules', '.venv', 'venv'}
 
@@ -173,6 +174,7 @@ def _compile_copy(spec, cli, retain_blank=False):
     if any(project.parent not in s.source_path.parents for s in source.sheets):
         raise MergeError('Repair cannot write external child sheets. Bring them into a candidate project first.')
     board = sx.load(source.pcb_file)
+    original_copper_geometry = copper_geometry(board)
     ids = sx.declared_uuids(board)
     if len(ids) != len(set(ids)):
         raise MergeError('Repair does not guess genuinely duplicated PCB object UUIDs.')
@@ -229,6 +231,9 @@ def _compile_copy(spec, cli, retain_blank=False):
     if unknown:
         raise MergeError('Placed parts missing from native export: ' + ', '.join(sorted(unknown)))
     mapping, changed = net_partition_map(board, native)
+    # Preflight before creating templates or writing PCB changes. A changed pad
+    # does not justify deleting every plane/via/track on its former net.
+    require_preservable_copper(board, native, mapping)
     for ref, fp in placed.items():
         padnums = {str(p[1]) for p in sx.children(fp, 'pad') if str(p[1])}
         pins = {pin for rr, pin in native.pins if rr == ref}
@@ -283,23 +288,22 @@ def _compile_copy(spec, cli, retain_blank=False):
         for suffix in ('.kicad_pcb','.kicad_pro','.kicad_prl'):
             temp.with_suffix(suffix).unlink(missing_ok=True)
     table = net_table(board)
-    removed = []
-    for item in list(sx.children(board)):
-        if sx.tag(item) in {'segment', 'arc', 'via', 'zone'}:
-            old = net_name(item, table)
-            if old in changed:
-                removed.append(copy.deepcopy(item))
-                board.remove(item)
-                actions.append({'kind': 'removed_changed_net_copper', 'uuid': sx.value(item, 'uuid'), 'net': old, 'object': sx.tag(item)})
-            elif old in mapping:
-                sx.remove(item, 'net'); item.append(['net', sx.q(mapping[old])])
-                if sx.tag(item) == 'zone': sx.remove(item, 'net_name'); item.append(['net_name', sx.q(mapping[old])])
+    pad_connectivity_changed = any(
+        native.pins.get((ref, str(pad[1])), '') != mapping.get(net_name(pad, table), net_name(pad, table))
+        for ref, fp in placed.items() for pad in sx.children(fp, 'pad') if str(pad[1]))
+    copper_report = remap_preserved_copper(
+        board, native, mapping,
+        invalidate_fill=bool(pad_connectivity_changed or changed
+                             or any(a['kind'] == 'added_unplaced' for a in actions)))
+    actions.extend({'kind': 'invalidated_zone_fill_cache', 'uuid': item_id}
+                   for item_id in copper_report['invalidated_zone_fill_uuids'])
     for ref, fp in placed.items():
         rr = records[ref]
         # Prefer a still-valid UUID association, then the reviewed unique unit 1.
         linked = source.link_map.get(sx.value(fp, 'path'))
         record = linked if linked in rr else next((r for r in rr if r.unit == 1), rr[0])
-        expected = record.old_path
+        from .schematic import pcb_association_path
+        expected = pcb_association_path(record.old_path, source.old_root_uuid)
         if sx.value(fp, 'path') != expected:
             actions.append({'kind': 'relinked', 'reference': ref, 'before': sx.value(fp, 'path'), 'after': expected})
         sx.put(fp, 'path', sx.q(expected))
@@ -347,15 +351,20 @@ def _compile_copy(spec, cli, retain_blank=False):
         if ref not in placed: continue
         if final.components[ref]['footprint'] != str(fp[1]):
             raise MergeError('Native footprint parity failed for ' + ref)
+        if sx.value(fp, 'path') not in final.components[ref]['paths']:
+            raise MergeError('Native UUID association failed for ' + ref)
         for pad in sx.children(fp, 'pad'):
             if str(pad[1]) and net_name(pad, net_table(saved)) != final.pins.get((ref, str(pad[1])), ''):
                 raise MergeError('Native pad/net parity failed for ' + ref + '.' + str(pad[1]))
-    if removed:
-        sx.save(project.parent/'removed-copper.kicad_pcb', [board[0], *[copy.deepcopy(n) for n in sx.children(board) if sx.tag(n) in {'version','generator','layers','setup'}], *removed])
+    if copper_geometry(saved) != original_copper_geometry:
+        raise MergeError('Source repair changed existing copper identity or geometry; no output published.')
     report = {'selected_variant': spec.variant, 'compiled_variant': '<Default>', 'actions': actions,
+              'copper_preservation': copper_report,
               'changed_old_nets': changed, 'board_preflight': 'passed', 'native_pad_net_parity': 'passed',
+              'native_uuid_associations': 'passed', 'copper_identity_and_geometry': 'preserved',
               'manufacturing_ready': False, 'template_geometry_rounding_mm': 0.0001,
-              'routing_review_required': bool(changed or any(a['kind']=='added_unplaced' for a in actions))}
+              'routing_review_required': bool(pad_connectivity_changed or changed
+                                               or any(a['kind']=='added_unplaced' for a in actions))}
     (project.parent/'source-repair-report.json').write_text(json.dumps(report, indent=2)+'\n', encoding='utf-8')
     return compiled, report
 

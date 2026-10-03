@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Wayri Project Fusion 0.9.3 — WayriCAD</title></head><body><h1>Wayri Project Fusion 0.9.3</h1><img src="help-workflow.svg" alt="Fusion workflow overview"><pre># Wayri Project Fusion 0.9.3
+<!doctype html><html><head><meta charset="utf-8"><title>Wayri Project Fusion 0.9.4 beta 1 — WayriCAD</title></head><body><h1>Wayri Project Fusion 0.9.4 beta 1</h1><img src="help-workflow.svg" alt="Fusion workflow overview"><pre># Wayri Project Fusion 0.9.4 beta 1
 
 **KiCad 10 · native wxPython plugin · testing release**
 
@@ -8,9 +8,43 @@ Combine 1–100 saved KiCad project instances or extracted routed subsheet insta
 
 **100-instance validation (2026-10-01):** Windows / KiCad 10.0.6. Native validation merged 100 mixed instances (50 whole projects and 50 reviewed routed sections), retaining 100 footprints, 200 segments, 100 vias and 100 zones. Native netlist isolation, schematic/PCB parity, source hashes and BOM quantity passed; inherited fixture dangling-via warnings remained unchanged. Native wx management tests cover 100 rows, duplication, reordering, removal and setup roundtrips. Other operating systems and live-editor transaction qualification remain unverified.
 
+## 0.9.4 beta 1 — schematic associations and copper preservation
+
+PCB association paths now use the exact sheet path and symbol UUID exported by
+KiCad. Schematic instance paths still include their owning root UUID; PCB paths
+do not. Create, insertion, section extraction and linked updates keep those two
+identities separate. Validation checks the native path directly, in addition to
+schematic/PCB parity, so an extra root prefix cannot pass by being repeated in
+both generation and validation. This addresses footprints being added again by
+**Update PCB from Schematic**.
+
+Source-copy repair no longer deletes every track, via and zone on a changed net.
+It retains copper when the numbered-pad partition is unchanged, including a
+pure net rename. When existing copper belongs to changed, split or joined
+connections and its new assignment is ambiguous, repair stops with the affected
+nets and copper counts. Resolve the specific connections in a saved source copy
+and preview again. The authoritative source stays unchanged; this is not an
+autorouter and does not guess that a plane is still safe after rewiring.
+
+Groups, stable PCB UUIDs and reviewed placements remain subject to the existing
+preservation checks. Zone definitions and a visible filled plane are different:
+refill uses the destination outline, so blocks outside that outline may have no
+filled copper. New parts still need placement and routing. Ordinary DRC findings
+are reported separately from identity checks.
+
+Installing the plugin does not rewrite existing projects or restore copper
+already removed by older releases. Keep a backup and use the original source
+layout when rebuilding a reviewed candidate. Do not enable reference-only
+relinking merely to hide a failed UUID association check. The earlier 0.3.1
+root-prefix assumption and old changed-net removal policy below are superseded.
+
+This remains a **testing release** using the legacy SWIG entry point. It does not
+enable IPC discovery or change KiCad preferences. See `TEST_REPORT.md` for checks
+actually run and limits of the release qualification.
+
 ## Install or upgrade
 
-Use **`WayriCAD-project-fusion-0.9.3-PCM.zip`**, not the source ZIP. Open KiCad&#x27;s Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
+Use **`WayriCAD-project-fusion-0.9.4-PCM.zip`**, not the source ZIP. Open KiCad&#x27;s Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
 
 This retains the package identifier `org.wayri.projectfusion`. Remove an old manually installed copy before installing through PCM, so two versions are not loaded. The PCM archive puts the Python package directly inside `plugins/`; it does not add an extra nested source folder.
 
@@ -320,9 +354,9 @@ mandatory. An empty source PCB cannot stand in for a populated layout.
 
 ## Source-copy repair
 
-Select one source row and choose **Repair selected source copy**. Preview a unique stale owning-project root path repair, explicit footprint UUID relinking, selected fields/assembly state, net-name synchronization and changed-net copper removal. The selected configuration is compiled as Default in the new copy. A blank schematic footprint may retain its placed geometry only with the explicit checkbox. Missing parts require an equivalent placed template; new parts are placed beside the source outline and require placement/routing review. Template pad geometry comparisons normalize rotation and coordinate serialization at 0.0001 mm resolution.
+Select one source row and choose **Repair selected source copy**. Preview a unique stale owning-project root path repair, explicit footprint UUID relinking, selected fields/assembly state, net-name synchronization and copper-preservation conflict checks. The selected configuration is compiled as Default in the new copy. A blank schematic footprint may retain its placed geometry only with the explicit checkbox. Missing parts require an equivalent placed template; new parts are placed beside the source outline and require placement/routing review. Template pad geometry comparisons normalize rotation and coordinate serialization at 0.0001 mm resolution.
 
-Changed numbered-pad partitions cause affected tracks, arcs, vias and zones to be removed in the copy; unnumbered exposed copper keeps its net only when the partition remains equivalent. Removed objects and original-source ZIP/hashes are retained for review. Incompatible footprints, ambiguous hierarchy, genuinely duplicate UUIDs, excluded placed parts, external child-sheet writes and reused-sheet repair remain refused. Native operations run in a separate KiCad Python process. Preview alone does not publish a copy; Create reviewed repair copy refuses stale inputs and existing output directories. Native pad/net metadata parity is checked; physical connectivity and DRC still require review.
+Changed numbered-pad partitions with existing tracks, arcs, vias or conductive zones block source-copy repair for review; they are not removed. Equivalent partitions, including net renames, retain their geometry. Unnumbered exposed copper keeps its net only when the partition remains equivalent. Original-source ZIP/hashes are retained in successful reviewed copies. Incompatible footprints, ambiguous hierarchy, genuinely duplicate UUIDs, excluded placed parts, external child-sheet writes and reused-sheet repair remain refused. Native operations run in a separate KiCad Python process. Preview alone does not publish a copy; Create reviewed repair copy refuses stale inputs and existing output directories. Native pad/net metadata parity is checked; physical connectivity and DRC still require review.
 
 ## Dependency audit
 
@@ -358,7 +392,7 @@ The extracted board gets a rectangular Edge.Cuts outline. Contained source cuts 
 
 ## 0.3.1 native merge corrections
 
-Selected variants are exported through disposable effective-state hierarchies because native XML exports can omit variant field overrides. Instance-specific embedded symbol selectors are frozen from their actual cached definition. Native XML UUID paths are reconstructed using the exact owning root; automatic pin-derived slash names retain KiCad escaping. Null netclass metadata and bare layer flags are handled without changing physical geometry. Embedded checksum manifests inherit their board payload; footprint-owned payloads are promoted to native board scope before save. All publication, source-hash, electrical partition and geometry checks remain mandatory.
+Selected variants are exported through disposable effective-state hierarchies because native XML exports can omit variant field overrides. Instance-specific embedded symbol selectors are frozen from their actual cached definition. The original root-prefix handling described for 0.3.1 was incorrect for PCB associations and is superseded by 0.9.4; automatic pin-derived slash names retain KiCad escaping. Null netclass metadata and bare layer flags are handled without changing physical geometry. Embedded checksum manifests inherit their board payload; footprint-owned payloads are promoted to native board scope before save. All publication, source-hash, electrical partition and geometry checks remain mandatory.
 
 ## 0.4.1 footprint keepout corrections
 
