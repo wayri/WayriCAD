@@ -43,7 +43,8 @@ def main(argv=None):
             settings = json.loads(args.config.read_text(encoding="utf-8"))
             allowed = {"environment", "ambient_c", "field_map", "references", "heatsinks",
                        "vacuum_board_to_environment_k_per_w", "thermal_network_settings",
-                       "thermal_network_component_field", "thermal_model_kind", "limit_fields", "probes"}
+                       "thermal_network_component_field", "thermal_model_kind", "mesh_acceptance",
+                       "limit_fields", "probes"}
             if not isinstance(settings, dict) or set(settings) - allowed:
                 raise ValueError("QuickTherm config has unsupported settings.")
             if not isinstance(settings.get("field_map"), dict) or not settings["field_map"].get("power_w"):

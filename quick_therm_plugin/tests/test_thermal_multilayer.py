@@ -4,7 +4,9 @@ from __future__ import annotations
 import copy
 import unittest
 
-from quick_therm_plugin.thermal_multilayer import solve_multilayer_thermal
+from quick_therm_plugin.thermal_multilayer import (
+    solve_multilayer_thermal, solve_multilayer_thermal_convergence,
+)
 
 
 def rectangle(x0=0, x1=12):
@@ -32,6 +34,25 @@ def inputs(environment="air"):
 
 
 class MultilayerThermalTests(unittest.TestCase):
+    def test_mesh_acceptance_rejects_change_and_underresolved_source(self):
+        geometry, view, result, settings = inputs()
+        acceptance = {"grid_cells_long_axis": [24, 48],
+                      "maximum_change_c": 0, "minimum_source_cells": 1}
+        output = solve_multilayer_thermal_convergence(
+            geometry, view, result, settings, acceptance)
+        self.assertEqual(output["mesh_acceptance"]["status"], "FAIL")
+        self.assertGreater(output["mesh_acceptance"]["maximum_change_c"], 0)
+        acceptance["maximum_change_c"] = 1e9
+        acceptance["minimum_source_cells"] = 1000
+        output = solve_multilayer_thermal_convergence(
+            geometry, view, result, settings, acceptance)
+        self.assertEqual(output["mesh_acceptance"]["status"], "FAIL")
+        self.assertEqual(output["mesh_acceptance"]["underresolved_sources"], ["U1"])
+        acceptance["minimum_source_cells"] = 1
+        output = solve_multilayer_thermal_convergence(
+            geometry, view, result, settings, acceptance)
+        self.assertEqual(output["mesh_acceptance"]["status"], "PASS")
+
     def test_air_energy_conservation_and_distinct_layer_field(self):
         geometry, view, result, settings = inputs()
         solved = solve_multilayer_thermal(geometry, view, result, settings)

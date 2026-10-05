@@ -33,6 +33,7 @@ wayricad-copper = "copper_balancer_plugin.cli:main"
 wayricad-library = "embed_3d_plugin.__main__:main"
 wayricad-pi = "quick_pi_plugin.cli:main"
 wayricad-therm = "quick_therm_plugin.cli:main"
+wayricad-therm-transient = "quick_therm_plugin.transient_cli:main"
 wayricad-si = "signal_integrity_advisor_plugin.cli:main"
 wayricad-fusion = "project_fusion_plugin.__main__:main"
 

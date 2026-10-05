@@ -67,6 +67,10 @@ def run_job(request, cancelled=None, timeout=300):
 
 def execute(request):
     """Return a source-hashed inventory or a scoped thermal result."""
+    if request.get("action") == "coupled_transient":
+        from .thermal_transient import run_saved_board_transient
+
+        return run_saved_board_transient(request)
     import pcbnew
 
     path = Path(request["board_path"]).resolve()
@@ -153,10 +157,15 @@ def execute(request):
             settings["component_to_sink_k_per_w"] = sink_resistances
         if request.get("thermal_model_kind") == "multilayer":
             from .thermal_geometry import collect_thermal_geometry
-            from .thermal_multilayer import solve_multilayer_thermal
+            from .thermal_multilayer import (solve_multilayer_thermal,
+                                             solve_multilayer_thermal_convergence)
 
             geometry = collect_thermal_geometry(board, path)
-            thermal_network = solve_multilayer_thermal(geometry, view, result, settings)
+            if request.get("mesh_acceptance") is not None:
+                thermal_network = solve_multilayer_thermal_convergence(
+                    geometry, view, result, settings, request["mesh_acceptance"])
+            else:
+                thermal_network = solve_multilayer_thermal(geometry, view, result, settings)
         else:
             from .thermal_network import solve_thermal_network
 

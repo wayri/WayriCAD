@@ -278,7 +278,8 @@ def solve_multilayer_thermal(geometry, view, result, settings):
         source_sites[ref] = (li, weights)
         output_components.append({"reference": ref, "power_w": power, "side": component.get("side", "top"),
                                   "heat_path": "board", "sink_c": None,
-                                  "source_distribution": distribution, "board_site_c": None,
+                                  "source_distribution": distribution,
+                                  "source_cells": len(weights), "board_site_c": None,
                                   "junction_c": None})
     if not output_components:
         raise ValueError("No mapped QuickTherm component power is available.")
@@ -445,9 +446,59 @@ def solve_multilayer_thermal(geometry, view, result, settings):
                 "Via plating thickness, material conductivity and fixture contacts are explicit user inputs.",
                 "Barrel heat flow is a 1D axial approximation; individual land-to-barrel contact and package-pad spreading are unresolved.",
                 "An explicitly declared NPTH mechanical contact couples to the nearest dielectric cell through entered contact resistance; no copper-plane contact is inferred.",
-                "Only top and bottom faces reject heat; edge radiation, package shadows, view factors, airflow fields and transients are unresolved.",
+                "Only top and bottom faces reject heat; edge radiation, package shadows, view factors, airflow fields and spatial transients are unresolved.",
                 "Sources use footprint bounding boxes as contact proxies, or a labelled point fallback; junction temperature needs explicit component-to-board resistance.",
                 "Virtual heatsink nodes use entered exposed area and component-to-sink resistance; they couple to the board only if an explicit sink-to-board resistance is supplied.",
                 "An unpowered region with no thermal boundary is anchored at ambient only to make its otherwise undefined temperature displayable.",
                 "A zero residual is numerical energy balance, not validation of material, boundary or contact assumptions.",
             ]}
+
+
+def solve_multilayer_thermal_convergence(geometry, view, result, settings, acceptance):
+    """Repeat the saved-source steady solve and report mesh acceptance.
+
+    This is a global-grid convergence gate, not a locally adaptive mesh or a
+    source-contact qualification. It deliberately returns FAIL when the finest
+    two meshes disagree or a footprint source occupies too few grid cells.
+    """
+    if not isinstance(acceptance, Mapping):
+        raise ValueError("mesh_acceptance must be a mapping.")
+    grids = acceptance.get("grid_cells_long_axis", [24, 48, 80])
+    if (not isinstance(grids, list) or len(grids) < 2 or
+            any(isinstance(n, bool) or not isinstance(n, int) or not 24 <= n <= 80
+                for n in grids) or grids != sorted(set(grids))):
+        raise ValueError("Mesh acceptance needs two or more increasing grid sizes from 24 to 80.")
+    tolerance = _num(acceptance.get("maximum_change_c"), "Mesh maximum change (°C)", low=0)
+    minimum_cells = acceptance.get("minimum_source_cells", 4)
+    if isinstance(minimum_cells, bool) or not isinstance(minimum_cells, int) or minimum_cells < 1:
+        raise ValueError("minimum_source_cells must be a positive integer.")
+    solves = []
+    for grid in grids:
+        selected = dict(settings)
+        selected["grid_cells_long_axis"] = grid
+        solves.append(solve_multilayer_thermal(geometry, view, result, selected))
+    coarse, fine = solves[-2:]
+    coarse_parts = {part["reference"]: part for part in coarse["components"]}
+    changes = {}
+    underresolved = []
+    for part in fine["components"]:
+        ref = part["reference"]
+        key = "junction_c" if part["junction_c"] is not None else (
+            "sink_c" if part["sink_c"] is not None else "board_site_c")
+        changes[ref] = abs(part[key]-coarse_parts[ref][key])
+        if part.get("source_cells", minimum_cells) < minimum_cells:
+            underresolved.append(ref)
+    worst = max(changes.values(), default=0)
+    passed = (all(solve["status"] == "converged" for solve in solves) and
+              not underresolved and worst <= tolerance)
+    fine["mesh_acceptance"] = {
+        "status": "PASS" if passed else "FAIL",
+        "grid_cells_long_axis": grids, "maximum_change_c": worst,
+        "allowed_change_c": tolerance,
+        "component_changes_c": changes,
+        "minimum_source_cells": minimum_cells,
+        "underresolved_sources": underresolved,
+        "source_sha256": geometry.get("source_sha256"),
+        "note": "Global-grid and footprint-cell screen only; local contact spreading remains unresolved.",
+    }
+    return fine
