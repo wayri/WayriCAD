@@ -9,9 +9,17 @@ import zipfile
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('wheel', type=Path)
-    wheel = parser.parse_args().wheel.resolve()
     source_root = Path(__file__).resolve().parents[1]
+    parser.add_argument('wheel', type=Path, nargs='?',
+                        help='Wheel to inspect; defaults to the single built wayricad wheel in dist/')
+    requested = parser.parse_args().wheel
+    if requested is None:
+        wheels = sorted((source_root / 'dist').glob('wayricad-*.whl'))
+        if len(wheels) != 1:
+            parser.error('Expected one built wayricad wheel in dist/; pass its path explicitly')
+        wheel = wheels[0]
+    else:
+        wheel = requested.resolve()
     active_plugins = {
         path.name for path in source_root.glob('*_plugin')
         if (path / 'metadata.json').is_file()
