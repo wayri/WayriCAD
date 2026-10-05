@@ -1,6 +1,6 @@
-# Wayri Project Fusion 0.9.4 beta 1
+# Wayri Project Fusion 0.9.4
 
-Testing release, 3 October 2026. KiCad 10; legacy SWIG entry point.
+Testing release in WayriCAD 3.6.5. KiCad 10; legacy SWIG entry point.
 
 - Correct PCB-to-schematic association paths so native updates can reuse the
   imported footprints. Validate against unmodified native exported paths.
@@ -25,6 +25,6 @@ Install WayriCAD-project-fusion-0.9.4-PCM.zip using KiCad Plugin and Content Man
 then restart PCB Editor. The Source ZIP is for source review/development.
 The package identifier remains org.wayri.projectfusion. No IPC manifest is added.
 
-The public 0.9.3 assets remain unchanged. This beta also retains the current
-upstream CLI import guard, installation guide and help resources. The stable
-PCM feed is not promoted by this prerelease.
+The public 0.9.3 assets remain unchanged. This release retains the CLI import
+guard, installation guide and help resources added during the 0.9.4 beta. The
+WayriCAD PCM feed points to the published 0.9.4 package after release.
