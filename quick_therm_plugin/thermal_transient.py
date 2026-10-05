@@ -180,6 +180,17 @@ def solve_coupled_transient(config):
             if sink is not None:
                 if not sink.get("isolation_evidence"):
                     raise ValueError(ref+": electrically isolated sink needs explicit isolation_evidence.")
+                if sink.get("contact_kind") == "metal_drain":
+                    if not str(sink.get("drain_net", "")).strip():
+                        raise ValueError(ref+": metal-drain sink needs the live drain_net.")
+                    working = _number(sink.get("working_voltage_v"),
+                                      ref+" drain working voltage", nonnegative=True)
+                    insulation = _number(sink.get("insulation_rating_v"),
+                                         ref+" insulation rating", positive=True)
+                    if insulation < working:
+                        raise ValueError(ref+": insulation rating is below the declared working voltage.")
+                elif sink.get("contact_kind") != "generic_isolated":
+                    raise ValueError(ref+": isolated sink contact_kind must be metal_drain or generic_isolated.")
                 rjs = _number(sink.get("r_junction_sink_k_w"), ref+" junction-sink R", positive=True)
                 cs = _number(sink.get("capacity_j_k"), ref+" sink capacity", positive=True)
                 hs = _interpolate(sink.get("air_conductance_curve"),

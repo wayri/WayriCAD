@@ -36,7 +36,7 @@ def _polygon_contains(point, polygon):
             not any(_inside(point, hole) for hole in polygon.get("holes", [])))
 
 
-def _source_weights(component, cells, xs, ys, dx_mm, dy_mm):
+def _source_weights(component, cells, xs, ys, x_edges, y_edges):
     """Overlap-weighted footprint bbox, or labelled point fallback."""
     bounds = component.get("bbox_mm")
     if bounds is None:
@@ -51,9 +51,8 @@ def _source_weights(component, cells, xs, ys, dx_mm, dy_mm):
         raise ValueError(f"{component['reference']}: invalid footprint bounding box.")
     hits = []
     for index, (i, j) in enumerate(cells):
-        x, y = xs[i], ys[j]
-        area = max(0, min(x1, x+dx_mm/2)-max(x0, x-dx_mm/2)) * \
-               max(0, min(y1, y+dy_mm/2)-max(y0, y-dy_mm/2))
+        area = max(0, min(x1, x_edges[i+1])-max(x0, x_edges[i])) * \
+               max(0, min(y1, y_edges[j+1])-max(y0, y_edges[j]))
         if area > 0:
             hits.append((index, area))
     total = math.fsum(v for _, v in hits)
@@ -112,10 +111,42 @@ def solve_multilayer_thermal(geometry, view, result, settings):
         raise ValueError("Board bounding box must have positive width and height.")
     nx = max(2, round(grid_n*width/max(width, height)))
     ny = max(2, round(grid_n*height/max(width, height)))
-    dx_mm, dy_mm = width/nx, height/ny
-    dx, dy = dx_mm/1000, dy_mm/1000
-    xs = [xmin+(i+.5)*dx_mm for i in range(nx)]
-    ys = [ymin+(j+.5)*dy_mm for j in range(ny)]
+    x_edges = [xmin+i*width/nx for i in range(nx+1)]
+    y_edges = [ymin+j*height/ny for j in range(ny+1)]
+    refinement = settings.get("source_refinement_factor", 1)
+    if isinstance(refinement, bool) or refinement not in (1, 2):
+        raise ValueError("source_refinement_factor must be 1 or 2.")
+    if refinement == 2:
+        sources_by_ref = {part["reference"] for part in result.get("components", [])
+                          if part.get("heat_path") == "board"}
+        source_boxes = []
+        for component in view.get("components", []):
+            if component["reference"] not in sources_by_ref:
+                continue
+            bbox = component.get("bbox_mm")
+            if bbox is not None and len(bbox) == 4:
+                source_boxes.append(tuple(_num(value, "Source bound") for value in bbox))
+            else:
+                x, y = component["position_mm"]
+                source_boxes.append((x, y, x, y))
+
+        def split_near_sources(edges, axis):
+            base = edges[1]-edges[0]
+            intervals = [(box[axis]-base, box[axis+2]+base) for box in source_boxes]
+            refined = [edges[0]]
+            for left, right in zip(edges, edges[1:]):
+                if any(right >= low and left <= high for low, high in intervals):
+                    refined.append((left+right)/2)
+                refined.append(right)
+            return refined
+
+        x_edges = split_near_sources(x_edges, 0)
+        y_edges = split_near_sources(y_edges, 1)
+    nx, ny = len(x_edges)-1, len(y_edges)-1
+    xs = [(x_edges[i]+x_edges[i+1])/2 for i in range(nx)]
+    ys = [(y_edges[j]+y_edges[j+1])/2 for j in range(ny)]
+    x_widths = [(x_edges[i+1]-x_edges[i])/1000 for i in range(nx)]
+    y_widths = [(y_edges[j+1]-y_edges[j])/1000 for j in range(ny)]
     cells = [(i, j) for j, y in enumerate(ys) for i, x in enumerate(xs)
              if _board_contains((x, y), geometry["outline"])]
     if not cells:
@@ -128,7 +159,7 @@ def solve_multilayer_thermal(geometry, view, result, settings):
         raise ValueError("Thermal grid exceeds 150,000 layer cells; reduce resolution.")
     by_cell = {cell: index for index, cell in enumerate(cells)}
     node = lambda layer_index, cell_index: layer_index*ncell+cell_index
-    cell_area = dx*dy
+    cell_areas = [x_widths[i]*y_widths[j] for i, j in cells]
     # A dielectric slice is bounded halfway to its neighboring copper layers.
     z = [_num(row["z_mm"], "Layer Z (mm)") for row in layers]
     thickness = [_num(row["thickness_mm"], "Copper thickness (mm)", low=1e-9) for row in layers]
@@ -152,6 +183,8 @@ def solve_multilayer_thermal(geometry, view, result, settings):
                            max(p[0] for p in outer), max(p[1] for p in outer)))
         layer_members = []
         for i, j in cells:
+            dx_mm = x_edges[i+1]-x_edges[i]
+            dy_mm = y_edges[j+1]-y_edges[j]
             if blur == 1:
                 probes = [(xs[i]+a*dx_mm/3, ys[j]+b*dy_mm/3)
                           for a in (-1, 0, 1) for b in (-1, 0, 1)]
@@ -181,8 +214,12 @@ def solve_multilayer_thermal(geometry, view, result, settings):
         polygons = layer.get("polygons_mm", [])
         for ci, (i, j) in enumerate(cells):
             for key, length, run, face in (
-                ((i+1, j), dy, dx, (xs[i]+dx_mm/2, ys[j])),
-                ((i, j+1), dx, dy, (xs[i], ys[j]+dy_mm/2))):
+                ((i+1, j), y_widths[j],
+                 (x_widths[i]+x_widths[i+1])/2 if i+1 < nx else x_widths[i],
+                 (x_edges[i+1], ys[j])),
+                ((i, j+1), x_widths[i],
+                 (y_widths[j]+y_widths[j+1])/2 if j+1 < ny else y_widths[j],
+                 (xs[i], y_edges[j+1]))):
                 cj = by_cell.get(key)
                 if cj is None:
                     continue
@@ -195,9 +232,9 @@ def solve_multilayer_thermal(geometry, view, result, settings):
                     copper_edges += 1
                 add_edge(node(li, ci), node(li, cj), base+bonus)
     for li, gap in enumerate(intervals):
-        conductance = dielectric_k*cell_area/gap
         for ci in range(ncell):
-            add_edge(node(li, ci), node(li+1, ci), conductance)
+            add_edge(node(li, ci), node(li+1, ci),
+                     dielectric_k*cell_areas[ci]/gap)
     layer_ids = {row["id"]: i for i, row in enumerate(layers)}
     via_edges = 0
     for via in geometry.get("barrels", []):
@@ -211,7 +248,8 @@ def solve_multilayer_thermal(geometry, view, result, settings):
         barrel_area = math.pi*((drill+2*plating)**2-drill**2)/4/1e6
         x, y = float(via["x_mm"]), float(via["y_mm"])
         ci = min(range(ncell), key=lambda ci: (xs[cells[ci][0]]-x)**2+(ys[cells[ci][1]]-y)**2)
-        if abs(xs[cells[ci][0]]-x)>dx_mm or abs(ys[cells[ci][1]]-y)>dy_mm:
+        if (abs(xs[cells[ci][0]]-x)>x_widths[cells[ci][0]]*1000 or
+                abs(ys[cells[ci][1]]-y)>y_widths[cells[ci][1]]*1000):
             continue
         for a, b in zip(span, span[1:]):
             if b != a+1:
@@ -271,7 +309,7 @@ def solve_multilayer_thermal(geometry, view, result, settings):
                                       "source_distribution": "virtual_sink_node",
                                       "board_site_c": None, "sink_c": None, "junction_c": None})
             continue
-        weights, distribution = _source_weights(component, cells, xs, ys, dx_mm, dy_mm)
+        weights, distribution = _source_weights(component, cells, xs, ys, x_edges, y_edges)
         li = 0 if component.get("side", "top").lower() == "top" else len(layers)-1
         for ci, weight in weights:
             sources[node(li, ci)] += power*weight
@@ -333,8 +371,8 @@ def solve_multilayer_thermal(geometry, view, result, settings):
     convection_h = np.full(nnode, h, dtype=float)
     surface_e = np.full(nnode, emissivity, dtype=float)
     for ci in range(ncell):
-        surface_area[node(0, ci)] += cell_area
-        surface_area[node(len(layers)-1, ci)] += cell_area
+        surface_area[node(0, ci)] += cell_areas[ci]
+        surface_area[node(len(layers)-1, ci)] += cell_areas[ci]
     for ref, (ni, area, sink_e) in sink_nodes.items():
         surface_area[ni] = area
         convection_h[ni] = sink_h
@@ -434,9 +472,11 @@ def solve_multilayer_thermal(geometry, view, result, settings):
                              "tolerance_w": tolerance},
             "settings": {"dielectric_k_w_mk": dielectric_k, "copper_k_w_mk": copper_k,
                          "via_plating_mm": plating, "grid_cells_long_axis": grid_n,
+                         "source_refinement_factor": refinement,
                          "copper_blur_cells": blur, "board_h_w_m2k": h,
                          "board_emissivity": emissivity, "sink_h_w_m2k": sink_h},
             "mesh": {"nx": nx, "ny": ny, "active_cells_per_layer": ncell,
+                     "source_refinement_factor": refinement,
                      "solver_iterations": iterations, "copper_lateral_edges": copper_edges,
                      "via_vertical_edges": via_edges,
                      "unexcited_regions_anchored_at_ambient": unexcited_anchors},

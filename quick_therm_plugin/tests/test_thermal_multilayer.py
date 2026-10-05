@@ -34,6 +34,18 @@ def inputs(environment="air"):
 
 
 class MultilayerThermalTests(unittest.TestCase):
+    def test_source_aligned_refinement_resolves_small_footprint_and_balances(self):
+        geometry, view, result, settings = inputs()
+        view["components"][0]["bbox_mm"] = [6.18, 6.18, 6.32, 6.32]
+        coarse = solve_multilayer_thermal(geometry, view, result, settings)
+        settings["source_refinement_factor"] = 2
+        refined = solve_multilayer_thermal(geometry, view, result, settings)
+        self.assertGreater(refined["components"][0]["source_cells"],
+                           coarse["components"][0]["source_cells"])
+        self.assertGreater(refined["mesh"]["active_cells_per_layer"],
+                           coarse["mesh"]["active_cells_per_layer"])
+        self.assertLess(abs(refined["heat_balance"]["residual_w"]), 1e-6)
+
     def test_mesh_acceptance_rejects_change_and_underresolved_source(self):
         geometry, view, result, settings = inputs()
         acceptance = {"grid_cells_long_axis": [24, 48],

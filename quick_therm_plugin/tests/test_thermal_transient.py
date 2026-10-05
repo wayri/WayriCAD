@@ -70,6 +70,8 @@ class CoupledTransientTests(unittest.TestCase):
         component["resistive_loss"] = {"current_a": 1, "resistance_ref_ohm": 1,
                                         "alpha_per_k": .01, "reference_c": 40}
         component["isolated_sink"] = {
+            "contact_kind": "metal_drain", "drain_net": "VIN",
+            "working_voltage_v": 50, "insulation_rating_v": 100,
             "isolation_evidence": "reviewed dielectric contact drawing",
             "capacity_j_k": 5, "r_junction_sink_k_w": .5,
             "air_conductance_curve": [[0, 1], [.02, 1]],
@@ -78,6 +80,10 @@ class CoupledTransientTests(unittest.TestCase):
         first = result["history"][-1]["boards"][0]
         self.assertGreater(first["power_w"], 3)
         self.assertIn("Q1 sink", first["temperatures_c"])
+        component["isolated_sink"]["insulation_rating_v"] = 25
+        with self.assertRaisesRegex(ValueError, "below the declared"):
+            solve_coupled_transient(config)
+        component["isolated_sink"]["insulation_rating_v"] = 100
         del component["isolated_sink"]["isolation_evidence"]
         with self.assertRaisesRegex(ValueError, "isolation_evidence"):
             solve_coupled_transient(config)
