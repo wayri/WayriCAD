@@ -6,7 +6,8 @@ import math
 import unittest
 
 from quick_therm_plugin.thermal_multilayer import (
-    solve_multilayer_thermal, solve_multilayer_thermal_convergence,
+    _source_weights, solve_multilayer_thermal,
+    solve_multilayer_thermal_convergence,
 )
 
 
@@ -35,6 +36,35 @@ def inputs(environment="air"):
 
 
 class MultilayerThermalTests(unittest.TestCase):
+    def test_drill_stencil_keeps_partial_boundary_cell_power(self):
+        contact = {"outer": [[.2, 0], [2.36, 0], [2.36, 1], [.2, 1]],
+                   "holes": [[[1.2, .2], [1.8, .2], [1.8, .8], [1.2, .8]]]}
+        weights, mode, area, _, moved = _source_weights(
+            {"reference": "U1", "bbox_mm": [.2, 0, 2.36, 1]},
+            [(0, 0), (1, 0), (2, 0)], [.5, 1.5, 2.5], [.5],
+            [0, 1, 2, 3], [0, 1], [contact],
+            [{"x_mm": 1.5, "y_mm": .5, "drill_mm": .8}])
+        self.assertEqual(mode, "saved_pad_copper_polygon_annulus_stencil")
+        self.assertAlmostEqual(area, 1.8)
+        self.assertAlmostEqual(moved, .64)
+        self.assertEqual(len(weights), 2)
+        self.assertAlmostEqual(sum(weight for _, weight in weights), 1)
+        self.assertAlmostEqual(dict(weights)[2], .36/1.8)
+
+    def test_unresolved_annulus_proxy_preserves_power(self):
+        contact = {"outer": [[1.2, 0], [1.8, 0], [1.8, 1], [1.2, 1]],
+                   "holes": [[[1.4, .3], [1.6, .3], [1.6, .7], [1.4, .7]]]}
+        weights, mode, area, _, moved = _source_weights(
+            {"reference": "U1", "bbox_mm": [1.2, 0, 1.8, 1]},
+            [(0, 0), (1, 0), (2, 0)], [.5, 1.5, 2.5], [.5],
+            [0, 1, 2, 3], [0, 1], [contact],
+            [{"x_mm": 1.5, "y_mm": .5, "drill_mm": .4}])
+        self.assertEqual(mode, "saved_pad_copper_polygon_unresolved_annulus_proxy")
+        self.assertAlmostEqual(area, .52)
+        self.assertAlmostEqual(moved, area)
+        self.assertAlmostEqual(sum(weight for _, weight in weights), 1)
+        self.assertNotIn(1, dict(weights))
+
     def test_narrow_copper_strip_survives_half_cell_phase_shift(self):
         geometry, view, result, settings = inputs()
         settings.update(board_h_w_m2k=50, board_emissivity=0, copper_blur_cells=1)

@@ -178,19 +178,33 @@ def _source_weights(component, cells, xs, ys, x_edges, y_edges,
     if total <= 0:
         raise ValueError(f"{component['reference']}: footprint does not overlap the board grid.")
     moved = 0.0
+    unresolved_annulus = False
     if contact_polygons is not None and drilled_holes:
         def drilled_center(ci):
             i, j = cells[ci]
             return any((xs[i]-hole["x_mm"])**2+(ys[j]-hole["y_mm"])**2 <
                        (hole["drill_mm"]/2)**2 for hole in drilled_holes)
 
-        targets = [(ci, area) for ci, area in hits if not drilled_center(ci) and
+        retained = [(ci, area) for ci, area in hits if not drilled_center(ci)]
+        targets = [(ci, area) for ci, area in retained if
                    any(_polygon_contains((xs[cells[ci][0]], ys[cells[ci][1]]), polygon)
-                       for polygon in contact_polygons)]
+                       for polygon in contact_polygons)] or retained
         if any(drilled_center(ci) for ci, _ in hits):
             if not targets:
-                raise ValueError(f"{component['reference']}: no resolved pad-copper cell center outside the drill; refine the mesh.")
-            revised = {ci: area for ci, area in targets}
+                # A coarse grid can place every overlapped cell center in the
+                # drill despite a finite copper annulus. Preserve the heat in
+                # nearby non-drilled nodes but mark the contact unresolved.
+                cx, cy = (x0+x1)/2, (y0+y1)/2
+                targets = [(ci, 0.0) for ci in sorted(
+                    (ci for ci in range(len(cells)) if not drilled_center(ci)),
+                    key=lambda ci: (xs[cells[ci][0]]-cx)**2+
+                                   (ys[cells[ci][1]]-cy)**2)[:4]]
+                if not targets:
+                    raise ValueError(f"{component['reference']}: no board cell center outside the drill.")
+                unresolved_annulus = True
+            # Keep every non-drilled overlap, including boundary cells whose
+            # centers fall outside the polygon. Only drill-center heat moves.
+            revised = {ci: area for ci, area in retained}
             for ci, area in hits:
                 if not drilled_center(ci):
                     continue
@@ -204,10 +218,14 @@ def _source_weights(component, cells, xs, ys, x_edges, y_edges,
                        for target, _ in nearest]
                 factor = math.fsum(raw)
                 for (target, _), weight in zip(nearest, raw):
-                    revised[target] += area*weight/factor
+                    revised[target] = revised.get(target, 0.0)+area*weight/factor
             hits = sorted(revised.items())
+            if not math.isclose(math.fsum(area for _, area in hits), total,
+                                rel_tol=1e-12, abs_tol=1e-12):
+                raise ArithmeticError("Source annulus redistribution lost contact area.")
     return ([(index, area/total) for index, area in hits],
-            ("saved_pad_copper_polygon_annulus_stencil" if moved else
+            ("saved_pad_copper_polygon_unresolved_annulus_proxy" if unresolved_annulus else
+             "saved_pad_copper_polygon_annulus_stencil" if moved else
              "saved_pad_copper_polygon") if contact_polygons is not None else
             "footprint_bbox_proxy", total, effective_cells, moved)
 
@@ -428,6 +446,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     layer_ids = {row["id"]: i for i, row in enumerate(layers)}
     via_edges = 0
     annulus_edges = 0
+    unresolved_barrel_stencils = 0
     barrel_mode = settings.get("barrel_contact_mode", "annulus_stencil")
     if barrel_mode not in ("annulus_stencil", "nearest_cell"):
         raise ValueError("barrel_contact_mode must be annulus_stencil or nearest_cell.")
@@ -462,7 +481,12 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                     if drill/2 < distance <= outer_radius+cell_reach:
                         candidates.append((candidate, distance))
                 if not candidates:
-                    raise ValueError(f"{via['id']}: no annular cell center outside the drill; refine the thermal mesh.")
+                    candidates = [(candidate, math.hypot(xs[ix]-x, ys[iy]-y))
+                                  for candidate, (ix, iy) in enumerate(cells)
+                                  if math.hypot(xs[ix]-x, ys[iy]-y) > drill/2]
+                    if not candidates:
+                        raise ValueError(f"{via['id']}: no board cell center outside the drill.")
+                    unresolved_barrel_stencils += 1
                 candidates.sort(key=lambda entry: entry[1])
                 candidates = candidates[:8]
                 raw = [1/max(distance, drill/2) for _, distance in candidates]
@@ -558,6 +582,9 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         weights, distribution, contact_area, effective_cells, moved_area = _source_weights(
             component, cells, xs, ys, x_edges, y_edges, contact_polygons,
             relevant_holes)
+        if not math.isclose(math.fsum(weight for _, weight in weights), 1.0,
+                            rel_tol=1e-12, abs_tol=1e-12):
+            raise ArithmeticError(f"{ref}: mapped source fractions do not conserve power.")
         for ci, weight in weights:
             sources[node(li, ci)] += power*weight
         source_sites[ref] = (li, weights)
@@ -587,6 +614,11 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                                   "junction_c": None})
     if not output_components:
         raise ValueError("No mapped QuickTherm component power is available.")
+    declared_power = math.fsum(part["power_w"] for part in output_components)
+    allocated_power = float(np.sum(sources))
+    if not math.isclose(allocated_power, declared_power,
+                        rel_tol=1e-10, abs_tol=1e-10):
+        raise ArithmeticError("Mapped source power was not fully allocated to thermal nodes.")
     boundaries = settings.get("mount_boundaries", [])
     if not isinstance(boundaries, list):
         raise ValueError("mount_boundaries must be a list of selected mounting-hole records.")
@@ -778,6 +810,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                      "solver_iterations": iterations, "copper_lateral_edges": copper_edges,
                      "via_vertical_edges": via_edges,
                      "barrel_stencil_edges": annulus_edges,
+                     "unresolved_barrel_stencils": unresolved_barrel_stencils,
                      "unexcited_regions_anchored_at_ambient": unexcited_anchors},
             "assumptions": [
                 "Copper area and shared-face occupancy are clipped from saved polygons in area_face mode; subcell conductance remains a finite-volume approximation.",
@@ -895,6 +928,9 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings,
                           ["source:"+part["reference"] for part in fine["components"]
                            if part.get("source_peak_cell") and
                            part["source_peak_cell"]["center_in_drill_id"]])
+    unresolved_contacts = [part["reference"] for part in fine["components"]
+                           if part.get("source_distribution") ==
+                           "saved_pad_copper_polygon_unresolved_annulus_proxy"]
     phase_result = {"status": "NOT_RUN", "offset_fraction": None}
     if phase_offset is not None:
         shifted_settings = dict(settings)
@@ -927,6 +963,8 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings,
                         "unmatched_field_cells": unmatched_shifted}
     passed = (all(solve["status"] == "converged" for solve in solves) and
               not underresolved and not drill_center_peaks and
+              not unresolved_contacts and
+              fine["mesh"]["unresolved_barrel_stencils"] == 0 and
               not unmatched_field_cells and
               worst <= tolerance and worst_layer <= layer_tolerance and
               worst_field <= field_tolerance and worst_source <= source_tolerance and
@@ -950,6 +988,8 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings,
         "minimum_source_cells": minimum_cells,
         "underresolved_sources": underresolved,
         "drill_center_peaks": drill_center_peaks,
+        "unresolved_contact_sources": unresolved_contacts,
+        "unresolved_barrel_stencils": fine["mesh"]["unresolved_barrel_stencils"],
         "source_resolution": source_resolution,
         "source_sha256": geometry.get("source_sha256"),
         "note": "Cell count means overlap-area-equivalent cells, not cells touched. Contact spreading and source-shape fidelity remain unresolved.",
