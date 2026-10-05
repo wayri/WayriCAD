@@ -6,6 +6,40 @@ from matplotlib import colormaps
 from matplotlib.patches import Polygon, Rectangle
 
 
+def _field_edges(field, axis):
+    """Use solver cell edges, with a midpoint fallback for older reports."""
+    edges = field.get(f'{axis}_edges_mm')
+    centers = field.get(f'{axis}_centers_mm', [])
+    if edges is not None:
+        if len(edges) != len(centers)+1 or any(b <= a for a, b in zip(edges, edges[1:])):
+            raise ValueError(f'Invalid {axis} thermal field edges.')
+        return edges
+    if len(centers) > 1:
+        mids = [(a+b)/2 for a, b in zip(centers, centers[1:])]
+        return [centers[0]-(mids[0]-centers[0]), *mids,
+                centers[-1]+(centers[-1]-mids[-1])]
+    if centers:
+        return [centers[0]-.5, centers[0]+.5]
+    return []
+
+
+def _field_quads(field, z):
+    """Return one true cell rectangle and temperature per active field cell."""
+    x_edges = _field_edges(field, 'x')
+    y_edges = _field_edges(field, 'y')
+    quads, values = [], []
+    for j, row in enumerate(field.get('values_c', [])):
+        for i, value in enumerate(row):
+            if value is None:
+                continue
+            quads.append([(x_edges[i], y_edges[j], z),
+                          (x_edges[i+1], y_edges[j], z),
+                          (x_edges[i+1], y_edges[j+1], z),
+                          (x_edges[i], y_edges[j+1], z)])
+            values.append(value)
+    return quads, values
+
+
 def _draw_3d(figure,view,selected_id,network,azim,elev):
     """Illustrative saved-board extrusion, not imported 3D component models."""
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -24,18 +58,11 @@ def _draw_3d(figure,view,selected_id,network,azim,elev):
     if (network or {}).get('layers'):
         field=network['layers'][0]
     if field.get('values_c'):
-        xs=field.get('x_centers_mm',[]);ys=field.get('y_centers_mm',[])
-        points=[(x,y,value) for j,y in enumerate(ys) for i,x in enumerate(xs)
-                if (value:=field['values_c'][j][i]) is not None]
-        if points:
-            dx=abs(xs[1]-xs[0]) if len(xs)>1 else 1
-            dy=abs(ys[1]-ys[0]) if len(ys)>1 else 1
-            lo=min(p[2] for p in points);hi=max(p[2] for p in points)
-            quads=[[(x-dx/2,y-dy/2,thickness+.02),(x+dx/2,y-dy/2,thickness+.02),
-                    (x+dx/2,y+dy/2,thickness+.02),(x-dx/2,y+dy/2,thickness+.02)]
-                   for x,y,_ in points]
+        quads, values = _field_quads(field, thickness+.02)
+        if quads:
+            lo=min(values);hi=max(values)
             colors=[colormaps['inferno'](.5 if hi==lo else (value-lo)/(hi-lo))
-                    for _,_,value in points]
+                    for value in values]
             ax.add_collection3d(Poly3DCollection(quads,facecolors=colors,edgecolor='none',alpha=.55))
     solved=[item['junction_c'] for item in view.get('components',[]) if item.get('junction_c') is not None]
     low=min(solved) if solved else 0;high=max(solved) if solved else 1

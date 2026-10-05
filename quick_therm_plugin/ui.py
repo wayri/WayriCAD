@@ -122,7 +122,17 @@ class QuickThermFrame(wx.Frame):
     def _job(self, request, finished, message):
         from .service import run_job
 
-        self._task(lambda: run_job(request, cancelled=self._cancel.is_set), finished, message)
+        def show_progress(item):
+            if self._closed:
+                return
+            eta = item.get("eta_s")
+            suffix = f" · ETA {eta:.0f} s" if eta is not None else ""
+            label = (f"{item['stage']} · {item['percent']:.0f}% · "
+                     f"{item['elapsed_s']:.0f} s elapsed{suffix}")
+            wx.CallAfter(lambda: self.status.SetLabel(label) if not self._closed else None)
+
+        self._task(lambda: run_job(request, cancelled=self._cancel.is_set,
+                                   progress=show_progress), finished, message)
 
     def _inspect(self):
         self.thermal_bundle = {}

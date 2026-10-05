@@ -15,7 +15,8 @@ from quick_therm_plugin.transient_cli import _temperature_svg
 
 def fixture():
     return {
-        "inlet_air_c": 40, "duration_s": 20, "step_s": 1,
+        "inlet_air_c": 40, "air_topology": "serial_boards",
+        "duration_s": 20, "step_s": 1,
         "air_density_kg_m3": 1.2, "air_cp_j_kgk": 1000,
         "fan_curve": [[0, 100], [.02, 0]],
         "system_k_pa_s2_m6": 250000, "bypass_fraction": .1,
@@ -29,6 +30,34 @@ def fixture():
 
 
 class CoupledTransientTests(unittest.TestCase):
+    def test_parallel_blade_topology_is_not_run_as_serial(self):
+        config = fixture()
+        config["air_topology"] = "parallel_passages"
+        with self.assertRaisesRegex(ValueError, "air_flow_direction"):
+            solve_coupled_transient(config)
+        config.update(air_flow_direction="-X", blade_pitch_mm=36,
+                      passage_flow_fractions=[.25]*4, fans_parallel=2,
+                      passage_flow_allocation="effective_per_blade")
+        for board in config["boards"]:
+            board["components"][0]["streamwise_x_mm"] = 8
+            board["components"].append({"reference": "Q2", "streamwise_x_mm": 2,
+                                        "capacity_j_k": 2, "r_junction_board_k_w": 1,
+                                        "fixed_power_w": 2,
+                                        "package_body": {
+                                            "r_junction_body_k_w": 2, "capacity_j_k": 1,
+                                            "air_conductance_curve": [[0, .5], [.02, .5]]}})
+        result = solve_coupled_transient(config)
+        last = result["history"][-1]
+        self.assertEqual(result["air_topology"], "parallel_passages")
+        self.assertEqual(result["fan_operating_point"]["fans_parallel"], 2)
+        self.assertTrue(all(board["inlet_air_c"] == 40 for board in last["boards"]))
+        self.assertEqual([stage["x_mm"] for stage in last["boards"][0]["air_stages"]],
+                         [8, 2])
+        self.assertGreater(last["boards"][0]["air_stages"][1]["inlet_c"], 40)
+        self.assertIn("Q2 body", last["boards"][0]["temperatures_c"])
+        self.assertGreater(last["mixed_outlet_air_c"], 40)
+        self.assertLess(result["max_energy_residual_w"], 1e-9)
+
     def test_fan_system_intersection_and_downstream_warming(self):
         config = fixture()
         flow = fan_operating_point(config["fan_curve"],
@@ -148,6 +177,51 @@ class CoupledTransientTests(unittest.TestCase):
             config["boards"][0]["components"][0]["reference"] = "U404"
             with self.assertRaisesRegex(ValueError, "not on the saved board"):
                 run_saved_board_transient(config)
+
+    def test_parallel_passage_positions_bind_to_saved_footprints(self):
+        config = fixture()
+        config.update(air_topology="parallel_passages", air_flow_direction="-X",
+                      blade_pitch_mm=36, passage_flow_fractions=[.25]*4,
+                      passage_flow_allocation="effective_per_blade")
+
+        class Footprint:
+            def GetReference(self):
+                return "Q1"
+
+            def GetPosition(self):
+                return types.SimpleNamespace(x=8)
+
+        board = types.SimpleNamespace(GetFootprints=lambda: [Footprint()])
+        pcbnew = types.SimpleNamespace(LoadBoard=lambda _: board, ToMM=lambda x: x)
+        with tempfile.TemporaryDirectory() as folder, patch.dict(sys.modules, {"pcbnew": pcbnew}):
+            for index, member in enumerate(config["boards"]):
+                path = Path(folder) / f"board-{index}.kicad_pcb"
+                path.write_text(f"board {index}", encoding="utf-8")
+                member["board_path"] = str(path)
+            result = run_saved_board_transient(config)
+            self.assertEqual(result["saved_component_x_mm"]["B0"], {"Q1": 8})
+            config["boards"][0]["components"][0]["streamwise_x_mm"] = 5
+            with self.assertRaisesRegex(ValueError, "differs from the saved footprint"):
+                run_saved_board_transient(config)
+
+    def test_prescribed_flow_sensitivity_does_not_invent_fan_curve(self):
+        config = fixture()
+        config.update(air_topology="parallel_passages", air_flow_direction="-X",
+                      blade_pitch_mm=36, passage_flow_fractions=[.25]*4,
+                      passage_flow_allocation="effective_per_blade",
+                      prescribed_total_flow_m3_s=20*0.00047194745)
+        del config["fan_curve"]
+        del config["system_k_pa_s2_m6"]
+        for board in config["boards"]:
+            board["components"][0]["streamwise_x_mm"] = 8
+        result = solve_coupled_transient(config)
+        self.assertEqual(result["fan_operating_point"]["source"],
+                         "prescribed_sensitivity_input")
+        self.assertIsNone(result["fan_operating_point"]["pressure_pa"])
+        self.assertLess(result["max_energy_residual_w"], 1e-8)
+        config["fan_curve"] = [[0, 100], [.02, 0]]
+        with self.assertRaisesRegex(ValueError, "cannot be combined"):
+            solve_coupled_transient(config)
 
 
 if __name__ == "__main__":

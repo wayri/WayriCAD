@@ -5,7 +5,7 @@ import unittest
 
 from matplotlib.figure import Figure
 
-from quick_therm_plugin.thermal_plot import draw_thermal_view
+from quick_therm_plugin.thermal_plot import _field_quads, draw_thermal_view
 from quick_therm_plugin.report import write_diagnostic_report
 
 
@@ -24,6 +24,17 @@ VIEW={'outline':[{'outer_mm':[[0,0],[10,0],[10,8],[0,8]],'holes_mm':[]}],
 
 
 class ThermalPlotReportTests(unittest.TestCase):
+    def test_nonuniform_3d_quads_use_actual_cell_edges(self):
+        field = {"x_centers_mm": [.25, .625, 1.0625],
+                 "y_centers_mm": [.25],
+                 "x_edges_mm": [0, .5, .75, 1.375],
+                 "y_edges_mm": [0, .5],
+                 "values_c": [[30, 31, 32]]}
+        quads, values = _field_quads(field, 1.6)
+        self.assertEqual(values, [30, 31, 32])
+        self.assertEqual([quad[1][0]-quad[0][0] for quad in quads], [.5, .25, .625])
+        self.assertEqual(quads[1][0], (.5, 0, 1.6))
+
     def test_modes_draw_with_excluded_component(self):
         for mode in ('Top-side map','Bottom-side map','Top-side contour','Bottom-side contour',
                      'Top board model','Bottom board model','3D overview','Temperature chart'):
@@ -72,6 +83,7 @@ class ThermalPlotReportTests(unittest.TestCase):
             self.assertIn('Bottom board model',html)
             self.assertIn('3D overview',html)
             self.assertIn('Board-network component sites',html)
+            self.assertIn('Mean-contact junction estimate',html)
             self.assertIn('residual',html)
 
     def test_layered_field_mount_flux_and_report(self):
@@ -102,6 +114,7 @@ class ThermalPlotReportTests(unittest.TestCase):
             self.assertIn('Layer model: F.Cu',html)
             self.assertIn('Fixed-temperature contacts',html)
             self.assertIn('hole-1',html)
+            self.assertIn('Layer temperature peaks',html)
 
 
 if __name__=='__main__':unittest.main()

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import copy
 from pathlib import Path
 
 
@@ -43,7 +44,7 @@ def _interpolate(points, flow, label):
     return pairs[-1][1]
 
 
-def fan_operating_point(fan_curve, system_k_pa_s2_m6, bypass_fraction):
+def fan_operating_point(fan_curve, system_k_pa_s2_m6, bypass_fraction, fans_parallel=1):
     """Intersect a measured fan P-Q curve with Δp=K Q², then remove bypass.
 
     ``fan_curve`` is ``[[m³/s, Pa], ...]`` at the assembled fan configuration.
@@ -51,6 +52,8 @@ def fan_operating_point(fan_curve, system_k_pa_s2_m6, bypass_fraction):
     explicit assembly assumption, never deduced from free-air fan ratings.
     """
     k = _number(system_k_pa_s2_m6, "System pressure coefficient", positive=True)
+    if isinstance(fans_parallel, bool) or not isinstance(fans_parallel, int) or not 1 <= fans_parallel <= 16:
+        raise ValueError("fans_parallel must be an integer from 1 to 16.")
     bypass = _number(bypass_fraction, "Bypass fraction", nonnegative=True)
     if bypass >= 1:
         raise ValueError("Bypass fraction must be below one.")
@@ -64,18 +67,20 @@ def fan_operating_point(fan_curve, system_k_pa_s2_m6, bypass_fraction):
     if curve[0][1] <= 0 or curve[-1][0] <= 0:
         raise ValueError("Fan curve needs positive shutoff pressure and flow coverage.")
     high = curve[-1][0]
-    if _interpolate(fan_curve, high, "Fan curve") > k*high*high:
+    high *= fans_parallel
+    if _interpolate(fan_curve, high/fans_parallel, "Fan curve") > k*high*high:
         raise ValueError("Fan curve ends before its system-curve intersection.")
     low = 0.0
     for _ in range(64):
         mid = (low+high)/2
-        if _interpolate(fan_curve, mid, "Fan curve") > k*mid*mid:
+        if _interpolate(fan_curve, mid/fans_parallel, "Fan curve") > k*mid*mid:
             low = mid
         else:
             high = mid
     total = (low+high)/2
     return {"total_m3_s": total, "board_channel_m3_s": total*(1-bypass),
-            "bypass_fraction": bypass, "pressure_pa": k*total*total}
+            "bypass_fraction": bypass, "pressure_pa": k*total*total,
+            "fans_parallel": fans_parallel}
 
 
 def _solve_linear(matrix, rhs):
@@ -99,8 +104,30 @@ def _solve_linear(matrix, rhs):
     return [rows[i][-1] for i in range(size)]
 
 
+def _parallel_air_profile(temperatures, contacts, positions, inlet_c, mass_heat_capacity_w_k):
+    """Conserve heat through serial +X-to−X stations in one Blade passage."""
+    stages = []
+    air = inlet_c
+    for stage_index, x_mm in enumerate(positions):
+        selected = [(node, h) for node, h, index in contacts if index == stage_index]
+        conductance = sum(h for _, h in selected)
+        if conductance:
+            solid = sum(h*temperatures[node] for node, h in selected)/conductance
+            transfer = math.exp(-conductance/mass_heat_capacity_w_k)
+            outlet = solid+(air-solid)*transfer
+            mean = solid+(air-solid)*(-math.expm1(-conductance/mass_heat_capacity_w_k))/(
+                conductance/mass_heat_capacity_w_k)
+        else:
+            outlet = mean = air
+        stages.append({"x_mm": x_mm, "inlet_c": air, "mean_c": mean,
+                       "outlet_c": outlet,
+                       "heat_w": mass_heat_capacity_w_k*(outlet-air)})
+        air = outlet
+    return stages
+
+
 def solve_coupled_transient(config):
-    """Solve four series-air boards with implicit Euler and R(T) loss feedback.
+    """Solve four explicit serial boards or parallel air passages with R(T).
 
     Each board has one board node plus component junction and optional isolated
     sink nodes. The fan and all conductance curves are supplied measurements or
@@ -111,6 +138,24 @@ def solve_coupled_transient(config):
     boards = config.get("boards")
     if not isinstance(boards, list) or len(boards) != 4:
         raise ValueError("Coupled transient requires exactly four ordered boards.")
+    topology = config.get("air_topology")
+    if topology not in ("serial_boards", "parallel_passages"):
+        raise ValueError("air_topology must explicitly be serial_boards or parallel_passages.")
+    if topology == "parallel_passages":
+        if config.get("air_flow_direction") != "-X":
+            raise ValueError("Parallel Blade passages require explicit air_flow_direction: -X.")
+        if config.get("passage_flow_allocation") != "effective_per_blade":
+            raise ValueError("parallel_passages requires passage_flow_allocation: effective_per_blade; four Blade allocations are not five physical gaps.")
+        pitch = _number(config.get("blade_pitch_mm"), "Blade pitch (mm)", positive=True)
+        fractions = config.get("passage_flow_fractions")
+        if not isinstance(fractions, list) or len(fractions) != 4:
+            raise ValueError("Four positive passage_flow_fractions must sum to one.")
+        fractions = [_number(value, "Passage flow fraction", positive=True)
+                     for value in fractions]
+        if abs(sum(fractions)-1) > 1e-6:
+            raise ValueError("Four positive passage_flow_fractions must sum to one.")
+    else:
+        pitch, fractions = None, None
     inlet = _number(config.get("inlet_air_c"), "Inlet air temperature")
     initial = _number(config.get("initial_c", inlet), "Initial temperature")
     if inlet <= -273.15 or initial <= -273.15:
@@ -121,22 +166,40 @@ def solve_coupled_transient(config):
         raise ValueError("Transient exceeds 10,000 steps; increase step_s.")
     air_density = _number(config.get("air_density_kg_m3"), "Air density", positive=True)
     air_cp = _number(config.get("air_cp_j_kgk"), "Air heat capacity", positive=True)
-    flow = fan_operating_point(config.get("fan_curve"),
-                               config.get("system_k_pa_s2_m6"),
-                               config.get("bypass_fraction"))
-    mdot_cp = flow["board_channel_m3_s"]*air_density*air_cp
-    if mdot_cp <= 0:
+    if "prescribed_total_flow_m3_s" in config:
+        if config.get("fan_curve") is not None or config.get("system_k_pa_s2_m6") is not None:
+            raise ValueError("Prescribed flow cannot be combined with fan P-Q/system inputs.")
+        total_flow = _number(config["prescribed_total_flow_m3_s"],
+                             "Prescribed total flow", positive=True)
+        bypass = _number(config.get("bypass_fraction"), "Bypass fraction",
+                         nonnegative=True)
+        if bypass >= 1:
+            raise ValueError("Bypass fraction must be below one.")
+        flow = {"total_m3_s": total_flow,
+                "board_channel_m3_s": total_flow*(1-bypass),
+                "bypass_fraction": bypass, "pressure_pa": None,
+                "fans_parallel": config.get("fans_parallel"),
+                "source": "prescribed_sensitivity_input"}
+    else:
+        flow = fan_operating_point(config.get("fan_curve"),
+                                   config.get("system_k_pa_s2_m6"),
+                                   config.get("bypass_fraction"),
+                                   config.get("fans_parallel", 1))
+        flow["source"] = "declared_fan_curve_system_intersection"
+    channel_flows = ([flow["board_channel_m3_s"]*fraction for fraction in fractions]
+                     if fractions is not None else [flow["board_channel_m3_s"]]*4)
+    if any(value <= 0 for value in channel_flows):
         raise ValueError("The board channel has no air mass flow.")
     names = set()
     network = []
-    for board in boards:
+    for bi, board in enumerate(boards):
         name = str(board.get("name", "")).strip()
         if not name or name in names:
             raise ValueError("Each ordered board needs a unique name.")
         names.add(name)
         capacity = _number(board.get("capacity_j_k"), name+" board capacity", positive=True)
         h_curve = board.get("air_conductance_curve")
-        h_board = _interpolate(h_curve, flow["board_channel_m3_s"], name+" board hA")
+        h_board = _interpolate(h_curve, channel_flows[bi], name+" board hA")
         fixed = _number(board.get("fixed_power_w", 0), name+" fixed power", nonnegative=True)
         components = board.get("components")
         if not isinstance(components, list) or not components:
@@ -154,11 +217,15 @@ def solve_coupled_transient(config):
             if boundary["temperature_c"] <= -273.15:
                 raise ValueError(name+": fixture temperature must exceed absolute zero.")
         seen = set()
+        source_positions = {}
         for component in components:
             ref = str(component.get("reference", "")).strip()
             if not ref or ref in seen:
                 raise ValueError(name+" has a missing or duplicate component reference.")
             seen.add(ref)
+            if topology == "parallel_passages":
+                source_positions[ref] = _number(component.get("streamwise_x_mm"),
+                                                ref+" saved X position (mm)")
             if "fixed_power_w" not in component and "resistive_loss" not in component:
                 raise ValueError(ref+": actual dissipation must be supplied explicitly.")
             c = _number(component.get("capacity_j_k"), ref+" junction capacity", positive=True)
@@ -194,14 +261,41 @@ def solve_coupled_transient(config):
                 rjs = _number(sink.get("r_junction_sink_k_w"), ref+" junction-sink R", positive=True)
                 cs = _number(sink.get("capacity_j_k"), ref+" sink capacity", positive=True)
                 hs = _interpolate(sink.get("air_conductance_curve"),
-                                  flow["board_channel_m3_s"], ref+" sink hA")
+                                  channel_flows[bi], ref+" sink hA")
                 si = len(nodes)
                 nodes.append({"id": ref+" sink", "capacity": cs, "air_h": hs,
                               "fixed_power": 0.0, "links": [(index, 1/rjs)]})
                 nodes[index]["links"].append((si, 1/rjs))
+            body = component.get("package_body")
+            if body is not None:
+                rb = _number(body.get("r_junction_body_k_w"),
+                             ref+" junction-to-body R", positive=True)
+                cb = _number(body.get("capacity_j_k"), ref+" body capacity", positive=True)
+                hb = _interpolate(body.get("air_conductance_curve"),
+                                  channel_flows[bi], ref+" body hA")
+                body_index = len(nodes)
+                nodes.append({"id": ref+" body", "capacity": cb, "air_h": hb,
+                              "fixed_power": 0.0, "links": [(index, 1/rb)]})
+                nodes[index]["links"].append((body_index, 1/rb))
         if len(nodes) > 100:
             raise ValueError(name+" RC network exceeds 100 nodes.")
-        network.append({"name": name, "nodes": nodes, "boundary": boundary})
+        if topology == "parallel_passages":
+            positions = sorted(set(source_positions.values()), reverse=True)
+            stages = {position: index for index, position in enumerate(positions)}
+            contacts = [(0, h_board/len(positions), index)
+                        for index in range(len(positions))]
+            for ni, node in enumerate(nodes[1:], 1):
+                ref = node["id"].removesuffix(" sink").removesuffix(" body")
+                if node["air_h"]:
+                    contacts.append((ni, node["air_h"], stages[source_positions[ref]]))
+        else:
+            positions = []
+            contacts = [(ni, node["air_h"], 0) for ni, node in enumerate(nodes)
+                        if node["air_h"]]
+        network.append({"name": name, "nodes": nodes, "boundary": boundary,
+                        "contacts": contacts, "positions": positions,
+                        "mass_heat_capacity_w_k": channel_flows[bi]*air_density*air_cp,
+                        "flow_m3_s": channel_flows[bi]})
 
     previous = [[initial]*len(board["nodes"]) for board in network]
     history = []
@@ -215,13 +309,16 @@ def solve_coupled_transient(config):
         for board, old in zip(network, previous):
             nodes = board["nodes"]
             temps = old[:]
-            for iteration in range(60):
+            stage_means = [inlet_now]*max(1, len(board["positions"]))
+            for iteration in range(80):
                 matrix = [[0.0]*len(nodes) for _ in nodes]
                 rhs = [0.0]*len(nodes)
                 for i, node in enumerate(nodes):
                     storage = node["capacity"]/dt
                     matrix[i][i] = storage+node["air_h"]
-                    rhs[i] = storage*old[i]+node["air_h"]*inlet_now+node["fixed_power"]
+                    air_rhs = sum(h*stage_means[stage]
+                                  for ni, h, stage in board["contacts"] if ni == i)
+                    rhs[i] = storage*old[i]+air_rhs+node["fixed_power"]
                     if i == 0 and board["boundary"] is not None:
                         conductance = board["boundary"]["conductance_w_k"]
                         matrix[i][i] += conductance
@@ -239,18 +336,29 @@ def solve_coupled_transient(config):
                 candidate = _solve_linear(matrix, rhs)
                 if any(not math.isfinite(t) or t <= -273.15 or t > 10000 for t in candidate):
                     raise ValueError("Coupled transient diverged; check boundaries and R(T) loss.")
-                if max(abs(a-b) for a, b in zip(candidate, temps)) < 1e-8:
+                if topology == "parallel_passages":
+                    profile = _parallel_air_profile(candidate, board["contacts"],
+                                                    board["positions"], inlet_now,
+                                                    board["mass_heat_capacity_w_k"])
+                    new_means = [stage["mean_c"] for stage in profile]
+                else:
+                    new_means = stage_means
+                change = max(abs(a-b) for a, b in zip(candidate, temps))
+                air_change = max(abs(a-b) for a, b in zip(new_means, stage_means))
+                if max(change, air_change) < 1e-8:
                     temps = candidate
+                    stage_means = new_means
                     break
-                temps = candidate
+                temps, stage_means = candidate, new_means
             else:
-                raise ValueError("R(T) electrothermal iteration did not converge.")
+                raise ValueError("Electrothermal/air iteration did not converge.")
             power = sum(node["fixed_power"] +
                         (node["temperature_loss"][0]*(1+node["temperature_loss"][1]*
                          (temps[i]-node["temperature_loss"][2]))
                          if node.get("temperature_loss") else 0.0)
                         for i, node in enumerate(nodes))
-            air_w = sum(node["air_h"]*(temps[i]-inlet_now) for i, node in enumerate(nodes))
+            air_w = sum(h*(temps[ni]-stage_means[stage])
+                        for ni, h, stage in board["contacts"])
             fixture_w = (board["boundary"]["conductance_w_k"]*
                          (temps[0]-board["boundary"]["temperature_c"])
                          if board["boundary"] is not None else 0.0)
@@ -259,24 +367,40 @@ def solve_coupled_transient(config):
             max_residual = max(max_residual, abs(residual))
             if abs(residual) > max(1e-8, 1e-6*max(power, 1)):
                 raise ValueError("Transient energy balance exceeded tolerance.")
-            outlet = inlet_now+air_w/mdot_cp
+            if topology == "parallel_passages":
+                profile = _parallel_air_profile(temps, board["contacts"],
+                                                board["positions"], inlet_now,
+                                                board["mass_heat_capacity_w_k"])
+                outlet = profile[-1]["outlet_c"]
+            else:
+                profile = []
+                outlet = inlet_now+air_w/board["mass_heat_capacity_w_k"]
             row["boards"].append({"name": board["name"], "inlet_air_c": inlet_now,
                                    "outlet_air_c": outlet, "power_w": power,
+                                   "flow_m3_s": board["flow_m3_s"],
+                                   "air_stages": profile,
                                    "air_heat_w": air_w, "fixture_heat_w": fixture_w,
                                    "stored_heat_w": stored_w,
                                    "energy_residual_w": residual,
                                    "temperatures_c": {node["id"]: temps[i]
                                                       for i, node in enumerate(nodes)}})
             next_state.append(temps)
-            inlet_now = outlet
+            if topology == "serial_boards":
+                inlet_now = outlet
+        if topology == "parallel_passages":
+            row["mixed_outlet_air_c"] = sum(
+                board["outlet_air_c"]*network[index]["flow_m3_s"]
+                for index, board in enumerate(row["boards"]))/sum(channel_flows)
         previous = next_state
         elapsed += dt
         history.append(row)
     checks = []
     if "max_local_air_c" in config:
         limit = _number(config["max_local_air_c"], "Local air limit")
-        maximum = max(board["outlet_air_c"] for sample in history
-                      for board in sample["boards"])
+        maximum = max([board["outlet_air_c"] for sample in history
+                       for board in sample["boards"]] +
+                      [stage["outlet_c"] for sample in history for board in sample["boards"]
+                       for stage in board["air_stages"]])
         checks.append({"kind": "local_air", "maximum_c": maximum, "limit_c": limit,
                        "status": "PASS" if maximum <= limit else "FAIL"})
     for bi, board in enumerate(boards):
@@ -292,12 +416,16 @@ def solve_coupled_transient(config):
                            "status": "PASS" if maximum <= limit else "FAIL"})
     return {"model": "coupled-air lumped electrothermal RC transient",
             "status": "computed_unqualified", "model_sha256": _canonical_hash(config),
+            "air_topology": topology, "air_flow_direction": config.get("air_flow_direction"),
+            "blade_pitch_mm": pitch, "passage_flow_fractions": fractions,
+            "passage_flow_allocation": config.get("passage_flow_allocation"),
             "fan_operating_point": flow, "max_energy_residual_w": max_residual,
             "history": history, "checks": checks,
             "check_status": ("UNKNOWN" if not checks else
                              "FAIL" if any(check["status"] == "FAIL" for check in checks)
                              else "PASS"),
-            "assumptions": ["The four boards are in series in one air channel; bypass is entered.",
+            "assumptions": ["Air topology, passage flow fractions, bypass and direction are explicit inputs; the model does not derive passage flow from blade pitch.",
+                            "Parallel passages use streamwise lumped air stages from high X to low X, not a CFD velocity/pressure field.",
                             "Fan P-Q, pressure loss, convection curves, heat capacities and contact resistances are explicit inputs.",
                             "This lumped RC model does not resolve copper fields, package hotspots, recirculation, radiation or CFD.",
                             "R(T) is an entered ohmic loss law, not a MOSFET linear-mode SOA model.",
@@ -307,9 +435,11 @@ def solve_coupled_transient(config):
 def run_saved_board_transient(config):
     """Hash all four saved KiCad boards around a read-only RC analysis."""
     boards = config.get("boards", [])
+    model_config = copy.deepcopy(config)
     before = {}
     hashes_by_board = {}
-    for board in boards:
+    positions_by_board = {}
+    for bi, board in enumerate(boards):
         path = Path(board.get("board_path", "")).resolve()
         if not path.is_file() or path.suffix.lower() != ".kicad_pcb":
             raise ValueError("Each assembly member needs a saved .kicad_pcb file.")
@@ -322,17 +452,30 @@ def run_saved_board_transient(config):
         loaded = pcbnew.LoadBoard(str(path))
         if loaded is None:
             raise ValueError("KiCad could not load an assembly board.")
-        references = {fp.GetReference() for fp in loaded.GetFootprints()}
+        footprints = {fp.GetReference(): fp for fp in loaded.GetFootprints()}
+        references = set(footprints)
         missing = sorted(str(component.get("reference", ""))
                          for component in board.get("components", [])
                          if component.get("reference") not in references)
         if missing:
             raise ValueError("Heat sources are not on the saved board: " + ", ".join(missing))
+        if config.get("air_topology") == "parallel_passages":
+            positions = {}
+            for part in model_config["boards"][bi]["components"]:
+                ref = part["reference"]
+                native_x = pcbnew.ToMM(footprints[ref].GetPosition().x)
+                if ("streamwise_x_mm" in part and
+                        abs(_number(part["streamwise_x_mm"], ref+" X position")-native_x) > .5):
+                    raise ValueError(ref+": supplied streamwise X differs from the saved footprint by more than 0.5 mm.")
+                part["streamwise_x_mm"] = native_x
+                positions[ref] = native_x
+            positions_by_board[str(board.get("name", ""))] = positions
         before[str(path)] = digest
         hashes_by_board[str(board.get("name", ""))] = digest
-    result = solve_coupled_transient(config)
+    result = solve_coupled_transient(model_config)
     for path, digest in before.items():
         if hashlib.sha256(Path(path).read_bytes()).hexdigest() != digest:
             raise ValueError("A saved board changed during thermal analysis.")
     result["source_sha256"] = hashes_by_board
+    result["saved_component_x_mm"] = positions_by_board
     return result

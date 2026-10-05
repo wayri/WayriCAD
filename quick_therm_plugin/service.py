@@ -9,7 +9,7 @@ import tempfile
 import time
 
 
-def run_job(request, cancelled=None, timeout=300):
+def run_job(request, cancelled=None, timeout=1800, progress=None):
     if not math.isfinite(float(timeout)) or float(timeout) <= 0:
         raise ValueError("Worker timeout must be finite and positive.")
     if cancelled and cancelled():
@@ -23,8 +23,10 @@ def run_job(request, cancelled=None, timeout=300):
     with tempfile.TemporaryDirectory(prefix="wayricad-quick-therm-") as temporary:
         root = Path(temporary)
         source, target = root / "request.json", root / "response.json"
-        source.write_text(json.dumps(request, allow_nan=False), encoding="utf-8")
-        with (root / "worker.log").open("w+", encoding="utf-8") as log:
+        payload = dict(request, _emit_progress=bool(progress))
+        source.write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")
+        log_path = root / "worker.log"
+        with log_path.open("w+", encoding="utf-8") as log:
             process = subprocess.Popen(
                 [str(python), "-I", str(Path(__file__).with_name("quickmain.py")),
                  "--worker", str(source), str(target)],
@@ -33,13 +35,33 @@ def run_job(request, cancelled=None, timeout=300):
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             started = time.monotonic()
+            progress_offset = 0
+
+            def read_progress():
+                nonlocal progress_offset
+                if progress is None:
+                    return
+                with log_path.open("r", encoding="utf-8", errors="replace") as reader:
+                    reader.seek(progress_offset)
+                    while True:
+                        line = reader.readline()
+                        if not line or not line.endswith("\n"):
+                            break
+                        progress_offset = reader.tell()
+                        if line.startswith("WAYRICAD_PROGRESS "):
+                            try:
+                                progress(json.loads(line[len("WAYRICAD_PROGRESS "):]))
+                            except Exception:
+                                pass
             try:
                 while process.poll() is None:
                     if cancelled and cancelled():
                         raise InterruptedError("QuickTherm cancelled. No PCB files were changed.")
                     if time.monotonic() - started > timeout:
-                        raise TimeoutError("QuickTherm exceeded its time budget. Use a coarser mesh.")
+                        raise TimeoutError("QuickTherm exceeded its time budget. Review mesh resolution and progress before retrying.")
+                    read_progress()
                     time.sleep(0.1)
+                read_progress()
             finally:
                 if process.poll() is None:
                     process.terminate()
@@ -67,6 +89,13 @@ def run_job(request, cancelled=None, timeout=300):
 
 def execute(request):
     """Return a source-hashed inventory or a scoped thermal result."""
+    def emit_progress(stage, completed, total, elapsed, eta):
+        if request.get("_emit_progress"):
+            print("WAYRICAD_PROGRESS " + json.dumps({
+                "stage": stage, "completed": completed, "total": total,
+                "percent": 100*completed/total if total else 100,
+                "elapsed_s": elapsed, "eta_s": eta}, allow_nan=False), flush=True)
+
     if request.get("action") == "coupled_transient":
         from .thermal_transient import run_saved_board_transient
 
@@ -160,12 +189,16 @@ def execute(request):
             from .thermal_multilayer import (solve_multilayer_thermal,
                                              solve_multilayer_thermal_convergence)
 
-            geometry = collect_thermal_geometry(board, path)
+            geometry = collect_thermal_geometry(
+                board, path, contact_pads=settings.get("source_contact_pad_numbers"),
+                progress=emit_progress)
             if request.get("mesh_acceptance") is not None:
                 thermal_network = solve_multilayer_thermal_convergence(
-                    geometry, view, result, settings, request["mesh_acceptance"])
+                    geometry, view, result, settings, request["mesh_acceptance"],
+                    progress=emit_progress)
             else:
-                thermal_network = solve_multilayer_thermal(geometry, view, result, settings)
+                thermal_network = solve_multilayer_thermal(
+                    geometry, view, result, settings, progress=emit_progress)
         else:
             from .thermal_network import solve_thermal_network
 
@@ -185,7 +218,8 @@ def execute(request):
 
     return {
         "quick_therm": result, "board_thermal_view": view,
-        "thermal_network": thermal_network, "request": request,
+        "thermal_network": thermal_network,
+        "request": {key: value for key, value in request.items() if key != "_emit_progress"},
         "temperature_limits": limits, "probes": probes,
         "source_sha256": before,
     }

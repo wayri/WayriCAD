@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 
 
 def package():
@@ -42,7 +43,16 @@ def main(argv=None):
                 raise ValueError("Worker response must not overwrite the source PCB.")
             result = importlib.import_module(".service", name).execute(payload)
             if payload.get("html_output"):
+                started = time.monotonic()
+                if payload.get("_emit_progress"):
+                    print('WAYRICAD_PROGRESS '+json.dumps({"stage":"report rendering",
+                        "completed":0,"total":1,"percent":0,"elapsed_s":0,"eta_s":None}),
+                        flush=True)
                 importlib.import_module(".report", name).write_report(payload["html_output"], result)
+                if payload.get("_emit_progress"):
+                    print('WAYRICAD_PROGRESS '+json.dumps({"stage":"report rendering",
+                        "completed":1,"total":1,"percent":100,
+                        "elapsed_s":time.monotonic()-started,"eta_s":0}), flush=True)
             status = 0
         except Exception as exc:
             result = {"error": str(exc), "error_type": type(exc).__name__}

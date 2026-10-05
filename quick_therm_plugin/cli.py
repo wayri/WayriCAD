@@ -26,7 +26,7 @@ def main(argv=None):
     parser.add_argument("--ambient", type=float)
     parser.add_argument("--output", type=Path, help="JSON result")
     parser.add_argument("--html", type=Path, help="Self-contained HTML and companion JSON")
-    parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument("--timeout", type=float, default=1800.0)
     args = parser.parse_args(argv)
     try:
         board = args.board.resolve()

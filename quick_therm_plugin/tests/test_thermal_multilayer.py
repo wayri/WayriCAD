@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import unittest
 
 from quick_therm_plugin.thermal_multilayer import (
@@ -34,6 +35,21 @@ def inputs(environment="air"):
 
 
 class MultilayerThermalTests(unittest.TestCase):
+    def test_narrow_copper_strip_survives_half_cell_phase_shift(self):
+        geometry, view, result, settings = inputs()
+        settings.update(board_h_w_m2k=50, board_emissivity=0, copper_blur_cells=1)
+        counts = []
+        for center_y in (6, 6.25):
+            shifted = copy.deepcopy(geometry)
+            strip = {"outer": [[0, center_y-.03], [12, center_y-.03],
+                               [12, center_y+.03], [0, center_y+.03]], "holes": []}
+            for layer in shifted["layers"]:
+                layer["polygons_mm"] = [strip]
+            solved = solve_multilayer_thermal(shifted, view, result, settings)
+            counts.append(solved["mesh"]["copper_lateral_edges"])
+            self.assertLess(abs(solved["heat_balance"]["residual_w"]), 1e-6)
+        self.assertGreater(min(counts), 0)
+
     def test_source_aligned_refinement_resolves_small_footprint_and_balances(self):
         geometry, view, result, settings = inputs()
         view["components"][0]["bbox_mm"] = [6.18, 6.18, 6.32, 6.32]
@@ -64,10 +80,110 @@ class MultilayerThermalTests(unittest.TestCase):
         output = solve_multilayer_thermal_convergence(
             geometry, view, result, settings, acceptance)
         self.assertEqual(output["mesh_acceptance"]["status"], "PASS")
+        acceptance["maximum_field_change_c"] = .1
+        output = solve_multilayer_thermal_convergence(
+            geometry, view, result, settings, acceptance)
+        self.assertEqual(output["mesh_acceptance"]["status"], "FAIL")
+        self.assertGreater(output["mesh_acceptance"]["maximum_field_change_c"], .1)
+
+    def test_phase_sensitivity_is_reported_and_can_fail_the_gate(self):
+        geometry, view, result, settings = inputs()
+        settings.update(board_h_w_m2k=50, board_emissivity=0)
+        acceptance = {"grid_cells_long_axis": [24, 48],
+                      "maximum_change_c": 1e9, "minimum_source_cells": 1,
+                      "phase_offset_fraction": [.5, .5],
+                      "maximum_field_change_c": 0}
+        output = solve_multilayer_thermal_convergence(
+            geometry, view, result, settings, acceptance)
+        phase = output["mesh_acceptance"]["phase_sensitivity"]
+        self.assertEqual(phase["status"], "FAIL")
+        self.assertGreater(phase["maximum_field_change_c"], 0)
+
+    def test_subcell_contact_does_not_pass_on_four_tiny_overlaps(self):
+        geometry, view, result, settings = inputs()
+        settings.update(board_h_w_m2k=50, board_emissivity=0)
+        view["components"][0]["bbox_mm"] = [5.999, 5.999, 6.001, 6.001]
+        result["components"][0]["power_w"] = .1
+        output = solve_multilayer_thermal_convergence(
+            geometry, view, result, settings,
+            {"grid_cells_long_axis": [48, 80], "maximum_change_c": 1,
+             "minimum_source_cells": 4})
+        part = output["components"][0]
+        self.assertEqual(part["source_cells"], 4)
+        self.assertLess(part["effective_source_cells"], .001)
+        self.assertEqual(output["mesh_acceptance"]["status"], "FAIL")
+        self.assertEqual(output["mesh_acceptance"]["underresolved_sources"], ["U1"])
+
+    def test_selected_saved_pad_contact_excludes_drilled_copper_void(self):
+        geometry, view, result, settings = inputs()
+        view["components"][0]["bbox_mm"] = [5, 5, 7, 7]
+        geometry["source_contacts"] = [{
+            "reference": "U1", "pad_number": "2", "layer_id": 0,
+            "net": "DRAIN", "polygons_mm": [{
+                "outer": [[5, 5], [7, 5], [7, 7], [5, 7]],
+                "holes": [[[5.5, 5.5], [6.5, 5.5], [6.5, 6.5], [5.5, 6.5]]],
+            }],
+        }]
+        settings["source_contact_pad_numbers"] = {"U1": "2"}
+        solved = solve_multilayer_thermal(geometry, view, result, settings)
+        part = solved["components"][0]
+        self.assertEqual(part["source_distribution"], "saved_pad_copper_polygon")
+        self.assertEqual(part["source_pad_number"], "2")
+        self.assertEqual(part["source_net"], "DRAIN")
+        self.assertAlmostEqual(part["source_contact_area_mm2"], 3)
+        self.assertLess(abs(solved["heat_balance"]["residual_w"]), 1e-6)
+        settings["source_contact_pad_numbers"] = {"U1": "3"}
+        with self.assertRaisesRegex(ValueError, "no saved copper contact"):
+            solve_multilayer_thermal(geometry, view, result, settings)
+
+    def test_annulus_source_stencil_avoids_drilled_cell_centers(self):
+        geometry, view, result, settings = inputs()
+        hole = [[6+.15*math.cos(2*math.pi*k/32),
+                 6+.15*math.sin(2*math.pi*k/32)] for k in range(32)]
+        geometry["barrels"] = [{"id": "V1", "x_mm": 6, "y_mm": 6,
+                                 "drill_mm": .3, "span_layers": [0, 31],
+                                 "outer_diameters_mm": {"0": .6, "31": .6}}]
+        geometry["source_contacts"] = [{
+            "reference": "U1", "pad_number": "2", "layer_id": 0,
+            "net": "DRAIN", "polygons_mm": [{
+                "outer": [[5, 5], [7, 5], [7, 7], [5, 7]],
+                "holes": [hole],
+            }],
+        }]
+        settings.update(source_contact_pad_numbers={"U1": "2"},
+                        grid_cells_long_axis=80)
+        solved = solve_multilayer_thermal(geometry, view, result, settings)
+        part = solved["components"][0]
+        self.assertGreater(part["source_drill_redistributed_mm2"], 0)
+        self.assertEqual(part["source_peak_cell"]["center_in_drill_id"], None)
+        self.assertGreater(solved["mesh"]["barrel_stencil_edges"],
+                           solved["mesh"]["via_vertical_edges"])
+        self.assertLess(abs(solved["heat_balance"]["residual_w"]), 1e-6)
+
+    def test_drill_center_peak_is_flagged_not_physical_hotspot(self):
+        geometry, view, result, settings = inputs()
+        geometry["barrels"] = [{"id": "D1", "x_mm": 6, "y_mm": 6,
+                                 "drill_mm": .3, "span_layers": [0, 31]}]
+        view["components"][0]["bbox_mm"] = [5.999, 5.999, 6.001, 6.001]
+        settings.update(grid_cells_long_axis=80, board_h_w_m2k=50,
+                        board_emissivity=0)
+        solved = solve_multilayer_thermal(geometry, view, result, settings)
+        self.assertEqual(solved["components"][0]["source_peak_cell"]["center_in_drill_id"],
+                         "D1")
+        accepted = solve_multilayer_thermal_convergence(
+            geometry, view, result, settings,
+            {"grid_cells_long_axis": [48, 80], "maximum_change_c": 1e9,
+             "minimum_source_cells": 1})
+        self.assertIn("source:U1", accepted["mesh_acceptance"]["drill_center_peaks"])
+        self.assertEqual(accepted["mesh_acceptance"]["status"], "FAIL")
 
     def test_air_energy_conservation_and_distinct_layer_field(self):
         geometry, view, result, settings = inputs()
-        solved = solve_multilayer_thermal(geometry, view, result, settings)
+        events = []
+        solved = solve_multilayer_thermal(
+            geometry, view, result, settings,
+            progress=lambda stage, completed, total, elapsed, eta:
+            events.append((stage, completed, total, elapsed, eta)))
         self.assertEqual(solved["status"], "converged")
         self.assertEqual(len(solved["layers"]), 2)
         self.assertAlmostEqual(solved["heat_balance"]["input_w"], 1)
@@ -75,6 +191,10 @@ class MultilayerThermalTests(unittest.TestCase):
         self.assertGreater(solved["layers"][0]["sampled_max_c"],
                            solved["layers"][1]["sampled_max_c"])
         self.assertIsNone(solved["components"][0]["junction_c"])
+        self.assertIn(("copper rasterization", 0), [(e[0], e[1]) for e in events])
+        self.assertTrue(any(e[0] == "copper rasterization" and e[1] == e[2]
+                            for e in events))
+        self.assertTrue(any(e[0] == "thermal solve" and e[1] == 1 for e in events))
 
     def test_via_reduces_hotspot_against_bottom_fixture(self):
         geometry, view, result, settings = inputs("vacuum")

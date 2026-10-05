@@ -124,13 +124,27 @@ def write_diagnostic_report(path,bundle):
                 html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in values)+'</tr>'
             html+='</table>'
         if network:
-            html+='<h3>Board-network component sites</h3><table><tr><th>Reference</th><th>Side</th><th>Source path</th><th>Board site °C</th><th>Virtual sink °C</th><th>Model junction °C</th></tr>'
+            html+='<h3>Board-network component sites</h3><table><tr><th>Reference</th><th>Side</th><th>Source path</th><th>Mean source cell °C</th><th>Hottest source cell °C</th><th>Virtual sink °C</th><th>Mean-contact junction estimate °C</th><th>Hot-cell junction proxy °C</th><th>Area-equivalent source cells</th></tr>'
             for row in network.get('components',[]):
                 html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (
                     row['reference'],row.get('side','—'),row.get('source_heat_path',row.get('heat_path',row.get('source_distribution','board'))),
-                    _number(row.get('board_site_c'),'°C'),_number(row.get('sink_c'),'°C'),
-                    _number(row.get('junction_c'),'°C')))+'</tr>'
-            html+='</table><p>A model junction value appears only with a separately supplied component-to-board or component-to-sink resistance. Legacy RθJA is not substituted.</p>'
+                    _number(row.get('board_site_c'),'°C'),_number(row.get('source_peak_c'),'°C'),
+                    _number(row.get('sink_c'),'°C'),_number(row.get('junction_c'),'°C'),
+                    _number(row.get('junction_peak_proxy_c'),'°C'),
+                    _number(row.get('effective_source_cells'))))+'</tr>'
+            html+='</table><p>The model junction estimate uses the area-weighted source-cell temperature plus an explicitly supplied thermal resistance. The hot-cell proxy applies the same resistance to the hottest sampled source cell; neither is a resolved die maximum. Legacy RθJA is not substituted.</p>'
+            if network.get('layers'):
+                html+='<h3>Layer temperature peaks</h3><table><tr><th>Layer</th><th>Sampled minimum °C</th><th>Sampled maximum °C</th></tr>'
+                for layer in network['layers']:
+                    html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (
+                        layer['name'],_number(layer['sampled_min_c']),
+                        _number(layer['sampled_max_c'])))+'</tr>'
+                html+='</table><p>These are finite-volume cell temperatures. A peak cell may span a drilled void or subcell copper feature; inspect source geometry and mesh acceptance before interpreting it physically.</p>'
+            acceptance=network.get('mesh_acceptance')
+            if acceptance:
+                html+='<h3>Mesh acceptance: '+escape(acceptance['status'])+'</h3><p>Largest component change '+escape(_number(acceptance['maximum_change_c'],'°C'))+', layer-peak change '+escape(_number(acceptance['maximum_layer_peak_change_c'],'°C'))+', source-peak change '+escape(_number(acceptance['maximum_source_peak_change_c'],'°C'))+', spatial-field change '+escape(_number(acceptance['maximum_field_change_c'],'°C'))+'. Phase check: '+escape(acceptance['phase_sensitivity']['status'])+'.</p>'
+                if acceptance['underresolved_sources']:
+                    html+='<p>Underresolved sources: '+escape(', '.join(acceptance['underresolved_sources']))+'</p>'
         if thermal['coverage']['excluded']:
             html+='<h2>Incomplete field mapping</h2><ul>'+''.join('<li>'+escape(row['reference']+': '+', '.join(row['issues']))+'</li>'
                 for row in thermal['coverage']['excluded'])+'</ul>'

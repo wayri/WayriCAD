@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import time
 
 from .board_geometry import _hole, _polygons, _shape, _uid, stackup
 from .thermal_board_view import _outline
@@ -38,7 +39,8 @@ def _backdrilled(item):
     return False
 
 
-def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005):
+def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005,
+                             contact_pads=None, progress=None):
     """Return JSON-safe physical copper, barrel and hole data from a saved PCB.
 
     The caller loads ``board`` from ``source_path`` and checks that it has not
@@ -61,6 +63,13 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005):
     except (TypeError, ValueError) as exc:
         raise ValueError("Curve tolerance must be within (0, 0.1] mm.") from exc
     error = api.FromMM(tolerance)
+    if contact_pads is None:
+        contact_pads = {}
+    if not isinstance(contact_pads, dict) or any(
+            not str(ref).strip() or not str(number).strip()
+            for ref, number in contact_pads.items()):
+        raise ValueError("contact_pads must map references to pad numbers.")
+    selected_contacts = {str(ref): str(number) for ref, number in contact_pads.items()}
     outline, outline_issue = _outline(board)
     if outline_issue:
         raise ValueError("A valid closed Edge.Cuts outline is required: " + outline_issue)
@@ -72,6 +81,8 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005):
     copper = {layer: api.SHAPE_POLY_SET() for layer in enabled}
     holes = {layer: api.SHAPE_POLY_SET() for layer in enabled}
     barrels = []
+    source_contacts = []
+    contact_shapes = []
     mounting_holes = []
     counts = {"tracks_and_arcs": 0, "vias": 0, "pads": 0, "zones": 0,
               "plated_pads": 0, "mounting_holes": 0}
@@ -81,7 +92,11 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005):
     tracks = list(board.GetTracks())
     drawings = list(board.GetDrawings()) + [graphic for fp in footprints for graphic in fp.GraphicalItems()]
     zones = list(board.Zones()) + [zone for fp in footprints for zone in fp.Zones()]
-    for item in tracks + pads:
+    copper_items = tracks + pads
+    extraction_started = time.monotonic()
+    if progress:
+        progress("geometry extraction", 0, len(copper_items), 0.0, None)
+    for item_index, item in enumerate(copper_items, 1):
         via = isinstance(item, api.PCB_VIA)
         pad = isinstance(item, api.PAD)
         if via and _backdrilled(item):
@@ -108,6 +123,11 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005):
             counts["pads"] += 1
         else:
             counts["tracks_and_arcs"] += 1
+        if progress and (item_index == len(copper_items) or
+                         item_index % max(1, len(copper_items)//100) == 0):
+            elapsed = time.monotonic()-extraction_started
+            progress("geometry extraction", item_index, len(copper_items),
+                     elapsed, elapsed*(len(copper_items)-item_index)/item_index)
         if not (via or pad):
             continue
         hole = _hole(api, item, error)
@@ -117,6 +137,14 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005):
             for layer in hole_span:
                 holes[layer].Append(hole)
         plated = via or (pad and item.GetAttribute() == api.PAD_ATTRIB_PTH)
+        if pad:
+            reference = str(item.GetParentFootprint().GetReference())
+            pad_number = str(item.GetNumber())
+            if selected_contacts.get(reference) == pad_number:
+                for layer in flashed:
+                    contact = _shape(api, item, layer, error)
+                    contact_shapes.append((reference, pad_number, layer,
+                                           str(item.GetNetname()), contact))
         if pad and drilled:
             drill = _drill(api, item, False)
             if drill <= 0:
@@ -173,12 +201,21 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005):
         holes[layer].Simplify()
         copper[layer].BooleanSubtract(holes[layer])
         row["polygons_mm"] = _polygons(copper[layer], api)
+    # The selected SMD contact can contain thermal vias belonging to separate
+    # PCB items. Subtract the *complete* layer hole set only after every via and
+    # drilled pad has been collected; subtracting the pad's own hole is not enough.
+    for reference, pad_number, layer, net, contact in contact_shapes:
+        contact.BooleanSubtract(holes[layer])
+        source_contacts.append({"reference": reference, "pad_number": pad_number,
+                                "layer_id": layer, "net": net,
+                                "polygons_mm": _polygons(contact, api)})
     if hashlib.sha256(path.read_bytes()).digest() != hashlib.sha256(data).digest():
         raise ValueError("Saved PCB changed during thermal geometry extraction; reload and retry.")
     return {"schema_version": 1, "source_path": str(path),
             "source_sha256": hashlib.sha256(data).hexdigest(),
             "outline": outline, "bbox_mm": bbox, "outline_status": "valid",
             "layers": layers, "barrels": barrels, "mounting_holes": mounting_holes,
+            "source_contacts": source_contacts,
             "counts": counts, "curve_tolerance_mm": tolerance,
             "geometry_meaning": "Physical copper occupancy from saved filled geometry; no thermal conductivity or contact inferred.",
             "missing_material_inputs": ["dielectric thermal conductivity by interval",

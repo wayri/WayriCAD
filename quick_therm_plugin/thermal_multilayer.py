@@ -7,6 +7,8 @@ package/fixture contact model. Only explicitly selected mounts are sinks.
 from __future__ import annotations
 
 import math
+from bisect import bisect_right
+import time
 from collections.abc import Mapping
 
 from .thermal_board_view import _inside
@@ -36,32 +38,181 @@ def _polygon_contains(point, polygon):
             not any(_inside(point, hole) for hole in polygon.get("holes", [])))
 
 
-def _source_weights(component, cells, xs, ys, x_edges, y_edges):
-    """Overlap-weighted footprint bbox, or labelled point fallback."""
+def _segments_cross(a, b, c, d):
+    """True when two closed planar segments touch or cross."""
+    def orient(p, q, r):
+        return (q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0])
+    ab_c, ab_d = orient(a, b, c), orient(a, b, d)
+    cd_a, cd_b = orient(c, d, a), orient(c, d, b)
+    if ((ab_c > 0 and ab_d < 0 or ab_c < 0 and ab_d > 0) and
+            (cd_a > 0 and cd_b < 0 or cd_a < 0 and cd_b > 0)):
+        return True
+    for value, p, q, r in ((ab_c, a, b, c), (ab_d, a, b, d),
+                           (cd_a, c, d, a), (cd_b, c, d, b)):
+        if abs(value) <= 1e-12 and (min(p[0], q[0])-1e-12 <= r[0] <= max(p[0], q[0])+1e-12 and
+                                     min(p[1], q[1])-1e-12 <= r[1] <= max(p[1], q[1])+1e-12):
+            return True
+    return False
+
+
+def _polygon_intersects_cell(polygon, x0, y0, x1, y1):
+    """Conservative candidate test; exact copper transport is checked at faces."""
+    corners = ((x0, y0), (x1, y0), (x1, y1), (x0, y1))
+    if any(_polygon_contains(point, polygon) for point in corners):
+        return True
+    ring = polygon["outer"]
+    if any(x0 <= x <= x1 and y0 <= y <= y1 for x, y in ring):
+        return True
+    for a, b in zip(ring, ring[1:]+ring[:1]):
+        if any(_segments_cross(a, b, c, d)
+               for c, d in zip(corners, corners[1:]+corners[:1])):
+            return True
+    return False
+
+
+def _clip_ring_to_cell(ring, x0, y0, x1, y1):
+    """Clip a simple polygon ring to an axis-aligned thermal cell."""
+    vertices = [tuple(point) for point in ring]
+    for axis, limit, keep_above in ((0, x0, True), (0, x1, False),
+                                    (1, y0, True), (1, y1, False)):
+        if not vertices:
+            break
+        clipped = []
+        previous = vertices[-1]
+        previous_inside = previous[axis] >= limit if keep_above else previous[axis] <= limit
+        for current in vertices:
+            current_inside = current[axis] >= limit if keep_above else current[axis] <= limit
+            if current_inside != previous_inside:
+                fraction = (limit-previous[axis])/(current[axis]-previous[axis])
+                clipped.append((previous[0]+fraction*(current[0]-previous[0]),
+                                previous[1]+fraction*(current[1]-previous[1])))
+            if current_inside:
+                clipped.append(current)
+            previous, previous_inside = current, current_inside
+        vertices = clipped
+    return vertices
+
+
+def _ring_area(ring):
+    return abs(math.fsum(a[0]*b[1]-b[0]*a[1]
+                         for a, b in zip(ring, ring[1:]+ring[:1])))/2 if len(ring) >= 3 else 0.0
+
+
+def _polygon_cell_fraction(polygon, x0, y0, x1, y1):
+    """Area fraction of filled copper, subtracting clipped polygon holes."""
+    outer = _ring_area(_clip_ring_to_cell(polygon["outer"], x0, y0, x1, y1))
+    holes = math.fsum(_ring_area(_clip_ring_to_cell(hole, x0, y0, x1, y1))
+                      for hole in polygon.get("holes", []))
+    return max(0.0, min(1.0, (outer-holes)/((x1-x0)*(y1-y0))))
+
+
+def _drill_at(point, layer_id, geometry):
+    for item in [*geometry.get("barrels", []), *geometry.get("mounting_holes", [])]:
+        if item.get("span_layers") and layer_id not in item["span_layers"]:
+            continue
+        radius = float(item.get("drill_mm", 0))/2
+        if (point[0]-item["x_mm"])**2+(point[1]-item["y_mm"])**2 < radius*radius:
+            return item.get("id")
+    return None
+
+
+def _face_copper_fraction(start, end, polygon, normal, offset):
+    """Fraction of a cell face crossed by continuous copper on both sides."""
+    dx, dy = end[0]-start[0], end[1]-start[1]
+    length_sq = dx*dx+dy*dy
+    cuts = [0.0, 1.0]
+    for ring in [polygon["outer"], *polygon.get("holes", [])]:
+        for a, b in zip(ring, ring[1:]+ring[:1]):
+            ex, ey = b[0]-a[0], b[1]-a[1]
+            denominator = dx*ey-dy*ex
+            ax, ay = a[0]-start[0], a[1]-start[1]
+            if abs(denominator) > 1e-15:
+                t = (ax*ey-ay*ex)/denominator
+                u = (ax*dy-ay*dx)/denominator
+                if -1e-12 <= t <= 1+1e-12 and -1e-12 <= u <= 1+1e-12:
+                    cuts.append(min(1.0, max(0.0, t)))
+            elif abs(ax*dy-ay*dx) <= 1e-12*max(1.0, length_sq):
+                cuts.extend(min(1.0, max(0.0, (p[0]-start[0])*dx/length_sq+
+                                                  (p[1]-start[1])*dy/length_sq))
+                            for p in (a, b))
+    cuts = sorted(set(round(t, 14) for t in cuts))
+    fraction = 0.0
+    for low, high in zip(cuts, cuts[1:]):
+        if high-low <= 1e-14:
+            continue
+        t = (low+high)/2
+        x, y = start[0]+t*dx, start[1]+t*dy
+        if (_polygon_contains((x-offset*normal[0], y-offset*normal[1]), polygon) and
+                _polygon_contains((x+offset*normal[0], y+offset*normal[1]), polygon)):
+            fraction += high-low
+    return min(1.0, max(0.0, fraction))
+
+
+def _source_weights(component, cells, xs, ys, x_edges, y_edges,
+                    contact_polygons=None, drilled_holes=None):
+    """Area-weighted saved pad copper or explicitly labelled bbox fallback."""
     bounds = component.get("bbox_mm")
     if bounds is None:
         pos = component["position_mm"]
         nearest = min(range(len(cells)), key=lambda n:
                       (xs[cells[n][0]]-pos[0])**2 + (ys[cells[n][1]]-pos[1])**2)
-        return [(nearest, 1.0)], "point_fallback"
+        return [(nearest, 1.0)], "point_fallback", None, 0.0, 0.0
     if len(bounds) != 4:
         raise ValueError(f"{component['reference']}: footprint bbox_mm needs four coordinates.")
     x0, y0, x1, y1 = [_num(v, "Footprint bound") for v in bounds]
     if x1 <= x0 or y1 <= y0:
         raise ValueError(f"{component['reference']}: invalid footprint bounding box.")
     hits = []
+    effective_cells = 0.0
     for index, (i, j) in enumerate(cells):
-        area = max(0, min(x1, x_edges[i+1])-max(x0, x_edges[i])) * \
-               max(0, min(y1, y_edges[j+1])-max(y0, y_edges[j]))
+        left, bottom = max(x0, x_edges[i]), max(y0, y_edges[j])
+        right, top = min(x1, x_edges[i+1]), min(y1, y_edges[j+1])
+        area = max(0, right-left)*max(0, top-bottom)
+        if area and contact_polygons is not None:
+            area = min(area, math.fsum(_polygon_cell_fraction(
+                polygon, left, bottom, right, top)*area for polygon in contact_polygons))
         if area > 0:
             hits.append((index, area))
+            effective_cells += area/((x_edges[i+1]-x_edges[i])*(y_edges[j+1]-y_edges[j]))
     total = math.fsum(v for _, v in hits)
     if total <= 0:
         raise ValueError(f"{component['reference']}: footprint does not overlap the board grid.")
-    return [(index, area/total) for index, area in hits], "footprint_bbox_proxy"
+    moved = 0.0
+    if contact_polygons is not None and drilled_holes:
+        def drilled_center(ci):
+            i, j = cells[ci]
+            return any((xs[i]-hole["x_mm"])**2+(ys[j]-hole["y_mm"])**2 <
+                       (hole["drill_mm"]/2)**2 for hole in drilled_holes)
+
+        targets = [(ci, area) for ci, area in hits if not drilled_center(ci) and
+                   any(_polygon_contains((xs[cells[ci][0]], ys[cells[ci][1]]), polygon)
+                       for polygon in contact_polygons)]
+        if any(drilled_center(ci) for ci, _ in hits):
+            if not targets:
+                raise ValueError(f"{component['reference']}: no resolved pad-copper cell center outside the drill; refine the mesh.")
+            revised = {ci: area for ci, area in targets}
+            for ci, area in hits:
+                if not drilled_center(ci):
+                    continue
+                moved += area
+                ix, iy = cells[ci]
+                nearest = sorted(targets, key=lambda item:
+                                 (xs[cells[item[0]][0]]-xs[ix])**2+
+                                 (ys[cells[item[0]][1]]-ys[iy])**2)[:4]
+                raw = [1/max(1e-9, math.hypot(xs[cells[target][0]]-xs[ix],
+                                              ys[cells[target][1]]-ys[iy]))
+                       for target, _ in nearest]
+                factor = math.fsum(raw)
+                for (target, _), weight in zip(nearest, raw):
+                    revised[target] += area*weight/factor
+            hits = sorted(revised.items())
+    return ([(index, area/total) for index, area in hits],
+            ("saved_pad_copper_polygon_annulus_stencil" if moved else
+             "saved_pad_copper_polygon") if contact_polygons is not None else
+            "footprint_bbox_proxy", total, effective_cells, moved)
 
 
-def solve_multilayer_thermal(geometry, view, result, settings):
+def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     """Solve layer temperatures, explicit mount fluxes and a heat balance.
 
     ``geometry`` is from ``collect_thermal_geometry``; ``view`` and ``result``
@@ -105,6 +256,9 @@ def solve_multilayer_thermal(geometry, view, result, settings):
     blur = _num(settings.get("copper_blur_cells", 0), "Copper supersampling", low=0, high=1)
     if blur not in (0, .5, 1):
         raise ValueError("copper_blur_cells supports 0, 0.5 or 1.")
+    copper_mode = settings.get("copper_raster_mode", "area_face")
+    if copper_mode not in ("area_face", "sampled"):
+        raise ValueError("copper_raster_mode must be area_face or sampled.")
     xmin, ymin, xmax, ymax = [_num(v, "Board bound") for v in geometry["bbox_mm"]]
     width, height = xmax-xmin, ymax-ymin
     if width <= 0 or height <= 0:
@@ -113,6 +267,14 @@ def solve_multilayer_thermal(geometry, view, result, settings):
     ny = max(2, round(grid_n*height/max(width, height)))
     x_edges = [xmin+i*width/nx for i in range(nx+1)]
     y_edges = [ymin+j*height/ny for j in range(ny+1)]
+    phase = settings.get("grid_phase_fraction", [0, 0])
+    if not isinstance(phase, (list, tuple)) or len(phase) != 2:
+        raise ValueError("grid_phase_fraction must have X and Y offsets.")
+    phase_x = _num(phase[0], "X grid phase", low=-.5, high=.5)
+    phase_y = _num(phase[1], "Y grid phase", low=-.5, high=.5)
+    x_step, y_step = width/nx, height/ny
+    x_edges = [x_edges[0]]+[value+phase_x*x_step for value in x_edges[1:-1]]+[x_edges[-1]]
+    y_edges = [y_edges[0]]+[value+phase_y*y_step for value in y_edges[1:-1]]+[y_edges[-1]]
     refinement = settings.get("source_refinement_factor", 1)
     if isinstance(refinement, bool) or refinement not in (1, 2):
         raise ValueError("source_refinement_factor must be 1 or 2.")
@@ -174,6 +336,11 @@ def solve_multilayer_thermal(geometry, view, result, settings):
     # Copper membership is kept per polygon. Supersampling improves subcell
     # occupancy but lateral copper edges require the *same* polygon at the face.
     memberships = []
+    raster_started = time.monotonic()
+    raster_total = len(layers)*ncell
+    raster_done = 0
+    if progress:
+        progress("copper rasterization", 0, raster_total, 0.0, None)
     for layer in layers:
         polygons = layer.get("polygons_mm", [])
         bounds = []
@@ -185,7 +352,9 @@ def solve_multilayer_thermal(geometry, view, result, settings):
         for i, j in cells:
             dx_mm = x_edges[i+1]-x_edges[i]
             dy_mm = y_edges[j+1]-y_edges[j]
-            if blur == 1:
+            if copper_mode == "area_face":
+                probes = []
+            elif blur == 1:
                 probes = [(xs[i]+a*dx_mm/3, ys[j]+b*dy_mm/3)
                           for a in (-1, 0, 1) for b in (-1, 0, 1)]
             elif blur == .5:
@@ -200,10 +369,25 @@ def solve_multilayer_thermal(geometry, view, result, settings):
                 if (x1 < xs[i]-dx_mm/2 or x0 > xs[i]+dx_mm/2 or
                         y1 < ys[j]-dy_mm/2 or y0 > ys[j]+dy_mm/2):
                     continue
-                fraction = sum(_polygon_contains(point, polygon) for point in probes)/len(probes)
+                fraction = (_polygon_cell_fraction(polygon, x_edges[i], y_edges[j],
+                                                   x_edges[i+1], y_edges[j+1])
+                            if copper_mode == "area_face" else
+                            sum(_polygon_contains(point, polygon) for point in probes)/len(probes))
                 if fraction:
                     weights[poly_index] = fraction
+                elif _polygon_intersects_cell(polygon, x_edges[i], y_edges[j],
+                                               x_edges[i+1], y_edges[j+1]):
+                    # Keep a candidate even when all fixed sample points miss a
+                    # thin feature. Face intersection decides conductivity.
+                    weights[poly_index] = 1e-12
             layer_members.append(weights)
+            raster_done += 1
+            if progress and (raster_done == raster_total or
+                             raster_done % max(1, raster_total//100) == 0):
+                elapsed = time.monotonic()-raster_started
+                eta = elapsed*(raster_total-raster_done)/raster_done
+                progress("copper rasterization", raster_done, raster_total,
+                         elapsed, eta)
         memberships.append(layer_members)
     edges = []
     copper_edges = 0
@@ -213,20 +397,26 @@ def solve_multilayer_thermal(geometry, view, result, settings):
     for li, layer in enumerate(layers):
         polygons = layer.get("polygons_mm", [])
         for ci, (i, j) in enumerate(cells):
-            for key, length, run, face in (
+            for key, length, run, face_start, face_end, normal, offset in (
                 ((i+1, j), y_widths[j],
                  (x_widths[i]+x_widths[i+1])/2 if i+1 < nx else x_widths[i],
-                 (x_edges[i+1], ys[j])),
+                 (x_edges[i+1], y_edges[j]), (x_edges[i+1], y_edges[j+1]),
+                 (1, 0), min(x_widths[i], x_widths[i+1])*1e-1 if i+1 < nx else 0),
                 ((i, j+1), x_widths[i],
                  (y_widths[j]+y_widths[j+1])/2 if j+1 < ny else y_widths[j],
-                 (xs[i], y_edges[j+1]))):
+                 (x_edges[i], y_edges[j+1]), (x_edges[i+1], y_edges[j+1]),
+                 (0, 1), min(y_widths[j], y_widths[j+1])*1e-1 if j+1 < ny else 0)):
                 cj = by_cell.get(key)
                 if cj is None:
                     continue
                 base = dielectric_k*slice_thickness[li]*length/run
                 common = memberships[li][ci].keys() & memberships[li][cj].keys()
-                copper_fraction = max((min(memberships[li][ci][p], memberships[li][cj][p])
-                                       for p in common if _polygon_contains(face, polygons[p])), default=0)
+                copper_fraction = max((min(
+                    _face_copper_fraction(face_start, face_end, polygons[p], normal, offset),
+                    memberships[li][ci][p], memberships[li][cj][p])
+                    if copper_mode == "area_face" else
+                    _face_copper_fraction(face_start, face_end, polygons[p], normal, offset)
+                    for p in common), default=0)
                 bonus = copper_k*(thickness[li]/1000)*length/run*copper_fraction
                 if bonus:
                     copper_edges += 1
@@ -237,6 +427,10 @@ def solve_multilayer_thermal(geometry, view, result, settings):
                      dielectric_k*cell_areas[ci]/gap)
     layer_ids = {row["id"]: i for i, row in enumerate(layers)}
     via_edges = 0
+    annulus_edges = 0
+    barrel_mode = settings.get("barrel_contact_mode", "annulus_stencil")
+    if barrel_mode not in ("annulus_stencil", "nearest_cell"):
+        raise ValueError("barrel_contact_mode must be annulus_stencil or nearest_cell.")
     for via in geometry.get("barrels", []):
         span = [layer_ids[lid] for lid in via.get("span_layers", []) if lid in layer_ids]
         if len(span) < 2:
@@ -254,7 +448,31 @@ def solve_multilayer_thermal(geometry, view, result, settings):
         for a, b in zip(span, span[1:]):
             if b != a+1:
                 raise ValueError(f"{via['id']}: barrel span is not continuous through the stackup.")
-            add_edge(node(a, ci), node(b, ci), copper_k*barrel_area/((z[b]-z[a])/1000))
+            if barrel_mode == "nearest_cell":
+                stencil = [(ci, 1.0)]
+            else:
+                diameters = via.get("outer_diameters_mm", {})
+                diam_a = float(diameters.get(str(layers[a]["id"]), drill+2*plating))
+                diam_b = float(diameters.get(str(layers[b]["id"]), drill+2*plating))
+                outer_radius = max(drill/2, min(diam_a, diam_b)/2)
+                candidates = []
+                for candidate, (ix, iy) in enumerate(cells):
+                    distance = math.hypot(xs[ix]-x, ys[iy]-y)
+                    cell_reach = math.hypot(x_widths[ix], y_widths[iy])*500
+                    if drill/2 < distance <= outer_radius+cell_reach:
+                        candidates.append((candidate, distance))
+                if not candidates:
+                    raise ValueError(f"{via['id']}: no annular cell center outside the drill; refine the thermal mesh.")
+                candidates.sort(key=lambda entry: entry[1])
+                candidates = candidates[:8]
+                raw = [1/max(distance, drill/2) for _, distance in candidates]
+                total = math.fsum(raw)
+                stencil = [(candidate, weight/total)
+                           for (candidate, _), weight in zip(candidates, raw)]
+            conductance = copper_k*barrel_area/((z[b]-z[a])/1000)
+            for target, weight in stencil:
+                add_edge(node(a, target), node(b, target), conductance*weight)
+            annulus_edges += len(stencil)
             via_edges += 1
     sources = np.zeros(nnode, dtype=float)
     view_refs = {row["reference"]: row for row in view.get("components", [])}
@@ -265,6 +483,10 @@ def solve_multilayer_thermal(geometry, view, result, settings):
     sink_to_board = settings.get("sink_to_board_k_per_w", {})
     sink_resistances = settings.get("component_to_sink_k_per_w", {})
     board_resistances = settings.get("component_to_board_k_per_w", {})
+    contact_pad_numbers = settings.get("source_contact_pad_numbers", {})
+    if not isinstance(contact_pad_numbers, Mapping):
+        raise ValueError("source_contact_pad_numbers must map references to pad numbers.")
+    contact_records = geometry.get("source_contacts", [])
     for label, mapping in (("sink_exposed_area_mm2", sink_areas),
                            ("sink_to_board_k_per_w", sink_to_board),
                            ("component_to_sink_k_per_w", sink_resistances),
@@ -309,15 +531,59 @@ def solve_multilayer_thermal(geometry, view, result, settings):
                                       "source_distribution": "virtual_sink_node",
                                       "board_site_c": None, "sink_c": None, "junction_c": None})
             continue
-        weights, distribution = _source_weights(component, cells, xs, ys, x_edges, y_edges)
         li = 0 if component.get("side", "top").lower() == "top" else len(layers)-1
+        contact_polygons = None
+        pad_number = contact_pad_numbers.get(ref)
+        if pad_number is not None:
+            if component.get("bbox_mm") is None:
+                raise ValueError(f"{ref}: selected pad contact requires a saved component bounding box.")
+            matched = [record for record in contact_records
+                       if record["reference"] == ref and
+                       str(record["pad_number"]) == str(pad_number) and
+                       record["layer_id"] == layers[li]["id"]]
+            contact_polygons = [polygon for record in matched
+                                for polygon in record["polygons_mm"]]
+            if not contact_polygons:
+                raise ValueError(f"{ref}: selected pad {pad_number} has no saved copper contact on {layers[li]['name']}.")
+        relevant_holes = []
+        if contact_polygons is not None:
+            bbox = component.get("bbox_mm")
+            for hole in [*geometry.get("barrels", []), *geometry.get("mounting_holes", [])]:
+                radius = hole.get("drill_mm", 0)/2
+                if radius <= 0:
+                    continue
+                if (bbox[0]-radius <= hole["x_mm"] <= bbox[2]+radius and
+                        bbox[1]-radius <= hole["y_mm"] <= bbox[3]+radius):
+                    relevant_holes.append(hole)
+        weights, distribution, contact_area, effective_cells, moved_area = _source_weights(
+            component, cells, xs, ys, x_edges, y_edges, contact_polygons,
+            relevant_holes)
         for ci, weight in weights:
             sources[node(li, ci)] += power*weight
         source_sites[ref] = (li, weights)
         output_components.append({"reference": ref, "power_w": power, "side": component.get("side", "top"),
                                   "heat_path": "board", "sink_c": None,
                                   "source_distribution": distribution,
-                                  "source_cells": len(weights), "board_site_c": None,
+                                  "source_cells": len(weights),
+                                  "source_contact_area_mm2": contact_area,
+                                  "source_drill_redistributed_mm2": moved_area,
+                                  "effective_source_cells": effective_cells,
+                                  "source_bbox_mm": component.get("bbox_mm"),
+                                  "source_pad_number": str(pad_number) if pad_number is not None else None,
+                                  "source_net": matched[0]["net"] if pad_number is not None else None,
+                                  "source_cell_size_mm": {
+                                      "min_x": min(x_edges[cells[ci][0]+1]-x_edges[cells[ci][0]]
+                                                   for ci, _ in weights),
+                                      "max_x": max(x_edges[cells[ci][0]+1]-x_edges[cells[ci][0]]
+                                                   for ci, _ in weights),
+                                      "min_y": min(y_edges[cells[ci][1]+1]-y_edges[cells[ci][1]]
+                                                   for ci, _ in weights),
+                                      "max_y": max(y_edges[cells[ci][1]+1]-y_edges[cells[ci][1]]
+                                                   for ci, _ in weights)},
+                                  "source_peak_c": None,
+                                  "source_peak_cell": None,
+                                  "junction_peak_proxy_c": None,
+                                  "board_site_c": None,
                                   "junction_c": None})
     if not output_components:
         raise ValueError("No mapped QuickTherm component power is available.")
@@ -394,6 +660,9 @@ def solve_multilayer_thermal(geometry, view, result, settings):
     temp = np.full(nnode, ambient, dtype=float)
     for ni, value in fixed.items():
         temp[ni] = value
+    if progress:
+        progress("thermal solve", 0, 1, 0.0, None)
+    solve_started = time.monotonic()
     if len(free):
         for iteration in range(40):
             kelvin = temp + 273.15
@@ -415,6 +684,8 @@ def solve_multilayer_thermal(geometry, view, result, settings):
         iterations = iteration+1
     else:
         iterations = 0
+    if progress:
+        progress("thermal solve", 1, 1, time.monotonic()-solve_started, 0.0)
     for part in output_components:
         if part["heat_path"] == "heatsink":
             ni, _, _ = sink_nodes[part["reference"]]
@@ -426,9 +697,21 @@ def solve_multilayer_thermal(geometry, view, result, settings):
             continue
         li, weights = source_sites[part["reference"]]
         part["board_site_c"] = math.fsum(float(temp[node(li, ci)])*weight for ci, weight in weights)
+        peak_ci = max((ci for ci, _ in weights), key=lambda ci: temp[node(li, ci)])
+        peak_i, peak_j = cells[peak_ci]
+        peak_point = (xs[peak_i], ys[peak_j])
+        part["source_peak_c"] = float(temp[node(li, peak_ci)])
+        part["source_peak_cell"] = {
+            "x_mm": peak_point[0], "y_mm": peak_point[1],
+            "center_in_drill_id": _drill_at(peak_point, layers[li]["id"], geometry),
+            "center_in_copper": any(_polygon_contains(peak_point, polygon)
+                                    for polygon in layers[li].get("polygons_mm", [])),
+            "copper_area_fraction": max(memberships[li][peak_ci].values(), default=0),
+        }
         if part["reference"] in board_resistances:
             r = _num(board_resistances[part["reference"]], "Component-to-board resistance (K/W)", low=0)
             part["junction_c"] = part["board_site_c"]+part["power_w"]*r
+            part["junction_peak_proxy_c"] = part["source_peak_c"]+part["power_w"]*r
     kelvin = temp+273.15
     conv_terms = surface_area*convection_h*(temp-ambient)
     rad_terms = surface_area*surface_e*SIGMA*(kelvin**4-(ambient+273.15)**4)
@@ -454,9 +737,21 @@ def solve_multilayer_thermal(geometry, view, result, settings):
         for ci, (i, j) in enumerate(cells):
             values[j][i] = float(temp[node(li, ci)])
         slab = temp[li*ncell:(li+1)*ncell]
+        peak_ci = int(np.argmax(slab))
+        peak_i, peak_j = cells[peak_ci]
+        peak_point = (xs[peak_i], ys[peak_j])
         fields.append({"id": layer["id"], "name": layer["name"], "z_mm": z[li],
-                       "x_centers_mm": xs, "y_centers_mm": ys, "values_c": values,
-                       "sampled_min_c": float(np.min(slab)), "sampled_max_c": float(np.max(slab))})
+                       "x_centers_mm": xs, "y_centers_mm": ys,
+                       "x_edges_mm": x_edges, "y_edges_mm": y_edges,
+                       "values_c": values,
+                       "sampled_min_c": float(np.min(slab)), "sampled_max_c": float(np.max(slab)),
+                       "sampled_max_cell": {
+                           "x_mm": peak_point[0], "y_mm": peak_point[1],
+                           "center_in_drill_id": _drill_at(peak_point, layer["id"], geometry),
+                           "center_in_copper": any(_polygon_contains(peak_point, polygon)
+                                                   for polygon in layer.get("polygons_mm", [])),
+                           "copper_area_fraction": max(memberships[li][peak_ci].values(), default=0),
+                       }})
     return {"model": "steady-state layer-resolved finite-volume board screen",
             "status": "converged" if abs(residual) <= tolerance else "imbalanced",
             "environment": environment, "ambient_c": ambient, "layers": fields,
@@ -473,33 +768,40 @@ def solve_multilayer_thermal(geometry, view, result, settings):
             "settings": {"dielectric_k_w_mk": dielectric_k, "copper_k_w_mk": copper_k,
                          "via_plating_mm": plating, "grid_cells_long_axis": grid_n,
                          "source_refinement_factor": refinement,
+                         "copper_raster_mode": copper_mode,
+                         "barrel_contact_mode": barrel_mode,
+                         "grid_phase_fraction": [phase_x, phase_y],
                          "copper_blur_cells": blur, "board_h_w_m2k": h,
                          "board_emissivity": emissivity, "sink_h_w_m2k": sink_h},
             "mesh": {"nx": nx, "ny": ny, "active_cells_per_layer": ncell,
                      "source_refinement_factor": refinement,
                      "solver_iterations": iterations, "copper_lateral_edges": copper_edges,
                      "via_vertical_edges": via_edges,
+                     "barrel_stencil_edges": annulus_edges,
                      "unexcited_regions_anchored_at_ambient": unexcited_anchors},
             "assumptions": [
-                "Copper occupancy is sampled per cell; lateral copper coupling requires the same filled polygon at the shared face.",
+                "Copper area and shared-face occupancy are clipped from saved polygons in area_face mode; subcell conductance remains a finite-volume approximation.",
                 "Dielectric is homogeneous and isotropic between copper midplanes; no anisotropic laminate data are inferred.",
                 "Via plating thickness, material conductivity and fixture contacts are explicit user inputs.",
                 "Barrel heat flow is a 1D axial approximation; individual land-to-barrel contact and package-pad spreading are unresolved.",
+                "The annulus stencil apportions axial barrel conductance among nearby cell centers outside the drill; it is not a resolved barrel/land solid mesh.",
                 "An explicitly declared NPTH mechanical contact couples to the nearest dielectric cell through entered contact resistance; no copper-plane contact is inferred.",
                 "Only top and bottom faces reject heat; edge radiation, package shadows, view factors, airflow fields and spatial transients are unresolved.",
                 "Sources use footprint bounding boxes as contact proxies, or a labelled point fallback; junction temperature needs explicit component-to-board resistance.",
+                "The model junction uses area-weighted source-cell temperature; source_peak_c and junction_peak_proxy_c expose hotter sampled cells but are not resolved die maximums.",
                 "Virtual heatsink nodes use entered exposed area and component-to-sink resistance; they couple to the board only if an explicit sink-to-board resistance is supplied.",
                 "An unpowered region with no thermal boundary is anchored at ambient only to make its otherwise undefined temperature displayable.",
                 "A zero residual is numerical energy balance, not validation of material, boundary or contact assumptions.",
             ]}
 
 
-def solve_multilayer_thermal_convergence(geometry, view, result, settings, acceptance):
+def solve_multilayer_thermal_convergence(geometry, view, result, settings,
+                                         acceptance, progress=None):
     """Repeat the saved-source steady solve and report mesh acceptance.
 
-    This is a global-grid convergence gate, not a locally adaptive mesh or a
-    source-contact qualification. It deliberately returns FAIL when the finest
-    two meshes disagree or a footprint source occupies too few grid cells.
+    This is a global-grid convergence gate, not a source-contact qualification.
+    A tiny source touching four cells still has less than one area-equivalent
+    cell and must not pass a four-cell resolution requirement.
     """
     if not isinstance(acceptance, Mapping):
         raise ValueError("mesh_acceptance must be a mapping.")
@@ -509,6 +811,18 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings, accep
                 for n in grids) or grids != sorted(set(grids))):
         raise ValueError("Mesh acceptance needs two or more increasing grid sizes from 24 to 80.")
     tolerance = _num(acceptance.get("maximum_change_c"), "Mesh maximum change (°C)", low=0)
+    layer_tolerance = _num(acceptance.get("maximum_layer_peak_change_c", tolerance),
+                           "Layer peak maximum change (°C)", low=0)
+    field_tolerance = _num(acceptance.get("maximum_field_change_c", tolerance),
+                           "Spatial field maximum change (°C)", low=0)
+    source_tolerance = _num(acceptance.get("maximum_source_peak_change_c", tolerance),
+                            "Source peak maximum change (°C)", low=0)
+    phase_offset = acceptance.get("phase_offset_fraction")
+    if phase_offset is not None:
+        if (not isinstance(phase_offset, (list, tuple)) or len(phase_offset) != 2 or
+                all(_num(value, "Mesh phase offset", low=-.5, high=.5) == 0
+                    for value in phase_offset)):
+            raise ValueError("phase_offset_fraction needs a nonzero offset within ±0.5.")
     minimum_cells = acceptance.get("minimum_source_cells", 4)
     if isinstance(minimum_cells, bool) or not isinstance(minimum_cells, int) or minimum_cells < 1:
         raise ValueError("minimum_source_cells must be a positive integer.")
@@ -516,29 +830,128 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings, accep
     for grid in grids:
         selected = dict(settings)
         selected["grid_cells_long_axis"] = grid
-        solves.append(solve_multilayer_thermal(geometry, view, result, selected))
+        def stage_progress(stage, completed, total, elapsed, eta):
+            if progress:
+                progress(f"grid {grid}: {stage}", completed, total, elapsed, eta)
+        solves.append(solve_multilayer_thermal(geometry, view, result, selected,
+                                                progress=stage_progress))
     coarse, fine = solves[-2:]
     coarse_parts = {part["reference"]: part for part in coarse["components"]}
     changes = {}
+    source_peak_changes = {}
     underresolved = []
+    source_resolution = {}
+
+    def part_temperature(part):
+        return (part["junction_c"] if part["junction_c"] is not None else
+                part["sink_c"] if part["sink_c"] is not None else part["board_site_c"])
+
     for part in fine["components"]:
         ref = part["reference"]
-        key = "junction_c" if part["junction_c"] is not None else (
-            "sink_c" if part["sink_c"] is not None else "board_site_c")
-        changes[ref] = abs(part[key]-coarse_parts[ref][key])
-        if part.get("source_cells", minimum_cells) < minimum_cells:
-            underresolved.append(ref)
+        changes[ref] = abs(part_temperature(part)-part_temperature(coarse_parts[ref]))
+        if part["heat_path"] == "board":
+            source_peak_changes[ref] = abs(part["source_peak_c"]-
+                                           coarse_parts[ref]["source_peak_c"])
+            effective = part["effective_source_cells"]
+            source_resolution[ref] = {
+                "overlapped_cells": part["source_cells"],
+                "effective_cells": effective,
+                "contact_area_mm2": part["source_contact_area_mm2"],
+                "distribution": part["source_distribution"],
+            }
+            if effective < minimum_cells:
+                underresolved.append(ref)
     worst = max(changes.values(), default=0)
+    def compare_fields(previous_solve, current_solve):
+        previous_layers = {layer["id"]: layer for layer in previous_solve["layers"]}
+        peaks, differences, unmatched = {}, [], 0
+        for layer in current_solve["layers"]:
+            previous = previous_layers[layer["id"]]
+            peaks[layer["name"]] = abs(layer["sampled_max_c"]-
+                                        previous["sampled_max_c"])
+            x_edges, y_edges = layer["x_edges_mm"], layer["y_edges_mm"]
+            for j, y in enumerate(previous["y_centers_mm"]):
+                fj = bisect_right(y_edges, y)-1
+                for i, x in enumerate(previous["x_centers_mm"]):
+                    old = previous["values_c"][j][i]
+                    if old is None:
+                        continue
+                    fi = bisect_right(x_edges, x)-1
+                    if not 0 <= fi < len(x_edges)-1 or not 0 <= fj < len(y_edges)-1:
+                        unmatched += 1
+                        continue
+                    new = layer["values_c"][fj][fi]
+                    if new is None:
+                        unmatched += 1
+                    else:
+                        differences.append(abs(old-new))
+        return peaks, max(differences, default=0), unmatched
+
+    layer_peak_changes, worst_field, unmatched_field_cells = compare_fields(coarse, fine)
+    worst_layer = max(layer_peak_changes.values(), default=0)
+    worst_source = max(source_peak_changes.values(), default=0)
+    drill_center_peaks = (["layer:"+layer["name"] for layer in fine["layers"]
+                           if layer["sampled_max_cell"]["center_in_drill_id"]] +
+                          ["source:"+part["reference"] for part in fine["components"]
+                           if part.get("source_peak_cell") and
+                           part["source_peak_cell"]["center_in_drill_id"]])
+    phase_result = {"status": "NOT_RUN", "offset_fraction": None}
+    if phase_offset is not None:
+        shifted_settings = dict(settings)
+        shifted_settings["grid_cells_long_axis"] = grids[-1]
+        shifted_settings["grid_phase_fraction"] = list(phase_offset)
+        shifted = solve_multilayer_thermal(
+            geometry, view, result, shifted_settings,
+            progress=(lambda stage, completed, total, elapsed, eta:
+                      progress(f"grid {grids[-1]} phase: {stage}", completed,
+                               total, elapsed, eta)) if progress else None)
+        shifted_parts = {part["reference"]: part for part in shifted["components"]}
+        component_delta = max(abs(part_temperature(part)-
+                                  part_temperature(shifted_parts[part["reference"]]))
+                              for part in fine["components"])
+        source_delta = max((abs(part["source_peak_c"]-
+                                shifted_parts[part["reference"]]["source_peak_c"])
+                            for part in fine["components"] if part["heat_path"] == "board"),
+                           default=0)
+        shifted_peaks, field_delta, unmatched_shifted = compare_fields(fine, shifted)
+        layer_delta = max(shifted_peaks.values(), default=0)
+        phase_pass = (shifted["status"] == "converged" and not unmatched_shifted and
+                      component_delta <= tolerance and source_delta <= source_tolerance and
+                      layer_delta <= layer_tolerance and field_delta <= field_tolerance)
+        phase_result = {"status": "PASS" if phase_pass else "FAIL",
+                        "offset_fraction": list(phase_offset),
+                        "maximum_component_change_c": component_delta,
+                        "maximum_source_peak_change_c": source_delta,
+                        "maximum_layer_peak_change_c": layer_delta,
+                        "maximum_field_change_c": field_delta,
+                        "unmatched_field_cells": unmatched_shifted}
     passed = (all(solve["status"] == "converged" for solve in solves) and
-              not underresolved and worst <= tolerance)
+              not underresolved and not drill_center_peaks and
+              not unmatched_field_cells and
+              worst <= tolerance and worst_layer <= layer_tolerance and
+              worst_field <= field_tolerance and worst_source <= source_tolerance and
+              phase_result["status"] != "FAIL")
     fine["mesh_acceptance"] = {
         "status": "PASS" if passed else "FAIL",
         "grid_cells_long_axis": grids, "maximum_change_c": worst,
         "allowed_change_c": tolerance,
         "component_changes_c": changes,
+        "layer_peak_changes_c": layer_peak_changes,
+        "maximum_layer_peak_change_c": worst_layer,
+        "allowed_layer_peak_change_c": layer_tolerance,
+        "source_peak_changes_c": source_peak_changes,
+        "maximum_source_peak_change_c": worst_source,
+        "allowed_source_peak_change_c": source_tolerance,
+        "maximum_field_change_c": worst_field,
+        "allowed_field_change_c": field_tolerance,
+        "unmatched_field_cells": unmatched_field_cells,
+        "field_comparison": "coarse cell centers sampled from the finest-grid containing cell",
+        "phase_sensitivity": phase_result,
         "minimum_source_cells": minimum_cells,
         "underresolved_sources": underresolved,
+        "drill_center_peaks": drill_center_peaks,
+        "source_resolution": source_resolution,
         "source_sha256": geometry.get("source_sha256"),
-        "note": "Global-grid and footprint-cell screen only; local contact spreading remains unresolved.",
+        "note": "Cell count means overlap-area-equivalent cells, not cells touched. Contact spreading and source-shape fidelity remain unresolved.",
     }
     return fine

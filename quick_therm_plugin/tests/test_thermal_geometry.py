@@ -1,9 +1,12 @@
 """Native saved-board thermal geometry: copper, barrels and mounting holes."""
 import hashlib
 import json
+import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 try:
     import pcbnew as p
@@ -12,6 +15,7 @@ except ImportError:
 
 from quick_therm_plugin.thermal_geometry import collect_thermal_geometry
 from quick_therm_plugin.thermal_multilayer import solve_multilayer_thermal
+from quick_therm_plugin.thermal_multilayer import _polygon_contains
 
 
 FIXTURE = (Path(__file__).resolve().parents[2] / "mechanical_check_plugin" /
@@ -24,6 +28,27 @@ STACKUP = '''(stackup
 
 @unittest.skipIf(p is None, "Requires native KiCad pcbnew polygon geometry")
 class ThermalGeometryTests(unittest.TestCase):
+    def test_smd_contact_subtracts_separate_thermal_via_drill(self):
+        footprint = next(fp for fp in self.board.GetFootprints()
+                         if fp.GetReference() == "C1")
+        pad = next(item for item in footprint.Pads() if item.IsOnLayer(p.F_Cu))
+        self.assertEqual(pad.GetAttribute(), p.PAD_ATTRIB_SMD)
+        via = p.PCB_VIA(self.board)
+        via.SetPosition(pad.GetPosition())
+        via.SetWidth(p.FromMM(.5))
+        via.SetDrill(p.FromMM(.3))
+        via.SetViaType(p.VIATYPE_THROUGH)
+        via.SetLayerPair(p.F_Cu, p.B_Cu)
+        self.board.Add(via)
+        geometry = collect_thermal_geometry(
+            self.board, self.path, contact_pads={"C1": str(pad.GetNumber())})
+        contact = next(row for row in geometry["source_contacts"]
+                       if row["reference"] == "C1" and row["layer_id"] == p.F_Cu)
+        center = [p.ToMM(pad.GetPosition().x), p.ToMM(pad.GetPosition().y)]
+        self.assertTrue(contact["polygons_mm"])
+        self.assertFalse(any(_polygon_contains(center, polygon)
+                             for polygon in contact["polygons_mm"]))
+
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)
@@ -140,6 +165,31 @@ class ThermalGeometryTests(unittest.TestCase):
         self.assertEqual(network["status"], "converged")
         self.assertEqual(len(network["layers"]), 2)
         self.assertEqual(bundle["source_sha256"], hashlib.sha256(self.path.read_bytes()).hexdigest())
+
+    def test_native_worker_reports_progress_and_preserves_source(self):
+        from quick_therm_plugin.service import run_job
+        source = next(fp for fp in self.board.GetFootprints() if fp.GetReference() == "C1")
+        source.SetField("Power_W", "1")
+        source.SetField("Theta_JA", "40")
+        p.SaveBoard(str(self.path), self.board)
+        before = self.path.read_bytes()
+        events = []
+        request = {"action": "quick_therm", "board_path": str(self.path),
+                   "environment": "air", "ambient_c": 20, "references": ["C1"],
+                   "field_map": {"power_w": "Power_W",
+                                 "theta_ja_air_k_per_w": "Theta_JA"},
+                   "thermal_model_kind": "multilayer", "thermal_network_settings": {
+                       "dielectric_k_w_mk": .3, "via_plating_mm": .025,
+                       "grid_cells_long_axis": 24}}
+        with patch("wayricad_runtime.runtime_setup.ensure_runtime",
+                   return_value=sys.executable), patch(
+                       "wayricad_runtime.runtime_setup.child_environment",
+                       return_value=dict(os.environ)):
+            bundle = run_job(request, progress=events.append, timeout=60)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(bundle["thermal_network"]["status"], "converged")
+        self.assertTrue(any(event["stage"] == "copper rasterization" for event in events))
+        self.assertTrue(all(0 <= event["percent"] <= 100 for event in events))
 
 
 if __name__ == "__main__":
