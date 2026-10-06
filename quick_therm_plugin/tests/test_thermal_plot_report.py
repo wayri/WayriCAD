@@ -126,5 +126,28 @@ class ThermalPlotReportTests(unittest.TestCase):
             self.assertIn('hole-1',html)
             self.assertIn('Layer temperature peaks',html)
 
+    def test_calculix_report_labels_imported_field_and_lower_face(self):
+        field={'name':'F.Cu','z_mm':0.,'x_centers_mm':[2,8],'y_centers_mm':[2,6],
+               'values_c':[[30.,31.],[32.,33.]],'sampled_min_c':30.,'sampled_max_c':33.}
+        bottom={**field,'name':'B.Cu','z_mm':1.6,
+                'values_c':[[20.,20.],[20.,20.]],'sampled_min_c':20.,'sampled_max_c':20.}
+        network={'model':'CalculiX 3D steady conduction','status':'completed',
+                 'layers':[field,bottom],'settings':{'bottom_temperature_c':20},
+                 'assumptions':['Entire lower face fixed'],
+                 'components':[{'reference':'U1','side':'top','board_site_c':31.,'junction_c':None}],
+                 'heat_balance':{'source_w':1.,'bottom_outflow_w':1.,'residual_w':0.}}
+        thermal={'model':'lumped screen','environment':'air','ambient_c':20.,'board_c':None,
+                 'coverage':{'scoped':1,'solved':1,'excluded':[]},
+                 'components':[{'reference':'U1','power_w':1.,'resistance_k_per_w':10.,
+                                'junction_c':30.,'rise_above_ambient_k':10.,'heat_path':'air'}],
+                 'assumptions':[]}
+        with tempfile.TemporaryDirectory() as directory:
+            path=write_diagnostic_report(Path(directory)/'calculix.html',
+                {'quick_therm':thermal,'board_thermal_view':VIEW,'thermal_network':network})['html']
+            html=Path(path).read_text(encoding='utf-8')
+            self.assertIn('Imported CalculiX nodal temperatures',html)
+            self.assertIn('lower-face outflow',html)
+            self.assertIn('interpolated CalculiX board-surface',html)
+
 
 if __name__=='__main__':unittest.main()

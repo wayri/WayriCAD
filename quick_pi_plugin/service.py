@@ -15,7 +15,10 @@ def run_job(request, cancelled=None, timeout=300):
         raise ValueError('Worker timeout must be finite and positive.')
     if cancelled and cancelled():raise InterruptedError('Quick PI cancelled before starting the worker.')
     from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_QUICK_PI, child_environment
-    python=ensure_runtime({name: spec for name, spec in REQUIREMENTS_QUICK_PI.items() if name != 'kipy'})
+    requirements={name: spec for name, spec in REQUIREMENTS_QUICK_PI.items() if name != 'kipy'}
+    if request.get('model_dimension')=='3d':
+        requirements['gmsh']='gmsh>=4.11,<5'
+    python=ensure_runtime(requirements)
     with tempfile.TemporaryDirectory(prefix='wayricad-quick-pi-') as temporary:
         root=Path(temporary); source=root/'request.json';target=root/'response.json'
         source.write_text(json.dumps(request,allow_nan=False),encoding='utf-8')
@@ -86,12 +89,43 @@ def execute(request):
         return {'return_path':result,'evidence':evidence,'request':request,'source_sha256':before}
     if action not in ('geometry','mesh','solve'):raise ValueError('Unknown Quick PI action: '+str(action))
     from .board_geometry import extract
+    full3d=request.get('model_dimension','2.5d')=='3d'
+    if request.get('model_dimension','2.5d') not in ('2.5d','3d'):
+        raise ValueError('Choose model_dimension 2.5d or 3d.')
+    if full3d and (request.get('series') or voltage_mode or sweep_mode or request.get('html_output')):
+        raise ValueError('Full 3D currently supports one net with prescribed current and JSON output; series, load/sweep and HTML views require 2.5D.')
+    if full3d and request.get('mesh_backend')=='vtk':
+        raise ValueError('Full 3D requires Gmsh; VTK is only a 2.5D meshing backend.')
     if request.get('series'):
         output=series_execute(board,path,request)
         output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
         return output
     geometry=extract(board,request['net'],source_path=path,stackup_override=request.get('stackup_override'))
+    if full3d:
+        output={'geometry':geometry,'request':request,
+                'model':'3D DC copper-volume conductivity; tetrahedral FEM'}
+        if action!='geometry':
+            from .full3d import build_volume_mesh,solve_volume
+            mesh=build_volume_mesh(geometry,edge_mm=float(request.get('edge_mm',.25)),
+                                   plating_mm=float(request.get('plating_mm',.025)),
+                                   max_tetrahedra=int(request.get('max_tetrahedra',250000)))
+            output['mesh']=mesh
+            if action=='solve':
+                def nodes(key):
+                    chosen=request[key]
+                    if chosen in mesh['terminal_nodes']:return mesh['terminal_nodes'][chosen]
+                    match=[t['id'] for t in geometry['terminals'] if t['label']==chosen]
+                    if len(match)!=1:raise ValueError('Select one unambiguous source and sink pad on this net: '+str(chosen))
+                    if match[0] not in mesh['terminal_nodes']:
+                        raise ValueError('Selected pad has no 3D electrode mesh vertices. Reduce the mesh edge: '+str(chosen))
+                    return mesh['terminal_nodes'][match[0]]
+                output['result']=solve_volume(mesh,nodes('source_terminal'),nodes('sink_terminal'),
+                    source_voltage=float(request.get('source_voltage',1.)),
+                    sink_current=float(request.get('sink_current',1.)),options=request.get('options'))
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=before:
+            raise ValueError('The board changed during analysis. Reload and run again.')
+        return output
     output={'geometry':geometry,'request':request,'model':'2.5D DC copper conduction; layered sheets and plated barrels'}
     if action!='geometry':
         from .mesh import build_mesh

@@ -60,12 +60,42 @@ total resistance does not establish convergence of local current-density peaks.
 
 If the Quick PI Python runtime has the optional `gmsh` package, meshing uses
 Gmsh's conforming planar surfaces for extracted copper and contact regions.
-The same internal 2.5D DC solver uses those triangles; this does not add a 3D
-or AC field solver. With no Gmsh package, `auto` uses the existing VTK mesher.
+The default internal 2.5D DC solver uses those triangles. With no Gmsh
+package, `auto` uses the existing VTK mesher.
 The JSON mesh report records the selected backend. For a reproducible CLI run,
 choose `--mesh-backend gmsh` to require Gmsh or `--mesh-backend vtk` to require
 VTK. A requested Gmsh run reports a setup error if its package is unavailable;
 geometry, area, edge length and cell-budget checks remain in force.
+
+### Opt-in volumetric DC analysis
+
+`--model-dimension 3d` builds copper solids from every extracted layer at its
+saved stackup position, adds the extracted polygonal drill/annular plating of
+circular through vias and PTH pads, and tetrahedralizes the conductor with
+Gmsh. A three-dimensional conductivity FEM then solves voltage, current density
+and copper loss at a prescribed DC sink current. This is a separate model from
+the default 2.5D sheet/barrel solver. The 3D path requires Gmsh in the Quick PI
+worker runtime; the launcher installs its compatible wheel if needed.
+
+```text
+python -m quick_pi_plugin.cli C:/Projects/Example/board.kicad_pcb \
+  --net VCC --source J1.1 --sink J2.1 --current 1 \
+  --model-dimension 3d --mesh-edge 0.25 \
+  --plating 0.025 --output C:/Projects/Example/pi-3d.json
+```
+
+The 3D JSON contains tetrahedra, node voltages, XYZ current-density vectors,
+per-cell loss, electrode current residual, power balance and an independent
+extracted-polygon volume check. Source and sink pads are ideal equipotential electrodes. Mesh
+refinement remains necessary near narrow copper and contacts. A run fails if
+the mesh lacks electrode nodes, has disconnected source/sink copper, exceeds its
+tetrahedron budget, or violates conservation. Plated slots, backdrills and
+unresolved drill contours are unsupported rather than converted to cylinders.
+The 3D model is fixed-temperature DC conduction: it does not solve AC skin or
+proximity effects, dielectric current, thermal feedback or series components.
+The current GUI maps and HTML reports render only the 2.5D sheet model; use
+the CLI JSON for 3D results. Resistive-load/sweep and pulse-screening modes
+remain 2.5D until their 3D contracts are implemented.
 
 ## Console
 

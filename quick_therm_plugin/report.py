@@ -54,17 +54,25 @@ def write_diagnostic_report(path,bundle):
             html+='<h2>Temperature analytics</h2><p>'+summary+' · Hottest '+escape(str(analytics.get('hottest_reference') or '—'))+'</p>'
         if network:
             balance=network['heat_balance']
+            calculix=network.get('model')=='CalculiX 3D steady conduction'
             html+='<h2>Optional board heat model</h2><p>'+escape(network['model'])+' · '+escape(network['status'])+'</p>'
             if network.get('layers'):
-                html+='<p>Saved copper geometry and stackup; user-supplied material and fixture data. This is a layer-resolved steady-state approximation, not validated CFD or a measurement.</p>'
+                html+=('<p>Imported CalculiX nodal temperatures from an extruded 3D copper/dielectric mesh. The entire lower face is fixed; other faces are adiabatic. This is not CFD or a measurement.</p>'
+                        if calculix else
+                        '<p>Saved copper geometry and stackup; user-supplied material and fixture data. This is a layer-resolved steady-state approximation, not validated CFD or a measurement.</p>')
                 html+='<table><tr><th>Copper layer</th><th>Depth mm</th><th>Minimum °C</th><th>Maximum °C</th></tr>'
                 for layer in network['layers']:
                     html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (layer['name'],
                         _number(layer['z_mm']),_number(layer['sampled_min_c']),_number(layer['sampled_max_c'])))+'</tr>'
                 html+='</table>'
-                html+=('<p>Input '+_number(balance.get('input_w'),'W')+' · convection '+_number(balance.get('convection_w'),'W')+
-                    ' · radiation '+_number(balance.get('radiation_w'),'W')+' · fixture flux '+_number(balance.get('mount_flux_w'),'W')+
-                    ' · residual '+_number(balance.get('residual_w'),'W')+'</p>')
+                if calculix:
+                    html+=('<p>Input '+_number(balance.get('source_w'),'W')+
+                            ' · lower-face outflow '+_number(balance.get('bottom_outflow_w'),'W')+
+                            ' · residual '+_number(balance.get('residual_w'),'W')+'</p>')
+                else:
+                    html+=('<p>Input '+_number(balance.get('input_w'),'W')+' · convection '+_number(balance.get('convection_w'),'W')+
+                        ' · radiation '+_number(balance.get('radiation_w'),'W')+' · fixture flux '+_number(balance.get('mount_flux_w'),'W')+
+                        ' · residual '+_number(balance.get('residual_w'),'W')+'</p>')
                 if network.get('mounts'):
                     html+='<h3>Fixed-temperature contacts</h3><table><tr><th>Pad ID</th><th>Setpoint °C</th><th>Heat flow to fixture W</th></tr>'
                     for mount in network['mounts']:
@@ -132,14 +140,16 @@ def write_diagnostic_report(path,bundle):
                     _number(row.get('sink_c'),'°C'),_number(row.get('junction_c'),'°C'),
                     _number(row.get('junction_peak_proxy_c'),'°C'),
                     _number(row.get('effective_source_cells'))))+'</tr>'
-            html+='</table><p>The model junction estimate uses the area-weighted source-cell temperature plus an explicitly supplied thermal resistance. The hot-cell proxy applies the same resistance to the hottest sampled source cell; neither is a resolved die maximum. Legacy RθJA is not substituted.</p>'
+            html+='</table><p>The model junction estimate uses board-site temperature plus an explicitly supplied RθJB; it is not a resolved die maximum. Legacy RθJA is not substituted.</p>'
             if network.get('layers'):
                 html+='<h3>Layer temperature peaks</h3><table><tr><th>Layer</th><th>Sampled minimum °C</th><th>Sampled maximum °C</th></tr>'
                 for layer in network['layers']:
                     html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (
                         layer['name'],_number(layer['sampled_min_c']),
                         _number(layer['sampled_max_c'])))+'</tr>'
-                html+='</table><p>These are finite-volume cell temperatures. A peak cell may span a drilled void or subcell copper feature; inspect source geometry and mesh acceptance before interpreting it physically.</p>'
+                html+=('</table><p>These are interpolated CalculiX board-surface temperatures; smaller copper features may be missed by triangle-centroid material classification.</p>'
+                        if calculix else
+                        '</table><p>These are finite-volume cell temperatures. A peak cell may span a drilled void or subcell copper feature; inspect source geometry and mesh acceptance before interpreting it physically.</p>')
             acceptance=network.get('mesh_acceptance')
             if acceptance:
                 html+='<h3>Mesh acceptance: '+escape(acceptance['status'])+'</h3><p>Largest component change '+escape(_number(acceptance['maximum_change_c'],'°C'))+', layer-peak change '+escape(_number(acceptance['maximum_layer_peak_change_c'],'°C'))+', source-peak change '+escape(_number(acceptance['maximum_source_peak_change_c'],'°C'))+', spatial-field change '+escape(_number(acceptance['maximum_field_change_c'],'°C'))+'. Phase check: '+escape(acceptance['phase_sensitivity']['status'])+'.</p>'

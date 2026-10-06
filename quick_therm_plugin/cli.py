@@ -27,9 +27,11 @@ def main(argv=None):
     parser.add_argument("--output", type=Path, help="JSON result")
     parser.add_argument("--html", type=Path, help="Self-contained HTML and companion JSON")
     parser.add_argument("--calculix-dir", type=Path,
-                        help="New directory for an experimental Gmsh/CalculiX deck; needs calculix_settings in --config")
+                        help="New directory retaining Gmsh/CalculiX input and result evidence")
     parser.add_argument("--run-calculix", action="store_true",
-                        help="Run ccx after deck creation when installed; FRD temperatures remain unparsed")
+                        help="Run ccx and import checked board temperatures")
+    parser.add_argument("--calculix-exe", type=Path,
+                        help="Explicit ccx executable; otherwise discover it on PATH")
     parser.add_argument("--timeout", type=float, default=1800.0)
     args = parser.parse_args(argv)
     try:
@@ -104,12 +106,14 @@ def main(argv=None):
             request["calculix_export_dir"] = str(args.calculix_dir.resolve())
         if args.run_calculix:
             request["calculix_run"] = True
+        if args.calculix_exe:
+            request["calculix_executable"] = str(args.calculix_exe.resolve())
         if request.get("calculix_export_dir") and not isinstance(request.get("calculix_settings"), dict):
             raise ValueError("--calculix-dir needs calculix_settings in --config.")
-        if request.get("calculix_settings") and not request.get("calculix_export_dir"):
-            raise ValueError("calculix_settings needs --calculix-dir.")
-        if args.run_calculix and not args.calculix_dir:
-            raise ValueError("--run-calculix needs --calculix-dir.")
+        if request.get("calculix_settings") and not request.get("calculix_export_dir") and request.get("thermal_model_kind") != "calculix":
+            raise ValueError("calculix_settings needs --calculix-dir or thermal_model_kind=calculix.")
+        if args.run_calculix and not args.calculix_dir and request.get("thermal_model_kind") != "calculix":
+            raise ValueError("--run-calculix needs --calculix-dir or thermal_model_kind=calculix.")
         from .service import run_job
 
         result = run_job(request, timeout=args.timeout)

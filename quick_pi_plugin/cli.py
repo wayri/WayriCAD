@@ -18,6 +18,10 @@ def main(argv=None):
     parser.add_argument('--mesh-edge',type=float,default=.5);parser.add_argument('--plating',type=float,default=.025)
     parser.add_argument('--mesh-backend',choices=('auto','gmsh','vtk'),default='auto',
                         help='Use Gmsh if installed (auto), require Gmsh, or use the VTK mesher.')
+    parser.add_argument('--model-dimension',choices=('2.5d','3d'),default='2.5d',
+                        help='Opt in to Gmsh tetrahedral, full-volume DC copper conduction.')
+    parser.add_argument('--max-tetrahedra',type=int,default=250000,
+                        help='Full 3D tetrahedron budget (default 250000).')
     parser.add_argument('--pulse',type=float);parser.add_argument('--temperature',type=float,default=20.)
     parser.add_argument('--ambient',type=float,default=20.);parser.add_argument('--temperature-limit',type=float,default=105.)
     parser.add_argument('--mesh-only',action='store_true');parser.add_argument('--output',type=Path)
@@ -43,9 +47,13 @@ def main(argv=None):
         'board_path':str(args.board.resolve()),'net':args.net,'source_terminal':args.source,'sink_terminal':args.sink,
         'source_voltage':args.voltage,'sink_current':args.current,'edge_mm':args.mesh_edge,'plating_mm':args.plating,
         'mesh_backend':args.mesh_backend,
+        'model_dimension':args.model_dimension,'max_tetrahedra':args.max_tetrahedra,
         'options':{'temperature_c':args.temperature,'ambient_c':args.ambient,'temperature_limit_c':args.temperature_limit}}
+    if args.model_dimension=='3d':request['options']={'temperature_c':args.temperature}
     if args.pulse is not None:request['options']['pulse_duration_s']=args.pulse
     try:
+        if args.model_dimension=='3d' and (args.html or args.command or args.load_ohms is not None or args.sweep or args.converge_levels or args.return_path or args.pulse is not None or args.mesh_backend=='vtk'):
+            raise ValueError('Full 3D supports a selected net with prescribed current and JSON output; HTML, series commands, load/sweep, pulse screening, return-path and VTK modes remain 2.5D.')
         if sum(bool(value) for value in (args.return_path,args.load_ohms is not None,args.sweep))>1:
             raise ValueError('Choose one of return-path, load-resistance or current-sweep mode.')
         if args.load_ohms is not None and args.sweep:raise ValueError('Choose either --load-ohms or --sweep.')

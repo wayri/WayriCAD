@@ -198,8 +198,9 @@ def calculix_deck(geometry, view, result, settings, nodes, triangles):
         groups[f"DI{index}"] = []
     eid = 0
     elements = {}
+    bottom_copper_triangles = []
     for level, (kind, index) in enumerate(slab_types):
-        for triangle in triangles:
+        for triangle_index, triangle in enumerate(triangles):
             a, b, c = triangle
             ax, ay = nodes[a]; bx, by = nodes[b]; cx, cy = nodes[c]
             area2 = (bx-ax)*(cy-ay)-(by-ay)*(cx-ax)
@@ -215,6 +216,8 @@ def calculix_deck(geometry, view, result, settings, nodes, triangles):
             if kind == "copper":
                 copper = any(_contains(center, poly) for poly in layers[index].get("polygons_mm", []))
                 group = f"CU{index}" if copper else f"DI{index}"
+                if copper and level == len(slab_types)-1:
+                    bottom_copper_triangles.append(triangle_index)
             else:
                 group = "DIEL"
             eid += 1
@@ -268,6 +271,8 @@ def calculix_deck(geometry, view, result, settings, nodes, triangles):
              "wedge_elements": eid, "z_interfaces_mm": z_edges, "element_groups":
              {key: len(value) for key, value in groups.items()}, "power_w": math.fsum(load.values()),
              "component_power_w": source_totals, "bottom_temperature_c": bottom_c,
+             "bottom_copper_triangles": bottom_copper_triangles,
+             "copper_k_w_mk": kc, "dielectric_k_w_mk": kd,
              "boundary_model": "isothermal entire lower face; remaining faces adiabatic",
              "copper_model": "triangle-centroid occupancy; features smaller than mesh may disappear",
              "source_model": "top footprint bbox, triangle-centroid area weights; junction resistance excluded",
@@ -293,6 +298,7 @@ def prepare_calculix(geometry, view, result, settings, output_dir, *, gmsh=None)
     geo = directory/"board.geo"
     geo.write_text(gmsh_geo(geometry, settings["gmsh_mesh_size_mm"]), encoding="utf-8")
     manifest = {"status": "needs_gmsh", "result_status": "not_solved", "geometry_file": geo.name,
+                "gmsh_mesh_size_mm": float(settings["gmsh_mesh_size_mm"]),
                 "source_sha256": geometry.get("source_sha256"), "limitations":
                 ["No via, plated-hole or mounting-contact model", "Entire bottom face is isothermal",
                  "Copper and source footprints use triangle-centroid occupancy", "No component junction model"]}
@@ -342,13 +348,8 @@ def prepare_calculix(geometry, view, result, settings, output_dir, *, gmsh=None)
     return manifest
 
 
-def run_calculix(output_dir, *, ccx=None, timeout_s=300):
-    """Run a prepared deck and preserve the FRD file for independent review.
-
-    A zero exit status does not establish a validated temperature field. The
-    bridge has no FRD importer yet and therefore always reports that result as
-    unparsed, leaving the existing QuickTherm numerical result untouched.
-    """
+def run_calculix(output_dir, *, ccx=None, timeout_s=300, display_grid_mm=None):
+    """Run a prepared deck and import a checked top/bottom temperature field."""
     directory = Path(output_dir).resolve()
     manifest_path = directory/"manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -361,8 +362,20 @@ def run_calculix(output_dir, *, ccx=None, timeout_s=300):
         completed = subprocess.run([str(exe), "-i", "board"], cwd=directory,
                                    capture_output=True, text=True, timeout=timeout_s)
         if completed.returncode == 0 and (directory/"board.frd").exists():
-            manifest.update(status="solver_completed", result_status="frd_unparsed",
-                            result_file="board.frd")
+            manifest["result_file"] = "board.frd"
+            try:
+                from .thermal_calculix_result import import_calculix_field
+
+                field = import_calculix_field(directory, manifest,
+                                              display_grid_mm=display_grid_mm)
+                (directory/"board_field.json").write_text(
+                    json.dumps(field, indent=2)+"\n", encoding="utf-8")
+                manifest.update(status="solved", result_status="field_validated",
+                                field_file="board_field.json",
+                                heat_balance=field["heat_balance"])
+            except (OSError, ValueError) as exc:
+                manifest.update(status="result_rejected", result_status="not_solved",
+                                diagnostic=str(exc))
         else:
             manifest.update(status="calculix_failed", result_status="not_solved",
                             diagnostic=(completed.stderr or completed.stdout)[-2000:])

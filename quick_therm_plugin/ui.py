@@ -259,7 +259,8 @@ class QuickThermFrame(wx.Frame):
         model_pane=self.therm_model.GetPane();model_grid=wx.FlexGridSizer(0,6,6,9)
         for col in (1,3,5):model_grid.AddGrowableCol(col,1)
         self.therm_model_enabled=wx.CheckBox(model_pane,label='Include board heat model in next run')
-        self.therm_model_kind=wx.Choice(model_pane,choices=['Thin sheet (screening)','Copper layers + vertical paths'])
+        self.therm_model_kind=wx.Choice(model_pane,choices=['Thin sheet (screening)','Copper layers + vertical paths',
+                                                       'CalculiX 3D · fixed lower face'])
         self.therm_model_kind.SetSelection(0)
         self.therm_k=wx.TextCtrl(model_pane,value='0.3');self.therm_k.SetToolTip('Assumed effective in-plane conductivity W/(m·K); check against your stackup.')
         self.therm_dielectric_k=wx.TextCtrl(model_pane,value='')
@@ -267,6 +268,10 @@ class QuickThermFrame(wx.Frame):
         self.therm_copper_k=wx.TextCtrl(model_pane,value='385')
         self.therm_plating=wx.TextCtrl(model_pane,value='')
         self.therm_plating.SetHint('Fabrication value, mm')
+        self.therm_ccx_mesh=wx.TextCtrl(model_pane,value='0.5')
+        self.therm_ccx_bottom=wx.TextCtrl(model_pane,value='20')
+        self.therm_ccx_executable=wx.TextCtrl(model_pane,value='')
+        self.therm_ccx_executable.SetHint('Optional full path to ccx executable; otherwise PATH')
         self.therm_blur=wx.Choice(model_pane,choices=['0 · exact cell occupancy','0.5 cell','1 cell'])
         self.therm_blur.SetSelection(0)
         self.therm_model_jb=wx.ComboBox(model_pane,style=wx.CB_READONLY)
@@ -287,7 +292,10 @@ class QuickThermFrame(wx.Frame):
                               ('Dielectric k W/m·K (layered)',self.therm_dielectric_k),
                               ('Copper k W/m·K (layered)',self.therm_copper_k),
                               ('Via plating mm (layered)',self.therm_plating),
-                              ('Copper simplification (layered)',self.therm_blur)]:
+                              ('Copper simplification (layered)',self.therm_blur),
+                              ('CalculiX XY mesh target mm',self.therm_ccx_mesh),
+                              ('CalculiX lower-face temperature °C',self.therm_ccx_bottom),
+                              ('CalculiX executable',self.therm_ccx_executable)]:
             model_grid.Add(wx.StaticText(model_pane,label=label),0,wx.ALIGN_CENTER_VERTICAL)
             model_grid.Add(control,1,wx.EXPAND)
         model_layout=wx.BoxSizer(wx.VERTICAL);model_layout.Add(model_grid,0,wx.EXPAND)
@@ -384,7 +392,8 @@ class QuickThermFrame(wx.Frame):
         self.therm_env.Bind(wx.EVT_CHOICE,self._invalidate_thermal)
         for ctrl in (self.therm_ambient,self.therm_board_r):ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
         for ctrl in (self.therm_k,self.therm_emissivity,self.therm_air_board,self.therm_air_sink,self.therm_sink_area,
-                     self.therm_dielectric_k,self.therm_copper_k,self.therm_plating,self.therm_mount_temp,self.therm_mount_r):ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
+                     self.therm_dielectric_k,self.therm_copper_k,self.therm_plating,self.therm_mount_temp,self.therm_mount_r,
+                     self.therm_ccx_mesh,self.therm_ccx_bottom,self.therm_ccx_executable):ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
         self.therm_model_jb.Bind(wx.EVT_COMBOBOX,self._invalidate_thermal)
         self.therm_grid.Bind(wx.EVT_SPINCTRL,self._invalidate_thermal)
         self.therm_model_enabled.Bind(wx.EVT_CHECKBOX,self._therm_model_changed)
@@ -400,11 +409,15 @@ class QuickThermFrame(wx.Frame):
         vacuum=self.therm_env.GetSelection()==1
         self.therm_ja.Enable(not vacuum);self.therm_jb.Enable(vacuum);self.therm_jc.Enable(bool(self.virtual_heatsinks))
         self.therm_board_r.Enable(vacuum)
-        layered=self.therm_model_enabled.GetValue() and self.therm_model_kind.GetSelection()==1
-        self.therm_k.Enable(self.therm_model_enabled.GetValue() and not layered)
-        for ctrl in (self.therm_dielectric_k,self.therm_copper_k,self.therm_plating,self.therm_blur,
-                     self.therm_mounts,self.therm_mount_temp,self.therm_mount_r,self.therm_mount_mechanical):
-            ctrl.Enable(layered and not self._busy)
+        selected=self.therm_model_kind.GetSelection() if self.therm_model_enabled.GetValue() else -1
+        self.therm_k.Enable(selected==0 and not self._busy)
+        for ctrl in (self.therm_dielectric_k,self.therm_copper_k):
+            ctrl.Enable(selected in (1,2) and not self._busy)
+        for ctrl in (self.therm_plating,self.therm_blur,self.therm_mounts,self.therm_mount_temp,
+                     self.therm_mount_r,self.therm_mount_mechanical):
+            ctrl.Enable(selected==1 and not self._busy)
+        for ctrl in (self.therm_ccx_mesh,self.therm_ccx_bottom,self.therm_ccx_executable):
+            ctrl.Enable(selected==2 and not self._busy)
 
 
     def _input_mode_changed(self,event=None):
@@ -503,6 +516,8 @@ class QuickThermFrame(wx.Frame):
         except ValueError as exc:self.therm_status.SetLabel('Enter valid ambient and board-to-environment values: '+str(exc));return
         if self.therm_model_enabled.GetValue():
             try:
+                if self.therm_model_kind.GetSelection()==2 and sinks:
+                    raise ValueError('CalculiX board mode does not model virtual heatsinks.')
                 settings={'board_k_w_mk':float(self.therm_k.GetValue()),
                           'board_emissivity':float(self.therm_emissivity.GetValue()),
                           'board_airflow_m_s':float(self.therm_air_board.GetValue()),
@@ -521,13 +536,24 @@ class QuickThermFrame(wx.Frame):
                                          'contact_r_k_w':float(self.therm_mount_r.GetValue()),
                                          'mechanical_contact':self.therm_mount_mechanical.GetValue() and not self._therm_mount_candidates[i]['plated']}
                                          for i in range(self.therm_mounts.GetCount()) if self.therm_mounts.IsChecked(i)]})
+                elif self.therm_model_kind.GetSelection()==2:
+                    request['thermal_model_kind']='calculix'
+                    request['calculix_settings']={
+                        'gmsh_mesh_size_mm':float(self.therm_ccx_mesh.GetValue()),
+                        'display_grid_mm':float(self.therm_ccx_mesh.GetValue())/2,
+                        'bottom_temperature_c':float(self.therm_ccx_bottom.GetValue()),
+                        'dielectric_k_w_mk':float(self.therm_dielectric_k.GetValue()),
+                        'copper_k_w_mk':float(self.therm_copper_k.GetValue())}
+                    executable=self.therm_ccx_executable.GetValue().strip()
+                    if executable:request['calculix_executable']=executable
+                    request['calculix_run']=True
                 request['thermal_network_settings']=settings
                 if self.therm_model_jb.GetValue():request['thermal_network_component_field']=self.therm_model_jb.GetValue()
             except ValueError as exc:
                 self.therm_status.SetLabel('Enter numeric thermal material, plating, contact and airflow values: '+str(exc));return
         self.thermal_bundle={};self.therm_table.DeleteAllItems();self._thermal_rows=[];self._thermal_selected=None
         self.therm_figure.clear();self.therm_canvas.draw_idle();self.therm_analytics.SetLabel('Analysis running…')
-        self.therm_status.SetLabel('Reading mapped fields and running the lumped thermal screen…')
+        self.therm_status.SetLabel('Reading saved board geometry and running the selected thermal model…')
         self._job(request,self._accept_therm,'Running QuickTherm on the saved board…')
 
 
@@ -540,7 +566,8 @@ class QuickThermFrame(wx.Frame):
                'Top board model','Bottom board model','3D overview','Temperature chart']
         modes.extend('Layer model: '+layer['name'] for layer in network.get('layers',[]))
         self.therm_mode.Set(modes)
-        self.therm_mode.SetStringSelection(original_mode if original_mode in modes else 'Top-side map')
+        self.therm_mode.SetStringSelection('Top board model' if network.get('model') == 'CalculiX 3D steady conduction'
+                                           else original_mode if original_mode in modes else 'Top-side map')
         view=bundle.get('board_thermal_view',{})
         solved={row['reference']:row for row in result['components']}
         self._thermal_rows=[(item,solved.get(item['reference'])) for item in view.get('components',[]) if item.get('in_scope')]
@@ -556,7 +583,13 @@ class QuickThermFrame(wx.Frame):
         network=bundle.get('thermal_network')
         if network:
             balance=network['heat_balance']
-            if network.get('layers'):
+            if network.get('model') == 'CalculiX 3D steady conduction':
+                layers=network['layers'];lo=min(row['sampled_min_c'] for row in layers)
+                hi=max(row['sampled_max_c'] for row in layers)
+                board+=(f" · CalculiX top/bottom {lo:.3g}–{hi:.3g} °C"
+                        f" · lower-face outflow {balance['bottom_outflow_w']:.3g} W"
+                        f" · heat residual {balance['residual_w']:.3g} W")
+            elif network.get('layers'):
                 layers=network['layers'];lo=min(row['sampled_min_c'] for row in layers)
                 hi=max(row['sampled_max_c'] for row in layers)
                 board+=(f" · {len(layers)} copper layers {lo:.3g}–{hi:.3g} °C"

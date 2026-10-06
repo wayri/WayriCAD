@@ -8,7 +8,7 @@ For the separate steady multilayer model, set `"source_refinement_factor": 2` in
 
 Start with the [step-by-step user guide](QUICK_THERM_USER_GUIDE.md) or its [offline HTML version](QUICK_THERM_USER_GUIDE.html). The [model and limits](QUICK_THERM.md) explain the equations and supported evidence.
 
-An [experimental Gmsh/CalculiX bridge](CALCULIX_BRIDGE.md) can prepare a layered steady-conduction deck from a saved board and reviewed power/boundary inputs. It rejects vias, mounting contacts and cooling physics it cannot yet model; its CalculiX FRD output is not interpreted as a QuickTherm board or junction temperature.
+The optional [CalculiX 3D steady-conduction mode](CALCULIX_BRIDGE.md) meshes a supported saved board with Gmsh, runs `ccx`, checks its nodal temperatures and heat balance, and displays imported top/bottom board fields. Select it in the native board-model controls, or use `thermal_model_kind: calculix` in a CLI config. It requires a fixed lower-face temperature and rejects vias, mounting contacts, heatsinks, convection and radiation until those physics have a qualified mesh contract. Package junction temperature still needs a separate RθJB input.
 
 ![QuickTherm field mapping and board preview in the native window](examples/quicktherm-native-window.png)
 

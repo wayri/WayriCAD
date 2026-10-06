@@ -270,6 +270,30 @@ anisotropic laminate detail, contact spreading, airflow fields, view factors,
 transients and electrical-temperature feedback. Whole-circuit coupled
 electrothermal simulation is tracked in [SPIKE #1](https://github.com/wayri/SPIKE-Main/issues/1).
 
+### Optional CalculiX 3D board solve
+
+1. Install a compatible `ccx` executable or enter its full path in the
+   **CalculiX executable** field. KiCad's Python runtime also needs Gmsh.
+2. Save the board with an explicit copper/dielectric stackup and filled zones.
+   Select **CalculiX 3D · fixed lower face** under the board model. Enter the
+   measured copper and dielectric conductivity, XY mesh target and the
+   prescribed temperature of the entire lower board face.
+3. Map component power. Optionally map an RθJB field for estimated junction
+   temperatures. Run QuickTherm. The plugin checks the saved-board hash,
+   meshes copper occupancy, runs CalculiX, imports its final nodal temperature
+   result and rejects an incomplete field or failed lower-face heat balance.
+4. Open the top/bottom workspace. The two overlays and probes now show the
+   imported board field; the component table keeps the lumped estimate separate
+   from any model junction estimate. Review the mesh size, boundary assumption
+   and heat residual in the JSON evidence before using the temperatures.
+
+This mode currently stops with an explicit error for vias, drilled pads,
+mounting contacts, bottom-side heat sources, virtual heatsinks, convection and
+radiation. Its fixed entire lower face is a strong cooling assumption, not a
+model of a point fixture. Use the internal layered screen for board cases that
+need its supported via and mount representations. See the
+[CalculiX model contract](CALCULIX_BRIDGE.md).
+
 ## 7. Export and repeat
 
 Use **Open top + bottom workspace…** for simultaneous, resizable front and

@@ -160,18 +160,39 @@ def execute(request):
 
     def export_calculix(snapshot):
         from .thermal_calculix import prepare_calculix, run_calculix
+        from contextlib import ExitStack
+        import tempfile
 
         settings = request.get("calculix_settings")
         if not isinstance(settings, dict):
             raise ValueError("CalculiX export needs explicit calculix_settings.")
-        directory = request["calculix_export_dir"]
-        manifest = prepare_calculix(snapshot, view, result, settings, directory)
-        if request.get("calculix_run") and manifest["status"] == "deck_ready":
-            manifest = run_calculix(directory)
-        return manifest
+        with ExitStack() as stack:
+            directory = request.get("calculix_export_dir")
+            if not directory:
+                directory = str(Path(stack.enter_context(
+                    tempfile.TemporaryDirectory(prefix="wayricad-therm-"))) / "candidate")
+            manifest = prepare_calculix(snapshot, view, result, settings, directory)
+            field = None
+            if request.get("calculix_run") or request.get("thermal_model_kind") == "calculix":
+                if manifest["status"] != "deck_ready":
+                    raise ValueError("CalculiX mesh preparation failed: " +
+                                     manifest.get("diagnostic", manifest["status"]))
+                manifest = run_calculix(directory, ccx=request.get("calculix_executable"),
+                                        display_grid_mm=settings.get("display_grid_mm"))
+                if manifest["status"] != "solved":
+                    raise ValueError("CalculiX result unavailable: " +
+                                     manifest.get("diagnostic", manifest["status"]))
+                field = json.loads((Path(directory)/manifest["field_file"]).read_text(encoding="utf-8"))
+            if not request.get("calculix_export_dir"):
+                manifest.pop("field_file", None)
+                manifest.pop("result_file", None)
+                manifest["artifacts_retained"] = False
+            return manifest, field
 
-    if request.get("calculix_run") and not request.get("calculix_export_dir"):
+    if request.get("calculix_run") and not request.get("calculix_export_dir") and request.get("thermal_model_kind") != "calculix":
         raise ValueError("CalculiX execution needs an export directory.")
+    if request.get("thermal_model_kind") == "calculix" and request.get("thermal_network_settings") is None:
+        raise ValueError("CalculiX board mode needs thermal_network_settings.")
     if request.get("thermal_network_settings") is not None:
         settings = dict(request["thermal_network_settings"])
         settings["board_thickness_mm"] = view.get("board_thickness_mm")
@@ -201,21 +222,43 @@ def execute(request):
                 )
         if sink_resistances:
             settings["component_to_sink_k_per_w"] = sink_resistances
-        if request.get("thermal_model_kind") == "multilayer":
+        if request.get("thermal_model_kind") in ("multilayer", "calculix"):
             from .thermal_geometry import collect_thermal_geometry
-            from .thermal_multilayer import (solve_multilayer_thermal,
-                                             solve_multilayer_thermal_convergence)
 
             geometry = collect_thermal_geometry(
                 board, path, contact_pads=settings.get("source_contact_pad_numbers"),
                 progress=emit_progress)
-            if request.get("calculix_export_dir"):
-                calculix_manifest = export_calculix(geometry)
-            if request.get("mesh_acceptance") is not None:
+            if request.get("thermal_model_kind") == "calculix":
+                calculix_manifest, thermal_network = export_calculix(geometry)
+                thermal_network["settings"] = dict(request["calculix_settings"])
+                thermal_network["assumptions"] = list(calculix_manifest.get("limitations", []))
+                from .thermal_review import cursor_readout
+
+                components = []
+                for part in view.get("components", []):
+                    if not part.get("position_mm") or not part.get("on_board", True):
+                        continue
+                    x, y = part["position_mm"]
+                    site = cursor_readout(view, thermal_network, x, y, part["side"])["temperature_c"]
+                    power = next((row["power_w"] for row in result["components"]
+                                  if row["reference"] == part["reference"]), 0)
+                    rjb = settings.get("component_to_board_k_per_w", {}).get(part["reference"])
+                    components.append({"reference": part["reference"], "board_site_c": site,
+                                       "junction_c": site + power*rjb if site is not None and rjb is not None else None,
+                                       "junction_method": "board site + declared RthetaJB" if rjb is not None else "unknown"})
+                thermal_network["components"] = components
+            elif request.get("calculix_export_dir"):
+                calculix_manifest, _ = export_calculix(geometry)
+            if request.get("thermal_model_kind") == "calculix":
+                # The checked external field is already the board model.
+                pass
+            elif request.get("mesh_acceptance") is not None:
+                from .thermal_multilayer import solve_multilayer_thermal_convergence
                 thermal_network = solve_multilayer_thermal_convergence(
                     geometry, view, result, settings, request["mesh_acceptance"],
                     progress=emit_progress)
             else:
+                from .thermal_multilayer import solve_multilayer_thermal
                 thermal_network = solve_multilayer_thermal(
                     geometry, view, result, settings, progress=emit_progress)
         else:
@@ -232,7 +275,11 @@ def execute(request):
         from .thermal_geometry import collect_thermal_geometry
 
         geometry = collect_thermal_geometry(board, path, progress=emit_progress)
-        calculix_manifest = export_calculix(geometry)
+        calculix_manifest, imported = export_calculix(geometry)
+        if imported is not None:
+            thermal_network = imported
+            thermal_network["settings"] = dict(request["calculix_settings"])
+            thermal_network["assumptions"] = list(calculix_manifest.get("limitations", []))
     from .thermal_review import evaluate_limits, sample_probes
 
     limits = evaluate_limits(board, result, request.get("limit_fields"))
