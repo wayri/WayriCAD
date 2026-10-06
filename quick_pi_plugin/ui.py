@@ -495,6 +495,9 @@ class QuickPIFrame(wx.Frame):
     def on_more(self,event):
         if self.book.GetSelection()>=len(self.views):self._inspect();return
         menu=wx.Menu();mesh=menu.Append(wx.ID_ANY,'Generate mesh only');self.Bind(wx.EVT_MENU,lambda e:self._analyze('mesh'),mesh)
+        volume=menu.Append(wx.ID_ANY,'Run 3D copper analysis…')
+        volume.Enable(len(self._terminals)>1)
+        self.Bind(wx.EVT_MENU,self.on_3d_analysis,volume)
         details=menu.Append(wx.ID_ANY,'Layer thickness, losses and hotspots…');details.Enable(bool(self.bundle.get('result',{}).get('analytics')))
         self.Bind(wx.EVT_MENU,self.on_details,details)
         focus=menu.Append(wx.ID_ANY,'Zoom to circuit terminals');self.Bind(wx.EVT_MENU,self._focus_terminals,focus)
@@ -512,6 +515,70 @@ class QuickPIFrame(wx.Frame):
         self.Bind(wx.EVT_MENU,self.on_convergence_details,history)
         refresh=menu.Append(wx.ID_ANY,'Reload saved board');self.Bind(wx.EVT_MENU,lambda e:self._inspect(),refresh)
         self.PopupMenu(menu);menu.Destroy()
+
+    def on_3d_analysis(self,event=None):
+        """Run the separate volumetric DC model and show its sampled cell field."""
+        if self._series_request or self.load_mode.GetSelection()!=0:
+            self.status.SetLabel('3D analysis needs two pads on one net and a specified sink current.')
+            return
+        try:
+            request=self._request('solve')
+            request['model_dimension']='3d'
+            request['options']={'temperature_c':float(self.temperature.GetValue())}
+            if not math.isfinite(request['options']['temperature_c']):
+                raise ValueError('Copper temperature must be finite.')
+        except Exception as exc:
+            self.status.SetLabel(str(exc));return
+        from .service import run_job
+        self._task(lambda:run_job(request,cancelled=self._cancel.is_set,timeout=300),
+                   self._show_3d_analysis,'Meshing and solving the saved 3D copper volume…')
+
+    def _show_3d_analysis(self,bundle):
+        import numpy as np
+        result=bundle['result'];mesh=bundle['mesh']
+        cells=np.asarray(result['cell_centroid_mm'],dtype=float)
+        vectors=np.asarray([row if row is not None else (0,0,0)
+                            for row in result['cell_J_A_mm2']],dtype=float)
+        active=np.asarray([row is not None for row in result['cell_J_A_mm2']])
+        if not active.any():raise ValueError('3D solve returned no connected copper cells.')
+        indices=np.flatnonzero(active)
+        indices=indices[np.linspace(0,len(indices)-1,min(len(indices),4000),dtype=int)]
+        dialog=wx.Dialog(self,title='Quick PI · 3D copper current density',size=(1050,780),
+                         style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        layout=wx.BoxSizer(wx.VERTICAL)
+        summary=(f"3D DC copper  |  ΔV {result['voltage_drop_V']*1000:.4g} mV  |  "
+                 f"R {result['drop_over_current_ohm']*1000:.4g} mΩ  |  "
+                 f"Loss {result['total_power_W']:.4g} W  |  "
+                 f"{mesh['tetrahedron_count']:,} tetrahedra")
+        layout.Add(wx.StaticText(dialog,label=summary),0,wx.EXPAND|wx.ALL,10)
+        figure=Figure(figsize=(9,6),dpi=100)
+        axes=figure.add_subplot(111,projection='3d')
+        magnitude=np.linalg.norm(vectors[indices],axis=1)
+        plot=axes.scatter(cells[indices,0],cells[indices,1],cells[indices,2],
+                          c=magnitude,cmap='inferno',s=4,alpha=.8,rasterized=True)
+        axes.set(xlabel='X (mm)',ylabel='Y (mm)',zlabel='Z (mm)',
+                 title=f'Current density at {len(indices):,} sampled tetrahedron centroids')
+        figure.colorbar(plot,ax=axes,label='|J| (A/mm²)',shrink=.7)
+        canvas=FigureCanvasWxAgg(dialog,wx.ID_ANY,figure)
+        toolbar=NavigationToolbar2WxAgg(canvas);toolbar.Realize()
+        layout.Add(canvas,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        layout.Add(toolbar,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        note='Fixed-temperature DC model; ideal pad electrodes. Refine the mesh for local peaks. The complete field is in the JSON export.'
+        layout.Add(wx.StaticText(dialog,label=note),0,wx.EXPAND|wx.ALL,10)
+        buttons=wx.BoxSizer(wx.HORIZONTAL);save=wx.Button(dialog,label='Export 3D JSON…')
+        buttons.Add(save,0,wx.RIGHT,8);buttons.Add(dialog.CreateButtonSizer(wx.CLOSE),0)
+        layout.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,10)
+        def export(event):
+            name=Path(self.board_path).stem+'-quick-pi-3d.json'
+            with wx.FileDialog(dialog,'Export 3D field',defaultDir=str(Path(self.board_path).parent),
+                               defaultFile=name,wildcard='JSON (*.json)|*.json',
+                               style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as picker:
+                if picker.ShowModal()!=wx.ID_OK:return
+                Path(picker.GetPath()).write_text(json.dumps(bundle,allow_nan=False),encoding='utf-8')
+        save.Bind(wx.EVT_BUTTON,export)
+        dialog.Bind(wx.EVT_BUTTON,lambda e:dialog.EndModal(wx.ID_CLOSE),id=wx.ID_CLOSE)
+        dialog.SetSizer(layout);dialog.ShowModal();dialog.Destroy()
+        self.status.SetLabel('3D DC solve complete. Use the JSON export for the full field and verification metrics.')
 
     def on_series_details(self,event=None):
         components=self.bundle.get('result',{}).get('components',[])

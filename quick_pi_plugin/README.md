@@ -93,9 +93,12 @@ tetrahedron budget, or violates conservation. Plated slots, backdrills and
 unresolved drill contours are unsupported rather than converted to cylinders.
 The 3D model is fixed-temperature DC conduction: it does not solve AC skin or
 proximity effects, dielectric current, thermal feedback or series components.
-The current GUI maps and HTML reports render only the 2.5D sheet model; use
-the CLI JSON for 3D results. Resistive-load/sweep and pulse-screening modes
-remain 2.5D until their 3D contracts are implemented.
+In the native window, choose a net and two pads, then select **More → Run 3D
+copper analysis**. The result window shows a sampled 3D current-density field,
+voltage drop, resistance and loss; **Export 3D JSON** preserves the complete
+tetrahedral field and verification metrics. The regular layer maps and HTML
+reports still render the 2.5D sheet model. Resistive-load/sweep and
+pulse-screening modes remain 2.5D until their 3D contracts are implemented.
 
 ## Console
 
