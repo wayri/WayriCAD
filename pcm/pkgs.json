@@ -410,8 +410,8 @@
         },
         {
             "name": "WayriCAD Quick PI",
-            "description": "Local 2.5D power-integrity simulation with source/sink terminals, copper meshes and native result views.",
-            "description_full": "Solve DC voltage drop, current density and Joule loss on actual filled traces, pads, zones and plated via barrels. Inspect net geometry, conforming mesh and field results in a native window; export a self-contained HTML report. KiCad 10 native Python with NumPy, SciPy, VTK and Matplotlib is required. This is a screening model, not a full-wave AC or coupled electrothermal solver.",
+            "description": "DC power-integrity simulation with default 2.5D and optional Gmsh 3D copper-volume models.",
+            "description_full": "Solve DC voltage drop, current density and Joule loss on saved traces, pads, filled zones and plated via barrels. The default 2.5D model and an optional Gmsh tetrahedral 3D copper-volume model have native result views and export field evidence. KiCad 10 native Python with NumPy, SciPy, VTK and Matplotlib is required; the 3D mode additionally needs Gmsh. This is a screening model, not a full-wave AC or coupled electrothermal solver.",
             "identifier": "com.github.wayri.wayricad.quick-pi",
             "type": "plugin",
             "author": {
@@ -425,6 +425,21 @@
                 "homepage": "https://github.com/wayri/WayriCAD"
             },
             "versions": [
+                {
+                    "version": "3.6.6",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "d5a997c7cd3801f17f4a929f9880cb763ab59b2ba976a1f9cfe8eccbbd9d2b07",
+                    "download_size": 1211721,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.6.6/WayriCAD-quick-pi-3.6.6-PCM.zip",
+                    "install_size": 1734669,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "3.6.4",
                     "status": "testing",
@@ -444,8 +459,8 @@
         },
         {
             "name": "WayriCAD QuickTherm",
-            "description": "Saved-board thermal screening with component field mapping and visual results.",
-            "description_full": "Read-only steady-state thermal screening using mapped component dissipation and thermal resistance, optional copper-layer and vertical-path models, virtual heatsinks, mounting boundaries, top/bottom/3D previews, cross-selection and local HTML/JSON evidence. KiCad 10 native Python with NumPy, SciPy and Matplotlib is required. This is not CFD or coupled electrothermal simulation.",
+            "description": "Saved-board thermal screening with mapped power, native temperature views and optional CalculiX 3D conduction.",
+            "description_full": "Read-only steady-state thermal screening using declared component dissipation and thermal resistance, optional copper-layer and vertical-path models, virtual heatsinks, mounting boundaries, top/bottom/3D previews, cross-selection and local HTML/JSON evidence. An optional Gmsh/CalculiX mode solves bounded 3D board conduction with a fixed lower-face temperature and power-only heat sources; junction estimates require separate RthetaJB. KiCad 10 native Python with NumPy, SciPy and Matplotlib is required. This is not CFD or coupled electrothermal simulation.",
             "identifier": "com.github.wayri.wayricad.quick-therm",
             "type": "plugin",
             "author": {
@@ -459,6 +474,21 @@
                 "homepage": "https://github.com/wayri/WayriCAD"
             },
             "versions": [
+                {
+                    "version": "3.6.6",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "runtime": "ipc",
+                    "download_sha256": "56b27a3339dbb6c7f5dd49d5bdf2b775b57ad83d610ad8121b672ace5917aa01",
+                    "download_size": 1350805,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.6.6/WayriCAD-quick-therm-3.6.6-PCM.zip",
+                    "install_size": 2298814,
+                    "platforms": [
+                        "windows",
+                        "linux",
+                        "macos"
+                    ]
+                },
                 {
                     "version": "3.6.4",
                     "status": "testing",
