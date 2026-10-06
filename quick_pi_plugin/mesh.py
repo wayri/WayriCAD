@@ -331,17 +331,122 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
                'point_contacts_separated':splits}
 
 
-def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cancelled=None):
+def triangulate_gmsh(polygons, edge_mm, max_cells=400_000, cancelled=None):
+    """Mesh the existing 2D copper/contact regions with shared Gmsh curves.
+
+    Copper remains a sheet; plated barrels are still explicit links in build_mesh.
+    The shared curves are essential: independently meshed contact regions can
+    otherwise acquire unpaired boundary nodes and false electrical opens.
+    """
+    import gmsh
+
+    edge_mm=float(edge_mm)
+    if not math.isfinite(edge_mm) or edge_mm<=0:
+        raise ValueError('Mesh edge length must be positive and finite.')
+    if max_cells<1:raise ValueError('No triangle budget remains; increase mesh edge length.')
+    polygons=_conforming_contours(polygons,cancelled,maximum_edge=min(edge_mm,.5))
+    if sum(len(r) for p in polygons for r in [p['outer'],*p['holes']])>max_cells*2:
+        raise ValueError('Contour subdivision exceeds mesh budget. Increase mesh edge length or reduce the net.')
+    if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
+    expected_area=0.
+    def signed_area(ring):
+        return sum(a[0]*b[1]-a[1]*b[0] for a,b in zip(ring,ring[1:]+ring[:1]))/2
+    initialized=gmsh.isInitialized()
+    if not initialized:gmsh.initialize()
+    try:
+        gmsh.clear()
+        gmsh.option.setNumber('General.Terminal',0)
+        gmsh.option.setNumber('Mesh.ElementOrder',1)
+        gmsh.option.setNumber('Mesh.MeshSizeFromPoints',1)
+        gmsh.option.setNumber('Mesh.MeshSizeFromCurvature',0)
+        gmsh.option.setNumber('Mesh.MeshSizeExtendFromBoundary',0)
+        gmsh.option.setNumber('Mesh.MeshSizeMax',edge_mm)
+        gmsh.model.add('quick_pi_copper')
+        vertices={};curves={};surfaces=[]
+        def vertex(xy):
+            key=tuple(float(v) for v in xy[:2])
+            if key not in vertices:
+                vertices[key]=gmsh.model.geo.addPoint(*key,0.,edge_mm)
+            return vertices[key]
+        for polygon in polygons:
+            loops=[]
+            for index,raw in enumerate([polygon['outer'],*polygon.get('holes',[])]):
+                ring=list(raw)
+                area=signed_area(ring)
+                if abs(area)<1e-16:raise ValueError('Degenerate copper contour.')
+                expected_area+=abs(area)*(1 if index==0 else -1)
+                if (area>0)!=(index==0):ring.reverse()
+                ids=[vertex(xy) for xy in ring]
+                lines=[]
+                for a,b in zip(ids,ids[1:]+ids[:1]):
+                    if a==b:raise ValueError('Degenerate copper contour edge.')
+                    key=(min(a,b),max(a,b))
+                    if key not in curves:curves[key]=gmsh.model.geo.addLine(*key)
+                    lines.append(curves[key] if a<b else -curves[key])
+                loops.append(gmsh.model.geo.addCurveLoop(lines))
+            surfaces.append(gmsh.model.geo.addPlaneSurface(loops))
+        gmsh.model.geo.synchronize()
+        gmsh.model.mesh.generate(2)
+        # Gmsh's size field is a target, not a strict maximum edge length.
+        # Uniform refinement enforces the same edge contract as the VTK path.
+        for _ in range(12):
+            if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
+            tags,xyz,_=gmsh.model.mesh.getNodes()
+            p=np.asarray(xyz,dtype=float).reshape(-1,3)
+            tag_to_index={int(tag):i for i,tag in enumerate(tags)}
+            pieces=[]
+            for surface in surfaces:
+                types,_,node_blocks=gmsh.model.mesh.getElements(2,surface)
+                for kind,nodes in zip(types,node_blocks):
+                    if int(kind)!=2:raise ValueError('Gmsh returned a non-linear or non-triangle copper cell.')
+                    pieces.extend(tag_to_index[int(tag)] for tag in nodes)
+            if not pieces:raise ValueError('Gmsh returned no copper triangles.')
+            t=np.asarray(pieces,dtype=np.int64).reshape(-1,3)
+            if len(t)>max_cells:raise ValueError(f'Mesh exceeds {max_cells:,} triangles. Increase mesh edge length.')
+            lengths=np.linalg.norm(p[t]-np.roll(p[t],-1,axis=1),axis=2)
+            if float(lengths.max())<=edge_mm*(1+1e-8):break
+            if len(t)*4>max_cells:raise ValueError('Further refinement exceeds the mesh budget. Increase mesh edge length.')
+            gmsh.model.mesh.refine()
+        else:raise ValueError('Gmsh mesh refinement did not meet the requested edge length.')
+        a=p[t[:,1],:2]-p[t[:,0],:2];b=p[t[:,2],:2]-p[t[:,0],:2]
+        cross=a[:,0]*b[:,1]-a[:,1]*b[:,0]
+        if np.any(abs(cross)<1e-16):raise ValueError('Gmsh returned a degenerate copper triangle.')
+        t[cross<0]=t[cross<0][:,[0,2,1]]
+        area=float(np.sum(abs(cross))/2)
+        if not math.isclose(area,expected_area,rel_tol=1e-7,abs_tol=1e-7):
+            raise ValueError(f'Gmsh mesh area differs from copper area ({area:g} vs {expected_area:g} mm²).')
+        if not np.all(contains(p[t].mean(axis=1),polygons)):
+            raise ValueError('A Gmsh triangle crosses outside copper or into a hole.')
+        p,t,splits=_split_point_contacts(p,t)
+        return p,t,{'area_mm2':area,'maximum_edge_mm':float(lengths.max()),
+                    'triangles':len(t),'point_contacts_separated':splits}
+    finally:
+        gmsh.clear()
+        if not initialized:gmsh.finalize()
+
+
+def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cancelled=None, backend='auto'):
     if not math.isfinite(plating_mm) or plating_mm<=0:raise ValueError('Via plating thickness must be positive.')
+    if backend not in ('auto','gmsh','vtk'):
+        raise ValueError('Mesh backend must be auto, gmsh or vtk.')
+    selected=backend
+    if backend=='auto':
+        import importlib.util
+        selected='gmsh' if importlib.util.find_spec('gmsh') is not None else 'vtk'
+    elif backend=='gmsh':
+        import importlib.util
+        if importlib.util.find_spec('gmsh') is None:
+            raise ValueError('Gmsh is unavailable in the Quick PI runtime; install its Python package or select vtk.')
+    mesher=triangulate_gmsh if selected=='gmsh' else triangulate
     points=[]; triangles=[]; thickness=[]; layers=[]; offsets={}; reports=[]
     count=0
     for layer in geometry['layers']:
         if not layer.get('polygons'):continue
-        p,t,report=triangulate(layer.get('mesh_regions') or layer['polygons'],edge_mm,max_cells-len(triangles),cancelled)
+        p,t,report=mesher(layer.get('mesh_regions') or layer['polygons'],edge_mm,max_cells-len(triangles),cancelled)
         p[:,2]=float(layer['z_mm']);offsets[str(layer['id'])]=(count,p)
         triangles.extend((t+count).tolist());points.extend(p.tolist());count+=len(p)
         thickness.extend([float(layer['thickness_mm'])]*len(t));layers.extend([layer['id']]*len(t))
-        reports.append({'layer':layer['name'],**report})
+        reports.append({'layer':layer['name'],'backend':selected,**report})
     if not triangles:raise ValueError('The selected net has no meshed copper.')
     terminal_nodes={}
     for terminal in geometry.get('terminals',[]):
@@ -376,4 +481,5 @@ def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cance
                          'x_mm':via['x_mm'],'y_mm':via['y_mm'],'top_layer':a,'bottom_layer':b})
     return {'points_mm':points,'triangles':triangles,'triangle_thickness_mm':thickness,
             'triangle_layer':layers,'vias':vias,'terminal_nodes':terminal_nodes,
-            'mesh_report':reports,'geometry':geometry,'edge_mm':edge_mm,'plating_mm':plating_mm}
+            'mesh_report':reports,'geometry':geometry,'edge_mm':edge_mm,'plating_mm':plating_mm,
+            'mesh_backend':selected}

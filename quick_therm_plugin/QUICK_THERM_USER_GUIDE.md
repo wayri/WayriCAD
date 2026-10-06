@@ -272,8 +272,20 @@ electrothermal simulation is tracked in [SPIKE #1](https://github.com/wayri/SPIK
 
 ## 7. Export and repeat
 
-Use **Expand board view…** for a large, resizable top, bottom, contour, 3D or
-board-model viewport. Select **Place probe** and click a board coordinate to
+Use **Open top + bottom workspace…** for simultaneous, resizable front and
+mirrored-back board views. Select **Board temperature** for the optional solved
+board field or **Component estimates** for the explicitly labelled junction
+interpolation. Hover over a position to read its X/Y coordinate, field
+temperature and the junction estimate when the cursor is over a component.
+Click a component or a row in the workspace summary to highlight it in both
+views, the main table and PCB Editor.
+
+![Illustrative native top and bottom thermal workspace](examples/quicktherm-paired-workspace.png)
+
+This native-window illustration uses synthetic component and layer-temperature
+data to show the interaction and shared color scale; it is not a measured run.
+
+Select **Place probe** and click a board coordinate to
 add a labeled virtual temperature probe. The probe table lists side,
 coordinates, temperature, source and status. A probe samples the nearest valid
 field cell; it is **UNKNOWN** outside the board or field coverage. With only

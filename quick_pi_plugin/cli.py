@@ -16,6 +16,8 @@ def main(argv=None):
     parser.add_argument('--return-nets',nargs='+');parser.add_argument('--return-pitch',type=float,default=.25)
     parser.add_argument('--return-via-radius',type=float,default=2.)
     parser.add_argument('--mesh-edge',type=float,default=.5);parser.add_argument('--plating',type=float,default=.025)
+    parser.add_argument('--mesh-backend',choices=('auto','gmsh','vtk'),default='auto',
+                        help='Use Gmsh if installed (auto), require Gmsh, or use the VTK mesher.')
     parser.add_argument('--pulse',type=float);parser.add_argument('--temperature',type=float,default=20.)
     parser.add_argument('--ambient',type=float,default=20.);parser.add_argument('--temperature-limit',type=float,default=105.)
     parser.add_argument('--mesh-only',action='store_true');parser.add_argument('--output',type=Path)
@@ -40,6 +42,7 @@ def main(argv=None):
     request={'action':'inspect' if not args.net else ('mesh' if args.mesh_only else 'solve'),
         'board_path':str(args.board.resolve()),'net':args.net,'source_terminal':args.source,'sink_terminal':args.sink,
         'source_voltage':args.voltage,'sink_current':args.current,'edge_mm':args.mesh_edge,'plating_mm':args.plating,
+        'mesh_backend':args.mesh_backend,
         'options':{'temperature_c':args.temperature,'ambient_c':args.ambient,'temperature_limit_c':args.temperature_limit}}
     if args.pulse is not None:request['options']['pulse_duration_s']=args.pulse
     try:

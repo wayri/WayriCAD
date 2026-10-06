@@ -155,6 +155,23 @@ def execute(request):
         result = analyze_board(board, request["field_map"], **options)
     view = build_board_thermal_view(board, result)
     thermal_network = None
+    calculix_manifest = None
+    geometry = None
+
+    def export_calculix(snapshot):
+        from .thermal_calculix import prepare_calculix, run_calculix
+
+        settings = request.get("calculix_settings")
+        if not isinstance(settings, dict):
+            raise ValueError("CalculiX export needs explicit calculix_settings.")
+        directory = request["calculix_export_dir"]
+        manifest = prepare_calculix(snapshot, view, result, settings, directory)
+        if request.get("calculix_run") and manifest["status"] == "deck_ready":
+            manifest = run_calculix(directory)
+        return manifest
+
+    if request.get("calculix_run") and not request.get("calculix_export_dir"):
+        raise ValueError("CalculiX execution needs an export directory.")
     if request.get("thermal_network_settings") is not None:
         settings = dict(request["thermal_network_settings"])
         settings["board_thickness_mm"] = view.get("board_thickness_mm")
@@ -192,6 +209,8 @@ def execute(request):
             geometry = collect_thermal_geometry(
                 board, path, contact_pads=settings.get("source_contact_pad_numbers"),
                 progress=emit_progress)
+            if request.get("calculix_export_dir"):
+                calculix_manifest = export_calculix(geometry)
             if request.get("mesh_acceptance") is not None:
                 thermal_network = solve_multilayer_thermal_convergence(
                     geometry, view, result, settings, request["mesh_acceptance"],
@@ -209,6 +228,11 @@ def execute(request):
             "board_references_missing_field": missing,
             "sink_references_from_explicit_rtheta_jc_and_contact": sorted(sink_resistances),
         }
+    if request.get("calculix_export_dir") and calculix_manifest is None:
+        from .thermal_geometry import collect_thermal_geometry
+
+        geometry = collect_thermal_geometry(board, path, progress=emit_progress)
+        calculix_manifest = export_calculix(geometry)
     from .thermal_review import evaluate_limits, sample_probes
 
     limits = evaluate_limits(board, result, request.get("limit_fields"))
@@ -219,6 +243,7 @@ def execute(request):
     return {
         "quick_therm": result, "board_thermal_view": view,
         "thermal_network": thermal_network,
+        "calculix": calculix_manifest,
         "request": {key: value for key, value in request.items() if key != "_emit_progress"},
         "temperature_limits": limits, "probes": probes,
         "source_sha256": before,

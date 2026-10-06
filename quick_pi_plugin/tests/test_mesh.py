@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch
 import numpy as np
-from quick_pi_plugin.mesh import triangulate, contains, build_mesh, _improve_angles
+from quick_pi_plugin.mesh import triangulate, triangulate_gmsh, contains, build_mesh, _improve_angles
 from quick_pi_plugin.solver import solve
 
 
@@ -11,6 +11,43 @@ def rectangle(x0,y0,x1,y1):
 
 
 class MeshTests(unittest.TestCase):
+    def test_gmsh_strip_matches_analytic_dc_resistance(self):
+        try:
+            import gmsh  # noqa: F401
+        except ImportError:
+            self.skipTest('Gmsh is unavailable in this Python runtime')
+        points, triangles, report = triangulate_gmsh([rectangle(0, 0, 2, 1)], .25)
+        self.assertAlmostEqual(report['area_mm2'], 2.0, places=7)
+        self.assertLessEqual(report['maximum_edge_mm'], .25 * (1 + 1e-8))
+        mesh = {'points_mm': points, 'triangles': triangles,
+                'triangle_thickness_mm': np.full(len(triangles), .035)}
+        source = np.flatnonzero(np.isclose(points[:, 0], 0))
+        sink = np.flatnonzero(np.isclose(points[:, 0], 2))
+        result = solve(mesh, source, sink)
+        expected = 1.724e-8 * .002 / (.001 * .000035)
+        self.assertAlmostEqual(result['drop_over_current_ohm'], expected, places=7)
+        self.assertLess(result['energy_relative_error'], 1e-10)
+
+    def test_optional_backend_selection_and_missing_gmsh(self):
+        geometry={'layers':[{'id':0,'name':'F.Cu','z_mm':0.,'thickness_mm':.035,
+                             'polygons':[rectangle(0,0,1,1)]}],
+                  'terminals':[],'vias':[]}
+        sample=(np.array([[0.,0.,0.],[1.,0.,0.],[0.,1.,0.]]),
+                np.array([[0,1,2]]),{'area_mm2':.5,'maximum_edge_mm':1.,'triangles':1})
+        with patch('importlib.util.find_spec',return_value=None),patch('quick_pi_plugin.mesh.triangulate',return_value=sample) as vtk_mesh:
+            mesh=build_mesh(geometry,edge_mm=1.)
+            self.assertEqual(mesh['mesh_backend'],'vtk')
+            self.assertEqual(mesh['mesh_report'][0]['backend'],'vtk')
+            vtk_mesh.assert_called_once()
+            with self.assertRaisesRegex(ValueError,'Gmsh is unavailable'):
+                build_mesh(geometry,edge_mm=1.,backend='gmsh')
+        with patch('importlib.util.find_spec',return_value=object()),patch('quick_pi_plugin.mesh.triangulate_gmsh',return_value=sample) as gmsh_mesh:
+            mesh=build_mesh(geometry,edge_mm=1.)
+            self.assertEqual(mesh['mesh_backend'],'gmsh')
+            gmsh_mesh.assert_called_once()
+        with self.assertRaisesRegex(ValueError,'Mesh backend'):
+            build_mesh(geometry,backend='unknown')
+
     def test_rotated_delaunay_recovers_primary_failure_without_moving_contours(self):
         import vtk
         factory=vtk.vtkDelaunay2D

@@ -42,6 +42,16 @@ class ThermalPlotReportTests(unittest.TestCase):
             draw_thermal_view(figure,VIEW,mode,'u2')
             self.assertTrue(figure.axes)
 
+    def test_paired_board_maps_accept_one_shared_temperature_scale(self):
+        field = {'x_centers_mm': [2, 8], 'y_centers_mm': [2, 6],
+                 'values_c': [[25., 30.], [32., 35.]]}
+        network = {'board_field': field, 'components': []}
+        for mode in ('Top board model', 'Bottom board model'):
+            figure = Figure(figsize=(5, 3))
+            draw_thermal_view(figure, VIEW, mode, network=network,
+                              temperature_limits_c=(20., 40.))
+            self.assertEqual(tuple(figure.axes[1].get_ylim()), (20., 40.))
+
     def test_report_contains_map_analytics_and_excluded_row(self):
         bundle={'board_thermal_view':VIEW,
                 'quick_therm':{'model':'Lumped steady-state screen','environment':'air','ambient_c':25,

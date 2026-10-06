@@ -52,3 +52,33 @@ class QuickThermCLITests(TestCase):
                            "--theta-ja-field", "RthetaJA", "--output", str(board)])
         self.assertEqual(status, 2)
         self.assertIn("must not overwrite", json.loads(output.getvalue())["error"])
+
+    def test_calculix_export_routes_reviewed_settings_to_worker(self):
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temporary:
+            config = Path(temporary) / "thermal.json"
+            config.write_text(json.dumps({"field_map": {"power_w": "Power_W"},
+                "calculix_settings": {"gmsh_mesh_size_mm": .5,
+                    "dielectric_k_w_mk": .3, "bottom_temperature_c": 20}}),
+                encoding="utf-8")
+            target = Path(temporary) / "thermal-deck"
+            with patch("quick_therm_plugin.service.run_job", return_value={"calculix": {
+                    "status": "needs_gmsh", "result_status": "not_solved"}}) as run_job:
+                with contextlib.redirect_stdout(StringIO()):
+                    status = main(["C:/Projects/Example/board.kicad_pcb", "--config",
+                                   str(config), "--calculix-dir", str(target),
+                                   "--run-calculix"])
+            self.assertEqual(status, 0)
+            request = run_job.call_args.args[0]
+            self.assertEqual(request["calculix_export_dir"], str(target.resolve()))
+            self.assertTrue(request["calculix_run"])
+            self.assertEqual(request["calculix_settings"]["gmsh_mesh_size_mm"], .5)
+
+    def test_calculix_rejects_missing_reviewed_settings(self):
+        with contextlib.redirect_stdout(StringIO()) as output:
+            status = main(["C:/Projects/Example/board.kicad_pcb", "--power-field",
+                           "Power_W", "--theta-ja-field", "RthetaJA",
+                           "--calculix-dir", "C:/Projects/Example/deck"])
+        self.assertEqual(status, 2)
+        self.assertIn("calculix_settings", json.loads(output.getvalue())["error"])

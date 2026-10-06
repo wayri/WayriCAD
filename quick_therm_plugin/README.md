@@ -8,13 +8,19 @@ For the separate steady multilayer model, set `"source_refinement_factor": 2` in
 
 Start with the [step-by-step user guide](QUICK_THERM_USER_GUIDE.md) or its [offline HTML version](QUICK_THERM_USER_GUIDE.html). The [model and limits](QUICK_THERM.md) explain the equations and supported evidence.
 
+An [experimental Gmsh/CalculiX bridge](CALCULIX_BRIDGE.md) can prepare a layered steady-conduction deck from a saved board and reviewed power/boundary inputs. It rejects vias, mounting contacts and cooling physics it cannot yet model; its CalculiX FRD output is not interpreted as a QuickTherm board or junction temperature.
+
 ![QuickTherm field mapping and board preview in the native window](examples/quicktherm-native-window.png)
 
 ![QuickTherm expanded board view with a temperature scale and component estimates](examples/quicktherm-large-board-view.png)
 
 ![QuickTherm approximate board-midplane temperature overlay from the optional heat model](examples/quicktherm-board-model-view.png)
 
-The **Expand board view** button opens a resizable thermal viewport. Top and bottom maps display labelled component junction estimates with a translucent, same-side interpolation where enough mapped points exist. The optional board conduction model provides an approximate board-temperature overlay; it needs material, airflow and boundary inputs. The first expanded map above is **not** a computed board-surface temperature. The second view is the optional thin-sheet model, using an assumed 35 W/(m·K) in-plane conductivity, 0.8 emissivity, 10 m/s forced airflow, a 48-cell long-axis grid and the saved 1.6 mm thickness. Those inputs are illustrative, not measured properties of the fixture.
+![QuickTherm simultaneous top and bottom board workspace with shared temperature scale and cross-selectable component table](examples/quicktherm-paired-workspace.png)
+
+The paired-workspace screenshot was captured from the native KiCad Python window using a synthetic 60 × 40 mm board outline, two invented components and illustrative layer-temperature arrays. It demonstrates the UI only; the temperatures are not measured or solver-qualified results.
+
+The **Open top + bottom workspace** button opens simultaneous front and mirrored-back thermal views with a live cursor readout, probe placement and a component summary that cross-selects with the plots and PCB Editor. Top and bottom maps display labelled component junction estimates with a translucent, same-side interpolation where enough mapped points exist. The optional board conduction model provides an approximate board-temperature overlay; it needs material, airflow and boundary inputs. The first expanded map above is **not** a computed board-surface temperature. The second view is the optional thin-sheet model, using an assumed 35 W/(m·K) in-plane conductivity, 0.8 emissivity, 10 m/s forced airflow, a 48-cell long-axis grid and the saved 1.6 mm thickness. Those inputs are illustrative, not measured properties of the fixture.
 
 The [component-results screenshot](examples/quicktherm-native-results.png) shows the sortable temperature table and summary in the same native window.
 

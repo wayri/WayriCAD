@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+from bisect import bisect_right
 
 
 _TEMPERATURE = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(°?C|K)?\s*$")
@@ -122,3 +123,68 @@ def sample_probes(view, network, definitions):
                 row.update(temperature_c=float(value), status="ESTIMATE")
         rows.append(row)
     return rows
+
+
+def cursor_readout(view, network, x_mm, y_mm, side):
+    """Inspect one visible board cell and any footprint directly under the cursor.
+
+    The field source is explicit so an interpolated junction estimate cannot be
+    mistaken for a solved board-surface temperature.
+    """
+    from .thermal_board_view import _on_board
+
+    x, y = float(x_mm), float(y_mm)
+    if side not in ("top", "bottom") or not all(map(math.isfinite, (x, y))):
+        raise ValueError("Cursor needs finite coordinates and a top/bottom side.")
+    output = {"x_mm": x, "y_mm": y, "side": side, "on_board": False,
+              "temperature_c": None, "field_source": None,
+              "reference": None, "component_id": None, "junction_c": None,
+              "model_junction_c": None}
+    if view.get("outline_status") != "valid" or not _on_board((x, y), view.get("outline", [])):
+        return output
+    output["on_board"] = True
+    if network and network.get("layers"):
+        field = network["layers"][0 if side == "top" else -1]
+        output["field_source"] = field["name"] + " layer model"
+    elif network and network.get("board_field"):
+        field = network["board_field"]
+        output["field_source"] = "thin-sheet board model"
+    else:
+        field = view.get("fields_by_side", {}).get(side, {})
+        output["field_source"] = "junction interpolation"
+    xs, ys, values = (field.get("x_centers_mm", []),
+                      field.get("y_centers_mm", []), field.get("values_c", []))
+    if xs and ys and values and field.get("status", "available") == "available":
+        def cell_index(axis, coordinate, centers):
+            edges = field.get(axis + "_edges_mm")
+            if edges and len(edges) == len(centers)+1:
+                index = bisect_right(edges, coordinate)-1
+                return index if 0 <= index < len(centers) else None
+            return min(range(len(centers)), key=lambda i: abs(centers[i]-coordinate))
+
+        i, j = cell_index("x", x, xs), cell_index("y", y, ys)
+        if i is not None and j is not None and j < len(values) and i < len(values[j]):
+            value = values[j][i]
+            if value is not None and math.isfinite(float(value)):
+                output["temperature_c"] = float(value)
+    candidates = []
+    for part in view.get("components", []):
+        if part.get("side") != side or not part.get("position_mm"):
+            continue
+        bbox = part.get("bbox_mm")
+        if bbox and len(bbox) == 4:
+            hit = bbox[0] <= x <= bbox[2] and bbox[1] <= y <= bbox[3]
+        else:
+            px, py = part["position_mm"]
+            hit = math.hypot(x-px, y-py) <= 1.0
+        if hit:
+            px, py = part["position_mm"]
+            candidates.append(((x-px)**2+(y-py)**2, part))
+    if candidates:
+        part = min(candidates, key=lambda item: item[0])[1]
+        model = next((row for row in (network or {}).get("components", [])
+                      if row["reference"] == part["reference"]), {})
+        output.update(reference=part["reference"], component_id=part["id"],
+                      junction_c=part.get("junction_c"),
+                      model_junction_c=model.get("junction_c"))
+    return output

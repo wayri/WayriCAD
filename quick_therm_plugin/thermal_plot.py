@@ -87,7 +87,8 @@ def _draw_3d(figure,view,selected_id,network,azim,elev):
 
 
 def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
-                      network=None,azim=-60,elev=28,probes=None):
+                      network=None,azim=-60,elev=28,probes=None,
+                      temperature_limits_c=None):
     figure.clear()
     if mode=='3D overview':return _draw_3d(figure,view,selected_id,network,azim,elev)
     ax=figure.add_subplot(111)
@@ -113,22 +114,29 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
                                                 for row in field['values_c']],dtype=float))
         if values.count():
             x=np.asarray(field['x_centers_mm']);y=np.asarray(field['y_centers_mm'])
-            mesh=ax.contourf(x,y,values,levels=24,cmap='inferno',alpha=.82 if contour else .58)
+            levels=(np.linspace(*temperature_limits_c, 25)
+                    if temperature_limits_c else 24)
+            mesh=ax.contourf(x,y,values,levels=levels,cmap='inferno',
+                             alpha=.82 if contour else .58,extend='both')
             figure.colorbar(mesh,ax=ax,label='Interpolated junction estimate °C (not board temperature)')
     elif contour:
         ax.text(.5,.05,field.get('reason') or 'Contour unavailable',ha='center',va='bottom',
                 transform=ax.transAxes,bbox={'facecolor':'white','alpha':.9,'edgecolor':'none'})
+    display_layer_name = layer_name
     if board_model:
         model_field=(network or {}).get('board_field',{})
         if (network or {}).get('layers'):
             layers=network['layers']
             model_field=next((row for row in layers if row['name']==layer_name),layers[-1 if bottom else 0])
+            display_layer_name = model_field['name']
         if model_field.get('values_c'):
             values=np.ma.masked_invalid(np.asarray([[np.nan if value is None else value for value in row]
                                                     for row in model_field['values_c']],dtype=float))
             if values.count():
+                levels=(np.linspace(*temperature_limits_c, 33)
+                        if temperature_limits_c else 32)
                 mesh=ax.contourf(model_field['x_centers_mm'],model_field['y_centers_mm'],values,
-                                   levels=32,cmap='inferno',alpha=.9)
+                                   levels=levels,cmap='inferno',alpha=.9,extend='both')
                 figure.colorbar(mesh,ax=ax,label=('Layer temperature °C' if (network or {}).get('layers') else 'Approximate board midplane °C'))
         else:ax.text(.5,.05,'Run the optional board heat model for this field.',ha='center',va='bottom',
                      transform=ax.transAxes,bbox={'facecolor':'white','alpha':.9,'edgecolor':'none'})
@@ -147,6 +155,8 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
     solved=[item for item in shown if item.get('solved') and item.get('position_mm')]
     temps=[item['junction_c'] for item in solved]
     low=min(temps) if temps else None;high=max(temps) if temps else None
+    if temperature_limits_c:
+        low, high = temperature_limits_c
     modeled={item['reference']:item for item in (network or {}).get('components',[])} if board_model else {}
     for item in shown:
         position=item.get('position_mm')
@@ -185,6 +195,6 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
         ax.set_xlim((x1+pad,x0-pad) if bottom else (x0-pad,x1+pad));ax.set_ylim(y1+pad,y0-pad)
     else:ax.invert_yaxis()
     ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X mm'+(' · mirrored bottom view' if bottom else ''));ax.set_ylabel('Y mm')
-    ax.set_title('Saved PCB '+side+' view · '+((layer_name+' copper layer' if layer_name else 'approximate board midplane') if board_model else
+    ax.set_title('Saved PCB '+side+' view · '+((display_layer_name+' copper layer' if display_layer_name else 'approximate board midplane') if board_model else
                  'same-side junction interpolation' if contour else 'component estimates with interpolated overlay'))
     figure.tight_layout();return ax

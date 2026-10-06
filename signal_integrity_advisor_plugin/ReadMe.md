@@ -1,5 +1,11 @@
 # WayriCAD Quick SI
 
+Quick SI analyzes routed paths, filled-zone corridors and via transitions with
+its existing path and screening models. It does not consume a finite-element
+triangle mesh, so Gmsh meshing alone would not improve its impedance or timing
+estimates. Coupled impedance, full plane fields and via discontinuities still
+need a validated field model.
+
 The Quick SI route preview uses the available window height; its result table
 stays compact below the preview. Resize the window or use the preview's Fit
 control to inspect a route in more detail.

@@ -317,7 +317,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_run=wx.Button(page,label='Run QuickTherm');self.therm_run.Bind(wx.EVT_BUTTON,self.on_quick_therm)
         self.therm_sink_button=wx.Button(page,label='Virtual heatsinks…');self.therm_sink_button.Bind(wx.EVT_BUTTON,self.on_virtual_heatsinks)
         self.therm_export=wx.Button(page,label='Export report…');self.therm_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('quick_therm'))
-        self.therm_expand=wx.Button(page,label='Expand board view…');self.therm_expand.Bind(wx.EVT_BUTTON,self.on_expand_thermal)
+        self.therm_expand=wx.Button(page,label='Open top + bottom workspace…');self.therm_expand.Bind(wx.EVT_BUTTON,self.on_expand_thermal)
         self.therm_probe_button=wx.ToggleButton(page,label='Place probe')
         self.therm_probe_button.Bind(wx.EVT_TOGGLEBUTTON,self._toggle_thermal_probe)
         self.therm_clear_probes=wx.Button(page,label='Clear probes')
@@ -348,7 +348,11 @@ class QuickThermFrame(wx.Frame):
         self.therm_figure=Figure(figsize=(8,4),dpi=100);self.therm_canvas=FigureCanvasWxAgg(page,wx.ID_ANY,self.therm_figure)
         self.therm_canvas.SetMinSize((700,460))
         self.therm_canvas.mpl_connect('button_release_event',self._thermal_plot_clicked)
-        visual.Add(self.therm_canvas,1,wx.EXPAND);body.Add(visual,1,wx.EXPAND);layout.Add(body,1,wx.EXPAND|wx.ALL,10)
+        self.therm_canvas.mpl_connect('motion_notify_event',self._thermal_plot_hovered)
+        visual.Add(self.therm_canvas,1,wx.EXPAND)
+        self.therm_cursor=wx.StaticText(page,label='Move over the board to read a field temperature and component Tj.')
+        visual.Add(self.therm_cursor,0,wx.EXPAND|wx.TOP,5)
+        body.Add(visual,1,wx.EXPAND);layout.Add(body,1,wx.EXPAND|wx.ALL,10)
         self.therm_analytics=wx.StaticText(page,label='Run QuickTherm to see min, max, mean, median and coverage.');layout.Add(self.therm_analytics,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         # The table scrolls its own columns.  A width of -1 lets its many
         # columns inflate the whole page and push the board preview offscreen.
@@ -649,49 +653,182 @@ class QuickThermFrame(wx.Frame):
 
     def on_expand_thermal(self, event=None):
         if not self.thermal_bundle.get('quick_therm'):
-            self.therm_status.SetLabel('Run QuickTherm before opening the large board view.')
+            self.therm_status.SetLabel('Run QuickTherm before opening the board workspace.')
             return
         from .thermal_plot import draw_thermal_view
+        from .thermal_review import cursor_readout
 
         screen = wx.GetDisplaySize()
-        dialog = wx.Dialog(self, title='QuickTherm · Board thermal views',
-                           size=(min(screen.width - 60, 1500), min(screen.height - 60, 950)),
+        dialog = wx.Dialog(self, title='QuickTherm · Top and bottom thermal workspace',
+                           size=(min(screen.width - 60, 1600), min(screen.height - 60, 1000)),
                            style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX)
+        dialog.SetMinSize((950, 690))
         layout = wx.BoxSizer(wx.VERTICAL)
         controls = wx.BoxSizer(wx.HORIZONTAL)
-        controls.Add(wx.StaticText(dialog, label='View'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        modes = wx.Choice(dialog, choices=[self.therm_mode.GetString(i)
-                                          for i in range(self.therm_mode.GetCount())])
-        modes.SetStringSelection(self.therm_mode.GetStringSelection())
+        controls.Add(wx.StaticText(dialog, label='Overlay'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        network = self.thermal_bundle.get('thermal_network')
+        modes = wx.Choice(dialog, choices=(['Board temperature', 'Component estimates']
+                                          if network else ['Component estimates']))
+        modes.SetSelection(0)
         controls.Add(modes, 0, wx.RIGHT, 12)
         probe_button=wx.ToggleButton(dialog,label='Place probe')
         controls.Add(probe_button,0,wx.RIGHT,12)
-        note = wx.StaticText(dialog, label='')
-        controls.Add(note, 1, wx.ALIGN_CENTER_VERTICAL)
+        controls.Add(wx.StaticText(dialog, label='Wheel: zoom · drag: pan · click a part: select in PCB Editor'),
+                     1, wx.ALIGN_CENTER_VERTICAL)
         layout.Add(controls, 0, wx.EXPAND | wx.ALL, 12)
-        figure = Figure(figsize=(12, 8), dpi=100)
-        canvas = FigureCanvasWxAgg(dialog, wx.ID_ANY, figure)
-        layout.Add(canvas, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+        plots = wx.BoxSizer(wx.HORIZONTAL)
+        figures = {}
+        canvases = {}
+        for side in ('top', 'bottom'):
+            panel = wx.Panel(dialog)
+            column = wx.BoxSizer(wx.VERTICAL)
+            title = wx.StaticText(panel, label=side.title()+' side · saved PCB')
+            font = title.GetFont()
+            font.SetWeight(wx.FONTWEIGHT_BOLD)
+            title.SetFont(font)
+            column.Add(title, 0, wx.LEFT | wx.BOTTOM, 5)
+            figure = Figure(figsize=(7, 5), dpi=100)
+            canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, figure)
+            canvas.SetMinSize((400, 340))
+            column.Add(canvas, 1, wx.EXPAND)
+            panel.SetSizer(column)
+            plots.Add(panel, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
+            figures[side], canvases[side] = figure, canvas
+        layout.Add(plots, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
+        cursor = wx.StaticText(dialog, label='Move the cursor over either board to read temperature and part junction estimate.')
+        layout.Add(cursor, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 12)
+        summary = wx.ListCtrl(dialog, style=wx.LC_REPORT | wx.LC_SINGLE_SEL, size=(-1, 190))
+        columns = [('Reference', 110), ('Side', 70), ('Junction °C', 120),
+                   ('Model Tj °C', 115), ('Board site °C', 135),
+                   ('Power W', 90), ('Limit', 90)]
+        for index, (name, width) in enumerate(columns):
+            summary.InsertColumn(index, name, width=width)
+        layout.Add(summary, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 12)
+        hint = wx.StaticText(dialog, label='Board temperature requires the optional board model. Component-estimate overlays interpolate junction values; they are not solved board temperatures.')
+        hint.Wrap(max(800, dialog.GetSize().width-60))
+        layout.Add(hint, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 12)
+
+        rows = [(item, row) for item, row in self._thermal_rows if row]
+        modeled = {item['reference']: item for item in (network or {}).get('components', [])}
+        limits = {item['reference']: item for item in
+                  self.thermal_bundle.get('temperature_limits', {}).get('rows', [])}
+        def summary_values(item, row):
+            model = modeled.get(item['reference'], {})
+            return [item['reference'], item['side'],
+                    f"{row['junction_c']:.2f}" if row.get('junction_c') is not None else '—',
+                    f"{model['junction_c']:.2f}" if model.get('junction_c') is not None else '—',
+                    f"{model['board_site_c']:.2f}" if model.get('board_site_c') is not None else '—',
+                    f"{row['power_w']:.3g}" if row.get('power_w') is not None else '—',
+                    limits.get(item['reference'], {}).get('status', 'UNKNOWN')]
+
+        def fill_summary():
+            summary.DeleteAllItems()
+            for item, row in rows:
+                values = summary_values(item, row)
+                index = summary.InsertItem(summary.GetItemCount(), values[0])
+                for col, value in enumerate(values[1:], 1):
+                    summary.SetItem(index, col, value)
+
+        rows.sort(key=lambda pair: pair[1].get('junction_c')
+                  if pair[1].get('junction_c') is not None else -math.inf, reverse=True)
+        fill_summary()
+
+        sort_column = [2]
+        sort_descending = [True]
+
+        def sort_summary(event):
+            column = event.GetColumn()
+            descending = not sort_descending[0] if column == sort_column[0] else column in (2, 3, 4, 5)
+            sort_column[0], sort_descending[0] = column, descending
+
+            def key(pair):
+                value = summary_values(*pair)[column]
+                if column in (2, 3, 4, 5):
+                    return float(value) if value != '—' else -math.inf
+                return value.casefold()
+
+            rows.sort(key=key, reverse=descending)
+            fill_summary()
+
+        summary.Bind(wx.EVT_LIST_COL_CLICK, sort_summary)
+
+        def plot_mode(side):
+            if modes.GetSelection() == 0 and network:
+                return side.title()+' board model'
+            return side.title()+'-side map'
 
         def draw(event=None):
-            mode = modes.GetStringSelection()
-            note.SetLabel('Approximate board temperature from declared inputs; marker labels are modeled junctions.'
-                          if ('board model' in mode.lower() or mode.startswith('Layer model:')) else
-                          'The colour overlay interpolates component estimates; it is not a board-surface solve.')
-            draw_thermal_view(figure, self.thermal_bundle.get('board_thermal_view', {}),
-                              mode, self._thermal_selected,
-                              self.thermal_bundle.get('thermal_network'),
-                              self.therm_azim.GetValue(), self.therm_elev.GetValue(),
-                              probes=self.thermal_bundle.get('probes',[]))
-            canvas.draw()
+            view = self.thermal_bundle.get('board_thermal_view', {})
+            if modes.GetSelection() == 0 and network:
+                fields = ([network['layers'][0], network['layers'][-1]]
+                          if network.get('layers') else [network.get('board_field', {})])
+            else:
+                fields = list(view.get('fields_by_side', {}).values())
+            temperatures = [value for field in fields for row in field.get('values_c', [])
+                            for value in row if value is not None and math.isfinite(float(value))]
+            scale = None
+            if temperatures:
+                low, high = min(temperatures), max(temperatures)
+                scale = (low, high) if high > low else (low-.5, high+.5)
+            for side in ('top', 'bottom'):
+                draw_thermal_view(figures[side], view,
+                                  plot_mode(side), self._thermal_selected, network,
+                                  self.therm_azim.GetValue(), self.therm_elev.GetValue(),
+                                  probes=self.thermal_bundle.get('probes', []),
+                                  temperature_limits_c=scale)
+                canvases[side].draw()
 
-        def clicked(point):
-            if probe_button.GetValue() and point.inaxes is figure.axes[0] and point.xdata is not None:
-                self._add_thermal_probe(point.xdata,point.ydata,modes.GetStringSelection())
+        def select(identifier):
+            self._thermal_choose(identifier)
+            for index, (item, _) in enumerate(rows):
+                if item['id'] == identifier:
+                    summary.Select(index)
+                    summary.EnsureVisible(index)
+                    break
+            draw()
+
+        def clicked(point, side):
+            if not point.inaxes or point.xdata is None or point.ydata is None:
+                return
+            if probe_button.GetValue():
+                self._add_thermal_probe(point.xdata, point.ydata, plot_mode(side))
                 draw()
+                return
+            info = cursor_readout(self.thermal_bundle.get('board_thermal_view', {}),
+                                  network if modes.GetSelection() == 0 else None,
+                                  point.xdata, point.ydata, side)
+            if info['component_id']:
+                select(info['component_id'])
+
+        def hovered(point, side):
+            if not point.inaxes or point.xdata is None or point.ydata is None:
+                return
+            info = cursor_readout(self.thermal_bundle.get('board_thermal_view', {}),
+                                  network if modes.GetSelection() == 0 else None,
+                                  point.xdata, point.ydata, side)
+            if not info['on_board']:
+                cursor.SetLabel(f'{side.title()} · outside verified board outline')
+                return
+            value = (f"{info['temperature_c']:.2f} °C" if info['temperature_c'] is not None
+                     else 'unknown')
+            part = (f" · {info['reference']} Tj≈{info['junction_c']:.2f} °C"
+                    if info['junction_c'] is not None else
+                    f" · {info['reference']} Tj unknown" if info['reference'] else '')
+            if info['model_junction_c'] is not None:
+                part += f" · model Tj≈{info['model_junction_c']:.2f} °C"
+            cursor.SetLabel(f"{side.title()} · X {info['x_mm']:.2f} mm · Y {info['y_mm']:.2f} mm · "
+                            f"{info['field_source']}: {value}{part}")
 
         modes.Bind(wx.EVT_CHOICE, draw)
-        canvas.mpl_connect('button_release_event',clicked)
+        for side, canvas in canvases.items():
+            canvas.mpl_connect('button_release_event',
+                               lambda point, side=side: clicked(point, side))
+            canvas.mpl_connect('motion_notify_event',
+                               lambda point, side=side: hovered(point, side))
+        summary.Bind(wx.EVT_LIST_ITEM_SELECTED,
+                     lambda item: select(rows[item.GetIndex()][0]['id'])
+                     if 0 <= item.GetIndex() < len(rows) and
+                     rows[item.GetIndex()][0]['id'] != self._thermal_selected else None)
         close = wx.Button(dialog, wx.ID_CLOSE, label='Close')
         close.Bind(wx.EVT_BUTTON, lambda evt: dialog.EndModal(wx.ID_CLOSE))
         layout.Add(close, 0, wx.ALIGN_RIGHT | wx.ALL, 12)
@@ -758,6 +895,33 @@ class QuickThermFrame(wx.Frame):
         if points:
             distance,identifier=min(points)
             if distance<=14**2:self._thermal_choose(identifier)
+
+
+    def _thermal_plot_hovered(self, event):
+        if not self.thermal_bundle or event.xdata is None or event.ydata is None:
+            return
+        mode=self.therm_mode.GetStringSelection()
+        if mode in ('3D overview','Temperature chart') or mode.startswith('Layer model: '):
+            return
+        from .thermal_review import cursor_readout
+
+        side='bottom' if 'Bottom' in mode else 'top'
+        model=self.thermal_bundle.get('thermal_network') if 'board model' in mode.lower() else None
+        info=cursor_readout(self.thermal_bundle.get('board_thermal_view',{}),model,
+                            event.xdata,event.ydata,side)
+        if not info['on_board']:
+            self.therm_cursor.SetLabel(side.title()+' · outside verified board outline')
+            return
+        value=(f"{info['temperature_c']:.2f} °C" if info['temperature_c'] is not None
+               else 'unknown')
+        part=(f" · {info['reference']} Tj≈{info['junction_c']:.2f} °C"
+              if info['junction_c'] is not None else
+              f" · {info['reference']} Tj unknown" if info['reference'] else '')
+        if info['model_junction_c'] is not None:
+            part+=f" · model Tj≈{info['model_junction_c']:.2f} °C"
+        self.therm_cursor.SetLabel(f"{side.title()} · X {info['x_mm']:.2f} mm · "
+                                   f"Y {info['y_mm']:.2f} mm · "
+                                   f"{info['field_source']}: {value}{part}")
 
 
     def _select_thermal_in_editor(self,identifier):

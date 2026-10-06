@@ -26,11 +26,15 @@ def main(argv=None):
     parser.add_argument("--ambient", type=float)
     parser.add_argument("--output", type=Path, help="JSON result")
     parser.add_argument("--html", type=Path, help="Self-contained HTML and companion JSON")
+    parser.add_argument("--calculix-dir", type=Path,
+                        help="New directory for an experimental Gmsh/CalculiX deck; needs calculix_settings in --config")
+    parser.add_argument("--run-calculix", action="store_true",
+                        help="Run ccx after deck creation when installed; FRD temperatures remain unparsed")
     parser.add_argument("--timeout", type=float, default=1800.0)
     args = parser.parse_args(argv)
     try:
         board = args.board.resolve()
-        for output in (args.output, args.html):
+        for output in (args.output, args.html, args.calculix_dir):
             if output and output.resolve() == board:
                 raise ValueError("Output must not overwrite the source PCB.")
         if args.config:
@@ -44,7 +48,7 @@ def main(argv=None):
             allowed = {"environment", "ambient_c", "field_map", "references", "heatsinks",
                        "vacuum_board_to_environment_k_per_w", "thermal_network_settings",
                        "thermal_network_component_field", "thermal_model_kind", "mesh_acceptance",
-                       "limit_fields", "probes"}
+                       "limit_fields", "probes", "calculix_settings"}
             if not isinstance(settings, dict) or set(settings) - allowed:
                 raise ValueError("QuickTherm config has unsupported settings.")
             if not isinstance(settings.get("field_map"), dict) or not settings["field_map"].get("power_w"):
@@ -96,6 +100,16 @@ def main(argv=None):
             }
         if args.html:
             request["html_output"] = str(args.html.resolve())
+        if args.calculix_dir:
+            request["calculix_export_dir"] = str(args.calculix_dir.resolve())
+        if args.run_calculix:
+            request["calculix_run"] = True
+        if request.get("calculix_export_dir") and not isinstance(request.get("calculix_settings"), dict):
+            raise ValueError("--calculix-dir needs calculix_settings in --config.")
+        if request.get("calculix_settings") and not request.get("calculix_export_dir"):
+            raise ValueError("calculix_settings needs --calculix-dir.")
+        if args.run_calculix and not args.calculix_dir:
+            raise ValueError("--run-calculix needs --calculix-dir.")
         from .service import run_job
 
         result = run_job(request, timeout=args.timeout)

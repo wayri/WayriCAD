@@ -2,7 +2,9 @@
 
 import unittest
 
-from quick_therm_plugin.thermal_review import evaluate_limits, parse_temperature, sample_probes
+from quick_therm_plugin.thermal_review import (
+    cursor_readout, evaluate_limits, parse_temperature, sample_probes,
+)
 
 
 class Footprint:
@@ -45,6 +47,30 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result[0]["temperature_c"], 30)
         self.assertEqual(result[0]["source"], "thin_sheet_board_model")
         self.assertEqual(result[1]["status"], "UNKNOWN")
+
+    def test_cursor_uses_true_cell_edges_and_component_hit(self):
+        view = {"outline_status": "valid", "outline": [{
+            "outer_mm": [[0, 0], [10, 0], [10, 10], [0, 10]], "holes_mm": []}],
+            "components": [{"id": "u1", "reference": "U1", "side": "top",
+                            "position_mm": [3, 3], "bbox_mm": [2, 2, 4, 4],
+                            "junction_c": 54}]}
+        network = {"components": [{"reference": "U1", "junction_c": 56}], "layers": [
+            {"name": "F.Cu", "x_centers_mm": [1, 5], "y_centers_mm": [2, 7],
+             "x_edges_mm": [0, 2, 10], "y_edges_mm": [0, 4, 10],
+             "values_c": [[31, 35], [33, 37]]},
+            {"name": "B.Cu", "x_centers_mm": [1, 5], "y_centers_mm": [2, 7],
+             "x_edges_mm": [0, 2, 10], "y_edges_mm": [0, 4, 10],
+             "values_c": [[28, 29], [30, 31]]}]}
+        top = cursor_readout(view, network, 2.5, 3, "top")
+        self.assertEqual(top["temperature_c"], 35)
+        self.assertEqual(top["field_source"], "F.Cu layer model")
+        self.assertEqual(top["junction_c"], 54)
+        self.assertEqual(top["model_junction_c"], 56)
+        self.assertEqual(top["component_id"], "u1")
+        bottom = cursor_readout(view, network, 2.5, 3, "bottom")
+        self.assertEqual(bottom["temperature_c"], 29)
+        self.assertIsNone(bottom["junction_c"])
+        self.assertFalse(cursor_readout(view, network, 11, 3, "top")["on_board"])
 
 
 if __name__ == "__main__":

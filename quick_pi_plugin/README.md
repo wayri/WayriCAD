@@ -58,6 +58,15 @@ cell budget on long, thin triangles. Geometry, area and electrical conservation
 checks still apply; the mesh budget is unchanged. A successful solve or stable
 total resistance does not establish convergence of local current-density peaks.
 
+If the Quick PI Python runtime has the optional `gmsh` package, meshing uses
+Gmsh's conforming planar surfaces for extracted copper and contact regions.
+The same internal 2.5D DC solver uses those triangles; this does not add a 3D
+or AC field solver. With no Gmsh package, `auto` uses the existing VTK mesher.
+The JSON mesh report records the selected backend. For a reproducible CLI run,
+choose `--mesh-backend gmsh` to require Gmsh or `--mesh-backend vtk` to require
+VTK. A requested Gmsh run reports a setup error if its package is unavailable;
+geometry, area, edge length and cell-budget checks remain in force.
+
 ## Console
 
 Expand **Console** to enter commands. `help`, `nets`, and `pads <net>` list available names. **Tab** cycles context-aware completions; **Up/Down** recall commands. Commands run through the same cancellable worker as the controls; the pane does not execute Python or shell commands.

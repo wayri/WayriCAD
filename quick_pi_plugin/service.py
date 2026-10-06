@@ -95,7 +95,8 @@ def execute(request):
     output={'geometry':geometry,'request':request,'model':'2.5D DC copper conduction; layered sheets and plated barrels'}
     if action!='geometry':
         from .mesh import build_mesh
-        mesh=build_mesh(geometry,edge_mm=float(request.get('edge_mm',.5)),plating_mm=float(request.get('plating_mm',.025)))
+        mesh=build_mesh(geometry,edge_mm=float(request.get('edge_mm',.5)),plating_mm=float(request.get('plating_mm',.025)),
+                        backend=request.get('mesh_backend','auto'))
         output['mesh']=mesh
         if action=='solve':
             from .solver import solve
@@ -203,7 +204,8 @@ def series_execute(board,path,request):
     merged_layers={};all_terminals=[];all_vias=[];warnings=[];domain_counts=[]
     for net in dict.fromkeys(nets):
         geometry=extract(board,net,source_path=path,stackup_override=request.get('stackup_override'))
-        local=build_mesh(geometry,edge_mm=mesh['edge_mm'],plating_mm=mesh['plating_mm'])
+        local=build_mesh(geometry,edge_mm=mesh['edge_mm'],plating_mm=mesh['plating_mm'],
+                         backend=request.get('mesh_backend','auto'))
         offset=len(mesh['points_mm']);mesh['points_mm'].extend(local['points_mm'])
         if has_drop:mesh.setdefault('series_domains',[]).append({'net':net,'start':offset,'end':len(mesh['points_mm'])})
         mesh['triangles'].extend([[i+offset for i in t] for t in local['triangles']])
