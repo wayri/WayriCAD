@@ -10,6 +10,27 @@ imported F.Cu and B.Cu fields with cursor temperatures, probes and component
 cross-selection. A model junction temperature is shown only where an explicit
 RθJB field was mapped; the CalculiX deck itself does not contain packages.
 
+## Native setup
+
+1. Install a CalculiX `ccx` executable for your operating system. In the
+   QuickTherm board-model controls, select **CalculiX 3D · fixed lower face**,
+   then choose **Locate CalculiX…** and **Check solver setup**. The selected
+   executable is remembered locally for later runs. `ccx` on `PATH` or the
+   `WAYRICAD_CCX` environment variable also works. QuickTherm reports a
+   missing or invalid executable before starting a board run.
+2. Gmsh is prepared in QuickTherm's private Python worker on first use if no
+   `gmsh` executable is on `PATH`. First-time setup may require network access;
+   subsequent runs reuse the installed runtime.
+3. Save the PCB with an explicit stackup and valid Edge.Cuts outline. Select
+   top-side heat-source footprints, enter their operating dissipation manually
+   or map a saved power field, and enter dielectric conductivity, mesh target,
+   and the fixed lower-face temperature. RθJB is optional and affects only
+   the displayed junction estimate, never the board solution.
+4. Run QuickTherm. The board workspace, probes and report show the checked
+   CalculiX top/bottom fields and heat balance. An unknown RθJB leaves package
+   Tj and any junction-limit result **UNKNOWN**, while board temperature remains
+   available.
+
 ```python
 from quick_therm_plugin.thermal_calculix import prepare_calculix, run_calculix
 
@@ -26,7 +47,8 @@ if manifest["status"] == "deck_ready":
 
 The independent QuickTherm CLI can prepare the same deck from a saved board
 and a reviewed JSON config that maps `field_map.power_w` and contains
-`calculix_settings`. For example:
+`calculix_settings`. Set `"thermal_model_kind": "calculix"` for the complete
+solve and field import. For example:
 
 ```text
 wayricad-therm C:/Projects/Example/board.kicad_pcb --config thermal.json --calculix-dir C:/Projects/Example/thermal-deck

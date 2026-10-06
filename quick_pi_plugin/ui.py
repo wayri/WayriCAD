@@ -24,7 +24,7 @@ class QuickPIFrame(wx.Frame):
             if icon_path.is_file():icons.AddIcon(wx.Icon(str(icon_path),wx.BITMAP_TYPE_PNG))
         if icons.GetIcon(wx.Size(48,48)).IsOk():self.SetIcons(icons)
         self.SetMinSize((940,680));self.board_path=str(Path(board_path).resolve())
-        self.bundle={};self.inventory={};self.return_bundle={};self.sweep_bundle={}
+        self.bundle={};self.inventory={};self.return_bundle={};self.sweep_bundle={};self.volume_bundle={}
         self._busy=False;self._closed=False;self._closing=False
         self._series_request=None
         self._cancel=threading.Event();self._terminals=[];self._layers=[];self._plot_keys={}
@@ -48,15 +48,24 @@ class QuickPIFrame(wx.Frame):
             form.Add(wx.StaticText(panel,label=name),0,wx.ALIGN_CENTER_VERTICAL);form.Add(control,1,wx.EXPAND)
         self.dc_form=form
         root.Add(form,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
-        root.Add(self.operation_note,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        mode_row=wx.BoxSizer(wx.HORIZONTAL)
+        mode_row.Add(wx.StaticText(panel,label='Copper model'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        self.model_dimension=wx.Choice(panel,choices=['2.5D · layered copper','3D · copper volume (Gmsh)'])
+        self.model_dimension.SetSelection(0)
+        mode_row.Add(self.model_dimension,0,wx.RIGHT,14)
+        mode_row.Add(self.operation_note,1,wx.ALIGN_CENTER_VERTICAL)
+        self.mode_row=mode_row
+        root.Add(mode_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         self.options=wx.CollapsiblePane(panel,label='Mesh and material options',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
-        pane=self.options.GetPane();grid=wx.FlexGridSizer(2,6,6,10)
+        pane=self.options.GetPane();grid=wx.FlexGridSizer(0,6,6,10)
         for col in (1,3,5):grid.AddGrowableCol(col,1)
         self.edge=wx.TextCtrl(pane,value='0.5');self.plating=wx.TextCtrl(pane,value='0.025')
         self.temperature=wx.TextCtrl(pane,value='20');self.ambient=wx.TextCtrl(pane,value='20')
         self.pulse=wx.TextCtrl(pane,value='1');self.limit=wx.TextCtrl(pane,value='150')
+        self.max_tetrahedra=wx.TextCtrl(pane,value='250000')
         for name,control in [('Mesh edge mm',self.edge),('Via plating mm',self.plating),('Copper °C',self.temperature),
-                             ('Ambient °C',self.ambient),('Pulse seconds',self.pulse),('Screen limit °C',self.limit)]:
+                             ('Ambient °C',self.ambient),('Pulse seconds',self.pulse),('Screen limit °C',self.limit),
+                             ('3D max tetrahedra',self.max_tetrahedra)]:
             grid.Add(wx.StaticText(pane,label=name),0,wx.ALIGN_CENTER_VERTICAL);grid.Add(control,1,wx.EXPAND)
         pane.SetSizer(grid);root.Add(self.options,0,wx.EXPAND|wx.ALL,12)
         viewer=wx.BoxSizer(wx.HORIZONTAL)
@@ -103,18 +112,19 @@ class QuickPIFrame(wx.Frame):
         footer.Add(self.gauge,0,wx.ALIGN_CENTER_VERTICAL);footer.AddStretchSpacer()
         for control in (self.run,self.export,self.cancel):footer.Add(control,0,wx.LEFT,8)
         root.Add(footer,0,wx.EXPAND|wx.ALL,12);panel.SetSizer(root)
-        self._controls=[self.net,self.source,self.sink,self.voltage,self.current,self.load_mode,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.more,self.series_button,self.layer,self.metric,self.console_input]
+        self._controls=[self.net,self.source,self.sink,self.voltage,self.current,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.console_input]
         self.net.Bind(wx.EVT_COMBOBOX,self._net_changed)
         for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._invalidate)
-        for control in (self.voltage,self.current,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit):control.Bind(wx.EVT_TEXT,self._invalidate)
+        for control in (self.voltage,self.current,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
         self.load_mode.Bind(wx.EVT_CHOICE,self._invalidate)
+        self.model_dimension.Bind(wx.EVT_CHOICE,self._model_changed)
         self.options.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:panel.Layout())
         self.console.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:panel.Layout())
         self.console_input.Bind(wx.EVT_TEXT_ENTER,self.on_console)
         self.console_input.Bind(wx.EVT_KEY_DOWN,self._console_key)
         self.layer.Bind(wx.EVT_CHOICE,lambda event:self._draw());self.metric.Bind(wx.EVT_CHOICE,lambda event:self._draw(preserve=True))
         self.book.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED,self._page_changed)
-        self.preview.Bind(wx.EVT_BUTTON,self.preview_geometry);self.run.Bind(wx.EVT_BUTTON,lambda event:self._analyze('solve'))
+        self.preview.Bind(wx.EVT_BUTTON,self.preview_geometry);self.run.Bind(wx.EVT_BUTTON,self.on_run)
         self.more.Bind(wx.EVT_BUTTON,self.on_more);self.export.Bind(wx.EVT_BUTTON,self.on_export)
         self.series_button.Bind(wx.EVT_BUTTON,self.on_series_editor)
         self.cancel.Bind(wx.EVT_BUTTON,self.on_cancel);self.Bind(wx.EVT_CLOSE,self.on_close)
@@ -167,6 +177,7 @@ class QuickPIFrame(wx.Frame):
     def _buttons(self):
         placement=self.book.GetSelection()>=len(self.views)
         self.dc_form.ShowItems(not placement);self.dc_viewer.ShowItems(not placement)
+        self.mode_row.ShowItems(not placement)
         for window in (self.options,self.console,self.summary,self.series_button,self.preview,self.run,self.export,self.status):window.Show(not placement)
         self.main_panel.Layout()
         for control in self._controls:control.Enable(not self._busy)
@@ -175,8 +186,12 @@ class QuickPIFrame(wx.Frame):
         self.return_run.Enable(not self._busy)
         self.return_export.Enable(not self._busy and bool(self.return_bundle.get('return_path')))
         self.preview.Enable(not self._busy and bool(self.net.GetValue()))
-        self.run.Enable(not self._busy and len(self._terminals)>1)
-        self.export.Enable(not self._busy and bool(self.bundle.get('result')))
+        volume=self.model_dimension.GetSelection()==1
+        self.run.SetLabel('Run 3D copper' if volume else 'Run analysis')
+        self.run.Enable(not self._busy and len(self._terminals)>1 and
+                        (not volume or (not self._series_request and self.load_mode.GetSelection()==0)))
+        self.export.SetLabel('Export 3D JSON…' if volume else 'Export report…')
+        self.export.Enable(not self._busy and bool(self.volume_bundle.get('result') if volume else self.bundle.get('result')))
         self.cancel.Enable(self._busy);self.cancel.Show(not placement);self.gauge.Show(self._busy and not placement)
         self.more.SetLabel("Reload saved board" if placement else "More…")
         self.more.InvalidateBestSize();self.more.SetMinSize(self.more.GetBestSize());self.main_panel.Layout()
@@ -184,6 +199,8 @@ class QuickPIFrame(wx.Frame):
         if self._series_request:
             self.source.Disable();self.sink.Disable()
             self.preview.Enable(not self._busy and bool(self.bundle.get('geometry')))
+        for control in (self.ambient,self.pulse,self.limit):control.Enable(not self._busy and not volume)
+        self.max_tetrahedra.Enable(not self._busy and volume)
         if self.book.GetSelection()>=len(self.views):
             for control in (self.net,self.source,self.sink,self.voltage,self.current,self.layer,self.metric,self.preview,self.run,self.export):control.Disable()
 
@@ -205,7 +222,11 @@ class QuickPIFrame(wx.Frame):
             if self.book.GetSelection()==len(self.views):self.return_status.SetLabel(str(error))
             self._console_write('Error: '+str(error))
             self.status.Wrap(max(600,self.GetClientSize().width-32))
-        else:finished(result)
+        else:
+            try:finished(result)
+            except Exception as exc:
+                self.status.SetLabel('Could not display the result: '+str(exc))
+                self._console_write('Display error: '+str(exc))
         self._buttons();self.Layout()
         if self._closing:self._end()
 
@@ -222,7 +243,7 @@ class QuickPIFrame(wx.Frame):
 
     def _inspect(self):
         if self._closed or self._closing:return
-        self._series_request=None;self.bundle={};self.return_bundle={}
+        self._series_request=None;self.bundle={};self.volume_bundle={};self.return_bundle={}
         self.sweep_bundle={};self.return_table.DeleteAllItems()
         self.return_figure.clear();self.return_canvas.draw_idle()
         def finished(result):
@@ -248,19 +269,34 @@ class QuickPIFrame(wx.Frame):
 
     def _net_changed(self,event=None):
         self._series_request=None;self.operation_note.SetLabel('Source voltage → sink current')
-        self.bundle={};self._set_terminals();self._plot_keys.clear();self._draw()
+        self.bundle={};self.volume_bundle={};self._set_terminals();self._plot_keys.clear();self._draw()
         self.status.SetLabel('Preview this net or run the analysis.')
 
     def _invalidate(self,event=None):
         if event and event.GetEventObject() is self.load_mode:
             self.operation_note.SetLabel('Source voltage → resistive load to 0 V' if self.load_mode.GetSelection()==1 else 'Source voltage → specified sink current')
         self.bundle.pop('convergence',None)
-        self.bundle.pop('result',None);self._buttons();self.summary.SetLabel('Inputs changed. Run again to update the electrical results.')
+        self.bundle.pop('result',None);self.volume_bundle={};self._buttons();self.summary.SetLabel('Inputs changed. Run again to update the electrical results.')
+        if self.model_dimension.GetSelection()==1 and self.load_mode.GetSelection()!=0:
+            self.status.SetLabel('3D copper supports a specified sink current. Set Mode to Specified sink current (A).')
         request=self.bundle.setdefault('request',{})
         for control,key in ((self.source,'source_terminal'),(self.sink,'sink_terminal')):
             if control.GetSelection()>=0:request[key]=self._terminals[control.GetSelection()]['id']
         self._draw(preserve=True)
         if event:event.Skip()
+
+    def _model_changed(self,event=None):
+        self._invalidate(event)
+        if self.model_dimension.GetSelection()==1:
+            self.status.SetLabel('3D copper needs a specified sink current; switch Mode from resistive load before running.'
+                                 if self.load_mode.GetSelection()!=0 else
+                                 '3D DC copper needs Gmsh in the private runtime, one net, two pads and a specified current. First setup may download Gmsh.')
+        else:
+            self.status.SetLabel('2.5D layered copper is the default model. Choose two pads and run the analysis.')
+
+    def on_run(self,event=None):
+        if self.model_dimension.GetSelection()==1:self.on_3d_analysis()
+        else:self._analyze('solve')
 
     def _request(self,action,require_terminals=True):
         def number(control,label,positive=False):
@@ -275,9 +311,12 @@ class QuickPIFrame(wx.Frame):
             a,b=self.source.GetSelection(),self.sink.GetSelection()
             if require_terminals and (min(a,b)<0 or a==b):raise ValueError('Choose two different source and sink pads on this net.')
             if min(a,b)>=0:request.update(source_terminal=self._terminals[a]['id'],sink_terminal=self._terminals[b]['id'])
-            request.update(source_voltage=number(self.voltage,'Source voltage'),
-                options={'temperature_c':number(self.temperature,'Copper temperature'),'ambient_c':number(self.ambient,'Ambient temperature'),
-                         'temperature_limit_c':number(self.limit,'Temperature limit'),'pulse_duration_s':number(self.pulse,'Pulse duration',True)})
+            options={'temperature_c':number(self.temperature,'Copper temperature')}
+            if self.model_dimension.GetSelection()==0:
+                options.update(ambient_c=number(self.ambient,'Ambient temperature'),
+                               temperature_limit_c=number(self.limit,'Temperature limit'),
+                               pulse_duration_s=number(self.pulse,'Pulse duration',True))
+            request.update(source_voltage=number(self.voltage,'Source voltage'),options=options)
             if self.load_mode.GetSelection()==1:request['load_resistance_ohm']=number(self.current,'Load resistance',True)
             else:request['sink_current']=number(self.current,'Sink current',True)
         else:
@@ -495,16 +534,16 @@ class QuickPIFrame(wx.Frame):
     def on_more(self,event):
         if self.book.GetSelection()>=len(self.views):self._inspect();return
         menu=wx.Menu();mesh=menu.Append(wx.ID_ANY,'Generate mesh only');self.Bind(wx.EVT_MENU,lambda e:self._analyze('mesh'),mesh)
-        volume=menu.Append(wx.ID_ANY,'Run 3D copper analysis…')
+        volume=menu.Append(wx.ID_ANY,'Select 3D copper analysis')
         volume.Enable(len(self._terminals)>1)
-        self.Bind(wx.EVT_MENU,self.on_3d_analysis,volume)
+        self.Bind(wx.EVT_MENU,lambda e:(self.model_dimension.SetSelection(1),self._model_changed()),volume)
         details=menu.Append(wx.ID_ANY,'Layer thickness, losses and hotspots…');details.Enable(bool(self.bundle.get('result',{}).get('analytics')))
         self.Bind(wx.EVT_MENU,self.on_details,details)
         focus=menu.Append(wx.ID_ANY,'Zoom to circuit terminals');self.Bind(wx.EVT_MENU,self._focus_terminals,focus)
         refine=menu.Append(wx.ID_ANY,'Refine mesh and rerun (half edge length)')
         self.Bind(wx.EVT_MENU,self._refine,refine)
         study=menu.Append(wx.ID_ANY,'Check mesh convergence…');self.Bind(wx.EVT_MENU,self.on_convergence,study)
-        study.Enable(len(self._terminals)>1)
+        study.Enable(len(self._terminals)>1 and self.model_dimension.GetSelection()==0)
         ladder=menu.Append(wx.ID_ANY,'Series voltage ladder…');ladder.Enable(bool(self.bundle.get('result',{}).get('components')))
         self.Bind(wx.EVT_MENU,self.on_series_details,ladder)
         sweep=menu.Append(wx.ID_ANY,'DC current sweep…');sweep.Enable(len(self._terminals)>1)
@@ -527,22 +566,24 @@ class QuickPIFrame(wx.Frame):
             request['options']={'temperature_c':float(self.temperature.GetValue())}
             if not math.isfinite(request['options']['temperature_c']):
                 raise ValueError('Copper temperature must be finite.')
+            try:budget=int(self.max_tetrahedra.GetValue())
+            except ValueError:raise ValueError('3D tetrahedron budget must be a whole number.')
+            if not 1<=budget<=1_000_000:
+                raise ValueError('3D tetrahedron budget must be between 1 and 1,000,000.')
+            request['max_tetrahedra']=budget
         except Exception as exc:
             self.status.SetLabel(str(exc));return
         from .service import run_job
+        self.volume_bundle={};self._buttons()
         self._task(lambda:run_job(request,cancelled=self._cancel.is_set,timeout=300),
-                   self._show_3d_analysis,'Meshing and solving the saved 3D copper volume…')
+                   self._show_3d_analysis,'Preparing Gmsh runtime; meshing and solving saved 3D copper…')
 
     def _show_3d_analysis(self,bundle):
-        import numpy as np
+        from .volume_view import QUANTITIES,layer_names,sampled_cells
         result=bundle['result'];mesh=bundle['mesh']
-        cells=np.asarray(result['cell_centroid_mm'],dtype=float)
-        vectors=np.asarray([row if row is not None else (0,0,0)
-                            for row in result['cell_J_A_mm2']],dtype=float)
-        active=np.asarray([row is not None for row in result['cell_J_A_mm2']])
-        if not active.any():raise ValueError('3D solve returned no connected copper cells.')
-        indices=np.flatnonzero(active)
-        indices=indices[np.linspace(0,len(indices)-1,min(len(indices),4000),dtype=int)]
+        if not sampled_cells(bundle,limit=1)[2]:
+            raise ValueError('3D solve returned no connected copper cells.')
+        self.volume_bundle=bundle
         dialog=wx.Dialog(self,title='Quick PI · 3D copper current density',size=(1050,780),
                          style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         layout=wx.BoxSizer(wx.VERTICAL)
@@ -551,34 +592,78 @@ class QuickPIFrame(wx.Frame):
                  f"Loss {result['total_power_W']:.4g} W  |  "
                  f"{mesh['tetrahedron_count']:,} tetrahedra")
         layout.Add(wx.StaticText(dialog,label=summary),0,wx.EXPAND|wx.ALL,10)
-        figure=Figure(figsize=(9,6),dpi=100)
-        axes=figure.add_subplot(111,projection='3d')
-        magnitude=np.linalg.norm(vectors[indices],axis=1)
-        plot=axes.scatter(cells[indices,0],cells[indices,1],cells[indices,2],
-                          c=magnitude,cmap='inferno',s=4,alpha=.8,rasterized=True)
-        axes.set(xlabel='X (mm)',ylabel='Y (mm)',zlabel='Z (mm)',
-                 title=f'Current density at {len(indices):,} sampled tetrahedron centroids')
-        figure.colorbar(plot,ax=axes,label='|J| (A/mm²)',shrink=.7)
+        audit=(f"Current residual {result['current_balance_error_A']:.3g} A  |  "
+               f"Power balance {result['energy_relative_error']*100:.3g}%  |  "
+               f"Volume check {mesh['volume_relative_error']*100:.3g}%")
+        layout.Add(wx.StaticText(dialog,label=audit),0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        selectors=wx.BoxSizer(wx.HORIZONTAL)
+        selectors.Add(wx.StaticText(dialog,label='View'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
+        projection=wx.Choice(dialog,choices=['Board top view','3D copper']);projection.SetSelection(0)
+        selectors.Add(projection,0,wx.RIGHT,16)
+        selectors.Add(wx.StaticText(dialog,label='Layer'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
+        layers=wx.Choice(dialog,choices=layer_names(bundle));layers.SetSelection(0)
+        selectors.Add(layers,0,wx.RIGHT,16)
+        selectors.Add(wx.StaticText(dialog,label='Field'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
+        quantities=wx.Choice(dialog,choices=list(QUANTITIES));quantities.SetSelection(0)
+        selectors.Add(quantities,0)
+        layout.Add(selectors,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        figure=Figure(figsize=(9,6),dpi=100,facecolor='white')
         canvas=FigureCanvasWxAgg(dialog,wx.ID_ANY,figure)
         toolbar=NavigationToolbar2WxAgg(canvas);toolbar.Realize()
         layout.Add(canvas,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
         layout.Add(toolbar,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
-        note='Fixed-temperature DC model; ideal pad electrodes. Refine the mesh for local peaks. The complete field is in the JSON export.'
-        layout.Add(wx.StaticText(dialog,label=note),0,wx.EXPAND|wx.ALL,10)
+        note=wx.StaticText(dialog,label='Ideal pad electrodes · fixed-temperature DC · plotted cells are sampled; JSON includes every tetrahedron.')
+        layout.Add(note,0,wx.EXPAND|wx.ALL,10)
+        def draw(event=None):
+            layer=layers.GetStringSelection()
+            field=quantities.GetStringSelection()
+            xyz,values,total=sampled_cells(bundle,layer,QUANTITIES[field])
+            figure.clear()
+            axes=figure.add_subplot(111,projection='3d' if projection.GetSelection()==1 else None)
+            if len(values):
+                if projection.GetSelection()==1:
+                    artist=axes.scatter(xyz[:,0],xyz[:,1],xyz[:,2],c=values,cmap='inferno',
+                                        s=5,alpha=.85,rasterized=True)
+                    axes.set_zlabel('Z (mm)')
+                    extent=xyz.max(axis=0)-xyz.min(axis=0)
+                    axes.set_box_aspect((max(extent[0],.01),max(extent[1],.01),
+                                         max(extent[2],.01)),zoom=.85)
+                else:
+                    artist=axes.scatter(xyz[:,0],xyz[:,1],c=values,cmap='inferno',
+                                        s=8,alpha=.9,rasterized=True)
+                    axes.set_aspect('equal',adjustable='datalim');axes.invert_yaxis()
+                figure.colorbar(artist,ax=axes,label=field,shrink=.75)
+                note.SetLabel(f'{total:,} connected cells on {layer}; {len(values):,} plotted. '+
+                              'Ideal pad electrodes · fixed-temperature DC; JSON contains the complete field.')
+            else:
+                axes.text(.1,.5,'No connected copper cells in this view.',transform=axes.transAxes)
+                note.SetLabel(f'No connected cells on {layer}. Floating copper does not carry this solved current.')
+            axes.set_xlabel('X (mm)');axes.set_ylabel('Y (mm)')
+            axes.set_title(f'{layer} · {field}')
+            figure.tight_layout();canvas.draw_idle()
+        for choice in (projection,layers,quantities):choice.Bind(wx.EVT_CHOICE,draw)
         buttons=wx.BoxSizer(wx.HORIZONTAL);save=wx.Button(dialog,label='Export 3D JSON…')
         buttons.Add(save,0,wx.RIGHT,8);buttons.Add(dialog.CreateButtonSizer(wx.CLOSE),0)
         layout.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,10)
-        def export(event):
-            name=Path(self.board_path).stem+'-quick-pi-3d.json'
-            with wx.FileDialog(dialog,'Export 3D field',defaultDir=str(Path(self.board_path).parent),
-                               defaultFile=name,wildcard='JSON (*.json)|*.json',
-                               style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as picker:
-                if picker.ShowModal()!=wx.ID_OK:return
-                Path(picker.GetPath()).write_text(json.dumps(bundle,allow_nan=False),encoding='utf-8')
-        save.Bind(wx.EVT_BUTTON,export)
+        save.Bind(wx.EVT_BUTTON,lambda e:self._export_3d(dialog,bundle))
         dialog.Bind(wx.EVT_BUTTON,lambda e:dialog.EndModal(wx.ID_CLOSE),id=wx.ID_CLOSE)
-        dialog.SetSizer(layout);dialog.ShowModal();dialog.Destroy()
-        self.status.SetLabel('3D DC solve complete. Use the JSON export for the full field and verification metrics.')
+        dialog.SetSizer(layout);draw();dialog.ShowModal();dialog.Destroy()
+        self.status.SetLabel('3D DC solve complete. Export JSON here or from the main window for the full field.')
+        self._buttons()
+
+    def _export_3d(self,parent,bundle):
+        if not bundle.get('result'):return
+        name=Path(self.board_path).stem+'-quick-pi-3d.json'
+        with wx.FileDialog(parent,'Export 3D field',defaultDir=str(Path(self.board_path).parent),
+                           defaultFile=name,wildcard='JSON (*.json)|*.json',
+                           style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as picker:
+            if picker.ShowModal()!=wx.ID_OK:return
+            target=Path(picker.GetPath())
+        try:target.write_text(json.dumps(bundle,allow_nan=False),encoding='utf-8')
+        except (OSError,ValueError) as exc:
+            wx.MessageBox('Could not export the 3D result: '+str(exc),'Quick PI',wx.OK|wx.ICON_ERROR,parent)
+            return
+        self.status.SetLabel('Exported complete 3D field: '+str(target))
 
     def on_series_details(self,event=None):
         components=self.bundle.get('result',{}).get('components',[])
@@ -729,6 +814,10 @@ class QuickPIFrame(wx.Frame):
         try:
             value=float(self.edge.GetValue())/2
             if not math.isfinite(value) or value<=0:raise ValueError('Mesh edge must be positive.')
+            if self.model_dimension.GetSelection()==1:
+                self.edge.SetValue(f'{value:g}')
+                self.on_3d_analysis()
+                return
             prior=dict(self.bundle.get('request',{}));self.edge.SetValue(f'{value:g}')
             if prior.get('series'):
                 prior['edge_mm']=value
@@ -737,6 +826,9 @@ class QuickPIFrame(wx.Frame):
         except Exception as exc:self.status.SetLabel(str(exc))
 
     def on_export(self,event=None):
+        if self.model_dimension.GetSelection()==1:
+            self._export_3d(self,self.volume_bundle)
+            return
         if not self.bundle.get('result'):return
         with wx.FileDialog(self,'Export self-contained results',defaultDir=str(Path(self.board_path).parent),defaultFile=Path(self.board_path).stem+'-quick-pi.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return

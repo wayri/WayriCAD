@@ -7,6 +7,17 @@ The base component calculation is a lumped thermal screen. Optional board
 models add either a thin-sheet field or a layer-resolved stackup/copper field.
 Neither is CFD, a transient simulation or a qualified measurement.
 
+The optional **CalculiX 3D · fixed lower face** mode is a separate bounded
+steady-conduction model. It accepts selected top-side heat sources with known
+power even when RθJA/RθJB is unavailable. In the board-model controls, choose
+that mode, use **Locate CalculiX…** to select the `ccx` executable, then use
+**Check solver setup**. The executable path is remembered locally. Gmsh may be
+installed into QuickTherm's private runtime on first use. Set the fixed
+lower-face temperature, conductivity and mesh target before running. The
+solved top/bottom board field is available without RθJB; package junction
+temperature and junction-limit status remain **UNKNOWN** until a valid RθJB is
+entered or mapped. See the [CalculiX setup and limits](CALCULIX_BRIDGE.md).
+
 ![Illustration of the QuickTherm configuration tab](quicktherm-ui.svg)
 
 *UI illustration based on the implemented wxPython controls. The 1 W and 0.5 W

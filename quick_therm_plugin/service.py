@@ -18,8 +18,14 @@ def run_job(request, cancelled=None, timeout=1800, progress=None):
         REQUIREMENTS_QUICK_THERM, child_environment, ensure_runtime,
     )
 
-    python = ensure_runtime({name: spec for name, spec in REQUIREMENTS_QUICK_THERM.items()
-                             if name != "kipy"})
+    requirements = {name: spec for name, spec in REQUIREMENTS_QUICK_THERM.items()
+                    if name != "kipy"}
+    if (request.get("thermal_model_kind") == "calculix" or
+            request.get("calculix_export_dir") or request.get("calculix_run")):
+        import shutil
+        if not shutil.which("gmsh"):
+            requirements["gmsh"] = "gmsh>=4.11,<5"
+    python = ensure_runtime(requirements)
     with tempfile.TemporaryDirectory(prefix="wayricad-quick-therm-") as temporary:
         root = Path(temporary)
         source, target = root / "request.json", root / "response.json"
@@ -142,14 +148,24 @@ def execute(request):
     if action != "quick_therm":
         raise ValueError("Unknown QuickTherm action: " + str(action))
 
-    from .quick_therm import analyze_board, analyze_manual_board
+    from .quick_therm import analyze_board, analyze_manual_board, analyze_power_sources
     from .thermal_board_view import build_board_thermal_view
 
     options = dict(environment=request["environment"], ambient_c=request.get("ambient_c", 20.0),
                    references=request.get("references"),
                    vacuum_board_to_environment_k_per_w=request.get("vacuum_board_to_environment_k_per_w"),
                    heatsinks=request.get("heatsinks"))
-    if request.get("input_mode") == "manual":
+    if request.get("thermal_model_kind") == "calculix":
+        result = analyze_power_sources(
+            board, environment=request["environment"],
+            ambient_c=request.get("ambient_c", 20.0),
+            references=request.get("references"),
+            field_map=request.get("field_map"),
+            manual_values=request.get("manual_values") if request.get("input_mode") == "manual" else None)
+        if result["coverage"]["excluded"]:
+            raise ValueError("CalculiX needs valid power for every selected component: " +
+                             ", ".join(row["reference"] for row in result["coverage"]["excluded"]))
+    elif request.get("input_mode") == "manual":
         result = analyze_manual_board(board, request.get("manual_values"), **options)
     else:
         result = analyze_board(board, request["field_map"], **options)
@@ -212,6 +228,13 @@ def execute(request):
                     continue
                 resistances[row["reference"]] = parse_field_quantity(raw, "theta_jb_k_per_w")
             settings["component_to_board_k_per_w"] = resistances
+        elif request.get("thermal_model_kind") == "calculix" and request.get("input_mode") == "manual":
+            from .quick_therm import parse_field_quantity
+
+            settings["component_to_board_k_per_w"] = {
+                ref: parse_field_quantity(values["theta_jb_k_per_w"], "theta_jb_k_per_w")
+                for ref, values in request.get("manual_values", {}).items()
+                if "theta_jb_k_per_w" in values}
         sink_resistances = {}
         sink_key = ("theta_sa_air_k_per_w" if request["environment"] == "air"
                     else "theta_sa_vacuum_k_per_w")
@@ -247,6 +270,17 @@ def execute(request):
                                        "junction_c": site + power*rjb if site is not None and rjb is not None else None,
                                        "junction_method": "board site + declared RthetaJB" if rjb is not None else "unknown"})
                 thermal_network["components"] = components
+                modeled = {row["reference"]: row for row in components}
+                for row in result["components"]:
+                    junction = modeled[row["reference"]]["junction_c"]
+                    if junction is not None:
+                        row["junction_c"] = junction
+                        row["rise_above_ambient_k"] = junction-result["ambient_c"]
+                        row["rise_local_k"] = row["power_w"] * settings["component_to_board_k_per_w"][row["reference"]]
+                        row["resistance_k_per_w"] = settings["component_to_board_k_per_w"][row["reference"]]
+                result["coverage"]["solved"] = sum(row["junction_c"] is not None for row in result["components"])
+                result["assumptions"].append("Modeled junctions use the solved board site plus declared RθJB; others remain unknown.")
+                view = build_board_thermal_view(board, result)
             elif request.get("calculix_export_dir"):
                 calculix_manifest, _ = export_calculix(geometry)
             if request.get("thermal_model_kind") == "calculix":

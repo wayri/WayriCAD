@@ -3,7 +3,8 @@ import json
 import unittest
 
 from quick_therm_plugin.quick_therm import (
-    analyze_board, analyze_manual_board, extract_mapped_components, parse_field_quantity,
+    analyze_board, analyze_manual_board, analyze_power_sources,
+    extract_mapped_components, parse_field_quantity,
     simulate_steady_state,
 )
 
@@ -37,6 +38,22 @@ class QuickThermTests(unittest.TestCase):
         ])
         self.map = {'power_w': 'Dissipation', 'theta_ja_air_k_per_w': 'Theta JA',
                     'theta_jb_k_per_w': 'Theta JB', 'theta_jc_k_per_w': 'Theta JC'}
+
+    def test_calculix_sources_need_power_but_no_invented_junction_resistance(self):
+        result = analyze_power_sources(self.board, environment='air', ambient_c=25,
+                                       references=['U1', 'U2'],
+                                       field_map={'power_w': 'Dissipation'})
+        self.assertEqual(result['coverage']['power_sources'], 2)
+        self.assertEqual(result['coverage']['solved'], 0)
+        self.assertAlmostEqual(result['total_scoped_power_w'], 1.5)
+        self.assertTrue(all(row['junction_c'] is None and row['resistance_k_per_w'] is None
+                            for row in result['components']))
+        manual = analyze_power_sources(self.board, environment='air', ambient_c=25,
+                                       references=['U1'], manual_values={'U1': {'power_w': '0.5 W'}})
+        self.assertEqual(manual['coverage']['power_sources'], 1)
+        with self.assertRaisesRegex(ValueError, 'enter dissipated power'):
+            analyze_power_sources(self.board, environment='air', ambient_c=25,
+                                  references=['U1'], manual_values={'U1': {}})
 
     def test_air_analytical_and_energy_accounting(self):
         result = analyze_board(self.board, self.map, environment='air', ambient_c=25)

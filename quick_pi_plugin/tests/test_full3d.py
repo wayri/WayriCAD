@@ -70,6 +70,10 @@ class NativeGmshTests(unittest.TestCase):
         self.assertGreater(mesh['tetrahedron_count'],10)
         self.assertLess(mesh['volume_relative_error'],1e-5)
         result=solve_volume(mesh,mesh['terminal_nodes']['A'],mesh['terminal_nodes']['B'])
+        from quick_pi_plugin.volume_view import sampled_cells
+        field={'geometry':geometry,'mesh':mesh,'result':result}
+        self.assertGreater(sampled_cells(field,'F.Cu','current_density')[2],10)
+        self.assertGreater(sampled_cells(field,'F.Cu','voltage')[2],10)
         expected=1.724e-8*(2e-3)/(1e-3*.2e-3)
         self.assertLess(abs(result['drop_over_current_ohm']/expected-1),.05)
         self.assertLess(result['energy_relative_error'],1e-8)

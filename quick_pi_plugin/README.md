@@ -15,7 +15,7 @@
 
 ## Limitations
 
-- This is DC conduction, not full 3D/AC electromagnetics or a thermal-field solve. Series inductance adds stored-energy reporting, not RL transient behavior.
+- Both copper models solve DC conduction; neither is an AC electromagnetic or thermal-field solve. Series inductance adds stored-energy reporting, not RL transient behavior.
 - Zones must be filled when included in the path; valid connectivity and explicit material/stackup inputs are required. Assumed via plating is not a measured property.
 - Local current-density peaks depend on mesh/contact assumptions; stable total resistance alone does not certify hotspot convergence.
 - Pulse-risk estimates omit cooling, heat spreading and fuse-opening dynamics. They are not fusing-time predictions or manufacturing sign-off.
@@ -93,12 +93,19 @@ tetrahedron budget, or violates conservation. Plated slots, backdrills and
 unresolved drill contours are unsupported rather than converted to cylinders.
 The 3D model is fixed-temperature DC conduction: it does not solve AC skin or
 proximity effects, dielectric current, thermal feedback or series components.
-In the native window, choose a net and two pads, then select **More → Run 3D
-copper analysis**. The result window shows a sampled 3D current-density field,
-voltage drop, resistance and loss; **Export 3D JSON** preserves the complete
-tetrahedral field and verification metrics. The regular layer maps and HTML
-reports still render the 2.5D sheet model. Resistive-load/sweep and
-pulse-screening modes remain 2.5D until their 3D contracts are implemented.
+In the native window, choose a net and two pads, set **Copper model** to
+**3D · copper volume (Gmsh)**, and enter a specified sink current. The first
+run prepares Gmsh in Quick PI's private Python runtime when needed; setup may
+require access to the configured package source. Set the 3D tetrahedron budget
+under **Mesh and material options**. Start with a coarse mesh edge and refine
+after inspecting the result. **Run 3D copper** opens a result view with a board
+top view and a 3D view, copper-layer or interlayer barrel filtering, and current
+density, voltage and volumetric loss density. The display samples cells for
+speed; the DC drop, loss and conservation checks use the full mesh. **Export
+3D JSON** from that window or the main window saves the complete field and
+verification metrics. Editing an input invalidates that result. Switch back to
+**2.5D · layered copper** for the standard per-layer maps and HTML report.
+Resistive-load/sweep, series paths and pulse screening remain 2.5D.
 
 ## Console
 

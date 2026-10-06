@@ -11,7 +11,8 @@ import unittest
 from unittest.mock import patch
 
 from quick_therm_plugin.thermal_calculix import (
-    calculix_deck, gmsh_geo, prepare_calculix, read_msh2, run_calculix,
+    calculix_deck, find_calculix, gmsh_geo, prepare_calculix, read_msh2,
+    run_calculix,
 )
 from quick_therm_plugin.thermal_calculix_result import (
     import_calculix_field, read_frd_temperatures,
@@ -35,6 +36,32 @@ def fixture():
 
 
 class CalculixBridgeTests(unittest.TestCase):
+    def test_worker_prepares_gmsh_only_for_calculix(self):
+        from quick_therm_plugin.service import run_job
+
+        class Checked(Exception):
+            pass
+
+        with patch("wayricad_runtime.runtime_setup.ensure_runtime", side_effect=Checked) as ensure:
+            with patch("shutil.which", return_value=None):
+                with self.assertRaises(Checked):
+                    run_job({"thermal_model_kind": "calculix"})
+            self.assertIn("gmsh", ensure.call_args.args[0])
+            with self.assertRaises(Checked):
+                run_job({"thermal_model_kind": "multilayer"})
+            self.assertNotIn("gmsh", ensure.call_args.args[0])
+
+    def test_solver_discovery_prefers_explicit_then_environment(self):
+        with tempfile.TemporaryDirectory() as root:
+            executable = Path(root) / "ccx.exe"
+            executable.write_bytes(b"test")
+            with patch("quick_therm_plugin.thermal_calculix.os.access", return_value=True):
+                with patch.dict(os.environ, {"WAYRICAD_CCX": str(executable)}):
+                    self.assertEqual(find_calculix(), str(executable.resolve()))
+                    self.assertEqual(find_calculix(executable), str(executable.resolve()))
+            with self.assertRaisesRegex(ValueError, "unavailable"):
+                find_calculix(Path(root) / "missing-ccx.exe")
+
     @unittest.skipUnless(importlib.util.find_spec("gmsh") and os.environ.get("WAYRICAD_TEST_CCX"),
                          "Needs Gmsh and WAYRICAD_TEST_CCX")
     def test_real_calculix_uniform_plate(self):
@@ -96,7 +123,7 @@ class CalculixBridgeTests(unittest.TestCase):
             before = path.read_bytes()
             request = {"action": "quick_therm", "board_path": str(path),
                        "input_mode": "manual", "manual_values": {
-                           "U1": {"power_w": "1 W", "theta_ja_air_k_per_w": "10 K/W"}},
+                           "U1": {"power_w": "1 W"}},
                        "environment": "air", "ambient_c": 20, "references": ["U1"],
                        "thermal_model_kind": "calculix", "thermal_network_settings": {
                            "board_k_w_mk": .3, "board_emissivity": 0,
@@ -112,6 +139,13 @@ class CalculixBridgeTests(unittest.TestCase):
             self.assertFalse(response["calculix"]["artifacts_retained"])
             self.assertEqual(response["thermal_network"]["model"], "CalculiX 3D steady conduction")
             self.assertGreater(response["thermal_network"]["layers"][0]["sampled_max_c"], 20)
+            self.assertIsNone(response["quick_therm"]["components"][0]["junction_c"])
+            self.assertEqual(response["temperature_limits"]["status"], "UNKNOWN")
+            request["manual_values"]["U1"]["theta_jb_k_per_w"] = "2 K/W"
+            with_junction = execute(request)
+            self.assertGreater(with_junction["quick_therm"]["components"][0]["junction_c"],
+                               with_junction["thermal_network"]["components"][0]["board_site_c"])
+            self.assertEqual(path.read_bytes(), before)
 
     def test_completed_result_imports_surfaces_and_conserves_heat(self):
         geometry, view, result, settings, nodes, triangles = fixture()
@@ -136,7 +170,8 @@ class CalculixBridgeTests(unittest.TestCase):
             manifest = {**audit, "mesh_file": "board.msh", "result_file": "board.frd",
                         "gmsh_mesh_size_mm": 2, "calculix_deck": "board.inp", "status": "deck_ready"}
             (directory/"manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-            with patch("quick_therm_plugin.thermal_calculix.subprocess.run") as process:
+            with patch("quick_therm_plugin.thermal_calculix.find_calculix", return_value="example-ccx"), \
+                 patch("quick_therm_plugin.thermal_calculix.subprocess.run") as process:
                 process.return_value.returncode = 0
                 outcome = run_calculix(directory, ccx="example-ccx")
             self.assertEqual(outcome["status"], "solved")

@@ -36,6 +36,7 @@ class QuickThermFrame(wx.Frame):
         self._busy = False
         self._closed = False
         self._cancel = threading.Event()
+        self._solver_config = wx.Config("WayriCAD QuickTherm")
         self.main_panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
         title = wx.BoxSizer(wx.HORIZONTAL)
@@ -135,6 +136,8 @@ class QuickThermFrame(wx.Frame):
                                    progress=show_progress), finished, message)
 
     def _inspect(self):
+        if self._closed:
+            return
         self.thermal_bundle = {}
         self.manual_values = {}
         self.therm_table.DeleteAllItems()
@@ -270,7 +273,8 @@ class QuickThermFrame(wx.Frame):
         self.therm_plating.SetHint('Fabrication value, mm')
         self.therm_ccx_mesh=wx.TextCtrl(model_pane,value='0.5')
         self.therm_ccx_bottom=wx.TextCtrl(model_pane,value='20')
-        self.therm_ccx_executable=wx.TextCtrl(model_pane,value='')
+        self.therm_ccx_executable=wx.TextCtrl(
+            model_pane,value=self._solver_config.Read('calculix_executable', ''))
         self.therm_ccx_executable.SetHint('Optional full path to ccx executable; otherwise PATH')
         self.therm_blur=wx.Choice(model_pane,choices=['0 · exact cell occupancy','0.5 cell','1 cell'])
         self.therm_blur.SetSelection(0)
@@ -280,9 +284,11 @@ class QuickThermFrame(wx.Frame):
         self.therm_air_sink=wx.TextCtrl(model_pane,value='0')
         self.therm_grid=wx.SpinCtrl(model_pane,min=12,max=80,initial=48,size=(80,-1))
         self.therm_sink_area=wx.TextCtrl(model_pane,value='');self.therm_sink_area.SetHint('One: 1200 · multiple: U1=1200, U2=800')
-        model_grid.Add(self.therm_model_enabled,0,wx.ALIGN_CENTER_VERTICAL)
-        model_grid.Add(wx.StaticText(model_pane,label='Saved thickness used automatically'),0,wx.ALIGN_CENTER_VERTICAL)
-        model_grid.Add(wx.StaticText(model_pane,label='Steady-state approximation; no CFD'),0,wx.ALIGN_CENTER_VERTICAL)
+        for heading in (self.therm_model_enabled,
+                        wx.StaticText(model_pane,label='Saved thickness used automatically'),
+                        wx.StaticText(model_pane,label='Steady-state approximation; no CFD')):
+            model_grid.Add(heading,0,wx.ALIGN_CENTER_VERTICAL)
+            model_grid.AddSpacer(1)
         for label,control in [('In-plane board k W/m·K',self.therm_k),('Board emissivity 0–1',self.therm_emissivity),
                               ('Model junction-to-board RθJB field',self.therm_model_jb),
                               ('Board airflow m/s',self.therm_air_board),('Sink airflow m/s',self.therm_air_sink),
@@ -299,6 +305,16 @@ class QuickThermFrame(wx.Frame):
             model_grid.Add(wx.StaticText(model_pane,label=label),0,wx.ALIGN_CENTER_VERTICAL)
             model_grid.Add(control,1,wx.EXPAND)
         model_layout=wx.BoxSizer(wx.VERTICAL);model_layout.Add(model_grid,0,wx.EXPAND)
+        solver_setup=wx.BoxSizer(wx.HORIZONTAL)
+        self.therm_ccx_browse=wx.Button(model_pane,label='Locate CalculiX…')
+        self.therm_ccx_browse.Bind(wx.EVT_BUTTON,self.on_calculix_browse)
+        self.therm_ccx_check=wx.Button(model_pane,label='Check solver setup')
+        self.therm_ccx_check.Bind(wx.EVT_BUTTON,self.on_calculix_check)
+        self.therm_ccx_status=wx.StaticText(model_pane,label='Select CalculiX mode to check the external solver.')
+        solver_setup.Add(self.therm_ccx_browse,0,wx.RIGHT,7)
+        solver_setup.Add(self.therm_ccx_check,0,wx.RIGHT,10)
+        solver_setup.Add(self.therm_ccx_status,1,wx.ALIGN_CENTER_VERTICAL)
+        model_layout.Add(solver_setup,0,wx.EXPAND|wx.TOP|wx.BOTTOM,8)
         mount_row=wx.BoxSizer(wx.HORIZONTAL)
         self.therm_mounts=wx.CheckListBox(model_pane,size=(420,80))
         self._therm_mount_candidates=[]
@@ -407,9 +423,16 @@ class QuickThermFrame(wx.Frame):
 
     def _therm_controls(self):
         vacuum=self.therm_env.GetSelection()==1
-        self.therm_ja.Enable(not vacuum);self.therm_jb.Enable(vacuum);self.therm_jc.Enable(bool(self.virtual_heatsinks))
-        self.therm_board_r.Enable(vacuum)
         selected=self.therm_model_kind.GetSelection() if self.therm_model_enabled.GetValue() else -1
+        self.therm_ja.Enable(not vacuum and selected!=2)
+        self.therm_jb.Enable(vacuum and selected!=2)
+        self.therm_jc.Enable(bool(self.virtual_heatsinks) and selected!=2)
+        self.therm_board_r.Enable(vacuum and selected!=2)
+        self.therm_emissivity.Enable(selected in (0,1) and not self._busy)
+        for ctrl in (self.therm_air_board,self.therm_air_sink,self.therm_grid,self.therm_sink_area):
+            ctrl.Enable(selected in (0,1) and not self._busy)
+        if hasattr(self,'therm_sink_button'):
+            self.therm_sink_button.Enable(selected!=2 and not self._busy)
         self.therm_k.Enable(selected==0 and not self._busy)
         for ctrl in (self.therm_dielectric_k,self.therm_copper_k):
             ctrl.Enable(selected in (1,2) and not self._busy)
@@ -418,6 +441,32 @@ class QuickThermFrame(wx.Frame):
             ctrl.Enable(selected==1 and not self._busy)
         for ctrl in (self.therm_ccx_mesh,self.therm_ccx_bottom,self.therm_ccx_executable):
             ctrl.Enable(selected==2 and not self._busy)
+        for ctrl in (self.therm_ccx_browse,self.therm_ccx_check):
+            ctrl.Enable(selected==2 and not self._busy)
+
+    def on_calculix_browse(self,event=None):
+        with wx.FileDialog(self,'Select CalculiX ccx executable',
+                           style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as picker:
+            if picker.ShowModal()!=wx.ID_OK:return
+            self.therm_ccx_executable.SetValue(picker.GetPath())
+        self.on_calculix_check()
+
+    def on_calculix_check(self,event=None):
+        from .thermal_calculix import find_calculix
+        try:
+            solver=find_calculix(self.therm_ccx_executable.GetValue().strip() or None)
+        except ValueError as exc:
+            self.therm_ccx_status.SetLabel(str(exc))
+            return False
+        if not solver:
+            self.therm_ccx_status.SetLabel('CalculiX ccx is missing. Locate it above or add it to PATH.')
+            return False
+        self.therm_ccx_status.SetLabel('Ready: '+Path(solver).name+' · Gmsh will be checked when the model runs.')
+        chosen=self.therm_ccx_executable.GetValue().strip()
+        if chosen:
+            self._solver_config.Write('calculix_executable',chosen)
+            self._solver_config.Flush()
+        return True
 
 
     def _input_mode_changed(self,event=None):
@@ -439,18 +488,24 @@ class QuickThermFrame(wx.Frame):
             return False
         from .manual_setup import ManualThermalDialog
         environment='vacuum' if self.therm_env.GetSelection()==1 else 'air'
-        with ManualThermalDialog(self,references,environment,self.virtual_heatsinks,self.manual_values) as dialog:
+        power_only=(self.therm_model_enabled.GetValue() and
+                    self.therm_model_kind.GetSelection()==2)
+        with ManualThermalDialog(self,references,environment,self.virtual_heatsinks,
+                                 self.manual_values,power_only=power_only) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:
                 return False
             self.manual_values.update(dialog.values)
         self._invalidate_thermal()
-        self.therm_status.SetLabel(f'Explicit power and Rθ entered for {len(references)} selected component(s). Run QuickTherm to see the estimate.')
+        details='power' if power_only else 'power and Rθ'
+        self.therm_status.SetLabel(f'Explicit {details} entered for {len(references)} selected component(s). Run QuickTherm to see the estimate.')
         return True
 
 
     def _therm_model_changed(self,event):
         self._therm_controls()
         self._invalidate_thermal(event)
+        if self.therm_model_enabled.GetValue() and self.therm_model_kind.GetSelection()==2:
+            self.on_calculix_check()
 
 
     def on_virtual_heatsinks(self,event=None):
@@ -486,14 +541,17 @@ class QuickThermFrame(wx.Frame):
         field=self.therm_jb if environment=='vacuum' else self.therm_ja
         kind='theta_jb_k_per_w' if environment=='vacuum' else 'theta_ja_air_k_per_w'
         manual=self.therm_input_mode.GetSelection()==0
+        calculix=(self.therm_model_enabled.GetValue() and
+                  self.therm_model_kind.GetSelection()==2)
         if not references:
             self.therm_status.SetLabel('Select at least one dissipating component before running QuickTherm.');return
         if manual:
             if any('power_w' not in self.manual_values.get(ref,{}) or
-                   ('theta_jc_k_per_w' if ref in sinks else kind) not in self.manual_values.get(ref,{})
+                   (not calculix and ('theta_jc_k_per_w' if ref in sinks else kind)
+                    not in self.manual_values.get(ref,{}))
                    for ref in references):
                 if not self.on_manual_setup():return
-        elif not self.therm_power.GetValue() or (unsinked and not field.GetValue()) or (sinks and not self.therm_jc.GetValue()):
+        elif not self.therm_power.GetValue() or (not calculix and unsinked and not field.GetValue()) or (not calculix and sinks and not self.therm_jc.GetValue()):
             self.therm_status.SetLabel('Map power and RθJA/RθJB for selected parts, plus RθJC for virtual heatsinks.');return
         try:
             request={'action':'quick_therm','board_path':self.board_path,'environment':environment,
@@ -509,23 +567,28 @@ class QuickThermFrame(wx.Frame):
                 request['manual_values']={ref:self.manual_values[ref] for ref in references}
             else:
                 request['field_map']={'power_w':self.therm_power.GetValue()}
-                if field.GetValue():request['field_map'][kind]=field.GetValue()
+                if field.GetValue() and not calculix:request['field_map'][kind]=field.GetValue()
                 if sinks:request['field_map']['theta_jc_k_per_w']=self.therm_jc.GetValue()
-            if environment=='vacuum' and unsinked:
+            if environment=='vacuum' and unsinked and not calculix:
                 request['vacuum_board_to_environment_k_per_w']=float(self.therm_board_r.GetValue())
         except ValueError as exc:self.therm_status.SetLabel('Enter valid ambient and board-to-environment values: '+str(exc));return
         if self.therm_model_enabled.GetValue():
             try:
-                if self.therm_model_kind.GetSelection()==2 and sinks:
+                model_index=self.therm_model_kind.GetSelection()
+                if model_index==2 and sinks:
                     raise ValueError('CalculiX board mode does not model virtual heatsinks.')
-                settings={'board_k_w_mk':float(self.therm_k.GetValue()),
-                          'board_emissivity':float(self.therm_emissivity.GetValue()),
-                          'board_airflow_m_s':float(self.therm_air_board.GetValue()),
-                          'sink_airflow_m_s':float(self.therm_air_sink.GetValue()),
-                          'grid_cells_long_axis':self.therm_grid.GetValue()}
+                if model_index==2 and not self.on_calculix_check():
+                    self.therm_status.SetLabel(self.therm_ccx_status.GetLabel())
+                    return
+                settings={} if model_index==2 else {
+                    'board_k_w_mk':float(self.therm_k.GetValue()),
+                    'board_emissivity':float(self.therm_emissivity.GetValue()),
+                    'board_airflow_m_s':float(self.therm_air_board.GetValue()),
+                    'sink_airflow_m_s':float(self.therm_air_sink.GetValue()),
+                    'grid_cells_long_axis':self.therm_grid.GetValue()}
                 if sinks:
                     settings['sink_exposed_area_mm2']=_parse_sink_areas(self.therm_sink_area.GetValue(),sinks)
-                if self.therm_model_kind.GetSelection()==1:
+                if model_index==1:
                     request['thermal_model_kind']='multilayer'
                     settings.update({'dielectric_k_w_mk':float(self.therm_dielectric_k.GetValue()),
                                      'copper_k_w_mk':float(self.therm_copper_k.GetValue()),
@@ -536,7 +599,7 @@ class QuickThermFrame(wx.Frame):
                                          'contact_r_k_w':float(self.therm_mount_r.GetValue()),
                                          'mechanical_contact':self.therm_mount_mechanical.GetValue() and not self._therm_mount_candidates[i]['plated']}
                                          for i in range(self.therm_mounts.GetCount()) if self.therm_mounts.IsChecked(i)]})
-                elif self.therm_model_kind.GetSelection()==2:
+                elif model_index==2:
                     request['thermal_model_kind']='calculix'
                     request['calculix_settings']={
                         'gmsh_mesh_size_mm':float(self.therm_ccx_mesh.GetValue()),
@@ -599,13 +662,17 @@ class QuickThermFrame(wx.Frame):
                 field=network['board_field']
                 board+=(f" · modeled board {field['sampled_min_c']:.3g}–{field['sampled_max_c']:.3g} °C"
                         f" · {field['active_cells']} cells · heat residual {balance['residual_w']:.3g} W")
-        self.therm_status.SetLabel(f"{coverage['solved']}/{coverage['scoped']} selected components solved{board}. "
+        self.therm_status.SetLabel((
+            f"{coverage.get('power_sources',0)} power sources modeled{board}. "
+            f"Junction estimates: {coverage['solved']}/{coverage['scoped']} with declared RθJB."
+            if (network or {}).get('model') == 'CalculiX 3D steady conduction' else
+            f"{coverage['solved']}/{coverage['scoped']} selected components solved{board}. "
             +('Incomplete mapped fields; inspect the report.' if coverage['excluded'] else
               'Layer-resolved steady-state screen; inspect assumptions.' if (network or {}).get('layers') else
               'Board model is a thin-sheet screen, not CFD.' if network else
               'Lumped steady-state screen from entered assumptions; not a board temperature field.'
               if result.get('input_source') else
-              'Lumped steady-state screen; not a board temperature field.'))
+              'Lumped steady-state screen; not a board temperature field.')))
         self._buttons()
 
 
@@ -618,7 +685,8 @@ class QuickThermFrame(wx.Frame):
             model=network.get(item['reference'],{})
             limit=limits.get(item['reference'],{})
             num=lambda value:'—' if value is None else f'{value:.5g}'
-            path=('Virtual heatsink' if row.get('heat_path')=='heatsink' else
+            path=('CalculiX board field' if (self.thermal_bundle.get('thermal_network') or {}).get('model') == 'CalculiX 3D steady conduction' else
+                  'Virtual heatsink' if row.get('heat_path')=='heatsink' else
                   ('RθJA air' if self.thermal_bundle['quick_therm']['environment']=='air' else 'Shared board')) if row else '—'
             return [item['reference'],num(row.get('junction_c') if row else None),
                     num(limit.get('minimum_c')),num(limit.get('maximum_c')),
@@ -626,7 +694,8 @@ class QuickThermFrame(wx.Frame):
                     item.get('side','—'),path,num(row.get('resistance_k_per_w') if row else None),
                     num(row.get('rise_above_ambient_k') if row else None),num(model.get('board_site_c')),
                     num(model.get('sink_c')),num(model.get('junction_c')),num(xy[0]),num(xy[1]),
-                    'Solved' if row else '; '.join(item.get('issues',[])) or 'Excluded']
+                    ('Solved' if row.get('junction_c') is not None else 'Board solved; Tj unknown') if row else
+                    '; '.join(item.get('issues',[])) or 'Excluded']
         self._thermal_rows.sort(key=lambda pair:(cells(pair)[column]=='—',
             float(cells(pair)[column]) if column in (1,2,3,5,8,9,10,11,12,13,14) and cells(pair)[column]!='—' else cells(pair)[column]),reverse=descending)
         for item,row in self._thermal_rows:

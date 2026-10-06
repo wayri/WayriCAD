@@ -11,11 +11,23 @@ import hashlib
 import importlib.util
 import json
 import math
+import os
 from pathlib import Path
 import shutil
 import subprocess
 
 from .thermal_board_view import _inside
+
+
+def find_calculix(executable=None):
+    """Resolve a user-selected, environment or PATH ccx without guessing installs."""
+    selected = executable or os.environ.get("WAYRICAD_CCX")
+    if selected:
+        path = Path(selected).expanduser().resolve()
+        if not path.is_file() or not os.access(path, os.X_OK):
+            raise ValueError(f"CalculiX executable is unavailable: {path}")
+        return str(path)
+    return shutil.which("ccx")
 
 
 def _finite(value, label, *, positive=False):
@@ -355,12 +367,19 @@ def run_calculix(output_dir, *, ccx=None, timeout_s=300, display_grid_mm=None):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("status") != "deck_ready" or manifest.get("calculix_deck") != "board.inp":
         raise ValueError("A ready QuickTherm CalculiX deck is required.")
-    exe = ccx or shutil.which("ccx")
+    exe = find_calculix(ccx)
     if not exe:
-        manifest.update(status="needs_calculix", result_status="not_solved")
+        manifest.update(status="needs_calculix", result_status="not_solved",
+                        diagnostic="Install CalculiX ccx, add it to PATH, set WAYRICAD_CCX, or select its executable in QuickTherm.")
     else:
-        completed = subprocess.run([str(exe), "-i", "board"], cwd=directory,
-                                   capture_output=True, text=True, timeout=timeout_s)
+        try:
+            completed = subprocess.run([str(exe), "-i", "board"], cwd=directory,
+                                       capture_output=True, text=True, timeout=timeout_s)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            manifest.update(status="calculix_failed", result_status="not_solved",
+                            diagnostic=f"CalculiX could not finish: {exc}")
+            manifest_path.write_text(json.dumps(manifest, indent=2)+"\n", encoding="utf-8")
+            return manifest
         if completed.returncode == 0 and (directory/"board.frd").exists():
             manifest["result_file"] = "board.frd"
             try:

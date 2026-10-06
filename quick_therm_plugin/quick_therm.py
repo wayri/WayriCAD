@@ -306,3 +306,55 @@ def analyze_manual_board(board, values_by_reference, *, environment, ambient_c,
     result["input_source"] = "Explicit values entered in QuickTherm; saved PCB was not modified."
     result["manual_values"] = {row["reference"]: row["values"] for row in rows}
     return result
+
+
+def analyze_power_sources(board, *, environment, ambient_c, references,
+                          field_map=None, manual_values=None):
+    """Extract verified heat inputs without inventing a junction resistance.
+
+    CalculiX solves a board surface field from power and its declared boundary.
+    Package junction temperatures remain unknown until RθJB is supplied.
+    """
+    if environment not in ("air", "vacuum"):
+        raise ValueError("Environment must be 'air' or 'vacuum'.")
+    ambient = _finite(ambient_c, "Ambient temperature")
+    selected = [str(ref).strip() for ref in references or ()]
+    if not selected or len(set(selected)) != len(selected) or any(not ref for ref in selected):
+        raise ValueError("Select distinct dissipating components for CalculiX.")
+    if manual_values is None:
+        if not isinstance(field_map, Mapping) or not field_map.get("power_w"):
+            raise ValueError("Map the saved power field for CalculiX.")
+        rows = extract_mapped_components(board, {"power_w": field_map["power_w"]},
+                                         references=selected)
+    else:
+        board_refs = {str(fp.GetReference()) for fp in board.GetFootprints()
+                      if "*" not in str(fp.GetReference())}
+        missing = set(selected)-board_refs
+        if missing:
+            raise ValueError("Selected references absent from saved board: " + ", ".join(sorted(missing)))
+        rows = []
+        for ref in selected:
+            raw = manual_values.get(ref, {})
+            if not isinstance(raw, Mapping) or "power_w" not in raw:
+                raise ValueError(f"{ref}: enter dissipated power; no default is assumed.")
+            rows.append({"reference": ref,
+                         "values": {"power_w": parse_field_quantity(raw["power_w"], "power_w")},
+                         "issues": [], "source_fields": {"power_w": "Manual entry"}})
+    valid = [{"reference": row["reference"], "power_w": row["values"]["power_w"],
+              "heat_path": "board", "resistance_k_per_w": None,
+              "junction_c": None, "rise_above_ambient_k": None, "rise_local_k": None,
+              "source_fields": row["source_fields"]}
+             for row in rows if not row["issues"]]
+    excluded = [{"reference": row["reference"], "issues": row["issues"]}
+                for row in rows if row["issues"]]
+    return {"model": "board power sources; junction unresolved",
+            "environment": environment, "ambient_c": ambient, "board_c": None,
+            "vacuum_board_to_environment_k_per_w": None,
+            "total_scoped_power_w": math.fsum(row["power_w"] for row in valid),
+            "board_path_power_w": math.fsum(row["power_w"] for row in valid),
+            "coverage": {"scoped": len(rows), "solved": 0,
+                         "power_sources": len(valid), "excluded": excluded,
+                         "complete": not excluded},
+            "components": sorted(valid, key=lambda row: row["reference"]),
+            "references": sorted(selected), "field_map": dict(field_map or {}),
+            "assumptions": ["Power sources are explicit. No package junction or ambient resistance is inferred."]}

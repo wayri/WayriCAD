@@ -79,11 +79,12 @@ def _on_board(point, outlines):
 
 def _analytics(result):
     rows = result.get("components", [])
-    values = [float(row["junction_c"]) for row in rows]
+    with_junction = [row for row in rows if row.get("junction_c") is not None]
+    values = [float(row["junction_c"]) for row in with_junction]
     if any(not math.isfinite(value) for value in values):
         raise ValueError("QuickTherm returned a non-finite junction estimate.")
-    by_hot = sorted(rows, key=lambda row: (-float(row["junction_c"]), row["reference"]))
-    by_cool = sorted(rows, key=lambda row: (float(row["junction_c"]), row["reference"]))
+    by_hot = sorted(with_junction, key=lambda row: (-float(row["junction_c"]), row["reference"]))
+    by_cool = sorted(with_junction, key=lambda row: (float(row["junction_c"]), row["reference"]))
     powers = [float(row["power_w"]) for row in rows]
     if any(not math.isfinite(value) or value < 0 for value in powers):
         raise ValueError("QuickTherm returned invalid component power.")
@@ -100,7 +101,7 @@ def _analytics(result):
                     "solved_max": max(powers) if powers else None,
                     "solved_mean": statistics.fmean(powers) if powers else None},
         "coverage": {"scoped": int(coverage.get("scoped", len(rows))),
-                     "solved": len(rows),
+                     "solved": len(with_junction),
                      "excluded": list(coverage.get("excluded", []))},
     }
 
@@ -206,8 +207,8 @@ def build_board_thermal_view(board, result, *, grid_size=80):
                            "top_side": not fp.IsFlipped(),
                            "on_board": _on_board(pos, outlines) if outlines else None,
                            "in_scope": ref in solved or ref in excluded,
-                           "solved": row is not None,
-                           "junction_c": float(row["junction_c"]) if row else None,
+                           "solved": row is not None and row.get("junction_c") is not None,
+                           "junction_c": float(row["junction_c"]) if row and row.get("junction_c") is not None else None,
                            "power_w": float(row["power_w"]) if row else None,
                            "issues": list(excluded[ref].get("issues", [])) if ref in excluded else []})
     components.sort(key=lambda row: row["reference"])

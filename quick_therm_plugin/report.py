@@ -34,6 +34,7 @@ def write_diagnostic_report(path,bundle):
         html+='<p>Coverage: '+str(thermal['coverage']['solved'])+'/'+str(thermal['coverage']['scoped'])+' scoped components solved.</p>'
         view=bundle.get('board_thermal_view',{});analytics=view.get('analytics',{})
         network=bundle.get('thermal_network')
+        calculix=bool(network and network.get('model')=='CalculiX 3D steady conduction')
         if view:
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -54,7 +55,6 @@ def write_diagnostic_report(path,bundle):
             html+='<h2>Temperature analytics</h2><p>'+summary+' · Hottest '+escape(str(analytics.get('hottest_reference') or '—'))+'</p>'
         if network:
             balance=network['heat_balance']
-            calculix=network.get('model')=='CalculiX 3D steady conduction'
             html+='<h2>Optional board heat model</h2><p>'+escape(network['model'])+' · '+escape(network['status'])+'</p>'
             if network.get('layers'):
                 html+=('<p>Imported CalculiX nodal temperatures from an extruded 3D copper/dielectric mesh. The entire lower face is fixed; other faces are adiabatic. This is not CFD or a measurement.</p>'
@@ -102,12 +102,14 @@ def write_diagnostic_report(path,bundle):
             heat_path=(sink['shape'].replace('_',' ') +
                        (' · '+ ' × '.join(_number(sink[key], 'mm') for key in ('width_mm','depth_mm','height_mm'))
                         if sink.get('width_mm') is not None else ' · no envelope')) if sink else (
+                        'CalculiX board field' if calculix else
                         'Air RθJA' if thermal['environment']=='air' else 'Shared board')
             xy=item.get('position_mm') or [None,None] if item else [None,None]
             html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (
                 row['reference'],item.get('side','—') if item else '—',heat_path,_number(row['power_w']),
                 _number(row['resistance_k_per_w']),_number(row['junction_c']),_number(row.get('rise_above_ambient_k')),
-                _number(xy[0]),_number(xy[1]),'Solved'))+'</tr>'
+                _number(xy[0]),_number(xy[1]),
+                'Solved' if row.get('junction_c') is not None else 'Board solved; Tj unknown'))+'</tr>'
         html+='</table>'
         limits=bundle.get('temperature_limits',{})
         if limits:
