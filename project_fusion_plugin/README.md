@@ -1,8 +1,59 @@
-# Wayri Project Fusion 0.9.5
+# Wayri Project Fusion 0.9.6
 
 **KiCad 10 · native wxPython plugin · testing release**
 
 Combine 1–100 saved KiCad project instances or extracted routed subsheet instances into a new project, a parent schematic and one PCB. Select a native assembly variant independently for each source, collect local dependencies, and reannotate the schematic and PCB together without reference-only relinking.
+
+## Automatic source scope and PCB-only import
+
+**Add** recognizes saved project/root files, child sheets, schematic-only projects
+and standalone PCBs. A child schematic resolves to its owning project. When it
+belongs to several projects or occurs repeatedly in a hierarchy, choose its
+owner and exact UUID occurrence; Fusion never guesses from a filename or
+reference. The selected sheet appears immediately in the source tree. Use
+**Whole project** or **Selected pages / subtrees** to override the import scope.
+Projects without a PCB automatically select schematic-only mode. Standalone
+schematics are copied to a separate temporary project context for native checks;
+the original folder receives no generated project file. External sheet paths
+and library dependencies remain subject to the usual source-copy checks.
+
+Owner detection checks projects in the selected directory and four ancestors,
+with at most 64 candidate roots and the existing 512-occurrence/32-depth limits.
+If external path variables or a remote owner prevent automatic resolution,
+select the owning root project and configure **Paths and extra assets**.
+
+A PCB without schematic companions opens **PCB-only layout import**. The same
+tool is available in **Tools → PCB-only layout import…** for any saved PCB,
+including a PCB that has an owning schematic. Choose the working target project,
+a unique namespace and the incoming board's left/top position in millimetres.
+**Show placement** overlays the incoming geometry on the target. **Validate
+candidate** checks native target schematic/PCB parity, refills zones and refuses
+new DRC or unconnected findings. Then **Open Apply Review…** launches an
+independent window. Close Fusion and the target editors before applying there;
+the existing verified backup, stale-input rejection and rollback apply.
+
+PCB-only footprints become explicit **Board Only** objects, with new UUIDs and
+namespaced references. Their nets are isolated from the working schematic nets;
+this mode does not create schematic symbols or add parts to its BOM. Source
+Edge.Cuts becomes a Dwgs.User guide; the target outline, schematic files and
+project configuration remain unchanged. A smaller stack retains F.Cu/B.Cu on
+the target outside faces. Full-span through vias are required; blind, buried and
+microvias stop for review. Images and embedded-file payloads need extraction
+before import. Project-relative model files are copied and hashed; unresolved
+models stop preview. Library environment model paths remain external references.
+Electrical changes that need schematic connectivity should use ordinary project
+or linked-design import instead.
+
+The source tree now reads lightweight scope metadata instead of allocating
+complete import identities and variant copies every time a row is selected.
+Parsed schematic syntax uses a cache limited to 16 MiB of source bytes and 32 files, keyed by file
+contents, with independent mutable copies and a fresh SHA-256 check on every
+read. Repeated occurrences parse each file once per traversal. Native exports,
+DRC and preview/apply acceptance are always fresh. In the included synthetic
+benchmark (100 occurrences, 20 symbols each), scope listing took 0.024 s versus
+1.983 s for full import discovery on Windows; this measures listing only, not
+an 81× improvement in native merge execution. Run
+`python project_fusion_plugin/benchmark_discovery.py` to reproduce the comparison.
 
 **Insertion validation (2026-10-01):** Native routed insertion retained three footprints, six segments, three vias and three zones (one target design plus two imports), with zero schematic/PCB parity findings and zero unconnected items. Three inherited dangling-via findings and nine fixture ERC findings remain reported. Schematic-only insertion from a source without a PCB left the existing target PCB byte-for-byte unchanged. Multi-subsheet extraction, stale inputs, editor locks, backup integrity and rollback are checked separately.
 

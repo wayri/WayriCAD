@@ -25,3 +25,5 @@ These acknowledgements are not an exhaustive dependency inventory and do not rep
 
 
 Project Fusion retains its [MIT license](project_fusion_plugin/LICENSE). Its source was developed and tested with AI assistance; see its guide for native validation scope and remaining limitations.
+
+The independently packaged [Variant Manager](variant_manager_plugin/README.md) retains its [MIT license](variant_manager_plugin/LICENSE) and the original standalone manager's parser and backup-service attribution. Its native UI and batch operations follow the same AI-development disclosure and validation requirements.

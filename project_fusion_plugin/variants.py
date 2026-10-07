@@ -75,14 +75,18 @@ def names_in_tree(tree, project_name, path):
 def detect_variants(spec):
     """Read-only UI discovery, including external and nested subsheets."""
     from types import SimpleNamespace
+    from .source_detection import read_schematic
     if isinstance(spec,(str,Path)):
         spec=SourceSpec(str(spec),'Source')
     project_file=Path(spec.project).expanduser().resolve().with_suffix('.kicad_pro')
-    project=json.loads(project_file.read_text(encoding='utf-8-sig'))
+    if not project_file.is_file() and Path(spec.project).suffix.lower()!='.kicad_sch':
+        raise MergeError('Variant discovery needs an owning project or a standalone schematic.')
+    project=json.loads(project_file.read_text(encoding='utf-8-sig')) if project_file.is_file() else {}
     source=SimpleNamespace(spec=spec,project_file=project_file,project=project)
     names=project_names(project)
     root=project_file.with_suffix('.kicad_sch')
-    top=sx.load(root)
+    top=read_schematic(root)
+    parsed={root:top}
     count=0
     def visit(p,tree,path,ancestors):
         nonlocal count
@@ -97,7 +101,8 @@ def detect_variants(spec):
             child=resolve_asset(raw,source,p.parent)
             if child is None or not child.is_file():
                 raise MergeError(f'Cannot resolve child schematic {raw!r} in {p}. Configure source path overrides.')
-            visit(child,sx.load(child),path+'/'+sx.value(sheet,'uuid'),ancestors+[p])
+            if child not in parsed:parsed[child]=read_schematic(child)
+            visit(child,parsed[child],path+'/'+sx.value(sheet,'uuid'),ancestors+[p])
     visit(root,top,'/'+sx.value(top,'uuid'),[])
     return [DEFAULT,*names]
 

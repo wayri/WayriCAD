@@ -40,7 +40,7 @@ def main():
                 )
             archive.extractall(root)
         modules = ('wayricad_runtime.jobs', 'wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
-                   'embed_3d_plugin.__main__', 'quick_pi_plugin.cli', 'quick_therm_plugin.cli', 'signal_integrity_advisor_plugin.cli', 'project_fusion_plugin.__main__')
+                   'embed_3d_plugin.__main__', 'quick_pi_plugin.cli', 'quick_therm_plugin.cli', 'signal_integrity_advisor_plugin.cli', 'project_fusion_plugin.__main__', 'variant_manager_plugin.wayri_variants.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'
                       'module=importlib.import_module(sys.argv[2]);'

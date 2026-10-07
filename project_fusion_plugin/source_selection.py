@@ -6,6 +6,7 @@ the caller's worker thread through :func:`materialize_selection`.
 from __future__ import annotations
 
 from pathlib import Path
+import copy
 
 from .model import MergeError
 from .schematic import discover, new_uuid
@@ -50,6 +51,20 @@ def materialize_selection(spec, request, destination, cli_path=''):
     project needs no extraction and returns its original SourceSpec unchanged.
     """
     whole, paths, depth, layout = _normalize_request(request)
+    selected=Path(spec.project).resolve()
+    if selected.suffix.lower()=='.kicad_sch' and not selected.with_suffix('.kicad_pro').is_file():
+        if layout:
+            raise MergeError('A standalone schematic has no owning PCB configuration. Choose schematic-only import or the separate PCB-only import.')
+        from .repair import copy_project
+        folder=Path(destination).resolve()/'standalone-source'
+        if selected.parent==folder or selected.parent in folder.parents:
+            raise MergeError('Standalone schematic copies must be outside their source folder.')
+        folder.parent.mkdir(parents=True,exist_ok=True)
+        copy_project(selected.parent,folder)
+        project=folder/selected.with_suffix('.kicad_pro').name
+        project.write_text('{}\n',encoding='utf-8')
+        spec=copy.deepcopy(spec);spec.project=str(project)
+        destination=Path(destination)/'extracted'
     if whole:
         if layout:
             return [spec]

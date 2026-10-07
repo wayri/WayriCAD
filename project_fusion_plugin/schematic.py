@@ -151,6 +151,7 @@ def instance_reference(symbol, old_path, project_name):
 
 
 def discover(spec: SourceSpec, new_root_uuid: str, log=lambda msg: None, *, require_board=True) -> Source:
+    from .source_detection import read_schematic
     path = Path(spec.project).expanduser().resolve()
     if path.suffix.lower() not in {'.kicad_pro','.kicad_sch','.kicad_pcb'}:
         raise MergeError(f'{spec.alias}: select a .kicad_pro, root .kicad_sch or .kicad_pcb.')
@@ -161,7 +162,7 @@ def discover(spec: SourceSpec, new_root_uuid: str, log=lambda msg: None, *, requ
     project_bytes = pro.read_bytes()
     project = json.loads(project_bytes.decode('utf-8-sig'))
     hashes = {str(pro): hashlib.sha256(project_bytes).hexdigest()}
-    tree = sx.load(sch, hashes)
+    tree = read_schematic(sch, hashes)
     if sx.tag(tree) != 'kicad_sch':
         raise MergeError(f'{sch} is not a modern KiCad schematic.')
     old_root = sx.value(tree,'uuid')
@@ -175,12 +176,17 @@ def discover(spec: SourceSpec, new_root_uuid: str, log=lambda msg: None, *, requ
         if (pro.parent/extra).is_file():
             s.files.add(pro.parent/extra)
 
+    # Repeated sheet instances share file bytes, but must have independent trees
+    # because variant application and import rewrites mutate each occurrence.
+    parsed = {sch: tree}
     def visit(p, old_path, new_path, display_path, ancestors):
         if p in ancestors:
             raise MergeError(f'{spec.alias}: cyclic schematic hierarchy at {p}.')
         if len(s.sheets) >= 512 or len(ancestors) >= 32:
             raise MergeError('Hierarchy exceeds 512 sheet instances or 32 nesting levels.')
-        root = sx.load(p, s.hashes)
+        if p not in parsed:
+            parsed[p] = read_schematic(p, s.hashes)
+        root = copy.deepcopy(parsed[p])
         if sx.tag(root) != 'kicad_sch':
             raise MergeError(f'Invalid schematic: {p}')
         identifiers = sx.declared_uuids(root)

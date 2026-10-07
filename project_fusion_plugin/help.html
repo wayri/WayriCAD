@@ -1,12 +1,100 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Wayri Project Fusion 0.9.4 — WayriCAD</title></head><body><h1>Wayri Project Fusion 0.9.4</h1><img src="help-workflow.svg" alt="Fusion workflow overview"><pre># Wayri Project Fusion 0.9.4
+<!doctype html><html><head><meta charset="utf-8"><title>Wayri Project Fusion 0.9.6 — WayriCAD</title></head><body><h1>Wayri Project Fusion 0.9.6</h1><img src="help-workflow.svg" alt="Fusion workflow overview"><pre># Wayri Project Fusion 0.9.6
 
 **KiCad 10 · native wxPython plugin · testing release**
 
 Combine 1–100 saved KiCad project instances or extracted routed subsheet instances into a new project, a parent schematic and one PCB. Select a native assembly variant independently for each source, collect local dependencies, and reannotate the schematic and PCB together without reference-only relinking.
 
+## Automatic source scope and PCB-only import
+
+**Add** recognizes saved project/root files, child sheets, schematic-only projects
+and standalone PCBs. A child schematic resolves to its owning project. When it
+belongs to several projects or occurs repeatedly in a hierarchy, choose its
+owner and exact UUID occurrence; Fusion never guesses from a filename or
+reference. The selected sheet appears immediately in the source tree. Use
+**Whole project** or **Selected pages / subtrees** to override the import scope.
+Projects without a PCB automatically select schematic-only mode. Standalone
+schematics are copied to a separate temporary project context for native checks;
+the original folder receives no generated project file. External sheet paths
+and library dependencies remain subject to the usual source-copy checks.
+
+Owner detection checks projects in the selected directory and four ancestors,
+with at most 64 candidate roots and the existing 512-occurrence/32-depth limits.
+If external path variables or a remote owner prevent automatic resolution,
+select the owning root project and configure **Paths and extra assets**.
+
+A PCB without schematic companions opens **PCB-only layout import**. The same
+tool is available in **Tools → PCB-only layout import…** for any saved PCB,
+including a PCB that has an owning schematic. Choose the working target project,
+a unique namespace and the incoming board&#x27;s left/top position in millimetres.
+**Show placement** overlays the incoming geometry on the target. **Validate
+candidate** checks native target schematic/PCB parity, refills zones and refuses
+new DRC or unconnected findings. Then **Open Apply Review…** launches an
+independent window. Close Fusion and the target editors before applying there;
+the existing verified backup, stale-input rejection and rollback apply.
+
+PCB-only footprints become explicit **Board Only** objects, with new UUIDs and
+namespaced references. Their nets are isolated from the working schematic nets;
+this mode does not create schematic symbols or add parts to its BOM. Source
+Edge.Cuts becomes a Dwgs.User guide; the target outline, schematic files and
+project configuration remain unchanged. A smaller stack retains F.Cu/B.Cu on
+the target outside faces. Full-span through vias are required; blind, buried and
+microvias stop for review. Images and embedded-file payloads need extraction
+before import. Project-relative model files are copied and hashed; unresolved
+models stop preview. Library environment model paths remain external references.
+Electrical changes that need schematic connectivity should use ordinary project
+or linked-design import instead.
+
+The source tree now reads lightweight scope metadata instead of allocating
+complete import identities and variant copies every time a row is selected.
+Parsed schematic syntax uses a cache limited to 16 MiB of source bytes and 32 files, keyed by file
+contents, with independent mutable copies and a fresh SHA-256 check on every
+read. Repeated occurrences parse each file once per traversal. Native exports,
+DRC and preview/apply acceptance are always fresh. In the included synthetic
+benchmark (100 occurrences, 20 symbols each), scope listing took 0.024 s versus
+1.983 s for full import discovery on Windows; this measures listing only, not
+an 81× improvement in native merge execution. Run
+`python project_fusion_plugin/benchmark_discovery.py` to reproduce the comparison.
+
 **Insertion validation (2026-10-01):** Native routed insertion retained three footprints, six segments, three vias and three zones (one target design plus two imports), with zero schematic/PCB parity findings and zero unconnected items. Three inherited dangling-via findings and nine fixture ERC findings remain reported. Schematic-only insertion from a source without a PCB left the existing target PCB byte-for-byte unchanged. Multi-subsheet extraction, stale inputs, editor locks, backup integrity and rollback are checked separately.
 
 **100-instance validation (2026-10-01):** Windows / KiCad 10.0.6. Native validation merged 100 mixed instances (50 whole projects and 50 reviewed routed sections), retaining 100 footprints, 200 segments, 100 vias and 100 zones. Native netlist isolation, schematic/PCB parity, source hashes and BOM quantity passed; inherited fixture dangling-via warnings remained unchanged. Native wx management tests cover 100 rows, duplication, reordering, removal and setup roundtrips. Other operating systems and live-editor transaction qualification remain unverified.
+
+## 0.9.5 — visible previews and reviewed source inheritance
+
+PCB and schematic previews now fit their saved geometry when the preview tab
+first becomes visible. Previously, a hidden tab could retain a near-zero fit
+scale and appear blank until another interaction.
+
+The **Issues** panel lists a decision for each source preflight issue. Select
+**safe suggestions** to stage the available repairs, then inspect the suggested
+action for each row. A unique saved schematic association can restore a PCB
+reference in the detached repair copy, including swapped reference labels.
+Board-only copper is an advisory with an explicit **Ignore** choice. Missing or
+ambiguous schematic identity, changed electrical connectivity and other
+blocking checks cannot be ignored. The source project is never edited by this
+repair step. Re-preview the repaired copy before import.
+
+For a design inherited from another saved KiCad project, select its `.kicad_pro`,
+root `.kicad_sch` or `.kicad_pcb` file. A whole-project import needs the matching
+project, schematic and board companions; schematic-only subsheet extraction
+can omit the source PCB. Fusion records the source identity and imports it as a
+linked design. In **Linked sources / updates…**, scan the saved source and
+preview a linked update. Source Value, BOM/custom fields, selected Footprint and
+routed footprint positions can propagate while surviving symbols and PCB items
+retain stable destination identities. **Linked update mode** offers three
+reviewed choices. **Follow source schematic and PCB layout** is the original
+behavior. **Update schematic; keep target placement and routing** retains linked
+PCB geometry even when source PCB placement changes, while inheriting a
+compatible replacement footprint body and pads. **Update PCB layout; keep target
+schematic** brings source placement and routes into the linked block without
+overwriting the target schematic or its fields. Pad numbers, nets, native DRC
+and unconnected change checks must pass; incompatible changes stop for manual review.
+New or changed footprints and electrical connections require major-change review
+and native validation. The Change
+Review gives a suggestion per row; **Ignore for now** defers that design&#x27;s
+whole update rather than silently dropping one field. Destination ownership or
+copper conflicts require repair and rescan. Apply the reviewed candidate with
+the target and source editors closed, then reopen the target project.
 
 ## 0.9.4 — schematic associations and copper preservation
 
@@ -44,7 +132,7 @@ actually run and limits of the release qualification.
 
 ## Install or upgrade
 
-Use **`WayriCAD-project-fusion-0.9.4-PCM.zip`**, not the source ZIP. Open KiCad&#x27;s Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
+Use **`WayriCAD-project-fusion-0.9.5-PCM.zip`**, not the source ZIP. Open KiCad&#x27;s Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
 
 This retains the package identifier `org.wayri.projectfusion`. Remove an old manually installed copy before installing through PCM, so two versions are not loaded. The PCM archive puts the Python package directly inside `plugins/`; it does not add an extra nested source folder.
 
@@ -148,7 +236,7 @@ The collector resolves existing local files through absolute paths, project-rela
 
 | Additional auxiliary files | Per-source `extra_asset_paths` explicitly includes additional files or folders. Arbitrary unrelated project outputs, caches and repositories are not copied blindly. |
 
-Used copied library-footprint pad layers are also adapted to the source&#x27;s top-down copper mapping. Placed PCB geometry remains the original geometry, independent of any differences that already existed between a source&#x27;s placed footprint and its library definition. Later **Update Footprints from Library** is still a separate design edit and requires review.
+Used copied library-footprint pad layers are also adapted to the source&#x27;s reviewed copper mapping. Placed PCB geometry remains the original geometry, independent of any differences that already existed between a source&#x27;s placed footprint and its library definition. Later **Update Footprints from Library** is still a separate design edit and requires review.
 
 All active copied library/model links use the combined project&#x27;s `${KIPRJMOD}`. Source aliases and hashed folder/library names avoid overwriting unrelated resources that share a filename or library nickname. The asset manifest records original paths, destination paths, source hashes and output hashes; modified textual dependency files can legitimately have different source/output hashes.
 
@@ -188,11 +276,11 @@ A remap replaces a path-root prefix on a path-component boundary; the longest ma
 
 Collection is bounded to 60,000 entries/files and 12 GiB per source to avoid runaway recursion. Symbolic-link loops and an asset folder containing the output staging location are guarded. Complicated file-internal CAD assembly references, arbitrary scripts/commands, third-party database libraries and legacy non-native library formats are not universal dependency-rewriting targets. Include the needed auxiliary files explicitly and inspect them. A recorded-path audit is not a universal proof of portability for opaque third-party formats.
 
-## 3. Mixed copper counts: maximum stack, top-down mapping
+## 3. Mixed copper counts: preserve the outside copper faces
 
 The output copper count is the **highest input count**. The first source with that maximum count supplies the physical stackup, board thickness, copper-layer declarations and layer-specific plot setup. Row 1 supplies other global project/design settings. No dielectric stack is invented, averaged or inserted into a smaller source&#x27;s stack.
 
-Input copper layers are ordered physically, not by the order or numeric IDs in the file. Each source&#x27;s N layers map to the first N output copper layers.
+Input copper layers are ordered physically, not by the order or numeric IDs in the file. `F.Cu` and `B.Cu` stay on the corresponding outside faces. A smaller source&#x27;s internal layers map in order to the first available output internal layers.
 
 For a six-layer output:
 
@@ -200,21 +288,21 @@ For a six-layer output:
 
 |---|---|---|
 
-| 2 layers | `F.Cu → F.Cu`; `B.Cu → In1.Cu` | `In2.Cu`, `In3.Cu`, `In4.Cu`, `B.Cu` |
+| 2 layers | `F.Cu → F.Cu`; `B.Cu → B.Cu` | `In1.Cu` through `In4.Cu` |
 
-| 4 layers | `F.Cu → F.Cu`; `In1.Cu → In1.Cu`; `In2.Cu → In2.Cu`; `B.Cu → In3.Cu` | `In4.Cu`, `B.Cu` |
+| 4 layers | `F.Cu → F.Cu`; `In1.Cu → In1.Cu`; `In2.Cu → In2.Cu`; `B.Cu → B.Cu` | `In3.Cu`, `In4.Cu` |
 
 | 6 layers | Every copper layer keeps its corresponding position/name | None |
 
-This intentionally **does not** preserve every source&#x27;s old B.Cu as the final board&#x27;s physical bottom. Tracks, zones, supported copper drawings, pads, explicit padstack layers and via endpoints are remapped. Wildcards such as `*.Cu` on a smaller source are expanded to that source&#x27;s mapped layers, not all layers of the larger output. See `reports/layer-map.csv`.
+Tracks, zones, supported copper drawings, pads and explicit padstack layers are remapped. A bottom-side component on a smaller source remains on the final board&#x27;s bottom face. Wildcards such as `*.Cu` on a smaller source are expanded to that source&#x27;s mapped layers, not all layers of the larger output. See `reports/layer-map.csv`.
 
 ### Physical consequences that cannot be hidden
 
-A two-layer source&#x27;s former back copper becomes inner copper. Consequently, a full-depth source via connecting F.Cu to B.Cu is converted to a blind span when its destination is now an inner layer. This requires explicit acknowledgement and fabricator/stackup review. The plugin does not design the manufacturing process or certify a blind-via aspect ratio.
+Imported vias must be native `F.Cu`-to-`B.Cu` through vias. Their barrels span the full output stack, even when the source had fewer layers. Blind, buried and microvias are rejected for a reviewed source redesign. Review fabrication capability, annulus clearance and drill aspect ratio on the final stack.
 
-**A bottom-side footprint on a smaller source is rejected.** Ordinary surface components and SMD pads cannot simply be buried on In1.Cu while retaining a valid assembly. Move/reroute those parts onto the source&#x27;s front side in a copy, or provide sources with the same copper count. Unsupported grouped front/inner/back padstacks must be normalized to explicit Custom layers in a source copy before this mapping.
+Unsupported grouped front/inner/back padstacks must be normalized to explicit Custom layers in a source copy before this mapping. A successful layer conversion does not establish impedance, return-path or manufacturing qualification.
 
-Normal PTH pads retain **full-stack annuli (`*.Cu`) and full-depth plated barrels/drilled holes**, as required by native KiCad. Review clearances on all added layers. Source planar tracks/zones retain their top-down mapping. NPTH holes likewise remain full depth. Therefore the unused-layer promise concerns imported *planar copper*: it cannot mean there is literally no plated barrel passing through those layers. These are explicit report warnings.
+Normal PTH pads retain **full-stack annuli (`*.Cu`) and full-depth plated barrels/drilled holes**, as required by native KiCad. Review clearances on all added layers. NPTH holes likewise remain full depth. Therefore the unused-layer promise concerns imported *planar copper*: it cannot mean there is literally no plated barrel passing through those layers. These are explicit report warnings.
 
 Track widths and XY geometry are not changed to compensate for a different dielectric environment. Requalify controlled impedance, return paths, clearances, creepage, via rules and mechanical thickness. A completed low-layer-count layout is not electrically requalified merely because its topology was successfully imported.
 

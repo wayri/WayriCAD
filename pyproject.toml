@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.6.7"
+version = "3.6.8"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,6 +36,7 @@ wayricad-therm = "quick_therm_plugin.cli:main"
 wayricad-therm-transient = "quick_therm_plugin.transient_cli:main"
 wayricad-si = "signal_integrity_advisor_plugin.cli:main"
 wayricad-fusion = "project_fusion_plugin.__main__:main"
+wayricad-variants = "variant_manager_plugin.wayri_variants.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -45,6 +46,7 @@ exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.
 [tool.setuptools.package-data]
 wayricad_runtime = ["*.md"]
 project_fusion_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "*.svg"]
+variant_manager_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png"]
 "*" = ["LICENSE", "LICENSE.*", "SOURCE_PROVENANCE.json"]
 extract_pins_plugin = ["*.html", "*.md", "*.txt", "*.svg", "*.png", "metadata.json"]
 harness_workbench_plugin = ["*.html", "*.md", "*.png", "metadata.json"]

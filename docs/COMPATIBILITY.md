@@ -121,4 +121,8 @@ BOM Studio serves its packaged navigation script with an explicit JavaScript MIM
 
 ## Project Fusion
 
-Fusion 0.9.3 uses the KiCad 10 SWIG action loader and native wxPython, with focused Windows 10.0.6 validation. Linux is a target platform, not a native qualification claim; macOS and KiCad 11 are unsupported. Full-project changes use saved snapshots and offline apply. The limited live PCB adapter has protocol/serialization tests; connected-editor transactions remain unqualified.
+Fusion 0.9.6 uses the KiCad 10 SWIG action loader and native wxPython, with focused Windows 10.0.6 validation. Linux is a target platform, not a native qualification claim; macOS and KiCad 11 are unsupported. Full-project changes use saved snapshots and offline apply. The limited live PCB adapter has protocol/serialization tests; connected-editor transactions remain unqualified. Source selection automatically distinguishes whole projects, child-sheet occurrences, standalone schematics and layout-only boards; layout-only candidates use separate native parity/DRC checks and isolated Board Only nets.
+
+## Variant Manager
+
+Variant Manager 0.6.0 is a separate MIT-licensed PCM package using the KiCad 10 native action loader and bundled Python/wxPython. Windows/KiCad 10.0.6 validation covers a standalone native window, hierarchical variant transformations, named BOM/netlist/PDF exports, unchanged PCB bytes, stale guards and verified backups. Linux is a target; Linux/macOS native windows and KiCad 11 have not been validated. The independent window can remain open while the target project's editors close for offline apply. It manages schematic variant definitions; PCB synchronization and routing remain KiCad workflows.

@@ -25,12 +25,8 @@ from .variants import effective_board_flags
 
 
 def list_sections(spec):
-    source = discover(spec, new_uuid(), require_board=False)
-    return [{'sheet_path': s.old_path, 'display_path': s.display_path,
-             'file': str(s.source_path), 'symbols': len(s.symbols),
-             'descendant_symbols': sum(len(c.symbols) for c in source.sheets
-                                      if c.old_path == s.old_path or c.old_path.startswith(s.old_path + '/'))}
-            for s in source.sheets[1:]]
+    from .source_detection import sheet_catalogue
+    return sheet_catalogue(spec)
 
 
 def suggest_region(spec,sheet_path,cli_path='',max_depth=None):

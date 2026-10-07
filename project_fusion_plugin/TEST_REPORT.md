@@ -52,3 +52,24 @@ Historical reports below describe older versions. Their schematic parity checks
 did not independently establish literal UUID association matching; 0.9.4 adds
 that independent check and supersedes the old root-prefix assumption.
 
+# Fusion 0.9.6 source scope and PCB-only validation — 2026-10-08
+
+Windows, KiCad 10.0.6, bundled Python 3.11.5. Three native saved-project fixtures
+passed: isolated PCB-only import into a four-layer target, original source and
+target immutability during preview, exact target schematic/project-byte
+preservation, target parity, no new native DRC/unconnected findings, source-stale
+rejection and verified-backup apply; overlapping layout rejection; and
+standalone schematic import through a separate native-checked project copy.
+Incoming nets and Board Only flags were independently checked through pcbnew.
+
+Native wx tests passed for child selection resolving to its owning project and
+exact repeated occurrence, scope override to the full project, PCB-only dispatch,
+viewport size, busy-close refusal and independent offline Apply Review dispatch.
+These are native-window/control tests with selected dialog responses supplied by
+the tests; they are not a manual editor session.
+
+Synthetic source benchmark: 100 occurrences of one file containing 20 symbols,
+three runs, median full import discovery 1.983 s and scope catalogue 0.024 s.
+This is a scope-listing comparison. Native acceptance is not cached. Content
+change/in-memory mutation isolation and exact occurrence identity regressions
+passed. Broader suite counts should use the final release validation record.

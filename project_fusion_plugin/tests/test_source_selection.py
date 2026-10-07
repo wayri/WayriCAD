@@ -12,6 +12,22 @@ selection = importlib.import_module(PACKAGE + '.source_selection')
 
 
 class SourceSelectionTests(unittest.TestCase):
+    def test_standalone_schematic_copy_gets_own_project_without_source_write(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder);root=base/'source';root.mkdir()
+            original=root/'single.kicad_sch';original.write_text('(kicad_sch (uuid "root"))')
+            before=original.read_bytes();spec=model.SourceSpec(str(original),'Single')
+            request={'whole_project':True,'sheet_paths':[],'max_depth':None,'include_layout':False}
+            source=mock.Mock(sheets=[mock.Mock(old_path='/root')])
+            with mock.patch.object(selection,'discover',return_value=source) as discovery, \
+                 mock.patch.object(selection,'preview_schematic_sections',return_value={}), \
+                 mock.patch.object(selection,'apply_schematic_sections',return_value=[]) as apply:
+                selection.materialize_selection(spec,request,base/'copies')
+            copied=Path(discovery.call_args.args[0].project)
+            self.assertTrue(copied.is_file());self.assertEqual(copied.read_text(),'{}\n')
+            self.assertEqual(original.read_bytes(),before);self.assertFalse(original.with_suffix('.kicad_pro').exists())
+            self.assertEqual(apply.call_args.args[1],base/'copies/extracted')
+
     def test_whole_project_returns_original_spec_without_extraction(self):
         spec = model.SourceSpec('source.kicad_pro', 'A')
         request = {'whole_project': True, 'sheet_paths': [], 'max_depth': None,

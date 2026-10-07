@@ -1,16 +1,16 @@
 # WayriCAD — KiCad Plugins for PCB Design and Analysis
 
-**WayriCAD** is an open-source suite of **18 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes schematic and PCB project merging, hierarchical subsheet reuse, fanout routing, via stitching, trace impedance and RLC analysis, power integrity (PI), signal integrity (SI), thermal analysis, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
+**WayriCAD** is an open-source suite of **19 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes schematic and PCB project merging, hierarchical subsheet reuse, assembly variant management, fanout routing, via stitching, trace impedance and RLC analysis, power integrity (PI), signal integrity (SI), thermal analysis, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current suite release: [3.6.7](https://github.com/wayri/WayriCAD/releases/tag/v3.6.7) · [GPL-3.0 license](LICENSE); Project Fusion is MIT licensed.**
+**Current suite release: [3.6.8](https://github.com/wayri/WayriCAD/releases/tag/v3.6.8) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
 
-**New in 3.6.7:** [Project Fusion 0.9.5](project_fusion_plugin/README.md) restores its PCB and schematic previews when their tabs open, gives each source issue a reviewed repair choice, and makes linked-source changes and conflicts easier to resolve. Import a saved KiCad project or subsheet, retain its source link, then preview updates to Value, BOM fields, selected Footprint and routed placement. Select whether a linked update follows both source files, keeps the target's working PCB layout while updating the schematic, or keeps its schematic while updating the PCB layout. [Download the independent Fusion PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.7/WayriCAD-project-fusion-0.9.5-PCM.zip) and see the [3.6.7 release notes](docs/RELEASE_NOTES_3.6.7.md).
+**New in 3.6.8:** [Project Fusion 0.9.6](project_fusion_plugin/README.md) detects projects, child sheets, standalone schematics and layout-only boards, with a faster sheet catalogue and a separate PCB-only review workflow. The independent [Variant Manager 0.6.0](variant_manager_plugin/README.md) adds before/after assembly previews, bulk editing/deletion, conflict-aware merge, swap, Default promotion and verified recovery. See the [3.6.8 release notes](docs/RELEASE_NOTES_3.6.8.md).
 
 **New in 3.6.6:** Standalone [QuickTherm](quick_therm_plugin/README.md) can run a bounded Gmsh/CalculiX 3D steady-conduction board model from declared component power, with solver setup in its native window. [Quick PI](quick_pi_plugin/README.md) adds an opt-in Gmsh tetrahedral copper-volume DC model and 3D result viewer; its 2.5D workflow stays the default. Install their independent [QuickTherm PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.6/WayriCAD-quick-therm-3.6.6-PCM.zip) and [Quick PI PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.6/WayriCAD-quick-pi-3.6.6-PCM.zip), then restart KiCad. See the [3.6.6 release notes](docs/RELEASE_NOTES_3.6.6.md) for setup, validation and limits.
 
-**Project Fusion 0.9.5 is included in the 3.6.7 source and wheel:** Install its independent PCM ZIP or use the WayriCAD PCM repository. Merge up to 100 saved projects or selected hierarchical subsheets, optionally copy their routed PCB blocks and local libraries, arrange blocks in a visual preview, and review linked source updates. This testing package targets KiCad 10; full-project apply requires saved and closed target editors. See the [Fusion guide](project_fusion_plugin/README.md).
+**Project Fusion and Variant Manager have separate PCM packages:** Install either independently or use the WayriCAD PCM repository. Fusion combines and updates designs; Variant Manager manages native assembly configurations. Both use reviewed saved-file workflows; applying changes requires closed target editors. See the [Fusion guide](project_fusion_plugin/README.md) and [Variant Manager guide](variant_manager_plugin/README.md).
 
 **New in 3.6.4:** Mechanical Check can compare a second saved PCB at a specified 3D position, detect exact interboard collisions and close approaches, and show per-finding X/Y/Z or custom cross-sections. See the [3.6.4 release notes](docs/RELEASE_NOTES_3.6.4.md).
 
@@ -22,7 +22,7 @@
 
 [Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
 
-[3.6.7 release notes](docs/RELEASE_NOTES_3.6.7.md) · [3.6.6 release notes](docs/RELEASE_NOTES_3.6.6.md) · [3.6.5 release notes](docs/RELEASE_NOTES_3.6.5.md) · [3.6.4 release notes](docs/RELEASE_NOTES_3.6.4.md) · [3.6.3 release notes](docs/RELEASE_NOTES_3.6.3.md) · [3.6.2 release notes](docs/RELEASE_NOTES_3.6.2.md) · [3.6.1 release notes](docs/RELEASE_NOTES_3.6.1.md) · [3.6 release notes](docs/RELEASE_NOTES_3.6.0.md) · [3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
+[3.6.8 release notes](docs/RELEASE_NOTES_3.6.8.md) · [3.6.7 release notes](docs/RELEASE_NOTES_3.6.7.md) · [3.6.6 release notes](docs/RELEASE_NOTES_3.6.6.md) · [3.6.5 release notes](docs/RELEASE_NOTES_3.6.5.md) · [3.6.4 release notes](docs/RELEASE_NOTES_3.6.4.md) · [3.6.3 release notes](docs/RELEASE_NOTES_3.6.3.md) · [3.6.2 release notes](docs/RELEASE_NOTES_3.6.2.md) · [3.6.1 release notes](docs/RELEASE_NOTES_3.6.1.md) · [3.6 release notes](docs/RELEASE_NOTES_3.6.0.md) · [3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
 
 ## Install and open
 
@@ -75,13 +75,19 @@ Machine-specific paths in screenshots are replaced with generic project location
 </tr>
 </table>
 
-## All 18 plugins
+The independent [Variant Manager](variant_manager_plugin/README.md) compares saved and staged assembly states, with bulk edit/delete, conflict-aware merge, swap, promotion and verified recovery.
+
+![Variant Manager native assembly comparison](variant_manager_plugin/help-workspace.png)
+
+<a id="all-18-plugins"></a>
+## All 19 plugins
 
 Every name below opens that plugin’s README. The [full tool directory](docs/USER_GUIDE.md#tool-directory) explains inputs, outputs and write boundaries.
 
 | Icon | Plugin and guide | Features | Description |
 |---|---|---|---|
 | <img src="project_fusion_plugin/icon.png" width="64" height="64" alt="Project Fusion icon"> | [Project Fusion](project_fusion_plugin/README.md) | Project merging; subsheet extraction; visual block placement; linked updates | Combines schematics and routed PCB blocks into one saved KiCad project. |
+| <img src="variant_manager_plugin/icon.png" width="64" height="64" alt="Variant Manager icon"> | [Variant Manager](variant_manager_plugin/README.md) | Assembly previews; compare, bulk edit/delete, merge, swap and promote; verified backups | Manages native KiCad variant definitions in its own independently installable desktop plugin. |
 | <img src="bom_studio_plugin/icon.png" width="64" height="64" alt="BOM Studio icon"> | [BOM Studio](bom_studio_plugin/README.md) | Templates and field editing; component grouping; variants; CSV/XLSX/TSV exports | Organizes component data and produces purchasing or assembly bills of materials. |
 | <img src="embed_3d_plugin/icon.png" width="64" height="64" alt="Embed3D icon"> | [Embed3D](embed_3d_plugin/README.md) | Local symbol and footprint libraries; 3D model copying/embedding; link repair; backups | Makes project libraries and 3D models portable by collecting dependencies locally. |
 | <img src="quick_pi_plugin/icon.png" width="64" height="64" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) | 2.5D DC solver; voltage, current-density and loss maps; copper meshes; decoupling review | Estimates voltage drop and Joule losses in PCB power rails using actual copper geometry. |
@@ -125,8 +131,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.7
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.7
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.8
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.8
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.
@@ -138,4 +144,4 @@ WayriCAD development has made substantial use of AI coding assistants and large 
 We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
 
 
-[Project Fusion 0.9.5 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.7/WayriCAD-project-fusion-0.9.5-PCM.zip) is available as an independent testing package. It retains its MIT license and native KiCad loader. [Fusion guide](project_fusion_plugin/README.md).
+[Project Fusion 0.9.6 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.8/WayriCAD-project-fusion-0.9.6-PCM.zip) and [Variant Manager 0.6.0 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.8/WayriCAD-variant-manager-0.6.0-PCM.zip) are independent testing packages. Both retain their MIT licenses and native KiCad loaders.

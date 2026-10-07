@@ -354,9 +354,21 @@ class InsertionDialog(wx.Dialog):
                 raise MergeError(f'A maximum of {MAX_INSTANCES} incoming instances is allowed.')
             pending = []
             for path in paths:
+                from .source_detection import choose_source
+                detected=choose_source(self,path)
+                if detected is None:continue
+                if detected.kind=='layout':
+                    from .board_layout_gui import LayoutImportDialog
+                    dialog=LayoutImportDialog(self,detected.project,self.target.GetPath(),self.cli_path)
+                    try:dialog.ShowModal()
+                    finally:dialog.Destroy()
+                    continue
+                path=detected.project
+                if not detected.has_layout:self.include_layout.SetValue(False)
                 if project_identity(path) == project_identity(self.target.GetPath()):
                     continue
                 spec = SourceSpec(path, Path(path).stem)
+                spec.selection=detected.selection
                 names = detect_variants(spec)
                 if names == [DEFAULT]:
                     spec.variant = DEFAULT
@@ -519,8 +531,19 @@ class InsertionDialog(wx.Dialog):
                                  if self.embedded else 'Candidate ready. Review it and close target editors before Apply.')
             self.open_button.Enable(); self.handoff_button.Enable()
             self.on_acknowledge()
-        self.run(lambda: preview_import(target, sources, include_layout, candidate,
-                                        cli_path=self.cli_path, gap_mm=gap), done)
+        def build():
+            if any((spec.selection and not spec.selection.get('whole_project',True)) or
+                   (Path(spec.project).suffix.lower()=='.kicad_sch' and not Path(spec.project).with_suffix('.kicad_pro').is_file())
+                   for spec in sources):
+                from .workspace import materialize_sources
+                prepared, originals=materialize_sources(sources,include_layout,Path(candidate).parent,self.cli_path)
+                plan=preview_import(target,prepared,include_layout,candidate,cli_path=self.cli_path,gap_mm=gap)
+                plan['selection_originals']=originals
+                # apply_import checks source_hashes as well as materialized copies.
+                plan['source_hashes'].extend(originals)
+                return plan
+            return preview_import(target,sources,include_layout,candidate,cli_path=self.cli_path,gap_mm=gap)
+        self.run(build, done)
 
     def open_candidate(self, event):
         if self.plan is not None:

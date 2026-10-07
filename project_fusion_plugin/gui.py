@@ -225,7 +225,8 @@ class FusionDialog(wx.Dialog):
                 ('Audit dependencies…',self.dependencies,wx.ART_FIND,'Inspect local libraries, models and assets.'),
                 ('Paths and extra assets…',self.edit_source_paths,wx.ART_FOLDER,'Configure source-specific path remaps and additional assets.')]),
             ('Insert into an existing design','Import selected source projects or subsheets into a saved target; retain target references and hierarchy.',[
-                ('Import mode',lambda e:self.choose_import_mode(),wx.ART_GO_FORWARD,'Switch the main workspace to current/existing project import.')]),
+                ('Import mode',lambda e:self.choose_import_mode(),wx.ART_GO_FORWARD,'Switch the main workspace to current/existing project import.'),
+                ('PCB-only layout import…',self.open_layout_import,wx.ART_NORMAL_FILE,'Import a board as isolated Board Only objects and keep the target schematic unchanged.')]),
             ('Maintain linked designs','Review source changes, pin-connection changes and local conflicts. Links can be broken without deleting local copies.',[
                 ('Linked updates and overview…',self.open_linked_updates,wx.ART_REPORT_VIEW,'Open hierarchy overview, link status, change review, update, undo and unlink tools.')])]:
             group=wx.StaticBoxSizer(wx.VERTICAL,p,heading);group.Add(self.note(group.GetStaticBox(),description),0,wx.EXPAND|wx.ALL,10)
@@ -719,7 +720,19 @@ class FusionDialog(wx.Dialog):
             paths=dlg.GetPaths()
         if len(paths)+self.grid.GetNumberRows()>MAX_INSTANCES:
             wx.MessageBox(f'A maximum of {MAX_INSTANCES} source instances is allowed.','Too many instances',wx.OK | wx.ICON_WARNING,self); return
-        for path in paths: self.append_source(path)
+        from .source_detection import choose_source
+        for path in paths:
+            try:
+                detected=choose_source(self,path)
+                if detected is None:continue
+                if detected.kind=='layout':
+                    self.open_layout_import(None,detected.project)
+                    continue
+                if not detected.has_layout:self.copy_layout.SetValue(False)
+                self.append_source(detected.project,extras={'selection':detected.selection})
+                self.status.SetLabel('Detected '+detected.kind+' source. Use Whole project or Selected pages to override its scope.')
+            except Exception as exc:
+                wx.MessageBox(str(exc),'Source detection',wx.OK | wx.ICON_WARNING,self)
 
     def duplicate_selected(self,event):
         if self.busy: return
@@ -1001,6 +1014,13 @@ class FusionDialog(wx.Dialog):
                 self.replace_sources(dialog.result)
                 self.status.SetLabel('Source rows now use field-edited Default copies. Rerun Analyse and review PCB metadata.')
             else:self.status.SetLabel('BOM/field review closed; original projects remain unchanged.')
+        finally:dialog.Destroy()
+
+    def open_layout_import(self,event,source=''):
+        if self.busy:return
+        from .board_layout_gui import LayoutImportDialog
+        dialog=LayoutImportDialog(self,source,self.target_project.GetPath(),self.cli.GetPath())
+        try:dialog.ShowModal()
         finally:dialog.Destroy()
 
     def dependencies(self,event):

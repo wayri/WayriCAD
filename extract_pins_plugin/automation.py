@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 PLUGIN_CAPABILITIES = (
     ("project-fusion", "Wayri Project Fusion", ("analyse", "merge", "gui"), True, "saved-project"),
+    ("variant-manager", "WayriCAD Variant Manager", ("list", "job", "set-default", "delete", "restore-variants", "gui"), True, "saved-project"),
     ("copper-balancer", "WayriCAD Copper Balancer", ("preview", "apply", "export"), True, "saved-board"),
     ("mechanical-check", "WayriCAD Mechanical Check", ("inspect", "validate", "report"), False, "saved-board"),
     ("bom-studio", "WayriCAD BOM Studio", ("inspect", "export", "variants"), True, "project"),
@@ -51,6 +52,7 @@ def capabilities() -> dict[str, Any]:
         "operations": sorted(HANDLERS),
         "additional_cli": {
             "project-fusion": "wayricad-fusion --help (native KiCad CLI required for merge; offline project apply)",
+            "variant-manager": "wayricad-variants --help (native KiCad 10 variants; preview-first batch jobs and verified backups)",
             "trace-impedance": "wayricad-rlc --help (KiCad 10 Python; trace/via/hybrid and filled-zone estimates)",
             "copper-balancer": "wayricad-copper --help (KiCad 10 native geometry required)",
             "mechanical-check": "wayricad-mechanical --help (KiCad and FreeCAD required for solid checks)",

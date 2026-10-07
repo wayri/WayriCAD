@@ -1,0 +1,12 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Variant Manager",
+  "description": "Preview and manage native KiCad assembly variants with batch operations and verified backups.",
+  "description_full": "An independent native desktop plugin for comparing assembly states, creating, duplicating, renaming, deleting, bulk editing, merging, swapping and promoting KiCad 10 variants. Shows before/after component tables and saved-board assembly previews. Offline application requires closed project editors and creates a verified backup. Geometry and PCB synchronization remain separate KiCad workflows.",
+  "identifier": "org.wayri.variant-manager",
+  "type": "plugin",
+  "author": {"name": "Wayri (Yawar)", "contact": {}},
+  "license": "MIT",
+  "versions": [{"version": "0.6.0", "status": "testing", "kicad_version": "10.0", "kicad_version_max": "10.99", "runtime": "swig", "platforms": ["windows", "linux"]}],
+  "resources": {"homepage": "https://github.com/wayri/WayriCAD", "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/variant_manager_plugin/icon.png"}
+}

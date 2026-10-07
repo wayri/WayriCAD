@@ -25,20 +25,21 @@ class WorkbenchPluginTests(unittest.TestCase):
     def test_active_pcm_packages_have_visible_ipc_actions(self) -> None:
         from build_pcm import discover_plugins
         packages = discover_plugins(ROOT)
-        self.assertEqual(18, len(packages))
+        self.assertEqual(19, len(packages))
         for package in packages:
             with self.subTest(folder=package.name):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
                 if metadata["versions"][0]["runtime"] == "swig":
-                    self.assertEqual("org.wayri.projectfusion", metadata["identifier"])
-                    self.assertEqual("0.9.5", metadata["versions"][0]["version"])
+                    expected = {"project_fusion_plugin": ("org.wayri.projectfusion", "0.9.6"),
+                                "variant_manager_plugin": ("org.wayri.variant-manager", "0.6.0")}
+                    self.assertEqual(expected[package.name], (metadata["identifier"], metadata["versions"][0]["version"]))
                     self.assertFalse((package / "plugin.json").exists())
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):
                         self.assertTrue((package / entry).is_file())
                     continue
                 expected_version = "3.6.6" if package.name in {
                     "quick_pi_plugin", "quick_therm_plugin"
-                } else "3.6.4"
+                } else "3.6.8" if package.name == "extract_pins_plugin" else "3.6.4"
                 self.assertEqual(expected_version, metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))
