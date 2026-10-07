@@ -275,11 +275,11 @@ def merge_embedded(target,source):
             dest.append(copy.deepcopy(entry)); known[name]=serialized
 
 
-def compose(sources,merged,outline,margin):
+def compose(sources,merged,outline,margin,stack_board=None):
     base=sources[0].board
     board=[copy.deepcopy(n) for n in base if not isinstance(n,list) or sx.tag(n) in HEADER-{'net','embedded_files'}]
     sx.put(board,'version',str(max(int(sx.value(s.board,'version')) for s in sources)))
-    apply_stack_header(board,sources)
+    apply_stack_header(board,sources,stack_board=stack_board)
     sx.remove(board,'variant'); sx.remove(board,'variants')
     sx.put(board,'generator',sx.q('wayri_project_fusion'))
     sx.remove(board,'generator_version')
@@ -445,7 +445,7 @@ def geometry_signature(board):
     """Post-native-save geometry/layer/span checks, including pad stacks.
 
     Numeric formatting and child ordering are normalized; geometry, copper-layer
-    membership and blind-via type must not be expanded by the native reader.
+    membership and through-via type must not be changed by the native reader.
     """
     def atom(v):
         try: return round(float(v),6)

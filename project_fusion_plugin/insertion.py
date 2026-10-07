@@ -212,9 +212,11 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
         imported=None
         if include_layout:
             target_layers=copper_sequence(target.board)
-            if any(copper_sequence(source.board)!=target_layers for source in incoming):
-                raise MergeError('Insertion preserves the target stackup. Incoming routed boards must have the same copper-layer count; use a separately reviewed layer conversion first.')
-            plan_layers(incoming,False)
+            # Import keeps the target's physical stack and both outside faces.
+            # Intermediate source copper follows its top-down order; only
+            # full-depth through vias are accepted into the deeper stack.
+            plan_layers(incoming,True,target_layers=target_layers,
+                        preserve_outer=True,through_vias_only=True)
             target_box=board_bounds(target.board);next_x=target_box[2]+float(gap_mm)
             for source in incoming:
                 if (source.spec.x_mm is None)!=(source.spec.y_mm is None):raise MergeError('Specify both X and Y placement coordinates or neither.')
@@ -224,7 +226,7 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
                 # KiCad serializes positions on its 1 nm grid. Quantize the rigid
                 # translation before composing every item, as ordinary merge does.
                 source.translation=(round(x-source.bbox[0],6),round(y-source.bbox[1],6));next_x=x+(source.bbox[2]-source.bbox[0])+float(gap_mm)
-            imported=compose(incoming,merged,'preserve',0)
+            imported=compose(incoming,merged,'preserve',0,stack_board=target.board)
             verify_board(imported,incoming,merged)
             result=_append_board(copy.deepcopy(target.board),imported,merged)
             verify_native_associations(result,merged)
@@ -288,7 +290,9 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
                 'unconnected_findings':len(drc.get('unconnected_items',[])) if drc else None,
                 'erc_findings':sum(len(sheet.get('violations',[])) for sheet in erc.get('sheets',[])),
                 'manufacturing_approved':False,'sources':[{'alias':s.alias,'reference_map':s.ref_map,'variant':s.selected_variant,
-                'section_origin':copy.deepcopy(s.spec.section_origin),'translation_mm':list(s.translation)} for s in incoming],
+                'section_origin':copy.deepcopy(s.spec.section_origin),'translation_mm':list(s.translation),
+                'layer_map':dict(s.layer_map) if include_layout else {},
+                'layer_notes':list(s.layer_notes) if include_layout else []} for s in incoming],
                 'limitations':['Incoming custom rules are archived for manual migration.',
                 'Existing target board outline is retained; imported layout may require extending the outline after review.']}
         _json(candidate/'insertion-report.json',report)

@@ -30,12 +30,14 @@ can omit the source PCB. Fusion records the source identity and imports it as a
 linked design. In **Linked sources / updates…**, scan the saved source and
 preview a linked update. Source Value, BOM/custom fields, selected Footprint and
 routed footprint positions can propagate while surviving symbols and PCB items
-retain stable destination identities. To keep a working target placement and
-routing instead, check **Keep current target footprint positions and routing**
-before previewing. This optional mode retains linked PCB geometry even when the
-source PCB placement changes, while inheriting the schematic and a compatible
-replacement footprint body and pads. Pad numbers, nets, native DRC and
-unconnected checks must pass; incompatible replacements stop for manual review.
+retain stable destination identities. **Linked update mode** offers three
+reviewed choices. **Follow source schematic and PCB layout** is the original
+behavior. **Update schematic; keep target placement and routing** retains linked
+PCB geometry even when source PCB placement changes, while inheriting a
+compatible replacement footprint body and pads. **Update PCB layout; keep target
+schematic** brings source placement and routes into the linked block without
+overwriting the target schematic or its fields. Pad numbers, nets, native DRC
+and unconnected change checks must pass; incompatible changes stop for manual review.
 New or changed footprints and electrical connections require major-change review
 and native validation. The Change
 Review gives a suggestion per row; **Ignore for now** defers that design's
@@ -183,7 +185,7 @@ The collector resolves existing local files through absolute paths, project-rela
 
 | Additional auxiliary files | Per-source `extra_asset_paths` explicitly includes additional files or folders. Arbitrary unrelated project outputs, caches and repositories are not copied blindly. |
 
-Used copied library-footprint pad layers are also adapted to the source's top-down copper mapping. Placed PCB geometry remains the original geometry, independent of any differences that already existed between a source's placed footprint and its library definition. Later **Update Footprints from Library** is still a separate design edit and requires review.
+Used copied library-footprint pad layers are also adapted to the source's reviewed copper mapping. Placed PCB geometry remains the original geometry, independent of any differences that already existed between a source's placed footprint and its library definition. Later **Update Footprints from Library** is still a separate design edit and requires review.
 
 All active copied library/model links use the combined project's `${KIPRJMOD}`. Source aliases and hashed folder/library names avoid overwriting unrelated resources that share a filename or library nickname. The asset manifest records original paths, destination paths, source hashes and output hashes; modified textual dependency files can legitimately have different source/output hashes.
 
@@ -223,11 +225,11 @@ A remap replaces a path-root prefix on a path-component boundary; the longest ma
 
 Collection is bounded to 60,000 entries/files and 12 GiB per source to avoid runaway recursion. Symbolic-link loops and an asset folder containing the output staging location are guarded. Complicated file-internal CAD assembly references, arbitrary scripts/commands, third-party database libraries and legacy non-native library formats are not universal dependency-rewriting targets. Include the needed auxiliary files explicitly and inspect them. A recorded-path audit is not a universal proof of portability for opaque third-party formats.
 
-## 3. Mixed copper counts: maximum stack, top-down mapping
+## 3. Mixed copper counts: preserve the outside copper faces
 
 The output copper count is the **highest input count**. The first source with that maximum count supplies the physical stackup, board thickness, copper-layer declarations and layer-specific plot setup. Row 1 supplies other global project/design settings. No dielectric stack is invented, averaged or inserted into a smaller source's stack.
 
-Input copper layers are ordered physically, not by the order or numeric IDs in the file. Each source's N layers map to the first N output copper layers.
+Input copper layers are ordered physically, not by the order or numeric IDs in the file. `F.Cu` and `B.Cu` stay on the corresponding outside faces. A smaller source's internal layers map in order to the first available output internal layers.
 
 For a six-layer output:
 
@@ -235,21 +237,21 @@ For a six-layer output:
 
 |---|---|---|
 
-| 2 layers | `F.Cu → F.Cu`; `B.Cu → In1.Cu` | `In2.Cu`, `In3.Cu`, `In4.Cu`, `B.Cu` |
+| 2 layers | `F.Cu → F.Cu`; `B.Cu → B.Cu` | `In1.Cu` through `In4.Cu` |
 
-| 4 layers | `F.Cu → F.Cu`; `In1.Cu → In1.Cu`; `In2.Cu → In2.Cu`; `B.Cu → In3.Cu` | `In4.Cu`, `B.Cu` |
+| 4 layers | `F.Cu → F.Cu`; `In1.Cu → In1.Cu`; `In2.Cu → In2.Cu`; `B.Cu → B.Cu` | `In3.Cu`, `In4.Cu` |
 
 | 6 layers | Every copper layer keeps its corresponding position/name | None |
 
-This intentionally **does not** preserve every source's old B.Cu as the final board's physical bottom. Tracks, zones, supported copper drawings, pads, explicit padstack layers and via endpoints are remapped. Wildcards such as `*.Cu` on a smaller source are expanded to that source's mapped layers, not all layers of the larger output. See `reports/layer-map.csv`.
+Tracks, zones, supported copper drawings, pads and explicit padstack layers are remapped. A bottom-side component on a smaller source remains on the final board's bottom face. Wildcards such as `*.Cu` on a smaller source are expanded to that source's mapped layers, not all layers of the larger output. See `reports/layer-map.csv`.
 
 ### Physical consequences that cannot be hidden
 
-A two-layer source's former back copper becomes inner copper. Consequently, a full-depth source via connecting F.Cu to B.Cu is converted to a blind span when its destination is now an inner layer. This requires explicit acknowledgement and fabricator/stackup review. The plugin does not design the manufacturing process or certify a blind-via aspect ratio.
+Imported vias must be native `F.Cu`-to-`B.Cu` through vias. Their barrels span the full output stack, even when the source had fewer layers. Blind, buried and microvias are rejected for a reviewed source redesign. Review fabrication capability, annulus clearance and drill aspect ratio on the final stack.
 
-**A bottom-side footprint on a smaller source is rejected.** Ordinary surface components and SMD pads cannot simply be buried on In1.Cu while retaining a valid assembly. Move/reroute those parts onto the source's front side in a copy, or provide sources with the same copper count. Unsupported grouped front/inner/back padstacks must be normalized to explicit Custom layers in a source copy before this mapping.
+Unsupported grouped front/inner/back padstacks must be normalized to explicit Custom layers in a source copy before this mapping. A successful layer conversion does not establish impedance, return-path or manufacturing qualification.
 
-Normal PTH pads retain **full-stack annuli (`*.Cu`) and full-depth plated barrels/drilled holes**, as required by native KiCad. Review clearances on all added layers. Source planar tracks/zones retain their top-down mapping. NPTH holes likewise remain full depth. Therefore the unused-layer promise concerns imported *planar copper*: it cannot mean there is literally no plated barrel passing through those layers. These are explicit report warnings.
+Normal PTH pads retain **full-stack annuli (`*.Cu`) and full-depth plated barrels/drilled holes**, as required by native KiCad. Review clearances on all added layers. NPTH holes likewise remain full depth. Therefore the unused-layer promise concerns imported *planar copper*: it cannot mean there is literally no plated barrel passing through those layers. These are explicit report warnings.
 
 Track widths and XY geometry are not changed to compensate for a different dielectric environment. Requalify controlled impedance, return paths, clearances, creepage, via rules and mechanical thickness. A completed low-layer-count layout is not electrically requalified merely because its topology was successfully imported.
 

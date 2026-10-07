@@ -14,8 +14,25 @@ pkg=ModuleType(PACKAGE);pkg.__path__=[str(ROOT)];sys.modules[PACKAGE]=pkg
 i=importlib.import_module(PACKAGE+'.insertion')
 sx=importlib.import_module(PACKAGE+'.sexpr')
 model=importlib.import_module(PACKAGE+'.model')
+layers=importlib.import_module(PACKAGE+'.layers')
 
 class InsertionTests(unittest.TestCase):
+    def test_import_rejects_non_through_vias_and_larger_source_stack(self):
+        source=SimpleNamespace(alias='Source',copper_layers=['F.Cu','In1.Cu','In2.Cu','B.Cu'],
+                               target_copper_layers=['F.Cu','In1.Cu','In2.Cu','B.Cu'],
+                               layer_map={name:name for name in ('F.Cu','In1.Cu','In2.Cu','B.Cu')},
+                               layer_notes=[],through_vias_only=True)
+        for via in ('(via blind (layers "F.Cu" "In1.Cu"))',
+                    '(via micro (layers "F.Cu" "In1.Cu"))',
+                    '(via (layers "F.Cu" "In1.Cu"))'):
+            with self.subTest(via=via),self.assertRaisesRegex(model.MergeError,'only native F.Cu-to-B.Cu through vias'):
+                layers.remap_item(sx.loads(via),source)
+        source.board=sx.loads('(kicad_pcb (layers (0 "F.Cu" signal) (1 "In1.Cu" signal) '
+                              '(2 "In2.Cu" signal) (31 "B.Cu" signal)))')
+        with self.assertRaisesRegex(model.MergeError,'more copper layers'):
+            layers.plan_layers([source],True,target_layers=['F.Cu','B.Cu'],
+                               preserve_outer=True,through_vias_only=True)
+
     def transaction(self,base):
         root=base/'target';root.mkdir();(root/'board.kicad_pro').write_text('{}');(root/'a.txt').write_text('old')
         (root/'existing-empty').mkdir()

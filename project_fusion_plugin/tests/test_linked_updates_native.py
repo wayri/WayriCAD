@@ -16,6 +16,79 @@ from test_sections_native import make_fixture
 
 @unittest.skipUnless(os.environ.get('FUSION_NATIVE_LINKED')=='1','Opt-in native linked update')
 class NativeLinkedTests(unittest.TestCase):
+    def test_layout_only_inherits_source_board_and_preserves_target_schematic(self):
+        with tempfile.TemporaryDirectory(prefix='fusion-native-link-board-only-') as folder:
+            base=Path(folder).resolve();target,_=make_fixture(base/'target');source,_=make_fixture(base/'source')
+            imported=model.SourceSpec(source.project,'Unit1',variant='<Default>')
+            i.apply_import(i.preview_import(target.project,[imported],True,base/'inserted'))
+            _,manifest=l._load(target.project);old=manifest['links'][0]
+            target_board=Path(target.project).with_suffix('.kicad_pcb')
+            old_board=sx.load(target_board)
+            linked_fp=next(fp for fp in sx.children(old_board,'footprint')
+                           if sx.value(fp,'uuid') in old['pcb_item_ids'])
+            before_x=float(sx.child(linked_fp,'at')[1])
+            target_child=next(Path(target.project).parent/name for name in old['sheet_files']
+                              if sx.children(sx.load(Path(target.project).parent/name),'symbol'))
+            child=sx.load(target_child);symbol=sx.children(child,'symbol')[0]
+            sx.prop(symbol,'Value')[2]=sx.q('47k')
+            symbol.append(sx.loads('(property "MPN" "LOCAL-47K" (at 20 22 0) (effects (font (size 1.27 1.27)) (hide yes)))'))
+            sx.save(target_child,child)
+            # Keep the starting destination electrically/field consistent,
+            # as it would be after KiCad's Update PCB from Schematic.
+            import pcbnew
+            native_board=pcbnew.LoadBoard(str(target_board))
+            for native_fp in native_board.GetFootprints():
+                if native_fp.GetReference()==sx.propval(linked_fp,'Reference'):
+                    native_fp.SetField('Value','47k')
+                    native_fp.SetField('MPN','LOCAL-47K')
+            pcbnew.SaveBoard(str(target_board),native_board)
+            saved_sheets={str(path.relative_to(Path(target.project).parent)):path.read_bytes()
+                          for path in l.project_files(Path(target.project).parent) if path.suffix=='.kicad_sch'}
+            saved_project=Path(target.project).read_bytes()
+            board_path=base/'source/board.kicad_pcb';source_board=sx.load(board_path)
+            footprint=sx.children(source_board,'footprint')[0]
+            source_child=next(path for path in l.project_files(base/'source') if path.suffix=='.kicad_sch'
+                              and sx.children(sx.load(path),'symbol'))
+            source_tree=sx.load(source_child)
+            sx.prop(sx.children(source_tree,'symbol')[0],'Value')[2]=sx.q('22k')
+            sx.save(source_child,source_tree)
+            sx.prop(footprint,'Value')[2]=sx.q('22k')
+            old_x=float(sx.child(footprint,'at')[1])
+            sx.child(footprint,'at')[1]=str(old_x+0.2)
+            segment=min(sx.children(source_board,'segment'),
+                        key=lambda item:abs(float(sx.child(item,'start')[1])-old_x))
+            sx.child(segment,'start')[1]=str(float(sx.child(segment,'start')[1])+0.2)
+            sx.save(board_path,source_board)
+            source_hash=l.fingerprint(base/'source')
+            plan=l.preview_update(target.project,[old['id']],base/'board-only',acknowledge_major=True,
+                                  layout_only=True)
+            self.assertTrue(plan['report']['layout_only'])
+            self.assertEqual(l.fingerprint(base/'source'),source_hash)
+            i.apply_import(plan)
+            for name,data in saved_sheets.items():
+                self.assertEqual((Path(target.project).parent/name).read_bytes(),data)
+            self.assertEqual(Path(target.project).read_bytes(),saved_project)
+            updated=sx.load(target_board)
+            footprint=next(fp for fp in sx.children(updated,'footprint')
+                           if sx.value(fp,'uuid')==sx.value(linked_fp,'uuid'))
+            self.assertAlmostEqual(float(sx.child(footprint,'at')[1])-before_x,0.2,places=4)
+            self.assertEqual(sx.propval(footprint,'Value'),'47k')
+            self.assertEqual(sx.propval(sx.children(sx.load(target_child),'symbol')[0],'MPN'),'LOCAL-47K')
+            _,after=l._load(target.project)
+            self.assertEqual(after['links'][0]['id'],old['id'])
+            self.assertEqual(after['links'][0]['pcb_uuid_map'],old['pcb_uuid_map'])
+            again=l.preview_update(target.project,[old['id']],base/'board-only-repeat',acknowledge_major=True,
+                                   layout_only=True)
+            self.assertTrue(again['report']['layout_only'])
+            edited=sx.load(target_board)
+            changed=next(fp for fp in sx.children(edited,'footprint')
+                         if sx.value(fp,'uuid')==sx.value(linked_fp,'uuid'))
+            sx.child(changed,'at')[1]=str(float(sx.child(changed,'at')[1])+0.1)
+            sx.save(target_board,edited)
+            with self.assertRaisesRegex(model.MergeError,'Destination conflict'):
+                l.preview_update(target.project,[old['id']],base/'board-only-local-conflict',
+                                 acknowledge_major=True,layout_only=True)
+
     @staticmethod
     def replace_source_resistor_footprint(folder, library_name='R_1206_3216Metric'):
         import copy

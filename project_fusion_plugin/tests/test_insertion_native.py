@@ -13,6 +13,7 @@ ROOT=Path(__file__).resolve().parents[1]
 PACKAGE='_fusion_insertion_native_test'
 pkg=ModuleType(PACKAGE);pkg.__path__=[str(ROOT)];sys.modules[PACKAGE]=pkg
 i=importlib.import_module(PACKAGE+'.insertion')
+engine=importlib.import_module(PACKAGE+'.engine')
 sx=importlib.import_module(PACKAGE+'.sexpr')
 model=importlib.import_module(PACKAGE+'.model')
 from test_sections_native import make_fixture
@@ -25,6 +26,59 @@ def fixture_directory(mode):
 
 @unittest.skipUnless(os.environ.get('FUSION_NATIVE_INSERTION')=='1','Opt-in KiCad native insertion')
 class NativeInsertionTests(unittest.TestCase):
+    def test_two_layer_bottom_component_imports_to_four_layer_bottom_with_through_via(self):
+        import pcbnew
+
+        with fixture_directory('mixed-bottom') as folder:
+            base=Path(folder);target,_=make_fixture(base/'target');source,_=make_fixture(base/'source')
+            target_pcb=Path(target.project).with_suffix('.kicad_pcb')
+            source_pcb=Path(source.project).with_suffix('.kicad_pcb')
+            target_board=pcbnew.LoadBoard(str(target_pcb))
+            target_board.SetCopperLayerCount(4)
+            pcbnew.SaveBoard(str(target_pcb),target_board)
+            source_board=pcbnew.LoadBoard(str(source_pcb))
+            footprint=next(iter(source_board.GetFootprints()))
+            footprint.Flip(footprint.GetPosition(),False)
+            for track in source_board.GetTracks():
+                if not isinstance(track,pcbnew.PCB_VIA):
+                    track.SetLayer(pcbnew.B_Cu)
+            pcbnew.SaveBoard(str(source_pcb),source_board)
+            source_before=i.fingerprint(base/'source');target_before=i.fingerprint(base/'target')
+
+            incoming=model.SourceSpec(source.project,'BottomModule',variant='<Default>')
+            plan=i.preview_import(target.project,[incoming],True,base/'candidate')
+            self.assertEqual(plan['report']['sources'][0]['layer_map'],{'F.Cu':'F.Cu','B.Cu':'B.Cu'})
+            candidate=base/'candidate/board.kicad_pcb'
+            tree=sx.load(candidate)
+            imported_ref=plan['report']['sources'][0]['reference_map']['R1']
+            imported_footprint=next(fp for fp in sx.children(tree,'footprint')
+                                    if sx.propval(fp,'Reference')==imported_ref)
+            self.assertEqual(sx.value(imported_footprint,'layer'),'B.Cu')
+            self.assertEqual([str(x) for x in sx.child(sx.children(tree,'via')[-1],'layers')[1:]],
+                             ['F.Cu','B.Cu'])
+            native=pcbnew.LoadBoard(str(candidate))
+            self.assertEqual(native.GetCopperLayerCount(),4)
+            native_fp=next(fp for fp in native.GetFootprints() if fp.GetReference()==imported_ref)
+            self.assertEqual(native_fp.GetLayer(),pcbnew.B_Cu)
+            self.assertTrue(all(via.GetViaType()==pcbnew.VIATYPE_THROUGH and
+                                via.TopLayer()==pcbnew.F_Cu and via.BottomLayer()==pcbnew.B_Cu
+                                for via in native.GetTracks() if isinstance(via,pcbnew.PCB_VIA)))
+            donor=model.SourceSpec(target.project,'Donor',variant='<Default>')
+            merged=engine.merge(model.Options([incoming,donor],str(base/'merged'),
+                name='Combined',acknowledge_outline_change=True,
+                accept_primary_settings=True,saved_sources_confirmed=True,
+                acknowledge_layer_remap=True))
+            self.assertEqual(merged['report']['summary']['sources'][0]['unused_planar_layers'],
+                             ['In1.Cu','In2.Cu'])
+            merged_native=pcbnew.LoadBoard(str(Path(merged['project']).with_suffix('.kicad_pcb')))
+            self.assertEqual(merged_native.GetCopperLayerCount(),4)
+            self.assertEqual(sum(fp.GetLayer()==pcbnew.B_Cu for fp in merged_native.GetFootprints()),1)
+            self.assertTrue(all(via.GetViaType()==pcbnew.VIATYPE_THROUGH and
+                                via.TopLayer()==pcbnew.F_Cu and via.BottomLayer()==pcbnew.B_Cu
+                                for via in merged_native.GetTracks() if isinstance(via,pcbnew.PCB_VIA)))
+            self.assertEqual(i.fingerprint(base/'source'),source_before)
+            self.assertEqual(i.fingerprint(base/'target'),target_before)
+
     def test_routed_multiple_instances_preserve_existing_target_and_apply(self):
         with fixture_directory('routed') as folder:
             base=Path(folder);target,_=make_fixture(base/'target');source,_=make_fixture(base/'source')

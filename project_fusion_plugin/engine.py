@@ -83,7 +83,9 @@ def analyse(options:Options,log=lambda m:None):
             'footprints':len(sx.children(s.board,'footprint')),'symbols':len(s.symbols),
             'translation_mm':s.translation,'reference_map':s.ref_map,
             'selected_variant':s.selected_variant,'detected_variants':s.variant_names,'variant_changes':s.variant_changes,
-            'copper_map':s.layer_map,'unused_planar_layers':s.target_copper_layers[len(s.copper_layers):],
+            'copper_map':s.layer_map,
+            'unused_planar_layers':[name for name in s.target_copper_layers
+                                    if name not in s.layer_map.values()],
             'stackup_donor':s.stackup_donor,'layer_notes':s.layer_notes})
     return root_uuid,sources,report
 
@@ -372,7 +374,7 @@ def merge(options:Options,log=lambda m:None,cli=None):
             'Source backups are in source-backup.zip with an original-path/SHA256 manifest.\n'
             'Do not enable reference-only re-association during the first Update PCB from Schematic.\n'
             'The explicitly selected source variants were flattened into the new project. Originals are unchanged.\n'
-            'Read layer-map.csv for the maximum-stack, top-down copper mapping; requalify vias, PTH barrels and impedance.\n'
+            'Read layer-map.csv for outer-face copper mapping; imported vias span the full stack. Requalify PTH barrels and impedance.\n'
             'Read asset-manifest.json for copied, embedded, unresolved and external dependencies.\n'
             'No autorouting, cross-project wiring, or automatic custom-rule migration was performed.\n',encoding='utf-8')
         # No temporary CLI backup files are part of the published design.

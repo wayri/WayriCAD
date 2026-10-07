@@ -206,7 +206,7 @@ class FusionDialog(wx.Dialog):
         for control,detail in [(self.saved,'Fusion reads saved files. Save schematic and PCB before analysis and creation.'),
                 (self.cuts,'Includes slots and cutouts: review and recreate required cuts before manufacture.'),
                 (self.settings,'Custom source rules are archived for manual migration, not activated.'),
-                (self.layers,'Top-down mapping may convert vias to blind spans. Review PTH barrels, stackup and impedance.'),
+                (self.layers,'Outer faces remain outer faces; imported vias must span the full stack. Review PTH barrels, stackup and impedance.'),
                 (self.strict_assets,'Missing dependencies stop creation instead of producing a non-portable project.')]:
             control.Reparent(group.GetStaticBox())
             group.Add(control,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,10)

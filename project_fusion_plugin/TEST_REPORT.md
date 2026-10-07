@@ -1,13 +1,18 @@
 # Fusion 0.9.5 validation
 
 7 October 2026, Windows, KiCad 10.0.6 bundled Python 3.11.5. The Fusion
-unit/native-GUI suite ran 191 tests with 52 skipped opt-in or unavailable
-workflows and no failures. Six additional opt-in native linked-update fixtures
-passed: two cover source-follow inheritance of Value, MPN, Footprint and routed
-placement, and four cover target-layout retention, a native 0603-to-1206 pad
-and body replacement, and rejection of changed pad numbering or detached copper.
-The first-open preview regression, issue-choice GUI regressions and 11 opt-in
-linked-window GUI tests passed. The 18 independent PCM ZIPs
+unit/native-GUI suite ran 195 tests with 55 skipped opt-in or unavailable
+workflows and no failures. All 12 opt-in native linked-update fixtures passed;
+they cover source
+inheritance of Value, MPN, Footprint and routing; target-layout retention with
+a compatible 0603-to-1206 replacement; and a reciprocal PCB-only update that
+preserves target schematic/project bytes, Value and MPN while importing a moved
+source footprint and route. A repeat preview succeeds and a local destination
+placement change is rejected. The native mixed-stack fixture keeps a two-layer
+bottom component on the four-layer output bottom and confirms full-stack
+through vias in both insert and whole-project merge. The first-open preview
+regression, issue-choice GUI regressions and 12 opt-in linked-window GUI tests
+passed. The 18 independent PCM ZIPs
 passed schema, runtime, icon and Python syntax validation. A source wheel
 passed isolated CLI imports. These are saved-file and native wx tests; they do
 not establish a human-operated KiCad editor launch or all-platform behavior.

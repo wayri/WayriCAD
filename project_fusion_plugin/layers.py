@@ -1,8 +1,8 @@
-"""Explicit top-down copper mapping; physical stack supplied by the largest board.
+"""Explicit outer-preserving copper mapping for merged or imported boards.
 
-This is NOT an outer-layers-preserving panelization map: 2 -> 4 maps B.Cu to
-In1.Cu. Surface-mount pads may not become buried. Full-depth vias become blind
-when their mapped endpoint is internal. PTH drills remain full depth.
+The physical stack comes from the largest board or the existing import target.
+Both outer faces stay outer; only full-depth through vias are accepted. Surface
+mount pads may never become buried. Normal PTH drills remain full depth.
 """
 from __future__ import annotations
 import copy
@@ -24,27 +24,45 @@ def copper_sequence(board):
     return sequence
 
 
-def plan_layers(sources, acknowledged, log=lambda m:None):
+def plan_layers(sources, acknowledged, log=lambda m:None, target_layers=None,
+                preserve_outer=True, through_vias_only=True):
     for s in sources:
         s.copper_layers=copper_sequence(s.board)
     donor=max(sources,key=lambda s:len(s.copper_layers))
-    target=donor.copper_layers
+    target=list(target_layers or donor.copper_layers)
+    if any(len(s.copper_layers)>len(target) for s in sources):
+        raise MergeError('An incoming board has more copper layers than the target stackup.')
     mixed=any(len(s.copper_layers)!=len(target) for s in sources)
     for s in sources:
         s.target_copper_layers=list(target)
-        s.layer_map=dict(zip(s.copper_layers,target[:len(s.copper_layers)]))
-        s.stackup_donor=donor.alias
+        if preserve_outer:
+            s.layer_map={'F.Cu':'F.Cu','B.Cu':'B.Cu'}
+            s.layer_map.update(zip(s.copper_layers[1:-1],target[1:-1]))
+        else:
+            s.layer_map=dict(zip(s.copper_layers,target[:len(s.copper_layers)]))
+        s.through_vias_only=through_vias_only
+        s.stackup_donor='existing target board' if target_layers is not None else donor.alias
         s.layer_notes=[]
         if len(s.copper_layers)<len(target):
-            s.layer_notes.append(f'{s.copper_layers[-1]} -> {s.layer_map[s.copper_layers[-1]]}; no imported planar copper on {", ".join(target[len(s.copper_layers):])}.')
+            if preserve_outer:
+                unused=[name for name in target if name not in s.layer_map.values()]
+                s.layer_notes.append(f'Source B.Cu remains on target B.Cu; no imported planar copper on {", ".join(unused)}.')
+                if through_vias_only:
+                    s.layer_notes.append('Imported through vias span the full target stack; review annulus clearance, return paths and drill aspect ratio.')
+            else:
+                s.layer_notes.append(f'{s.copper_layers[-1]} -> {s.layer_map[s.copper_layers[-1]]}; no imported planar copper on {", ".join(target[len(s.copper_layers):])}.')
             # Scan a copy in preflight; do not mutate the saved source tree.
             for item in sx.children(s.board):
                 if sx.tag(item) not in {'layers','setup'}:
                     remap_item(copy.deepcopy(item),s,check_only=True)
+        elif through_vias_only:
+            for via in sx.children(s.board,'via'):
+                remap_item(copy.deepcopy(via),s,check_only=True)
         log(f'{s.alias}: copper map '+', '.join(f'{a} -> {b}' for a,b in s.layer_map.items()))
     if mixed and not acknowledged:
-        raise MergeError('Acknowledge top-down copper-layer remapping: smaller boards use the first N layers; source B.Cu becomes internal, through vias become blind, PTH drills remain full depth, and impedance/stackup must be requalified.')
-    log(f'Output physical stack: {len(target)} copper layers from {donor.alias}; ties use the first largest board.')
+        raise MergeError('Acknowledge copper-layer remapping and requalify impedance, clearances and the physical stackup.')
+    stack_source='existing target board' if target_layers is not None else donor.alias
+    log(f'Output physical stack: {len(target)} copper layers from {stack_source}; ties use the first largest source board.')
     return donor
 
 
@@ -75,11 +93,17 @@ def _note(source,text):
 
 def remap_item(item,source,check_only=False):
     mixed=len(source.copper_layers)<len(source.target_copper_layers)
+    if sx.tag(item)=='via' and getattr(source,'through_vias_only',False):
+        layers=sx.child(item,'layers')
+        types=[str(v) for v in item[1:] if isinstance(v,str) and str(v) in {'through','blind','buried','micro'}]
+        if layers is None or tuple(map(str,layers[1:]))!=('F.Cu','B.Cu') or types not in ([],['through']):
+            raise MergeError(f'{source.alias}: only native F.Cu-to-B.Cu through vias can be imported; blind, buried and microvias need a reviewed source redesign.')
+        layers[:]=['layers',sx.q('F.Cu'),sx.q('B.Cu')]
     if not mixed:
         return item
     kind=sx.tag(item)
     native_pth_layers=set()
-    if kind=='footprint' and sx.value(item,'layer','F.Cu')=='B.Cu':
+    if kind=='footprint' and sx.value(item,'layer','F.Cu')=='B.Cu' and source.layer_map['B.Cu']!='B.Cu':
         ref=sx.propval(item,'Reference',str(item[1]))
         raise MergeError(f'{source.alias}: bottom-side footprint {ref} would be placed on {source.layer_map["B.Cu"]} under top-down mapping. KiCad surface components must remain on an outer face; move this component to the source front side and reroute, or supply equal-layer-count sources.')
     for node in sx.walk(item):
@@ -134,9 +158,10 @@ def remap_item(item,source,check_only=False):
     return item
 
 
-def apply_stack_header(board,sources):
+def apply_stack_header(board,sources,stack_board=None):
     donor=max(sources,key=lambda s:len(s.copper_layers))
-    declarations=copy.deepcopy(sx.child(donor.board,'layers'))
+    template=stack_board if stack_board is not None else donor.board
+    declarations=copy.deepcopy(sx.child(template,'layers'))
     by_name={str(n[1]):str(n[0]) for n in sx.children(declarations)}
     by_id={str(n[0]):str(n[1]) for n in sx.children(declarations)}
     for source in sources:
@@ -148,19 +173,19 @@ def apply_stack_header(board,sources):
                 raise MergeError(f'Non-copper layer-number conflict: {name} vs {by_id[ident]}. Save all source boards with the same KiCad 10 version first.')
             declarations.append(copy.deepcopy(entry)); by_name[name]=ident; by_id[ident]=name
     sx.put(board,'layers',*declarations[1:])
-    general=sx.child(donor.board,'general')
+    general=sx.child(template,'general')
     if general is not None:
         sx.put(board,'general',*copy.deepcopy(general[1:]))
     setup=sx.child(board,'setup')
     if setup is None:
         setup=sx.put(board,'setup')
     sx.remove(setup,'stackup')
-    stack=sx.child(sx.child(donor.board,'setup',['setup']),'stackup')
+    stack=sx.child(sx.child(template,'setup',['setup']),'stackup')
     if stack is not None:
         setup.append(copy.deepcopy(stack))
     # Bitmasks/export layer selections from another source are not portable.
     # Keep the largest board's plot setup, whose layer IDs match the output.
-    plot=sx.child(sx.child(donor.board,'setup',['setup']),'pcbplotparams')
+    plot=sx.child(sx.child(template,'setup',['setup']),'pcbplotparams')
     sx.remove(setup,'pcbplotparams')
     if plot is not None:
         setup.append(copy.deepcopy(plot))
@@ -171,6 +196,12 @@ def verify_layers(board,sources):
     target=max(sources,key=lambda s:len(s.target_copper_layers)).target_copper_layers
     if copper_sequence(board)!=target:
         raise MergeError('The saved PCB copper stack differs from the planned maximum-layer stack.')
+    if any(getattr(source,'through_vias_only',False) for source in sources):
+        for via in sx.children(board,'via'):
+            span=sx.child(via,'layers',[])
+            types=[str(v) for v in via[1:] if isinstance(v,str) and str(v) in {'through','blind','buried','micro'}]
+            if tuple(map(str,span[1:]))!=('F.Cu','B.Cu') or types not in ([],['through']):
+                raise MergeError('Imported PCB contains a non-through via; revise the source before insertion.')
     for item in sx.children(board):
         if sx.tag(item) in {'layers','setup'}:
             continue

@@ -175,13 +175,19 @@ class LinkedUpdatesDialog(wx.Dialog):
                        self.search_button, self.autolink_button, self.watch):
             controls.Add(button, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 8)
         root.Add(controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
-        self.retain_layout = wx.CheckBox(
-            self, label='Keep current target footprint positions and routing during linked update')
-        self.retain_layout.SetToolTip(
-            'Inherit saved schematic and compatible footprint changes while keeping the placed '
-            'target PCB geometry. Pad, connection and native DRC checks can stop an unsafe update.')
-        self.retain_layout.Bind(wx.EVT_CHECKBOX, self.invalidate_plan)
-        root.Add(self.retain_layout, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+        mode_row=wx.BoxSizer(wx.HORIZONTAL)
+        mode_row.Add(wx.StaticText(self,label='Linked update mode'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        self.update_mode=wx.Choice(self,choices=[
+            'Follow source schematic and PCB layout',
+            'Update schematic; keep target placement and routing',
+            'Update PCB layout; keep target schematic'])
+        self.update_mode.SetSelection(0)
+        self.update_mode.SetToolTip(
+            'All modes create a reviewed candidate. Changed pads, connections and native DRC '
+            'findings can stop an unsafe update.')
+        self.update_mode.Bind(wx.EVT_CHOICE,self.invalidate_plan)
+        mode_row.Add(self.update_mode,1,wx.EXPAND)
+        root.Add(mode_row,0,wx.LEFT|wx.RIGHT|wx.BOTTOM|wx.EXPAND,12)
         link_actions = wx.BoxSizer(wx.HORIZONTAL)
         self.break_selected_button = wx.Button(self, label='Preview break selected links…')
         self.break_all_button = wx.Button(self, label='Preview break all links…')
@@ -844,14 +850,17 @@ class LinkedUpdatesDialog(wx.Dialog):
             wx.MessageBox('Preview routed and schematic-only links in separate reviewed updates.',
                           'Mixed link modes', wx.OK | wx.ICON_WARNING, self)
             return
-        retained = bool(self.retain_layout.GetValue())
+        mode=self.update_mode.GetSelection()
+        retained=mode==1
+        allowed_conflicts=({'destination_pcb_items'} if retained else
+                           {'destination_sheets'} if mode==2 else set())
         conflicted = [link for link in selected_links
-                      if any(conflict.get('category') != 'destination_pcb_items' or not retained
+                      if any(conflict.get('category') not in allowed_conflicts
                              for conflict in link.get('conflicts', []))]
         if conflicted:
             first = conflicted[0]
             finding = next(conflict for conflict in first['conflicts']
-                           if conflict.get('category') != 'destination_pcb_items' or not retained)
+                           if conflict.get('category') not in allowed_conflicts)
             detail = finding.get('message', 'Local destination edits overlap this linked import.')
             wx.MessageBox(f"{first.get('alias', self.link_key(first))}: {detail}\n\nResolve the local conflict in a reviewed copy before updating this link.",
                           'Destination conflict', wx.OK | wx.ICON_WARNING, self)
@@ -886,11 +895,13 @@ class LinkedUpdatesDialog(wx.Dialog):
             overrides = dict(self.source_overrides)
             identity_overrides = {key:dict(value) for key,value in self.identity_overrides.items()
                                   if key in keys}
-            retain_layout = bool(self.retain_layout.GetValue())
+            retain_layout=mode==1
+            layout_only=mode==2
             action = lambda: preview_update(target, keys, candidate, cli_path=self.cli_path,
                                             acknowledge_major=bool(major), source_overrides=overrides,
                                             identity_overrides=identity_overrides,
-                                            retain_destination_layout=retain_layout)
+                                            retain_destination_layout=retain_layout,
+                                            layout_only=layout_only)
             status = 'Building and validating linked update candidate…'
         self.run(action, self.show_preview, status)
 

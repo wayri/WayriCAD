@@ -73,7 +73,7 @@ def _scope(project,link,xml=None):
         else:files[name]=_digest(_normal(sx.load(path)))
     board=sx.load(project.with_suffix('.kicad_pcb')) if project.with_suffix('.kicad_pcb').is_file() else ['kicad_pcb']
     expected=set(link.get('pcb_item_ids',[]))
-    items={}
+    items={};layout_items={}
     for item in sx.children(board):
         ident=sx.value(item,'uuid') or sx.value(item,'tstamp') or sx.value(item,'id')
         if ident in expected:
@@ -81,6 +81,11 @@ def _scope(project,link,xml=None):
             for node in sx.walk(semantic):
                 if sx.child(node,'net') is not None:sx.put(node,'net',sx.q(net_name(node,net_table(board))))
             items[ident]=_digest(_normal(semantic))
+            physical=copy.deepcopy(semantic)
+            if sx.tag(physical)=='footprint':
+                physical[:]=[node for node in physical if sx.tag(node)!='property'
+                             and not (sx.tag(node)=='fp_text' and len(node)>1 and str(node[1])=='value')]
+            layout_items[ident]=_digest(_normal(physical))
     tables={}
     for name,nicknames in link.get('library_names',{}).items():
         table=sx.load(root/name) if (root/name).is_file() else []
@@ -93,6 +98,7 @@ def _scope(project,link,xml=None):
         for ep,name in xml.pins.items():
             if ep[0] in refs:partitions[ep[0]+'.'+ep[1]]={'name':name,'pins':sorted([list(p) for p in xml.nets[name]])}
     return {'wrapper':_digest(_normal(wrapper)) if wrapper else None,'sheets':files,'pcb_items':items,
+            'pcb_layout':layout_items,
             'tables':tables,'assets':assets,'settings':_owned_settings(settings,link),'partitions':partitions}
 
 
@@ -260,11 +266,19 @@ def _owned_layout_compatible(project,link,xml):
     return True
 
 
-def _conflicts(project,link,xml,allow_owned_layout=False):
+def _conflicts(project,link,xml,allow_owned_layout=False,allow_schematic_fields=False):
     current=_scope(project,link,xml);baseline=link['target_baseline'];found=[]
     for key in ('wrapper','sheets','pcb_items','tables','assets','settings','partitions'):
         if current.get(key)!=baseline.get(key):
             if key=='pcb_items' and allow_owned_layout and _owned_layout_compatible(project,link,xml):continue
+            if (key=='pcb_items' and allow_schematic_fields and baseline.get('pcb_layout')
+                    and current.get('pcb_layout')==baseline['pcb_layout']
+                    and _owned_layout_compatible(project,link,xml)):continue
+            if key=='sheets' and allow_schematic_fields:
+                refs=set(link.get('reference_map',{}).values())
+                if (all((project.parent/name).is_file() for name in link.get('sheet_files',[]))
+                        and refs.issubset(xml.components)
+                        and current.get('partitions')==baseline.get('partitions')):continue
             found.append({'category':'destination_'+key,'message':'Destination-owned '+key.replace('_',' ')+' changed; update would overwrite local work.'})
     refs=set(link['reference_map'].values());owned=set(link.get('pcb_item_ids',[]));owned_nets=set(link.get('net_names',[]))
     for net in xml.nets.values():
@@ -657,6 +671,90 @@ def _retain_target_layout(board,previous,links,ids,old_xml,final_xml):
             'changed_footprint_ids':changed_footprints}
 
 
+def _sync_layout_only_fields(board,project,links):
+    """Reflect retained target schematic fields on the candidate PCB copy."""
+    from .variants import set_field
+    symbols={}
+    expected={ref for link in links for ref in link.get('reference_map',{}).values()}
+    for link in links:
+        for name in link.get('sheet_files',[]):
+            for symbol in sx.children(sx.load(project.parent/name),'symbol'):
+                ref=sx.propval(symbol,'Reference')
+                if ref in expected:
+                    symbols[ref]=symbol
+    if not expected.issubset(symbols):
+        raise MergeError('Layout-only target schematic no longer contains every linked reference.')
+    for footprint in sx.children(board,'footprint'):
+        ref=fp_reference(footprint)
+        if ref not in symbols:continue
+        symbol=symbols[ref]
+        fields={str(prop[1]):str(prop[2]) for prop in sx.children(symbol,'property')
+                if len(prop)>2 and str(prop[1]) not in {'Reference','Footprint'}}
+        # KiCad's DRC board round-trip does not preserve newly synthesized
+        # custom footprint properties. The retained schematic is authoritative
+        # for BOM fields; mirror only fields already present on this PCB item.
+        for name,value in fields.items():
+            if name=='Value' or sx.prop(footprint,name) is not None:
+                set_field(footprint,name,value,board=True)
+        for text in sx.children(footprint,'fp_text'):
+            if len(text)>2 and str(text[1])=='value':text[2]=sx.q(fields.get('Value',''))
+    return len(expected)
+
+
+def _sync_layout_only_native_fields(pcb_path,project,links):
+    """Use KiCad's field writer so custom schematic fields survive board DRC."""
+    try:import pcbnew
+    except ImportError as error:
+        raise MergeError('Layout-only field synchronization requires KiCad native Python bindings.') from error
+    symbols={}
+    expected={ref for link in links for ref in link.get('reference_map',{}).values()}
+    for link in links:
+        for name in link.get('sheet_files',[]):
+            for symbol in sx.children(sx.load(project.parent/name),'symbol'):
+                ref=sx.propval(symbol,'Reference')
+                if ref in expected:symbols[ref]=symbol
+    if not expected.issubset(symbols):raise MergeError('Layout-only target schematic is missing a linked reference.')
+    board=pcbnew.LoadBoard(str(pcb_path))
+    found=set()
+    for footprint in board.GetFootprints():
+        ref=footprint.GetReference()
+        if ref not in symbols:continue
+        found.add(ref)
+        for prop in sx.children(symbols[ref],'property'):
+            if len(prop)>2 and str(prop[1]) not in {'Reference','Footprint'}:
+                footprint.SetField(str(prop[1]),str(prop[2]))
+    if found!=expected:raise MergeError('Layout-only candidate PCB is missing a linked footprint.')
+    pcbnew.SaveBoard(str(pcb_path),board)
+
+
+def _assert_layout_only_native_roundtrip(before,after,project,links):
+    """Accept field serialization changes, never copper or placement changes."""
+    from .sections import _geometry_signature
+    def physical(board):
+        result={}
+        for item in sx.children(board):
+            if sx.tag(item) not in ITEMS:continue
+            uid=sx.value(item,'uuid') or sx.value(item,'tstamp') or sx.value(item,'id')
+            node=copy.deepcopy(item)
+            if sx.tag(node)=='footprint':
+                node[:]=[part for part in node if sx.tag(part)!='property'
+                         and not (sx.tag(part)=='fp_text' and len(part)>1 and str(part[1])=='value')]
+            result[uid]=_geometry_signature(node)
+        return result
+    if physical(before)!=physical(after):
+        raise MergeError('KiCad DRC changed layout-only candidate placement or copper geometry.')
+    expected={ref: {str(prop[1]):str(prop[2]) for prop in sx.children(symbol,'property') if len(prop)>2}
+              for link in links for name in link.get('sheet_files',[])
+              for symbol in sx.children(sx.load(project.parent/name),'symbol')
+              for ref in [sx.propval(symbol,'Reference')]
+              if ref in set(link.get('reference_map',{}).values())}
+    actual={fp_reference(fp):fp for fp in sx.children(after,'footprint')}
+    for ref,fields in expected.items():
+        if ref not in actual or any(sx.propval(actual[ref],key)!=value
+                                    for key,value in fields.items() if key not in {'Reference','Footprint'}):
+            raise MergeError('KiCad DRC did not preserve retained target schematic footprint fields: '+ref)
+
+
 def _prove_replacement_pad_attachments(board,previous,pairs,owned):
     """Keep or narrowly move a single attached endpoint; reject uncertain pads."""
     import math
@@ -725,12 +823,15 @@ def _prove_replacement_pad_attachments(board,previous,pairs,owned):
     return adjusted
 
 
-def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_major=False,source_overrides=None,identity_overrides=None,retain_destination_layout=False):
+def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_major=False,source_overrides=None,identity_overrides=None,retain_destination_layout=False,layout_only=False):
     from .insertion import preview_import,_target_integrity
     from .engine import publish
     project,manifest=_load(target);requested=set(link_ids)
     links=[link for link in manifest['links'] if link['id'] in requested]
     if not links or len(links)!=len(requested):raise MergeError('Select valid linked-import IDs.')
+    if retain_destination_layout and layout_only:raise MergeError('Choose one linked-update mode.')
+    if layout_only and not links[0]['include_layout']:
+        raise MergeError('Layout-only update requires a routed source link.')
     for link in links:
         if link.get('update_unsupported_reason'):raise MergeError(link['alias']+': '+link['update_unsupported_reason'])
     if len({link['include_layout'] for link in links})!=1:raise MergeError('Update schematic-only and routed links in separate reviewed transactions.')
@@ -743,6 +844,12 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
         baseline_drc={}
         if links[0]['include_layout']:
             baseline_directory=work/'baseline-drc';copy_project(project.parent,baseline_directory)
+            if layout_only:
+                baseline_board=baseline_directory/project.with_suffix('.kicad_pcb').name
+                baseline_tree=sx.load(baseline_board)
+                _sync_layout_only_fields(baseline_tree,project,links)
+                sx.save(baseline_board,baseline_tree)
+                _sync_layout_only_native_fields(baseline_board,project,links)
             baseline_drc=cli.drc(baseline_directory/project.with_suffix('.kicad_pcb').name,work/'baseline-drc.json')
             owned_ids={uid for link in links for uid in [*link['pcb_item_ids'],*link['pcb_uuid_map'].values()]}
             for finding in baseline_drc.get('violations',[]):
@@ -751,7 +858,8 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
                     raise MergeError('Destination conflict: linked copper intersects unrelated destination copper. Resolve the cross-block DRC finding before updating: '+finding.get('description',finding['type']))
         originals=[]
         for link in links:
-            conflicts=_conflicts(project,link,old_xml,allow_owned_layout=retain_destination_layout)
+            conflicts=_conflicts(project,link,old_xml,allow_owned_layout=retain_destination_layout,
+                                 allow_schematic_fields=layout_only)
             if conflicts:raise MergeError('Destination conflict for '+link['alias']+': '+conflicts[0]['message'])
             spec,current=_live_source(link,work,cli_path,cache,(source_overrides or {}).get(link['id']))
             changes=compare_snapshots(link['source_baseline'],current)
@@ -815,6 +923,20 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
             for pin in sx.children(wrapper,'pin'):
                 if str(pin[1]) in saved_pins:sx.put(pin,'uuid',sx.q(saved_pins[str(pin[1])]))
         sx.save(fresh_project.with_suffix('.kicad_sch'),root)
+        if layout_only:
+            # The source-built board is retained, but every target schematic
+            # byte stays exactly as saved. Do this before exporting the final
+            # netlist so all PCB associations and pad nets face the target.
+            original_sheets={str(path.relative_to(project.parent)):path for path in project_files(project.parent)
+                             if path.suffix=='.kicad_sch'}
+            for _,fresh in fresh_links:
+                for name in fresh['sheet_files']:
+                    if name not in original_sheets and (candidate/name).is_file():
+                        (candidate/name).unlink()
+            for name,path in original_sheets.items():
+                destination_sheet=candidate/name
+                destination_sheet.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(path,destination_sheet)
         final_xml=cli.export_netlist(fresh_project.with_suffix('.kicad_sch'),work/'final.xml')
         _rest_matches(old_xml,final_xml,{ref for link in links for ref in link['reference_map'].values()})
         net_names={}
@@ -837,18 +959,31 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
             if retain_destination_layout:
                 retention=_retain_target_layout(board,sx.load(project.with_suffix('.kicad_pcb')),
                                                 fresh_links,ids,old_xml,final_xml)
+            if layout_only:
+                imported_ids={ids.get(uid,uid) for _,fresh in fresh_links for uid in fresh.get('pcb_item_ids',[])}
+                for footprint in sx.children(board,'footprint'):
+                    if sx.value(footprint,'uuid') not in imported_ids:continue
+                    ref=fp_reference(footprint)
+                    assigned=final_xml.components.get(ref,{}).get('footprint','')
+                    if not assigned or str(footprint[1]).split(':')[-1]!=str(assigned).split(':')[-1]:
+                        raise MergeError('Layout-only footprint body disagrees with retained target schematic assignment: '+ref)
+                _sync_layout_only_fields(board,project,links)
             from .board import verify_native_associations
             verify_native_associations(board,final_xml)
             sx.save(pcb,board)
+            if layout_only:_sync_layout_only_native_fields(pcb,project,links)
         # Net-class assignments follow the stable, re-exported net names.
         data=json.loads(fresh_project.read_text());ns=data.get('net_settings') or {}
         for key in ('netclass_assignments','net_colors'):
             if isinstance(ns.get(key),dict):ns[key]={net_names.get(name,name):value for name,value in ns[key].items()}
         for pattern in ns.get('netclass_patterns') or []:pattern['pattern']=net_names.get(pattern.get('pattern'),pattern.get('pattern'))
-        fresh_project.write_text(json.dumps(data,indent=2),encoding='utf-8')
+        if layout_only:shutil.copyfile(project,fresh_project)
+        else:fresh_project.write_text(json.dumps(data,indent=2),encoding='utf-8')
         drc=None
         if links[0]['include_layout']:
-            before_board=sx.load(pcb);drc=cli.drc(pcb,candidate/'linked-update-drc.json');_target_integrity(before_board,sx.load(pcb))
+            before_board=sx.load(pcb);drc=cli.drc(pcb,candidate/'linked-update-drc.json')
+            if layout_only:_assert_layout_only_native_roundtrip(before_board,sx.load(pcb),project,links)
+            else:_target_integrity(before_board,sx.load(pcb))
             original_board=sx.load(project.with_suffix('.kicad_pcb'));owned={item for link in links for item in link['pcb_item_ids']}
             original_board[:]=[n for n in original_board if not (sx.tag(n) in ITEMS and (sx.value(n,'uuid') or sx.value(n,'tstamp') or sx.value(n,'id')) in owned)]
             _target_integrity(original_board,sx.load(pcb))
@@ -890,10 +1025,21 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
             fresh['outer_group_uuid']=ids.get(fresh.get('outer_group_uuid'),fresh.get('outer_group_uuid'))
             fresh['net_names']=[net_names.get(name,name) for name in fresh['net_names']]
             fresh['source_baseline']=snapshots[old['id']]
+            if layout_only:
+                hybrid=copy.deepcopy(old['source_baseline'])
+                hybrid['board_items']=snapshots[old['id']].get('board_items',{})
+                hybrid['hashes']=snapshots[old['id']].get('hashes',{})
+                hybrid.setdefault('project_settings',{})['board']=snapshots[old['id']].get('project_settings',{}).get('board')
+                fresh['source_baseline']=hybrid
+                fresh['sheet_files']=list(old['sheet_files'])
+                fresh['schematic_ids']=copy.deepcopy(old['schematic_ids'])
+                fresh['symbol_refs']=copy.deepcopy(old['symbol_refs'])
+                fresh['reference_map']=copy.deepcopy(old['reference_map'])
             if fresh.get('origin_spec'):
                 durable=copy.deepcopy(fresh['origin_spec']);durable['section_origin']=copy.deepcopy(fresh['source_spec']['section_origin']);durable['alias']=fresh['alias']
                 durable['x_mm']=durable['y_mm']=None;fresh['source_spec']=durable
-            fresh['wrapper_node']=next(copy.deepcopy(s) for s in sx.children(root,'sheet') if sx.value(s,'uuid')==old['wrapper_uuid'])
+            fresh['wrapper_node']=(copy.deepcopy(old['wrapper_node']) if layout_only else
+                                   next(copy.deepcopy(s) for s in sx.children(root,'sheet') if sx.value(s,'uuid')==old['wrapper_uuid']))
             fresh['target_baseline']=_scope(fresh_project,fresh,final_xml)
         _write(candidate,updated)
         from .bom_fields import inventory,grouped_bom,export_csv
@@ -908,7 +1054,7 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
         erc=json.loads((candidate/'linked-update-erc.json').read_text(encoding='utf-8-sig'))
         report={'plugin_version':VERSION,'linked_update':True,'updated_links':[link['id'] for link in links],
                 'major_changes':major,'acknowledged_major_changes':bool(acknowledge_major),'changes':all_changes,'conflicts':[],
-                'retain_destination_layout':bool(retain_destination_layout),**retention,
+                'retain_destination_layout':bool(retain_destination_layout),'layout_only':bool(layout_only),**retention,
                 'stable_references_and_uuids_preserved':True,'unrelated_destination_preserved':True,'manufacturing_approved':False,
                 'drc_findings':len(drc.get('violations',[])) if drc else None,'unconnected_findings':len(drc.get('unconnected_items',[])) if drc else None,
                 'erc_findings':sum(len(sheet.get('violations',[])) for sheet in erc.get('sheets',[]))}
