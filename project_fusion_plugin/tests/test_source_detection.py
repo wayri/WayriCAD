@@ -16,7 +16,8 @@ class SourceDetectionTests(unittest.TestCase):
             root=Path(folder);spec,path=SectionTests().fixture(root)
             for suffix in ('.kicad_pro','.kicad_sch','.kicad_pcb'):
                 choice=d.detect_source(root/('board'+suffix))[0]
-                self.assertEqual(choice.kind,'project');self.assertEqual(choice.project,spec.project)
+                self.assertEqual(choice.kind,'project')
+                self.assertTrue(Path(choice.project).samefile(spec.project))
             choice=d.detect_source(root/'child.kicad_sch')[0]
             self.assertEqual(choice.kind,'sheet');self.assertEqual(len(choice.sheet_paths),2)
             self.assertEqual(choice.sheet_paths[0],path)
