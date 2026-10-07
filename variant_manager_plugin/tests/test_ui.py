@@ -15,6 +15,10 @@ class NativeUI(unittest.TestCase):
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'project_fusion_plugin/tests'))
         from test_sections_native import make_fixture
         app = wx.App(False)
+        empty = VariantFrame()
+        self.assertTrue(empty.GetIcons().GetIcon(wx.Size(64, 64)).IsOk())
+        empty.Close()
+        app.Yield()
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp) / 'source'
             make_fixture(home)

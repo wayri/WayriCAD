@@ -187,6 +187,9 @@ class VariantFrame(wx.Frame):
         self.visible = []
         self.geometry = []
         self.sort_column, self.sort_reverse = 0, False
+        # Standalone wx does not inherit KiCad's image-handler registration.
+        if wx.Image.FindHandler(wx.BITMAP_TYPE_PNG) is None:
+            wx.Image.AddHandler(wx.PNGHandler())
         icon = Path(__file__).parents[1] / 'icon.png'
         if icon.is_file():
             self.SetIcon(wx.Icon(str(icon), wx.BITMAP_TYPE_PNG))

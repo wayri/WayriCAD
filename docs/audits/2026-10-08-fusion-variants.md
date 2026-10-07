@@ -11,6 +11,7 @@ Windows, KiCad 10.0.6 bundled Python 3.11.5; source checks also use Python 3.14.
 | Variant Manager | Nine backend regressions plus native hierarchical serialization/BOM and native wx workspace tests passed (11 total, no skips in the opt-in run). |
 | Candidate PCM payloads | All 19 packages passed official schema, independent action registration/entrypoint, icon and Python syntax checks. |
 | Isolated wheel | Eleven CLI entrypoints and bundled report/resources checks passed. |
+| Disposable installation | All 19 packages installed into a separate KiCad directory. Variant Manager's extracted standalone window opened; its icon bundle and native Windows small/big icon handles were present. |
 | Documentation | Source guide/image links and icon catalogue validated; shipped Variant Manager capture inspected. |
 
 Fusion's synthetic sheet-list benchmark used 100 occurrences of one schematic
