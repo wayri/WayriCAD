@@ -254,7 +254,7 @@ def merge(options:Options,log=lambda m:None,cli=None):
             s.hashes[str(p)]=digest
     cli=cli or KiCadCLI(options.cli_path,emit)
     stage=Path(tempfile.mkdtemp(prefix='.'+options.name+'-fusion-',dir=dest.parent))
-    report={'plugin_version':'0.9.4','kicad_cli_version':cli.version,
+    report={'plugin_version':'0.9.5','kicad_cli_version':cli.version,
             'validation_backend':'native-kicad-cli' if isinstance(cli,KiCadCLI) else 'injected-adapter-NOT-native-certified',
             'options':options.to_dict(),
             'summary':summary,'manufacturing_ready':False}

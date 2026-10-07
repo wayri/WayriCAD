@@ -98,6 +98,28 @@ class LinkedGuiTests(unittest.TestCase):
         self.assertTrue(self.dialog.major_ack.IsShown())
         self.assertIn('wrapper-a', self.dialog.target_summary.GetValue())
 
+    def test_individual_ignore_defers_link_and_conflict_stays_blocked(self):
+        data=sample_scan()
+        data['links'][0]['changes'][0]['suggestion']='Review pin connection before update.'
+        data['links'][0]['conflicts']=[{'category':'external_copper','message':'Shared copper',
+                                      'suggestion':'Separate copper and rerun DRC.',
+                                      'can_ignore':False}]
+        self.dialog.show_scan(data)
+        self.dialog.select_link('link-a')
+        self.assertEqual(self.dialog.changes.GetItemCount(),2)
+        self.dialog.changes.Select(0)
+        self.dialog.on_change_selected(type('Selection',(),{'GetIndex':lambda unused:0})())
+        self.assertIn('Review pin connection',self.dialog.change_advice.GetValue())
+        self.dialog.toggle_deferred_change(None)
+        self.assertIn('Deferred',self.dialog.changes.GetItemText(0,6))
+        with mock.patch.object(wx,'MessageBox',return_value=wx.OK) as notice:
+            self.dialog.preview_selected(None)
+        self.assertIn('ignored for now',notice.call_args.args[0])
+        self.dialog.changes.Select(1)
+        self.dialog.on_change_selected(type('Selection',(),{'GetIndex':lambda unused:1})())
+        self.assertIn('cannot be ignored',self.dialog.change_advice.GetValue())
+        self.assertFalse(self.dialog.defer_change_button.IsEnabled())
+
     def test_scan_watch_and_major_preview_offline_plan(self):
         scan_gate = threading.Event()
         calls = []
@@ -107,9 +129,11 @@ class LinkedGuiTests(unittest.TestCase):
             calls.append(('scan', search_roots, source_overrides))
             return sample_scan()
         def preview(target, ids, candidate, cli_path='', acknowledge_major=False,
-                    source_overrides=None, identity_overrides=None):
+                    source_overrides=None, identity_overrides=None,
+                    retain_destination_layout=False):
             Path(candidate).mkdir()
-            calls.append(('preview', ids, acknowledge_major, source_overrides, identity_overrides))
+            calls.append(('preview', ids, acknowledge_major, source_overrides,
+                          identity_overrides, retain_destination_layout))
             return {'target_project': str(self.target), 'candidate_directory': str(candidate),
                     'candidate_hashes': {'target.kicad_pro': 'abc'}, 'target_hashes': {'target.kicad_pro': 'xyz'},
                     'source_hashes': [], 'report': {'linked_update': True, 'major_changes': 1,
@@ -126,11 +150,12 @@ class LinkedGuiTests(unittest.TestCase):
             self.assertTrue(self.dialog.major_ack.IsEnabled())
             self.dialog.major_ack.SetValue(True)
             self.dialog.source_overrides['link-a'] = 'C:/Projects/Example/moved.kicad_pro'
+            self.dialog.retain_layout.SetValue(True)
             self.dialog.preview_selected(None)
             self.pump_until(lambda: self.dialog.plan is not None)
             self.assertTrue(self.dialog.plan_file.is_file())
             self.assertEqual(calls[1], ('preview', ['link-a'], True,
-                                       {'link-a': 'C:/Projects/Example/moved.kicad_pro'}, {}))
+                                       {'link-a': 'C:/Projects/Example/moved.kicad_pro'}, {}, True))
             self.assertFalse(self.dialog.apply_button.IsEnabled())
             saved = self.dialog.plan_file
             self.dialog.show_watch_scan(sample_scan())
@@ -196,7 +221,8 @@ class LinkedGuiTests(unittest.TestCase):
         calls = []
         fake = ModuleType(PACKAGE+'.linked_updates')
         def preview(target, ids, candidate, cli_path='', acknowledge_major=False,
-                    source_overrides=None, identity_overrides=None):
+                    source_overrides=None, identity_overrides=None,
+                    retain_destination_layout=False):
             Path(candidate).mkdir()
             calls.append(identity_overrides)
             return {'target_project': str(self.target), 'candidate_directory': str(candidate),
@@ -321,6 +347,31 @@ class LinkedGuiTests(unittest.TestCase):
         self.assertIn('full combined rebuild', notice.call_args.args[0])
         self.dialog.select_link('link-b')
         self.assertTrue(self.dialog.update_button.IsEnabled())
+
+    def test_local_pcb_layout_conflict_requires_explicit_retain_mode(self):
+        data=sample_scan()
+        data['links'][0]['conflicts']=[{'category':'destination_pcb_items',
+                                      'message':'Placed layout changed in target'}]
+        self.dialog.show_scan(data)
+        self.dialog.select_link('link-a')
+        self.dialog.major_ack.SetValue(True)
+        with mock.patch.object(wx,'MessageBox',return_value=wx.OK) as notice:
+            self.dialog.preview_selected(None)
+        self.assertIn('Placed layout changed',notice.call_args.args[0])
+        self.dialog.retain_layout.SetValue(True)
+        calls=[]
+        fake=ModuleType(PACKAGE+'.linked_updates')
+        def preview(target,ids,candidate,**kwargs):
+            Path(candidate).mkdir()
+            calls.append(kwargs['retain_destination_layout'])
+            return {'target_project':str(self.target),'candidate_directory':str(candidate),
+                    'candidate_hashes':{},'target_hashes':{},'source_hashes':[],
+                    'report':{'linked_update':True,'major_changes':0,'changes':[]}}
+        fake.preview_update=preview
+        with mock.patch.dict(sys.modules,{PACKAGE+'.linked_updates':fake}):
+            self.dialog.preview_selected(None)
+            self.pump_until(lambda:self.dialog.plan is not None)
+        self.assertEqual(calls,[True])
 
     def test_hundred_links_remain_selectable_when_symbols_are_bounded(self):
         base = sample_scan()['links'][0]

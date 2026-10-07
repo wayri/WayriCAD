@@ -330,13 +330,26 @@ class FusionDialog(wx.Dialog):
         issue_page=wx.Panel(inspector);issue_box=wx.BoxSizer(wx.VERTICAL)
         self.issue_list=wx.ListCtrl(issue_page,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
         self.issue_list.Bind(wx.EVT_LIST_ITEM_SELECTED,self.select_issue_source)
-        for i,(label,width) in enumerate([('Design',120),('Issue / resolution',370)]):self.issue_list.InsertColumn(i,label,width=width)
+        for i,(label,width) in enumerate([('Design',110),('Issue',370),('Decision',180)]):
+            self.issue_list.InsertColumn(i,label,width=width)
         issue_box.Add(self.issue_list,1,wx.EXPAND)
-        self.resolve_button=wx.Button(issue_page,label='Repair selected design issues in a copy')
+        self.issue_detail=wx.StaticText(issue_page,label='Select an issue to review its suggested resolution.')
+        self.issue_detail.Wrap(560)
+        issue_box.Add(self.issue_detail,0,wx.EXPAND|wx.ALL,6)
+        self.issue_choice=wx.Choice(issue_page)
+        self.issue_choice.Bind(wx.EVT_CHOICE,self.choose_issue_resolution)
+        issue_box.Add(self.issue_choice,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,6)
+        self.auto_resolve_button=wx.Button(issue_page,label='Select safe suggestions')
+        self.auto_resolve_button.Bind(wx.EVT_BUTTON,self.auto_resolve_issues)
+        issue_box.Add(self.auto_resolve_button,0,wx.ALL,6)
+        self.auto_fix_button=wx.Button(issue_page,label='Auto-fix safe issues in all source copies')
+        self.auto_fix_button.Bind(wx.EVT_BUTTON,self.auto_fix_issues)
+        issue_box.Add(self.auto_fix_button,0,wx.ALL,6)
+        self.resolve_button=wx.Button(issue_page,label='Create reviewed repair copy for selected design')
         self.resolve_button.Bind(wx.EVT_BUTTON,self.resolve_issue)
         issue_box.Add(self.resolve_button,0,wx.ALL,6)
         issue_page.SetSizer(issue_box);inspector.AddPage(issue_page,'Issues')
-        self.merge_issues=[]
+        self.merge_issues=[];self.issue_choices={};self._issue_option_actions=[]
         bar.Add(self.action(p,'Open review project',self.open_review_project,wx.ART_FOLDER_OPEN,'Open the validated review copy while source and target editors stay open.'),0,wx.RIGHT,8)
         bar.Add(self.action(p,'Live PCB capability',self.check_live_capability,wx.ART_INFORMATION,'Check the originating editor API without enabling or restarting it.'),0,wx.RIGHT,8)
         self.mapping.Bind(wx.EVT_LIST_ITEM_SELECTED,lambda e:self.preview.set_selected_alias(self.mapping.GetItemText(e.GetIndex())))
@@ -450,11 +463,14 @@ class FusionDialog(wx.Dialog):
         self.offline_button.Disable();self.status.SetLabel('Placement undone. Preview again before Apply.')
 
     def show_merge_issues(self,reports):
-        self.merge_issues=[];self.issue_list.DeleteAllItems()
+        self.merge_issues=[];self.issue_choices={};self.issue_list.DeleteAllItems()
         for spec,report in reports:
             for issue in report['issues']:
                 row=self.issue_list.InsertItem(self.issue_list.GetItemCount(),spec.alias)
-                self.issue_list.SetItem(row,1,issue['error']+' — '+str(issue.get('action') or 'Manual correction required'))
+                self.issue_list.SetItem(row,1,issue['error'])
+                choice=issue.get('action') or 'manual'
+                self.issue_choices[issue['id']]=choice
+                self.issue_list.SetItem(row,2,self.issue_decision_label(issue,choice))
                 self.merge_issues.append((spec,report,issue))
         if self.merge_issues:
             self.review_inspector.SetSelection(3)
@@ -468,7 +484,103 @@ class FusionDialog(wx.Dialog):
 
     def select_issue_source(self,event):
         index=event.GetIndex()
-        if 0<=index<len(self.merge_issues):self.preview.set_selected_alias(self.merge_issues[index][0].alias)
+        if 0<=index<len(self.merge_issues):
+            self.preview.set_selected_alias(self.merge_issues[index][0].alias)
+            self.show_issue_choices(index)
+
+    @staticmethod
+    def issue_decision_label(issue,choice):
+        if choice=='ignore':return 'Ignore advisory'
+        if choice=='manual':return 'Manual correction required'
+        return str(choice).replace('_',' ')
+
+    def show_issue_choices(self,index):
+        _spec,_report,issue=self.merge_issues[index]
+        options=[]
+        if issue.get('action'):
+            target=issue.get('suggested_reference') or issue.get('suggested_footprint') or ''
+            options.append((f"Apply suggestion: {issue['action'].replace('_',' ')} {target}".strip(),issue['action']))
+        if issue.get('ignore_allowed'):
+            options.append(('Ignore this advisory in the repair copy','ignore'))
+        options.append(('Resolve manually in the saved source','manual'))
+        self._issue_option_actions=[value for _label,value in options]
+        self.issue_choice.SetItems([label for label,_value in options])
+        selected=self.issue_choices.get(issue['id'],'manual')
+        self.issue_choice.SetSelection(self._issue_option_actions.index(selected)
+                                       if selected in self._issue_option_actions else len(options)-1)
+        severity=issue.get('severity','blocking')
+        detail=(f"{severity.title()}: {issue['error']} "
+                +('Ignore records an advisory without editing the source.' if issue.get('ignore_allowed') else
+                  'Ignoring this would bypass a required identity or electrical check and is unavailable.'))
+        self.issue_detail.SetLabel(detail);self.issue_detail.Wrap(max(320,self.issue_detail.GetSize().width))
+
+    def choose_issue_resolution(self,event):
+        index=self.issue_list.GetFirstSelected()
+        if index<0 or not 0<=self.issue_choice.GetSelection()<len(self._issue_option_actions):return
+        issue=self.merge_issues[index][2]
+        choice=self._issue_option_actions[self.issue_choice.GetSelection()]
+        self.issue_choices[issue['id']]=choice
+        self.issue_list.SetItem(index,2,self.issue_decision_label(issue,choice))
+
+    def auto_resolve_issues(self,event):
+        for index,(_spec,_report,issue) in enumerate(self.merge_issues):
+            if issue.get('action'):
+                self.issue_choices[issue['id']]=issue['action']
+                self.issue_list.SetItem(index,2,self.issue_decision_label(issue,issue['action']))
+        selected=self.issue_list.GetFirstSelected()
+        if selected>=0:self.show_issue_choices(selected)
+        self.status.SetLabel('Safe suggestions selected. Review each decision before creating a repair copy.')
+
+    def auto_fix_issues(self,event):
+        """Repair every fully resolved source without modifying an original."""
+        if self.busy:return
+        from .merge_issues import validate_resolutions
+        selected={}
+        for spec,report,_issue in self.merge_issues:
+            if spec.alias in selected:continue
+            choices={issue['id']:self.issue_choices.get(issue['id'],'manual')
+                     for issue in report['issues']}
+            try:validate_resolutions(report,choices)
+            except MergeError as exc:self.status.SetLabel(str(exc));return
+            if any(issue.get('severity','blocking')=='blocking' for issue in report['issues']):
+                selected[spec.alias]=(spec,report,choices)
+        if not selected:
+            self.status.SetLabel('No blocking issues have a safe automatic repair. Preview may continue.')
+            return
+        summary='\n'.join(f"{alias}: {sum(i.get('severity','blocking')=='blocking' for i in report['issues'])} repairs"
+                          for alias,(_spec,report,_choices) in selected.items())
+        if wx.MessageBox(summary+'\n\nCreate reviewed source copies for these designs?',
+                         'Review automatic repairs',wx.YES_NO|wx.NO_DEFAULT|wx.ICON_QUESTION,self)!=wx.YES:return
+        self.busy=True;self.enable_inputs(False);self.auto_fix_button.Disable()
+        self.resolve_button.Disable();self.status.SetLabel('Validating safe source-copy repairs…')
+        cli=self.cli.GetPath();parent=Path(self.options().destination).parent
+        def worker():
+            try:
+                from .repair import preview_repair,apply_repair
+                from .insertion_gui import fresh_directory
+                repaired={}
+                for alias,(spec,_report,choices) in selected.items():
+                    plan=preview_repair(spec,cli_path=cli,resolutions=choices)
+                    destination=fresh_directory(parent,alias+'-ReviewedRepair')
+                    repaired[alias]=apply_repair(plan,str(destination),cli)[0]
+                wx.CallAfter(self.batch_repair_done,repaired,None)
+            except Exception as exc:wx.CallAfter(self.batch_repair_done,None,str(exc))
+        threading.Thread(target=worker,daemon=True).start()
+
+    def batch_repair_done(self,repaired,error):
+        self.busy=False;self.enable_inputs(True);self.auto_fix_button.Enable()
+        self.resolve_button.Enable()
+        if error:self.status.SetLabel(error);return
+        for row in range(self.grid.GetNumberRows()):
+            alias=self.grid.GetCellValue(row,1)
+            if alias not in repaired:continue
+            compiled=repaired[alias]
+            self.grid.SetCellValue(row,0,str(compiled.project));self.grid.SetCellValue(row,2,DEFAULT)
+            self.source_extras[row]=self.spec_extras(compiled)
+            self.row_variants[row]=[DEFAULT]
+            self.grid.SetCellEditor(row,2,wx.grid.GridCellChoiceEditor([CHOOSE_VARIANT,DEFAULT],False))
+        self.clear_results()
+        self.status.SetLabel(f'{len(repaired)} reviewed source copies selected. Preview again to inspect the merge.')
 
     def show_validation_failure(self,error):
         if not self.merge_issues:
@@ -488,7 +600,8 @@ class FusionDialog(wx.Dialog):
                     'reference':'','code':'source_preflight','error':str(exc),'action':None}]}
             reports.append((spec,report))
         wx.CallAfter(self.show_merge_issues,reports)
-        if any(report['issues'] for _,report in reports):
+        if any(issue.get('severity','blocking')=='blocking'
+               for _,report in reports for issue in report['issues']):
             raise MergeError('Resolve the source issues in the Merge issues panel, then Preview again.')
 
     @staticmethod
@@ -524,11 +637,14 @@ class FusionDialog(wx.Dialog):
         index=self.issue_list.GetFirstSelected()
         if index<0:return
         spec,report,issue=self.merge_issues[index]
-        resolutions={i['id']:i['action'] for i in report['issues'] if i.get('action')}
-        if any(not i.get('action') for i in report['issues']):
-            self.status.SetLabel('This design has issues requiring a source correction. See the issue list.');return
+        resolutions={i['id']:self.issue_choices.get(i['id'],'manual') for i in report['issues']}
+        from .merge_issues import validate_resolutions
+        try:validate_resolutions(report,resolutions)
+        except MergeError as exc:self.status.SetLabel(str(exc));return
+        if not any(i.get('severity','blocking')=='blocking' for i in report['issues']):
+            self.status.SetLabel('Only advisories remain; no repair copy is needed. Preview may continue.');return
         # Review the concrete proposed edits before making an independent copy.
-        description='\n'.join(i['error']+'\n  '+str(i.get('action'))+' '+str(i.get('suggested_reference') or i.get('footprint') or '') for i in report['issues'])
+        description='\n'.join(i['error']+'\n  '+resolutions[i['id']]+' '+str(i.get('suggested_reference') or i.get('suggested_footprint') or '') for i in report['issues'])
         if wx.MessageBox(description+'\n\nCreate a repaired copy and use it for this instance?', 'Review source-copy repairs',wx.YES_NO|wx.NO_DEFAULT|wx.ICON_QUESTION,self)!=wx.YES:return
         self.busy=True;self.enable_inputs(False);self.resolve_button.Disable();self.status.SetLabel('Validating source-copy repairs…')
         cli=self.cli.GetPath()
@@ -554,7 +670,7 @@ class FusionDialog(wx.Dialog):
                 self.grid.SetCellValue(row,0,str(project));self.grid.SetCellValue(row,2,DEFAULT)
                 self.source_extras[row]=self.spec_extras(compiled)
                 self.row_variants[row]=[DEFAULT];self.grid.SetCellEditor(row,2,wx.grid.GridCellChoiceEditor([CHOOSE_VARIANT,DEFAULT],False));break
-        self.clear_results();self.issue_list.DeleteAllItems();self.merge_issues=[]
+        self.clear_results();self.issue_list.DeleteAllItems();self.merge_issues=[];self.issue_choices={}
         self.status.SetLabel('Repaired copy selected. Originals preserved. Preview again to inspect the merge.')
 
     @staticmethod
@@ -775,6 +891,7 @@ class FusionDialog(wx.Dialog):
         self.preview.clear(); self.mapping.DeleteAllItems()
         self.sheet_preview.clear()
         self.issue_list.DeleteAllItems();self.merge_issues=[]
+        self.issue_choices={};self._issue_option_actions=[]
         self.placement_history=[]
         self.import_plan=None
         if hasattr(self,'offline_button'):self.offline_button.Disable()

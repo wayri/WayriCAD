@@ -144,13 +144,35 @@ def _pin_connections(snapshot):
     return connections
 
 
+def resolution_for_change(change):
+    """Explain a source change without implying that a partial update is safe."""
+    category = change.get('category', '')
+    if category in {'value', 'resolved_value', 'fields', 'reference', 'sheet_name',
+                    'net_label', 'text_variables', 'dependency'}:
+        return ('Update this link to inherit the saved source change. Ignore for now '
+                'defers the whole link; it does not discard just this field.')
+    if category in {'footprint', 'resolved_footprint', 'layout'}:
+        return ('Preview the updated footprint and placement with its copper and '
+                'pad connections. Review major changes before applying; Ignore for '
+                'now defers the whole link.')
+    if category in {'pin_connection', 'pin_definition', 'symbol_added',
+                    'symbol_removed', 'hierarchy', 'assembly_flags', 'unit'}:
+        return ('Review the schematic and native netlist, then preview the full '
+                'linked update. Existing routed copper may require a separate '
+                'manual repair. Ignore for now defers the whole link.')
+    return ('Review this source change in the candidate. Ignore for now defers '
+            'the whole linked update.')
+
+
 def compare_snapshots(before, after):
     """Classify changes with exact pin-neighbour differences and explicit severity."""
     before=json.loads(json.dumps(before));after=json.loads(json.dumps(after))
     changes = []
     def add(category, severity, identity, old, new, message, **extra):
-        changes.append({'category':category,'severity':severity,'identity':identity,
-                        'before':old,'after':new,'message':message,**extra})
+        change={'category':category,'severity':severity,'identity':identity,
+                'before':old,'after':new,'message':message,**extra}
+        change['suggestion']=resolution_for_change(change)
+        changes.append(change)
     old_symbols, new_symbols = before.get('symbols',{}), after.get('symbols',{})
     for identity in sorted(set(old_symbols)|set(new_symbols)):
         old, new = old_symbols.get(identity), new_symbols.get(identity)

@@ -1,4 +1,4 @@
-# Wayri Project Fusion 0.9.4
+# Wayri Project Fusion 0.9.5
 
 **KiCad 10 · native wxPython plugin · testing release**
 
@@ -7,6 +7,41 @@ Combine 1–100 saved KiCad project instances or extracted routed subsheet insta
 **Insertion validation (2026-10-01):** Native routed insertion retained three footprints, six segments, three vias and three zones (one target design plus two imports), with zero schematic/PCB parity findings and zero unconnected items. Three inherited dangling-via findings and nine fixture ERC findings remain reported. Schematic-only insertion from a source without a PCB left the existing target PCB byte-for-byte unchanged. Multi-subsheet extraction, stale inputs, editor locks, backup integrity and rollback are checked separately.
 
 **100-instance validation (2026-10-01):** Windows / KiCad 10.0.6. Native validation merged 100 mixed instances (50 whole projects and 50 reviewed routed sections), retaining 100 footprints, 200 segments, 100 vias and 100 zones. Native netlist isolation, schematic/PCB parity, source hashes and BOM quantity passed; inherited fixture dangling-via warnings remained unchanged. Native wx management tests cover 100 rows, duplication, reordering, removal and setup roundtrips. Other operating systems and live-editor transaction qualification remain unverified.
+
+## 0.9.5 — visible previews and reviewed source inheritance
+
+PCB and schematic previews now fit their saved geometry when the preview tab
+first becomes visible. Previously, a hidden tab could retain a near-zero fit
+scale and appear blank until another interaction.
+
+The **Issues** panel lists a decision for each source preflight issue. Select
+**safe suggestions** to stage the available repairs, then inspect the suggested
+action for each row. A unique saved schematic association can restore a PCB
+reference in the detached repair copy, including swapped reference labels.
+Board-only copper is an advisory with an explicit **Ignore** choice. Missing or
+ambiguous schematic identity, changed electrical connectivity and other
+blocking checks cannot be ignored. The source project is never edited by this
+repair step. Re-preview the repaired copy before import.
+
+For a design inherited from another saved KiCad project, select its `.kicad_pro`,
+root `.kicad_sch` or `.kicad_pcb` file. A whole-project import needs the matching
+project, schematic and board companions; schematic-only subsheet extraction
+can omit the source PCB. Fusion records the source identity and imports it as a
+linked design. In **Linked sources / updates…**, scan the saved source and
+preview a linked update. Source Value, BOM/custom fields, selected Footprint and
+routed footprint positions can propagate while surviving symbols and PCB items
+retain stable destination identities. To keep a working target placement and
+routing instead, check **Keep current target footprint positions and routing**
+before previewing. This optional mode retains linked PCB geometry even when the
+source PCB placement changes, while inheriting the schematic and a compatible
+replacement footprint body and pads. Pad numbers, nets, native DRC and
+unconnected checks must pass; incompatible replacements stop for manual review.
+New or changed footprints and electrical connections require major-change review
+and native validation. The Change
+Review gives a suggestion per row; **Ignore for now** defers that design's
+whole update rather than silently dropping one field. Destination ownership or
+copper conflicts require repair and rescan. Apply the reviewed candidate with
+the target and source editors closed, then reopen the target project.
 
 ## 0.9.4 — schematic associations and copper preservation
 
@@ -44,7 +79,7 @@ actually run and limits of the release qualification.
 
 ## Install or upgrade
 
-Use **`WayriCAD-project-fusion-0.9.4-PCM.zip`**, not the source ZIP. Open KiCad's Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
+Use **`WayriCAD-project-fusion-0.9.5-PCM.zip`**, not the source ZIP. Open KiCad's Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
 
 This retains the package identifier `org.wayri.projectfusion`. Remove an old manually installed copy before installing through PCM, so two versions are not loaded. The PCM archive puts the Python package directly inside `plugins/`; it does not add an extra nested source folder.
 

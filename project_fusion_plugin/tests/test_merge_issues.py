@@ -85,6 +85,43 @@ class MergeIssueTests(unittest.TestCase):
                 issues.validate_resolutions(report, {})
             issues.validate_resolutions(report, {row['id']: 'retain_placed_footprint'})
 
+    def test_unique_schematic_paths_repair_swapped_pcb_references(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            a = types.SimpleNamespace(old_ref='J1', node=['symbol', ['property', sx.q('Footprint'), sx.q('Test:Part')]])
+            b = types.SimpleNamespace(old_ref='J2', node=['symbol', ['property', sx.q('Footprint'), sx.q('Test:Part')]])
+            spec, fake = self.source(root, [footprint('J2', 'a', board_only=False, path='/one'),
+                                            footprint('J1', 'b', board_only=False, path='/two')], [a, b])
+            fake.link_map = {'/one': a, '/two': b}
+            with patch.object(issues, 'discover', return_value=fake):
+                report = issues.scan_source(spec)
+            self.assertEqual([row['action'] for row in report['issues']],
+                             ['restore_schematic_reference', 'restore_schematic_reference'])
+            selected = {row['id']: row['action'] for row in report['issues']}
+            detached = root / 'detached.kicad_pcb'
+            detached.write_bytes((root / 'Example.kicad_pcb').read_bytes())
+            issues.apply_to_detached_board(detached, report, selected)
+            self.assertEqual([issues.fp_reference(fp) for fp in sx.children(sx.load(detached), 'footprint')],
+                             ['J1', 'J2'])
+
+    def test_ignore_is_limited_to_advisory_board_only_copper(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            spec, fake = self.source(root, [footprint('TP1', 'a', net='GND')])
+            with patch.object(issues, 'discover', return_value=fake):
+                report = issues.scan_source(spec)
+            row = report['issues'][0]
+            self.assertEqual(row['code'], 'board_only_copper')
+            issues.validate_resolutions(report, {row['id']: 'ignore'})
+            detached = root / 'detached.kicad_pcb'
+            detached.write_bytes((root / 'Example.kicad_pcb').read_bytes())
+            self.assertEqual(issues.apply_to_detached_board(detached, report, {row['id']: 'ignore'}), [])
+
+            blocker = dict(row, id='blocker', severity='blocking', ignore_allowed=False,
+                           action='rename_mechanical')
+            with self.assertRaises(MergeError):
+                issues.validate_resolutions({'issues': [blocker]}, {'blocker': 'ignore'})
+
 
 if __name__ == '__main__':
     unittest.main()

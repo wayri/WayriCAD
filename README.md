@@ -4,11 +4,13 @@
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current suite release: [3.6.6](https://github.com/wayri/WayriCAD/releases/tag/v3.6.6) · [GPL-3.0 license](LICENSE); Project Fusion is MIT licensed.**
+**Current suite release: [3.6.7](https://github.com/wayri/WayriCAD/releases/tag/v3.6.7) · [GPL-3.0 license](LICENSE); Project Fusion is MIT licensed.**
+
+**New in 3.6.7:** [Project Fusion 0.9.5](project_fusion_plugin/README.md) restores its PCB and schematic previews when their tabs open, gives each source issue a reviewed repair choice, and makes linked-source changes and conflicts easier to resolve. Import a saved KiCad project or subsheet, retain its source link, then preview updates to Value, BOM fields, selected Footprint and routed placement. An optional linked-update mode keeps the target's working placement and routing while inheriting compatible schematic and footprint changes. [Download the independent Fusion PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.7/WayriCAD-project-fusion-0.9.5-PCM.zip) and see the [3.6.7 release notes](docs/RELEASE_NOTES_3.6.7.md).
 
 **New in 3.6.6:** Standalone [QuickTherm](quick_therm_plugin/README.md) can run a bounded Gmsh/CalculiX 3D steady-conduction board model from declared component power, with solver setup in its native window. [Quick PI](quick_pi_plugin/README.md) adds an opt-in Gmsh tetrahedral copper-volume DC model and 3D result viewer; its 2.5D workflow stays the default. Install their independent [QuickTherm PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.6/WayriCAD-quick-therm-3.6.6-PCM.zip) and [Quick PI PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.6/WayriCAD-quick-pi-3.6.6-PCM.zip), then restart KiCad. See the [3.6.6 release notes](docs/RELEASE_NOTES_3.6.6.md) for setup, validation and limits.
 
-**Project Fusion 0.9.4 is included in the 3.6.5 source and wheel:** [Download its independent PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.5/WayriCAD-project-fusion-0.9.4-PCM.zip) or install it from the WayriCAD PCM repository. Merge up to 100 saved projects or selected hierarchical subsheets, optionally copy their routed PCB blocks and local libraries, arrange blocks in a visual preview, and review linked source updates. This testing package targets KiCad 10; full-project apply requires saved and closed target editors. See the [Fusion guide](project_fusion_plugin/README.md) and [3.6.5 release notes](docs/RELEASE_NOTES_3.6.5.md).
+**Project Fusion 0.9.5 is included in the 3.6.7 source and wheel:** Install its independent PCM ZIP or use the WayriCAD PCM repository. Merge up to 100 saved projects or selected hierarchical subsheets, optionally copy their routed PCB blocks and local libraries, arrange blocks in a visual preview, and review linked source updates. This testing package targets KiCad 10; full-project apply requires saved and closed target editors. See the [Fusion guide](project_fusion_plugin/README.md).
 
 **New in 3.6.4:** Mechanical Check can compare a second saved PCB at a specified 3D position, detect exact interboard collisions and close approaches, and show per-finding X/Y/Z or custom cross-sections. See the [3.6.4 release notes](docs/RELEASE_NOTES_3.6.4.md).
 
@@ -20,7 +22,7 @@
 
 [Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
 
-[3.6.6 release notes](docs/RELEASE_NOTES_3.6.6.md) · [3.6.5 release notes](docs/RELEASE_NOTES_3.6.5.md) · [3.6.4 release notes](docs/RELEASE_NOTES_3.6.4.md) · [3.6.3 release notes](docs/RELEASE_NOTES_3.6.3.md) · [3.6.2 release notes](docs/RELEASE_NOTES_3.6.2.md) · [3.6.1 release notes](docs/RELEASE_NOTES_3.6.1.md) · [3.6 release notes](docs/RELEASE_NOTES_3.6.0.md) · [3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
+[3.6.7 release notes](docs/RELEASE_NOTES_3.6.7.md) · [3.6.6 release notes](docs/RELEASE_NOTES_3.6.6.md) · [3.6.5 release notes](docs/RELEASE_NOTES_3.6.5.md) · [3.6.4 release notes](docs/RELEASE_NOTES_3.6.4.md) · [3.6.3 release notes](docs/RELEASE_NOTES_3.6.3.md) · [3.6.2 release notes](docs/RELEASE_NOTES_3.6.2.md) · [3.6.1 release notes](docs/RELEASE_NOTES_3.6.1.md) · [3.6 release notes](docs/RELEASE_NOTES_3.6.0.md) · [3.5 release notes](docs/RELEASE_NOTES_3.5.0.md) · [3.4 release notes](docs/RELEASE_NOTES_3.4.0.md) · [Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md)
 
 ## Install and open
 
@@ -123,8 +125,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.6
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.6
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.7
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.7
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.
@@ -136,4 +138,4 @@ WayriCAD development has made substantial use of AI coding assistants and large 
 We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
 
 
-[Project Fusion 0.9.4 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.5/WayriCAD-project-fusion-0.9.4-PCM.zip) is available as an independent testing package. It retains its MIT license and native KiCad loader. [Fusion guide](project_fusion_plugin/README.md).
+[Project Fusion 0.9.5 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.7/WayriCAD-project-fusion-0.9.5-PCM.zip) is available as an independent testing package. It retains its MIT license and native KiCad loader. [Fusion guide](project_fusion_plugin/README.md).

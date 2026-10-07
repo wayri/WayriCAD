@@ -15,9 +15,10 @@ from .model import MergeError,SourceSpec
 from .schematic import discover,new_uuid,canonical_path
 from .repair import fingerprint,copy_project,project_files
 from .assets import sha256
-from .board import ITEMS,net_name,net_table,board_bounds,prepare_board,fp_reference
+from .board import ITEMS,net_name,net_table,board_bounds,prepare_board,fp_reference,geometry_signature
 from .netlist import KiCadCLI,compare_netlists
 from .link_changes import snapshot_source,compare_snapshots,suggest_auto_links
+from .version import VERSION
 
 MANIFEST='wayri-fusion-links.json'
 
@@ -230,10 +231,41 @@ def _route_collisions(board,owned):
     return found
 
 
-def _conflicts(project,link,xml):
+def _owned_layout_compatible(project,link,xml):
+    """Prove locally edited linked items still belong to their schematic link."""
+    pcb=project.with_suffix('.kicad_pcb')
+    if not pcb.is_file():return False
+    board=sx.load(pcb);table=net_table(board)
+    items={sx.value(item,'uuid') or sx.value(item,'tstamp') or sx.value(item,'id'):item
+           for item in sx.children(board) if sx.tag(item) in ITEMS}
+    expected=set(link.get('pcb_item_ids',[]))
+    if not expected or not expected.issubset(items):return False
+    source_items=link.get('source_baseline',{}).get('board_items',{})
+    reverse={target:source for source,target in link.get('pcb_uuid_map',{}).items()}
+    linked_nets=set(link.get('net_names',[]));refs=set(link.get('reference_map',{}).values())
+    for uid in expected:
+        item=items[uid];original=source_items.get(reverse.get(uid),{})
+        if original and sx.tag(item)!=original.get('kind'):return False
+        if sx.tag(item)=='footprint':
+            ref=fp_reference(item)
+            if ref not in refs:return False
+            if canonical_path(sx.value(item,'path')) not in xml.components.get(ref,{}).get('paths',set()):return False
+            pads=sx.children(item,'pad')
+            if len({str(pad[1]) for pad in pads})!=len(pads):return False
+            for pad in pads:
+                actual=net_name(pad,table);expected_net=xml.pins.get((ref,str(pad[1])),'')
+                if actual!=expected_net:return False
+        elif sx.tag(item) in {'segment','arc','via','zone'}:
+            if net_name(item,table) not in linked_nets:return False
+    return True
+
+
+def _conflicts(project,link,xml,allow_owned_layout=False):
     current=_scope(project,link,xml);baseline=link['target_baseline'];found=[]
     for key in ('wrapper','sheets','pcb_items','tables','assets','settings','partitions'):
-        if current.get(key)!=baseline.get(key):found.append({'category':'destination_'+key,'message':'Destination-owned '+key.replace('_',' ')+' changed; update would overwrite local work.'})
+        if current.get(key)!=baseline.get(key):
+            if key=='pcb_items' and allow_owned_layout and _owned_layout_compatible(project,link,xml):continue
+            found.append({'category':'destination_'+key,'message':'Destination-owned '+key.replace('_',' ')+' changed; update would overwrite local work.'})
     refs=set(link['reference_map'].values());owned=set(link.get('pcb_item_ids',[]));owned_nets=set(link.get('net_names',[]))
     for net in xml.nets.values():
         inside={ep for ep in net if ep[0] in refs};outside=net-inside
@@ -252,6 +284,29 @@ def _conflicts(project,link,xml):
             if sx.tag(item)=='group' and ident not in owned and set(map(str,sx.child(item,'members',[])[1:]))&owned:
                 found.append({'category':'external_group','message':'Destination group includes linked layout items.','uuid':ident})
     return found
+
+
+def _resolution_for_conflict(conflict):
+    """Offer a bounded repair; destination ownership is never silently ignored."""
+    category=conflict.get('category','')
+    if category.startswith('destination_'):
+        return ('Review the local edit against the last imported snapshot. Preserve it '
+                'by keeping this link unchanged, or restore the linked-owned item in '
+                'a reviewed copy before rescanning. Ignore cannot overwrite local work.')
+    if category=='external_connection':
+        return ('Separate the cross-block schematic connection or update the two '
+                'linked designs together in a reviewed candidate. Ignore would risk '
+                'changing another design\'s electrical partition.')
+    if category in {'external_copper','copper_boundary','external_group'}:
+        return ('Separate or explicitly redesign the shared PCB object in a reviewed '
+                'copy, then rerun native DRC. Ignore cannot bypass copper or group ownership.')
+    return ('Inspect the saved target and source in a reviewed copy, repair the '
+            'conflict, and rescan before updating.')
+
+
+def _with_resolution(conflicts):
+    return [dict(conflict,suggestion=_resolution_for_conflict(conflict),
+                 can_ignore=False) for conflict in conflicts]
 
 
 def _row(link):
@@ -309,7 +364,7 @@ def scan_links(target,cli_path='',search_roots=None,source_overrides=None):
                     if finding.get('type') in {'shorting_items','clearance','tracks_crossing'} and finding_ids & owned_ids and finding_ids-owned_ids:
                         crossblock[link['id']].append({'category':'copper_boundary','message':finding.get('description',finding['type']),'finding':finding})
         for link in manifest['links']:
-            row=_row(link);row['conflicts']=_conflicts(project,link,xml)+crossblock.get(link['id'],[]);row['changes']=[];row['major_changes']=0
+            row=_row(link);row['conflicts']=_with_resolution(_conflicts(project,link,xml)+crossblock.get(link['id'],[]));row['changes']=[];row['major_changes']=0
             try:
                 _,snapshot=_live_source(link,work,cli_path,cache,(source_overrides or {}).get(link['id']))
                 for path in link['source_baseline'].get('hashes',{}):
@@ -391,7 +446,7 @@ def record_import(candidate,target_project,sources,parent,batch,imported,merged,
             durable=copy.deepcopy(origin_spec);durable['section_origin']=copy.deepcopy(spec.section_origin);durable['alias']=spec.alias
             durable['x_mm']=durable['y_mm']=None;link['source_spec']=durable;snapshot['variant']=original_snapshot['variant']
         link['target_baseline']=_scope(project,link,merged);manifest['links'].append(link)
-    manifest['target_root_uuid']=sx.value(root,'uuid');manifest['plugin_version']='0.9.4';_write(project.parent,manifest)
+    manifest['target_root_uuid']=sx.value(root,'uuid');manifest['plugin_version']=VERSION;_write(project.parent,manifest)
 
 
 def _legacy_candidates(project,manifest,cli_path=''):
@@ -466,6 +521,29 @@ def _stable_maps(old,fresh,identity_overrides):
     if fresh.get('outer_group_uuid') and old.get('outer_group_uuid'):mapping[fresh['outer_group_uuid']]=old['outer_group_uuid']
     for source_uuid,generated_uuid in fresh['pcb_uuid_map'].items():
         if source_uuid in old['pcb_uuid_map']:mapping[generated_uuid]=old['pcb_uuid_map'][source_uuid]
+    # KiCad can replace a footprint object while retaining the schematic
+    # occurrence. Its new source UUID must still map to the placed target UUID.
+    if old.get('include_layout'):
+        old_fp={item.get('symbol'):uid for uid,item in old['source_baseline'].get('board_items',{}).items()
+                if item.get('kind')=='footprint' and item.get('symbol')}
+        new_fp={}
+        for uid,item in fresh['source_baseline'].get('board_items',{}).items():
+            if item.get('kind')=='footprint' and item.get('symbol'):
+                if item['symbol'] in new_fp:raise MergeError('Multiple source footprints claim one schematic occurrence.')
+                new_fp[item['symbol']]=uid
+        for symbol,source_uuid in old_fp.items():
+            incoming_uuid=new_fp.get(symbol)
+            if not incoming_uuid or incoming_uuid==source_uuid:continue
+            old_item=old['source_baseline']['board_items'][source_uuid]
+            new_item=fresh['source_baseline']['board_items'][incoming_uuid]
+            old_pads=[str(pad[1]) for pad in old_item.get('pad_connections',[])]
+            new_pads=[str(pad[1]) for pad in new_item.get('pad_connections',[])]
+            if len(old_pads)!=len(set(old_pads)) or sorted(old_pads)!=sorted(new_pads):
+                raise MergeError('Replacement footprint changes pad numbers or duplicates a pad; review its mapping separately.')
+            generated=fresh['pcb_uuid_map'].get(incoming_uuid)
+            stable=old['pcb_uuid_map'].get(source_uuid)
+            if not generated or not stable:raise MergeError('Replacement footprint lacks a verified PCB identity map.')
+            mapping[generated]=stable
     for identity,target_ref in fresh['symbol_refs'].items():
         previous=reverse.get(identity,identity)
         if previous in old['symbol_refs']:
@@ -494,7 +572,160 @@ def _rest_matches(before,after,owned_refs):
             raise MergeError('Linked update changed unrelated destination pin connections.')
 
 
-def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_major=False,source_overrides=None,identity_overrides=None):
+def _retain_target_layout(board,previous,links,ids,old_xml,final_xml):
+    """Keep placed/routed target geometry while accepting new footprint bodies."""
+    previous_items={sx.value(item,'uuid') or sx.value(item,'tstamp') or sx.value(item,'id'):item
+                    for item in sx.children(previous) if sx.tag(item) in ITEMS}
+    owned={uid for old,_ in links for uid in old.get('pcb_item_ids',[])}
+    rebuilt={ids.get(uid,uid) for _,fresh in links for uid in fresh.get('pcb_item_ids',[])}
+    # Incoming source tracks/zones cannot be layered over the retained target
+    # routes. A newly introduced footprint is kept as a staged new component.
+    board[:]=[item for item in board if not (sx.tag(item) in ITEMS and
+             (sx.value(item,'uuid') or sx.value(item,'tstamp') or sx.value(item,'id')) in (rebuilt-owned)
+             and sx.tag(item)!='footprint')]
+    updated_items={sx.value(item,'uuid') or sx.value(item,'tstamp') or sx.value(item,'id'):item
+                   for item in sx.children(board) if sx.tag(item) in ITEMS}
+    old_table=net_table(previous);new_table=net_table(board)
+    codes={name:code for code,name in new_table.items()}
+    direct=any(sx.tag(node)=='net' and len(node)==2 and isinstance(node[1],sx.Quoted)
+               for node in sx.walk(board))
+    net_map={}
+    for name,pins in old_xml.nets.items():
+        names={final_xml.pins.get(pin) for pin in pins}
+        if len(names)==1 and None not in names and final_xml.nets[next(iter(names))]==pins:
+            net_map[name]=next(iter(names))
+    for old,fresh in links:
+        refs=set(old.get('reference_map',{}).values())
+        for endpoint,name in old_xml.pins.items():
+            if endpoint[0] in refs and endpoint in final_xml.pins and name not in net_map:
+                raise MergeError('Cannot retain routed target copper after an electrical pin partition changed: '+endpoint[0]+'.'+endpoint[1])
+    retained=[];replaced=[];footprint_pairs=[]
+    original_geometry=geometry_signature(previous)
+    for uid in owned:
+        original=previous_items.get(uid)
+        if original is None:raise MergeError('Linked target layout item is missing: '+uid)
+        incoming=updated_items.get(uid)
+        if sx.tag(original)=='footprint':
+            if incoming is None or sx.tag(incoming)!='footprint':
+                raise MergeError('Linked footprint disappeared from the updated source: '+fp_reference(original))
+            ref=fp_reference(original)
+            if sx.value(original,'layer')!=sx.value(incoming,'layer'):
+                raise MergeError('Replacement footprint changes board side for '+ref+'; review placement manually.')
+            old_pads={str(pad[1]):pad for pad in sx.children(original,'pad')}
+            new_pads={str(pad[1]):pad for pad in sx.children(incoming,'pad')}
+            if len(old_pads)!=len(sx.children(original,'pad')) or len(new_pads)!=len(sx.children(incoming,'pad')) or old_pads.keys()!=new_pads.keys():
+                raise MergeError('Replacement footprint pad numbers differ for '+ref+'; retain target routing requires an explicit pad map.')
+            for number,new_pad in new_pads.items():
+                old_pad=old_pads[number]
+                old_net=net_name(old_pad,old_table);new_net=net_name(new_pad,new_table)
+                if old_net and (old_xml.pins.get((ref,number))!=old_net or net_map.get(old_net)!=new_net):
+                    raise MergeError('Replacement footprint pad net differs from retained routing: '+ref+'.'+number)
+                if not old_net and new_net:
+                    raise MergeError('Replacement footprint connects a previously unconnected pad: '+ref+'.'+number)
+                old_uid=sx.value(old_pad,'uuid') or sx.value(old_pad,'tstamp')
+                if old_uid:sx.put(new_pad,'uuid',sx.q(old_uid))
+            sx.put(incoming,'at',*copy.deepcopy(sx.child(original,'at')[1:]))
+            for key in ('locked','unlocked'):
+                sx.remove(incoming,key)
+                if sx.child(original,key) is not None:incoming.append(copy.deepcopy(sx.child(original,key)))
+            replaced.append(uid)
+            footprint_pairs.append((original,incoming))
+            continue
+        if incoming is not None and sx.tag(incoming)!=sx.tag(original):
+            raise MergeError('Linked target item type changed: '+uid)
+        retained_item=copy.deepcopy(original)
+        for node in sx.walk(retained_item):
+            net=sx.child(node,'net')
+            if net is None:continue
+            old_name=net_name(node,old_table)
+            if old_name:
+                new_name=net_map.get(old_name)
+                if not new_name or (not direct and new_name not in codes):
+                    raise MergeError('Cannot prove the retained copper net after source update: '+old_name)
+                net[:]=['net',sx.q(new_name)] if direct else ['net',codes[new_name],sx.q(new_name)]
+        if incoming is None:
+            board.append(retained_item)
+        else:
+            incoming[:]=retained_item
+        retained.append(uid)
+    adjusted=_prove_replacement_pad_attachments(board,previous,footprint_pairs,owned)
+    updated_geometry=geometry_signature(board)
+    changed_footprints=[uid for uid in replaced if original_geometry.get(uid)!=updated_geometry.get(uid)]
+    return {'retained_target_layout_items':len(retained),
+            'retained_target_placements':len(replaced),
+            'adjusted_track_endpoints':adjusted,
+            'changed_footprint_ids':changed_footprints}
+
+
+def _prove_replacement_pad_attachments(board,previous,pairs,owned):
+    """Keep or narrowly move a single attached endpoint; reject uncertain pads."""
+    import math
+    original_table=net_table(previous)
+    original_routes={sx.value(item,'uuid'):item for item in sx.children(previous,'segment')
+                     if sx.value(item,'uuid') in owned}
+    updated_routes={sx.value(item,'uuid'):item for item in sx.children(board,'segment')}
+    vias=[item for item in sx.children(previous,'via') if sx.value(item,'uuid') in owned]
+    adjusted=0
+
+    def pad_shape(fp,pad):
+        position=sx.child(fp,'at');local=sx.child(pad,'at');size=sx.child(pad,'size')
+        if not position or not local or not size:return None
+        if (len(position)>3 and abs(float(position[3]))>1e-8) or (len(local)>3 and abs(float(local[3]))>1e-8):return None
+        return (float(position[1])+float(local[1]),float(position[2])+float(local[2]),
+                float(size[1])/2,float(size[2])/2,str(pad[3]),
+                float(sx.value(pad,'roundrect_rratio') or 0))
+
+    def contains(shape,point):
+        x,y,hx,hy,kind,ratio=shape
+        dx=abs(point[0]-x);dy=abs(point[1]-y)
+        if kind=='rect':return dx<=hx+1e-6 and dy<=hy+1e-6
+        if kind=='roundrect':
+            radius=min(hx*2,hy*2)*ratio
+            return dx<=hx+1e-6 and dy<=hy+1e-6 and (
+                dx<=hx-radius or dy<=hy-radius or
+                (dx-hx+radius)**2+(dy-hy+radius)**2 <=radius**2+1e-6)
+        return False
+
+    for old_fp,new_fp in pairs:
+        old_pads={str(pad[1]):pad for pad in sx.children(old_fp,'pad')}
+        for pad in sx.children(new_fp,'pad'):
+            number=str(pad[1]);old_pad=old_pads[number]
+            if _normal(old_pad)==_normal(pad):continue
+            old_net=net_name(old_pad,original_table)
+            if not old_net:continue
+            old_shape=pad_shape(old_fp,old_pad);new_shape=pad_shape(new_fp,pad)
+            if old_shape is None or new_shape is None:
+                raise MergeError('Changed routed pad needs a supported unrotated rectangular footprint for attachment proof: '+fp_reference(new_fp)+'.'+number)
+            layers=set(map(str,sx.child(old_pad,'layers',[])[1:]))
+            attached=[]
+            for uid,route in original_routes.items():
+                if sx.value(route,'layer') not in layers or net_name(route,original_table)!=old_net:continue
+                for endpoint in ('start','end'):
+                    node=sx.child(route,endpoint)
+                    if node and contains(old_shape,(float(node[1]),float(node[2]))):
+                        attached.append((uid,endpoint,(float(node[1]),float(node[2]))))
+            for via in vias:
+                if net_name(via,original_table)!=old_net:continue
+                node=sx.child(via,'at')
+                if node and contains(old_shape,(float(node[1]),float(node[2]))) and not contains(new_shape,(float(node[1]),float(node[2]))):
+                    raise MergeError('Changed pad would disconnect a retained via: '+fp_reference(new_fp)+'.'+number)
+            moved=[entry for entry in attached if not contains(new_shape,entry[2])]
+            if not moved:continue
+            if len(attached)!=1 or len(moved)!=1:
+                raise MergeError('Changed pad has branched or ambiguous retained copper: '+fp_reference(new_fp)+'.'+number)
+            uid,endpoint,position=moved[0]
+            new_center=new_shape[:2]
+            if math.dist(position,new_center)>0.75:
+                raise MergeError('Changed pad is too far from its retained trace endpoint: '+fp_reference(new_fp)+'.'+number)
+            route=updated_routes.get(uid)
+            if route is None:raise MergeError('Retained trace endpoint disappeared: '+uid)
+            node=sx.child(route,endpoint)
+            node[1]=str(round(new_center[0],6));node[2]=str(round(new_center[1],6))
+            adjusted+=1
+    return adjusted
+
+
+def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_major=False,source_overrides=None,identity_overrides=None,retain_destination_layout=False):
     from .insertion import preview_import,_target_integrity
     from .engine import publish
     project,manifest=_load(target);requested=set(link_ids)
@@ -520,7 +751,7 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
                     raise MergeError('Destination conflict: linked copper intersects unrelated destination copper. Resolve the cross-block DRC finding before updating: '+finding.get('description',finding['type']))
         originals=[]
         for link in links:
-            conflicts=_conflicts(project,link,old_xml)
+            conflicts=_conflicts(project,link,old_xml,allow_owned_layout=retain_destination_layout)
             if conflicts:raise MergeError('Destination conflict for '+link['alias']+': '+conflicts[0]['message'])
             spec,current=_live_source(link,work,cli_path,cache,(source_overrides or {}).get(link['id']))
             changes=compare_snapshots(link['source_baseline'],current)
@@ -591,7 +822,7 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
             transformed={(references.get(ref,ref),pin) for ref,pin in pins};names={final_xml.pins.get(ep) for ep in transformed}
             if len(names)!=1 or None in names or final_xml.nets[next(iter(names))]!=transformed:raise MergeError('Stable update changed source electrical partitions unexpectedly.')
             net_names[name]=next(iter(names))
-        pcb=fresh_project.with_suffix('.kicad_pcb')
+        pcb=fresh_project.with_suffix('.kicad_pcb');retention={}
         if links[0]['include_layout']:
             board=sx.load(pcb);table=net_table(board);sx.remap_identifiers(board,ids);_rewrite_refs(board,references)
             for node in sx.walk(board):
@@ -603,6 +834,9 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
                     elif len(net)>1 and isinstance(net[1],sx.Quoted):net[1]=sx.q(net_names.get(name,name))
             for net in sx.children(board,'net'):
                 if len(net)>2:net[2]=sx.q(net_names.get(str(net[2]),str(net[2])))
+            if retain_destination_layout:
+                retention=_retain_target_layout(board,sx.load(project.with_suffix('.kicad_pcb')),
+                                                fresh_links,ids,old_xml,final_xml)
             from .board import verify_native_associations
             verify_native_associations(board,final_xml)
             sx.save(pcb,board)
@@ -620,11 +854,27 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
             _target_integrity(original_board,sx.load(pcb))
             safety_types={'shorting_items','clearance','tracks_crossing','copper_edge_clearance','hole_clearance'}
             def finding_identity(finding):
-                return (finding.get('type'),tuple(sorted(str(item.get('uuid',item.get('description',''))) for item in finding.get('items',[]))))
+                return (finding.get('type'),finding.get('severity'),finding.get('description'),
+                        tuple(sorted(str(item.get('uuid',item.get('description',''))) for item in finding.get('items',[]))))
             previous={finding_identity(f) for f in baseline_drc.get('violations',[]) if f.get('type') in safety_types}
             introduced=[f for f in drc.get('violations',[]) if f.get('type') in safety_types and finding_identity(f) not in previous]
             if introduced:raise MergeError('Linked update introduces a copper safety conflict: '+introduced[0].get('description',introduced[0].get('type','DRC finding')))
+            if retain_destination_layout:
+                changed=set(retention.get('changed_footprint_ids',[]))
+                touching=[finding for finding in drc.get('violations',[]) if finding.get('type') in safety_types
+                          and changed & {str(item.get('uuid','')) for item in finding.get('items',[])}]
+                if touching:
+                    raise MergeError('Replacement footprint has a copper safety finding: '
+                                     +touching[0].get('description',touching[0].get('type','DRC finding')))
+                previous_open={finding_identity(f) for f in baseline_drc.get('unconnected_items',[])}
+                newly_open=[f for f in drc.get('unconnected_items',[])
+                            if finding_identity(f) not in previous_open]
+                if newly_open:
+                    raise MergeError('Replacement footprint or retained route introduces an unconnected copper item: '
+                                     +newly_open[0].get('description','review pad and track attachment.'))
         cli.run(['sch','erc','--format','json','--output',candidate/'linked-update-erc.json',fresh_project.with_suffix('.kicad_sch')],cwd=candidate)
+        present_items={sx.value(item,'uuid') or sx.value(item,'tstamp') or sx.value(item,'id')
+                       for item in sx.children(sx.load(pcb)) if sx.tag(item) in ITEMS} if retain_destination_layout and links[0]['include_layout'] else set()
         for old,fresh in fresh_links:
             fresh['id']=old['id'];fresh['wrapper_uuid']=old['wrapper_uuid']
             fresh['reference_map']={key:references.get(value,value) for key,value in fresh['reference_map'].items()}
@@ -632,6 +882,11 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
             fresh['schematic_ids']={path:{key:ids.get(value,value) for key,value in values.items()} for path,values in fresh['schematic_ids'].items()}
             fresh['pcb_uuid_map']={key:ids.get(value,value) for key,value in fresh['pcb_uuid_map'].items()}
             fresh['pcb_item_ids']=[ids.get(value,value) for value in fresh['pcb_item_ids']]
+            if retain_destination_layout:
+                fresh['pcb_uuid_map']={key:value for key,value in
+                    {**old.get('pcb_uuid_map',{}),**fresh['pcb_uuid_map']}.items() if value in present_items}
+                fresh['pcb_item_ids']=[uid for uid in dict.fromkeys([*old.get('pcb_item_ids',[]),*fresh['pcb_item_ids']])
+                                       if uid in present_items]
             fresh['outer_group_uuid']=ids.get(fresh.get('outer_group_uuid'),fresh.get('outer_group_uuid'))
             fresh['net_names']=[net_names.get(name,name) for name in fresh['net_names']]
             fresh['source_baseline']=snapshots[old['id']]
@@ -651,8 +906,9 @@ def preview_update(target,link_ids,candidate_directory,cli_path='',acknowledge_m
         rendered.mkdir()
         cli.run(['sch','export','svg','--output',rendered,fresh_project.with_suffix('.kicad_sch')],cwd=candidate)
         erc=json.loads((candidate/'linked-update-erc.json').read_text(encoding='utf-8-sig'))
-        report={'plugin_version':'0.9.4','linked_update':True,'updated_links':[link['id'] for link in links],
+        report={'plugin_version':VERSION,'linked_update':True,'updated_links':[link['id'] for link in links],
                 'major_changes':major,'acknowledged_major_changes':bool(acknowledge_major),'changes':all_changes,'conflicts':[],
+                'retain_destination_layout':bool(retain_destination_layout),**retention,
                 'stable_references_and_uuids_preserved':True,'unrelated_destination_preserved':True,'manufacturing_approved':False,
                 'drc_findings':len(drc.get('violations',[])) if drc else None,'unconnected_findings':len(drc.get('unconnected_items',[])) if drc else None,
                 'erc_findings':sum(len(sheet.get('violations',[])) for sheet in erc.get('sheets',[]))}
@@ -699,7 +955,7 @@ def preview_break_links(target,link_ids,candidate_directory,cli_path=''):
         if changes!={MANIFEST}:raise MergeError('Breaking links changed local design files; nothing published.')
         if fingerprint(project.parent)!=original:raise MergeError('Destination changed during break-links review.')
         publish(candidate,destination)
-    report={'plugin_version':'0.9.4','linked_break':True,'broken_links':sorted(requested),'local_design_preserved':True,'sources_accessed':False,'major_changes':0}
+    report={'plugin_version':VERSION,'linked_break':True,'broken_links':sorted(requested),'local_design_preserved':True,'sources_accessed':False,'major_changes':0}
     return {'target_project':str(project),'target_hashes':original,'source_hashes':[],'source_file_hashes':[],
             'candidate_directory':str(destination),'candidate_hashes':fingerprint(destination),'report':report}
 
@@ -740,7 +996,7 @@ def preview_undo(target,backup_directory,candidate_directory,cli_path=''):
         candidate=Path(folder)/'candidate';copy_project(backup/'project',candidate)
         if fingerprint(candidate)!=restored or fingerprint(project.parent)!=current:raise MergeError('Destination or backup changed during undo preview.')
         publish(candidate,destination)
-    report={'plugin_version':'0.9.4','linked_undo':True,'undo_backup':str(backup),'restored_verified_snapshot':True,'major_changes':0}
+    report={'plugin_version':VERSION,'linked_undo':True,'undo_backup':str(backup),'restored_verified_snapshot':True,'major_changes':0}
     return {'target_project':str(project),'target_hashes':current,'source_hashes':[{'root':str(backup/'project'),'hashes':restored}],
             'source_file_hashes':[],'candidate_directory':str(destination),'candidate_hashes':restored,'undo_backup':str(backup),
             'remove_files':sorted(set(current)-set(restored)),'report':report}

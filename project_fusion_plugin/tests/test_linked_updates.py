@@ -64,6 +64,21 @@ class LinkedUnitTests(unittest.TestCase):
         self.assertEqual(ids,{'fresh-symbol':'target-symbol','fresh-wrapper':'old-wrapper','fresh-track':'old-track'})
         self.assertEqual(refs,{'R2':'R9'})
 
+    def test_replacement_footprint_uuid_follows_same_symbol_and_pad_numbers(self):
+        old={'include_layout':True,'source_baseline':{'symbols':{},'board_items':{
+            'source-old':{'kind':'footprint','symbol':'/root/r1','pad_connections':[['p1','1','N'],['p2','2','N']]}}},
+            'schematic_ids':{},'wrapper_uuid':'wrapper-old','pcb_uuid_map':{'source-old':'placed'},
+            'symbol_refs':{},'reference_map':{}}
+        fresh={'source_baseline':{'symbols':{},'board_items':{
+            'source-new':{'kind':'footprint','symbol':'/root/r1','pad_connections':[['q1','1','N'],['q2','2','N']]}}},
+            'schematic_ids':{},'wrapper_uuid':'wrapper-new','pcb_uuid_map':{'source-new':'fresh'},
+            'symbol_refs':{},'reference_map':{}}
+        ids,_=l._stable_maps(old,fresh,{})
+        self.assertEqual(ids['fresh'],'placed')
+        fresh['source_baseline']['board_items']['source-new']['pad_connections'][1][1]='3'
+        with self.assertRaisesRegex(m.MergeError,'pad numbers'):
+            l._stable_maps(old,fresh,{})
+
     def test_break_missing_source_undo_verified_and_stale_refused(self):
         import tempfile,json
         insertion=importlib.import_module(PACKAGE+'.insertion')

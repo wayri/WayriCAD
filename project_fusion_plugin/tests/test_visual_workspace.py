@@ -71,3 +71,35 @@ class VisualWorkspaceTests(unittest.TestCase):
             with self.assertRaisesRegex(model.MergeError,'Merge issues panel'):self.dialog.scan_worker_issues([spec])
         self.assertEqual(self.dialog.issue_list.GetItemCount(),1)
         self.assertIsNone(self.dialog.merge_issues[0][2]['action'])
+
+    def test_each_issue_has_a_reviewed_choice_and_only_advisories_can_be_ignored(self):
+        model=importlib.import_module(pkg.__name__+'.model')
+        spec=model.SourceSpec('C:/Example/module.kicad_pro','MODULE')
+        blocked={'id':'MODULE:pcb:1','reference':'J1','error':'Reference differs',
+                 'action':'restore_schematic_reference','suggested_reference':'J2',
+                 'severity':'blocking','ignore_allowed':False}
+        advisory={'id':'MODULE:pcb:2','reference':'TP1','error':'Board-only copper',
+                  'action':'keep_board_only','severity':'warning','ignore_allowed':True}
+        self.dialog.show_merge_issues([(spec,{'issues':[blocked,advisory]})])
+        self.assertEqual(self.dialog.issue_list.GetItemCount(),2)
+        self.assertEqual(self.dialog.issue_choices[blocked['id']],blocked['action'])
+        self.dialog.show_issue_choices(0)
+        self.assertNotIn('ignore',self.dialog._issue_option_actions)
+        self.dialog.issue_list.Select(1)
+        self.dialog.show_issue_choices(1)
+        self.assertIn('ignore',self.dialog._issue_option_actions)
+        self.dialog.issue_choice.SetSelection(self.dialog._issue_option_actions.index('ignore'))
+        self.dialog.choose_issue_resolution(None)
+        self.assertEqual(self.dialog.issue_choices[advisory['id']],'ignore')
+        self.assertEqual(self.dialog.issue_list.GetItemText(1,2),'Ignore advisory')
+
+    def test_auto_fix_requires_every_blocking_issue_to_have_a_safe_decision(self):
+        model=importlib.import_module(pkg.__name__+'.model')
+        spec=model.SourceSpec('C:/Example/module.kicad_pro','MODULE')
+        blocked={'id':'MODULE:pcb:1','reference':'J1','error':'Ambiguous PCB owner',
+                 'action':None,'severity':'blocking','ignore_allowed':False}
+        self.dialog.show_merge_issues([(spec,{'issues':[blocked]})])
+        with mock.patch.object(wx,'MessageBox') as confirm:
+            self.dialog.auto_fix_issues(None)
+        confirm.assert_not_called()
+        self.assertIn('Ambiguous PCB owner',self.dialog.status.GetLabel())

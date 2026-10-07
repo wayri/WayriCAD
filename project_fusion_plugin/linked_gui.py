@@ -121,6 +121,8 @@ class LinkedUpdatesDialog(wx.Dialog):
         self.link_tree_items = {}
         self.source_overrides = {}
         self.identity_overrides = {}
+        self.deferred_changes = set()
+        self.change_rows = []
         self.pending_adoption_ids = []
         self.plan = self.plan_file = self.applied = None
         self.busy = False
@@ -173,6 +175,13 @@ class LinkedUpdatesDialog(wx.Dialog):
                        self.search_button, self.autolink_button, self.watch):
             controls.Add(button, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 8)
         root.Add(controls, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        self.retain_layout = wx.CheckBox(
+            self, label='Keep current target footprint positions and routing during linked update')
+        self.retain_layout.SetToolTip(
+            'Inherit saved schematic and compatible footprint changes while keeping the placed '
+            'target PCB geometry. Pad, connection and native DRC checks can stop an unsafe update.')
+        self.retain_layout.Bind(wx.EVT_CHECKBOX, self.invalidate_plan)
+        root.Add(self.retain_layout, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         link_actions = wx.BoxSizer(wx.HORIZONTAL)
         self.break_selected_button = wx.Button(self, label='Preview break selected links…')
         self.break_all_button = wx.Button(self, label='Preview break all links…')
@@ -249,9 +258,17 @@ class LinkedUpdatesDialog(wx.Dialog):
         box = wx.BoxSizer(wx.VERTICAL)
         self.changes = wx.ListCtrl(page, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
         for index, (name, width) in enumerate((('Severity', 95), ('Category', 120), ('Component', 130),
-                                               ('Pin', 85), ('Before', 270), ('After', 270))):
+                                               ('Pin', 85), ('Before', 270), ('After', 270), ('Review', 115))):
             self.changes.InsertColumn(index, name, width=width)
         box.Add(self.changes, 2, wx.ALL | wx.EXPAND, 8)
+        self.changes.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_change_selected)
+        self.change_advice = wx.TextCtrl(page, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP,
+                                         size=(-1, 74))
+        self.defer_change_button = wx.Button(page, label='Ignore for now / restore')
+        self.defer_change_button.Bind(wx.EVT_BUTTON, self.toggle_deferred_change)
+        box.Add(self.change_advice, 0, wx.LEFT | wx.RIGHT | wx.EXPAND, 8)
+        box.Add(self.defer_change_button, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        self.defer_change_button.Disable()
         compare = wx.BoxSizer(wx.HORIZONTAL)
         self.source_summary = wx.TextCtrl(page, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP)
         self.target_summary = wx.TextCtrl(page, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP)
@@ -317,6 +334,7 @@ class LinkedUpdatesDialog(wx.Dialog):
             self.link_tree_items = {}
             self.source_overrides.clear()
             self.identity_overrides.clear()
+            self.deferred_changes.clear()
             self.pending_adoption_ids = []
             self.tree.DeleteAllItems()
             self.diagram.show_links('', [])
@@ -400,6 +418,7 @@ class LinkedUpdatesDialog(wx.Dialog):
         self.scan_data = data
         self.links = list(data.get('links', []))
         self.identity_overrides.clear()
+        self.deferred_changes.clear()
         self.pending_adoption_ids = []
         target = self.target.GetPath()
         self.tree.DeleteAllItems()
@@ -504,7 +523,7 @@ class LinkedUpdatesDialog(wx.Dialog):
             return
         self.diagram.show_links(Path(self.target.GetPath()).stem, self.links, selected=key)
         changes = link.get('changes', [])
-        self.show_change_rows(changes if isinstance(changes, list) else [])
+        self.show_change_rows(changes if isinstance(changes, list) else [], link.get('conflicts', []))
         candidates = link.get('source_candidates', [])
         source_lines = ['SOURCE', 'Alias: '+str(link.get('alias', '')),
                         'Saved project: '+str(link.get('source_project', '')),
@@ -541,9 +560,19 @@ class LinkedUpdatesDialog(wx.Dialog):
         self.refresh_update_available()
         self.on_acknowledge()
 
-    def show_change_rows(self, changes):
+    @staticmethod
+    def change_key(link_id, change):
+        return (str(link_id), str(change.get('category','')), str(change.get('identity','')),
+                str(change.get('pin','')), json.dumps([change.get('before'),change.get('after')],
+                                                   sort_keys=True, default=str))
+
+    def show_change_rows(self, changes, conflicts=()):
         self.changes.DeleteAllItems()
-        for change in changes:
+        self.change_rows=[]
+        self.change_advice.Clear()
+        self.defer_change_button.Disable()
+        for change in [*changes,*[dict(item,severity='blocked',identity=item.get('uuid',''),
+                                      before='',after='',conflict=True) for item in conflicts]]:
             if not isinstance(change, dict): continue
             link_id = change.get('link_id', self.selected_link_id)
             link = next((item for item in self.links if self.link_key(item) == link_id), None)
@@ -553,12 +582,39 @@ class LinkedUpdatesDialog(wx.Dialog):
             fields = [change.get('severity', ''), change.get('category', ''),
                       component,
                       change.get('pin', ''), change.get('before_display', change.get('before', '')),
-                      change.get('after_display', change.get('after', ''))]
+                      change.get('after_display', change.get('after', '')),
+                      'Deferred' if self.change_key(link_id,change) in self.deferred_changes else
+                      ('Must resolve' if change.get('conflict') else 'Review')]
             fields = [json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
                       for value in fields]
             row = self.changes.InsertItem(self.changes.GetItemCount(), fields[0])
             for column, value in enumerate(fields[1:], 1):
                 self.changes.SetItem(row, column, value)
+            self.change_rows.append((link_id,change))
+
+    def on_change_selected(self, event):
+        index=event.GetIndex()
+        if index>=len(self.change_rows):return
+        _,change=self.change_rows[index]
+        advice=change.get('suggestion') or change.get('message') or 'Review this change.'
+        if change.get('conflict'):
+            advice+='\n\nThis destination conflict cannot be ignored during update.'
+        else:
+            advice+='\n\nIgnoring this row defers the entire linked design update until restored.'
+        self.change_advice.SetValue(advice)
+        self.defer_change_button.Enable(not change.get('conflict') and not self.busy)
+
+    def toggle_deferred_change(self, event):
+        index=self.changes.GetFirstSelected()
+        if index<0 or index>=len(self.change_rows):return
+        link_id,change=self.change_rows[index]
+        if change.get('conflict'):return
+        key=self.change_key(link_id,change)
+        if key in self.deferred_changes:self.deferred_changes.remove(key)
+        else:self.deferred_changes.add(key)
+        self.changes.SetItem(index,6,'Deferred' if key in self.deferred_changes else 'Review')
+        self.invalidate_plan()
+        self.status.SetLabel('Ignored source changes defer their whole linked update; restore them before preview.')
 
     def selected_link_ids(self):
         keys = []
@@ -773,6 +829,10 @@ class LinkedUpdatesDialog(wx.Dialog):
             wx.MessageBox('Select one or more linked imports in the Overview tree.', 'Preview updates', wx.OK | wx.ICON_WARNING, self)
             return
         selected_links = [link for link in self.links if self.link_key(link) in keys]
+        if any(key[0] in keys for key in self.deferred_changes):
+            wx.MessageBox('An individual source change is ignored for now. Restore it in Change Review, or leave this link unchanged and update the other selected links separately.',
+                          'Linked update deferred', wx.OK | wx.ICON_INFORMATION, self)
+            return
         unsupported = [link for link in selected_links if link.get('update_unsupported_reason')]
         if unsupported:
             first = unsupported[0]
@@ -784,10 +844,15 @@ class LinkedUpdatesDialog(wx.Dialog):
             wx.MessageBox('Preview routed and schematic-only links in separate reviewed updates.',
                           'Mixed link modes', wx.OK | wx.ICON_WARNING, self)
             return
-        conflicted = [link for link in selected_links if link.get('conflicts')]
+        retained = bool(self.retain_layout.GetValue())
+        conflicted = [link for link in selected_links
+                      if any(conflict.get('category') != 'destination_pcb_items' or not retained
+                             for conflict in link.get('conflicts', []))]
         if conflicted:
             first = conflicted[0]
-            detail = first['conflicts'][0].get('message', 'Local destination edits overlap this linked import.')
+            finding = next(conflict for conflict in first['conflicts']
+                           if conflict.get('category') != 'destination_pcb_items' or not retained)
+            detail = finding.get('message', 'Local destination edits overlap this linked import.')
             wx.MessageBox(f"{first.get('alias', self.link_key(first))}: {detail}\n\nResolve the local conflict in a reviewed copy before updating this link.",
                           'Destination conflict', wx.OK | wx.ICON_WARNING, self)
             return
@@ -821,9 +886,11 @@ class LinkedUpdatesDialog(wx.Dialog):
             overrides = dict(self.source_overrides)
             identity_overrides = {key:dict(value) for key,value in self.identity_overrides.items()
                                   if key in keys}
+            retain_layout = bool(self.retain_layout.GetValue())
             action = lambda: preview_update(target, keys, candidate, cli_path=self.cli_path,
                                             acknowledge_major=bool(major), source_overrides=overrides,
-                                            identity_overrides=identity_overrides)
+                                            identity_overrides=identity_overrides,
+                                            retain_destination_layout=retain_layout)
             status = 'Building and validating linked update candidate…'
         self.run(action, self.show_preview, status)
 

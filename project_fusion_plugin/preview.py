@@ -222,12 +222,14 @@ class PlacementPreview(wx.Panel):
         self._move_alias = None
         self._move_delta = (0.0, 0.0)
         self.scale = None
+        self._fit_pending = True
         self.center = (0.0, 0.0)
         self._drag = None
         self.SetMinSize((-1, 170))
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.Bind(wx.EVT_PAINT, self.on_paint)
-        self.Bind(wx.EVT_SIZE, lambda event: (self.Refresh(), event.Skip()))
+        self.Bind(wx.EVT_SIZE, self._size)
+        self.Bind(wx.EVT_SHOW, self._show)
         self.Bind(wx.EVT_MOUSEWHEEL, self._wheel)
         self.Bind(wx.EVT_LEFT_DOWN, self._down)
         self.Bind(wx.EVT_LEFT_UP, self._up)
@@ -255,6 +257,7 @@ class PlacementPreview(wx.Panel):
         self.layers = {}
         self.selected_alias = None
         self.scale = None
+        self._fit_pending = True
         self.Refresh()
 
     def set_layer(self, layer=None):
@@ -267,14 +270,34 @@ class PlacementPreview(wx.Panel):
 
     def fit(self):
         if not self.boxes:
-            self.scale = None; self.Refresh(); return
+            self.scale = None; self._fit_pending = True; self.Refresh(); return
         x1 = min(b[1] for b in self.boxes); y1 = min(b[2] for b in self.boxes)
         x2 = max(b[3] for b in self.boxes); y2 = max(b[4] for b in self.boxes)
         w, h = self.GetClientSize()
+        # Notebook pages can still have a zero client size while a background
+        # analysis finishes. Defer fitting until the page receives its size;
+        # fitting against a 1 px viewport leaves the opened preview invisible.
+        if w < 80 or h < 80:
+            self.scale = None
+            self._fit_pending = True
+            return
         self.scale = max(0.001, min(max(1, w-45)/max(1, x2-x1),
                                     max(1, h-65)/max(1, y2-y1)))
         self.center = ((x1+x2)/2, (y1+y2)/2)
+        self._fit_pending = False
         self.Refresh()
+
+    def _size(self, event):
+        if self._fit_pending and self.boxes:
+            self.fit()
+        else:
+            self.Refresh()
+        event.Skip()
+
+    def _show(self, event):
+        if event.IsShown() and self._fit_pending and self.boxes:
+            self.fit()
+        event.Skip()
 
     def _screen(self, point):
         w, h = self.GetClientSize()
@@ -353,6 +376,9 @@ class PlacementPreview(wx.Panel):
             return
         if self.scale is None:
             self.fit()
+            if self.scale is None:
+                dc.DrawText('Preview will fit when this panel opens.', 12, 34)
+                return
         colours = {'F.Cu': wx.Colour(210, 70, 65), 'B.Cu': wx.Colour(65, 105, 210),
                    'Edge.Cuts': wx.Colour(80, 160, 90), 'Sheet':wx.Colour(65,145,175), 'Hole': bg}
         # Draw filled zone islands and their voids together, followed by pads,

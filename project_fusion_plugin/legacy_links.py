@@ -274,7 +274,7 @@ def preview_adopt(target,link_ids,candidate_directory,cli_path=''):
             dependencies.append({'original_path':str(proposals[ident]['archive']),'sha256':sha256(proposals[ident]['archive'])})
         candidate=work/'candidate';copy_project(project.parent,candidate)
         manifest['target_root_uuid']=sx.value(sx.load(project.with_suffix('.kicad_sch')),'uuid');lu._write(candidate,manifest)
-        report={'plugin_version':'0.9.4','linked_adoption':True,'adopted_links':link_ids,'geometry_unchanged':True,'major_changes':0,'manufacturing_approved':False}
+        report={'plugin_version':'0.9.5','linked_adoption':True,'adopted_links':link_ids,'geometry_unchanged':True,'major_changes':0,'manufacturing_approved':False}
         (candidate/'linked-adoption-report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
         if fingerprint(project.parent)!=target_hashes:raise MergeError('Destination changed during legacy proof.')
         publish(candidate,destination)

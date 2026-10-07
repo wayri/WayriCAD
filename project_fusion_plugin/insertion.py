@@ -277,7 +277,7 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
         source_file_hashes=_snapshot(incoming,assets)
         from .linked_updates import record_import
         record_import(candidate,target_project,incoming,parent,batch,imported,merged,include_layout,cli_path)
-        report={'plugin_version':'0.9.4','target_project':str(target_project),'include_layout':include_layout,
+        report={'plugin_version':'0.9.5','target_project':str(target_project),'include_layout':include_layout,
                 'copy_assets':bool(copy_assets),'assets':asset_audit,
                 'incoming_designs':len(incoming),'incoming_sheets':sum(len(s.sheets) for s in incoming),
                 'incoming_symbols':sum(len(s.symbols) for s in incoming),

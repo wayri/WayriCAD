@@ -20,10 +20,35 @@ except ImportError:
 
 if p is not None:
     preview = importlib.import_module(PACKAGE + '.preview')
+    sheet_preview = importlib.import_module(PACKAGE + '.sheet_preview')
 
 
 @unittest.skipIf(p is None, 'KiCad native Python and wxPython required')
 class PreviewGeometryTests(unittest.TestCase):
+    def test_hidden_notebook_page_fits_when_opened(self):
+        created_app = wx.GetApp() is None
+        app = wx.App(False) if created_app else wx.GetApp()
+        frame = wx.Frame(None)
+        try:
+            for panel_type in (preview.PlacementPreview, sheet_preview.SheetPreview):
+                panel = panel_type(frame)
+                panel.boxes = [('Module', 10, 20, 30, 40)]
+                with mock.patch.object(panel_type, 'GetClientSize', return_value=wx.Size(0, 0)):
+                    panel.fit()
+                self.assertIsNone(panel.scale)
+                self.assertTrue(panel._fit_pending)
+                with mock.patch.object(panel_type, 'GetClientSize', return_value=wx.Size(400, 300)):
+                    if panel_type is preview.PlacementPreview:
+                        panel._size(SimpleNamespace(Skip=lambda: None))
+                    else:
+                        panel._show(SimpleNamespace(IsShown=lambda: True, Skip=lambda: None))
+                self.assertGreater(panel.scale, 1)
+                self.assertFalse(panel._fit_pending)
+        finally:
+            frame.Destroy()
+            if created_app:
+                del app
+
     def make_board(self, folder):
         board = p.BOARD()
         track = p.PCB_TRACK(board)
