@@ -21,8 +21,10 @@ def state_text(state, parents=()):
         return 'Absent variant'
     fields = state['fields']
     flags = ', '.join(name for name in FLAGS if state.get(name)) or 'Included'
+    details = '; '.join(f'{name}={value}' for name, value in sorted(fields.items())
+                        if name not in ('Value', 'Footprint', 'Reference', 'Sheetname', 'Sheetfile'))
     ancestry = '; parent sheet: ' + ', '.join(p['label'] for p in parents if any(p['flags'].values())) if any(any(p['flags'].values()) for p in parents) else ''
-    return f"{fields.get('Value', '')} | {fields.get('Footprint', '')} | {flags}{ancestry}"
+    return f"{fields.get('Value', '')} | {fields.get('Footprint', '')} | {flags}" + (' | ' + details if details else '') + ancestry
 
 
 def board_geometry(project):

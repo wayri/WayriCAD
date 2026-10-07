@@ -11,10 +11,11 @@ class NativeUI(unittest.TestCase):
     def test_preview_cross_selection_and_responsive_layout(self):
         import wx
         from variant_manager_plugin.wayri_variants import service as S
-        from variant_manager_plugin.wayri_variants.gui import VariantFrame
+        from variant_manager_plugin.wayri_variants.gui import VariantFrame, state_text
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'project_fusion_plugin/tests'))
         from test_sections_native import make_fixture
         app = wx.App(False)
+        self.assertIn('MPN=Demo-22k', state_text({'fields': {'Value': '22k', 'MPN': 'Demo-22k'}}))
         empty = VariantFrame()
         self.assertTrue(empty.GetIcons().GetIcon(wx.Size(64, 64)).IsOk())
         empty.Close()
