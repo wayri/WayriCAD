@@ -3,7 +3,7 @@
 Windows, KiCad 10.0.6 with bundled Python 3.11.5; portable source tests used
 Python 3.14. These are generated disposable projects, not private user boards.
 
-- Fusion portable suite: 247 tests completed, 75 opt-in skips, zero failures.
+- Fusion portable suite: 249 tests completed, 75 opt-in skips, zero failures.
 - Shared suite: 336 passed, 77 skipped, 150 subtests passed.
 - Variant destination suite with native opt-in: 7 passed, including existing
   working-variant import with routed layout, new-project separate variant, and
@@ -30,3 +30,8 @@ validation state. Named Footprint substitutions and automatic linked updates of
 named imports are refused. PCB-presence changes require schematic-only mode.
 Portable CI cannot establish native GUI compatibility on every OS; Linux/macOS
 native-window and live editor transaction workflows were not qualified here.
+
+Selected source BOM/field regressions cover both Merge and Separate: review shows
+Build 22k/DNP, import-output inventory labels retained Default 10k and records
+Build provenance, detached field copies retain chosen state, and a source change
+during rediscovery is refused before publishing a candidate.

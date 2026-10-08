@@ -52,8 +52,8 @@ def _options(path):
 
 
 def _field_sources(specs):
-    from .schematic import discover, new_uuid
-    return [discover(spec, new_uuid(), require_board=False) for spec in specs]
+    from .bom_fields import selected_sources
+    return selected_sources(specs)
 
 
 def _new_project(args, analyse_only=False):

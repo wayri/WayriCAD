@@ -94,6 +94,73 @@ class FieldsTests(unittest.TestCase):
             self.assertEqual(b.inventory([new])[0]['fields']['Value'],'47k')
             with self.assertRaises(model.MergeError): b.apply_to_copies([source],plan,Path(tmp)/'candidate')
 
+    def test_named_import_review_uses_chosen_build_and_keeps_setup(self):
+        cli=importlib.import_module(PACKAGE+'.cli')
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp)/'source';folder.mkdir();initial=self.fixture(folder)
+            text=initial.schematic_file.read_text().replace('(name "EM")','(name "Build") (dnp yes)')
+            initial.schematic_file.write_text(text)
+            initial.project_file.write_text(json.dumps({'schematic':{'variants':[{'name':'Build'}]}}))
+            hashes={str(path):hashlib.sha256(path.read_bytes()).hexdigest() for path in folder.iterdir()}
+            for mode in ('merge','separate'):
+                with self.subTest(mode=mode):
+                    spec=model.SourceSpec(str(initial.project_file),'A',variant='Build',variant_mode=mode,destination_variant='Working')
+                    original=model.asdict(spec)
+                    imported=schematic.discover(spec,schematic.new_uuid(),require_board=False)
+                    imported_rows=b.inventory([imported])
+                    self.assertEqual(imported_rows[0]['variant'],b.DEFAULT)
+                    self.assertEqual(imported_rows[0]['selected_variant'],'Build')
+                    self.assertEqual(imported_rows[0]['fields']['Value'],'10k')
+                    self.assertEqual(imported_rows[0]['flags']['dnp'],'no')
+                    csv_path=Path(tmp)/(mode+'-inventory.csv')
+                    b.export_csv(csv_path,imported_rows)
+                    with csv_path.open(encoding='utf-8-sig',newline='') as stream:
+                        exported=list(csv.DictReader(stream))[0]
+                    self.assertEqual(exported['variant'],b.DEFAULT)
+                    self.assertEqual(exported['selected_variant'],'Build')
+                    reviewed=cli._field_sources([spec])
+                    rows=b.inventory(reviewed)
+                    self.assertEqual(rows[0]['variant'],'Build')
+                    self.assertEqual(rows[0]['fields']['Value'],'22k')
+                    self.assertEqual(rows[0]['flags']['dnp'],'yes')
+                    groups=b.grouped_bom(rows)
+                    self.assertEqual(groups[0]['fields']['Value'],'22k')
+                    self.assertEqual(groups[0]['flags']['dnp'],'yes')
+                    self.assertEqual(model.asdict(spec),original)
+                    for source in reviewed:
+                        self.assertEqual(source.spec.variant_mode,'base')
+                        self.assertEqual(source.spec.destination_variant,b.DEFAULT)
+                    plan=b.preview_fields(rows,[rows[0]['identity']],{'MPN':'Build-part'})
+                    # Also guard API callers that supply retained-Default sources.
+                    copies=b.apply_to_copies([imported],plan,Path(tmp)/mode)
+                    self.assertEqual(copies[0].variant,b.DEFAULT)
+                    self.assertEqual(copies[0].variant_mode,'base')
+                    self.assertEqual(copies[0].destination_variant,b.DEFAULT)
+                    copied=schematic.discover(copies[0],schematic.new_uuid(),require_board=False)
+                    copied_rows=b.inventory([copied])
+                    self.assertEqual(copied_rows[0]['fields']['Value'],'22k')
+                    self.assertEqual(copied_rows[0]['fields']['MPN'],'Build-part')
+                    self.assertEqual(copied_rows[0]['flags']['dnp'],'yes')
+            self.assertEqual(hashes,{str(path):hashlib.sha256(path.read_bytes()).hexdigest() for path in folder.iterdir()})
+
+    def test_named_field_copy_refuses_change_during_selected_rediscovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp)/'source';folder.mkdir();initial=self.fixture(folder)
+            spec=model.SourceSpec(str(initial.project_file),'A',variant='EM',variant_mode='separate',destination_variant='Imported')
+            imported=schematic.discover(spec,schematic.new_uuid(),require_board=False)
+            rows=b.inventory(b.selected_sources([spec]))
+            plan=b.preview_fields(rows,[rows[0]['identity']],{'MPN':'Build-part'})
+            read_selected=b.selected_sources
+            def change_then_discover(specs,require_board=False):
+                initial.schematic_file.write_text(initial.schematic_file.read_text()+'\n')
+                return read_selected(specs,require_board)
+            destination=Path(tmp)/'candidate'
+            with mock.patch.object(b,'selected_sources',side_effect=change_then_discover):
+                with self.assertRaisesRegex(model.MergeError,'Source changed'):
+                    b.apply_to_copies([imported],plan,destination)
+            self.assertFalse(destination.exists())
+            self.assertEqual(list(Path(tmp).glob('.fusion-fields-*')),[])
+
     def test_stale_refusal_and_cleanup(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp)/'source'; folder.mkdir(); source=self.fixture(folder)

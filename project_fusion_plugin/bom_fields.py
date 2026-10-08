@@ -26,6 +26,24 @@ def _field_names(fields):
     if len({k.casefold() for k in names}) != len(names):
         raise MergeError('Conflicting field names differ only by case.')
 
+
+def selected_sources(specs, require_board=False):
+    """Read chosen source configurations without changing their import setup.
+
+    Named destination imports retain Default nodes for layout preservation.
+    Field review instead needs the chosen source state materialized in a detached
+    in-memory hierarchy. Returned specifications use base/Default handling.
+    """
+    from .schematic import discover,new_uuid
+    sources=[]
+    for original in specs:
+        spec=copy.deepcopy(original)
+        spec.variant_mode='base'
+        spec.destination_variant=DEFAULT
+        sources.append(discover(spec,new_uuid(),require_board=require_board))
+    return sources
+
+
 def inventory(sources):
     rows = []
     seen = set()
@@ -38,7 +56,8 @@ def inventory(sources):
             fields = dict(state(record.node)['fields'])
             _field_names(fields)
             rows.append({'identity': identity, 'source': source.alias,
-                         'variant': source.selected_variant, 'reference': record.old_ref,
+                         'variant': DEFAULT if getattr(source,'destination_states',{}) else source.selected_variant,
+                         'selected_variant': source.selected_variant, 'reference': record.old_ref,
                          'unit': record.unit, 'sheet_path': record.sheet.old_path,
                          'fields': fields,
                          'flags': effective_board_flags(record)})
@@ -79,12 +98,14 @@ def grouped_bom(rows, include_excluded=False, reference_map=None):
 def export_csv(path, rows, bom=False):
     """UTF-8, fully quoted metadata with provenance serialized without ambiguity."""
     names = sorted({k for r in rows for k in r['fields']})
-    prefix = ['quantity', 'references', 'identities'] if bom else ['source', 'variant', 'reference', 'unit', 'identity']
+    prefix = ['quantity', 'references', 'identities'] if bom else ['source', 'variant', 'selected_variant', 'reference', 'unit', 'identity']
     with Path(path).open('w', encoding='utf-8-sig', newline='') as stream:
         writer = csv.writer(stream, quoting=csv.QUOTE_ALL)
         writer.writerow(prefix + list(FLAGS) + names)
         for row in rows:
-            writer.writerow([json.dumps(row[k], ensure_ascii=False) if isinstance(row[k], (list, tuple, dict)) else row[k]
+            values=dict(row)
+            values.setdefault('selected_variant',row.get('variant',DEFAULT))
+            writer.writerow([json.dumps(values[k], ensure_ascii=False) if isinstance(values[k], (list, tuple, dict)) else values[k]
                              for k in prefix] + [row['flags'][k] for k in FLAGS] + [row['fields'].get(k, '') for k in names])
 
 def preview_fields(rows, identities, edits=None, renames=None):
@@ -151,7 +172,15 @@ def apply_to_copies(sources, plan, destination):
             raise MergeError('Candidate destination must be outside source projects.')
         if any(source.project_file.parent not in sheet.source_path.parents for sheet in source.sheets):
             raise MergeError(source.alias + ': external child-sheet resources cannot be safely rebased for field copies. Bring child sheets and their resources into a self-contained project copy first.')
-    work = copy.deepcopy(sources)
+    work = []
+    reviewed_hashes={path:digest for source in sources for path,digest in source.hashes.items()}
+    for source in sources:
+        if getattr(source,'destination_states',{}):
+            _check(source.hashes)
+            work.extend(selected_sources([source.spec]))
+        else:
+            work.append(copy.deepcopy(source))
+    _check(reviewed_hashes)
     rows = {tuple(r['identity']): r for r in inventory(work)}
     changes = {}
     for item in plan:
@@ -207,7 +236,8 @@ def apply_to_copies(sources, plan, destination):
                 project['schematic'].pop(key, None)
             (folder / source.project_file.name).write_text(json.dumps(project, indent=2), encoding='utf-8')
             data = asdict(source.spec)
-            data.update(project=str(dest / source.alias / source.project_file.name), variant=DEFAULT)
+            data.update(project=str(dest / source.alias / source.project_file.name), variant=DEFAULT,
+                        variant_mode='base',destination_variant=DEFAULT)
             specs.append(SourceSpec(**data))
         (stage / 'field-changes.json').write_text(json.dumps(plan, indent=2, ensure_ascii=False), encoding='utf-8')
         (stage / 'source-hashes.json').write_text(json.dumps(hashes, indent=2), encoding='utf-8')
@@ -218,6 +248,7 @@ def apply_to_copies(sources, plan, destination):
             'assets': 'local project assets copied; external assets require normal Fusion audit; source overrides retained',
             'original_files_modified': False}, indent=2), encoding='utf-8')
         _check(hashes)
+        _check(reviewed_hashes)
         for source in work:
             if set(project_files(source.project_file.parent)) != copied_files[source.alias]:
                 raise MergeError('Source file inventory changed during staging: ' + source.alias)

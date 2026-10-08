@@ -1143,8 +1143,8 @@ class FusionDialog(wx.Dialog):
         self.status.SetLabel('Reading selected source variants for BOM and field review…')
         def worker():
             try:
-                from .schematic import discover,new_uuid
-                sources=[discover(spec,new_uuid()) for spec in specs]
+                from .bom_fields import selected_sources
+                sources=selected_sources(specs)
                 wx.CallAfter(self.show_bom_fields,sources,None)
             except Exception as exc:wx.CallAfter(self.show_bom_fields,None,str(exc))
         threading.Thread(target=worker,name='FusionBomRead',daemon=True).start()
