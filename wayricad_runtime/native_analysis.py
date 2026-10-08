@@ -75,9 +75,12 @@ def child_environment():
     return environment()
 
 
-def native_python():
+def native_python(tool=None):
     from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_IPC
-    return ensure_runtime(REQUIREMENTS_IPC)
+    requirements=dict(REQUIREMENTS_IPC)
+    if tool == "signal_integrity_advisor_plugin":
+        requirements["matplotlib"]="matplotlib>=3.7,<4"
+    return ensure_runtime(requirements)
 
 
 def active_saved_board():
@@ -98,7 +101,7 @@ def run_cli(root, argv):
         "package.__version__=version if version is not None else '';sys.modules[name]=package;"
         "module=importlib.import_module('.cli',name);raise SystemExit(module.main(sys.argv[2:]))"
     )
-    process = subprocess.run([str(native_python()), '-I', '-X', 'utf8', '-c', script,
+    process = subprocess.run([str(native_python('signal_integrity_advisor_plugin' if (Path(root) / 'quick_si.py').is_file() else None)), '-I', '-X', 'utf8', '-c', script,
                               str(Path(root).resolve()), *argv],
                              env=child_environment(), capture_output=True,
                              text=True, encoding='utf-8', errors='replace',
@@ -119,7 +122,7 @@ def launch(root, tool):
         selection = [str(uuid.UUID(uid(item))) for item in client.get_board().get_selection()][:200]
     except Exception:
         pass
-    process = subprocess.Popen([str(native_python()), '-I', str(Path(__file__).resolve()),
+    process = subprocess.Popen([str(native_python(tool)), '-I', str(Path(__file__).resolve()),
                                 '--root', str(root), '--tool', tool, '--board', str(source),
                                 '--selection-ids', ','.join(selection)],
                                env=child_environment(),

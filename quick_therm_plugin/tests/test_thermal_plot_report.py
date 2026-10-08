@@ -5,7 +5,8 @@ import unittest
 
 from matplotlib.figure import Figure
 
-from quick_therm_plugin.thermal_plot import _field_quads, draw_thermal_view
+from quick_therm_plugin.thermal_plot import _field_quads, draw_thermal_view, draw_temperature_comparison
+from quick_therm_plugin.thermal_interactive import interactive_board_html
 from quick_therm_plugin.report import write_diagnostic_report
 
 
@@ -24,6 +25,24 @@ VIEW={'outline':[{'outer_mm':[[0,0],[10,0],[10,8],[0,8]],'holes_mm':[]}],
 
 
 class ThermalPlotReportTests(unittest.TestCase):
+    def test_interactive_data_cannot_close_script_tag(self):
+        html = interactive_board_html({**VIEW, 'note': '</script><script>alert(1)</script>'})
+        self.assertNotIn('</script><script>alert(1)', html)
+        self.assertIn('thermal-board-mask', html)
+        self.assertIn('data-side="bottom"', html)
+        self.assertIn('data-side="3d"', html)
+
+    def test_temperature_comparison_never_substitutes_board_site_for_case(self):
+        figure = Figure(figsize=(5, 3))
+        ax = draw_temperature_comparison(figure, {'thermal_network': {'components': [
+            {'reference': 'U1', 'junction_c': 60., 'board_site_c': 40.}]},
+            'temperature_limits': {'rows': [{'reference': 'U1', 'maximum_c': 50.}]}})
+        labels = ax.get_legend_handles_labels()[1]
+        self.assertIn('Estimated junction', labels)
+        self.assertIn('Board contact site (not package case)', labels)
+        self.assertNotIn('Package case (when solved)', labels)
+        self.assertIn('Maximum limit', labels)
+
     def test_nonuniform_3d_quads_use_actual_cell_edges(self):
         field = {"x_centers_mm": [.25, .625, 1.0625],
                  "y_centers_mm": [.25],

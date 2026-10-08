@@ -36,6 +36,58 @@ class QuickSITests(unittest.TestCase):
         self.assertEqual({'COMPLETE_DELAY_UNAVAILABLE','UNIFORM_Z0_UNAVAILABLE'},
                          {item['code'] for item in r['blockers']})
 
+    def test_automatic_timing_keeps_reference_and_via_blockers(self):
+        path=self.path(status='partial',impedance_valid=False)
+        path.screening_delay_ns=2.1
+        path.screening_model='Ideal saved-stackup timing; via dielectric travel'
+        path.screening_notes=['Continuous ideal reference planes assumed.']
+        path.blockers=[dict(code='VIA_DISCONTINUITY_UNMODELED',message='unknown reflection',action='field model')]
+        report=screen(path)
+        self.assertEqual(report['status'],'APPROXIMATE')
+        self.assertEqual(report['delay_ns'],2.1)
+        self.assertIsNone(report['z0_ohm'])
+        self.assertIsNone(report['source_reflection'])
+        self.assertIn('VIA_DISCONTINUITY_UNMODELED',{b['code'] for b in report['blockers']})
+        self.assertNotIn('COMPLETE_DELAY_UNAVAILABLE',{b['code'] for b in report['blockers']})
+        override=screen(path,epsilon_eff=4,z0_ohm=50)
+        self.assertEqual(override['status'],'SCREENED')
+        self.assertAlmostEqual(override['delay_ns'],2)
+
+    def test_report_shows_valid_sections_without_inventing_uniform_impedance(self):
+        path=self.path(status='partial',impedance_valid=False)
+        path.segments=[dict(kind='track',layer='F.Cu',length_mm=10,resistance_ohm=.1,impedance_ohm=45,model='microstrip'),
+                       dict(kind='via',layer='F.Cu',length_mm=1,resistance_ohm=.01,impedance_ohm=None,model='barrel'),
+                       dict(kind='track',layer='B.Cu',length_mm=20,resistance_ohm=.2,impedance_ohm=55,model='microstrip')]
+        report=screen(path)
+        self.assertEqual(report['route_summary']['modeled_impedance_length_mm'],30)
+        self.assertEqual(report['route_summary']['modeled_impedance_min_ohm'],45)
+        self.assertEqual(report['route_summary']['modeled_impedance_max_ohm'],55)
+        self.assertIsNone(report['z0_ohm'])
+        rendered=html_report(report)
+        self.assertEqual(rendered.count('data:image/png;base64,'),3)
+        self.assertIn('Section impedance along route',rendered)
+        self.assertIn('Routed sections',rendered)
+        self.assertIn('barrel',html_report(report))
+
+    def test_nonfinite_automatic_timing_does_not_become_a_result(self):
+        path=self.path(status='partial',impedance_valid=False)
+        path.screening_delay_ns=float('nan');path.screening_z0_ohm=float('inf')
+        report=screen(path)
+        self.assertIsNone(report['delay_ns']);self.assertIsNone(report['z0_ohm'])
+        self.assertEqual(report['status'],'INCOMPLETE')
+
+    def test_local_endpoint_reflections_use_separate_section_impedance(self):
+        path=self.path(status='partial',impedance_valid=False)
+        path.segments=[dict(kind='track',layer='F.Cu',length_mm=10,resistance_ohm=.1,impedance_ohm=50,model='microstrip'),
+                       dict(kind='via',layer='F.Cu',length_mm=1,impedance_ohm=None),
+                       dict(kind='track',layer='B.Cu',length_mm=10,resistance_ohm=.1,impedance_ohm=None,screening_z0_ohm=60,screening_model='ideal plane')]
+        report=screen(path,source_ohm=20,load_ohm=60)
+        self.assertAlmostEqual(report['endpoint_screen']['source']['reflection'],-30/70)
+        self.assertEqual(report['endpoint_screen']['source']['series_match_candidate_ohm'],30)
+        self.assertEqual(report['endpoint_screen']['receiver']['reflection'],0)
+        self.assertIsNone(report['source_reflection'])
+        self.assertIsNone(report['z0_ohm'])
+
     def test_path_blockers_are_preserved_with_actions(self):
         path=self.path(status='partial',impedance_valid=False)
         path.blockers=[{'code':'STACKUP_DIELECTRIC_MISSING','message':'missing','action':'define stackup'}]

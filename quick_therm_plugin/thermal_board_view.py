@@ -71,6 +71,58 @@ def _outline(board):
     return contours, None
 
 
+def _drill_ring(position, size, angle_deg=0., samples=20):
+    """Return the actual circular or capsule drill contour in board millimetres.
+
+    Slot orientation follows the pad local X axis. KiCad positive rotation is
+    counterclockwise on its Y-down canvas, hence negative mathematical rotation.
+    This is display geometry only, never a replacement thermal-contact model.
+    """
+    width, height = size
+    radius = min(width, height) / 2
+    if radius <= 0:
+        return []
+    along_x = width >= height
+    separation = abs(width - height) / 2
+    angle = -math.radians(angle_deg)
+    ring = []
+    for index in range(samples):
+        phi = 2 * math.pi * index / samples
+        x, y = radius * math.cos(phi), radius * math.sin(phi)
+        if along_x:
+            x += separation if x >= 0 else -separation
+        else:
+            y += separation if y >= 0 else -separation
+        ring.append([position[0] + x * math.cos(angle) - y * math.sin(angle),
+                     position[1] + x * math.sin(angle) + y * math.cos(angle)])
+    return ring
+
+
+def _saved_drills(board):
+    """Capture drilled pads and vias, including slots, without mutating the PCB."""
+    drills = []
+    for fp in board.GetFootprints():
+        for pad in fp.Pads():
+            size = _mm(pad.GetDrillSize())
+            if min(size) <= 0:
+                continue
+            position = _mm(pad.GetPosition())
+            drills.append({'id': pad.m_Uuid.AsString(), 'reference': str(fp.GetReference()),
+                           'kind': 'pad', 'position_mm': position, 'size_mm': size,
+                           'contour_mm': _drill_ring(position, size, float(pad.GetOrientationDegrees()))})
+    for track in board.GetTracks():
+        if not hasattr(track, 'GetDrillValue'):
+            continue
+        diameter = track.GetDrillValue() / 1_000_000
+        if diameter <= 0:
+            continue
+        position = _mm(track.GetPosition())
+        drills.append({'id': track.m_Uuid.AsString(), 'kind': 'via',
+                       'position_mm': position, 'size_mm': [diameter, diameter],
+                       'contour_mm': _drill_ring(position, [diameter, diameter], samples=12)})
+    return drills
+
+
 def _on_board(point, outlines):
     return any(_inside(point, shape["outer_mm"]) and
                not any(_inside(point, hole) for hole in shape["holes_mm"])
@@ -269,6 +321,8 @@ def build_board_thermal_view(board, result, *, grid_size=80):
             "board_thickness_mm": board_thickness_mm,
             "outline": outlines, "outline_status": "valid" if outlines else "unavailable",
             "outline_issue": outline_issue, "bbox_mm": bbox, "bbox_status": bbox_status,
-            "components": components, "analytics": _analytics(result), "field": field,
+            "components": components, "drills": _saved_drills(board),
+            "geometry_meaning": "Saved Edge.Cuts, footprint bounding boxes and drill contours; no STEP component models.",
+            "analytics": _analytics(result), "field": field,
             "fields_by_side":{side:_side_field(bbox,outlines,components,side,grid_size)
                               for side in ('top','bottom')}}

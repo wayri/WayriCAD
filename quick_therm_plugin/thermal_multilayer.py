@@ -12,6 +12,7 @@ import time
 from collections.abc import Mapping
 
 from .thermal_board_view import _inside
+from .thermal_drills import drill_dimensions, drill_wall_distance, barrel_area_mm2
 
 
 SIGMA = 5.670374419e-8
@@ -33,9 +34,28 @@ def _board_contains(point, outlines):
                for shape in outlines)
 
 
+def _ring_bounds(ring):
+    return (min(p[0] for p in ring), min(p[1] for p in ring),
+            max(p[0] for p in ring), max(p[1] for p in ring))
+
+
+def _polygon_ring_bounds(polygon):
+    # JSON-safe cached bounds; no source PCB mutation and no precision change.
+    bounds = polygon.get("_thermal_ring_bounds")
+    if bounds is None:
+        bounds = [_ring_bounds(ring) for ring in [polygon["outer"], *polygon.get("holes", [])]]
+        polygon["_thermal_ring_bounds"] = bounds
+    return bounds
+
+
 def _polygon_contains(point, polygon):
-    return (_inside(point, polygon["outer"]) and
-            not any(_inside(point, hole) for hole in polygon.get("holes", [])))
+    bounds = _polygon_ring_bounds(polygon)
+    x, y = point
+    def candidate(bound):
+        return bound[0]-1e-9 <= x <= bound[2]+1e-9 and bound[1]-1e-9 <= y <= bound[3]+1e-9
+    return (candidate(bounds[0]) and _inside(point, polygon["outer"]) and
+            not any(candidate(bound) and _inside(point, hole)
+                    for hole, bound in zip(polygon.get("holes", []), bounds[1:])))
 
 
 def _segments_cross(a, b, c, d):
@@ -102,7 +122,8 @@ def _polygon_cell_fraction(polygon, x0, y0, x1, y1):
     """Area fraction of filled copper, subtracting clipped polygon holes."""
     outer = _ring_area(_clip_ring_to_cell(polygon["outer"], x0, y0, x1, y1))
     holes = math.fsum(_ring_area(_clip_ring_to_cell(hole, x0, y0, x1, y1))
-                      for hole in polygon.get("holes", []))
+                      for hole, bound in zip(polygon.get("holes", []), _polygon_ring_bounds(polygon)[1:])
+                      if bound[2] >= x0 and bound[0] <= x1 and bound[3] >= y0 and bound[1] <= y1)
     return max(0.0, min(1.0, (outer-holes)/((x1-x0)*(y1-y0))))
 
 
@@ -110,8 +131,9 @@ def _drill_at(point, layer_id, geometry):
     for item in [*geometry.get("barrels", []), *geometry.get("mounting_holes", [])]:
         if item.get("span_layers") and layer_id not in item["span_layers"]:
             continue
-        radius = float(item.get("drill_mm", 0))/2
-        if (point[0]-item["x_mm"])**2+(point[1]-item["y_mm"])**2 < radius*radius:
+        if not item.get("drill_mm") and not item.get("drill_size_mm"):
+            continue
+        if drill_wall_distance(point, item) < 0:
             return item.get("id")
     return None
 
@@ -121,8 +143,17 @@ def _face_copper_fraction(start, end, polygon, normal, offset):
     dx, dy = end[0]-start[0], end[1]-start[1]
     length_sq = dx*dx+dy*dy
     cuts = [0.0, 1.0]
-    for ring in [polygon["outer"], *polygon.get("holes", [])]:
+    margin = max(1e-9, 1e-12*max(1.0,length_sq)/math.sqrt(length_sq))
+    face_bounds = (min(start[0],end[0])-margin, min(start[1],end[1])-margin,
+                   max(start[0],end[0])+margin, max(start[1],end[1])+margin)
+    for ring, bound in zip([polygon["outer"], *polygon.get("holes", [])], _polygon_ring_bounds(polygon)):
+        if (bound[2] < face_bounds[0] or bound[0] > face_bounds[2] or
+                bound[3] < face_bounds[1] or bound[1] > face_bounds[3]):
+            continue
         for a, b in zip(ring, ring[1:]+ring[:1]):
+            if (max(a[0],b[0]) < face_bounds[0] or min(a[0],b[0]) > face_bounds[2] or
+                    max(a[1],b[1]) < face_bounds[1] or min(a[1],b[1]) > face_bounds[3]):
+                continue
             ex, ey = b[0]-a[0], b[1]-a[1]
             denominator = dx*ey-dy*ex
             ax, ay = a[0]-start[0], a[1]-start[1]
@@ -182,8 +213,7 @@ def _source_weights(component, cells, xs, ys, x_edges, y_edges,
     if contact_polygons is not None and drilled_holes:
         def drilled_center(ci):
             i, j = cells[ci]
-            return any((xs[i]-hole["x_mm"])**2+(ys[j]-hole["y_mm"])**2 <
-                       (hole["drill_mm"]/2)**2 for hole in drilled_holes)
+            return any(drill_wall_distance((xs[i], ys[j]), hole) < 0 for hole in drilled_holes)
 
         retained = [(ci, area) for ci, area in hits if not drilled_center(ci)]
         targets = [(ci, area) for ci, area in retained if
@@ -248,6 +278,15 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         raise ValueError("Thermal settings must be a mapping.")
     if geometry.get("outline_status") != "valid" or not geometry.get("outline"):
         raise ValueError("A verified closed Edge.Cuts outline is required.")
+    # Bounds are run-local accelerators. A caller may revise public polygon
+    # rings between solves; never reuse prior bounds across analysis runs.
+    for record in [*geometry.get("layers", []), *geometry.get("source_contacts", [])]:
+        for polygon in record.get("polygons_mm", []):
+            polygon.pop("_thermal_ring_bounds", None)
+    for barrel in geometry.get("barrels", []):
+        for polygons in barrel.get("land_polygons_mm", {}).values():
+            for polygon in polygons:
+                polygon.pop("_thermal_ring_bounds", None)
     layers = list(geometry.get("layers", []))
     if len(layers) < 2 or len({row["id"] for row in layers}) != len(layers):
         raise ValueError("At least two distinct stackup copper layers are required.")
@@ -412,7 +451,12 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     def add_edge(a, b, g):
         if g > 0:
             edges.append((a, b, g))
+    conductance_started = time.monotonic()
     for li, layer in enumerate(layers):
+        if progress:
+            elapsed = time.monotonic()-conductance_started
+            progress("layer conductance assembly", li, len(layers), elapsed,
+                     elapsed*(len(layers)-li)/li if li else None)
         polygons = layer.get("polygons_mm", [])
         for ci, (i, j) in enumerate(cells):
             for key, length, run, face_start, face_end, normal, offset in (
@@ -439,6 +483,9 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                 if bonus:
                     copper_edges += 1
                 add_edge(node(li, ci), node(li, cj), base+bonus)
+    if progress:
+        progress("layer conductance assembly", len(layers), len(layers),
+                 time.monotonic()-conductance_started, 0.0)
     for li, gap in enumerate(intervals):
         for ci in range(ncell):
             add_edge(node(li, ci), node(li+1, ci),
@@ -450,7 +497,13 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     barrel_mode = settings.get("barrel_contact_mode", "annulus_stencil")
     if barrel_mode not in ("annulus_stencil", "nearest_cell"):
         raise ValueError("barrel_contact_mode must be annulus_stencil or nearest_cell.")
-    for via in geometry.get("barrels", []):
+    barrel_started = time.monotonic()
+    barrels = geometry.get("barrels", [])
+    for barrel_index, via in enumerate(barrels):
+        if progress and barrel_index % max(1, len(barrels)//100) == 0:
+            elapsed = time.monotonic()-barrel_started
+            progress("plated barrel contact assembly", barrel_index, len(barrels), elapsed,
+                     elapsed*(len(barrels)-barrel_index)/barrel_index if barrel_index else None)
         span = [layer_ids[lid] for lid in via.get("span_layers", []) if lid in layer_ids]
         if len(span) < 2:
             continue
@@ -458,7 +511,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         drill = _num(via["drill_mm"], "Barrel drill (mm)", low=1e-9)
         if plating*2 >= drill:
             raise ValueError(f"{via['id']}: plating thickness is implausible for its drill.")
-        barrel_area = math.pi*((drill+2*plating)**2-drill**2)/4/1e6
+        barrel_area = barrel_area_mm2(via, plating)/1e6
         x, y = float(via["x_mm"]), float(via["y_mm"])
         ci = min(range(ncell), key=lambda ci: (xs[cells[ci][0]]-x)**2+(ys[cells[ci][1]]-y)**2)
         if (abs(xs[cells[ci][0]]-x)>x_widths[cells[ci][0]]*1000 or
@@ -467,8 +520,40 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         for a, b in zip(span, span[1:]):
             if b != a+1:
                 raise ValueError(f"{via['id']}: barrel span is not continuous through the stackup.")
+            if barrel_mode == "nearest_cell" and drill_dimensions(via)[0] != drill_dimensions(via)[1]:
+                raise ValueError("Plated slots require the distributed annulus_stencil contact mode.")
             if barrel_mode == "nearest_cell":
                 stencil = [(ci, 1.0)]
+            elif drill_dimensions(via)[0] != drill_dimensions(via)[1]:
+                # Apportion the exact slot-wall axial conductance among actual
+                # flashed land cells on both adjacent layers, outside the void.
+                lands = via.get("land_polygons_mm", {})
+                pair_lands = [lands.get(str(layers[index]["id"]), []) for index in (a, b)]
+                candidates = []
+                for candidate, (ix, iy) in enumerate(cells):
+                    wall = drill_wall_distance((xs[ix], ys[iy]), via)
+                    if wall <= 0:
+                        continue
+                    overlaps = [math.fsum(_polygon_cell_fraction(poly, x_edges[ix], y_edges[iy],
+                                                x_edges[ix+1], y_edges[iy+1]) for poly in land)
+                                for land in pair_lands]
+                    if min(overlaps) > 0:
+                        reach = math.hypot(x_widths[ix], y_widths[iy])*500
+                        candidates.append((candidate, min(overlaps)/max(wall, reach/2, plating)))
+                if not candidates:
+                    # On coarse meshes the entire land may lie in drill-centred
+                    # cells. Keep axial conductance with an explicit unresolved
+                    # proxy rather than dropping the slot or adding heat in it.
+                    distances = [(candidate, drill_wall_distance((xs[ix], ys[iy]), via))
+                                 for candidate, (ix, iy) in enumerate(cells)
+                                 if drill_wall_distance((xs[ix], ys[iy]), via) > 0]
+                    if not distances:
+                        raise ValueError(f"{via['id']}: no board cell center outside the slot.")
+                    distances.sort(key=lambda entry: entry[1])
+                    candidates = [(candidate, 1/max(distance, plating)) for candidate, distance in distances[:8]]
+                    unresolved_barrel_stencils += 1
+                total = math.fsum(weight for _, weight in candidates)
+                stencil = [(candidate, weight/total) for candidate, weight in candidates]
             else:
                 diameters = via.get("outer_diameters_mm", {})
                 diam_a = float(diameters.get(str(layers[a]["id"]), drill+2*plating))
@@ -498,6 +583,9 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                 add_edge(node(a, target), node(b, target), conductance*weight)
             annulus_edges += len(stencil)
             via_edges += 1
+    if progress:
+        progress("plated barrel contact assembly", len(barrels), len(barrels),
+                 time.monotonic()-barrel_started, 0.0)
     sources = np.zeros(nnode, dtype=float)
     view_refs = {row["reference"]: row for row in view.get("components", [])}
     output_components = []
@@ -573,9 +661,9 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         if contact_polygons is not None:
             bbox = component.get("bbox_mm")
             for hole in [*geometry.get("barrels", []), *geometry.get("mounting_holes", [])]:
-                radius = hole.get("drill_mm", 0)/2
-                if radius <= 0:
+                if not hole.get("drill_mm") and not hole.get("drill_size_mm"):
                     continue
+                radius = max(drill_dimensions(hole))/2
                 if (bbox[0]-radius <= hole["x_mm"] <= bbox[2]+radius and
                         bbox[1]-radius <= hole["y_mm"] <= bbox[3]+radius):
                     relevant_holes.append(hole)
@@ -817,7 +905,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                 "Dielectric is homogeneous and isotropic between copper midplanes; no anisotropic laminate data are inferred.",
                 "Via plating thickness, material conductivity and fixture contacts are explicit user inputs.",
                 "Barrel heat flow is a 1D axial approximation; individual land-to-barrel contact and package-pad spreading are unresolved.",
-                "The annulus stencil apportions axial barrel conductance among nearby cell centers outside the drill; it is not a resolved barrel/land solid mesh.",
+                "The annulus stencil apportions axial barrel conductance among nearby cell centers outside circular or obround drills. Plated slots use exact capsule-wall metal area and actual flashed land polygons; this is not a resolved barrel/land solid mesh.",
                 "An explicitly declared NPTH mechanical contact couples to the nearest dielectric cell through entered contact resistance; no copper-plane contact is inferred.",
                 "Only top and bottom faces reject heat; edge radiation, package shadows, view factors, airflow fields and spatial transients are unresolved.",
                 "Sources use footprint bounding boxes as contact proxies, or a labelled point fallback; junction temperature needs explicit component-to-board resistance.",

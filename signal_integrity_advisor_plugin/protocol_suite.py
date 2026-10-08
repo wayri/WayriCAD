@@ -57,7 +57,7 @@ def screen_suite(profile_id, paths, *, budgets=None):
         if not isinstance(report, dict) or report.get('schema') != 'wayricad.quick-si/v1':
             add(prefix + 'report', 'BLOCKED', evidence='Expected a Quick SI v1 report.'); continue
         path = report.get('path')
-        if not isinstance(path, dict) or path.get('status') not in ('ok', 'partial') or report.get('status') not in ('SCREENED', 'INCOMPLETE'):
+        if not isinstance(path, dict) or path.get('status') not in ('ok', 'partial') or report.get('status') not in ('SCREENED', 'INCOMPLETE', 'APPROXIMATE'):
             add(prefix + 'path', 'BLOCKED', evidence='Route is unresolved; choose connected start/end pads.'); continue
         identity = (path.get('net_name'), path.get('start_pad'), path.get('end_pad'))
         if not all(isinstance(value, str) and value.strip() for value in identity):
@@ -102,6 +102,8 @@ def screen_suite(profile_id, paths, *, budgets=None):
             add(prefix + 'eye_rate', state, measured=eye_rate if _number(eye_rate) else None, limit=expected, unit='Mb/s',
                 evidence='Optional ideal uniform-line PRBS7 eye rate versus selected data-rate preset. Matching rates do not establish an eye mask, receiver margin, protocol encoding or compliance. ' +
                          ('Rate matches the preset.' if comparable and state == 'INFO' else 'Rerun the illustrative eye at the preset rate.' if comparable else 'Eye unavailable, or profile has no applicable NRZ rate.'))
+        if report.get('status') == 'APPROXIMATE':
+            add(prefix + 'timing_model', 'INFO', evidence='Automatic ideal-stackup timing estimate; reference coverage, via reflections and coupling remain separate unresolved checks.')
         delay = report.get('delay_ns')
         delay = delay if _number(delay) else None
         compare(prefix + 'delay', delay, 'max_delay_ns', 'ns', str(report.get('delay_source', 'No delay provenance.')))

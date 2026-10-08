@@ -27,17 +27,22 @@ def screen(path, *, rise_ns=1., frequency_mhz=100., source_ohm=20., load_ohm=Non
     if epsilon_eff is not None:epsilon_eff=finite(epsilon_eff,'Effective permittivity',minimum=1.)
     notes=list(path.notes)
     resolved=path.status in ('ok','partial') and path.length_mm>0 and math.isfinite(path.length_mm)
-    delay=None;z0=None;delay_source='unavailable';z0_source='unavailable'
+    delay=None;z0=None;delay_source='unavailable';z0_source='unavailable';approximate=False
     if resolved:
         if epsilon_eff is not None:
             delay=path.length_mm*math.sqrt(epsilon_eff)/C_MM_NS
             delay_source='User-assumed effective permittivity over the complete resolved path'
         elif path.status=='ok' and path.propagation_delay_ns>0 and math.isfinite(path.propagation_delay_ns):
             delay=path.propagation_delay_ns;delay_source='Complete modeled routed sections and board stackup'
+        elif getattr(path,'screening_delay_ns',None) is not None and math.isfinite(path.screening_delay_ns) and path.screening_delay_ns>0:
+            delay=path.screening_delay_ns;delay_source=path.screening_model;approximate=True
+            notes.extend(path.screening_notes)
         if z0_ohm is not None:
             z0=z0_ohm;z0_source='User-assumed uniform line; discontinuities are not modeled'
         elif path.impedance_valid and path.impedance_ohm>0 and math.isfinite(path.impedance_ohm):
             z0=path.impedance_ohm;z0_source='Uniform routed-line approximation from board/reference geometry'
+        elif getattr(path,'screening_z0_ohm',None) is not None and math.isfinite(path.screening_z0_ohm) and path.screening_z0_ohm>0:
+            z0=path.screening_z0_ohm;z0_source='Ideal continuous-plane stackup estimate; actual reference coverage and coupling require review';approximate=True
     if not resolved:notes.append('No resolved route: no timing or reflection values are inferred from aggregate net length.')
     if delay is None:notes.append('Complete delay is unknown. Supply an explicit effective-permittivity assumption to screen the resolved route length.')
     if z0 is None:notes.append('Uniform Z0 is unknown. Supply an explicit Z0 assumption to screen terminations; it does not validate the actual impedance.')
@@ -51,7 +56,7 @@ def screen(path, *, rise_ns=1., frequency_mhz=100., source_ohm=20., load_ohm=Non
     series=max(0.,z0-source_ohm) if z0 is not None and source_ohm<=z0 else None
     if z0 is not None and source_ohm>z0:notes.append('Source resistance exceeds Z0; adding a positive series resistor cannot source-match this line.')
     notes.append('Resistive, linear, uniform-line screening only. Receiver capacitance, driver IBIS/nonlinearity, crosstalk, differential coupling and eye diagrams are not solved.')
-    report = {'schema':'wayricad.quick-si/v1','status':'UNRESOLVED' if not resolved else 'SCREENED' if delay is not None and z0 is not None else 'INCOMPLETE',
+    report = {'schema':'wayricad.quick-si/v1','status':'UNRESOLVED' if not resolved else 'APPROXIMATE' if approximate else 'SCREENED' if delay is not None and z0 is not None else 'INCOMPLETE',
             'path':path.as_report(),'inputs':dict(rise_ns=rise_ns,frequency_mhz=frequency_mhz,source_ohm=source_ohm,load_ohm=load_ohm,assumed_z0_ohm=z0_ohm,assumed_epsilon_eff=epsilon_eff),
             'blockers':list(getattr(path,'blockers',[])),
             'delay_ns':delay,'round_trip_ns':None if delay is None else 2*delay,
@@ -61,6 +66,28 @@ def screen(path, *, rise_ns=1., frequency_mhz=100., source_ohm=20., load_ohm=Non
             'first_load_step_per_source_step':None if z0 is None else z0/(source_ohm+z0)*(1+gamma_load),
             'series_match_candidate_ohm':series,'delay_source':delay_source,'z0_source':z0_source,
             'terminal_count':terminal_count,'notes':list(dict.fromkeys(notes))}
+    modeled=[s for s in path.segments if s.get('impedance_ohm') is not None]
+    section_z=[s['impedance_ohm'] for s in modeled]
+    endpoint_sections=[s for s in path.segments if s.get('kind')=='track']
+    endpoint_screen={}
+    for label,section in [('source',endpoint_sections[0]),('receiver',endpoint_sections[-1])] if endpoint_sections else []:
+        value=section.get('impedance_ohm')
+        basis='Geometric reference coverage; local single-ended section model'
+        if value is None:
+            value=section.get('screening_z0_ohm');basis=section.get('screening_model','Ideal stackup estimate')
+        if value is not None and math.isfinite(value) and value>0:
+            resistance=source_ohm if label=='source' else load_ohm
+            endpoint_screen[label]={'z0_ohm':value,'reflection':1. if resistance is None else (resistance-value)/(resistance+value),'basis':basis}
+            if label=='source':endpoint_screen[label]['series_match_candidate_ohm']=max(0.,value-source_ohm) if source_ohm<=value else None
+    report['endpoint_screen']=endpoint_screen
+    report['route_summary']={
+        'length_mm':path.length_mm if resolved else None,
+        'resistance_dc_ohm':path.resistance_ohm if resolved else None,
+        'resistance_ac_ohm':path.resistance_ac_ohm if resolved else None,
+        'modeled_impedance_length_mm':sum(s['length_mm'] for s in modeled),
+        'modeled_impedance_min_ohm':min(section_z) if section_z else None,
+        'modeled_impedance_max_ohm':max(section_z) if section_z else None,
+        'scope':'Section impedance range excludes unresolved sections and is not a uniform route Z0.'}
     if delay is None:
         report['blockers'].append({'code':'COMPLETE_DELAY_UNAVAILABLE','message':'Complete propagation delay is unavailable.',
             'action':'Complete the physical stackup/reference model or enter an explicit effective-permittivity assumption for screening.'})
@@ -98,7 +125,16 @@ def analyze(board,net,start,end,reference='Auto',**inputs):
 def html_report(report):
     escape=lambda value:html.escape(str(value))
     rows=''.join('<tr><th>'+escape(key.replace('_',' '))+'</th><td>'+escape('Unknown' if value is None else value)+'</td></tr>'
-                 for key,value in report.items() if key not in ('path','inputs','notes','blockers','schema','eye'))
+                 for key,value in report.items() if key not in ('path','inputs','notes','blockers','schema','eye','route_summary','endpoint_screen'))
+    summary=report.get('route_summary',{})
+    overview='<h2>Route results</h2><table>'+''.join('<tr><th>'+escape(k.replace('_',' '))+'</th><td>'+escape('Unknown' if v is None else v)+'</td></tr>' for k,v in summary.items())+'</table>'
+    if report.get('endpoint_screen'):
+        overview+='<h2>Local endpoint screening</h2><p>Local section impedances only. These reflection coefficients do not include intervening vias, line changes or differential coupling.</p><pre>'+escape(json.dumps(report['endpoint_screen'],indent=2))+'</pre>'
+    sections='<h2>Routed sections</h2><p>Extracted section impedance and ideal-stackup timing estimates have separate evidence. A section value does not validate via reflections or coupling.</p><div style="overflow:auto"><table><tr><th>Kind / layer</th><th>Length mm</th><th>R DC Î©</th><th>Section Z0 Î©</th><th>Screening delay ns</th><th>Model / review</th></tr>'
+    for section in report['path'].get('segments',[]):
+        values=[str(section.get('kind',''))+' / '+str(section.get('layer','')),section.get('length_mm'),section.get('resistance_ohm'),section.get('impedance_ohm'),section.get('screening_delay_ns'),section.get('model','')+'; '+section.get('screening_model','')]
+        sections+='<tr>'+''.join('<td>'+escape('Unresolved' if v is None else f'{v:.6g}' if isinstance(v,(int,float)) else v)+'</td>' for v in values)+'</tr>'
+    sections+='</table></div>'
     points=[]
     for segment in report['path'].get('segments',[]):
         if segment.get('start_mm') and segment.get('end_mm'):points.append((segment['start_mm'],segment['end_mm']))
@@ -107,7 +143,9 @@ def html_report(report):
         xs=[p[0] for pair in points for p in pair];ys=[p[1] for pair in points for p in pair]
         x,y=min(xs)-1,min(ys)-1;w,h=max(xs)-min(xs)+2,max(ys)-min(ys)+2
         svg=f'<svg viewBox="{x} {y} {w} {h}" width="100%" height="280" aria-label="Resolved route geometry">'+''.join(f'<line x1="{a[0]}" y1="{a[1]}" x2="{b[0]}" y2="{b[1]}" stroke="#287a9a" stroke-width=".12"/>' for a,b in points)+'</svg>'
+    from .report_plots import plot_section
+    plots=plot_section(report)
     from .eye_view import eye_section
     eye=eye_section(report['eye']) if 'eye' in report else ''
     blockers=''.join('<li><strong>'+escape(b['code'])+':</strong> '+escape(b['message'])+' <em>Next: '+escape(b['action'])+'</em></li>' for b in report.get('blockers',[]))
-    return '<!doctype html><meta charset="utf-8"><title>WayriCAD Quick SI</title><style>body{font:15px system-ui;max-width:950px;margin:30px auto;color:#20303c}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}pre{white-space:pre-wrap}</style><h1>WayriCAD Quick SI</h1><p>Read-only first-order screening, not protocol signoff.</p>'+svg+'<table>'+rows+'</table>'+eye+'<h2>Blocking inputs and next actions</h2><ul>'+blockers+'</ul><h2>Assumptions and limitations</h2><ul>'+''.join('<li>'+escape(n)+'</li>' for n in report['notes'])+'</ul><h2>Inputs and path evidence</h2><pre>'+escape(json.dumps({'inputs':report['inputs'],'path':report['path']},indent=2,allow_nan=False))+'</pre>'
+    return '<!doctype html><meta charset="utf-8"><title>WayriCAD Quick SI</title><style>body{font:15px system-ui;max-width:950px;margin:30px auto;color:#20303c}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}pre{white-space:pre-wrap}</style><h1>WayriCAD Quick SI</h1><p>Read-only first-order screening, not protocol signoff.</p>'+svg+overview+plots+'<h2>Timing and termination screen</h2><table>'+rows+'</table>'+eye+sections+'<h2>Blocking inputs and next actions</h2><ul>'+blockers+'</ul><h2>Assumptions and limitations</h2><ul>'+''.join('<li>'+escape(n)+'</li>' for n in report['notes'])+'</ul><h2>Inputs and path evidence</h2><pre>'+escape(json.dumps({'inputs':report['inputs'],'path':report['path']},indent=2,allow_nan=False))+'</pre>'

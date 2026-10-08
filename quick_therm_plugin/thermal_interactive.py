@@ -1,0 +1,69 @@
+"""Offline interactive saved-board geometry and thermal results."""
+from __future__ import annotations
+import json
+
+
+def interactive_board_html(view, network=None):
+    """Embed saved geometry, selectable parts and solved fields without web assets.
+
+    The 3D representation extrudes saved board/footprint bounds; it does not
+    load STEP models. Thin-sheet fields remain identical on both faces.
+    """
+    data = json.dumps({'view': view, 'network': network or {}}, allow_nan=False,
+                      separators=(',', ':'))
+    data = data.replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+    return _HTML.replace('__BOARD_DATA__', data)
+
+
+_HTML = r'''<section id="thermal-context">
+<style>
+#thermal-context{margin:24px 0;background:#10212c;color:#d8eaf2;border-radius:12px;padding:16px}
+#thermal-context button,#thermal-context select,#thermal-context input{font:inherit;padding:6px;margin:3px;border-radius:5px}
+#thermal-context button.active{background:#5fe0c2;color:#10212c}
+#thermal-board{display:block;width:100%;height:640px;background:#091720;touch-action:none}
+#thermal-context .board-toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#thermal-part-table{max-height:270px;overflow:auto;margin-top:12px}
+#thermal-part-table table{color:#d8eaf2}#thermal-part-table tr.selected{background:#275e67}
+#thermal-part-table td,#thermal-part-table th{border-color:#304654;cursor:pointer}
+#thermal-readout{min-height:44px;padding:10px;background:#19323e;margin-top:8px}
+</style>
+<h2>Interactive saved PCB and thermal overlay</h2>
+<div class="board-toolbar"><button data-side="top" class="active">Top</button><button data-side="bottom">Bottom</button><button data-side="3d">3D overview</button><button id="thermal-fit">Fit board</button>
+<label><input id="thermal-labels" type="checkbox">All reference labels</label><label><input id="thermal-overlay" type="checkbox" checked>Temperature overlay</label>
+<label>Field <select id="thermal-field"><option value="auto">Board model / available result</option><option value="junction">Same-side junction interpolation</option></select></label></div>
+<p id="thermal-field-meaning"></p><svg id="thermal-board" role="img" aria-label="Saved PCB with selectable footprints, outline, drilled holes and thermal overlay"></svg>
+<div id="thermal-readout">Hover to probe a field cell or inspect a part. Click a part or table row to select it. Wheel to zoom; drag to pan or orbit in 3D.</div>
+<p>Saved Edge.Cuts and drilled voids are shown. Component boxes are saved footprint bounds, not physical package solids. 3D height is illustrative; no STEP models are loaded.</p>
+<div id="thermal-part-table"><table><thead><tr><th data-sort="reference">Reference ↕</th><th data-sort="side">Side ↕</th><th data-sort="junction_c">Estimated Tj °C ↕</th><th data-sort="power_w">Power W ↕</th><th>Coverage</th></tr></thead><tbody></tbody></table></div>
+<script type="application/json" id="thermal-board-data">__BOARD_DATA__</script>
+<script>
+(()=>{'use strict';
+const data=JSON.parse(document.getElementById('thermal-board-data').textContent),v=data.view,n=data.network,svg=document.getElementById('thermal-board'),readout=document.getElementById('thermal-readout');
+const ns='http://www.w3.org/2000/svg',bbox=v.bbox_mm||[0,0,100,100],cx=(bbox[0]+bbox[2])/2,cy=(bbox[1]+bbox[3])/2,span=Math.max(bbox[2]-bbox[0],bbox[3]-bbox[1],1),fitScale=Math.min(900/Math.max(bbox[2]-bbox[0],1),580/Math.max(bbox[3]-bbox[1],1)),thick=v.board_thickness_mm||1.6;
+let side='top',selected=null,zoom=1,pan=[0,0],angle=-.6,tilt=.65,sort='reference',ascending=true,drag=null,frame=0;
+function scheduleDraw(){if(!frame)frame=requestAnimationFrame(()=>{frame=0;draw()});}
+const modeled=new Map((n.components||[]).map(x=>[x.reference,x])),parts=v.components.map(x=>({...x,junction_c:modeled.has(x.reference)?modeled.get(x.reference).junction_c:x.junction_c}));
+const el=(name,attrs={},parent=svg)=>{const node=document.createElementNS(ns,name);Object.entries(attrs).forEach(([k,val])=>node.setAttribute(k,val));parent.appendChild(node);return node};
+const title=(node,text)=>{const t=el('title',{},node);t.textContent=text};const num=x=>x==null?'Unknown':Number(x).toFixed(2);
+function field(){if(document.getElementById('thermal-field').value==='junction')return (v.fields_by_side||{})[side==='bottom'?'bottom':'top']||v.field||{};if(n.layers&&n.layers.length)return n.layers[side==='bottom'?n.layers.length-1:0];return n.board_field||(v.fields_by_side||{})[side==='bottom'?'bottom':'top']||v.field||{}}
+function project(p,z=0){let x=p[0]-cx,y=p[1]-cy;if(side==='bottom')x=-x;if(side==='3d'){const a=x*Math.cos(angle)-y*Math.sin(angle),b=x*Math.sin(angle)+y*Math.cos(angle);x=a;y=b*Math.cos(tilt)-z*Math.sin(tilt)*5;}return [500+pan[0]+x*fitScale*zoom,340+pan[1]+y*fitScale*zoom]}
+function path(ring,z=0){return ring.map((p,i)=>(i?'L':'M')+project(p,z).join(',')).join(' ')+'Z'}
+function color(value,lo,hi){const t=Math.max(0,Math.min(1,hi===lo?.5:(value-lo)/(hi-lo))),colors=[[27,21,57],[101,29,114],[193,56,89],[246,133,32],[252,244,137]],k=Math.min(3,Math.floor(t*4)),a=t*4-k;return 'rgb('+colors[k].map((x,i)=>Math.round(x+(colors[k+1][i]-x)*a)).join(',')+')'}
+function contains(p,ring){let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside}
+function onBoard(p){return (v.outline||[]).some(s=>contains(p,s.outer_mm)&&!(s.holes_mm||[]).some(h=>contains(p,h)))&&!(v.drills||[]).some(d=>contains(p,d.contour_mm))}
+function draw(){document.querySelectorAll('#thermal-context [data-side]').forEach(b=>b.classList.toggle('active',b.dataset.side===side));svg.replaceChildren();svg.setAttribute('viewBox','0 0 1000 680');const f=field(),values=(f.values_c||[]).flat().filter(x=>x!=null),lo=values.length?Math.min(...values):0,hi=values.length?Math.max(...values):1;
+document.getElementById('thermal-field-meaning').textContent=n.layers&&document.getElementById('thermal-field').value!=='junction'?'Layer-resolved field: '+f.name:n.board_field&&document.getElementById('thermal-field').value!=='junction'?'Shared thin-sheet midplane field: top and bottom temperatures are identical.':'Same-side component junction interpolation; not a solved board-surface field.';
+const defs=el('defs'),mask=el('mask',{id:'thermal-board-mask',maskUnits:'userSpaceOnUse',x:-10000,y:-10000,width:20000,height:20000},defs);
+for(const s of v.outline||[]){el('path',{d:path(s.outer_mm,thick),fill:'white'},mask);for(const h of s.holes_mm||[])el('path',{d:path(h,thick),fill:'black'},mask)}for(const d of v.drills||[])el('path',{d:path(d.contour_mm,thick),fill:'black'},mask);
+if(side==='3d')for(const s of v.outline||[]){el('path',{d:path(s.outer_mm,0),fill:'none',stroke:'#89b6a4','stroke-width':2});for(let i=0;i<s.outer_mm.length;i++){const a=s.outer_mm[i],b=s.outer_mm[(i+1)%s.outer_mm.length];el('polygon',{points:[project(a,0),project(b,0),project(b,thick),project(a,thick)].map(p=>p.join(',')).join(' '),fill:'#234942',stroke:'#8daa99','stroke-width':.5})}}
+const boardGroup=el('g',{mask:'url(#thermal-board-mask)'});for(const s of v.outline||[])el('path',{d:path(s.outer_mm,thick),fill:'#214b48'},boardGroup);
+if(document.getElementById('thermal-overlay').checked&&values.length){const xs=f.x_centers_mm,ys=f.y_centers_mm;const edges=(axis,c)=>f[axis+'_edges_mm']||[c[0]-(c.length>1?(c[1]-c[0])/2:.5),...c.slice(1).map((x,i)=>(x+c[i])/2),c.at(-1)+(c.length>1?(c.at(-1)-c.at(-2))/2:.5)];const xe=edges('x',xs),ye=edges('y',ys);f.values_c.forEach((row,j)=>row.forEach((t,i)=>{if(t==null)return;el('path',{d:path([[xe[i],ye[j]],[xe[i+1],ye[j]],[xe[i+1],ye[j+1]],[xe[i],ye[j+1]]],thick+.01),fill:color(t,lo,hi),opacity:.82},boardGroup)}));const text=el('text',{x:16,y:26,fill:'#fff','font-size':15});text.textContent='Field range '+num(lo)+'–'+num(hi)+' °C';}
+for(const s of v.outline||[]){el('path',{d:path(s.outer_mm,thick),fill:'none',stroke:'#d4e9db','stroke-width':2});for(const h of s.holes_mm||[])el('path',{d:path(h,thick),fill:'#091720',stroke:'#a4c9d4','stroke-width':1})}for(const d of v.drills||[]){const node=el('path',{d:path(d.contour_mm,thick),fill:'#091720',stroke:d.kind==='via'?'#496976':'#b3d9e7','stroke-width':d.kind==='via'?.25:.8});title(node,(d.reference||'Via')+' drill '+d.size_mm.map(num).join(' × ')+' mm');}
+for(const p of parts.filter(p=>side==='3d'||p.side===side)){const b=p.bbox_mm||[p.position_mm[0]-.5,p.position_mm[1]-.5,p.position_mm[0]+.5,p.position_mm[1]+.5],z=side==='3d'?(p.side==='bottom'?-.8:thick+.8):thick+.02,g=el('g',{'data-reference':p.reference,tabindex:0,role:'button','aria-label':p.reference}),shape=el('path',{d:path([[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],z),fill:p.junction_c==null?'#253d4a':'#efce92','fill-opacity':p.junction_c==null?.2:.35,stroke:p.reference===selected?'#64ffe0':p.junction_c==null?'#89b2c6':'#ffffff','stroke-width':p.reference===selected?2.5:.7},g),info=p.reference+' · '+p.side+' · Tj '+num(p.junction_c)+' °C · '+num(p.power_w)+' W';title(shape,info);g.onpointerenter=()=>readout.textContent=info;g.onclick=()=>{if(drag&&drag.moved)return;selected=p.reference;table();draw();readout.textContent=info};g.onkeydown=e=>{if(e.key==='Enter')g.onclick()};
+if(p.in_scope||p.reference===selected||document.getElementById('thermal-labels').checked){const pt=project(p.position_mm,z),t=el('text',{x:pt[0]+3,y:pt[1]-3,fill:p.reference===selected?'#64ffe0':'#ffffff','font-size':p.in_scope?12:8,'pointer-events':'none'},g);t.textContent=p.reference+(p.in_scope&&p.junction_c!=null?' '+num(p.junction_c)+'°C':'')}}
+if(!(v.outline||[]).length){const t=el('text',{x:30,y:100,fill:'white'});t.textContent='Saved Edge.Cuts unavailable; no board envelope is invented.'}}
+function table(){const body=document.querySelector('#thermal-part-table tbody');body.replaceChildren();const rows=parts.slice().sort((a,b)=>{const x=a[sort],y=b[sort];return (x==null?1:y==null?-1:typeof x==='number'?x-y:String(x).localeCompare(String(y),undefined,{numeric:true}))*(ascending?1:-1)});for(const p of rows){const tr=document.createElement('tr');if(p.reference===selected)tr.className='selected';for(const x of [p.reference,p.side,num(p.junction_c),num(p.power_w),p.junction_c!=null?'Estimated':p.in_scope?(p.issues||[]).join('; ')||'Unknown':'No thermal inputs']){const td=document.createElement('td');td.textContent=x;tr.appendChild(td)}tr.onclick=()=>{selected=p.reference;if(side!=='3d')side=p.side;draw();table();readout.textContent=p.reference+' selected · '+p.side+' · Tj '+num(p.junction_c)+' °C'};body.appendChild(tr)}}
+document.querySelectorAll('#thermal-context [data-side]').forEach(b=>b.onclick=()=>{side=b.dataset.side;document.querySelectorAll('#thermal-context [data-side]').forEach(x=>x.classList.toggle('active',x===b));draw()});document.querySelectorAll('#thermal-context [data-sort]').forEach(h=>h.onclick=()=>{ascending=h.dataset.sort===sort?!ascending:true;sort=h.dataset.sort;table()});['thermal-labels','thermal-overlay','thermal-field'].forEach(id=>document.getElementById(id).onchange=draw);document.getElementById('thermal-fit').onclick=()=>{zoom=1;pan=[0,0];draw()};
+svg.onwheel=e=>{e.preventDefault();zoom=Math.max(.3,Math.min(20,zoom*Math.exp(-e.deltaY*.001)));scheduleDraw()};svg.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,moved:false}};svg.onpointerup=()=>{if(drag)drag.done=true};
+svg.onpointermove=e=>{if(drag&&!drag.done&&e.buttons){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>2)drag.moved=true;if(side==='3d'){angle+=dx*.008;tilt=Math.max(-1.4,Math.min(1.4,tilt+dy*.008))}else{const rect=svg.getBoundingClientRect();pan[0]+=dx*1000/rect.width;pan[1]+=dy*680/rect.height}drag.x=e.clientX;drag.y=e.clientY;scheduleDraw();return}if(side==='3d'||e.target.closest('[data-reference]'))return;const matrix=svg.getScreenCTM().inverse(),pt=new DOMPoint(e.clientX,e.clientY).matrixTransform(matrix),x=cx+(pt.x-500-pan[0])/(fitScale*zoom)*(side==='bottom'?-1:1),y=cy+(pt.y-340-pan[1])/(fitScale*zoom);if(!onBoard([x,y])){readout.textContent='Outside saved board or inside a drilled void: no temperature probe.';return}const f=field(),xs=f.x_centers_mm||[],ys=f.y_centers_mm||[];if(!xs.length||!ys.length){readout.textContent='X '+num(x)+' mm · Y '+num(y)+' mm · no field at this location';return}const nearest=(arr,val)=>arr.reduce((best,t,i)=>Math.abs(t-val)<Math.abs(arr[best]-val)?i:best,0),i=nearest(xs,x),j=nearest(ys,y),t=(f.values_c[j]||[])[i];readout.textContent='X '+num(x)+' mm · Y '+num(y)+' mm · nearest cell '+num(t)+' °C · '+(n.board_field?'shared midplane':n.layers?'layer field':'junction interpolation');};draw();table();})();
+</script></section>'''

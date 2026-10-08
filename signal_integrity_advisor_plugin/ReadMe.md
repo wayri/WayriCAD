@@ -12,6 +12,24 @@ control to inspect a route in more detail.
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
+## Automatic timing and section results
+
+Choose the net and its two pads, then run **Screen selected path**. With a saved
+physical stackup, Quick SI now computes a first-order travel time across outer
+microstrip, internal homogeneous dielectric and via transitions without requiring
+manual Er entry. `APPROXIMATE` means adjacent copper is assumed to form ideal
+continuous reference planes; via delay includes dielectric travel but does not
+solve via reflections. Missing or incompatible dielectric data remains unresolved.
+
+The offline HTML report embeds three Matplotlib plots: cumulative delay, section impedance and cumulative DC resistance. Via positions are marked; unknown values leave gaps. Normal managed launches provision the plotting dependency automatically.
+
+The result table and HTML report show route length, DC/AC resistance, the
+impedance range and length of supported extracted sections, and local endpoint
+impedance/reflection estimates. Section values remain separate from a uniform
+route Z0. Vias, varying line impedance and missing reference coverage can prevent
+one uniform impedance from being reported even when timing is available.
+User-entered Z0/Er overrides retain their explicit assumption labels.
+
 ## Capabilities
 
 - Inspect a saved routed source-to-receiver path and screen delay, electrical length and transmission-line relevance.

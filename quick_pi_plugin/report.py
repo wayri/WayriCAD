@@ -200,7 +200,9 @@ def write_report(path,bundle,layer=None):
     if layer is None and rows:layer=rows[0]['id']
     selected=next((row['name'] for row in rows if str(row['id'])==str(layer)),str(layer))
     images=[]
-    for metric in METRICS:
+    primary_metrics=("drop","density","loss")
+    ordered_metrics=primary_metrics+tuple(metric for metric in METRICS if metric not in primary_metrics)
+    for metric in ordered_metrics:
         figure=Figure(figsize=(8.8,5.2),dpi=110);FigureCanvasAgg(figure)
         draw_view(figure,bundle,'Results',layer,metric)
         stream=io.BytesIO();figure.savefig(stream,format='png',dpi=110,facecolor='white')
@@ -235,7 +237,7 @@ def write_report(path,bundle,layer=None):
     ratio_note=(scope+' ΔV/I is an apparent operating-point ratio at the specified load current, not resistance.'
                 if result.get('contains_forward_drop') else
                 scope+' resistance uses the solved voltage drop divided by load current.')
-    html+='<table>'+table+'</table><p>'+ratio_note+' Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><section>'+''.join(images)+'</section>'
+    html+='<table>'+table+'</table><p>'+ratio_note+' Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><h2>Three primary result plots</h2><section>'+''.join(images[:3])+'</section><details><summary>Additional potential, resistance, flow and pulse-risk plots</summary><section>'+''.join(images[3:])+'</section></details>'
     if result.get('negative_sink_voltage'):
         html+='<p><strong>Operating-point warning:</strong> The requested current makes sink voltage negative; check source voltage and load. The imposed-current path may be infeasible.</p>'
     if result.get('analytics'):

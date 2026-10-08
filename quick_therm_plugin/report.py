@@ -20,7 +20,7 @@ def write_diagnostic_report(path,bundle):
     json_path.write_text(json.dumps(bundle,indent=2,allow_nan=False),encoding='utf-8')
     heading='QuickTherm'
     html=('<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD '+heading+'</title>'
-          '<style>body{font:15px system-ui,sans-serif;max-width:1050px;margin:32px auto;padding:0 20px;color:#173039}'
+          '<style>body{font:15px system-ui,sans-serif;max-width:1500px;margin:32px auto;padding:0 20px;color:#173039}'
           'table{border-collapse:collapse;width:100%}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}</style>'
           '<h1>WayriCAD '+heading+'</h1><p>Read-only saved-board analysis. '
           '<a href="'+escape(json_path.name)+'">Complete JSON evidence</a>.</p>')
@@ -28,7 +28,7 @@ def write_diagnostic_report(path,bundle):
         html+='<p>'+escape(thermal['model'])+' · '+escape(thermal['environment'])+' · ambient '+_number(thermal['ambient_c'],'°C')+'</p>'
         if thermal.get('input_source'):
             html+='<p><strong>Input source:</strong> '+escape(thermal['input_source'])+'</p>'
-            html+='<h2>Explicit component inputs</h2><pre>'+escape(json.dumps(thermal['manual_values'],indent=2,sort_keys=True))+'</pre>'
+            html+='<details><summary>Explicit component inputs</summary><pre>'+escape(json.dumps(thermal['manual_values'],indent=2,sort_keys=True))+'</pre></details>'
         else:
             html+='<p><strong>Input source:</strong> saved footprint fields '+escape(json.dumps(thermal.get('field_map',{}),sort_keys=True))+'</p>'
         html+='<p>Coverage: '+str(thermal['coverage']['solved'])+'/'+str(thermal['coverage']['scoped'])+' scoped components solved.</p>'
@@ -36,16 +36,21 @@ def write_diagnostic_report(path,bundle):
         network=bundle.get('thermal_network')
         calculix=bool(network and network.get('model')=='CalculiX 3D steady conduction')
         if view:
+            from .thermal_interactive import interactive_board_html
+            html += interactive_board_html(view, network)
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_agg import FigureCanvasAgg
-            from .thermal_plot import draw_thermal_view
-            modes=['Top-side map','Bottom-side map','Top-side contour','Bottom-side contour','3D overview']
-            if network:modes.extend(['Top board model','Bottom board model'])
+            from .thermal_plot import draw_thermal_view, draw_temperature_comparison
+            modes=(['Top board model', 'Bottom board model'] if network else ['Top-side map', 'Bottom-side map'])
+            modes.extend(['Component temperature comparison', '3D overview', 'Top-side contour', 'Bottom-side contour'])
             if network and network.get('layers'):
                 modes.extend('Layer model: '+row['name'] for row in network['layers'])
             for mode in modes:
                 figure=Figure(figsize=(10,5),dpi=115);FigureCanvasAgg(figure)
-                draw_thermal_view(figure,view,mode,network=network)
+                if mode == 'Component temperature comparison':
+                    draw_temperature_comparison(figure, bundle)
+                else:
+                    draw_thermal_view(figure,view,mode,network=network)
                 image=io.BytesIO();figure.savefig(image,format='png',dpi=115)
                 html+='<h2>'+escape(mode)+'</h2><img style="max-width:100%" alt="'+escape(mode)+'" src="data:image/png;base64,'+base64.b64encode(image.getvalue()).decode('ascii')+'">'
             html+='<p>Contour: '+escape(view.get('field',{}).get('meaning','Interpolation of component junction estimates; not a physical board-surface solve.'))+'</p>'

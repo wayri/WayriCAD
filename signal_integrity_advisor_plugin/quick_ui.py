@@ -97,9 +97,14 @@ class QuickSIPanel(wx.Panel):
                 if section.get('kind')=='zone' and 'start_mm' in section and 'end_mm' in section:
                     self.preview.tracks.append((*section['start_mm'],*section['end_mm'],section['layer'],0,None))
             self.preview.fit();self.preview.Refresh()
-            rows=[('Line model','User assumptions' if values['z0_ohm'] is not None or values['epsilon_eff'] is not None else 'Board geometry / unresolved terms retained'),('Route',f'{path.net_name}: {path.start_pad} → {path.end_pad}'),('Length / geometry',f'{path.length_mm:.3f} mm; {path.track_count} tracks, {path.via_count} vias, {path.zone_count} zones')]
-            for key,label,unit in [('delay_ns','One-way delay',' ns'),('electrical_length_deg','Electrical length',' deg'),('delay_to_rise_ratio','Delay / rise time',''),('z0_ohm','Uniform Z0',' ohm'),('source_reflection','Source reflection Γ',''),('load_reflection','Load reflection Γ',''),('first_load_step_per_source_step','First load step / source step',''),('series_match_candidate_ohm','Series-match candidate',' ohm')]:
+            rows=[('Line model','User assumptions' if values['z0_ohm'] is not None or values['epsilon_eff'] is not None else 'Board geometry / unresolved terms retained'),('Route',f'{path.net_name}: {path.start_pad} â†’ {path.end_pad}'),('Length / geometry',f'{path.length_mm:.3f} mm; {path.track_count} tracks, {path.via_count} vias, {path.zone_count} zones')]
+            for key,label,unit in [('delay_ns','One-way delay',' ns'),('electrical_length_deg','Electrical length',' deg'),('delay_to_rise_ratio','Delay / rise time',''),('z0_ohm','Uniform Z0',' ohm'),('source_reflection','Source reflection Î“',''),('load_reflection','Load reflection Î“',''),('first_load_step_per_source_step','First load step / source step',''),('series_match_candidate_ohm','Series-match candidate',' ohm')]:
                 value=report[key];rows.append((label,'Unknown / not applicable' if value is None else f'{value:.5g}'+unit))
+            for endpoint,detail in report.get('endpoint_screen',{}).items():
+                rows.append((endpoint.title()+' local line',f"{detail['z0_ohm']:.5g} ohm; local reflection {detail['reflection']:.5g} — {detail['basis']}"))
+            summary=report.get('route_summary',{})
+            for key,label,unit in [('resistance_dc_ohm','Path DC resistance',' ohm'),('resistance_ac_ohm','Path AC resistance',' ohm'),('modeled_impedance_length_mm','Length with section Z0 model',' mm'),('modeled_impedance_min_ohm','Modeled section Z0 minimum',' ohm'),('modeled_impedance_max_ohm','Modeled section Z0 maximum',' ohm')]:
+                value=summary.get(key);rows.append((label,'Unresolved' if value is None else f'{value:.6g}'+unit))
             rows += [('Delay basis',report['delay_source']),('Z0 basis',report['z0_source'])]+[('Review',note) for note in report['notes']]
             if 'eye' in report:
                 eye=report['eye'];self.eye_preview.show_result(eye);self.views.SetSelection(1)
@@ -108,7 +113,7 @@ class QuickSIPanel(wx.Panel):
                     rows += [('Eye center opening',f"{eye['center_opening_v']:.5g} V (sampled, ideal clock)"),('Eye sampled voltage range',f"{eye['min_v']:.5g} to {eye['max_v']:.5g} V")]
                     rows += [('Eye model',note) for note in eye['limitations']]
             for label,value in rows:index=self.results.InsertItem(self.results.GetItemCount(),label);self.results.SetItem(index,1,value)
-            self.status.SetLabel(report['status']+' — '+report['edge_screen']);self.export.Enable()
+            self.status.SetLabel(report['status']+' â€” '+report['edge_screen']);self.export.Enable()
         except Exception as exc:self.status.SetLabel(str(exc));wx.MessageBox(str(exc),'Quick SI',wx.OK|wx.ICON_ERROR,self)
 
     def export_report(self,event):

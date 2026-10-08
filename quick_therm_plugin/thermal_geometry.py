@@ -23,9 +23,7 @@ def _drill(api, item, is_via):
         value = api.ToMM(item.GetDrillValue())
     else:
         size = item.GetDrillSize()
-        if size.x != size.y:
-            raise ValueError("Plated or mounting slots require a noncircular thermal-contact model: " + _uid(item))
-        value = api.ToMM(size.x)
+        value = min(api.ToMM(size.x), api.ToMM(size.y))
     return value
 
 
@@ -145,6 +143,13 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005,
                     contact = _shape(api, item, layer, error)
                     contact_shapes.append((reference, pad_number, layer,
                                            str(item.GetNetname()), contact))
+        drill_shape = {}
+        if drilled:
+            if via:
+                drill_shape = {"drill_size_mm": [_drill(api, item, True)] * 2, "drill_angle_deg": 0.0}
+            else:
+                drill_shape = {"drill_size_mm": _mm(api, item.GetDrillSize()),
+                               "drill_angle_deg": float(item.GetOrientationDegrees())}
         if pad and drilled:
             drill = _drill(api, item, False)
             if drill <= 0:
@@ -155,7 +160,7 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005,
                       "drill_mm": drill, "plated": bool(plated),
                       "flashed_copper_layers": flashed,
                       "contact_evidence": "flashed_plated_land" if plated and flashed else "no_plated_land",
-                      "plane_connection_verified": False}
+                      "plane_connection_verified": False, **drill_shape}
             mounting_holes.append(record)
             counts["mounting_holes"] += 1
         if plated:
@@ -174,7 +179,18 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005,
                             "net": str(item.GetNetname()), "x_mm": api.ToMM(pos.x), "y_mm": api.ToMM(pos.y),
                             "drill_mm": drill, "outer_diameters_mm": diameters,
                             "span_layers": span, "contact_layers": flashed,
-                            "plating_thickness_mm": None})
+                            "plating_thickness_mm": None, **drill_shape})
+            if pad and item.GetDrillSize().x != item.GetDrillSize().y:
+                land_size = _mm(api, item.GetSize())
+                if any(land <= hole_size for land, hole_size in zip(land_size, drill_shape["drill_size_mm"])):
+                    raise ValueError("Plated slot land must exceed both drill dimensions: " + _uid(item))
+                # Retain actual flashed land geometry for the distributed slot
+                # wall stencil; a circular land radius loses long slot ends.
+                barrels[-1]["land_polygons_mm"] = {}
+                for layer in flashed:
+                    land = _shape(api, item, layer, error)
+                    land.BooleanSubtract(hole)
+                    barrels[-1]["land_polygons_mm"][str(layer)] = _polygons(land, api)
             if pad:
                 counts["plated_pads"] += 1
     for item in drawings:

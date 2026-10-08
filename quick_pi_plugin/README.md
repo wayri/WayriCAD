@@ -315,3 +315,5 @@ Report export starts in the originating board’s project folder and proposes `<
 ## Jobsets and automatic reports
 
 Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
+
+HTML reports put three primary Matplotlib plots first: voltage drop, current density and copper loss density for the selected layer. Additional maps remain available in an expandable section. All images are embedded for offline viewing.

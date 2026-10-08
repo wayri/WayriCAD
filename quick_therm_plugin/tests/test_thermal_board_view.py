@@ -3,7 +3,7 @@ import json
 import unittest
 from pathlib import Path
 
-from quick_therm_plugin.thermal_board_view import _hull, _inside, build_board_thermal_view
+from quick_therm_plugin.thermal_board_view import _drill_ring, _hull, _inside, build_board_thermal_view
 
 
 FIXTURE = (Path(__file__).resolve().parents[2] / "mechanical_check_plugin" /
@@ -19,6 +19,16 @@ def result(refs=("J1", "C1", "C3")):
 
 
 class PureGeometryTests(unittest.TestCase):
+    def test_rotated_slot_display_preserves_drill_envelope(self):
+        ring = _drill_ring([10., 20.], [3.6, 1.], 90.)
+        self.assertAlmostEqual(max(p[0] for p in ring)-min(p[0] for p in ring), 1.)
+        self.assertAlmostEqual(max(p[1] for p in ring)-min(p[1] for p in ring), 3.6)
+        self.assertTrue(_inside([10., 20.], ring))
+        angled = _drill_ring([10., 20.], [3.6, 1.], 45.)
+        self.assertAlmostEqual(angled[0][0], 10. + 1.8 / 2**.5)
+        self.assertAlmostEqual(angled[0][1], 20. - 1.8 / 2**.5)
+        self.assertEqual(_drill_ring([0., 0.], [0., 0.]), [])
+
     def test_hull_and_concave_outline_mask(self):
         self.assertEqual(len(_hull([[0, 0], [3, 0], [1, 1], [0, 3]])), 3)
         concave = [[0, 0], [4, 0], [4, 1], [1, 1], [1, 4], [0, 4]]
@@ -39,6 +49,8 @@ class NativeBoardViewTests(unittest.TestCase):
         view = build_board_thermal_view(self.board, result(), grid_size=30)
         self.assertEqual(view["bbox_mm"], [0., 0., 60., 40.])
         self.assertEqual(len(view["outline"]), 1)
+        self.assertTrue(view["drills"])
+        self.assertTrue(all(len(row["contour_mm"]) >= 12 for row in view["drills"]))
         self.assertEqual(view["field"]["status"], "available")
         components = {row["reference"]: row for row in view["components"]}
         self.assertEqual(components["J1"]["position_mm"], [11., 8.])

@@ -37,7 +37,7 @@ class WorkbenchPluginTests(unittest.TestCase):
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):
                         self.assertTrue((package / entry).is_file())
                     continue
-                expected_version = "3.6.6" if package.name in {
+                expected_version = "3.6.11" if package.name in {"quick_pi_plugin", "quick_therm_plugin", "signal_integrity_advisor_plugin"} else "3.6.6" if package.name in {
                     "quick_pi_plugin", "quick_therm_plugin"
                 } else "3.6.8" if package.name == "extract_pins_plugin" else "3.6.4"
                 self.assertEqual(expected_version, metadata["versions"][0]["version"])

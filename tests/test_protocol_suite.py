@@ -42,6 +42,20 @@ class ProtocolSuiteTests(unittest.TestCase):
         a['path']['status'] = 'missing'
         self.assertEqual('BLOCKED', screen_suite('uart', [a])['status'])
 
+    def test_automatic_approximate_timing_is_usable_but_not_impedance_qualification(self):
+        a=route()
+        a['status']='APPROXIMATE';a['path']['status']='partial'
+        a['path']['via_count']=1;a['path']['layer_changes']=1
+        a['z0_ohm']=None;a['z0_source']='unavailable'
+        a['delay_source']='Ideal saved-stackup travel time'
+        result=screen_suite('rgmii',[a],budgets={'max_delay_ns':2})
+        checks={c['id']:c for c in result['checks']}
+        self.assertEqual(checks['route.0.delay']['status'],'WITHIN_BUDGET')
+        self.assertEqual(checks['route.0.timing_model']['status'],'INFO')
+        self.assertEqual(checks['route.0.return_transitions']['status'],'UNKNOWN')
+        self.assertEqual(checks['route.0.impedance']['status'],'UNKNOWN')
+        self.assertNotEqual(result['status'],'BLOCKED')
+
     def test_user_budget_boundary_and_failure(self):
         budgets = dict(max_delay_ns=1, max_delay_to_rise_ratio=.5)
         self.assertEqual('WITHIN_BUDGET', screen_suite('uart', [route()], budgets=budgets)['status'])
