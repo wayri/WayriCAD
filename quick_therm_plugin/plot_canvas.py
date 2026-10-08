@@ -52,16 +52,24 @@ except (ImportError,ModuleNotFoundError):
             return axes.transData.inverted().transform(pixel)
 
         def _down(self,event):
+            from matplotlib.backend_bases import MouseEvent
+            self.callbacks.process('button_press_event',MouseEvent('button_press_event',self,event.GetX(),self.GetClientSize().height-event.GetY(),button=1,guiEvent=event))
             coordinate=self._coordinate(event);axes=self._axes()
             if coordinate is not None:
                 self._drag=(coordinate,axes.get_xlim(),axes.get_ylim())
+                self._drag_pixel=(event.GetX(),event.GetY())
                 if not self.HasCapture():self.CaptureMouse()
 
         def _motion(self,event):
+            from matplotlib.backend_bases import MouseEvent
+            self.callbacks.process('motion_notify_event',MouseEvent('motion_notify_event',self,event.GetX(),self.GetClientSize().height-event.GetY(),guiEvent=event))
             if self._drag is None or not event.Dragging():return
             coordinate=self._coordinate(event)
             if coordinate is None:return
             previous,xlim,ylim=self._drag;dx,dy=coordinate-previous;axes=self._axes()
+            if hasattr(axes,'get_zlim') and not event.ShiftDown():
+                px,py=self._drag_pixel;axes.view_init(elev=axes.elev+(event.GetY()-py)*.4,azim=axes.azim-(event.GetX()-px)*.4)
+                self._drag_pixel=(event.GetX(),event.GetY());self.draw_idle();return
             axes.set_xlim(xlim[0]-dx,xlim[1]-dx);axes.set_ylim(ylim[0]-dy,ylim[1]-dy)
             self._drag=(coordinate,axes.get_xlim(),axes.get_ylim());self.draw_idle()
 
@@ -81,7 +89,10 @@ except (ImportError,ModuleNotFoundError):
             if axes is None:return
             xlim,ylim=axes.get_xlim(),axes.get_ylim()
             x,y=center if center is not None else ((xlim[0]+xlim[1])/2,(ylim[0]+ylim[1])/2)
-            axes.set_xlim(*[x+(value-x)*factor for value in xlim]);axes.set_ylim(*[y+(value-y)*factor for value in ylim]);self.draw_idle()
+            axes.set_xlim(*[x+(value-x)*factor for value in xlim]);axes.set_ylim(*[y+(value-y)*factor for value in ylim]);
+            if hasattr(axes,'get_zlim'):
+                zlim=axes.get_zlim();z=sum(zlim)/2;axes.set_zlim(*[z+(value-z)*factor for value in zlim])
+            self.draw_idle()
 
         def home(self):
             axes=self._axes()

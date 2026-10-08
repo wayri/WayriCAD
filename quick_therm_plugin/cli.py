@@ -9,7 +9,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("board", type=Path)
     parser.add_argument("--config", type=Path, help="Reviewed JSON analysis settings for jobsets")
-    parser.add_argument("--environment", choices=("air", "vacuum"))
+    parser.add_argument("--environment", choices=("air", "vacuum", "forced_air", "potting", "sealed"))
     parser.add_argument("--power-field")
     parser.add_argument("--theta-ja-field")
     parser.add_argument("--theta-jb-field")
@@ -50,7 +50,7 @@ def main(argv=None):
             allowed = {"environment", "ambient_c", "field_map", "references", "heatsinks",
                        "vacuum_board_to_environment_k_per_w", "thermal_network_settings",
                        "thermal_network_component_field", "thermal_model_kind", "mesh_acceptance",
-                       "limit_fields", "probes", "calculix_settings"}
+                       "limit_fields", "probes", "calculix_settings", "transient_settings"}
             if not isinstance(settings, dict) or set(settings) - allowed:
                 raise ValueError("QuickTherm config has unsupported settings.")
             if not isinstance(settings.get("field_map"), dict) or not settings["field_map"].get("power_w"):
@@ -59,6 +59,8 @@ def main(argv=None):
             request.setdefault("environment", "air")
             request.setdefault("ambient_c", 20.0)
         else:
+            if args.environment in ("forced_air", "potting", "sealed"):
+                raise ValueError("Use --config for expanded environments with explicit multilayer boundary settings.")
             if not args.power_field:
                 raise ValueError("Map --power-field or provide --config.")
             environment = args.environment or "air"
@@ -74,7 +76,7 @@ def main(argv=None):
                 raise ValueError("Map --theta-jc-field for virtual heatsinks.")
             field = args.theta_ja_field if environment == "air" else args.theta_jb_field
             if not field and not (heatsinks and args.thermal_refs and set(args.thermal_refs) <= set(heatsinks)):
-                raise ValueError("Map RθJA/RθJB for components without heatsinks.")
+                raise ValueError("Map RÎ¸JA/RÎ¸JB for components without heatsinks.")
             field_map = {"power_w": args.power_field}
             if field:
                 key = "theta_ja_air_k_per_w" if environment == "air" else "theta_jb_k_per_w"

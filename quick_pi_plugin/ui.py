@@ -27,7 +27,7 @@ class QuickPIFrame(wx.Frame):
         self.bundle={};self.inventory={};self.return_bundle={};self.sweep_bundle={};self.volume_bundle={}
         self._busy=False;self._closed=False;self._closing=False
         self._series_request=None
-        self._cancel=threading.Event();self._terminals=[];self._layers=[];self._plot_keys={}
+        self._cancel=threading.Event();self._terminals=[];self._layers=[];self._plot_keys={};self._probe_controllers={}
         self._history=[];self._history_index=0;self._completions=[];self._completion_prefix=None;self._completion_index=0
         panel=wx.Panel(self);self.main_panel=panel;root=wx.BoxSizer(wx.VERTICAL)
         title=wx.BoxSizer(wx.HORIZONTAL)
@@ -48,6 +48,10 @@ class QuickPIFrame(wx.Frame):
             form.Add(wx.StaticText(panel,label=name),0,wx.ALIGN_CENTER_VERTICAL);form.Add(control,1,wx.EXPAND)
         self.dc_form=form
         root.Add(form,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
+        search_row=wx.BoxSizer(wx.HORIZONTAL);search_row.Add(wx.StaticText(panel,label='Search nets'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        self.net_search=wx.SearchCtrl(panel);search_row.Add(self.net_search,1,wx.EXPAND);root.Add(search_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,12)
+        self.net_search.Bind(wx.EVT_TEXT,self._filter_nets)
+        pick=wx.Button(panel,label='Select net on board');search_row.Add(pick,0,wx.LEFT,8);pick.Bind(wx.EVT_BUTTON,self.select_board_net)
         mode_row=wx.BoxSizer(wx.HORIZONTAL)
         mode_row.Add(wx.StaticText(panel,label='Copper model'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
         self.model_dimension=wx.Choice(panel,choices=['2.5D · layered copper','3D · copper volume (Gmsh)'])
@@ -190,7 +194,7 @@ class QuickPIFrame(wx.Frame):
         self.run.SetLabel('Run 3D copper' if volume else 'Run analysis')
         self.run.Enable(not self._busy and len(self._terminals)>1 and
                         (not volume or (not self._series_request and self.load_mode.GetSelection()==0)))
-        self.export.SetLabel('Export 3D JSON…' if volume else 'Export report…')
+        self.export.SetLabel('Export 3D report…' if volume else 'Export report…')
         self.export.Enable(not self._busy and bool(self.volume_bundle.get('result') if volume else self.bundle.get('result')))
         self.cancel.Enable(self._busy);self.cancel.Show(not placement);self.gauge.Show(self._busy and not placement)
         self.more.SetLabel("Reload saved board" if placement else "More…")
@@ -266,6 +270,28 @@ class QuickPIFrame(wx.Frame):
         for control in (self.source,self.sink):control.Set(labels)
         if labels:self.source.SetSelection(0);self.sink.SetSelection(min(1,len(labels)-1))
         self._buttons()
+
+    def select_board_net(self,event=None):
+        import pcbnew
+        from wayricad_runtime.preview import GeometryPreview
+        dialog=wx.Dialog(self,title='Select a net on the saved board',size=(850,620),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        layout=wx.BoxSizer(wx.VERTICAL);view=GeometryPreview(dialog);layout.Add(view,1,wx.EXPAND|wx.ALL,8)
+        layout.Add(wx.StaticText(dialog,label='Click a pad, via or track to choose its net. Drag to pan; wheel to zoom.'),0,wx.ALL,8)
+        layout.Add(dialog.CreateButtonSizer(wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,8);dialog.SetSizer(layout)
+        view.set_board(pcbnew.LoadBoard(self.board_path),pcbnew)
+        def selected(net,xy):
+            self.net_search.ChangeValue('');self.net.Set(self.inventory.get('nets', []))
+            self.net.SetValue(net);self._net_changed()
+            dialog.EndModal(wx.ID_OK)
+        view.on_net_select=selected
+        dialog.ShowModal();dialog.Destroy()
+
+    def _filter_nets(self,event=None):
+        current=self.net.GetValue();needle=self.net_search.GetValue().casefold()
+        names=[n for n in self.inventory.get('nets',[]) if needle in n.casefold()]
+        self.net.Set(names)
+        self.net.SetValue(current if current in names else (names[0] if names else ''))
+        if self.net.GetValue()!=current:self._net_changed()
 
     def _net_changed(self,event=None):
         self._series_request=None;self.operation_note.SetLabel('Source voltage → sink current')
@@ -456,6 +482,15 @@ class QuickPIFrame(wx.Frame):
                                   f"{row['name']}: {thickness_label(row)} copper | {row['area_mm2']:.4g} mm² | Layer loss {row['planar_power_W']:.4g} W · More → Layer details")
             self.summary.GetParent().Layout()
         if limits:ax.set_xlim(*limits[0]);ax.set_ylim(*limits[1])
+        if index in self._probe_controllers:self._probe_controllers[index]['disconnect']()
+        if index==2 and self.bundle.get('result') and self.bundle.get('mesh'):
+            import numpy as np
+            from .report import cell_values
+            from wayricad_runtime.plot_probe import attach_probes
+            mesh=self.bundle['mesh'];points=np.asarray(mesh['points_mm']);indices=[i for i,v in enumerate(mesh['triangle_layer']) if str(v)==str(layer)]
+            polygons=points[np.asarray(mesh['triangles'],dtype=int)[indices],:2];centers=polygons.mean(axis=1);values=cell_values(mesh,self.bundle['result'],metric)
+            samples=[[float(x),float(y),float(values[i]),'Cell '+str(i)] for (x,y),i in zip(centers,indices)]
+            self._probe_controllers[index]=attach_probes(canvas,ax,samples,METRICS[metric][1],polygons=polygons)
         self._plot_keys[index]=key;toolbar.update();canvas.draw_idle()
 
 
@@ -614,7 +649,9 @@ class QuickPIFrame(wx.Frame):
         layout.Add(toolbar,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
         note=wx.StaticText(dialog,label='Ideal pad electrodes · fixed-temperature DC · plotted cells are sampled; JSON includes every tetrahedron.')
         layout.Add(note,0,wx.EXPAND|wx.ALL,10)
+        probe_state={}
         def draw(event=None):
+            if probe_state.get('controller'):probe_state['controller']['disconnect']()
             layer=layers.GetStringSelection()
             field=quantities.GetStringSelection()
             xyz,values,total=sampled_cells(bundle,layer,QUANTITIES[field])
@@ -640,26 +677,31 @@ class QuickPIFrame(wx.Frame):
                 note.SetLabel(f'No connected cells on {layer}. Floating copper does not carry this solved current.')
             axes.set_xlabel('X (mm)');axes.set_ylabel('Y (mm)')
             axes.set_title(f'{layer} · {field}')
+            from wayricad_runtime.plot_probe import attach_probes
+            samples=[[float(p[0]),float(p[1]),float(v),'Sampled cell',float(p[2])] for p,v in zip(xyz,values)]
+            probe_state['controller']=attach_probes(canvas,axes,samples,field)
             figure.tight_layout();canvas.draw_idle()
         for choice in (projection,layers,quantities):choice.Bind(wx.EVT_CHOICE,draw)
-        buttons=wx.BoxSizer(wx.HORIZONTAL);save=wx.Button(dialog,label='Export 3D JSON…')
+        buttons=wx.BoxSizer(wx.HORIZONTAL);save=wx.Button(dialog,label='Export interactive 3D report…')
         buttons.Add(save,0,wx.RIGHT,8);buttons.Add(dialog.CreateButtonSizer(wx.CLOSE),0)
         layout.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,10)
         save.Bind(wx.EVT_BUTTON,lambda e:self._export_3d(dialog,bundle))
         dialog.Bind(wx.EVT_BUTTON,lambda e:dialog.EndModal(wx.ID_CLOSE),id=wx.ID_CLOSE)
         dialog.SetSizer(layout);draw();dialog.ShowModal();dialog.Destroy()
-        self.status.SetLabel('3D DC solve complete. Export JSON here or from the main window for the full field.')
+        self.status.SetLabel('3D DC solve complete. Export an interactive HTML report and paired complete JSON from this window.')
         self._buttons()
 
     def _export_3d(self,parent,bundle):
         if not bundle.get('result'):return
-        name=Path(self.board_path).stem+'-quick-pi-3d.json'
+        name=Path(self.board_path).stem+'-quick-pi-3d.html'
         with wx.FileDialog(parent,'Export 3D field',defaultDir=str(Path(self.board_path).parent),
-                           defaultFile=name,wildcard='JSON (*.json)|*.json',
+                           defaultFile=name,wildcard='HTML (*.html)|*.html',
                            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as picker:
             if picker.ShowModal()!=wx.ID_OK:return
             target=Path(picker.GetPath())
-        try:target.write_text(json.dumps(bundle,allow_nan=False),encoding='utf-8')
+        try:
+            from .volume_view import write_volume_report
+            write_volume_report(target,bundle)
         except (OSError,ValueError) as exc:
             wx.MessageBox('Could not export the 3D result: '+str(exc),'Quick PI',wx.OK|wx.ICON_ERROR,parent)
             return
@@ -679,6 +721,8 @@ class QuickPIFrame(wx.Frame):
             axes.set_xticks(xs,['Source',*[str(row['id']) for row in components]])
             axes.set_ylabel('Voltage (V)');axes.grid(True,alpha=.25)
         else:axes.text(.05,.5,'Component voltage is unavailable for this path.',transform=axes.transAxes)
+        from wayricad_runtime.plot_probe import attach_probes
+        attach_probes(canvas,axes,[[x,v,v,'Component boundary'] for x,v in zip(xs,values) if v is not None],'V')
         figure.tight_layout();layout.Add(canvas,1,wx.EXPAND|wx.ALL,10)
         table=wx.ListCtrl(dialog,style=wx.LC_REPORT,size=(-1,170))
         for col,(name,width) in enumerate([('Component',160),('Model',100),('Current A',110),('Before V',110),('Drop V',110),('After V',110),('Power W',110)]):
@@ -728,6 +772,8 @@ class QuickPIFrame(wx.Frame):
         axes.plot(current,[row['path_drop_V'] for row in rows],label='Path drop',color='#b45134')
         axes.plot(current,[row['sink_voltage_V'] for row in rows],label='Sink voltage',color='#17657c')
         axes.axhline(0,color='#455',linewidth=.7);axes.set_xlabel('Prescribed DC current (A)');axes.set_ylabel('Voltage (V)')
+        from wayricad_runtime.plot_probe import attach_probes
+        attach_probes(canvas,axes,[[row['current_A'],row[key],row[key],key] for row in rows for key in ('path_drop_V','sink_voltage_V')],'V')
         axes.grid(True,alpha=.25);axes.legend();figure.tight_layout();layout.Add(canvas,1,wx.EXPAND|wx.ALL,10)
         note=wx.StaticText(dialog,label='One fixed-temperature FEM mesh supplies copper resistance. Diode Vf is reevaluated at each current; negative sink voltage flags an infeasible requested point.')
         note.Wrap(self.FromDIP(880));layout.Add(note,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)

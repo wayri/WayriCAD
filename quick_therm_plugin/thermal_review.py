@@ -75,7 +75,7 @@ def evaluate_limits(board, thermal, field_map):
 
 def sample_probes(view, network, definitions):
     """Sample nearest valid thermal cell; never extrapolate outside board/coverage."""
-    from .thermal_board_view import _on_board
+    from .thermal_board_view import _on_board, _inside
 
     definitions = list(definitions or [])
     if len(definitions) > 256:
@@ -97,8 +97,8 @@ def sample_probes(view, network, definitions):
         row = {"label": label, "x_mm": x, "y_mm": y, "side": side,
                "temperature_c": None, "status": "UNKNOWN", "source": None,
                "method": "nearest cell center", "reason": None}
-        if view.get("outline_status") != "valid" or not _on_board((x, y), view.get("outline", [])):
-            row["reason"] = "Outside a verified board outline"
+        if view.get("outline_status") != "valid" or not _on_board((x, y), view.get("outline", [])) or any(_inside((x,y),drill["contour_mm"]) for drill in view.get("drills", [])):
+            row["reason"] = "Outside a verified board outline or inside a drilled void"
             rows.append(row)
             continue
         if network and network.get("layers"):
@@ -131,7 +131,7 @@ def cursor_readout(view, network, x_mm, y_mm, side):
     The field source is explicit so an interpolated junction estimate cannot be
     mistaken for a solved board-surface temperature.
     """
-    from .thermal_board_view import _on_board
+    from .thermal_board_view import _on_board, _inside
 
     x, y = float(x_mm), float(y_mm)
     if side not in ("top", "bottom") or not all(map(math.isfinite, (x, y))):
@@ -140,7 +140,7 @@ def cursor_readout(view, network, x_mm, y_mm, side):
               "temperature_c": None, "field_source": None,
               "reference": None, "component_id": None, "junction_c": None,
               "model_junction_c": None}
-    if view.get("outline_status") != "valid" or not _on_board((x, y), view.get("outline", [])):
+    if view.get("outline_status") != "valid" or not _on_board((x, y), view.get("outline", [])) or any(_inside((x,y),drill["contour_mm"]) for drill in view.get("drills", [])):
         return output
     output["on_board"] = True
     if network and network.get("layers"):
@@ -188,3 +188,80 @@ def cursor_readout(view, network, x_mm, y_mm, side):
                       junction_c=part.get("junction_c"),
                       model_junction_c=model.get("junction_c"))
     return output
+
+
+def board_point_from_3d(axes, pixel_x, pixel_y, board_z_mm):
+    """Intersect a Matplotlib screen ray with the saved board's XY plane.
+
+    Return None for an edge-on ray. This is a viewing projection only; no PCB
+    geometry is transformed or rewritten. Coordinates and plane height use mm.
+    """
+    import numpy as np
+    from mpl_toolkits.mplot3d import proj3d
+
+    px, py = axes.transData.inverted().transform((pixel_x, pixel_y))
+    inverse = np.linalg.inv(axes.get_proj())
+    near = np.asarray(proj3d.inv_transform(px, py, -1., inverse), dtype=float).reshape(3)
+    far = np.asarray(proj3d.inv_transform(px, py, 1., inverse), dtype=float).reshape(3)
+    direction = far - near
+    if not np.all(np.isfinite(direction)) or abs(direction[2]) < 1e-10:
+        return None
+    point = near + direction * ((board_z_mm - near[2]) / direction[2])
+    return (float(point[0]), float(point[1])) if np.all(np.isfinite(point)) else None
+
+
+def transient_frame_network(network, index):
+    """Return a display-only network for a stored time frame, without mutation."""
+    import copy
+    transient = network.get('transient') or {}
+    frame = transient['frames'][index]
+    spatial = transient['spatial_index']; temperatures = frame['temperatures_c']
+    result = copy.deepcopy({key:value for key,value in network.items() if key != "transient"})
+    cells = spatial['cells']; count = spatial['active_cells_per_layer']
+    nx, ny = len(spatial['x_centers_mm']), len(spatial['y_centers_mm'])
+    for layer_index, layer in enumerate(result['layers']):
+        values = [[None for _ in range(nx)] for _ in range(ny)]
+        for cell_index, (i,j) in enumerate(cells):
+            values[j][i] = temperatures[layer_index*count+cell_index]
+        layer['values_c'] = values
+    result['display_time_s'] = frame['time_s']
+    schedules=transient.get('power_schedules',{})
+    originals={row['reference']:row for row in result.get('components',[])}
+    components=[]
+    for definition in transient.get('components',[]):
+        reference=definition['reference'];row=originals.get(reference,{'reference':reference})
+        contact=sum(temperatures[node]*weight for node,weight in definition['nodes'])
+        points=schedules.get(reference)
+        if points:
+            import numpy as np
+            scale=float(np.interp(frame['time_s'],[point[0] for point in points],[point[1] for point in points]))
+        else:scale=1.
+        power=definition['power_w']*scale;resistance=definition.get('junction_resistance_k_per_w')
+        row.update(board_site_c=contact,power_w=power,
+                   junction_c=None if resistance is None else contact+power*resistance,
+                   junction_model='Massless package offset from transient contact; no die heat capacity')
+        row['sink_c']=contact if row.get('sink_c') is not None else None
+        components.append(row)
+    result['components']=components
+    return result
+
+
+def frame_view(view, network):
+    """Copy footprint annotations to the selected result time without stale Tj."""
+    import copy
+    result={**view,"components":[dict(part) for part in view.get("components",[])]}
+    if 'display_time_s' not in (network or {}):return result
+    components={row['reference']:row for row in network.get('components',[])}
+    for part in result.get('components',[]):
+        row=components.get(part['reference'],{})
+        part.update(junction_c=row.get('junction_c'),power_w=row.get('power_w'),solved=row.get('junction_c') is not None)
+    return result
+
+
+def frame_limit_status(row, temperature):
+    """Re-evaluate already parsed bounds against the selected time's junction."""
+    if temperature is None or row.get('issues') and row.get('status')=='UNKNOWN':return 'UNKNOWN'
+    low,high=row.get('minimum_c'),row.get('maximum_c')
+    if low is None and high is None:return 'UNKNOWN'
+    if low is not None and high is not None and low>high:return 'UNKNOWN'
+    return 'FAIL' if (low is not None and temperature<low or high is not None and temperature>high) else 'PASS'

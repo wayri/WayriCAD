@@ -298,15 +298,13 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     ambient = _num(settings.get("ambient_c", result.get("ambient_c", 20)), "Ambient (°C)", low=-273.15)
     emissivity = _num(settings.get("board_emissivity", 0.85), "Emissivity", low=0, high=1)
     environment = result.get("environment", "air")
-    if environment not in ("air", "vacuum"):
-        raise ValueError("QuickTherm environment must be air or vacuum.")
+    from .thermal_environments import boundary_settings
+    settings, environment_notes = boundary_settings(environment, settings)
+    ambient = _num(settings.get("ambient_c", ambient), "Boundary temperature (°C)", low=-273.15)
     airflow = _num(settings.get("board_airflow_m_s", 0), "Airflow (m/s)", low=0)
-    if environment == "vacuum" and airflow:
-        raise ValueError("Airflow must be zero in vacuum.")
     h = _num(settings.get("board_h_w_m2k", 5+4*airflow if environment == "air" else 0),
              "Board convection coefficient (W/m²/K)", low=0)
-    if environment == "vacuum" and h:
-        raise ValueError("Convection must be zero in vacuum.")
+    emissivity = _num(settings.get("board_emissivity", emissivity), "Emissivity", low=0, high=1)
     grid_n = settings.get("grid_cells_long_axis", 48)
     if isinstance(grid_n, bool) or not isinstance(grid_n, int) or not 24 <= grid_n <= 80:
         raise ValueError("grid_cells_long_axis must be an integer from 24 to 80.")
@@ -872,7 +870,53 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                                                    for polygon in layer.get("polygons_mm", [])),
                            "copper_area_fraction": max(memberships[li][peak_ci].values(), default=0),
                        }})
+    transient = None
+    if settings.get("transient_settings") is not None:
+        from .thermal_spatial_transient import evolve
+        transient_settings = settings["transient_settings"]
+        copper_capacity = _num(transient_settings.get("copper_volumetric_capacity_j_m3k"),
+                               "Copper volumetric heat capacity (J/m³/K)", low=1e-9)
+        dielectric_capacity = _num(transient_settings.get("dielectric_volumetric_capacity_j_m3k"),
+                                   "Dielectric volumetric heat capacity (J/m³/K)", low=1e-9)
+        capacity = np.zeros(nnode)
+        for li in range(len(layers)):
+            for ci in range(ncell):
+                # Union upper bound avoids double counting overlapping copper polygons.
+                copper_fraction = min(1.0, sum(memberships[li][ci].values()))
+                capacity[node(li, ci)] = cell_areas[ci] * (
+                    slice_thickness[li] * dielectric_capacity + thickness[li]/1000 *
+                    (copper_fraction*copper_capacity + (1-copper_fraction)*dielectric_capacity))
+        for ref, (ni, _, _) in sink_nodes.items():
+            capacity[ni] = _num(transient_settings.get("sink_capacity_j_k", {}).get(ref),
+                                ref + " sink heat capacity (J/K)", low=1e-9)
+        source_vectors = {}
+        for part in output_components:
+            ref = part["reference"]
+            vector = np.zeros(nnode)
+            if ref in sink_nodes:
+                vector[sink_nodes[ref][0]] = part["power_w"]
+            else:
+                li, weights = source_sites[ref]
+                for ci, weight in weights:
+                    vector[node(li, ci)] = part["power_w"]*weight
+            source_vectors[ref] = vector
+        transient = evolve(laplacian, capacity, source_vectors, surface_area, convection_h,
+                           surface_e, ambient, contact_g, contact_rhs, fixed, transient_settings)
+        # Flattening metadata makes every frame reusable without rebuilding copper geometry.
+        transient["spatial_index"] = {"cells": cells, "x_centers_mm": xs, "y_centers_mm": ys,
+                                      "layers": [{"id": layer["id"], "name": layer["name"], "z_mm": z[li]}
+                                                 for li, layer in enumerate(layers)],
+                                      "active_cells_per_layer": ncell}
+        transient["components"] = []
+        for part in output_components:
+            ref = part["reference"]
+            sites = ([(sink_nodes[ref][0], 1.0)] if ref in sink_nodes else
+                     [(node(source_sites[ref][0], ci), weight) for ci, weight in source_sites[ref][1]])
+            transient["components"].append({"reference": ref, "nodes": sites,
+                "power_w": part["power_w"], "junction_resistance_k_per_w":
+                sink_resistances.get(ref) if ref in sink_nodes else board_resistances.get(ref)})
     return {"model": "steady-state layer-resolved finite-volume board screen",
+            **({"transient": transient} if transient is not None else {}),
             "status": "converged" if abs(residual) <= tolerance else "imbalanced",
             "environment": environment, "ambient_c": ambient, "layers": fields,
             "components": output_components, "mounts": mounts,
@@ -900,14 +944,14 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                      "barrel_stencil_edges": annulus_edges,
                      "unresolved_barrel_stencils": unresolved_barrel_stencils,
                      "unexcited_regions_anchored_at_ambient": unexcited_anchors},
-            "assumptions": [
+            "assumptions": environment_notes + [
                 "Copper area and shared-face occupancy are clipped from saved polygons in area_face mode; subcell conductance remains a finite-volume approximation.",
                 "Dielectric is homogeneous and isotropic between copper midplanes; no anisotropic laminate data are inferred.",
                 "Via plating thickness, material conductivity and fixture contacts are explicit user inputs.",
                 "Barrel heat flow is a 1D axial approximation; individual land-to-barrel contact and package-pad spreading are unresolved.",
                 "The annulus stencil apportions axial barrel conductance among nearby cell centers outside circular or obround drills. Plated slots use exact capsule-wall metal area and actual flashed land polygons; this is not a resolved barrel/land solid mesh.",
                 "An explicitly declared NPTH mechanical contact couples to the nearest dielectric cell through entered contact resistance; no copper-plane contact is inferred.",
-                "Only top and bottom faces reject heat; edge radiation, package shadows, view factors, airflow fields and spatial transients are unresolved.",
+                "Only top and bottom faces reject heat; edge radiation, package shadows, view factors, airflow fields are unresolved. Spatial transients require explicit volumetric heat capacities and time-step convergence.",
                 "Sources use footprint bounding boxes as contact proxies, or a labelled point fallback; junction temperature needs explicit component-to-board resistance.",
                 "The model junction uses area-weighted source-cell temperature; source_peak_c and junction_peak_proxy_c expose hotter sampled cells but are not resolved die maximums.",
                 "Virtual heatsink nodes use entered exposed area and component-to-sink resistance; they couple to the board only if an explicit sink-to-board resistance is supplied.",

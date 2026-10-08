@@ -28,6 +28,10 @@ class HeaterPreviewTests(unittest.TestCase):
         thermal_result = HeaterEngine.simulate(heater, ThermalSpec(grid_x=20, grid_y=14, iterations=100)) if thermal else None
         preview = SimpleNamespace(heater=heater, thermal=thermal_result, mode="thermal" if thermal else "pattern", zoom=1.0, pan=(0, 0), zone_drag=None)
         preview._transform = lambda w, h: HeaterPreview._transform(preview, w, h)
+        preview.hover = None
+        preview.probes = []
+        preview.probe_label = HeaterPreview.probe_label
+        preview._draw_probes = lambda dc, project, w, h: HeaterPreview._draw_probes(preview, dc, project, w, h)
         HeaterPreview.draw(preview, dc, 800, 600)
         dc.SelectObject(wx.NullBitmap)
         data = bitmap.ConvertToImage().GetData()

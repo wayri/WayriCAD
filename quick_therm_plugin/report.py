@@ -37,7 +37,28 @@ def write_diagnostic_report(path,bundle):
         calculix=bool(network and network.get('model')=='CalculiX 3D steady conduction')
         if view:
             from .thermal_interactive import interactive_board_html
-            html += interactive_board_html(view, network)
+            html += interactive_board_html(view, network, bundle.get("temperature_limits"))
+            from wayricad_runtime.interactive_plots import interactive_plot
+            components = (network or {}).get('components') or thermal.get('components', [])
+            rows = [[index, row.get('junction_c', row.get('junction_temperature_c')),
+                     row.get('junction_c', row.get('junction_temperature_c')), row['reference']]
+                    for index, row in enumerate(components)
+                    if row.get('junction_c', row.get('junction_temperature_c')) is not None]
+            if rows:
+                html += interactive_plot('Component junction estimates', rows, unit='°C',
+                                         x_unit='component index', y_unit='°C')
+            if network and network.get('transient'):
+                from .thermal_review import transient_frame_network
+                time_rows = []
+                for index, frame in enumerate(network['transient']['frames']):
+                    selected = transient_frame_network(network, index)
+                    for row in selected['components']:
+                        value = row.get('junction_c')
+                        time_rows.append([frame['time_s'], value, value, row['reference']])
+                time_rows.sort(key=lambda row: (row[3], row[0]))
+                html += interactive_plot('Junction estimates over time', time_rows, unit='°C',
+                                         x_unit='s', y_unit='°C', connect=True)
+                html += '<p>Time curves use stored frames and explicit package resistance; missing junction inputs remain unknown. Board surface probes are available in the interactive board above.</p>'
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_agg import FigureCanvasAgg
             from .thermal_plot import draw_thermal_view, draw_temperature_comparison
@@ -52,7 +73,7 @@ def write_diagnostic_report(path,bundle):
                 else:
                     draw_thermal_view(figure,view,mode,network=network)
                 image=io.BytesIO();figure.savefig(image,format='png',dpi=115)
-                html+='<h2>'+escape(mode)+'</h2><img style="max-width:100%" alt="'+escape(mode)+'" src="data:image/png;base64,'+base64.b64encode(image.getvalue()).decode('ascii')+'">'
+                html+='<h2>'+escape(mode)+' — printable snapshot</h2><img style="max-width:100%" alt="'+escape(mode)+'" src="data:image/png;base64,'+base64.b64encode(image.getvalue()).decode('ascii')+'">'
             html+='<p>Contour: '+escape(view.get('field',{}).get('meaning','Interpolation of component junction estimates; not a physical board-surface solve.'))+'</p>'
             stats=analytics.get('temperature_c',{})
             summary=' · '.join(escape(label)+' '+_number(stats.get(key),'°C') for label,key in

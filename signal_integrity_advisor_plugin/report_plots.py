@@ -30,6 +30,7 @@ def plot_section(report):
         impedance.append(segment.get('impedance_ohm') if segment.get('impedance_ohm') is not None else math.nan)
         ideal_impedance.append(segment.get('screening_z0_ohm') if segment.get('screening_z0_ohm') is not None else math.nan)
     plots=[]
+    from wayricad_runtime.interactive_plots import interactive_plot
     for title,ylabel in [('Propagation delay along route','Delay (ns)'),('Section impedance along route','Single-ended Z0 (ohm)'),('DC resistance along route','Resistance (ohm)')]:
         figure=Figure(figsize=(9,3.5),dpi=120);FigureCanvasAgg(figure)
         ax=figure.add_subplot(111)
@@ -47,5 +48,9 @@ def plot_section(report):
         ax.grid(alpha=.2);ax.legend(fontsize=8);figure.tight_layout()
         stream=io.BytesIO();figure.savefig(stream,format='png');figure.clear()
         image=base64.b64encode(stream.getvalue()).decode('ascii')
-        plots.append('<figure><figcaption>'+title+'</figcaption><img style="width:100%;height:auto" alt="'+title+'" src="data:image/png;base64,'+image+'"></figure>')
+        rows = ([[x,y,y,'Route sample'] for x,y in zip(distance,delay)] if title.startswith('Propagation') else
+                [[x,y,y,'Extracted section'] for x,y in zip(impedance_x,impedance)]+[[x,y,y,'Ideal section estimate'] for x,y in zip(impedance_x,ideal_impedance)] if title.startswith('Section') else
+                [[x,y,y,'Route sample'] for x,y in zip(distance,resistance)])
+        plots.append(interactive_plot(title,rows,ylabel,y_unit=ylabel,connect=not title.startswith('Section')))
+        plots.append('<details><summary>Static export</summary><figure><figcaption>'+title+'</figcaption><img style="width:100%;height:auto" alt="'+title+'" src="data:image/png;base64,'+image+'"></figure></details>')
     return '<h2>Route plots</h2><p>Vertical markers indicate vias. Missing impedance values are omitted; unknown delay/resistance interrupts the cumulative curve. Ideal estimates do not resolve discontinuity reflections or differential coupling.</p>'+''.join(plots)

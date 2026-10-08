@@ -139,6 +139,7 @@ class PanZoomCanvas(wx.Panel):
         self.picks: List[dict] = []
         self.on_pick = None
         self.highlight_data: Any = None
+        self.probes=[];self.probe_mode=False
         self.SetMinSize((-1, 200))
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
@@ -253,6 +254,10 @@ class PanZoomCanvas(wx.Panel):
         self._pan_start = None
         self._pan_center = None
         self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
+        if start is not None and (event.ControlDown() or self.probe_mode):
+            if math.hypot(event.GetPosition()[0]-start[0],event.GetPosition()[1]-start[1])<4:
+                self.probes.append(self.unproject(*event.GetPosition()));self.Refresh()
+            return
         if start is not None and callable(self.on_pick):
             moved = math.hypot(event.GetPosition()[0] - start[0], event.GetPosition()[1] - start[1])
             if moved < 4.0:
@@ -380,7 +385,10 @@ class PanZoomCanvas(wx.Panel):
             gc.DrawEllipse(pen_x + 7.0, top + 6.0, 8.0, 8.0)
             gc.DrawText(label, pen_x + 19.0, top + 3.0)
 
-        # Compact coordinate readout; avoid a full-canvas crosshair.
+        for index,point in enumerate(self.probes):
+            x,y=self.project(*point);gc.SetPen(wx.Pen(wx.Colour('#1b3645'),1));gc.DrawEllipse(x-4,y-4,8,8);gc.DrawText(f'P{index+1}: {point[0]:.4g}, {point[1]:.4g} mm',x+7,y-16)
+
+        # Coordinate cursor and pinned geometry probes.
         if self.hover_screen is not None:
             sx, sy = self.hover_screen
             gc.SetPen(wx.Pen(wx.Colour("#ccd6df"), 1, wx.PENSTYLE_SHORT_DASH))
@@ -400,6 +408,9 @@ class PanZoomCanvas(wx.Panel):
             gc.DrawText(self.empty_text, max(16, (size.width-width)/2), max(16, (size.height-height)/2))
 
 
+    def clear_probes(self):
+        self.probes=[];self.Refresh()
+
     def has_content(self) -> bool:  # pragma: no cover - interface
         return True
 
@@ -416,7 +427,9 @@ def add_zoom_toolbar(panel: wx.Panel, canvas: PanZoomCanvas, sizer: wx.Sizer) ->
         button = wx.Button(parent, label=label, size=(46, 26))
         button.Bind(wx.EVT_BUTTON, handler)
         row.Add(button, 0, wx.RIGHT, 6)
-    hint = wx.StaticText(parent, label="Drag to pan \u00b7 scroll to zoom \u00b7 double-click to fit")
+    probe=wx.ToggleButton(parent,label="Probe",size=(64,26));probe.Bind(wx.EVT_TOGGLEBUTTON,lambda event:setattr(canvas,"probe_mode",event.IsChecked()));row.Add(probe,0,wx.RIGHT,6)
+    clear=wx.Button(parent,label="Clear probes",size=(100,26));clear.Bind(wx.EVT_BUTTON,lambda event:canvas.clear_probes());row.Add(clear,0,wx.RIGHT,6)
+    hint = wx.StaticText(parent, label="Ctrl-click: probe · Drag to pan \u00b7 scroll to zoom \u00b7 double-click to fit")
     hint.Wrap(420)
     row.Add(hint, 0, wx.ALIGN_CENTER_VERTICAL)
     sizer.Add(row, 0, wx.ALIGN_RIGHT | wx.BOTTOM, 4)

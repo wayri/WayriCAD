@@ -86,3 +86,8 @@ Exact solid intersection/distance, component-to-enclosure and PCB fit, top/botto
 Integrated from the user-provided `3d-interference-check` project (3Dvalid 0.1.0), with original MIT [license](LICENSE) preserved. [Provenance](PROVENANCE.md) records the import. No Marble checkout, source screenshots, third-party model libraries, generated reports or build artifacts are included. The small synthetic test board references external KiCad libraries.
 
 Run `python -m unittest discover -s mechanical_check_plugin/tests -v` from the suite root. Pure checks run without CAD; native pipeline tests require KiCad, FreeCAD and the installed model library. Runtime verification details are reported by the suite validation record.
+
+
+### Inspect 3D geometry
+
+Drag to orbit, right-drag to pan and use the wheel to zoom. Hover over visible solid triangles for the component reference and XYZ position; click to select, or Ctrl-click to pin a surface probe. Section clipping and isolated-part visibility apply to picking. Offline HTML includes a clearable probe list. These coordinate probes do not alter either board or create new collision findings.

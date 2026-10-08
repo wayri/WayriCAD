@@ -139,6 +139,8 @@ class PanZoomCanvas(wx.Panel):
         self.picks: List[dict] = []
         self.on_pick = None
         self.highlight_data: Any = None
+        self.probes: List[dict] = []
+        self.probe_mode = False
         self.SetMinSize((-1, 200))
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
@@ -163,6 +165,11 @@ class PanZoomCanvas(wx.Panel):
         ``set_highlight`` to keep a marker visible.
         """
         self.picks = list(picks)
+
+    def clear_probes(self) -> None:
+        """Discard pinned readouts when the plotted source or inputs change."""
+        self.probes = []
+        self.Refresh()
 
     def set_highlight(self, data: Any) -> None:
         """Keep a double-ring marker on every pick whose data matches."""
@@ -253,6 +260,13 @@ class PanZoomCanvas(wx.Panel):
         self._pan_start = None
         self._pan_center = None
         self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
+        if start is not None and (self.probe_mode or event.ControlDown()):
+            moved = math.hypot(event.GetPosition()[0] - start[0], event.GetPosition()[1] - start[1])
+            if moved < 4.0:
+                world = self.unproject(*event.GetPosition())
+                self.probes.append({"world": world, "label": self.status_for(world)})
+                self.Refresh()
+                return
         if start is not None and callable(self.on_pick):
             moved = math.hypot(event.GetPosition()[0] - start[0], event.GetPosition()[1] - start[1])
             if moved < 4.0:
@@ -378,6 +392,14 @@ class PanZoomCanvas(wx.Panel):
             gc.DrawEllipse(pen_x + 7.0, top + 6.0, 8.0, 8.0)
             gc.DrawText(label, pen_x + 19.0, top + 3.0)
 
+        for index, probe in enumerate(self.probes, 1):
+            probe["label"] = self.status_for(probe["world"])
+            sx, sy = self.project(probe["world"])
+            gc.SetPen(wx.Pen(wx.Colour("#ad3055"), 1))
+            gc.StrokeLine(sx - 7, sy, sx + 7, sy)
+            gc.StrokeLine(sx, sy - 7, sx, sy + 7)
+            gc.DrawText(f"P{index}: {probe['label']}", sx + 9, sy + 5)
+
         # Compact coordinate readout; avoid a full-canvas crosshair.
         if self.hover_screen is not None:
             sx, sy = self.hover_screen
@@ -414,7 +436,13 @@ def add_zoom_toolbar(panel: wx.Panel, canvas: PanZoomCanvas, sizer: wx.Sizer) ->
         button = wx.Button(parent, label=label, size=(46, 26))
         button.Bind(wx.EVT_BUTTON, handler)
         row.Add(button, 0, wx.RIGHT, 6)
-    hint = wx.StaticText(parent, label="Drag to pan \u00b7 scroll to zoom \u00b7 double-click to fit")
+    probe = wx.ToggleButton(parent, label="Probe", size=(64, 26))
+    probe.Bind(wx.EVT_TOGGLEBUTTON, lambda event: setattr(canvas, "probe_mode", event.IsChecked()))
+    row.Add(probe, 0, wx.RIGHT, 6)
+    clear = wx.Button(parent, label="Clear probes", size=(100, 26))
+    clear.Bind(wx.EVT_BUTTON, lambda _event: canvas.clear_probes())
+    row.Add(clear, 0, wx.RIGHT, 6)
+    hint = wx.StaticText(parent, label="Ctrl-click: probe Â· Drag to pan \u00b7 scroll to zoom \u00b7 double-click to fit")
     hint.Wrap(420)
     row.Add(hint, 0, wx.ALIGN_CENTER_VERTICAL)
     sizer.Add(row, 0, wx.ALIGN_RIGHT | wx.BOTTOM, 4)

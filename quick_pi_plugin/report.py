@@ -237,6 +237,7 @@ def write_report(path,bundle,layer=None):
     ratio_note=(scope+' ΔV/I is an apparent operating-point ratio at the specified load current, not resistance.'
                 if result.get('contains_forward_drop') else
                 scope+' resistance uses the solved voltage drop divided by load current.')
+    html+= '<h2>Interactive field probes</h2>'+interactive_fields(bundle,layer)
     html+='<table>'+table+'</table><p>'+ratio_note+' Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><h2>Three primary result plots</h2><section>'+''.join(images[:3])+'</section><details><summary>Additional potential, resistance, flow and pulse-risk plots</summary><section>'+''.join(images[3:])+'</section></details>'
     if result.get('negative_sink_voltage'):
         html+='<p><strong>Operating-point warning:</strong> The requested current makes sink voltage negative; check source voltage and load. The imposed-current path may be infeasible.</p>'
@@ -300,6 +301,9 @@ def write_sweep_report(path,bundle):
           +''.join(lines)+'</svg><p><span style="color:#b45134">■</span> Path drop · '
           '<span style="color:#17657c">■</span> Sink voltage</p>'
           '<table><tr><th>Current</th><th>Path drop</th><th>Sink voltage</th><th>Status</th></tr>'+table+'</table></html>')
+    from wayricad_runtime.interactive_plots import interactive_plot
+    samples=[[row['current_A'],row[key],row[key],key] for key in ('path_drop_V','sink_voltage_V') for row in rows]
+    html=html.replace('</html>',interactive_plot('DC current sweep',samples,'V',x_unit='A',y_unit='V',connect=True)+'</html>')
     path.write_text(html,encoding='utf-8')
     return {'html':str(path),'json':str(json_path)}
 
@@ -327,3 +331,21 @@ def write_diagnostic_report(path, bundle):
             row['level'], row['code'], row['layer'], position, row['detail'])) + '</tr>'
     path.write_text(html + '</table></html>', encoding='utf-8')
     return {'html': str(path), 'json': str(json_path)}
+
+
+def interactive_fields(bundle,layer):
+    """Offline cell probes using saved triangles; holes and unknowns stay gaps."""
+    import numpy as np
+    from wayricad_runtime.interactive_plots import interactive_plot
+    mesh=bundle['mesh'];result=bundle['result']
+    points=np.asarray(mesh['points_mm'])
+    indices=[i for i,v in enumerate(mesh['triangle_layer']) if str(v)==str(layer)]
+    triangles=np.asarray(mesh['triangles'],dtype=int)[indices]
+    polygons=points[triangles,:2].tolist()
+    centers=points[triangles,:2].mean(axis=1)
+    html=''
+    for metric in ('drop','density','loss'):
+        values=cell_values(mesh,result,metric)
+        rows=[[float(x),float(y),float(values[i]),'Cell '+str(i)] for (x,y),i in zip(centers,indices)]
+        html+=interactive_plot(METRICS[metric][0],rows,METRICS[metric][1],polygons=polygons)
+    return html

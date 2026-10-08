@@ -1,10 +1,37 @@
 # <img src="resources/icon-96.png" width="48" height="48" alt="QuickTherm icon"> WayriCAD QuickTherm
 
-QuickTherm is an independently installable KiCad PCB Editor plugin for read-only, steady-state thermal screening. It has its own PCM package, toolbar action, native window, icon, command-line interface and HTML/JSON export. It does not require Quick PI to be installed.
+QuickTherm is an independently installable KiCad PCB Editor plugin for read-only thermal screening with steady-state and scheduled spatial transient models. It has its own PCM package, toolbar action, native window, icon, command-line interface and HTML/JSON export. It does not require Quick PI to be installed.
 
-The separate `wayricad-therm-transient` command runs an explicitly parameterized, four-board lumped RC transient screen. It uses saved-board source hashes and KiCad reference checks, a declared fan P–Q/system operating point or prescribed-flow sensitivity case, explicit serial or parallel-passage airflow topology, optional package/body and isolated-sink paths, and ohmic R(T) loss feedback. The parallel model warms air from high X to low X within each board and retains a user-entered passage flow split; it is not CFD. See the [transient model guide](TRANSIENT_MODEL.md) for the input contract and limitations. This does not make the native board viewport a transient copper-field solver.
+The separate `wayricad-therm-transient` command runs an explicitly parameterized, four-board lumped RC transient screen. It uses saved-board source hashes and KiCad reference checks, a declared fan P–Q/system operating point or prescribed-flow sensitivity case, explicit serial or parallel-passage airflow topology, optional package/body and isolated-sink paths, and ohmic R(T) loss feedback. The parallel model warms air from high X to low X within each board and retains a user-entered passage flow split; it is not CFD. See the [transient model guide](TRANSIENT_MODEL.md) for the input contract and limitations. This lumped workflow remains separate from the spatial board transient described below.
 
 For the separate steady multilayer model, set `"source_refinement_factor": 2` inside `thermal_network_settings` to subdivide rectilinear cells near mapped footprint sources. A CLI JSON config can also include `"mesh_acceptance": {"grid_cells_long_axis": [24, 48, 80], "maximum_change_c": 0.1, "minimum_source_cells": 4}`. The solver repeats the same saved geometry on increasing grids and reports PASS/FAIL from the two finest component, source-peak, layer-peak and spatial-field temperatures, numerical balance and effective source-contact coverage. An optional phase-shifted solve exposes grid sensitivity. A failed or absent mesh gate must not be read as a converged local hotspot result. Source-aligned refinement is a rectilinear screening mesh; it does not resolve package-to-copper contact geometry or qualify physical hotspots.
+
+### Interactive views and time evolution
+
+Choose top, bottom or 3D board views. Drag to orbit a 3D view, Shift-drag to pan, and use the wheel or plot toolbar to zoom. Hover to inspect the local board temperature and component estimates; click to pin a probe. Select a component in the view or table to cross-highlight it. Changing the time frame updates the board field, component power, junction estimate and temperature-limit status together. Camera movements do not modify the PCB. The 3D overview is a temperature board representation, not an imported STEP assembly.
+
+The offline HTML report includes interactive board views, component temperature probes and time curves alongside printable snapshots. Unknown junction temperatures remain unknown without explicit RθJB; coordinate probes in other analysis tools do not imply a solved field. See [analysis interactions](../docs/ANALYSIS_INTERACTIONS.md).
+
+Air, vacuum, forced air, potting and sealed-enclosure modes are available. For **forced air**, enter the effective board/sink convection coefficients. **Vacuum** requires zero convection and an explicit radiation or fixture path. **Potting** needs conductivity, thickness and outer convection, and models their series thermal resistance. **Sealed** needs a fixed enclosure temperature and effective heat-transfer coefficient. Potting heat capacity and lateral spreading, enclosure heating and airflow fields are not solved.
+
+For a **spatial transient**, select the multilayer model, enter copper and dielectric volumetric heat capacities, initial temperature, duration and time step, then provide optional per-component power schedules. Schedule points are `[time_s, multiplier]`, linearly interpolated with held endpoints, applied to the entered dissipation. Heatsinks additionally need explicit heat capacities. Reduce the time step and compare results before relying on a peak; numerical stability is not convergence. The model excludes package die and plated-barrel thermal storage. Package junction values use an explicit, massless RθJB offset from the board contact temperature.
+
+A CLI JSON config accepts this top-level section together with the existing multilayer settings (the capacity values below are illustrative assumptions):
+
+```json
+{
+  "transient_settings": {
+    "duration_s": 60,
+    "timestep_s": 1,
+    "initial_c": 25,
+    "copper_volumetric_capacity_j_m3k": 3450000,
+    "dielectric_volumetric_capacity_j_m3k": 1800000,
+    "power_schedules": {"U1": [[0, 1], [30, 1], [31, 0], [60, 0]]}
+  }
+}
+```
+
+Run with `wayricad-therm C:/Projects/Example/board.kicad_pcb --config thermal.json --html thermal.html`. Use separate grid analyses for transient spatial refinement; the steady mesh-acceptance option cannot be combined with this transient section.
 
 Start with the [step-by-step user guide](QUICK_THERM_USER_GUIDE.md) or its [offline HTML version](QUICK_THERM_USER_GUIDE.html). The [model and limits](QUICK_THERM.md) explain the equations and supported evidence.
 
@@ -24,7 +51,7 @@ The **Open top + bottom workspace** button opens simultaneous front and mirrored
 
 The [component-results screenshot](examples/quicktherm-native-results.png) shows the sortable temperature table and summary in the same native window.
 
-Open a saved board in KiCad PCB Editor and launch **WayriCAD QuickTherm**. Choose only the dissipating components, review the ambient temperature, then use **Enter component inputs…** to supply power and the applicable thermal resistance for each selected part. No saved `Power_W` or `RthetaJA` fields are required for this path, and the PCB is not modified. If your board has complete thermal properties, switch to **Use saved footprint fields** and map them. Both paths show top and bottom views, contours, a 3D overview, a component temperature table, and cross-selection back to PCB Editor. Optional virtual heatsinks and board models include thin-sheet and layer-resolved copper/vertical-path approximations. The report records input provenance, assumptions, coverage and heat balance where applicable. The viewport board models remain steady-state; the separate transient CLI is a lumped RC screen, not CFD or a spatial transient copper-field solver.
+Open a saved board in KiCad PCB Editor and launch **WayriCAD QuickTherm**. Choose only the dissipating components, review the ambient temperature, then use **Enter component inputs…** to supply power and the applicable thermal resistance for each selected part. No saved `Power_W` or `RthetaJA` fields are required for this path, and the PCB is not modified. If your board has complete thermal properties, switch to **Use saved footprint fields** and map them. Both paths show top and bottom views, contours, a 3D overview, a component temperature table, and cross-selection back to PCB Editor. Optional virtual heatsinks and board models include thin-sheet and layer-resolved copper/vertical-path approximations. The report records input provenance, assumptions, coverage and heat balance where applicable. The multilayer viewport also supports explicitly parameterized spatial time evolution. The separate four-board transient CLI remains a lumped RC screen; neither model is CFD.
 
 For automation, install the source wheel and use `wayricad-therm`:
 

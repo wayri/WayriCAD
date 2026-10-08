@@ -28,23 +28,47 @@ def copper_layer(index,count):
 class MagneticPreview(wx.Panel):
     def __init__(self,parent):
         super().__init__(parent,style=wx.BORDER_SIMPLE);self.SetMinSize((-1,330));self.SetBackgroundStyle(wx.BG_STYLE_PAINT);self.result=None;self.zoom=1.0;self.phase=0.0;self.animate=False;self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_MOUSEWHEEL,self.wheel);self.timer=wx.Timer(self);self.Bind(wx.EVT_TIMER,self.tick,self.timer);self.Bind(wx.EVT_SIZE,self._on_size);self.Bind(wx.EVT_ERASE_BACKGROUND,self._on_erase)
-        self.pan=(0,0);self.drag=None
+        self.pan=(0,0);self.drag=None;self.hover=None;self.probes=[];self._probe_start=None;self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
         self.Bind(wx.EVT_LEFT_DOWN,self.pan_start);self.Bind(wx.EVT_LEFT_UP,self.pan_end)
         self.Bind(wx.EVT_MOTION,self.pan_move);self.Bind(wx.EVT_LEFT_DCLICK,self.fit)
         self.Bind(wx.EVT_MOUSE_CAPTURE_LOST,lambda event:setattr(self,'drag',None))
-    def pan_start(self,event):self.drag=event.GetPosition();self.CaptureMouse()
+        self.Bind(wx.EVT_RIGHT_UP,self.clear_probes)
+    def pan_start(self,event):
+        if event.ControlDown():self._probe_start=event.GetPosition();self.CaptureMouse();return
+        self.drag=event.GetPosition();self.CaptureMouse()
     def pan_end(self,event):
+        if self._probe_start is not None:
+            point=event.GetPosition();start=self._probe_start;self._probe_start=None
+            if math.hypot(point.x-start.x,point.y-start.y)<4:
+                xy=self.world_point(point)
+                if xy is not None:self.probes.append(xy)
+            self._repaint()
         self.drag=None
         if self.HasCapture():self.ReleaseMouse()
     def pan_move(self,event):
+        self.hover=self.world_point(event.GetPosition());self.Refresh()
         if self.drag is not None and event.Dragging():
             point=event.GetPosition();self.pan=(self.pan[0]+point.x-self.drag.x,self.pan[1]+point.y-self.drag.y);self.drag=point;self._repaint()
     def fit(self,event=None):self.zoom=1.;self.pan=(0,0);self._repaint()
     def _on_size(self,event):self._repaint();event.Skip()
     def _on_erase(self,_event):pass
     def _repaint(self):self.Refresh();self.Update()
-    def show_result(self,result):self.result=result;self._repaint()
+    def show_result(self,result):self.probes=[];self.hover=None;self.result=result;self._repaint()
     def wheel(self,e):self.zoom=max(.5,min(5,self.zoom*(1.12 if e.GetWheelRotation()>0 else .89)));self._repaint()
+    def world_point(self,point):
+        """Geometry coordinate only; animation contours are not a field mesh."""
+        if not self.result:return None
+        w,h=self.GetClientSize();spec=self.result.spec
+        scale=min((w-70)/spec.outer_width_mm,(h-70)/spec.outer_height_mm)*self.zoom
+        if scale<=0:return None
+        ox=(w-spec.outer_width_mm*scale)/2+self.pan[0];oy=(h-spec.outer_height_mm*scale)/2+self.pan[1]
+        x=(point.x-ox)/scale;y=spec.outer_height_mm-(point.y-oy)/scale
+        if not (0<=x<=spec.outer_width_mm and 0<=y<=spec.outer_height_mm):return None
+        return (x,y)
+
+    def clear_probes(self,event):
+        if event.ControlDown():self.probes=[];self._repaint()
+
     def set_animation(self,enabled):
         self.animate=enabled
         if enabled:self.timer.Start(45)
@@ -73,27 +97,57 @@ class MagneticPreview(wx.Panel):
         dc.SetTextForeground("#263744");dc.DrawText(f"{self.result.inductance_uh:.2f} uH | {self.result.resistance_ac_ohm:.3f} ohm AC | Q {self.result.quality_factor:.1f} | {self.result.field_center_mt:.2f} mT | Wheel: zoom · Drag: pan · Double-click: fit",12,10)
 
 
+        if self.hover:
+            dc.DrawText(f'X {self.hover[0]:.6g}, Y {self.hover[1]:.6g} mm · Geometry only · Ctrl-click: pin',12,h-22)
+            px,py=project(*self.hover);dc.SetPen(wx.Pen('#8194a1',1,wx.PENSTYLE_DOT));dc.DrawLine(px,30,px,h-25);dc.DrawLine(12,py,w-12,py)
+        for index,xy in enumerate(self.probes):
+            px,py=project(*xy);dc.SetPen(wx.Pen('#173745',1));dc.SetBrush(wx.TRANSPARENT_BRUSH);dc.DrawCircle(px,py,4)
+            dc.DrawText(f'P{index+1}: {xy[0]:.5g}, {xy[1]:.5g} mm',px+6,py-16)
+
+
 class MotionPlot(wx.Panel):
     COLORS=("#237c73","#d15b45","#5577aa","#8d62a8")
     def __init__(self,parent):
-        super().__init__(parent,style=wx.BORDER_SIMPLE);self.SetMinSize((-1,280));self.SetBackgroundStyle(wx.BG_STYLE_PAINT);self.dynamics=None;self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_SIZE,self._on_size);self.Bind(wx.EVT_ERASE_BACKGROUND,self._on_erase)
+        super().__init__(parent,style=wx.BORDER_SIMPLE);self.SetMinSize((-1,280));self.SetBackgroundStyle(wx.BG_STYLE_PAINT);self.dynamics=None;self.hover=None;self.probes=[];self._samples=[];self._cursor=None;self.SetCursor(wx.Cursor(wx.CURSOR_CROSS));self.Bind(wx.EVT_MOTION,self.motion);self.Bind(wx.EVT_LEFT_UP,self.pin);self.Bind(wx.EVT_RIGHT_UP,self.clear_probes);self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_SIZE,self._on_size);self.Bind(wx.EVT_ERASE_BACKGROUND,self._on_erase)
     def _on_size(self,event):self.Refresh();self.Update();event.Skip()
     def _on_erase(self,_event):pass
-    def show(self,dynamics):self.dynamics=dynamics;self.Refresh();self.Update()
+    def show(self,dynamics):self.probes=[];self.hover=None;self.dynamics=dynamics;self.Refresh();self.Update()
+    def motion(self,event):
+        self._cursor=event.GetPosition();p=self._cursor
+        candidates=[(math.hypot(p.x-row[0],p.y-row[1]),row) for row in self._samples]
+        best=min(candidates,key=lambda v:v[0]) if candidates else None
+        self.hover=best[1] if best and best[0]<12 else None;self.Refresh()
+
+    def pin(self,event):
+        if event.ControlDown() and self.hover:self.probes.append(self.hover[2:]);self.Refresh()
+
+    def clear_probes(self,event):
+        if event.ControlDown():self.probes=[];self.Refresh()
+
     def paint(self,_event):
         dc=wx.AutoBufferedPaintDC(self);bg=wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW);fg=wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT);dc.SetBackground(wx.Brush(bg));dc.Clear();w,h=self.GetClientSize()
         if not self.dynamics or not self.dynamics.samples:dc.SetTextForeground(fg);dc.DrawLabel("Run the coupled simulation to view position, speed, acceleration, and force.",wx.Rect(8,8,w-16,h-16),wx.ALIGN_CENTER);return
         samples=self.dynamics.samples;left,right,top,bottom=62,18,32,30;plot_w=max(1,w-left-right);lane_h=max(38,(h-top-bottom)//4)
-        series=(("Position",lambda s:s.displacement_m,"m"),("Speed",lambda s:s.velocity_m_s,"m/s"),("Acceleration",lambda s:s.acceleration_m_s2,"m/s2"),("Force / torque",lambda s:s.force_n,"N or N m"))
+        self._samples=[];self._probe_positions={}
+        rotary=self.dynamics.mode=="Rotary"
+        series=(("Angle" if rotary else "Position",lambda s:s.displacement_m,"rad" if rotary else "m"),("Angular speed" if rotary else "Speed",lambda s:s.velocity_m_s,"rad/s" if rotary else "m/s"),("Angular acceleration" if rotary else "Acceleration",lambda s:s.acceleration_m_s2,"rad/s²" if rotary else "m/s²"),("Torque" if rotary else "Force",lambda s:s.force_n,"N m" if rotary else "N"))
         tmax=max(samples[-1].time_s,1e-15);dc.SetTextForeground(fg)
         for lane,(label,getter,unit) in enumerate(series):
             y0=top+lane*lane_h;values=[getter(s) for s in samples];peak=max(max(abs(v) for v in values),1e-30)
             dc.SetPen(wx.Pen("#9aa7b2",1));dc.DrawLine(left,y0+lane_h//2,w-right,y0+lane_h//2)
             dc.DrawText(f"{label}\n{peak:.3g} {unit}",4,y0+3);points=[]
             for sample,value in zip(samples,values):
-                x=left+sample.time_s/tmax*plot_w;y=y0+lane_h/2-value/peak*(lane_h*.38);points.append(wx.Point(int(x),int(y)))
+                x=left+sample.time_s/tmax*plot_w;y=y0+lane_h/2-value/peak*(lane_h*.38);points.append(wx.Point(int(x),int(y)));self._samples.append((x,y,lane,sample.time_s,value,label,unit));self._probe_positions[(lane,sample.time_s)]=(x,y)
             dc.SetPen(wx.Pen(self.COLORS[lane],2))
             if len(points)>1:dc.DrawLines(points)
+        if self._cursor:
+            dc.SetPen(wx.Pen('#8194a1',1,wx.PENSTYLE_DOT));dc.DrawLine(self._cursor.x,top,self._cursor.x,h-bottom)
+        if self.hover:
+            _,_,lane,time,value,label,unit=self.hover
+            dc.DrawText(f'{label} at {time:.7g} s: {value:.7g} {unit} · Ctrl-click: pin',left,8)
+        for index,(lane,time,value,label,unit) in enumerate(self.probes):
+            x,y=self._probe_positions[(lane,time)];dc.SetPen(wx.Pen('#173745',1));dc.SetBrush(wx.TRANSPARENT_BRUSH);dc.DrawCircle(int(x),int(y),4)
+            dc.DrawText(f'P{index+1}: {time:.5g} s, {value:.5g} {unit}',int(x+6),int(y-16))
         dc.DrawText(f"0 s",left,h-22);dc.DrawText(f"{tmax:.4g} s",max(left,w-right-75),h-22)
 
 

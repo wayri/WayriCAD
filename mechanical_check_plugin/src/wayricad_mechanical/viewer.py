@@ -1,5 +1,6 @@
 """Hardware-accelerated native conflict explorer with exact contact overlays."""
 import math
+import time
 import wx
 from wx import glcanvas
 from OpenGL import GL as gl
@@ -21,6 +22,8 @@ class Scene(glcanvas.GLCanvas):
         self.isolate=True;self.ghost=True;self.section=False
         self.section_normal=[0,1,0];self.section_offset=0.0
         self.lists={};self.initialized=False
+        self.hover_hit=None;self.probes=[];self.on_pick=None;self.click_start=None;self.last_hover=0
+        self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
         self.Bind(wx.EVT_PAINT,self.paint)
         self.Bind(wx.EVT_SIZE,lambda e:self.Refresh())
         self.Bind(wx.EVT_LEFT_DOWN,self.down);self.Bind(wx.EVT_RIGHT_DOWN,self.down)
@@ -28,7 +31,7 @@ class Scene(glcanvas.GLCanvas):
         self.Bind(wx.EVT_MOTION,self.motion);self.Bind(wx.EVT_MOUSEWHEEL,self.wheel)
         self.Bind(wx.EVT_MOUSE_CAPTURE_LOST,lambda e:setattr(self,'drag',None))
         self.Bind(wx.EVT_WINDOW_DESTROY,self.dispose)
-        self.SetToolTip('Drag to orbit · Right-drag to pan · Wheel to zoom.\nRed shows the intersecting volume in X-ray; grey shows actual STEP surfaces.')
+        self.SetToolTip('Drag to orbit Â· Right-drag to pan Â· Wheel to zoom.\nRed shows the intersecting volume in X-ray; grey shows actual STEP surfaces.')
 
     def dispose(self,event):
         if event.GetEventObject() is self and self.initialized:
@@ -41,7 +44,7 @@ class Scene(glcanvas.GLCanvas):
         if self.initialized:
             self.SetCurrent(self.context)
             for display in self.lists.values():gl.glDeleteLists(display,1)
-        self.lists={};self.bodies=report['bodies'];self.issue=None;self.fit()
+        self.lists={};self.bodies=report['bodies'];self.issue=None;self.probes=[];self.hover_hit=None;self.fit()
 
     def select(self,issue):
         self.issue=issue;self.fit(issue['refs'])
@@ -70,15 +73,52 @@ class Scene(glcanvas.GLCanvas):
         self.zoom=1.4;self.Refresh()
 
     def down(self,event):
+        self.click_start=tuple(event.GetPosition())
         self.drag=(event.GetPosition(),event.RightDown() or event.ShiftDown())
         if not self.HasCapture():self.CaptureMouse()
 
     def up(self,event):
+        moved=math.dist(tuple(event.GetPosition()),self.click_start) if self.click_start else math.inf
+        if event.LeftUp() and moved<4:
+            hit=self.pick(event.GetPosition())
+            if hit:
+                if event.ControlDown():self.probes.append(hit)
+                else:
+                    self.refs={hit['reference']}
+                    if callable(self.on_pick):self.on_pick(hit)
+                self.Refresh()
+        self.click_start=None
         self.drag=None
         if self.HasCapture():self.ReleaseMouse()
 
+    def pick(self, position):
+        if not self.initialized:return None
+        from wayricad_runtime.picking import pick_meshes
+        self.SetCurrent(self.context)
+        factor=self.GetContentScaleFactor()
+        x,y=position.x*factor,(self.GetClientSize().height-position.y)*factor
+        model=gl.glGetDoublev(gl.GL_MODELVIEW_MATRIX)
+        projection=gl.glGetDoublev(gl.GL_PROJECTION_MATRIX)
+        viewport=gl.glGetIntegerv(gl.GL_VIEWPORT)
+        a=glu.gluUnProject(x,y,0,model,projection,viewport)
+        b=glu.gluUnProject(x,y,1,model,projection,viewport)
+        visible=[body for body in self.bodies if not self.refs or not self.isolate or body['ref'] in self.refs or body['kind'] in ('board','comparison_board')]
+        accept=None
+        if self.section:
+            origin=(self.issue or {}).get('section_origin',self.center)
+            offset=sum(n*v for n,v in zip(self.section_normal,origin))+self.section_offset
+            accept=lambda point:sum(n*v for n,v in zip(self.section_normal,point))>=offset-1e-9
+        return pick_meshes(a,[end-start for start,end in zip(a,b)],visible,accept_hit=accept)
+
     def motion(self,event):
-        if self.drag is None:return
+        if self.drag is None:
+            if time.monotonic()-self.last_hover>.1:
+                self.last_hover=time.monotonic();self.hover_hit=self.pick(event.GetPosition())
+                if self.hover_hit:
+                    point=self.hover_hit['position']
+                    self.SetToolTip(f"{self.hover_hit['reference']} · {point[0]:.3f}, {point[1]:.3f}, {point[2]:.3f} mm · Ctrl-click: probe")
+                self.Refresh(False)
+            return
         previous,pan=self.drag;pos=event.GetPosition();dx,dy=pos.x-previous.x,pos.y-previous.y
         if pan:
             amount=self.span/max(self.GetClientSize().height,1)/self.zoom
@@ -174,4 +214,10 @@ class Scene(glcanvas.GLCanvas):
                 gl.glEnd();gl.glPointSize(8);gl.glBegin(gl.GL_POINTS)
                 for point in points[0]:gl.glVertex3f(*point)
                 gl.glEnd();gl.glEnable(gl.GL_DEPTH_TEST)
+        markers=[*self.probes,*([self.hover_hit] if self.hover_hit else [])]
+        if markers:
+            gl.glDisable(gl.GL_LIGHTING);gl.glDisable(gl.GL_DEPTH_TEST)
+            gl.glColor3f(.95,.2,.48);gl.glPointSize(8);gl.glBegin(gl.GL_POINTS)
+            for marker in markers:gl.glVertex3f(*marker['position'])
+            gl.glEnd();gl.glEnable(gl.GL_DEPTH_TEST)
         gl.glFlush();self.SwapBuffers()

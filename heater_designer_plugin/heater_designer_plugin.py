@@ -42,6 +42,7 @@ class HeaterPreview(wx.Panel):
         self.zone_drag = None; self.on_add_zone = on_add_zone
         self.on_add_path_point = on_add_path_point; self.draw_path = False
         self.canvas_spec = None; self.draft_points_percent = ()
+        self.hover=None;self.probes=[];self._probe_start=None;self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
         self.Bind(wx.EVT_PAINT,self.paint); self.Bind(wx.EVT_MOUSEWHEEL,self.wheel)
         self.Bind(wx.EVT_LEFT_DOWN, self.pan_start); self.Bind(wx.EVT_LEFT_UP, self.pan_end)
         self.Bind(wx.EVT_MOTION, self.pan_move); self.Bind(wx.EVT_LEFT_DCLICK, self.fit)
@@ -53,23 +54,32 @@ class HeaterPreview(wx.Panel):
 
     def _repaint(self):self.Refresh();self.Update()
     def show_pattern(self,result):
-        self.heater=result;self.canvas_spec=result.spec;self.thermal=None;self.mode="pattern";self.draft_points_percent=();self._repaint()
+        self.probes=[];self.hover=None;self.heater=result;self.canvas_spec=result.spec;self.thermal=None;self.mode="pattern";self.draft_points_percent=();self._repaint()
     def show_thermal(self,result):
-        self.heater=result.heater;self.canvas_spec=result.heater.spec;self.thermal=result;self.mode="thermal";self._repaint()
+        self.probes=[];self.hover=None;self.heater=result.heater;self.canvas_spec=result.heater.spec;self.thermal=result;self.mode="thermal";self._repaint()
     def show_draft(self,spec):
-        self.heater=None;self.canvas_spec=spec;self.thermal=None;self.mode="draft"
+        self.probes=[];self.hover=None;self.heater=None;self.canvas_spec=spec;self.thermal=None;self.mode="draft"
         self.draft_points_percent=spec.organic_points_percent;self._repaint()
     def wheel(self,event): self.zoom=max(0.5,min(5.0,self.zoom*(1.12 if event.GetWheelRotation()>0 else 0.89)));self._repaint()
     def pan_start(self,event):
+        if event.ControlDown():
+            self._probe_start=event.GetPosition();self.CaptureMouse();return
         if self.draw_path and self.on_add_path_point:
             xy=self.path_point_from_click(event.GetPosition(),*self.GetClientSize())
             if xy is not None:self.on_add_path_point(xy)
             return
         self.drag=event.GetPosition();self.CaptureMouse()
     def pan_end(self,event):
+        if self._probe_start is not None:
+            p=event.GetPosition();start=self._probe_start;self._probe_start=None
+            if ((p.x-start.x)**2+(p.y-start.y)**2)**.5<4:
+                row=self.probe_at(p,*self.GetClientSize())
+                if row is not None:self.probes.append(row)
+            self._repaint()
         self.drag=None
         if self.HasCapture():self.ReleaseMouse()
     def pan_move(self,event):
+        self.hover=self.probe_at(event.GetPosition(),*self.GetClientSize());self.Refresh()
         if self.drag is not None and event.Dragging():
             point=event.GetPosition();self.pan=(self.pan[0]+point.x-self.drag.x,self.pan[1]+point.y-self.drag.y);self.drag=point;self._repaint()
         if self.zone_drag is not None and event.RightIsDown():
@@ -80,6 +90,26 @@ class HeaterPreview(wx.Panel):
         spec=self.heater.spec if self.heater else self.canvas_spec
         scale=min((width-64)/spec.width_mm,(height-64)/spec.height_mm)*self.zoom
         return scale,(width-spec.width_mm*scale)/2+self.pan[0],(height-spec.height_mm*scale)/2+self.pan[1]
+
+    def probe_at(self,point,width,height):
+        """Return heater XY and its exact thermal cell, without interpolation."""
+        if not (self.heater or self.canvas_spec):return None
+        spec=self.heater.spec if self.heater else self.canvas_spec
+        scale,ox,oy=self._transform(width,height)
+        if scale<=0:return None
+        x=(point.x-ox)/scale;y=spec.height_mm-(point.y-oy)/scale
+        if not (0<=x<=spec.width_mm and 0<=y<=spec.height_mm):return None
+        temperature=None;cell=None
+        if self.mode=='thermal' and self.thermal:
+            grid=self.thermal.temperatures_c;ny=len(grid);nx=len(grid[0])
+            ix=min(nx-1,int(x/spec.width_mm*nx));iy=min(ny-1,int(y/spec.height_mm*ny))
+            temperature=grid[iy][ix];cell=(ix,iy)
+        return (x,y,temperature,cell)
+
+    @staticmethod
+    def probe_label(row):
+        x,y,t,cell=row
+        return f'X {x:.5g}, Y {y:.5g} mm'+(f' | Cell {cell}: {t:.6g}°C' if t is not None else ' | Geometry only')
 
     def path_point_from_click(self, point, width, height):
         if not (self.heater or self.canvas_spec):return None
@@ -92,6 +122,7 @@ class HeaterPreview(wx.Panel):
         return round(100*x/spec.width_mm,2),round(100*y/spec.height_mm,2)
 
     def zone_start(self,event):
+        if event.ControlDown():self.probes=[];self._repaint();return
         if self.heater is None or self.on_add_zone is None:return
         point=event.GetPosition();self.zone_drag=(point,point)
         self.CaptureMouse()
@@ -141,6 +172,7 @@ class HeaterPreview(wx.Panel):
             dc.DrawCircle(*project(cx,cy),round(radius*scale))
             if spec.pattern=='Annular arc meander':dc.DrawCircle(*project(cx,cy),round(spec.inner_diameter_mm/2*scale))
         if self.mode=="draft":
+            self._draw_probes(dc,project,w,h)
             points=[project(spec.width_mm*x/100,spec.height_mm*y/100)
                     for x,y in self.draft_points_percent]
             dc.SetPen(wx.Pen("#d77b19",2,wx.PENSTYLE_DOT))
@@ -198,7 +230,18 @@ class HeaterPreview(wx.Panel):
         dc.SetTextForeground("#263744");dc.DrawText(label,12,10)
         if self.thermal and spec.gradient_axis!="Uniform":
             dc.DrawText(f"{spec.gradient_axis} heat bias ×{spec.gradient_ratio:.3f} · estimated hot−cool {self.thermal.gradient_delta_c:+.1f}°C",12,29)
+        self._draw_probes(dc,project,w,h)
         dc.DrawText(f"{spec.width_mm:g} mm × {spec.height_mm:g} mm · {spec.pattern} · {spec.layers} layer(s) · right-drag: add region",12,h-22)
+
+
+    def _draw_probes(self,dc,project,width,height):
+        dc.SetTextForeground('#1a303f')
+        if self.hover:
+            dc.DrawText(self.probe_label(self.hover)+' · Ctrl-click: pin; Ctrl-right-click: clear',12,height-42)
+            px,py=project(*self.hover[:2]);dc.SetPen(wx.Pen('#8396a4',1,wx.PENSTYLE_DOT));dc.DrawLine(px,25,px,height-45);dc.DrawLine(12,py,width-12,py)
+        for index,row in enumerate(self.probes):
+            px,py=project(*row[:2]);dc.SetPen(wx.Pen('#173745',1));dc.SetBrush(wx.TRANSPARENT_BRUSH);dc.DrawCircle(px,py,4)
+            dc.DrawText(f'P{index+1}: '+self.probe_label(row),px+6,py-16)
 
 
 class HeaterDesignerPlugin(pcbnew.ActionPlugin):

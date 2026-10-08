@@ -66,7 +66,7 @@ class TraceFrame(wx.Frame):
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
         self.workflow = add_workflow(panel, root, "Trace RLC / Impedance Analyzer", "Choose a route and stackup context, preview measured geometry, then export the engineering estimate.", ("Configure path", "Review result", "Export"))
         if self.saved_board:
-            banner = wx.StaticText(panel, label="Saved board analysis — save/refill in KiCad and reopen to refresh.")
+            banner = wx.StaticText(panel, label="Saved board analysis â€” save/refill in KiCad and reopen to refresh.")
             root.Add(banner, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         config_box = wx.BoxSizer(wx.VERTICAL)
         config = wx.FlexGridSizer(0, 4, 6, 8)
@@ -87,6 +87,10 @@ class TraceFrame(wx.Frame):
         config.AddGrowableCol(1, 1)
         config.AddGrowableCol(3, 1)
         config_box.Add(config, 0, wx.EXPAND | wx.ALL, 4)
+        self.net_search = wx.SearchCtrl(panel, style=wx.TE_PROCESS_ENTER)
+        self.net_search.SetDescriptiveText("Search nets by name; clear to show all")
+        self.net_search.Bind(wx.EVT_TEXT, self._filter_nets)
+        config_box.Add(self.net_search, 0, wx.EXPAND | wx.ALL, 4)
         self.options = wx.CollapsiblePane(panel, label="Reference and pair options", style=wx.CP_DEFAULT_STYLE | wx.CP_NO_TLW_RESIZE)
         options_panel = self.options.GetPane()
         self.diff_net.Reparent(options_panel)
@@ -165,7 +169,7 @@ class TraceFrame(wx.Frame):
         result_sizer.Add(self.table, 1, wx.EXPAND | wx.ALL, 6)
         self.sections = wx.ListCtrl(preview_page, style=wx.LC_REPORT)
         self.sections.SetMinSize((-1, 100))
-        for index, label in enumerate(("Section", "Layer / transition", "Reference", "Length mm", "R DC Ω", "R AC Ω", "L nH", "C pF", "Z₀ Ω")):
+        for index, label in enumerate(("Section", "Layer / transition", "Reference", "Length mm", "R DC Î©", "R AC Î©", "L nH", "C pF", "Zâ‚€ Î©")):
             self.sections.InsertColumn(index, label, width=135 if index < 3 else 88)
         preview_sizer.Add(self.sections, 1, wx.EXPAND | wx.ALL, 6)
         self.sections.Bind(wx.EVT_LIST_ITEM_SELECTED,self._section_selected)
@@ -213,7 +217,9 @@ class TraceFrame(wx.Frame):
         if self.mode.GetSelection() == 1:
             pads = self.engine.zone_terminals(self.zone_options[index]['id']) if index != wx.NOT_FOUND else []
         else:
-            pads = self.engine.pads_for_net(self.net.GetValue())
+            self.measure_button.Enable(bool(self.net.GetValue()))
+        self.route_preview.clear_probes()
+        pads = self.engine.pads_for_net(self.net.GetValue())
         previous = (self.start.GetValue(), self.end.GetValue())
         self.start.Clear(); self.end.Clear()
         self.start.AppendItems(pads); self.end.AppendItems(pads)
@@ -250,8 +256,27 @@ class TraceFrame(wx.Frame):
 
     def _load_nets(self) -> None:
         names = self.engine.net_names()
+        self.all_net_names = names
         self.net.AppendItems(names); self.diff_net.Append("<none>"); self.diff_net.AppendItems(names)
         if names: self.net.SetSelection(0); self._load_pads(None)
+
+    def _filter_nets(self, _event=None) -> None:
+        current = self.net.GetValue()
+        query = self.net_search.GetValue().casefold().strip()
+        names = [name for name in self.all_net_names if query in name.casefold()]
+        self.net.Clear()
+        self.net.AppendItems(names)
+        if current in names:
+            self.net.SetSelection(names.index(current))
+        elif names:
+            self.net.SetSelection(0)
+            self._load_pads(None)
+        else:
+            self.start.Clear()
+            self.end.Clear()
+            self.zone_layer.Clear()
+            self._invalidate(None)
+            self.measure_button.Disable()
 
     def _load_stackup(self, _event: Any = None) -> None:
         previous_reference = self.reference.GetValue()
@@ -274,7 +299,7 @@ class TraceFrame(wx.Frame):
             for column, value in enumerate(values, 1):
                 self.stackup_list.SetItem(index, column, str(value))
         grounds = self.engine.ground_nets()
-        self.summary.SetLabel(f"{len(reference_names)} copper layers · Ground candidates: {', '.join(grounds) or 'none detected'} · Reference: {self.reference.GetValue()}")
+        self.summary.SetLabel(f"{len(reference_names)} copper layers Â· Ground candidates: {', '.join(grounds) or 'none detected'} Â· Reference: {self.reference.GetValue()}")
 
     def _load_pads(self, _event: Any) -> None:
         pads = self.engine.pads_for_net(self.net.GetValue())
@@ -282,7 +307,7 @@ class TraceFrame(wx.Frame):
         if pads: self.start.SetSelection(0); self.end.SetSelection(len(pads) - 1)
         self.zone_options = sorted(self.engine.zone_options(self.net.GetValue()), key=lambda row: row['area_mm2'], reverse=True)
         self.zone_layer.Clear()
-        self.zone_layer.AppendItems([f"{row['layer']} · island {row['island'] + 1} · {row['area_mm2']:.2f} mm²" for row in self.zone_options])
+        self.zone_layer.AppendItems([f"{row['layer']} Â· island {row['island'] + 1} Â· {row['area_mm2']:.2f} mmÂ²" for row in self.zone_options])
         if self.zone_options:
             self.zone_layer.SetSelection(0)
         self._zone_changed(None)
@@ -341,12 +366,19 @@ class TraceFrame(wx.Frame):
                     self.sections.Select(index);self.sections.EnsureVisible(index)
                     break
             return
-        if self.saved_board:
-            return
         if not isinstance(data, tuple) or len(data) < 2:
             return
         kind, net, _layer = (list(data) + ["", ""])[:3]
         if kind != "net" or not net:
+            return
+        if net in self.all_net_names:
+            self.net_search.ChangeValue("")
+            self.net.Clear()
+            self.net.AppendItems(self.all_net_names)
+            self.net.SetSelection(self.all_net_names.index(net))
+            self._load_pads(None)
+        if self.saved_board:
+            self.summary.SetLabel(f"Selected {net} as the analysis input.")
             return
         items = [item for item in getattr(self.board, "GetTracks", lambda: [])() if str(getattr(item, "GetNetname", lambda: "")()) == net]
         pcb_select_items(items + pads_on_net(self.board, net))
@@ -357,7 +389,7 @@ class TraceFrame(wx.Frame):
         if self.current is None or event.GetIndex()>=len(self.current.segments):return
         section=self.current.segments[event.GetIndex()]
         self.route_preview.selected_uuid=section.get('item_uuid');self.route_preview.Refresh()
-        self.summary.SetLabel(f"{section['kind']} on {section['layer']} · {section.get('length_mm',0):.3f} mm · R DC {section.get('resistance_ohm',0):.5g} Ω · R AC {section.get('resistance_ac_ohm',0):.5g} Ω · {section.get('model','Model unresolved')}")
+        self.summary.SetLabel(f"{section['kind']} on {section['layer']} Â· {section.get('length_mm',0):.3f} mm Â· R DC {section.get('resistance_ohm',0):.5g} Î© Â· R AC {section.get('resistance_ac_ohm',0):.5g} Î© Â· {section.get('model','Model unresolved')}")
         self.summary.Wrap(max(500,self.GetClientSize().width-35))
 
     def highlight_net(self, _event: Any = None) -> None:
@@ -398,7 +430,7 @@ class TraceFrame(wx.Frame):
             index = self.table.InsertItem(self.table.GetItemCount(), key); self.table.SetItem(index, 1, str(value))
         self.notes.SetValue("\n".join(result.notes))
         status = getattr(result, "status", "partial")
-        self.summary.SetLabel(f"{result.net_name} · {status.upper()} · {result.length_mm:.3f} mm · {result.via_count} vias · {result.layer_changes} layer changes · reference {result.reference_layer or 'unavailable'}")
+        self.summary.SetLabel(f"{result.net_name} Â· {status.upper()} Â· {result.length_mm:.3f} mm Â· {result.via_count} vias Â· {result.layer_changes} layer changes Â· reference {result.reference_layer or 'unavailable'}")
         self.summary.Wrap(max(500, self.GetClientSize().width - 35))
         self.sections.DeleteAllItems()
         for section in getattr(result, "segments", []):
@@ -415,7 +447,7 @@ class TraceFrame(wx.Frame):
                 ("Differential mate", f"{self.mate_result.net_name} ({self.mate_result.length_mm:.3f} mm)"),
                 ("Intra-pair skew", f"{skew_mm:.4f} mm"),
                 ("Skew scope", "Measured selected terminal paths; check timing budget and pair endpoint mapping."),
-                ("Differential impedance", "Unresolved — coupled P/N field model is not available."),
+                ("Differential impedance", "Unresolved â€” coupled P/N field model is not available."),
             )
             for key, value in extra:
                 index = self.table.InsertItem(self.table.GetItemCount(), key); self.table.SetItem(index, 1, str(value))
@@ -429,10 +461,10 @@ class TraceFrame(wx.Frame):
     def _section_values(section: dict) -> list[str]:
         def number(key):
             value = section.get(key)
-            return "—" if value is None else f"{value:.5g}" if isinstance(value, (float, int)) else str(value)
-        layer = str(section.get("layer", "—"))
+            return "â€”" if value is None else f"{value:.5g}" if isinstance(value, (float, int)) else str(value)
+        layer = str(section.get("layer", "â€”"))
         if section.get("end_layer") and section["end_layer"] != layer:
-            layer += " → " + str(section["end_layer"])
+            layer += " â†’ " + str(section["end_layer"])
         reference = " / ".join(str(section[key]) for key in ("reference_net", "reference_layer") if section.get(key)) or "Unavailable"
         return [str(section.get("kind", "section")), layer, reference, *[number(key) for key in ("length_mm", "resistance_ohm", "resistance_ac_ohm", "inductance_nh", "capacitance_pf", "impedance_ohm")]]
 
@@ -543,7 +575,7 @@ class RoutePreview(PanZoomCanvas):
         self.colour_mode=mode
         maximum=self.metric_max.get('resistance_ohm' if mode==1 else 'resistance_ac_ohm',0)
         self.set_legend([(colour,layer) for layer,colour in self.colours.items()] if mode==0 else
-            [('#b34c39',f'{maximum:.4g} Ω / item'),('#298fac','0 Ω / item')] if mode in (1,2) else
+            [('#b34c39',f'{maximum:.4g} Î© / item'),('#298fac','0 Î© / item')] if mode in (1,2) else
             [('#25855e','Modeled line'),('#c39236','Partial / unresolved')])
         self.Refresh()
 

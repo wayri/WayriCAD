@@ -20,7 +20,10 @@ class QuickSIPanel(wx.Panel):
             return control
         self.engine=TraceMeasurementEngine(board)
         nets=self.engine.net_names()
-        row('net','Net',choices=nets);row('start','Source pad',choices=[]);row('end','Receiver pad',choices=[])
+        row('net','Net',choices=nets);self._net_names=nets
+        self.net_search=wx.SearchCtrl(left);self.net_search.SetHint('Search net names');form.Add(self.net_search,0,wx.EXPAND|wx.TOP,5);self.net_search.Bind(wx.EVT_TEXT,self.filter_nets)
+        pick=wx.Button(left,label='Select net on board');form.Add(pick,0,wx.EXPAND|wx.TOP,5);pick.Bind(wx.EVT_BUTTON,self.select_board_net)
+        row('start','Source pad',choices=[]);row('end','Receiver pad',choices=[])
         row('rise_ns','Driver rise time (ns)','1');row('source_ohm','Driver resistance (ohm)','20')
         pane=wx.CollapsiblePane(left,label='Line and load assumptions');details=wx.BoxSizer(wx.VERTICAL);host=pane.GetPane()
         for name,label,value in [('frequency_mhz','Frequency (MHz)','100'),('load_ohm','Load resistance (ohm; blank = open)',''),('z0_ohm','Assumed uniform Z0 (ohm; blank = geometry)',''),('epsilon_eff','Assumed effective Er (blank = stackup)','')]:row(name,label,value,parent=host,sizer=details)
@@ -61,6 +64,28 @@ class QuickSIPanel(wx.Panel):
         self.fields['net'].SetValue(selected[0][0] if selected else selected_tracks[0] if selected_tracks else candidate);self.net_changed(None)
         if selected:self.set_launch_selection({'net':selected[0][0],'pads':[label for net,label in selected if net==selected[0][0]]})
         left.FitInside()
+
+    def select_board_net(self,event=None):
+        import pcbnew
+        from wayricad_runtime.preview import GeometryPreview
+        dialog=wx.Dialog(self,title='Select a net on the saved board',size=(850,620),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        layout=wx.BoxSizer(wx.VERTICAL);view=GeometryPreview(dialog);layout.Add(view,1,wx.EXPAND|wx.ALL,8)
+        layout.Add(wx.StaticText(dialog,label='Click a pad, via or track to choose its net. Drag to pan; wheel to zoom.'),0,wx.ALL,8)
+        layout.Add(dialog.CreateButtonSizer(wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,8);dialog.SetSizer(layout)
+        view.set_board(self.board,pcbnew)
+        def selected(net,xy):
+            self.net_search.ChangeValue('');self.fields['net'].Set(self._net_names)
+            self.fields['net'].SetValue(net);self.net_changed(None)
+            dialog.EndModal(wx.ID_OK)
+        view.on_net_select=selected
+        dialog.ShowModal();dialog.Destroy()
+
+    def filter_nets(self,event=None):
+        current=self.fields['net'].GetValue();needle=self.net_search.GetValue().casefold()
+        names=[name for name in self._net_names if needle in name.casefold()]
+        self.fields['net'].Set(names)
+        self.fields['net'].SetValue(current if current in names else (names[0] if names else ''))
+        if self.fields['net'].GetValue()!=current:self.net_changed(None)
 
     def changed(self,event):
         self.report=None;self.path=None;self.export.Disable();self.results.DeleteAllItems();self.preview.show_result(SimpleNamespace(primary=None,mate=None))

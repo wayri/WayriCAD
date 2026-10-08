@@ -155,7 +155,17 @@ def execute(request):
                    references=request.get("references"),
                    vacuum_board_to_environment_k_per_w=request.get("vacuum_board_to_environment_k_per_w"),
                    heatsinks=request.get("heatsinks"))
-    if request.get("thermal_model_kind") == "calculix":
+    spatial_power_only = (request.get("transient_settings") is not None or
+                          request["environment"] in ("forced_air", "potting", "sealed") or
+                          (request["environment"] == "vacuum" and
+                           request.get("thermal_model_kind") == "multilayer"))
+    if spatial_power_only and request.get("thermal_network_settings") is None:
+        raise ValueError("Expanded environment and transient models need thermal_network_settings.")
+    if spatial_power_only and request.get("thermal_model_kind") != "multilayer":
+        raise ValueError("Expanded environment and transient models require multilayer board mode.")
+    if request.get("transient_settings") is not None and request.get("mesh_acceptance") is not None:
+        raise ValueError("Run transient spatial refinement as separate explicit grid analyses.")
+    if request.get("thermal_model_kind") == "calculix" or spatial_power_only:
         result = analyze_power_sources(
             board, environment=request["environment"],
             ambient_c=request.get("ambient_c", 20.0),
@@ -163,7 +173,7 @@ def execute(request):
             field_map=request.get("field_map"),
             manual_values=request.get("manual_values") if request.get("input_mode") == "manual" else None)
         if result["coverage"]["excluded"]:
-            raise ValueError("CalculiX needs valid power for every selected component: " +
+            raise ValueError("Board field needs valid power for every selected component: " +
                              ", ".join(row["reference"] for row in result["coverage"]["excluded"]))
     elif request.get("input_mode") == "manual":
         result = analyze_manual_board(board, request.get("manual_values"), **options)
@@ -211,6 +221,8 @@ def execute(request):
         raise ValueError("CalculiX board mode needs thermal_network_settings.")
     if request.get("thermal_network_settings") is not None:
         settings = dict(request["thermal_network_settings"])
+        if request.get("transient_settings") is not None:
+            settings["transient_settings"] = request["transient_settings"]
         settings["board_thickness_mm"] = view.get("board_thickness_mm")
         board_field = request.get("thermal_network_component_field")
         missing = []
@@ -228,7 +240,7 @@ def execute(request):
                     continue
                 resistances[row["reference"]] = parse_field_quantity(raw, "theta_jb_k_per_w")
             settings["component_to_board_k_per_w"] = resistances
-        elif request.get("thermal_model_kind") == "calculix" and request.get("input_mode") == "manual":
+        elif (request.get("thermal_model_kind") == "calculix" or spatial_power_only) and request.get("input_mode") == "manual":
             from .quick_therm import parse_field_quantity
 
             settings["component_to_board_k_per_w"] = {
@@ -279,7 +291,7 @@ def execute(request):
                         row["rise_local_k"] = row["power_w"] * settings["component_to_board_k_per_w"][row["reference"]]
                         row["resistance_k_per_w"] = settings["component_to_board_k_per_w"][row["reference"]]
                 result["coverage"]["solved"] = sum(row["junction_c"] is not None for row in result["components"])
-                result["assumptions"].append("Modeled junctions use the solved board site plus declared RθJB; others remain unknown.")
+                result["assumptions"].append("Modeled junctions use the solved board site plus declared RÎ¸JB; others remain unknown.")
                 view = build_board_thermal_view(board, result)
             elif request.get("calculix_export_dir"):
                 calculix_manifest, _ = export_calculix(geometry)

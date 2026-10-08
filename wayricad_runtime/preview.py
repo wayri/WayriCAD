@@ -5,7 +5,7 @@ from .geometry import polygons
 
 
 class GeometryPreview(wx.Panel):
-    def __init__(self,parent,empty_text):
+    def __init__(self,parent,empty_text="Click a pad, via or track to select its net."):
         super().__init__(parent,style=wx.BORDER_SIMPLE)
         self.empty_text=empty_text
         self.lines=[];self.points=[];self.pads=[];self.outlines=[]
@@ -13,7 +13,10 @@ class GeometryPreview(wx.Panel):
         self.context_lines=[];self.context_pads=[];self.context_rings=[];self.context_vias=[];self.footprint_lines=[];self.references=[]
         self.focus_points=[];self.show_grid=False
         self.zoom=1.;self.pan=[0.,0.];self.drag=None;self.pick=None;self.project=lambda p:(0,0)
+        self.on_net_select=None;self.net_targets=[];self.cursor=None;self.probes=[];self.click_start=None
+        self.unproject=lambda p:None
         self.SetMinSize((320,280));self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
         self.SetToolTip('Wheel: zoom. Drag: pan. Double-click: fit. Click a via: inspect coordinates. Arc tracks use conservative envelopes.')
         for event,handler in ((wx.EVT_PAINT,self.on_paint),(wx.EVT_MOUSEWHEEL,self.wheel),(wx.EVT_LEFT_DOWN,self.down),(wx.EVT_LEFT_UP,self.up),(wx.EVT_MOTION,self.motion),(wx.EVT_LEFT_DCLICK,self.fit)):
             self.Bind(event,handler)
@@ -23,12 +26,12 @@ class GeometryPreview(wx.Panel):
     def set_geometry(self,lines=(),points=(),pads=(),outlines=(),point_diameters=(),line_widths=(),pad_sizes=(),point_drills=(),rejected=(),pad_shapes=()):
         for name,value in locals().copy().items():
             if name!='self':setattr(self,name,list(value))
-        self.pick=None;self.Refresh()
+        self.pick=None;self.probes=[];self.Refresh()
 
     def set_board(self,board,api):
         mm=api.ToMM
         self.context_lines=[];self.context_pads=[];self.context_rings=[];self.context_vias=[];self.footprint_lines=[];self.references=[]
-        self.focus_points=[]
+        self.focus_points=[];self.net_targets=[];self.probes=[]
         selected_points=[]
         for fp in board.GetFootprints():
             positions=[]
@@ -42,6 +45,8 @@ class GeometryPreview(wx.Panel):
                 radius=mm(pad.GetRoundRectCornerRadius()) if shape=='roundrect' else 0
                 drill=getattr(pad,'GetDrillSize',lambda:None)()
                 drill=(mm(drill.x),mm(drill.y)) if drill is not None else (0,0)
+                net=str(getattr(pad,"GetNetname",lambda:"")())
+                if net:self.net_targets.append({"net":net,"start":center,"end":center,"radius":max(mm(size.x),mm(size.y))/2})
                 self.context_pads.append(dict(center=center,size=(mm(size.x),mm(size.y)),angle=-float(pad.GetOrientationDegrees()),shape=shape,rings=rings,radius=radius,number=str(pad.GetNumber()),drill=drill))
             self.focus_points.extend(positions)
             if getattr(fp,"IsSelected",lambda:False)() or any(getattr(p,"IsSelected",lambda:False)() for p in fp.Pads()):selected_points.extend(positions)
@@ -64,6 +69,13 @@ class GeometryPreview(wx.Panel):
                 self.references.append((sum(p[0] for p in positions)/len(positions),min(p[1] for p in positions)-1,str(fp.GetReference())))
         if selected_points:self.focus_points=selected_points
         for track in board.GetTracks():
+            net=str(getattr(track,"GetNetname",lambda:"")())
+            if net and ("VIA" in track.GetClass() or track.GetClass()=="PCB_TRACK"):
+                if "VIA" in track.GetClass():
+                    position=track.GetPosition();a=b=(mm(position.x),mm(position.y));radius=mm(track.GetWidth(track.TopLayer()))/2
+                else:
+                    start,end=track.GetStart(),track.GetEnd();a,b=(mm(start.x),mm(start.y)),(mm(end.x),mm(end.y));radius=mm(track.GetWidth())/2
+                self.net_targets.append({"net":net,"start":a,"end":b,"radius":radius})
             if 'VIA' in track.GetClass():
                 pos=track.GetPosition();self.context_vias.append((mm(pos.x),mm(pos.y),mm(track.GetWidth(track.TopLayer())),mm(track.GetDrillValue())))
             elif track.GetClass()=='PCB_TRACK':
@@ -85,7 +97,7 @@ class GeometryPreview(wx.Panel):
         self.Refresh()
 
     def clear(self):
-        self.lines=[];self.points=[];self.pads=[];self.outlines=[];self.rejected=[];self.pick=None;self.Refresh()
+        self.lines=[];self.points=[];self.pads=[];self.outlines=[];self.rejected=[];self.pick=None;self.probes=[];self.cursor=None;self.Refresh()
 
     def fit(self,_event=None):self.zoom=1.;self.pan=[0.,0.];self.pick=None;self.Refresh()
 
@@ -96,17 +108,40 @@ class GeometryPreview(wx.Panel):
         self.pan=[(self.pan[0]-(x-width/2))*factor+(x-width/2),(self.pan[1]-(y-(height-48)/2))*factor+(y-(height-48)/2)]
         self.zoom=new;self.Refresh()
 
-    def down(self,event):self.drag=event.GetPosition();self.CaptureMouse()
+    def down(self,event):self.drag=event.GetPosition();self.click_start=tuple(event.GetPosition());self.CaptureMouse()
     def up(self,event):
         if self.HasCapture():self.ReleaseMouse()
         self.drag=None
+        click=tuple(event.GetPosition())
+        moved=math.dist(click,self.click_start) if self.click_start else math.inf
+        self.click_start=None
+        if moved<4:
+            world=self.unproject(click)
+            if event.ControlDown() and world is not None:
+                self.probes.append(world)
+            elif callable(self.on_net_select):
+                target=self.pick_net(click)
+                if target is not None:self.on_net_select(target['net'],world)
         if self.points:
             x,y=event.GetPosition();index=min(range(len(self.points)),key=lambda i:math.dist((x,y),self.project(self.points[i])))
             if math.dist((x,y),self.project(self.points[index]))<14:self.pick=index
         self.Refresh()
     def motion(self,event):
+        self.cursor=tuple(event.GetPosition());self.Refresh(False)
         if self.drag is not None and event.Dragging():
             pos=event.GetPosition();self.pan[0]+=pos.x-self.drag.x;self.pan[1]+=pos.y-self.drag.y;self.drag=pos;self.Refresh()
+
+    def pick_net(self, screen):
+        """Pick only visible copper/pads within a screen-space tolerance."""
+        from .picking import segment_distance
+        closest=None;distance=math.inf
+        for target in self.net_targets:
+            a,b=self.project(target['start']),self.project(target['end'])
+            gap=segment_distance(screen,a,b)
+            radius=math.dist(a,self.project((target['start'][0]+target['radius'],target['start'][1])))
+            gap=max(0,gap-radius)
+            if gap<=7 and gap<distance:closest=target;distance=gap
+        return closest
 
     def on_paint(self,event):
         dc=wx.AutoBufferedPaintDC(self);dc.SetBackground(wx.Brush('#fbfcfd'));dc.Clear()
@@ -127,6 +162,7 @@ class GeometryPreview(wx.Panel):
         cx,cy=(minx+maxx)/2,(miny+maxy)/2
         def project(p):return (round(width/2+self.pan[0]+(p[0]-cx)*scale),round(view_height/2+self.pan[1]+(p[1]-cy)*scale))
         self.project=project
+        self.unproject=lambda p:(cx+(p[0]-width/2-self.pan[0])/scale,cy+(p[1]-view_height/2-self.pan[1])/scale)
         step=10**math.floor(math.log10(60/scale))
         if step*scale<30:step*=5
         if self.show_grid:
@@ -163,6 +199,14 @@ class GeometryPreview(wx.Panel):
             if dx>0 and dy>0:
                 gc.SetBrush(wx.Brush('#fbfcfd'));gc.SetPen(wx.Pen('#8d8e8f',1));gc.DrawEllipse(x-dx*scale/2,y-dy*scale/2,dx*scale,dy*scale)
         gc.Flush()
+        dc.SetPen(wx.Pen('#ae335a',1));dc.SetTextForeground('#5e263e')
+        for index,position in enumerate(self.probes,1):
+            x,y=project(position);dc.DrawLine(x-6,y,x+6,y);dc.DrawLine(x,y-6,x,y+6)
+            dc.DrawText(f'P{index} {position[0]:.3f}, {position[1]:.3f} mm',x+8,y+5)
+        if self.cursor is not None:
+            point=self.unproject(self.cursor)
+            if 0<=self.cursor[1]<view_height:
+                dc.DrawText(f'{point[0]:.3f}, {point[1]:.3f} mm Ã‚Â· Ctrl-click: pin coordinates',12,12)
         for i,line in enumerate(self.lines):
             stroke=self.line_widths[i] if i<len(self.line_widths) else .2
             dc.SetPen(wx.Pen('#087f98',max(2,round(stroke*scale))));dc.DrawLine(*project(line[:2]),*project(line[2:4]))

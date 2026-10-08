@@ -42,7 +42,12 @@ def plot_svg(title, xlabel, xs, traces, limits):
 def eye_section(result):
     if result.get('status') == 'UNAVAILABLE':
         return '<h2>Illustrative eye unavailable</h2><p>'+html.escape(result['reason'])+'</p>'
-    pictures=''.join(plot_svg(*plot) for plot in plots(result))
+    from wayricad_runtime.interactive_plots import interactive_plot
+    pictures=''
+    for title,xlabel,xs,traces,limits in plots(result):
+        rows=[[x,v,v,'Trace '+str(index+1)] for index,trace in enumerate(traces) for x,v in zip(xs,trace)]
+        pictures+=interactive_plot(title,rows,'V',x_unit=xlabel,y_unit='V',connect=True)
+        pictures+='<details><summary>Static export</summary>'+plot_svg(title,xlabel,xs,traces,limits)+'</details>'
     return ('<h2>Illustrative eye and step response</h2><p>Uniform lossless line; '
             'not an IBIS simulation or protocol compliance test.</p>'+pictures+
             f"<p>Sampled center opening: {result['center_opening_v']:.5g} V; "

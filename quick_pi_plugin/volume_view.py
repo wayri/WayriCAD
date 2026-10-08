@@ -74,3 +74,19 @@ def sampled_cells(bundle, layer='All copper', quantity='current_density', limit=
     if count > limit:
         indices = indices[np.linspace(0, count - 1, limit, dtype=int)]
     return centers[indices], values[indices], count
+
+
+def write_volume_report(path,bundle):
+    """Export offline orbit/pan/zoom views and exact sampled cell probes."""
+    import json
+    from pathlib import Path
+    from wayricad_runtime.interactive_plots import interactive_plot
+    path=Path(path).with_suffix('.html');path.parent.mkdir(parents=True,exist_ok=True)
+    path.with_suffix('.json').write_text(json.dumps(bundle,allow_nan=False),encoding='utf-8')
+    html='<html lang="en"><meta charset="utf-8"><title>Quick PI 3D copper</title><style>body{font:15px system-ui;max-width:1100px;margin:30px auto}figure{margin:18px 0}</style><h1>Quick PI 3D copper</h1><p>Display samples only. Exact complete tetrahedron results are retained in the paired JSON. This is fixed-temperature DC conduction, not AC impedance or thermal transient analysis.</p>'
+    for label,quantity in QUANTITIES.items():
+        xyz,values,count=sampled_cells(bundle,quantity=quantity)
+        rows=[[float(p[0]),float(p[1]),float(v),'Sampled cell',float(p[2])] for p,v in zip(xyz,values)]
+        html+=interactive_plot(label,rows,label,three_d=True)
+    path.write_text(html+'</html>',encoding='utf-8')
+    return {'html':str(path),'json':str(path.with_suffix('.json'))}

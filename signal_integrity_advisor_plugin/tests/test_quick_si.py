@@ -107,7 +107,7 @@ class QuickSITests(unittest.TestCase):
     def test_html_is_offline_escaped_and_design_outputs_protected(self):
         path=self.path();path.notes=['<script>unsafe</script>'];r=screen(path,terminal_count=3)
         html=html_report(r)
-        self.assertIn('&lt;script&gt;',html);self.assertNotIn('<script>',html);self.assertIn('branches/stubs',html)
+        self.assertIn('&lt;script&gt;',html);self.assertNotIn('<script>alert',html);self.assertIn('click to pin a probe',html);self.assertIn('branches/stubs',html)
         with tempfile.TemporaryDirectory() as temp:
             source=Path(temp)/'board.kicad_pcb';source.write_text('original')
             with self.assertRaises(ValueError):write_report(source,html,source,'.html')

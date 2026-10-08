@@ -227,10 +227,10 @@ def simulate_steady_state(components, *, environment, ambient_c,
                          "complete": not excluded},
             "components": sorted(results, key=lambda row: row["junction_c"], reverse=True),
             "assumptions": (
-                ["Air RθJA is a user-supplied component-to-ambient resistance for this board and airflow.",
+                ["Air RÎ¸JA is a user-supplied component-to-ambient resistance for this board and airflow.",
                  "Components are thermally independent; no board temperature field or coupling is solved."]
                 if environment == "air" else
-                ["Scoped components without heatsinks enter one isothermal board node through user-supplied RθJB.",
+                ["Scoped components without heatsinks enter one isothermal board node through user-supplied RÎ¸JB.",
                  "The supplied board-to-environment resistance represents actual radiation/conduction in vacuum.",
                  "Gas convection is excluded; unscoped heat sources are excluded."]) +
             (["Each defined heatsink is an independent junction-to-case, contact, and sink-to-environment path.",
@@ -313,9 +313,9 @@ def analyze_power_sources(board, *, environment, ambient_c, references,
     """Extract verified heat inputs without inventing a junction resistance.
 
     CalculiX solves a board surface field from power and its declared boundary.
-    Package junction temperatures remain unknown until RθJB is supplied.
+    Package junction temperatures remain unknown until RÎ¸JB is supplied.
     """
-    if environment not in ("air", "vacuum"):
+    if environment not in ("air", "vacuum", "forced_air", "potting", "sealed"):
         raise ValueError("Environment must be 'air' or 'vacuum'.")
     ambient = _finite(ambient_c, "Ambient temperature")
     selected = [str(ref).strip() for ref in references or ()]

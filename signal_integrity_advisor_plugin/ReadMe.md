@@ -12,6 +12,19 @@ control to inspect a route in more detail.
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
+## Interactive inspection
+
+Use **Search net names** or **Select net on board** to choose a saved pad, via or
+track's net, then select source/receiver pads and run a fresh screen. Route previews
+provide coordinate probes through **Probe** or Ctrl-click; **Clear probes** removes them.
+
+Offline route, eye and step plots support hover values, click-to-pin probes, pan,
+wheel zoom and Fit. Static figures remain available for printing. Native eye/step
+plots show exact sample time and voltage; click pins and right-click clears them.
+Unknown samples leave gaps, and ideal estimates retain their model labels.
+
+See [analysis views and probe controls](../docs/ANALYSIS_INTERACTIONS.md) for details.
+
 ## Automatic timing and section results
 
 Choose the net and its two pads, then run **Screen selected path**. With a saved

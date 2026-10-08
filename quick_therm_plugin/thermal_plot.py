@@ -71,7 +71,7 @@ def _field_quads(field, z):
     return quads, values
 
 
-def _draw_3d(figure,view,selected_id,network,azim,elev):
+def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None):
     """Illustrative saved-board extrusion, not imported 3D component models."""
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
     ax=figure.add_subplot(111,projection='3d')
@@ -122,6 +122,11 @@ def _draw_3d(figure,view,selected_id,network,azim,elev):
     if bbox:
         x0,y0,x1,y1=bbox;ax.set_xlim(x0,x1);ax.set_ylim(y1,y0)
         ax.set_box_aspect((max(x1-x0,1),max(y1-y0,1),max(thickness*5,4)),zoom=.9)
+    for probe in probes or []:
+        x,y=probe['x_mm'],probe['y_mm'];z=thickness+.12 if probe.get('side')!='bottom' else -.12
+        ax.scatter([x],[y],[z],color='#00d3b1',marker='+',s=90,depthshade=False)
+        value=probe.get('temperature_c');label=probe['label']+(' unknown' if value is None else f' {value:.2f} °C')
+        ax.text(x,y,z,label,fontsize=8)
     ax.set_zlim(-1.2,thickness+1.5);ax.set_zticks([0, thickness])
     ax.set_xlabel('X mm');ax.set_ylabel('Y mm');ax.set_zlabel('Board Z mm')
     ax.view_init(elev=elev,azim=azim)
@@ -133,7 +138,7 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
                       network=None,azim=-60,elev=28,probes=None,
                       temperature_limits_c=None):
     figure.clear()
-    if mode=='3D overview':return _draw_3d(figure,view,selected_id,network,azim,elev)
+    if mode=='3D overview':return _draw_3d(figure,view,selected_id,network,azim,elev,probes)
     ax=figure.add_subplot(111)
     components=view.get('components',[])
     field=view.get('field',{})

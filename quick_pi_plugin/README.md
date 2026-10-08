@@ -2,6 +2,21 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+## Interactive inspection
+
+Use **Search nets** or **Select net on board** to choose an analysis input from
+saved pads, vias or tracks. Select the two terminals and rerun after changes.
+Hover over solved Results cells and click to pin exact cell values; Ctrl-right-click
+clears probes. Holes and unresolved cells remain gaps.
+
+The native 3D copper view supports orbit, pan, wheel zoom and sampled-cell probes.
+**Export 3D report** saves an offline interactive viewport plus the complete JSON.
+HTML 3D views use drag to orbit, Shift-drag to pan and the wheel to zoom. Planar
+reports include three interactive field maps alongside static print figures.
+Display movement does not modify board geometry or the solve.
+
+See [analysis views and probe controls](../docs/ANALYSIS_INTERACTIONS.md) for details.
+
 ## Capabilities
 
 - Analyze saved traces, filled zones, pads and plated vias using a layered 2.5D DC conduction mesh and saved copper thicknesses.
