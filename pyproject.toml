@@ -21,7 +21,8 @@ Issues = "https://github.com/wayri/WayriCAD/issues"
 Changelog = "https://github.com/wayri/WayriCAD/releases"
 
 [project.optional-dependencies]
-test = ["Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9", "zstandard>=0.25.0,<1"]
+si = ["matplotlib>=3.7,<4"]
+test = ["matplotlib>=3.7,<4", "Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9", "zstandard>=0.25.0,<1"]
 
 [project.scripts]
 wayricad = "extract_pins_plugin.cli:main"

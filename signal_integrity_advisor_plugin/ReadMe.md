@@ -21,7 +21,7 @@ manual Er entry. `APPROXIMATE` means adjacent copper is assumed to form ideal
 continuous reference planes; via delay includes dielectric travel but does not
 solve via reflections. Missing or incompatible dielectric data remains unresolved.
 
-The offline HTML report embeds three Matplotlib plots: cumulative delay, section impedance and cumulative DC resistance. Via positions are marked; unknown values leave gaps. Normal managed launches provision the plotting dependency automatically.
+The offline HTML report embeds three Matplotlib plots: cumulative delay, section impedance and cumulative DC resistance. Via positions are marked; unknown values leave gaps. Normal managed launches provision the plotting dependency automatically. For direct source/wheel CLI use, install `python -m pip install "wayricad[si]"` (or `python -m pip install -e ".[si]"` from a checkout).
 
 The result table and HTML report show route length, DC/AC resistance, the
 impedance range and length of supported extracted sections, and local endpoint
@@ -103,7 +103,7 @@ The capture uses the Marble path above with assumed 50 ohm Z0, effective Er 3.2,
 This is an illustrative what-if calculation, not USB signaling validation.
 
 This is a uniform **lossless transmission-line** model with the screen's delay,
-Z0 and resistive source/load. Rise time means **10–90%**; rising and falling edges
+Z0 and resistive source/load. Rise time means **10â€“90%**; rising and falling edges
 use equal linear ramps. The periodic 127-bit pattern includes settled history.
 The ideal clock is aligned to first arrival. Center opening is minimum high
 minus maximum low at **0.5 UI**; it is not optimized eye height, eye width, BER
@@ -129,19 +129,19 @@ An explicitly requested but unavailable routed eye returns CLI exit code 3.
 The standalone model does not infer geometry from a board.
 
 Model basis: successive load arrivals have amplitudes
-`swing × Z0/(Rs+Z0) × (1+ΓL) × (ΓS×ΓL)^n` and delays `(2n+1)×td`.
-See [TI AN-807: Reflections—Computations and Waveforms](https://www.ti.com/lit/an/snla027b/snla027b.pdf).
+`swing Ã— Z0/(Rs+Z0) Ã— (1+Î“L) Ã— (Î“SÃ—Î“L)^n` and delays `(2n+1)Ã—td`.
+See [TI AN-807: Reflectionsâ€”Computations and Waveforms](https://www.ti.com/lit/an/snla027b/snla027b.pdf).
 
 ## Path screening results
 
 | Result | Meaning |
 |---|---|
 | One-way / round-trip delay | Complete modeled section delay, or total resolved route length times `sqrt(effective Er) / c` under an explicit assumption. Partial RLC delay is never presented as total delay. |
-| Electrical length | `360 × frequency × delay`; a phase estimate at the entered frequency, not a data-rate or protocol limit. |
+| Electrical length | `360 Ã— frequency Ã— delay`; a phase estimate at the entered frequency, not a data-rate or protocol limit. |
 | Delay / rise time | Conservative screening requests transmission-line review when one-way delay is at least one sixth of the entered rise time. Being below this threshold is not signoff. |
-| Source / load reflection Γ | `(R − Z0) / (R + Z0)` for an ideal uniform, linear line with resistive endpoints. An open load gives +1; a short gives −1. |
-| First load step / source step | `Z0 / (Rsource + Z0) × (1 + Γload)`. This is the first lossless arrival, not maximum overshoot or a complete waveform. |
-| Series-match candidate | `Z0 − Rsource` when nonnegative. It is a candidate for review, not an instruction to add a resistor. Source resistance above Z0 cannot be fixed by adding positive series resistance. |
+| Source / load reflection Î“ | `(R âˆ’ Z0) / (R + Z0)` for an ideal uniform, linear line with resistive endpoints. An open load gives +1; a short gives âˆ’1. |
+| First load step / source step | `Z0 / (Rsource + Z0) Ã— (1 + Î“load)`. This is the first lossless arrival, not maximum overshoot or a complete waveform. |
+| Series-match candidate | `Z0 âˆ’ Rsource` when nonnegative. It is a candidate for review, not an instruction to add a resistor. Source resistance above Z0 cannot be fixed by adding positive series resistance. |
 
 `SCREENED` means the requested first-order calculations were available; it does
 not mean PASS. `INCOMPLETE` preserves unresolved delay/Z0. `UNRESOLVED` means no
@@ -250,7 +250,7 @@ Use `wayricad-si profiles` to list profile IDs and sources. `wayricad-si suite -
 
 ## Jobsets and automatic reports
 
-Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
+Use this toolâ€™s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
 
 ## Optional Nubis SignalIntegrity interoperability
 
