@@ -641,6 +641,21 @@
             },
             "versions": [
                 {
+                    "version": "0.9.8",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "kicad_version_max": "10.0",
+                    "runtime": "swig",
+                    "platforms": [
+                        "windows",
+                        "linux"
+                    ],
+                    "download_sha256": "3a304cb44449ef4053cec4cf75b74f1932060f5f6f669e72063786b72c769d55",
+                    "download_size": 383107,
+                    "install_size": 1007891,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-project-fusion-0.9.8-PCM.zip"
+                },
+                {
                     "version": "0.9.7",
                     "status": "testing",
                     "kicad_version": "10.0",
@@ -715,6 +730,21 @@
                     "install_size": 757673,
                     "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.6.4/WayriCAD-project-fusion-0.9.3-PCM.zip"
                 }
+            ],
+            "tags": [
+                "merge",
+                "schematic",
+                "pcb",
+                "variants",
+                "libraries",
+                "stackup",
+                "bom",
+                "fields",
+                "repair",
+                "subsheet",
+                "routing",
+                "linked-updates",
+                "change-review"
             ]
         },
         {
@@ -734,6 +764,21 @@
                 "homepage": "https://github.com/wayri/WayriCAD"
             },
             "versions": [
+                {
+                    "version": "0.6.1",
+                    "status": "testing",
+                    "kicad_version": "10.0",
+                    "kicad_version_max": "10.99",
+                    "runtime": "swig",
+                    "platforms": [
+                        "windows",
+                        "linux"
+                    ],
+                    "download_sha256": "b7b3c5cc3e1f1014dec03ea3f68867197677d0756750496108c86f50fc573e19",
+                    "download_size": 114749,
+                    "install_size": 234379,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-variant-manager-0.6.1-PCM.zip"
+                },
                 {
                     "version": "0.6.0",
                     "status": "testing",
