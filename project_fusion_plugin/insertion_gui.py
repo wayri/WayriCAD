@@ -51,6 +51,7 @@ class SectionBatchDialog(wx.Dialog):
         self.max_sources = max_sources
         self.instances = []
         self.plan = self.result = None
+        self._closed = False
         self.busy = False
         box = wx.BoxSizer(wx.VERTICAL)
         note = wx.StaticText(self, label='Select one or more exact sheet occurrences. Each selected hierarchy becomes a separate schematic-only source copy. Ancestor and descendant selections cannot overlap. Review the preview before creating copies.')
@@ -71,13 +72,23 @@ class SectionBatchDialog(wx.Dialog):
         self.create_button.Bind(wx.EVT_BUTTON, self.create_copies)
         close.Bind(wx.EVT_BUTTON, self.close)
         self.Bind(wx.EVT_CLOSE, self.close)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self.on_destroy)
         for button in (self.preview_button, self.create_button, close):
             bar.Add(button, 0, wx.RIGHT, 8)
         box.Add(bar, 0, wx.ALL | wx.ALIGN_RIGHT, 12)
         self.SetSizer(box)
         self.preview_button.Disable()
         self.create_button.Disable()
-        wx.CallAfter(self.load_instances)
+        self.defer(self.load_instances)
+
+    def defer(self, callback, *args):
+        def deliver():
+            if not self._closed and bool(self):callback(*args)
+        if not self._closed:wx.CallAfter(deliver)
+
+    def on_destroy(self,event):
+        if event.GetEventObject() is self:self._closed=True
+        event.Skip()
 
     def run(self, action, done):
         if self.busy:
@@ -87,17 +98,19 @@ class SectionBatchDialog(wx.Dialog):
         def worker():
             try:
                 result = action()
-                wx.CallAfter(self.finish, done, result, None)
+                self.defer(self.finish, done, result, None)
             except Exception as exc:
-                wx.CallAfter(self.finish, done, None, str(exc))
+                self.defer(self.finish, done, None, str(exc))
         threading.Thread(target=worker, name='FusionSectionBatch', daemon=True).start()
 
     def finish(self, done, result, error):
         self.busy = False
         self.sheets.Enable(); self.preview_button.Enable()
         if error:
+            self.plan=None;self.create_button.Disable()
             self.status.SetLabel(error)
-            wx.MessageBox(error, 'Subsheet operation stopped', wx.OK | wx.ICON_ERROR, self)
+            from .error_handling import show_error
+            show_error(self,error,'Subsheet operation stopped')
             return
         done(result)
 
@@ -162,6 +175,8 @@ class SectionBatchDialog(wx.Dialog):
         if self.busy:
             if isinstance(event, wx.CloseEvent) and event.CanVeto():
                 event.Veto()
+            elif isinstance(event,wx.CloseEvent):
+                self._closed=True;event.Skip()
             return
         if self.IsModal():
             self.EndModal(wx.ID_CANCEL)
@@ -181,6 +196,7 @@ class InsertionDialog(wx.Dialog):
         self.sources = []
         self.plan = self.applied = None
         self.plan_file = None
+        self._closed = False
         self.busy = False
         self._suspend_invalidation = False
         root = wx.BoxSizer(wx.VERTICAL)
@@ -261,6 +277,7 @@ class InsertionDialog(wx.Dialog):
         self.apply_button.Bind(wx.EVT_BUTTON, self.apply_import)
         close.Bind(wx.EVT_BUTTON, self.close)
         self.Bind(wx.EVT_CLOSE, self.close)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self.on_destroy)
         for button in (self.preview_button, self.open_button, self.load_button):
             review_bar.Add(button, 0, wx.RIGHT, 8)
         for button in (self.handoff_button, self.apply_button, close):
@@ -479,6 +496,15 @@ class InsertionDialog(wx.Dialog):
                 raise MergeError('These incoming instances have no saved PCB: '+', '.join(missing)+'. Uncheck Include routed PCB layout for a schematic-only import.')
         return selected
 
+    def defer(self, callback, *args):
+        def deliver():
+            if not self._closed and bool(self):callback(*args)
+        if not self._closed:wx.CallAfter(deliver)
+
+    def on_destroy(self,event):
+        if event.GetEventObject() is self:self._closed=True
+        event.Skip()
+
     def run(self, action, done):
         if self.busy:
             return
@@ -491,9 +517,9 @@ class InsertionDialog(wx.Dialog):
         def worker():
             try:
                 result = action()
-                wx.CallAfter(self.finish, done, result, None)
+                self.defer(self.finish, done, result, None)
             except Exception as exc:
-                wx.CallAfter(self.finish, done, None, str(exc))
+                self.defer(self.finish, done, None, str(exc))
         threading.Thread(target=worker, name='FusionExistingImport', daemon=True).start()
 
     def finish(self, done, result, error):
@@ -508,8 +534,10 @@ class InsertionDialog(wx.Dialog):
             self.open_button.Enable(); self.handoff_button.Enable()
             self.on_acknowledge()
         if error:
+            self.invalidate()
             self.status.SetLabel(error)
-            wx.MessageBox(error, 'Project import stopped', wx.OK | wx.ICON_ERROR, self)
+            from .error_handling import show_error
+            show_error(self,error,'Project import stopped')
             return
         done(result)
 
@@ -677,6 +705,8 @@ class InsertionDialog(wx.Dialog):
         if self.busy:
             if isinstance(event, wx.CloseEvent) and event.CanVeto():
                 event.Veto()
+            elif isinstance(event,wx.CloseEvent):
+                self._closed=True;event.Skip()
             return
         if self.IsModal():
             self.EndModal(wx.ID_CANCEL)

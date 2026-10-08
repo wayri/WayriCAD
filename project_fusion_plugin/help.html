@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Wayri Project Fusion 0.9.7 — WayriCAD</title></head><body><h1>Wayri Project Fusion 0.9.7</h1><img src="help-workflow.svg" alt="Fusion workflow overview"><h2>Start with the guided flow</h2><ol><li>Click <b>Start guided import</b> and choose a new project, working project or linked update.</li><li>Add the design. Fusion detects its project, sheet or layout-only scope.</li><li>Choose the source variant and its destination: imported base, an existing working variant, or a separate new name.</li><li>Continue to destination settings and confirm saved-source acknowledgements.</li><li>Preview, inspect the findings, then Create or continue to the independent offline Apply window.</li></ol><p><img src="help-guided-import.png" width="800" alt="Native guided source workspace"></p><p><img src="help-variant-destination.png" width="620" alt="Native variant destination choices"></p><h2>Variant handling</h2><p>Base compiles the chosen state. Merge and Separate preserve source Default and attach selected overrides only to the imported instances. Existing destination components remain unchanged. Variant Manager manages the resulting native configurations.</p><p>Named footprint substitutions and automatic linked updates of named configurations are currently refused. PCB-presence changes need schematic-only import. Source originals remain unchanged.</p><h2>Command line</h2><p>Run <code>wayricad-fusion --help</code> for discovery, create/import, linked updates, sections, repairs, fields/BOM and dependencies. Use <code>COMMAND --help</code> for arguments. Saved-file apply requires <code>--apply --yes --editors-closed</code>.</p><h2>Detailed reference</h2><pre># Wayri Project Fusion 0.9.7
+<!doctype html><html><head><meta charset="utf-8"><title>Wayri Project Fusion 0.9.8 — WayriCAD</title></head><body><h1>Wayri Project Fusion 0.9.8</h1><img src="help-workflow.svg" alt="Fusion workflow overview"><h2>Start with the guided flow</h2><ol><li>Click <b>Start guided import</b> and choose a new project, working project or linked update.</li><li>Add the design. Fusion detects its project, sheet or layout-only scope.</li><li>Choose the source variant and its destination: imported base, an existing working variant, or a separate new name.</li><li>Continue to destination settings and confirm saved-source acknowledgements.</li><li>Preview, inspect the findings, then Create or continue to the independent offline Apply window.</li></ol><p><img src="help-guided-import.png" width="800" alt="Native guided source workspace"></p><p><img src="help-variant-destination.png" width="620" alt="Native variant destination choices"></p><h2>Variant handling</h2><p>Base compiles the chosen state. Merge and Separate preserve source Default and attach selected overrides only to the imported instances. Existing destination components remain unchanged. Variant Manager manages the resulting native configurations.</p><p>Named footprint substitutions and automatic linked updates of named configurations are currently refused. PCB-presence changes need schematic-only import. Source originals remain unchanged.</p><h2>Command line</h2><p>Run <code>wayricad-fusion --help</code> for discovery, create/import, linked updates, sections, repairs, fields/BOM and dependencies. Use <code>COMMAND --help</code> for arguments. Saved-file apply requires <code>--apply --yes --editors-closed</code>.</p><h2>Detailed reference</h2><pre># Wayri Project Fusion 0.9.8
 
 **KiCad 10 · native wxPython plugin · testing release**
 
@@ -662,4 +662,21 @@ before installing this candidate through PCM; do not retain a stale
 Version 0.9.3 avoids editor-only action registration during standalone native CLI imports.
 
 Fusion is an independently installable testing package in the WayriCAD suite. It retains its MIT license and `org.wayri.projectfusion` identifier. Install through PCM, then restart PCB Editor. Full project imports apply to saved files with closed target editors; live schematic insertion is unsupported.
+
+## Recovering from errors
+
+Failed preview or Apply clears the old candidate&#x27;s Apply state and open/handoff
+controls. Your source rows and settings remain available for correction. The
+Issues panel includes the latest failure alongside source findings, with a next
+step for stale inputs, locks, missing files/runtime or permissions. Run Preview
+again after correcting the cause; a previous successful preview cannot override
+a later failure. Subsheet/import dialogs show selectable details and Copy details
+for troubleshooting. A reported rollback failure requires inspecting the backup
+and transaction receipt before retrying. Background completions are ignored after
+a window is destroyed; normal close remains blocked during active operations.
+
+CLI result paths must be new files outside the candidate. Exit code 2 means an
+operation was stopped; exit code 3 means the operation completed but its result
+file could not be saved. In that case the result is printed on stdout: inspect
+it before repeating a write.
 </pre></body></html>

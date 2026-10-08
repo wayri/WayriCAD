@@ -127,6 +127,24 @@ class CliWorkflowTests(unittest.TestCase):
                 else:
                     self.assertIn('structural fields', errors)
 
+    def test_existing_result_path_rejects_before_write_dispatch(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'result.json';path.write_text('Keep')
+            with mock.patch.object(cli,'_dispatch') as dispatch:
+                status,output,errors=self.run_cli(['apply','plan.json','--apply','--yes','--editors-closed','--output',str(path)])
+            self.assertEqual(status,2);dispatch.assert_not_called()
+            self.assertEqual(path.read_text(),'Keep');self.assertEqual(output,'')
+
+    def test_late_result_export_failure_reports_completed_operation(self):
+        emit=cli._emit
+        def fail_file(value,output=None):
+            if output:raise PermissionError('Output is not writable')
+            return emit(value)
+        with mock.patch.object(cli,'_dispatch',return_value={'applied':True,'backup':'verified.zip'}),mock.patch.object(cli,'_emit',side_effect=fail_file):
+            status,output,errors=self.run_cli(['apply','plan.json','--apply','--yes','--editors-closed','--output','new-result.json'])
+        self.assertEqual(status,3);self.assertTrue(json.loads(output)['applied'])
+        self.assertIn('operation completed',errors);self.assertIn('Inspect it before retrying',errors)
+
     def test_legacy_config_keeps_analysis_and_merge_dispatch(self):
         with mock.patch.object(cli, '_new_project', return_value={'report': {}}) as run:
             self.assertEqual(self.run_cli(['--config', 'setup.json', '--analyse'])[0], 0)

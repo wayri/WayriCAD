@@ -27,6 +27,7 @@ class FusionDialog(wx.Dialog):
         self.SetMinSize((860, 700))
         from .variant_import_gui import apply_window_icon
         apply_window_icon(self)
+        self._closed = False
         self.busy = False
         self.output_project = None
         self.initial_target = str(Path(initial).with_suffix('.kicad_pro')) if initial else ''
@@ -78,6 +79,7 @@ class FusionDialog(wx.Dialog):
                                (self.help_button,wx.ART_HELP,'Read the offline workflow and limitations.')):
             self.decorate(button,art,tip)
         self.Bind(wx.EVT_CLOSE, self.close)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self.on_destroy)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
         for b in (self.help_button, self.open_button,self.offline_button):
             buttons.Add(b, 0, wx.RIGHT, 8)
@@ -285,7 +287,7 @@ class FusionDialog(wx.Dialog):
         self.clear_results();event.Skip()
 
     def select_source_row(self,event):
-        row=event.GetRow();wx.CallAfter(self.load_source_selection,row);event.Skip()
+        row=event.GetRow();self.defer(self.load_source_selection,row);event.Skip()
 
     def source_tooltip(self,event):
         _,y=self.grid.CalcUnscrolledPosition(event.GetPosition())
@@ -594,8 +596,8 @@ class FusionDialog(wx.Dialog):
                     plan=preview_repair(spec,cli_path=cli,resolutions=choices)
                     destination=fresh_directory(parent,alias+'-ReviewedRepair')
                     repaired[alias]=apply_repair(plan,str(destination),cli)[0]
-                wx.CallAfter(self.batch_repair_done,repaired,None)
-            except Exception as exc:wx.CallAfter(self.batch_repair_done,None,str(exc))
+                self.defer(self.batch_repair_done,repaired,None)
+            except Exception as exc:self.defer(self.batch_repair_done,None,str(exc))
         threading.Thread(target=worker,daemon=True).start()
 
     def batch_repair_done(self,repaired,error):
@@ -614,10 +616,21 @@ class FusionDialog(wx.Dialog):
         self.status.SetLabel(f'{len(repaired)} reviewed source copies selected. Preview again to inspect the merge.')
 
     def show_validation_failure(self,error):
-        if not self.merge_issues:
-            issue={'id':'merge:validation','source':'Merge validation','reference':'','code':'native_validation',
-                'error':str(error),'action':None}
-            self.show_merge_issues([(SourceSpec('','Merge validation'),{'issues':[issue]})])
+        from .error_handling import recovery
+        issue={'id':'merge:validation','source':'Merge validation','reference':'','code':'native_validation',
+            'error':str(error)+'\n\n'+recovery(error),'action':None}
+        decisions=dict(self.issue_choices)
+        reports=[(SourceSpec('','Merge validation'),{'issues':[issue]})]
+        # Include the latest failure even when source preflight already found issues.
+        for spec,report,old in self.merge_issues:
+            if old.get('id')!='merge:validation':
+                reports.append((spec,{'issues':[old]}))
+        self.show_merge_issues(reports)
+        for row,(_,_,item) in enumerate(self.merge_issues):
+            if item['id'] in decisions and item['id']!='merge:validation':
+                choice=decisions[item['id']]
+                self.issue_choices[item['id']]=choice
+                self.issue_list.SetItem(row,2,self.issue_decision_label(item,choice))
         self.review_inspector.SetSelection(3)
 
     def scan_worker_issues(self,specs,include_layout=True):
@@ -630,7 +643,7 @@ class FusionDialog(wx.Dialog):
                 report={'source':spec.alias,'project':spec.project,'issues':[{'id':spec.alias+':source','source':spec.alias,
                     'reference':'','code':'source_preflight','error':str(exc),'action':None}]}
             reports.append((spec,report))
-        wx.CallAfter(self.show_merge_issues,reports)
+        self.defer(self.show_merge_issues,reports)
         if any(issue.get('severity','blocking')=='blocking'
                for _,report in reports for issue in report['issues']):
             raise MergeError('Resolve the source issues in the Merge issues panel, then Preview again.')
@@ -688,8 +701,8 @@ class FusionDialog(wx.Dialog):
                 plan=preview_repair(spec,cli_path=cli,resolutions=resolutions)
                 destination=fresh_directory(parent,spec.alias+'-ReviewedRepair')
                 result=apply_repair(plan,str(destination),cli)
-                wx.CallAfter(self.repair_issue_done,spec,result,None)
-            except Exception as exc:wx.CallAfter(self.repair_issue_done,spec,None,str(exc))
+                self.defer(self.repair_issue_done,spec,result,None)
+            except Exception as exc:self.defer(self.repair_issue_done,spec,None,str(exc))
         threading.Thread(target=worker,daemon=True).start()
 
     def repair_issue_done(self,spec,result,error):
@@ -743,7 +756,7 @@ class FusionDialog(wx.Dialog):
             self.grid.SetCellEditor(r,2,wx.grid.GridCellChoiceEditor([CHOOSE_VARIANT,*variant_choices],False))
         self.update_instance_count()
         if hasattr(self,'preview'): self.clear_results()
-        if hasattr(self,'source_selector'):wx.CallAfter(self.load_source_selection,r)
+        if hasattr(self,'source_selector'):self.defer(self.load_source_selection,r)
 
     def add(self,event):
         with wx.FileDialog(self,'Select source projects',wildcard='KiCad projects (*.kicad_pro)|*.kicad_pro|Root schematics (*.kicad_sch)|*.kicad_sch|PCBs (*.kicad_pcb)|*.kicad_pcb',style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_FILE_MUST_EXIST) as dlg:
@@ -1041,6 +1054,26 @@ class FusionDialog(wx.Dialog):
                 Path(dlg.GetPath()).write_text(json.dumps(data,indent=2)+'\n',encoding='utf-8')
             except OSError as exc: wx.MessageBox(str(exc),'Cannot save',wx.OK | wx.ICON_ERROR,self)
 
+    def defer(self, callback, *args):
+        # Workers may finish after forced application shutdown.
+        def deliver():
+            if not self._closed and bool(self):callback(*args)
+        if not self._closed:wx.CallAfter(deliver)
+
+    def on_destroy(self,event):
+        if event.GetEventObject() is self:
+            self._closed=True
+            self.timer.Stop()
+        event.Skip()
+
+    def discard_review(self):
+        """Invalidate apply/preview state while retaining sources and issue evidence."""
+        self.guided_preview_ready=False
+        self.import_plan=None
+        self.output_project=None
+        self.preview.clear();self.sheet_preview.clear();self.mapping.DeleteAllItems()
+        self.open_button.Disable();self.offline_button.Disable()
+
     def append_log(self,message):
         self.log.AppendText(str(message)+'\n')
 
@@ -1145,8 +1178,8 @@ class FusionDialog(wx.Dialog):
             try:
                 from .bom_fields import selected_sources
                 sources=selected_sources(specs)
-                wx.CallAfter(self.show_bom_fields,sources,None)
-            except Exception as exc:wx.CallAfter(self.show_bom_fields,None,str(exc))
+                self.defer(self.show_bom_fields,sources,None)
+            except Exception as exc:self.defer(self.show_bom_fields,None,str(exc))
         threading.Thread(target=worker,name='FusionBomRead',daemon=True).start()
 
     def show_bom_fields(self,sources,error):
@@ -1193,6 +1226,7 @@ class FusionDialog(wx.Dialog):
         if do_merge:
             message=f'Create a NEW project at:\n{options.destination}\n\nCircuits will remain isolated. Originals will not be edited. Review DRC, cutouts and rules before fabrication.\n\nContinue?'
             if wx.MessageBox(message,'Create combined project',wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,self)!=wx.YES: return
+        self.discard_review()
         self.busy=True; self.enable_inputs(False)
         self.analyse_button.Disable(); self.merge_button.Disable(); self.close_button.Disable(); self.open_button.Disable()
         self.log.Clear(); self.notebook.SetSelection(self.notebook.FindPage(self.review_page));self.review_inspector.SetSelection(1)
@@ -1205,12 +1239,12 @@ class FusionDialog(wx.Dialog):
                 self.scan_worker_issues(originals)
                 options.sources,selection_hashes=materialize_sources(originals,True,Path(options.destination).parent,options.cli_path)
                 options._selection_originals=selection_hashes
-                log=lambda msg:wx.CallAfter(self.append_log,msg)
+                log=lambda msg:self.defer(self.append_log,msg)
                 result=merge(options,log) if do_merge else analyse(options,log)
-                wx.CallAfter(self.done,do_merge,result,None)
+                self.defer(self.done,do_merge,result,None)
             except Exception as exc:
-                wx.CallAfter(self.append_log,traceback.format_exc())
-                wx.CallAfter(self.done,do_merge,None,str(exc))
+                self.defer(self.append_log,traceback.format_exc())
+                self.defer(self.done,do_merge,None,str(exc))
         threading.Thread(target=worker,name='WayriFusion',daemon=True).start()
 
     def start_workspace(self,apply):
@@ -1235,6 +1269,7 @@ class FusionDialog(wx.Dialog):
                 if wx.MessageBox('Apply the reviewed selection? Existing targets are backed up and rechecked; new projects use a new folder.','Apply reviewed design',wx.YES_NO|wx.NO_DEFAULT|wx.ICON_QUESTION,self)!=wx.YES:return
         except Exception as exc:wx.MessageBox(str(exc),'Check workflow',wx.OK|wx.ICON_WARNING,self);return
         mode_import=self.import_current.GetValue();include_layout=self.copy_layout.GetValue()
+        if not apply:self.discard_review()
         self.busy=True;self.enable_inputs(False);self.analyse_button.Disable();self.merge_button.Disable();self.close_button.Disable();self.offline_button.Disable()
         self.notebook.SetSelection(self.notebook.FindPage(self.review_page));self.review_inspector.SetSelection(1);self.timer.Start(120)
         self.status.SetLabel('Applying reviewed selection…' if apply else 'Preparing selected sheets and validating a review candidate…')
@@ -1261,8 +1296,8 @@ class FusionDialog(wx.Dialog):
                     result['output_destination']=options.destination;result['output_name']=options.name;result['cli_path']=options.cli_path
                     result['copy_assets']=options.copy_assets
                     result['visual_sources']=self.visual_source_records(specs,result)
-                wx.CallAfter(self.workspace_done,apply,result,None)
-            except Exception as exc:wx.CallAfter(self.workspace_done,apply,None,str(exc))
+                self.defer(self.workspace_done,apply,result,None)
+            except Exception as exc:self.defer(self.workspace_done,apply,None,str(exc))
         threading.Thread(target=worker,name='FusionWorkspace',daemon=True).start()
 
     def workspace_done(self,applied,result,error):
@@ -1270,7 +1305,7 @@ class FusionDialog(wx.Dialog):
         self.analyse_button.Enable();self.merge_button.Enable();self.close_button.Enable()
         self.refresh_guide()
         if error:
-            self.import_plan=None;self.status.SetLabel(error);self.append_log(error);self.show_validation_failure(error);return
+            self.discard_review();self.status.SetLabel(error);self.append_log(error);self.show_validation_failure(error);self.refresh_guide();return
         self.append_log(json.dumps(result.get('report',result),indent=2,default=str))
         if applied:
             self.import_plan=None
@@ -1348,6 +1383,7 @@ class FusionDialog(wx.Dialog):
         self.busy=False; self.timer.Stop(); self.gauge.SetValue(0)
         self.enable_inputs(True); self.analyse_button.Enable(); self.merge_button.Enable(); self.close_button.Enable()
         if error:
+            self.discard_review()
             self.status.SetLabel(error)
             self.append_log(error)
             self.show_validation_failure(error)
@@ -1385,7 +1421,9 @@ class FusionDialog(wx.Dialog):
 
     def close(self,event):
         if self.busy:
-            if isinstance(event,wx.CloseEvent) and event.CanVeto(): event.Veto()
+            if isinstance(event,wx.CloseEvent):
+                if event.CanVeto():event.Veto()
+                else:self._closed=True;self.timer.Stop();event.Skip()
             return
         if self.IsModal(): self.EndModal(wx.ID_CANCEL)
         else: self.Destroy()

@@ -304,6 +304,15 @@ def main(argv=None):
             finally:
                 dialog.Destroy()
             return 0
+        output=getattr(args,'output',None)
+        if output:
+            path=Path(output).resolve()
+            if path.exists():raise MergeError('Result output already exists; choose a new file before running the operation.')
+            candidate=getattr(args,'candidate',None)
+            if candidate:
+                folder=Path(candidate).resolve()
+                if path==folder or folder in path.parents:
+                    raise MergeError('Save the JSON plan outside its candidate directory.')
         if args.command:
             result = _dispatch(args)
         elif args.config:
@@ -313,7 +322,14 @@ def main(argv=None):
             result = _new_project(args, args.analyse)
         else:
             parser.error('Choose a command, --gui, or --config. Use --help for commands.')
-        _emit(result, getattr(args, 'output', None))
+        try:
+            _emit(result, output)
+        except (OSError, MergeError) as exc:
+            # A successful Apply must never be misreported as an unapplied operation.
+            _emit(result)
+            print('Fusion operation completed, but saving its result failed: '+str(exc)+
+                  '\nThe result is on stdout. Inspect it before retrying an operation that writes files.',file=sys.stderr)
+            return 3
         return 0
     except (MergeError, OSError, ValueError, KeyError, TypeError, ImportError) as exc:
         print(f'Fusion stopped: {exc}', file=sys.stderr)

@@ -1,4 +1,4 @@
-# Wayri Project Fusion 0.9.7
+# Wayri Project Fusion 0.9.8
 
 **KiCad 10 · native wxPython plugin · testing release**
 
@@ -662,3 +662,20 @@ before installing this candidate through PCM; do not retain a stale
 Version 0.9.3 avoids editor-only action registration during standalone native CLI imports.
 
 Fusion is an independently installable testing package in the WayriCAD suite. It retains its MIT license and `org.wayri.projectfusion` identifier. Install through PCM, then restart PCB Editor. Full project imports apply to saved files with closed target editors; live schematic insertion is unsupported.
+
+## Recovering from errors
+
+Failed preview or Apply clears the old candidate's Apply state and open/handoff
+controls. Your source rows and settings remain available for correction. The
+Issues panel includes the latest failure alongside source findings, with a next
+step for stale inputs, locks, missing files/runtime or permissions. Run Preview
+again after correcting the cause; a previous successful preview cannot override
+a later failure. Subsheet/import dialogs show selectable details and Copy details
+for troubleshooting. A reported rollback failure requires inspecting the backup
+and transaction receipt before retrying. Background completions are ignored after
+a window is destroyed; normal close remains blocked during active operations.
+
+CLI result paths must be new files outside the candidate. Exit code 2 means an
+operation was stopped; exit code 3 means the operation completed but its result
+file could not be saved. In that case the result is printed on stdout: inspect
+it before repeating a write.

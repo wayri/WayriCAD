@@ -59,8 +59,9 @@ class VisualWorkspaceTests(unittest.TestCase):
         d=self.dialog;d.show_validation_failure('Extra PCB pad on Q3')
         self.assertEqual(d.review_inspector.GetSelection(),3)
         self.assertIn('Extra PCB pad',d.issue_list.GetItemText(0,1))
-        existing=list(d.merge_issues);d.show_validation_failure('Second report')
-        self.assertEqual(d.merge_issues,existing)
+        d.show_validation_failure('Second report')
+        self.assertEqual(len(d.merge_issues),1)
+        self.assertIn('Second report',d.merge_issues[0][2]['error'])
         d.clear_results();self.assertEqual(d.merge_issues,[]);self.assertEqual(d.issue_list.GetItemCount(),0)
 
     def test_preflight_failures_are_inline_and_non_mutating(self):

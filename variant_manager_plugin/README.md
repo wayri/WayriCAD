@@ -34,6 +34,8 @@ Save and close the project's schematic editor, PCB Editor and project manager. K
 
 Reopen KiCad afterward. Named variant edits affect native variant-aware outputs. If you promote a variant with changed footprint or placement flags, use **Update PCB from Schematic** and review the resulting PCB changes. Variant Manager does not move components or modify routing. A full source restore is available in the CLI and rewinds later design edits; use it only after reviewing its diff.
 
+Failed staging retains the previous reviewed candidate and its operations, so you can correct the input and retry. Failed Apply retains the review for inspection but disables Apply; reload the saved project and build a new candidate before writing again. Reload discards staged work and clears the old inventory even if loading fails. Apply or clear a staged restore before adding other operations, and apply or clear an existing candidate before staging a restore. A source change since loading disables Apply and clears the closed-project acknowledgement; the review remains available for export, and reload is required before adding operations or restoring definitions. Failed exports retain the staged review and report how to retry with a writable output.
+
 ## CLI and batch jobs
 
 ```text

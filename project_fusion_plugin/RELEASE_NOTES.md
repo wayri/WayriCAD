@@ -1,3 +1,11 @@
+# Wayri Project Fusion 0.9.8
+
+- Clear stale candidate/apply state on failed preview or apply while retaining
+  source settings and source repair choices.
+- Always show the latest failure with recovery guidance alongside source issues.
+- Use native selectable/copyable failure details in import and section dialogs.
+- Ignore queued background completions after window destruction.
+
 # Wayri Project Fusion 0.9.4
 
 Testing release in WayriCAD 3.6.5. KiCad 10; legacy SWIG entry point.

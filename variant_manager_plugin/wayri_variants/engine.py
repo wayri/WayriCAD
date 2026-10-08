@@ -31,7 +31,7 @@ import tempfile
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, Union
 
 APP_NAME = "WayriCAD Variant Manager"
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.6.1"
 BOM_LOGIC_FIX_VERSION = 20260306
 SUPPORTED_MIN_VARIANT_VERSION = 20250922
 

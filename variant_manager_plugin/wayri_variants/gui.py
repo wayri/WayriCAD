@@ -13,6 +13,10 @@ import wx.html
 from . import service as S
 
 
+class SourceChangedError(S.Error):
+    """The loaded inventory no longer describes the saved project."""
+
+
 FLAGS = ('dnp', 'excluded_from_bom', 'excluded_from_board', 'excluded_from_pos', 'exclude_from_sim')
 
 
@@ -183,6 +187,8 @@ class VariantFrame(wx.Frame):
         self.SetMinSize((1000, 800))
         self.pool = ThreadPoolExecutor(max_workers=1)
         self.closed = False
+        self.task_generation = 0
+        self.review_stale = False
         self.inventory = None
         self.plan = None
         self.operations = []
@@ -292,7 +298,11 @@ class VariantFrame(wx.Frame):
         self.pool.shutdown(wait=False, cancel_futures=True)
         event.Skip()
 
-    def task(self, message, work, done):
+    def task(self, message, work, done, *, recover_plan=True):
+        if self.closed:
+            return
+        self.task_generation += 1
+        generation = self.task_generation
         self.main_panel.Disable()
         self.apply_button.Disable()
         self.SetStatusText(message)
@@ -300,23 +310,39 @@ class VariantFrame(wx.Frame):
         future = self.pool.submit(work)
         def completed(f):
             def display():
-                if self.closed:
+                if self.closed or generation != self.task_generation:
                     return
                 self.main_panel.Enable()
                 try:
                     done(f.result())
                 except Exception as exc:
-                    self.plan = None
-                    self.review.SetValue(str(exc))
+                    if isinstance(exc, SourceChangedError) or not recover_plan:
+                        self.invalidate_review()
+                    can_recover = recover_plan and not self.review_stale
+                    self.apply_button.Enable(bool(can_recover and self.plan and self.plan.count))
+                    recovery = ('The previous staged review is retained. Correct the error and try again.'
+                                if can_recover and self.plan else
+                                'Reload the saved project and review a new candidate before applying.')
+                    self.review.SetValue(str(exc) + '\n\n' + recovery)
                     self.SetStatusText('Operation could not complete. Read the error and any rollback details before continuing.')
-                    wx.MessageBox(str(exc), 'Variant Manager', wx.OK | wx.ICON_ERROR, self)
+                    wx.MessageBox(str(exc) + '\n\n' + recovery, 'Variant Manager', wx.OK | wx.ICON_ERROR, self)
             wx.CallAfter(display)
         future.add_done_callback(completed)
 
+    def invalidate_review(self):
+        self.review_stale = True
+        self.ack.SetValue(False)
+        self.apply_button.Disable()
+
     def project_changed(self, _):
+        self.review_stale = False
+        self.task_generation += 1
+        self.main_panel.Enable()
+        self.ack.SetValue(False)
         self.inventory, self.plan, self.operations = None, None, []
         self.table.DeleteAllItems()
         self.variants.Clear()
+        self.geometry = []
         self.canvas.geometry = []
         self.canvas.Refresh()
         self.apply_button.Disable()
@@ -330,7 +356,7 @@ class VariantFrame(wx.Frame):
 
     def reload(self, _=None):
         project = self.project.GetValue()
-        self.operations, self.plan = [], None
+        self.project_changed(None)
         def load():
             return S.inventory(project), board_geometry(project)
         def done(result):
@@ -443,6 +469,12 @@ class VariantFrame(wx.Frame):
             self.refresh_rows()
 
     def stage(self, op):
+        if self.review_stale:
+            wx.MessageBox("Reload the saved project before staging a new candidate. The previous review remains available for export.", "Variant Manager", parent=self)
+            return
+        if self.plan and self.plan.operation != "batch":
+            wx.MessageBox("Apply or clear the staged restore before adding other operations.", "Variant Manager", parent=self)
+            return
         if not self.inventory:
             return
         chosen = [self.variants.GetString(i) for i in self.variants.GetSelections() if self.variants.GetString(i) != S.DEFAULT]
@@ -464,6 +496,8 @@ class VariantFrame(wx.Frame):
         candidate = self.operations + additions
         project = self.project.GetValue()
         def done(plan):
+            if plan.expected != self.inventory["source_hashes"]:
+                raise SourceChangedError("Saved source changed since loading. Reload the project and stage a new review.")
             self.operations, self.plan = candidate, plan
             self.populate_names()
             self.mode.SetSelection(1)
@@ -474,6 +508,8 @@ class VariantFrame(wx.Frame):
         self.task('Building and validating the candidate variant states…', lambda: S.preview(project, candidate), done)
 
     def clear(self, _):
+        self.task_generation += 1
+        self.main_panel.Enable()
         self.operations, self.plan = [], None
         self.apply_button.Disable()
         if self.inventory:
@@ -482,6 +518,9 @@ class VariantFrame(wx.Frame):
         self.review.SetValue('Staged operations cleared. Saved files remain unchanged.')
 
     def apply(self, _):
+        if self.review_stale:
+            wx.MessageBox("Reload the saved project and review a new candidate before applying.", "Variant Manager", parent=self)
+            return
         if not self.plan:
             return
         if not self.ack.GetValue():
@@ -492,9 +531,12 @@ class VariantFrame(wx.Frame):
             wx.MessageBox('Applied with verified backup:\n' + str(backup) + '\nReopen KiCad. Promoted footprint/assembly changes need Update PCB from Schematic.', 'Variant Manager', parent=self)
             self.ack.SetValue(False)
             self.reload()
-        self.task('Checking source hashes, verifying backup and applying reviewed files…', lambda: S.apply(plan, editors_closed=True), done)
+        self.task('Checking source hashes, verifying backup and applying reviewed files…', lambda: S.apply(plan, editors_closed=True), done, recover_plan=False)
 
     def restore(self, _):
+        if self.plan:
+            wx.MessageBox("Apply or clear the staged candidate before restoring definitions.", "Restore variants", parent=self)
+            return
         if not self.inventory:
             return
         with wx.FileDialog(self, 'Select verified Variant Manager backup', wildcard='ZIP backup (*.zip)|*.zip', style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
@@ -511,12 +553,16 @@ class VariantFrame(wx.Frame):
             if overwrite and wx.MessageBox('Replace the selected existing variant definitions from this backup?', 'Restore variants', wx.YES_NO | wx.NO_DEFAULT, self) != wx.YES:
                 return
             plan = S.plan_restore_variants(self.project.GetValue(), archive, names, overwrite=overwrite)
+            if plan.expected != self.inventory["source_hashes"]:
+                raise SourceChangedError("Saved source changed since loading. Reload the project before restoring definitions.")
             self.operations, self.plan = [], plan
             self.populate_names()
             self.refresh_rows()
             self.review.SetValue('\n'.join(plan.summary) + '\n' + plan.diff)
             self.apply_button.Enable(plan.count > 0)
         except Exception as exc:
+            if isinstance(exc, SourceChangedError):
+                self.invalidate_review()
             wx.MessageBox(str(exc), 'Restore variants', wx.OK | wx.ICON_ERROR, self)
 
     def export(self, _):
@@ -531,20 +577,24 @@ class VariantFrame(wx.Frame):
                 (self.plan.context.home / relative).resolve() for relative in self.plan.expected}:
             wx.MessageBox('Choose an HTML, JSON or CSV output that is separate from the source project.', 'Export review', parent=self)
             return
-        data = S.review(self.plan)
-        rows = data['rows']
-        labels = {o['key']: o['label'] for o in self.inventory['objects']}
-        if path.suffix.lower() == '.csv':
-            with path.open('w', encoding='utf-8', newline='') as stream:
-                writer = csv.writer(stream)
-                writer.writerow(['Instance', 'Variant', 'Before', 'After'])
-                writer.writerows((labels.get(r['key'], r['key']), r['variant'], state_text(r['before']), state_text(r['after'])) for r in rows)
-        elif path.suffix.lower() == '.html':
-            body = ''.join('<tr>' + ''.join('<td>' + html.escape(str(v)) + '</td>' for v in (labels.get(r['key'], r['key']), r['variant'], state_text(r['before']), state_text(r['after']))) + '</tr>' for r in rows)
-            path.write_text('<!doctype html><meta charset="utf-8"><title>WayriCAD Variant review</title><style>body{font:16px system-ui;margin:3em;background:#f5f8fa;color:#203746}table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd9df;padding:.6em;text-align:left}pre{white-space:pre-wrap}</style><h1>WayriCAD Variant review</h1><p>Saved-state preview. Geometry and connectivity are not modified; PCB synchronization is separate.</p><table><tr><th>Instance</th><th>Variant</th><th>Before</th><th>After</th></tr>' + body + '</table><h2>File diff</h2><pre>' + html.escape(data['diff']) + '</pre>', encoding='utf-8')
-        else:
-            path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
-        self.SetStatusText('Review exported.')
+        try:
+            data = S.review(self.plan)
+            rows = data['rows']
+            labels = {o['key']: o['label'] for o in self.inventory['objects']}
+            if path.suffix.lower() == '.csv':
+                with path.open('w', encoding='utf-8', newline='') as stream:
+                    writer = csv.writer(stream)
+                    writer.writerow(['Instance', 'Variant', 'Before', 'After'])
+                    writer.writerows((labels.get(r['key'], r['key']), r['variant'], state_text(r['before']), state_text(r['after'])) for r in rows)
+            elif path.suffix.lower() == '.html':
+                body = ''.join('<tr>' + ''.join('<td>' + html.escape(str(v)) + '</td>' for v in (labels.get(r['key'], r['key']), r['variant'], state_text(r['before']), state_text(r['after']))) + '</tr>' for r in rows)
+                path.write_text('<!doctype html><meta charset="utf-8"><title>WayriCAD Variant review</title><style>body{font:16px system-ui;margin:3em;background:#f5f8fa;color:#203746}table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd9df;padding:.6em;text-align:left}pre{white-space:pre-wrap}</style><h1>WayriCAD Variant review</h1><p>Saved-state preview. Geometry and connectivity are not modified; PCB synchronization is separate.</p><table><tr><th>Instance</th><th>Variant</th><th>Before</th><th>After</th></tr>' + body + '</table><h2>File diff</h2><pre>' + html.escape(data['diff']) + '</pre>', encoding='utf-8')
+            else:
+                path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
+            self.SetStatusText('Review exported.')
+        except (OSError, ValueError) as exc:
+            self.SetStatusText("Export failed. The staged review is retained; choose a writable output and retry.")
+            wx.MessageBox(str(exc) + "\nChoose a writable output and retry. The staged review is retained.", "Export review", wx.OK | wx.ICON_ERROR, self)
 
     def help(self, _):
         dialog = wx.Dialog(self, title='Variant Manager help', size=(860, 680))
