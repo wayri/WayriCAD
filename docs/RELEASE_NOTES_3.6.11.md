@@ -1,6 +1,6 @@
 # WayriCAD 3.6.11
 
-Update QuickTherm, Quick PI and Quick SI through the WayriCAD KiCad PCM
+Update QuickTherm, Quick PI, Quick SI and Trace RLC through the WayriCAD KiCad PCM
 repository, or install their independent PCM ZIPs below. Restart KiCad after
 updating. Other plugins retain their existing package versions.
 
@@ -16,6 +16,7 @@ qualified extraction is unavailable. It shows section impedance and coverage,
 local endpoint estimates, cumulative delay and resistance in three plots.
 Approximate timing remains separate from extracted impedance. Missing reference,
 via and coupling evidence remains visible; zone spreading is still unresolved.
+Trace RLC includes the synchronized measurement engine used by Quick SI.
 Quick PI shows voltage drop, current density and copper loss plots first, with
 additional maps available below.
 

@@ -76,6 +76,11 @@ class PathMeasurement:
     impedance_model: str = ""
     resistance_ac_ohm: float = 0.0
     propagation_delay_ns: float = 0.0
+    screening_delay_ns: Optional[float] = None
+    screening_z0_ohm: Optional[float] = None
+    screening_status: str = "UNAVAILABLE"
+    screening_model: str = ""
+    screening_notes: List[str] = field(default_factory=list)
     board_items: List[Any] = field(default_factory=list, repr=False)
     status: str = "disconnected"
     impedance_valid: bool = False
@@ -304,6 +309,81 @@ class TraceMeasurementEngine:
         weighted_er = sum(value * row.relative_permittivity for value, row in zip(thicknesses, dielectrics)) / total
         return total, weighted_er
 
+    def _screening_section(self, kind, layer, length, width=0.0, copper=0.0, end_layer=None):
+        """Estimate travel time from saved stackup under ideal-plane assumptions.
+
+        This estimate does not verify copper coverage or solve discontinuities.
+        Width, thickness and length are millimetres; returned delay is ns and
+        section impedance is ohms. Unknown material data remains unavailable.
+        """
+        answer = {"screening_delay_ns": None, "screening_z0_ohm": None,
+                  "screening_status": "UNAVAILABLE", "screening_model": "Saved stackup unavailable"}
+        rows = self.stackup_layers()
+        indices = {row.name: index for index, row in enumerate(rows)}
+        copper_names = [row.name for row in rows if row.name.endswith(".Cu")]
+        if layer not in copper_names or not math.isfinite(length) or length < 0:
+            return answer
+        def dielectric_rows(a, b):
+            lo, hi = sorted((indices[a], indices[b]))
+            material = [r for r in rows[lo + 1:hi] if not r.name.endswith(".Cu") and "copper" not in r.kind.lower()]
+            values = [(r.thickness_mm or r.dielectric_height_mm, r.relative_permittivity) for r in material]
+            if not values or any(not math.isfinite(h) or h <= 0 or not math.isfinite(er) or er < 1 for h, er in values):
+                return None
+            return values
+        if kind == "via":
+            if end_layer not in indices or end_layer == layer:
+                return answer
+            values = dielectric_rows(layer, end_layer)
+            if values is None:
+                return answer
+            # Scale the traversed dielectric optical length to the actual barrel
+            # length, including copper-layer centre offsets. This is only a
+            # first-order propagation estimate, not a via equivalent circuit.
+            root_er = sum(h * math.sqrt(er) for h, er in values) / sum(h for h, _ in values)
+            answer.update(screening_delay_ns=length * root_er / 299.792458,
+                          screening_status="APPROXIMATE",
+                          screening_model="Via travel time: saved traversed dielectric optical-length average; no discontinuity model")
+            return answer
+        if kind != "track":
+            answer["screening_model"] = "Zone spreading is not a uniform transmission line"
+            return answer
+        index = copper_names.index(layer)
+        outer = index in (0, len(copper_names) - 1)
+        neighbours = ([copper_names[1 if index == 0 else index - 1]] if outer and len(copper_names) > 1
+                      else copper_names[max(0,index - 1):index] + copper_names[index + 1:index + 2])
+        values = [dielectric_rows(layer, neighbour) for neighbour in neighbours]
+        if not values or any(value is None for value in values):
+            return answer
+        materials = [entry for value in values for entry in value]
+        ers = [er for _, er in materials]
+        if max(ers) - min(ers) > 0.01 * max(ers):
+            answer["screening_model"] = "Stratified dielectric requires a multilayer field model"
+            return answer
+        er = sum(h * e for h, e in materials) / sum(h for h, _ in materials)
+        heights = [sum(h for h, _ in value) for value in values]
+        if outer:
+            if copper <= 0 or width <= 0:
+                return answer
+            try:
+                model = _rlc.solve(width, heights[0], copper, er, length, 0.0, "microstrip")
+            except ValueError:
+                return answer
+            answer.update(screening_delay_ns=model["propagation_delay_ns"], screening_z0_ohm=model["z0_ohm"],
+                          screening_status="APPROXIMATE",
+                          screening_model="Ideal microstrip: adjacent copper assumed continuous reference; lateral copper and coupling omitted")
+        else:
+            answer.update(screening_delay_ns=length * math.sqrt(er) / 299.792458,
+                          screening_status="APPROXIMATE",
+                          screening_model="Homogeneous embedded trace: bulk dielectric travel time; ideal adjacent planes")
+            if len(heights) == 2 and abs(heights[0] - heights[1]) <= .01 * max(heights) and copper > 0 and width > 0:
+                try:
+                    model = _rlc.solve(width, sum(heights), copper, er, length, 0.0, "stripline")
+                    answer["screening_z0_ohm"] = model["z0_ohm"]
+                    answer["screening_model"] += "; centred-stripline section impedance"
+                except ValueError:
+                    pass
+        return answer
+
     @staticmethod
     def _block(result: PathMeasurement, code: str, message: str, action: str, **context: Any) -> None:
         blocker = {"code": code, "message": message, "action": action}
@@ -483,6 +563,9 @@ class TraceMeasurementEngine:
             copper = (rows[layer].thickness_mm if layer in rows else 0.) or .035
             section['copper_thickness_mm']=copper
             result.copper_thickness_mm = copper
+            section.update(self._screening_section(kind, layer, length, edge.get("width_mm", 0.0),
+                           rows[layer].thickness_mm if layer in rows else 0.0,
+                           self._layer_name(edge["end_layer"]) if kind == "via" else None))
             if kind == "via":
                 via_ids.add(uid)
                 end_layer = self._layer_name(edge["end_layer"])
@@ -559,7 +642,7 @@ class TraceMeasurementEngine:
                             try:
                                 model = _rlc.solve(width,height,copper,er,length,frequency,"microstrip" if outer else "stripline")
                                 section.update(inductance_nh=model["inductance_nh"],capacitance_pf=model["capacitance_pf"],
-                                               impedance_ohm=model["z0_ohm"],model=model["model"],status="ok")
+                                               impedance_ohm=model["z0_ohm"],propagation_delay_ns=model["propagation_delay_ns"],model=model["model"],status="ok")
                                 impedances.append((model["z0_ohm"],length))
                                 result.propagation_delay_ns += model["propagation_delay_ns"]
                                 result.width_to_height = model["width_to_height"]
@@ -599,6 +682,15 @@ class TraceMeasurementEngine:
             else:
                 self._block(result, "NONUNIFORM_IMPEDANCE", "Modeled section impedances vary by more than 1%.",
                             "Inspect width, layer, and reference changes per section; no single Z0 is reported.")
+        if result.segments and all(s.get("screening_delay_ns") is not None for s in result.segments):
+            result.screening_delay_ns = sum(s["screening_delay_ns"] for s in result.segments)
+            result.screening_status = "APPROXIMATE"
+            result.screening_model = "Saved-stackup first-order travel time; ideal reference planes and dielectric via travel"
+            result.screening_notes = ["Adjacent copper is assumed to be an ideal continuous reference plane. Actual reference coverage, return paths, pad spreading, via discontinuities and coupled-line effects are not solved.",
+                                      "Screening timing is separate from verified section extraction; existing blockers remain applicable."]
+            screening_z = [s.get("screening_z0_ohm") for s in result.segments]
+            if all(z is not None for z in screening_z) and max(screening_z) - min(screening_z) <= .01 * max(screening_z):
+                result.screening_z0_ohm = sum(s["screening_z0_ohm"] * s["length_mm"] for s in result.segments) / result.length_mm
         result.impedance_model = "Per-section geometry; see segments"
         if result.status != "ok":
             result.notes.append("R/L/C totals include modeled sections only; unresolved terms are null in the section report. They are not a complete equivalent-circuit extraction.")
