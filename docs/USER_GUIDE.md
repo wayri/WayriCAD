@@ -138,3 +138,25 @@ Choose a balanced preset, inspect the logical coil connections, then review EMF/
 - **Partial analysis:** inspect missing stackup, terminals, filled zones, models or connectivity. Do not turn a partial result into a pass by suppressing the warning.
 
 For a report, include the tool/version, OS, KiCad version, operation and redacted error text. Do not share IPC tokens. The [Marble smoke record](audits/MARBLE_SUITE_SMOKE.md) documents bounded checks and their remaining limitations.
+
+## Fusion and Variant Manager recovery (3.6.10)
+
+Install Project Fusion 0.9.8 and Variant Manager 0.6.1 independently through PCM,
+then restart KiCad. Fusion guides source selection, variant destination, preview
+and offline Apply; Variant Manager handles the resulting native configurations.
+
+If Fusion reports a failed preview or Apply, correct the reported source/settings
+and run a fresh Preview. Earlier review state is cleared. The Issues panel retains
+source repair choices and shows the latest failure with recovery guidance. Import
+and subsheet dialogs provide selectable details and Copy details.
+
+Variant Manager keeps the previous staged batch after an ordinary staging error.
+If the saved source changed or Apply failed, export the retained review if needed,
+then reload and stage a new review. Apply remains blocked until then. Apply or
+clear a staged restore before adding ordinary batch operations. Report export
+failures leave the review available for another output path.
+
+CLI: `wayricad-fusion --help` and `wayricad-variants --help`. Fusion exit code 3
+means the operation completed but saving its result failed; the result is on
+stdout. Inspect the result and backup before repeating a write. Always inspect
+reported rollback failures and recovery backups before another Apply.
