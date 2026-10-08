@@ -13,5 +13,5 @@ old Apply/open/handoff state after failure, preserves source inputs and repair
 choices, and shows the latest validation failure with a recovery step.
 Existing backend source hashes, lock checks, backup and rollback contracts remain.
 No new geometry or solver behavior is introduced. Linux/macOS native UI checks
-were not run. These source versions are pending a new public package release;
-published 3.6.9 assets and PCM feed remain unchanged.
+were not run. Released source versions: Fusion 0.9.8 and Variant Manager 0.6.1 in WayriCAD
+3.6.10. Previously published 3.6.9 assets remain unchanged.

@@ -4,7 +4,9 @@
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current suite release: [3.6.9](https://github.com/wayri/WayriCAD/releases/tag/v3.6.9) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
+**Current suite release: [3.6.10](https://github.com/wayri/WayriCAD/releases/tag/v3.6.10) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
+
+**New in 3.6.10:** [Fusion 0.9.8](project_fusion_plugin/README.md) and [Variant Manager 0.6.1](variant_manager_plugin/README.md) improve error recovery, preserve staged work, invalidate stale reviews and handle background window shutdown safely. See the [3.6.10 release notes](docs/RELEASE_NOTES_3.6.10.md).
 
 **New in 3.6.9:** [Fusion 0.9.7](project_fusion_plugin/README.md) guides source-to-destination imports, retains selected configurations separately or merges them into a working variant, and exposes saved-file workflows through the CLI. See the [3.6.9 release notes](docs/RELEASE_NOTES_3.6.9.md).
 
@@ -133,8 +135,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.9
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.9
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.10
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.10
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.
@@ -146,4 +148,4 @@ WayriCAD development has made substantial use of AI coding assistants and large 
 We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
 
 
-[Project Fusion 0.9.7 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.9/WayriCAD-project-fusion-0.9.7-PCM.zip) and [Variant Manager 0.6.0 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.8/WayriCAD-variant-manager-0.6.0-PCM.zip) are independent testing packages. Both retain their MIT licenses and native KiCad loaders.
+[Project Fusion 0.9.8 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-project-fusion-0.9.8-PCM.zip) and [Variant Manager 0.6.1 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-variant-manager-0.6.1-PCM.zip) are independent testing packages. Both retain their MIT licenses and native KiCad loaders.
