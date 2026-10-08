@@ -29,7 +29,7 @@ Select the linked name for detailed instructions. “Review” below means that 
 
 | Icon | Tool and detailed guide | Start with | Result and write boundary |
 |---|---|---|---|
-| <img src="../project_fusion_plugin/icon.png" width="28" height="28" alt="Project Fusion icon"> | [Project Fusion](../project_fusion_plugin/README.md) | Saved projects or selected subsheets | Visual placement and reviewed merge; offline apply with backups and source links |
+| <img src="../project_fusion_plugin/icon.png" width="28" height="28" alt="Project Fusion icon"> | [Project Fusion](../project_fusion_plugin/README.md) | Saved projects or selected subsheets | Guided source/variant destination, visual merge, CLI workflows and backed-up offline apply |
 | <img src="../variant_manager_plugin/icon.png" width="28" height="28" alt="Variant Manager icon"> | [Variant Manager](../variant_manager_plugin/README.md) | Native KiCad 10 variant definitions | Assembly comparison, bulk operations, conflict-aware merge/swap, Default promotion and verified recovery |
 | <img src="../bom_studio_plugin/icon.png" width="28" height="28" alt="BOM Studio icon"> | [BOM Studio](../bom_studio_plugin/README.md) | Saved schematic/project and desired fields | Review staged component data, export purchasing/assembly BOMs; native writes require a reviewed operation |
 | <img src="../embed_3d_plugin/icon.png" width="28" height="28" alt="Embed3D icon"> | [Embed3D](../embed_3d_plugin/README.md) | Project plus library/model search paths | Preview then copy/relink symbols, footprints and models with backups |

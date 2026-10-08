@@ -25,6 +25,8 @@ class FusionDialog(wx.Dialog):
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
                          size=(1060, 900))
         self.SetMinSize((860, 700))
+        from .variant_import_gui import apply_window_icon
+        apply_window_icon(self)
         self.busy = False
         self.output_project = None
         self.initial_target = str(Path(initial).with_suffix('.kicad_pro')) if initial else ''
@@ -33,6 +35,10 @@ class FusionDialog(wx.Dialog):
         self.import_plan = None
         self.placement_history=[]
         self.selector_row = None
+        self.guided_started = False
+        self.guided_preview_ready = False
+        self.confirmed_variant_choices = set()
+        self.requires_offline_handoff = parent is not None
         self.notebook = wx.Notebook(self)
         self.controls_page = wx.ScrolledWindow(self.notebook)
         self.controls_page.SetScrollRate(0,16)
@@ -84,6 +90,15 @@ class FusionDialog(wx.Dialog):
         root.Add(self.gauge, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         root.Add(buttons, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         self.SetSizer(root)
+        guide = wx.BoxSizer(wx.HORIZONTAL)
+        self.guide_text = wx.StaticText(self, label='Start here: choose where the design should go. Fusion will guide the source, scope and variant choices.')
+        self.guide_text.Wrap(740)
+        guide.Add(self.guide_text, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
+        self.guide_next = wx.Button(self, label='Start guided import…')
+        self.guide_next.Bind(wx.EVT_BUTTON, self.guided_next)
+        guide.Add(self.guide_next, 0, wx.ALIGN_CENTER_VERTICAL)
+        root.Insert(0, guide, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 12)
+        self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.refresh_guide)
         self.mode_changed(None)
         self.Bind(wx.EVT_SIZE,self.resize_content)
         self.timer = wx.Timer(self)
@@ -160,6 +175,7 @@ class FusionDialog(wx.Dialog):
         self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL,self.select_source_row)
         main.Add(self.source_splitter,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
         bar=wx.WrapSizer(wx.HORIZONTAL,wx.REMOVE_LEADING_SPACES)
+        self.secondary_source_actions=[]
         for label,handler,art,tip in [
             ('Add design…',self.add,wx.ART_FILE_OPEN,'Choose a project, schematic or PCB; its type and hierarchy are detected automatically.'),
             ('Duplicate…',self.duplicate_selected,wx.ART_COPY,'Duplicate selected instances with unique aliases and independent placement.'),
@@ -167,12 +183,21 @@ class FusionDialog(wx.Dialog):
             ('Move up',lambda e:self.move(-1),wx.ART_GO_UP,'Move selected instance earlier; row 1 supplies project settings.'),
             ('Move down',lambda e:self.move(1),wx.ART_GO_DOWN,'Move selected instance later.'),
             ('Refresh variants',self.refresh_variants,wx.ART_REDO,'Read variant choices from saved sources.'),
+            ('Variant destination…',self.edit_variant_import,wx.ART_LIST_VIEW,'Choose the source variant and whether to use its base, merge it or retain it separately.'),
             ('Load setup…',self.load_config,wx.ART_FOLDER_OPEN,'Restore saved source instances and merge settings.'),
             ('Save setup…',self.save_config,wx.ART_FILE_SAVE,'Save source paths, variants, placement and merge settings.')]:
-            bar.Add(self.action(p,label,handler,art,tip),0,wx.RIGHT|wx.BOTTOM,6)
+            button=self.action(p,label,handler,art,tip)
+            if label not in ('Add design…','Variant destination…'):
+                self.secondary_source_actions.append(button);button.Hide()
+            bar.Add(button,0,wx.RIGHT|wx.BOTTOM,6)
+        advanced=wx.CheckBox(p,label='Show advanced source actions')
+        advanced.Bind(wx.EVT_CHECKBOX,self.toggle_source_actions)
+        bar.Add(advanced,0,wx.ALIGN_CENTER_VERTICAL | wx.LEFT,10)
         main.Add(bar,0,wx.EXPAND|wx.ALL,12)
+        self.variant_summary=wx.StaticText(p,label='Select a source to review where its variant will go.')
+        main.Add(self.variant_summary,0,wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,12)
         self.instance_count=wx.StaticText(p,label='Instances: 0 / '+str(MAX_INSTANCES));main.Add(self.instance_count,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
-        main.Add(self.note(p,'Choose a variant for each row. Blank X/Y uses automatic placement; explicit X/Y places the source upper-left corner in millimetres. Long paths can be scrolled horizontally in the source table.'),0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        main.Add(self.note(p,'Choose a source variant, then Variant destination to merge it into a working variant or keep it separate. Blank X/Y uses automatic placement. Hover over a row to see its import handling.'),0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         p.SetSizer(main)
 
         p=self.settings_page;main=wx.BoxSizer(wx.VERTICAL)
@@ -265,7 +290,10 @@ class FusionDialog(wx.Dialog):
     def source_tooltip(self,event):
         _,y=self.grid.CalcUnscrolledPosition(event.GetPosition())
         row=self.grid.YToRow(y)
-        if 0<=row<self.grid.GetNumberRows():self.grid.GetGridWindow().SetToolTip(self.grid.GetCellValue(row,0))
+        if 0<=row<self.grid.GetNumberRows():
+            from .variant_import_gui import disposition_label
+            spec=SourceSpec(self.grid.GetCellValue(row,0),self.grid.GetCellValue(row,1),**self.source_extras[row])
+            self.grid.GetGridWindow().SetToolTip(self.grid.GetCellValue(row,0)+'\n'+disposition_label(spec))
         event.Skip()
 
     def load_source_selection(self,row):
@@ -273,6 +301,8 @@ class FusionDialog(wx.Dialog):
         self.selector_row=row
         try:
             spec=self.options().sources[row]
+            from .variant_import_gui import disposition_label
+            self.variant_summary.SetLabel(spec.alias+': '+(spec.variant or CHOOSE_VARIANT)+' → '+disposition_label(spec))
             self.source_selector.load_spec(spec,self.cli.GetPath())
             self.source_selector.set_include_layout(self.copy_layout.GetValue())
         except Exception as exc:self.status.SetLabel(str(exc))
@@ -678,7 +708,8 @@ class FusionDialog(wx.Dialog):
     def spec_extras(spec):
         return {'path_variables':spec.path_variables,'path_remaps':spec.path_remaps,
                 'extra_asset_paths':spec.extra_asset_paths,'section_origin':spec.section_origin,'selection':spec.selection,
-                'sheet_position_mm':spec.sheet_position_mm}
+                'sheet_position_mm':spec.sheet_position_mm,'variant_mode':spec.variant_mode,
+                'destination_variant':spec.destination_variant}
 
     def update_instance_count(self):
         self.instance_count.SetLabel(f'Instances: {self.grid.GetNumberRows()} / {MAX_INSTANCES}')
@@ -810,6 +841,119 @@ class FusionDialog(wx.Dialog):
         for row in rows: self.detect_row(row)
         self.clear_results()
 
+    def edit_variant_import(self,event=None,row=None):
+        if self.busy:return
+        try:
+            rows=self.selected_rows()
+            if row is None:
+                if len(rows)!=1:raise MergeError('Select one source row to configure its variant destination.')
+                row=rows[0]
+            from .variant_import_gui import choose_variant_import,destination_names,disposition_label
+            specs=self.options().sources
+            target=self.target_project.GetPath() if self.import_current.GetValue() else ''
+            result=choose_variant_import(self,specs[row],destination_names(target,specs))
+            if result is None:return
+            self.grid.SetCellValue(row,2,result.variant)
+            self.source_extras[row]=self.spec_extras(result)
+            self.confirmed_variant_choices.add(self.variant_import_key(result))
+            self.clear_results()
+            self.variant_summary.SetLabel(result.alias+': '+result.variant+' → '+disposition_label(result))
+            self.status.SetLabel(result.alias+': '+result.variant+' → '+disposition_label(result))
+        except Exception as exc:
+            wx.MessageBox(str(exc),'Variant import',wx.OK | wx.ICON_WARNING,self)
+
+    def guided_next(self,event=None):
+        if self.busy:return
+        if not self.guided_started:
+            with wx.SingleChoiceDialog(self,'Where should Fusion put the imported design?',
+                                      'Import destination',['New project','Current / existing project',
+                                                            'Update a previously linked design']) as choice:
+                if choice.ShowModal()!=wx.ID_OK:return
+                if choice.GetSelection()==2:
+                    self.open_linked_updates(None);return
+                existing=choice.GetSelection()==1
+            if existing and not Path(self.target_project.GetPath()).is_file():
+                with wx.FileDialog(self,'Choose the working project',wildcard='KiCad project|*.kicad_pro',
+                                   style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
+                    if dialog.ShowModal()!=wx.ID_OK:return
+                    self.target_project.SetPath(dialog.GetPath())
+            self.import_current.SetValue(existing);self.mode_changed(None)
+            self.guided_started=True
+            self.notebook.SetSelection(self.notebook.FindPage(self.controls_page))
+            if not self.grid.GetNumberRows():self.add(None)
+            self.refresh_guide()
+            return
+        page=self.notebook.GetCurrentPage()
+        if page==self.controls_page:
+            if not self.grid.GetNumberRows():self.add(None);return
+            for row in range(self.grid.GetNumberRows()):
+                spec=self.options().sources[row]
+                if self.variant_import_key(spec) not in self.confirmed_variant_choices:
+                    self.edit_variant_import(row=row)
+                    if self.variant_import_key(self.options().sources[row]) not in self.confirmed_variant_choices:return
+            self.notebook.SetSelection(self.notebook.FindPage(self.settings_page))
+        elif page==self.settings_page:
+            self.start(False)
+        elif page==self.review_page:
+            ready=bool(self.import_plan or self.guided_preview_ready)
+            if ready and self.import_current.GetValue():
+                if self.requires_offline_handoff:
+                    self.continue_offline(None);return
+                if not self.target_closed.GetValue() and not self.confirm_closed_target():return
+            self.start(ready)
+        else:
+            self.notebook.SetSelection(self.notebook.FindPage(self.controls_page))
+        self.refresh_guide()
+
+    def variant_import_key(self,spec):
+        target=self.target_project.GetPath() if self.import_current.GetValue() else ''
+        return (spec.project,spec.alias,spec.variant,spec.variant_mode,spec.destination_variant,target)
+
+    def confirm_closed_target(self):
+        with wx.Dialog(self,title='Apply to the saved working project',size=(580,250)) as dialog:
+            box=wx.BoxSizer(wx.VERTICAL)
+            text=wx.StaticText(dialog,label='Save and close the target schematic and PCB editors before applying. Fusion checks the saved sources again and creates a verified backup.')
+            text.Wrap(530);box.Add(text,0,wx.EXPAND | wx.ALL,14)
+            closed=wx.CheckBox(dialog,label='The target schematic and PCB editors are saved and closed')
+            box.Add(closed,0,wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,14)
+            buttons=dialog.CreateButtonSizer(wx.OK | wx.CANCEL)
+            box.Add(buttons,0,wx.ALIGN_RIGHT | wx.ALL,14);dialog.SetSizer(box)
+            okay=dialog.FindWindowById(wx.ID_OK);okay.Disable()
+            closed.Bind(wx.EVT_CHECKBOX,lambda event:okay.Enable(closed.GetValue()))
+            if dialog.ShowModal()!=wx.ID_OK or not closed.GetValue():return False
+            self.target_closed.SetValue(True)
+            return True
+
+    def toggle_source_actions(self,event):
+        for button in self.secondary_source_actions:button.Show(event.IsChecked())
+        self.controls_page.Layout();self.controls_page.FitInside()
+
+    def refresh_guide(self,event=None):
+        if hasattr(self,'guide_next'):
+            self.guide_next.Enable(not self.busy)
+            page=self.notebook.GetCurrentPage()
+            if not self.guided_started:
+                text='Start here: choose a new project or a working project. The guided flow then asks for source, scope and variant handling.'
+                label='Start guided import…'
+            elif page==self.controls_page:
+                text='Step 1 · Review detected source type, selected sheets and variant destination. Add more designs if needed, then continue.'
+                label='Next: destination settings'
+            elif page==self.settings_page:
+                text='Step 2 · Confirm the destination and saved-source acknowledgements. Preview runs checks before Create / Apply.'
+                label='Preview and validate'
+            elif page==self.review_page:
+                ready=bool(self.import_plan or self.guided_preview_ready)
+                text='Step 3 · Inspect the candidate, variant handling and findings. Changes remain staged until you choose Create / Apply.'
+                label=('Apply reviewed import' if self.import_current.GetValue() else 'Create reviewed project') if ready else 'Refresh preview'
+                if ready and self.import_current.GetValue() and self.requires_offline_handoff:
+                    label='Continue to offline Apply'
+            else:
+                text='Tools handle linked updates and existing imports. Return to the guided flow to add another design.'
+                label='Return to sources'
+            self.guide_text.SetLabel(text);self.guide_text.Wrap(max(500,self.GetClientSize().width-280))
+            self.guide_next.SetLabel(label);self.Layout()
+        if event is not None:event.Skip()
+
     def edit_source_paths(self,event):
         rows=self.selected_rows()
         if len(rows)!=1:
@@ -901,6 +1045,7 @@ class FusionDialog(wx.Dialog):
         self.log.AppendText(str(message)+'\n')
 
     def clear_results(self):
+        self.guided_preview_ready=False
         self.preview.clear(); self.mapping.DeleteAllItems()
         self.sheet_preview.clear()
         self.issue_list.DeleteAllItems();self.merge_issues=[]
@@ -909,6 +1054,7 @@ class FusionDialog(wx.Dialog):
         self.import_plan=None
         if hasattr(self,'offline_button'):self.offline_button.Disable()
         self.output_project=None; self.open_button.Disable()
+        self.refresh_guide()
 
     def replace_sources(self,specs,cached_variants=None):
         if len(specs)>MAX_INSTANCES: raise MergeError(f'Maximum {MAX_INSTANCES} source instances.')
@@ -1122,6 +1268,7 @@ class FusionDialog(wx.Dialog):
     def workspace_done(self,applied,result,error):
         self.busy=False;self.timer.Stop();self.gauge.SetValue(0);self.enable_inputs(True)
         self.analyse_button.Enable();self.merge_button.Enable();self.close_button.Enable()
+        self.refresh_guide()
         if error:
             self.import_plan=None;self.status.SetLabel(error);self.append_log(error);self.show_validation_failure(error);return
         self.append_log(json.dumps(result.get('report',result),indent=2,default=str))
@@ -1134,6 +1281,7 @@ class FusionDialog(wx.Dialog):
             self.output_project=Path(result['candidate_directory'])/Path(result['target_project']).name;self.open_button.Enable()
             self.show_candidate_preview(result)
             self.status.SetLabel('Review candidate ready. Inspect the report, then Create / Apply. Import targets must be saved and closed before offline Apply.')
+        self.refresh_guide()
 
     def show_candidate_preview(self,plan):
         self.preview.clear();self.mapping.DeleteAllItems()
@@ -1189,10 +1337,12 @@ class FusionDialog(wx.Dialog):
         self.name.SetValue(plan.get('output_name','Combined'));self.parent_folder.SetPath(str(Path(plan.get('output_destination',plan['candidate_directory'])).parent))
         self.saved.SetValue(True);self.cli.SetPath(plan.get('cli_path',''))
         self.mode_changed(None);self.import_plan=plan
+        self.guided_started=True
         self.merge_button.Enable();self.offline_button.Enable(False)
         self.notebook.SetSelection(self.notebook.FindPage(self.review_page));self.review_inspector.SetSelection(1)
         self.append_log(json.dumps(plan['report'],indent=2));self.status.SetLabel('Reviewed plan loaded. Close target editors, confirm on Merge settings, then Apply.')
         self.show_candidate_preview(plan)
+        self.refresh_guide()
 
     def done(self,do_merge,result,error):
         self.busy=False; self.timer.Stop(); self.gauge.SetValue(0)
@@ -1207,6 +1357,7 @@ class FusionDialog(wx.Dialog):
             self.append_log(json.dumps(result,indent=2,default=str))
             wx.MessageBox('The combined project was created.\n\nOpen the new .kicad_pro, inspect the schematic/PCB link, read READ-ME-FIRST.txt and review reports/drc.json. Do not fabricate without a design review.','Merge complete',wx.OK | wx.ICON_INFORMATION,self)
         else:
+            self.guided_preview_ready=True
             _,sources,report=result
             self.preview.locked_aliases=set();self.preview.show_sources(sources);self.fill_design_tree(sources); self.mapping.DeleteAllItems()
             self._preview_layers=list(self.preview.layers)
@@ -1218,6 +1369,7 @@ class FusionDialog(wx.Dialog):
                     self.mapping.SetItem(row,1,old); self.mapping.SetItem(row,2,new)
             self.append_log(json.dumps(report,indent=2,default=str))
             self.status.SetLabel('Structural preflight passed. Electrical verification runs only during Create combined project.')
+        self.refresh_guide()
 
     def open_output(self,event):
         if self.output_project: wx.LaunchDefaultApplication(str(self.output_project.parent))

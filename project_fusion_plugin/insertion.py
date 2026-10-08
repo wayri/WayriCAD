@@ -24,7 +24,7 @@ from .board import prepare_board,compose,verify_board,verify_native_associations
 from .layers import copper_sequence,plan_layers
 from .engine import export_selected_netlist,build_project,publish,_snapshot,_assert_sources_unchanged
 from .sections import _geometry_signature
-from .variants import effective_board_flags
+from .variants import effective_board_flags,destination_metadata,attach_destination,disposition,validate_destination_layout,transform_destination
 
 
 def _json(path,value):
@@ -165,7 +165,9 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
         incoming=[]
         for spec in sources:
             source=discover(spec,root_uuid,require_board=include_layout)
-            if include_layout:prepare_board(source)
+            if include_layout:
+                validate_destination_layout(source)
+                prepare_board(source)
             else:source.board=['kicad_pcb']
             source.class_map={c['name']:source.alias+'__'+c['name'] for c in source.project.get('net_settings',{}).get('classes',[]) if 'name' in c}
             incoming.append(source)
@@ -178,7 +180,9 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
         batch='fusion_imports/'+new_uuid();assets=candidate/batch;assets.mkdir(parents=True)
         prepare_assets(incoming,assets,lambda _:None,strict=True,copy_assets=copy_assets)
         page=max([int(sx.value(n,'page','1')) for sheet in target.sheets for n in sx.walk(sheet.tree) if sx.tag(n)=='path' and sx.child(n,'page') is not None]+[1])+1
-        for source in incoming:page=transform_schematics(source,assets,target_project.stem,page)
+        for source in incoming:
+            page=transform_destination(source,assets,target_project.stem,page)
+            attach_destination(source,assets,target_project.stem)
         # All generated local references resolve against the owning target root.
         for path in assets.rglob('*'):
             if path.is_file() and (path.suffix in {'.kicad_sch','.kicad_sym','.kicad_mod'} or path.name in {'fp-lib-table','sym-lib-table'}):
@@ -196,8 +200,8 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
             field=sx.prop(sheet,'Sheetfile');field[2]=sx.q(batch+'/'+str(field[2]))
             target_tree.append(sheet)
         sx.save(candidate/target.schematic_file.name,target_tree)
-        project=copy.deepcopy(target.project)
-        temporary=build_project(incoming,target_project.stem)
+        project=destination_metadata(target.project,incoming,existing=True)
+        temporary=build_project(incoming,target_project.stem,resolve_variants=False)
         for key,value in temporary.get('text_variables',{}).items():
             if key in project.get('text_variables',{}):raise MergeError('Incoming project variable collides with target: '+key)
             if isinstance(value,str):value=value.replace('${KIPRJMOD}/','${KIPRJMOD}/'+batch+'/')
@@ -236,7 +240,7 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
             groups_before={sx.value(g,'uuid') or sx.value(g,'id'):set(map(str,sx.child(g,'members',[])[1:])) for g in sx.children(result,'group')}
             sx.save(candidate/target.pcb_file.name,result)
         # Incoming net classes are appended; all existing target rules/settings stay.
-        imported_settings=build_project(incoming,target_project.stem).get('net_settings',{})
+        imported_settings=temporary.get('net_settings',{})
         settings=project.setdefault('net_settings',{})
         existing_classes={c.get('name') for c in (settings.get('classes') or [])}
         for cls in imported_settings.get('classes',[]):
@@ -279,6 +283,13 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
         source_file_hashes=_snapshot(incoming,assets)
         from .linked_updates import record_import
         record_import(candidate,target_project,incoming,parent,batch,imported,merged,include_layout,cli_path)
+        if any(source.destination_states for source in incoming):
+            from .linked_updates import _load as load_links,_write as write_links
+            _,links=load_links(candidate/target_project.name)
+            for link in links['links']:
+                if any(source.alias==link.get('alias') and source.destination_states for source in incoming):
+                    link['update_unsupported_reason']='This import retains a named destination variant. Rebuild a reviewed candidate to preserve its Default and named states.'
+            write_links(candidate,links)
         report={'plugin_version':'0.9.5','target_project':str(target_project),'include_layout':include_layout,
                 'copy_assets':bool(copy_assets),'assets':asset_audit,
                 'incoming_designs':len(incoming),'incoming_sheets':sum(len(s.sheets) for s in incoming),
@@ -290,6 +301,7 @@ def preview_import(target_path,sources,include_layout,candidate_directory,cli_pa
                 'unconnected_findings':len(drc.get('unconnected_items',[])) if drc else None,
                 'erc_findings':sum(len(sheet.get('violations',[])) for sheet in erc.get('sheets',[])),
                 'manufacturing_approved':False,'sources':[{'alias':s.alias,'reference_map':s.ref_map,'variant':s.selected_variant,
+                'variant_handling':disposition(s),
                 'section_origin':copy.deepcopy(s.spec.section_origin),'translation_mm':list(s.translation),
                 'layer_map':dict(s.layer_map) if include_layout else {},
                 'layer_notes':list(s.layer_notes) if include_layout else []} for s in incoming],

@@ -23,6 +23,7 @@ from .model import MergeError, Options
 from .layers import plan_layers
 from .netlist import KiCadCLI, compare_netlists
 from .schematic import discover, annotate, make_parent, new_uuid, transform_schematics
+from .variants import destination_metadata,attach_destination,disposition,validate_destination_layout,transform_destination
 
 
 def jwrite(path,data):
@@ -70,6 +71,7 @@ def analyse(options:Options,log=lambda m:None):
     for index,spec in enumerate(options.sources,1):
         log(f'[{index}/{len(options.sources)}] Reading {spec.alias} ({spec.kind})…')
         s=discover(spec,root_uuid,log)
+        validate_destination_layout(s)
         prepare_board(s)
         sources.append(s)
     plan_layers(sources,options.acknowledge_layer_remap,log)
@@ -90,7 +92,7 @@ def analyse(options:Options,log=lambda m:None):
     return root_uuid,sources,report
 
 
-def build_project(sources,name):
+def build_project(sources,name,resolve_variants=True):
     result=copy.deepcopy(sources[0].portable_project or sources[0].project)
     result.setdefault('schematic',{})['variants']=[]
     result['schematic'].pop('current_variant',None)
@@ -109,7 +111,7 @@ def build_project(sources,name):
             if s.portable_project is None:
                 text=text.replace('${KIPRJMOD}',s.project_file.parent.as_posix())
             if s.selected_variant!='<Default>':
-                text=text.replace('${VARIANT}',s.selected_variant)
+                text=text.replace('${VARIANT}','<Default>' if getattr(s,'destination_states',{}) else s.selected_variant)
             result['text_variables'][s.alias+'__'+k]=text
     settings=result.setdefault('board',{}).setdefault('design_settings',{})
     settings['drc_exclusions']=[]
@@ -155,7 +157,7 @@ def build_project(sources,name):
                 ns['netclass_assignments'].setdefault(new,[]).append(s.class_map[cls])
             if old in (original.get('net_colors') or {}):
                 ns['net_colors'][new]=original['net_colors'][old]
-    return result
+    return destination_metadata(result,sources) if resolve_variants else result
 
 
 def _snapshot(sources,stage):
@@ -209,7 +211,7 @@ def export_selected_netlist(source,cli,destination):
     KiCad 10 XML export can omit variant field overrides. Keep the source
     unchanged and let the real CLI parse a disposable effective hierarchy.
     """
-    if source.selected_variant=='<Default>':
+    if source.selected_variant=='<Default>' and not getattr(source,'destination_states',{}):
         return cli.export_netlist(source.schematic_file,destination)
     from .variants import set_field
     with tempfile.TemporaryDirectory(prefix='fusion-native-selection-') as folder:
@@ -225,13 +227,13 @@ def export_selected_netlist(source,cli,destination):
                 if sx.tag(node) in {'embedded_files','data'}:continue
                 for i,value in enumerate(node):
                     if isinstance(value,sx.Quoted):
-                        node[i]=sx.q(str(value).replace('${VARIANT}',source.selected_variant).replace('${KIPRJMOD}',source.project_file.parent.as_posix()))
+                        node[i]=sx.q(str(value).replace('${VARIANT}','<Default>' if getattr(source,'destination_states',{}) else source.selected_variant).replace('${KIPRJMOD}',source.project_file.parent.as_posix()))
             sx.save(targets[sheet.old_path],tree)
         project=copy.deepcopy(source.project)
         schematic=project.setdefault('schematic',{});schematic['variants']=[]
         schematic.pop('variant',None);schematic.pop('current_variant',None)
         for key,value in project.get('text_variables',{}).items():
-            project['text_variables'][key]=str(value).replace('${VARIANT}',source.selected_variant).replace('${KIPRJMOD}',source.project_file.parent.as_posix())
+            project['text_variables'][key]=str(value).replace('${VARIANT}','<Default>' if getattr(source,'destination_states',{}) else source.selected_variant).replace('${KIPRJMOD}',source.project_file.parent.as_posix())
         jwrite(folder/source.project_file.name,project)
         return cli.export_netlist(folder/source.schematic_file.name,destination)
 
@@ -268,6 +270,7 @@ def merge(options:Options,log=lambda m:None,cli=None):
         for index,s in enumerate(sources,1):
             emit(f'[{index}/{len(sources)}] Validating {s.alias} ({s.spec.kind})…')
             key=(str(s.project_file.resolve()), s.selected_variant,
+                 bool(s.destination_states),
                  tuple(sorted(s.hashes.items())),
                  json.dumps({'variables':s.spec.path_variables,'remaps':s.spec.path_remaps},sort_keys=True))
             target=reports/(s.alias+'-source.xml')
@@ -290,7 +293,8 @@ def merge(options:Options,log=lambda m:None,cli=None):
         jwrite(stage/(options.name+'.kicad_pro'),build_project(sources,options.name))
         page=2
         for s in sources:
-            page=transform_schematics(s,stage,options.name,page)
+            page=transform_destination(s,stage,options.name,page)
+            attach_destination(s,stage,options.name)
         parent=make_parent(sources,options.name,root_uuid)
         sx.save(stage/(options.name+'.kicad_sch'),parent)
         merged=cli.export_netlist(stage/(options.name+'.kicad_sch'),reports/'combined.xml')
@@ -305,7 +309,7 @@ def merge(options:Options,log=lambda m:None,cli=None):
         export_csv(reports/'bom.csv',bom_rows,bom=True)
         export_csv(reports/'fields.csv',field_rows)
         report['bom']={'groups':len(bom_rows),'included_quantity':sum(row['quantity'] for row in bom_rows),
-                       'grouping':'exact selected-source fields and assembly flags; DNP separate',
+                       'grouping':'Default fields/flags for named destination imports; chosen fields/flags for base imports; DNP separate',
                        'csv':'reports/bom.csv','field_inventory':'reports/fields.csv'}
         pcb=stage/(options.name+'.kicad_pcb')
         sx.save(pcb,board)
@@ -338,7 +342,7 @@ def merge(options:Options,log=lambda m:None,cli=None):
         report['assets']=audit_assets(sources,stage)
         jwrite(reports/'asset-manifest.json',report['assets'])
         report['variants']=[{'source':s.alias,'selected':s.selected_variant,'detected':s.variant_names,
-                             'changes':s.variant_changes,'strategy':'flatten chosen effective state into new base'} for s in sources]
+                             'changes':s.variant_changes,'handling':disposition(s)} for s in sources]
         jwrite(reports/'variant-selection.json',report['variants'])
         with (reports/'layer-map.csv').open('w',encoding='utf-8-sig',newline='') as f:
             writer=csv.writer(f); writer.writerow(['Source','Input copper layer','Output copper layer','Stackup donor','Unused output planar layers'])
@@ -351,7 +355,9 @@ def merge(options:Options,log=lambda m:None,cli=None):
             record_import(stage,stage/(options.name+'.kicad_pro'),sources,parent,'',after,merged,True,options.cli_path)
             _,links=load_links(stage/(options.name+'.kicad_pro'))
             for source,link in zip(sources,links['links']):
-                if any(old!=new for old,new in source.layer_map.items()):
+                if source.destination_states:
+                    link['update_unsupported_reason']='This import retains a named destination variant. Rebuild a reviewed candidate to preserve its Default and named states.'
+                elif any(old!=new for old,new in source.layer_map.items()):
                     link['update_unsupported_reason']='This combined design uses mixed-stack layer/via mapping. Rebuild a reviewed combined candidate to propagate changes.'
                 elif options.outline!='rectangle':
                     link['update_unsupported_reason']='This combined design retains source outlines. Rebuild a reviewed combined candidate to propagate changes.'
@@ -373,7 +379,7 @@ def merge(options:Options,log=lambda m:None,cli=None):
             +('ALL original Edge.Cuts (including slots/cutouts) were moved to Dwgs.User; a new rectangular boundary was generated. Recreate required internal cutouts.\n' if options.outline=='rectangle' else 'Original outlines were retained; multiple islands are NOT automatically one manufacturable board or a finished panel.\n')+
             'Source backups are in source-backup.zip with an original-path/SHA256 manifest.\n'
             'Do not enable reference-only re-association during the first Update PCB from Schematic.\n'
-            'The explicitly selected source variants were flattened into the new project. Originals are unchanged.\n'
+            'Read variant-selection.json for imported base/named variant handling. Originals are unchanged.\n'
             'Read layer-map.csv for outer-face copper mapping; imported vias span the full stack. Requalify PTH barrels and impedance.\n'
             'Read asset-manifest.json for copied, embedded, unresolved and external dependencies.\n'
             'No autorouting, cross-project wiring, or automatic custom-rule migration was performed.\n',encoding='utf-8')

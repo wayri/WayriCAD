@@ -4,9 +4,11 @@
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current suite release: [3.6.8](https://github.com/wayri/WayriCAD/releases/tag/v3.6.8) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
+**Current suite release: [3.6.9](https://github.com/wayri/WayriCAD/releases/tag/v3.6.9) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
 
-**New in 3.6.8:** [Project Fusion 0.9.6](project_fusion_plugin/README.md) detects projects, child sheets, standalone schematics and layout-only boards, with a faster sheet catalogue and a separate PCB-only review workflow. The independent [Variant Manager 0.6.0](variant_manager_plugin/README.md) adds before/after assembly previews, bulk editing/deletion, conflict-aware merge, swap, Default promotion and verified recovery. See the [3.6.8 release notes](docs/RELEASE_NOTES_3.6.8.md).
+**New in 3.6.9:** [Fusion 0.9.7](project_fusion_plugin/README.md) guides source-to-destination imports, retains selected configurations separately or merges them into a working variant, and exposes saved-file workflows through the CLI. See the [3.6.9 release notes](docs/RELEASE_NOTES_3.6.9.md).
+
+**Introduced in 3.6.8:** [Project Fusion 0.9.6](project_fusion_plugin/README.md) detects projects, child sheets, standalone schematics and layout-only boards, with a faster sheet catalogue and a separate PCB-only review workflow. The independent [Variant Manager 0.6.0](variant_manager_plugin/README.md) adds before/after assembly previews, bulk editing/deletion, conflict-aware merge, swap, Default promotion and verified recovery. See the [3.6.8 release notes](docs/RELEASE_NOTES_3.6.8.md).
 
 **New in 3.6.6:** Standalone [QuickTherm](quick_therm_plugin/README.md) can run a bounded Gmsh/CalculiX 3D steady-conduction board model from declared component power, with solver setup in its native window. [Quick PI](quick_pi_plugin/README.md) adds an opt-in Gmsh tetrahedral copper-volume DC model and 3D result viewer; its 2.5D workflow stays the default. Install their independent [QuickTherm PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.6/WayriCAD-quick-therm-3.6.6-PCM.zip) and [Quick PI PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.6/WayriCAD-quick-pi-3.6.6-PCM.zip), then restart KiCad. See the [3.6.6 release notes](docs/RELEASE_NOTES_3.6.6.md) for setup, validation and limits.
 
@@ -131,8 +133,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.8
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.8
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.9
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.9
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.
@@ -144,4 +146,4 @@ WayriCAD development has made substantial use of AI coding assistants and large 
 We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
 
 
-[Project Fusion 0.9.6 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.8/WayriCAD-project-fusion-0.9.6-PCM.zip) and [Variant Manager 0.6.0 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.8/WayriCAD-variant-manager-0.6.0-PCM.zip) are independent testing packages. Both retain their MIT licenses and native KiCad loaders.
+[Project Fusion 0.9.7 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.9/WayriCAD-project-fusion-0.9.7-PCM.zip) and [Variant Manager 0.6.0 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.8/WayriCAD-variant-manager-0.6.0-PCM.zip) are independent testing packages. Both retain their MIT licenses and native KiCad loaders.

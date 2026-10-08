@@ -1,8 +1,55 @@
-# Wayri Project Fusion 0.9.6
+# Wayri Project Fusion 0.9.7
 
 **KiCad 10 · native wxPython plugin · testing release**
 
 Combine 1–100 saved KiCad project instances or extracted routed subsheet instances into a new project, a parent schematic and one PCB. Select a native assembly variant independently for each source, collect local dependencies, and reannotate the schematic and PCB together without reference-only relinking.
+
+## Guided import and variant destination
+
+Start with **Start guided import…**. Choose **New project**, **Current / existing
+project**, or **Update a previously linked design**. For an import, Fusion leads
+through detected source/sheet scope, the variant choice, destination settings,
+preview and Create / Apply. **Show advanced source actions** reveals duplication,
+ordering and setup-file actions when needed. The full workspace remains available.
+
+![Native guided Fusion source workspace](help-guided-import.png)
+
+![Native source variant and destination choices](help-variant-destination.png)
+
+These Windows/KiCad 10.0.6 captures use a generated example hierarchy. The
+displayed project path was substituted with a generic path in the controls
+before window-only capture; no private design or desktop contents are included.
+
+The guided flow asks how each source configuration should enter the destination.
+You can also select a source row and click **Variant destination…**:
+
+| Choice | Imported base | Selected source configuration |
+|---|---|---|
+| Use selected state as imported base | Selected source variant | Compiled into the imported copy's Default state, as before. |
+| Merge into a destination variant | Source Default | Overrides only the imported instances inside the chosen working variant. Existing destination components and their configurations remain unchanged. |
+| Keep as a separate named variant | Source Default | Creates a new native destination variant with overrides on the imported instances. |
+
+For a new project, create a name with **Separate** on one source; other sources
+can **Merge** into that name. In a working project, merge into an existing native
+variant or create a new separate name. Duplicate/reserved names and missing merge
+destinations stop preview. These are native project-wide assembly configurations,
+not disconnected copies of the design. The separate Variant Manager can compare,
+rename, merge or delete the resulting configurations.
+
+Whole projects and selected sheet occurrences support these choices. Source files
+stay unchanged. Default values/geometry remain authoritative in named import
+modes; reports identify that native validation state. Named footprint substitutions
+are refused rather than silently losing their library/geometry requirements.
+Named PCB-presence changes require schematic-only import. Synchronize a source
+copy and use base-state import when a different physical layout is required.
+Named imports are recorded as links, but automatic linked updates of those named
+configurations are currently refused; manage them with Variant Manager or import
+a fresh reviewed copy. Base-state linked imports retain their existing updater.
+
+When running inside KiCad, the final guided step opens an independent **offline
+Apply** window. Save and close the target editors, inspect the plan, then apply
+with a verified backup. The standalone window asks for the closed-editor
+acknowledgement at that step. Changed inputs always require a fresh preview.
 
 ## Automatic source scope and PCB-only import
 
@@ -198,9 +245,9 @@ Run **Analyse / preview** to inspect the reference map, selected configurations,
 
 On creation, the plugin stages a complete output, exports each source's selected variant through KiCad CLI, exports the combined schematic, compares component identities and complete electrical pin partitions, creates the board, runs native DRC/parity/refill/save, verifies the saved geometry/layers and audits copied paths. A required-check failure prevents publication. The final folder is created atomically without replacing an existing directory.
 
-## 1. Variant selection and flattening
+## 1. Variant selection and native destination states
 
-The selected variant's effective state is applied to the **new copy** of each imported sheet occurrence. The combined project has one compiled base/Default configuration, not a Cartesian product of every source's variant names. All original configurations remain in the source files and source backup.
+Base-state import applies the selected variant's effective state to the **new copy** of each imported sheet occurrence. Merge/separate handling instead retains source Default and writes selected overrides under the rebased native instance paths. Fusion does not generate a Cartesian product of all source variants. All original configurations remain in the source files and source backup.
 
 Supported state includes Value, Footprint assignment, MPN and other custom fields, DNP, BOM exclusion, simulation exclusion, PCB inclusion and supported placement-file exclusion flags. Sheet-level assembly exclusions are carried into the imported hierarchy and the corresponding PCB-part flags. Reused child-sheet occurrences are cloned independently, so instance-specific choices do not overwrite one another. Existing field placement and model transforms are retained; new custom fields are hidden.
 
@@ -382,19 +429,63 @@ Open the 3D viewer and check model transforms. Test portability using a *copy* o
 
 ## CLI and development
 
-Saved setups include per-source variants and path settings. Loading a setup in the GUI resets safety acknowledgements. From the source folder, with Python 3.10+:
+Use `wayricad-fusion` from the installed Python package, or
+`python -m project_fusion_plugin` from the source root. An extracted PCM package
+also provides `python cli_entrypoint.py`. Help does not require wxPython.
+
+| Workflow | Commands |
+|---|---|
+| Detect source type, variants, exact sheet occurrences and issues | `detect`, `variants`, `sheets`, `issues` |
+| Create a new project from a JSON setup | `analyse`, `create` |
+| Import projects/sheets or layout-only boards | `import-preview`, `layout-preview`, `apply` |
+| Inspect and maintain linked imports | `links`, `scan-links`, `update-preview`, `break-links-preview`, `adopt-links-preview` |
+| Review transaction history and recover | `transactions`, `undo-preview`, `apply` |
+| Extract schematic pages or routed sections | `section-preview`, `section-apply` |
+| Repair detached source copies | `repair-preview`, `repair-apply` |
+| Inspect/export/edit fields and BOM | `fields`, `bom`, `fields-preview`, `fields-apply` |
+| Audit/package dependencies | `dependencies-preview`, `dependencies-apply` |
+
+For example:
 
 ```console
-
-python cli_entrypoint.py --config my-merge.json --analyse
-
-python cli_entrypoint.py --config my-merge.json
-
-python -m unittest discover -s tests -v
-
+wayricad-fusion detect C:/Projects/Module/board.kicad_sch
+wayricad-fusion variants C:/Projects/Module/board.kicad_pro
+wayricad-fusion import-preview --config setup.json --target C:/Projects/Working/main.kicad_pro --candidate C:/Projects/Review/main --output import-plan.json
+wayricad-fusion apply import-plan.json --apply --yes --editors-closed
+wayricad-fusion create --config setup.json --apply --yes
+wayricad-fusion update-preview --target C:/Projects/Working/main.kicad_pro --link LINK_ID --candidate C:/Projects/Review/update --retain-layout --output update-plan.json
+wayricad-fusion bom --config setup.json --csv assembly.csv
+wayricad-fusion fields-preview --config setup.json --edits field-edits.json --output fields-plan.json
+wayricad-fusion fields-apply fields-plan.json --destination C:/Projects/FieldCopies --apply --yes
+wayricad-fusion section-preview --help
 ```
 
-Edit example paths and acknowledgements before use. `--analyse` is structural only; real merges always require the native CLI. There is no user-facing switch to replace it with the test double or skip required validation. Running `--gui` outside KiCad requires wxPython in that interpreter. The development tests additionally use pytest and Pillow.
+Saved setups include source variants, path settings, placement and scope. Each
+source accepts `"variant":"Production"`, `"variant_mode":"merge"`, and
+`"destination_variant":"Working"`. Use `"variant_mode":"separate"` with a new
+name to retain it independently, or `"variant_mode":"base"` for the original
+compiled-state behavior. GUI **Save setup** produces the full options JSON;
+`_workspace.include_layout:false` or `--schematic-only` selects schematic-only
+creation/import. The CLI supports the same exact sheet selection requests.
+
+Field-edit JSON contains `identities` from `fields` output, plus `edits` and/or
+`renames`, for example `{"identities":[["Module","/exact/instance/path","symbol-uuid"]],"edits":{"Value":"22k"}}`.
+Use each command's `--help` for repair choices, rectangles, descendant depth,
+source relocation and linked identity overrides.
+
+Previews do not change original designs, but native validation can create
+detached candidate folders. Keep candidates and materialized sources until apply
+finishes. `--output` must name a new JSON file outside the candidate. Existing
+project writes require `--apply --yes --editors-closed`; detached-copy creation
+requires `--apply --yes`. All existing source hashes, native checks, backups and
+rollback remain active. Legacy `--config setup.json --analyse` and
+`--config setup.json` remain supported with the setup's acknowledgements.
+
+Full routed `analyse` is structural preflight; schematic-only analysis also uses
+native candidate validation. Actual creation always needs KiCad's native CLI.
+Live IPC adapter operations and GUI drawing exports are not CLI workflows; use
+the saved-file commands and JSON/CSV reports. `--gui` needs wxPython in the chosen
+interpreter. Loading a GUI setup resets safety acknowledgements.
 
 New code is provided under the included MIT license. No repository or remote project was modified.
 

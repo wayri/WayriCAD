@@ -194,6 +194,8 @@ def set_field(node,name,value,board=False):
 
 def apply_selected(source):
     select_variant(source)
+    source.destination_states={}
+    named=source.spec.variant_mode!='base' and source.spec.destination_variant!=DEFAULT
     report=[]
     for sheet in source.sheets:
         version=int(sx.value(sheet.tree,'version'))
@@ -203,6 +205,19 @@ def apply_selected(source):
             paths=object_paths(obj,sheet.old_path,source.project_file.stem)
             before=state(obj)
             after=effective(obj, paths[0] if paths else None, source.selected_variant, version)
+            if named:
+                source.destination_states[(sheet.old_path,sx.value(obj,'uuid'))]=copy.deepcopy(after)
+                # The saved PCB represents Default. Named configurations cannot
+                # replace its footprint topology during a geometry-preserving import.
+                if after['fields'].get('Footprint')!=before['fields'].get('Footprint'):
+                    raise MergeError(f'{source.alias}: named variant changes Footprint; synchronize a separate source copy before importing this footprint configuration.')
+                library=getattr(source,'libraries',{}).get(sx.value(obj,'lib_id'))
+                if library is not None and sx.child(library,'power') is not None and after['fields'].get('Value')!=before['fields'].get('Value'):
+                    raise MergeError('Named variants cannot change power-symbol net identities during an isolated import.')
+                if before!=after:
+                    report.append({'sheet':str(sheet.source_path),'instance':sheet.old_path,
+                                   'uuid':sx.value(obj,'uuid'),'before':before,'after':after})
+                after=before
             for name,value in after['fields'].items():
                 if before['fields'].get(name) != value:
                     set_field(obj,name,value)
@@ -220,6 +235,12 @@ def apply_selected(source):
                 sx.remove(entry,'variant')
                 sx.remove(entry,'variants')
     source.variant_changes=report
+    if named:
+        for sheet in source.sheets:
+            for node in sx.walk(sheet.tree):
+                for index,value in enumerate(node):
+                    if isinstance(value,sx.Quoted):
+                        node[index]=sx.q(str(value).replace('${VARIANT}',DEFAULT))
     # Board flags need the effective sheet ancestors, even though the schematic
     # keeps the sheet-level flags (KiCad propagates those itself).
     def inherit(sheet,parent):
@@ -232,6 +253,120 @@ def apply_selected(source):
                 combined[k]='no' if parent.get(k)=='no' or sx.value(obj,k,FLAGS[k])=='no' else 'yes'
             inherit(child,combined)
     inherit(source.sheets[0],{})
+    source.destination_parent_flags={}
+    def inherit_selected(sheet,parent):
+        source.destination_parent_flags[sheet.old_path]=dict(parent)
+        for obj,child in sheet.sub_sheets:
+            selected=source.destination_states.get((sheet.old_path,sx.value(obj,'uuid')),state(obj))
+            combined=dict(parent)
+            for k in ('dnp','exclude_from_sim'):
+                combined[k]='yes' if parent.get(k)=='yes' or selected['flags'][k]=='yes' else 'no'
+            for k in ('in_bom','on_board'):
+                combined[k]='no' if parent.get(k)=='no' or selected['flags'][k]=='no' else 'yes'
+            inherit_selected(child,combined)
+    inherit_selected(source.sheets[0],{})
+
+
+def destination_metadata(project,sources,existing=False):
+    """Resolve destination names without modifying existing definitions."""
+    result=copy.deepcopy(project)
+    names=project_names(result)
+    for source in sources:
+        if not hasattr(source,'spec'):continue
+        from .model import validate_section_origin
+        validate_section_origin(source.spec)
+        if source.spec.variant_mode=='separate':
+            name=source.spec.destination_variant
+            if name in names:
+                raise MergeError(f'{source.alias}: destination variant {name!r} already exists; use merge or a new name.')
+            names.append(name)
+            schematic=result.setdefault('schematic',{})
+            if schematic.get('variants') is None:schematic['variants']=[]
+            schematic.setdefault('variants',[]).append({'name':name})
+    for source in sources:
+        if not hasattr(source,'spec'):continue
+        if source.spec.variant_mode=='merge' and source.spec.destination_variant!=DEFAULT and source.spec.destination_variant not in names:
+            raise MergeError(f'{source.alias}: destination variant {source.spec.destination_variant!r} does not exist. Create it with separate variant handling first.')
+    return result
+
+
+def attach_destination(source,output,project_name):
+    """Write chosen states under fresh imported instance paths after rebasing.
+
+    Default fields remain authoritative for geometry and native connectivity.
+    Only imported occurrences receive overrides; target symbols are untouched.
+    """
+    if source.spec.variant_mode=='base' or source.spec.destination_variant==DEFAULT:
+        return
+    from .schematic import namespace_text
+    for sheet in source.sheets:
+        tree=sx.load(Path(output)/sheet.relative_file)
+        sx.put(tree,'version',str(max(int(sx.value(tree,'version')),BOM_LOGIC_FIX_VERSION)))
+        reverse={new:old for old,new in sheet.ids.items()}
+        power_ids={sx.value(r.node,'uuid') for r in getattr(sheet,'symbols',[])
+                   if sx.child(source.libraries[r.lib_id],'power') is not None}
+        for node in sx.children(tree):
+            if sx.tag(node) not in {'symbol','sheet'}:continue
+            selected=source.destination_states.get((sheet.old_path,reverse.get(sx.value(node,'uuid'))))
+            if selected is None:raise MergeError('Missing selected variant state after hierarchy rebasing.')
+            entries=object_paths(node,sheet.new_path,project_name)
+            if len(entries)!=1:raise MergeError('Missing imported native variant instance path.')
+            variant=['variant',['name',sx.q(source.spec.destination_variant)]]
+            base=state(node)
+            for name,value in selected['fields'].items():
+                if name in {'Reference','Sheetfile','Sheet file','Footprint'}:continue
+                temporary=['symbol',['property',sx.q(name),sx.q(value)]]
+                namespace_text(temporary,source)
+                value=sx.propval(temporary,name)
+                if name=='Value' and sx.value(node,'uuid') in power_ids:
+                    from .schematic import isolated
+                    value=isolated(value,source)
+                if value!=base['fields'].get(name):
+                    variant.append(['field',['name',sx.q(name)],['value',sx.q(value)]])
+            for name,value in selected['flags'].items():
+                if sx.tag(node)=='sheet' and name in {'on_board','in_pos_files'}:continue
+                if value!=base['flags'][name]:variant.append([name,value])
+            entries[0].append(variant)
+        sx.save(Path(output)/sheet.relative_file,tree)
+
+
+def disposition(source):
+    return {'mode':source.spec.variant_mode,'destination':source.spec.destination_variant,
+            'source_selected':source.selected_variant,
+            'native_validation_state':DEFAULT if source.destination_states else source.selected_variant}
+
+
+def validate_destination_layout(source):
+    for (path,ident),selected in source.destination_states.items():
+        sheet=next(s for s in source.sheets if s.old_path==path)
+        node=next(n for n in sx.children(sheet.tree) if sx.value(n,'uuid')==ident)
+        if selected['flags']['on_board']!=state(node)['flags']['on_board']:
+            raise MergeError(f'{source.alias}: named variant changes on_board; choose schematic-only import or synchronize a separate layout first.')
+
+
+def selection_block(node,selected,name):
+    """Build a native override from explicit selected fields and assembly flags."""
+    base=state(node);block=['variant',['name',sx.q(name)]]
+    for key,value in selected['fields'].items():
+        if key not in {'Reference','Sheetfile','Sheet file'} and value!=base['fields'].get(key):
+            block.append(['field',['name',sx.q(key)],['value',sx.q(value)]])
+    for key,value in selected['flags'].items():
+        if sx.tag(node)=='sheet' and key in {'on_board','in_pos_files'}:continue
+        if value!=base['flags'][key]:block.append([key,value])
+    return block
+
+
+def transform_destination(source,output,project_name,page):
+    from .schematic import transform_schematics
+    selected=source.selected_variant
+    try:
+        if source.destination_states:source.selected_variant=DEFAULT
+        return transform_schematics(source,output,project_name,page)
+    finally:source.selected_variant=selected
+
+
+def extracted_variant_name(source):
+    return source.selected_variant if source.selected_variant!=DEFAULT else 'FusionSelectedDefault'
 
 
 def effective_board_flags(record):

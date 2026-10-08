@@ -21,7 +21,7 @@ from .schematic import discover, new_uuid, canonical_path, pcb_association_path
 from .repair import fingerprint, copy_project, project_files
 from .netlist import KiCadCLI
 from .board import net_name, net_table, HEADER, ITEMS, prepare_board
-from .variants import effective_board_flags
+from .variants import effective_board_flags,selection_block,validate_destination_layout,extracted_variant_name
 
 
 def list_sections(spec):
@@ -132,7 +132,7 @@ def _write_hierarchy(source, selected, folder, stem, max_depth=None):
         tree = copy.deepcopy(s.tree)
         for node in sx.walk(tree):
             for index,value in enumerate(node):
-                if isinstance(value,sx.Quoted):node[index]=sx.q(str(value).replace('${VARIANT}',source.selected_variant))
+                if isinstance(value,sx.Quoted):node[index]=sx.q(str(value).replace('${VARIANT}','<Default>' if source.destination_states else source.selected_variant))
         sx.remove(tree,'sheet_instances')
         if s is selected: tree.append(['sheet_instances',['path',sx.q('/'),['page',sx.q('1')]]])
         for symbol,record in zip(sx.children(tree,'symbol'),s.symbols):
@@ -149,6 +149,22 @@ def _write_hierarchy(source, selected, folder, stem, max_depth=None):
             field = sx.prop(node,'Sheetfile') or sx.prop(node,'Sheet file')
             field[2] = sx.q(relative)
             sx.put(node,'instances',['project',sx.q(stem),['path',sx.q(paths[s.old_path]),['page',sx.q(str(descendants.index(child)+1))]]])
+        if source.destination_states:
+            sx.put(tree,'version','20260306')
+            from .variants import object_paths
+            for node in sx.children(tree):
+                if sx.tag(node) not in {'symbol','sheet'}:continue
+                selected_state=source.destination_states.get((s.old_path,sx.value(node,'uuid')))
+                if selected_state is None:raise MergeError('Missing selected section variant state.')
+                selected_state=copy.deepcopy(selected_state)
+                if sx.tag(node)=='symbol':
+                    parents=source.destination_parent_flags.get(s.old_path,{})
+                    for key in ('dnp','exclude_from_sim'):
+                        if parents.get(key)=='yes':selected_state['flags'][key]='yes'
+                    for key in ('in_bom','on_board'):
+                        if parents.get(key)=='no':selected_state['flags'][key]='no'
+                entry=object_paths(node,paths[s.old_path],stem)[0]
+                entry.append(selection_block(node,selected_state,extracted_variant_name(source)))
         output = folder/names[s.old_path]; output.parent.mkdir(parents=True,exist_ok=True); sx.save(output,tree)
     return paths
 
@@ -157,6 +173,7 @@ def _build(spec, sheet_path, region, cli_path, stage, max_depth=None):
     original_root=Path(spec.project).resolve().parent
     snapshot=fingerprint(original_root)
     source = discover(spec,new_uuid())
+    validate_destination_layout(source)
     prepare_board(source)
     selected = next((s for s in source.sheets if s.old_path == canonical_path(sheet_path)),None)
     if selected is None: raise MergeError('The exact sheet UUID instance no longer exists.')
@@ -177,8 +194,10 @@ def _build(spec, sheet_path, region, cli_path, stage, max_depth=None):
     project = copy.deepcopy(source.project)
     for container in (project,project.setdefault('schematic',{})):
         for key in ('variants','variant','current_variant'): container.pop(key,None)
+    if source.destination_states:
+        project['schematic']['variants']=[{'name':extracted_variant_name(source)}]
     for key,value in project.get('text_variables',{}).items():
-        project['text_variables'][key]=str(value).replace('${VARIANT}',source.selected_variant)
+        project['text_variables'][key]=str(value).replace('${VARIANT}','<Default>' if source.destination_states else source.selected_variant)
     (full/source.project_file.name).write_text(json.dumps(project,indent=2),encoding='utf-8')
     expected=cli.export_netlist(full/source.schematic_file.name,stage/'full.xml')
     (output/source.project_file.name).write_text(json.dumps(project,indent=2),encoding='utf-8')
@@ -204,7 +223,7 @@ def _build(spec, sheet_path, region, cli_path, stage, max_depth=None):
     board = copy.deepcopy(source.board)
     for node in sx.walk(board):
         for index,value in enumerate(node):
-            if isinstance(value,sx.Quoted):node[index]=sx.q(str(value).replace('${VARIANT}',source.selected_variant))
+            if isinstance(value,sx.Quoted):node[index]=sx.q(str(value).replace('${VARIANT}','<Default>' if source.destination_states else source.selected_variant))
     unknown={sx.tag(n) for n in sx.children(board)}-HEADER-ITEMS
     if unknown: raise MergeError('Unsupported PCB objects cannot be discarded: '+', '.join(sorted(unknown)))
     bounds = _native_bounds(source.pcb_file,cli)
@@ -336,7 +355,9 @@ def apply_section(plan,new_directory):
             except ValueError:pass
         return value
     return SourceSpec(project=str(dest/Path(spec.project).with_suffix('.kicad_pro').name),alias=spec.alias,
-                      variant='<Default>',path_variables={key:relocate(value) for key,value in spec.path_variables.items()},
+                      variant=(spec.variant if spec.variant not in (None,'<Default>') else 'FusionSelectedDefault') if spec.variant_mode!='base' and spec.destination_variant!='<Default>' else '<Default>',
+                      variant_mode=spec.variant_mode,destination_variant=spec.destination_variant,
+                      path_variables={key:relocate(value) for key,value in spec.path_variables.items()},
                       path_remaps={key:relocate(value) for key,value in spec.path_remaps.items()},
                       section_origin={'project':str(Path(spec.project).resolve()),
                                       'sheet_path':plan['sheet_path'], 'region_mm':list(plan['region_mm']),
@@ -375,8 +396,10 @@ def _build_schematic_sections(spec, sheet_paths, cli_path, stage, max_depth=None
     for container in (project, project.setdefault('schematic', {})):
         for key in ('variants', 'variant', 'current_variant'):
             container.pop(key, None)
+    if source.destination_states:
+        project['schematic']['variants']=[{'name':extracted_variant_name(source)}]
     for key, value in project.get('text_variables', {}).items():
-        project['text_variables'][key] = str(value).replace('${VARIANT}', source.selected_variant)
+        project['text_variables'][key] = str(value).replace('${VARIANT}', '<Default>' if source.destination_states else source.selected_variant)
     _write_hierarchy(source, source.sheets[0], full, source.project_file.stem)
     (full/source.project_file.name).write_text(json.dumps(project, indent=2), encoding='utf-8')
     cli = KiCadCLI(cli_path)
@@ -470,7 +493,9 @@ def apply_schematic_sections(plan, new_directory):
                     pass
             return value
         result.append(SourceSpec(str(folder/source_name(spec)), spec.alias[:24-len(suffix)]+suffix,
-            variant='<Default>', path_variables={k: relocate(v) for k,v in spec.path_variables.items()},
+            variant=(spec.variant if spec.variant not in (None,'<Default>') else 'FusionSelectedDefault') if spec.variant_mode!='base' and spec.destination_variant!='<Default>' else '<Default>',
+            variant_mode='merge' if spec.variant_mode=='separate' and index>1 else spec.variant_mode,destination_variant=spec.destination_variant,
+            path_variables={k: relocate(v) for k,v in spec.path_variables.items()},
             path_remaps={k: relocate(v) for k,v in spec.path_remaps.items()},
             extra_asset_paths=[*[relocate(v) for v in spec.extra_asset_paths], str(folder/'schematic-section-report.json')],
             section_origin={'project': str(Path(spec.project).resolve()), 'sheet_path': report['sheet_path'], 'region_mm': None,

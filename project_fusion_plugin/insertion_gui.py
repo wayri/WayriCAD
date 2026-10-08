@@ -174,6 +174,8 @@ class InsertionDialog(wx.Dialog):
     def __init__(self, parent=None, target_path='', sources=(), cli_path='', embedded=False):
         super().__init__(parent, title='Import into existing project — offline review',
                          size=(940, 780), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        from .variant_import_gui import apply_window_icon
+        apply_window_icon(self)
         self.cli_path = cli_path
         self.embedded = embedded
         self.sources = []
@@ -204,6 +206,7 @@ class InsertionDialog(wx.Dialog):
         for label, handler in [('Add whole project(s)…', self.add_projects),
                                ('Add subsheet(s)…', self.add_subsheets),
                                ('Add routed section…', self.add_routed_section),
+                               ('Variant destination…', self.edit_variant_import),
                                ('Remove highlighted', self.remove_source)]:
             button = wx.Button(self, label=label)
             button.Bind(wx.EVT_BUTTON, handler)
@@ -310,10 +313,26 @@ class InsertionDialog(wx.Dialog):
     def refresh_sources(self, checked=None):
         if checked is None:
             checked = [self.source_list.IsChecked(index) for index in range(self.source_list.GetCount())]
-        self.source_list.Set([f'{spec.alias} — {spec.kind.title()} — {spec.variant or "[Choose variant]"} — {spec.project}'
+        from .variant_import_gui import disposition_label
+        self.source_list.Set([f'{spec.alias} — {spec.kind.title()} — {spec.variant or "[Choose variant]"} → {disposition_label(spec)} — {spec.project}'
                               for spec in self.sources])
         for index in range(len(self.sources)):
             self.source_list.Check(index, checked[index] if index < len(checked) else True)
+
+    def edit_variant_import(self,event=None):
+        if self.busy:return
+        index=self.source_list.GetSelection()
+        if index<0:
+            wx.MessageBox('Highlight an incoming source first.','Variant destination',wx.OK | wx.ICON_INFORMATION,self)
+            return
+        try:
+            from .variant_import_gui import choose_variant_import,destination_names
+            result=choose_variant_import(self,self.sources[index],destination_names(self.target.GetPath(),self.sources))
+            if result is not None:
+                self.sources[index]=result
+                self.refresh_sources();self.source_list.SetSelection(index);self.invalidate()
+        except Exception as exc:
+            wx.MessageBox(str(exc),'Variant destination',wx.OK | wx.ICON_ERROR,self)
 
     def unique_alias(self, desired, used):
         base = re.sub(r'[^A-Za-z0-9_]', '_', desired)[:24]
@@ -373,11 +392,10 @@ class InsertionDialog(wx.Dialog):
                 if names == [DEFAULT]:
                     spec.variant = DEFAULT
                 else:
-                    with wx.SingleChoiceDialog(self, f'Choose the variant for {path}',
-                                               'Incoming variant', names) as choice:
-                        if choice.ShowModal() != wx.ID_OK:
-                            continue
-                        spec.variant = choice.GetStringSelection()
+                    from .variant_import_gui import choose_variant_import,destination_names
+                    chosen=choose_variant_import(self,spec,destination_names(self.target.GetPath(),self.sources+pending))
+                    if chosen is None:continue
+                    spec=chosen
                 pending.append(spec)
             self.add_specs(pending)
         except Exception as exc:

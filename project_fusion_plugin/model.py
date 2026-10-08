@@ -37,6 +37,8 @@ class SourceSpec:
     section_origin: dict = field(default_factory=dict)
     selection: dict = field(default_factory=dict)
     sheet_position_mm: list[float] = field(default_factory=list)
+    variant_mode: str = 'base'
+    destination_variant: str = '<Default>'
 
     @property
     def kind(self):
@@ -44,6 +46,15 @@ class SourceSpec:
 
 
 def validate_section_origin(source):
+    if source.variant_mode not in {'base','merge','separate'}:
+        raise MergeError(f'{source.alias}: unknown variant handling mode.')
+    if not isinstance(source.destination_variant,str) or not source.destination_variant.strip():
+        raise MergeError(f'{source.alias}: choose a destination variant name.')
+    if (source.destination_variant!=source.destination_variant.strip() or len(source.destination_variant)>128
+            or any(ord(char)<32 for char in source.destination_variant)):
+        raise MergeError('Destination variant names need 1–128 visible characters without surrounding whitespace.')
+    if source.variant_mode=='separate' and source.destination_variant=='<Default>':
+        raise MergeError('A separate variant needs a new named configuration, not <Default>.')
     origin = source.section_origin
     if not isinstance(origin, dict):
         raise MergeError(f'{source.alias}: section_origin must be an object.')
