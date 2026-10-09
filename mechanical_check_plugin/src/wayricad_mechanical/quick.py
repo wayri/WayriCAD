@@ -21,7 +21,7 @@ def screen(board, config):
         bodies.append(dict(ref=c['ref'], kind='component', side=c['side'], bounds=bounds,
                            mesh=dict(vertices=[[x0,y0,z],[x1,y0,z],[x1,y1,z],[x0,y1,z]], faces=[[0,1,2],[0,2,3]])))
     cache = PairMeasurements(envelope_measure)
-    for a,b in candidate_pairs(bodies, config['xy_clearance_mm']):
+    for a,b in candidate_pairs(bodies, max(config['xy_clearance_mm'],config.get('proximity_warning_mm',0))):
         if a['side'] != b['side']:
             continue
         measurement = cache.get(a, b)
@@ -30,7 +30,14 @@ def screen(board, config):
             issues.append(finding('screen.footprint_envelope', [a['ref'],b['ref']],
                 'Same-side footprint envelopes overlap or are close',
                 'Inspect placement and courtyard; bounding boxes can overlap without physical interference. Use exact 3D mode for solid fit.',
-                evidence='2D bounding-box screen', measured=distance, limit=config['xy_clearance_mm'], unit='mm', severity='warning'))
+                evidence='2D bounding-box screen', measured=distance, limit=config['xy_clearance_mm'], unit='mm', severity='warning',
+                points=[measurement['points']]))
+        elif config.get('proximity_warning_mm',0)>0 and distance<config['proximity_warning_mm']-1e-7:
+            issues.append(finding('screen.proximity_warning',[a['ref'],b['ref']],
+                'Footprint envelopes are inside the proximity warning distance',
+                'Inspect the actual courtyard and model spacing; use Exact 3D for physical gaps.',
+                evidence='2D bounding-box screen',measured=distance,limit=config['proximity_warning_mm'],
+                unit='mm',severity='warning',points=[measurement['points']]))
     proximity = nearest_parts(bodies, cache, same_side=True)
     return dict(findings=issues,bodies=bodies,proximity=proximity,measurement_stats=cache.stats,
         board_outline=board.get('outline', dict(status='unavailable', polylines=[], bounds=None,

@@ -18,6 +18,33 @@ def bbox_distance(a, b):
     return math.sqrt(sum(v*v for v in gaps(a, b)))
 
 
+def maximum_height_findings(body, thickness, config):
+    """Check both outward PCB-face allowances, irrespective of mounting side.
+
+    CAD bounds can conservatively enclose curved geometry. Marker points locate
+    those bounds, rather than claiming a closest witness on the solid surface.
+    """
+    bounds = body['bounds']
+    x, y = [(bounds[i] + bounds[i+3])/2 for i in range(2)]
+    for side, face, extreme, direction in (('top', thickness, bounds[5], 1),
+                                            ('bottom', 0, bounds[2], -1)):
+        height = max(0, direction * (extreme-face))
+        limit = config[side+'_height_mm']
+        if height <= limit + 1e-7:
+            continue
+        position = [x, y, extreme]
+        excess = height-limit
+        yield finding('height.maximum', [body['ref']],
+                      f'Component exceeds {side} height limit by {excess:.6g} mm',
+                      'Choose a lower component, correct model placement/standoff or revise the height allowance.',
+                      evidence='conservative CAD height envelope from STEP solid',
+                      measured=height, limit=limit, unit='mm', location_key=side,
+                      side=side, height_mm=height, excess_mm=excess, tolerance_mm=1e-7,
+                      points=[[[x,y,face], position]], label_position=position,
+                      limit_point=[x,y,face+direction*limit],
+                      marker_evidence='CAD bounds marker; not a closest-surface witness')
+
+
 def candidate_pairs(bodies, margin):
     """Sweep broad phase: no pair within margin can be lost."""
     bodies = list(bodies)

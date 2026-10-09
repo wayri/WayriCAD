@@ -5,8 +5,9 @@ import re
 import sys
 from pathlib import Path
 
-from .findings import bbox_distance, candidate_pairs, finding, gaps
+from .findings import bbox_distance, candidate_pairs, finding, gaps, maximum_height_findings
 from .proximity import PairMeasurements, exact_measure, nearest_parts
+from .feature_geometry import inspect_shape
 
 
 def analyze(job):
@@ -121,7 +122,7 @@ def analyze(job):
                                           limit=config['clearance_mm'], unit='mm', points=point_list(points)))
             except Exception as exc:
                 missing.append(enclosure['ref'] + ': enclosure-to-board check failed: ' + str(exc))
-    margin = max(config['clearance_mm'], math.hypot(config['xy_clearance_mm'], config['z_clearance_mm']))
+    margin = max(config['clearance_mm'], config.get('proximity_warning_mm',0), math.hypot(config['xy_clearance_mm'], config['z_clearance_mm']))
     for a, b in candidate_pairs(bodies, margin):
         try:
             measurement = measurements.get(a, b)
@@ -139,6 +140,12 @@ def analyze(job):
                 issues.append(finding('solid.clearance', refs, 'Insufficient 3D surface clearance',
                                       'Increase the distance between these parts.', measured=distance,
                                       limit=config['clearance_mm'], unit='mm', points=point_list(points)))
+            elif (a['kind']==b['kind']=='component' and config.get('proximity_warning_mm',0)>0
+                  and distance < config['proximity_warning_mm']-1e-7):
+                issues.append(finding('solid.proximity_warning', refs, 'Components are inside the proximity warning distance',
+                                      'Review assembly tolerance and increase spacing if needed.',
+                                      evidence='exact STEP surfaces',severity='warning',measured=distance,
+                                      limit=config['proximity_warning_mm'],unit='mm',points=point_list(points)))
             # Independent XY/Z policy is a conservative envelope test, never an exact collision.
             gx, gy, gz = gaps(a['bounds'], b['bounds'])
             xy = math.hypot(gx, gy)
@@ -162,10 +169,7 @@ def analyze(job):
             continue
         ref, bounds, side = body['ref'], body['bounds'], body['side']
         height = max(0, bounds[5] - thickness if side == 'top' else -bounds[2])
-        limit = config[side + '_height_mm']
-        if height > limit + 1e-7:
-            issues.append(finding('height.maximum', [ref], 'Component exceeds ' + side + ' height limit',
-                                  'Choose a lower component or revise the enclosure height allowance.', measured=height, limit=limit, unit='mm'))
+        issues.extend(maximum_height_findings(body,thickness,config))
         for zone in config['height_zones']:
             x0, y0, x1, y1 = zone['bounds']  # KiCad board coordinates, Y down
             if side == zone['side'] and bounds[0] <= x1 and bounds[3] >= x0 and -bounds[4] <= y1 and -bounds[1] >= y0 and height > zone['max_height_mm']:
@@ -204,6 +208,8 @@ def analyze(job):
     bodies.extend(comparison_bodies)
     if job.get('measurement_directory'):
         save_measurement_shapes(bodies, job['measurement_directory'])
+    else:
+        attach_inspection(bodies)
     for body in bodies:
         body['mesh'] = mesh(body['shape'])
     result = dict(findings=issues, proximity=proximity, measurement_stats=measurements.stats,
@@ -268,6 +274,7 @@ def save_measurement_shapes(bodies, directory):
     for body in bodies:
         grouped.setdefault(body['ref'], []).append(body)
     manifest = {}
+    sample_budget = [100000]
     for index, (ref, group) in enumerate(grouped.items()):
         filename = str(index) + '.brep'
         shape = Part.makeCompound([body['shape'] for body in group])
@@ -275,7 +282,38 @@ def save_measurement_shapes(bodies, directory):
         evidence = ('conservative hardware envelopes' if any(body['kind'] in ('hardware envelope', 'hole allowance') for body in group)
                     else 'exact STEP surfaces')
         manifest[ref] = dict(file=filename, evidence=evidence)
+        # Read the actual cache representation so edge indices match later queries.
+        try:
+            cached = Part.Shape()
+            cached.read(str(directory / filename))
+            attach_group_inspection(group, cached, sample_budget)
+        except Exception as exc:
+            for body in group:
+                body['inspection'] = dict(status='unavailable', reason='CAD feature inspection failed: ' + str(exc))
     (directory / 'manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+
+
+def attach_group_inspection(group, shape, sample_budget):
+    if len(group) != 1:
+        for body in group:
+            body['inspection'] = dict(status='unavailable', reason='Multiple bodies share this reference; individual CAD feature identity is ambiguous')
+        return
+    group[0]['inspection'] = inspect_shape(shape, sample_budget)
+
+
+def attach_inspection(bodies):
+    """Export inspection even without a live-query cache; failures are local."""
+    import Part
+    grouped = {}
+    for body in bodies:
+        grouped.setdefault(body['ref'], []).append(body)
+    sample_budget = [100000]
+    for group in grouped.values():
+        try:
+            attach_group_inspection(group, Part.makeCompound([b['shape'] for b in group]), sample_budget)
+        except Exception as exc:
+            for body in group:
+                body['inspection'] = dict(status='unavailable', reason='CAD feature inspection failed: ' + str(exc))
 
 def sections_for_pair(first, second, bounds, custom_normal):
     """Intersect two exact solids with X/Y/Z planes through the finding."""

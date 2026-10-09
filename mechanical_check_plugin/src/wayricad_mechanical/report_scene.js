@@ -13,8 +13,9 @@ class ConflictScene {
     this.canvas=canvas;this.report=report;this.gl=canvas.getContext('webgl',{antialias:true,alpha:false,preserveDrawingBuffer:true});
     this.yaw=-1;this.pitch=.75;this.zoom=1;this.center=[0,0,0];this.span=100;
     this.selected=null;this.isolate=false;this.ghost=true;this.section=false;this.sectionDirection='Y';this.showReferenceLabels=true;
+    this.showViolationMarkers=true;this.alerts=ConflictScene.alertIndex(report);
     this.selectedReference=null;this.pairRefs=[];this.mode='select';this.probes=[];this.pendingPoint=null;this.hoverHit=null;this.hoverWitness=null;
-    const measurements=ConflictScene.loadMeasurements(report);this.rulers=measurements.rulers;this.proximity=measurements.proximity;
+    const measurements=ConflictScene.loadMeasurements(report);this.rulers=measurements.rulers;this.activeRuler=this.rulers.at(-1)||null;this.proximity=measurements.proximity;
     this.proximityByRef=new Map();
     for(const record of this.proximity.values())for(const ref of record.refs){if(!this.proximityByRef.has(ref))this.proximityByRef.set(ref,[]);this.proximityByRef.get(ref).push(record)}
     this.measureBuffers=new Map();this.metrics={triangleTests:0,boxTests:0,frames:0};
@@ -52,16 +53,25 @@ class ConflictScene {
     this.fit();
   }
   static loadMeasurements(report){
-    const rulers=(Array.isArray(report.point_rulers)?report.point_rulers:[]).filter(r=>r.points?.length===2&&r.points.every(validPoint)).map(r=>({...r,kind:'points'}));
+    const validRuler=r=>r&&typeof r.distance_mm==='number'&&Number.isFinite(r.distance_mm)&&r.distance_mm>=0&&Array.isArray(r.points)&&r.points.length===2&&r.points.every(validPoint);
+    const rulers=(Array.isArray(report.point_rulers)?report.point_rulers:[]).filter(validRuler).map(r=>({...r,kind:'points'}));
+    for(const record of Array.isArray(report.feature_rulers)?report.feature_rulers:[]){
+      if(record?.type!=='feature_ruler'||!['edge_edge','point_edge','center_center','point_point'].includes(record.measurement_kind)||!validRuler(record))continue;
+      rulers.push({...record,kind:'feature'});
+    }
     const proximity=new Map();
     for(const record of [...(Array.isArray(report.proximity)?report.proximity:[]),...(Array.isArray(report.measurements)?report.measurements:[])]){
-      if(record.type==='point_ruler'||!Array.isArray(record.refs)||record.refs.length!==2||!Number.isFinite(Number(record.distance_mm)))continue;
+      if(!record||record.type==='point_ruler'||record.type==='feature_ruler'||!Array.isArray(record.refs)||record.refs.length!==2||typeof record.distance_mm!=='number'||!Number.isFinite(record.distance_mm)||record.distance_mm<0)continue;
       const key=pairKey(...record.refs),previous=proximity.get(key);
       const quality=r=>String(r.evidence||'').toLowerCase().includes('exact step')?2:1;
       if(!previous||quality(record)>quality(previous)||(quality(record)===quality(previous)&&Number(record.distance_mm)<Number(previous.distance_mm)))proximity.set(key,record);
     }
     return {rulers,proximity};
   }
+  static rulerPrefix(ruler){
+    return ({edge_edge:'Edges',point_edge:'Point→edge',center_center:'Centers',point_point:'Points'})[ruler.measurement_kind]||(ruler.kind==='points'||ruler.type==='point_ruler'?'Points':ruler.type==='feature_ruler'?'Features':'Gap');
+  }
+  activeRulerRecord(){return this.rulers?.includes(this.activeRuler)?this.activeRuler:this.rulers?.at(-1)||null}
   static outlineSegments(outline){
     if(outline?.status!=='available'||!Array.isArray(outline.polylines))return [];
     const result=[];
@@ -103,10 +113,10 @@ class ConflictScene {
     const record=this.proximity.get(pairKey(a,b));
     if(!record)return this.announceMeasurement({error:'Part gap unavailable in this offline report. Run Mechanical Check, measure these two parts and export a new report.'});
     const ruler={...record,kind:'parts',label:`${a} ↔ ${b}`};
-    this.rulers.push(ruler);this.pairRefs=[a,b];this.draw();return this.announceMeasurement(ruler);
+    this.rulers.push(ruler);this.activeRuler=ruler;this.pairRefs=[a,b];this.draw();return this.announceMeasurement(ruler);
   }
   announceMeasurement(result){
-    this.lastPairResult=result;
+    this.lastPairResult=result;this.updateReadout();
     if(this.canvas?.dispatchEvent&&typeof CustomEvent!=='undefined')this.canvas.dispatchEvent(new CustomEvent('wayricad-measure',{detail:result}));
     return result;
   }
@@ -115,7 +125,8 @@ class ConflictScene {
     if(this.mode==='points'){
       if(!this.pendingPoint){this.pendingPoint=hit;this.updateReadout();this.draw();return}
       const a=this.pendingPoint,b=hit;this.pendingPoint=null;
-      this.rulers.push({kind:'points',refs:[a.reference,b.reference],points:[a.position,b.position],distance_mm:vecLength(vecSub(a.position,b.position)),unit:'mm',evidence:'picked tessellated surface points',label:`${a.reference} ↔ ${b.reference}`});
+      const ruler={kind:'points',refs:[a.reference,b.reference],points:[a.position,b.position],distance_mm:vecLength(vecSub(a.position,b.position)),unit:'mm',evidence:'picked tessellated surface points',label:`${a.reference} ↔ ${b.reference}`};
+      this.rulers.push(ruler);this.activeRuler=ruler;
     }else if(this.mode==='parts'){
       if(this.pairRefs.length===2)this.pairRefs=[];
       if(!this.pairRefs.includes(hit.reference))this.pairRefs=this.pairRefs.concat(hit.reference);
@@ -128,7 +139,7 @@ class ConflictScene {
     }
     this.updateReadout(hit);this.draw();
   }
-  clearMeasurements(){this.rulers=[];this.pendingPoint=null;this.pairRefs=[];this.lastPairResult=null;if(this.gl)for(const entry of this.measureBuffers.values())this.gl.deleteBuffer(entry.buffer);this.measureBuffers.clear();this.draw();this.updateReadout()}
+  clearMeasurements(){this.rulers=[];this.activeRuler=null;this.pendingPoint=null;this.pairRefs=[];this.lastPairResult=null;if(this.gl)for(const entry of this.measureBuffers.values())this.gl.deleteBuffer(entry.buffer);this.measureBuffers.clear();this.draw();this.updateReadout()}
   clearProbes(){this.probes=[];if(this.probeList)this.probeList.textContent='';this.draw()}
   updateReadout(hit=this.hoverHit){
     if(!this.readout)return;
@@ -136,8 +147,12 @@ class ConflictScene {
     const record=hit?this.nearestRecord(hit.reference):null;
     const certified=record?.nearest_for?.includes(hit?.reference);
     const neighbor=record?` · ${certified?'Nearest part':'Nearest known measured pair'}: ${record.refs.find(r=>r!==hit.reference)} ${Number(record.distance_mm).toFixed(4)} mm (${record.evidence||'reported'})`:'';
+    const active=this.activeRulerRecord();
+    const ruler=active?` · ${ConflictScene.rulerPrefix(active)} ${Array.isArray(active.refs)?active.refs.join(' ↔ '):''}: ${active.distance_mm.toFixed(4)} mm (${active.evidence||'reported'})`:'';
     const prompt=this.mode==='points'?(this.pendingPoint?' · Pick second surface point':' · Pick first surface point'):this.mode==='parts'?(this.pairRefs.length===1?` · Pick part after ${this.pairRefs[0]}`:' · Pick two parts'):' · Ctrl-click to pin';
-    this.readout.textContent=point+neighbor+prompt+(this.lastPairResult?.error?` · ${this.lastPairResult.error}`:'');
+    const notes=(this.alerts?.get(hit?.reference)||[]).slice(0,6).map(issue=>ConflictScene.heightLabel(issue)||
+      (issue.rule?.endsWith('proximity_warning')?`Proximity gap ${issue.measured} mm; warning below ${issue.limit} mm (${issue.evidence})`:issue.summary)).join(' · ');
+    this.readout.textContent=point+neighbor+ruler+prompt+(notes?' · '+notes:'')+(this.lastPairResult?.error?` · ${this.lastPairResult.error}`:'');
   }
   pick(clientX,clientY){
     if(!this.camera)return null;const r=this.canvas.getBoundingClientRect(),nx=2*(clientX-r.left)/r.width-1,ny=1-2*(clientY-r.top)/r.height,c=this.camera,t=Math.tan(18*Math.PI/180),ratio=r.width/r.height;
@@ -273,16 +288,19 @@ class ConflictScene {
     for(const body of this.bodies){
       if(boardKind(body.kind)||!this.visibleBody(body))continue;
       const chosen=this.pairRefs.includes(body.ref)||body.ref===this.selectedReference;
-      render(body.buffer,chosen?[.05,.85,.72,1]:body.kind.includes('allowance')||body.kind.includes('envelope')?[.94,.65,.22,1]:body.kind==='comparison_component'?[.86,.56,.29,1]:[.64,.68,.74,1]);
+      render(body.buffer,this.bodyColor(body,chosen));
     }
     g.depthMask(!this.ghost);
     for(const body of this.bodies)if(boardKind(body.kind))render(body.buffer,body.kind==='board'?[.17,.48,.39,this.ghost?0.24:1]:[.23,.43,.73,this.ghost?0.24:1]);
     g.depthMask(true);g.uniform1f(this.uniforms.cut,0);g.disable(g.DEPTH_TEST);g.uniform1f(this.uniforms.unlit,1);
-    if(this.selected){render(this.cache.get(this.selected.id),[.96,.12,.1,.95]);const points=this.cache.get(this.selected.id+'points');render(points,[.96,.12,.1,1],g.LINES);render(points,[.96,.12,.1,1],g.POINTS)}
+    if(this.selected){render(this.cache.get(this.selected.id),[.96,.12,.1,.95]);const points=this.cache.get(this.selected.id+'points');const color=this.selected.severity==='warning'?[.98,.64,.12,1]:[.96,.12,.1,1];render(points,color,g.LINES);render(points,color,g.POINTS)}
     const lines=[];
     for(const ruler of this.rulers)if(Array.isArray(ruler.points)&&ruler.points.length===2&&ruler.points.every(validPoint))lines.push(ruler);
     if(this.hoverWitness?.points?.length===2&&this.hoverWitness.points.every(validPoint))lines.push({...this.hoverWitness,hover:true});
     for(const ruler of lines){const entry=this.measurementBuffer(ruler.points);render(entry,ruler.hover?[.94,.2,.28,1]:[.08,.38,.9,1],g.LINES);render(entry,ruler.hover?[.94,.2,.28,1]:[.08,.38,.9,1],g.POINTS)}
+    for(const item of this.heightLabelItems())if(validPoint(item.issue.limit_point)&&validPoint(item.issue.label_position)){
+      render(this.measurementBuffer([item.issue.limit_point,item.issue.label_position]),[.96,.12,.1,1],g.LINES);
+    }
     const markers=[...this.probes,...(this.pendingPoint?[this.pendingPoint]:[]),...(this.hoverHit?[this.hoverHit]:[])];
     if(markers.length){if(!this.markerBuffer)this.markerBuffer=g.createBuffer();const data=markers.flatMap(hit=>[...hit.position,0,0,1]);g.bindBuffer(g.ARRAY_BUFFER,this.markerBuffer);g.bufferData(g.ARRAY_BUFFER,new Float32Array(data),g.STREAM_DRAW);render({buffer:this.markerBuffer,count:markers.length},[.03,.75,.62,1],g.POINTS)}
     g.enable(g.DEPTH_TEST);this.drawOverlay(lines);this.metrics.frames++;
@@ -295,9 +313,11 @@ class ConflictScene {
   referenceLabelItems(){
     if(!this.showReferenceLabels)return [];
     const plane=this.sectionPlane(),seen=new Set(),items=[];
-    const bodies=this.bodies.filter(b=>solidKind(b.kind)&&this.visibleBody(b)&&b.bounds?.length===6);
+    const selected=new Set([...(this.pairRefs||[]),...(this.selected?.refs||[]),this.selectedReference,this.hoverHit?.reference].filter(Boolean));
+    const requested=new Set([...selected,...(this.activeRulerRecord()?.refs||[])]);
+    const bodies=this.bodies.filter(b=>requested.has(b.ref)&&solidKind(b.kind)&&this.visibleBody(b)&&b.bounds?.length===6);
     bodies.sort((a,b)=>{
-      const pa=Number(this.pairRefs.includes(a.ref)||a.ref===this.selectedReference||a.ref===this.hoverHit?.reference),pb=Number(this.pairRefs.includes(b.ref)||b.ref===this.selectedReference||b.ref===this.hoverHit?.reference);
+      const pa=Number(selected.has(a.ref)),pb=Number(selected.has(b.ref));
       return pb-pa||a.ref.localeCompare(b.ref,undefined,{numeric:true});
     });
     for(const body of bodies){
@@ -305,11 +325,54 @@ class ConflictScene {
       if(this.section){const max=plane.normal.reduce((sum,n,i)=>sum+n*(n>=0?body.bounds[i+3]:body.bounds[i]),0);if(max<plane.offset-1e-9)continue}
       const center=[0,1,2].map(i=>(body.bounds[i]+body.bounds[i+3])/2),anchor=this.project(center);
       if(!anchor||anchor[0]<0||anchor[0]>this.canvas.clientWidth||anchor[1]<0||anchor[1]>this.canvas.clientHeight)continue;
-      const selected=this.pairRefs.includes(body.ref)||body.ref===this.selectedReference||body.ref===this.hoverHit?.reference;
-      items.push({kind:'ref',text:body.ref,anchor,priority:selected?2:1,color:selected?'#087f86':'#344f60'});
+      const important=selected.has(body.ref);
+      items.push({kind:'ref',text:body.ref,anchor,priority:important?2:1,color:important?'#087f86':'#344f60'});
       if(items.length>=80)break;
     }
     return items;
+  }
+  static alertIndex(report){
+    const result=new Map();
+    for(const issue of report.findings||[]){
+      if(issue.waiver||!['error','warning'].includes(issue.severity))continue;
+      for(const ref of issue.refs||[]){if(!result.has(ref))result.set(ref,[]);result.get(ref).push(issue)}
+    }
+    return result;
+  }
+  static heightLabel(issue){
+    if(issue.rule!=='height.maximum'||!Number.isFinite(issue.measured)||!Number.isFinite(issue.limit)||issue.measured<=issue.limit)return null;
+    return `${(issue.refs||[]).join(' / ')} ${issue.side||''} +${Number((issue.measured-issue.limit).toPrecision(6))} mm`.replace(/  /g,' ');
+  }
+  bodyColor(body,chosen){
+    const alerts=this.showViolationMarkers!==false&&solidKind(body.kind)?this.alerts?.get(body.ref)||[]:[];
+    if(alerts.some(issue=>issue.severity==='error'))return [.94,.23,.18,1];
+    if(alerts.length)return [.98,.64,.12,1];
+    return chosen?[.05,.85,.72,1]:body.kind.includes('allowance')||body.kind.includes('envelope')?[.94,.65,.22,1]:body.kind==='comparison_component'?[.86,.56,.29,1]:[.64,.68,.74,1];
+  }
+  heightLabelItems(){
+    if(this.showViolationMarkers===false)return [];
+    const selected=new Set([...(this.pairRefs||[]),...(this.selected?.refs||[]),this.selectedReference,this.hoverHit?.reference].filter(Boolean));
+    const items=[],seen=new Set();
+    for(const [ref,issues] of this.alerts||[]){
+      const body=(this.bodiesByRef?.get(ref)||this.bodies.filter(body=>body.ref===ref)).find(body=>this.visibleBody(body));
+      if(!body)continue;
+      for(const issue of issues){
+        const text=ConflictScene.heightLabel(issue);if(!text||seen.has(issue.id))continue;seen.add(issue.id);
+        const position=validPoint(issue.label_position)?issue.label_position:[0,1,2].map(i=>(body.bounds[i]+body.bounds[i+3])/2);
+        const anchor=this.project(position);if(!anchor||anchor[0]<0||anchor[0]>this.canvas.clientWidth||anchor[1]<0||anchor[1]>this.canvas.clientHeight)continue;
+        items.push({kind:'height',text,issue,anchor,priority:selected.has(ref)?3.5:2.5,color:'#b52c24'});
+      }
+    }
+    return items.sort((a,b)=>b.priority-a.priority||(b.issue.measured-b.issue.limit)-(a.issue.measured-a.issue.limit)).slice(0,64);
+  }
+  rulerLabelItems(lines){
+    const active=this.activeRulerRecord(),labels=[];
+    for(const ruler of lines){
+      if(!ruler.hover&&ruler!==active)continue;
+      const a=this.project(ruler.points[0]),b=this.project(ruler.points[1]);if(!a||!b)continue;
+      labels.push({kind:'ruler',text:`${ConflictScene.rulerPrefix(ruler)} ${Number(ruler.distance_mm).toFixed(3)} mm`,anchor:[(a[0]+b[0])/2,(a[1]+b[1])/2],priority:ruler.hover?4:3,color:ruler.hover?'#da3241':'#1459bd'});
+    }
+    return labels;
   }
   static layoutLabels(items,width,height,scaleWidth=158){
     const placed=[],occupied=[{x:7,y:height-62,w:scaleWidth,h:56}];
@@ -342,16 +405,15 @@ class ConflictScene {
       shape('line',{x1:18,y1:this.canvas.clientHeight-24,x2:18+scalePx,y2:this.canvas.clientHeight-24,stroke:'#294556','stroke-width':3});
       const caption=shape('text',{x:18,y:this.canvas.clientHeight-31,fill:'#294556','font-size':12});caption.textContent=`${unit} mm`;
     }
-    const labels=[];
+    const labels=this.rulerLabelItems(lines);
     for(const ruler of lines){const a=this.project(ruler.points[0]),b=this.project(ruler.points[1]);if(!a||!b)continue;
       const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy)||1,tx=-dy/len*7,ty=dx/len*7,color=ruler.hover?'#da3241':'#1459bd';
       for(const p of [a,b])shape('line',{x1:p[0]-tx,y1:p[1]-ty,x2:p[0]+tx,y2:p[1]+ty,stroke:color,'stroke-width':2});
-      labels.push({kind:'ruler',text:`${ruler.kind==='points'?'Points':'Gap'} ${Number(ruler.distance_mm).toFixed(3)} mm`,anchor:[(a[0]+b[0])/2,(a[1]+b[1])/2],priority:ruler.hover?4:3,color});
     }
-    labels.push(...this.referenceLabelItems());
+    labels.push(...this.referenceLabelItems(),...this.heightLabelItems());
     for(const label of ConflictScene.layoutLabels(labels,this.canvas.clientWidth,this.canvas.clientHeight,scaleVisible?Math.max(158,scalePx+32):158)){
       const b=label.box,fill=label.kind==='ruler'?'#fff':'#f7fbfc';
-      if(label.kind==='ruler'&&Math.hypot(b.x+b.w/2-label.anchor[0],b.y+b.h/2-label.anchor[1])>25)shape('line',{x1:label.anchor[0],y1:label.anchor[1],x2:b.x+b.w/2,y2:b.y+b.h/2,stroke:label.color,'stroke-width':1,opacity:.7});
+      if(label.kind!=='ref'&&Math.hypot(b.x+b.w/2-label.anchor[0],b.y+b.h/2-label.anchor[1])>25)shape('line',{x1:label.anchor[0],y1:label.anchor[1],x2:b.x+b.w/2,y2:b.y+b.h/2,stroke:label.color,'stroke-width':1,opacity:.7});
       shape('rect',{x:b.x,y:b.y,width:b.w,height:b.h,rx:4,fill,stroke:label.color,'stroke-width':1,opacity:.96});
       const node=shape('text',{x:b.x+5,y:b.y+15,fill:label.color,'font-size':label.kind==='ruler'?13:12,'font-weight':label.kind==='ruler'?700:600});
       node.textContent=label.text;

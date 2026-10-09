@@ -16,13 +16,35 @@ def length_text(value):
     return f'{value:.6g} mm'
 
 
+def height_annotation(issue):
+    """A signed excess label, preserving unknown imported measurements."""
+    if issue.get('rule') != 'height.maximum':
+        return None
+    measured, limit = issue.get('measured'), issue.get('limit')
+    if (any(type(value) not in (int, float) or not math.isfinite(value)
+            for value in (measured, limit)) or measured <= limit):
+        return None
+    side = issue.get('side', '')
+    return f"{' / '.join(issue.get('refs', []))} {side} +{length_text(measured-limit)}".replace('  ', ' ')
+
+
+def finding_readout(issue):
+    height = height_annotation(issue)
+    if height:
+        return f"{height} over limit {length_text(issue['limit'])} (height {length_text(issue['measured'])})"
+    if issue.get('rule') in ('solid.proximity_warning', 'screen.proximity_warning'):
+        return (f"Proximity: {' ↔ '.join(issue['refs'])} · {length_text(issue['measured'])} gap"
+                f" · warning below {length_text(issue['limit'])} · {issue['evidence']}")
+    return issue.get('summary', '')
+
+
 def measurement_text(record):
     if not record or not valid_measurement(record):
         return 'Distance unavailable: no measured geometry.'
     refs = ' ↔ '.join(record.get('refs', []))
     delta = [b-a for a, b in zip(*record['points'])]
     volume = record.get('overlap_volume_mm3', 0) or 0
-    contact = ('' if record.get('type')=='point_ruler' else
+    contact = ('' if record.get('type') in ('point_ruler','feature_ruler') else
                f' · overlap {volume:.6g} mm³' if volume > 0 else
                ' · contact / zero surface gap' if record['distance_mm'] == 0 else '')
     return (f"{refs}: {length_text(record['distance_mm'])}{contact} · {record.get('evidence', 'surface points')}"
@@ -38,39 +60,64 @@ class InspectionState:
         self.report = report
         self.pair = []
         self.point_start = None
+        self.feature_pair = []
         self.rulers = []
         self.active = None
+        self.update_findings(report.get('findings', []))
         self.nearest = {}
         self.pairs = {}
         for record in [*report.get('proximity', []), *report.get('measurements', [])]:
             self.register(record)
-        self.rulers = [record for record in [*report.get('measurements', []), *report.get('point_rulers', [])]
+        self.rulers = [record for record in [*report.get('measurements', []), *report.get('point_rulers', []),
+                                            *report.get('feature_rulers', [])]
                        if valid_measurement(record)][-20:]
         self.active = self.rulers[-1] if self.rulers else None
+
+    def update_findings(self, findings):
+        """Refresh waiver markers without resetting measurements or picks."""
+        self.alerts = {}
+        for issue in findings:
+            if issue.get('waiver') or issue.get('severity') not in ('error', 'warning'):
+                continue
+            for ref in issue.get('refs', []):
+                self.alerts.setdefault(ref, []).append(issue)
 
     def register(self, record):
         if not valid_measurement(record):
             return False
         refs = record.get('refs', [])
-        if len(refs) == 2 and refs[0] != refs[1] and record.get('type') != 'point_ruler':
+        gap=record.get('type') not in ('point_ruler','feature_ruler')
+        if len(refs) == 2 and refs[0] != refs[1] and gap:
             self.pairs[frozenset(refs)] = record
         # Older records without this field are not evidence of a nearest part.
-        for ref in ([] if record.get('type')=='point_ruler' else record.get('nearest_for', [])):
+        for ref in (record.get('nearest_for', []) if gap else []):
             previous = self.nearest.get(ref)
             if ref in refs and (previous is None or record['distance_mm'] < previous['distance_mm']):
                 self.nearest[ref] = record
         return True
 
     def set_mode(self, mode):
-        if mode not in ('select', 'parts', 'points'):
-            raise ValueError('Choose select, parts or points mode')
+        if mode not in ('select', 'parts', 'points', 'edges', 'point_edge', 'centers'):
+            raise ValueError('Choose a supported selection or measurement tool')
         self.mode = mode
         self.pair = []
         self.point_start = None
+        self.feature_pair = []
 
     def click(self, hit):
         if not hit:
             return None
+        if self.mode in ('edges','point_edge','centers'):
+            if len(self.feature_pair)==2:self.feature_pair=[]
+            kind=('edge' if self.mode=='edges' or self.mode=='point_edge' and self.feature_pair else
+                  'point' if self.mode=='point_edge' else 'center')
+            if kind=='edge' and 'edge_index' not in hit:return None
+            selector=dict(kind=kind,ref=hit['reference'])
+            if kind=='edge':selector['edge_index']=hit['edge_index']
+            elif kind=='point':selector['position']=list(hit['position'])
+            if self.feature_pair and selector==self.feature_pair[0]:return None
+            self.feature_pair.append(selector)
+            return {'feature_pair':list(self.feature_pair)} if len(self.feature_pair)==2 else None
         if self.mode == 'parts':
             ref = hit['reference']
             if len(self.pair) == 2:
@@ -105,3 +152,4 @@ class InspectionState:
         self.active = None
         self.pair = []
         self.point_start = None
+        self.feature_pair = []

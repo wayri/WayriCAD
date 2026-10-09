@@ -97,6 +97,7 @@ class SceneIndex:
 
     def pick(self, origin, direction, visible=lambda body: True, accept=None):
         best, distance = None, math.inf
+        self.hit_body_index=None
         self.tests = 0
         for index, body in enumerate(self.bodies):
             prepared = self.prepared.get(index)
@@ -107,5 +108,6 @@ class SceneIndex:
             self.tests += tree.tests
             if hit:
                 best = dict(hit, reference=body['ref'])
+                self.hit_body_index=index
                 distance = hit['distance']
         return best

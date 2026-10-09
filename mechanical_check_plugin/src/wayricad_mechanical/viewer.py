@@ -8,7 +8,9 @@ from wx import glcanvas
 from OpenGL import GL as gl
 from OpenGL import GLU as glu
 from .inspection_picking import SceneIndex, pack_mesh
-from .inspection_state import InspectionState, measurement_text, length_text
+from .inspection_state import InspectionState, measurement_text, length_text, height_annotation
+from .label_layout import LabelRequest, layout_labels
+from .edge_picking import nearest_edge
 
 
 class Scene(glcanvas.GLCanvas):
@@ -23,14 +25,16 @@ class Scene(glcanvas.GLCanvas):
         self.bodies=[];self.refs=set();self.issue=None;self.drag=None
         self.center=[0,0,0];self.span=100;self.zoom=1
         self.yaw=-1.0;self.pitch=.75
-        self.isolate=False;self.ghost=True;self.section=False
-        self.orthographic=False;self.grid=True;self.labels=True
+        self.isolate=False;self.ghost=False;self.section=False
+        self.orthographic=False;self.grid=False;self.labels=True
+        self.alert_markers=True
         self.board_outline=None
         self.section_normal=[0,1,0];self.section_offset=0.0
         self.buffers={};self.initialized=False
         self.inspection=InspectionState();self.index=SceneIndex([])
         self.report_generation=0;self.disposed=False;self.text_cache={}
-        self.on_measure=None;self.on_hover=None;self.on_ruler=None
+        self.on_measure=None;self.on_hover=None;self.on_ruler=None;self.on_features=None
+        self.edge_cache=None
         self.hover_measurement=None
         self.hover_hit=None;self.probes=[];self.on_pick=None;self.click_start=None;self.last_hover=0
         self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
@@ -61,6 +65,9 @@ class Scene(glcanvas.GLCanvas):
         self.bodies=report['bodies'];self.board_outline=report.get('board_outline')
         self.issue=None;self.probes=[];self.hover_hit=None
         self.hover_measurement=None;self.inspection.reset(report)
+        self.edge_cache=None
+        self.geometry_mode=report.get('rules',{}).get('mode')
+        if self.geometry_mode:self.set_view('top' if self.geometry_mode=='quick2d' else 'iso')
         self.index=SceneIndex(self.bodies);index=self.index
         def prepare():
             index.prepare()
@@ -107,7 +114,26 @@ class Scene(glcanvas.GLCanvas):
         hi=[max(b[i+3] for b in boxes) for i in range(3)]
         self.center=[(a+b)/2 for a,b in zip(lo,hi)]
         self.span=max(4,math.sqrt(sum((b-a)**2 for a,b in zip(lo,hi))))
-        self.zoom=1;self.Refresh()
+        # Fit projected bounds to the available canvas, rather than using the
+        # diagonal as a fixed camera distance that leaves most pixels empty.
+        size=self.GetClientSize();aspect=max(size.width,1)/max(size.height,1)
+        right=(-math.sin(self.yaw),math.cos(self.yaw),0)
+        up=(-math.cos(self.yaw)*math.sin(self.pitch),-math.sin(self.yaw)*math.sin(self.pitch),math.cos(self.pitch))
+        forward=(math.cos(self.yaw)*math.cos(self.pitch),math.sin(self.yaw)*math.cos(self.pitch),math.sin(self.pitch))
+        corners=[[x,y,z] for box in boxes for x in (box[0],box[3])
+                 for y in (box[1],box[4]) for z in (box[2],box[5])]
+        # Project each body's bounds separately: the union box has phantom tall
+        # corners on the far side of a board with one high connector.
+        for axis in (right,up):
+            values=[sum(a*b for a,b in zip(p,axis)) for p in corners]
+            shift=(min(values)+max(values))/2-sum(a*b for a,b in zip(self.center,axis))
+            self.center=[a+shift*b for a,b in zip(self.center,axis)]
+        corners=[[a-b for a,b in zip(p,self.center)] for p in corners]
+        distance=max(2,max((0 if self.orthographic else sum(a*b for a,b in zip(p,forward)))+
+                          max(abs(sum(a*b for a,b in zip(p,up))),
+                              abs(sum(a*b for a,b in zip(p,right)))/aspect)/(.85*math.tan(math.radians(18)))
+                          for p in corners))
+        self.zoom=self.span*1.8/distance;self.Refresh()
 
     def focus_contact(self):
         if not self.issue:return
@@ -129,15 +155,19 @@ class Scene(glcanvas.GLCanvas):
     def up(self,event):
         moved=math.dist(tuple(event.GetPosition()),self.click_start) if self.click_start else math.inf
         if event.LeftUp() and moved<4:
-            hit=self.pick(event.GetPosition())
+            hit=self.tool_pick(event.GetPosition())
             if hit:
                 if event.ControlDown():self.probes.append(hit)
                 else:
                     action=self.inspection.click(hit)
-                    self.refs=set(self.inspection.pair) if self.inspection.mode=='parts' else {hit['reference']}
+                    self.refs=(set(self.inspection.pair) if self.inspection.mode=='parts' else
+                               {item['ref'] for item in self.inspection.feature_pair} if self.inspection.feature_pair else {hit['reference']})
                     if isinstance(action,tuple) and callable(self.on_measure):self.on_measure(*action)
+                    elif isinstance(action,dict) and 'feature_pair' in action and callable(self.on_features):self.on_features(*action['feature_pair'])
                     elif isinstance(action,dict) and callable(self.on_ruler):self.on_ruler(action)
-                    if callable(self.on_pick):self.on_pick(hit)
+                    if callable(self.on_pick):
+                        hit['popup_position']=tuple(self.ClientToScreen(event.GetPosition()))
+                        self.on_pick(hit)
                 self.Refresh()
         self.click_start=None
         self.drag=None
@@ -159,16 +189,79 @@ class Scene(glcanvas.GLCanvas):
             origin=(self.issue or {}).get('section_origin',self.center)
             offset=sum(n*v for n,v in zip(self.section_normal,origin))+self.section_offset
             accept=lambda point:sum(n*v for n,v in zip(self.section_normal,point))>=offset-1e-9
-        return self.index.pick(a,[end-start for start,end in zip(a,b)],visible,accept)
+        hit=self.index.pick(a,[end-start for start,end in zip(a,b)],visible,accept)
+        if hit:hit['body_index']=self.index.hit_body_index
+        return hit
+
+    def tool_pick(self,position):
+        mode=self.inspection.mode
+        if mode=='edges' or mode=='point_edge' and len(self.inspection.feature_pair)==1:
+            return self.pick_edge(position)
+        return self.pick(position)
+
+    def pick_edge(self,position):
+        """Pick sampled CAD curves; exact queries subsequently use BREP indices."""
+        if not self.initialized:return None
+        self.SetCurrent(self.context)
+        model=gl.glGetDoublev(gl.GL_MODELVIEW_MATRIX);projection=gl.glGetDoublev(gl.GL_PROJECTION_MATRIX)
+        viewport=gl.glGetIntegerv(gl.GL_VIEWPORT);factor=self.GetContentScaleFactor()
+        size=self.GetClientSize();x,y=position.x*factor,(size.height-position.y)*factor
+        key=(self.report_generation,tuple(model.flatten()),tuple(projection.flatten()),tuple(viewport))
+        cell=128*factor
+        if self.edge_cache is None or self.edge_cache['key']!=key:
+            cache={'key':key,'grid':{},'projected':{}}
+            for index,body in enumerate(self.bodies):
+                if not body.get('inspection',{}).get('edges'):continue
+                bounds=body['bounds']
+                corners=[glu.gluProject(a,b,c,model,projection,viewport)
+                         for a in (bounds[0],bounds[3]) for b in (bounds[1],bounds[4]) for c in (bounds[2],bounds[5])]
+                if not any(0<=p[2]<=1 for p in corners):continue
+                lo=[max(0,min(p[i] for p in corners)-8*factor) for i in range(2)]
+                hi=[min(viewport[i+2],max(p[i] for p in corners)+8*factor) for i in range(2)]
+                for gx in range(math.floor(lo[0]/cell),math.floor(hi[0]/cell)+1):
+                    for gy in range(math.floor(lo[1]/cell),math.floor(hi[1]/cell)+1):
+                        cache['grid'].setdefault((gx,gy),[]).append(index)
+            self.edge_cache=cache
+        candidates=[]
+        for index in self.edge_cache['grid'].get((math.floor(x/cell),math.floor(y/cell)),[]):
+            body=self.bodies[index]
+            if self.refs and self.isolate and body['ref'] not in self.refs and body['kind'] not in ('board','comparison_board'):continue
+            if index not in self.edge_cache['projected']:
+                projected=[]
+                for edge in body['inspection']['edges']:
+                    if edge.get('status')!='available' or len(edge.get('points',[]))<2:continue
+                    points=[]
+                    for p in edge['points']:
+                        px,py,pz=glu.gluProject(*p,model,projection,viewport)
+                        points.append([px/factor,py/factor,pz,*p])
+                    projected.append(dict(reference=body['ref'],edge_index=edge['index'],points=points))
+                self.edge_cache['projected'][index]=projected
+            candidates.extend(self.edge_cache['projected'][index])
+        forward=(math.cos(self.yaw)*math.cos(self.pitch),math.sin(self.yaw)*math.cos(self.pitch),math.sin(self.pitch))
+        def accept(candidate):
+            point=candidate['position']
+            if self.section:
+                origin=(self.issue or {}).get('section_origin',self.center)
+                if sum(n*(v-o) for n,v,o in zip(self.section_normal,point,origin))<self.section_offset-1e-9:return False
+            px,py=candidate['screen_position']
+            front=self.pick(wx.Point(round(px),round(size.height-py)))
+            if not front:return True  # Visible silhouette falls just outside a triangle.
+            if self.ghost and self.bodies[front['body_index']]['kind'] in ('board','comparison_board'):return True
+            return sum((a-b)*n for a,b,n in zip(point,front['position'],forward))>=-.12
+        hit=nearest_edge((x/factor,y/factor),candidates,tolerance=8,accept=accept)
+        if hit:
+            hit['body_index']=next(i for i,b in enumerate(self.bodies) if b['ref']==hit['reference'])
+        return hit
 
     def motion(self,event):
         if self.drag is None:
             if time.monotonic()-self.last_hover>.1:
-                self.last_hover=time.monotonic();self.hover_hit=self.pick(event.GetPosition())
+                self.last_hover=time.monotonic();self.hover_hit=self.tool_pick(event.GetPosition())
                 self.hover_measurement=self.inspection.nearest.get(self.hover_hit['reference']) if self.hover_hit else None
                 if self.hover_hit:
                     point=self.hover_hit['position']
-                    gap='\n'+measurement_text(self.hover_measurement) if self.hover_measurement else '\nNearest-part distance unavailable for this geometry.'
+                    gap=(f"\nCAD edge {self.hover_hit['edge_index']+1}; click to select" if 'edge_index' in self.hover_hit else
+                         '\n'+measurement_text(self.hover_measurement) if self.hover_measurement else '\nNearest-part distance unavailable for this geometry.')
                     self.SetToolTip(f"{self.hover_hit['reference']} · {point[0]:.3f}, {point[1]:.3f}, {point[2]:.3f} mm{gap}")
                 else:self.SetToolTip('Drag: orbit · Shift/right-drag: pan · Wheel: zoom. Choose a measurement tool below.')
                 if callable(self.on_hover):self.on_hover(self.hover_hit,self.hover_measurement)
@@ -211,6 +304,10 @@ class Scene(glcanvas.GLCanvas):
         if prepared is None:return
         kind=body['kind'];active=body['ref'] in self.refs
         color=(.17,.48,.39) if kind=='board' else (.23,.43,.73) if kind=='comparison_board' else (.86,.56,.29) if kind=='comparison_component' else (.1,.72,.63) if active else (.55,.62,.68)
+        if self.alert_markers and kind in ('component','comparison_component'):
+            alerts=self.inspection.alerts.get(body['ref'],[])
+            if any(issue['severity']=='error' for issue in alerts):color=(.94,.23,.18)
+            elif alerts:color=(.98,.64,.12)
         if kind in ('hardware envelope','hole allowance'):color=(.94,.65,.22)
         gl.glColor4f(*color,alpha)
         self.draw_mesh(('body',index),body['mesh'],prepared[1])
@@ -272,7 +369,8 @@ class Scene(glcanvas.GLCanvas):
                 gl.glEnable(gl.GL_DEPTH_TEST)
             points=self.issue.get('points')
             if points:
-                gl.glDisable(gl.GL_DEPTH_TEST);gl.glColor3f(.85,.15,.08);gl.glLineWidth(3)
+                gl.glDisable(gl.GL_DEPTH_TEST)
+                gl.glColor3f(*((.98,.64,.12) if self.issue.get('severity')=='warning' else (.85,.15,.08)));gl.glLineWidth(3)
                 gl.glBegin(gl.GL_LINES)
                 for point in points[0]:gl.glVertex3f(*point)
                 gl.glEnd();gl.glPointSize(8);gl.glBegin(gl.GL_POINTS)
@@ -285,7 +383,49 @@ class Scene(glcanvas.GLCanvas):
             for marker in markers:gl.glVertex3f(*marker['position'])
             gl.glEnd();gl.glEnable(gl.GL_DEPTH_TEST)
         self.draw_rulers(width,height,distance,factor)
+        self.draw_feature_selection()
         gl.glFlush();self.SwapBuffers()
+
+    def draw_feature_selection(self):
+        features=list(self.inspection.feature_pair)+list((self.inspection.active or {}).get('features',[]))
+        if self.hover_hit and 'edge_index' in self.hover_hit:
+            features.append(dict(kind='edge',ref=self.hover_hit['reference'],edge_index=self.hover_hit['edge_index']))
+        gl.glDisable(gl.GL_LIGHTING);gl.glDisable(gl.GL_DEPTH_TEST);gl.glLineWidth(3);gl.glColor3f(.97,.60,.08)
+        for feature in features:
+            body=next((b for b in self.bodies if b['ref']==feature['ref']),None)
+            if not body:continue
+            if feature['kind']=='edge':
+                edge=next((e for e in body.get('inspection',{}).get('edges',[]) if e['index']==feature['edge_index']),{})
+                gl.glBegin(gl.GL_LINE_STRIP)
+                for point in edge.get('points',[]):gl.glVertex3f(*point)
+                gl.glEnd()
+            else:
+                point=feature.get('position') if feature['kind']=='point' else body.get('inspection',{}).get('center_mm')
+                if point:
+                    gl.glPointSize(9);gl.glBegin(gl.GL_POINTS);gl.glVertex3f(*point);gl.glEnd()
+        gl.glEnable(gl.GL_DEPTH_TEST)
+
+    def snapshot(self):
+        """Capture the actual rendered RGB front buffer, including annotations.
+
+        Windows PrintWindow does not reliably capture nested GL canvases.
+        Explicit RGB rows also prevent transparency in exported screenshots.
+        """
+        if not self.initialized or not self.IsShownOnScreen():
+            raise RuntimeError('Show the board view before saving an image.')
+        self.SetCurrent(self.context)
+        size=self.GetClientSize();factor=self.GetContentScaleFactor()
+        width,height=round(size.width*factor),round(size.height*factor)
+        previous=gl.glGetIntegerv(gl.GL_READ_BUFFER)
+        alignment=gl.glGetIntegerv(gl.GL_PACK_ALIGNMENT)
+        try:
+            gl.glReadBuffer(gl.GL_FRONT);gl.glPixelStorei(gl.GL_PACK_ALIGNMENT,1)
+            raw=bytes(gl.glReadPixels(0,0,width,height,gl.GL_RGB,gl.GL_UNSIGNED_BYTE))
+        finally:
+            gl.glReadBuffer(int(previous));gl.glPixelStorei(gl.GL_PACK_ALIGNMENT,int(alignment))
+        stride=width*3
+        rows=b''.join(raw[i:i+stride] for i in range(len(raw)-stride,-1,-stride))
+        return wx.Image(width,height,rows)
 
     @staticmethod
     def nice_length(value):
@@ -333,21 +473,10 @@ class Scene(glcanvas.GLCanvas):
             if len(self.text_cache)>512:self.text_cache.pop(next(iter(self.text_cache)))
         return self.text_cache[key]
 
-    def draw_text(self,text,x,y,factor,occupied=None,optional=False):
+    def draw_text(self,text,x,y,factor):
         if not text:return
         w,h,pixels=self.text_pixels(text,factor)
         x=max(0,min(x,self.viewport_width-w));y=max(0,min(y,self.viewport_height-h))
-        if occupied is not None:
-            position=None
-            for offset in (0,1,-1,2,-2,3,-3,4,-4):
-                cy=max(0,min(y+offset*(h+3*factor),self.viewport_height-h))
-                if all(x+w+3*factor<=a or x>=c+3*factor or cy+h+3*factor<=b or cy>=d+3*factor
-                       for a,b,c,d in occupied):
-                    position=(x,cy);break
-            if position is None:
-                if optional:return
-            else:x,y=position
-            occupied.append((x,y,x+w,y+h))
         gl.glRasterPos2f(x,y)
         gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT,1)
         gl.glDrawPixels(w,h,gl.GL_RGB,gl.GL_UNSIGNED_BYTE,pixels)
@@ -371,9 +500,41 @@ class Scene(glcanvas.GLCanvas):
             gl.glEnd()
             projected=[glu.gluProject(*point,model,projection,viewport) for point in points]
             labels.append((record,projected))
+        height_markers=[]
+        if self.alert_markers:
+            visible_refs={body['ref'] for body in self.bodies if not self.refs or not self.isolate or body['ref'] in self.refs}
+            seen=set()
+            for ref,issues in self.inspection.alerts.items():
+                if ref not in visible_refs:continue
+                for issue in issues:
+                    text=height_annotation(issue)
+                    if not text or issue['id'] in seen:continue
+                    seen.add(issue['id'])
+                    point=issue.get('label_position')
+                    if not point:
+                        body=next((b for b in self.bodies if b['ref']==ref),None)
+                        if not body:continue
+                        bounds=body['bounds'];point=[(bounds[i]+bounds[i+3])/2 for i in range(3)]
+                    if len(point)!=3 or not all(math.isfinite(value) for value in point):continue
+                    limit_point=issue.get('limit_point')
+                    if limit_point:
+                        gl.glColor3f(.96,.18,.14);gl.glBegin(gl.GL_LINES)
+                        gl.glVertex3f(*limit_point);gl.glVertex3f(*point);gl.glEnd()
+                        gl.glBegin(gl.GL_POINTS);gl.glVertex3f(*point);gl.glEnd()
+                    projected=glu.gluProject(*point,model,projection,viewport)
+                    priority=95 if ref in self.refs or ref==(self.hover_hit or {}).get('reference') else 60
+                    height_markers.append((issue,text,projected,priority))
         gl.glMatrixMode(gl.GL_PROJECTION);gl.glPushMatrix();gl.glLoadIdentity();gl.glOrtho(0,width,0,height,-1,1)
         gl.glMatrixMode(gl.GL_MODELVIEW);gl.glPushMatrix();gl.glLoadIdentity()
-        occupied=[]
+        requests=[];texts={}
+        def request(key,text,x,y,priority):
+            if key in texts:return
+            w,h,_=self.text_pixels(text,factor)
+            texts[key]=text;requests.append(LabelRequest(key,(x,y),(w,h),priority))
+        # Dense boards retain every colored violation and table row. Keep the
+        # label workload bounded, prioritizing the hovered/selected body.
+        for issue,text,point,priority in sorted(height_markers,key=lambda item:(-item[3],-item[0].get('excess_mm',0)))[:64]:
+            if 0<=point[2]<=1:request(('height',issue['id']),text,point[0],point[1],priority)
         for record,points in labels:
             if not any(0<=p[2]<=1 for p in points):continue
             gl.glColor3f(.1,.85,.73);gl.glBegin(gl.GL_LINES)
@@ -381,30 +542,45 @@ class Scene(glcanvas.GLCanvas):
                 gl.glVertex2f(x-5*factor,y-5*factor);gl.glVertex2f(x+5*factor,y+5*factor)
                 gl.glVertex2f(x-5*factor,y+5*factor);gl.glVertex2f(x+5*factor,y-5*factor)
             gl.glEnd()
-            text=' ↔ '.join(record.get('refs',[]))+': '+length_text(record['distance_mm'])
-            prefix='Points ' if record.get('type')=='point_ruler' else 'Gap '
-            self.draw_text(prefix+text,sum(p[0] for p in points)/2+8*factor,sum(p[1] for p in points)/2+8*factor,factor,occupied)
+            # Keep saved witness lines, but label only the active measurement
+            # and nearest hovered pair. Details remain in the inspector/export.
+            if record is self.inspection.active or record is self.hover_measurement:
+                text=' ↔ '.join(record.get('refs',[]))+': '+length_text(record['distance_mm'])
+                prefix=({'edge_edge':'Edges ','point_edge':'Point → edge ','center_center':'Centers ','point_point':'Points '}.get(record.get('measurement_kind'),'Features ')
+                        if record.get('type')=='feature_ruler' else 'Points ' if record.get('type')=='point_ruler' else 'Gap ')
+                request(('ruler',id(record)),prefix+text,sum(p[0] for p in points)/2,sum(p[1] for p in points)/2,
+                        100 if record is self.inspection.active else 90)
         if self.labels:
             references=[]
+            labelled_refs=self.refs|set((self.inspection.active or {}).get('refs',[]))
             for body in self.bodies:
                 if body['kind'] not in ('component','comparison_component'):continue
                 if self.refs and self.isolate and body['ref'] not in self.refs:continue
                 bounds=body['bounds'];point=[(bounds[i]+bounds[i+3])/2 for i in range(3)]
                 x,y,z=glu.gluProject(*point,model,projection,viewport)
                 if 0<=z<=1 and 0<x<width and 0<y<height:
-                    important=body['ref'] in self.refs or body['ref']==(self.hover_hit or {}).get('reference')
-                    references.append((not important,(x-width/2)**2+(y-height/2)**2,body['ref'],x,y))
-            # Bound text rasterization on dense boards; selected/hovered parts
-            # and references near the view center take priority.
-            for _,_,ref,x,y in sorted(references)[:80]:
-                self.draw_text(ref,x+5*factor,y+5*factor,factor,occupied,optional=True)
+                    if body['ref'] in labelled_refs or body['ref']==(self.hover_hit or {}).get('reference'):
+                        references.append((body['ref'],x,y))
+            for ref,x,y in references:
+                request(('ref',ref),ref,x,y,50)
         ppm=height/(2*distance*math.tan(math.radians(18)))
         length=self.nice_length(70*factor/ppm);pixels=length*ppm
         gl.glColor3f(.15,.55,.55);gl.glBegin(gl.GL_LINES)
         gl.glVertex2f(18*factor,23*factor);gl.glVertex2f(18*factor+pixels,23*factor)
         for x in (18*factor,18*factor+pixels):gl.glVertex2f(x,18*factor);gl.glVertex2f(x,28*factor)
         gl.glEnd()
-        self.draw_text(length_text(length)+('' if self.orthographic else ' at view center'),18*factor,32*factor,factor)
+        scale_text=length_text(length)+('' if self.orthographic else ' at view center')
+        sw,sh,_=self.text_pixels(scale_text,factor)
+        reserved=[(14*factor,14*factor,max(18*factor+sw,18*factor+pixels)+4*factor,32*factor+sh+4*factor)]
+        self.label_rectangles=layout_labels(requests,width,height,scale=factor,reserved=reserved)
+        by_key={item.key:item for item in requests}
+        for key,rect in self.label_rectangles.items():
+            anchor=by_key[key].anchor
+            end=(max(rect[0],min(anchor[0],rect[2])),max(rect[1],min(anchor[1],rect[3])))
+            gl.glColor3f(.27,.55,.55);gl.glBegin(gl.GL_LINES)
+            gl.glVertex2f(*anchor);gl.glVertex2f(*end);gl.glEnd()
+            self.draw_text(texts[key],rect[0],rect[1],factor)
+        self.draw_text(scale_text,18*factor,32*factor,factor)
         if not self.index.ready:self.draw_text('Preparing indexed geometry…',18*factor,height-40*factor,factor)
         gl.glPopMatrix();gl.glMatrixMode(gl.GL_PROJECTION);gl.glPopMatrix();gl.glMatrixMode(gl.GL_MODELVIEW)
         gl.glEnable(gl.GL_DEPTH_TEST)

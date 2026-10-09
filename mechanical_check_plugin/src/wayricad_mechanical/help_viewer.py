@@ -13,10 +13,8 @@ DIMENSION = re.compile(r'\s+(?:width|height)\s*=\s*(?:\"[^\"]*\"|\'[^\']*\'|[^\s
 
 def size_images(markup, available_width, dimensions):
     """Set both native HTML dimensions; never stretch or upscale source images."""
-    # A shared figure width keeps the left/right edges aligned across screenshots
-    # with different aspect ratios, while each image retains its own height.
-    figure_width = min(max(1, available_width), 840,
-                       *(min(width, 520 * width / height) for width, height in dimensions.values()))
+    # A small canvas illustration must not shrink every full-window screenshot.
+    figure_width = min(max(1, available_width), 840)
     def resize(match):
         tag = match.group(0)
         source = SOURCE.search(tag)
@@ -81,7 +79,21 @@ class HelpViewer(wx.html.HtmlWindow):
         event.Skip()
 
     def OnLinkClicked(self, link):
-        if link.GetHref().startswith('#'):
+        if link.GetHref() in self.dimensions:
+            self.show_image(link.GetHref())
+        elif link.GetHref().startswith('#'):
             self.ScrollToAnchor(link.GetHref()[1:])
         else:
             super().OnLinkClicked(link)
+
+    def show_image(self, source):
+        image=wx.Image(str(self.path.parent/source))
+        with wx.Dialog(self,title='Screenshot · full size',size=(1100,780),
+                       style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER) as dialog:
+            scroller=wx.ScrolledWindow(dialog)
+            scroller.SetScrollRate(16,16)
+            bitmap=wx.StaticBitmap(scroller,bitmap=wx.Bitmap(image))
+            content=wx.BoxSizer(wx.VERTICAL);content.Add(bitmap);scroller.SetSizer(content)
+            layout=wx.BoxSizer(wx.VERTICAL);layout.Add(scroller,1,wx.EXPAND)
+            layout.Add(dialog.CreateButtonSizer(wx.OK),0,wx.ALL|wx.ALIGN_RIGHT,8)
+            dialog.SetSizer(layout);dialog.ShowModal()

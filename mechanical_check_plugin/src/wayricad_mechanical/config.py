@@ -11,6 +11,7 @@ DEFAULTS = {
     "project_revision": "",
     "reviewer": "",
     "clearance_mm": 0.25,
+    "proximity_warning_mm": 0.0,
     "xy_clearance_mm": 0.25,
     "z_clearance_mm": 0.5,
     "top_height_mm": 12.0,

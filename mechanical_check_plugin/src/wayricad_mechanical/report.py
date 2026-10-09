@@ -17,7 +17,7 @@ def export(report, output):
     json_path, csv_path, html_path = [folder / ('WayriCAD-Mechanical-Check-report.' + ext) for ext in ('json', 'csv', 'html')]
     json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding='utf-8')
     with csv_path.open('w', newline='', encoding='utf-8-sig') as stream:
-        columns = ['project', 'completed_at', 'id', 'severity', 'rule', 'refs', 'summary', 'evidence', 'measured', 'limit', 'unit', 'action', 'waiver']
+        columns = ['project', 'completed_at', 'id', 'severity', 'rule', 'refs', 'summary', 'evidence', 'measured', 'limit', 'unit', 'side', 'excess_mm', 'action', 'waiver']
         writer = csv.DictWriter(stream, fieldnames=columns)
         writer.writeheader()
         for f in report['findings']:

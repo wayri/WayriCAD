@@ -17,6 +17,7 @@ from .runtime import Cancelled, discover
 from .viewer import Scene
 from .measurement_service import MeasurementSession
 from .inspection_state import measurement_text
+from .part_inspector import PartInspector
 from .extract import is_mounting
 
 INK, MUTED, BG, TEAL = '#243444', '#5c7180', '#f7fafc', '#267269'
@@ -136,7 +137,7 @@ class Window(wx.Frame):
         global INK, MUTED, BG, TEAL
         INK, MUTED, BG, TEAL = theme_palette(wx.SystemSettings.GetAppearance().IsDark())
         super().__init__(None, title='WayriCAD Mechanical Check — Board validation', size=(1160, 820))
-        self.SetMinSize((980, 700))
+        self.SetMinSize((980, 680))
         self.SetBackgroundColour(BG)
         icon=Path(__file__).resolve().parents[2]/'resources/icon-24.png'
         if icon.exists():self.SetIcon(wx.Icon(str(icon),wx.BITMAP_TYPE_PNG))
@@ -149,6 +150,7 @@ class Window(wx.Frame):
         self.running = False
         self._closing=False;self.live_temp=None
         self.measurement_session=None;self.measuring=False
+        self.part_inspector=None
         self.measure_cancel=threading.Event();self.measure_generation=0
         self.cancel = threading.Event()
         self.mount_rows = []
@@ -256,9 +258,18 @@ class Window(wx.Frame):
     def rules_page(self):
         p=self.pages[1]; s=wx.BoxSizer(wx.VERTICAL)
         s.Add(label(p,'Set the physical limits for this assembly.',14,True),0,wx.BOTTOM,14)
+        s.Add(label(p,'Global board limits',12,True),0,wx.BOTTOM,8)
         fields=wx.FlexGridSizer(cols=4,vgap=10,hgap=14);fields.AddGrowableCol(1);fields.AddGrowableCol(3)
         self.numbers={}
-        for title,key in [('3D clearance','clearance_mm'),('Top height','top_height_mm'),('Horizontal allowance','xy_clearance_mm'),('Bottom height','bottom_height_mm'),('Vertical allowance','z_clearance_mm'),('PnP tip radius','nozzle_radius_mm'),('Hardware clearance','screw_clearance_mm'),('PnP head radius','nozzle_head_radius_mm'),('PnP head setback','nozzle_head_setback_mm'),('Nozzle travel','nozzle_travel_mm')]:
+        for title,key in [('Max top height','top_height_mm'),('Max bottom height','bottom_height_mm'),
+                          ('3D clearance','clearance_mm'),('Proximity warning','proximity_warning_mm')]:
+            control=wx.SpinCtrlDouble(p,min=0,max=10000,inc=.1,initial=self.config.get(key,0));control.SetDigits(3)
+            fields.Add(label(p,title+' (mm)'),0,wx.ALIGN_CENTER_VERTICAL);fields.Add(control,1,wx.EXPAND)
+            self.numbers[key]=control
+        s.Add(fields,0,wx.EXPAND|wx.BOTTOM,8)
+        s.Add(label(p,'Height is measured outward from each PCB face, including opposite-side protrusions.\nProximity warning: 0 = off. Quick 2D checks footprint gaps; heights require 3D models.',10,False,MUTED),0,wx.BOTTOM,14)
+        fields=wx.FlexGridSizer(cols=4,vgap=10,hgap=14);fields.AddGrowableCol(1);fields.AddGrowableCol(3)
+        for title,key in [('Horizontal allowance','xy_clearance_mm'),('Vertical allowance','z_clearance_mm'),('PnP tip radius','nozzle_radius_mm'),('Hardware clearance','screw_clearance_mm'),('PnP head radius','nozzle_head_radius_mm'),('PnP head setback','nozzle_head_setback_mm'),('Nozzle travel','nozzle_travel_mm')]:
             control=wx.SpinCtrlDouble(p,min=0,max=10000,inc=.1,initial=self.config[key]);control.SetDigits(3)
             fields.Add(label(p,title+' (mm)'),0,wx.ALIGN_CENTER_VERTICAL);fields.Add(control,1,wx.EXPAND)
             self.numbers[key]=control
@@ -321,81 +332,109 @@ class Window(wx.Frame):
 
     def review_page(self):
         p=self.pages[3];s=wx.BoxSizer(wx.VERTICAL)
-        self.summary=label(p,'Run validation to see findings.',12,True);s.Add(self.summary,0,wx.BOTTOM,10)
-        row=wx.BoxSizer(wx.HORIZONTAL)
-        self.search=wx.SearchCtrl(p,style=wx.TE_PROCESS_ENTER);self.search.SetDescriptiveText('Search part, rule or finding')
-        self.search.Bind(wx.EVT_TEXT,self.filter_findings)
-        self.severity=wx.Choice(p,choices=['All findings','Errors','Warnings','Waived']);self.severity.SetSelection(0);self.severity.Bind(wx.EVT_CHOICE,self.filter_findings)
-        row.Add(self.search,1,wx.RIGHT,10);row.Add(self.severity)
-        s.Add(row,0,wx.EXPAND|wx.BOTTOM,10)
-        split=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE)
+        toolbar=wx.BoxSizer(wx.HORIZONTAL)
+        self.geometry_mode=label(p,'No geometry loaded',10,True)
+        toolbar.Add(self.geometry_mode,1,wx.ALIGN_CENTER_VERTICAL)
+        self.view_3d=button(p,'Load 3D models',self.show_3d)
+        self.view_3d.SetToolTip('Run exact STEP analysis using KiCad and FreeCAD, then orbit the solid assembly.')
+        toolbar.Add(self.view_3d,0,wx.RIGHT,5)
+        for name,title in [('top','Top'),('bottom','Bottom'),('side','Side')]:
+            toolbar.Add(button(p,title,lambda e,n=name:self.view(n)),0,wx.RIGHT,5)
+        toolbar.Add(button(p,'Fit',lambda e:self.scene.fit()),0)
+        s.Add(toolbar,0,wx.EXPAND|wx.BOTTOM,6)
+        self.review_split=split=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         left=wx.Panel(split);left.SetBackgroundColour(BG);ls=wx.BoxSizer(wx.VERTICAL)
         self.scene=Scene(left);ls.Add(self.scene,1,wx.EXPAND)
-        controls=wx.WrapSizer(wx.HORIZONTAL)
-        controls.Add(button(left,'Fit board',lambda e:self.scene.fit()),0,wx.RIGHT,8)
-        controls.Add(button(left,'Focus contact',lambda e:self.scene.focus_contact()),0,wx.RIGHT,8)
-        for name,title in [('top','Top'),('bottom','Bottom'),('side','Side'),('iso','Isometric')]:
-            controls.Add(button(left,title,lambda e,n=name:self.view(n)),0,wx.RIGHT,5)
-        ls.Add(controls,0,wx.TOP|wx.BOTTOM,8)
-        toggles=wx.WrapSizer(wx.HORIZONTAL)
-        for title,key,initial in [('Isolate parts','isolate',False),('Transparent PCB','ghost',True),('Cutaway PCB','section',False),('Grid','grid',True),('References','labels',True)]:
-            control=wx.CheckBox(left,label=title);control.SetValue(initial)
-            control.Bind(wx.EVT_CHECKBOX,lambda e,k=key:(setattr(self.scene,k,e.IsChecked()),self.scene.Refresh()))
-            toggles.Add(control,0,wx.RIGHT,10)
-        self.ortho=wx.CheckBox(left,label='Orthographic')
-        self.ortho.Bind(wx.EVT_CHECKBOX,lambda e:(setattr(self.scene,'orthographic',e.IsChecked()),self.scene.Refresh(False)))
-        toggles.Add(self.ortho,0,wx.RIGHT,8)
-        ls.Add(toggles,0,wx.BOTTOM,8)
-        sections=wx.BoxSizer(wx.HORIZONTAL)
-        sections.Add(label(left,'Section plane',10,True),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,7)
-        self.section_axis=wx.Choice(left,choices=['X','Y','Z','Custom'])
-        self.section_axis.SetSelection(1)
-        self.section_axis.Bind(wx.EVT_CHOICE,self.change_section_axis)
-        sections.Add(self.section_axis,0,wx.RIGHT,8)
-        self.section_offset=wx.SpinCtrlDouble(left,min=-100000,max=100000,inc=.1,initial=0)
-        self.section_offset.SetDigits(2)
-        self.section_offset.Bind(wx.EVT_SPINCTRLDOUBLE,self.change_section_offset)
-        sections.Add(label(left,'Offset (mm)',10),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
-        sections.Add(self.section_offset,1,wx.RIGHT,8)
-        sections.Add(button(left,'2D section…',self.show_section_profile))
-        ls.Add(sections,0,wx.EXPAND|wx.BOTTOM,8)
-        self.scene_legend=label(left,'Red: exact contact volume · Gold: hardware allowance\nRulers/contact overlays show through surfaces · CAD XYZ, mm',9,False,MUTED)
-        ls.Add(self.scene_legend,0,wx.BOTTOM,8)
         left.SetSizer(ls)
         right=wx.Panel(split);right.SetBackgroundColour(BG);rs=wx.BoxSizer(wx.VERTICAL)
+        self.summary=label(right,'Run validation to see findings.',10,True)
+        rs.Add(self.summary,0,wx.EXPAND|wx.BOTTOM,6)
         tools=wx.BoxSizer(wx.HORIZONTAL)
-        self.measure_mode=wx.Choice(right,choices=['Select / orbit','Measure two parts','Two-point ruler'])
+        self.measure_mode=wx.Choice(right,choices=['Select / orbit','Minimum part gap','Point → point',
+                                                  'Edge → edge','Point → edge','Body center → center'])
         self.measure_mode.SetSelection(0);self.measure_mode.Bind(wx.EVT_CHOICE,self.change_measure_mode)
         tools.Add(self.measure_mode,1,wx.RIGHT,5)
-        tools.Add(button(right,'Clear rulers',self.clear_rulers))
-        rs.Add(tools,0,wx.EXPAND|wx.BOTTOM,7)
+        tools.Add(button(right,'Clear',self.clear_rulers))
+        rs.Add(tools,0,wx.EXPAND|wx.BOTTOM,6)
         self.part_panel=wx.Panel(right);pairs=wx.BoxSizer(wx.HORIZONTAL)
         self.part_a=wx.ComboBox(self.part_panel);self.part_b=wx.ComboBox(self.part_panel)
         self.part_a.SetHint('First part');self.part_b.SetHint('Second part')
         pairs.Add(self.part_a,1,wx.RIGHT,4);pairs.Add(self.part_b,1,wx.RIGHT,4)
         self.measure_button=button(self.part_panel,'Measure',self.measure_selected_parts)
-        pairs.Add(self.measure_button);self.part_panel.SetSizer(pairs)
-        rs.Add(self.part_panel,0,wx.EXPAND|wx.BOTTOM,7);self.part_panel.Hide()
-        self.measure_readout=wx.TextCtrl(right,value='Hover to inspect nearest part. Choose a ruler tool to measure.',
-                                       style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE,size=(-1,80))
-        rs.Add(self.measure_readout,0,wx.EXPAND|wx.BOTTOM,8)
+        pairs.Add(self.measure_button)
+        self.edge_panel=wx.Panel(self.part_panel);edges=wx.BoxSizer(wx.HORIZONTAL)
+        self.edge_a=wx.SpinCtrl(self.edge_panel,min=1,max=100000,initial=1,size=(70,-1))
+        self.edge_b=wx.SpinCtrl(self.edge_panel,min=1,max=100000,initial=1,size=(70,-1))
+        for title,control in [('Edge A',self.edge_a),('Edge B',self.edge_b)]:
+            edges.Add(label(self.edge_panel,title,9),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4)
+            edges.Add(control,1,wx.RIGHT,5)
+        self.edge_panel.SetSizer(edges)
+        pair_layout=wx.BoxSizer(wx.VERTICAL);pair_layout.Add(pairs,0,wx.EXPAND)
+        pair_layout.Add(self.edge_panel,0,wx.EXPAND|wx.TOP,5);self.edge_panel.Hide()
+        self.part_panel.SetSizer(pair_layout)
+        rs.Add(self.part_panel,0,wx.EXPAND|wx.BOTTOM,6);self.part_panel.Hide()
+        self.measure_readout=wx.TextCtrl(right,value='Hover a part for closest approach. Select a ruler tool to measure.',
+                                       style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE,size=(-1,100))
+        rs.Add(self.measure_readout,0,wx.EXPAND|wx.BOTTOM,6)
         self.scene.on_measure=self.measure_pair
         self.scene.on_pick=self.scene_picked
         self.scene.on_hover=self.scene_hovered
         self.scene.on_ruler=self.point_ruler
-        self.list=wx.ListCtrl(right,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
-        for i,(title,width) in enumerate([('Level',75),('Parts',100),('Finding',340)]):self.list.InsertColumn(i,title,width=width)
+        self.scene.on_features=self.measure_features
+        tabs=wx.Notebook(right)
+        findings=wx.Panel(tabs);findings.SetBackgroundColour(BG);fs=wx.BoxSizer(wx.VERTICAL)
+        row=wx.BoxSizer(wx.HORIZONTAL)
+        self.search=wx.SearchCtrl(findings,style=wx.TE_PROCESS_ENTER);self.search.SetDescriptiveText('Search findings')
+        self.search.Bind(wx.EVT_TEXT,self.filter_findings)
+        self.severity=wx.Choice(findings,choices=['All','Errors','Warnings','Waived']);self.severity.SetSelection(0);self.severity.Bind(wx.EVT_CHOICE,self.filter_findings)
+        row.Add(self.search,1,wx.RIGHT,5);row.Add(self.severity)
+        fs.Add(row,0,wx.EXPAND|wx.BOTTOM,6)
+        self.list=wx.ListCtrl(findings,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        self.list.SetBackgroundColour(BG);self.list.SetForegroundColour(INK)
+        for i,(title,width) in enumerate([('Level',65),('Parts',75),('Finding',280)]):self.list.InsertColumn(i,title,width=width)
         self.list.Bind(wx.EVT_LIST_ITEM_SELECTED,self.select_finding)
-        rs.Add(self.list,1,wx.EXPAND)
-        right.SetSizer(rs);split.SplitVertically(left,right,560);split.SetMinimumPaneSize(300)
+        fs.Add(self.list,1,wx.EXPAND)
+        self.detail=wx.TextCtrl(findings,style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE,size=(-1,130))
+        fs.Add(self.detail,0,wx.EXPAND|wx.TOP,6)
+        actions=wx.WrapSizer(wx.HORIZONTAL)
+        for title,action in [('Locate',self.locate),('Waiver…',self.waive),('Coverage…',self.coverage)]:
+            actions.Add(button(findings,title,action),0,wx.RIGHT|wx.TOP,4)
+        fs.Add(actions,0,wx.EXPAND|wx.TOP,4);findings.SetSizer(fs)
+        tabs.AddPage(findings,'Findings')
+        display=wx.ScrolledWindow(tabs);display.SetBackgroundColour(BG);display.SetScrollRate(0,12)
+        ds=wx.BoxSizer(wx.VERTICAL)
+        controls=wx.WrapSizer(wx.HORIZONTAL)
+        controls.Add(button(display,'Focus contact',lambda e:self.scene.focus_contact()),0,wx.RIGHT,5)
+        controls.Add(button(display,'Isometric',lambda e:self.view('iso')))
+        ds.Add(controls,0,wx.TOP|wx.BOTTOM,8)
+        ds.Add(button(display,'Save view…',self.save_view),0,wx.BOTTOM,10)
+        for title,key,initial in [('Violation / proximity markers','alert_markers',True),('Isolate selected parts','isolate',False),('Transparent PCB','ghost',False),('Cutaway PCB','section',False),('Grid','grid',False),('Selected / hovered references','labels',True)]:
+            control=wx.CheckBox(display,label=title);control.SetValue(initial)
+            control.Bind(wx.EVT_CHECKBOX,lambda e,k=key:(setattr(self.scene,k,e.IsChecked()),self.scene.Refresh()))
+            ds.Add(control,0,wx.BOTTOM,8)
+        self.ortho=wx.CheckBox(display,label='Orthographic')
+        self.ortho.Bind(wx.EVT_CHECKBOX,lambda e:(setattr(self.scene,'orthographic',e.IsChecked()),self.scene.Refresh(False)))
+        ds.Add(self.ortho,0,wx.BOTTOM,12)
+        ds.Add(label(display,'Section plane',10,True),0,wx.BOTTOM,6)
+        sections=wx.BoxSizer(wx.HORIZONTAL)
+        self.section_axis=wx.Choice(display,choices=['X','Y','Z','Custom'])
+        self.section_axis.SetSelection(1)
+        self.section_axis.Bind(wx.EVT_CHOICE,self.change_section_axis)
+        sections.Add(self.section_axis,0,wx.RIGHT,8)
+        self.section_offset=wx.SpinCtrlDouble(display,min=-100000,max=100000,inc=.1,initial=0)
+        self.section_offset.SetDigits(2)
+        self.section_offset.Bind(wx.EVT_SPINCTRLDOUBLE,self.change_section_offset)
+        sections.Add(label(display,'mm',10),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
+        sections.Add(self.section_offset,1,wx.RIGHT,8)
+        ds.Add(sections,0,wx.EXPAND|wx.BOTTOM,8)
+        ds.Add(button(display,'2D section…',self.show_section_profile),0,wx.BOTTOM,12)
+        self.scene_legend=label(display,'Rulers show through surfaces.\nCAD XYZ, millimetres.',9,False,MUTED)
+        ds.Add(self.scene_legend,0,wx.BOTTOM,8);display.SetSizer(ds)
+        tabs.AddPage(display,'Display');rs.Add(tabs,1,wx.EXPAND)
+        right.SetSizer(rs);split.SetMinimumPaneSize(300);split.SetSashGravity(1)
+        split.SplitVertically(left,right,800)
         s.Add(split,1,wx.EXPAND)
-        self.detail=wx.TextCtrl(p,style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE,size=(-1,115))
-        s.Add(self.detail,0,wx.EXPAND|wx.TOP,10)
-        actions=wx.BoxSizer(wx.HORIZONTAL)
-        actions.Add(button(p,'Locate in PCB editor',self.locate),0,wx.RIGHT,10)
-        actions.Add(button(p,'Record / remove waiver…',self.waive),0,wx.RIGHT,10)
-        actions.Add(button(p,'Model coverage…',self.coverage))
-        s.Add(actions,0,wx.TOP|wx.BOTTOM,10);p.SetSizer(s)
+        p.SetSizer(s)
 
     def report_page(self):
         p=self.pages[4];s=wx.BoxSizer(wx.VERTICAL)
@@ -540,15 +579,21 @@ class Window(wx.Frame):
             if not isinstance(error,Cancelled):wx.MessageBox(str(error),'Validation error',wx.OK|wx.ICON_ERROR,self)
             self.show_step(2);return
         self.result=result;self.scene.set_report(result);self.refresh_result();self.show_step(3)
+        self.measure_mode.SetSelection(0);self.change_measure_mode(None)
         self.scene.fit()
 
     def refresh_result(self):
         r=self.result
-        self.scene_legend.SetLabel('2D footprint envelopes; no height / solid collision.\nRulers show through surfaces · CAD XYZ, mm' if r['rules'].get('mode')=='quick2d' else 'Red: exact contact volume · Gold: hardware allowance\nRulers/contact overlays show through surfaces · CAD XYZ, mm')
+        self.scene.inspection.update_findings(r['findings'])
+        quick=r['rules'].get('mode')=='quick2d'
+        self.geometry_mode.SetLabel('2D footprint envelopes · heights unchecked' if quick else '3D STEP solids · drag to orbit')
+        self.view_3d.SetLabel('Load 3D models' if quick else '3D view')
+        self.ortho.SetValue(self.scene.orthographic)
+        self.scene_legend.SetLabel('2D footprint envelopes; heights unchecked.\nGold: proximity / envelope warnings · CAD XYZ, mm' if r['rules'].get('mode')=='quick2d' else 'Red: collision / height limit · Gold: proximity warning\nHeight labels show excess above the limit · CAD XYZ, mm')
         refs=sorted({body['ref'] for body in r['bodies'] if body['kind'] not in ('hardware envelope','hole allowance')})
         self.part_a.SetItems(refs);self.part_b.SetItems(refs)
         self.part_a.AutoComplete(refs);self.part_b.AutoComplete(refs)
-        self.summary.SetLabel(f"{r['status'].replace('_',' ').upper()}   ·   {len(r['findings'])} findings   ·   {len(r['coverage']['gaps'])} coverage gaps")
+        self.summary.SetLabel(f"{r['status'].replace('_',' ').upper()} · {len(r['findings'])} findings\n{len(r['coverage']['gaps'])} coverage gaps")
         self.status.SetLabel('Completed '+r['local_timestamp'][:19].replace('T',' '))
         self.report_info.SetValue(f"Project: {r['project_name']}\nRevision: {r['project_revision'] or 'Unspecified'}\nBoard: {r['board_name']}\nReviewer: {r['reviewer'] or 'Unspecified'}\n\nStarted (UTC): {r['started_at']}\nCompleted (UTC): {r['completed_at']}\nLocal time: {r['local_timestamp']}\nDuration: {r['duration_seconds']} s\n\nResult: {r['status']}\nBoard SHA-256: {r['board_sha256']}\n\nEvery finding includes rule, affected references, evidence, measurement, corrective action and waiver reason.")
         self.filter_findings();self.export_button.Enable()
@@ -572,7 +617,9 @@ class Window(wx.Frame):
 
     def select_finding(self,event):
         f=self.filtered[event.GetIndex()];self.scene.select(f)
-        measurement='' if f['measured'] is None else f"\nMeasured: {f['measured']:.4f} {f.get('unit','')}" + (f"   Required: {f['limit']} {f.get('unit','')}" if f['limit'] is not None else '')
+        limit_title='Maximum' if f['rule'].startswith('height.') else 'Warning below' if f['rule'].endswith('proximity_warning') else 'Required'
+        measurement='' if f['measured'] is None else f"\nMeasured: {f['measured']:.6g} {f.get('unit','')}" + (f"   {limit_title}: {f['limit']} {f.get('unit','')}" if f['limit'] is not None else '')
+        if f.get('excess_mm') is not None:measurement+=f"\nOver limit: +{f['excess_mm']:.6g} mm ({f.get('side','')} side)"
         self.detail.SetValue(f"{f['summary']}\n{f['rule']}  ·  Evidence: {f['evidence']}  ·  {', '.join(f['refs'])}{measurement}\n{f['action']}\n"+('Waiver: '+f['waiver'] if f['waiver'] else ''))
 
     def change_section_axis(self,event):
@@ -609,37 +656,91 @@ class Window(wx.Frame):
     def view(self,name):
         self.scene.set_view(name);self.ortho.SetValue(self.scene.orthographic)
 
+    def show_3d(self,event=None):
+        if self.running:return
+        if self.result and self.result['rules'].get('mode')=='exact3d':
+            self.view('iso');self.scene.fit();return
+        self.mode.SetSelection(1)
+        if not discover()['freecad_python']:
+            self.show_step(0)
+            self.status.SetLabel('3D setup: FreeCAD Python was not found. Open Help for installation and path overrides.')
+            return
+        self.start(event)
+
+    def save_view(self,event=None):
+        with wx.FileDialog(self,'Save board view',wildcard='PNG image (*.png)|*.png',
+                           defaultFile='mechanical-view.png',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+            if dialog.ShowModal()!=wx.ID_OK:return
+            try:
+                self.scene.Refresh(False);self.scene.Update()
+                if not self.scene.snapshot().SaveFile(dialog.GetPath(),wx.BITMAP_TYPE_PNG):
+                    raise RuntimeError('Could not save the image.')
+                self.status.SetLabel('Board view saved as an opaque PNG image.')
+            except Exception as exc:wx.MessageBox(str(exc),'Save board view',wx.OK|wx.ICON_ERROR,self)
+
     def dispatch(self,callback,*args):
         def guarded():
             if not self._closing and self:callback(*args)
         wx.CallAfter(guarded)
 
     def reset_measurement_session(self):
+        if self.part_inspector:self.part_inspector.Destroy();self.part_inspector=None
         self.measure_generation+=1;self.measure_cancel.set();self.measuring=False
         if hasattr(self,'measure_button'):self.measure_button.Enable()
         if self.measurement_session:self.measurement_session.close();self.measurement_session=None
         if self.live_temp:self.live_temp.cleanup();self.live_temp=None
 
     def change_measure_mode(self,event):
-        mode=('select','parts','points')[self.measure_mode.GetSelection()]
-        self.scene.set_mode(mode);self.part_panel.Show(mode=='parts');self.part_panel.GetParent().Layout()
+        mode=('select','parts','points','edges','point_edge','centers')[self.measure_mode.GetSelection()]
+        if mode in ('edges','point_edge','centers') and (not self.result or self.result['rules'].get('mode')!='exact3d'):
+            self.measure_mode.SetSelection(0);self.scene.set_mode('select')
+            self.measure_readout.SetValue('Load 3D models first to select CAD edges and body centers.')
+            return
+        self.scene.set_mode(mode);self.part_panel.Show(mode in ('parts','edges','point_edge','centers'))
+        self.edge_panel.Show(mode in ('edges','point_edge'));self.edge_a.Enable(mode=='edges')
+        self.part_panel.Layout();self.part_panel.GetParent().Layout()
         self.measure_readout.SetValue({'select':'Hover a part for its measured nearest-part gap.',
                                       'parts':'Click two different parts, or choose their references and Measure.',
-                                      'points':'Click two visible surface points. This ruler measures between those points, not minimum part clearance.'}[mode])
+                                      'points':'Click two visible surface points. Picked tessellated points; not minimum part clearance.',
+                                      'edges':'Click two CAD edges. Hover highlights the selectable edge. Edges on one part are allowed.',
+                                      'point_edge':'Click a surface point, then a CAD edge. The shortest distance is measured to the actual curve.',
+                                      'centers':'Click two bodies to measure between their geometric volume centroids.'}[mode])
 
     def scene_picked(self,hit):
-        if self.scene.inspection.mode=='parts':
+        if self.scene.inspection.mode=='select':
+            index=hit.get('body_index')
+            body=(self.scene.bodies[index] if index is not None else
+                  next((b for b in self.scene.bodies if b['ref']==hit['reference']),None))
+            if body:
+                if self.part_inspector:self.part_inspector.Destroy()
+                self.part_inspector=PartInspector(self,body,(INK,MUTED,BG,TEAL),self.scene.inspection.alerts.get(body['ref'],[]))
+                origin=hit.get('popup_position')
+                if origin is None:
+                    size=self.scene.GetClientSize()
+                    origin=self.scene.ClientToScreen(wx.Point(size.width//2,size.height//2))
+                self.part_inspector.Position(wx.Point(*origin),(12,12));self.part_inspector.Popup()
+        elif self.scene.inspection.mode=='parts':
             pair=self.scene.inspection.pair
             if pair:self.part_a.SetValue(pair[0])
             if len(pair)==2:self.part_b.SetValue(pair[1])
             elif pair:self.measure_readout.SetValue(pair[0]+': choose the second part.')
         elif self.scene.inspection.mode=='points' and self.scene.inspection.point_start:
             self.measure_readout.SetValue('First surface point pinned. Click the second point for a ruler.')
+        elif len(self.scene.inspection.feature_pair)==1:
+            first=self.scene.inspection.feature_pair[0]
+            self.part_a.SetValue(first['ref'])
+            if first['kind']=='edge':self.edge_a.SetValue(first['edge_index']+1)
+            self.measure_readout.SetValue(f"{first['ref']}: {first['kind']} selected. Choose the second feature.")
 
     def scene_hovered(self,hit,record):
         if self.measuring or self.scene.inspection.mode!='select':return
-        if record:self.measure_readout.SetValue('Nearest part: '+measurement_text(record))
-        elif hit:self.measure_readout.SetValue(hit['reference']+' · XYZ '+', '.join(f'{v:.6g}' for v in hit['position'])+' mm\nNearest-part distance unavailable for this geometry.')
+        from .inspection_state import finding_readout
+        message='Nearest part: '+measurement_text(record) if record else (
+            hit['reference']+' · XYZ '+', '.join(f'{v:.6g}' for v in hit['position'])+' mm\nNearest-part distance unavailable for this geometry.' if hit else '')
+        if hit:
+            notes=[finding_readout(f) for f in self.scene.inspection.alerts.get(hit['reference'],[])]
+            if notes:message+='\n'+'\n'.join(notes[:6])
+        if message:self.measure_readout.SetValue(message)
 
     def point_ruler(self,record):
         if self.result:self.result.setdefault('point_rulers',[]).append(record)
@@ -649,10 +750,22 @@ class Window(wx.Frame):
         self.measure_generation+=1;self.measure_cancel.set();self.measuring=False
         self.measure_button.Enable();self.scene.clear_measurements()
         if self.result:self.result['point_rulers']=[]
+        if self.result:self.result['feature_rulers']=[]
         self.measure_readout.SetValue('Visible rulers cleared. Measured part distances remain available in the report.')
 
     def measure_selected_parts(self,event):
-        self.measure_pair(self.part_a.GetValue().strip(),self.part_b.GetValue().strip())
+        first,second=self.part_a.GetValue().strip(),self.part_b.GetValue().strip()
+        mode=self.scene.inspection.mode
+        if mode=='centers':self.measure_features(dict(kind='center',ref=first),dict(kind='center',ref=second))
+        elif mode=='edges':
+            self.measure_features(dict(kind='edge',ref=first,edge_index=self.edge_a.GetValue()-1),
+                                  dict(kind='edge',ref=second,edge_index=self.edge_b.GetValue()-1))
+        elif mode=='point_edge':
+            pair=self.scene.inspection.feature_pair
+            if len(pair)!=1 or pair[0]['kind']!='point':
+                self.measure_readout.SetValue('Click the first surface point, then choose Edge B or click a CAD edge.');return
+            self.measure_features(pair[0],dict(kind='edge',ref=second,edge_index=self.edge_b.GetValue()-1))
+        else:self.measure_pair(first,second)
 
     def measure_pair(self,first,second):
         if not self.result:return
@@ -678,10 +791,29 @@ class Window(wx.Frame):
         if generation!=self.measure_generation or report is not self.result:return
         self.measuring=False;self.measure_button.Enable()
         if error:self.measure_readout.SetValue('Distance unavailable: '+error);return
-        records=report.setdefault('measurements',[])
-        records[:]=[r for r in records if set(r['refs'])!=set(record['refs'])]
+        feature=record.get('type')=='feature_ruler'
+        records=report.setdefault('feature_rulers' if feature else 'measurements',[])
+        if not feature:records[:]=[r for r in records if set(r['refs'])!=set(record['refs'])]
         records.append(record);self.scene.set_measurement(record)
+        if feature:self.scene.inspection.feature_pair=[]
         self.measure_readout.SetValue(measurement_text(record))
+
+    def measure_features(self,first,second):
+        if not self.result:return
+        if self.measuring:
+            self.measure_readout.SetValue('A measurement is running. Clear to cancel it.');return
+        report=self.result;session=self.measurement_session or MeasurementSession()
+        self.measuring=True;self.measure_generation+=1;generation=self.measure_generation
+        self.measure_cancel=threading.Event();cancel=self.measure_cancel
+        self.measure_button.Disable();self.scene.refs={first['ref'],second['ref']};self.scene.Refresh(False)
+        self.measure_readout.SetValue('Measuring saved CAD features…')
+        def worker():
+            try:record=session.measure_features(report,first,second,cancel=cancel);error=None
+            except Exception as exc:record=None;error=str(exc)
+            finally:
+                if session is not self.measurement_session:session.close()
+            self.dispatch(self.measured,generation,report,record,error)
+        threading.Thread(target=worker,daemon=True).start()
 
     def locate(self,event):
         f=self.selected()

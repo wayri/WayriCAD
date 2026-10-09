@@ -59,7 +59,7 @@ Choose **Quick 2D footprint screen (no FreeCAD)** on the Board page, then Run. T
 
 This conservative screen can report harmless bounding-box overlap, particularly for rotated parts. It is **always INCOMPLETE for mechanical sign-off**: height, enclosure, exact solid interference, hardware and assembly access are unchecked. Opposite-side components are not compared. Choose **Exact 3D solids** for the existing detailed FreeCAD workflow; that mode remains the default. CLI rules use `"mode": "quick2d"` or `"mode": "exact3d"`.
 
-The pictured synthetic fixture returned two warnings across six footprint envelopes in about 0.4 seconds, with FreeCAD and STEP-export discovery disabled and the source hash unchanged.
+The pictured synthetic fixture uses a 20 mm proximity warning threshold to demonstrate the markers: nine warnings across six footprint envelopes, including seven optional proximity findings. No STEP export or FreeCAD analysis runs in this mode, and the source hash remains unchanged.
 
 ## Runtime
 
@@ -92,19 +92,37 @@ Run `python -m unittest discover -s mechanical_check_plugin/tests -v` from the s
 
 ### Inspect 3D geometry
 
+The Review workspace gives the board most of the window, with measurements and findings in a resizable sidebar. The toolbar identifies the loaded geometry. **Load 3D models** runs the exact STEP analysis from a Quick 2D result; after that, **3D view** restores the orbitable solid assembly. If FreeCAD is missing, the action opens Board setup with an explanation. Changing camera views never turns 2D envelopes into component solids.
+
 Drag to orbit, right-drag to pan and use the wheel to zoom. Hover over visible solid triangles for the component reference and XYZ position; click to select, or Ctrl-click to pin a surface probe. Section clipping and isolated-part visibility apply to picking. Offline HTML includes a clearable probe list. These coordinate probes do not alter either board or create new collision findings.
+
+Native labels show the active ruler, hovered closest approach and selected/hovered parts. Saved ruler lines remain visible; label placement respects the viewport and scale bar, and omits crowded labels. Grid and PCB transparency start off. Display contains advanced view controls and **Save view…**, which exports the rendered view directly to an opaque PNG. Help images can be clicked to inspect their original pixels in a scrollable window.
+
+Click a part in **Select / orbit** to open its dimension card: CAD X/Y/Z extents and ranges, solid volume, geometric volume centroid and edge count when available. Extents are axis aligned in the saved assembly coordinates; they are not a local oriented bounding box or manufacturing dimensions. Missing metrics remain unavailable.
+
+The measurement selector includes **Point → point**, **Edge → edge**, **Point → edge**, **Body center → center** and **Minimum part gap**. In exact 3D, hover highlights selectable CAD edges; click two edges, or choose references and their one-based Edge A/B numbers in the sidebar. Two different edges of the same body are supported. For point-to-edge, click the first surface point, then click an edge or enter Part B / Edge B. For body centers, click two bodies or choose their references. Curved-edge distances use the CAD kernel and show the shortest witness line. Body centers are geometric volume centroids using uniform volume weighting, without density or mass properties. Minimum part gap remains a separate whole-surface query.
+
+Picked surface points come from the display tessellation; their approximation is stated in the readout. Sampled CAD curves support highlighting/picking only, while exact edge indices resolve against immutable BREP copies. Display sampling is bounded; edges without display samples remain listed by number for manual queries. Older reports without feature inspection require a new native Run. Portable reports preserve and display saved feature rulers, but cannot create arbitrary new exact edge measurements without the native CAD cache.
 
 ### Measure clearance and inspect nearby parts
 
-After **Run**, choose **Measure two parts** and click two different parts, or type their references in **Part A / Part B** and choose **Measure**. Exact 3D mode computes the shortest surface distance using the already transformed solid geometry; it does not re-export either PCB. The ruler joins the two closest witness points, and the readout includes distance, evidence and ΔX/ΔY/ΔZ in millimetres. A zero gap means touching or overlapping geometry; positive intersection volume is reported separately when available. Missing models or failed geometry queries remain unavailable.
+After **Run**, choose **Minimum part gap** and click two different parts, or type their references in **Part A / Part B** and choose **Measure**. Exact 3D mode computes the shortest surface distance using the already transformed solid geometry; it does not re-export either PCB. The ruler joins the two closest witness points, and the readout includes distance, evidence and ΔX/ΔY/ΔZ in millimetres. A zero gap means touching or overlapping geometry; positive intersection volume is reported separately when available. Missing models or failed geometry queries remain unavailable.
 
-Choose **Point ruler** to click any two visible surface locations, including two points on one part. This measures the straight-line distance between the picked tessellated points; it is not a minimum part clearance. Green rulers persist until **Clear rulers**, while the orange hover ruler shows the nearest eligible part found by the analysis. Hover information describes the saved analysis snapshot. Live part queries reject changed boards, models or enclosure files and request a new Run.
+Choose **Point → point** to click any two visible surface locations, including two points on one part. This measures the straight-line distance between the picked tessellated points; it is not a minimum part clearance. Green rulers persist until **Clear**, while the orange hover ruler shows the nearest eligible part found by the analysis. Hover information describes the saved analysis snapshot. Live part queries reject changed boards, models or enclosure files and request a new Run.
 
-**Fit board** restores the full assembly; **Focus contact** centers a finding. **Top**, **Bottom** and **Side** use orthographic projection with a millimetre scale; **Iso** restores perspective, whose scale is marked “at view center.” Reference labels avoid crowded rulers and can be toggled. **Isolate parts** is optional. Rulers appear through surfaces so their witness positions remain visible; use cutaway or a section view to inspect the geometry around them.
+**Fit** restores the full assembly; **Focus contact** in Display centers a finding. **Top**, **Bottom** and **Side** use orthographic projection with a millimetre scale; **3D view** restores perspective, whose scale is marked “at view center.” Selected/hovered reference labels can be toggled in Display. **Isolate selected parts** is optional. Rulers appear through surfaces so their witness positions remain visible; use cutaway or a section view to inspect the geometry around them.
 
 Quick 2D shows the saved Edge.Cuts outline, including cutouts and sampled curves, as unfilled contour lines. It measures same-side axis-aligned footprint envelopes, not actual part surfaces. Invalid or missing outlines are reported as unavailable instead of inventing a rectangle. Exact 3D retains its STEP substrate and solid models.
 
 Exported HTML/JSON preserves measured pairs and point rulers. The offline viewer can display saved pair distances and create new point rulers; an arbitrary uncached part pair requires a new native run. “Nearest known measured pair” in an older report is distinct from a proven nearest part. Imported reports do not retain the private live geometry cache.
+
+### Global height limits and proximity warnings
+
+On **Rules → Global board limits**, set **Max top height** and **Max bottom height** in millimetres. Heights are measured outward from the corresponding PCB face: top `max(0, zmax − board thickness)`, bottom `max(0, −zmin)`. Every primary component solid is checked on both sides, including through-hole tails and other opposite-side protrusions. Different sides have separate findings. The limits include model placement/standoff; a zero height limit permits no protrusion. Missing models remain unchecked coverage, and Quick 2D cannot establish height.
+
+Violating parts appear red with an excess label such as `J1 top +0.8 mm`. Select the finding or hover/click the part to inspect the height, maximum and excess. Height markers show the CAD envelope beyond the threshold; curved geometry can have conservative bounds, and these markers are not closest-surface witnesses. Labels avoid overlap and are bounded on dense boards; every violation remains in the findings table, and selected/hovered parts get label priority. Display can hide **Violation / proximity markers**. Waived findings retain their recorded measurements but do not mark parts as active violations.
+
+**Proximity warning** sets an optional soft gap threshold; `0` disables it. Exact 3D warns for component-to-component surface gaps below that threshold while preserving collision and hard-clearance findings. Quick 2D uses same-side footprint-envelope gaps and explicitly retains its conservative evidence. Warning parts appear amber; select a proximity finding for its measured witness line or hover for the gap and warning threshold. Comparison-board and enclosure checks keep their existing clearance rules. Settings and exports preserve the threshold as `proximity_warning_mm`.
 
 ### Performance and validation
 

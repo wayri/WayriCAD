@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from .proximity import exact_measure
+from .feature_geometry import measure_features
 
 
 def measure(request):
@@ -17,6 +18,8 @@ def measure(request):
         if shape.isNull() or not shape.isValid() or not shape.Solids:
             raise ValueError(ref + ': cached solid is invalid or unavailable; rerun analysis')
         bodies.append(dict(ref=ref, shape=shape))
+    if request.get('operation') == 'features':
+        return measure_features(request['features'], [b['shape'] for b in bodies], request['evidence'])
     result = exact_measure(*bodies)
     if any(e != 'exact STEP surfaces' for e in request['evidence']):
         result['evidence'] = 'conservative hardware envelopes'

@@ -29,6 +29,34 @@ assert.equal(loaded.rulers.length,1);
 assert.equal(loaded.rulers[0].kind,'points');
 const mixed=TestScene.loadMeasurements({proximity:[{...exact,evidence:'2D footprint envelopes',distance_mm:0.5}],measurements:[exact]});
 assert.equal(mixed.proximity.values().next().value.evidence,'exact STEP surfaces');
+const featureRulers=['edge_edge','point_edge','center_center','point_point'].map((measurement_kind,index)=>({
+  type:'feature_ruler',measurement_kind,refs:['U1','Other:J2'],
+  features:[{kind:'edge',ref:'U1',edge_index:3},{kind:'edge',ref:'Other:J2',edge_index:5}],
+  points:[[.25,.25,0],[.25,.25,index+1]],witnesses:[{source:'kernel'}],distance_mm:index+1,
+  evidence:'exact CAD curves; geometric volume centroid',nearest_for:['U1'],status:'measured'
+}));
+const withFeatures=TestScene.loadMeasurements({feature_rulers:featureRulers,
+  proximity:[featureRulers[0],exact],measurements:[...featureRulers]});
+assert.equal(withFeatures.rulers.length,4);
+assert.equal(withFeatures.proximity.size,1);
+assert.equal(withFeatures.proximity.values().next().value,exact);
+assert.deepEqual(withFeatures.rulers.map(TestScene.rulerPrefix),['Edges','Point→edge','Centers','Points']);
+for(let i=0;i<featureRulers.length;i++){
+  assert.deepEqual(withFeatures.rulers[i].features,featureRulers[i].features);
+  assert.deepEqual(withFeatures.rulers[i].witnesses,featureRulers[i].witnesses);
+  assert.equal(withFeatures.rulers[i].evidence,featureRulers[i].evidence);
+}
+const featureOnly=TestScene.loadMeasurements({feature_rulers:featureRulers,measurements:featureRulers});
+assert.equal(featureOnly.proximity.size,0);
+const featureOnlyScene=scene();featureOnlyScene.rulers=featureOnly.rulers;
+assert.equal(featureOnlyScene.nearestRecord('U1'),null);
+assert.match(featureOnlyScene.measurePair('U1','Other:J2').error,/Part gap unavailable/);
+const invalidRulers=TestScene.loadMeasurements({feature_rulers:[
+  {...featureRulers[0],distance_mm:null},{...featureRulers[0],distance_mm:-1},
+  {...featureRulers[0],distance_mm:'3'},{...featureRulers[0],distance_mm:NaN},
+  {...featureRulers[0],points:[[0,0,0],[0,0,Infinity]]},
+  {...featureRulers[0],measurement_kind:'unknown'}]});
+assert.equal(invalidRulers.rulers.length,0);
 
 // Saved Edge.Cuts loops remain line segments, including separate closed holes.
 const outline={status:'available',bounds:[0,0,0,4,6,0],polylines:[
@@ -58,12 +86,30 @@ assert.equal(mixedLabels.length,2);
 assert.notDeepEqual(mixedLabels[0].box,mixedLabels[1].box);
 const labels=Object.create(TestScene.prototype);
 Object.assign(labels,{showReferenceLabels:true,bodies:Array.from({length:100},(_,i)=>({ref:'U'+i,kind:'component',bounds:[i,0,0,i+1,1,0]})),
-  canvas:{clientWidth:1000,clientHeight:500},pairRefs:[],selectedReference:'U99',hoverHit:null,selected:null,
+  canvas:{clientWidth:1000,clientHeight:500},pairRefs:[],rulers:[],selectedReference:'U99',hoverHit:null,selected:null,
   section:false,sectionDirection:'Z',report:{rules:{}},center:[0,0,0],project:p=>[p[0]*6+50,100]});
-assert.equal(labels.referenceLabelItems().length,80);
+assert.equal(labels.referenceLabelItems().length,1);
 assert.equal(labels.referenceLabelItems()[0].text,'U99');
+labels.hoverHit={reference:'U1'};labels.rulers=[{refs:['U2','U3']},{refs:['U4','U5']}];labels.selected={refs:['U6']};
+assert.deepEqual(new Set(labels.referenceLabelItems().map(item=>item.text)),new Set(['U99','U1','U4','U5','U6']));
+labels.activeRuler=labels.rulers[0];
+assert.deepEqual(new Set(labels.referenceLabelItems().map(item=>item.text)),new Set(['U99','U1','U2','U3','U6']));
 labels.section=true;labels.center=[0,0,1];assert.equal(labels.referenceLabelItems().length,0);
 labels.section=false;labels.showReferenceLabels=false;assert.equal(labels.referenceLabelItems().length,0);
+const savedFeatures=scene([...withFeatures.proximity.values()]);
+savedFeatures.rulers=withFeatures.rulers;savedFeatures.readout={textContent:''};
+savedFeatures.project=p=>[p[0]*100+200,p[1]*100+100];
+assert.equal(savedFeatures.activeRulerRecord(),withFeatures.rulers.at(-1));
+savedFeatures.updateReadout();
+assert.match(savedFeatures.readout.textContent,/Points U1 ↔ Other:J2: 4\.0000 mm/);
+assert.match(savedFeatures.readout.textContent,/exact CAD curves; geometric volume centroid/);
+let featureLabels=savedFeatures.rulerLabelItems([...savedFeatures.rulers,{...exact,hover:true}]);
+assert.equal(featureLabels.length,2);
+assert.deepEqual(featureLabels.map(label=>label.text),['Points 4.000 mm','Gap 2.000 mm']);
+savedFeatures.activeRuler=savedFeatures.rulers[0];
+assert.deepEqual(savedFeatures.rulerLabelItems(savedFeatures.rulers).map(label=>label.text),['Edges 1.000 mm']);
+savedFeatures.updateReadout();assert.match(savedFeatures.readout.textContent,/Edges U1 ↔ Other:J2/);
+assert.equal(savedFeatures.rulers.length,4); // Historical lines remain in the scene.
 const s=scene([exact]);
 assert.equal(s.nearestRecord('U1'),exact);
 assert.equal(s.nearestRecord('Other:J2'),exact);
@@ -84,6 +130,7 @@ assert.ok(s.pendingPoint);
 s.clickHit({reference:'Other:J2',position:[0,3,4]});
 assert.equal(s.rulers[0].distance_mm,5);
 assert.equal(s.rulers[0].evidence,'picked tessellated surface points');
+assert.equal(s.activeRulerRecord(),s.rulers[0]);
 
 s.setMode('parts');
 s.clickHit({reference:'U1',position:[0,0,0]});
@@ -129,4 +176,33 @@ queue.shift()();assert.equal(frame.metrics.frames,1);
 assert.equal(widthWrites,0);assert.equal(heightWrites,0);
 frame.draw();queue.shift()();assert.equal(widthWrites,0);
 canvas.clientWidth=800;frame.draw();queue.shift()();assert.equal(widthWrites,1);
+let rulerGeometry=[],overlayLines=[];
+frame.rulers=withFeatures.rulers;frame.hoverWitness=exact;
+frame.measurementBuffer=points=>{rulerGeometry.push(points);return {buffer:{},count:2}};
+frame.drawOverlay=lines=>{overlayLines=lines};
+frame.draw();queue.shift()();
+assert.equal(rulerGeometry.length,5); // Four historical rulers and the hovered nearest witness still draw.
+assert.equal(overlayLines.length,5);
+assert.equal(frame.rulerLabelItems(overlayLines).length,2); // Only latest and hover receive text.
+// Height/proximity findings stay outside the nearest-gap evidence index.
+const topHeight={id:'ht',rule:'height.maximum',refs:['U1'],side:'top',measured:8.7,limit:8,severity:'error',label_position:[.2,.2,1]};
+const bottomHeight={...topHeight,id:'hb',side:'bottom',measured:4,limit:3};
+const proximityWarning={id:'pw',rule:'solid.proximity_warning',refs:['U1','Other:J2'],measured:.4,limit:1,severity:'warning',evidence:'exact STEP surfaces'};
+const alertMap=TestScene.alertIndex({findings:[topHeight,bottomHeight,proximityWarning,{...topHeight,id:'waived',refs:['U9'],waiver:'Reviewed lid opening'}]});
+assert.equal(alertMap.get('U1').length,3);assert.equal(alertMap.get('Other:J2').length,1);assert.ok(!alertMap.has('U9'));
+assert.equal(TestScene.heightLabel(topHeight),'U1 top +0.7 mm');
+assert.equal(TestScene.heightLabel({...topHeight,measured:8}),null);
+assert.equal(TestScene.heightLabel({...topHeight,measured:NaN}),null);
+const marked=scene([exact]);
+Object.assign(marked,{alerts:alertMap,showViolationMarkers:true,canvas:{clientWidth:640,clientHeight:480},
+  project:p=>[p[0]*100+200,p[1]*100+100],readout:{textContent:''}});
+assert.equal(marked.heightLabelItems().length,2);
+assert.deepEqual(marked.heightLabelItems().map(item=>item.text),['U1 bottom +1 mm','U1 top +0.7 mm']);
+assert.deepEqual(marked.bodyColor(marked.bodies[0],false),[.94,.23,.18,1]);
+assert.deepEqual(marked.bodyColor(marked.bodies[1],false),[.98,.64,.12,1]);
+marked.hoverHit={reference:'U1',position:[.2,.2,0]};marked.updateReadout();
+assert.match(marked.readout.textContent,/top \+0.7 mm/);assert.match(marked.readout.textContent,/warning below 1 mm/);
+assert.equal(marked.nearestRecord('U1'),exact); // Warning/height fields cannot invent a nearest part.
+marked.showViolationMarkers=false;assert.equal(marked.heightLabelItems().length,0);
+assert.deepEqual(marked.bodyColor(marked.bodies[0],true),[.05,.85,.72,1]);
 console.log(`report measurement behavior passed; BVH tested ${large.metrics.triangleTests}/${faces.length} triangles`);
