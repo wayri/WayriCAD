@@ -6,6 +6,7 @@ import threading
 import wx
 from matplotlib.figure import Figure
 from .plot_canvas import FigureCanvasWxAgg,NavigationToolbar2WxAgg
+from .workspace_controls import BoardNavigation,ColorLegend,SidebarText,StatusText,icon_button
 
 from .report import (METRICS,draw_view,layer_rows,write_report,via_markers,
                      inspection_record,probe_result,result_scale,validate_scale,
@@ -29,7 +30,7 @@ def load_values(terminal,current,minimum='',maximum=''):
 
 class QuickPIFrame(wx.Frame):
     def __init__(self,parent,board_path):
-        super().__init__(parent,title='WayriCAD Quick PI',size=(1180,800))
+        super().__init__(parent,title='WayriCAD Quick PI',size=(1320,860))
         icon_prefix='icon-'
         icon_dir=Path(__file__).with_name('resources')
         icons=wx.IconBundle()
@@ -37,7 +38,7 @@ class QuickPIFrame(wx.Frame):
             icon_path=icon_dir/f'{icon_prefix}{size}.png'
             if icon_path.is_file():icons.AddIcon(wx.Icon(str(icon_path),wx.BITMAP_TYPE_PNG))
         if icons.GetIcon(wx.Size(48,48)).IsOk():self.SetIcons(icons)
-        self.SetMinSize((940,680));self.board_path=str(Path(board_path).resolve())
+        self.SetMinSize((960,600));self.board_path=str(Path(board_path).resolve())
         self.bundle={};self.inventory={};self.return_bundle={};self.sweep_bundle={};self.volume_bundle={}
         self._busy=False;self._closed=False;self._closing=False
         self._series_request=None
@@ -46,139 +47,172 @@ class QuickPIFrame(wx.Frame):
         self._board_scene={};self._board_scene_hash=None
         self._history=[];self._history_index=0;self._completions=[];self._completion_prefix=None;self._completion_index=0
         panel=wx.Panel(self);self.main_panel=panel;root=wx.BoxSizer(wx.VERTICAL)
-        title=wx.BoxSizer(wx.HORIZONTAL)
-        label=wx.StaticText(panel,label='Quick PI · Copper and decoupling')
-        font=label.GetFont();font.SetWeight(wx.FONTWEIGHT_BOLD);label.SetFont(font)
-        title.Add(label,1,wx.ALIGN_CENTER_VERTICAL)
-        filename=wx.StaticText(panel,label=Path(self.board_path).name);filename.SetToolTip(self.board_path)
-        title.Add(filename,0,wx.ALIGN_CENTER_VERTICAL);root.Add(title,0,wx.EXPAND|wx.ALL,12)
-        form=wx.FlexGridSizer(2,6,7,10);form.AddGrowableCol(1,1);form.AddGrowableCol(3,1);form.AddGrowableCol(5,1)
-        self.net=wx.ComboBox(panel,style=wx.CB_READONLY)
-        self.source=wx.Choice(panel);self.sink=wx.Choice(panel)
-        self.voltage=wx.TextCtrl(panel,value='1');self.current=wx.TextCtrl(panel,value='1')
-        self.load_mode=wx.Choice(panel,choices=['Specified sink current (A)','Resistive load to 0 V (Ω)'])
-        self.load_mode.SetSelection(0)
-        self.operation_note=wx.StaticText(panel,label='Source voltage → sink current')
-        for name,control in [('Net',self.net),('Source pad',self.source),('Sink pad',self.sink),
-                             ('Source V',self.voltage),('Current / load',self.current),('Mode',self.load_mode)]:
-            form.Add(wx.StaticText(panel,label=name),0,wx.ALIGN_CENTER_VERTICAL);form.Add(control,1,wx.EXPAND)
-        self.dc_form=form
-        root.Add(form,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
-        search_row=wx.BoxSizer(wx.HORIZONTAL);search_row.Add(wx.StaticText(panel,label='Search nets'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
-        self.net_search=wx.SearchCtrl(panel);search_row.Add(self.net_search,1,wx.EXPAND);root.Add(search_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,12)
-        self.net_search.Bind(wx.EVT_TEXT,self._filter_nets)
-        pick=wx.Button(panel,label='Select net on board');search_row.Add(pick,0,wx.LEFT,8);pick.Bind(wx.EVT_BUTTON,self.select_board_net)
-        mode_row=wx.BoxSizer(wx.HORIZONTAL)
-        mode_row.Add(wx.StaticText(panel,label='Copper model'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
-        self.model_dimension=wx.Choice(panel,choices=['2.5D · layered copper','3D · copper volume (Gmsh)'])
-        self.model_dimension.SetSelection(0)
-        mode_row.Add(self.model_dimension,0,wx.RIGHT,14)
-        mode_row.Add(self.operation_note,1,wx.ALIGN_CENTER_VERTICAL)
-        self.mode_row=mode_row
-        root.Add(mode_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
-        loads=wx.BoxSizer(wx.HORIZONTAL)
-        self.source_current_limit=wx.TextCtrl(panel,size=(85,-1));self.source_current_limit.SetHint('Unlimited')
-        self.sink_min_voltage=wx.TextCtrl(panel,size=(85,-1));self.sink_min_voltage.SetHint('0 V')
-        self.sink_max_voltage=wx.TextCtrl(panel,size=(85,-1));self.sink_max_voltage.SetHint('Unbounded')
-        self.loads_button=wx.Button(panel,label='Additional sinks (0)…')
-        for name,control in [('Source limit A',self.source_current_limit),('Sink min V',self.sink_min_voltage),('Sink max V',self.sink_max_voltage)]:
-            loads.Add(wx.StaticText(panel,label=name),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
-            loads.Add(control,0,wx.RIGHT,14)
-        loads.AddStretchSpacer();loads.Add(self.loads_button,0)
-        self.load_controls=loads;root.Add(loads,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,12)
-        self.source_current_limit.SetToolTip('Constant-current demand is checked against this source budget. Blank means unlimited; zero supplies no current. An overload is infeasible, not a solved constant-current source response.')
-        self.options=wx.CollapsiblePane(panel,label='Mesh and material options',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
-        pane=self.options.GetPane();grid=wx.FlexGridSizer(0,6,6,10)
-        for col in (1,3,5):grid.AddGrowableCol(col,1)
+        font=panel.GetFont();font.SetPointSize(9);panel.SetFont(font)
+        self._inputs_visible=True;self._inspector_visible=True
+        header=wx.BoxSizer(wx.HORIZONTAL)
+        title=wx.StaticText(panel,label='Quick PI');bold=title.GetFont();bold.SetWeight(wx.FONTWEIGHT_BOLD);title.SetFont(bold)
+        header.Add(title,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
+        filename=StatusText(panel,Path(self.board_path).name);filename.SetToolTip(self.board_path)
+        header.Add(filename,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
+        self.setup_toggle=wx.ToggleButton(panel,label='Setup',style=wx.BU_EXACTFIT);self.setup_toggle.SetValue(True)
+        self.inspector_toggle=wx.ToggleButton(panel,label='Inspect',style=wx.BU_EXACTFIT);self.inspector_toggle.SetValue(True)
+        self.setup_toggle.SetToolTip('Show or hide source, loads and simulation settings')
+        self.inspector_toggle.SetToolTip('Show or hide layers, result colours and probes')
+        self.fit_button=icon_button(panel,'Fit',wx.ART_GO_HOME,'Fit the whole board · double-click the board')
+        self.zoom_in=icon_button(panel,'+',wx.ART_PLUS,'Zoom in · mouse wheel on the board')
+        self.zoom_out=icon_button(panel,'−',wx.ART_MINUS,'Zoom out · drag the board to pan')
+        self.image_button=icon_button(panel,'',wx.ART_FILE_SAVE,'Save the current board image')
+        self.more=icon_button(panel,'More',wx.ART_LIST_VIEW,'Transient PI, electrothermal, series studies and diagnostics')
+        self.help_button=icon_button(panel,'',wx.ART_HELP,'Quick PI help')
+        for control in (self.setup_toggle,self.inspector_toggle,self.fit_button,self.zoom_in,self.zoom_out,self.image_button,self.more,self.help_button):
+            header.Add(control,0,wx.ALIGN_CENTER_VERTICAL|wx.LEFT,4)
+        root.Add(header,0,wx.EXPAND|wx.ALL,6)
+        body=wx.BoxSizer(wx.HORIZONTAL)
+        self.setup_panel=wx.Panel(panel);self.setup_panel.SetMinSize((self.FromDIP(240),1))
+        setup=wx.BoxSizer(wx.VERTICAL)
+        self.inputs=wx.ScrolledWindow(self.setup_panel,style=wx.VSCROLL)
+        self.inputs.SetScrollRate(0,12);self.inputs.SetMinSize((1,1))
+        controls=wx.BoxSizer(wx.VERTICAL)
+        def field(label,control):
+            controls.Add(wx.StaticText(self.inputs,label=label),0,wx.EXPAND|wx.TOP|wx.BOTTOM,4)
+            control.SetMinSize((1,-1));controls.Add(control,0,wx.EXPAND|wx.BOTTOM,3)
+        self.net_search=wx.SearchCtrl(self.inputs);self.net_search.SetHint('Find net');self.net_search.SetMinSize((1,-1))
+        controls.Add(self.net_search,0,wx.EXPAND|wx.BOTTOM,4)
+        self.net=wx.ComboBox(self.inputs,style=wx.CB_READONLY);field('Net',self.net)
+        pick=icon_button(self.inputs,'Pick net',wx.ART_FIND,'Pick a saved pad, track or via on the board to choose its net')
+        controls.Add(pick,0,wx.EXPAND|wx.BOTTOM,6);pick.Bind(wx.EVT_BUTTON,self.select_board_net)
+        self.source=wx.Choice(self.inputs);self.sink=wx.Choice(self.inputs)
+        field('Source pad',self.source);field('Sink pad',self.sink)
+        self.voltage=wx.TextCtrl(self.inputs,value='1');self.current=wx.TextCtrl(self.inputs,value='1')
+        values=wx.FlexGridSizer(2,2,4,8);values.AddGrowableCol(0);values.AddGrowableCol(1)
+        self.current_label=wx.StaticText(self.inputs,label='Load · A')
+        values.Add(wx.StaticText(self.inputs,label='Source · V'));values.Add(self.current_label)
+        for control in (self.voltage,self.current):control.SetMinSize((1,-1));values.Add(control,0,wx.EXPAND)
+        controls.Add(values,0,wx.EXPAND|wx.TOP|wx.BOTTOM,5)
+        self.load_mode=wx.Choice(self.inputs,choices=['Sink current · A','Resistive load · Ω']);self.load_mode.SetSelection(0)
+        self.load_mode.SetMinSize((1,-1));controls.Add(self.load_mode,0,wx.EXPAND|wx.BOTTOM,6)
+        limits=wx.FlexGridSizer(2,3,4,5)
+        self.source_current_limit=wx.TextCtrl(self.inputs);self.source_current_limit.SetHint('No limit')
+        self.sink_min_voltage=wx.TextCtrl(self.inputs);self.sink_min_voltage.SetHint('0')
+        self.sink_max_voltage=wx.TextCtrl(self.inputs);self.sink_max_voltage.SetHint('No limit')
+        for index,label in enumerate(('Limit · A','Min · V','Max · V')):limits.AddGrowableCol(index);limits.Add(wx.StaticText(self.inputs,label=label))
+        for control in (self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage):control.SetMinSize((1,-1));limits.Add(control,0,wx.EXPAND)
+        controls.Add(limits,0,wx.EXPAND|wx.BOTTOM,6)
+        self.source_current_limit.SetToolTip('Source current budget. Blank means unlimited; zero supplies no current. Demand above this budget is infeasible, not a simulated constant-current response.')
+        self.sink_min_voltage.SetToolTip('Minimum allowed voltage at the primary sink; blank means 0 V')
+        self.sink_max_voltage.SetToolTip('Maximum allowed voltage at the primary sink; blank means unbounded')
+        self.loads_button=icon_button(self.inputs,'Additional sinks (0)…',wx.ART_PLUS,'Add simultaneous loads on this net with individual current and voltage limits')
+        controls.Add(self.loads_button,0,wx.EXPAND|wx.BOTTOM,6)
+        self.model_dimension=wx.Choice(self.inputs,choices=['2.5D · layered copper','3D · copper volume']);self.model_dimension.SetSelection(0)
+        field('Copper model',self.model_dimension)
+        self.operation_note=SidebarText(self.inputs,'Source voltage → sink current')
+        controls.Add(self.operation_note,0,wx.EXPAND|wx.BOTTOM,6)
+        self.options=wx.CollapsiblePane(self.inputs,label='Mesh & material',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        self.options.Collapse(True);pane=self.options.GetPane();grid=wx.FlexGridSizer(0,2,5,5);grid.AddGrowableCol(1)
         self.edge=wx.TextCtrl(pane,value='0.5');self.plating=wx.TextCtrl(pane,value='0.025')
         self.temperature=wx.TextCtrl(pane,value='20');self.ambient=wx.TextCtrl(pane,value='20')
-        self.pulse=wx.TextCtrl(pane,value='1');self.limit=wx.TextCtrl(pane,value='150')
-        self.max_tetrahedra=wx.TextCtrl(pane,value='250000')
-        for name,control in [('Mesh edge mm',self.edge),('Via plating mm',self.plating),('Copper °C',self.temperature),
-                             ('Ambient °C',self.ambient),('Pulse seconds',self.pulse),('Screen limit °C',self.limit),
-                             ('3D max tetrahedra',self.max_tetrahedra)]:
-            grid.Add(wx.StaticText(pane,label=name),0,wx.ALIGN_CENTER_VERTICAL);grid.Add(control,1,wx.EXPAND)
-        pane.SetSizer(grid);root.Add(self.options,0,wx.EXPAND|wx.ALL,12)
-        viewer=wx.BoxSizer(wx.HORIZONTAL)
-        viewer.Add(wx.StaticText(panel,label='Layer'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
-        self.layer=wx.Choice(panel);viewer.Add(self.layer,0,wx.RIGHT,16)
-        viewer.Add(wx.StaticText(panel,label='Result'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
-        self.metric=wx.Choice(panel,choices=[value[0] for value in METRICS.values()]);self.metric.SetSelection(1)
-        viewer.Add(self.metric,0,wx.RIGHT,12);self.mesh_count=wx.StaticText(panel,label='');viewer.Add(self.mesh_count,1,wx.ALIGN_CENTER_VERTICAL)
-        self.dc_viewer=viewer
-        root.Add(viewer,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
-        visibility=wx.BoxSizer(wx.HORIZONTAL)
-        self.show_context=wx.CheckBox(panel,label='Board context');self.show_context.SetValue(True)
-        self.show_copper=wx.CheckBox(panel,label='Copper geometry');self.show_copper.SetValue(True)
-        self.show_overlay=wx.CheckBox(panel,label='Result overlay');self.show_overlay.SetValue(True)
-        for control in (self.show_context,self.show_copper,self.show_overlay):
-            visibility.Add(control,0,wx.RIGHT,14);control.Bind(wx.EVT_CHECKBOX,lambda event:self._draw(preserve=True))
-        self.visibility_controls=visibility
-        root.Add(visibility,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        self.pulse=wx.TextCtrl(pane,value='1');self.limit=wx.TextCtrl(pane,value='150');self.max_tetrahedra=wx.TextCtrl(pane,value='250000')
+        for label,control in [('Mesh · mm',self.edge),('Via plating · mm',self.plating),('Copper · °C',self.temperature),('Ambient · °C',self.ambient),('Pulse · s',self.pulse),('Limit · °C',self.limit),('3D cell budget',self.max_tetrahedra)]:
+            grid.Add(wx.StaticText(pane,label=label),0,wx.ALIGN_CENTER_VERTICAL);control.SetMinSize((1,-1));grid.Add(control,0,wx.EXPAND)
+        pane.SetSizer(grid);controls.Add(self.options,0,wx.EXPAND|wx.TOP|wx.BOTTOM,6)
+        self.console=wx.CollapsiblePane(self.inputs,label='Console',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE);self.console.Collapse(True)
+        console_panel=self.console.GetPane();console_layout=wx.BoxSizer(wx.VERTICAL)
+        self.console_log=wx.TextCtrl(console_panel,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,95));self.console_log.SetMinSize((1,95))
+        self.console_input=wx.TextCtrl(console_panel,style=wx.TE_PROCESS_ENTER);self.console_input.SetMinSize((1,-1));self.console_input.SetHint('help · run pi …')
+        console_layout.Add(self.console_log,1,wx.EXPAND|wx.BOTTOM,5);console_layout.Add(self.console_input,0,wx.EXPAND)
+        console_panel.SetSizer(console_layout);controls.Add(self.console,0,wx.EXPAND|wx.BOTTOM,6)
+        self.summary=SidebarText(self.inputs,'Choose a source and sink, then preview or run. Use Additional sinks for simultaneous loads.')
+        controls.Add(self.summary,0,wx.EXPAND|wx.TOP,6)
+        content=wx.BoxSizer(wx.VERTICAL);content.Add(controls,0,wx.EXPAND|wx.ALL,8);self.inputs.SetSizer(content)
+        setup.Add(self.inputs,1,wx.EXPAND)
+        actions=wx.GridSizer(2,2,5,5)
+        self.preview=icon_button(self.setup_panel,'Preview',wx.ART_FIND,'Preview saved copper before solving')
+        self.run=icon_button(self.setup_panel,'Run',wx.ART_GO_FORWARD,'Run the selected copper simulation')
+        self.export=icon_button(self.setup_panel,'Export',wx.ART_FILE_SAVE,'Export the solved report')
+        self.series_button=icon_button(self.setup_panel,'Series',wx.ART_LIST_VIEW,'Build a series path with explicit components')
+        for control in (self.preview,self.run,self.export,self.series_button):actions.Add(control,0,wx.EXPAND)
+        setup.Add(actions,0,wx.EXPAND|wx.ALL,8);self.setup_panel.SetSizer(setup)
+        body.Add(self.setup_panel,0,wx.EXPAND|wx.RIGHT,4)
         self.splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
-        self.splitter.SetMinimumPaneSize(self.FromDIP(240));self.splitter.SetSashGravity(1.)
-        self.book=wx.Notebook(self.splitter);self.views=[]
+        self.splitter.SetMinimumPaneSize(self.FromDIP(200));self.splitter.SetSashGravity(1.)
+        self.book=wx.Notebook(self.splitter);self.book.SetMinSize((200,200));self.views=[]
         for name in ('Net','Mesh','Results'):
             page=wx.Panel(self.book);layout=wx.BoxSizer(wx.VERTICAL)
-            figure=Figure(figsize=(9,5),dpi=100,facecolor='white');canvas=FigureCanvasWxAgg(page,wx.ID_ANY,figure)
-            toolbar=NavigationToolbar2WxAgg(canvas);toolbar.Realize()
+            figure=Figure(figsize=(9,7),dpi=100,facecolor='#f3f5f6');canvas=FigureCanvasWxAgg(page,wx.ID_ANY,figure);canvas.SetMinSize((1,1))
+            navigation=BoardNavigation(canvas)
             canvas.Bind(wx.EVT_LEFT_DOWN,lambda event,index=len(self.views):self._probe_down(event,index))
             canvas.Bind(wx.EVT_LEFT_UP,lambda event,index=len(self.views):self._probe_up(event,index))
-            layout.Add(canvas,1,wx.EXPAND);layout.Add(toolbar,0,wx.EXPAND);page.SetSizer(layout)
-            self.book.AddPage(page,name);self.views.append((figure,canvas,toolbar))
+            layout.Add(canvas,1,wx.EXPAND);page.SetSizer(layout)
+            self.book.AddPage(page,name);self.views.append((figure,canvas,navigation))
         self._build_return_page()
         from .decoupling.pdn_decoupling_plugin import PdnFrame
         import pcbnew
-        self.decoupling=PdnFrame(self.book,pcbnew.LoadBoard(self.board_path))
-        self.book.AddPage(self.decoupling,"Decoupling placement")
-        self._build_inspector()
-        self.splitter.SplitVertically(self.book,self.inspector,790)
-        root.Add(self.splitter,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
-        self.summary=wx.StaticText(panel,label='Choose a source and one or more sinks on one net. Enter source voltage, optional current budget and sink demands.')
-        root.Add(self.summary,0,wx.EXPAND|wx.ALL,12)
-        self.console=wx.CollapsiblePane(panel,label='Console',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
-        self.console.Collapse(True)
-        console_panel=self.console.GetPane();console_layout=wx.BoxSizer(wx.VERTICAL)
-        self.console_log=wx.TextCtrl(console_panel,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,95))
-        self.console_input=wx.TextCtrl(console_panel,style=wx.TE_PROCESS_ENTER)
-        self.console_input.SetHint('help · run pi START D1.1 1V D1.2 END · diode(Vf=0.7V,Iref=1A,n=2,T=25C)')
-        console_layout.Add(self.console_log,1,wx.EXPAND|wx.BOTTOM,5);console_layout.Add(self.console_input,0,wx.EXPAND)
-        console_panel.SetSizer(console_layout);root.Add(self.console,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
-        self.status=wx.StaticText(panel,label='Reading the saved board…');root.Add(self.status,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
+        self.decoupling=PdnFrame(self.book,pcbnew.LoadBoard(self.board_path));self.book.AddPage(self.decoupling,'Decoupling')
+        self._build_inspector();self.splitter.SplitVertically(self.book,self.inspector,790)
+        body.Add(self.splitter,1,wx.EXPAND);root.Add(body,1,wx.EXPAND|wx.LEFT|wx.RIGHT,4)
         footer=wx.BoxSizer(wx.HORIZONTAL)
-        self.help_button=wx.Button(panel,wx.ID_HELP,label='Help')
-        self.help_button.Bind(wx.EVT_BUTTON,self.on_help)
-        footer.Add(self.help_button,0,wx.RIGHT,8)
-        self.more=wx.Button(panel,label='More…');self.preview=wx.Button(panel,label='Preview copper');self.run=wx.Button(panel,label='Run analysis')
-        self.series_button=wx.Button(panel,label='Build series path…')
-        self.export=wx.Button(panel,label='Export report…');self.cancel=wx.Button(panel,label='Cancel')
-        self.gauge=wx.Gauge(panel,range=100,size=(140,-1))
-        for control in (self.more,self.series_button,self.preview):footer.Add(control,0,wx.RIGHT,8)
-        footer.Add(self.gauge,0,wx.ALIGN_CENTER_VERTICAL);footer.AddStretchSpacer()
-        for control in (self.run,self.export,self.cancel):footer.Add(control,0,wx.LEFT,8)
-        root.Add(footer,0,wx.EXPAND|wx.ALL,12);panel.SetSizer(root)
+        self.status=StatusText(panel,'Reading the saved board…');footer.Add(self.status,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        self.gauge=wx.Gauge(panel,range=100,size=(100,-1));footer.Add(self.gauge,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        self.cancel=icon_button(panel,'Cancel',wx.ART_CROSS_MARK,'Cancel the running study');footer.Add(self.cancel,0)
+        root.Add(footer,0,wx.EXPAND|wx.ALL,6);panel.SetSizer(root)
         self._controls=[self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
-        self.net.Bind(wx.EVT_COMBOBOX,self._net_changed)
+        self.net.Bind(wx.EVT_COMBOBOX,self._net_changed);self.net_search.Bind(wx.EVT_TEXT,self._filter_nets)
         for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._invalidate)
         for control in (self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
-        self.load_mode.Bind(wx.EVT_CHOICE,self._invalidate)
-        self.model_dimension.Bind(wx.EVT_CHOICE,self._model_changed)
+        self.load_mode.Bind(wx.EVT_CHOICE,self._invalidate);self.model_dimension.Bind(wx.EVT_CHOICE,self._model_changed)
         self.loads_button.Bind(wx.EVT_BUTTON,self.on_loads)
-        self.options.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:panel.Layout())
-        self.console.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:panel.Layout())
-        self.console_input.Bind(wx.EVT_TEXT_ENTER,self.on_console)
-        self.console_input.Bind(wx.EVT_KEY_DOWN,self._console_key)
+        self.options.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,self._layout_inputs);self.console.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,self._layout_inputs)
+        self.console_input.Bind(wx.EVT_TEXT_ENTER,self.on_console);self.console_input.Bind(wx.EVT_KEY_DOWN,self._console_key)
         self.layer.Bind(wx.EVT_CHOICE,lambda event:self._draw());self.metric.Bind(wx.EVT_CHOICE,lambda event:self._draw(preserve=True))
         self.book.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED,self._page_changed)
+        self.setup_toggle.Bind(wx.EVT_TOGGLEBUTTON,self._toggle_setup);self.inspector_toggle.Bind(wx.EVT_TOGGLEBUTTON,self._toggle_inspector)
+        self.fit_button.Bind(wx.EVT_BUTTON,lambda event:self._navigate('fit'))
+        self.zoom_in.Bind(wx.EVT_BUTTON,lambda event:self._navigate('zoom',.8));self.zoom_out.Bind(wx.EVT_BUTTON,lambda event:self._navigate('zoom',1.25))
+        self.image_button.Bind(wx.EVT_BUTTON,self._save_view_image)
         self.preview.Bind(wx.EVT_BUTTON,self.preview_geometry);self.run.Bind(wx.EVT_BUTTON,self.on_run)
-        self.more.Bind(wx.EVT_BUTTON,self.on_more);self.export.Bind(wx.EVT_BUTTON,self.on_export)
-        self.series_button.Bind(wx.EVT_BUTTON,self.on_series_editor)
-        self.cancel.Bind(wx.EVT_BUTTON,self.on_cancel);self.Bind(wx.EVT_CLOSE,self.on_close)
-        self.Bind(wx.EVT_ACTIVATE,self._activated)
+        self.more.Bind(wx.EVT_BUTTON,self.on_more);self.export.Bind(wx.EVT_BUTTON,self.on_export);self.help_button.Bind(wx.EVT_BUTTON,self.on_help)
+        self.series_button.Bind(wx.EVT_BUTTON,self.on_series_editor);self.cancel.Bind(wx.EVT_BUTTON,self.on_cancel)
+        self.Bind(wx.EVT_CLOSE,self.on_close);self.Bind(wx.EVT_ACTIVATE,self._activated)
         self.timer=wx.Timer(self);self.Bind(wx.EVT_TIMER,lambda event:self.gauge.Pulse() if self._busy else None,self.timer);self.timer.Start(120)
-        self._buttons();self._draw();self.Centre()
-        wx.CallAfter(lambda:self.splitter.SetSashPosition(max(240,self.splitter.GetClientSize().width-self.FromDIP(360))))
+        self._buttons();self._draw();self.Centre();self.Maximize(True)
+        wx.CallAfter(lambda:self.splitter.SetSashPosition(max(self.FromDIP(200),self.splitter.GetClientSize().width-self.FromDIP(260))))
         wx.CallAfter(self._inspect)
+
+    def _layout_inputs(self,event=None):
+        self.inputs.Layout();self.inputs.FitInside();self.setup_panel.Layout()
+        if event:event.Skip()
+
+    def _sync_workspace(self):
+        placement=self.book.GetSelection()>=len(self.views)
+        self.setup_panel.Show(not placement and self._inputs_visible)
+        visible=not placement and self._inspector_visible
+        if not visible and self.splitter.IsSplit():self.splitter.Unsplit(self.inspector)
+        elif visible and not self.splitter.IsSplit():
+            self.inspector.Show();self.splitter.SplitVertically(self.book,self.inspector,max(self.FromDIP(200),self.splitter.GetClientSize().width-self.FromDIP(260)))
+        for toggle,value in ((self.setup_toggle,self._inputs_visible),(self.inspector_toggle,self._inspector_visible)):
+            toggle.SetValue(not placement and value);toggle.Enable(not placement)
+        for control in (self.fit_button,self.zoom_in,self.zoom_out,self.image_button):control.Enable(not placement)
+        self.main_panel.Layout()
+
+    def _toggle_setup(self,event=None):
+        self._inputs_visible=self.setup_toggle.GetValue();self._sync_workspace()
+
+    def _toggle_inspector(self,event=None):
+        self._inspector_visible=self.inspector_toggle.GetValue();self._sync_workspace()
+
+    def _navigate(self,action,factor=None):
+        index=self.book.GetSelection()
+        if 0<=index<len(self.views):
+            navigation=self.views[index][2]
+            navigation.fit() if action=='fit' else navigation.zoom(factor)
+
+    def _save_view_image(self,event=None):
+        index=self.book.GetSelection()
+        if not 0<=index<len(self.views):return
+        with wx.FileDialog(self,'Save board image',defaultFile='Quick-PI.png',wildcard='PNG image (*.png)|*.png',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+            if dialog.ShowModal()!=wx.ID_OK:return
+            try:self.views[index][0].savefig(dialog.GetPath(),dpi=160)
+            except (OSError,ValueError) as error:self.status.SetLabel('Image could not be saved: '+str(error))
 
 
     def _build_return_page(self):
@@ -225,15 +259,7 @@ class QuickPIFrame(wx.Frame):
 
     def _buttons(self):
         placement=self.book.GetSelection()>=len(self.views)
-        if placement and self.splitter.IsSplit():self.splitter.Unsplit(self.inspector)
-        elif not placement and not self.splitter.IsSplit():
-            self.inspector.Show();self.splitter.SplitVertically(self.book,self.inspector,max(240,self.splitter.GetClientSize().width-350))
-        self.dc_form.ShowItems(not placement);self.dc_viewer.ShowItems(not placement)
-        self.load_controls.ShowItems(not placement)
-        self.visibility_controls.ShowItems(not placement)
-        self.mode_row.ShowItems(not placement)
-        for window in (self.options,self.console,self.summary,self.series_button,self.preview,self.run,self.export,self.status):window.Show(not placement)
-        self.main_panel.Layout()
+        self._sync_workspace()
         for control in self._controls:control.Enable(not self._busy)
         for control in (self.return_signal,self.return_pitch,self.return_radius,self.return_nets):
             control.Enable(not self._busy)
@@ -241,14 +267,15 @@ class QuickPIFrame(wx.Frame):
         self.return_export.Enable(not self._busy and bool(self.return_bundle.get('return_path')))
         self.preview.Enable(not self._busy and bool(self.net.GetValue()))
         volume=self.model_dimension.GetSelection()==1
-        self.run.SetLabel('Run 3D copper' if volume else 'Run analysis')
+        self.run.SetLabel('Run 3D' if volume else 'Run')
         self.run.Enable(not self._busy and len(self._terminals)>1 and
                         (not volume or (not self._series_request and self.load_mode.GetSelection()==0)))
-        self.export.SetLabel('Export 3D report…' if volume else 'Export report…')
+        self.export.SetLabel('Export')
         self.export.Enable(not self._busy and bool(self.volume_bundle.get('result') if volume else self.bundle.get('result')) and self._saved_source_current)
         self.cancel.Enable(self._busy);self.cancel.Show(not placement);self.gauge.Show(self._busy and not placement)
-        self.more.SetLabel("Reload saved board" if placement else "More…")
-        self.more.InvalidateBestSize();self.more.SetMinSize(self.more.GetBestSize());self.main_panel.Layout()
+        self.more.SetLabel('Reload' if placement else 'More')
+        self.more.SetToolTip('Reload the saved board' if placement else 'Transient PI, electrothermal, series studies and diagnostics')
+        self.main_panel.Layout()
         if not self._busy:self.metric.Enable(self.book.GetSelection()==2)
         self.field_style.Enable(not self._busy and self.book.GetSelection()==2)
         current=bool(self.bundle.get('geometry')) and self._saved_source_current
@@ -265,51 +292,69 @@ class QuickPIFrame(wx.Frame):
 
     def _build_inspector(self):
         self.inspector=wx.ScrolledWindow(self.splitter)
-        self.inspector.SetScrollRate(0,12)
+        self.inspector.SetScrollRate(0,12);self.inspector.SetMinSize((self.FromDIP(200),1))
         layout=wx.BoxSizer(wx.VERTICAL)
-        title=wx.StaticText(self.inspector,label='Inspect solved copper')
+        title=wx.StaticText(self.inspector,label='Board & results')
         font=title.GetFont();font.SetWeight(wx.FONTWEIGHT_BOLD);title.SetFont(font)
         layout.Add(title,0,wx.EXPAND|wx.ALL,8)
-        self.model_basis=wx.TextCtrl(self.inspector,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,80))
-        layout.Add(self.model_basis,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
+        self.feasibility_status=SidebarText(self.inspector,width=238)
+        layout.Add(self.feasibility_status,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        selection=wx.FlexGridSizer(0,2,5,5);selection.AddGrowableCol(1)
+        self.layer=wx.Choice(self.inspector);self.metric=wx.Choice(self.inspector,choices=[value[0] for value in METRICS.values()]);self.metric.SetSelection(1)
+        for label,control in [('Layer',self.layer),('Result',self.metric)]:
+            selection.Add(wx.StaticText(self.inspector,label=label),0,wx.ALIGN_CENTER_VERTICAL);control.SetMinSize((1,-1));selection.Add(control,0,wx.EXPAND)
+        layout.Add(selection,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        visibility=wx.BoxSizer(wx.HORIZONTAL)
+        self.show_context=wx.CheckBox(self.inspector,label='Board');self.show_copper=wx.CheckBox(self.inspector,label='Copper');self.show_overlay=wx.CheckBox(self.inspector,label='Field')
+        for control in (self.show_context,self.show_copper,self.show_overlay):
+            control.SetValue(True);visibility.Add(control,0,wx.RIGHT,7);control.Bind(wx.EVT_CHECKBOX,lambda event:self._draw(preserve=True))
+        layout.Add(visibility,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        self.mesh_count=StatusText(self.inspector);layout.Add(self.mesh_count,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
         self.field_style=wx.Choice(self.inspector,choices=['Smooth gradient','Solver cells'])
         self.field_style.SetSelection(0)
         self.field_style.SetToolTip('Smooth gradient uses the existing mesh. Potential uses nodal values; current, loss and risk use display interpolation. Probes and peaks retain solver cell values. Select Solver cells to inspect raw resolution.')
-        layout.Add(self.field_style,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,8)
+        self.field_style.SetMinSize((1,-1));layout.Add(self.field_style,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,8)
         scale=wx.BoxSizer(wx.HORIZONTAL)
         self.scale_mode=wx.Choice(self.inspector,choices=['Auto: selected layer','Shared: all layers','Manual: this metric'])
-        self.scale_mode.SetSelection(0);scale.Add(self.scale_mode,1,wx.EXPAND)
+        self.scale_mode.SetSelection(0);self.scale_mode.SetMinSize((1,-1));scale.Add(self.scale_mode,1,wx.EXPAND)
         layout.Add(scale,0,wx.EXPAND|wx.ALL,8)
         limits=wx.BoxSizer(wx.HORIZONTAL)
-        self.scale_min=wx.TextCtrl(self.inspector);self.scale_min.SetHint('Minimum')
-        self.scale_max=wx.TextCtrl(self.inspector);self.scale_max.SetHint('Maximum')
+        self.scale_min=wx.TextCtrl(self.inspector);self.scale_min.SetHint('Minimum');self.scale_min.SetMinSize((1,-1))
+        self.scale_max=wx.TextCtrl(self.inspector);self.scale_max.SetHint('Maximum');self.scale_max.SetMinSize((1,-1))
         self.scale_apply=wx.Button(self.inspector,label='Set',style=wx.BU_EXACTFIT)
         limits.Add(self.scale_min,1,wx.RIGHT,4);limits.Add(self.scale_max,1,wx.RIGHT,4);limits.Add(self.scale_apply,0)
         self.scale_controls=limits
         layout.Add(limits,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
-        self.scale_unit=wx.StaticText(self.inspector,label='Scale units follow the selected result')
-        layout.Add(self.scale_unit,0,wx.EXPAND|wx.ALL,8)
+        self.scale_unit=StatusText(self.inspector,label='Scale units follow the selected result')
+        self.color_legend=ColorLegend(self.inspector);layout.Add(self.color_legend,0,wx.EXPAND|wx.ALL,8)
+        layout.Add(self.scale_unit,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
         self.inspector_views=wx.Notebook(self.inspector)
+        self.inspector_views.SetMinSize((1,220))
         findings_page=wx.Panel(self.inspector_views);findings_layout=wx.BoxSizer(wx.VERTICAL)
         self.finding_order=wx.Choice(findings_page,choices=['Highest current density','Highest volumetric heating'])
-        self.finding_order.SetSelection(0);findings_layout.Add(self.finding_order,0,wx.EXPAND|wx.BOTTOM,5)
+        self.finding_order.SetSelection(0);self.finding_order.SetMinSize((1,-1));findings_layout.Add(self.finding_order,0,wx.EXPAND|wx.BOTTOM,5)
         self.findings=wx.ListCtrl(findings_page,style=wx.LC_REPORT|wx.LC_SINGLE_SEL,size=(-1,140))
         for index,(name,width) in enumerate([('Rank / copper',90),('Layer',85),('J A/mm²',90),('Heat W/mm³',95)]):
             self.findings.InsertColumn(index,name,width=width)
         findings_layout.Add(self.findings,1,wx.EXPAND);findings_page.SetSizer(findings_layout)
         self.inspector_views.AddPage(findings_page,'Hotspots')
         self.accounting_text=wx.TextCtrl(self.inspector_views,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,140))
-        self.inspector_views.AddPage(self.accounting_text,'Layers / losses')
+        self.inspector_views.AddPage(self.accounting_text,'Losses')
         layout.Add(self.inspector_views,1,wx.EXPAND|wx.ALL,8)
         self.inspection_text=wx.TextCtrl(self.inspector_views,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,140))
-        self.inspector_views.AddPage(self.inspection_text,'Probe / object')
+        self.inspector_views.AddPage(self.inspection_text,'Probe')
         actions=wx.BoxSizer(wx.HORIZONTAL)
-        self.inspector_select=wx.Button(self.inspector,label='Select object in PCB')
-        self.inspector_read=wx.Button(self.inspector,label='Read PCB selection')
+        self.inspector_select=icon_button(self.inspector,'Select',wx.ART_GO_FORWARD,'Select the inspected object in the PCB editor')
+        self.inspector_read=icon_button(self.inspector,'Read',wx.ART_FIND,'Read the current PCB editor selection')
         for button in (self.inspector_select,self.inspector_read):actions.Add(button,1,wx.RIGHT,4)
         layout.Add(actions,0,wx.EXPAND|wx.ALL,8)
-        self.inspector_terminals=wx.Button(self.inspector,label='Select source and all sinks in PCB')
+        self.inspector_terminals=icon_button(self.inspector,'Source & sinks',wx.ART_FIND,'Select the source and every sink in the PCB editor')
         layout.Add(self.inspector_terminals,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        self.model_details=wx.CollapsiblePane(self.inspector,label='Model details',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE);self.model_details.Collapse(True)
+        details=self.model_details.GetPane();details_layout=wx.BoxSizer(wx.VERTICAL)
+        self.model_basis=wx.TextCtrl(details,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,100));self.model_basis.SetMinSize((1,100))
+        details_layout.Add(self.model_basis,1,wx.EXPAND);details.SetSizer(details_layout);layout.Add(self.model_details,0,wx.EXPAND|wx.ALL,8)
+        self.model_details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:(self.inspector.Layout(),self.inspector.FitInside()))
         self.inspector.SetSizer(layout)
         self.inspector.FitInside()
         self.scale_mode.Bind(wx.EVT_CHOICE,self._scale_changed)
@@ -344,7 +389,13 @@ class QuickPIFrame(wx.Frame):
         metric=list(METRICS)[max(0,self.metric.GetSelection())]
         self.scale_unit.SetLabel(metric_name(self.bundle,metric)+' · '+METRICS[metric][1])
         manual=self.scale_mode.GetSelection()==2
+        self.scale_unit.Show(manual)
         self.scale_controls.ShowItems(manual)
+        feasibility=result.get('feasibility',{}) if self._saved_source_current else {}
+        state=feasibility.get('status','')
+        if feasibility.get('feasible') is False:state+=' · requested-load diagnostic'
+        self.feasibility_status.SetLabel(state)
+        self.feasibility_status.SetToolTip(feasibility_text(result) if self._saved_source_current else 'Reload and rerun after saved PCB changes')
         for control in (self.scale_min,self.scale_max,self.scale_apply):control.Enable(manual)
         if refresh_rows or not result or not self._saved_source_current:
             from .analytics import details_text
@@ -583,6 +634,7 @@ class QuickPIFrame(wx.Frame):
 
     def _invalidate(self,event=None):
         if event and event.GetEventObject() is self.load_mode:
+            self.current_label.SetLabel('Load · Ω' if self.load_mode.GetSelection()==1 else 'Load · A')
             self.operation_note.SetLabel('Source voltage → resistive load to 0 V' if self.load_mode.GetSelection()==1 else 'Source voltage → specified sink current')
         self._inspection=None
         self.bundle.pop('convergence',None)
@@ -766,12 +818,10 @@ class QuickPIFrame(wx.Frame):
             if result.get('convergence'):
                 from .convergence import summary
                 self.status.SetLabel(summary(result['convergence'])+(' Sink voltage is negative; review the load.' if r.get('negative_sink_voltage') else ''))
-                self.status.Wrap(max(600,self.GetClientSize().width-32))
                 self.edge.ChangeValue(str(result['request']['edge_mm']))
                 self._console_write(summary(result['convergence']))
             if r.get('feasibility',{}).get('feasible') is False:
                 self.status.SetLabel(feasibility_text(r)+'\nMesh convergence does not establish load feasibility. See Layers / losses for every sink voltage and limit.')
-                self.status.Wrap(max(600,self.GetClientSize().width-32))
             metric_index=max(0,self.metric.GetSelection())
             self.metric.Set([metric_name(self.bundle,key) for key in METRICS]);self.metric.SetSelection(metric_index)
         else:self.summary.SetLabel('Actual filled copper, pad contacts and via barrels. Pan and zoom to inspect the selected layer.');self.status.SetLabel('Preview ready.')
@@ -866,17 +916,20 @@ class QuickPIFrame(wx.Frame):
                     self.bundle.setdefault('view_settings',{})['manual']={'metric':metric,'limits':list(defaults)}
         self._update_inspector()
         if not self._saved_source_current:
+            self.color_legend.set_scale(None)
             figure.clear();ax=figure.add_subplot(111)
             ax.text(.5,.5,'Saved PCB changed. Reload and rerun before viewing results.',ha='center',va='center',transform=ax.transAxes)
             ax.set_axis_off();toolbar.update();canvas.draw_idle();return
         ax=draw_view(figure,self.bundle,('Net','Mesh','Results')[index],layer,metric,self._scale_limits(metric),self._inspection,
-                     show_context=self.show_context.GetValue(),show_copper=self.show_copper.GetValue(),show_overlay=self.show_overlay.GetValue())
+                     show_context=self.show_context.GetValue(),show_copper=self.show_copper.GetValue(),show_overlay=self.show_overlay.GetValue(),board_view=True)
+        self.color_legend.set_scale(getattr(ax,'_wayricad_color_scale',None))
         result=self.bundle.get('result',{});analysis=result.get('analytics',{})
         row=next((item for item in analysis.get('layers',[]) if str(item['layer'])==str(layer)),None)
         if row:
             from .analytics import thickness_label
             losses=analysis['losses']
-            self.summary.SetLabel(f"ΔV {result['voltage_drop_V']*1000:.4g} mV | Sheets {losses['planar_W']:.4g} W | Vias {losses['via_W']:.4g} W | Components {losses['component_W']:.4g} W\n"
+            state=result.get('feasibility',{}).get('status','Solved')
+            self.summary.SetLabel(f"{state} · ΔV {result['voltage_drop_V']*1000:.4g} mV\nSheets {losses['planar_W']:.4g} W · Vias {losses['via_W']:.4g} W · Components {losses['component_W']:.4g} W\n"
                                   f"{row['name']}: {thickness_label(row)} copper | {row['area_mm2']:.4g} mm² | Layer loss {row['planar_power_W']:.4g} W · More → Layer details")
             self.summary.GetParent().Layout()
         if limits:ax.set_xlim(*limits[0]);ax.set_ylim(*limits[1])

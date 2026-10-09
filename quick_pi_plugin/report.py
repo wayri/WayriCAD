@@ -279,9 +279,100 @@ def _polygon_patch(polygon):
     return PathPatch(MplPath(vertices,codes),facecolor='#cbdedc',edgecolor='#477f79',linewidth=.45)
 
 
+def _board_axes(figure):
+    """A full-frame, millimetre viewport which refits with the canvas aspect."""
+    from matplotlib.axes import Axes
+
+    class BoardAxes(Axes):
+        def _fitted_limits(self):
+            x0,y0,x1,y1=self._wayricad_bounds
+            width,height=max(x1-x0,1e-6),max(y1-y0,1e-6)
+            position=self.get_position(original=True)
+            ratio=(self.figure.bbox.width*position.width)/(self.figure.bbox.height*position.height)
+            # A small border is enough for copper edges; unused space follows
+            # the viewport aspect, never an independent X/Y stretch.
+            width*=1.06;height*=1.06
+            width=max(width,height*ratio);height=max(height,width/ratio)
+            cx,cy=(x0+x1)/2,(y0+y1)/2
+            return ((cx-width/2,cx+width/2),(cy+height/2,cy-height/2))
+
+        def _wayricad_fit(self):
+            home=self._fitted_limits()
+            self.set_xlim(*home[0]);self.set_ylim(*home[1])
+            self._wayricad_home=home
+
+        def apply_aspect(self,position=None):
+            if hasattr(self,'_wayricad_bounds'):
+                home=self._fitted_limits();old=getattr(self,'_wayricad_home',home)
+                xlim,ylim=self.get_xlim(),self.get_ylim()
+                zoom=max(abs((xlim[1]-xlim[0])/(old[0][1]-old[0][0])),
+                         abs((ylim[1]-ylim[0])/(old[1][1]-old[1][0])))
+                # During resize retain the user's centre and zoom relative to
+                # Fit; changing the field or panning does not reset navigation.
+                cx,cy=sum(xlim)/2,sum(ylim)/2
+                width=(home[0][1]-home[0][0])*zoom
+                height=(home[1][0]-home[1][1])*zoom
+                self.set_xlim(cx-width/2,cx+width/2,emit=False)
+                self.set_ylim(cy+height/2,cy-height/2,emit=False)
+                self._wayricad_home=home
+                if hasattr(self,'_wayricad_scale_bar'):
+                    line,label=self._wayricad_scale_bar
+                    target=width*.12;power=10**math.floor(math.log10(target))
+                    length=max(value*power for value in (1.,2.,5.,10.) if value*power<=target)
+                    right=.97;left=right-length/width
+                    line.set_data([left,left,right,right],[.044,.035,.035,.044])
+                    label.set_position(((left+right)/2,.052));label.set_text(f'{length:g} mm')
+            super().apply_aspect(position)
+
+    ax=figure.add_axes([.008,.008,.984,.984],axes_class=BoardAxes)
+    figure.set_facecolor('#edf1f3');ax.set_facecolor('#edf1f3')
+    ax.set_aspect('equal',adjustable='datalim');ax.set_axis_off()
+    return ax
+
+
+def _fit_board_view(ax):
+    import numpy as np
+    if not np.isfinite(ax.dataLim.extents).all():return
+    ax._wayricad_bounds=tuple(ax.dataLim.extents)
+    ax._wayricad_fit()
+    line,=ax.plot([],[],transform=ax.transAxes,color='#53636a',linewidth=1.,clip_on=False)
+    label=ax.text(0,0,'',transform=ax.transAxes,ha='center',va='bottom',fontsize=8,color='#53636a')
+    ax._wayricad_scale_bar=(line,label)
+
+
+def _draw_board_context(ax,scene,layer,layer_name=''):
+    """Saved non-copper contours stay readable over an opaque solved plane."""
+    from matplotlib import patheffects
+    names={str(key):name for key,name in scene.get('layers',{}).items()}
+    name=names.get(str(layer),layer_name)
+    side='B.' if name=='B.Cu' else 'F.' if name=='F.Cu' or layer is None else None
+    graphics={side+suffix for suffix in ('SilkS','Silkscreen','Fab','CrtYd','Courtyard')} if side else set()
+    for row in scene.get('primitives',[]):
+        role=row.get('role');on_layer=str(row.get('layer'))==str(layer)
+        visible=(role=='outline' or role=='drill' and on_layer or
+                 role=='reference' and (on_layer or layer is None and names.get(str(row.get('layer')))=='F.Cu') or
+                 role in ('drawing','footprint') and names.get(str(row.get('layer'))) in graphics)
+        if not visible:continue
+        if row.get('kind')=='polygon' and len(row.get('points',[]))>=3:
+            artist=_polygon_patch({'outer':row['points'],'holes':row.get('holes',[])})
+            artist.set_facecolor('none');artist.set_edgecolor('#34434d')
+            artist.set_linewidth(.9 if role=='outline' else .5)
+            ax.add_patch(artist)
+        elif row.get('kind')=='text':
+            artist=ax.text(*row['center'],row['text'],fontsize=6.5,color='#23333e',clip_on=True)
+        else:continue
+        artist.set_zorder(8);artist.set_alpha(.9)
+        artist.set_gid('board-context:'+role+':'+str(row.get('uuid','')))
+        artist.set_path_effects([patheffects.withStroke(linewidth=1.8,foreground='#f3f6f7')])
+
+
 def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits=None,inspection=None,
-              show_context=True,show_copper=True,show_overlay=True,field_style=None):
-    """Draw actual polygon/triangle geometry; GUI and export use identical data."""
+              show_context=True,show_copper=True,show_overlay=True,field_style=None,board_view=False):
+    """Draw actual geometry; board_view uses a native viewport without chart chrome.
+
+    Native color meaning is available in ``ax._wayricad_color_scale`` for an
+    inspector legend. Scientific report plots remain the default.
+    """
     import numpy as np
     from matplotlib.collections import PolyCollection
     from matplotlib.patches import Circle
@@ -291,8 +382,12 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
     rows=geometry.get('layers',[])
     if layer is None and rows:layer=rows[0]['id']
     selected=next((row for row in rows if str(row['id'])==str(layer)),None)
-    figure.clear();ax=figure.add_subplot(111);ax.set_facecolor('#ffffff')
-    ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X (mm)');ax.set_ylabel('Y (mm)')
+    figure.clear()
+    if board_view:ax=_board_axes(figure)
+    else:
+        figure.set_facecolor('white');ax=figure.add_subplot(111);ax.set_facecolor('#ffffff')
+        ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X (mm)');ax.set_ylabel('Y (mm)')
+    ax._wayricad_color_scale=None;ax._wayricad_color_mappable=None
     ax.grid(False)
     scene=bundle.get('board_scene',{})
     if show_context and scene:
@@ -302,9 +397,13 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         draw_matplotlib(ax,scene,visible_layers=[layer] if layer is not None else None,
                         highlight_ids=(inspection or {}).get('source_ids',[]),alpha=.35)
     if not selected:
-        ax.set_aspect('auto')
+        if not board_view:ax.set_aspect('auto')
         ax.text(.5,.5,'Choose a net and preview its copper.',ha='center',va='center',transform=ax.transAxes)
-        figure.tight_layout();return ax
+        if board_view:
+            if show_context and scene:_draw_board_context(ax,scene,layer)
+            ax.autoscale_view();ax.invert_yaxis();_fit_board_view(ax)
+        else:figure.tight_layout()
+        return ax
     if show_copper:
         for polygon in selected.get('polygons',[]):ax.add_patch(_polygon_patch(polygon))
     if view=='Results' and not show_overlay:view='Net'
@@ -336,7 +435,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
                     image.set_clim(*result_scale(bundle,metric,layer))
                     if color_limits is not None:image.set_clim(*validate_scale(*color_limits))
                     ax.add_collection(image)
-                    figure.colorbar(image,ax=ax,pad=.025,label=f'{metric_name(bundle,metric)} ({unit})')
+                    if not board_view:figure.colorbar(image,ax=ax,pad=.025,label=f'{metric_name(bundle,metric)} ({unit})')
                     if metric=='flow':
                         vectors=np.asarray([v if v is not None else [np.nan,np.nan] for v in result['cell_sheet_current_A_mm']])[mask]
                         centers=polygons.mean(axis=1);valid=np.flatnonzero(finite)
@@ -354,7 +453,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         from matplotlib.colors import Normalize
         image=ScalarMappable(norm=Normalize(0,max(1.,max(via_values))) if metric=='risk' else Normalize(min(via_values),max(via_values)),cmap=METRICS[metric][2])
         if color_limits is not None:image.set_clim(*validate_scale(*color_limits))
-        figure.colorbar(image,ax=ax,pad=.025,label=f'{metric_name(bundle,metric)} ({METRICS[metric][1]})')
+        if not board_view:figure.colorbar(image,ax=ax,pad=.025,label=f'{metric_name(bundle,metric)} ({METRICS[metric][1]})')
     elif view=='Results' and result and image is None:
         ax.text(.02,.98,'No available solved '+METRICS[metric][0].lower()+' on this layer.',va='top',transform=ax.transAxes,
                 bbox={'facecolor':'white','edgecolor':'none','alpha':.9})
@@ -364,12 +463,12 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         center=(via['x_mm'],via['y_mm'])
         face='none'
         ax.add_patch(Circle(center,via.get('diameter_mm',.5)/2,facecolor=face,edgecolor='#355b67',linewidth=.6))
-        ax.add_patch(Circle(center,via.get('drill_mm',.3)/2,facecolor='white',edgecolor='#355b67',linewidth=.3))
+        ax.add_patch(Circle(center,via.get('drill_mm',.3)/2,facecolor=ax.get_facecolor(),edgecolor='#355b67',linewidth=.3))
     for marker in markers:
         center=(marker['x_mm'],marker['y_mm']);color=image.cmap(image.norm(marker['value']))
         patch=Circle(center,marker['outer_radius_mm'],facecolor=color,edgecolor=color,linewidth=1.5,zorder=5)
         patch.set_gid('via-barrel:'+','.join(marker['segments']));ax.add_patch(patch)
-        ax.add_patch(Circle(center,marker['drill_radius_mm'],facecolor='white',edgecolor=color,linewidth=.6,zorder=6))
+        ax.add_patch(Circle(center,marker['drill_radius_mm'],facecolor=ax.get_facecolor(),edgecolor=color,linewidth=.6,zorder=6))
     request=bundle.get('request',{})
     if mesh and request.get('series'):
         points=np.asarray(mesh['points_mm'],dtype=float)
@@ -391,9 +490,12 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         if not polygons:continue
         ring=np.asarray(polygons[0]['outer'])[:,:2];center=ring.mean(axis=0)
         is_source=terminal['id']==source or terminal.get('label')==source
-        ax.plot(*center,marker='o' if is_source else 's',markersize=6,color='#13854c' if is_source else '#b94535',markeredgecolor='white')
-        ax.annotate(('Source: ' if is_source else 'Sink: ')+terminal.get('label',terminal['id']),center,xytext=(7,7),textcoords='offset points',fontsize=8,
+        ax.plot(*center,marker='o' if is_source else 's',markersize=4.5 if board_view else 6,color='#13854c' if is_source else '#b94535',markeredgecolor='white')
+        label=('Source' if is_source else 'Sink') if board_view else ('Source: ' if is_source else 'Sink: ')+terminal.get('label',terminal['id'])
+        offset=7 if not board_view or center[0]<sum(ax.dataLim.intervalx)/2 else -7
+        ax.annotate(label,center,xytext=(offset,7),ha='left' if offset>0 else 'right',textcoords='offset points',fontsize=8,
                     bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
+    if board_view and show_context and scene:_draw_board_context(ax,scene,layer,selected['name'])
     if inspection and inspection.get('source_ids') and bundle.get('board_scene'):
         from wayricad_runtime.board_render import draw_matplotlib
         scene=bundle['board_scene'];wanted=set(inspection['source_ids'])
@@ -412,10 +514,19 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         title+='\nINFEASIBLE · requested-load diagnostic; source current limit exceeded'
     elif view=='Results' and result and result.get('feasibility',{}).get('feasible') is False:
         title+='\nINFEASIBLE · requested load/voltage limits violated'
-    ax.autoscale_view();ax.invert_yaxis();ax.set_title(title,loc='left',fontsize=10)
-    ax._wayricad_home=(ax.get_xlim(),ax.get_ylim())
-    ax.set_anchor('C')
-    figure.subplots_adjust(left=.08,right=.90,bottom=.12,top=.94)
+    ax.autoscale_view();ax.invert_yaxis()
+    if image is not None:
+        ax._wayricad_color_mappable=image
+        ax._wayricad_color_scale={'metric':metric,'label':metric_name(bundle,metric),
+                                 'unit':METRICS[metric][1],'cmap':image.cmap.name,
+                                 'limits':image.get_clim(),'note':field_note(metric,field_style)}
+    if board_view:
+        _fit_board_view(ax)
+    else:
+        ax.set_title(title,loc='left',fontsize=10)
+        ax._wayricad_home=(ax.get_xlim(),ax.get_ylim())
+        ax.set_anchor('C')
+        figure.subplots_adjust(left=.08,right=.90,bottom=.12,top=.94)
     return ax
 
 

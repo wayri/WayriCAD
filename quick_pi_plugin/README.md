@@ -4,7 +4,7 @@
 
 ## Interactive inspection
 
-Use **Search nets** or **Select net on board** to choose an analysis input from
+Use **Find net** or **Pick net** to choose an analysis input from
 saved pads, vias or tracks. Select the two terminals and rerun after changes.
 Hover over solved Results cells and click to pin exact cell values; Ctrl-right-click
 clears probes. Holes and unresolved cells remain gaps.
@@ -43,12 +43,20 @@ Quick PI estimates DC voltage drop and current flow through saved PCB copper. It
 ## Workflow
 
 1. Save the PCB and update zone fills in KiCad. Open **WayriCAD Quick PI**.
-2. Choose a net, source pad and primary sink pad. Enter source voltage in volts and load current in amperes. Set **Source limit A** if the source has a current budget; use **Additional sinks** to add further loads.
-3. Click **Run analysis**. The **Net**, **Mesh** and **Results** tabs show the same extracted geometry.
-4. Choose a copper layer and result: absolute voltage, voltage drop, drop divided by total load demand, current density, current flow, loss density or pulse risk. For one sink, drop/current is the DC transfer resistance; with several sinks it is a diagnostic normalization. Drag to pan and scroll to zoom; **Fit** restores the visible extent. Resize the divider to give the copper viewport or inspector more space. Toggle **Board context**, **Copper geometry** and **Result overlay** independently.
-5. Use **Export report** for an offline HTML report with seven maps of the selected layer and a paired JSON file containing all layers and numerical results.
+2. Use the left **Setup** panel to choose a net, source pad and primary sink pad. Enter **Source · V** and **Load · A** (or switch to a resistive load in Ω). Set **Limit · A** for an optional source current budget and **Min · V / Max · V** for the primary sink's bounds. Use **Additional sinks** for further loads.
+3. Click **Preview** or **Run** at the bottom of Setup. The **Net**, **Mesh** and **Results** tabs show the same extracted geometry in a full-height board canvas. The window opens maximized.
+4. Use the right **Inspect** panel to choose a layer and result. Its colour legend gives the numerical range and units. Drag the board to pan, scroll to zoom, or double-click / click **Fit** to restore the board extent. **Setup** and **Inspect** in the header hide either panel; the divider adjusts the inspector width. **Board**, **Copper** and **Field** toggle saved context, extracted copper and the result overlay independently. Millimetres stay proportional during resizing, and a compact ruler replaces graph axes.
+5. Use **Export** for an offline HTML report with seven maps of the selected layer and paired JSON containing all layers and numerical results. The save-image icon exports the current board view. **Mesh & material**, **Console** and **Model details** start collapsed; **More** retains transient, electrothermal and diagnostic studies.
 
-![Current native Quick PI result and per-layer copper summary](help-workflow.png)
+![Compact native Quick PI workspace with a full-height board canvas](help-workspace.png)
+
+This UI demonstration uses a disposable portrait PCB as saved context and an
+analytical **65 × 90 mm, 35 µm uniform copper plate**, with full-height edge
+contacts at **5 V / 2 A**. Its computed drop is **0.71149 mV**. The plate is a
+known-answer display fixture, not a simulation of the illustrated routed PCB.
+Source files remain unchanged during navigation and inspection.
+
+![Earlier native Quick PI result and per-layer copper summary](help-workflow.png)
 
 This is the **small `Net-(R161-Pad1)` connection on Berkeley Marble**, from `U1.M6`
 to `R161.1`, at 1 V / 1 A. It is not a power-rail or full-board loading test.
@@ -66,15 +74,15 @@ results, not measurements or proof of mesh convergence.
 
 ![Mesh used for the same Marble connection](help-mesh.png)
 
-**Mesh and material options** contains mesh size, assumed via plating, copper temperature, ambient temperature, pulse duration and a temperature limit. A smaller mesh costs more time and memory. Compare successive mesh sizes before relying on localized peaks. The default 25 µm plating is an assumption, not a measured board property.
+**Mesh & material** in Setup contains mesh size, assumed via plating, copper temperature, ambient temperature, pulse duration and a temperature limit. Expanding it scrolls the sidebar without reducing the board height. A smaller mesh costs more time and memory. Compare successive mesh sizes before relying on localized peaks. The default 25 µm plating is an assumption, not a measured board property.
 
 ### Multiple loads and source limits
 
-The primary sink uses the main **Sink A**, **Sink min V** and **Sink max V**
+The primary sink uses **Load · A**, **Min · V** and **Max · V**
 controls. **Additional sinks** opens a table to add, edit or remove other pad
 demands, each with its own current and optional minimum/maximum voltage. All
 sinks must be distinct pads on the selected net and different from the source.
-Blank minimum voltage defaults to 0 V; blank maximum is unbounded. **Source limit A** is an optional nonnegative
+Blank minimum voltage defaults to 0 V; blank maximum is unbounded. **Limit · A** is an optional nonnegative
 current budget: blank means unlimited and zero supplies no current.
 
 Quick PI solves all requested constant-current loads together at the entered
@@ -88,7 +96,7 @@ constant-current regulation and voltage-collapse dynamics are not simulated.
 
 For multiple sinks, **Worst drop / total demand** divides the largest sink drop
 by total requested current; it is not a physical two-terminal resistance. The
-inspector's **Layers / losses** tab and console retain every sink's demand,
+inspector's **Losses** tab and console retain every sink's demand,
 voltage and bounds. Source and all sinks are marked in the views and included
 in terminal selection/zoom. Changing any demand or bound clears stale results.
 Multiple sinks with explicit series components are not supported; remove
