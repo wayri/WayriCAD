@@ -7,7 +7,7 @@ from .analysis import BoardMetrics,FabricatorProfile,audit_metrics,build_release
 from .verification import capture_inputs,VerificationSnapshot,find_cli,drc_evidence
 from .guided_ui import add_workflow, mark_primary
 
-VERSION="3.6.12"
+VERSION="3.6.13"
 STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","FAIL":"#e34a43","UNKNOWN":"#d4a62a","INFO":"#3399cc"}
 
 class ReadinessMeter(wx.Panel):

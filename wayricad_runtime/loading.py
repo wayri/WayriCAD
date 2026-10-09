@@ -25,8 +25,10 @@ class LoadingWindow:
             if not hasattr(wx, 'Frame'):
                 return
             self.app = ensure_wx_app(wx)
+            self.wx = wx
             window = wx.Frame(None, title='WayriCAD — Loading', size=(400, 132),
                               style=wx.CAPTION | wx.FRAME_TOOL_WINDOW)
+            self.window = window
             panel = wx.Panel(window)
             layout = wx.BoxSizer(wx.VERTICAL)
             heading = wx.StaticText(panel, label='Opening ' + title)
@@ -40,8 +42,6 @@ class LoadingWindow:
             window.CentreOnScreen()
             window.Show()
             wx.YieldIfNeeded()
-            self.window = window
-            self.wx = wx
         except Exception:
             # A missing or unusable GUI must never prevent a plugin from opening.
             self.finish()
@@ -54,4 +54,7 @@ class LoadingWindow:
         if self.window is not None:
             window = self.window
             self.window = None
+            # wx defers top-level destruction until an event-loop turn. The
+            # bootstrap waits for the plugin process next, so hide immediately.
+            window.Hide()
             window.Destroy()

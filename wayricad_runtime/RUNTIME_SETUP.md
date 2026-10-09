@@ -5,6 +5,12 @@ in the user's cache directory. It never installs Python packages into KiCad itse
 Set `WAYRICAD_KICAD_PYTHON` to an alternate KiCad 10 Python executable when automatic
 discovery cannot find a complete installation.
 
+The shared loading window remains visible while dependencies are prepared and
+the plugin starts. It hides immediately when the plugin signals readiness or
+its startup process exits, before the launcher waits for the open plugin to
+close. Startup errors clear the loading window before displaying their error
+message. This lifecycle is shared by the independently installed IPC packages.
+
 Dependency installation uses binary wheels. Corporate mirrors, proxies and offline
 wheel directories can be configured through standard pip configuration or environment
 variables: `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, `PIP_FIND_LINKS`, `PIP_NO_INDEX`,

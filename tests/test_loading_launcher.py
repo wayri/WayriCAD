@@ -12,6 +12,26 @@ from wayricad_runtime import bootstrap, launcher, loading, runtime_setup
 
 
 class LoadingLauncherTests(unittest.TestCase):
+    def test_finish_hides_window_without_waiting_for_deferred_destruction(self):
+        class DeferredWindow:
+            shown = True
+            destroy_queued = False
+
+            def Hide(self):
+                self.shown = False
+
+            def Destroy(self):
+                self.destroy_queued = True
+
+        splash = loading.LoadingWindow.__new__(loading.LoadingWindow)
+        window = DeferredWindow()
+        splash.window = window
+        splash.finish()
+        self.assertFalse(window.shown)
+        self.assertTrue(window.destroy_queued)
+        self.assertIsNone(splash.window)
+        splash.finish()  # Repeated error/finally cleanup is harmless.
+
     def test_splash_stays_responsive_during_runtime_setup(self):
         prepared = threading.Event()
         loading = Mock(window=object())
@@ -61,6 +81,35 @@ class LoadingLauncherTests(unittest.TestCase):
             self.assertEqual(bootstrap.relaunch('plugin', 'ipc_entrypoint.py', loading=loading), 0)
         loading.finish.assert_called_once()
         process.wait.assert_called_once()
+
+    def test_bootstrap_closes_loading_when_child_exits_without_ready(self):
+        splash = Mock(window=object())
+        process = Mock()
+        process.poll.return_value = 1
+        process.wait.return_value = 1
+        with patch.object(runtime_setup, 'ensure_runtime', return_value=Path('managed-python')), \
+             patch.object(bootstrap.subprocess, 'Popen', return_value=process):
+            self.assertEqual(bootstrap.relaunch('plugin', 'entry.py', loading=splash), 1)
+        splash.finish.assert_called_once()
+
+    def test_launcher_clears_loading_before_reporting_setup_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'wayricad-tool.json').write_text(json.dumps({
+                'tool': 'via_stitching_plugin', 'module': 'unused',
+                'class': 'Unused', 'name': 'Via Stitching'}), encoding='utf-8')
+            splash = Mock(window=object())
+
+            def report_failure(_error, _title):
+                splash.finish.assert_called_once()
+                return 1
+
+            with patch.object(loading, 'LoadingWindow', return_value=splash), \
+                 patch.dict('os.environ', {'WAYRICAD_SPLASH_READY': ''}), \
+                 patch.object(bootstrap, 'relaunch', side_effect=RuntimeError('setup failed')), \
+                 patch.object(bootstrap, 'failure', side_effect=report_failure), \
+                 patch.object(sys, 'stderr'):
+                self.assertEqual(launcher.main(root), 1)
 
     def test_launcher_signals_ready_before_plugin_run(self):
         with tempfile.TemporaryDirectory() as directory:
