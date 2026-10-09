@@ -13,12 +13,13 @@ This source candidate improves Mechanical Check, Quick PI and QuickTherm and fix
 - Native planar views remove graph axes and plot margins, fit the saved board to the canvas, retain equal millimetre scale through resizing and show a compact ruler. Result colours and units move into the inspector. Scientific report exports retain their existing chart presentation.
 - QuickTherm board views show only the selected component label and one temporary hover label. The main map, paired top/bottom workspace, 3D overview and interactive report no longer label every component in the thermal study.
 - QuickTherm adds an editable scanned component table with always-enabled RθJB, Select all/none, filters, explicit overrides, limits and provenance. Its maximized workspace exposes axisless top/bottom/3D results, compact side controls and interactive orbit, pan, zoom, probes and details. Physical board studies can use power and optional RθJB without requiring RθJA.
+- QuickTherm exposes transient board heating with a power-step table, Play/Pause, scrubbing and speed controls in native and offline 3D/planar views. A fixed study-wide scale and retained camera keep changes readable. Air/vacuum boundary controls are explicit. Schedule-event integration preserves short-pulse input energy; board-only manual studies export their input values and provenance correctly.
 - The shared loading window hides immediately after a plugin signals readiness, before the launcher waits for the plugin to close. Queued wx destruction no longer leaves a blank loading window visible. Partially constructed loading windows are also cleared on startup failure.
 
 Exact 3D requires FreeCAD and usable models. Quick 2D remains conservative and incomplete for mechanical sign-off. See [validation evidence](audits/MECHANICAL_INSPECTION.md) and the [Mechanical Check guide](../mechanical_check_plugin/README.md).
 
 Quick PI retains its DC, transient and electrothermal model limits. See the [workspace validation](audits/QUICK_PI_WORKSPACE.md) and [Quick PI guide](../quick_pi_plugin/README.md).
 
-QuickTherm retains its thermal models and unknown-value handling. See the [workspace validation](audits/QUICKTHERM_WORKSPACE.md), [label validation](audits/QUICKTHERM_LABELS.md) and [QuickTherm guide](../quick_therm_plugin/README.md).
+QuickTherm retains its thermal models and unknown-value handling. See the [workspace validation](audits/QUICKTHERM_WORKSPACE.md), [label validation](audits/QUICKTHERM_LABELS.md), [transient playback validation](audits/QUICKTHERM_TRANSIENT_PLAYBACK.md) and [QuickTherm guide](../quick_therm_plugin/README.md).
 
 See the [loading window validation](audits/LOADING_WINDOW_LIFETIME.md) and [runtime setup](../wayricad_runtime/RUNTIME_SETUP.md) for the shared launcher fix.

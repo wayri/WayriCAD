@@ -28,7 +28,10 @@ def write_diagnostic_report(path,bundle):
         html+='<p>'+escape(thermal['model'])+' · '+escape(thermal['environment'])+' · ambient '+_number(thermal['ambient_c'],'°C')+'</p>'
         if thermal.get('input_source'):
             html+='<p><strong>Input source:</strong> '+escape(thermal['input_source'])+'</p>'
-            html+='<details><summary>Explicit component inputs</summary><pre>'+escape(json.dumps(thermal['manual_values'],indent=2,sort_keys=True))+'</pre></details>'
+            if 'manual_values' in thermal:
+                html+='<details><summary>Explicit component inputs</summary><pre>'+escape(json.dumps(thermal['manual_values'],indent=2,sort_keys=True))+'</pre></details>'
+            if thermal.get('component_input_sources'):
+                html+='<details><summary>Scanned values and override provenance</summary><pre>'+escape(json.dumps(thermal['component_input_sources'],indent=2,sort_keys=True))+'</pre></details>'
         else:
             html+='<p><strong>Input source:</strong> saved footprint fields '+escape(json.dumps(thermal.get('field_map',{}),sort_keys=True))+'</p>'
         html+='<p>Coverage: '+str(thermal['coverage']['solved'])+'/'+str(thermal['coverage']['scoped'])+' scoped components solved.</p>'

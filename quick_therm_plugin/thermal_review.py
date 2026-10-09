@@ -231,6 +231,9 @@ def transient_frame_network(network, index):
         for cell_index, (i,j) in enumerate(cells):
             values[j][i] = temperatures[layer_index*count+cell_index]
         layer['values_c'] = values
+        known=[value for row in values for value in row if value is not None]
+        layer['sampled_min_c']=min(known) if known else None
+        layer['sampled_max_c']=max(known) if known else None
     result['display_time_s'] = frame['time_s']
     schedules=transient.get('power_schedules',{})
     originals={row['reference']:row for row in result.get('components',[])}
@@ -240,8 +243,12 @@ def transient_frame_network(network, index):
         contact=sum(temperatures[node]*weight for node,weight in definition['nodes'])
         points=schedules.get(reference)
         if points:
-            import numpy as np
-            scale=float(np.interp(frame['time_s'],[point[0] for point in points],[point[1] for point in points]))
+            if transient.get('schedule_interpolation','linear')=='step':
+                import bisect
+                scale=points[max(0,bisect.bisect_right([p[0] for p in points],frame['time_s'])-1)][1]
+            else:
+                import numpy as np
+                scale=float(np.interp(frame['time_s'],[point[0] for point in points],[point[1] for point in points]))
         else:scale=1.
         power=definition['power_w']*scale;resistance=definition.get('junction_resistance_k_per_w')
         row.update(board_site_c=contact,power_w=power,

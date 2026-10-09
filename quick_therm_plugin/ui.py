@@ -6,6 +6,7 @@ import json
 import math
 from pathlib import Path
 import threading
+import time
 
 import wx
 from matplotlib.figure import Figure
@@ -54,7 +55,14 @@ class QuickThermFrame(wx.Frame):
         self._busy = False
         self._closed = False
         self._cancel = threading.Event()
-        self._solver_config = wx.Config("WayriCAD QuickTherm")
+        self._thermal_playing = False
+        self._thermal_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self._thermal_tick, self._thermal_timer)
+        # Optional remembered solver paths must not open a modal wx log dialog
+        # on read-only Windows profiles or restricted validation runtimes.
+        with wx.LogNull():
+            self._solver_config = wx.Config("WayriCAD QuickTherm")
+            self._calculix_executable = self._solver_config.Read('calculix_executable', '')
         self.main_panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
         title = wx.BoxSizer(wx.HORIZONTAL)
@@ -105,12 +113,12 @@ class QuickThermFrame(wx.Frame):
         self.therm_sink_button.Enable(not self._busy)
         self.therm_sync.Enable(not self._busy and bool(self.thermal_bundle))
         self.cancel.Enable(self._busy)
-        if not self._busy:
-            self._therm_controls()
+        self._therm_controls()
 
     def _task(self, operation, finished, message="Working…"):
         if self._busy or self._closed:
             return
+        self._stop_thermal_playback()
         self._busy = True
         self._cancel.clear()
         self.status.SetLabel(message)
@@ -254,6 +262,7 @@ class QuickThermFrame(wx.Frame):
         self.status.SetLabel("Cancelling the worker…")
 
     def on_close(self, event):
+        self._stop_thermal_playback()
         self._cancel.set()
         self._closed = True
         self.Destroy()
@@ -280,34 +289,63 @@ class QuickThermFrame(wx.Frame):
             setup.Add(control,1,wx.EXPAND)
         setup.AddSpacer(1);setup.Add(self.therm_manual_button,0,wx.EXPAND)
         layout.Add(setup,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        self.therm_time_enabled=wx.CheckBox(page,label='Transient · watch board heating')
+        self.therm_time_enabled.Bind(wx.EVT_CHECKBOX,self._transient_setup_changed)
+        layout.Add(self.therm_time_enabled,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        self.therm_environment_note=wx.StaticText(page,label='')
+        layout.Add(self.therm_environment_note,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         vacuum_row=wx.BoxSizer(wx.VERTICAL)
         vacuum_row.Add(wx.StaticText(page,label='Vacuum board-to-environment K/W'),0,wx.BOTTOM,4)
         self.therm_board_r=wx.TextCtrl(page,value='',size=(120,-1))
         self.therm_board_r.SetHint('Enter a reviewed heat path')
         vacuum_row.Add(self.therm_board_r,0)
         layout.Add(vacuum_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
-        advanced=wx.CollapsiblePane(page,label='Environment + time',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        advanced=wx.CollapsiblePane(page,label='Environment boundaries',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         advanced_host=advanced.GetPane();advanced_form=wx.FlexGridSizer(0,2,6,8);advanced_form.AddGrowableCol(1)
         self.therm_explicit_h=wx.TextCtrl(advanced_host,value='20')
         self.therm_enclosure_c=wx.TextCtrl(advanced_host,value='20')
         self.therm_potting_k=wx.TextCtrl(advanced_host,value='1')
         self.therm_potting_thickness=wx.TextCtrl(advanced_host,value='2')
         self.therm_potting_outer_h=wx.TextCtrl(advanced_host,value='10')
-        self.therm_time_enabled=wx.CheckBox(advanced_host,label='Time-varying multilayer simulation')
-        self.therm_time_duration=wx.TextCtrl(advanced_host,value='60')
-        self.therm_time_step=wx.TextCtrl(advanced_host,value='1')
-        self.therm_time_initial=wx.TextCtrl(advanced_host,value='20')
-        self.therm_copper_capacity=wx.TextCtrl(advanced_host,value='3450000')
-        self.therm_dielectric_capacity=wx.TextCtrl(advanced_host,value='1800000')
-        self.therm_power_schedule=wx.TextCtrl(advanced_host,value='{}')
-        self.therm_sink_capacity=wx.TextCtrl(advanced_host,value='{}')
-        for label,ctrl in [('Explicit convection h W/m²K',self.therm_explicit_h),('Fixed enclosure °C',self.therm_enclosure_c),('Potting conductivity W/mK',self.therm_potting_k),('Potting thickness mm',self.therm_potting_thickness),('Potting outer h W/m²K',self.therm_potting_outer_h),('Duration s',self.therm_time_duration),('Time step s',self.therm_time_step),('Initial temperature °C',self.therm_time_initial),('Copper volumetric capacity J/m³K',self.therm_copper_capacity),('Dielectric volumetric capacity J/m³K',self.therm_dielectric_capacity),('Power multiplier schedules JSON: U1: [[time,multiplier]]',self.therm_power_schedule),('Sink heat capacity JSON: U1: J/K',self.therm_sink_capacity)]:
+        for label,ctrl in [('Explicit convection h W/m²K',self.therm_explicit_h),('Fixed enclosure °C',self.therm_enclosure_c),('Potting conductivity W/mK',self.therm_potting_k),('Potting thickness mm',self.therm_potting_thickness),('Potting outer h W/m²K',self.therm_potting_outer_h)]:
             caption=wx.StaticText(advanced_host,label=label);caption.Wrap(140)
             advanced_form.Add(caption,0,wx.ALIGN_CENTER_VERTICAL);advanced_form.Add(ctrl,1,wx.EXPAND)
             ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
-        advanced_box=wx.BoxSizer(wx.VERTICAL);advanced_box.Add(self.therm_time_enabled,0,wx.ALL,6);advanced_box.Add(advanced_form,1,wx.EXPAND|wx.ALL,6)
-        self.therm_time_enabled.Bind(wx.EVT_CHECKBOX,self._invalidate_thermal)
+        advanced_box=wx.BoxSizer(wx.VERTICAL);advanced_box.Add(advanced_form,1,wx.EXPAND|wx.ALL,6)
         advanced_host.SetSizer(advanced_box);layout.Add(advanced,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        self.therm_transient_pane=wx.CollapsiblePane(page,label='Transient setup',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        transient_host=self.therm_transient_pane.GetPane();transient_box=wx.BoxSizer(wx.VERTICAL)
+        transient_form=wx.FlexGridSizer(0,2,6,8);transient_form.AddGrowableCol(1)
+        self.therm_time_duration=wx.TextCtrl(transient_host,value='60')
+        self.therm_time_step=wx.TextCtrl(transient_host,value='1')
+        self.therm_time_initial=wx.TextCtrl(transient_host,value='20')
+        self.therm_copper_capacity=wx.TextCtrl(transient_host,value='3450000')
+        self.therm_dielectric_capacity=wx.TextCtrl(transient_host,value='1800000')
+        self.therm_schedule_interpolation=wx.Choice(transient_host,choices=['Linear ramps','Power steps'])
+        self.therm_schedule_interpolation.SetSelection(0)
+        self.therm_schedule_interpolation.Bind(wx.EVT_CHOICE,self._invalidate_thermal)
+        for label,ctrl in [('Duration s',self.therm_time_duration),('Max time step s',self.therm_time_step),('Initial °C',self.therm_time_initial),('Copper capacity J/m³K',self.therm_copper_capacity),('Dielectric capacity J/m³K',self.therm_dielectric_capacity),('Schedule',self.therm_schedule_interpolation)]:
+            caption=wx.StaticText(transient_host,label=label);caption.Wrap(130)
+            transient_form.Add(caption,0,wx.ALIGN_CENTER_VERTICAL);transient_form.Add(ctrl,1,wx.EXPAND)
+            if isinstance(ctrl,wx.TextCtrl):ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
+        transient_box.Add(transient_form,0,wx.EXPAND|wx.ALL,6)
+        steps=wx.Button(transient_host,label='Power steps…');steps.Bind(wx.EVT_BUTTON,self._edit_power_steps)
+        self.therm_power_steps=steps
+        transient_box.Add(steps,0,wx.EXPAND|wx.ALL,6)
+        capacity_note=wx.StaticText(transient_host,label='Capacity defaults are illustrative. Review materials before relying on heating times.')
+        _wrap_text(capacity_note,capacity_note.GetLabel());transient_box.Add(capacity_note,0,wx.ALL,6)
+        schedule_pane=wx.CollapsiblePane(transient_host,label='Advanced schedules + sinks',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        schedule_host=schedule_pane.GetPane();schedule_box=wx.BoxSizer(wx.VERTICAL)
+        self.therm_power_schedule=wx.TextCtrl(schedule_host,value='{}')
+        self.therm_sink_capacity=wx.TextCtrl(schedule_host,value='{}')
+        for label,ctrl in [('Power multipliers JSON: reference → [[s, multiplier]]',self.therm_power_schedule),('Sink heat capacity JSON: reference → J/K',self.therm_sink_capacity)]:
+            caption=wx.StaticText(schedule_host,label=label);_wrap_text(caption,label)
+            schedule_box.Add(caption,0,wx.EXPAND|wx.TOP,5);schedule_box.Add(ctrl,0,wx.EXPAND)
+            ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
+        schedule_host.SetSizer(schedule_box);transient_box.Add(schedule_pane,0,wx.EXPAND|wx.ALL,6)
+        transient_host.SetSizer(transient_box);layout.Add(self.therm_transient_pane,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        for pane in (advanced,self.therm_transient_pane,schedule_pane):
+            pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(page.Layout(),page.FitInside()))
         self.therm_fields_pane=wx.CollapsiblePane(page,label='Field mapping + limits',
                                                  style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         fields_host=self.therm_fields_pane.GetPane()
@@ -344,7 +382,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_ccx_mesh=wx.TextCtrl(model_pane,value='0.5')
         self.therm_ccx_bottom=wx.TextCtrl(model_pane,value='20')
         self.therm_ccx_executable=wx.TextCtrl(
-            model_pane,value=self._solver_config.Read('calculix_executable', ''))
+            model_pane,value=self._calculix_executable)
         self.therm_ccx_executable.SetHint('Optional full path to ccx executable; otherwise PATH')
         self.therm_blur=wx.Choice(model_pane,choices=['0 · exact cell occupancy','0.5 cell','1 cell'])
         self.therm_blur.SetSelection(0)
@@ -433,7 +471,7 @@ class QuickThermFrame(wx.Frame):
         def compact(window):
             for child in window.GetChildren():
                 if isinstance(child,wx.StaticText):
-                    _wrap_text(child,child.GetLabel(),130 if child.GetParent() in (fields_host,model_pane,advanced_host) else 270)
+                    _wrap_text(child,child.GetLabel(),130 if child.GetParent() in (fields_host,model_pane,advanced_host) or child.GetContainingSizer() is transient_form else 270)
                 elif isinstance(child,(wx.ComboBox,wx.Choice,wx.TextCtrl)):
                     child.SetMinSize((120,-1))
                 elif isinstance(child,wx.Button):child.SetMinSize((90,-1))
@@ -464,6 +502,15 @@ class QuickThermFrame(wx.Frame):
         switch.Add(self.therm_expand,0,wx.RIGHT,5)
         inspect=wx.ToggleButton(visual_host,label='Details');inspect.SetValue(True);switch.Add(inspect,0)
         visual.Add(switch,0,wx.EXPAND|wx.BOTTOM,5)
+        timeline=wx.BoxSizer(wx.HORIZONTAL)
+        self.therm_play=wx.Button(visual_host,label='▶ Play',size=(70,-1))
+        self.therm_play.Bind(wx.EVT_BUTTON,self._toggle_thermal_playback);timeline.Add(self.therm_play,0,wx.RIGHT,5)
+        self.therm_time_slider=wx.Slider(visual_host,minValue=0,maxValue=1,value=0)
+        self.therm_time_slider.Bind(wx.EVT_SLIDER,self._scrub_thermal_time);timeline.Add(self.therm_time_slider,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
+        self.therm_time_label=wx.StaticText(visual_host,label='Run a transient study');timeline.Add(self.therm_time_label,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
+        self.therm_play_speed=wx.Choice(visual_host,choices=['1×','5×','20×']);self.therm_play_speed.SetSelection(1)
+        self.therm_play_speed.Bind(wx.EVT_CHOICE,self._thermal_speed_changed);timeline.Add(self.therm_play_speed,0)
+        visual.Add(timeline,0,wx.EXPAND|wx.BOTTOM,3)
         self.therm_figure=Figure(figsize=(8,6),dpi=100);self.therm_canvas=FigureCanvasWxAgg(visual_host,wx.ID_ANY,self.therm_figure)
         self.therm_canvas.SetMinSize((250,250))
         self.therm_canvas.mpl_connect('button_press_event',self._thermal_plot_pressed)
@@ -530,7 +577,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_table.Bind(wx.EVT_LIST_COL_CLICK,self._thermal_sort_clicked)
         for ctrl in (self.therm_power,self.therm_ja,self.therm_jb,self.therm_jc,
                      self.therm_limit_min,self.therm_limit_max):ctrl.Bind(wx.EVT_COMBOBOX,self._invalidate_thermal)
-        self.therm_env.Bind(wx.EVT_CHOICE,self._invalidate_thermal)
+        self.therm_env.Bind(wx.EVT_CHOICE,self._thermal_environment_changed)
         for ctrl in (self.therm_ambient,self.therm_board_r):ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
         for ctrl in (self.therm_k,self.therm_emissivity,self.therm_air_board,self.therm_air_sink,self.therm_sink_area,
                      self.therm_dielectric_k,self.therm_copper_k,self.therm_plating,self.therm_mount_temp,self.therm_mount_r,
@@ -549,13 +596,32 @@ class QuickThermFrame(wx.Frame):
     def _therm_controls(self):
         vacuum=self.therm_env.GetSelection()==1
         selected=self.therm_model_kind.GetSelection() if self.therm_model_enabled.GetValue() else -1
+        for ctrl in (self.therm_time_enabled,self.therm_env,self.therm_ambient,self.therm_input_mode,
+                     self.therm_model_enabled,self.therm_model_kind):ctrl.Enable(not self._busy)
+        for ctrl in (self.therm_time_duration,self.therm_time_step,self.therm_time_initial,
+                     self.therm_copper_capacity,self.therm_dielectric_capacity,self.therm_power_schedule,
+                     self.therm_sink_capacity,self.therm_schedule_interpolation,self.therm_power_steps):
+            ctrl.Enable(self.therm_time_enabled.GetValue() and not self._busy)
+        environment=self.therm_env.GetSelection()
+        _wrap_text(self.therm_environment_note,(
+            'Air: convection + radiation to ambient. Airflow is a boundary assumption.' if environment==0 else
+            'Vacuum: convection is zero. Review emissivity and fixture conduction; in-air RθJA is not used.' if vacuum else
+            'Forced air: enter the effective convection coefficient.' if environment==2 else
+            'Potting: declared coating resistance to external ambient.' if environment==3 else
+            'Sealed enclosure: fixed enclosure temperature boundary.'))
         # These are input mappings, not a statement of which heat path a run uses.
         for ctrl in (self.therm_ja,self.therm_jb,self.therm_jc,self.therm_model_jb):
             ctrl.Enable(not self._busy)
         self.therm_board_r.Enable(vacuum and selected not in (1,2))
         self.therm_emissivity.Enable(selected in (0,1) and not self._busy)
-        for ctrl in (self.therm_air_board,self.therm_air_sink,self.therm_grid,self.therm_sink_area):
+        for ctrl in (self.therm_grid,self.therm_sink_area):
             ctrl.Enable(selected in (0,1) and not self._busy)
+        for ctrl in (self.therm_air_board,self.therm_air_sink):
+            ctrl.Enable(selected in (0,1) and environment==0 and not self._busy)
+        self.therm_explicit_h.Enable(environment in (2,4) and not self._busy)
+        self.therm_enclosure_c.Enable(environment==4 and not self._busy)
+        for ctrl in (self.therm_potting_k,self.therm_potting_thickness,self.therm_potting_outer_h):
+            ctrl.Enable(environment==3 and not self._busy)
         if hasattr(self,'therm_sink_button'):
             self.therm_sink_button.Enable(selected!=2 and not self._busy)
         self.therm_k.Enable(selected==0 and not self._busy)
@@ -568,6 +634,62 @@ class QuickThermFrame(wx.Frame):
             ctrl.Enable(selected==2 and not self._busy)
         for ctrl in (self.therm_ccx_browse,self.therm_ccx_check):
             ctrl.Enable(selected==2 and not self._busy)
+        self._update_thermal_timeline()
+
+    def _thermal_environment_changed(self,event=None):
+        self._invalidate_thermal(event)
+        self._therm_input_page.Layout();self._therm_input_page.FitInside()
+
+    def _transient_setup_changed(self,event=None):
+        enabled=self.therm_time_enabled.GetValue()
+        self.therm_transient_pane.Collapse(not enabled)
+        if enabled:
+            self.therm_model_enabled.SetValue(True)
+            self.therm_model_kind.SetSelection(1)
+            self.therm_grid.SetRange(24,80)
+            self.therm_model.Collapse(False)
+        self._invalidate_thermal(event)
+        self._therm_input_page.Layout();self._therm_input_page.FitInside()
+
+    def _edit_power_steps(self,event=None):
+        import wx.grid
+        from .thermal_playback import step_schedules
+        references=self.therm_inputs.selected_references()
+        if not references:
+            self.status.SetLabel('Include heat sources in Component inputs before editing power steps.');return
+        self.therm_inputs.commit_pending_edits()
+        dialog=wx.Dialog(self,title='Transient power steps',size=(660,420))
+        layout=wx.BoxSizer(wx.VERTICAL)
+        note=wx.StaticText(dialog,label='Multiplier × entered power. Leave switch time blank for constant power.\nFor several steps or ramps use Advanced schedules + sinks.')
+        layout.Add(note,0,wx.ALL,10)
+        grid=wx.grid.Grid(dialog);grid.CreateGrid(len(references),5)
+        for column,label in enumerate(('Part','Base W','Initial ×','Switch s','After ×')):grid.SetColLabelValue(column,label)
+        try:previous=json.loads(self.therm_power_schedule.GetValue())
+        except ValueError:previous={}
+        if not isinstance(previous,dict) or any(not isinstance(points,list) or not points or len(points)>2 or
+                any(not isinstance(point,list) or len(point)!=2 for point in points) for points in previous.values()):
+            dialog.Destroy();self.status.SetLabel('Existing multi-step profiles: edit Advanced schedules + sinks to retain every event.');return
+        values=self.therm_inputs.effective_values(include_limits=False)
+        for row,ref in enumerate(references):
+            points=previous.get(ref,[[0,1]])
+            cells=[ref,str(values.get(ref,{}).get('power_w','Unknown')),str(points[0][1]),
+                   str(points[1][0]) if len(points)==2 else '',str(points[1][1]) if len(points)==2 else '']
+            for column,value in enumerate(cells):grid.SetCellValue(row,column,value)
+            grid.SetReadOnly(row,0);grid.SetReadOnly(row,1)
+        grid.AutoSizeColumns();layout.Add(grid,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        error=wx.StaticText(dialog,label='');layout.Add(error,0,wx.EXPAND|wx.ALL,10)
+        layout.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,10)
+        def apply(event):
+            grid.SaveEditControlValue();grid.HideCellEditControl()
+            try:
+                schedules=step_schedules([(ref,grid.GetCellValue(row,2),grid.GetCellValue(row,3),grid.GetCellValue(row,4))
+                    for row,ref in enumerate(references)],float(self.therm_time_duration.GetValue()))
+            except ValueError as exc:error.SetLabel(str(exc));return
+            self.therm_power_schedule.ChangeValue(json.dumps(schedules))
+            self.therm_schedule_interpolation.SetSelection(1)
+            self._invalidate_thermal();dialog.EndModal(wx.ID_OK)
+        dialog.Bind(wx.EVT_BUTTON,apply,id=wx.ID_OK);dialog.SetSizer(layout)
+        dialog.ShowModal();dialog.Destroy()
 
     def on_calculix_browse(self,event=None):
         with wx.FileDialog(self,'Select CalculiX ccx executable',
@@ -589,8 +711,9 @@ class QuickThermFrame(wx.Frame):
         self.therm_ccx_status.SetLabel('Ready: '+Path(solver).name+' · Gmsh will be checked when the model runs.')
         chosen=self.therm_ccx_executable.GetValue().strip()
         if chosen:
-            self._solver_config.Write('calculix_executable',chosen)
-            self._solver_config.Flush()
+            with wx.LogNull():
+                saved=self._solver_config.Write('calculix_executable',chosen) and self._solver_config.Flush()
+            if not saved:self.therm_ccx_status.SetLabel(self.therm_ccx_status.GetLabel()+' · Preference could not be saved.')
         return True
 
 
@@ -657,6 +780,7 @@ class QuickThermFrame(wx.Frame):
         else:self._draw_thermal()
 
     def _therm_model_changed(self,event):
+        self.therm_grid.SetRange(24 if self.therm_model_kind.GetSelection()==1 else 12,80)
         self._therm_controls()
         self._invalidate_thermal(event)
         if self.therm_model_enabled.GetValue() and self.therm_model_kind.GetSelection()==2:
@@ -701,6 +825,8 @@ class QuickThermFrame(wx.Frame):
 
 
     def _invalidate_thermal(self,event=None):
+        self._stop_thermal_playback()
+        self._thermal_frame_cache=None
         if event and event.GetEventObject() in (self.therm_power,self.therm_ja,self.therm_jb,self.therm_jc,
                 self.therm_limit_min,self.therm_limit_max):
             self.therm_inputs.set_mappings(self._thermal_field_map(),self._temperature_field_map())
@@ -795,7 +921,7 @@ class QuickThermFrame(wx.Frame):
                 if environment=='potting':
                     settings.update(potting_k_w_mk=float(self.therm_potting_k.GetValue()),potting_thickness_mm=float(self.therm_potting_thickness.GetValue()),potting_outer_h_w_m2k=float(self.therm_potting_outer_h.GetValue()))
                 if self.therm_time_enabled.GetValue():
-                    request['transient_settings']={'duration_s':float(self.therm_time_duration.GetValue()),'timestep_s':float(self.therm_time_step.GetValue()),'initial_c':float(self.therm_time_initial.GetValue()),'copper_volumetric_capacity_j_m3k':float(self.therm_copper_capacity.GetValue()),'dielectric_volumetric_capacity_j_m3k':float(self.therm_dielectric_capacity.GetValue()),'power_schedules':json.loads(self.therm_power_schedule.GetValue()),'sink_capacity_j_k':json.loads(self.therm_sink_capacity.GetValue())}
+                    request['transient_settings']={'duration_s':float(self.therm_time_duration.GetValue()),'timestep_s':float(self.therm_time_step.GetValue()),'initial_c':float(self.therm_time_initial.GetValue()),'copper_volumetric_capacity_j_m3k':float(self.therm_copper_capacity.GetValue()),'dielectric_volumetric_capacity_j_m3k':float(self.therm_dielectric_capacity.GetValue()),'power_schedules':json.loads(self.therm_power_schedule.GetValue()),'sink_capacity_j_k':json.loads(self.therm_sink_capacity.GetValue()),'schedule_interpolation':('linear','step')[self.therm_schedule_interpolation.GetSelection()]}
                 if sinks:
                     settings['sink_exposed_area_mm2']=_parse_sink_areas(self.therm_sink_area.GetValue(),sinks)
                 if model_index==1:
@@ -824,6 +950,7 @@ class QuickThermFrame(wx.Frame):
                 if not manual and self.therm_jb.GetValue():request['thermal_network_component_field']=self.therm_jb.GetValue()
             except ValueError as exc:
                 self.therm_status.SetLabel('Enter numeric thermal material, plating, contact and airflow values: '+str(exc));return
+        self._stop_thermal_playback()
         self.thermal_bundle={};self.therm_table.DeleteAllItems();self._thermal_rows=[];self._thermal_selected=None
         self.therm_figure.clear();self.therm_canvas.draw_idle();self.therm_analytics.SetLabel('Analysis running…')
         self.therm_status.SetLabel('Reading saved board geometry and running the selected thermal model…')
@@ -835,6 +962,14 @@ class QuickThermFrame(wx.Frame):
         self.thermal_bundle=bundle;result=bundle['quick_therm']
         self._populate_thermal_probes()
         network=bundle.get('thermal_network') or {}
+        self._stop_thermal_playback()
+        self._thermal_frame_cache=None
+        frames=(network.get('transient') or {}).get('frames',[])
+        self.therm_result_time.Set(['Steady state']+[f"{frame['time_s']:.3g} s" for frame in frames])
+        self.therm_result_time.SetSelection(1 if frames else 0)
+        from .thermal_playback import transient_temperature_limits
+        self._thermal_time_limits=transient_temperature_limits(network.get('transient') or {})
+        self._update_thermal_timeline()
         original_mode=self.therm_mode.GetStringSelection()
         modes=['Top-side map','Bottom-side map','Top-side contour','Bottom-side contour',
                'Top board model','Bottom board model','3D overview','Temperature chart']
@@ -891,6 +1026,7 @@ class QuickThermFrame(wx.Frame):
         self._therm_input_page.Layout();self._therm_input_page.FitInside()
         self.therm_inspector.GetPage(0).Layout();self.therm_inspector.GetPage(0).FitInside()
         self._buttons()
+        if frames:self._thermal_time_changed()
 
 
     def _populate_thermal_table(self):
@@ -929,11 +1065,69 @@ class QuickThermFrame(wx.Frame):
             if colour:self.therm_table.SetItemTextColour(index,colour)
 
 
-    def _thermal_time_changed(self):
+    def _thermal_frames(self):
+        return ((self.thermal_bundle.get('thermal_network') or {}).get('transient') or {}).get('frames',[])
+
+    def _update_thermal_timeline(self):
+        if not hasattr(self,'therm_play'):return
+        frames=self._thermal_frames();enabled=bool(frames) and not self._busy
+        for ctrl in (self.therm_play,self.therm_time_slider,self.therm_play_speed):ctrl.Enable(enabled)
+        self.therm_result_time.Enable(bool(self.thermal_bundle) and not self._busy)
+        self.therm_time_slider.SetRange(0,max(1,len(frames)-1))
+        index=self.therm_result_time.GetSelection()-1
+        if frames:
+            self.therm_time_slider.SetValue(max(0,index))
+            self.therm_time_label.SetLabel(('Steady state' if index<0 else f"{frames[index]['time_s']:.3g} s")+f" / {frames[-1]['time_s']:.3g} s")
+        else:self.therm_time_label.SetLabel('Run a transient study')
+
+    def _stop_thermal_playback(self):
+        self._thermal_timer.Stop();self._thermal_playing=False
+        if hasattr(self,'therm_play'):self.therm_play.SetLabel('▶ Play')
+
+    def _toggle_thermal_playback(self,event=None):
+        if self._thermal_playing:
+            self._stop_thermal_playback();return
+        frames=self._thermal_frames()
+        if not frames or self._busy:return
+        index=self.therm_result_time.GetSelection()-1
+        if index<0 or index==len(frames)-1:
+            index=0;self.therm_result_time.SetSelection(1);self._thermal_time_changed(stop=False)
+        self._thermal_play_start=time.monotonic()
+        self._thermal_play_time=frames[index]['time_s']
+        self._thermal_playing=True;self.therm_play.SetLabel('Ⅱ Pause');self._thermal_timer.Start(100)
+
+    def _thermal_speed_changed(self,event=None):
+        if self._thermal_playing:
+            self._stop_thermal_playback();self._toggle_thermal_playback()
+
+    def _thermal_tick(self,event=None):
+        if self._closed or not self._thermal_playing:return
+        from .thermal_playback import frame_at_time
+        frames=self._thermal_frames()
+        if not frames:self._stop_thermal_playback();return
+        simulated=self._thermal_play_time+(time.monotonic()-self._thermal_play_start)*(1,5,20)[self.therm_play_speed.GetSelection()]
+        index=frame_at_time(frames,simulated)
+        if self.therm_result_time.GetSelection()!=index+1:
+            self.therm_result_time.SetSelection(index+1);self._thermal_time_changed(stop=False)
+        if simulated>=frames[-1]['time_s']:self._stop_thermal_playback()
+
+    def _scrub_thermal_time(self,event=None):
+        self.therm_result_time.SetSelection(self.therm_time_slider.GetValue()+1)
+        self._thermal_time_changed()
+
+    def _thermal_time_changed(self,stop=True):
+        if stop:self._stop_thermal_playback()
         from .thermal_review import sample_probes
         self.thermal_bundle['probes']=sample_probes(self._display_view(),self._display_network(),self.therm_probe_definitions)
-        self._populate_thermal_probes();self._draw_thermal();self._populate_thermal_table()
-        self.therm_analytics.SetLabel('Selected time: board field and massless junction offsets; package thermal storage is not modeled.' if self.therm_result_time.GetSelection()>0 else 'Steady-state result selected.')
+        self._populate_thermal_probes();self._draw_thermal(preserve_camera=True);self._populate_thermal_table()
+        for index,(item,result) in enumerate(self._thermal_rows):
+            if item['id']==self._thermal_selected:
+                self.therm_table.Select(index)
+                self._thermal_selection_text(item,result)
+                break
+        self._update_thermal_timeline()
+        self.therm_analytics.SetLabel('Selected time: computed board temperatures. Fixed scale across the study; package thermal storage is not modeled.' if self.therm_result_time.GetSelection()>0 else 'Steady-state result selected.')
+        _wrap_text(self.therm_analytics,self.therm_analytics.GetLabel())
 
     def _display_view(self,network=None):
         from .thermal_review import frame_view
@@ -959,7 +1153,7 @@ class QuickThermFrame(wx.Frame):
         self._draw_thermal()
         if event:event.Skip()
 
-    def _draw_thermal(self):
+    def _draw_thermal(self,preserve_camera=False):
         if not self.thermal_bundle:return
         from .thermal_plot import draw_thermal_view, field_available
         network=self._display_network();mode=self.therm_mode.GetStringSelection()
@@ -980,10 +1174,20 @@ class QuickThermFrame(wx.Frame):
                 'Thin-sheet fields lie at the board midplane; junction interpolation is not a solved surface field.')
         _wrap_text(self.therm_view_note,self.therm_view_note.GetLabel())
         self.therm_view_note.GetParent().Layout();self.therm_view_note.GetParent().FitInside()
-        draw_thermal_view(self.therm_figure,view,
+        camera=None
+        if preserve_camera and self.therm_figure.axes:
+            old=self.therm_figure.axes[0]
+            camera=(old.get_xlim(),old.get_ylim(),old.get_zlim3d() if hasattr(old,'get_zlim3d') else None,
+                    getattr(old,'elev',None),getattr(old,'azim',None))
+        axes=draw_thermal_view(self.therm_figure,view,
                           mode,self._thermal_selected,
                           self._display_network(),self.therm_azim.GetValue(),self.therm_elev.GetValue(),
-                          probes=self.thermal_bundle.get('probes',[]),viewport=True)
+                          probes=self.thermal_bundle.get('probes',[]),viewport=True,
+                          temperature_limits_c=getattr(self,'_thermal_time_limits',None) if self.therm_result_time.GetSelection()>0 else None)
+        if camera:
+            axes.set_xlim(camera[0]);axes.set_ylim(camera[1])
+            if camera[2] is not None and hasattr(axes,'get_zlim3d'):
+                axes.set_zlim(camera[2]);axes.view_init(elev=camera[3],azim=camera[4])
         self.therm_canvas.draw_idle()
 
     def _populate_thermal_probes(self):
@@ -1222,20 +1426,26 @@ class QuickThermFrame(wx.Frame):
         self._populate_thermal_table()
 
 
+    def _thermal_selection_text(self,item,result):
+        if self.therm_result_time.GetSelection()>0:
+            result=next((row for row in (self._display_network() or {}).get('components',[])
+                         if row['reference']==item['reference']),None)
+        details=[item['reference'],f"{item.get('side','unknown')} · {item.get('value','')}"]
+        if result:
+            details.extend([f"Power {result.get('power_w','unknown')} W",
+                f"Junction {result['junction_c']:.5g} °C" if result.get('junction_c') is not None else 'Junction unknown',
+                f"Heat path: {result.get('heat_path','unknown')}"])
+        if item['reference'] in self.therm_inputs.model.components:
+            cell=self.therm_inputs.model.cell(item['reference'],'theta_jb_k_per_w')
+            details.append('RθJB '+(f'{cell.value:g} K/W' if cell.value is not None else 'unknown'))
+        _wrap_text(self.therm_selection_detail,'\n'.join(details))
+        self.therm_selection_detail.GetParent().Layout();self.therm_selection_detail.GetParent().FitInside()
+
     def _thermal_choose(self,identifier,from_editor=False):
         for index,(item,result) in enumerate(self._thermal_rows):
             if item['id']==identifier:
                 self._thermal_selected=identifier
-                details=[item['reference'],f"{item.get('side','unknown')} · {item.get('value','')}"]
-                if result:
-                    details.extend([f"Power {result.get('power_w','unknown')} W",
-                        f"Junction {result['junction_c']} °C" if result.get('junction_c') is not None else 'Junction unknown',
-                        f"Heat path: {result.get('heat_path','unknown')}"])
-                if item['reference'] in self.therm_inputs.model.components:
-                    cell=self.therm_inputs.model.cell(item['reference'],'theta_jb_k_per_w')
-                    details.append('RθJB '+(f'{cell.value:g} K/W' if cell.value is not None else 'unknown'))
-                _wrap_text(self.therm_selection_detail,'\n'.join(details))
-                self.therm_selection_detail.GetParent().Layout();self.therm_selection_detail.GetParent().FitInside()
+                self._thermal_selection_text(item,result)
                 self.therm_table.Select(index);self.therm_table.EnsureVisible(index);self._draw_thermal()
                 if not from_editor:self._task(lambda:self._select_thermal_in_editor(identifier),
                     lambda answer:self.therm_status.SetLabel('Selected '+item['reference']+' in PCB Editor; focus '+answer['focus']+'.'))

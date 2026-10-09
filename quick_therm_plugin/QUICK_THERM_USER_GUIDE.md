@@ -7,6 +7,10 @@ The base component calculation is a lumped thermal screen. Optional board
 models add either a thin-sheet field or a layer-resolved stackup/copper field.
 Neither is CFD or a qualified measurement. The multilayer model also supports explicitly parameterized spatial transients.
 
+![Native vacuum transient heating with time controls](examples/quicktherm-transient-workspace.png)
+
+*Standalone PCM on Windows/KiCad 10.0.6, using the public demo and an assumed 35 µm / 1.53 mm / 35 µm stackup. Illustrative copper/dielectric capacities are 3.45 / 1.8 MJ/(m³·K); emissivity is 0.8, initial/ambient temperature 20 °C and C2 switches off at 4 s. The displayed field is a computed thermal screen, not measured temperatures or an imported component-solid assembly.*
+
 The optional **CalculiX 3D · fixed lower face** mode is a separate bounded
 steady-conduction model. It accepts selected top-side heat sources with known
 power even when RθJA/RθJB is unavailable. In the board-model controls, choose
@@ -492,4 +496,12 @@ The offline HTML report opens with an interactive full-board viewport. **Top** a
 
 ## Interactive and spatial transient workflow
 
-The [QuickTherm README](README.md#interactive-views-and-time-evolution) documents the current orbit/pan/zoom, probes, time-frame controls and explicit air/vacuum/forced-air/potting/sealed inputs. The multilayer transient uses entered material heat capacities and scheduled dissipation; it remains separate from the four-board lumped RC command. Missing package resistance leaves junction temperatures unknown. Check time-step and mesh refinement independently.
+Enable **Transient · watch board heating** in **Board + results**. The layered board model is selected and **Transient setup** opens. Review the saved stackup, material conductivity, via plating, emissivity and boundary settings. Enter duration, maximum time step, initial temperature and material heat capacities; the capacity defaults are assumptions to review.
+
+Use **Power steps…** for each included component's initial multiplier, optional switch time and final multiplier. Multiplier `1` uses its entered power, `0` turns it off. Leave the switch time blank for constant power. For several events, use **Advanced schedules + sinks** with a JSON map of references to `[time_s, multiplier]` lists. Choose **Power steps** or **Linear ramps** explicitly. Schedule events split the integration, so a short declared pulse retains its input energy. Virtual sinks need separate explicit J/K capacities.
+
+Choose **Air** for declared convection and radiation to ambient; **Forced air** accepts an effective convection coefficient. **Vacuum** disables convection and retains radiation and fixture conduction. A vacuum board study needs a nonzero emissivity or a fixture heat path because the workflow also solves the steady boundary problem. Airflow fields, residual gas and chamber view factors are not solved.
+
+Run, then use **Play/Pause**, the time slider and speed selector to watch computed heating/cooling in top, bottom or **3D**. The scale remains fixed across all frames. Camera position, probes, component power, junction estimates and limit checks follow the selected computed time; no extra solution frames are interpolated. **Steady state** selects the separate final boundary solution. The offline HTML report has the same playback controls and retains the source inputs and provenance.
+
+The [QuickTherm README](README.md#interactive-views-and-time-evolution) describes the full input contract. The spatial transient remains separate from the four-board lumped RC command. Missing package resistance leaves junction temperatures unknown; junction offsets have no die heat capacity. Check time-step and mesh refinement independently.

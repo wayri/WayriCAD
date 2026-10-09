@@ -197,7 +197,13 @@ def execute(request):
         result = analyze_manual_board(board, request.get("manual_values"), **options)
     else:
         result = analyze_board(board, request["field_map"], **options)
+    if request.get('input_mode') == 'manual':
+        import copy
+        result['manual_values'] = copy.deepcopy(request.get('manual_values', {}))
+        result.setdefault('input_source', 'Explicit QuickTherm component inputs')
     if request.get("component_input_sources"):
+        import copy
+        result['component_input_sources'] = copy.deepcopy(request['component_input_sources'])
         result["input_source"] = "scanned footprint fields with explicit QuickTherm overrides"
         for row in result["components"]:
             sources = request["component_input_sources"].get(row["reference"], {})
