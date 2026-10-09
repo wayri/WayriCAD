@@ -109,6 +109,44 @@ class RailStateTests(unittest.TestCase):
         with self.assertRaisesRegex(TransientError,'different load identities'):
             RailStateStepper(other).advance(state,.001)
 
+    def test_ideal_parallel_projection_does_not_amplify_roundoff_into_magnetic_state(self):
+        from quick_pi_plugin import transient
+        original_solve = transient._solve
+        for count in (2,3):
+            for source_r in (.002,.2,2.):
+                for sign in (-1,1):
+                    with self.subTest(count=count,source_r=source_r,sign=sign):
+                        value=rail_request(request(source_resistance_ohm=source_r,
+                                                   source_inductance_H=.0001))
+                        base=value['loads'][0]
+                        value['loads']=[dict(base,id=str(index),initial_current_A=current,
+                            capacitance_F=cap,path_resistance_ohm=0.,path_inductance_H=0.,esr_ohm=0.)
+                            for index,(current,cap) in enumerate(zip((.2,.7,.3),(.001,.003,.002)))][:count]
+                        cold=RailStateStepper(value); state=cold.initial_state()
+                        # Changing resistance must retain the shared inductor's
+                        # current and each capacitor's voltage at the boundary.
+                        active=RailStateStepper(value,{'source':source_r*2})
+                        demand=[1.]+[0.]*(count-1)
+                        def rounded_solve(np,cho_solve,factor,right):
+                            if factor is active.model['projection']:
+                                # A few ulps of projected-voltage error model
+                                # different BLAS reduction orders in an exact
+                                # zero-R/L contrast. This is not physical forcing.
+                                right=right+sign*8*np.finfo(float).eps*value['source_voltage_V']
+                            return original_solve(np,cho_solve,factor,right)
+                        with patch.object(transient,'_solve',rounded_solve):
+                            projected=active.project_state(state,demand)
+                            repeated=active.project_state(projected,demand)
+                        total=math.fsum(state['current_A'])
+                        capacitances=np.array([row['capacitance_F'] for row in value['loads']])
+                        expected=np.array(demand)+capacitances/capacitances.sum()*(total-sum(demand))
+                        for result in (projected,repeated):
+                            self.assertEqual(result['capacitor_voltage_V'],state['capacitor_voltage_V'])
+                            np.testing.assert_allclose(result['current_A'],expected,rtol=1e-13,atol=1e-14)
+                            self.assertAlmostEqual(math.fsum(result['current_A']),total,delta=1e-14)
+                            magnetic=.5*value['source_inductance_H']*math.fsum(result['current_A'])**2
+                            self.assertAlmostEqual(magnetic,.5*value['source_inductance_H']*total**2,delta=1e-18)
+
 
 class ElectrothermalTests(unittest.TestCase):
     def assert_balanced(self,result):
@@ -116,7 +154,8 @@ class ElectrothermalTests(unittest.TestCase):
         self.assertTrue(result['checks']['coupling_converged'])
         for name in ('baseline','coupled'):
             checks=result[name]['checks']
-            self.assertEqual(checks['balance_status'],'PASSED')
+            self.assertEqual(checks['balance_status'],'PASSED',
+                {key:value for key,value in checks.items() if key != 'exchange_history'})
             self.assertLess(checks['electrical']['energy_relative_error'],1e-10)
             self.assertLess(checks['thermal']['relative_residual'],1e-10)
             self.assertLess(checks['combined_energy_relative_error'],1e-10)

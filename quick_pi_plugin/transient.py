@@ -189,7 +189,13 @@ def _model(parameters, np, cho_factor, cho_solve):
         reduced = null_l.T @ resistance @ null_l
         if null_both.shape[1]:
             coordinates = null_l.T @ null_both
-            weight = max(float(np.max(np.diag(reduced))), 1e-30)
+            # This term only fixes the ideal zero-R/L current-split gauge; it
+            # is not a physical resistor. Scale it by the unreduced physical
+            # resistance. The reduced matrix can be identically zero, so its
+            # roundoff (or a tiny absolute floor) would amplify projected RHS
+            # roundoff and destroy stored magnetic current before the charge
+            # constraint below removes the arbitrary current split.
+            weight = float(np.max(np.diag(resistance)))
             reduced = reduced + weight * coordinates @ coordinates.T
             charge_projection = _factor(np, cho_factor,
                                         null_both.T @ (inverse_c[:, None] * null_both))

@@ -22,6 +22,9 @@ budgets and per-sink voltage requirements to its 2.5D DC workflow. Current-budge
 failure reports infeasibility; it does not simulate a regulator's current-limit
 control loop. Existing single-load, current sweep and optional 3D workflows stay
 available. The explicit R/L/C transient study models load steps and decoupling.
+Shared-edge mesh subdivision avoids false electrical disconnections. Ideal
+parallel-capacitor constraints retain stored inductor current across load and
+resistance changes without amplifying numerical roundoff.
 Steady electrothermal coupling transfers conductor loss to a thermal model and
 feeds temperature-dependent copper resistance back into PI; lumped transient
 coupling exchanges resistor dissipation with declared thermal RC nodes. See the
@@ -67,6 +70,11 @@ system.
 After the drilled-void review finding was fixed, the affected coupling,
 workflow and native UI checks passed 40 tests and 40 subtests with a clean
 process exit. The rejection preserves the original study input.
+
+Transient regression checks passed 36 tests each on native Windows, portable
+Windows and Linux scientific runtimes. A deterministic analytical projection
+check reproduced the previous failure in 12 roundoff cases and passed all 12
+after the fix. Conservation and thermal acceptance thresholds were unchanged.
 
 The new steady electrothermal path uses the shared uniform-grid kernel and
 circular plated barrels. It rejects unplated drilled holes, plated slots and backdrills; those newer
