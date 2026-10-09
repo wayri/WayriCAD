@@ -11,7 +11,7 @@ import re
 from typing import Mapping
 
 
-_QUANTITY = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*([^\d\s]*)\s*$")
+_QUANTITY = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*([^\d]*)\s*$")
 _UNITS = {
     "power_w": {"": 1.0, "W": 1.0, "mW": 1e-3, "uW": 1e-6, "µW": 1e-6},
     "theta_ja_air_k_per_w": {"": 1.0, "K/W": 1.0, "°C/W": 1.0, "C/W": 1.0},
@@ -19,6 +19,26 @@ _UNITS = {
     "theta_jc_k_per_w": {"": 1.0, "K/W": 1.0, "°C/W": 1.0, "C/W": 1.0},
 }
 _SINK_SHAPES = frozenset(("straight_fin", "pin_fin", "radial_fin", "plate", "resistance_only"))
+_FIELD_ALIASES = {
+    "power_w": {"powerw", "power", "dissipation", "dissipationw", "powerdissipation", "powerdissipationw"},
+    "theta_ja_air_k_per_w": {"rthetaja", "thetaja", "rja", "rthetajakperw", "thetajakperw"},
+    "theta_jb_k_per_w": {"rthetajb", "thetajb", "rjb", "rthetajbkperw", "thetajbkperw"},
+    "theta_jc_k_per_w": {"rthetajc", "thetajc", "rjc", "rthetajckperw", "thetajckperw"},
+}
+
+
+def restored_field_mapping(field_names, previous=None):
+    """Keep explicit mappings and suggest only one unambiguous saved alias."""
+    names = list(dict.fromkeys(str(name) for name in field_names))
+    previous = previous or {}
+    result = {}
+    for quantity, aliases in _FIELD_ALIASES.items():
+        if previous.get(quantity) in names:
+            result[quantity] = previous[quantity]
+            continue
+        candidates = [name for name in names if re.sub(r"[\s_()\-/]", "", name.casefold().replace("θ", "theta")) in aliases]
+        result[quantity] = candidates[0] if len(candidates) == 1 else ""
+    return result
 
 
 def _finite(value, label, *, positive=False):
@@ -37,9 +57,11 @@ def parse_field_quantity(value, quantity):
     if quantity not in _UNITS:
         raise ValueError(f"Unsupported QuickTherm quantity: {quantity}")
     match = _QUANTITY.fullmatch(str(value))
-    if match is None or match.group(2) not in _UNITS[quantity]:
-        raise ValueError(f"Expected {quantity} in W/mW or K/W/°C/W units.")
-    return _finite(float(match.group(1)) * _UNITS[quantity][match.group(2)], quantity,
+    unit = re.sub(r"\s", "", match.group(2)).replace("μ", "µ") if match else None
+    if match is None or unit not in _UNITS[quantity]:
+        units = "W, mW or µW" if quantity == "power_w" else "K/W or °C/W"
+        raise ValueError(f"Expected {quantity} as a number in {units}; received {str(value)!r}.")
+    return _finite(float(match.group(1)) * _UNITS[quantity][unit], quantity,
                    positive=quantity != "power_w")
 
 

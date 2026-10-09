@@ -48,7 +48,11 @@ def main(argv=None):
                     print('WAYRICAD_PROGRESS '+json.dumps({"stage":"report rendering",
                         "completed":0,"total":1,"percent":0,"elapsed_s":0,"eta_s":None}),
                         flush=True)
-                importlib.import_module(".report", name).write_report(payload["html_output"], result)
+                if payload.get('action') == 'transient':
+                    from wayricad_runtime.transient_study import write_study_report
+                    write_study_report(payload['html_output'], result)
+                else:
+                    importlib.import_module(".report", name).write_report(payload["html_output"], result)
                 if payload.get("_emit_progress"):
                     print('WAYRICAD_PROGRESS '+json.dumps({"stage":"report rendering",
                         "completed":1,"total":1,"percent":100,

@@ -5,8 +5,21 @@
   "description_full": "Read-only steady-state thermal screening using declared component dissipation and thermal resistance, optional copper-layer and vertical-path models, virtual heatsinks, mounting boundaries, top/bottom/3D previews, cross-selection and local HTML/JSON evidence. An optional Gmsh/CalculiX mode solves bounded 3D board conduction with a fixed lower-face temperature and power-only heat sources; junction estimates require separate RthetaJB. KiCad 10 native Python with NumPy, SciPy and Matplotlib is required. This is not CFD or coupled electrothermal simulation.",
   "identifier": "com.github.wayri.wayricad.quick-therm",
   "type": "plugin",
-  "author": {"name": "Wayri (Yawar)", "contact": {}},
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {}
+  },
   "license": "GPL-3.0-only",
-  "versions": [{"version": "3.6.11", "status": "testing", "kicad_version": "10.0", "runtime": "ipc"}],
-  "resources": {"homepage": "https://github.com/wayri/WayriCAD", "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/quick_therm_plugin/icon.png"}
+  "versions": [
+    {
+      "version": "3.6.12",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ],
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/quick_therm_plugin/icon.png"
+  }
 }

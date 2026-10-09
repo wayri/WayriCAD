@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from bomstudio.server import Application, Server
 from bomstudio.bridge import _check_sdk_version, BridgeUnavailable
@@ -97,6 +98,49 @@ class LaunchHTTPTests(unittest.TestCase):
             server.server_close()
             import shutil
             shutil.rmtree(app.demo_directory)
+
+
+class ColdStartHTTPTests(unittest.TestCase):
+    def test_page_asset_burst_survives_before_accept_loop_is_scheduled(self):
+        # Model a renderer's simultaneous cold requests while the main thread
+        # finishes native-window setup. Every connection must reach the local
+        # server; dropping a single script leaves whole views unregistered.
+        root = Path(__file__).resolve().parents[1]
+        paths = re.findall(r'(?:src|href)="(/[^"]+)"',
+                           (root / 'web' / 'index.html').read_text(encoding='utf-8'))
+        app = Application()
+        server = Server(app)
+        connected = threading.Barrier(len(paths) + 1)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+
+        def load(path):
+            conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=10)
+            try:
+                conn.connect()
+                connected.wait(timeout=5)
+                conn.request('GET', path)
+                response = conn.getresponse()
+                return path, response.status, response.read()
+            finally:
+                conn.close()
+
+        try:
+            with ThreadPoolExecutor(max_workers=len(paths)) as pool:
+                requests = [pool.submit(load, path) for path in paths]
+                try:
+                    connected.wait(timeout=5)
+                finally:
+                    worker.start()
+                for request in requests:
+                    path, status, body = request.result(timeout=15)
+                    with self.subTest(path=path):
+                        self.assertEqual(status, 200)
+                        self.assertTrue(body)
+        finally:
+            if worker.is_alive():
+                server.shutdown()
+                worker.join(5)
+            server.server_close()
 
 
 class SDKRangeTests(unittest.TestCase):

@@ -50,6 +50,10 @@ class VisualWorkspace:
             raise RuntimeError('This WebView does not support native messaging.')
         self.back = wx.Button(frame, label='← Back to visual workspace')
         self.back.Bind(wx.EVT_BUTTON, lambda event: self.show())
+        self.recover = wx.Button(frame, label='Open native worksheet · recover workspace')
+        self.recover.SetToolTip('Use the complete native editor if the visual workspace stops responding. Staged changes stay in this window.')
+        self.recover.Bind(wx.EVT_BUTTON, lambda event: self.native('workbench'))
+        frame.GetSizer().Insert(0, self.recover, 0, wx.ALL, 6)
         frame.GetSizer().Insert(0, self.back, 0, wx.ALL, 10)
         frame.GetSizer().Add(self.view, 1, wx.EXPAND)
         self.view.Bind(wx.html2.EVT_WEBVIEW_NAVIGATING, self.navigate)
@@ -61,6 +65,7 @@ class VisualWorkspace:
         # browser runtime must never leave the plugin showing a blank pane.
         self.view.Hide()
         self.back.Hide()
+        self.recover.Hide()
         self.view.LoadURL(self.url)
         self.startup_timer = wx.CallLater(10000, self.check_connection)
         frame.Bind(wx.EVT_WINDOW_DESTROY, self._destroyed)
@@ -107,6 +112,7 @@ class VisualWorkspace:
             self.native('workbench'); self.back.Hide(); return
         f = self.frame
         f.collect(); f.GetSizer().ShowItems(False); self.view.Show()
+        self.recover.Show()
         if f.GetMenuBar() is not None: f.SetMenuBar(None)
         f.GetStatusBar().Hide(); f.Layout()
         if self.ready: self.view.RunScriptAsync('setTimeout(() => window.studio.refresh(), 0); void 0;')
@@ -115,7 +121,7 @@ class VisualWorkspace:
         if page not in PAGES: raise ValueError('Unknown specialist workspace')
         f = self.frame
         f.collect(); f.GetSizer().ShowItems(True)
-        self.view.Hide(); self.back.Show(); f.GetStatusBar().Show()
+        self.view.Hide(); self.recover.Hide(); self.back.Show(); f.GetStatusBar().Show()
         if f.GetMenuBar() is None: f.SetMenuBar(self.native_menu)
         f.select_page(getattr(f, page)); f.Layout()
 
@@ -135,9 +141,12 @@ class VisualWorkspace:
     def dispatch(self, method, args):
         f = self.frame; f.collect()
         if method == 'snapshot':
+            state = self.state()
+            first_connection = not self.connected
             self.connected = True
-            wx.CallAfter(self.show)
-            return self.state()
+            if first_connection:
+                wx.CallAfter(self.show)
+            return state
         if method == 'reload_saved':
             if not f.w.board_path: raise ValueError('Open a saved board before reloading its layout.')
             if f.w.dirty:

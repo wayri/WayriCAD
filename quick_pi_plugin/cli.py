@@ -1,15 +1,46 @@
 """Quick PI CLI. Analyze saved files; never mutate PCB copper."""
 import argparse
 import json
+import math
+import sys
 from pathlib import Path
+
+
+def _loads(loads, limits):
+    """Parse explicit constant-current loads without silently discarding limits."""
+    rows=[];by_terminal={}
+    for terminal,current in loads or []:
+        value=float(current)
+        if not math.isfinite(value) or value<=0:raise ValueError('Load current must be finite and positive.')
+        if terminal in by_terminal:raise ValueError('Duplicate load terminal: '+terminal)
+        row={'terminal':terminal,'current_A':value};rows.append(row);by_terminal[terminal]=row
+    bounded=set()
+    for terminal,minimum,maximum in limits or []:
+        if terminal not in by_terminal:raise ValueError('Voltage limits require a matching --load: '+terminal)
+        if terminal in bounded:raise ValueError('Duplicate load voltage limits: '+terminal)
+        bounded.add(terminal);row=by_terminal[terminal]
+        for key,text in [('min_voltage_V',minimum),('max_voltage_V',maximum)]:
+            if text=='-':continue
+            value=float(text)
+            if not math.isfinite(value) or value<0:raise ValueError('Load voltage limits must be finite and nonnegative.')
+            row[key]=value
+        if row.get('max_voltage_V',math.inf)<row.get('min_voltage_V',0):raise ValueError('Maximum load voltage must be at least the minimum.')
+    return rows
 
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('board',type=Path,nargs='?')
+    parser.add_argument('--transient',type=Path,help='Explicit R/L/C load-step JSON; optional board supplies saved-file provenance. Returns 4 for limit violations.')
+    parser.add_argument('--electrothermal',type=Path,help='Explicit steady/transient electrothermal study JSON. Returns 3 for nonconvergence, 4 for operating-limit violations.')
     parser.add_argument('--verify',action='store_true',help='Run analytical/reference benchmarks in the prepared PI runtime; no board required.')
     parser.add_argument('--net');parser.add_argument('--source');parser.add_argument('--sink')
-    parser.add_argument('--voltage',type=float,default=1.);parser.add_argument('--current',type=float,default=1.)
+    parser.add_argument('--voltage',type=float,default=1.);parser.add_argument('--current',type=float)
+    parser.add_argument('--load',nargs=2,action='append',metavar=('PAD','CURRENT_A'),help='Repeat for each constant-current sink; cannot combine with --sink, --current or --command.')
+    parser.add_argument('--load-voltage-limits',nargs=3,action='append',metavar=('PAD','MIN_V','MAX_V'),help='Limits for a matching --load; use - for either omitted bound.')
+    parser.add_argument('--sink-min-voltage',type=float,help='Minimum voltage for a legacy single sink or --command path; default 0 V.')
+    parser.add_argument('--sink-max-voltage',type=float,help='Maximum voltage for a legacy single sink or --command path; omitted means unbounded.')
+    parser.add_argument('--source-current-limit',type=float,help='Nonnegative source current budget in amperes; omitted means unlimited. Infeasible results return 4.')
     parser.add_argument('--load-ohms',type=float,help='Solve DC current from source voltage and a resistive load to 0 V.')
     parser.add_argument('--sweep',nargs=3,metavar=('START_A','STOP_A','POINTS'),help='Sweep prescribed DC currents (2–200 points).')
     parser.add_argument('--return-path',action='store_true',help='Screen saved signal tracks against explicitly selected return nets.')
@@ -30,9 +61,25 @@ def main(argv=None):
     parser.add_argument('--convergence-tolerance-percent',type=float,default=1.,help='Maximum change in each of the final two refinements; default 1%%. Does not certify local peaks.')
     parser.add_argument('--command',help='Console command, including a series-component path; quote the entire command.')
     args=parser.parse_args(argv)
+    if args.electrothermal:
+        try:
+            from .electrothermal_cli import main as electrothermal_cli
+            from .service import run_job
+            options={word.split('=')[0] for word in (argv if argv is not None else sys.argv[1:]) if word.startswith('--')}
+            return electrothermal_cli(args,run_job,forbidden=bool(options-{'--electrothermal','--output','--html','--timeout'}))
+        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            print(json.dumps({'error':str(exc)}));return 2
+    if args.transient:
+        try:
+            from wayricad_runtime.transient_study import transient_cli
+            from .service import run_job
+            options={word.split('=')[0] for word in (argv if argv is not None else sys.argv[1:]) if word.startswith('--')}
+            return transient_cli(args,run_job,forbidden=bool(options-{'--transient','--output','--html','--timeout'}))
+        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            print(json.dumps({'error':str(exc)}));return 2
     if args.verify:
         try:
-            if args.board or args.html or args.net or args.source or args.sink or args.command or args.converge_levels or args.mesh_only or args.load_ohms or args.sweep or args.return_path:raise ValueError('--verify uses no board, path, convergence or HTML options. Use --output for JSON.')
+            if args.board or args.html or args.net or args.source or args.sink or args.command or args.converge_levels or args.mesh_only or args.load_ohms is not None or args.sweep or args.return_path or args.load or args.load_voltage_limits or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None:raise ValueError('--verify uses no board, load, path, convergence or HTML options. Use --output for JSON.')
             if args.output and args.output.suffix.lower()!='.json':raise ValueError('Benchmark output must be a .json report.')
             from .service import run_job
             report=run_job({'action':'verify'},timeout=args.timeout)
@@ -45,18 +92,34 @@ def main(argv=None):
     if not args.board:parser.error('Supply a saved board or use --verify for reference benchmarks.')
     request={'action':'inspect' if not args.net else ('mesh' if args.mesh_only else 'solve'),
         'board_path':str(args.board.resolve()),'net':args.net,'source_terminal':args.source,'sink_terminal':args.sink,
-        'source_voltage':args.voltage,'sink_current':args.current,'edge_mm':args.mesh_edge,'plating_mm':args.plating,
+        'source_voltage':args.voltage,'sink_current':1. if args.current is None else args.current,'edge_mm':args.mesh_edge,'plating_mm':args.plating,
         'mesh_backend':args.mesh_backend,
         'model_dimension':args.model_dimension,'max_tetrahedra':args.max_tetrahedra,
         'options':{'temperature_c':args.temperature,'ambient_c':args.ambient,'temperature_limit_c':args.temperature_limit}}
     if args.model_dimension=='3d':request['options']={'temperature_c':args.temperature}
     if args.pulse is not None:request['options']['pulse_duration_s']=args.pulse
     try:
-        if args.model_dimension=='3d' and (args.html or args.command or args.load_ohms is not None or args.sweep or args.converge_levels or args.return_path or args.pulse is not None or args.mesh_backend=='vtk'):
+        if args.model_dimension=='3d' and (args.html or args.command or args.load or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None or args.load_ohms is not None or args.sweep or args.converge_levels or args.return_path or args.pulse is not None or args.mesh_backend=='vtk'):
             raise ValueError('Full 3D supports a selected net with prescribed current and JSON output; HTML, series commands, load/sweep, pulse screening, return-path and VTK modes remain 2.5D.')
         if sum(bool(value) for value in (args.return_path,args.load_ohms is not None,args.sweep))>1:
             raise ValueError('Choose one of return-path, load-resistance or current-sweep mode.')
         if args.load_ohms is not None and args.sweep:raise ValueError('Choose either --load-ohms or --sweep.')
+        if args.load and (args.sink or args.current is not None or args.command or args.load_ohms is not None or args.sweep or args.return_path):
+            raise ValueError('--load cannot combine with --sink, --current or --command. Multisink series paths are not supported.')
+        loads=_loads(args.load,args.load_voltage_limits)
+        if loads:
+            if not args.net:raise ValueError('--load requires --net and --source.')
+            request.pop('sink_terminal',None);request.pop('sink_current',None);request['sinks']=loads
+        if args.sink_min_voltage is not None or args.sink_max_voltage is not None:
+            if loads:raise ValueError('Use --load-voltage-limits with --load, not legacy --sink-min-voltage/--sink-max-voltage.')
+            for value,key in [(args.sink_min_voltage,'sink_min_voltage'),(args.sink_max_voltage,'sink_max_voltage')]:
+                if value is None:continue
+                if not math.isfinite(value) or value<0:raise ValueError('Sink voltage limits must be finite and nonnegative.')
+                request[key]=value
+            if request.get('sink_max_voltage',math.inf)<request.get('sink_min_voltage',0):raise ValueError('Maximum sink voltage must be at least the minimum.')
+        if args.source_current_limit is not None:
+            if not math.isfinite(args.source_current_limit) or args.source_current_limit<0:raise ValueError('Source current limit must be finite and nonnegative.')
+            request['source_current_limit']=args.source_current_limit
         if args.output and args.output.resolve()==args.board.resolve():
             raise ValueError('The result output must not overwrite the source PCB.')
         if args.html:
@@ -77,7 +140,7 @@ def main(argv=None):
         if args.sweep:
             request['action']='sweep'
             request['sweep']={'start_A':float(args.sweep[0]),'stop_A':float(args.sweep[1]),'points':int(args.sweep[2])}
-        if request['action'] in ('solve','sweep') and (not request.get('source_terminal') or not request.get('sink_terminal')):
+        if request['action'] in ('solve','sweep') and (not request.get('source_terminal') or not (request.get('sink_terminal') or request.get('sinks'))):
             raise ValueError('Choose source and sink pads for a solved or swept path.')
         if request['action'] in ('solve','sweep') and not request.get('net'):
             raise ValueError('Choose --net or a run pi --command for a solved or swept path.')
@@ -93,8 +156,9 @@ def main(argv=None):
             args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(result,indent=2,allow_nan=False),encoding='utf-8')
         summary={k:v for k,v in result.items() if k not in ('mesh','geometry')}
         if 'result' in summary:
-            summary['result']={k:v for k,v in summary['result'].items() if not isinstance(v,(list,dict))}
+            summary['result']={k:v for k,v in summary['result'].items() if not isinstance(v,(list,dict)) or k in ('sinks','feasibility')}
         print(json.dumps(summary,indent=2,allow_nan=False))
+        if result.get('result',{}).get('feasibility',{}).get('feasible') is False:return 4
         return 3 if result.get('convergence',{}).get('status','STABLE_WITHIN_TOLERANCE')!='STABLE_WITHIN_TOLERANCE' else 0
     except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
         print(json.dumps({'error':str(exc)}));return 2

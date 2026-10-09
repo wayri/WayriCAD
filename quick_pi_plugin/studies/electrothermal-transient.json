@@ -1,0 +1,64 @@
+{
+  "mode": "transient",
+  "study": {
+    "duration_s": 0.01,
+    "step_s": 0.0001,
+    "exchange_step_s": 0.001,
+    "source_voltage_V": 5.0,
+    "source_resistance_ohm": 0.2,
+    "source_inductance_H": 0.0,
+    "ambient_c": 20.0,
+    "loads": [
+      {
+        "id": "A",
+        "label": "Load A",
+        "initial_current_A": 0.2,
+        "step_current_A": 1.2,
+        "step_time_s": 0.001,
+        "path_resistance_ohm": 0.3,
+        "path_inductance_H": 0.0,
+        "capacitance_F": 0.002,
+        "esr_ohm": 0.02
+      }
+    ],
+    "thermal_nodes": [
+      {
+        "id": "rail",
+        "label": "Conductors",
+        "resistance_K_W": 20.0,
+        "capacitance_J_K": 0.01,
+        "initial_temperature_c": 20.0,
+        "initial_power_W": 0.0,
+        "step_power_W": 0.0,
+        "step_time_s": 0.003,
+        "max_temperature_c": 100.0
+      }
+    ],
+    "resistance_mappings": [
+      {
+        "element_id": "source",
+        "thermal_node_id": "rail",
+        "reference_temperature_c": 20.0,
+        "alpha_per_K": 0.00393,
+        "min_temperature_c": -40.0,
+        "max_temperature_c": 150.0
+      },
+      {
+        "element_id": "path:A",
+        "thermal_node_id": "rail",
+        "reference_temperature_c": 20.0,
+        "alpha_per_K": 0.00393,
+        "min_temperature_c": -40.0,
+        "max_temperature_c": 150.0
+      },
+      {
+        "element_id": "esr:A",
+        "thermal_node_id": "rail",
+        "reference_temperature_c": 20.0,
+        "alpha_per_K": 0.00393,
+        "min_temperature_c": -40.0,
+        "max_temperature_c": 150.0
+      }
+    ]
+  }
+}

@@ -122,6 +122,30 @@ def violations(issues,threshold):
     return [i for i in issues if i['severity'] in levels[threshold]]
 
 
+def _publish_directory(stage, out, validate):
+    """Publish an owned stage, tolerating brief Windows directory locks only.
+
+    A scanner or reader can deny directory rename until it closes its handle.
+    Never replace an output, copy a partially published tree, or bypass changed
+    source/review evidence while waiting. Permanent denial still fails closed.
+    """
+    import time
+    delays=(.05,.1,.2,.4)
+    for attempt in range(len(delays)+1):
+        if out.exists() or out.is_symlink():
+            raise FileExistsError('Another process created the output directory.')
+        validate()
+        if out.exists() or out.is_symlink():
+            raise FileExistsError('Another process created the output directory.')
+        try:
+            stage.rename(out)
+            return
+        except PermissionError as exc:
+            if getattr(exc,'winerror',None) not in (5,32,33) or attempt==len(delays):
+                raise
+            time.sleep(delays[attempt])
+
+
 def pipeline(ws,config,output_dir):
     c=validate_pipeline(config,ws);ws.project.check_unchanged()
     out=Path(output_dir).expanduser().absolute()
@@ -193,20 +217,20 @@ def pipeline(ws,config,output_dir):
                     # Numbered variant folders avoid sanitized-name collisions.
                     put(f'{index:03d}/'+name,data)
             manifest['status']='PASSED'
-        ws.project.check_unchanged()
-        if c.get('release_control'):
-            from .partsdb import Library
-            from .governance import context,assess
-            with Library(c['release_control']['library']) as lib:
-                for index,v in enumerate(c['variants'],1):
-                    before=json.loads((stage/f'{index:03d}'/'controlled-review.json').read_text())
-                    current=assess(lib,context(lib,ws,v,c['release_control']['policy']))
-                    if before['input_hash']!=current['input_hash'] or before['status']!=current['status']:raise ValueError('Release approval/catalog changed during pipeline; rerun.')
+        def validate_publication():
+            ws.project.check_unchanged()
+            if c.get('release_control'):
+                from .partsdb import Library
+                from .governance import context,assess
+                with Library(c['release_control']['library']) as lib:
+                    for index,v in enumerate(c['variants'],1):
+                        before=json.loads((stage/f'{index:03d}'/'controlled-review.json').read_text())
+                        current=assess(lib,context(lib,ws,v,c['release_control']['policy']))
+                        if before['input_hash']!=current['input_hash'] or before['status']!=current['status']:raise ValueError('Release approval/catalog changed during pipeline; rerun.')
         manifest.update(variants=variant_summary,gates=gates,completed_at=datetime.now(timezone.utc).isoformat())
         (stage/'manifest.json').write_bytes(json_bytes(manifest))
         # Directory rename is atomic within a filesystem; existing runs are never replaced.
-        if out.exists():raise FileExistsError('Another process created the output directory.')
-        stage.rename(out)
+        _publish_directory(stage,out,validate_publication)
     except BaseException:
         shutil.rmtree(stage,ignore_errors=True);raise
     return {'schema':'wayricad-run-result-1','status':manifest['status'],'output':str(out),'manifest':str(out/'manifest.json'),'gates':gates,'files':len(entries)}

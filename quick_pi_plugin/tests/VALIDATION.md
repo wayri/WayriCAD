@@ -14,12 +14,70 @@ and energy conservation, winding reversal, nonuniform contact-current spreading
 under mesh refinement, and ill-conditioned equipotential slivers. Ideal-inductor
 loops report indeterminate individual currents rather than inventing them.
 
+## Multiple sinks and source capacity
+
+Each sink is an independent ideal electrode with a positive, constant current
+demand `I_i` in amperes. The source fixes voltage `V_s` in volts. Kirchhoff
+balance requires `I_source = sum(I_i)` and conductor/component Joule loss must
+match `sum(I_i * (V_s - V_i))` in watts. The solver retains the existing
+1e-6 relative current/nodal and energy acceptance thresholds.
+
+`test_multisink_solver.py` independently compares separate branches and a shared
+trunk against `R = rho * length / area`, branch `I * R` drops, and `I^2 * R`
+losses. Shared-trunk current is the sum of sink demands; each ideal series
+inductor's tree current and stored energy are checked separately. Tests cover
+load order, legacy equivalence, separate voltage windows, overlapping contacts,
+disconnected sinks, malformed inputs, and source demand below/at/above capacity.
+The source-budget boundary permits only 1e-12 relative floating-point rounding;
+zero capacity rejects every positive demand.
+Voltage comparisons allow arithmetic rounding of 1e-12 times the larger
+absolute computed voltage and the bound being compared. Minimum and maximum
+tolerances are independent and recorded on each sink; a permissive maximum
+cannot relax the minimum or admit a negative voltage. This is not a
+mesh-accuracy allowance or an expanded operating voltage specification.
+
+An optional nonnegative source current limit is a capacity admission constraint.
+Excess demand returns `INFEASIBLE` and keeps the ideal-voltage calculation only
+as a requested-load diagnostic. It does not scale loads, determine a lower
+source voltage, simulate CV/CC transitions, or model foldback. Sink limits are
+checked individually; an unspecified voltage window has a 0 V lower bound and
+no upper bound. A feasible result covers only those declared constraints, not
+return copper, device undervoltage response, temperature ratings or certification.
+Multisink `drop_over_current_ohm` means the worst sink drop divided by total
+demand; it is not a two-terminal resistance. Mesh refinement now checks every
+sink's drop so a stable worst drop cannot hide another sink's instability.
+
+`test_service_multisink.py` creates a disposable three-pad native board, reloads
+it, extracts actual copper through the production mesher and solves unequal
+sink demands. It checks source capacity, each sink's identity, legacy voltage
+limits, UUID/label duplicate rejection and saved-source hash equality. Native
+checks were run on Windows with KiCad 10.0.6 and its Python 3.11.5 runtime.
+These saved-board checks do not establish live unsaved-editor behavior.
+
 The native VTK mesh tests check holes, area, boundary containment, separated
 islands, point-only contacts, contact-boundary T junctions, many aligned holes,
 terminal mapping, via contacts, cancellation and triangle budgets. Contour
 triangulation is accepted only after every boundary edge is preserved. Difficult
 regions use a constrained Delaunay fallback. No copper boundary is snapped to
 another boundary to manufacture connectivity.
+
+## Electrothermal coupling
+
+Validation date: 2026-10-09. Windows, KiCad 10.0.6 and its native Python 3.11.5,
+NumPy 2.4.2, SciPy 1.17.1 and Matplotlib 3.10.8. The full Quick PI suite passed
+177 tests and 155 subtests; the full QuickTherm suite passed 100 tests and
+77 subtests. Both exited normally. Four native-binding deprecation warnings
+were reported by each suite. These are source and disposable-package checks;
+no installed-plugin or live-editor workflow is claimed.
+
+The [electrothermal audit](../../docs/audits/ELECTROTHERMAL_COSIM.md) records
+analytical steady/transient references, independent mesh/time refinement,
+conservative heat transfer, material/convergence failures, native dialogs,
+saved-source invalidation, report rollback and isolated package execution.
+The [study guide](../ELECTROTHERMAL.md) documents units, reviewed inputs,
+boundary conditions and unsupported physics. Steady board fields and lumped
+transient nodes have separate model coverage; source-current limits are
+diagnostic budgets.
 
 ## Marble saved-board runs
 

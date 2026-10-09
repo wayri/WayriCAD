@@ -5,17 +5,23 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<'
 let state=null, view='workspace', selected=null, selectedClause=0, scope=['all',''], search='', includeDisabled=true;
 let inspection=null, objectA=null, objectB=null, matchEpoch=0, nextId=0, pending=new Map(), modalSave=null, draft=null;
 let matrixDraft=null, matrixPreview='', reviewData=null, reviewTab='findings', mapBox=null, mapStamp='', mapLayer='', nativePoll=null;
+let focusRefreshing=false;
+const BRIDGE_TIMEOUT_MS=15000;
 const specs=()=>new Map(state.specs.map(x=>[x.key,x]));
 const rule=()=>state?.rules.find(r=>r.index===selected);
 function toast(text){$('#toast').textContent=text;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),4200);}
 function call(method,args={}){
   return new Promise((resolve,reject)=>{
     if(!window.wayricad){reject(new Error('Native bridge unavailable. Open this page through WayriCAD.'));return;}
-    const id=++nextId;pending.set(id,{resolve,reject});window.wayricad.postMessage(JSON.stringify({id,method,args}));
+    const id=++nextId;
+    const timer=setTimeout(()=>{pending.delete(id);reject(new Error('The local engine did not respond. Open the native worksheet to review staged changes before retrying.'));},BRIDGE_TIMEOUT_MS);
+    pending.set(id,{resolve,reject,timer});
+    try{window.wayricad.postMessage(JSON.stringify({id,method,args}));}
+    catch(error){clearTimeout(timer);pending.delete(id);reject(error);}
   });
 }
 window.studio={
-  receive(id,result){const entry=pending.get(id);if(!entry)return;pending.delete(id);result.ok?entry.resolve(result.value):entry.reject(new Error(result.error));},
+  receive(id,result){const entry=pending.get(id);if(!entry)return;clearTimeout(entry.timer);pending.delete(id);result.ok?entry.resolve(result.value):entry.reject(new Error(result.error));},
   async connect(){try{await refresh();}catch(error){$('#main').textContent=error.message;}},
   refresh:()=>refresh(),
 };
@@ -127,4 +133,4 @@ document.addEventListener('change',async e=>{const el=e.target;try{
 $('#dialog-form').onsubmit=async e=>{e.preventDefault();$('#dialog-save').disabled=true;try{await modalSave();$('#dialog').close();}catch(error){$('#dialog-error').textContent=error.message;}finally{$('#dialog-save').disabled=false;}};
 $('#close-dialog').onclick=$('#cancel-dialog').onclick=()=>$('#dialog').close();
 document.addEventListener('keydown',async e=>{if(e.key==='F1'){e.preventDefault();await action('help');return;}if(e.target.matches('input,textarea,select')||$('#dialog').open)return;if(e.key==='/'){e.preventDefault();$('#search')?.focus();}if(e.ctrlKey&&['z','y'].includes(e.key.toLowerCase())){e.preventDefault();await action(e.key.toLowerCase()==='z'?'undo':'redo');}});
-window.addEventListener('focus',()=>{if(state)refresh().catch(error=>toast(error.message));});
+window.addEventListener('focus',async()=>{if(!state||focusRefreshing)return;focusRefreshing=true;try{await refresh();}catch(error){toast(error.message);}finally{focusRefreshing=false;}});

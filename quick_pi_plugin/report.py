@@ -16,6 +16,48 @@ METRICS={
     'loss':('Copper loss density','W/mm²','inferno'),
     'risk':('Adiabatic pulse energy / limit','ratio','YlOrRd'),
 }
+FIELD_STYLES={'smooth':'Smooth gradient','cells':'Solver cells'}
+
+
+def terminal_ids(request):
+    """All requested load pads, including legacy two-terminal studies."""
+    return {value for value in [request.get('source_terminal',request.get('source')),
+                               request.get('sink_terminal',request.get('sink')),
+                               *(row.get('terminal') for row in request.get('sinks',[]))] if value is not None}
+
+
+def metric_name(bundle,metric):
+    if metric=='resistance' and len(bundle.get('result',{}).get('sinks',bundle.get('request',{}).get('sinks',[])))>1:
+        return 'DC drop / total demand ΔV/I'
+    return METRICS[metric][0]
+
+
+def feasibility_text(result):
+    """Readable load/source limits without implying an attainable overloaded state."""
+    feasibility=result.get('feasibility',{})
+    if not feasibility:return ''
+    limit=feasibility.get('source_current_limit_A')
+    text=feasibility.get('status','Unknown')+' · Source current budget: '+('unlimited' if limit is None else _number(limit,'A'))
+    if feasibility.get('source_current_headroom_A') is not None:
+        text+=' · Headroom: '+_number(feasibility['source_current_headroom_A'],'A')
+    if feasibility.get('source_current_limit_exceeded'):
+        text+='\nRequested-load diagnostic only: the current-limited source cannot sustain these loads at the set voltage.'
+    text+='\n'+str(feasibility.get('notice',''))
+    if feasibility.get('violations'):text+='\n'+'\n'.join(str(item) for item in feasibility['violations'])
+    return text.strip()
+
+
+def sink_results_text(result):
+    lines=[]
+    for row in result.get('sinks',[]):
+        limits=[]
+        for key,label in [('min_voltage_V','min'),('max_voltage_V','max')]:
+            if row.get(key) is not None:limits.append(label+' '+_number(row[key],'V'))
+        lines.append(str(row.get('label') or row.get('id','Sink'))+': '+_number(row.get('current_A'),'A')+
+                     ' · '+_number(row.get('voltage_V'),'V')+' · drop '+_number(row.get('voltage_drop_V'),'mV',1000)+
+                     (' · '+', '.join(limits) if limits else ' · no voltage bounds')+
+                     (' · LIMIT VIOLATION' if row.get('within_voltage_limits') is False else ''))
+    return '\n'.join(lines)
 
 
 def layer_rows(bundle):
@@ -46,6 +88,58 @@ def cell_values(mesh,result,metric):
     raise ValueError('Unknown result metric: '+str(metric))
 
 
+def _nodal_values(result,metric):
+    import numpy as np
+    values=np.asarray([np.nan if value is None else value for value in result['potential_V']],dtype=float)
+    if metric!='voltage':
+        values=(float(result['source_voltage_V'])-values)*1000
+        if metric=='resistance':values=values/float(result['sink_current_A'])
+    return values
+
+
+def gradient_surface(mesh,result,metric,indices):
+    """Display vertices on existing triangles only; no inferred copper links.
+
+    Potential-derived metrics use the linear FEM nodal field. Cell metrics
+    use area-weighted corner colors, separately for each layer and thickness.
+    This projection is for display only: cell probes and peaks stay unchanged.
+    """
+    import numpy as np
+    triangles=np.asarray(mesh['triangles'],dtype=int)
+    indices=np.asarray(indices,dtype=int)
+    values=cell_values(mesh,result,metric)
+    indices=indices[np.isfinite(values[indices])]
+    selected=triangles[indices]
+    points=np.asarray(mesh['points_mm'],dtype=float)[selected,:2]
+    if metric in ('voltage','drop','resistance'):
+        colors=_nodal_values(result,metric)[selected]
+    else:
+        colors=np.empty(selected.shape,dtype=float)
+        areas=np.abs((points[:,1,0]-points[:,0,0])*(points[:,2,1]-points[:,0,1])-
+                     (points[:,2,0]-points[:,0,0])*(points[:,1,1]-points[:,0,1]))/2
+        layers=np.asarray([str(value) for value in mesh['triangle_layer']])[indices]
+        thickness=np.asarray(mesh['triangle_thickness_mm'],dtype=float)[indices]
+        # Distinct material regions get duplicate display vertices at their
+        # interface. Coincident XY nodes never establish new connectivity.
+        for layer in np.unique(layers):
+            for depth in np.unique(thickness[layers==layer]):
+                group=np.flatnonzero((layers==layer)&(thickness==depth))
+                nodes,inverse=np.unique(selected[group],return_inverse=True)
+                inverse=inverse.ravel()
+                weights=np.repeat(areas[group],3)
+                total=np.bincount(inverse,weights=weights,minlength=len(nodes))
+                weighted=np.bincount(inverse,weights=np.repeat(values[indices[group]],3)*weights,minlength=len(nodes))
+                colors[group]=(weighted/total)[inverse].reshape(-1,3)
+    # Duplicate corners allow thickness/material discontinuities while retaining
+    # the exact solved support, including holes and unavailable triangles.
+    return points.reshape(-1,2),np.arange(len(indices)*3).reshape(-1,3),colors.reshape(-1)
+
+
+def field_note(metric,style):
+    if style=='cells':return 'Solver cell values'
+    return 'Linear nodal field' if metric in ('voltage','drop','resistance') else 'Cell values interpolated for display; probes and peaks use solver cells'
+
+
 def via_markers(mesh,result,geometry,layer,metric):
     """Worst solved barrel segment at each XY, restricted to its actual span."""
     if metric not in ('density','risk'):return []
@@ -69,6 +163,108 @@ def via_markers(mesh,result,geometry,layer,metric):
     return list(groups.values())
 
 
+def result_scale(bundle, metric, layer=None):
+    """Finite solved range; None means that no quantity is available."""
+    import numpy as np
+    mesh=bundle.get('mesh',{});result=bundle.get('result',{})
+    if not mesh.get('triangles') or not result:return None
+    values=cell_values(mesh,result,metric)
+    if layer is not None:
+        indices=np.flatnonzero([str(value)==str(layer) for value in mesh['triangle_layer']])
+    else:indices=np.arange(len(values))
+    if metric in ('voltage','drop','resistance'):
+        selected=np.asarray(mesh['triangles'],dtype=int)[indices[np.isfinite(values[indices])]]
+        values=_nodal_values(result,metric)[selected].ravel()
+    else:values=values[indices]
+    finite=values[np.isfinite(values)].tolist()
+    geometry=bundle.get('geometry') or mesh.get('geometry',{})
+    for row in geometry.get('layers',[]):
+        if layer is None or str(row['id'])==str(layer):
+            finite.extend(marker['value'] for marker in via_markers(mesh,result,geometry,row['id'],metric))
+    if not finite:return None
+    low,high=min(finite),max(finite)
+    if metric=='risk':low,high=0.,max(1.,high)
+    if low==high:
+        margin=max(abs(low)*.01,1e-12);low-=margin;high+=margin
+    return float(low),float(high)
+
+
+def validate_scale(low, high):
+    low,high=float(low),float(high)
+    if not math.isfinite(low) or not math.isfinite(high) or low>=high:
+        raise ValueError('Scale limits must be finite, with minimum below maximum.')
+    return low,high
+
+
+def inspection_record(bundle, kind, identifier, metric='density'):
+    """Resolve an actual cell/barrel record without inventing a PCB object ID."""
+    mesh=bundle.get('mesh',{});result=bundle.get('result',{})
+    if not result:return None
+    geometry=bundle.get('geometry') or mesh.get('geometry',{})
+    names={str(row['id']):row.get('name',str(row['id'])) for row in geometry.get('layers',[])}
+    if kind=='sheet':
+        index=int(identifier)
+        if not 0<=index<len(mesh.get('triangles',[])):return None
+        value=float(cell_values(mesh,result,metric)[index])
+        vector=result['cell_J_A_mm2'][index]
+        power=result['cell_power_W'][index]
+        return {'kind':kind,'id':index,'layer':mesh['triangle_layer'][index],
+                'layer_name':names.get(str(mesh['triangle_layer'][index]),str(mesh['triangle_layer'][index])),
+                'location_mm':result['cell_centroid_mm'][index], 'metric':metric,
+                'value':value if math.isfinite(value) else None,'unit':METRICS[metric][1],
+                'current_density_A_mm2':math.hypot(*vector) if vector is not None else None,
+                'power_W':power,'thermal':result['cell_thermal'][index], 'source_ids':[]}
+    if kind!='via':return None
+    solved=next((row for row in result.get('vias',[]) if str(row['id'])==str(identifier)),None)
+    barrel=next((row for row in mesh.get('vias',[]) if str(row['id'])==str(identifier)),None)
+    if solved is None or barrel is None:return None
+    # A generated barrel segment ID is not itself a KiCad UUID. Resolve it
+    # against the extracted saved object identity rather than splitting text.
+    sources=[str(row['id']) for row in geometry.get('vias',[])
+             if str(identifier)==str(row['id']) or str(identifier).startswith(str(row['id'])+':')]
+    quantity='risk' if metric=='risk' else 'density'
+    value=solved.get('thermal',{}).get('energy_ratio') if quantity=='risk' else solved.get('current_density_A_mm2')
+    span=[barrel.get('top_layer'),barrel.get('bottom_layer')]
+    return {'kind':'via','id':identifier,'layer':span,
+            'layer_name':' → '.join(names.get(str(value),str(value)) for value in span),
+            'location_mm':[barrel['x_mm'],barrel['y_mm']], 'metric':quantity,'value':value,
+            'unit':METRICS[quantity][1], 'source_ids':sources,
+            **{key:solved.get(key) for key in ('current_density_A_mm2','current_A','resistance_ohm','power_W','thermal')}}
+
+
+def probe_result(bundle, layer, x, y, metric='density'):
+    """Inspect a barrel annulus or containing triangle, never nearby empty space."""
+    import numpy as np
+    mesh=bundle.get('mesh',{});result=bundle.get('result',{})
+    if not result:return None
+    geometry=bundle.get('geometry') or mesh.get('geometry',{})
+    order={str(row['id']):float(row.get('z_mm',index)) for index,row in enumerate(geometry.get('layers',[]))}
+    candidates=[]
+    for barrel in mesh.get('vias',[]):
+        span=[order.get(str(barrel.get(key))) for key in ('top_layer','bottom_layer')]
+        selected=order.get(str(layer))
+        if selected is None or None in span or not min(span)<=selected<=max(span):continue
+        radius=math.hypot(x-barrel['x_mm'],y-barrel['y_mm'])
+        inner=barrel['drill_mm']/2;outer=inner+barrel['plating_mm']
+        if radius<inner-1e-10:return None  # a white drill hole has no copper field
+        if radius<=outer+1e-10:
+            record=inspection_record(bundle,'via',barrel['id'],metric)
+            if record:candidates.append(record)
+    if candidates:return max(candidates,key=lambda row:row.get('value') if row.get('value') is not None else -math.inf)
+    points=np.asarray(mesh.get('points_mm',[]),dtype=float)
+    triangles=np.asarray(mesh.get('triangles',[]),dtype=int)
+    if not len(triangles):return None
+    indices=np.flatnonzero([str(value)==str(layer) for value in mesh['triangle_layer']])
+    vertices=points[triangles[indices],:2]
+    if not len(vertices):return None
+    a=vertices[:,0];b=vertices[:,1];c=vertices[:,2];p=np.asarray([x,y])
+    cross=lambda u,v:u[:,0]*v[:,1]-u[:,1]*v[:,0]
+    signs=np.stack([cross(b-a,p-a),cross(c-b,p-b),cross(a-c,p-c)],axis=1)
+    hits=np.flatnonzero(np.all(signs>=-1e-10,axis=1)|np.all(signs<=1e-10,axis=1))
+    if not len(hits):return None
+    return inspection_record(bundle,'sheet',int(indices[hits[0]]),metric)
+
+
 def _polygon_patch(polygon):
     from matplotlib.path import Path as MplPath
     from matplotlib.patches import PathPatch
@@ -83,23 +279,35 @@ def _polygon_patch(polygon):
     return PathPatch(MplPath(vertices,codes),facecolor='#cbdedc',edgecolor='#477f79',linewidth=.45)
 
 
-def draw_view(figure,bundle,view='Results',layer=None,metric='drop'):
+def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits=None,inspection=None,
+              show_context=True,show_copper=True,show_overlay=True,field_style=None):
     """Draw actual polygon/triangle geometry; GUI and export use identical data."""
     import numpy as np
     from matplotlib.collections import PolyCollection
     from matplotlib.patches import Circle
     geometry=bundle.get('geometry') or bundle.get('mesh',{}).get('geometry',{})
+    field_style=field_style or bundle.get('view_settings',{}).get('field_style','smooth')
+    if field_style not in FIELD_STYLES:raise ValueError('Unknown field style: '+str(field_style))
     rows=geometry.get('layers',[])
     if layer is None and rows:layer=rows[0]['id']
     selected=next((row for row in rows if str(row['id'])==str(layer)),None)
     figure.clear();ax=figure.add_subplot(111);ax.set_facecolor('#ffffff')
     ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X (mm)');ax.set_ylabel('Y (mm)')
     ax.grid(False)
+    scene=bundle.get('board_scene',{})
+    if show_context and scene:
+        from wayricad_runtime.board_render import draw_matplotlib
+        if not show_copper:
+            scene=dict(scene,primitives=[row for row in scene.get('primitives',[]) if row.get('role') not in ('track','pad','via','zone')])
+        draw_matplotlib(ax,scene,visible_layers=[layer] if layer is not None else None,
+                        highlight_ids=(inspection or {}).get('source_ids',[]),alpha=.35)
     if not selected:
         ax.set_aspect('auto')
         ax.text(.5,.5,'Choose a net and preview its copper.',ha='center',va='center',transform=ax.transAxes)
         figure.tight_layout();return ax
-    for polygon in selected.get('polygons',[]):ax.add_patch(_polygon_patch(polygon))
+    if show_copper:
+        for polygon in selected.get('polygons',[]):ax.add_patch(_polygon_patch(polygon))
+    if view=='Results' and not show_overlay:view='Net'
     mesh=bundle.get('mesh');result=bundle.get('result');image=None
     markers=via_markers(mesh or {},result or {},geometry,layer,metric) if view=='Results' else []
     via_values=[row['value'] for row in markers]
@@ -119,12 +327,16 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop'):
                 finite=np.isfinite(values)
                 if finite.any():
                     _,unit,cmap=METRICS[metric]
-                    image=PolyCollection(polygons[finite],array=values[finite],cmap=cmap,edgecolors='none',rasterized=True)
-                    limits=[*values[finite],*via_values]
-                    if metric=='risk':image.set_clim(0,max(1.,float(max(limits))))
-                    elif via_values:image.set_clim(min(limits),max(limits))
+                    if field_style=='smooth':
+                        from matplotlib.tri import Triangulation
+                        from matplotlib.collections import TriMesh
+                        xy,faces,colors=gradient_surface(mesh,result,metric,np.flatnonzero(mask))
+                        image=TriMesh(Triangulation(xy[:,0],xy[:,1],faces),array=colors,cmap=cmap,edgecolors='none',rasterized=True)
+                    else:image=PolyCollection(polygons[finite],array=values[finite],cmap=cmap,edgecolors='none',rasterized=True)
+                    image.set_clim(*result_scale(bundle,metric,layer))
+                    if color_limits is not None:image.set_clim(*validate_scale(*color_limits))
                     ax.add_collection(image)
-                    figure.colorbar(image,ax=ax,pad=.025,label=f'{METRICS[metric][0]} ({unit})')
+                    figure.colorbar(image,ax=ax,pad=.025,label=f'{metric_name(bundle,metric)} ({unit})')
                     if metric=='flow':
                         vectors=np.asarray([v if v is not None else [np.nan,np.nan] for v in result['cell_sheet_current_A_mm']])[mask]
                         centers=polygons.mean(axis=1);valid=np.flatnonzero(finite)
@@ -135,14 +347,18 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop'):
                 elif not via_values:
                     message='Set a pulse duration to compute the adiabatic screen.' if metric=='risk' else 'No connected solution on this layer.'
                     ax.text(.02,.98,message,va='top',transform=ax.transAxes,bbox={'facecolor':'white','edgecolor':'none'})
-                title+=' · '+METRICS[metric][0]
+                title+=' · '+metric_name(bundle,metric)+'\n'+field_note(metric,field_style)
             else:ax.text(.02,.98,'Run the analysis to see electrical results.',va='top',transform=ax.transAxes)
     if image is None and via_values:
         from matplotlib.cm import ScalarMappable
         from matplotlib.colors import Normalize
         image=ScalarMappable(norm=Normalize(0,max(1.,max(via_values))) if metric=='risk' else Normalize(min(via_values),max(via_values)),cmap=METRICS[metric][2])
-        figure.colorbar(image,ax=ax,pad=.025,label=f'{METRICS[metric][0]} ({METRICS[metric][1]})')
-    for via in geometry.get('vias',[]):
+        if color_limits is not None:image.set_clim(*validate_scale(*color_limits))
+        figure.colorbar(image,ax=ax,pad=.025,label=f'{metric_name(bundle,metric)} ({METRICS[metric][1]})')
+    elif view=='Results' and result and image is None:
+        ax.text(.02,.98,'No available solved '+METRICS[metric][0].lower()+' on this layer.',va='top',transform=ax.transAxes,
+                bbox={'facecolor':'white','edgecolor':'none','alpha':.9})
+    for via in geometry.get('vias',[]) if show_copper else []:
         if not any(str(v)==str(layer) for v in via.get('layers',[])):continue
         if 'x_mm' not in via:continue
         center=(via['x_mm'],via['y_mm'])
@@ -168,9 +384,9 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop'):
                 ax.plot([start[0],end[0]],[start[1],end[1]],'--',color='#70439e',linewidth=1)
                 ax.annotate(str(branch.get('id','Component')), (start+end)/2,fontsize=8,color='#70439e',
                             bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
-    source=request.get('source_terminal',request.get('source'));sink=request.get('sink_terminal',request.get('sink'))
+    source=request.get('source_terminal',request.get('source'));chosen=terminal_ids(request)
     for terminal in geometry.get('terminals',[]):
-        if terminal.get('id') not in (source,sink) and terminal.get('label') not in (source,sink):continue
+        if terminal.get('id') not in chosen and terminal.get('label') not in chosen:continue
         polygons=terminal.get('polygons',{}).get(str(layer),terminal.get('polygons',{}).get(layer,[]))
         if not polygons:continue
         ring=np.asarray(polygons[0]['outer'])[:,:2];center=ring.mean(axis=0)
@@ -178,6 +394,24 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop'):
         ax.plot(*center,marker='o' if is_source else 's',markersize=6,color='#13854c' if is_source else '#b94535',markeredgecolor='white')
         ax.annotate(('Source: ' if is_source else 'Sink: ')+terminal.get('label',terminal['id']),center,xytext=(7,7),textcoords='offset points',fontsize=8,
                     bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
+    if inspection and inspection.get('source_ids') and bundle.get('board_scene'):
+        from wayricad_runtime.board_render import draw_matplotlib
+        scene=bundle['board_scene'];wanted=set(inspection['source_ids'])
+        selected_scene=dict(scene,primitives=[row for row in scene.get('primitives',[]) if row.get('uuid') in wanted and row.get('role') in ('track','pad','via')])
+        for artist in draw_matplotlib(ax,selected_scene,visible_layers=[layer],highlight_ids=wanted,alpha=1.):
+            artist.set_zorder(9)
+            if hasattr(artist,'set_facecolor'):artist.set_facecolor('none');artist.set_linewidth(1.8)
+    if inspection and inspection.get('location_mm'):
+        span=inspection.get('layer');span=span if isinstance(span,list) else [span]
+        if any(str(value)==str(layer) for value in span):
+            x,y=inspection['location_mm'][:2]
+            ax.plot(x,y,marker='+',markersize=15,markeredgewidth=2,color='#06a7a0',zorder=10)
+            ax.annotate(f"{inspection['kind']} {str(inspection['id'])[:16]}",(x,y),xytext=(8,-14),textcoords='offset points',fontsize=8,
+                        bbox={'facecolor':'white','edgecolor':'#06a7a0','alpha':.9,'pad':2})
+    if view=='Results' and result and result.get('feasibility',{}).get('source_current_limit_exceeded'):
+        title+='\nINFEASIBLE · requested-load diagnostic; source current limit exceeded'
+    elif view=='Results' and result and result.get('feasibility',{}).get('feasible') is False:
+        title+='\nINFEASIBLE · requested load/voltage limits violated'
     ax.autoscale_view();ax.invert_yaxis();ax.set_title(title,loc='left',fontsize=10)
     ax._wayricad_home=(ax.get_xlim(),ax.get_ylim())
     ax.set_anchor('C')
@@ -204,19 +438,26 @@ def write_report(path,bundle,layer=None):
     ordered_metrics=primary_metrics+tuple(metric for metric in METRICS if metric not in primary_metrics)
     for metric in ordered_metrics:
         figure=Figure(figsize=(8.8,5.2),dpi=110);FigureCanvasAgg(figure)
-        draw_view(figure,bundle,'Results',layer,metric)
+        settings=bundle.get('view_settings',{});mode=settings.get('scale_mode',0)
+        manual=settings.get('manual',{})
+        limits=result_scale(bundle,metric) if mode==1 else tuple(manual['limits']) if mode==2 and manual.get('metric')==metric else None
+        draw_view(figure,bundle,'Results',layer,metric,limits)
         stream=io.BytesIO();figure.savefig(stream,format='png',dpi=110,facecolor='white')
-        images.append('<figure><figcaption>'+escape(METRICS[metric][0])+'</figcaption><img alt="'+escape(METRICS[metric][0])+'" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'"></figure>')
+        scale_note=(' · all-layer scale' if mode==1 else ' · manual scale' if limits is not None else '')
+        diagnostic=' · requested-load diagnostic (source current limit exceeded)' if result.get('feasibility',{}).get('source_current_limit_exceeded') else ''
+        style=settings.get('field_style','smooth')
+        images.append('<figure><figcaption>'+escape(metric_name(bundle,metric)+scale_note+diagnostic)+'</figcaption><p>'+escape(field_note(metric,style))+'</p><img alt="'+escape(metric_name(bundle,metric))+'" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'"></figure>')
         figure.clear()
     scope='Circuit' if bundle.get('request',{}).get('series') else 'Copper'
+    multisink=len(result.get('sinks',bundle.get('request',{}).get('sinks',[])))>1
     ratio_name=scope+(' apparent ΔV/I' if result.get('contains_forward_drop') else ' resistance ΔV/I')
-    values=[(ratio_name,_number(result.get('drop_over_current_ohm'),'mΩ',1000)),
-            ('Voltage drop',_number(result.get('voltage_drop_V'),'mV',1000)),
+    values=[('Worst drop / total demand ΔV/I' if multisink else ratio_name,_number(result.get('drop_over_current_ohm'),'mΩ',1000)),
+            ('Worst sink voltage drop' if multisink else 'Voltage drop',_number(result.get('voltage_drop_V'),'mV',1000)),
             ('Total loss',_number(result.get('total_power_W'),'W')),
             ('Peak copper-sheet current density',_number(result.get('max_current_density_A_mm2'),'A/mm²')),
             ('Source voltage',_number(result.get('source_voltage_V'),'V')),
-            ('Sink current',_number(result.get('sink_current_A'),'A')),
-            ('Operating-point source V/I',_number(result.get('V_over_I_ohm'),'Ω')),
+            ('Total requested sink current' if multisink else 'Sink current',_number(result.get('total_sink_current_A',result.get('sink_current_A')),'A')),
+            ('Requested-load source V/I',_number(result.get('V_over_I_ohm'),'Ω')),
             ('Current balance error',_number(result.get('current_balance_error_A'),'A')),
             ('Energy relative error',_number(result.get('energy_relative_error'))),
             ('Floating triangles',str(result.get('floating_triangles',0)))]
@@ -228,17 +469,32 @@ def write_report(path,bundle,layer=None):
     json_path.write_text(json.dumps(bundle,indent=2,allow_nan=False),encoding='utf-8')
     html='''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WayriCAD Quick PI</title><style>body{font:15px system-ui,sans-serif;margin:32px auto;max-width:1080px;padding:0 20px;color:#172a2b;background:#fff}h1{font-size:26px}p{line-height:1.5}table{border-collapse:collapse}th,td{text-align:left;padding:7px 20px 7px 0;border-bottom:1px solid #e0e6e5}section{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:18px}figure{margin:0;border:1px solid #e0e6e5;border-radius:5px;padding:12px}figcaption{font-weight:600}img{width:100%;height:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f6;padding:14px}</style><h1>WayriCAD Quick PI</h1>'''
     html+='<p>2.5D DC copper conduction · plotted layer '+escape(selected)+'. All layer mesh and numerical data are in <a href="'+escape(json_path.name)+'">the paired JSON report</a>.</p>'
+    if result.get('feasibility'):
+        html+='<h2>Source and load feasibility</h2><pre>'+escape(feasibility_text(result))+'</pre>'
+    if result.get('sinks'):
+        html+='<h2>Constant-current sinks</h2><table><tr><th>Sink</th><th>Demand A</th><th>Voltage V</th><th>Drop mV</th><th>Min V</th><th>Max V</th><th>Voltage limits</th></tr>'
+        for sink in result['sinks']:
+            cells=[str(sink.get('label') or sink.get('id','Sink')),_number(sink.get('current_A')),_number(sink.get('voltage_V')),
+                   _number(sink.get('voltage_drop_V'),scale=1000),_number(sink.get('min_voltage_V')) if sink.get('min_voltage_V') is not None else 'Unbounded',
+                   _number(sink.get('max_voltage_V')) if sink.get('max_voltage_V') is not None else 'Unbounded',
+                   'Violation' if sink.get('within_voltage_limits') is False else 'Within limits']
+            html+='<tr>'+''.join('<td>'+escape(cell)+'</td>' for cell in cells)+'</tr>'
+        html+='</table>'
     if bundle.get('convergence'):
         from .convergence import html_section
         html+=html_section(bundle['convergence'])
     else:
         html+='<p><strong>Mesh convergence not verified.</strong> Run a fixed-input refinement study before relying on terminal drop. Localized current-density and pulse-risk peaks need separate verification.</p>'
-    html+='<p>The DC transfer-resistance map divides the source-to-cell potential drop by the specified sink current. It is not an AC impedance map.</p>'
-    ratio_note=(scope+' ΔV/I is an apparent operating-point ratio at the specified load current, not resistance.'
-                if result.get('contains_forward_drop') else
-                scope+' resistance uses the solved voltage drop divided by load current.')
+    if multisink:
+        html+='<p>The DC drop / total demand map divides each source-to-cell drop by total requested sink current. Worst drop / total demand is a diagnostic normalization, not a physical two-terminal resistance or AC impedance.</p>'
+        resistance_note='Worst drop / total demand uses the largest sink drop divided by total requested current.'
+    else:
+        html+='<p>The DC transfer-resistance map divides the source-to-cell potential drop by the specified sink current. It is not an AC impedance map.</p>'
+        resistance_note=scope+' resistance uses the solved voltage drop divided by load current.'
+    if result.get('contains_forward_drop'):
+        resistance_note=scope+' ΔV/I is an apparent operating-point ratio at the specified load current, not resistance.'
     html+= '<h2>Interactive field probes</h2>'+interactive_fields(bundle,layer)
-    html+='<table>'+table+'</table><p>'+ratio_note+' Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><h2>Three primary result plots</h2><section>'+''.join(images[:3])+'</section><details><summary>Additional potential, resistance, flow and pulse-risk plots</summary><section>'+''.join(images[3:])+'</section></details>'
+    html+='<table>'+table+'</table><p>'+resistance_note+' Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><h2>Three primary result plots</h2><section>'+''.join(images[:3])+'</section><details><summary>Additional potential, resistance, flow and pulse-risk plots</summary><section>'+''.join(images[3:])+'</section></details>'
     if result.get('negative_sink_voltage'):
         html+='<p><strong>Operating-point warning:</strong> The requested current makes sink voltage negative; check source voltage and load. The imposed-current path may be infeasible.</p>'
     if result.get('analytics'):

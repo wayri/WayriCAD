@@ -27,11 +27,12 @@ def test_analysis_request_accepts_finite_inputs_and_rejects_nan():
         source=selection, sink=sink, voltage=control('12'), current=control('1'),
         temperature=control('20'), ambient=control('20'), limit=control('150'),
         pulse=control('1'), load_mode=selection, model_dimension=selection,
-        _series_request=None,
+        source_current_limit=control(''),sink_min_voltage=control(''),sink_max_voltage=control(''),
+        _series_request=None,_extra_sinks=[],
         _terminals=[{'id': 'R1.1'}, {'id': 'J1.1'}],
     )
     request = QuickPIFrame._request(frame, 'solve')
-    assert request['sink_current'] == 1
+    assert request['sinks'] == [{'terminal':'J1.1','current_A':1}]
     assert request['source_terminal'] == 'R1.1'
     frame.current = control('nan')
     with pytest.raises(ValueError, match='finite'):
@@ -52,7 +53,8 @@ def test_3d_request_ignores_inactive_2d_screening_fields():
         limit=control('not applicable'), pulse=control('not applicable'),
         load_mode=SimpleNamespace(GetSelection=lambda: 0),
         model_dimension=SimpleNamespace(GetSelection=lambda: 1),
-        _series_request=None,
+        source_current_limit=control(''),sink_min_voltage=control(''),sink_max_voltage=control(''),
+        _series_request=None,_extra_sinks=[],
         _terminals=[{'id': 'R1.1'}, {'id': 'J1.1'}],
     )
     request = QuickPIFrame._request(frame, 'solve')

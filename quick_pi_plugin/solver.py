@@ -23,8 +23,8 @@ class _Union:
         for i in nodes[1:]: self.p[self.find(i)] = first
 
 
-def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
-          sink_current=1.0, options=None):
+def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
+          sink_current=1.0, options=None, *, sinks=None, source_current_limit=None):
     """Solve a selected net mesh and return JSON-serializable physical results.
 
     mesh: points_mm[N,3], triangles[M,3], triangle_thickness_mm[M], optional
@@ -34,6 +34,12 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
     Optional lumped_branches[{id,top_nodes,bottom_nodes,resistance_ohm,
     inductance_h}] joins different copper domains through explicit components.
     L stores DC magnetic energy; it contributes no steady-state voltage drop.
+
+    sinks optionally supplies separate electrodes as dictionaries with nodes,
+    current_A, id/label and optional min_voltage_V/max_voltage_V. Currents are
+    positive constant-current demands. source_current_limit is an optional
+    nonnegative budget in amperes; an exceeded budget marks the requested-CV
+    solution infeasible, rather than inventing a current-limited operating point.
 
     options: resistivity_ohm_m (at 20 C), temperature_c, temperature_coefficient,
     ambient_c, temperature_limit_c, pulse_duration_s, density_kg_m3,
@@ -53,9 +59,11 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
     options = dict(options or {})
     unknown = set(options)-{'resistivity_ohm_m','temperature_c','temperature_coefficient',
                            'ambient_c','temperature_limit_c','pulse_duration_s',
-                           'density_kg_m3','specific_heat_J_kgK'}
+                           'density_kg_m3','specific_heat_J_kgK', 'triangle_temperature_c',
+                           'via_temperature_c', 'material_temperature_range_c'}
     if unknown: raise SolverError('Unknown solver option: '+', '.join(sorted(unknown)))
     def number(value, name, *, positive=False, nonnegative=False):
+        if isinstance(value, bool): raise SolverError(name + ' must be a finite number.')
         try: value = float(value)
         except (TypeError, ValueError) as exc: raise SolverError(name + ' must be a finite number.') from exc
         if not math.isfinite(value) or (positive and value <= 0) or (nonnegative and value < 0):
@@ -63,7 +71,33 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
         return value
 
     source_voltage = number(source_voltage, 'Source voltage')
-    sink_current = number(sink_current, 'Sink current', positive=True)
+    if source_current_limit is not None:
+        source_current_limit = number(source_current_limit, 'Source current limit', nonnegative=True)
+    if sinks is None:
+        sinks = [{'nodes': sink_nodes, 'current_A': sink_current, 'id': 'sink', 'label': 'Sink'}]
+    elif sink_nodes is not None:
+        raise SolverError('Choose either sink_nodes/sink_current or sinks, not both.')
+    if not isinstance(sinks, (list, tuple)) or not 1 <= len(sinks) <= 1024:
+        raise SolverError('Specify 1 to 1,024 sink electrodes.')
+    sink_specs = []
+    identifiers = set()
+    for index, spec in enumerate(sinks):
+        if not isinstance(spec, dict): raise SolverError('Each sink must define nodes and current_A.')
+        identifier = str(spec.get('id', index))
+        if identifier in identifiers: raise SolverError('Repeated sink identity: ' + identifier)
+        identifiers.add(identifier)
+        current = number(spec.get('current_A'), 'Sink current', positive=True)
+        minimum = number(spec.get('min_voltage_V', 0), 'Sink minimum voltage', nonnegative=True)
+        maximum = spec.get('max_voltage_V')
+        if maximum is not None:
+            maximum = number(maximum, 'Sink maximum voltage', nonnegative=True)
+            if maximum < minimum: raise SolverError('Sink maximum voltage must be at least its minimum voltage.')
+        sink_specs.append({'nodes': spec.get('nodes'), 'current_A': current, 'id': identifier,
+                           'label': str(spec.get('label', identifier)),
+                           'min_voltage_V': minimum, 'max_voltage_V': maximum})
+    try: sink_current = math.fsum(spec['current_A'] for spec in sink_specs)
+    except OverflowError as exc: raise SolverError('Total sink current must be finite.') from exc
+    if not math.isfinite(sink_current): raise SolverError('Total sink current must be finite.')
     try:
         points = np.asarray(mesh['points_mm'], dtype=float)
         raw_triangles = np.asarray(mesh['triangles'])
@@ -96,7 +130,36 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
     alpha = number(options.get('temperature_coefficient', 0.00393), 'Temperature coefficient', nonnegative=True)
     rho20 = number(options.get('resistivity_ohm_m', 1.724e-8), 'Copper resistivity', positive=True)
     rho = number(rho20 * (1 + alpha*(temperature-20)), 'Temperature-adjusted resistivity', positive=True)
-    sigma = 1 / rho
+    valid_range = options.get('material_temperature_range_c')
+    if valid_range is not None:
+        if not isinstance(valid_range, (list, tuple)) or len(valid_range) != 2:
+            raise SolverError('material_temperature_range_c requires [minimum, maximum].')
+        lo, hi = [number(v, 'Material temperature bound') for v in valid_range]
+        if lo < -273.15 or hi <= lo:
+            raise SolverError('Material temperature range is invalid.')
+    def temperatures(key, count):
+        raw = options.get(key)
+        if raw is None:
+            values = np.full(count, temperature)
+        else:
+            if valid_range is None:
+                raise SolverError('Spatial temperatures require material_temperature_range_c.')
+            try:
+                values = np.asarray(raw, dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise SolverError(key + ' must contain finite temperatures.') from exc
+            if values.shape != (count,) or not np.isfinite(values).all():
+                raise SolverError(key + ' needs one finite temperature per owned element.')
+        if np.any(values < -273.15) or (valid_range is not None and
+                (np.any(values < lo) or np.any(values > hi))):
+            raise SolverError(key + ' is outside the declared material temperature range.')
+        resistivities = rho20 * (1 + alpha * (values - 20))
+        if not np.isfinite(resistivities).all() or np.any(resistivities <= 0):
+            raise SolverError(key + ' gives non-positive or non-finite resistivity.')
+        return values, resistivities
+    cell_temperatures, cell_rho = temperatures('triangle_temperature_c', m)
+    via_temperatures, via_rho = temperatures('via_temperature_c', len(mesh.get('vias', [])))
+    sigma = 1 / cell_rho
     thickness_m = thickness * 1e-3
     stiffness = np.einsum('mik,mjk->mij', gradients, gradients) * (sigma * thickness_m * area)[:, None, None]
 
@@ -108,10 +171,11 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
         return sorted(set(int(i) for i in result))
 
     source_nodes = nodes(source_nodes, 'Source electrode')
-    sink_nodes = nodes(sink_nodes, 'Sink electrode')
+    for spec in sink_specs: spec['nodes'] = nodes(spec['nodes'], 'Sink electrode')
     union = _Union(n)
     for group in mesh.get('equipotential_groups', []): union.merge(nodes(group, 'Contact group'))
-    union.merge(source_nodes); union.merge(sink_nodes)
+    union.merge(source_nodes)
+    for spec in sink_specs: union.merge(spec['nodes'])
     via_segments = []
     for index, via in enumerate(mesh.get('vias', [])):
         top = nodes(via.get('top_nodes'), 'Via top face')
@@ -121,7 +185,7 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
         plating = number(via.get('plating_mm'), 'Via plating', positive=True)
         union.merge(top); union.merge(bottom)
         barrel_area_mm2 = math.pi * plating * (drill + plating)
-        resistance = rho * (length * 1e-3) / (barrel_area_mm2 * 1e-6)
+        resistance = float(via_rho[index]) * (length * 1e-3) / (barrel_area_mm2 * 1e-6)
         via_segments.append((via.get('id', str(index)), top[0], bottom[0], resistance, barrel_area_mm2, length))
     from .series_models import forward_drop, validate_model
     branches=[];branch_models=[]
@@ -141,8 +205,11 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
     for _,a,b,resistance,_ in branches:
         if resistance==0:union.merge([a,b])
     _, groups = np.unique([union.find(i) for i in range(n)], return_inverse=True)
-    source, sink = int(groups[source_nodes[0]]), int(groups[sink_nodes[0]])
-    if source == sink: raise SolverError('Source and sink electrodes overlap or share an ideal contact; choose separate terminals.')
+    source = int(groups[source_nodes[0]])
+    sink_groups = [int(groups[spec['nodes'][0]]) for spec in sink_specs]
+    if source in sink_groups: raise SolverError('Source and sink electrodes overlap or share an ideal contact; choose separate terminals.')
+    if len(set(sink_groups)) != len(sink_groups):
+        raise SolverError('Sink electrodes overlap or share an ideal contact; combine their demand into one sink.')
     g = int(groups.max()) + 1
     grouped_triangles = groups[triangles]
     distinct=(grouped_triangles[:,0]!=grouped_triangles[:,1]) & (grouped_triangles[:,0]!=grouped_triangles[:,2]) & (grouped_triangles[:,1]!=grouped_triangles[:,2])
@@ -174,9 +241,11 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
     matrix.sum_duplicates(); matrix.eliminate_zeros()
     _, components = connected_components(matrix, directed=False)
     active = components == components[source]
-    if not active[sink]: raise SolverError('Source and sink are disconnected in the copper/via mesh.')
+    for spec, sink in zip(sink_specs, sink_groups):
+        if not active[sink]: raise SolverError('Source and sink are disconnected in the copper/via mesh: ' + spec['label'])
     free = np.flatnonzero(active & (np.arange(g) != source))
-    load = np.zeros(g); load[sink] = -sink_current
+    load = np.zeros(g)
+    for spec, sink in zip(sink_specs, sink_groups): load[sink] = -spec['current_A']
     offset = np.zeros(g)  # solve relative to source to avoid voltage cancellation
     upper=triu(matrix,k=1).tocoo()
     def conservative_reaction(voltage):
@@ -214,7 +283,7 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
     # This remains accurate for microscopic slivers attached to lumped branches.
     local_voltage=voltage_offset[triangles]
     gradient_v = np.einsum('mi,mij->mj', local_voltage[:,1:]-local_voltage[:,:1], gradients[:,1:,:])
-    current_density = -sigma * gradient_v / 1e6  # A/mm2
+    current_density = -sigma[:, None] * gradient_v / 1e6  # A/mm2
     sheet_current = current_density * thickness[:, None]  # A/mm
     cell_power = sigma * np.sum(gradient_v**2, axis=1) * thickness_m * area
     cell_power[~cell_active] = 0
@@ -246,7 +315,7 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
                 current=branch_currents.get(index,0)
                 imbalance[pre_groups[a]]-=current;imbalance[pre_groups[b]]+=current
         imbalance[pre_groups[source_nodes[0]]]+=float(reaction[source])
-        imbalance[pre_groups[sink_nodes[0]]]-=sink_current
+        for spec in sink_specs: imbalance[pre_groups[spec['nodes'][0]]]-=spec['current_A']
         adjacency={}
         for index,(_,a,b,resistance,_) in enumerate(branches):
             if resistance==0 and node_active[a] and node_active[b]:
@@ -270,6 +339,8 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
                 imbalance[parent]+=imbalance[vertex]
     forward_drops={}
     if any('fixed_drop_v' in b or 'diode' in b for b in branch_models):
+        if len(sink_specs)!=1:
+            raise SolverError('Forward-drop series paths require one sink; multiple load branches are not supported.')
         domains=mesh.get('series_domains')
         if not isinstance(domains,list) or len(domains)!=len(branches)+1:
             raise SolverError('Forward-drop models require a verified, ordered series path with one copper domain per net.')
@@ -308,9 +379,41 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
             'inductive_voltage_drop_V':0. if connected else None})
     component_loss=sum(c['power_W'] or 0 for c in component_results)
     loss = conductor_loss+component_loss
-    drop = float(-voltage_offset[sink_nodes[0]]); terminal_loss = sink_current * drop
+    sink_results = []
+    for spec, sink in zip(sink_specs, sink_groups):
+        sink_drop = float(-voltage_offset[spec['nodes'][0]])
+        voltage = source_voltage - sink_drop
+        maximum = spec['max_voltage_V']
+        minimum_tolerance = 1e-12 * max(abs(voltage), abs(spec['min_voltage_V']))
+        maximum_tolerance = None if maximum is None else 1e-12 * max(abs(voltage), abs(maximum))
+        sink_results.append({key: spec[key] for key in ('id', 'label', 'current_A', 'min_voltage_V', 'max_voltage_V')})
+        sink_results[-1].update(voltage_V=voltage, voltage_drop_V=sink_drop,
+                                voltage_limit_tolerances_V={'minimum':minimum_tolerance,'maximum':maximum_tolerance},
+                                within_voltage_limits=voltage >= spec['min_voltage_V'] - minimum_tolerance and
+                                (maximum is None or voltage <= maximum + maximum_tolerance))
+    drop = max(row['voltage_drop_V'] for row in sink_results)
+    terminal_loss = math.fsum(row['current_A'] * row['voltage_drop_V'] for row in sink_results)
     energy_error = abs(loss-terminal_loss)/max(abs(terminal_loss), 1e-30)
-    if drop <= 0 or energy_error > 1e-6: raise SolverError('FEM energy balance failed; inspect mesh conditioning.')
+    if terminal_loss <= 0 or energy_error > 1e-6: raise SolverError('FEM energy balance failed; inspect mesh conditioning.')
+
+    over_limit = source_current_limit is not None and sink_current > source_current_limit and not math.isclose(
+        sink_current, source_current_limit, rel_tol=1e-12, abs_tol=0.)
+    violations = []
+    if over_limit:
+        violations.append(f'Required source current {sink_current:.9g} A exceeds its {source_current_limit:.9g} A limit.')
+    for row in sink_results:
+        if not row['within_voltage_limits']:
+            violations.append(f"Sink {row['label']} voltage {row['voltage_V']:.9g} V is outside its specified voltage limits.")
+    feasible = not violations
+    feasibility = {'status': 'FEASIBLE' if feasible else 'INFEASIBLE', 'feasible': feasible,
+        'source_current_limit_A': source_current_limit,
+        'source_current_headroom_A': None if source_current_limit is None else
+                                    (source_current_limit - sink_current if over_limit else max(0., source_current_limit - sink_current)),
+        'source_current_limit_exceeded': over_limit, 'violations': violations,
+        'operating_point_valid': feasible, 'basis': 'requested_constant_current_loads_at_source_voltage',
+        'notice': 'Feasibility covers the declared DC current budget and sink voltage windows only. '
+                  'An infeasible result is a requested-load diagnostic, not an attainable operating point. '
+                  'Current-limit foldback, load undervoltage response and return-path losses are not modeled.'}
 
     ambient = number(options.get('ambient_c', temperature), 'Ambient temperature')
     limit = number(options.get('temperature_limit_c', 150), 'Temperature limit')
@@ -344,7 +447,9 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
             'contains_forward_drop':bool(forward_drops),
             'source_voltage_V': source_voltage, 'sink_voltage_V': source_voltage-drop,
             'source_current_A': float(reaction[source]), 'sink_current_A': sink_current,
+            'total_sink_current_A': sink_current, 'sinks': sink_results, 'feasibility': feasibility,
             'voltage_drop_V': drop, 'drop_over_current_ohm': drop/sink_current,
+            'drop_over_current_basis': 'two_terminal' if len(sink_results) == 1 else 'worst_sink_drop_over_total_demand',
             'V_over_I_ohm': source_voltage/sink_current,
             'total_power_W': loss, 'conductor_power_W':conductor_loss,'component_power_W':component_loss,
             'current_balance_error_A': abs(float(reaction[source])-sink_current),
@@ -355,7 +460,12 @@ def solve(mesh, source_nodes, sink_nodes, source_voltage=1.0,
             'floating_nodes': int((~node_active).sum()), 'floating_triangles': int((~cell_active).sum()),
             'negative_sink_voltage': bool(source_voltage-drop < 0),
             'material': {'resistivity_ohm_m': rho, 'resistivity_at_20C_ohm_m': rho20,
-                         'temperature_c': temperature, 'temperature_coefficient': alpha},
+                         'temperature_c': temperature, 'temperature_coefficient': alpha,
+                         'material_temperature_range_c': valid_range,
+                         'triangle_temperature_c': cell_temperatures.tolist(),
+                         'triangle_resistivity_ohm_m': cell_rho.tolist(),
+                         'via_temperature_c': via_temperatures.tolist(),
+                         'via_resistivity_ohm_m': via_rho.tolist()},
             'thermal_assumptions': {'model': 'adiabatic constant-property temperature-limit screen',
                 'ambient_c': ambient, 'temperature_limit_c': limit, 'pulse_duration_s': duration,
                 'density_kg_m3': density, 'specific_heat_J_kgK': heat,

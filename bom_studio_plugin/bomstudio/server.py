@@ -15,6 +15,7 @@ import tempfile
 import threading
 import traceback
 from .native import Project, BASE
+from . import __version__
 from .engine import Workspace
 from .exporters import export, release, table
 from .writeback import compile_plan, apply_plan
@@ -52,12 +53,16 @@ class Application:
         if self.workspace is None:raise ValueError('Open a KiCad project first.')
         return self.workspace
     def state(self,variant=BASE):
-        if not self.workspace:return {'project':None,'version':'3.1.1','ui_mode':self.ui_mode,'startup_note':self.startup_note,'runtime':runtime_info(self)}
+        if not self.workspace:return {'project':None,'version':__version__,'ui_mode':self.ui_mode,'startup_note':self.startup_note,'runtime':runtime_info(self)}
         result=self.workspace.public(variant);result['runtime']=runtime_info(self);result['ui_mode']=self.ui_mode;result['startup_note']=self.startup_note;result['demo']=bool(self.demo_directory and self.workspace.project.root.parent==self.demo_directory)
         return result
 
 class Server(ThreadingHTTPServer):
     daemon_threads=True
+    # The desktop page requests its local modules together. Python 3.11's
+    # default backlog of five can refuse part of that cold-start burst on
+    # Windows, leaving a partially initialized UI with missing handlers.
+    request_queue_size=32
     def server_bind(self):
         # HTTPServer reverse-resolves the bind address, which can stall offline
         # macOS startup. This private numeric loopback endpoint needs no DNS.
@@ -75,7 +80,7 @@ class Server(ThreadingHTTPServer):
         self.url=self.origin+'/#token='+app.token
 
 class Handler(BaseHTTPRequestHandler):
-    server_version='WayriCADBOM/3.1.1'
+    server_version='WayriCADBOM/'+__version__
     def log_message(self,fmt,*args):
         # URLs/token fragments are deliberately never written to an access log.
         pass
@@ -104,13 +109,41 @@ class Handler(BaseHTTPRequestHandler):
     def validate(self,auth=True):
         expected=f'127.0.0.1:{self.server.server_port}'
         if self.headers.get('Host')!=expected:
-            self.respond({'error':'Invalid local Host header.'},403);return False
+            self.reject('Invalid local Host header.',403);return False
         origin=self.headers.get('Origin')
         if origin and origin!=self.server.origin:
-            self.respond({'error':'Cross-origin access denied.'},403);return False
+            self.reject('Cross-origin access denied.',403);return False
         if auth and not hmac.compare_digest(self.headers.get('X-Bom-Token',''),self.server.app.token):
-            self.respond({'error':'Session authorization required. Use the launcher URL.'},401);return False
+            self.reject('Session authorization required. Use the launcher URL.',401);return False
         return True
+    def reject(self,message,status):
+        # Closing with an unread POST body can reset Windows TCP before the
+        # client receives its error. The access decision is already made;
+        # drain only small, unambiguously framed opaque bytes, never JSON/work.
+        if self.command=='POST':
+            import time
+            lengths=self.headers.get_all('Content-Length',[])
+            if not self.headers.get('Transfer-Encoding') and len(lengths)==1:
+                raw=lengths[0].strip()
+                if raw.isascii() and raw.isdigit() and len(raw)<=6:
+                    remaining=int(raw)
+                    if 0<remaining<=64*1024:
+                        deadline=time.monotonic()+.25
+                        previous=self.connection.gettimeout()
+                        try:
+                            while remaining:
+                                left=deadline-time.monotonic()
+                                if left<=0:break
+                                self.connection.settimeout(left)
+                                chunk=self.rfile.read1(min(remaining,8192))
+                                if not chunk:break
+                                remaining-=len(chunk)
+                        except (OSError,ValueError):
+                            pass
+                        finally:
+                            self.connection.settimeout(previous)
+            self.close_connection=True
+        self.respond({'error':message},status)
     def do_GET(self):
         url=urlsplit(self.path);path=url.path
         if not self.validate(path.startswith('/api/')):return
@@ -147,7 +180,8 @@ class Handler(BaseHTTPRequestHandler):
             if isinstance(result,tuple):self.respond(result[0],content_type=result[2],name=result[1])
             else:self.respond(result)
             if path=='/api/quit':
-                # Let the client receive the complete reply before stopping the server.
+                # Desktop hosts close the window when serve_forever returns.
+                # Send the complete authenticated reply before triggering that.
                 self.wfile.flush()
                 threading.Thread(target=self.server.shutdown,daemon=True).start()
         except (ValueError,KeyError,TypeError,OSError) as exc:self.respond({'error':str(exc)},400)

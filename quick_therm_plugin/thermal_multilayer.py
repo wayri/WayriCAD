@@ -859,6 +859,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         peak_i, peak_j = cells[peak_ci]
         peak_point = (xs[peak_i], ys[peak_j])
         fields.append({"id": layer["id"], "name": layer["name"], "z_mm": z[li],
+                       "value_location": "finite_volume_cell",
                        "x_centers_mm": xs, "y_centers_mm": ys,
                        "x_edges_mm": x_edges, "y_edges_mm": y_edges,
                        "values_c": values,

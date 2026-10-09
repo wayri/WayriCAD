@@ -1,3 +1,15 @@
+# 3.6.12 — mass/cost workflow and local interface repairs
+
+- Accept the page's concurrent local asset requests without dropping modules at cold start.
+- Initialize the workspace after all deferred modules load; show a retryable error for missing interface files.
+- Make simple export previews follow the same active variant as downloaded exports.
+- Continue from reviewed inline mass/rate edits into calculation and simple exports, instead of silently calculating older server values.
+- Use saved rate/currency/pack and MOQ/order-multiple mappings for workspace export costs; show per-board installed subtotals separately from per-line purchasing quantities and retain exact authored field exports.
+- Add whole-variant Sum all & consolidate with guarded MPN + value groups, retained references/quantities, summed mass/cost, coverage and a downloadable consolidation table.
+- Send the Quit acknowledgement before stopping the desktop host.
+- Retry briefly when Windows temporarily locks a staged report directory; recheck source/review evidence and refuse existing outputs on every attempt.
+- Add real HTTP cold-start, shutdown-order and optional DOM workflow regressions. Native WebView and live-editor acceptance remain separate checks.
+
 # 0.8.3 — complete assembler-export integration
 
 - Dedicated OEM / assembly export GUI; JLCPCB, PCBWay, HQPCB, NextPCB, Sierra Circuits, PCB Power, Seeed and Generic mappings.

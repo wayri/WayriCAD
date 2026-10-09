@@ -7,10 +7,24 @@ import wx
 from matplotlib.figure import Figure
 from .plot_canvas import FigureCanvasWxAgg,NavigationToolbar2WxAgg
 
-from .report import METRICS,draw_view,layer_rows,write_report,via_markers
+from .report import (METRICS,draw_view,layer_rows,write_report,via_markers,
+                     inspection_record,probe_result,result_scale,validate_scale,
+                     terminal_ids,metric_name,feasibility_text,sink_results_text)
 import json
 
 
+def load_values(terminal,current,minimum='',maximum=''):
+    """Validate editable sink fields; a blank voltage field is unbounded."""
+    row={'terminal':terminal}
+    for key,text in [('current_A',current),('min_voltage_V',minimum),('max_voltage_V',maximum)]:
+        if key!='current_A' and not str(text).strip():continue
+        try:value=float(text)
+        except (ValueError,TypeError):raise ValueError('Sink current and voltage limits must be numbers.')
+        if not math.isfinite(value) or (value<=0 if key=='current_A' else value<0):
+            raise ValueError('Sink current must be positive; voltage limits must be nonnegative and finite.')
+        row[key]=value
+    if row.get('max_voltage_V',math.inf)<row.get('min_voltage_V',0):raise ValueError('Maximum sink voltage must be at least the minimum.')
+    return row
 
 
 class QuickPIFrame(wx.Frame):
@@ -28,6 +42,8 @@ class QuickPIFrame(wx.Frame):
         self._busy=False;self._closed=False;self._closing=False
         self._series_request=None
         self._cancel=threading.Event();self._terminals=[];self._layers=[];self._plot_keys={};self._probe_controllers={}
+        self._extra_sinks=[];self._inspection=None;self._finding_rows=[];self._saved_source_current=True
+        self._board_scene={};self._board_scene_hash=None
         self._history=[];self._history_index=0;self._completions=[];self._completion_prefix=None;self._completion_index=0
         panel=wx.Panel(self);self.main_panel=panel;root=wx.BoxSizer(wx.VERTICAL)
         title=wx.BoxSizer(wx.HORIZONTAL)
@@ -60,6 +76,17 @@ class QuickPIFrame(wx.Frame):
         mode_row.Add(self.operation_note,1,wx.ALIGN_CENTER_VERTICAL)
         self.mode_row=mode_row
         root.Add(mode_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        loads=wx.BoxSizer(wx.HORIZONTAL)
+        self.source_current_limit=wx.TextCtrl(panel,size=(85,-1));self.source_current_limit.SetHint('Unlimited')
+        self.sink_min_voltage=wx.TextCtrl(panel,size=(85,-1));self.sink_min_voltage.SetHint('0 V')
+        self.sink_max_voltage=wx.TextCtrl(panel,size=(85,-1));self.sink_max_voltage.SetHint('Unbounded')
+        self.loads_button=wx.Button(panel,label='Additional sinks (0)…')
+        for name,control in [('Source limit A',self.source_current_limit),('Sink min V',self.sink_min_voltage),('Sink max V',self.sink_max_voltage)]:
+            loads.Add(wx.StaticText(panel,label=name),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
+            loads.Add(control,0,wx.RIGHT,14)
+        loads.AddStretchSpacer();loads.Add(self.loads_button,0)
+        self.load_controls=loads;root.Add(loads,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,12)
+        self.source_current_limit.SetToolTip('Constant-current demand is checked against this source budget. Blank means unlimited; zero supplies no current. An overload is infeasible, not a solved constant-current source response.')
         self.options=wx.CollapsiblePane(panel,label='Mesh and material options',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         pane=self.options.GetPane();grid=wx.FlexGridSizer(0,6,6,10)
         for col in (1,3,5):grid.AddGrowableCol(col,1)
@@ -80,11 +107,23 @@ class QuickPIFrame(wx.Frame):
         viewer.Add(self.metric,0,wx.RIGHT,12);self.mesh_count=wx.StaticText(panel,label='');viewer.Add(self.mesh_count,1,wx.ALIGN_CENTER_VERTICAL)
         self.dc_viewer=viewer
         root.Add(viewer,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
-        self.book=wx.Notebook(panel);self.views=[]
+        visibility=wx.BoxSizer(wx.HORIZONTAL)
+        self.show_context=wx.CheckBox(panel,label='Board context');self.show_context.SetValue(True)
+        self.show_copper=wx.CheckBox(panel,label='Copper geometry');self.show_copper.SetValue(True)
+        self.show_overlay=wx.CheckBox(panel,label='Result overlay');self.show_overlay.SetValue(True)
+        for control in (self.show_context,self.show_copper,self.show_overlay):
+            visibility.Add(control,0,wx.RIGHT,14);control.Bind(wx.EVT_CHECKBOX,lambda event:self._draw(preserve=True))
+        self.visibility_controls=visibility
+        root.Add(visibility,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        self.splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        self.splitter.SetMinimumPaneSize(self.FromDIP(240));self.splitter.SetSashGravity(1.)
+        self.book=wx.Notebook(self.splitter);self.views=[]
         for name in ('Net','Mesh','Results'):
             page=wx.Panel(self.book);layout=wx.BoxSizer(wx.VERTICAL)
             figure=Figure(figsize=(9,5),dpi=100,facecolor='white');canvas=FigureCanvasWxAgg(page,wx.ID_ANY,figure)
             toolbar=NavigationToolbar2WxAgg(canvas);toolbar.Realize()
+            canvas.Bind(wx.EVT_LEFT_DOWN,lambda event,index=len(self.views):self._probe_down(event,index))
+            canvas.Bind(wx.EVT_LEFT_UP,lambda event,index=len(self.views):self._probe_up(event,index))
             layout.Add(canvas,1,wx.EXPAND);layout.Add(toolbar,0,wx.EXPAND);page.SetSizer(layout)
             self.book.AddPage(page,name);self.views.append((figure,canvas,toolbar))
         self._build_return_page()
@@ -92,8 +131,10 @@ class QuickPIFrame(wx.Frame):
         import pcbnew
         self.decoupling=PdnFrame(self.book,pcbnew.LoadBoard(self.board_path))
         self.book.AddPage(self.decoupling,"Decoupling placement")
-        root.Add(self.book,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
-        self.summary=wx.StaticText(panel,label='Choose two pads on one net. Run creates the mesh and solves the DC current path.')
+        self._build_inspector()
+        self.splitter.SplitVertically(self.book,self.inspector,790)
+        root.Add(self.splitter,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
+        self.summary=wx.StaticText(panel,label='Choose a source and one or more sinks on one net. Enter source voltage, optional current budget and sink demands.')
         root.Add(self.summary,0,wx.EXPAND|wx.ALL,12)
         self.console=wx.CollapsiblePane(panel,label='Console',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         self.console.Collapse(True)
@@ -116,12 +157,13 @@ class QuickPIFrame(wx.Frame):
         footer.Add(self.gauge,0,wx.ALIGN_CENTER_VERTICAL);footer.AddStretchSpacer()
         for control in (self.run,self.export,self.cancel):footer.Add(control,0,wx.LEFT,8)
         root.Add(footer,0,wx.EXPAND|wx.ALL,12);panel.SetSizer(root)
-        self._controls=[self.net,self.source,self.sink,self.voltage,self.current,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.console_input]
+        self._controls=[self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
         self.net.Bind(wx.EVT_COMBOBOX,self._net_changed)
         for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._invalidate)
-        for control in (self.voltage,self.current,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
+        for control in (self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
         self.load_mode.Bind(wx.EVT_CHOICE,self._invalidate)
         self.model_dimension.Bind(wx.EVT_CHOICE,self._model_changed)
+        self.loads_button.Bind(wx.EVT_BUTTON,self.on_loads)
         self.options.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:panel.Layout())
         self.console.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:panel.Layout())
         self.console_input.Bind(wx.EVT_TEXT_ENTER,self.on_console)
@@ -132,8 +174,11 @@ class QuickPIFrame(wx.Frame):
         self.more.Bind(wx.EVT_BUTTON,self.on_more);self.export.Bind(wx.EVT_BUTTON,self.on_export)
         self.series_button.Bind(wx.EVT_BUTTON,self.on_series_editor)
         self.cancel.Bind(wx.EVT_BUTTON,self.on_cancel);self.Bind(wx.EVT_CLOSE,self.on_close)
+        self.Bind(wx.EVT_ACTIVATE,self._activated)
         self.timer=wx.Timer(self);self.Bind(wx.EVT_TIMER,lambda event:self.gauge.Pulse() if self._busy else None,self.timer);self.timer.Start(120)
-        self._buttons();self._draw();self.Centre();wx.CallAfter(self._inspect)
+        self._buttons();self._draw();self.Centre()
+        wx.CallAfter(lambda:self.splitter.SetSashPosition(max(240,self.splitter.GetClientSize().width-self.FromDIP(360))))
+        wx.CallAfter(self._inspect)
 
 
     def _build_return_page(self):
@@ -180,7 +225,12 @@ class QuickPIFrame(wx.Frame):
 
     def _buttons(self):
         placement=self.book.GetSelection()>=len(self.views)
+        if placement and self.splitter.IsSplit():self.splitter.Unsplit(self.inspector)
+        elif not placement and not self.splitter.IsSplit():
+            self.inspector.Show();self.splitter.SplitVertically(self.book,self.inspector,max(240,self.splitter.GetClientSize().width-350))
         self.dc_form.ShowItems(not placement);self.dc_viewer.ShowItems(not placement)
+        self.load_controls.ShowItems(not placement)
+        self.visibility_controls.ShowItems(not placement)
         self.mode_row.ShowItems(not placement)
         for window in (self.options,self.console,self.summary,self.series_button,self.preview,self.run,self.export,self.status):window.Show(not placement)
         self.main_panel.Layout()
@@ -195,18 +245,246 @@ class QuickPIFrame(wx.Frame):
         self.run.Enable(not self._busy and len(self._terminals)>1 and
                         (not volume or (not self._series_request and self.load_mode.GetSelection()==0)))
         self.export.SetLabel('Export 3D report…' if volume else 'Export report…')
-        self.export.Enable(not self._busy and bool(self.volume_bundle.get('result') if volume else self.bundle.get('result')))
+        self.export.Enable(not self._busy and bool(self.volume_bundle.get('result') if volume else self.bundle.get('result')) and self._saved_source_current)
         self.cancel.Enable(self._busy);self.cancel.Show(not placement);self.gauge.Show(self._busy and not placement)
         self.more.SetLabel("Reload saved board" if placement else "More…")
         self.more.InvalidateBestSize();self.more.SetMinSize(self.more.GetBestSize());self.main_panel.Layout()
         if not self._busy:self.metric.Enable(self.book.GetSelection()==2)
+        self.field_style.Enable(not self._busy and self.book.GetSelection()==2)
+        current=bool(self.bundle.get('geometry')) and self._saved_source_current
+        self.inspector_select.Enable(not self._busy and current and bool((self._inspection or {}).get('source_ids')))
+        self.inspector_read.Enable(not self._busy and bool(self.bundle.get('geometry')) and self._saved_source_current)
+        self.inspector_terminals.Enable(not self._busy and bool(self.bundle.get('geometry')) and self._saved_source_current)
         if self._series_request:
-            self.source.Disable();self.sink.Disable()
+            self.source.Disable();self.sink.Disable();self.loads_button.Disable()
             self.preview.Enable(not self._busy and bool(self.bundle.get('geometry')))
         for control in (self.ambient,self.pulse,self.limit):control.Enable(not self._busy and not volume)
         self.max_tetrahedra.Enable(not self._busy and volume)
         if self.book.GetSelection()>=len(self.views):
             for control in (self.net,self.source,self.sink,self.voltage,self.current,self.layer,self.metric,self.preview,self.run,self.export):control.Disable()
+
+    def _build_inspector(self):
+        self.inspector=wx.ScrolledWindow(self.splitter)
+        self.inspector.SetScrollRate(0,12)
+        layout=wx.BoxSizer(wx.VERTICAL)
+        title=wx.StaticText(self.inspector,label='Inspect solved copper')
+        font=title.GetFont();font.SetWeight(wx.FONTWEIGHT_BOLD);title.SetFont(font)
+        layout.Add(title,0,wx.EXPAND|wx.ALL,8)
+        self.model_basis=wx.TextCtrl(self.inspector,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,80))
+        layout.Add(self.model_basis,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
+        self.field_style=wx.Choice(self.inspector,choices=['Smooth gradient','Solver cells'])
+        self.field_style.SetSelection(0)
+        self.field_style.SetToolTip('Smooth gradient uses the existing mesh. Potential uses nodal values; current, loss and risk use display interpolation. Probes and peaks retain solver cell values. Select Solver cells to inspect raw resolution.')
+        layout.Add(self.field_style,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,8)
+        scale=wx.BoxSizer(wx.HORIZONTAL)
+        self.scale_mode=wx.Choice(self.inspector,choices=['Auto: selected layer','Shared: all layers','Manual: this metric'])
+        self.scale_mode.SetSelection(0);scale.Add(self.scale_mode,1,wx.EXPAND)
+        layout.Add(scale,0,wx.EXPAND|wx.ALL,8)
+        limits=wx.BoxSizer(wx.HORIZONTAL)
+        self.scale_min=wx.TextCtrl(self.inspector);self.scale_min.SetHint('Minimum')
+        self.scale_max=wx.TextCtrl(self.inspector);self.scale_max.SetHint('Maximum')
+        self.scale_apply=wx.Button(self.inspector,label='Set',style=wx.BU_EXACTFIT)
+        limits.Add(self.scale_min,1,wx.RIGHT,4);limits.Add(self.scale_max,1,wx.RIGHT,4);limits.Add(self.scale_apply,0)
+        self.scale_controls=limits
+        layout.Add(limits,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
+        self.scale_unit=wx.StaticText(self.inspector,label='Scale units follow the selected result')
+        layout.Add(self.scale_unit,0,wx.EXPAND|wx.ALL,8)
+        self.inspector_views=wx.Notebook(self.inspector)
+        findings_page=wx.Panel(self.inspector_views);findings_layout=wx.BoxSizer(wx.VERTICAL)
+        self.finding_order=wx.Choice(findings_page,choices=['Highest current density','Highest volumetric heating'])
+        self.finding_order.SetSelection(0);findings_layout.Add(self.finding_order,0,wx.EXPAND|wx.BOTTOM,5)
+        self.findings=wx.ListCtrl(findings_page,style=wx.LC_REPORT|wx.LC_SINGLE_SEL,size=(-1,140))
+        for index,(name,width) in enumerate([('Rank / copper',90),('Layer',85),('J A/mm²',90),('Heat W/mm³',95)]):
+            self.findings.InsertColumn(index,name,width=width)
+        findings_layout.Add(self.findings,1,wx.EXPAND);findings_page.SetSizer(findings_layout)
+        self.inspector_views.AddPage(findings_page,'Hotspots')
+        self.accounting_text=wx.TextCtrl(self.inspector_views,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,140))
+        self.inspector_views.AddPage(self.accounting_text,'Layers / losses')
+        layout.Add(self.inspector_views,1,wx.EXPAND|wx.ALL,8)
+        self.inspection_text=wx.TextCtrl(self.inspector_views,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,140))
+        self.inspector_views.AddPage(self.inspection_text,'Probe / object')
+        actions=wx.BoxSizer(wx.HORIZONTAL)
+        self.inspector_select=wx.Button(self.inspector,label='Select object in PCB')
+        self.inspector_read=wx.Button(self.inspector,label='Read PCB selection')
+        for button in (self.inspector_select,self.inspector_read):actions.Add(button,1,wx.RIGHT,4)
+        layout.Add(actions,0,wx.EXPAND|wx.ALL,8)
+        self.inspector_terminals=wx.Button(self.inspector,label='Select source and all sinks in PCB')
+        layout.Add(self.inspector_terminals,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        self.inspector.SetSizer(layout)
+        self.inspector.FitInside()
+        self.scale_mode.Bind(wx.EVT_CHOICE,self._scale_changed)
+        self.field_style.Bind(wx.EVT_CHOICE,lambda event:self._draw(preserve=True))
+        self.scale_apply.Bind(wx.EVT_BUTTON,self._scale_changed)
+        self.finding_order.Bind(wx.EVT_CHOICE,lambda event:self._update_inspector(True))
+        self.findings.Bind(wx.EVT_LIST_ITEM_SELECTED,self._finding_selected)
+        self.inspector_select.Bind(wx.EVT_BUTTON,self._select_inspected)
+        self.inspector_read.Bind(wx.EVT_BUTTON,self._read_editor_selection)
+        self.inspector_terminals.Bind(wx.EVT_BUTTON,self._select_terminals)
+
+    def _snapshot_current(self):
+        import hashlib
+        geometry=self.bundle.get('geometry') or self.bundle.get('mesh',{}).get('geometry',{})
+        expected=geometry.get('source_sha256')
+        try:return not expected or hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()==expected
+        except OSError:return False
+
+    def _activated(self,event):
+        if event.GetActive() and not self._busy and not self._closed:self._draw(preserve=True)
+        event.Skip()
+
+    def _update_inspector(self,refresh_rows=False):
+        geometry=self.bundle.get('geometry') or self.bundle.get('mesh',{}).get('geometry',{})
+        result=self.bundle.get('result',{});self._saved_source_current=self._snapshot_current()
+        sha=geometry.get('source_sha256','')
+        state='Saved file changed: reload and rerun.' if not self._saved_source_current else 'Saved snapshot '+(sha[:12] if sha else '(not yet extracted)')
+        basis='Explicit stackup override' if geometry.get('stackup_source')=='explicit_override' else 'Saved board stackup'
+        warnings=self._board_scene.get('warnings',[])
+        self.model_basis.SetValue(state+'\n2.5D DC conduction · '+basis+'\nNo AC, transient or thermal-field solve. Local peaks depend on mesh and contacts. Live unsaved edits are not included.'+
+                                  ('\nDisplay geometry warnings: '+'; '.join(warnings) if warnings else ''))
+        metric=list(METRICS)[max(0,self.metric.GetSelection())]
+        self.scale_unit.SetLabel(metric_name(self.bundle,metric)+' · '+METRICS[metric][1])
+        manual=self.scale_mode.GetSelection()==2
+        self.scale_controls.ShowItems(manual)
+        for control in (self.scale_min,self.scale_max,self.scale_apply):control.Enable(manual)
+        if refresh_rows or not result or not self._saved_source_current:
+            from .analytics import details_text
+            self.accounting_text.SetValue('\n\n'.join(value for value in (feasibility_text(result),sink_results_text(result),details_text(result)) if value))
+            self.findings.DeleteAllItems()
+            key='hotspots_by_heating_density' if self.finding_order.GetSelection()==1 else 'hotspots_by_current_density'
+            self._finding_rows=list(result.get('analytics',{}).get(key,[])) if self._saved_source_current else []
+            for row in self._finding_rows:
+                index=self.findings.InsertItem(self.findings.GetItemCount(),f"{row['rank']}. {row['kind']}")
+                for column,value in enumerate([row['layer_name'],f"{row['current_density_A_mm2']:.5g}",f"{row['power_density_W_mm3']:.5g}"],1):
+                    self.findings.SetItem(index,column,value)
+        if not geometry or not self._saved_source_current:self._inspection=None
+        row=self._inspection
+        if row:
+            number=lambda value,unit:'Unknown' if value is None else f'{value:.6g} {unit}'
+            text=f"{row['kind']} {row['id']} · {row['layer_name']}\n"
+            text+='XYZ: '+', '.join(f'{value:.6g}' for value in row['location_mm'])+' mm\n'
+            text+=metric_name(self.bundle,row['metric'])+': '+number(row.get('value'),row['unit'])+'\n'
+            text+='Current density: '+number(row.get('current_density_A_mm2'),'A/mm²')+'\nLoss: '+number(row.get('power_W'),'W')
+            if row['kind']=='via':text+='\nBarrel current: '+number(row.get('current_A'),'A')
+            if row['kind']=='object':text+='\nSaved object navigation only; no containing solved cell.'
+            text+='\nExact saved object available.' if row.get('source_ids') else '\nMesh cell only; no exact PCB object identity.'
+            self.inspection_text.SetValue(text)
+        else:self.inspection_text.SetValue('Select a ranked hotspot or click solved copper. Empty space and drill holes have no copper result.\nHotspot heating is W/mm³; the loss map is W/mm².\nPulse risk is adiabatic and does not predict fusing.')
+        self.inspector.Layout();self.inspector.FitInside();self._buttons()
+
+    def _scale_limits(self,metric):
+        mode=self.scale_mode.GetSelection()
+        if mode==1:return result_scale(self.bundle,metric)
+        if mode==2:
+            setting=self.bundle.get('view_settings',{}).get('manual',{})
+            if setting.get('metric')==metric:return tuple(setting['limits'])
+        return None
+
+    def _scale_changed(self,event=None):
+        metric=list(METRICS)[max(0,self.metric.GetSelection())]
+        if self.scale_mode.GetSelection()==2:
+            try:limits=validate_scale(self.scale_min.GetValue(),self.scale_max.GetValue())
+            except ValueError:
+                limits=result_scale(self.bundle,metric)
+                if limits is None:self.status.SetLabel('Run a solve before setting color limits.');return
+                self.scale_min.ChangeValue(f'{limits[0]:.8g}');self.scale_max.ChangeValue(f'{limits[1]:.8g}')
+                if event and event.GetEventObject() is self.scale_apply:
+                    self.status.SetLabel('Invalid scale. Restored solved limits; minimum must be below maximum.');return
+            self.bundle.setdefault('view_settings',{})['manual']={'metric':metric,'limits':list(limits)}
+        self.bundle.setdefault('view_settings',{})['scale_mode']=self.scale_mode.GetSelection()
+        self._draw(preserve=True)
+
+    def _finding_selected(self,event):
+        index=event.GetIndex()
+        if not 0<=index<len(self._finding_rows):return
+        row=self._finding_rows[index]
+        metric='density' if self.finding_order.GetSelection()==0 else 'loss'
+        self._choose_inspection(inspection_record(self.bundle,row['kind'],row['id'],metric),focus=True)
+
+    def _choose_inspection(self,row,focus=False,switch_view=True):
+        if row is None:return
+        if row.get('location_mm') and not row.get('source_ids'):
+            from wayricad_runtime.board_render import hit_test
+            layer=row['layer'][0] if isinstance(row['layer'],list) else row['layer']
+            net=None if self.bundle.get('request',{}).get('series') else self.bundle.get('geometry',{}).get('net')
+            primitives=hit_test(self._board_scene,*row['location_mm'][:2],visible_layers=[layer],net=net)
+            row['source_ids']=list(dict.fromkeys(item['uuid'] for item in primitives if item.get('uuid') and item.get('role') in ('track','pad','via')))
+        self._inspection=row
+        self.inspector_views.SetSelection(2)
+        span=row['layer'] if isinstance(row['layer'],list) else [row['layer']]
+        selection=next((index for index,value in enumerate(self._layers) if any(str(value['id'])==str(layer) for layer in span)),None)
+        if selection is not None:self.layer.SetSelection(selection)
+        if switch_view and self.bundle.get('result'):self.book.SetSelection(2)
+        self._draw(preserve=not focus)
+        if focus:
+            figure,canvas,_=self.views[max(0,min(2,self.book.GetSelection()))];ax=figure.axes[0];x,y=row['location_mm'][:2]
+            edge=float(self.bundle.get('request',{}).get('edge_mm',.5));radius=max(.25,edge*3)
+            ax.set_xlim(x-radius,x+radius);ax.set_ylim(y+radius,y-radius);canvas.draw_idle()
+
+    def _probe_down(self,event,index):
+        self._probe_start=(index,event.GetX(),event.GetY());event.Skip()
+
+    def _probe_up(self,event,index):
+        start=getattr(self,'_probe_start',None);event.Skip()
+        if not start or start[0]!=index or math.hypot(event.GetX()-start[1],event.GetY()-start[2])>4:return
+        if index>=len(self.views) or not self.bundle.get('geometry'):return
+        figure,canvas,toolbar=self.views[index]
+        if getattr(toolbar,'mode','') or not figure.axes:return
+        ax=figure.axes[0];pixel=(event.GetX(),canvas.GetClientSize().height-event.GetY())
+        if not ax.bbox.contains(*pixel):return
+        x,y=ax.transData.inverted().transform(pixel)
+        selected=self.layer.GetSelection()
+        if selected<0:return
+        metric=list(METRICS)[max(0,self.metric.GetSelection())]
+        row=probe_result(self.bundle,self._layers[selected]['id'],x,y,metric)
+        if row:self._choose_inspection(row,switch_view=False)
+        else:
+            from wayricad_runtime.board_render import hit_test
+            hits=hit_test(self._board_scene,x,y,visible_layers=[self._layers[selected]['id']])
+            primitive=next((item for item in hits if item.get('uuid') and item.get('role') in ('track','pad','via')),None)
+            if primitive:self._choose_inspection(self._object_inspection(primitive,(x,y)),switch_view=False)
+            else:self._inspection=None;self._draw(preserve=True);self.status.SetLabel('No solved copper or selectable saved object at this point on the selected layer.')
+
+    def _object_inspection(self,primitive,location=None):
+        points=primitive.get('points',[])
+        if location is None:
+            location=primitive.get('center') or [sum(point[axis] for point in points)/len(points) for axis in range(2)]
+        metric=list(METRICS)[max(0,self.metric.GetSelection())]
+        return {'kind':'object','id':primitive['uuid'],'layer':primitive['layer'],
+                'layer_name':str(self._board_scene.get('layers',{}).get(primitive['layer'],primitive['layer'])),
+                'location_mm':list(location),'metric':metric,'value':None,'unit':METRICS[metric][1],
+                'source_ids':[primitive['uuid']],'current_density_A_mm2':None,'power_W':None}
+
+    def _origin_sha(self):
+        return (self.bundle.get('geometry') or self.bundle.get('mesh',{}).get('geometry',{})).get('source_sha256')
+
+    def _select_ids(self,identifiers):
+        if not self._snapshot_current():self.status.SetLabel('Saved board changed. Reload and rerun before selecting.');return
+        from .origin_selection import select_origin
+        self._task(lambda:select_origin(self.board_path,identifiers,expected_sha256=self._origin_sha(),focus=True),
+                   lambda count:self.status.SetLabel(f'Selected {count} exact saved objects in the originating PCB Editor.'),'Selecting reviewed objects in PCB Editor…')
+
+    def _select_inspected(self,event=None):
+        self._select_ids((self._inspection or {}).get('source_ids',[]))
+
+    def _select_terminals(self,event=None):
+        request=self.bundle.get('request',{});chosen=terminal_ids(request)
+        geometry=self.bundle.get('geometry') or self.bundle.get('mesh',{}).get('geometry',{})
+        self._select_ids([row['id'] for row in geometry.get('terminals',[]) if row['id'] in chosen or row.get('label') in chosen])
+
+    def _read_editor_selection(self,event=None):
+        from .origin_selection import selected_origin_ids
+        def finish(ids):
+            for barrel in self.bundle.get('mesh',{}).get('vias',[]):
+                row=inspection_record(self.bundle,'via',barrel['id'])
+                if row and set(row['source_ids']).intersection(ids):self._choose_inspection(row,focus=True);return
+            primitive=next((item for item in self._board_scene.get('primitives',[]) if item.get('uuid') in ids and item.get('role') in ('track','pad','via')),None)
+            if primitive:
+                row=self._object_inspection(primitive)
+                candidate=probe_result(self.bundle,primitive['layer'],*row['location_mm'][:2],list(METRICS)[max(0,self.metric.GetSelection())])
+                if candidate:candidate['source_ids']=[primitive['uuid']];row=candidate
+                self._choose_inspection(row,focus=True);return
+            self.status.SetLabel('No extracted track, pad or via selected in the originating PCB Editor.')
+        self._task(lambda:selected_origin_ids(self.board_path,expected_sha256=self._origin_sha()),finish,'Reading selection from originating PCB Editor…')
 
     def _task(self,operation,finished,message):
         if self._busy:return
@@ -238,6 +516,7 @@ class QuickPIFrame(wx.Frame):
         if self._closed or self._closing:return
         from .service import run_job
         if request.get('action') in ('geometry','mesh','solve','converge'):
+            self._inspection=None
             self.bundle.pop('result',None)
             self.bundle.pop('convergence',None)
             self.summary.SetLabel('Waiting for the current request. No current electrical result is available.')
@@ -247,12 +526,15 @@ class QuickPIFrame(wx.Frame):
 
     def _inspect(self):
         if self._closed or self._closing:return
-        self._series_request=None;self.bundle={};self.volume_bundle={};self.return_bundle={}
+        self._series_request=None;self._extra_sinks=[];self.loads_button.SetLabel('Additional sinks (0)…');self.bundle={};self.volume_bundle={};self.return_bundle={}
         self.sweep_bundle={};self.return_table.DeleteAllItems()
         self.return_figure.clear();self.return_canvas.draw_idle()
         def finished(result):
             import pcbnew
+            from wayricad_runtime.board_render import extract_board
             self.decoupling.board=pcbnew.LoadBoard(self.board_path)
+            self._board_scene=extract_board(self.decoupling.board)
+            self._board_scene_hash=result.get('source_sha256')
             self.decoupling.invalidate()
             self.decoupling.summary.SetLabel('Saved board reloaded; run a fresh placement check.')
             self.inventory=result;names=result.get('nets',[]);self.net.Set(names)
@@ -294,13 +576,15 @@ class QuickPIFrame(wx.Frame):
         if self.net.GetValue()!=current:self._net_changed()
 
     def _net_changed(self,event=None):
-        self._series_request=None;self.operation_note.SetLabel('Source voltage → sink current')
+        self._inspection=None
+        self._series_request=None;self._extra_sinks=[];self.loads_button.SetLabel('Additional sinks (0)…');self.operation_note.SetLabel('Source voltage → sink current')
         self.bundle={};self.volume_bundle={};self._set_terminals();self._plot_keys.clear();self._draw()
         self.status.SetLabel('Preview this net or run the analysis.')
 
     def _invalidate(self,event=None):
         if event and event.GetEventObject() is self.load_mode:
             self.operation_note.SetLabel('Source voltage → resistive load to 0 V' if self.load_mode.GetSelection()==1 else 'Source voltage → specified sink current')
+        self._inspection=None
         self.bundle.pop('convergence',None)
         self.bundle.pop('result',None);self.volume_bundle={};self._buttons();self.summary.SetLabel('Inputs changed. Run again to update the electrical results.')
         if self.model_dimension.GetSelection()==1 and self.load_mode.GetSelection()!=0:
@@ -308,6 +592,10 @@ class QuickPIFrame(wx.Frame):
         request=self.bundle.setdefault('request',{})
         for control,key in ((self.source,'source_terminal'),(self.sink,'sink_terminal')):
             if control.GetSelection()>=0:request[key]=self._terminals[control.GetSelection()]['id']
+        if not self._series_request:
+            request['sinks']=([{'terminal':request['sink_terminal']}] if request.get('sink_terminal') else [])+list(self._extra_sinks)
+        metric_index=max(0,self.metric.GetSelection())
+        self.metric.Set([metric_name(self.bundle,key) for key in METRICS]);self.metric.SetSelection(metric_index)
         self._draw(preserve=True)
         if event:event.Skip()
 
@@ -345,12 +633,84 @@ class QuickPIFrame(wx.Frame):
             request.update(source_voltage=number(self.voltage,'Source voltage'),options=options)
             if self.load_mode.GetSelection()==1:request['load_resistance_ohm']=number(self.current,'Load resistance',True)
             else:request['sink_current']=number(self.current,'Sink current',True)
+            if self.source_current_limit.GetValue().strip():
+                limit=number(self.source_current_limit,'Source current limit')
+                if limit<0:raise ValueError('Source current limit must be nonnegative.')
+                request['source_current_limit']=limit
+            primary=load_values(request.get('sink_terminal'),1 if self.load_mode.GetSelection()==1 else self.current.GetValue(),self.sink_min_voltage.GetValue(),self.sink_max_voltage.GetValue())
+            if require_terminals and not self._series_request and self.load_mode.GetSelection()==0 and self.model_dimension.GetSelection()==0:
+                sinks=[primary,*[dict(row) for row in self._extra_sinks]]
+                identifiers=[row['terminal'] for row in sinks]
+                if len(set(identifiers))!=len(identifiers):raise ValueError('Each sink pad may be used only once.')
+                if request.get('source_terminal') in identifiers:raise ValueError('The source pad cannot also be a sink.')
+                request.pop('sink_terminal',None);request.pop('sink_current',None);request['sinks']=sinks
+            else:
+                if self._extra_sinks:raise ValueError('Additional sinks require 2.5D constant-current mode without a console/series path.')
+                for source,target in [('min_voltage_V','sink_min_voltage'),('max_voltage_V','sink_max_voltage')]:
+                    if source in primary:request[target]=primary[source]
+            if self.model_dimension.GetSelection()==1 and any(request.get(key) is not None for key in ('source_current_limit','sink_min_voltage','sink_max_voltage')):
+                raise ValueError('3D does not evaluate source budgets or sink voltage limits. Clear those fields or use 2.5D.')
         else:
             for control,key in ((self.source,'source_terminal'),(self.sink,'sink_terminal')):
                 if control.GetSelection()>=0:request[key]=self._terminals[control.GetSelection()]['id']
+            request['sinks']=([{'terminal':request['sink_terminal']}] if request.get('sink_terminal') else [])+list(self._extra_sinks)
         if require_terminals and self._series_request and action=='solve':
             for key in ('series','net','source_terminal','sink_terminal'):request[key]=self._series_request[key]
         return request
+
+    def on_loads(self,event=None):
+        """Edit additional constant-current sinks on the currently selected net."""
+        if self._busy or self._series_request:return
+        dialog=wx.Dialog(self,title='Quick PI · Additional sinks',size=(720,460),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        rows=[dict(row) for row in self._extra_sinks];labels={row['id']:row.get('label',row['id']) for row in self._terminals}
+        layout=wx.BoxSizer(wx.VERTICAL)
+        layout.Add(wx.StaticText(dialog,label='The primary sink remains in the main window. All demands run together at the source voltage.'),0,wx.EXPAND|wx.ALL,10)
+        table=wx.ListCtrl(dialog,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        for index,(name,width) in enumerate([('Pad',210),('Demand A',110),('Min V',110),('Max V',110)]):table.InsertColumn(index,name,width=width)
+        layout.Add(table,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        grid=wx.FlexGridSizer(2,4,6,10)
+        for name in ('Sink pad','Current A','Minimum V (blank = 0)','Maximum V (blank = none)'):grid.Add(wx.StaticText(dialog,label=name))
+        pad=wx.Choice(dialog,choices=[labels[row['id']] for row in self._terminals]);current=wx.TextCtrl(dialog,value='1')
+        minimum=wx.TextCtrl(dialog);minimum.SetHint('0 V');maximum=wx.TextCtrl(dialog);maximum.SetHint('Unbounded')
+        for control in (pad,current,minimum,maximum):grid.Add(control,1,wx.EXPAND)
+        for column in range(4):grid.AddGrowableCol(column)
+        layout.Add(grid,0,wx.EXPAND|wx.ALL,10)
+        message=wx.StaticText(dialog,label='Select a row to edit it, or choose a pad and add a new sink.');layout.Add(message,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        buttons=wx.BoxSizer(wx.HORIZONTAL)
+        add=wx.Button(dialog,label='Add sink');update=wx.Button(dialog,label='Update selected');remove=wx.Button(dialog,label='Remove selected')
+        for button in (add,update,remove):buttons.Add(button,0,wx.RIGHT,8)
+        layout.Add(buttons,0,wx.ALL,10);layout.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,10);dialog.SetSizer(layout)
+        def refresh():
+            table.DeleteAllItems()
+            for row in rows:
+                index=table.InsertItem(table.GetItemCount(),labels.get(row['terminal'],row['terminal']))
+                for column,key in enumerate(('current_A','min_voltage_V','max_voltage_V'),1):
+                    table.SetItem(index,column,str(row.get(key,0 if key=='min_voltage_V' else 'Unbounded')))
+        def selected(event):
+            row=rows[event.GetIndex()];index=next((i for i,item in enumerate(self._terminals) if item['id']==row['terminal']),-1)
+            pad.SetSelection(index);current.ChangeValue(str(row['current_A']));minimum.ChangeValue(str(row.get('min_voltage_V','')));maximum.ChangeValue(str(row.get('max_voltage_V','')))
+        def save(edit=False):
+            try:
+                choice=pad.GetSelection();index=table.GetFirstSelected() if edit else -1
+                if choice<0:raise ValueError('Choose a sink pad.')
+                if edit and index<0:raise ValueError('Select a row to update.')
+                identifier=self._terminals[choice]['id']
+                excluded=[self._terminals[control.GetSelection()]['id'] for control in (self.source,self.sink) if control.GetSelection()>=0]
+                if identifier in excluded:raise ValueError('Choose a pad different from the source and primary sink.')
+                if any(row['terminal']==identifier for i,row in enumerate(rows) if i!=index):raise ValueError('This pad is already an additional sink.')
+                row=load_values(identifier,current.GetValue(),minimum.GetValue(),maximum.GetValue())
+                if edit:rows[index]=row
+                else:rows.append(row)
+                refresh();message.SetLabel('Sink demand updated. Apply with OK.');dialog.Layout()
+            except ValueError as exc:message.SetLabel(str(exc));dialog.Layout()
+        def delete(event):
+            index=table.GetFirstSelected()
+            if index>=0:rows.pop(index);refresh()
+        add.Bind(wx.EVT_BUTTON,lambda event:save());update.Bind(wx.EVT_BUTTON,lambda event:save(True));remove.Bind(wx.EVT_BUTTON,delete)
+        table.Bind(wx.EVT_LIST_ITEM_SELECTED,selected);refresh()
+        if dialog.ShowModal()==wx.ID_OK:
+            self._extra_sinks=rows;self.loads_button.SetLabel(f'Additional sinks ({len(rows)})…');self._invalidate()
+        dialog.Destroy()
 
     def preview_geometry(self,event=None):self._analyze('geometry')
 
@@ -365,20 +725,38 @@ class QuickPIFrame(wx.Frame):
         self._job(request,finished,{'geometry':'Reading actual copper geometry…','mesh':'Building and validating the copper mesh…','solve':'Meshing copper and solving DC current flow…'}[action])
 
     def _accept_result(self,result,request,action):
+        self._inspection=None
         self.bundle=result;self.bundle.setdefault('request',request)
-        self._layers=[row for row in layer_rows(result) if row.get('polygons') or
-                      via_markers(result.get('mesh',{}),result.get('result',{}),result.get('geometry',{}),row['id'],'density')]
+        geometry=result.get('geometry') or result.get('mesh',{}).get('geometry',{})
+        expected=geometry.get('source_sha256')
+        if expected and expected!=self._board_scene_hash:
+            import hashlib
+            import pcbnew
+            from wayricad_runtime.board_render import extract_board
+            scene=extract_board(pcbnew.LoadBoard(self.board_path))
+            current=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
+            self._board_scene=scene if current==expected else {}
+            self._board_scene_hash=current if current==expected else None
+        self.bundle['board_scene']=self._board_scene
+        self._layers=list(layer_rows(result))
         self.layer.Set([row['name'] for row in self._layers])
-        if self._layers:self.layer.SetSelection(0)
+        if self._layers:
+            initial=next((index for index,row in enumerate(self._layers) if row.get('polygons') or
+                          via_markers(result.get('mesh',{}),result.get('result',{}),result.get('geometry',{}),row['id'],'density')),0)
+            self.layer.SetSelection(initial)
         mesh=result.get('mesh',{});self.mesh_count.SetLabel(f"{len(mesh.get('points_mm',[])):,} nodes · {len(mesh.get('triangles',[])):,} triangles" if mesh else '')
         for warning in result.get('geometry',{}).get('warnings',[]):self._console_write('Geometry: '+str(warning))
         self._plot_keys.clear();self.book.SetSelection(2 if action=='solve' else 1 if action=='mesh' else 0)
         if result.get('result'):
             r=result['result'];scope='Circuit' if request.get('series') else 'Copper'
-            ratio_label=f'{scope} ΔV/I'+(' (apparent)' if r.get('contains_forward_drop') else '')
-            self.summary.SetLabel(f"ΔV {r['voltage_drop_V']*1000:.4g} mV   |   {ratio_label} {r['drop_over_current_ohm']*1000:.4g} mΩ   |   Total loss {r['total_power_W']:.4g} W   |   Peak sheet J {r['max_current_density_A_mm2']:.4g} A/mm²")
+            multisink=len(r.get('sinks',[]))>1
+            ratio='Worst drop / total demand' if multisink else scope+' ΔV/I'+(' (apparent)' if r.get('contains_forward_drop') else '')
+            state=r.get('feasibility',{}).get('status','Solved')
+            demand=r.get('total_sink_current_A',r.get('sink_current_A',0))
+            self.summary.SetLabel(f"{state} · {len(r.get('sinks',[])) or 1} sink(s), {demand:.4g} A total   |   ΔV {r['voltage_drop_V']*1000:.4g} mV   |   {ratio} {r['drop_over_current_ohm']*1000:.4g} mΩ   |   Loss {r['total_power_W']:.4g} W")
             self.status.SetLabel('Mesh convergence not verified. Pulse risk is an adiabatic screen; peaks depend on mesh size and exclude cooling/fuse-opening physics.')
-            self._console_write(f"Solved: drop={r['voltage_drop_V']:.8g} V; {ratio_label}={r['drop_over_current_ohm']:.8g} ohm; power={r['total_power_W']:.8g} W; source V/I={r['V_over_I_ohm']:.8g} ohm")
+            self._console_write(f"{state}: drop={r['voltage_drop_V']:.8g} V; {ratio}={r['drop_over_current_ohm']:.8g} ohm; power={r['total_power_W']:.8g} W; requested-load source V/I={r['V_over_I_ohm']:.8g} ohm")
+            self._console_write(feasibility_text(r));self._console_write(sink_results_text(r))
             for branch in r.get('components',[]):
                 if branch.get('model') in ('diode','fixed_drop'):
                     self._console_write(f"{branch['id']}: {branch['model']} at {branch['current_A']:.6g} A, Vf={branch['forward_drop_V']:.6g} V, before={branch['voltage_before_V']:.6g} V, after={branch['voltage_after_V']:.6g} V")
@@ -391,8 +769,13 @@ class QuickPIFrame(wx.Frame):
                 self.status.Wrap(max(600,self.GetClientSize().width-32))
                 self.edge.ChangeValue(str(result['request']['edge_mm']))
                 self._console_write(summary(result['convergence']))
+            if r.get('feasibility',{}).get('feasible') is False:
+                self.status.SetLabel(feasibility_text(r)+'\nMesh convergence does not establish load feasibility. See Layers / losses for every sink voltage and limit.')
+                self.status.Wrap(max(600,self.GetClientSize().width-32))
+            metric_index=max(0,self.metric.GetSelection())
+            self.metric.Set([metric_name(self.bundle,key) for key in METRICS]);self.metric.SetSelection(metric_index)
         else:self.summary.SetLabel('Actual filled copper, pad contacts and via barrels. Pan and zoom to inspect the selected layer.');self.status.SetLabel('Preview ready.')
-        self._draw()
+        self._update_inspector(True);self._draw()
 
 
     def _console_write(self,text):
@@ -470,9 +853,24 @@ class QuickPIFrame(wx.Frame):
         figure,canvas,toolbar=self.views[index]
         selected=self.layer.GetSelection();layer=self._layers[selected]['id'] if 0<=selected<len(self._layers) else None
         metric=list(METRICS)[max(0,self.metric.GetSelection())]
+        self.bundle.setdefault('view_settings',{})['scale_mode']=self.scale_mode.GetSelection()
         key=(index,str(layer));limits=None
+        self.bundle['view_settings']['field_style']='cells' if self.field_style.GetSelection()==1 else 'smooth'
         if preserve and self._plot_keys.get(index)==key and figure.axes:limits=(figure.axes[0].get_xlim(),figure.axes[0].get_ylim())
-        ax=draw_view(figure,self.bundle,('Net','Mesh','Results')[index],layer,metric)
+        if self.scale_mode.GetSelection()==2:
+            setting=self.bundle.get('view_settings',{}).get('manual',{})
+            if setting.get('metric')!=metric:
+                defaults=result_scale(self.bundle,metric)
+                if defaults:
+                    self.scale_min.ChangeValue(f'{defaults[0]:.8g}');self.scale_max.ChangeValue(f'{defaults[1]:.8g}')
+                    self.bundle.setdefault('view_settings',{})['manual']={'metric':metric,'limits':list(defaults)}
+        self._update_inspector()
+        if not self._saved_source_current:
+            figure.clear();ax=figure.add_subplot(111)
+            ax.text(.5,.5,'Saved PCB changed. Reload and rerun before viewing results.',ha='center',va='center',transform=ax.transAxes)
+            ax.set_axis_off();toolbar.update();canvas.draw_idle();return
+        ax=draw_view(figure,self.bundle,('Net','Mesh','Results')[index],layer,metric,self._scale_limits(metric),self._inspection,
+                     show_context=self.show_context.GetValue(),show_copper=self.show_copper.GetValue(),show_overlay=self.show_overlay.GetValue())
         result=self.bundle.get('result',{});analysis=result.get('analytics',{})
         row=next((item for item in analysis.get('layers',[]) if str(item['layer'])==str(layer)),None)
         if row:
@@ -572,6 +970,10 @@ class QuickPIFrame(wx.Frame):
         volume=menu.Append(wx.ID_ANY,'Select 3D copper analysis')
         volume.Enable(len(self._terminals)>1)
         self.Bind(wx.EVT_MENU,lambda e:(self.model_dimension.SetSelection(1),self._model_changed()),volume)
+        transient=menu.Append(wx.ID_ANY,'Transient load-step study…')
+        self.Bind(wx.EVT_MENU,self.on_transient,transient);transient.Enable(not self._busy)
+        electrothermal=menu.Append(wx.ID_ANY,'Electrothermal study…')
+        self.Bind(wx.EVT_MENU,self.on_electrothermal,electrothermal);electrothermal.Enable(not self._busy)
         details=menu.Append(wx.ID_ANY,'Layer thickness, losses and hotspots…');details.Enable(bool(self.bundle.get('result',{}).get('analytics')))
         self.Bind(wx.EVT_MENU,self.on_details,details)
         focus=menu.Append(wx.ID_ANY,'Zoom to circuit terminals');self.Bind(wx.EVT_MENU,self._focus_terminals,focus)
@@ -752,6 +1154,13 @@ class QuickPIFrame(wx.Frame):
             if dialog.ShowModal()!=wx.ID_OK:return
             request=self._request('solve')
             request.pop('load_resistance_ohm',None)
+            if self._extra_sinks:
+                raise ValueError('Current sweeps require a single sink. Remove additional sinks first.')
+            if 'sinks' in request:
+                sink=request.pop('sinks')[0]
+                request.update(sink_terminal=sink['terminal'],sink_current=sink['current_A'])
+                for key,target in [('min_voltage_V','sink_min_voltage'),('max_voltage_V','sink_max_voltage')]:
+                    if key in sink:request[target]=sink[key]
             request['action']='sweep';request['sweep']={'start_A':float(fields[0].GetValue()),
                 'stop_A':float(fields[1].GetValue()),'points':int(fields[2].GetValue())}
         except (ValueError,KeyError) as exc:self.status.SetLabel(str(exc));return
@@ -779,6 +1188,44 @@ class QuickPIFrame(wx.Frame):
         note.Wrap(self.FromDIP(880));layout.Add(note,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
         layout.Add(dialog.CreateButtonSizer(wx.CLOSE),0,wx.ALIGN_RIGHT|wx.ALL,10)
         dialog.SetSizer(layout);canvas.draw();dialog.ShowModal();dialog.Destroy()
+
+    def on_electrothermal(self,event=None):
+        if self._busy:return
+        if not self._snapshot_current():self.status.SetLabel('Saved PCB changed. Reload before opening electrothermal coupling.');return
+        try:
+            if self.model_dimension.GetSelection()!=0 or self.load_mode.GetSelection()!=0:
+                raise ValueError('Seed electrothermal studies from 2.5D specified-current loads. 3D and resistive-load modes are separate models.')
+            import hashlib
+            from .electrothermal_ui import ElectrothermalStudyDialog,initial_studies
+            from .service import run_job
+            request=self._request('solve')
+            sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
+            dialog=ElectrothermalStudyDialog(self,initial_studies(request,self._terminals),
+                lambda payload,cancel:run_job(payload,cancelled=cancel),
+                (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha)
+            try:dialog.ShowModal()
+            finally:dialog.Destroy()
+        except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
+
+    def on_transient(self,event=None):
+        if self._busy:return
+        if not self._snapshot_current():self.status.SetLabel('Saved board changed. Reload before opening a transient study.');return
+        try:
+            if self.model_dimension.GetSelection()!=0 or self.load_mode.GetSelection()!=0:
+                raise ValueError('Seed transient studies from 2.5D specified-current loads, then enter explicit circuit R/L/C values.')
+            import hashlib
+            from .transient_inputs import initial_study
+            from .service import run_job
+            from wayricad_runtime.transient_study_ui import TransientStudyDialog
+            request=self._request('solve')
+            if request.get('series'):raise ValueError('Select a net source and sinks for the transient setup; enter the explicit path R/L in the study.')
+            sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
+            dialog=TransientStudyDialog(self,'pi',initial_study(request,self._terminals),
+                lambda payload,cancel:run_job(payload,cancelled=cancel),
+                (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha)
+            try:dialog.ShowModal()
+            finally:dialog.Destroy()
+        except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
 
     def on_convergence(self,event=None):
         if self._busy:return
@@ -830,17 +1277,12 @@ class QuickPIFrame(wx.Frame):
         canvas.draw();dialog.ShowModal();dialog.Destroy()
 
     def on_details(self,event=None):
-        from .analytics import details_text
-        dialog=wx.Dialog(self,title='Quick PI · Layer details',size=(940,660),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
-        text=wx.TextCtrl(dialog,value=details_text(self.bundle.get('result',{})),style=wx.TE_MULTILINE|wx.TE_READONLY)
-        layout=wx.BoxSizer(wx.VERTICAL);layout.Add(text,1,wx.EXPAND|wx.ALL,12)
-        layout.Add(dialog.CreateButtonSizer(wx.CLOSE),0,wx.ALIGN_RIGHT|wx.ALL,12)
-        dialog.SetSizer(layout);dialog.Bind(wx.EVT_BUTTON,lambda e:dialog.EndModal(wx.ID_CLOSE),id=wx.ID_CLOSE)
-        dialog.ShowModal();dialog.Destroy()
+        self.book.SetSelection(2);self._update_inspector(True)
+        self.inspector_views.SetSelection(1);self.accounting_text.SetFocus();self.inspector.Scroll(0,0)
 
     def _focus_terminals(self,event=None):
         request=self.bundle.get('request',{});mesh=self.bundle.get('mesh',{})
-        chosen={request.get('source_terminal'),request.get('sink_terminal')}
+        chosen=terminal_ids(request)
         for branch in request.get('series',[]):chosen.update((branch.get('from_pad'),branch.get('to_pad')))
         points=[]
         for terminal in self.bundle.get('geometry',{}).get('terminals',[]):
@@ -864,11 +1306,7 @@ class QuickPIFrame(wx.Frame):
                 self.edge.SetValue(f'{value:g}')
                 self.on_3d_analysis()
                 return
-            prior=dict(self.bundle.get('request',{}));self.edge.SetValue(f'{value:g}')
-            if prior.get('series'):
-                prior['edge_mm']=value
-                self._job(prior,lambda result:self._accept_result(result,prior,'solve'),'Refining the console circuit mesh…')
-            else:self._analyze('solve')
+            self.edge.SetValue(f'{value:g}');self._analyze('solve')
         except Exception as exc:self.status.SetLabel(str(exc))
 
     def on_export(self,event=None):
@@ -876,6 +1314,8 @@ class QuickPIFrame(wx.Frame):
             self._export_3d(self,self.volume_bundle)
             return
         if not self.bundle.get('result'):return
+        if not self._snapshot_current():
+            self.status.SetLabel('Saved board changed. Reload and rerun before exporting.');return
         with wx.FileDialog(self,'Export self-contained results',defaultDir=str(Path(self.board_path).parent),defaultFile=Path(self.board_path).stem+'-quick-pi.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             path=dialog.GetPath()

@@ -9,7 +9,7 @@ def assess(samples, tolerance_percent=1., failure=None):
     tolerance=float(tolerance_percent)
     if not math.isfinite(tolerance) or not 0 < tolerance <= 20:
         raise ValueError('Convergence tolerance must be greater than 0 and at most 20 percent.')
-    changes=[];balances=[];refined=True
+    changes=[];balances=[];refined=True;sink_identity=None
     for index,row in enumerate(samples):
         required=('edge_mm','voltage_drop_V','resistance_ohm','power_W','sheet_power_W','current_A',
                   'current_error_A','nodal_error_A','energy_error','peak_J_A_mm2')
@@ -22,6 +22,21 @@ def assess(samples, tolerance_percent=1., failure=None):
         balances.append(row['current_error_A']/row['current_A']<=1e-6 and row['nodal_error_A']/row['current_A']<=1e-6 and row['energy_error']<=1e-6)
         if any(isinstance(row.get(k),bool) or not isinstance(row.get(k),int) or row[k]<=0 for k in ('nodes','triangles')):
             raise ValueError('Refinement samples need positive integer node and triangle counts.')
+        sink_rows=row.get('sinks')
+        if sink_rows is not None:
+            if not isinstance(sink_rows,list) or not sink_rows:
+                raise ValueError('Refinement samples need a nonempty sink list.')
+            if any(not isinstance(sink,dict) or not isinstance(sink.get('id'),str) or
+                   any(isinstance(sink.get(key),bool) or not isinstance(sink.get(key),(int,float)) or
+                       not math.isfinite(sink[key]) or sink[key]<=0 for key in ('current_A','voltage_drop_V'))
+                   for sink in sink_rows):
+                raise ValueError('Refinement sink currents and voltage drops must be finite and positive.')
+            stamp=sorted((sink['id'],sink['current_A']) for sink in sink_rows)
+            if len({key for key,_ in stamp})!=len(stamp):raise ValueError('Repeated refinement sink identity.')
+            if sink_identity is not None and stamp!=sink_identity:raise ValueError('Sink identities or currents changed between meshes.')
+            sink_identity=stamp
+        if index and (sink_rows is None)!=(samples[index-1].get('sinks') is None):
+            raise ValueError('Sink evidence changed between meshes.')
         if index:
             previous=samples[index-1]
             if not row['edge_mm']<previous['edge_mm']:raise ValueError('Mesh edge sizes must strictly decrease.')
@@ -29,13 +44,18 @@ def assess(samples, tolerance_percent=1., failure=None):
             refined &= row['triangles']>previous['triangles'] and row['nodes']>previous['nodes']
             changes.append({key:100*abs(row[field]-previous[field])/max(abs(row[field]),1e-30)
                             for key,field in [('drop_percent','voltage_drop_V'),('resistance_percent','resistance_ohm'),('power_percent','power_W'),('sheet_power_percent','sheet_power_W'),('peak_J_percent','peak_J_A_mm2')]})
+            if sink_rows is not None:
+                previous_sinks={sink['id']:sink for sink in previous['sinks']}
+                changes[-1]['sink_drop_percent']=max(100*abs(sink['voltage_drop_V']-previous_sinks[sink['id']]['voltage_drop_V'])/
+                                                   max(abs(sink['voltage_drop_V']),1e-30) for sink in sink_rows)
     stable=(len(samples)>=3 and refined and all(balances) and
-            all(c[key]<=tolerance for c in changes[-2:] for key in ('drop_percent','resistance_percent','power_percent','sheet_power_percent')))
+            all(c[key]<=tolerance for c in changes[-2:] for key in ('drop_percent','resistance_percent','power_percent','sheet_power_percent')) and
+            all(c.get('sink_drop_percent',0)<=tolerance for c in changes[-2:]))
     status='INCOMPLETE' if failure or len(samples)<3 else 'BALANCE_FAILED' if not all(balances) else 'MESH_NOT_REFINED' if not refined else 'STABLE_WITHIN_TOLERANCE' if stable else 'NOT_STABLE'
     return {'schema':'wayricad.pi-convergence/v1','status':status,'tolerance_percent':tolerance,
             'samples':deepcopy(samples),'successive_changes':changes,'failure':failure,
             'terminal_drop_stable':stable and not failure,'peak_current_converged':False,
-            'criteria':'At least three distinct successively finer meshes; both final refinement steps meet drop, resistance, total-power and copper-sheet-power tolerances; current/nodal/energy balance errors <= 1e-6.',
+            'criteria':'At least three distinct successively finer meshes; both final refinement steps meet every sink drop, aggregate drop, resistance, total-power and copper-sheet-power tolerances; current/nodal/energy balance errors <= 1e-6.',
             'limitations':[
                 'Observed stability of terminal quantities, not a rigorous error bound or measured PCB validation.',
                 'Geometry, contacts, source/load, layer thickness, plating and material inputs are held fixed; their modeling and measurement errors are not covered.',
@@ -71,6 +91,8 @@ def run_study(request, execute):
             voltage_drop_V=r['voltage_drop_V'],resistance_ohm=r['drop_over_current_ohm'],power_W=r['total_power_W'],
             sheet_power_W=r['planar_power_W'],current_A=r['sink_current_A'],current_error_A=r['current_balance_error_A'],
             nodal_error_A=r['max_nodal_residual_A'],energy_error=r['energy_relative_error'],peak_J_A_mm2=r['max_current_density_A_mm2']))
+        if r.get('sinks'):
+            samples[-1]['sinks']=[{key:sink[key] for key in ('id','current_A','voltage_drop_V')} for sink in r['sinks']]
         last=bundle
     if hashlib.sha256(Path(base['board_path']).read_bytes()).hexdigest()!=identity[0]:
         raise ValueError('The board changed during refinement; discard the study.')

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.6.11"
+version = "3.6.12"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,7 +22,7 @@ Changelog = "https://github.com/wayri/WayriCAD/releases"
 
 [project.optional-dependencies]
 si = ["matplotlib>=3.7,<4"]
-test = ["matplotlib>=3.7,<4", "Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9", "zstandard>=0.25.0,<1"]
+test = ["numpy>=1.24,<3", "scipy>=1.10,<2", "matplotlib>=3.7,<4", "Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9", "zstandard>=0.25.0,<1"]
 
 [project.scripts]
 wayricad = "extract_pins_plugin.cli:main"
@@ -46,6 +46,7 @@ exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.
 
 [tool.setuptools.package-data]
 wayricad_runtime = ["*.md"]
+bom_studio_plugin = ["*.html", "*.md", "*.json", "*.png", "web/*.html", "web/*.js", "web/*.css", "resources/*.png", "resources/*.ico", "resources/*.md", "examples/*", "examples/*/*", "examples/*/*/*"]
 project_fusion_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "*.svg"]
 variant_manager_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png"]
 "*" = ["LICENSE", "LICENSE.*", "SOURCE_PROVENANCE.json"]
@@ -59,8 +60,8 @@ trace_impedance_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"
 signal_integrity_advisor_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 mechanical_check_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "resources/*.html", "src/wayricad_mechanical/*.py", "src/wayricad_mechanical/*.html", "src/wayricad_mechanical/*.js"]
 copper_balancer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
-quick_pi_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png"]
-quick_therm_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png", "examples/*.png", "examples/*.json", "examples/*.html", "examples/*.kicad_pcb", "examples/*.py"]
+quick_pi_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png", "studies/*.json"]
+quick_therm_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png", "examples/*.png", "examples/*.json", "examples/*.html", "examples/*.kicad_pcb", "examples/*.py", "studies/*.json"]
 embed_3d_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 protocol_constraint_composer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "docs/*.md", "examples/*", "examples/profiles/*.json", "examples/workflow_demo/*", "web/*.html", "web/*.css", "web/*.js"]
 "protocol_constraint_composer_plugin.constraint_studio" = ["*.html", "*.png", "LICENSE*", "help/*.json", "help/images/*"]

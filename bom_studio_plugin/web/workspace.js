@@ -65,9 +65,9 @@ document.addEventListener('change',e=>{
   quickExport[key]=e.target.type==='checkbox'?e.target.checked:e.target.value;
   render();
 });
-handlers.quickPreview=async()=>{
-  const p=await api('simple-export/preview',{options:quickExport});
-  $('#quickRows').innerHTML=`<p>${p.groups} rows · ${p.issues.filter(i=>i.severity==='error').length} blocking checks</p><div class="table-wrap"><table class="data-table"><thead><tr>${p.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${p.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-};
-handlers.quickDownload=async()=>download('simple-export/download',{options:quickExport,format:$('#quickFormat').value,draft:$('#quickDraft').checked});
+handlers.quickPreview=()=>withReviewedGrid(async()=>{
+  const p=await api('simple-export/preview',{variant:S.variant,options:quickExport});
+  $('#quickRows').innerHTML=`<p>Known installed cost / board in this export: ${esc(JSON.stringify(p.installed_totals))}</p><p class="fine">${esc(p.pricing_basis.notice)} Price field: ${esc(p.pricing_basis.field)}; divisor: ${esc(p.pricing_basis.per_row_field||p.pricing_basis.per_pieces)}.</p><p>${p.groups} rows · ${p.issues.filter(i=>i.severity==='error').length} blocking checks</p><div class="table-wrap"><table class="data-table"><thead><tr>${p.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${p.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+},'Stage edits and preview');
+handlers.quickDownload=()=>{const format=$('#quickFormat').value,draft=$('#quickDraft').checked;return withReviewedGrid(()=>download('simple-export/download',{options:quickExport,format,draft}),'Stage edits and export');};
 if(S.data?.project)render();

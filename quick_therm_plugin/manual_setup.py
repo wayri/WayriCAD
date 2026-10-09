@@ -18,6 +18,7 @@ class ManualThermalDialog(wx.Dialog):
         self.environment = environment
         self.heatsinks = set(heatsinks)
         self.power_only = power_only
+        self._existing_values = {ref: dict(values) for ref, values in existing.items()}
         self.values = None
         panel = wx.Panel(self)
         layout = wx.BoxSizer(wx.VERTICAL)
@@ -75,16 +76,18 @@ class ManualThermalDialog(wx.Dialog):
         return "theta_ja_air_k_per_w" if self.environment == "air" else "theta_jb_k_per_w"
 
     def _accept(self, event):
+        self.grid.SaveEditControlValue()
         self.grid.DisableCellEditControl()
         entered = {}
         try:
             for index, ref in enumerate(self.references):
                 resistance = "theta_jb_k_per_w" if self.power_only else self._resistance_quantity(ref)
-                values = {}
+                values = dict(self._existing_values.get(ref, {}))
                 for column, key in ((0, "power_w"), (1, resistance)):
                     raw = self.grid.GetCellValue(index, column).strip()
                     if not raw:
                         if self.power_only and column == 1:
+                            values.pop(key, None)
                             continue
                         raise ValueError(f"{ref}: enter {key}; no default is assumed.")
                     try:

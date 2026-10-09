@@ -50,6 +50,13 @@ def run_job(request, cancelled=None, timeout=300):
 
 
 def execute(request):
+    if request.get('action')=='electrothermal':
+        from .electrothermal_service import execute as electrothermal_execute
+        return electrothermal_execute(request)
+    if request.get('action')=='transient':
+        from .transient import solve_transient
+        from wayricad_runtime.transient_study import execute_study
+        return execute_study(request,solve_transient)
     if request.get('action')=='verify':
         from .verification import run_benchmarks
         return run_benchmarks()
@@ -60,6 +67,10 @@ def execute(request):
     requested_action=request.get('action','inspect')
     voltage_mode=request.get('load_resistance_ohm') is not None
     sweep_mode=requested_action=='sweep'
+    if (voltage_mode or sweep_mode) and 'sinks' in request:
+        raise ValueError('Voltage-driven load and current sweep require one legacy sink; multisink demands use constant-current mode.')
+    if sweep_mode and any(request.get(key) is not None for key in ('source_current_limit','sink_min_voltage','sink_max_voltage')):
+        raise ValueError('Current sweeps do not evaluate source budgets or sink voltage bounds. Use a single solved operating point to check those limits.')
     if sweep_mode or voltage_mode:
         if requested_action not in ('solve','sweep'):
             raise ValueError('Voltage-driven load and sweep modes require a solved path.')
@@ -88,11 +99,13 @@ def execute(request):
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during return-path review. Reload and run again.')
         return {'return_path':result,'evidence':evidence,'request':request,'source_sha256':before}
     if action not in ('geometry','mesh','solve'):raise ValueError('Unknown Quick PI action: '+str(action))
+    if action=='solve': sink_requests(request)
     from .board_geometry import extract
     full3d=request.get('model_dimension','2.5d')=='3d'
     if request.get('model_dimension','2.5d') not in ('2.5d','3d'):
         raise ValueError('Choose model_dimension 2.5d or 3d.')
-    if full3d and (request.get('series') or voltage_mode or sweep_mode or request.get('html_output')):
+    if full3d and (request.get('series') or voltage_mode or sweep_mode or request.get('html_output') or 'sinks' in request or
+                   any(request.get(key) is not None for key in ('source_current_limit','sink_min_voltage','sink_max_voltage'))):
         raise ValueError('Full 3D currently supports one net with prescribed current and JSON output; series, load/sweep and HTML views require 2.5D.')
     if full3d and request.get('mesh_backend')=='vtk':
         raise ValueError('Full 3D requires Gmsh; VTK is only a 2.5D meshing backend.')
@@ -134,15 +147,20 @@ def execute(request):
         output['mesh']=mesh
         if action=='solve':
             from .solver import solve
-            def nodes(key):
-                chosen=request[key]
-                if chosen in mesh['terminal_nodes']:return mesh['terminal_nodes'][chosen]
+            def terminal(chosen):
+                if chosen in mesh['terminal_nodes']:
+                    row=next(t for t in geometry['terminals'] if t['id']==chosen)
+                    return row,mesh['terminal_nodes'][chosen]
                 match=[t['id'] for t in geometry['terminals'] if t['label']==chosen]
                 if len(match)!=1:raise ValueError('Select one unambiguous source and sink pad on this net: '+str(chosen))
-                return mesh['terminal_nodes'][match[0]]
-            output['result']=solve(mesh,nodes('source_terminal'),nodes('sink_terminal'),
-                source_voltage=float(request.get('source_voltage',1.)),sink_current=float(request.get('sink_current',1.)),
-                options=request.get('options'))
+                return next(t for t in geometry['terminals'] if t['id']==match[0]),mesh['terminal_nodes'][match[0]]
+            sink_specs=[]
+            for spec in sink_requests(request):
+                row,indices=terminal(spec['terminal'])
+                sink_specs.append({**spec,'nodes':indices,'id':row['id'],'label':row['label']})
+            output['result']=solve(mesh,terminal(request['source_terminal'])[1],
+                source_voltage=request.get('source_voltage',1.),sinks=sink_specs,
+                source_current_limit=request.get('source_current_limit'),options=request.get('options'))
     output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
     if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
     return output
@@ -179,13 +197,61 @@ def _operating_result(output,request,original_request,voltage_mode,sweep_mode):
             matches=[t['id'] for t in output['geometry']['terminals'] if t['label']==chosen]
             if len(matches)!=1:raise ValueError('Select one unambiguous source and sink pad: '+str(chosen))
             return mesh['terminal_nodes'][matches[0]]
-        output['result']=solve(mesh,terminal('source_terminal'),terminal('sink_terminal'),
-                               source_voltage=source,sink_current=current,options=request.get('options'))
+        spec=sink_requests({**request,'sink_current':current})[0]
+        output['result']=solve(mesh,terminal('source_terminal'),
+                               source_voltage=source,sinks=[{**spec,'nodes':terminal('sink_terminal')}],
+                               source_current_limit=request.get('source_current_limit'),options=request.get('options'))
         output['result']['load_resistance_ohm']=load
         output['result']['load_power_W']=current*current*load
         output['result']['operating_mode']='voltage_driven_resistive_load'
     output['request']=original_request
     return output
+
+
+def sink_requests(request):
+    """Validate terminal-based load requests before expensive mesh construction."""
+    def number(value,label,positive=False):
+        if isinstance(value,bool): raise ValueError(label+' must be a finite number.')
+        try: value=float(value)
+        except (ValueError,TypeError) as exc: raise ValueError(label+' must be a finite number.') from exc
+        if not math.isfinite(value) or (value<=0 if positive else value<0):
+            raise ValueError(label+' must be finite and '+('positive.' if positive else 'nonnegative.'))
+        return value
+    if request.get('source_current_limit') is not None:
+        number(request['source_current_limit'],'Source current limit')
+    if 'sinks' in request:
+        if any(request.get(key) is not None for key in ('sink_terminal','sink_current','sink_min_voltage','sink_max_voltage')):
+            raise ValueError('Choose sinks or the legacy sink_terminal/sink_current fields, not both.')
+        if request.get('series'):
+            raise ValueError('Multisink requests cannot be combined with a series-component path.')
+        specs=request['sinks']
+    else:
+        specs=[{'terminal':request.get('sink_terminal'),'current_A':request.get('sink_current',1.),
+                'min_voltage_V':request.get('sink_min_voltage',0.)}]
+        if request.get('sink_max_voltage') is not None: specs[0]['max_voltage_V']=request['sink_max_voltage']
+    if not isinstance(specs,(list,tuple)) or not 1<=len(specs)<=1024:
+        raise ValueError('Specify 1 to 1,024 sinks.')
+    result=[];seen=set()
+    for spec in specs:
+        if not isinstance(spec,dict): raise ValueError('Each sink needs a terminal and current_A.')
+        unknown=set(spec)-{'terminal','current_A','min_voltage_V','max_voltage_V'}
+        if unknown: raise ValueError('Unknown sink parameter: '+', '.join(sorted(unknown)))
+        chosen=spec.get('terminal')
+        if not isinstance(chosen,str) or not chosen.strip(): raise ValueError('Each sink needs a nonempty pad label or UUID.')
+        if chosen in seen: raise ValueError('Repeated sink terminal: '+chosen)
+        seen.add(chosen)
+        current=number(spec.get('current_A'),'Sink current',True)
+        minimum=number(spec.get('min_voltage_V',0),'Sink minimum voltage')
+        maximum=spec.get('max_voltage_V')
+        if maximum is not None:
+            maximum=number(maximum,'Sink maximum voltage')
+            if maximum<minimum: raise ValueError('Sink maximum voltage must be at least its minimum voltage.')
+        result.append({'terminal':chosen,'current_A':current,'min_voltage_V':minimum,'max_voltage_V':maximum})
+    try: total=math.fsum(row['current_A'] for row in result)
+    except OverflowError as exc: raise ValueError('Total sink current must be finite.') from exc
+    if not math.isfinite(total):
+        raise ValueError('Total sink current must be finite.')
+    return result
 
 
 def series_execute(board,path,request):
@@ -202,7 +268,8 @@ def series_execute(board,path,request):
         matches=[p for p in inventory if p['id']==value or p['label']==value]
         if len(matches)!=1:raise ValueError('Choose an unambiguous pad: '+str(value))
         return matches[0]
-    start=terminal(request['source_terminal']);end=terminal(request['sink_terminal'])
+    sink_spec=sink_requests(request)[0]
+    start=terminal(request['source_terminal']);end=terminal(sink_spec['terminal'])
     if start['id']==end['id']:raise ValueError('Source and sink terminals must be distinct.')
     seen={start['id'],end['id']}
     previous=start;branches=[];nets=[start['net']]
@@ -264,8 +331,9 @@ def series_execute(board,path,request):
               'counts':{'nets':len(set(nets))},'domain_counts':domain_counts,'warnings':sorted(set(warnings))}
     geometry['geometry_sha256']=hashlib.sha256(json.dumps(geometry,sort_keys=True).encode()).hexdigest()
     mesh['geometry']=geometry
-    result=solve(mesh,mesh['terminal_nodes'][start['id']],mesh['terminal_nodes'][end['id']],
-        source_voltage=float(request.get('source_voltage',1.)),sink_current=float(request.get('sink_current',1.)),
-        options=request.get('options'))
+    result=solve(mesh,mesh['terminal_nodes'][start['id']],
+        source_voltage=request.get('source_voltage',1.),
+        sinks=[{**sink_spec,'nodes':mesh['terminal_nodes'][end['id']],'id':end['id'],'label':end['label']}],
+        source_current_limit=request.get('source_current_limit'),options=request.get('options'))
     return {'geometry':geometry,'mesh':mesh,'result':result,'request':request,
             'model':'2.5D DC copper conduction with explicit series R/L and forward-drop branches at prescribed current'}

@@ -13,6 +13,7 @@ import os
 import re
 import tempfile
 from .native import Project, BASE, FLAGS, natural, sha, variant_lookup, is_generated_field
+from . import __version__
 
 ALIASES = {
  'MPN':['MPN','Manufacturer Part Number','Manufacturer_Part_Number','Mfr Part Number','Mfr_PN','Part Number'],
@@ -117,7 +118,7 @@ class Resolver:
 
 
 def fresh_state():
-    return {'schema':1,'app_version':'3.1.1','base':{},'variants':{},'variables':{},
+    return {'schema':1,'app_version':__version__,'base':{},'variants':{},'variables':{},
             'project_variables':{},'aliases':deepcopy(ALIASES),'templates':deepcopy(TEMPLATES),
             'settings':{'boards':1,'attrition':0,'currency':'INR','required_fields':['MPN','Footprint'], 'quote_age_days':90},
             'alternates':{},'history':[],'baseline':None,
@@ -141,7 +142,7 @@ class Workspace:
         self.state.setdefault('evidence',[])
         self.state.setdefault('health_settings',{})
         self.state.setdefault('grouping',{'fields':[],'raw':False})
-        self.state['app_version']='3.1.1'
+        self.state['app_version']=__version__
         self._validate_state()
         for name,desc in project.variant_descriptions.items():
             if name.casefold() not in {n.casefold() for n in self.state['variants']}:

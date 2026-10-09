@@ -1,4 +1,13 @@
 'use strict';
+// A missing deferred module must not leave apparently working controls whose
+// handlers were never registered. Report cold-load failures before opening data.
+const startupScriptErrors=[];
+let interfaceStarting=true;
+window.addEventListener('error',event=>{
+ if(!interfaceStarting)return;
+ const source=event.target?.tagName==='SCRIPT'?event.target.getAttribute('src'):event.filename;
+ if(source)startupScriptErrors.push(source.split('/').pop());
+},true);
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const BASE='<Default>', token=new URLSearchParams(location.hash.slice(1)).get('token')||sessionStorage.getItem('wayricadToken')||'';
@@ -82,4 +91,16 @@ $('#openButton').addEventListener('click',openDialog);$('#welcomeOpen')?.addEven
 $('#quitButton').addEventListener('click',async()=>{if((S.data?.dirty||S.formDirty)&&!confirm('Quit and discard unsaved workspace changes?'))return;try{await api('quit',{discard:true});document.body.innerHTML='<main class="welcome"><h1>Workspace closed.</h1><p>The local server has stopped. You can close this tab.</p></main>';}catch(e){toast(e.message,true);}});
 $('#themeButton').addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;localStorage.setItem('wayricadTheme',theme);});document.documentElement.dataset.theme=localStorage.getItem('wayricadTheme')||'light';
 window.addEventListener('beforeunload',event=>{if(S.data?.dirty||S.formDirty){event.preventDefault();event.returnValue='';}});
-// Initial refresh is performed by workbench.js after v0.2 handlers are registered.
+// Every deferred module, including native settings and shared parts, must be
+// registered before a fast local API response can trigger the first render.
+document.addEventListener('DOMContentLoaded',()=>{
+ interfaceStarting=false;
+ if(startupScriptErrors.length){
+  $('#main').innerHTML=`<section class="welcome"><h1>BOM Studio could not load its interface</h1><p>Some local interface files failed to load: ${[...new Set(startupScriptErrors)].map(esc).join(', ')}.</p><p>Reload to retry. If this continues, restart BOM Studio and check that its installed package contains all UI files.</p><button id="retryInterface" class="primary">Reload interface</button></section>`;
+  $$('nav button,.top-actions button').forEach(button=>button.disabled=true);
+  $('#retryInterface').addEventListener('click',()=>location.reload());
+  $('#statusLine').textContent='Interface loading failed. No project changes were made.';
+  return;
+ }
+ refresh().then(async()=>{if(S.data?.startup_note)toast(S.data.startup_note);try{E6.info=await eng6('info');}catch(_){}const status=await api('link/poll',{});if(status.connected){adoptLink4(status);render();}}).catch(e=>toast(e.message,true));
+},{once:true});

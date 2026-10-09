@@ -2,12 +2,14 @@
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("board", type=Path)
+    parser.add_argument("board", type=Path, nargs='?')
+    parser.add_argument('--transient', type=Path, help='Explicit independent thermal R/C power-step JSON; optional board supplies saved-file provenance. Returns 4 for temperature-limit violations.')
     parser.add_argument("--config", type=Path, help="Reviewed JSON analysis settings for jobsets")
     parser.add_argument("--environment", choices=("air", "vacuum", "forced_air", "potting", "sealed"))
     parser.add_argument("--power-field")
@@ -34,6 +36,17 @@ def main(argv=None):
                         help="Explicit ccx executable; otherwise discover it on PATH")
     parser.add_argument("--timeout", type=float, default=1800.0)
     args = parser.parse_args(argv)
+    if args.transient:
+        try:
+            from wayricad_runtime.transient_study import transient_cli
+            from .service import run_job
+            options = {word.split('=')[0] for word in (argv if argv is not None else sys.argv[1:]) if word.startswith('--')}
+            return transient_cli(args, run_job, forbidden=bool(options-{'--transient','--output','--html','--timeout'}))
+        except (ValueError, RuntimeError, OSError, TimeoutError) as exc:
+            print(json.dumps({'error': str(exc)}))
+            return 2
+    if not args.board:
+        parser.error('Supply a saved board or use --transient STUDY.json.')
     try:
         board = args.board.resolve()
         for output in (args.output, args.html, args.calculix_dir):

@@ -57,3 +57,29 @@ def test_standalone_board_argument_is_consumed_before_wx_app():
         studio_ui.main()
     make_frame.assert_called_once_with(board_path=board)
     frame.Show.assert_called_once_with()
+
+
+def test_snapshot_failure_does_not_disable_native_startup_recovery():
+    visual = object.__new__(studio_webview.VisualWorkspace)
+    visual.frame = SimpleNamespace(collect=Mock())
+    visual.connected = False
+    visual.state = Mock(side_effect=ValueError('invalid saved settings'))
+    with pytest.raises(ValueError, match='invalid saved settings'):
+        visual.dispatch('snapshot', {})
+    assert visual.connected is False
+
+
+def test_successful_snapshot_opens_visual_once_without_refresh_loop():
+    visual = object.__new__(studio_webview.VisualWorkspace)
+    visual.frame = SimpleNamespace(collect=Mock())
+    visual.connected = False
+    visual.state = Mock(return_value={'revision': 'synthetic'})
+    visual.show = Mock()
+    with patch.object(studio_webview.wx, 'CallAfter') as schedule:
+        assert visual.dispatch('snapshot', {}) == {'revision': 'synthetic'}
+        assert visual.connected is True
+        schedule.assert_called_once_with(visual.show)
+        # show() refreshes the page; later snapshots must not schedule show()
+        # again or override the user's choice of native worksheet.
+        assert visual.dispatch('snapshot', {}) == {'revision': 'synthetic'}
+        schedule.assert_called_once_with(visual.show)

@@ -1,7 +1,7 @@
 """Worksheet-first native workspace. No browser, webview, cloud, or generated mock UI.
 All drawings are read-only saved-board previews and are labeled accordingly.
 """
-import copy, csv, io, json, math, pathlib
+import copy, csv, io, json, math, pathlib, threading
 import wx
 from .help_system import tooltip_for
 from .help_ui import bind_dialog_help
@@ -15,6 +15,7 @@ from .engineering import (builtin_profiles, compile_profile, install_profile, ca
     stackup_layers, record_review, review_state)
 from .linked_areas import all_areas, area_polygon
 from .workspace import atomic_write
+from .report_view import ReportPages, report_excerpt
 
 INK='#17253C'; MUTED='#53647A'; LINE='#D8E0EA'; SURFACE='#F4F6FA'; ACCENT='#225ABC'
 
@@ -568,12 +569,18 @@ class ProfilesPanel(wx.Panel):
 class ReportsPanel(wx.Panel):
     def __init__(self,parent,frame):
         super().__init__(parent);self.frame=frame;self.records=[];self.visible=[];self.report_info={}
+        self.pages=ReportPages([]);self._load_generation=0;self._filter_timer=None
         s=wx.BoxSizer(wx.VERTICAL);self.SetSizer(s)
         s.Add(text(self,'Native DRC evidence & cross-probing',True,14),0,wx.ALL,14)
         row=wx.BoxSizer(wx.HORIZONTAL);s.Add(row,0,wx.EXPAND|wx.ALL,12)
         row.Add(btn(self,'Import KiCad JSON report',self.import_report),0,wx.RIGHT,8);row.Add(btn(self,'Cross-probe selected violation',self.crossprobe),0,wx.RIGHT,8)
-        self.search=wx.SearchCtrl(self);row.Add(self.search,1);self.search.Bind(wx.EVT_TEXT,lambda e:self.refresh())
+        self.search=wx.SearchCtrl(self);row.Add(self.search,1);self.search.Bind(wx.EVT_TEXT,self.schedule_filter)
         self.caption=text(self,'No native report loaded. Offline scope preview is not a native DRC result.');s.Add(self.caption,0,wx.ALL,12)
+        paging=wx.BoxSizer(wx.HORIZONTAL);s.Add(paging,0,wx.LEFT|wx.RIGHT,12)
+        self.previous=btn(self,'Previous page',lambda e:self.move_page(-1));paging.Add(self.previous,0,wx.RIGHT,8)
+        self.next=btn(self,'Next page',lambda e:self.move_page(1));paging.Add(self.next,0,wx.RIGHT,8)
+        self.page_label=text(self,'0 matches');paging.Add(self.page_label,0,wx.ALIGN_CENTER_VERTICAL)
+        self.previous.Disable();self.next.Disable()
         self.grid=new_grid(self,[('Severity',95),('Section',145),('Check type',210),('Native description',750)]);self.grid.EnableEditing(False);s.Add(self.grid,1,wx.EXPAND|wx.ALL,12)
         self.detail=wx.TextCtrl(self,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,180));s.Add(self.detail,0,wx.EXPAND|wx.ALL,12)
         self.grid.Bind(gridlib.EVT_GRID_SELECT_CELL,self.select)
@@ -581,21 +588,52 @@ class ReportsPanel(wx.Panel):
         with wx.FileDialog(self,'Open native DRC report',wildcard='JSON (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as d:
             if d.ShowModal()!=wx.ID_OK:return
             try:
-                data=json.loads(pathlib.Path(d.GetPath()).read_text('utf-8-sig'))
-                # Accept the plugin validation wrapper or native CLI JSON itself.
-                if isinstance(data.get('data'),dict):data=data['data']
-                elif isinstance(data.get('report'),dict):data=data['report']
-                self.records=read_drc_report(data);self.report_info=data;self.caption.SetLabel('Imported: '+pathlib.Path(d.GetPath()).name+' — report may be stale; this does not validate the current staged edits.');self.refresh()
+                path=pathlib.Path(d.GetPath())
+                self.load_data(lambda:json.loads(path.read_text('utf-8-sig')),'Imported: '+path.name+' — report may be stale; this does not validate the current staged edits.')
             except Exception as e:fail(self,e)
     def load_data(self,data,caption):
-        self.records=read_drc_report(data);self.report_info=data;self.caption.SetLabel(caption+' — report is evidence for that snapshot only.');self.refresh()
+        self._load_generation+=1;generation=self._load_generation
+        self.records=[];self.report_info={};self.pages=ReportPages([]);self.render_page()
+        self.caption.SetLabel('Preparing native report evidence…')
+        def finish(pages,report,error):
+            if not self or self.IsBeingDeleted() or generation!=self._load_generation:return
+            if error is not None:
+                self.caption.SetLabel('Native report could not be displayed: '+str(error));return
+            self.pages=pages;self.records=pages.records;self.report_info=report
+            self.caption.SetLabel(caption+' — report is evidence for that snapshot only.');self.refresh()
+        def prepare():
+            try:
+                report=data() if callable(data) else data
+                # Accept a validation wrapper or the native CLI JSON itself.
+                if isinstance(report,dict):
+                    if isinstance(report.get('data'),dict):report=report['data']
+                    elif isinstance(report.get('report'),dict):report=report['report']
+                pages=ReportPages.from_native(report);error=None
+            except Exception as exc:pages=None;report=None;error=exc
+            try:wx.CallAfter(finish,pages,report,error)
+            except RuntimeError:pass  # The read-only evidence window was closed.
+        threading.Thread(target=prepare,daemon=True).start()
+    def schedule_filter(self,event):
+        if self._filter_timer:self._filter_timer.Stop()
+        self._filter_timer=wx.CallLater(200,self.refresh)
     def refresh(self):
-        query=self.search.GetValue().lower();self.visible=[r for r in self.records if query in json.dumps(r).lower()];resize_rows(self.grid,len(self.visible))
-        for i,r in enumerate(self.visible):
-            for j,key in enumerate(('severity','section','type','description')):self.grid.SetCellValue(i,j,str(r.get(key,'')))
+        if not self or self.IsBeingDeleted():return
+        self.pages.filter(self.search.GetValue());self.render_page()
+    def move_page(self,offset):
+        self.pages.move(offset);self.render_page()
+    def render_page(self):
+        self.visible=self.pages.rows();self.detail.ChangeValue('');self.grid.BeginBatch()
+        try:
+            resize_rows(self.grid,len(self.visible))
+            for i,r in enumerate(self.visible):
+                for j,key in enumerate(('severity','section','type','description')):
+                    value=str(r.get(key,''));self.grid.SetCellValue(i,j,value if len(value)<=1024 else value[:1024]+'…')
+        finally:self.grid.EndBatch()
+        self.previous.Enable(self.pages.page>0);self.next.Enable(self.pages.page+1<self.pages.page_count)
+        self.page_label.SetLabel(f'{self.pages.count} matches — page {self.pages.page+1}/{self.pages.page_count} (up to 200 rows)')
     def select(self,event):
         row=event.GetRow()
-        if row<len(self.visible):self.detail.ChangeValue(json.dumps(self.visible[row]['native_record'],indent=2))
+        if 0<=row<len(self.visible):self.detail.ChangeValue(report_excerpt(json.dumps(self.visible[row]['native_record'],indent=2),'the original native JSON report'))
         event.Skip()
     def crossprobe(self,event):
         row=self.grid.GetGridCursorRow()

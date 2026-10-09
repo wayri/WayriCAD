@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import Counter
 
 from .analysis import merge_managed_rules
-from .constraint_studio.inspection import items_from_board, rule_match
+from .constraint_studio.inspection import items_from_board, rule_matches
 from .constraint_studio.model import RuleDocument
 
 
@@ -33,12 +33,11 @@ def scope_preview(workspace, rule_index, items=None):
     A/B conditions retain unknown results when the second object is unavailable.
     Counts describe these condition results only, never violations or coverage.
     """
-    items = items if items is not None else items_from_board(workspace.context, workspace.project)
+    items = list(items) if items is not None else items_from_board(workspace.context, workspace.project)
     if rule_index is None:
         return [(item, None, ["Select a rule to preview its condition."]) for item in items]
     rule = workspace.document.rules[rule_index]
     result = []
-    for item in items:
-        match = rule_match(rule, item, context=workspace.context)
+    for item, match in zip(items, rule_matches(rule, items, context=workspace.context)):
         result.append((item, match.value, match.reasons))
     return result

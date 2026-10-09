@@ -36,11 +36,17 @@ def main(argv=None):
                 print(json.dumps({'error':'Worker response must not overwrite the source PCB.'}));return 2
             result=importlib.import_module('.service',name).execute(payload)
             if payload.get('html_output'):
-                report=importlib.import_module('.report',name)
-                if result.get('sweep'):report.write_sweep_report(payload['html_output'],result)
-                elif result.get('return_path'):
-                    report.write_diagnostic_report(payload['html_output'],result)
-                else:report.write_report(payload['html_output'],result)
+                if payload.get('action')=='electrothermal':
+                    importlib.import_module('.electrothermal_report',name).write_report(payload['html_output'],result)
+                elif payload.get('action')=='transient':
+                    from wayricad_runtime.transient_study import write_study_report
+                    write_study_report(payload['html_output'],result)
+                else:
+                    report=importlib.import_module('.report',name)
+                    if result.get('sweep'):report.write_sweep_report(payload['html_output'],result)
+                    elif result.get('return_path'):
+                        report.write_diagnostic_report(payload['html_output'],result)
+                    else:report.write_report(payload['html_output'],result)
             status=0
         except Exception as exc:
             result={'error':str(exc),'error_type':type(exc).__name__};status=2

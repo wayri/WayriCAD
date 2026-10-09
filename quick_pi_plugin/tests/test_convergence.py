@@ -31,6 +31,17 @@ class ConvergenceTests(unittest.TestCase):
         for i,row in enumerate(rows):row['sheet_power_W']=.001*2**i
         self.assertEqual('NOT_STABLE',assess(rows)['status'])
 
+    def test_worst_drop_stability_cannot_hide_an_unstable_other_sink(self):
+        rows=[sample(1,i) for i in range(3)]
+        for i,row in enumerate(rows):
+            row['sinks']=[dict(id='a',current_A=.5,voltage_drop_V=1),
+                          dict(id='b',current_A=.5,voltage_drop_V=.01*2**i)]
+        result=assess(rows)
+        self.assertEqual('NOT_STABLE',result['status'])
+        self.assertGreater(result['successive_changes'][-1]['sink_drop_percent'],1)
+        rows[-1]['sinks'][1]['current_A']=.4
+        with self.assertRaisesRegex(ValueError,'currents changed'):assess(rows)
+
     def test_balance_failure_and_identical_mesh_do_not_pass(self):
         rows=[sample(1,i) for i in range(3)];rows[-1]['current_error_A']=1e-4
         self.assertEqual('BALANCE_FAILED',assess(rows)['status'])

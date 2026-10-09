@@ -13,6 +13,20 @@ geometry; they are not board-surface predictions. Unsupported areas are blank.
 Select a map marker or result row to select the exact footprint in the
 originating PCB Editor.
 
+The dashed component-anchor hull marks **partial junction interpolation**.
+A small colored quadrilateral is supported interpolation, not a whole-board
+temperature solution; blank regions are unknown. **Whole-board study…**
+enables and reveals the existing physical board-model inputs while retaining
+model choices, materials, component values, mappings and scope. Review all
+heat sources and material/cooling/fixture assumptions, then run. No missing
+power or physical path is inferred. Solved board/layer fields are preferred
+automatically; a later deliberately selected view takes precedence.
+
+Known finite-volume cells display through their declared mesh edges. Smooth
+continuity requires neighboring known samples; cutouts, drills and unknown
+cells remain blank. Junction and sampled CalculiX interpolation retain their
+separate support limits. Smooth plotting does not prove mesh convergence.
+
 The optional thin-sheet board model takes effective in-plane conductivity,
 saved thickness, emissivity, board/sink air speeds and exposed virtual-sink
 areas. It solves lateral conduction and a heat balance against approximate

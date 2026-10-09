@@ -19,7 +19,7 @@ from .native import sha
 MIME={'json':'application/json', 'csv':'text/csv; charset=utf-8', 'tsv':'text/tab-separated-values; charset=utf-8',
       'xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'html':'text/html; charset=utf-8',
       'txt':'text/plain; charset=utf-8', 'ascii':'text/plain; charset=us-ascii', 'md':'text/markdown; charset=utf-8', 'zip':'application/zip'}
-TABLES=('summary','components','groups','procurement','scenarios','statistics','issues','families')
+TABLES=('summary','components','groups','consolidated','procurement','scenarios','statistics','issues','families')
 STATUS='ADVISORY ANALYTICS SNAPSHOT — NOT A MANUFACTURING APPROVAL'
 
 
@@ -99,7 +99,8 @@ def tables(r):
     put('components',cols,rows,['Entered rate','Price per units','Unit price','Mass g','Input dissipation W','Duty percent','Average dissipation W','Recorded rating W','Rating utilization percent','Temp_Max C','Temperature headroom C'])
     currencies=list(r['pricing']['currencies'])
     cols=['Group','References','Components','Pricing components','Physical components']+['Cost per board '+c for c in currencies]+['Unpriced components','Known mass g','Mass missing / invalid','Known dissipation W','Power missing / invalid','Minimum Temp_Max C']
-    put('groups',cols,[[g['label'],', '.join(g['references']),g['components'],g['pricing_components'],g['physical_components'],*[g['cost_per_board'].get(c) for c in currencies],g['price_missing_or_invalid'],g['mass_per_board'],g['mass_missing_or_invalid'],g['power_per_board'],g['power_missing_or_invalid'],g['min_temp_max_c']] for g in r['groups']],cols[2:])
+    for name in ('groups','consolidated'):
+        put(name,cols,[[g['label'],', '.join(g['references']),g['components'],g['pricing_components'],g['physical_components'],*[g['cost_per_board'].get(c) for c in currencies],g['price_missing_or_invalid'],g['mass_per_board'],g['mass_missing_or_invalid'],g['power_per_board'],g['power_missing_or_invalid'],g['min_temp_max_c']] for g in r.get(name,[])],cols[2:])
     cols=['References','Manufacturer','MPN','Component value','Footprint','Supplier','SKU','Currency','Unit price','Quantity per board','Installed quantity','Required quantity','MOQ','Order multiple','Order quantity','Attrition quantity','Overbuy quantity','Installed cost','Required cost','Order cost','Overbuy cost','Identity complete','Order policy valid','Quote date']
     put('procurement',cols,[[', '.join(x['references']),x['manufacturer'],x['mpn'],x['value'],x['footprint'],x['supplier'],x['sku'],x['currency'],x['unit_price'],x['qty_per_board'],x['installed_qty'],x['required_qty'],x['moq'],x['order_multiple'],x['order_qty'],x['attrition_qty'],x['overbuy_qty'],x['installed_cost'],x['required_cost'],x['order_cost'],x['overbuy_cost'],x['identity_complete'],x['policy_valid'],x['quote_date']] for x in r['procurement']],cols[8:21])
     cols=['Boards','Currency','Known installed cost','Known order cost','Known order cost per board','Incomplete order lines','Mass per board g','Known installed batch mass g','Dissipation per board W','Rate assumption']

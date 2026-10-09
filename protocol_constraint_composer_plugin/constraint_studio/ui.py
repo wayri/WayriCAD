@@ -882,7 +882,8 @@ class StudioFrame(wx.Frame):
             wx.CallAfter(finish,text,result)
         def finish(text,result):
             if self and not self.IsBeingDeleted():
-                self.native_text.ChangeValue(('STALE FOR CURRENT WORKSPACE — this report belongs to the earlier exported snapshot.\n\n' if self.w.state()!=validation_snapshot else '')+text);self.SetStatusText('Native validation finished. Read the report; an exit code alone is not certification.')
+                from .report_view import report_excerpt
+                self.native_text.ChangeValue(('STALE FOR CURRENT WORKSPACE — this report belongs to the earlier exported snapshot.\n\n' if self.w.state()!=validation_snapshot else '')+report_excerpt(text));self.SetStatusText('Native validation finished. Read the report; an exit code alone is not certification.')
                 if result and isinstance(result.get('data'),dict):
                     try:self.reports_panel.load_data(result['data'],'Native DRC on exported review: '+str(export_dir))
                     except Exception as e:self.SetStatusText('Report available in Review; evidence-table import: '+str(e))

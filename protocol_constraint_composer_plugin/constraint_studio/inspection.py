@@ -162,7 +162,7 @@ def enclosed(item,area):
     return Match(True,['Conservative convex-area enclosure certificate; native DRC still required'])
 
 
-def evaluate(expression,a,b=None,context=None):
+def evaluate(expression,a,b=None,context=None,*,_area_lookup=None):
     """Evaluate a documented subset on saved items. Never executes input strings."""
     try:tree=parse_expression(expression)
     except ValueError as e:return Match(None,[str(e)])
@@ -190,7 +190,8 @@ def evaluate(expression,a,b=None,context=None):
             if not item:return Match(None,['Select both items for an A/B pair check' if receiver=='B' else 'AB function requires native pair semantics'])
             if comparison and name!='getField':return Match(None,['Explicit function-result comparison requires native evaluation'])
             if name=='enclosedByArea' and len(argv)==1 and context:
-                areas=[x for x in all_areas(context) if x['name']==argv[0]]
+                areas=(_area_lookup(argv[0]) if _area_lookup is not None else
+                       [x for x in all_areas(context) if x['name']==argv[0]])
                 return enclosed(item,areas[0]) if len(areas)==1 else Match(None,['Area missing or ambiguous'])
             if name=='existsOnLayer' and len(argv)==1:
                 return Match(any(fnmatch.fnmatchcase(l,argv[0]) for l in item.layers))
@@ -234,7 +235,7 @@ def evaluate(expression,a,b=None,context=None):
     return walk(tree)
 
 
-def rule_match(rule,a,b=None,context=None,pair=False):
+def rule_match(rule,a,b=None,context=None,pair=False,*,_area_lookup=None):
     if not rule.enabled:return Match(False,['Disabled rule'])
     if pair and b is None:return Match(None,['Select both objects for a pair constraint'])
     layer=rule.layer
@@ -245,9 +246,29 @@ def rule_match(rule,a,b=None,context=None,pair=False):
         elif layer=='inner':ok=any(l.startswith('In') and l.endswith('.Cu') for l in layers)
         else:ok=layer in layers
         if not ok:return Match(False,['Layer clause does not match'])
-    result=evaluate(rule.condition,a,b,context)
-    if pair and b:return _join('or',[result,evaluate(rule.condition,b,a,context)])
+    result=evaluate(rule.condition,a,b,context,_area_lookup=_area_lookup)
+    if pair and b:return _join('or',[result,evaluate(rule.condition,b,a,context,_area_lookup=_area_lookup)])
     return result
+
+
+def rule_matches(rule,items,context=None):
+    """Match one scope batch against its current context, without persistent caches.
+
+    Attached areas require scanning footprint children. Extract them lazily once
+    per inspection, and reuse each named lookup only within this synchronous
+    batch. A later inspection always sees changed contexts and area definitions.
+    """
+    areas=None
+    named={}
+    def lookup(name):
+        nonlocal areas
+        if areas is None:areas=all_areas(context)
+        # Preserve the single-item evaluator's equality semantics for unusual
+        # literal arguments, including unhashable lists/dicts (unknown matches).
+        if not isinstance(name,str):return [area for area in areas if area['name']==name]
+        if name not in named:named[name]=[area for area in areas if area['name']==name]
+        return named[name]
+    return [rule_match(rule,item,context=context,_area_lookup=lookup) for item in items]
 
 
 def priority_trace(document,kind,a,b=None,context=None,floors=None):

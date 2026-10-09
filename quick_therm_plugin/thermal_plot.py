@@ -3,7 +3,32 @@ from __future__ import annotations
 
 import numpy as np
 from matplotlib import colormaps
+from matplotlib.colors import Normalize
 from matplotlib.patches import Polygon, Rectangle
+from wayricad_runtime.thermal_field import field_available, _draw_field
+
+
+def default_thermal_mode(view, network=None, side='top'):
+    """Prefer solved physical fields; junction fallback has partial support only."""
+    network=network or {};bottom=side=='bottom';prefix='Bottom' if bottom else 'Top'
+    layers=network.get('layers',[])
+    preferred=[row for row in layers if row.get('name','').startswith('B.' if bottom else 'F.')]
+    for field in [*preferred,*[row for row in layers if row not in preferred]]:
+        if field_available(field):return 'Layer model: '+field['name']
+    if field_available(network.get('board_field',{})):return prefix+' board model'
+    field=view.get('fields_by_side',{}).get(side,view.get('field',{}))
+    if field_available(field):return prefix+'-side contour'
+    return prefix+'-side map'
+
+
+def _field_norm(field, temperature_limits_c):
+    """Keep caller-supplied shared scales and expand an otherwise constant field."""
+    if temperature_limits_c:return Normalize(*temperature_limits_c)
+    values=[float(value) for row in field.get('values_c',[]) for value in row
+            if value is not None and np.isfinite(value)]
+    low,high=(min(values),max(values)) if values else (0.,1.)
+    if low==high:low-=.5;high+=.5
+    return Normalize(low,high)
 
 
 def _board_clip(ax, view):
@@ -35,6 +60,15 @@ def _clip_contour(mesh, clip):
     else:
         for collection in mesh.collections:
             collection.set_clip_path(clip)
+
+
+def _draw_supported_field(ax, field, view, norm, clip):
+    """Apply the saved drill/slot mask to both cell support and smooth overlay."""
+    start=len(ax.collections)
+    mesh=_draw_field(ax,field,view,norm,0)
+    for artist in list(ax.collections)[start:]:
+        _clip_contour(artist,clip)
+    return mesh
 
 
 def _field_edges(field, axis):
@@ -158,17 +192,20 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
     contour='contour' in mode.lower()
     board_model='board model' in mode.lower() or bool(layer_name)
     field=view.get('fields_by_side',{}).get(side,field)
-    if not board_model and field.get('status')=='available':
-        values=np.ma.masked_invalid(np.asarray([[np.nan if value is None else value for value in row]
-                                                for row in field['values_c']],dtype=float))
-        if values.count():
-            x=np.asarray(field['x_centers_mm']);y=np.asarray(field['y_centers_mm'])
-            levels=(np.linspace(*temperature_limits_c, 25)
-                    if temperature_limits_c else 24)
-            mesh=ax.contourf(x,y,values,levels=levels,cmap='inferno',
-                             alpha=.82 if contour else .58,extend='both')
-            _clip_contour(mesh, clip)
-            figure.colorbar(mesh,ax=ax,label='Interpolated junction estimate °C (not board temperature)')
+    if not board_model and field_available(field):
+        mesh=_draw_supported_field(ax,field,view,_field_norm(field,temperature_limits_c),clip)
+        if mesh is not None:
+            figure.colorbar(mesh,ax=ax,label='Partial junction interpolation °C (not board temperature)')
+        hull=field.get('support_hull_mm',[])
+        if len(hull)>=3:
+            boundary=Polygon(hull,closed=True,fill=False,linestyle='--',linewidth=1.5,
+                             edgecolor='#667b88',zorder=3)
+            boundary.set_gid('quicktherm-junction-support-hull')
+            ax.add_patch(boundary)
+        ax.text(.5,.02,'Partial junction interpolation · dashed boundary is the component anchor hull\n'
+                'Blank regions are unknown · Whole-board study… opens physical materials and boundaries',
+                ha='center',va='bottom',fontsize=8,transform=ax.transAxes,
+                bbox={'facecolor':'white','alpha':.9,'edgecolor':'none'})
     elif contour:
         ax.text(.5,.05,field.get('reason') or 'Contour unavailable',ha='center',va='bottom',
                 transform=ax.transAxes,bbox={'facecolor':'white','alpha':.9,'edgecolor':'none'})
@@ -179,15 +216,9 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
             layers=network['layers']
             model_field=next((row for row in layers if row['name']==layer_name),layers[-1 if bottom else 0])
             display_layer_name = model_field['name']
-        if model_field.get('values_c'):
-            values=np.ma.masked_invalid(np.asarray([[np.nan if value is None else value for value in row]
-                                                    for row in model_field['values_c']],dtype=float))
-            if values.count():
-                levels=(np.linspace(*temperature_limits_c, 33)
-                        if temperature_limits_c else 32)
-                mesh=ax.contourf(model_field['x_centers_mm'],model_field['y_centers_mm'],values,
-                                   levels=levels,cmap='inferno',alpha=.9,extend='both')
-                _clip_contour(mesh, clip)
+        if field_available(model_field):
+            mesh=_draw_supported_field(ax,model_field,view,_field_norm(model_field,temperature_limits_c),clip)
+            if mesh is not None:
                 figure.colorbar(mesh,ax=ax,label=('Layer temperature °C' if (network or {}).get('layers') else 'Approximate board midplane °C'))
         else:ax.text(.5,.05,'Run the optional board heat model for this field.',ha='center',va='bottom',
                      transform=ax.transAxes,bbox={'facecolor':'white','alpha':.9,'edgecolor':'none'})
@@ -253,7 +284,7 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
     else:ax.invert_yaxis()
     ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X mm'+(' · mirrored bottom view' if bottom else ''));ax.set_ylabel('Y mm')
     ax.set_title('Saved PCB '+side+' view · '+((display_layer_name+' copper layer' if display_layer_name else 'approximate board midplane') if board_model else
-                 'same-side junction interpolation' if contour else 'component estimates with interpolated overlay'))
+                 'partial same-side junction interpolation · anchor hull' if contour else 'component estimates with partial junction overlay'))
     figure.tight_layout();return ax
 
 

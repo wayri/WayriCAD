@@ -73,7 +73,14 @@ def _conforming_contours(polygons, cancelled=None, maximum_edge=None):
                 for a,b in zip(np.asarray(out),np.roll(out,-1,axis=0)):
                     count=max(1,math.ceil(float(np.linalg.norm(b-a))/maximum_edge))
                     if count>400000:raise ValueError('Contour subdivision exceeds mesh budget.')
-                    refined.extend((a+(b-a)*i/count).tolist() for i in range(count))
+                    # Opposite contour directions must generate bit-identical
+                    # shared vertices/curves for Gmsh. Reversing interpolation
+                    # otherwise creates sub-ulp gaps along real copper edges.
+                    forward=tuple(a)<=tuple(b)
+                    lo,hi=(a,b) if forward else (b,a)
+                    refined.append(a.tolist())  # Retain exact original corners.
+                    steps=range(1,count) if forward else range(count-1,0,-1)
+                    refined.extend((lo+(hi-lo)*i/count).tolist() for i in steps)
                 out=refined
             split_rings.append(out)
         result.append({'outer':split_rings[0],'holes':split_rings[1:]})

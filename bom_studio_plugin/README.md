@@ -24,13 +24,15 @@ Local BOM editing and exports for KiCad 10. The desktop window runs the bundled 
 
 ## Install
 
-In KiCad Manager, open Plugin and Content Manager â†’ Install from File and select the **WayriCAD BOM Studio 3.1.1 PCM ZIP**. Keep the ZIP intact. Restart KiCad and launch BOM Studio from the plugin toolbar. IPC support must be enabled in KiCad preferences. The toolbar launcher selects a compatible installed KiCad Python runtime and provisions its lightweight dependencies in a private WayriCAD cache. It does not build wxPython inside KiCad's managed plugin environment. Windows needs WebView2; Linux needs the distribution's wxGTK/WebKit runtime. If the native browser cannot initialize, the same fully local interface opens in your installed browser with the reason displayed.
+In KiCad Manager, open Plugin and Content Manager â†’ Install from File and select the **WayriCAD BOM Studio 3.6.12 PCM ZIP**. Keep the ZIP intact. Restart KiCad and launch BOM Studio from the plugin toolbar. IPC support must be enabled in KiCad preferences. The toolbar launcher selects a compatible installed KiCad Python runtime and provisions its lightweight dependencies in a private WayriCAD cache. It does not build wxPython inside KiCad's managed plugin environment. Windows needs WebView2; Linux needs the distribution's wxGTK/WebKit runtime. If the native browser cannot initialize, the same fully local interface opens in your installed browser with the reason displayed.
 
 The UI is a separate local desktop window. Windows requires a working WebView2 runtime; Linux requires wxGTK WebKit support. If an embedded runtime is unavailable, the launcher opens the same authenticated local interface in your installed browser. Use the pageâ€™s Quit button to stop the local service. KiCad 11 compatibility is based on capability checks and an open-ended minimum version; live KiCad 11 acceptance has not been run.
 
 In local browser mode, **Open project** uses KiCad's bundled wx file picker. You can also paste the absolute path to a saved `.kicad_pro` or root `.kicad_sch` file.
 
 When a saved project takes time to parse, a native WayriCAD loading window shows indeterminate progress, then the desktop window shows a loading message until its local workspace is ready. Neither stage edits the KiCad project. First-time dependency setup occurs before the GUI runtime is available and can still take longer without a loading window; startup failures use the existing error dialog and setup log.
+
+The interface waits for all local UI modules before opening the workspace. If a module fails to load, the page names the failed file and offers **Reload interface**. If retrying does not help, restart BOM Studio and verify that the installed plugin package is complete. This failure screen does not apply project edits.
 
 ## Current desktop workspace
 
@@ -52,7 +54,15 @@ The built-in sample contains 11 components and fictional part/pricing data. The 
 
 Choose **Exports & templates**, a saved template, then **Bill of materials**, **Test points only**, or **DNP only**. The default BOM excludes test points and DNP components. Toggle either condition as required. **Group matching components** produces quantities and reference groups; turn it off for one component per row. Existing safety grouping separates differing packages and procurement data.
 
-**Preview rows** shows the staged workspace data that the export uses. Choose CSV, XLSX, HTML or another supported format and Export. Errors still block release exports unless you explicitly mark the output as draft. Separate test-point and DNP lists include parts excluded from the normal BOM.
+**Preview rows** shows the staged workspace data for the active variant that the export uses. Choose CSV, XLSX, HTML or another supported format and Export. Errors still block release exports unless you explicitly mark the output as draft. Separate test-point and DNP lists include parts excluded from the normal BOM.
+
+If inline cell edits are still queued, calculation, simple preview and export open the existing edit review first. Choose **Stage edits and calculate** (or preview/export) to apply that undoable workspace transaction and continue. Cancelling keeps the drafts and leaves the source files unchanged.
+
+Workspace export calculations use the saved cost mapping, including Rate/price-per-N fields and mapped MOQ/order multiples. The canonical `UnitPrice` and `Currency` columns show that normalized per-piece price; `@field:UnitPrice` and `@field:Currency` retain exact authored properties. The preview's installed subtotal is per board in the exported scope. `LineCost` includes build quantity and attrition, and `OrderCost` also includes MOQ/order multiples. Invalid purchase policies leave order quantities and costs unknown and produce a warning. Purchasing quantities round per export line, so changing grouping can change the purchasing amount; analytics procurement separately pools compatible parts. These purchasing amounts are distinct from installed cost and mass.
+
+Choose **Sum all & consolidate** in the BOM workspace or analytics to sum the whole active variant, independently of the BOM search/filter and any previous analytics query. It uses your selected mass/rate mappings and enables both metrics. **MPN + value totals** retains every reference and quantity and shows summed mass and installed cost per group, plus the full-scope total even when the table preview is capped. Download the **consolidated** table for all rows. DNP and population exclusions remain explicit; missing observations remain unknown and currencies stay separate.
+
+Consolidation requires the same MPN **and** value, manufacturer, footprint, supplier/SKU, mapped rate/currency/pack quantity, order policy and population. A missing manufacturer or MPN keeps the part separate. Different mass observations can be summed without pretending they are equal. The editable BOM's custom grouping remains a presentation tool: shared cell values are per component, not group totals. Consolidation and analytics do not change schematic parts or substitute equivalents.
 
 Test-point detection uses TP-number references (for example TP12) or the component field `TestPoint=yes`; `TestPoint=no` explicitly opts out. Use bulk field editing to classify nonstandard reference names. DNP lists use the native DNP flag. These are schematic component lists, not PCB test-pad coordinate reports.
 
@@ -63,6 +73,8 @@ Expand **Templates, native exports and advanced settings** to edit, duplicate, i
 ### Custom mappings and component analytics
 
 Use **Cost, mass & power → field mappings** to select your own KiCad fields for unit cost, currency, mass, operating dissipation and component type. For example, map `PurchasePrice`, `PartWeight` and `OperatingLoss`; values such as `100 mg` and `250 mW` retain their units. Resolved KiCad variables are supported, with raw/resolved source values recorded. **Export mapping template** and **Import mapping template** share these settings as JSON; Save settings, then Save workspace, persists them. These are analytics profiles, separate from BOM export-layout templates, and do not rename or overwrite native properties. Power rating is not operating dissipation.
+
+**Run analytics** uses the mapping inputs currently on screen. Choose **Save settings to workspace** to use those same mappings in the BOM dashboard and workspace export costs; **Save workspace** persists them to the sidecar. Explicit mass units override the selected unit for bare numbers. Build quantity multiplies installed mass and cost; purchasing attrition does not add mass to an assembled board.
 
 After **Run analytics**, **Components & area** shows passive, active and other-component cost, mass and dissipation, plus separate R, L, C and combined RLC views. Component-type fields override reference-prefix guesses; unknown types stay unclassified. Diodes/LEDs are grouped with actives by convention. Open **Component evidence** to see ranked reference-level observations for small samples; histograms are shown only when at least eight values are known. Missing mass or dissipation inputs are called out once with mapping guidance. Cost currencies remain separate; the existing **Cost & Pareto** view and summary provide total known BOM costs and build scenarios. RLC is an overlapping rollup, not another amount to add to the family totals.
 
@@ -108,6 +120,8 @@ Advanced tools include assembler and distributor exports, reusable custom templa
 
 Run `python -m unittest discover -s tests` from this directory. Contract tests do not establish native-editor equivalence or manufacturing qualification. Read the suite release validation report for actual host checks.
 
+The optional DOM/HTTP workflow test uses an existing Node and jsdom installation. Set `BOM_STUDIO_JSDOM_PATH` to the jsdom package directory and optionally `BOM_STUDIO_NODE` to the Node executable, then run the same suite. It verifies shipped scripts, navigation, variant editing, preview/export consistency, analytics, save/reload and failed-file recovery. It does not establish native WebView rendering or live-editor compatibility; without the configured tools it is explicitly skipped.
+
 The imported BOM Studio implementation retains its original MIT license and copyright in [LICENSE](LICENSE). Suite bundles also include shared GPL-licensed runtime code with its own notice. The PCM package declares the combined distribution license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled asset attribution. Version-specific documents under `docs/` describe historical feature development; this README is the current installation guide.
 
 ## Shared parts and plugin-only alternatives
@@ -132,3 +146,5 @@ OEM / assembly export also includes AISLER, PC Process and Krypton Solutions rec
 ## Jobsets and automatic reports
 
 Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
+
+Report publication retries brief Windows file locks. Persistent locks, changed source or review evidence, and existing output folders still stop publication; a partial run is not published.

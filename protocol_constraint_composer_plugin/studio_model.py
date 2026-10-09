@@ -9,7 +9,7 @@ import math
 
 from .constraint_studio.catalog import SPECS, CATALOG, SEVERITIES
 from .constraint_studio.engineering import builtin_profiles, install_profile
-from .constraint_studio.inspection import items_from_board, priority_trace, rule_match
+from .constraint_studio.inspection import items_from_board, priority_trace, rule_matches
 from .constraint_studio.linked_areas import all_areas, area_polygon
 from .constraint_studio.model import Rule, Constraint, RuleDocument, lint
 from .constraint_studio.profiles import matrix_rules, replace_generated
@@ -159,7 +159,7 @@ def inspect_scope(workspace, data):
     rules = workspace.document.rules
     rule = rules[index(data['rule'], rules)]
     items = items_from_board(workspace.context, workspace.project)
-    matches = [rule_match(rule, item, context=workspace.context) for item in items]
+    matches = rule_matches(rule, items, context=workspace.context)
     result = {'matches': [dict(index=i, value=match.value, reasons=match.reasons) for i, match in enumerate(matches)]}
     if data.get('a') is not None:
         a = items[index(data['a'], items)]

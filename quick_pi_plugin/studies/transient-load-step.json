@@ -1,0 +1,22 @@
+{
+  "source_voltage_V": 3.3,
+  "source_resistance_ohm": 0.05,
+  "source_inductance_H": 0.000001,
+  "source_current_limit_A": 2.0,
+  "duration_s": 0.005,
+  "step_s": 0.000001,
+  "loads": [
+    {
+      "id": "U1.1",
+      "initial_current_A": 0.2,
+      "step_current_A": 1.0,
+      "step_time_s": 0.001,
+      "path_resistance_ohm": 0.02,
+      "path_inductance_H": 0.0000001,
+      "capacitance_F": 0.0001,
+      "esr_ohm": 0.01,
+      "min_voltage_V": 3.0,
+      "max_voltage_V": 3.5
+    }
+  ]
+}

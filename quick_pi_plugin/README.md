@@ -20,17 +20,18 @@ See [analysis views and probe controls](../docs/ANALYSIS_INTERACTIONS.md) for de
 ## Capabilities
 
 - Analyze saved traces, filled zones, pads and plated vias using a layered 2.5D DC conduction mesh and saved copper thicknesses.
-- Select source/sink pads and voltage/current; inspect native net, mesh and per-layer result views.
+- Select one voltage source and multiple constant-current sinks; check an optional source current budget and individual sink voltage limits.
 - Visualize voltage/drop, current density/flow, loss density and pulse-risk screening; separate sheet, via and component losses.
 - Define repeated series resistance/RL, fixed-drop and current-dependent diode elements through the console or CLI, with engineering notation and console completion/history.
 - Build the same saved-net series path in a native editor, including source/sink pad selection from the originating PCB Editor, ordered components, and reusable JSON paths.
 - Solve a voltage-driven resistive load or sweep a bounded range of prescribed DC currents on one extracted path.
 - Screen selected return nets against saved filled copper and local return vias, and estimate component temperatures from mapped board fields in air or vacuum.
 - Run bounded mesh-refinement studies and reference benchmarks; export local HTML and JSON reports.
+- Couple DC conductor losses and local resistivity to the shared QuickTherm layer model; run explicit lumped electrothermal rail transients with thermal R/C paths.
 
 ## Limitations
 
-- Both copper models solve DC conduction; neither is an AC electromagnetic or thermal-field solve. Series inductance adds stored-energy reporting, not RL transient behavior.
+- Both copper models solve fixed-temperature DC conduction, not AC electromagnetics or thermal feedback. Series inductance adds stored-energy reporting in those modes. Separate transient and electrothermal studies use the explicit models described below.
 - Zones must be filled when included in the path; valid connectivity and explicit material/stackup inputs are required. Assumed via plating is not a measured property.
 - Local current-density peaks depend on mesh/contact assumptions; stable total resistance alone does not certify hotspot convergence.
 - Pulse-risk estimates omit cooling, heat spreading and fuse-opening dynamics. They are not fusing-time predictions or manufacturing sign-off.
@@ -42,9 +43,9 @@ Quick PI estimates DC voltage drop and current flow through saved PCB copper. It
 ## Workflow
 
 1. Save the PCB and update zone fills in KiCad. Open **WayriCAD Quick PI**.
-2. Choose a net, source pad and sink pad. Enter source voltage in volts and load current in amperes.
+2. Choose a net, source pad and primary sink pad. Enter source voltage in volts and load current in amperes. Set **Source limit A** if the source has a current budget; use **Additional sinks** to add further loads.
 3. Click **Run analysis**. The **Net**, **Mesh** and **Results** tabs show the same extracted geometry.
-4. Choose a copper layer and result: absolute voltage, voltage drop, DC transfer resistance (drop divided by load current), current density, current flow, loss density or pulse risk. Drag to pan and scroll to zoom; **Fit** restores the copper extent.
+4. Choose a copper layer and result: absolute voltage, voltage drop, drop divided by total load demand, current density, current flow, loss density or pulse risk. For one sink, drop/current is the DC transfer resistance; with several sinks it is a diagnostic normalization. Drag to pan and scroll to zoom; **Fit** restores the visible extent. Resize the divider to give the copper viewport or inspector more space. Toggle **Board context**, **Copper geometry** and **Result overlay** independently.
 5. Use **Export report** for an offline HTML report with seven maps of the selected layer and a paired JSON file containing all layers and numerical results.
 
 ![Current native Quick PI result and per-layer copper summary](help-workflow.png)
@@ -66,6 +67,33 @@ results, not measurements or proof of mesh convergence.
 ![Mesh used for the same Marble connection](help-mesh.png)
 
 **Mesh and material options** contains mesh size, assumed via plating, copper temperature, ambient temperature, pulse duration and a temperature limit. A smaller mesh costs more time and memory. Compare successive mesh sizes before relying on localized peaks. The default 25 µm plating is an assumption, not a measured board property.
+
+### Multiple loads and source limits
+
+The primary sink uses the main **Sink A**, **Sink min V** and **Sink max V**
+controls. **Additional sinks** opens a table to add, edit or remove other pad
+demands, each with its own current and optional minimum/maximum voltage. All
+sinks must be distinct pads on the selected net and different from the source.
+Blank minimum voltage defaults to 0 V; blank maximum is unbounded. **Source limit A** is an optional nonnegative
+current budget: blank means unlimited and zero supplies no current.
+
+Quick PI solves all requested constant-current loads together at the entered
+source voltage. Results and reports show each sink voltage/drop, total demand,
+source current headroom and **FEASIBLE** or **INFEASIBLE** against that budget
+and the entered voltage windows. This is a DC requirement check, not thermal,
+transient, regulator-stability or hardware qualification. If demand exceeds the
+source budget, maps and losses remain **requested-load diagnostics**: the source
+cannot sustain that operating point. Loads are not scaled to fit; foldback,
+constant-current regulation and voltage-collapse dynamics are not simulated.
+
+For multiple sinks, **Worst drop / total demand** divides the largest sink drop
+by total requested current; it is not a physical two-terminal resistance. The
+inspector's **Layers / losses** tab and console retain every sink's demand,
+voltage and bounds. Source and all sinks are marked in the views and included
+in terminal selection/zoom. Changing any demand or bound clears stale results.
+Multiple sinks with explicit series components are not supported; remove
+additional sinks before running a console series path. The legacy single-sink
+series path retains source current and sink voltage limits.
 
 The mesher preserves copper, hole and terminal boundaries while improving triangle
 angles. Broad, complex planes receive interior mesh points to avoid spending the
@@ -186,7 +214,7 @@ on your board. Values are explicit user-supplied models, not inferred part ratin
 
 **DC limitation:** resistance and forward-drop elements contribute voltage drop and power loss. Inductance
 is retained for stored-energy reporting and contributes no steady-state DC drop.
-Quick PI does not simulate RL transients or AC impedance; entering an inductance
+The copper DC mode does not simulate RL transients or AC impedance; entering an inductance
 or a pulse duration does not enable a transient circuit simulation. Copper and
 component losses are reported separately.
 
@@ -204,9 +232,53 @@ copper is included in total geometry area but excluded from connected area and l
 Ranked local hotspots include coordinates, layer and current/heating density. These
 are mesh-dependent cell/barrel estimates, not whole-track ratings or fusing predictions.
 
+The inspector's **Hotspots** tab ranks current density or volumetric heating.
+Select a row to switch to its layer, mark the actual solved location and zoom
+there. **Probe / object** shows the selected cell or barrel, coordinates and
+units. Click solved copper in **Results** to inspect the containing triangle or
+plated barrel; empty space and drill holes have no copper result. Cell values
+are local mesh estimates, not measurements of an entire track. The hotspot
+table uses W/mm³ for volumetric heating; the loss map uses W/mm².
+
+Board context uses the actual saved outlines, footprint/pad shapes, traces,
+vias and filled zones, with source object identities where extraction supports
+them. It is display-only: showing the rest of the board does not include those
+objects in the selected-net DC solve. Inspection highlights source tracks,
+pads or vias when their actual copper shape covers the selected location;
+unsupported or purely merged sheet geometry retains a local mesh identity.
+
+Choose **Auto: selected layer**, **Shared: all layers**, or **Manual: this metric**
+for the color scale. Manual limits use the displayed units, require minimum
+below maximum, and reset to solved limits when the metric changes. Shared
+scales include solved barrel values where the metric supports them. HTML maps
+and JSON retain the chosen scale mode; a manual range applies only to its
+selected metric and can clip values outside that range.
+
+**Smooth gradient** is the default result display and remains continuous when
+zooming. Voltage, drop and transfer resistance interpolate the solved nodal
+potential within the existing triangles. Current density, flow, loss and pulse
+risk use area-weighted corner colors for display, restricted to the same layer
+and copper thickness. Holes, disconnected islands and unavailable cells remain
+uncolored. This does not refine the analysis mesh. Probes, hotspot rankings and
+automatic color limits retain the original solver values and peaks; use
+**Solver cells** to see the unsmoothed cell resolution. HTML maps and JSON retain
+the display choice.
+
+**Select object in PCB** selects an exact saved via or plated-pad identity when
+available. **Select source and all sinks in PCB** selects the reviewed terminals.
+**Read PCB selection** brings a selected track, pad or via back to the inspector.
+Objects outside the DC model remain selectable for navigation but have no
+invented electrical values.
+Sheet cell indices cannot be selected as native PCB objects; navigation is
+available only when exact source copper identities resolve at that location.
+Navigation uses the originating editor and rejects changed saved
+board bytes or unresolved object identities. Live unsaved geometry is outside
+the saved analysis snapshot; save, reload and rerun after editing. The inspector
+shows model basis and snapshot status, and export rejects a changed saved board.
+
 ![Actual native per-layer loss and hotspot details for the same Marble connection](help-layer-details.png)
 
-The detail window separates sheet, via-barrel and component losses, includes the
+The inspector's **Layers / losses** tab separates sheet, via-barrel and component losses, includes the
 accounting error, and lists local hotspot XYZ coordinates. A pulse energy/limit
 ratio above one means the **adiabatic screen** exceeds the entered temperature
 limit. It does not mean a trace will fuse in that time.
@@ -248,6 +320,7 @@ wayricad-pi board.kicad_pcb --command "run pi U1.M6 R161.1 5mH+30m R161.2 U1.M5"
 wayricad-pi board.kicad_pcb --net VIN --source J1.1 --sink U1.1 --voltage 5 --load-ohms 10 --html load.html
 wayricad-pi board.kicad_pcb --net VIN --source J1.1 --sink U1.1 --voltage 5 --sweep 0.1 2 20 --html sweep.html
 wayricad-pi board.kicad_pcb --return-path --net VIN --return-nets GND --html return.html
+wayricad-pi board.kicad_pcb --net +3V3 --source J1.1 --voltage 3.3 --source-current-limit 2 --load U1.1 0.8 --load U2.1 0.6 --load-voltage-limits U1.1 3.1 3.4 --load-voltage-limits U2.1 3.0 - --html multisink.html
 ```
 
 The same multiple-component path used in the native console can run from a shell:
@@ -261,12 +334,24 @@ and `--current` is the load current in amperes. The native console instead uses
 the visible voltage/current controls. Both interfaces use the same path parser
 and analysis worker, with the DC limitations described above.
 
+Repeat `--load PAD CURRENT_A` for each sink instead of `--sink`/`--current`.
+Use `--load-voltage-limits PAD MIN_V MAX_V` for a matching load, with `-` for
+an omitted bound (minimum defaults to 0 V; maximum is unbounded).
+`--sink-min-voltage` and `--sink-max-voltage` set bounds for legacy single-sink
+or series `--command` paths. `--source-current-limit` accepts a nonnegative current in
+amperes and works with the legacy single-sink or series `--command` path too.
+`--load` cannot combine with `--sink`, `--current` or `--command`.
+
 The first command lists saved nets, pads and layers. Replace the example pad/net
 names with ones from your own board. `--mesh-only` builds a mesh without solving;
 `--plating` and `--mesh-edge` use mm, `--pulse` seconds, and temperatures °C.
-HTML is available after a solve, sweep or board screen; its paired JSON contains the corresponding evidence.
-Exit code 0 indicates successful execution, 2 a command/model error—not proof of
-electrical suitability or convergence.
+Without `--pulse`, CLI thermal screening is marked as requiring a pulse duration.
+HTML is available after a solve, sweep or board screen; its paired JSON retains the corresponding evidence.
+Exit code 0 indicates a completed calculation whose entered source/load limits
+passed, 2 a command/model error, 3 an incomplete/unstable convergence study, and
+4 an infeasible source/load requirement. Infeasibility takes precedence over
+convergence status. Successful execution does not establish electrical
+suitability, convergence or physical accuracy.
 
 ## If a run fails
 
@@ -314,6 +399,48 @@ refinement to 0.0625 mm gives 2.657 mV. The two-step 1% stability criterion fail
 not converged. This does not model the FPGA's distributed load or regulator.
 See the [validation record](../docs/audits/QUICK_PI_3.2_VALIDATION.md).
 
+
+## Transient load steps and decoupling
+
+Open **More → Transient load-step study**. The selected sink labels, final
+demands and voltage bounds seed the setup. Enter the shared source resistance,
+each load's local capacitance, optional source/path inductance and capacitor
+ESR. Set before/after current and the step time for every load. The setup uses
+explicit SI units (100 µF is `100e-6` F); it does not extract L or C from copper
+or guess decoupling values. **Run transient** opens voltage/current time plots
+and **Checks / limits**. Changing an input clears the previous result.
+
+This is a separate lumped rail network: the shared source R/L feeds parallel
+load paths, each with its own R/L and series-ESR capacitor to return. It starts
+in the pre-step DC state. Backward Euler advances the state and reports a
+half-step comparison, charge balance, energy accounting and voltage bounds.
+Step timestamps include before/after samples for instantaneous ESR jumps.
+Refine the integration step until the reported waveform differences are
+acceptable; stable integration alone does not establish waveform accuracy.
+Source current limits are **budget diagnostics**, not simulated regulator
+CV/CC, foldback or control loops. The resulting time traces are not full-board
+transient field maps or a distributed electromagnetic solve.
+
+Export HTML/JSON from the study window for the explicit inputs, raw time samples
+and checks. Saved-source changes block a new run or export. Standalone CLI:
+
+```text
+wayricad-pi --transient transient-load-step.json --html pi-transient.html --output pi-transient-data.json
+```
+
+Use the bundled [example input](studies/transient-load-step.json) as an
+illustrative circuit, then replace its values with your actual source, paths
+and capacitors. An optional positional PCB records and checks the saved-file
+revision; it does not supply circuit parameters. Exit 4 indicates a limit
+violation; exit 2 indicates invalid inputs or an execution failure.
+
+## Electrothermal coupling
+
+**More → Electrothermal study** offers steady saved-copper/layer-temperature
+feedback and explicit lumped rail/thermal-RC transients. The shared QuickTherm
+kernel is independently bundled in Quick PI. Model settings and thermal paths
+are explicit; losses, state updates and source/study identities retain checks.
+See the [setup, CLI, examples and limitations](ELECTROTHERMAL.md).
 
 ## Numerical verification and mesh refinement
 

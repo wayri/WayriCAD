@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [develop, main]
+    branches: [develop, main, "codex/release-*"]
   pull_request:
     branches: [develop, main]
 
@@ -85,8 +85,7 @@ jobs:
           python -m unittest discover -s heater_designer_plugin/tests -v
           python -m pip install "numpy>=1.24,<3" "scipy>=1.10,<2" "matplotlib>=3.7,<4"
           python -m pytest quick_therm_plugin/tests -q
-          python -m unittest discover -s quick_pi_plugin/tests -p test_solver.py -v
-          python -m unittest discover -s quick_pi_plugin/tests -p test_analytics.py -v
+          python -m pytest quick_pi_plugin/tests -q --ignore=quick_pi_plugin/tests/test_mesh.py
           python -m unittest discover -s planar_magnetics_plugin/tests -v
       - name: Package validation
         run: |

@@ -73,8 +73,98 @@ from quick_pi_plugin.decoupling.analysis import analyze_decoupling
 from signal_integrity_advisor_plugin.return_path.analysis import ReturnPathAnalyzer
 from signal_integrity_advisor_plugin.test_points.fixture import FixturePoint
 
+# Run the real local server from the extracted wheel. Import success alone
+# cannot catch a missing web payload, which leaves installed views unusable.
+import http.client,json,re,threading
+from bom_studio_plugin.bomstudio.server import Application,Server
+app=Application()
+server=Server(app)
+thread=threading.Thread(target=server.serve_forever,daemon=True)
+thread.start()
+def get_bom(path):
+    connection=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=10)
+    try:
+        connection.request('GET',path,headers={'X-Bom-Token':app.token})
+        response=connection.getresponse()
+        status,mime,data=response.status,response.getheader('Content-Type'),response.read()
+        assert status==200 and data,(path,status,data)
+        return mime,data
+    finally:
+        connection.close()
+try:
+    mime,html=get_bom('/')
+    assert mime.startswith('text/html')
+    paths=re.findall(r'(?:src|href)="(/[^\"]+)"',html.decode('utf-8'))
+    assert '/workspace.js' in paths and '/analytics.js' in paths
+    for path in paths:
+        mime,data=get_bom(path)
+        expected=('text/javascript' if path.endswith('.js') else
+                  'image/x-icon' if path.endswith('.ico') else 'text/css')
+        assert mime.startswith(expected),(path,mime)
+    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.12'
+    assert (Path(sys.argv[1])/'bom_studio_plugin/help.html').is_file()
+    example=Path(sys.argv[1])/'bom_studio_plugin/examples/BOM_Demo.kicad_pro'
+    assert example.is_file()
+    from bom_studio_plugin.bomstudio.native import Project,BASE
+    from bom_studio_plugin.bomstudio.engine import Workspace
+    from bom_studio_plugin.bomstudio import analytics
+    workspace=Workspace(Project(example))
+    records=workspace.rows()
+    assert len(records)>=3
+    for row in records:
+        workspace.edit([row['id']],BASE,{'in_bom':False,'on_board':False})
+    for i,(mass,rate) in enumerate((('100','200'),('0.1 g','200'),('0.002 kg','500'))):
+        workspace.edit([records[i]['id']],BASE,{'in_bom':True,'on_board':True,'dnp':False,
+            'MassInput':mass,'Rate':rate,'PackQty':'100','PayCurrency':'USD',
+            'MPN':'SYNTH-PAIR' if i<2 else 'SYNTH-OTHER','Value':'10k' if i<2 else 'other',
+            'Manufacturer':'Synthetic','Footprint':'Synthetic:Part','MOQ':'1','OrderMultiple':'1',
+            'Supplier':'Synthetic','SKU':'SYNTH-PAIR' if i<2 else 'SYNTH-OTHER','QuoteDate':''})
+    config={**analytics.defaults(workspace),'query':'','metrics':['mass','pricing'],
+        'mass_field':'MassInput','mass_unit':'mg','price_field':'Rate','price_per_field':'PackQty',
+        'currency_field':'PayCurrency','supplier_field':'Supplier','sku_field':'SKU',
+        'quote_date_field':'QuoteDate','moq_field':'MOQ','multiple_field':'OrderMultiple',
+        'physical_include_bom_excluded':False}
+    app.workspace=workspace
+    def post_bom(path,payload):
+        connection=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=10)
+        try:
+            connection.request('POST',path,body=json.dumps(payload),headers={
+                'X-Bom-Token':app.token,'Origin':server.origin,'Content-Type':'application/json'})
+            response=connection.getresponse();data=response.read()
+            assert response.status==200,(path,response.status,data)
+            return data
+        finally:connection.close()
+    report=json.loads(post_bom('/api/analytics/run',{'variant':BASE,'config':config}))
+    assert report['mass']['known_per_board']=='2.2'
+    assert report['pricing']['currencies']['USD']['known_cost_per_board']=='9'
+    pair=next(g for g in report['consolidated'] if g['keys']['MPN']=='SYNTH-PAIR')
+    assert pair['components']==2 and pair['mass_per_board']=='0.2' and pair['cost_per_board']['USD']=='4'
+    exported=post_bom('/api/analytics/export',{'variant':BASE,'config':config,
+                                           'format':'csv','table':'consolidated'})
+    assert b'Known mass g' in exported and b'SYNTH-PAIR' in exported
+    print('Isolated wheel: BoM assets/API, whole mass/cost sums and consolidated CSV passed')
+finally:
+    server.shutdown();server.server_close();thread.join(5)
+    assert not thread.is_alive()
+for folder,example in (('quick_pi_plugin','transient-load-step.json'),('quick_therm_plugin','transient-power-step.json')):
+    import importlib,json
+    asset=Path(sys.argv[1])/folder/'studies'/example
+    assert asset.is_file(), str(asset)
+    study=json.loads(asset.read_text())
+    result=importlib.import_module(folder+'.transient').solve_transient(study)
+    assert len(result['times_s']) > 1
+from wayricad_runtime.transient_study import draw_study
+from quick_pi_plugin.electrothermal_service import execute as execute_coupled
+from quick_pi_plugin.electrothermal_report import write_report as write_coupled_report
+for mode in ('steady','transient'):
+    asset=Path(sys.argv[1])/'quick_pi_plugin'/'studies'/('electrothermal-'+mode+'.json')
+    envelope=json.loads(asset.read_text(encoding='utf-8'))
+    bundle=execute_coupled({'action':'electrothermal',**envelope})
+    assert bundle['electrothermal']['status'] in ('converged','completed')
+    write_coupled_report(Path(sys.argv[1])/(mode+'-coupled.html'),bundle)
+
 '''
-        subprocess.run([sys.executable, '-c', script, str(root)], cwd=root, check=True, timeout=30)
+        subprocess.run([sys.executable, '-c', script, str(root)], cwd=root, check=True, timeout=120)
         print('Isolated wheel: report assets and mechanical rules export passed')
 
 

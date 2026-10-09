@@ -1,0 +1,17 @@
+{
+  "ambient_c": 25.0,
+  "initial_temperature_c": 25.0,
+  "duration_s": 60.0,
+  "step_s": 0.1,
+  "components": [
+    {
+      "reference": "U1",
+      "initial_power_W": 0.0,
+      "step_power_W": 2.0,
+      "step_time_s": 1.0,
+      "resistance_K_W": 10.0,
+      "capacitance_J_K": 1.0,
+      "limit_c": 50.0
+    }
+  ]
+}

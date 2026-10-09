@@ -51,6 +51,16 @@ The **Open top + bottom workspace** button opens simultaneous front and mirrored
 
 The [component-results screenshot](examples/quicktherm-native-results.png) shows the sortable temperature table and summary in the same native window.
 
+### When color covers only a small area
+
+A small colored quadrilateral can be **partial junction interpolation** between selected same-side components. Its dashed boundary is the component-anchor hull; blank regions are unknown, not ambient temperature. This overlay is not a board-surface solution and is never extrapolated across the PCB.
+
+Click **Whole-board study…** to enable and reveal the existing board-model setup. Review the model, material conductivity, saved thickness, cooling and fixture boundaries, and include every actual heat source before running. The action retains your model choices, mappings, entered component values and scope; it does not infer missing physics. A solved board or layer field is preferred automatically, while a later deliberate view selection is retained. With insufficient interpolation support, the component map stays available with point estimates.
+
+Physical finite-volume colors cover known mesh cells through their declared edges, including supported edge and isolated cells. Smooth gradients require neighboring known samples. Cutouts, drills and unsupported cells remain blank; junction and sampled CalculiX interpolation keep their own support limits. Coverage and smoothness do not establish mesh convergence or qualified temperatures.
+
+Reloading the same board retains entered values, valid explicit field mappings and checked references. A unique recognized saved-field alias may be suggested; ambiguous aliases stay blank for review. A board with one component initially selects that reference, without inventing its power or thermal resistance. Reload still clears the previous result and export.
+
 Open a saved board in KiCad PCB Editor and launch **WayriCAD QuickTherm**. Choose only the dissipating components, review the ambient temperature, then use **Enter component inputs…** to supply power and the applicable thermal resistance for each selected part. No saved `Power_W` or `RthetaJA` fields are required for this path, and the PCB is not modified. If your board has complete thermal properties, switch to **Use saved footprint fields** and map them. Both paths show top and bottom views, contours, a 3D overview, a component temperature table, and cross-selection back to PCB Editor. Optional virtual heatsinks and board models include thin-sheet and layer-resolved copper/vertical-path approximations. The report records input provenance, assumptions, coverage and heat balance where applicable. The multilayer viewport also supports explicitly parameterized spatial time evolution. The separate four-board transient CLI remains a lumped RC screen; neither model is CFD.
 
 For automation, install the source wheel and use `wayricad-therm`:

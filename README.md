@@ -4,7 +4,9 @@
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current suite release: [3.6.11](https://github.com/wayri/WayriCAD/releases/tag/v3.6.11) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
+**Current suite release: [3.6.12](https://github.com/wayri/WayriCAD/releases/tag/v3.6.12) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
+
+**New in 3.6.12:** [BoM Studio](bom_studio_plugin/README.md) repairs mass/cost totals, consolidation and analytics; [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) keeps editing and reviewed apply responsive. [Quick PI](quick_pi_plugin/README.md) adds multiple current sinks, explicit rail transients and electrothermal studies. [QuickTherm](quick_therm_plugin/README.md) improves whole-board field display and manual/field input recovery. See the [3.6.12 release notes](docs/RELEASE_NOTES_3.6.12.md) for validation and model limits.
 
 **New in 3.6.11:** [QuickTherm](quick_therm_plugin/README.md) includes plated slots and board-aware top/bottom thermal reports. [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) adds automatic saved-stackup timing and routed-section plots; [Quick PI](quick_pi_plugin/README.md) makes its main result plots easier to find. See the [3.6.11 release notes](docs/RELEASE_NOTES_3.6.11.md) for validation and limits.
 
@@ -137,8 +139,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.11
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.11
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.12
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.12
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.

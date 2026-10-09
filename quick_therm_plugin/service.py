@@ -95,6 +95,10 @@ def run_job(request, cancelled=None, timeout=1800, progress=None):
 
 def execute(request):
     """Return a source-hashed inventory or a scoped thermal result."""
+    if request.get('action') == 'transient':
+        from .transient import solve_transient
+        from wayricad_runtime.transient_study import execute_study
+        return execute_study(request, solve_transient)
     def emit_progress(stage, completed, total, elapsed, eta):
         if request.get("_emit_progress"):
             print("WAYRICAD_PROGRESS " + json.dumps({

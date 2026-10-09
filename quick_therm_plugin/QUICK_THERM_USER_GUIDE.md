@@ -168,7 +168,10 @@ contact resistance, and an environment-specific sink resistance.
 
 ## 5. Run and interpret the result
 
-Click **Run QuickTherm**. The default **Top-side map** traces the saved
+Click **Run QuickTherm**. The first result prefers a solved board or layer field
+when available, then supported partial junction interpolation, then a component
+map. A later deliberate view selection is retained on subsequent runs.
+**Top-side map** traces the saved
 Edge.Cuts outline and marks top-mounted footprints at their saved positions.
 **Bottom-side map** marks bottom-mounted parts and mirrors the X axis like a
 physical bottom view. Marker colors encode estimated **component junction**
@@ -185,6 +188,30 @@ outline. Blank regions have no support. It is **not** a solved
 board-surface temperature, so its colors and extrema cannot be used as board
 hotspot or clearance evidence. Choose **Temperature chart** for a ranked
 component comparison.
+
+The dashed boundary is the same-side component-anchor hull. A small colored
+quadrilateral therefore represents **partial junction interpolation**, not a
+whole-board solution. Blank regions are unknown and are not extrapolated.
+
+Click **Whole-board study…** to enable and reveal the existing physical model
+setup. Your chosen model, materials, entered component values, field mappings
+and checked scope are retained. Review conductivity, saved thickness, cooling
+and fixture boundaries, include every actual heat source, then run. Missing
+power, resistance or material evidence is never inferred from the contour.
+The action prefers an available physical board/layer field; choosing another
+view afterward overrides that preference.
+
+Known physical finite-volume cells display through their declared mesh edges,
+including supported edge and isolated cells. Smooth gradients need neighboring
+known samples. Cutouts, drills and unsupported regions stay blank; junction and
+sampled CalculiX fields keep their own interpolation support. A full extent is
+not evidence of mesh convergence or qualified temperatures.
+
+Reload of the same saved board retains valid explicit field mappings, entered
+values and checked references while clearing old results and exports. Unique
+recognized field aliases are suggested; ambiguous names require review. A
+single-component board initially selects its reference, without supplying any
+default power or resistance.
 
 For an optional approximate **board temperature** field, expand **Optional
 board conduction / radiation / virtual airflow model** before running. Check

@@ -9,6 +9,7 @@ preparing Python, opening the window and completing an analysis are separate ste
 |---|---|
 | Repository added, no packages | Raw `repo.json` address, selected repository and search filter |
 | Package installed, no action | PCB Editor, API enabled, environment preparation finished |
+| Every IPC package fails at `pythonw.exe -m venv` | KiCad's configured host interpreter exists on this computer; see the Windows interpreter check below |
 | Action reports JSON or environment error | Capture the actual error; recreate the environment only after correcting dependencies |
 | Tool opens on an unexpected project | Launch from the saved project's PCB Editor; check multiple-instance notes below |
 | Analysis is partial or empty | Selected scope, source/sink connectivity, filled zones and required stackup/models |
@@ -43,6 +44,67 @@ Current packages include local `help.html` and images. Start with the installed
 tool's Help action or open that file directly. Standalone launches may request
 a project; toolbar launches use their originating editor's context. Engines
 that read saved files cannot include unsaved editor changes.
+
+### Windows: all IPC environments fail before the action appears
+
+An error launching `pythonw.exe -m venv --system-site-packages ...` occurs in
+KiCad's environment creation, before WayriCAD's entry point runs. Fix the
+**Python interpreter** under **Preferences > Plugins** first. Reinstalling each
+plugin or changing its private dependency runtime cannot repair this stage.
+
+Select an existing executable from the intended KiCad installation. All-user
+installations usually place it under `%ProgramFiles%/KiCad/10.0/bin/`; per-user
+installations use `%LOCALAPPDATA%/Programs/KiCad/10.0/bin/`. A copied setting may
+refer to another Windows user's profile, an old version or a removed install.
+Use the full executable path without stored quotation marks or command-line
+arguments. Prefer the bundled `pythonw.exe` when present. If it is missing but
+the adjacent `python.exe` is functional, select `python.exe`; it may show a
+console window. If neither is functional, repair the KiCad installation.
+
+From a source checkout, inspect the host setting and installed candidates:
+
+```console
+python tools/check_kicad_python.py --version 10.0
+python tools/check_kicad_python.py --version 10.0 --json
+```
+
+The diagnostic reads `api.interpreter_path` from `kicad_common.json`, checks
+the executable, and probes Python's `venv` and `ensurepip` imports. It looks in
+the current user's installation, Program Files, the configured installation
+and the PCB Editor's PATH location. It honors `KICAD_CONFIG_HOME` as the settings
+base and appends the version; use `--config-file` when KiCad was started with
+different environment variables. The report lists inherited `PYTHONHOME` and
+`PYTHONPATH` overrides by name for review. Isolated probes do not establish how
+a separately launched KiCad process inherits those overrides.
+
+For a custom installation or multiple installations, choose the intended root:
+
+```console
+python tools/check_kicad_python.py --kicad-root "D:/Applications/KiCad/10.0"
+```
+
+To prepare a concrete setting change, preview an exact interpreter. Then close
+KiCad Manager and **all** KiCad editors before applying:
+
+```console
+python tools/check_kicad_python.py --interpreter "C:/Program Files/KiCad/10.0/bin/python.exe"
+python tools/check_kicad_python.py --interpreter "C:/Program Files/KiCad/10.0/bin/python.exe" --apply
+```
+
+The default command is read-only. `--apply` changes only
+`api.interpreter_path`, preserves all other settings and creates an exact-byte
+backup beside `kicad_common.json`. It refuses malformed settings JSON, an
+unavailable interpreter, a running KiCad process or settings changed since
+inspection. No plugin is installed and no existing environment is removed.
+To undo the change, close KiCad and restore the printed backup file over the
+configuration file.
+
+Restart KiCad after a repair. Use **Recreate Plugin Environment** for previously
+failed packages, and wait for their dependency installation to finish. A
+passing interpreter check proves only executable/stdlib prerequisites; actual
+venv creation, package downloads, toolbar discovery and native plugin launches
+remain separate checks. An API-disabled report also requires enabling the API
+in Plugins preferences; the helper preserves that setting.
 
 ### BOM Studio stalls during startup on macOS
 

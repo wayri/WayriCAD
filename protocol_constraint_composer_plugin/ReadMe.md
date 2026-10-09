@@ -35,6 +35,19 @@ The **Constraint worksheet** uses an embedded desktop WebView with BOM Studio's 
 
 Open Help/F1 inside the application for the bundled searchable native reference, or read [the original development guide](docs/USER_GUIDE.md). Installation instructions in that original guide describe the standalone development package; use the WayriCAD package for this integration. Do not install the original Constraint Studio PCM beside it.
 
+If the visual page stops responding, click **Open native worksheet · recover
+workspace** above it. This button uses wx directly and retains the same staged
+workspace. Missing bridge replies time out after 15 seconds and are never
+automatically replayed; review the native staged state before retrying an edit.
+Repeated window focus events share one refresh. Startup returns to the native
+worksheet if its initial snapshot fails or the bridge does not connect.
+
+Native DRC reports prepare in the background and display 200 records per page;
+search is debounced and the complete JSON stays available. The offline Apply
+Review helper also keeps its window responsive while the verified transaction
+runs. It accepts one apply at a time and waits for completion before closing;
+the original confirmation, fingerprint, backup and rollback checks still apply.
+
 Source launch, with KiCad's Python (wxPython required):
 
 ```powershell

@@ -40,7 +40,12 @@ Install **WayriCAD QuickTherm** as its own package. If you used the QuickTherm a
    click only queues the operation; the package is not installed until pending
    changes are applied.
 6. In KiCad Manager, open **Preferences → Plugins**. Turn on **Enable KiCad
-   API** and let KiCad detect or select its Python interpreter.
+   API** and let KiCad detect or select its Python interpreter. The interpreter
+   must exist on this computer. On Windows, choose the bundled `pythonw.exe`
+   from the intended all-user or per-user KiCad installation; if it is absent,
+   its functional adjacent `python.exe` can be selected. See the
+   [host interpreter diagnostic and repair](TROUBLESHOOTING.md#windows-all-ipc-environments-fail-before-the-action-appears)
+   when every package fails at `-m venv`.
 7. Restart the **PCB Editor**, open the project through KiCad Manager, and save
    its board. Launch WayriCAD from **Tools → External Plugins** or the **top
    toolbar**. The KiCad 10 packages include menu launchers alongside their IPC
@@ -75,10 +80,10 @@ packages, preview the destination, then install with backups. The public PCM
 feed is promoted only after release assets are published and verified:
 
 ```console
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.5
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.5
-python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.5
-python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.5 --apply
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.12
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.12
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.12
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.12 --apply
 ```
 
 Restart PCB Editor after installation. These local candidate ZIPs can also be
@@ -97,6 +102,12 @@ they run. Wait for that preparation to finish. If it fails, correct the stated
 Python, operating-system dependency, mirror, proxy, or wheel problem first,
 then use **Recreate Plugin Environment** from KiCad's warning/error UI and run
 the action again. See [troubleshooting](TROUBLESHOOTING.md#installed-package-has-no-action-or-clicking-it-fails).
+
+KiCad also creates each IPC plugin environment **before** launching the plugin.
+From a Windows source checkout, `python tools/check_kicad_python.py` diagnoses
+that host interpreter without changing configuration or installing anything.
+It can preview a portable interpreter setting and save it with a backup only
+when explicitly invoked with `--apply` while KiCad is closed.
 
 ## Updating without duplicate actions
 

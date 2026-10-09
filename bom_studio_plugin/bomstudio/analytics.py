@@ -234,6 +234,17 @@ def _count(row, field, default, label):
     except ValueError as exc: return None, True, str(exc)
 
 
+def price_observation(row, config, fallback):
+    """Use the same mapped rate and per-piece basis in summaries and exports."""
+    amount,cur,status,reason,source=money(_value(row,config['price_field']),_value(row,config['currency_field']),fallback)
+    try:
+        divisor=_integer(_value(row,config['price_per_field']) if config['price_per_field'] else config['price_per'],'Price-per units')
+    except ValueError as exc:
+        divisor=None;status='invalid';reason=str(exc)
+    unit=amount/D(divisor) if amount is not None and divisor and status=='known' else None
+    return amount,cur,status,reason,source,divisor,unit
+
+
 def _ceil(value): return int(value.to_integral_value(rounding=ROUND_CEILING))
 
 
@@ -305,12 +316,7 @@ def _run(ws, variant, config):
               'source_fields':{k:provenance(r,c[k]) for k in ('price_field','currency_field','mass_field','power_field','rating_field','temperature_field')}}
         if r.get('errors'): issue('warning','SOURCE_EXPRESSION_ERRORS','Component has unresolved/unsupported expressions; review source checks.',r['ref'])
         if price_eligible:
-            amount,cur,status,reason,source=money(_value(r,c['price_field']), _value(r,c['currency_field']), currency_default)
-            divisor=int(c['price_per'])
-            if c['price_per_field']:
-                try: divisor=_integer(_value(r,c['price_per_field']),'Price-per units')
-                except ValueError as exc: divisor=None;status='invalid';reason=str(exc)
-            unit=amount/D(divisor) if amount is not None and divisor and status=='known' else None
+            amount,cur,status,reason,source,divisor,unit=price_observation(r,c,currency_default)
             if status!='known': issue('unknown' if status=='missing' else 'warning','PRICE_'+status.upper(),reason or 'Missing selected price.',r['ref'],c['price_field'])
             cost={'status':status,'currency':cur,'currency_source':source,'entered_rate':amount,'price_per':divisor,'unit_price':unit,'reason':reason,'quote_status':'undated'}
             quote=str(_value(r,c['quote_date_field'])).strip()
@@ -444,7 +450,9 @@ def _run(ws, variant, config):
                      'not_fitted_components':sum(p['assembly']!='FIT' for p in parts),
                      'bom_excluded_physical_components':sum(p['physical_eligible'] and not p['in_bom'] for p in parts),
                      'type_heuristic_components':sum(p['type_source']=='reference-prefix heuristic' for p in parts)},
-            'pricing':pricing,'mass':mass,'thermal':thermal,'groups':groups,'procurement':procurement,'scenarios':scenarios,'statistics':stats,
+            'pricing':pricing,'mass':mass,'thermal':thermal,'groups':groups,
+            'consolidated':_groups(rows,parts,{**c,'group_by':['MPN','Value','Manufacturer','Footprint']},consolidate=True),
+            'procurement':procurement,'scenarios':scenarios,'statistics':stats,
             'components':parts,'budgets':budgets,'issues':issues,'summary':dict(Counter(i['severity'] for i in issues)),
             'limits':[
                 'Advisory arithmetic over saved/committed component fields, not engineering or purchasing approval.',
@@ -495,11 +503,19 @@ def _fx(fx, currencies, unknown_prices):
             'currencies_converted':covered,'missing_rates':missing,'as_of':fx['as_of'],'source':fx['source'],'direction':'base currency units per 1 source currency unit'}
 
 
-def _groups(rows, parts, c):
+def _groups(rows, parts, c, consolidate=False):
     indexed={p['id']:p for p in parts};buckets={}
     for r in rows:
         p=indexed[r['id']]
         key=tuple(p['type'] if f=='@type' else p['assembly'] if f=='@population' else str(_value(r,f)) for f in c['group_by'])
+        if consolidate:
+            # A reporting consolidation must not imply interchangeability of
+            # different purchasing identities or population states. Missing
+            # manufacturer/MPN stays a separate, individually traceable line.
+            guard_fields=[c[x] for x in ('supplier_field','sku_field','price_field','currency_field',
+                                         'price_per_field','moq_field','multiple_field','quote_date_field') if c[x]]
+            key+=tuple(str(_value(r,f)) for f in guard_fields)
+            key+=(p['assembly'],str(p['in_bom']),str(p['on_board']),r['id'] if not str(p['mpn']).strip() or not str(p['manufacturer']).strip() else '')
         buckets.setdefault(key,[]).append(p)
     result=[]
     for key,ps in sorted(buckets.items(),key=lambda item:tuple(natural(x) for x in item[0])):
@@ -509,7 +525,7 @@ def _groups(rows, parts, c):
             cp=[p['cost']['unit_price'] for p in eligible if p['cost']['currency']==cur and p['cost']['unit_price'] is not None]
             costs[cur]=sum(cp,D(0)) if cp else None
         rec={'id':sha(json.dumps(key,ensure_ascii=False).encode())[:20],'keys':dict(zip(c['group_by'],key)),
-             'label':' / '.join(x or '(blank)' for x in key),'references':[p['reference'] for p in ps],'ids':[p['id'] for p in ps],
+             'label':' / '.join(x or '(blank)' for x in key[:len(c['group_by'])]),'references':[p['reference'] for p in ps],'ids':[p['id'] for p in ps],
              'components':len(ps),'pricing_components':len(eligible),'physical_components':len(physical),
              'cost_per_board':costs,'price_missing_or_invalid':sum(p['cost']['unit_price'] is None for p in eligible)}
         for name in ('mass','power'):
@@ -595,9 +611,7 @@ def price_overview(ws, rows):
         ctx.prec=40
         for row in rows:
             if row['fields']['Assembly']!='FIT' or not row['flags']['in_bom']:continue
-            amount,cur,status,_,_=money(_value(row,c['price_field']),_value(row,c['currency_field']),fallback)
-            try:divisor=_integer(_value(row,c['price_per_field']) if c['price_per_field'] else c['price_per'],'Price per units')
-            except ValueError:divisor=None
-            if amount is None or status!='known' or divisor is None:unpriced+=1;continue
-            costs[cur]=costs.get(cur,D(0))+amount/D(divisor)
+            _,cur,_,_,_,_,unit=price_observation(row,c,fallback)
+            if unit is None:unpriced+=1;continue
+            costs[cur]=costs.get(cur,D(0))+unit
     return {k:m.text(v) for k,v in costs.items()},unpriced,c

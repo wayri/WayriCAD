@@ -7,7 +7,7 @@ from __future__ import annotations
 from . import __version__
 from collections import defaultdict
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_CEILING
+from decimal import Decimal, ROUND_CEILING, localcontext
 import csv
 import html
 import io
@@ -61,6 +61,15 @@ def _field(row,key,raw=False):
 
 
 def table(workspace,variant=BASE,template='Engineering'):
+    with localcontext() as context:
+        context.prec=40
+        return _table(workspace,variant,template)
+
+
+def _table(workspace,variant,template):
+    from .analytics import defaults, price_observation, _count
+    pricing=defaults(workspace)
+    currency_default=pricing['currency_default'] or workspace.state['settings']['currency']
     t=workspace.state['templates'].get(template)
     if t is None:raise ValueError('Unknown export template.')
     workspace.validate_template(t)
@@ -71,34 +80,43 @@ def table(workspace,variant=BASE,template='Engineering'):
     rows=workspace.rows(variant)
     rows=[r for r in rows if (t.get('include_excluded',False) or r['flags']['in_bom']) and
           (t['population']=='all' or (t['population']=='fitted')==(r['fields']['Assembly']=='FIT'))]
+    prices={r['id']:price_observation(r,pricing,currency_default) for r in rows}
+    policies={r['id']:(_count(r,pricing['moq_field'],1,'MOQ'),_count(r,pricing['multiple_field'],1,'Order multiple')) for r in rows}
     groups={}
     extra=[c['field'] for c in t['columns'] if c['field'] not in DERIVED and c['field'] not in ('Sheet','${QUANTITY}','${ITEM_NUMBER}')]
     for r in rows:
         # Procurement-critical attributes always split groups, even in a permissive
         # custom template. Never combine different packages or prices invisibly.
         keys=list(dict.fromkeys(t['group_by']+GUARD_FIELDS+extra))
-        key=tuple(str(_field(r,k,raw_mode and k in extra)) for k in keys)+(tuple(r['flags'].values()),) if t['group_by'] else (r['id'],)
+        key=tuple(str(_field(r,k,raw_mode and k in extra)) for k in keys)+(tuple(r['flags'].values()),prices[r['id']][1],prices[r['id']][6],policies[r['id']]) if t['group_by'] else (r['id'],)
         groups.setdefault(key,[]).append(r)
-    result=[];totals=defaultdict(Decimal);order_totals=defaultdict(Decimal);unpriced=0;alerts=[]
+    result=[];totals=defaultdict(Decimal);order_totals=defaultdict(Decimal);installed_totals=defaultdict(Decimal);unpriced=0;alerts=[]
     boards=workspace.state['settings']['boards']
     attrition=Decimal(str(workspace.state['settings']['attrition']))/100
     for members in groups.values():
         first=members[0];fields=dict(first['fields']);qty=len(members)
         fitted=first['fields']['Assembly']=='FIT' and first['flags']['in_bom']
         required=int((Decimal(qty*boards)*(1+attrition)).to_integral_value(rounding=ROUND_CEILING)) if fitted else 0
-        multiple=integer_value(fields.get('OrderMultiple'),1);moq=integer_value(fields.get('MOQ'),1)
-        order=((max(moq,required)+multiple-1)//multiple)*multiple if required else 0
-        price=decimal_value(fields.get('UnitPrice'));currency=fields.get('Currency','')
+        (moq,bad_moq,moq_reason),(multiple,bad_multiple,multiple_reason)=policies[first['id']]
+        order=0 if not required else None if bad_moq or bad_multiple else ((max(moq,required)+multiple-1)//multiple)*multiple
+        if required and (bad_moq or bad_multiple):
+            alerts.append({'severity':'warning','reference':references([r['ref'] for r in members]),'code':'ORDER_POLICY_INVALID','message':moq_reason or multiple_reason})
+        _,currency,_,_,_,_,price=prices[first['id']]
+        # Canonical calculated prices follow the saved analytics mapping.
+        # @field:UnitPrice / @field:Currency still expose exact authored fields.
+        fields.update(UnitPrice='' if price is None else str(price),Currency=currency,MOQ='' if moq is None else moq,OrderMultiple='' if multiple is None else multiple)
         cost=price*required if price is not None else None
-        ordercost=price*order if price is not None else None
+        ordercost=price*order if price is not None and order is not None else None
         if required and price is None:unpriced+=1
-        if cost is not None:totals[currency]+=cost;order_totals[currency]+=ordercost
+        if cost is not None:totals[currency]+=cost
+        if ordercost is not None:order_totals[currency]+=ordercost
+        if fitted and price is not None:installed_totals[currency]+=price*qty
         stock=decimal_value(fields.get('Stock'))
-        if stock is not None and stock<order:
+        if stock is not None and order is not None and stock<order:
             alerts.append({'severity':'warning','reference':references([r['ref'] for r in members]),'code':'STOCK_SHORTAGE',
                            'message':f'Order quantity {order} exceeds recorded stock {stock}. Stock is offline, not live.'})
         fields.update(Reference=references([r['ref'] for r in members],t.get('ref_ranges',False)).replace('–',t.get('options',{}).get('range_separator','–')).replace(', ',t.get('options',{}).get('reference_separator',', ')),Qty=qty,
-                      Required=required,OrderQty=order,LineCost='' if cost is None else str(cost),
+                      Required=required,OrderQty='' if order is None else order,LineCost='' if cost is None else str(cost),
                       OrderCost='' if ordercost is None else str(ordercost),
                       UUID=', '.join(r['id'] for r in members),
                       Sheet=', '.join(sorted({r['fields']['Sheet'] for r in members})),
@@ -136,6 +154,9 @@ def table(workspace,variant=BASE,template='Engineering'):
     return {'project':workspace.project.name,'variant':variant,'template':t,'columns':headers,
             'rows':values,'groups':len(values),'boards':boards,'attrition':float(attrition*100),
             'totals':{k:str(v) for k,v in totals.items()},'order_totals':{k:str(v) for k,v in order_totals.items()},
+            'installed_totals':{k:str(v) for k,v in installed_totals.items()},
+            'pricing_basis':{'field':pricing['price_field'],'per_pieces':pricing['price_per'],'per_row_field':pricing['price_per_field'],'moq_field':pricing['moq_field'],'multiple_field':pricing['multiple_field'],
+                             'notice':'Installed totals are per board for this exported scope. LineCost uses project build quantity plus attrition; OrderCost also includes mapped MOQ/order multiples, rounded per export line. Analytics procurement pools compatible parts independently of display grouping and may use a separate build scenario.'},
             'unpriced_lines':unpriced,'issues':issues}
 
 
