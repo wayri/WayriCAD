@@ -4,7 +4,9 @@
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current suite release: [3.6.12](https://github.com/wayri/WayriCAD/releases/tag/v3.6.12) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
+**Current suite release: [3.6.13](https://github.com/wayri/WayriCAD/releases/tag/v3.6.13) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
+
+**New in 3.6.13:** [Mechanical Check](mechanical_check_plugin/README.md) adds engineering 3D measurements, part dimensions, global height limits and proximity markers. [Quick PI](quick_pi_plugin/README.md) expands its board workspace. [QuickTherm](quick_therm_plugin/README.md) adds editable scanned inputs, readable interactive 3D results and transient heating playback with air/vacuum boundaries. The shared loading window clears as soon as a plugin is ready. See the [3.6.13 release notes](docs/RELEASE_NOTES_3.6.13.md) for validation and model limits.
 
 **New in 3.6.12:** [BoM Studio](bom_studio_plugin/README.md) repairs mass/cost totals, consolidation and analytics; [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) keeps editing and reviewed apply responsive. [Quick PI](quick_pi_plugin/README.md) adds multiple current sinks, explicit rail transients and electrothermal studies. [QuickTherm](quick_therm_plugin/README.md) improves whole-board field display and manual/field input recovery. See the [3.6.12 release notes](docs/RELEASE_NOTES_3.6.12.md) for validation and model limits.
 
@@ -139,8 +141,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.12
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.12
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.13
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.13
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.

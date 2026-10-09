@@ -1,8 +1,8 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD QuickTherm",
-  "description": "Saved-board thermal screening with mapped power, native temperature views and optional CalculiX 3D conduction.",
-  "description_full": "Read-only steady-state thermal screening using declared component dissipation and thermal resistance, optional copper-layer and vertical-path models, virtual heatsinks, mounting boundaries, top/bottom/3D previews, cross-selection and local HTML/JSON evidence. An optional Gmsh/CalculiX mode solves bounded 3D board conduction with a fixed lower-face temperature and power-only heat sources; junction estimates require separate RthetaJB. KiCad 10 native Python with NumPy, SciPy and Matplotlib is required. This is not CFD or coupled electrothermal simulation.",
+  "description": "Saved-board thermal screening with editable inputs, transient heating and interactive board results.",
+  "description_full": "Read-only steady-state and scheduled spatial-transient thermal screening using declared dissipation, thermal paths and heat capacities. Editable scanned component inputs, copper-layer and vertical-path models, virtual heatsinks, mounting boundaries, interactive top/bottom/3D views, heating playback, cross-selection and local HTML/JSON evidence. Air and vacuum use declared thermal boundaries, without airflow fields. An optional Gmsh/CalculiX mode solves bounded 3D steady conduction with a fixed lower-face temperature; junction estimates require separate RthetaJB. KiCad 10 native Python with NumPy, SciPy and Matplotlib is required. This is not CFD or coupled electrothermal simulation.",
   "identifier": "com.github.wayri.wayricad.quick-therm",
   "type": "plugin",
   "author": {

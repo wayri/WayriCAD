@@ -1,6 +1,6 @@
-# WayriCAD 3.6.13 candidate
+# WayriCAD 3.6.13
 
-This source candidate improves Mechanical Check, Quick PI and QuickTherm and fixes the shared loading window. All 17 IPC packages advance to 3.6.13 because they carry the shared launcher. Fusion and Variant Manager versions and the public PCM feed remain at their published versions. Candidate binaries have not been promoted to the public repository.
+This release improves Mechanical Check, Quick PI and QuickTherm and fixes the shared loading window. All 17 IPC packages advance to 3.6.13 because they carry the shared launcher. Fusion 0.9.8 and Variant Manager 0.6.1 retain their existing published package bytes and MIT licenses. The suite contains 19 independently installable plugins.
 
 - Native and offline inspection support two-part distance witnesses, point rulers, closest-approach hover lines, whole-board context, reference labels and top/bottom/side/isometric views with a millimetre scale.
 - Exact native pair queries reuse transformed solids and reject changed analysis sources. Offline reports retain saved pair evidence and separate picked-point rulers.
