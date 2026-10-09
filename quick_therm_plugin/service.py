@@ -152,6 +152,9 @@ def execute(request):
     if action != "quick_therm":
         raise ValueError("Unknown QuickTherm action: " + str(action))
 
+    if request.get("thermal_model_kind", "thin_sheet") not in ("thin_sheet", "multilayer", "calculix"):
+        raise ValueError("Choose a supported QuickTherm board model; unknown models are not substituted.")
+
     from .quick_therm import analyze_board, analyze_manual_board, analyze_power_sources
     from .thermal_board_view import build_board_thermal_view
 

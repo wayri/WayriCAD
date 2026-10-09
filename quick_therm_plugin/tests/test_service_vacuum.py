@@ -10,6 +10,18 @@ from quick_therm_plugin.tests.test_quick_therm import Board, Footprint
 from quick_therm_plugin.tests.test_thermal_multilayer import inputs
 
 class VacuumServiceTests(unittest.TestCase):
+    def test_unknown_model_rejected_before_field_analysis_without_source_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'board.kicad_pcb'
+            original = b'unchanged saved source'
+            path.write_bytes(original)
+            request = dict(action='quick_therm', board_path=str(path),
+                           thermal_model_kind='unsupported')
+            with patch.dict(sys.modules, {'pcbnew': SimpleNamespace(LoadBoard=lambda _: Board([]))}):
+                with self.assertRaisesRegex(ValueError, 'unknown models are not substituted'):
+                    execute(request)
+            self.assertEqual(path.read_bytes(), original)
+
     def test_multilayer_vacuum_radiation_without_lumped_resistance(self):
         geometry, view, _, settings = inputs("vacuum")
         board = Board([Footprint("U1", {"Dissipation": "1 W", "Theta JB": "4 K/W"})])
