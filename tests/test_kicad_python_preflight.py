@@ -265,6 +265,9 @@ def test_cli_is_preview_only_until_apply(tmp_path, prerequisite_probe, monkeypat
     path = config(tmp_path, '')
     original = path.read_bytes()
     monkeypatch.setattr(host.sys, 'platform', 'win32')
+    # This is the Windows CLI boundary, not a probe of the runner's PATH.
+    # Changing sys.platform also changes shutil.which's host implementation.
+    monkeypatch.setattr(host.shutil, 'which', lambda *args, **kwargs: None)
     monkeypatch.setattr(host, 'running_kicad', lambda: [])
     args = ['--config-file', str(path), '--interpreter', str(folder / 'python.exe'), '--json']
     assert host.main(args) == 1
