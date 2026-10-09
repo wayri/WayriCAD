@@ -16,9 +16,24 @@ from .plot_canvas import FigureCanvasWxAgg, NavigationToolbar2WxAgg
 from .thermal_inputs import _parse_sink_areas
 from .thermal_plot import update_component_hover
 
+def _wrap_text(control, text, width=270):
+    """Keep native text inside the sidebar even on wx builds with weak Wrap."""
+    lines=[]
+    for paragraph in str(text).split('\n'):
+        line=''
+        for word in paragraph.split():
+            candidate=(line+' '+word).strip()
+            if line and control.GetTextExtent(candidate).width>width:
+                lines.append(line);line=word
+            else:line=candidate
+        lines.append(line)
+    control.SetLabel('\n'.join(lines))
+    control.SetMinSize((min(width,max((control.GetTextExtent(line).width for line in lines),default=1)),
+                        len(lines)*control.GetTextExtent('Ag').height+2))
+
 class QuickThermFrame(wx.Frame):
     def __init__(self, parent, board_path):
-        super().__init__(parent, title="WayriCAD QuickTherm", size=(1180, 800))
+        super().__init__(parent, title="WayriCAD QuickTherm", size=(1440, 900))
         icons = wx.IconBundle()
         for size in (24, 48, 96):
             path = Path(__file__).with_name("resources") / f"icon-{size}.png"
@@ -31,6 +46,7 @@ class QuickThermFrame(wx.Frame):
         self.thermal_bundle = {}
         self.inventory = {}
         self.manual_values = {}
+        self.manual_temperature_limits = {}
         self.virtual_heatsinks = {}
         self.therm_probe_definitions = []
         self.therm_probe_mode = False
@@ -50,12 +66,12 @@ class QuickThermFrame(wx.Frame):
         filename = wx.StaticText(self.main_panel, label=Path(self.board_path).name)
         filename.SetToolTip(self.board_path)
         title.Add(filename, 0, wx.ALIGN_CENTER_VERTICAL)
-        root.Add(title, 0, wx.EXPAND | wx.ALL, 12)
+        root.Add(title, 0, wx.EXPAND | wx.ALL, 6)
         self.book = wx.Notebook(self.main_panel)
         self._build_thermal_page()
-        root.Add(self.book, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+        root.Add(self.book, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
         self.status = wx.StaticText(self.main_panel, label="Reading saved PCB…")
-        root.Add(self.status, 0, wx.EXPAND | wx.ALL, 12)
+        root.Add(self.status, 0, wx.EXPAND | wx.ALL, 6)
         footer = wx.BoxSizer(wx.HORIZONTAL)
         self.reload = wx.Button(self.main_panel, label="Reload saved PCB")
         self.reload.Bind(wx.EVT_BUTTON, lambda event: self._inspect())
@@ -75,13 +91,16 @@ class QuickThermFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self._buttons()
         self.Centre()
+        self.Maximize(True)
         wx.CallAfter(self._inspect)
 
     def _buttons(self):
         self.reload.Enable(not self._busy)
         self.therm_run.Enable(not self._busy)
         self.therm_whole_board.Enable(not self._busy)
-        self.therm_manual_button.Enable(not self._busy and self.therm_input_mode.GetSelection() == 0)
+        self.therm_manual_button.Enable(not self._busy)
+        if hasattr(self, 'therm_inputs'):
+            self.therm_inputs.Enable(not self._busy)
         self.therm_export.Enable(not self._busy and bool(self.thermal_bundle.get("quick_therm")))
         self.therm_sink_button.Enable(not self._busy)
         self.therm_sync.Enable(not self._busy and bool(self.thermal_bundle))
@@ -166,6 +185,11 @@ class QuickThermFrame(wx.Frame):
                 choice.SetValue(value if value in fields else '')
             if not self.therm_model_jb.GetValue():
                 self.therm_model_jb.SetValue(mapping['theta_jb_k_per_w'])
+            from .component_inputs import restored_temperature_mapping
+            limit_mapping=restored_temperature_mapping(fields[1:],{
+                'minimum_c':previous_other[1],'maximum_c':previous_other[2]})
+            self.therm_limit_min.SetValue(limit_mapping['minimum_c'])
+            self.therm_limit_max.SetValue(limit_mapping['maximum_c'])
             refs = inventory.get("component_references", [])
             self.therm_refs.Set(refs)
             for i, ref in enumerate(refs):
@@ -181,6 +205,10 @@ class QuickThermFrame(wx.Frame):
             }
             self.manual_values = {ref: values for ref, values in self.manual_values.items()
                                   if same_board and ref in refs}
+            self.therm_inputs.load(inventory, mapping, self.manual_values,
+                [self.therm_refs.GetString(i) for i in range(self.therm_refs.GetCount())
+                 if self.therm_refs.IsChecked(i)], self._temperature_field_map())
+            self._update_thermal_scope()
             self.therm_status.SetLabel(
                 f"{len(refs)} components. Review saved field mappings or enter manual values; "
                 "select the dissipating parts, then run."
@@ -231,32 +259,35 @@ class QuickThermFrame(wx.Frame):
         self.Destroy()
 
     def _build_thermal_page(self):
-        page=wx.ScrolledWindow(self.book,style=wx.VSCROLL);page.SetScrollRate(0,10);layout=wx.BoxSizer(wx.VERTICAL)
+        board_page=wx.Panel(self.book)
+        self.therm_board_page=board_page
+        workspace=wx.BoxSizer(wx.HORIZONTAL)
+        page=wx.ScrolledWindow(board_page,style=wx.VSCROLL);page.SetScrollRate(0,10);layout=wx.BoxSizer(wx.VERTICAL)
+        page.SetMinSize((340, -1))
         self._therm_input_page=page
-        note=wx.StaticText(page,label='1  Choose the cooling environment and dissipating parts.  2  Enter measured or reviewed power and thermal resistance.  3  Run and inspect the estimated temperatures.')
-        note.Wrap(1050);layout.Add(note,0,wx.EXPAND|wx.ALL,10)
-        setup=wx.BoxSizer(wx.HORIZONTAL)
-        self.therm_input_mode=wx.Choice(page,choices=['Enter values per component','Use saved footprint fields'])
+        note=wx.StaticText(page,label='Review component inputs, choose the heat model, then run.')
+        note.Wrap(270);layout.Add(note,0,wx.EXPAND|wx.ALL,8)
+        setup=wx.FlexGridSizer(0,2,6,8);setup.AddGrowableCol(1)
+        self.therm_input_mode=wx.Choice(page,choices=['Scanned values + edits','Saved fields only'])
         self.therm_input_mode.SetSelection(0)
         self.therm_env=wx.Choice(page,choices=['Air','Vacuum','Forced air','Potting','Sealed enclosure']);self.therm_env.SetSelection(0)
         self.therm_ambient=wx.TextCtrl(page,value='20',size=(80,-1))
-        self.therm_manual_button=wx.Button(page,label='Enter component inputs…')
+        self.therm_manual_button=wx.Button(page,label='▦  Component inputs')
         self.therm_manual_button.Bind(wx.EVT_BUTTON,self.on_manual_setup)
         for label,control in [('Input source',self.therm_input_mode),('Environment',self.therm_env),
                               ('Ambient °C',self.therm_ambient)]:
-            setup.Add(wx.StaticText(page,label=label),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
-            setup.Add(control,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,16)
-        setup.Add(self.therm_manual_button,0,wx.ALIGN_CENTER_VERTICAL)
+            setup.Add(wx.StaticText(page,label=label),0,wx.ALIGN_CENTER_VERTICAL)
+            setup.Add(control,1,wx.EXPAND)
+        setup.AddSpacer(1);setup.Add(self.therm_manual_button,0,wx.EXPAND)
         layout.Add(setup,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
-        vacuum_row=wx.BoxSizer(wx.HORIZONTAL)
-        vacuum_row.Add(wx.StaticText(page,label='Vacuum board-to-environment resistance K/W'),
-                       0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        vacuum_row=wx.BoxSizer(wx.VERTICAL)
+        vacuum_row.Add(wx.StaticText(page,label='Vacuum board-to-environment K/W'),0,wx.BOTTOM,4)
         self.therm_board_r=wx.TextCtrl(page,value='',size=(120,-1))
         self.therm_board_r.SetHint('Enter a reviewed heat path')
         vacuum_row.Add(self.therm_board_r,0)
         layout.Add(vacuum_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
-        advanced=wx.CollapsiblePane(page,label='Environment boundaries and time-varying analysis',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
-        advanced_host=advanced.GetPane();advanced_form=wx.FlexGridSizer(0,4,6,10)
+        advanced=wx.CollapsiblePane(page,label='Environment + time',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        advanced_host=advanced.GetPane();advanced_form=wx.FlexGridSizer(0,2,6,8);advanced_form.AddGrowableCol(1)
         self.therm_explicit_h=wx.TextCtrl(advanced_host,value='20')
         self.therm_enclosure_c=wx.TextCtrl(advanced_host,value='20')
         self.therm_potting_k=wx.TextCtrl(advanced_host,value='1')
@@ -271,16 +302,16 @@ class QuickThermFrame(wx.Frame):
         self.therm_power_schedule=wx.TextCtrl(advanced_host,value='{}')
         self.therm_sink_capacity=wx.TextCtrl(advanced_host,value='{}')
         for label,ctrl in [('Explicit convection h W/m²K',self.therm_explicit_h),('Fixed enclosure °C',self.therm_enclosure_c),('Potting conductivity W/mK',self.therm_potting_k),('Potting thickness mm',self.therm_potting_thickness),('Potting outer h W/m²K',self.therm_potting_outer_h),('Duration s',self.therm_time_duration),('Time step s',self.therm_time_step),('Initial temperature °C',self.therm_time_initial),('Copper volumetric capacity J/m³K',self.therm_copper_capacity),('Dielectric volumetric capacity J/m³K',self.therm_dielectric_capacity),('Power multiplier schedules JSON: U1: [[time,multiplier]]',self.therm_power_schedule),('Sink heat capacity JSON: U1: J/K',self.therm_sink_capacity)]:
-            advanced_form.Add(wx.StaticText(advanced_host,label=label),0,wx.ALIGN_CENTER_VERTICAL);advanced_form.Add(ctrl,1,wx.EXPAND)
+            caption=wx.StaticText(advanced_host,label=label);caption.Wrap(140)
+            advanced_form.Add(caption,0,wx.ALIGN_CENTER_VERTICAL);advanced_form.Add(ctrl,1,wx.EXPAND)
             ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
         advanced_box=wx.BoxSizer(wx.VERTICAL);advanced_box.Add(self.therm_time_enabled,0,wx.ALL,6);advanced_box.Add(advanced_form,1,wx.EXPAND|wx.ALL,6)
         self.therm_time_enabled.Bind(wx.EVT_CHECKBOX,self._invalidate_thermal)
         advanced_host.SetSizer(advanced_box);layout.Add(advanced,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
-        self.therm_fields_pane=wx.CollapsiblePane(page,label='Saved footprint fields and optional temperature limits',
+        self.therm_fields_pane=wx.CollapsiblePane(page,label='Field mapping + limits',
                                                  style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         fields_host=self.therm_fields_pane.GetPane()
-        form=wx.FlexGridSizer(0,4,7,10)
-        for col in (1,3):form.AddGrowableCol(col,1)
+        form=wx.FlexGridSizer(0,2,7,8);form.AddGrowableCol(1)
         self.therm_power=wx.ComboBox(fields_host,style=wx.CB_READONLY)
         self.therm_ja=wx.ComboBox(fields_host,style=wx.CB_READONLY)
         self.therm_jb=wx.ComboBox(fields_host,style=wx.CB_READONLY)
@@ -297,10 +328,9 @@ class QuickThermFrame(wx.Frame):
         layout.Add(self.therm_fields_pane,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         self.therm_fields_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(page.FitInside(),page.Layout()))
         self.therm_input_mode.Bind(wx.EVT_CHOICE,self._input_mode_changed)
-        self.therm_model=wx.CollapsiblePane(page,label='Optional board conduction / radiation / virtual airflow model',
+        self.therm_model=wx.CollapsiblePane(page,label='Board heat model',
                                            style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
-        model_pane=self.therm_model.GetPane();model_grid=wx.FlexGridSizer(0,6,6,9)
-        for col in (1,3,5):model_grid.AddGrowableCol(col,1)
+        model_pane=self.therm_model.GetPane();model_grid=wx.FlexGridSizer(0,2,6,8);model_grid.AddGrowableCol(1)
         self.therm_model_enabled=wx.CheckBox(model_pane,label='Include board heat model in next run')
         self.therm_model_kind=wx.Choice(model_pane,choices=['Thin sheet (screening)','Copper layers + vertical paths',
                                                        'CalculiX 3D · fixed lower face'])
@@ -330,7 +360,6 @@ class QuickThermFrame(wx.Frame):
             model_grid.Add(heading,0,wx.ALIGN_CENTER_VERTICAL)
             model_grid.AddSpacer(1)
         for label,control in [('In-plane board k W/m·K',self.therm_k),('Board emissivity 0–1',self.therm_emissivity),
-                              ('Model junction-to-board RθJB field',self.therm_model_jb),
                               ('Board airflow m/s',self.therm_air_board),('Sink airflow m/s',self.therm_air_sink),
                               ('Mesh cells · long axis',self.therm_grid),
                               ('Sink exposed area mm² by part',self.therm_sink_area),
@@ -342,10 +371,11 @@ class QuickThermFrame(wx.Frame):
                               ('CalculiX XY mesh target mm',self.therm_ccx_mesh),
                               ('CalculiX lower-face temperature °C',self.therm_ccx_bottom),
                               ('CalculiX executable',self.therm_ccx_executable)]:
-            model_grid.Add(wx.StaticText(model_pane,label=label),0,wx.ALIGN_CENTER_VERTICAL)
+            caption=wx.StaticText(model_pane,label=label);caption.Wrap(140)
+            model_grid.Add(caption,0,wx.ALIGN_CENTER_VERTICAL)
             model_grid.Add(control,1,wx.EXPAND)
         model_layout=wx.BoxSizer(wx.VERTICAL);model_layout.Add(model_grid,0,wx.EXPAND)
-        solver_setup=wx.BoxSizer(wx.HORIZONTAL)
+        solver_setup=wx.BoxSizer(wx.VERTICAL)
         self.therm_ccx_browse=wx.Button(model_pane,label='Locate CalculiX…')
         self.therm_ccx_browse.Bind(wx.EVT_BUTTON,self.on_calculix_browse)
         self.therm_ccx_check=wx.Button(model_pane,label='Check solver setup')
@@ -353,10 +383,11 @@ class QuickThermFrame(wx.Frame):
         self.therm_ccx_status=wx.StaticText(model_pane,label='Select CalculiX mode to check the external solver.')
         solver_setup.Add(self.therm_ccx_browse,0,wx.RIGHT,7)
         solver_setup.Add(self.therm_ccx_check,0,wx.RIGHT,10)
-        solver_setup.Add(self.therm_ccx_status,1,wx.ALIGN_CENTER_VERTICAL)
+        solver_setup.Add(self.therm_ccx_status,0,wx.EXPAND|wx.TOP,5)
         model_layout.Add(solver_setup,0,wx.EXPAND|wx.TOP|wx.BOTTOM,8)
-        mount_row=wx.BoxSizer(wx.HORIZONTAL)
-        self.therm_mounts=wx.CheckListBox(model_pane,size=(420,80))
+        self.therm_ccx_status.Wrap(250)
+        mount_row=wx.BoxSizer(wx.VERTICAL)
+        self.therm_mounts=wx.CheckListBox(model_pane,size=(240,80))
         self._therm_mount_candidates=[]
         mount_row.Add(self.therm_mounts,1,wx.EXPAND|wx.RIGHT,8)
         mount_fields=wx.FlexGridSizer(0,2,4,6)
@@ -367,97 +398,136 @@ class QuickThermFrame(wx.Frame):
             mount_fields.Add(wx.StaticText(model_pane,label=label),0,wx.ALIGN_CENTER_VERTICAL)
             mount_fields.Add(ctrl,1,wx.EXPAND)
         mount_fields.AddGrowableCol(1,1);mount_row.Add(mount_fields,1,wx.EXPAND)
-        model_layout.Add(wx.StaticText(model_pane,label='Fixed-temperature contacts · choose plated pads on the saved board; NPTH requires separate mechanical contact evidence'),0,wx.TOP|wx.BOTTOM,6)
+        contacts_note=wx.StaticText(model_pane,label='Fixed-temperature contacts · select saved plated pads. NPTH requires mechanical contact evidence.');contacts_note.Wrap(250)
+        model_layout.Add(contacts_note,0,wx.TOP|wx.BOTTOM,6)
         model_layout.Add(mount_row,0,wx.EXPAND)
         model_layout.Add(self.therm_mount_mechanical,0,wx.TOP,5)
         model_pane.SetSizer(model_layout);layout.Add(self.therm_model,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         self.therm_model.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(page.FitInside(),page.Layout()))
         self.therm_env.Bind(wx.EVT_CHOICE,lambda e:self._therm_controls())
         self._therm_controls()
-        selection=wx.BoxSizer(wx.HORIZONTAL)
-        selection.Add(wx.StaticText(page,label='Dissipating components in scope'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,12)
-        for label,method in [('Select all',True),('Clear',False)]:
-            button=wx.Button(page,label=label);button.Bind(wx.EVT_BUTTON,lambda e,checked=method:self._check_thermal_refs(checked));selection.Add(button,0,wx.RIGHT,7)
-        self.therm_run=wx.Button(page,label='Run QuickTherm');self.therm_run.Bind(wx.EVT_BUTTON,self.on_quick_therm)
-        self.therm_whole_board=wx.Button(page,label='Whole-board study…')
-        self.therm_whole_board.SetToolTip('Review physical board materials and boundaries. Junction interpolation alone cannot predict temperatures across the board.')
-        self.therm_whole_board.Bind(wx.EVT_BUTTON,self.on_whole_board_setup)
-        self.therm_sink_button=wx.Button(page,label='Virtual heatsinks…');self.therm_sink_button.Bind(wx.EVT_BUTTON,self.on_virtual_heatsinks)
-        self.therm_export=wx.Button(page,label='Export report…');self.therm_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('quick_therm'))
-        self.therm_expand=wx.Button(page,label='Open top + bottom workspace…');self.therm_expand.Bind(wx.EVT_BUTTON,self.on_expand_thermal)
-        self.therm_probe_button=wx.ToggleButton(page,label='Place probe')
-        self.therm_probe_button.Bind(wx.EVT_TOGGLEBUTTON,self._toggle_thermal_probe)
-        self.therm_clear_probes=wx.Button(page,label='Clear probes')
-        self.therm_clear_probes.Bind(wx.EVT_BUTTON,self._clear_thermal_probes)
-        layout.Add(selection,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,10)
-        actions=wx.WrapSizer(wx.HORIZONTAL)
-        actions.Add(self.therm_sink_button,0,wx.RIGHT,7)
-        actions.Add(self.therm_run,0,wx.RIGHT,7)
-        actions.Add(self.therm_whole_board,0,wx.RIGHT,7)
-        actions.Add(self.therm_export,0)
-        actions.Add(self.therm_expand,0,wx.LEFT,7)
-        actions.Add(self.therm_probe_button,0,wx.LEFT,7)
-        actions.Add(self.therm_clear_probes,0,wx.LEFT,7)
-        layout.Add(actions,0,wx.LEFT|wx.RIGHT|wx.TOP,10)
-        body=wx.BoxSizer(wx.HORIZONTAL)
-        self.therm_refs=wx.CheckListBox(page,size=(180,-1));body.Add(self.therm_refs,0,wx.EXPAND|wx.RIGHT,10)
-        visual=wx.BoxSizer(wx.VERTICAL);switch=wx.BoxSizer(wx.HORIZONTAL)
-        switch.Add(wx.StaticText(page,label='Board view'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
-        self.therm_mode=wx.Choice(page,choices=['Top-side map','Bottom-side map','Top-side contour','Bottom-side contour',
-                                               'Top board model','Bottom board model','3D overview','Temperature chart']);self.therm_mode.SetSelection(0)
-        switch.Add(self.therm_mode,0,wx.RIGHT,12)
-        switch.Add(wx.StaticText(page,label='3D azimuth'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4)
-        self.therm_azim=wx.SpinCtrl(page,min=-180,max=180,initial=-60,size=(70,-1));switch.Add(self.therm_azim,0,wx.RIGHT,8)
-        switch.Add(wx.StaticText(page,label='Elevation'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4)
-        self.therm_elev=wx.SpinCtrl(page,min=-90,max=90,initial=28,size=(65,-1));switch.Add(self.therm_elev,0,wx.RIGHT,8)
-        self.therm_sync=wx.Button(page,label='Read PCB selection');self.therm_sync.Bind(wx.EVT_BUTTON,self._sync_thermal_selection)
-        switch.Add(self.therm_sync,0,wx.RIGHT,8)
-        visual.Add(switch,0,wx.EXPAND|wx.BOTTOM,6)
-        time_row=wx.BoxSizer(wx.HORIZONTAL);time_row.Add(wx.StaticText(page,label='Result time'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
-        self.therm_result_time=wx.Choice(page,choices=['Steady state']);self.therm_result_time.SetSelection(0)
-        self.therm_result_time.Bind(wx.EVT_CHOICE,lambda e:self._thermal_time_changed());time_row.Add(self.therm_result_time,0)
-        visual.Add(time_row,0,wx.EXPAND|wx.BOTTOM,6)
-        self.therm_view_note=wx.StaticText(page,label='Component junction estimates are not a board surface field. Whole-board study… opens the physical model setup.')
-        self.therm_view_note.Wrap(700)
-        visual.Add(self.therm_view_note,0,wx.EXPAND|wx.BOTTOM,6)
-        self.therm_figure=Figure(figsize=(8,4),dpi=100);self.therm_canvas=FigureCanvasWxAgg(page,wx.ID_ANY,self.therm_figure)
-        self.therm_canvas.SetMinSize((700,460))
+        # The scope lives in the full-width editable inputs table. Keep the
+        # existing checklist as the controller's scope store for editor sync.
+        self.therm_refs=wx.CheckListBox(page);self.therm_refs.Hide()
+        scope=wx.BoxSizer(wx.HORIZONTAL)
+        self.therm_scope=wx.StaticText(page,label='0 components included')
+        scope.Add(self.therm_scope,1,wx.ALIGN_CENTER_VERTICAL)
+        for label,checked in [('All',True),('None',False)]:
+            button=wx.Button(page,label=label,size=(50,-1))
+            button.Bind(wx.EVT_BUTTON,lambda e,checked=checked:self._check_thermal_refs(checked))
+            scope.Add(button,0,wx.LEFT,4)
+        layout.Add(scope,0,wx.EXPAND|wx.ALL,8)
+        self.therm_run=wx.Button(page,label='▶  Run thermal');self.therm_run.Bind(wx.EVT_BUTTON,self.on_quick_therm)
+        self.therm_whole_board=wx.Button(page,label='Board model…');self.therm_whole_board.Bind(wx.EVT_BUTTON,self.on_whole_board_setup)
+        self.therm_whole_board.SetToolTip('Review materials and boundaries for a physical board field.')
+        self.therm_sink_button=wx.Button(page,label='Heatsinks…');self.therm_sink_button.Bind(wx.EVT_BUTTON,self.on_virtual_heatsinks)
+        self.therm_export=wx.Button(page,label='Export…');self.therm_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('quick_therm'))
+        actions=wx.FlexGridSizer(0,2,5,5)
+        for col in (0,1):actions.AddGrowableCol(col)
+        for control in (self.therm_run,self.therm_whole_board,self.therm_sink_button,self.therm_export):actions.Add(control,0,wx.EXPAND)
+        layout.Add(actions,0,wx.EXPAND|wx.ALL,8)
+        self.therm_status=wx.StaticText(page,label='Open Component inputs to review scanned values and include parts.');self.therm_status.Wrap(270)
+        layout.Add(self.therm_status,0,wx.EXPAND|wx.ALL,8)
+        page.SetSizer(layout);page.FitInside()
+        self.therm_model_jb.Hide()
+        def compact(window):
+            for child in window.GetChildren():
+                if isinstance(child,wx.StaticText):
+                    _wrap_text(child,child.GetLabel(),130 if child.GetParent() in (fields_host,model_pane,advanced_host) else 270)
+                elif isinstance(child,(wx.ComboBox,wx.Choice,wx.TextCtrl)):
+                    child.SetMinSize((120,-1))
+                elif isinstance(child,wx.Button):child.SetMinSize((90,-1))
+                compact(child)
+        compact(page);page.Layout();page.FitInside()
+        workspace.Add(page,0,wx.EXPAND|wx.RIGHT,6)
+
+        visual_host=wx.Panel(board_page)
+        visual=wx.BoxSizer(wx.VERTICAL);switch=wx.WrapSizer(wx.HORIZONTAL)
+        settings=wx.ToggleButton(visual_host,label='☰  Setup');settings.SetValue(True)
+        settings.Bind(wx.EVT_TOGGLEBUTTON,lambda e:(page.Show(settings.GetValue()),board_page.Layout()))
+        switch.Add(settings,0,wx.RIGHT,5)
+        for label,mode in [('Top','Top-side map'),('Bottom','Bottom-side map'),('3D','3D overview')]:
+            button=wx.Button(visual_host,label=label,size=(55,-1))
+            button.Bind(wx.EVT_BUTTON,lambda e,mode=mode:self._set_thermal_view(mode))
+            switch.Add(button,0,wx.RIGHT,4)
+            if mode=='3D overview':self.therm_3d_button=button
+        fit=wx.Button(visual_host,label='Fit',size=(45,-1));fit.Bind(wx.EVT_BUTTON,self._fit_thermal_view)
+        switch.Add(fit,0,wx.RIGHT,5)
+        self.therm_mode=wx.Choice(visual_host,choices=['Top-side map','Bottom-side map','Top-side contour','Bottom-side contour',
+            'Top board model','Bottom board model','3D overview','Temperature chart']);self.therm_mode.SetSelection(0)
+        switch.Add(self.therm_mode,0,wx.RIGHT,5)
+        self.therm_result_time=wx.Choice(visual_host,choices=['Steady state']);self.therm_result_time.SetSelection(0)
+        self.therm_result_time.Bind(wx.EVT_CHOICE,lambda e:self._thermal_time_changed());switch.Add(self.therm_result_time,0,wx.RIGHT,5)
+        self.therm_probe_button=wx.ToggleButton(visual_host,label='⌖  Probe');self.therm_probe_button.Bind(wx.EVT_TOGGLEBUTTON,self._toggle_thermal_probe)
+        switch.Add(self.therm_probe_button,0,wx.RIGHT,5)
+        self.therm_expand=wx.Button(visual_host,label='Top + bottom');self.therm_expand.Bind(wx.EVT_BUTTON,self.on_expand_thermal)
+        switch.Add(self.therm_expand,0,wx.RIGHT,5)
+        inspect=wx.ToggleButton(visual_host,label='Details');inspect.SetValue(True);switch.Add(inspect,0)
+        visual.Add(switch,0,wx.EXPAND|wx.BOTTOM,5)
+        self.therm_figure=Figure(figsize=(8,6),dpi=100);self.therm_canvas=FigureCanvasWxAgg(visual_host,wx.ID_ANY,self.therm_figure)
+        self.therm_canvas.SetMinSize((250,250))
         self.therm_canvas.mpl_connect('button_press_event',self._thermal_plot_pressed)
         self.therm_canvas.mpl_connect('button_release_event',self._thermal_plot_clicked)
         self.therm_canvas.mpl_connect('motion_notify_event',self._thermal_plot_hovered)
+        self.therm_canvas.mpl_connect('scroll_event',self._thermal_plot_scrolled)
         self.therm_canvas.Bind(wx.EVT_LEAVE_WINDOW,self._clear_thermal_hover)
         self.therm_navigation=NavigationToolbar2WxAgg(self.therm_canvas);self.therm_navigation.Realize()
         visual.Add(self.therm_navigation,0,wx.EXPAND)
         visual.Add(self.therm_canvas,1,wx.EXPAND)
-        self.therm_cursor=wx.StaticText(page,label='Move over the board to read a field temperature and component Tj.')
-        visual.Add(self.therm_cursor,0,wx.EXPAND|wx.TOP,5)
-        body.Add(visual,1,wx.EXPAND);layout.Add(body,1,wx.EXPAND|wx.ALL,10)
-        self.therm_analytics=wx.StaticText(page,label='Run QuickTherm to see min, max, mean, median and coverage.');layout.Add(self.therm_analytics,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
-        # The table scrolls its own columns.  A width of -1 lets its many
-        # columns inflate the whole page and push the board preview offscreen.
-        self.therm_table=wx.ListCtrl(page,style=wx.LC_REPORT,size=(700,170))
-        for i,(name,width) in enumerate([('Reference',100),('Junction °C',105),('Min Tj °C',95),
-                                         ('Max Tj °C',95),('Limit check',100),('Power W',85),
-                                         ('Side',55),('Heat path',120),('Rθ K/W',90),('Rise K',85),
-                                         ('Board site °C',110),('Sink °C',90),('Model Tj °C',105),
-                                         ('X mm',75),('Y mm',75),('Status',200)]):
+        self.therm_cursor=wx.StaticText(visual_host,label='Hover to inspect · drag to pan · wheel to zoom · 3D: drag to orbit')
+        visual.Add(self.therm_cursor,0,wx.EXPAND|wx.TOP,4)
+        visual_host.SetSizer(visual);workspace.Add(visual_host,1,wx.EXPAND)
+
+        inspector=wx.Notebook(board_page);inspector.SetMinSize((300,-1))
+        self.therm_inspector=inspector
+        inspect.Bind(wx.EVT_TOGGLEBUTTON,lambda e:(inspector.Show(inspect.GetValue()),board_page.Layout()))
+        details=wx.ScrolledWindow(inspector);details.SetScrollRate(0,10);detail_layout=wx.BoxSizer(wx.VERTICAL)
+        self.therm_view_note=wx.StaticText(details,label='Junction estimates and interpolated fields are distinct from physical board fields.');self.therm_view_note.Wrap(270)
+        detail_layout.Add(self.therm_view_note,0,wx.EXPAND|wx.ALL,8)
+        self.therm_analytics=wx.StaticText(details,label='Run thermal to see temperatures, power and coverage.');self.therm_analytics.Wrap(270)
+        detail_layout.Add(self.therm_analytics,0,wx.EXPAND|wx.ALL,8)
+        self.therm_selection_detail=wx.StaticText(details,label='Select a component on the board or in the inputs/results table.');self.therm_selection_detail.Wrap(270)
+        detail_layout.Add(self.therm_selection_detail,0,wx.EXPAND|wx.ALL,8)
+        angles=wx.BoxSizer(wx.HORIZONTAL)
+        self.therm_azim=wx.SpinCtrl(details,min=-180,max=180,initial=-60,size=(70,-1))
+        self.therm_elev=wx.SpinCtrl(details,min=-90,max=90,initial=28,size=(65,-1))
+        for label,ctrl in [('Azimuth',self.therm_azim),('Elevation',self.therm_elev)]:
+            angles.Add(wx.StaticText(details,label=label),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4);angles.Add(ctrl,0,wx.RIGHT,5)
+        detail_layout.Add(angles,0,wx.ALL,8)
+        self.therm_sync=wx.Button(details,label='Read PCB selection');self.therm_sync.Bind(wx.EVT_BUTTON,self._sync_thermal_selection)
+        detail_layout.Add(self.therm_sync,0,wx.ALL,8)
+        details.SetSizer(detail_layout);inspector.AddPage(details,'Details')
+        self.therm_table=wx.ListCtrl(inspector,style=wx.LC_REPORT)
+        for i,(name,width) in enumerate([('Reference',80),('Junction °C',95),('Min Tj °C',85),('Max Tj °C',85),
+            ('Limit check',85),('Power W',75),('Side',55),('Heat path',100),('Rθ K/W',80),('Rise K',75),
+            ('Board site °C',100),('Sink °C',80),('Model Tj °C',95),('X mm',75),('Y mm',75),('Status',200)]):
             self.therm_table.InsertColumn(i,name,width=width)
-        layout.Add(self.therm_table,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
-        self.therm_probe_table=wx.ListCtrl(page,style=wx.LC_REPORT,size=(700,105))
-        for index,(name,width) in enumerate([('Probe',100),('Side',90),('X mm',90),('Y mm',90),
-                                              ('Temperature °C',145),('Source',230),('Status',100)]):
-            self.therm_probe_table.InsertColumn(index,name,width=width)
-        layout.Add(wx.StaticText(page,label='Virtual temperature probes · click Place probe, then the board view'),
-                   0,wx.LEFT|wx.RIGHT|wx.TOP,10)
-        layout.Add(self.therm_probe_table,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        inspector.AddPage(self.therm_table,'Results')
+        probes=wx.Panel(inspector);probe_layout=wx.BoxSizer(wx.VERTICAL)
+        self.therm_clear_probes=wx.Button(probes,label='Clear probes');self.therm_clear_probes.Bind(wx.EVT_BUTTON,self._clear_thermal_probes)
+        probe_layout.Add(self.therm_clear_probes,0,wx.ALL,5)
+        self.therm_probe_table=wx.ListCtrl(probes,style=wx.LC_REPORT)
+        for i,(name,width) in enumerate([('Probe',65),('Side',60),('X mm',75),('Y mm',75),('Temperature °C',120),('Source',180),('Status',90)]):self.therm_probe_table.InsertColumn(i,name,width=width)
+        probe_layout.Add(self.therm_probe_table,1,wx.EXPAND);probes.SetSizer(probe_layout);inspector.AddPage(probes,'Probes')
+        workspace.Add(inspector,0,wx.EXPAND|wx.LEFT,6)
+        board_page.SetSizer(workspace);self.book.AddPage(board_page,'Board + results')
+
+        inputs_page=wx.Panel(self.book);inputs_layout=wx.BoxSizer(wx.VERTICAL)
+        from .component_input_grid import ComponentInputPanel
+        self.therm_inputs=ComponentInputPanel(inputs_page,on_change=self._component_inputs_changed,on_select=self._component_input_selected)
+        inputs_layout.Add(self.therm_inputs,1,wx.EXPAND|wx.ALL,8)
+        input_actions=wx.BoxSizer(wx.HORIZONTAL)
+        mapping_button=wx.Button(inputs_page,label='Field mapping…');mapping_button.Bind(wx.EVT_BUTTON,self._show_field_mapping)
+        run_button=wx.Button(inputs_page,label='▶  Run thermal');run_button.Bind(wx.EVT_BUTTON,self.on_quick_therm)
+        input_actions.Add(mapping_button,0,wx.RIGHT,6);input_actions.AddStretchSpacer();input_actions.Add(run_button,0)
+        inputs_layout.Add(input_actions,0,wx.EXPAND|wx.ALL,8);inputs_page.SetSizer(inputs_layout)
+        self.book.AddPage(inputs_page,'Component inputs',select=True)
         self._thermal_rows=[];self._thermal_selected=None;self._thermal_sort=(1,True)
         self.therm_mode.Bind(wx.EVT_CHOICE,self._thermal_mode_changed)
         self.therm_azim.Bind(wx.EVT_SPINCTRL,lambda e:self._draw_thermal())
         self.therm_elev.Bind(wx.EVT_SPINCTRL,lambda e:self._draw_thermal())
         self.therm_table.Bind(wx.EVT_LIST_ITEM_SELECTED,self._thermal_table_selected)
         self.therm_table.Bind(wx.EVT_LIST_COL_CLICK,self._thermal_sort_clicked)
-        self.therm_status=wx.StaticText(page,label='Select dissipating components, then enter their power and thermal resistance.')
-        layout.Add(self.therm_status,0,wx.EXPAND|wx.ALL,10)
         for ctrl in (self.therm_power,self.therm_ja,self.therm_jb,self.therm_jc,
                      self.therm_limit_min,self.therm_limit_max):ctrl.Bind(wx.EVT_COMBOBOX,self._invalidate_thermal)
         self.therm_env.Bind(wx.EVT_CHOICE,self._invalidate_thermal)
@@ -473,15 +543,15 @@ class QuickThermFrame(wx.Frame):
         self.therm_mounts.Bind(wx.EVT_CHECKLISTBOX,self._invalidate_thermal)
         self.therm_mount_mechanical.Bind(wx.EVT_CHECKBOX,self._invalidate_thermal)
         self.therm_refs.Bind(wx.EVT_CHECKLISTBOX,self._invalidate_thermal)
-        page.SetSizer(layout);page.FitInside();self.book.AddPage(page,'QuickTherm')
+        page.Layout();page.FitInside()
 
 
     def _therm_controls(self):
         vacuum=self.therm_env.GetSelection()==1
         selected=self.therm_model_kind.GetSelection() if self.therm_model_enabled.GetValue() else -1
-        self.therm_ja.Enable(not vacuum and selected!=2)
-        self.therm_jb.Enable(vacuum and selected!=2)
-        self.therm_jc.Enable(bool(self.virtual_heatsinks) and selected!=2)
+        # These are input mappings, not a statement of which heat path a run uses.
+        for ctrl in (self.therm_ja,self.therm_jb,self.therm_jc,self.therm_model_jb):
+            ctrl.Enable(not self._busy)
         self.therm_board_r.Enable(vacuum and selected not in (1,2))
         self.therm_emissivity.Enable(selected in (0,1) and not self._busy)
         for ctrl in (self.therm_air_board,self.therm_air_sink,self.therm_grid,self.therm_sink_area):
@@ -527,8 +597,8 @@ class QuickThermFrame(wx.Frame):
     def _input_mode_changed(self,event=None):
         manual=self.therm_input_mode.GetSelection()==0
         self.therm_fields_pane.Collapse(manual)
-        self.therm_manual_button.Enable(manual and not self._busy)
-        self.book.GetCurrentPage().FitInside()
+        self.therm_manual_button.Enable(not self._busy)
+        self._therm_input_page.FitInside()
         self.main_panel.Layout()
         self._invalidate_thermal(event)
         self.therm_status.SetLabel('Select dissipating components, then enter their power and Rθ.' if manual else
@@ -536,25 +606,55 @@ class QuickThermFrame(wx.Frame):
 
 
     def on_manual_setup(self,event=None):
-        references=[self.therm_refs.GetString(i) for i in range(self.therm_refs.GetCount())
-                    if self.therm_refs.IsChecked(i)]
-        if not references:
-            self.therm_status.SetLabel('Select only the components whose dissipation you can specify, then enter inputs.')
-            return False
-        from .manual_setup import ManualThermalDialog
-        environment=('air','vacuum','forced_air','potting','sealed')[self.therm_env.GetSelection()]
-        power_only=(self.therm_model_enabled.GetValue() and
-                    (self.therm_model_kind.GetSelection()==2 or (environment=='vacuum' and self.therm_model_kind.GetSelection()==1) or environment not in ('air','vacuum') or self.therm_time_enabled.GetValue()))
-        with ManualThermalDialog(self,references,environment,self.virtual_heatsinks,
-                                 self.manual_values,power_only=power_only) as dialog:
-            if dialog.ShowModal()!=wx.ID_OK:
-                return False
-            self.manual_values.update(dialog.values)
-        self._invalidate_thermal()
-        details='power' if power_only else 'power and Rθ'
-        self.therm_status.SetLabel(f'Explicit {details} entered for {len(references)} selected component(s). Run QuickTherm to see the estimate.')
+        self.book.SetSelection(1)
+        self.therm_inputs.grid.SetFocus()
+        self.status.SetLabel('Edit scanned values or fill unknown cells. Select all / none controls the run scope.')
         return True
 
+    def _thermal_field_map(self):
+        return {key:ctrl.GetValue() for key,ctrl in (
+            ('power_w',self.therm_power),('theta_ja_air_k_per_w',self.therm_ja),
+            ('theta_jb_k_per_w',self.therm_jb),('theta_jc_k_per_w',self.therm_jc))}
+
+    def _temperature_field_map(self):
+        return {key:ctrl.GetValue() for key,ctrl in (
+            ('minimum_c',self.therm_limit_min),('maximum_c',self.therm_limit_max)) if ctrl.GetValue()}
+
+    def _component_inputs_changed(self,state):
+        self.manual_values=state['manual_values']
+        self.manual_temperature_limits=state['manual_limits']
+        selected=set(state['references'])
+        for i in range(self.therm_refs.GetCount()):
+            self.therm_refs.Check(i,self.therm_refs.GetString(i) in selected)
+        self._update_thermal_scope()
+        self._invalidate_thermal()
+
+    def _update_thermal_scope(self):
+        count=sum(self.therm_refs.IsChecked(i) for i in range(self.therm_refs.GetCount()))
+        self.therm_scope.SetLabel(f'{count} / {self.therm_refs.GetCount()} included')
+
+    def _component_input_selected(self,reference):
+        item=next((item for item in self.thermal_bundle.get('board_thermal_view',{}).get('components',[])
+                   if item['reference']==reference),None)
+        if item:self._thermal_choose(item['id'],from_editor=True)
+
+    def _show_field_mapping(self,event=None):
+        self.book.SetSelection(0)
+        self._therm_input_page.Show();self.therm_fields_pane.Collapse(False)
+        self._therm_input_page.Layout();self._therm_input_page.FitInside();self.therm_board_page.Layout()
+
+    def _set_thermal_view(self,mode):
+        self.book.SetSelection(0)
+        self.therm_mode.SetStringSelection(mode)
+        self._thermal_mode_changed()
+        if not self.thermal_bundle:self.status.SetLabel('Run thermal first to inspect interactive board results.')
+
+    def _fit_thermal_view(self,event=None):
+        if not self.therm_figure.axes:return
+        if self.therm_mode.GetStringSelection()=='3D overview':
+            from .thermal_plot import fit_thermal_3d
+            fit_thermal_3d(self.therm_figure.axes[0]);self.therm_canvas.draw_idle()
+        else:self._draw_thermal()
 
     def _therm_model_changed(self,event):
         self._therm_controls()
@@ -566,6 +666,7 @@ class QuickThermFrame(wx.Frame):
     def on_whole_board_setup(self,event=None):
         """Expose the existing physical study inputs without extrapolating junctions."""
         if self._busy:return
+        self.book.SetSelection(0);self._therm_input_page.Show();self.therm_board_page.Layout()
         changed=not self.therm_model_enabled.GetValue()
         self.therm_model_enabled.SetValue(True)
         self.therm_model.Collapse(False)
@@ -593,12 +694,20 @@ class QuickThermFrame(wx.Frame):
 
     def _check_thermal_refs(self,checked):
         for index in range(self.therm_refs.GetCount()):self.therm_refs.Check(index,checked)
+        self.therm_inputs.model.select_all(included=checked)
+        self.therm_inputs._refresh_rows()
+        self._update_thermal_scope()
         self._invalidate_thermal()
 
 
     def _invalidate_thermal(self,event=None):
+        if event and event.GetEventObject() in (self.therm_power,self.therm_ja,self.therm_jb,self.therm_jc,
+                self.therm_limit_min,self.therm_limit_max):
+            self.therm_inputs.set_mappings(self._thermal_field_map(),self._temperature_field_map())
         self.thermal_bundle={};self.therm_table.DeleteAllItems();self.therm_figure.clear()
         self._thermal_rows=[];self._thermal_selected=None;self.therm_analytics.SetLabel('Run QuickTherm to see min, max, mean, median and coverage.')
+        _wrap_text(self.therm_analytics,self.therm_analytics.GetLabel())
+        _wrap_text(self.therm_status,self.therm_status.GetLabel())
         self.therm_canvas.draw_idle();self.therm_status.SetLabel('Inputs changed. Run QuickTherm to update the estimate.')
         self._buttons()
         if event:event.Skip()
@@ -615,15 +724,26 @@ class QuickThermFrame(wx.Frame):
         manual=self.therm_input_mode.GetSelection()==0
         calculix=(self.therm_model_enabled.GetValue() and
                   self.therm_model_kind.GetSelection()==2)
-        power_only=calculix or (environment=='vacuum' and self.therm_model_enabled.GetValue() and self.therm_model_kind.GetSelection()==1) or environment not in ('air','vacuum') or self.therm_time_enabled.GetValue()
+        board_power_only=self.therm_model_enabled.GetValue() and not sinks
+        power_only=board_power_only or calculix or (environment=='vacuum' and self.therm_model_enabled.GetValue() and self.therm_model_kind.GetSelection()==1) or environment not in ('air','vacuum') or self.therm_time_enabled.GetValue()
         if not references:
             self.therm_status.SetLabel('Select at least one dissipating component before running QuickTherm.');return
         if manual:
-            if any('power_w' not in self.manual_values.get(ref,{}) or
-                   (not power_only and ('theta_jc_k_per_w' if ref in sinks else kind)
-                    not in self.manual_values.get(ref,{}))
-                   for ref in references):
-                if not self.on_manual_setup():return
+            try:
+                # Commit the active grid editor before taking a detached worker copy.
+                self.therm_inputs.commit_pending_edits()
+                if self.manual_values!=self.therm_inputs.model.manual_values():
+                    self.therm_inputs.load(self.inventory,self._thermal_field_map(),
+                        self.manual_values,references,self._temperature_field_map())
+                effective=self.therm_inputs.effective_values(include_limits=False)
+                missing=[ref for ref in references if 'power_w' not in effective.get(ref,{}) or
+                    (not power_only and ('theta_jc_k_per_w' if ref in sinks else kind) not in effective.get(ref,{}))]
+                if missing:
+                    self.on_manual_setup()
+                    self.status.SetLabel('Missing power or required heat-path resistance: '+', '.join(missing[:12]))
+                    return
+            except ValueError as exc:
+                self.on_manual_setup();self.status.SetLabel(str(exc));return
         elif not self.therm_power.GetValue() or (not power_only and unsinked and not field.GetValue()) or (not power_only and sinks and not self.therm_jc.GetValue()):
             self.therm_status.SetLabel('Map power and RθJA/RθJB for selected parts, plus RθJC for virtual heatsinks.');return
         try:
@@ -631,13 +751,19 @@ class QuickThermFrame(wx.Frame):
                      'ambient_c':float(self.therm_ambient.GetValue()),'references':references,
                      'expected_source_sha256':self.inventory.get('source_sha256'),
                      'heatsinks':sinks,
+                     'board_power_only':board_power_only,
                      'limit_fields':{key:name for key,name in (
                          ('minimum_c',self.therm_limit_min.GetValue()),
                          ('maximum_c',self.therm_limit_max.GetValue())) if name},
                      'probes':list(self.therm_probe_definitions)}
             if manual:
                 request['input_mode']='manual'
-                request['manual_values']={ref:self.manual_values[ref] for ref in references}
+                request['manual_values']={ref:effective[ref] for ref in references}
+                request['manual_temperature_limits']=self.therm_inputs.export_state()['manual_limits']
+                request['component_input_sources']={ref:{key:{
+                    'source':cell.source,'field':cell.source_field,'saved_value':cell.source_raw}
+                    for key in effective[ref] if (cell:=self.therm_inputs.model.cell(ref,key))}
+                    for ref in references}
             else:
                 request['field_map']={'power_w':self.therm_power.GetValue()}
                 if field.GetValue() and not power_only:request['field_map'][kind]=field.GetValue()
@@ -695,7 +821,7 @@ class QuickThermFrame(wx.Frame):
                     if executable:request['calculix_executable']=executable
                     request['calculix_run']=True
                 request['thermal_network_settings']=settings
-                if self.therm_model_jb.GetValue():request['thermal_network_component_field']=self.therm_model_jb.GetValue()
+                if not manual and self.therm_jb.GetValue():request['thermal_network_component_field']=self.therm_jb.GetValue()
             except ValueError as exc:
                 self.therm_status.SetLabel('Enter numeric thermal material, plating, contact and airflow values: '+str(exc));return
         self.thermal_bundle={};self.therm_table.DeleteAllItems();self._thermal_rows=[];self._thermal_selected=None
@@ -705,6 +831,7 @@ class QuickThermFrame(wx.Frame):
 
 
     def _accept_therm(self,bundle):
+        self.book.SetSelection(0)
         self.thermal_bundle=bundle;result=bundle['quick_therm']
         self._populate_thermal_probes()
         network=bundle.get('thermal_network') or {}
@@ -728,6 +855,7 @@ class QuickThermFrame(wx.Frame):
             f"  ·  Power {stats.get('power_w',{}).get('solved_total',0):.3g} W"+
             '  ·  Hottest '+str(stats.get('hottest_reference') or '—')+
             '  ·  Limits '+bundle.get('temperature_limits',{}).get('status','UNKNOWN'))
+        _wrap_text(self.therm_analytics,self.therm_analytics.GetLabel())
         coverage=result['coverage'];board=f" · board {result['board_c']:.4g} °C" if result.get('board_c') is not None else ''
         network=bundle.get('thermal_network')
         if network:
@@ -759,6 +887,9 @@ class QuickThermFrame(wx.Frame):
               'Lumped steady-state screen from entered assumptions; not a board temperature field.'
               if result.get('input_source') else
               'Lumped steady-state screen; not a board temperature field.')))
+        _wrap_text(self.therm_status,self.therm_status.GetLabel())
+        self._therm_input_page.Layout();self._therm_input_page.FitInside()
+        self.therm_inspector.GetPage(0).Layout();self.therm_inspector.GetPage(0).FitInside()
         self._buttons()
 
 
@@ -843,10 +974,16 @@ class QuickThermFrame(wx.Frame):
             'Partial junction interpolation · component anchor hull only; not a board surface field.\nBlank regions are unknown · Whole-board study… opens materials and boundaries.' if partial else
             'Board/layer model: review declared materials, heat sources, boundaries and heat balance.' if 'board model' in mode.lower() or mode.startswith('Layer model: ') else
             'Component junction estimates and illustrative geometry; review the model assumptions.')
+        if mode=='3D overview':
+            self.therm_view_note.SetLabel('3D saved-board geometry · drag to orbit, Shift-drag to pan, wheel to zoom.\n'
+                'Footprint bounds represent saved outlines; component STEP solids are not loaded.\n'
+                'Thin-sheet fields lie at the board midplane; junction interpolation is not a solved surface field.')
+        _wrap_text(self.therm_view_note,self.therm_view_note.GetLabel())
+        self.therm_view_note.GetParent().Layout();self.therm_view_note.GetParent().FitInside()
         draw_thermal_view(self.therm_figure,view,
                           mode,self._thermal_selected,
                           self._display_network(),self.therm_azim.GetValue(),self.therm_elev.GetValue(),
-                          probes=self.thermal_bundle.get('probes',[]))
+                          probes=self.thermal_bundle.get('probes',[]),viewport=True)
         self.therm_canvas.draw_idle()
 
     def _populate_thermal_probes(self):
@@ -874,7 +1011,7 @@ class QuickThermFrame(wx.Frame):
         from .thermal_review import sample_probes
         if not self.thermal_bundle.get('quick_therm'):
             return
-        side='bottom' if 'Bottom' in mode or mode.startswith('Layer model: B.') else 'top'
+        side=getattr(self,'_thermal_pick_side','top') if mode=='3D overview' else 'bottom' if 'Bottom' in mode or mode.startswith('Layer model: B.') else 'top'
         definition={'label':f'P{len(self.therm_probe_definitions)+1}',
                     'x_mm':float(x),'y_mm':float(y),'side':side}
         self.therm_probe_definitions.append(definition)
@@ -1086,9 +1223,19 @@ class QuickThermFrame(wx.Frame):
 
 
     def _thermal_choose(self,identifier,from_editor=False):
-        for index,(item,_) in enumerate(self._thermal_rows):
+        for index,(item,result) in enumerate(self._thermal_rows):
             if item['id']==identifier:
                 self._thermal_selected=identifier
+                details=[item['reference'],f"{item.get('side','unknown')} · {item.get('value','')}"]
+                if result:
+                    details.extend([f"Power {result.get('power_w','unknown')} W",
+                        f"Junction {result['junction_c']} °C" if result.get('junction_c') is not None else 'Junction unknown',
+                        f"Heat path: {result.get('heat_path','unknown')}"])
+                if item['reference'] in self.therm_inputs.model.components:
+                    cell=self.therm_inputs.model.cell(item['reference'],'theta_jb_k_per_w')
+                    details.append('RθJB '+(f'{cell.value:g} K/W' if cell.value is not None else 'unknown'))
+                _wrap_text(self.therm_selection_detail,'\n'.join(details))
+                self.therm_selection_detail.GetParent().Layout();self.therm_selection_detail.GetParent().FitInside()
                 self.therm_table.Select(index);self.therm_table.EnsureVisible(index);self._draw_thermal()
                 if not from_editor:self._task(lambda:self._select_thermal_in_editor(identifier),
                     lambda answer:self.therm_status.SetLabel('Selected '+item['reference']+' in PCB Editor; focus '+answer['focus']+'.'))
@@ -1104,16 +1251,44 @@ class QuickThermFrame(wx.Frame):
 
     def _thermal_plot_pressed(self,event):
         self._thermal_press=(event.x,event.y)
+        self._thermal_pan=None
+        if event.inaxes is None or not self.therm_figure.axes or event.inaxes is not self.therm_figure.axes[0]:return
+        if self.therm_mode.GetStringSelection()=='3D overview':
+            shift='shift' in str(event.key).lower() or bool(event.guiEvent and event.guiEvent.ShiftDown())
+            if shift:event.button=2
+        elif event.button==1 and not hasattr(self.therm_canvas,'_drag') and not self.therm_navigation.mode:
+            ax=event.inaxes
+            self._thermal_pan=(ax,ax.get_xlim(),ax.get_ylim(),ax.transData.frozen().inverted())
+
+    def _thermal_plot_scrolled(self,event):
+        if event.inaxes is None or not self.therm_figure.axes or event.inaxes is not self.therm_figure.axes[0]:return
+        ax=event.inaxes;factor=.85**max(-10,min(10,event.step))
+        if self.therm_mode.GetStringSelection()=='3D overview':
+            for getter,setter in ((ax.get_xlim3d,ax.set_xlim3d),(ax.get_ylim3d,ax.set_ylim3d),(ax.get_zlim3d,ax.set_zlim3d)):
+                limits=getter();center=sum(limits)/2;setter(*[center+(value-center)*factor for value in limits])
+        elif event.xdata is not None and event.ydata is not None:
+            for center,getter,setter in ((event.xdata,ax.get_xlim,ax.set_xlim),(event.ydata,ax.get_ylim,ax.set_ylim)):
+                setter(*[center+(value-center)*factor for value in getter()])
+        self.therm_canvas.draw_idle()
 
     def _thermal_plot_point(self,event,mode):
         if mode=='3D overview':
             from .thermal_review import board_point_from_3d
-            view=self.thermal_bundle.get('board_thermal_view',{})
+            z=getattr(event.inaxes,'_thermal_board_z',{}).get('top',0.0)
+            planes=getattr(event.inaxes,'_thermal_field_planes',[])
+            available=[plane for plane in planes if plane.get('available')]
+            if available:
+                side='top' if event.inaxes.elev>=0 else 'bottom'
+                plane=next((plane for plane in available if plane['side']==side),available[0])
+                z=plane['z_mm']
+                self._thermal_pick_side=plane['side'] if plane['side'] in ('top','bottom') else side
+            else:self._thermal_pick_side='top' if event.inaxes.elev>=0 else 'bottom'
             return board_point_from_3d(event.inaxes,event.x,event.y,
-                                      view.get('board_thickness_mm') or 1.6)
+                                      z)
         return (event.xdata,event.ydata)
 
     def _thermal_plot_clicked(self,event):
+        self._thermal_pan=None
         mode=self.therm_mode.GetStringSelection()
         if not self.thermal_bundle or event.inaxes is None or event.inaxes is not self.therm_figure.axes[0] or event.xdata is None:return
         if mode=='3D overview':
@@ -1138,17 +1313,9 @@ class QuickThermFrame(wx.Frame):
             if 0<=index<len(rows):self._thermal_choose(rows[index]['id'])
             return
         if mode=='3D overview':
-            from mpl_toolkits.mplot3d import proj3d
-            thickness=self.thermal_bundle.get('board_thermal_view',{}).get('board_thickness_mm') or 1.6
-            for item,_ in self._thermal_rows:
-                if item.get('position_mm'):
-                    x,y=item['position_mm'];z=thickness+.8 if item.get('top_side') else -.8
-                    px,py,_=proj3d.proj_transform(x,y,z,ax.get_proj())
-                    sx,sy=ax.transData.transform((px,py))
-                    points.append(((sx-event.x)**2+(sy-event.y)**2,item['id']))
-            if points:
-                distance,identifier=min(points)
-                if distance<=15**2:self._thermal_choose(identifier)
+            from .thermal_plot import component_at_event
+            item=component_at_event(ax,event)
+            if item:self._thermal_choose(item['id'],from_editor=True)
             return
         for item,_ in self._thermal_rows:
             if item.get('position_mm') and item.get('side')==('bottom' if 'Bottom' in mode else 'top'):
@@ -1160,8 +1327,16 @@ class QuickThermFrame(wx.Frame):
 
 
     def _thermal_plot_hovered(self, event):
+        pan=getattr(self,'_thermal_pan',None)
+        if pan and self._thermal_press:
+            ax,xlim,ylim,inverse=pan
+            start=inverse.transform(self._thermal_press);current=inverse.transform((event.x,event.y))
+            dx,dy=current-start;ax.set_xlim(xlim[0]-dx,xlim[1]-dx);ax.set_ylim(ylim[0]-dy,ylim[1]-dy)
+            self.therm_canvas.draw_idle();return
         if self.therm_figure.axes:update_component_hover(self.therm_figure.axes[0],event)
-        if not self.thermal_bundle or event.xdata is None or event.ydata is None:
+        if (not self.thermal_bundle or not self.therm_figure.axes or
+                event.inaxes is not self.therm_figure.axes[0] or
+                event.xdata is None or event.ydata is None):
             return
         mode=self.therm_mode.GetStringSelection()
         if mode=='Temperature chart':
@@ -1175,7 +1350,7 @@ class QuickThermFrame(wx.Frame):
         if not point:return
         from .thermal_review import cursor_readout
 
-        side='bottom' if 'Bottom' in mode else 'top'
+        side=getattr(self,'_thermal_pick_side','top') if mode=='3D overview' else 'bottom' if 'Bottom' in mode else 'top'
         model=self._display_network() if (self.therm_result_time.GetSelection()>0 or 'board model' in mode.lower() or mode=='3D overview' or mode.startswith('Layer model: ')) else None
         info=cursor_readout(self._display_view(model),model,
                             point[0],point[1],side)

@@ -6,6 +6,19 @@ The separate `wayricad-therm-transient` command runs an explicitly parameterized
 
 For the separate steady multilayer model, set `"source_refinement_factor": 2` inside `thermal_network_settings` to subdivide rectilinear cells near mapped footprint sources. A CLI JSON config can also include `"mesh_acceptance": {"grid_cells_long_axis": [24, 48, 80], "maximum_change_c": 0.1, "minimum_source_cells": 4}`. The solver repeats the same saved geometry on increasing grids and reports PASS/FAIL from the two finest component, source-peak, layer-peak and spatial-field temperatures, numerical balance and effective source-contact coverage. An optional phase-shifted solve exposes grid sensitivity. A failed or absent mesh gate must not be read as a converged local hotspot result. Source-aligned refinement is a rectilinear screening mesh; it does not resolve package-to-copper contact geometry or qualify physical hotspots.
 
+### Native workspace and component inputs
+
+QuickTherm opens maximized with two tabs: **Component inputs** and **Board + results**. The input table scans saved values and shows every component's power, RθJA, RθJB, RθJC, temperature limits, source and status. Edit numeric cells to add or override values. **Select all**, **Select none**, search and **Include visible** control the scope; filtering preserves checked hidden rows. **Restore saved row** removes overrides. Blank values remain unknown, and the PCB is unchanged.
+
+RθJB is always editable. A physical board study without virtual heatsinks needs known power, reviewed material/boundary settings and optional RθJB; it does not also require RθJA. A known RθJB gives `modeled board site + power × RθJB`; missing RθJB leaves the package junction and its limit check unknown. The independent air screen still requires RθJA, and virtual heatsink screening uses RθJC and declared sink paths. **Field mapping…** maps nonstandard property names or resolves ambiguous aliases. The default **Scanned values + edits** combines saved inputs with explicit overrides; **Saved fields only** ignores table overrides.
+
+The board tab keeps compact setup at the left and **Details**, **Results** and **Probes** at the right. Hide either side for more viewport space. **Top**, **Bottom**, **3D**, **Fit**, field/time selection and probes stay above the board. The native viewport removes graph axes; exported scientific plots keep units and axes. In 3D, drag to orbit, Shift-drag to pan and wheel to zoom. Saved contours and drilled voids stay open; unknown field cells remain blank. A thin-sheet field is shown once at the board midplane, and layered fields retain their declared depths. Footprint bounds and temperature markers are interactive; STEP component solids and drill depth/span geometry are not loaded.
+
+![Editable scanned component inputs](examples/quicktherm-input-workspace.png)
+![Interactive 3D thermal workspace](examples/quicktherm-3d-workspace.png)
+
+These native Windows/KiCad 10.0.6 captures use the public thermal demo with four invented power sources. The 3D field is a thin-sheet result using assumed 35 W/(m·K) conductivity, 0.8 emissivity and 10 m/s airflow. It demonstrates the workflow, not measured temperatures or a qualified hardware model. The screenshots contain no user project data or private paths.
+
 ### Interactive views and time evolution
 
 Component labels appear only for the selected part or the part under the pointer in the main map, paired top/bottom workspace and 3D overview. Selection keeps one label visible; hovering another component shows one temporary label, which clears when the pointer leaves. Hovering does not reset the view or change component selection. Unknown junction temperatures stay unknown.

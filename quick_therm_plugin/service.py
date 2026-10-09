@@ -146,6 +146,14 @@ def execute(request):
             raise ValueError("The board changed during inspection. Reload and run again.")
         return {
             "component_references": sorted(fp.GetReference() for fp in components),
+            "components": sorted(({
+                "reference": str(fp.GetReference()), "value": str(fp.GetValue()),
+                "id": fp.m_Uuid.AsString(),
+                "side": "bottom" if fp.IsFlipped() else "top",
+                "x_mm": pcbnew.ToMM(fp.GetPosition().x),
+                "y_mm": pcbnew.ToMM(fp.GetPosition().y),
+                "properties": _footprint_properties(fp),
+            } for fp in components), key=lambda row: row["reference"]),
             "field_names": field_names, "mounting_holes": mounting_holes,
             "source_sha256": before,
         }
@@ -172,7 +180,10 @@ def execute(request):
         raise ValueError("Expanded environment and transient models require multilayer board mode.")
     if request.get("transient_settings") is not None and request.get("mesh_acceptance") is not None:
         raise ValueError("Run transient spatial refinement as separate explicit grid analyses.")
-    if request.get("thermal_model_kind") == "calculix" or spatial_power_only:
+    board_power_only = bool(request.get("board_power_only"))
+    if board_power_only and (request.get("thermal_network_settings") is None or request.get("heatsinks")):
+        raise ValueError("Power-only board inputs need a physical board model without virtual heatsinks.")
+    if request.get("thermal_model_kind") == "calculix" or spatial_power_only or board_power_only:
         result = analyze_power_sources(
             board, environment=request["environment"],
             ambient_c=request.get("ambient_c", 20.0),
@@ -186,6 +197,12 @@ def execute(request):
         result = analyze_manual_board(board, request.get("manual_values"), **options)
     else:
         result = analyze_board(board, request["field_map"], **options)
+    if request.get("component_input_sources"):
+        result["input_source"] = "scanned footprint fields with explicit QuickTherm overrides"
+        for row in result["components"]:
+            sources = request["component_input_sources"].get(row["reference"], {})
+            row["source_fields"] = {key: source.get("field") if source.get("source") == "Saved field"
+                                    else "QuickTherm override" for key, source in sources.items()}
     view = build_board_thermal_view(board, result)
     thermal_network = None
     calculix_manifest = None
@@ -247,7 +264,7 @@ def execute(request):
                     continue
                 resistances[row["reference"]] = parse_field_quantity(raw, "theta_jb_k_per_w")
             settings["component_to_board_k_per_w"] = resistances
-        elif (request.get("thermal_model_kind") == "calculix" or spatial_power_only) and request.get("input_mode") == "manual":
+        elif request.get("input_mode") == "manual":
             from .quick_therm import parse_field_quantity
 
             settings["component_to_board_k_per_w"] = {
@@ -324,6 +341,18 @@ def execute(request):
             "board_references_missing_field": missing,
             "sink_references_from_explicit_rtheta_jc_and_contact": sorted(sink_resistances),
         }
+        if board_power_only and request.get("thermal_model_kind") != "calculix":
+            modeled = {row["reference"]: row for row in thermal_network.get("components", [])}
+            for row in result["components"]:
+                junction = modeled.get(row["reference"], {}).get("junction_c")
+                if junction is not None:
+                    resistance = settings["component_to_board_k_per_w"][row["reference"]]
+                    row.update(junction_c=junction, resistance_k_per_w=resistance,
+                               rise_above_ambient_k=junction-result["ambient_c"],
+                               rise_local_k=row["power_w"]*resistance)
+            result["coverage"]["solved"] = sum(row["junction_c"] is not None for row in result["components"])
+            result["assumptions"].append("Package junctions use modeled board sites plus declared RthetaJB; missing package paths remain unknown.")
+            view = build_board_thermal_view(board, result)
     if request.get("calculix_export_dir") and calculix_manifest is None:
         from .thermal_geometry import collect_thermal_geometry
 
@@ -335,7 +364,8 @@ def execute(request):
             thermal_network["assumptions"] = list(calculix_manifest.get("limitations", []))
     from .thermal_review import evaluate_limits, sample_probes
 
-    limits = evaluate_limits(board, result, request.get("limit_fields"))
+    limits = evaluate_limits(board, result, request.get("limit_fields"),
+                             request.get("manual_temperature_limits"))
     probes = sample_probes(view, thermal_network, request.get("probes"))
     if hashlib.sha256(path.read_bytes()).hexdigest() != before:
         raise ValueError("The board changed during QuickTherm analysis. Reload and run again.")

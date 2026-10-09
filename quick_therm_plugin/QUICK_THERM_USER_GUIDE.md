@@ -5,7 +5,7 @@ footprint properties, estimates steady-state component junction temperatures,
 and exports an HTML report with paired JSON evidence. It does not edit the PCB.
 The base component calculation is a lumped thermal screen. Optional board
 models add either a thin-sheet field or a layer-resolved stackup/copper field.
-Neither is CFD, a transient simulation or a qualified measurement.
+Neither is CFD or a qualified measurement. The multilayer model also supports explicitly parameterized spatial transients.
 
 The optional **CalculiX 3D · fixed lower face** mode is a separate bounded
 steady-conduction model. It accepts selected top-side heat sources with known
@@ -70,53 +70,19 @@ numbers mean watts. Accepted resistances include `40`, `40 K/W`, `40 °C/W`;
 bare resistance numbers mean kelvins per watt. Thermal resistances must be
 positive. Component power may be zero but cannot be negative.
 
-## 2. Open QuickTherm and enter component inputs
+## 2. Review scanned values and enter component inputs
 
-1. Open **WayriCAD QuickTherm** from the intended saved PCB Editor. Choose
-   **Air** or **Vacuum** and review **Ambient °C**.
-2. In the checklist, select only parts whose power you intend to include.
-   Unselected heat sources are outside the estimate.
-3. Leave **Input source** at **Enter values per component** and click
-   **Enter component inputs…**. For every selected part, enter its power in W
-   and the applicable thermal resistance in K/W. In air this is RθJA; in
-   vacuum it is RθJB; for a virtual heatsink it is RθJC. Blank, invalid and
-   nonfinite values are rejected. Nothing is inferred from the PCB geometry.
-4. In vacuum, also enter the reviewed board-to-environment resistance for any
-   selected part without a virtual heatsink. This must represent the actual
-   radiation and conductive heat path, not an in-air RθJA.
-5. Click **Run QuickTherm**. The table, temperature chart and map identify the
-   parts that were solved. Exported HTML and JSON record every entered value
-   and identify the input source. These are estimates under your assumptions.
+1. Open **WayriCAD QuickTherm** from the intended saved PCB Editor. The maximized window starts on **Component inputs**. Saved properties with unique recognized names are mapped automatically; use **Field mapping…** for nonstandard or ambiguous names.
+2. Review the table's power, RθJA/JB/JC, minimum/maximum junction limits, input source and status. All numeric cells are editable, including RθJB in every environment. Enter units or bare W, K/W and °C values. Blank means unknown; zero power is allowed, resistance must be positive. Edits are detached overrides and do not change the PCB.
+3. Check the parts to include. **Select all** and **Select none** apply to the entire board. Search only changes visible rows; checked hidden rows still run. **Include visible** affects just filtered rows. **Restore saved row** removes selected rows' overrides.
+4. Open **Board + results** and review the environment and ambient temperature. For an independent air screen, enter RθJA; for a lumped vacuum screen, RθJB and board-to-environment resistance; for virtual heatsinks, RθJC and explicit sink paths. A physical **Board model…** study without virtual heatsinks needs known power and reviewed material/boundary settings. Optional RθJB maps board-site temperature to a junction estimate; no RθJA is required for that study.
+5. Click **Run thermal**. Invalid included values are identified before a worker starts. Results show unknown package temperatures when the relevant path is absent. Edits invalidate old results and exports. The default **Scanned values + edits** uses the table; **Saved fields only** uses mapped saved properties without overrides.
+6. Use **Top**, **Bottom**, **3D** and **Fit** above the viewport. Drag to orbit 3D, Shift-drag to pan, wheel to zoom, hover to inspect or use **Probe** to sample a supported field. Only the selected component and one hovered component are labelled. **Details**, **Results** and **Probes** provide context beside the board; hide side panels to widen the viewport.
 
-### Saved footprint field workflow
+![Scanned and editable thermal values](examples/quicktherm-input-workspace.png)
+![Interactive saved-board thermal geometry](examples/quicktherm-3d-workspace.png)
 
-Choose **Use saved footprint fields** to reveal the field mappings, then:
-
-1. Open **WayriCAD QuickTherm** from the intended saved PCB Editor.
-2. Set **Dissipation field** to the PCB property containing power, such as
-   `Power_W`.
-3. Confirm **Environment** and **Ambient °C** in the setup row.
-4. For components **without** a virtual heatsink, map **RθJA field** in air or
-   **RθJB field** in vacuum. The inactive field is not used. Air RθJA must be
-   applicable to the actual PCB, mounting, orientation and airflow; a package
-   datasheet value measured on another board can be misleading.
-5. For components **with** a virtual heatsink, map **RθJC field · heatsinks**
-   to the saved junction-to-case property. You may leave RθJA/RθJB unmapped
-   only if every selected component has a heatsink path.
-6. In vacuum, if any selected component uses the shared-board path, enter
-   **Board to environment K/W**. This is the effective resistance of the actual
-   board-to-chamber radiation and mechanical conduction path. It is not the
-   in-air RθJA and cannot be derived from the UI preview.
-7. Optionally choose saved PCB property names for **Minimum Tj limit field**
-   and **Maximum Tj limit field**. The fields may contain bare Celsius numbers,
-   `85 °C`, or an absolute Kelvin value. Each selected component is checked
-   against its own mapped values. Missing or invalid limits show **UNKNOWN**;
-   values outside a valid bound show **FAIL**. The table sorts by clicking its
-   headings and colors each row by status.
-
-The field selectors list names found on the saved board. If a property is
-missing, save the PCB after adding it and use **Reload saved board** from the
-QuickTherm window before remapping.
+*Native KiCad 10.0.6 captures of the public hypothetical thermal demo. The 3D field uses the stated screening assumptions in the README. Footprint bounds are shown; STEP solids are not loaded. One thin-sheet midplane field is distinct from independently solved surface temperatures. Missing values remain unknown.*
 
 ## 3. Choose the study scope
 

@@ -95,7 +95,7 @@ def _field_quads(field, z):
     quads, values = [], []
     for j, row in enumerate(field.get('values_c', [])):
         for i, value in enumerate(row):
-            if value is None:
+            if value is None or not np.isfinite(value):
                 continue
             quads.append([(x_edges[i], y_edges[j], z),
                           (x_edges[i+1], y_edges[j], z),
@@ -114,7 +114,7 @@ def _install_component_hover(ax, targets, selected_id, three_d=False):
     ax._thermal_targets=targets;ax._thermal_selected_id=selected_id
     ax._thermal_hover_id=None;ax._thermal_hover_3d=three_d
     if three_d:
-        label=ax.text(0,0,0,'',fontsize=8,zorder=10,
+        label=ax.text(0,0,0,'',fontsize=8,zorder=1e6,
                       bbox={'facecolor':'white','alpha':.95,'edgecolor':'none','pad':2})
     else:
         label=ax.annotate('',(0,0),xytext=(9,9),textcoords='offset points',
@@ -132,22 +132,7 @@ def update_component_hover(ax, event=None):
     """
     label=getattr(ax,'_thermal_hover_label',None)
     if label is None:return None
-    targets=ax._thermal_targets;hit=None
-    if event is not None and event.inaxes is ax and targets:
-        positions=np.asarray([row['position'] for row in targets],dtype=float)
-        if ax._thermal_hover_3d:
-            from mpl_toolkits.mplot3d import proj3d
-            x,y,_=proj3d.proj_transform(*positions.T,ax.get_proj())
-            pixels=ax.transData.transform(np.column_stack((x,y)))
-            inside=np.zeros(len(targets),dtype=bool)
-        else:
-            pixels=ax.transData.transform(positions[:,:2])
-            inside=np.asarray([bool(row.get('bbox') and event.xdata is not None and event.ydata is not None and
-                               row['bbox'][0]<=event.xdata<=row['bbox'][2] and row['bbox'][1]<=event.ydata<=row['bbox'][3])
-                               for row in targets])
-        distances=((pixels-[event.x,event.y])**2).sum(axis=1)
-        candidates=np.flatnonzero(inside | (distances<=14**2))
-        if len(candidates):hit=targets[min(candidates,key=lambda i:distances[i])]
+    hit=component_at_event(ax,event)
     identifier=hit['id'] if hit and hit['id']!=ax._thermal_selected_id else None
     if identifier==ax._thermal_hover_id:return identifier
     ax._thermal_hover_id=identifier;label.set_visible(identifier is not None)
@@ -164,79 +149,291 @@ def update_component_hover(ax, event=None):
     return identifier
 
 
-def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None):
-    """Illustrative saved-board extrusion, not imported 3D component models."""
+def component_at_event(ax, event=None):
+    """Pick current projected footprint bounds or a marker within 14 pixels.
+
+    Return the hover target (id, reference, side, junction_c and world position)
+    without changing the view or labels. Projection is recalculated after orbit,
+    zoom and pan, so callers can use this for selection as well as hover.
+    """
+    targets=getattr(ax,'_thermal_targets',[])
+    if event is None or event.inaxes is not ax or not targets:
+        return None
+    positions=np.asarray([row['position'] for row in targets],dtype=float)
+    if getattr(ax,'_thermal_hover_3d',False):
+        from matplotlib.path import Path
+        from mpl_toolkits.mplot3d import proj3d
+        projection=ax.get_proj()
+        x,y,depth=proj3d.proj_transform(*positions.T,projection)
+        pixels=ax.transData.transform(np.column_stack((x,y)))
+        inside=[]
+        for row in targets:
+            box=row.get('bbox')
+            if not box:
+                inside.append(False);continue
+            z=row['position'][2]
+            corners=np.asarray([(box[0],box[1],z),(box[2],box[1],z),
+                                (box[2],box[3],z),(box[0],box[3],z)])
+            px,py,_=proj3d.proj_transform(*corners.T,projection)
+            polygon=ax.transData.transform(np.column_stack((px,py)))
+            inside.append(Path(polygon).contains_point((event.x,event.y)))
+        inside=np.asarray(inside)
+    else:
+        pixels=ax.transData.transform(positions[:,:2]);depth=np.zeros(len(targets))
+        inside=np.asarray([bool(row.get('bbox') and event.xdata is not None and event.ydata is not None and
+                           row['bbox'][0]<=event.xdata<=row['bbox'][2] and row['bbox'][1]<=event.ydata<=row['bbox'][3])
+                           for row in targets])
+    distances=((pixels-[event.x,event.y])**2).sum(axis=1)
+    candidates=np.flatnonzero(inside | (distances<=14**2))
+    return targets[min(candidates,key=lambda i:(distances[i],depth[i]))] if len(candidates) else None
+
+
+def _supported_3d_cells(field):
+    """Finite-volume cells have area; sampled fields require four known corners."""
+    from wayricad_runtime.thermal_field import _cell_edges, _field_values
+    values=_field_values(field)
+    if values.ndim!=2:return []
+    edges=_cell_edges(field,values)
+    if edges is not None:
+        quads,temperatures=_field_quads(field,0.)
+        return [(quad[0][0],quad[0][1],quad[2][0],quad[2][1],float(value))
+                for quad,value in zip(quads,temperatures)]
+    # Point samples do not support the extrapolated half-cell margins, isolated
+    # samples or a quad with one unknown corner. Match the planar field contract.
+    xs,ys=field.get('x_centers_mm',[]),field.get('y_centers_mm',[])
+    if values.shape!=(len(ys),len(xs)):return []
+    cells=[]
+    for j in range(len(ys)-1):
+        for i in range(len(xs)-1):
+            quad=values[j:j+2,i:i+2]
+            if quad.count()==4:
+                cells.append((xs[i],ys[j],xs[i+1],ys[j+1],float(quad.mean())))
+    return cells
+
+
+def _clipped_field_faces(field,z,tiles):
+    """Clip supported thermal areas to exact board contours, including drills."""
+    from .thermal_mesh import clip_rectangle
+    if not tiles:return [],[]
+    bounds=np.asarray([(min(p[0] for p in tile),min(p[1] for p in tile),
+                        max(p[0] for p in tile),max(p[1] for p in tile)) for tile in tiles])
+    faces=[];values=[]
+    for x0,y0,x1,y1,value in _supported_3d_cells(field):
+        candidates=np.flatnonzero((bounds[:,0]<x1)&(bounds[:,2]>x0)&
+                                  (bounds[:,1]<y1)&(bounds[:,3]>y0))
+        for index in candidates:
+            clipped=clip_rectangle(tiles[index],(x0,y0,x1,y1))
+            if clipped:
+                faces.append([(x,y,z) for x,y in clipped]);values.append(value)
+    return faces,values
+
+
+def _field_planes(view,network,thickness):
+    """World Z uses bottom=0; solver layer Z is saved depth below the top."""
+    planes=[]
+    if network.get('layers'):
+        layers=network['layers']
+        for index,field in enumerate(layers):
+            side='top' if index==0 else 'bottom' if index==len(layers)-1 else 'internal'
+            depth=field.get('z_mm')
+            # Legacy results lacking layer depth can be shown on an explicitly
+            # identified exterior face, never at an invented interior depth.
+            z=thickness-float(depth) if depth is not None else (0. if side=='bottom' else thickness)
+            source=' imported CalculiX surface field' if 'CalculiX' in network.get('model','') else ' layer model'
+            planes.append({'field':field,'z_mm':z,'side':side,
+                           'source':field.get('name','Unnamed layer')+source})
+    elif network.get('board_field'):
+        planes.append({'field':network['board_field'],'z_mm':thickness/2,'side':'midplane',
+                       'source':'thin-sheet board midplane model (one shared field)'})
+    else:
+        for side,z in (('top',thickness),('bottom',0.)):
+            field=view.get('fields_by_side',{}).get(side,{})
+            if not field and side=='top':field=view.get('field',{})
+            planes.append({'field':field,'z_mm':z,'side':side,
+                           'source':side+' partial junction interpolation (not board temperature)'})
+    return planes
+
+
+def fit_thermal_3d(ax):
+    """Fit complete saved geometry for the current camera without changing units.
+
+    A fixed Matplotlib zoom crops long or tall boards at some orbit angles.
+    Project the complete bounds and reduce display zoom until all corners fit.
+    Call after restoring limits/camera when implementing a native Fit action.
+    """
+    from mpl_toolkits.mplot3d import proj3d
+    aspect=getattr(ax,'_thermal_fit_aspect',None)
+    if aspect is None:return
+    ax.apply_aspect()
+    limits=[ax.get_xlim(),ax.get_ylim(),ax.get_zlim()]
+    corners=np.asarray([(x,y,z) for x in limits[0] for y in limits[1] for z in limits[2]])
+    zoom=1.7 if getattr(ax,'_thermal_viewport',False) else .92
+    for _ in range(4):
+        ax.set_box_aspect(aspect,zoom=zoom)
+        x,y,_=proj3d.proj_transform(*corners.T,ax.get_proj())
+        pixels=ax.transData.transform(np.column_stack((x,y)))
+        center=np.asarray([ax.bbox.x0+ax.bbox.width/2,ax.bbox.y0+ax.bbox.height/2])
+        extent=np.max(np.abs(pixels-center),axis=0)
+        ratio=min((ax.bbox.width*.46)/max(extent[0],1.),
+                  (ax.bbox.height*.46)/max(extent[1],1.))
+        if ratio>=1.:break
+        zoom*=ratio*.98
+
+
+def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None,
+             temperature_limits_c=None,viewport=False):
+    """Saved board and thermal result geometry; footprint bounds are not solids."""
+    from matplotlib.cm import ScalarMappable
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-    ax=figure.add_subplot(111,projection='3d')
-    thickness=view.get('board_thickness_mm') or 1.6
-    for shape in view.get('outline',[]):
-        outer=shape.get('outer_mm',[])
-        if len(outer)<3:continue
-        for z in (0,thickness):
-            ax.plot([p[0] for p in outer]+[outer[0][0]],
-                    [p[1] for p in outer]+[outer[0][1]],zs=z,color='#315e68',linewidth=1.8)
-        for p in outer:ax.plot([p[0],p[0]],[p[1],p[1]],[0,thickness],color='#62939c',linewidth=.7)
-        ax.add_collection3d(Poly3DCollection([[(p[0],p[1],thickness) for p in outer]],
-                                            facecolor='#b7d5c7',alpha=.20,edgecolor='none'))
-    field=(network or {}).get('board_field',{})
-    if (network or {}).get('layers'):
-        field=network['layers'][0]
-    if field.get('values_c'):
-        quads, values = _field_quads(field, thickness+.02)
-        if quads:
-            lo=min(values);hi=max(values)
-            colors=[colormaps['inferno'](.5 if hi==lo else (value-lo)/(hi-lo))
-                    for value in values]
-            ax.add_collection3d(Poly3DCollection(quads,facecolors=colors,edgecolor='none',alpha=.55))
-    voids = [hole for shape in view.get('outline', []) for hole in shape.get('holes_mm', [])]
-    voids.extend(drill['contour_mm'] for drill in view.get('drills', []))
-    if voids:
-        ax.add_collection3d(Poly3DCollection(
-            [[(p[0], p[1], thickness+.05) for p in ring] for ring in voids],
-            facecolor='#091720', edgecolor='#88a6b0', linewidth=.25))
-    solved=[item['junction_c'] for item in view.get('components',[]) if item.get('junction_c') is not None]
-    low=min(solved) if solved else 0;high=max(solved) if solved else 1
-    targets=[]
+    from .thermal_mesh import board_tiles
+    network=network or {};ax=figure.add_subplot(111,projection='3d')
+    saved_thickness=view.get('board_thickness_mm')
+    thickness=float(saved_thickness) if saved_thickness is not None and np.isfinite(saved_thickness) and saved_thickness>0 else 0.
+    planes=_field_planes(view,network,thickness)
+    available=[plane for plane in planes if field_available(plane['field'])]
+    has_model=bool(network.get('layers') or network.get('board_field'))
+    temperatures=[float(value) for plane in available for row in plane['field'].get('values_c',[])
+                  for value in row if value is not None and np.isfinite(value)]
+    modeled={row['reference']:row for row in network.get('components',[])}
+    if not temperatures and not has_model:
+        temperatures=[float(part['junction_c']) for part in view.get('components',[])
+                      if part.get('junction_c') is not None and np.isfinite(part['junction_c'])]
+    norm=_field_norm({'values_c':[temperatures]},temperature_limits_c)
+    tiles=board_tiles(view)
+    # Both faces and the walls use the same saved contours. Holes are open from
+    # either camera direction; no background-colored caps simulate a void.
+    if tiles and not available:
+        surfaces=[[(x,y,z) for x,y in tile] for z in sorted({0.,thickness}) for tile in tiles]
+        substrate=Poly3DCollection(surfaces,facecolor='#c6d2d0',edgecolor='none',antialiased=False)
+        substrate.set_gid('quicktherm-board-faces');ax.add_collection3d(substrate)
+    rings=[ring for shape in view.get('outline',[]) for ring in [shape.get('outer_mm',[]),*shape.get('holes_mm',[])]]
+    rings.extend(drill.get('contour_mm',[]) for drill in view.get('drills',[]))
+    walls=[]
+    for ring in rings:
+        if len(ring)<3:continue
+        for z in sorted({0.,thickness}):
+            ax.plot([p[0] for p in ring]+[ring[0][0]],
+                    [p[1] for p in ring]+[ring[0][1]],zs=z,color='#567578',linewidth=.55)
+        if thickness:
+            walls.extend([[(a[0],a[1],0.),(b[0],b[1],0.),
+                           (b[0],b[1],thickness),(a[0],a[1],thickness)]
+                          for a,b in zip(ring,ring[1:]+ring[:1])])
+    if walls:
+        wall_artist=Poly3DCollection(walls,facecolor='#668185',edgecolor='none',antialiased=False)
+        wall_artist.set_gid('quicktherm-board-walls');ax.add_collection3d(wall_artist)
+    ax._thermal_field_planes=[]
+    for plane in planes:
+        faces,values=_clipped_field_faces(plane['field'],plane['z_mm'],tiles) if field_available(plane['field']) else ([],[])
+        metadata={key:value for key,value in plane.items() if key!='field'}
+        metadata.update(available=bool(faces),face_count=len(faces))
+        ax._thermal_field_planes.append(metadata)
+        if faces:
+            mesh=Poly3DCollection(faces,facecolors=colormaps['inferno'](norm(values)),antialiased=False,
+                                  edgecolor='none',alpha=1. if plane['side']!='internal' else .5)
+            mesh.set_gid('quicktherm-field-'+plane['side']+'-'+plane['source'])
+            ax.add_collection3d(mesh)
+    targets=[];extent_points=[]
     for item in view.get('components',[]):
-        if not item.get('position_mm'):continue
-        x,y=item['position_mm'];top=item.get('top_side',True)
+        position=item.get('position_mm')
+        if not position:continue
+        x,y=position;top=item.get('side','top' if item.get('top_side',True) else 'bottom')=='top'
+        # Marker offset is for reading/picking only, never package height.
         z=thickness+.8 if top else -.8
-        value=item.get('junction_c')
-        color='#758591' if value is None else colormaps['inferno'](.5 if high==low else (value-low)/(high-low))
-        ax.scatter([x],[y],[z],color=[color],s=145 if item['id']==selected_id else (70 if item.get('in_scope') else 0),
-                   edgecolor='#00d3b1' if item['id']==selected_id else 'white',depthshade=False)
-        box = item.get('bbox_mm')
-        if box:
+        value=modeled.get(item['reference'],{}).get('junction_c') if has_model else item.get('junction_c')
+        color=('#f7fafc' if value is not None else '#697985') if has_model or available else (
+            '#697985' if value is None else colormaps['inferno'](norm(value)))
+        current=item['id']==selected_id
+        box=item.get('bbox_mm')
+        if box and len(box)==4:
             corners=[(box[0],box[1],z),(box[2],box[1],z),(box[2],box[3],z),(box[0],box[3],z)]
-            ax.add_collection3d(Poly3DCollection([corners],facecolor=color,edgecolor='#294352',alpha=.6,linewidth=.4))
+            bounds_artist,=ax.plot(*np.asarray(corners+[corners[0]]).T,
+                                   color='#00ad94' if current else '#547079',
+                                   linewidth=1.5 if current else .55,zorder=1e5)
+            bounds_artist.set_gid('quicktherm-footprint-'+item['id'])
+            extent_points.extend(corners)
+        # Line3D markers retain their explicit overlay order, unlike scatter's
+        # automatic depth ordering against a whole-board Poly3DCollection.
+        # Both sides remain inspectable; these are data markers, not package solids.
+        ax.plot([x],[y],[z],color=color,marker='o',linestyle='none',
+                markersize=11 if current else (7.5 if item.get('in_scope') else 3.5),
+                markeredgecolor='#00d3b1' if current else '#344b56',zorder=1e5)
         text=_component_label(item,value)
-        targets.append({'id':item['id'],'position':(x,y,z),'label':text})
-        if item['id']==selected_id:
-            label=ax.text(x,y,z+.25,text,fontsize=8)
+        targets.append({'id':item['id'],'reference':item['reference'],'side':'top' if top else 'bottom',
+                        'junction_c':value,'position':(x,y,z),'bbox':box,'label':text})
+        if current:
+            label=ax.text(x,y,z+.12,text,fontsize=8,zorder=1e6,
+                          bbox={'facecolor':'white','alpha':.9,'edgecolor':'none','pad':2})
             label.set_gid('quicktherm-component-selected')
-        ax.plot([x,x],[y,y],[thickness if top else 0,z],color='#576d70',linewidth=.7)
-    bbox=view.get('bbox_mm')
-    if bbox:
-        x0,y0,x1,y1=bbox;ax.set_xlim(x0,x1);ax.set_ylim(y1,y0)
-        ax.set_box_aspect((max(x1-x0,1),max(y1-y0,1),max(thickness*5,4)),zoom=.9)
+        ax.plot([x,x],[y,y],[thickness if top else 0.,z],color='#64817e',linewidth=.6,zorder=1e4)
+        extent_points.append((x,y,z))
     for probe in probes or []:
         x,y=probe['x_mm'],probe['y_mm'];z=thickness+.12 if probe.get('side')!='bottom' else -.12
         ax.scatter([x],[y],[z],color='#00d3b1',marker='+',s=90,depthshade=False)
         value=probe.get('temperature_c');label=probe['label']+(' unknown' if value is None else f' {value:.2f} °C')
-        ax.text(x,y,z,label,fontsize=8)
-    ax.set_zlim(-1.2,thickness+1.5);ax.set_zticks([0, thickness])
-    ax.set_xlabel('X mm');ax.set_ylabel('Y mm');ax.set_zlabel('Board Z mm')
+        ax.text(x,y,z,label,fontsize=8);extent_points.append((x,y,z))
+    extent_points.extend((p[0],p[1],z) for ring in rings for p in ring for z in (0.,thickness))
+    extent_points.extend((p[0],p[1],plane['z_mm']) for ring in rings for p in ring for plane in planes)
+    bbox=view.get('bbox_mm')
+    if bbox:
+        extent_points.extend([(bbox[0],bbox[1],0.),(bbox[2],bbox[3],thickness)])
+    if extent_points:
+        points=np.asarray(extent_points);low=points.min(axis=0);high=points.max(axis=0)
+        spans=high-low;pad=max(spans[0],spans[1],1.)*.035
+        ax.set_xlim(low[0]-pad,high[0]+pad);ax.set_ylim(high[1]+pad,low[1]-pad)
+        ax.set_zlim(low[2]-.2,high[2]+.2)
+        ax._thermal_fit_aspect=(max(spans[0]+2*pad,1.),max(spans[1]+2*pad,1.),max(spans[2]+.4,.4))
+        ax.set_box_aspect(ax._thermal_fit_aspect,zoom=1.16 if viewport else .92)
+    else:
+        ax.set_box_aspect((1,1,.1))
     ax.view_init(elev=elev,azim=azim)
-    ax.set_title('Saved board 3D overview · marker heights illustrative')
+    ax._thermal_norm=norm
+    ax._thermal_viewport=viewport
+    ax._thermal_board_z={'top':thickness,'bottom':0.,'midplane':thickness/2}
+    ax._thermal_thickness_known=bool(thickness)
+    if 'CalculiX' in network.get('model',''):
+        meaning='Imported CalculiX board-surface °C · sampled nodal field'
+    elif network.get('layers'):
+        meaning='Layer model °C · declared layer depths'
+    elif network.get('board_field'):
+        meaning='Approximate board midplane °C · one shared thin-sheet field'
+    elif available:
+        meaning='Partial junction interpolation °C · not board temperature'
+    else:
+        meaning='Estimated component junction °C'
+    if temperatures:
+        if viewport:
+            cax=figure.add_axes([.915,.20,.02,.60])
+            label=('Board-surface estimate °C' if 'CalculiX' in network.get('model','') else
+                   'Layer temperature °C' if network.get('layers') else
+                   'Board midplane °C' if network.get('board_field') else 'Junction estimate °C')
+            figure.colorbar(ScalarMappable(norm=norm,cmap='inferno'),cax=cax,label=label)
+        else:
+            figure.colorbar(ScalarMappable(norm=norm,cmap='inferno'),ax=ax,
+                            label=meaning,pad=.07,fraction=.032,shrink=.72)
+    note='Saved footprint bounds · marker offsets illustrative · blank/gray regions unknown'
+    if not thickness:note+=' · board thickness unknown'
+    if has_model and not available:note+=' · thermal field unavailable'
+    if viewport:
+        ax.set_axis_off()
+        ax.text2D(.02,.98,meaning,transform=ax.transAxes,va='top',fontsize=9)
+        ax.text2D(.02,.02,note,transform=ax.transAxes,fontsize=8,wrap=True)
+        figure.subplots_adjust(left=.005,right=.865,bottom=.005,top=.995)
+        ax.set_anchor('C')
+    else:
+        ax.set_xlabel('X mm');ax.set_ylabel('Y mm');ax.set_zlabel('Board Z mm')
+        ax.set_title('Saved board 3D overview')
+        figure.text(.5,.015,note,ha='center',fontsize=8)
+        figure.tight_layout(rect=(0,.045,1,1))
+    fit_thermal_3d(ax)
     _install_component_hover(ax,targets,selected_id,three_d=True)
-    figure.tight_layout();return ax
+    return ax
 
 
 def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
                       network=None,azim=-60,elev=28,probes=None,
-                      temperature_limits_c=None):
+                      temperature_limits_c=None,viewport=False):
     figure.clear()
-    if mode=='3D overview':return _draw_3d(figure,view,selected_id,network,azim,elev,probes)
+    if mode=='3D overview':return _draw_3d(figure,view,selected_id,network,azim,elev,probes,temperature_limits_c,viewport)
     ax=figure.add_subplot(111)
     components=view.get('components',[])
     field=view.get('field',{})
@@ -327,7 +524,8 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
                    facecolor=color,edgecolor='#00d3b1' if current else ('#344b56' if board_model else 'white'),
                    linewidth=2 if current else .8,zorder=4)
         text=_component_label(item,value)
-        targets.append({'id':item['id'],'position':position,'bbox':box,'label':text})
+        targets.append({'id':item['id'],'reference':item['reference'],'side':side,'junction_c':value,
+                        'position':position,'bbox':box,'label':text})
         if current:
             label=ax.annotate(text,position,xytext=(5,5),textcoords='offset points',
                         fontsize=8,fontweight='bold' if current else 'normal',zorder=5,
@@ -349,11 +547,18 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
         x0,y0,x1,y1=bbox;pad=max(x1-x0,y1-y0)*.05 or 1
         ax.set_xlim((x1+pad,x0-pad) if bottom else (x0-pad,x1+pad));ax.set_ylim(y1+pad,y0-pad)
     else:ax.invert_yaxis()
-    ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X mm'+(' · mirrored bottom view' if bottom else ''));ax.set_ylabel('Y mm')
-    ax.set_title('Saved PCB '+side+' view · '+((display_layer_name+' copper layer' if display_layer_name else 'approximate board midplane') if board_model else
-                 'partial same-side junction interpolation · anchor hull' if contour else 'component estimates with partial junction overlay'))
+    ax.set_aspect('equal',adjustable='box')
+    title='Saved PCB '+side+' view · '+((display_layer_name+' copper layer' if display_layer_name else 'approximate board midplane') if board_model else (
+          'partial same-side junction interpolation · anchor hull' if contour else 'component estimates with partial junction overlay'))
+    if viewport:
+        ax.set_axis_off();ax.set_title(title,fontsize=9,pad=3)
+        figure.subplots_adjust(left=.015,right=.89,bottom=.015,top=.965)
+    else:
+        ax.set_xlabel('X mm'+(' · mirrored bottom view' if bottom else ''));ax.set_ylabel('Y mm')
+        ax.set_title(title)
     _install_component_hover(ax,targets,selected_id)
-    figure.tight_layout();return ax
+    if not viewport:figure.tight_layout()
+    return ax
 
 
 def draw_temperature_comparison(figure, bundle):

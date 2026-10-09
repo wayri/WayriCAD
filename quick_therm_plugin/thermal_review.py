@@ -23,11 +23,15 @@ def parse_temperature(value):
     return result
 
 
-def evaluate_limits(board, thermal, field_map):
+def evaluate_limits(board, thermal, field_map, manual_limits=None):
     """Check solved junctions against each part's mapped minimum/maximum fields."""
     from .quick_therm import _footprint_properties
 
     field_map = dict(field_map or {})
+    manual_limits = dict(manual_limits or {})
+    if any(not isinstance(values, dict) or set(values) - {"minimum_c", "maximum_c"}
+           for values in manual_limits.values()):
+        raise ValueError("Explicit limits need minimum_c and/or maximum_c per reference.")
     if set(field_map) - {"minimum_c", "maximum_c"}:
         raise ValueError("Only minimum_c and maximum_c may be mapped as limits.")
     if any(not isinstance(name, str) or not name.strip() for name in field_map.values()):
@@ -40,8 +44,10 @@ def evaluate_limits(board, thermal, field_map):
         fields = _footprint_properties(footprints[reference])
         issues = []
         bounds = {}
-        for key, name in field_map.items():
-            raw = fields.get(name)
+        overrides = manual_limits.get(reference, {})
+        for key in set(field_map) | set(overrides):
+            name = field_map.get(key, key)
+            raw = overrides[key] if key in overrides else fields.get(name)
             if raw is None or not str(raw).strip():
                 issues.append(f"Missing {name} ({key})")
                 continue
@@ -52,7 +58,7 @@ def evaluate_limits(board, thermal, field_map):
         value = solved.get(reference, {}).get("junction_c")
         if value is None:
             issues.append("Component temperature unresolved")
-        if not field_map:
+        if not field_map and not overrides:
             issues.append("No temperature-limit fields mapped")
         if (bounds.get("minimum_c") is not None and bounds.get("maximum_c") is not None
                 and bounds["minimum_c"] > bounds["maximum_c"]):
@@ -70,7 +76,8 @@ def evaluate_limits(board, thermal, field_map):
     counts = {status: sum(row["status"] == status for row in rows)
               for status in ("PASS", "FAIL", "UNKNOWN")}
     overall = "FAIL" if counts["FAIL"] else "UNKNOWN" if counts["UNKNOWN"] else "PASS"
-    return {"status": overall, "field_map": field_map, "counts": counts, "rows": rows}
+    return {"status": overall, "field_map": field_map, "manual_limits": manual_limits,
+            "counts": counts, "rows": rows}
 
 
 def sample_probes(view, network, definitions):

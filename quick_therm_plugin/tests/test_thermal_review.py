@@ -27,6 +27,19 @@ class Board:
 
 
 class ReviewTests(unittest.TestCase):
+    def test_manual_limits_override_saved_evidence_and_explicit_blank_is_unknown(self):
+        thermal={"references":["U1","U2"],"components":[
+            {"reference":"U1","junction_c":90},{"reference":"U2","junction_c":35}]}
+        result=evaluate_limits(Board(),thermal,{"maximum_c":"Tmax"},
+            {"U1":{"maximum_c":100},"U2":{"maximum_c":None}})
+        self.assertEqual([row['status'] for row in result['rows']],['PASS','UNKNOWN'])
+        self.assertEqual(result['rows'][0]['maximum_c'],100)
+        self.assertIsNone(result['rows'][1]['maximum_c'])
+
+    def test_manual_limits_without_saved_mapping(self):
+        thermal={"references":["U1"],"components":[{"reference":"U1","junction_c":90}]}
+        self.assertEqual(evaluate_limits(Board(),thermal,{},
+            {"U1":{"minimum_c":0,"maximum_c":80}})['status'],'FAIL')
     def test_temperature_units_and_limits_are_per_component(self):
         self.assertAlmostEqual(parse_temperature("300 K"), 26.85)
         thermal = {"references": ["U1", "U2", "U3"],

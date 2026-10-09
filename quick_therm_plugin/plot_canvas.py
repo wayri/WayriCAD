@@ -67,9 +67,10 @@ except (ImportError,ModuleNotFoundError):
             coordinate=self._coordinate(event)
             if coordinate is None:return
             previous,xlim,ylim=self._drag;dx,dy=coordinate-previous;axes=self._axes()
-            if hasattr(axes,'get_zlim') and not event.ShiftDown():
-                px,py=self._drag_pixel;axes.view_init(elev=axes.elev+(event.GetY()-py)*.4,azim=axes.azim-(event.GetX()-px)*.4)
-                self._drag_pixel=(event.GetX(),event.GetY());self.draw_idle();return
+            # Axes3D already handles the emitted motion event in world space.
+            # Reapplying a second drag here doubles rotation and mixes projected
+            # coordinates with millimetres for panning.
+            if hasattr(axes,'get_zlim'):return
             axes.set_xlim(xlim[0]-dx,xlim[1]-dx);axes.set_ylim(ylim[0]-dy,ylim[1]-dy)
             self._drag=(coordinate,axes.get_xlim(),axes.get_ylim());self.draw_idle()
 
