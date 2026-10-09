@@ -1,8 +1,8 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Mechanical Check",
-  "description": "Local mechanical and interboard collision, clearance, height and hardware review.",
-  "description_full": "Read-only saved-board mechanical validation with optional second PCB placement, exact FreeCAD/Open CASCADE interboard intersections and cross-sections, model coverage inventory, native conflict viewer and offline HTML/JSON/CSV reports. Requires an installed KiCad 10 Python/CLI and FreeCAD Python. IPC launch opens the saved file; it does not capture unsaved edits. KiCad 11 launch is forward-oriented and unverified; the extraction worker still requires KiCad 10.",
+  "description": "Mechanical collision and proximity review with part distances and point rulers.",
+  "description_full": "Read-only saved-board mechanical validation with optimized exact FreeCAD/Open CASCADE collision and nearest-part searches, manual part-to-part distances, point rulers, closest-approach hover witnesses, board views, optional second PCB placement and cross-sections. Quick 2D uses conservative footprint envelopes and the saved board outline without FreeCAD. Native and offline viewers identify measurement evidence and export HTML/JSON/CSV. KiCad 10 Python/CLI is required; exact solids require FreeCAD Python. IPC checks the saved file and does not capture unsaved edits. KiCad 11 extraction is unverified.",
   "identifier": "com.github.wayri.wayricad.mechanical-check",
   "type": "plugin",
   "author": {
@@ -12,7 +12,7 @@
   "license": "GPL-3.0-only",
   "versions": [
     {
-      "version": "3.6.12",
+      "version": "3.6.13",
       "status": "testing",
       "kicad_version": "10.0",
       "runtime": "ipc"

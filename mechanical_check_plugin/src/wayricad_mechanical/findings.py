@@ -20,9 +20,15 @@ def bbox_distance(a, b):
 
 def candidate_pairs(bodies, margin):
     """Sweep broad phase: no pair within margin can be lost."""
+    bodies = list(bodies)
+    if not bodies:
+        return
+    # Sweep the most spread-out axis, so vertical/rotated layouts do not
+    # degenerate simply because all their X intervals coincide.
+    axis = max(range(3), key=lambda i: max(b['bounds'][i] for b in bodies) - min(b['bounds'][i] for b in bodies))
     active = []
-    for item in sorted(bodies, key=lambda item: item['bounds'][0]):
-        active = [other for other in active if other['bounds'][3] + margin >= item['bounds'][0]]
+    for item in sorted(bodies, key=lambda item: item['bounds'][axis]):
+        active = [other for other in active if other['bounds'][axis+3] + margin >= item['bounds'][axis]]
         for other in active:
             if bbox_distance(item['bounds'], other['bounds']) <= margin:
                 yield other, item

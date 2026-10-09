@@ -11,6 +11,8 @@
 - Review height/keepout rules, hardware and access envelopes, severity filters and reasoned waivers.
 - Configure a circular PnP nozzle tip and wider head with a live dimensioned side view; review conservative tip/head access warnings in the offline report.
 - Inspect local geometry/conflict surfaces and export HTML, JSON or CSV through the GUI or CLI.
+- Measure any two modelled parts with exact surface witnesses, or use a point ruler between two picked surface locations. Hover shows the nearest measured part and its closest-approach line.
+- Keep the whole board in view, switch between top/bottom/side/isometric views, and use reference labels, an orthographic scale, grid and persistent rulers.
 
 ## Limitations
 
@@ -91,3 +93,21 @@ Run `python -m unittest discover -s mechanical_check_plugin/tests -v` from the s
 ### Inspect 3D geometry
 
 Drag to orbit, right-drag to pan and use the wheel to zoom. Hover over visible solid triangles for the component reference and XYZ position; click to select, or Ctrl-click to pin a surface probe. Section clipping and isolated-part visibility apply to picking. Offline HTML includes a clearable probe list. These coordinate probes do not alter either board or create new collision findings.
+
+### Measure clearance and inspect nearby parts
+
+After **Run**, choose **Measure two parts** and click two different parts, or type their references in **Part A / Part B** and choose **Measure**. Exact 3D mode computes the shortest surface distance using the already transformed solid geometry; it does not re-export either PCB. The ruler joins the two closest witness points, and the readout includes distance, evidence and ΔX/ΔY/ΔZ in millimetres. A zero gap means touching or overlapping geometry; positive intersection volume is reported separately when available. Missing models or failed geometry queries remain unavailable.
+
+Choose **Point ruler** to click any two visible surface locations, including two points on one part. This measures the straight-line distance between the picked tessellated points; it is not a minimum part clearance. Green rulers persist until **Clear rulers**, while the orange hover ruler shows the nearest eligible part found by the analysis. Hover information describes the saved analysis snapshot. Live part queries reject changed boards, models or enclosure files and request a new Run.
+
+**Fit board** restores the full assembly; **Focus contact** centers a finding. **Top**, **Bottom** and **Side** use orthographic projection with a millimetre scale; **Iso** restores perspective, whose scale is marked “at view center.” Reference labels avoid crowded rulers and can be toggled. **Isolate parts** is optional. Rulers appear through surfaces so their witness positions remain visible; use cutaway or a section view to inspect the geometry around them.
+
+Quick 2D shows the saved Edge.Cuts outline, including cutouts and sampled curves, as unfilled contour lines. It measures same-side axis-aligned footprint envelopes, not actual part surfaces. Invalid or missing outlines are reported as unavailable instead of inventing a rectangle. Exact 3D retains its STEP substrate and solid models.
+
+Exported HTML/JSON preserves measured pairs and point rulers. The offline viewer can display saved pair distances and create new point rulers; an arbitrary uncached part pair requires a new native run. “Nearest known measured pair” in an older report is distinct from a proven nearest part. Imported reports do not retain the private live geometry cache.
+
+### Performance and validation
+
+The collision broad phase adapts its sweep axis to the assembly. Nearest-part search uses a bounds tree and cached surface distances; full collision screening still examines every potentially colliding pair. Native and offline picking use triangle indices, and viewers reuse GPU buffers. These optimizations preserve exact geometry checks rather than substituting bounding-box gaps for solid distances.
+
+An 80-solid FreeCAD fixture produced the same nearest distances as an all-pairs reference, using 64 exact queries instead of 3,160 on the spaced arrangement. This is a nearest-search benchmark, not a whole-board runtime guarantee; dense collision analysis and expensive imported geometry can still take longer. See [inspection validation](../docs/audits/MECHANICAL_INSPECTION.md) for analytical, native and package checks.

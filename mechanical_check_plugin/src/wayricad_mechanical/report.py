@@ -8,6 +8,8 @@ from pathlib import Path
 
 
 def export(report, output):
+    # Live geometry ownership and query tokens never belong in portable evidence.
+    report = {key: value for key, value in report.items() if key != '_measurement_session'}
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
     project = re.sub(r'[^a-zA-Z0-9._-]+', '-', report['project_name']).strip('.-')[:80] or 'project'
     folder = Path(output) / (project + '_' + stamp)

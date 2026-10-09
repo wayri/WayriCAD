@@ -57,6 +57,45 @@ def resolve_model(filename, variables, project_dir):
     return path if path.is_file() and path.suffix.lower() in ('.step', '.stp') else None
 
 
+def saved_board_outline(board):
+    """Read Edge.Cuts as unfilled CAD-mm contours; never infer a board rectangle.
+
+    KiCad tessellates arcs at its configured maximum-error setting. Hole contours
+    remain separate. This is visual context, not solid or manufacturing evidence.
+    """
+    import pcbnew as p
+    result = dict(status='unavailable', polylines=[], bounds=None, unit='mm',
+                  evidence='saved Edge.Cuts polylines (native KiCad tessellation)',
+                  coordinate_system='CAD X/Y; KiCad Y inverted; Z=substrate top')
+    try:
+        polygons = p.SHAPE_POLY_SET()
+        # No inferred outline, no retained arcs, no synthetic NPTH hole contours.
+        if not board.GetBoardPolygonOutlines(polygons, False, None, False, False) or not polygons.OutlineCount():
+            result['reason'] = 'Saved Edge.Cuts is missing or does not form a valid closed outline.'
+            return result
+        settings = board.GetDesignSettings()
+        z = p.ToMM(settings.GetBoardThickness())
+        contours = []
+        for outline_index in range(polygons.OutlineCount()):
+            chains = [(polygons.COutline(outline_index), False)]
+            chains.extend((polygons.CHole(outline_index, index), True)
+                          for index in range(polygons.HoleCount(outline_index)))
+            for chain, hole in chains:
+                points = [[p.ToMM(chain.CPoint(i).x), -p.ToMM(chain.CPoint(i).y), z]
+                          for i in range(chain.PointCount())]
+                if not chain.IsClosed() or len(points) < 3 or not all(math.isfinite(v) for point in points for v in point):
+                    raise ValueError('KiCad returned an incomplete or invalid outline contour')
+                contours.append(dict(points=points, closed=True, hole=hole, outline_index=outline_index))
+        points = [point for contour in contours for point in contour['points']]
+        result.update(status='available', polylines=contours,
+                      bounds=[min(point[i] for point in points) for i in range(3)] +
+                             [max(point[i] for point in points) for i in range(3)],
+                      curve_tolerance_mm=p.ToMM(settings.m_MaxError))
+    except Exception as exc:
+        result['reason'] = 'Saved Edge.Cuts outline could not be read: ' + str(exc)
+    return result
+
+
 def prepare(board, workdir, project_dir, config):
     import pcbnew as p
     mm = p.ToMM
@@ -67,6 +106,8 @@ def prepare(board, workdir, project_dir, config):
     variables = model_variables(project_dir, config['model_variables'])
     data = dict(name=Path(board.GetFileName()).name, thickness=mm(board.GetDesignSettings().GetBoardThickness()),
                 components=[], pads=[], mounts=[], gaps=[], model_map={})
+    if config.get('mode') == 'quick2d':
+        data['outline'] = saved_board_outline(board)
     seen = set()
     ref_counts = Counter(fp.GetReference() for fp in board.GetFootprints())
     for index, fp in enumerate(board.GetFootprints()):

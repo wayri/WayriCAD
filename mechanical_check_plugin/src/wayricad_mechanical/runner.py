@@ -11,7 +11,7 @@ from .findings import finish
 from .runtime import discover, run_process
 
 
-def run(board_path, config, progress=lambda value, message: None, cancel=None, project_dir=None):
+def run(board_path, config, progress=lambda value, message: None, cancel=None, project_dir=None, measurement_session=None):
     board_path = Path(board_path).resolve()
     config = validate(config)
     runtime = discover()
@@ -27,6 +27,12 @@ def run(board_path, config, progress=lambda value, message: None, cancel=None, p
     comparison = config['comparison_board']
     other_path = None
     other_hash = None
+    measurement_sources = {str(board_path): source_hash}
+    if measurement_session:
+        for enclosure in config['enclosures']:
+            path = Path(enclosure['path']).resolve()
+            if path.is_file():
+                measurement_sources[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
     if comparison:
         other_path = Path(comparison['path'])
         if not other_path.is_absolute():
@@ -35,6 +41,7 @@ def run(board_path, config, progress=lambda value, message: None, cancel=None, p
         if not other_path.is_file() or other_path.suffix.lower() != '.kicad_pcb':
             raise ValueError('Choose an existing KiCad PCB for the comparison board')
         other_hash = hashlib.sha256(other_path.read_bytes()).hexdigest()
+        measurement_sources[str(other_path)] = other_hash
     with tempfile.TemporaryDirectory(prefix='wayricad-mechanical-') as temp:
         work = Path(temp)
         request = dict(board_path=str(board_path), config=config, workdir=str(work), project_dir=str(project_dir or board_path.parent))
@@ -65,6 +72,8 @@ def run(board_path, config, progress=lambda value, message: None, cancel=None, p
             args.append(board['snapshot'])
             run_process(args, work / 'export.log', cancel)
             job = dict(board=board, config=config, step=str(step))
+            if measurement_session:
+                job['measurement_directory'] = str(work / 'measurement-solids')
             if other_board:
                 other_step = work / 'comparison' / 'assembly.step'
                 other_args = [runtime['kicad_cli'], 'pcb', 'export', 'step', '--force', '--subst-models', '--user-origin', '0x0mm', '-o', str(other_step)]
@@ -104,5 +113,13 @@ def run(board_path, config, progress=lambda value, message: None, cancel=None, p
         board.pop('snapshot', None)
         if other_board:
             other_board.pop('snapshot', None)
+        if measurement_session:
+            for source_board in [board] + ([other_board] if other_board else []):
+                for component in source_board['components']:
+                    for model in component['models']:
+                        if model.get('resolved'):
+                            measurement_sources[model['path']] = model['sha256']
+            measurement_session.bind(result, work / 'measurement-solids' if config['mode'] == 'exact3d' else None,
+                                     runtime, measurement_sources)
         progress(100, 'Validation complete — review findings and model coverage')
         return finish(result, config)

@@ -15,6 +15,8 @@ from .report import export
 from .runner import run
 from .runtime import Cancelled, discover
 from .viewer import Scene
+from .measurement_service import MeasurementSession
+from .inspection_state import measurement_text
 from .extract import is_mounting
 
 INK, MUTED, BG, TEAL = '#243444', '#5c7180', '#f7fafc', '#267269'
@@ -145,6 +147,9 @@ class Window(wx.Frame):
         self.board_path = str(board_path or (live_board.GetFileName() if live_board else ''))
         self.result = None
         self.running = False
+        self._closing=False;self.live_temp=None
+        self.measurement_session=None;self.measuring=False
+        self.measure_cancel=threading.Event();self.measure_generation=0
         self.cancel = threading.Event()
         self.mount_rows = []
         self.filtered = []
@@ -326,17 +331,20 @@ class Window(wx.Frame):
         split=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE)
         left=wx.Panel(split);left.SetBackgroundColour(BG);ls=wx.BoxSizer(wx.VERTICAL)
         self.scene=Scene(left);ls.Add(self.scene,1,wx.EXPAND)
-        controls=wx.BoxSizer(wx.HORIZONTAL)
+        controls=wx.WrapSizer(wx.HORIZONTAL)
         controls.Add(button(left,'Fit board',lambda e:self.scene.fit()),0,wx.RIGHT,8)
         controls.Add(button(left,'Focus contact',lambda e:self.scene.focus_contact()),0,wx.RIGHT,8)
-        controls.Add(button(left,'Top',lambda e:self.set_view(0,0)),0,wx.RIGHT,8)
-        controls.Add(button(left,'Isometric',lambda e:self.set_view(-.6,.8)))
+        for name,title in [('top','Top'),('bottom','Bottom'),('side','Side'),('iso','Isometric')]:
+            controls.Add(button(left,title,lambda e,n=name:self.view(n)),0,wx.RIGHT,5)
         ls.Add(controls,0,wx.TOP|wx.BOTTOM,8)
-        toggles=wx.BoxSizer(wx.HORIZONTAL)
-        for title,key,initial in [('Isolate parts','isolate',True),('Transparent PCB','ghost',True),('Cutaway PCB','section',False)]:
+        toggles=wx.WrapSizer(wx.HORIZONTAL)
+        for title,key,initial in [('Isolate parts','isolate',False),('Transparent PCB','ghost',True),('Cutaway PCB','section',False),('Grid','grid',True),('References','labels',True)]:
             control=wx.CheckBox(left,label=title);control.SetValue(initial)
             control.Bind(wx.EVT_CHECKBOX,lambda e,k=key:(setattr(self.scene,k,e.IsChecked()),self.scene.Refresh()))
             toggles.Add(control,0,wx.RIGHT,10)
+        self.ortho=wx.CheckBox(left,label='Orthographic')
+        self.ortho.Bind(wx.EVT_CHECKBOX,lambda e:(setattr(self.scene,'orthographic',e.IsChecked()),self.scene.Refresh(False)))
+        toggles.Add(self.ortho,0,wx.RIGHT,8)
         ls.Add(toggles,0,wx.BOTTOM,8)
         sections=wx.BoxSizer(wx.HORIZONTAL)
         sections.Add(label(left,'Section plane',10,True),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,7)
@@ -351,15 +359,35 @@ class Window(wx.Frame):
         sections.Add(self.section_offset,1,wx.RIGHT,8)
         sections.Add(button(left,'2D section…',self.show_section_profile))
         ls.Add(sections,0,wx.EXPAND|wx.BOTTOM,8)
-        self.scene_legend=label(left,'Red: exact contact volume (X-ray) · Gold: hardware allowance\nDrag: orbit · Right-drag: pan · Wheel: zoom',9,False,MUTED)
+        self.scene_legend=label(left,'Red: exact contact volume · Gold: hardware allowance\nRulers/contact overlays show through surfaces · CAD XYZ, mm',9,False,MUTED)
         ls.Add(self.scene_legend,0,wx.BOTTOM,8)
         left.SetSizer(ls)
         right=wx.Panel(split);right.SetBackgroundColour(BG);rs=wx.BoxSizer(wx.VERTICAL)
+        tools=wx.BoxSizer(wx.HORIZONTAL)
+        self.measure_mode=wx.Choice(right,choices=['Select / orbit','Measure two parts','Two-point ruler'])
+        self.measure_mode.SetSelection(0);self.measure_mode.Bind(wx.EVT_CHOICE,self.change_measure_mode)
+        tools.Add(self.measure_mode,1,wx.RIGHT,5)
+        tools.Add(button(right,'Clear rulers',self.clear_rulers))
+        rs.Add(tools,0,wx.EXPAND|wx.BOTTOM,7)
+        self.part_panel=wx.Panel(right);pairs=wx.BoxSizer(wx.HORIZONTAL)
+        self.part_a=wx.ComboBox(self.part_panel);self.part_b=wx.ComboBox(self.part_panel)
+        self.part_a.SetHint('First part');self.part_b.SetHint('Second part')
+        pairs.Add(self.part_a,1,wx.RIGHT,4);pairs.Add(self.part_b,1,wx.RIGHT,4)
+        self.measure_button=button(self.part_panel,'Measure',self.measure_selected_parts)
+        pairs.Add(self.measure_button);self.part_panel.SetSizer(pairs)
+        rs.Add(self.part_panel,0,wx.EXPAND|wx.BOTTOM,7);self.part_panel.Hide()
+        self.measure_readout=wx.TextCtrl(right,value='Hover to inspect nearest part. Choose a ruler tool to measure.',
+                                       style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE,size=(-1,80))
+        rs.Add(self.measure_readout,0,wx.EXPAND|wx.BOTTOM,8)
+        self.scene.on_measure=self.measure_pair
+        self.scene.on_pick=self.scene_picked
+        self.scene.on_hover=self.scene_hovered
+        self.scene.on_ruler=self.point_ruler
         self.list=wx.ListCtrl(right,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
         for i,(title,width) in enumerate([('Level',75),('Parts',100),('Finding',340)]):self.list.InsertColumn(i,title,width=width)
         self.list.Bind(wx.EVT_LIST_ITEM_SELECTED,self.select_finding)
         rs.Add(self.list,1,wx.EXPAND)
-        right.SetSizer(rs);split.SplitVertically(left,right,510);split.SetMinimumPaneSize(270)
+        right.SetSizer(rs);split.SplitVertically(left,right,560);split.SetMinimumPaneSize(300)
         s.Add(split,1,wx.EXPAND)
         self.detail=wx.TextCtrl(p,style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE,size=(-1,115))
         s.Add(self.detail,0,wx.EXPAND|wx.TOP,10)
@@ -380,6 +408,7 @@ class Window(wx.Frame):
         p.SetSizer(s)
 
     def load_board(self):
+        self.reset_measurement_session()
         path=self.file.GetPath()
         self.board_path=path
         self.result=None
@@ -389,6 +418,7 @@ class Window(wx.Frame):
         self.report_info.Clear()
         self.summary.SetLabel('Run validation to see findings for this board.')
         self.scene.set_report({'bodies': []})
+        self.part_a.Clear();self.part_b.Clear()
         if not path and not self.live_board:return
         try:
             import pcbnew as pcb
@@ -462,11 +492,15 @@ class Window(wx.Frame):
         self.Layout()
 
     def start(self,event):
+        if self.running:return
         try:
             config=self.get_config()
             if not self.board_path and not self.live_board:raise ValueError('Choose a board first.')
             self.config=config
             path=self.board_path
+            self.reset_measurement_session()
+            self.measurement_session=MeasurementSession()
+            session=self.measurement_session
             self.live_temp=None
             if self.live_board:
                 import pcbnew
@@ -477,17 +511,19 @@ class Window(wx.Frame):
                     if not pcbnew.SaveBoard(path,self.live_board):raise RuntimeError('Could not capture live board')
                 finally:self.live_board.SetFileName(original)
             self.running=True;self.cancel.clear();self.result=None
+            self.pages[0].Disable();self.pages[1].Disable();self.export_button.Disable()
+            self.scene.set_report({'bodies':[]})
             self.show_step(2);self.run_button.Disable();self.cancel_button.Enable()
             self.status.SetLabel('Validation running — your board remains editable')
             def worker():
                 try:
-                    result=run(path,config,lambda value,message:wx.CallAfter(self.update_progress,value,message),self.cancel,Path(self.snapshot_of or self.board_path).resolve().parent if self.board_path else None)
+                    result=run(path,config,lambda value,message:self.dispatch(self.update_progress,value,message),self.cancel,Path(self.snapshot_of or self.board_path).resolve().parent if self.board_path else None,measurement_session=session)
                     if self.live_board:
                         result.update(board_name=Path(self.board_path).name or 'Unsaved board',board_path=self.board_path,source_kind='live editor snapshot')
                     elif self.snapshot_of:
                         result.update(board_name=Path(self.snapshot_of).name,board_path=self.snapshot_of,source_kind='IPC snapshot captured at launch')
-                    wx.CallAfter(self.completed,result,None)
-                except Exception as exc:wx.CallAfter(self.completed,None,exc)
+                    self.dispatch(self.completed,result,None)
+                except Exception as exc:self.dispatch(self.completed,None,exc)
             threading.Thread(target=worker,daemon=True).start()
         except Exception as exc:wx.MessageBox(str(exc),'Check setup',wx.OK|wx.ICON_WARNING,self)
 
@@ -496,17 +532,22 @@ class Window(wx.Frame):
 
     def completed(self,result,error):
         self.running=False;self.run_button.Enable();self.cancel_button.Disable()
-        if self.live_temp:self.live_temp.cleanup();self.live_temp=None
+        self.pages[0].Enable();self.pages[1].Enable()
         if error:
+            self.reset_measurement_session()
             self.progress_text.SetLabel('Cancelled.' if isinstance(error,Cancelled) else 'Validation could not finish.')
             self.status.SetLabel('No completed report is available')
             if not isinstance(error,Cancelled):wx.MessageBox(str(error),'Validation error',wx.OK|wx.ICON_ERROR,self)
             self.show_step(2);return
         self.result=result;self.scene.set_report(result);self.refresh_result();self.show_step(3)
+        self.scene.fit()
 
     def refresh_result(self):
         r=self.result
-        self.scene_legend.SetLabel('Flat footprint envelopes only; no model height or solid collision.\nDrag: orbit · Right-drag: pan · Wheel: zoom' if r['rules'].get('mode')=='quick2d' else 'Red: exact contact volume (X-ray) · Gold: hardware allowance\nDrag: orbit · Right-drag: pan · Wheel: zoom')
+        self.scene_legend.SetLabel('2D footprint envelopes; no height / solid collision.\nRulers show through surfaces · CAD XYZ, mm' if r['rules'].get('mode')=='quick2d' else 'Red: exact contact volume · Gold: hardware allowance\nRulers/contact overlays show through surfaces · CAD XYZ, mm')
+        refs=sorted({body['ref'] for body in r['bodies'] if body['kind'] not in ('hardware envelope','hole allowance')})
+        self.part_a.SetItems(refs);self.part_b.SetItems(refs)
+        self.part_a.AutoComplete(refs);self.part_b.AutoComplete(refs)
         self.summary.SetLabel(f"{r['status'].replace('_',' ').upper()}   ·   {len(r['findings'])} findings   ·   {len(r['coverage']['gaps'])} coverage gaps")
         self.status.SetLabel('Completed '+r['local_timestamp'][:19].replace('T',' '))
         self.report_info.SetValue(f"Project: {r['project_name']}\nRevision: {r['project_revision'] or 'Unspecified'}\nBoard: {r['board_name']}\nReviewer: {r['reviewer'] or 'Unspecified'}\n\nStarted (UTC): {r['started_at']}\nCompleted (UTC): {r['completed_at']}\nLocal time: {r['local_timestamp']}\nDuration: {r['duration_seconds']} s\n\nResult: {r['status']}\nBoard SHA-256: {r['board_sha256']}\n\nEvery finding includes rule, affected references, evidence, measurement, corrective action and waiver reason.")
@@ -563,9 +604,84 @@ class Window(wx.Frame):
         dlg.SetSizer(layout);dlg.ShowModal();dlg.Destroy()
 
     def set_view(self,yaw,pitch):
-        self.scene.yaw=-1.5708 if pitch==0 else -1.0
-        self.scene.pitch=1.5707 if pitch==0 else .75
-        self.scene.Refresh()
+        self.view('top' if pitch==0 else 'iso')
+
+    def view(self,name):
+        self.scene.set_view(name);self.ortho.SetValue(self.scene.orthographic)
+
+    def dispatch(self,callback,*args):
+        def guarded():
+            if not self._closing and self:callback(*args)
+        wx.CallAfter(guarded)
+
+    def reset_measurement_session(self):
+        self.measure_generation+=1;self.measure_cancel.set();self.measuring=False
+        if hasattr(self,'measure_button'):self.measure_button.Enable()
+        if self.measurement_session:self.measurement_session.close();self.measurement_session=None
+        if self.live_temp:self.live_temp.cleanup();self.live_temp=None
+
+    def change_measure_mode(self,event):
+        mode=('select','parts','points')[self.measure_mode.GetSelection()]
+        self.scene.set_mode(mode);self.part_panel.Show(mode=='parts');self.part_panel.GetParent().Layout()
+        self.measure_readout.SetValue({'select':'Hover a part for its measured nearest-part gap.',
+                                      'parts':'Click two different parts, or choose their references and Measure.',
+                                      'points':'Click two visible surface points. This ruler measures between those points, not minimum part clearance.'}[mode])
+
+    def scene_picked(self,hit):
+        if self.scene.inspection.mode=='parts':
+            pair=self.scene.inspection.pair
+            if pair:self.part_a.SetValue(pair[0])
+            if len(pair)==2:self.part_b.SetValue(pair[1])
+            elif pair:self.measure_readout.SetValue(pair[0]+': choose the second part.')
+        elif self.scene.inspection.mode=='points' and self.scene.inspection.point_start:
+            self.measure_readout.SetValue('First surface point pinned. Click the second point for a ruler.')
+
+    def scene_hovered(self,hit,record):
+        if self.measuring or self.scene.inspection.mode!='select':return
+        if record:self.measure_readout.SetValue('Nearest part: '+measurement_text(record))
+        elif hit:self.measure_readout.SetValue(hit['reference']+' · XYZ '+', '.join(f'{v:.6g}' for v in hit['position'])+' mm\nNearest-part distance unavailable for this geometry.')
+
+    def point_ruler(self,record):
+        if self.result:self.result.setdefault('point_rulers',[]).append(record)
+        self.measure_readout.SetValue(measurement_text(record))
+
+    def clear_rulers(self,event=None):
+        self.measure_generation+=1;self.measure_cancel.set();self.measuring=False
+        self.measure_button.Enable();self.scene.clear_measurements()
+        if self.result:self.result['point_rulers']=[]
+        self.measure_readout.SetValue('Visible rulers cleared. Measured part distances remain available in the report.')
+
+    def measure_selected_parts(self,event):
+        self.measure_pair(self.part_a.GetValue().strip(),self.part_b.GetValue().strip())
+
+    def measure_pair(self,first,second):
+        if not self.result:return
+        available={body['ref'] for body in self.result['bodies']}
+        if first==second or first not in available or second not in available:
+            self.measure_readout.SetValue('Choose two different references from this report.');return
+        if self.measuring:
+            self.measure_readout.SetValue('A distance query is running. Clear rulers to cancel it.');return
+        report=self.result;session=self.measurement_session or MeasurementSession()
+        self.measuring=True;self.measure_generation+=1;generation=self.measure_generation
+        self.measure_cancel=threading.Event();cancel=self.measure_cancel
+        self.measure_button.Disable();self.scene.refs={first,second};self.scene.Refresh(False)
+        self.measure_readout.SetValue(f'{first} ↔ {second}: measuring report geometry…')
+        def worker():
+            try:record=session.measure(report,first,second,cancel=cancel);error=None
+            except Exception as exc:record=None;error=str(exc)
+            finally:
+                if session is not self.measurement_session:session.close()
+            self.dispatch(self.measured,generation,report,record,error)
+        threading.Thread(target=worker,daemon=True).start()
+
+    def measured(self,generation,report,record,error):
+        if generation!=self.measure_generation or report is not self.result:return
+        self.measuring=False;self.measure_button.Enable()
+        if error:self.measure_readout.SetValue('Distance unavailable: '+error);return
+        records=report.setdefault('measurements',[])
+        records[:]=[r for r in records if set(r['refs'])!=set(record['refs'])]
+        records.append(record);self.scene.set_measurement(record)
+        self.measure_readout.SetValue(measurement_text(record))
 
     def locate(self,event):
         f=self.selected()
@@ -661,7 +777,7 @@ class Window(wx.Frame):
     def close(self,event):
         if self.running:
             self.cancel.set();self.status.SetLabel('Cancelling geometry worker — close again after it stops');event.Veto();return
-        self.Destroy()
+        self._closing=True;self.reset_measurement_session();self.Destroy()
 
 
 def launch(board_path=None,rules_path=None,snapshot_of=None,review_path=None):

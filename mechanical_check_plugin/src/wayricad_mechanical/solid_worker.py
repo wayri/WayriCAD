@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .findings import bbox_distance, candidate_pairs, finding, gaps
+from .proximity import PairMeasurements, exact_measure, nearest_parts
 
 
 def analyze(job):
@@ -14,6 +15,7 @@ def analyze(job):
     import Part
     config, board = job['config'], job['board']
     issues, missing = [], list(board['gaps'])
+    measurements = PairMeasurements(exact_measure)
     doc = App.newDocument('ThreeDvalid')
     Import.insert(job['step'], doc.Name)
     shapes = {}
@@ -119,12 +121,14 @@ def analyze(job):
                                           limit=config['clearance_mm'], unit='mm', points=point_list(points)))
             except Exception as exc:
                 missing.append(enclosure['ref'] + ': enclosure-to-board check failed: ' + str(exc))
-    margin = max(config['clearance_mm'], config['xy_clearance_mm'], config['z_clearance_mm'])
+    margin = max(config['clearance_mm'], math.hypot(config['xy_clearance_mm'], config['z_clearance_mm']))
     for a, b in candidate_pairs(bodies, margin):
         try:
-            distance, points, _ = a['shape'].distToShape(b['shape'])
+            measurement = measurements.get(a, b)
+            distance, points = measurement['distance_mm'], [measurement['points']]
             overlap = a['shape'].common(b['shape']) if distance < 1e-7 else None
             volume = overlap.Volume if overlap is not None else 0
+            measurement['overlap_volume_mm3'] = volume
             refs = [a['ref'], b['ref']]
             if volume > config['volume_tolerance_mm3']:
                 issues.append(finding('solid.collision', refs, 'STEP solids intersect',
@@ -148,7 +152,10 @@ def analyze(job):
         primary_bodies = [b for b in bodies if b['kind'] == 'component']
         primary_bodies.extend(dict(ref='PCB' + (str(i) if i else ''), shape=shape,
                                    bounds=box(shape), kind='board', side='both') for i, shape in enumerate(pcb))
-        interboard_checks(primary_bodies, comparison_bodies, config, issues, missing)
+        interboard_checks(primary_bodies, comparison_bodies, config, issues, missing, measurements)
+    proximity = nearest_parts(bodies + comparison_bodies, measurements)
+    for refs, error in measurements.errors.items():
+        missing.append('Surface measurement ' + '/'.join(refs) + ': ' + error)
     thickness = board['thickness']
     for body in bodies:
         if body['kind'] != 'component':
@@ -195,9 +202,12 @@ def analyze(job):
     for i, shape in enumerate(pcb):
         bodies.append(dict(ref='PCB' + (str(i) if i else ''), shape=shape, bounds=box(shape), kind='board', side='both'))
     bodies.extend(comparison_bodies)
+    if job.get('measurement_directory'):
+        save_measurement_shapes(bodies, job['measurement_directory'])
     for body in bodies:
         body['mesh'] = mesh(body['shape'])
-    result = dict(findings=issues, bodies=[{k: v for k, v in b.items() if k != 'shape'} for b in bodies],
+    result = dict(findings=issues, proximity=proximity, measurement_stats=measurements.stats,
+                  bodies=[{k: v for k, v in b.items() if k != 'shape'} for b in bodies],
                   coverage=dict(engine='FreeCAD ' + '.'.join(App.Version()[:3]) + ' / Open CASCADE solids',
                                 expected_models=len(board['model_map']), imported_models=len(imported),
                                 components_with_solids=len([b for b in bodies if b['kind'] == 'component']),
@@ -211,19 +221,22 @@ def analyze(job):
 
 
 
-def interboard_checks(primary, comparison, config, issues, missing):
+def interboard_checks(primary, comparison, config, issues, missing, measurements=None):
     """Compare only solids belonging to different boards in the same CAD frame."""
     clearance = config['clearance_mm']
     tolerance = config['volume_tolerance_mm3']
     primary_ids = {id(body) for body in primary}
+    measurements = measurements or PairMeasurements(exact_measure)
     for first, second in candidate_pairs(primary + comparison, clearance):
         if (id(first) in primary_ids) == (id(second) in primary_ids):
             continue
         a, b = (first, second) if id(first) in primary_ids else (second, first)
         try:
-            distance, points, _ = a['shape'].distToShape(b['shape'])
+            measurement = measurements.get(a, b)
+            distance, points = measurement['distance_mm'], [measurement['points']]
             overlap = a['shape'].common(b['shape']) if distance < 1e-7 else None
             volume = overlap.Volume if overlap is not None else 0.0
+            measurement['overlap_volume_mm3'] = volume
             refs = [a['ref'], b['ref']]
             if volume > tolerance:
                 bounds = box(overlap)
@@ -244,6 +257,25 @@ def interboard_checks(primary, comparison, config, issues, missing):
                                       sections=sections_for_pair(a['shape'], b['shape'], [*origin, *origin], config['section_normal'])))
         except Exception as exc:
             missing.append('Interboard pair ' + a['ref'] + '/' + b['ref'] + ': ' + str(exc))
+
+
+def save_measurement_shapes(bodies, directory):
+    """Private transformed BREP copies; never reload or retag source models."""
+    import Part
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    grouped = {}
+    for body in bodies:
+        grouped.setdefault(body['ref'], []).append(body)
+    manifest = {}
+    for index, (ref, group) in enumerate(grouped.items()):
+        filename = str(index) + '.brep'
+        shape = Part.makeCompound([body['shape'] for body in group])
+        shape.exportBrep(str(directory / filename))
+        evidence = ('conservative hardware envelopes' if any(body['kind'] in ('hardware envelope', 'hole allowance') for body in group)
+                    else 'exact STEP surfaces')
+        manifest[ref] = dict(file=filename, evidence=evidence)
+    (directory / 'manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
 
 def sections_for_pair(first, second, bounds, custom_normal):
     """Intersect two exact solids with X/Y/Z planes through the finding."""

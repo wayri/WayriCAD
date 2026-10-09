@@ -6,6 +6,7 @@ dist/
 *.egg-info/
 .build-tools/
 .validation/
+.native-temp/
 .validation-*.log
 .pytest_cache/
 **/tests-current.log
