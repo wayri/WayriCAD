@@ -105,6 +105,65 @@ def _field_quads(field, z):
     return quads, values
 
 
+def _component_label(item, value):
+    return item['reference']+(f' Tj≈{value:.1f}°C' if value is not None else ' Tj unknown')
+
+
+def _install_component_hover(ax, targets, selected_id, three_d=False):
+    """Keep one reusable hover label; component markers and fields stay intact."""
+    ax._thermal_targets=targets;ax._thermal_selected_id=selected_id
+    ax._thermal_hover_id=None;ax._thermal_hover_3d=three_d
+    if three_d:
+        label=ax.text(0,0,0,'',fontsize=8,zorder=10,
+                      bbox={'facecolor':'white','alpha':.95,'edgecolor':'none','pad':2})
+    else:
+        label=ax.annotate('',(0,0),xytext=(9,9),textcoords='offset points',
+                          fontsize=8,zorder=10,annotation_clip=True,
+                          bbox={'facecolor':'white','alpha':.95,'edgecolor':'none','pad':2})
+    label.set_visible(False);label.set_gid('quicktherm-component-hover')
+    ax._thermal_hover_label=label
+
+
+def update_component_hover(ax, event=None):
+    """Label only the footprint/marker under the pointer, without rebuilding maps.
+
+    Marker proximity is measured in display pixels so it follows pan, zoom and
+    3D rotation. Planar views also accept a hit inside the saved footprint box.
+    """
+    label=getattr(ax,'_thermal_hover_label',None)
+    if label is None:return None
+    targets=ax._thermal_targets;hit=None
+    if event is not None and event.inaxes is ax and targets:
+        positions=np.asarray([row['position'] for row in targets],dtype=float)
+        if ax._thermal_hover_3d:
+            from mpl_toolkits.mplot3d import proj3d
+            x,y,_=proj3d.proj_transform(*positions.T,ax.get_proj())
+            pixels=ax.transData.transform(np.column_stack((x,y)))
+            inside=np.zeros(len(targets),dtype=bool)
+        else:
+            pixels=ax.transData.transform(positions[:,:2])
+            inside=np.asarray([bool(row.get('bbox') and event.xdata is not None and event.ydata is not None and
+                               row['bbox'][0]<=event.xdata<=row['bbox'][2] and row['bbox'][1]<=event.ydata<=row['bbox'][3])
+                               for row in targets])
+        distances=((pixels-[event.x,event.y])**2).sum(axis=1)
+        candidates=np.flatnonzero(inside | (distances<=14**2))
+        if len(candidates):hit=targets[min(candidates,key=lambda i:distances[i])]
+    identifier=hit['id'] if hit and hit['id']!=ax._thermal_selected_id else None
+    if identifier==ax._thermal_hover_id:return identifier
+    ax._thermal_hover_id=identifier;label.set_visible(identifier is not None)
+    if identifier is not None:
+        label.set_text(hit['label'])
+        if ax._thermal_hover_3d:label.set_position_3d(hit['position'])
+        else:
+            label.xy=hit['position'][:2]
+            right=event.x>ax.bbox.x0+ax.bbox.width/2;top=event.y>ax.bbox.y0+ax.bbox.height/2
+            label.set_position((-9 if right else 9,-9 if top else 9))
+            label.set_horizontalalignment('right' if right else 'left')
+            label.set_verticalalignment('top' if top else 'bottom')
+    ax.figure.canvas.draw_idle()
+    return identifier
+
+
 def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None):
     """Illustrative saved-board extrusion, not imported 3D component models."""
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -137,6 +196,7 @@ def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None):
             facecolor='#091720', edgecolor='#88a6b0', linewidth=.25))
     solved=[item['junction_c'] for item in view.get('components',[]) if item.get('junction_c') is not None]
     low=min(solved) if solved else 0;high=max(solved) if solved else 1
+    targets=[]
     for item in view.get('components',[]):
         if not item.get('position_mm'):continue
         x,y=item['position_mm'];top=item.get('top_side',True)
@@ -149,8 +209,11 @@ def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None):
         if box:
             corners=[(box[0],box[1],z),(box[2],box[1],z),(box[2],box[3],z),(box[0],box[3],z)]
             ax.add_collection3d(Poly3DCollection([corners],facecolor=color,edgecolor='#294352',alpha=.6,linewidth=.4))
-        if item.get('in_scope') or item['id']==selected_id:
-            ax.text(x,y,z+.25,item['reference'],fontsize=8)
+        text=_component_label(item,value)
+        targets.append({'id':item['id'],'position':(x,y,z),'label':text})
+        if item['id']==selected_id:
+            label=ax.text(x,y,z+.25,text,fontsize=8)
+            label.set_gid('quicktherm-component-selected')
         ax.plot([x,x],[y,y],[thickness if top else 0,z],color='#576d70',linewidth=.7)
     bbox=view.get('bbox_mm')
     if bbox:
@@ -165,6 +228,7 @@ def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None):
     ax.set_xlabel('X mm');ax.set_ylabel('Y mm');ax.set_zlabel('Board Z mm')
     ax.view_init(elev=elev,azim=azim)
     ax.set_title('Saved board 3D overview · marker heights illustrative')
+    _install_component_hover(ax,targets,selected_id,three_d=True)
     figure.tight_layout();return ax
 
 
@@ -245,6 +309,7 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
     if temperature_limits_c:
         low, high = temperature_limits_c
     modeled={item['reference']:item for item in (network or {}).get('components',[])} if board_model else {}
+    targets=[]
     for item in shown:
         position=item.get('position_mm')
         if not position:continue
@@ -261,11 +326,13 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
         ax.scatter(*position,s=195 if current else (95 if item.get('in_scope') else 0),marker='o',
                    facecolor=color,edgecolor='#00d3b1' if current else ('#344b56' if board_model else 'white'),
                    linewidth=2 if current else .8,zorder=4)
-        if item.get('in_scope'):
-            label=item['reference']+(f" Tj≈{value:.1f}°C" if value is not None else '')
-            ax.annotate(label,position,xytext=(5,5),textcoords='offset points',
+        text=_component_label(item,value)
+        targets.append({'id':item['id'],'position':position,'bbox':box,'label':text})
+        if current:
+            label=ax.annotate(text,position,xytext=(5,5),textcoords='offset points',
                         fontsize=8,fontweight='bold' if current else 'normal',zorder=5,
                         bbox={'facecolor':'white','alpha':.8,'edgecolor':'none','pad':1})
+            label.set_gid('quicktherm-component-selected')
     for probe in probes or []:
         if probe.get('side') != side:
             continue
@@ -285,6 +352,7 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
     ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X mm'+(' · mirrored bottom view' if bottom else ''));ax.set_ylabel('Y mm')
     ax.set_title('Saved PCB '+side+' view · '+((display_layer_name+' copper layer' if display_layer_name else 'approximate board midplane') if board_model else
                  'partial same-side junction interpolation · anchor hull' if contour else 'component estimates with partial junction overlay'))
+    _install_component_hover(ax,targets,selected_id)
     figure.tight_layout();return ax
 
 

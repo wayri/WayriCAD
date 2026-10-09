@@ -37,7 +37,7 @@ class WorkbenchPluginTests(unittest.TestCase):
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):
                         self.assertTrue((package / entry).is_file())
                     continue
-                expected_version = "3.6.13" if package.name in ("mechanical_check_plugin", "quick_pi_plugin") else "3.6.12"
+                expected_version = "3.6.13" if package.name in ("mechanical_check_plugin", "quick_pi_plugin", "quick_therm_plugin") else "3.6.12"
                 self.assertEqual(expected_version, metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))

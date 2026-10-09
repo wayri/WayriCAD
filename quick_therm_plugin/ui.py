@@ -14,6 +14,7 @@ from .plot_canvas import FigureCanvasWxAgg, NavigationToolbar2WxAgg
 
 
 from .thermal_inputs import _parse_sink_areas
+from .thermal_plot import update_component_hover
 
 class QuickThermFrame(wx.Frame):
     def __init__(self, parent, board_path):
@@ -424,6 +425,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_canvas.mpl_connect('button_press_event',self._thermal_plot_pressed)
         self.therm_canvas.mpl_connect('button_release_event',self._thermal_plot_clicked)
         self.therm_canvas.mpl_connect('motion_notify_event',self._thermal_plot_hovered)
+        self.therm_canvas.Bind(wx.EVT_LEAVE_WINDOW,self._clear_thermal_hover)
         self.therm_navigation=NavigationToolbar2WxAgg(self.therm_canvas);self.therm_navigation.Realize()
         visual.Add(self.therm_navigation,0,wx.EXPAND)
         visual.Add(self.therm_canvas,1,wx.EXPAND)
@@ -1035,6 +1037,7 @@ class QuickThermFrame(wx.Frame):
                 select(info['component_id'])
 
         def hovered(point, side):
+            update_component_hover(figures[side].axes[0],point)
             if not point.inaxes or point.xdata is None or point.ydata is None:
                 return
             info = cursor_readout(self.thermal_bundle.get('board_thermal_view', {}),
@@ -1059,6 +1062,9 @@ class QuickThermFrame(wx.Frame):
                                lambda point, side=side: clicked(point, side))
             canvas.mpl_connect('motion_notify_event',
                                lambda point, side=side: hovered(point, side))
+            def leave(event, side=side):
+                update_component_hover(figures[side].axes[0]);event.Skip()
+            canvas.Bind(wx.EVT_LEAVE_WINDOW,leave)
         summary.Bind(wx.EVT_LIST_ITEM_SELECTED,
                      lambda item: select(rows[item.GetIndex()][0]['id'])
                      if 0 <= item.GetIndex() < len(rows) and
@@ -1154,6 +1160,7 @@ class QuickThermFrame(wx.Frame):
 
 
     def _thermal_plot_hovered(self, event):
+        if self.therm_figure.axes:update_component_hover(self.therm_figure.axes[0],event)
         if not self.thermal_bundle or event.xdata is None or event.ydata is None:
             return
         mode=self.therm_mode.GetStringSelection()
@@ -1185,6 +1192,10 @@ class QuickThermFrame(wx.Frame):
         self.therm_cursor.SetLabel(f"{side.title()} · X {info['x_mm']:.2f} mm · "
                                    f"Y {info['y_mm']:.2f} mm · "
                                    f"{info['field_source']}: {value}{part}")
+
+    def _clear_thermal_hover(self,event=None):
+        if self.therm_figure.axes:update_component_hover(self.therm_figure.axes[0])
+        if event:event.Skip()
 
 
     def _select_thermal_in_editor(self,identifier):
