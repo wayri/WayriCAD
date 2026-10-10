@@ -1,6 +1,6 @@
 # Constraint Studio saved-board refresh and via-profile check
 
-Windows, KiCad 10.0.6, Python 3.11.5 prepared KiCad-compatible runtime, wxPython 4.2.2 / wxWidgets 3.3.2. Source branch `codex/wayricad-discoverability`; this is a 3.4.0 candidate, not a published release.
+Windows, KiCad 10.0.6, Python 3.11.5 prepared KiCad-compatible runtime, wxPython 4.2.2 / wxWidgets 3.3.2. Source branch `wayricad-discoverability`; this is a 3.4.0 candidate, not a published release.
 
 The KiCad 10 two-atom net form `(net "CAN_P")` was absent from Studio's layout inspection. The parser now recognizes it. Studio compares the saved board with the loaded snapshot, reloads a clean workspace on focus, and provides an explicit reload action. Dirty staged edits prevent reloading until exported or undone. Routing drafts are reset when the board revision changes so the net picker and previews use the new snapshot.
 
