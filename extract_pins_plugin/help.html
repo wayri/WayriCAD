@@ -68,6 +68,10 @@ U7 | IN-OUT | active | explicitly reviewed pass-through IC</pre>
 <li>Use the mouse wheel to zoom, drag to pan, and double-click to fit the native SVG preview. Click a net lane to highlight it in PCB Editor.</li>
 <li>Click <b>Export This SVG...</b> to save exactly the displayed diagram.</li>
 </ol>
+<h3>Connector and IC pin-to-pin interfaces</h3>
+<p>Select the relevant components on the PCB and click <b>Build pin-to-pin diagram</b> on <b>1 Extract Pins</b>, or choose <b>Pin-to-pin interfaces</b> on <b>6 Block Diagrams</b>. Set the scope to references or wildcards such as <code>U1,J*,P*</code>, choose the central IC, and click <b>Refresh Visual Preview</b>. Connectors, GPIOs and protocol nets are shown as color-coded links with endpoint pin labels. The center IC must be in the chosen scope.</p>
+<p>Protocol labels are inferred from net and pin names. To assign a project-specific label, enter one <code>NET_PATTERN=Protocol</code> per line, such as <code>CAN*=CAN</code> or <code>GPIO*=GPIO</code>. Click a link to highlight its exact PCB net. <b>Export This SVG</b> saves the preview; <b>Export Interactive HTML</b> saves an offline diagram with search, protocol filters and a pin-to-pin table.</p>
+<div class="callout warn">Only exact nets shared by selected PCB pads create links. Include all relevant components in the scope. The diagram does not infer signal direction, schematic hierarchy, or connectivity through series components. Review the schematic for those details.</div>
 
 <h2>Interboard and Harness Work</h2>
 <p>Multi-project inputs, sheet aliases, TM/TC extraction, cross-link rules, harness generation, and full ICD reports are separated into <b>Tools &gt; External Plugins &gt; WayriCAD Interboard &amp; Harness</b>. This keeps ordinary pin extraction small while retaining the complete system workflow.</p>
