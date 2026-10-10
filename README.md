@@ -1,12 +1,19 @@
 # WayriCAD — KiCad Plugins for PCB Design and Analysis
 
-**WayriCAD** is an open-source suite of **19 KiCad plugins** for printed circuit board (PCB) design and analysis. It includes schematic and PCB project merging, hierarchical subsheet reuse, assembly variant management, fanout routing, via stitching, trace impedance and RLC analysis, power integrity (PI), signal integrity (SI), thermal analysis, bill of materials (BOM) editing, and portable project libraries. Each tool installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
+**WayriCAD** is an open-source suite of **19 KiCad plugins** for PCB design, analysis and project review. Each plugin installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
 
-**WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
+## Contents
 
-**Current suite release: [3.6.14](https://github.com/wayri/WayriCAD/releases/tag/v3.6.14) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
-
-[All 19 plugins](#all-19-plugins) · [Install and open](#install-and-open) · [Latest GUI snapshots](#latest-gui-snapshots)
+| Topic | Where to go |
+|---|---|
+| Plugins and workflows | [All 19 plugins](#all-19-plugins) · [Choose a workflow](#choose-a-kicad-workflow) · [Illustrated user guide](docs/USER_GUIDE.md) |
+| Installation | [Quick start](#install-and-open) · [Installation guide](docs/INSTALLATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) |
+| GUI previews | [Latest GUI snapshots](#latest-gui-snapshots) · [More plugin previews](#more-plugin-previews) |
+| Releases and downloads | [Current suite release — 3.6.14](https://github.com/wayri/WayriCAD/releases/tag/v3.6.14) · [Latest release notes](docs/RELEASE_NOTES_3.6.14.md)<br>Independent testing packages: [Project Fusion 0.9.8 PCM](https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-project-fusion-0.9.8-PCM.zip) · [Variant Manager 0.6.1 PCM](https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-variant-manager-0.6.1-PCM.zip) |
+| Requirements | **KiCad 10** is the validated target; KiCad 11-only installations are not supported yet. [Compatibility and known limits](docs/COMPATIBILITY.md) · [Runtime setup](wayricad_runtime/RUNTIME_SETUP.md) |
+| Upgrading | [Upgrade safely](#upgrade-safely) |
+| Automation and development | [Development](#automation-and-development) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Contributing](CONTRIBUTING.md) |
+| Project and licenses | [Maintainer: Wayri](https://github.com/wayri) · [Official source](https://github.com/wayri/WayriCAD) · [Acknowledgements and AI disclosure](#acknowledgements-and-ai-disclosure)<br>[GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed. |
 
 <a id="all-18-plugins"></a>
 
@@ -36,17 +43,9 @@ All 19 packages install independently. Each row shows the current package versio
 | <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md)<br>Version 3.6.14 | Fabricator profiles; board geometry audits; native DRC/jobsets; release gates; hashed ZIP exports | Checks manufacturing constraints and packages reviewed fabrication outputs. |
 | <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md)<br>Version 3.6.14 | 34 visual DRC rule forms; clearance matrices, netclasses and reusable sets; protocol/per-layer routing profiles and reviewed offline Apply Review [3.4.0]; responsive editing, long findings lists and guarded application with request recovery [3.6.12] | Creates and reviews KiCad design constraints in a staged project workspace. |
 
-[Latest release notes — 3.6.14](docs/RELEASE_NOTES_3.6.14.md)
-
 ## Install and open
 
-**Use Releases for published packages. KiCad 10 is the validated target.** KiCad 11-only installations are not supported yet: several engines still need KiCad 10 native Python. See [compatibility and known limits](docs/COMPATIBILITY.md).
-
-[Installation guide](docs/INSTALLATION.md) · [Illustrated user guide](docs/USER_GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Releases](https://github.com/wayri/WayriCAD/releases)
-
 ![Illustrated KiCad 10 installation workflow](docs/images/install-workflow.svg)
-
-**New to KiCad plugins?** Follow the [step-by-step GUI guide](docs/INSTALLATION.md), including ZIP installation, first launch and troubleshooting.
 
 1. In KiCad Manager, open **Plugin and Content Manager**. Add the repository URL below, select **WayriCAD Plugin Repository**, and install the tools you need.
 2. Alternatively, download an individual `WayriCAD-<tool>-<version>-PCM.zip` from Releases and use **Install from File**. Do not unpack the ZIP yourself.
@@ -188,6 +187,3 @@ Imported applications have separate test suites. Native tests require the releva
 WayriCAD development has made substantial use of AI coding assistants and large language models (LLMs) for implementation, debugging, tests, documentation and research assistance. Project maintainers remain responsible for the code and release decisions. AI-generated code and explanations can contain errors; validation evidence and model limitations are documented separately.
 
 We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
-
-
-[Project Fusion 0.9.8 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-project-fusion-0.9.8-PCM.zip) and [Variant Manager 0.6.1 PCM download](https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-variant-manager-0.6.1-PCM.zip) are independent testing packages. Both retain their MIT licenses and native KiCad loaders.
