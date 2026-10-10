@@ -6,7 +6,7 @@
 
 **Current suite release: [3.6.13](https://github.com/wayri/WayriCAD/releases/tag/v3.6.13) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
 
-**New in 3.6.13:** [Mechanical Check](mechanical_check_plugin/README.md) adds engineering 3D measurements, part dimensions, global height limits and proximity markers. [Quick PI](quick_pi_plugin/README.md) expands its board workspace. [QuickTherm](quick_therm_plugin/README.md) adds editable scanned inputs, readable interactive 3D results and transient heating playback with air/vacuum boundaries. The shared loading window clears as soon as a plugin is ready. See the [3.6.13 release notes](docs/RELEASE_NOTES_3.6.13.md) for validation and model limits.
+**New in 3.6.13:** [Mechanical Check](mechanical_check_plugin/README.md) adds engineering 3D measurements, part dimensions, global height limits and proximity markers. [Quick PI](quick_pi_plugin/README.md) expands its board workspace. [QuickTherm](quick_therm_plugin/README.md) adds editable scanned inputs, interactive STEP component models and transient heating playback with explicit component RC inputs and air/vacuum boundaries. The shared loading window clears as soon as a plugin is ready. See the [3.6.13 release notes](docs/RELEASE_NOTES_3.6.13.md) for validation and model limits.
 
 **New in 3.6.12:** [BoM Studio](bom_studio_plugin/README.md) repairs mass/cost totals, consolidation and analytics; [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) keeps editing and reviewed apply responsive. [Quick PI](quick_pi_plugin/README.md) adds multiple current sinks, explicit rail transients and electrothermal studies. [QuickTherm](quick_therm_plugin/README.md) improves whole-board field display and manual/field input recovery. See the [3.6.12 release notes](docs/RELEASE_NOTES_3.6.12.md) for validation and model limits.
 
@@ -60,25 +60,51 @@ Initial dependency setup needs internet access or a prepared wheel cache. Once p
 
 ## Plugin previews
 
-Application captures and rendered interface previews; select a picture or tool title for its guide. Example values are not predictions for your board.
+Select a tool title for its guide, or a latest screenshot to open it at full resolution. Demonstration values are not predictions for your board.
 
-Machine-specific paths in screenshots are replaced with generic project locations; surrounding UI and numerical results are preserved.
+### Latest GUI snapshots — 3.6.13
+
+These unmodified native captures use public or generated demonstration boards. Capture notes document their inputs and model limits; no private project paths appear.
+
+#### [Mechanical Check — 3D measurements and height checks](mechanical_check_plugin/README.md)
+
+<a href="mechanical_check_plugin/help-workflow.png"><img src="mechanical_check_plugin/help-workflow.png" width="960" alt="Mechanical Check native STEP board workspace with an edge-to-edge ruler, global height violation markers and a compact findings sidebar"></a>
+
+Inspect STEP geometry, engineering rulers and height/proximity findings in a large board viewport. The fixture deliberately includes height violations and incomplete coverage. [Capture and validation notes](docs/audits/MECHANICAL_INSPECTION.md).
+
+#### [Quick PI — copper and results workspace](quick_pi_plugin/README.md)
+
+<a href="quick_pi_plugin/help-workspace.png"><img src="quick_pi_plugin/help-workspace.png" width="960" alt="Quick PI native board workspace with compact source and load controls, a smooth voltage-drop overlay and a results inspector"></a>
+
+Compact setup and inspection panels leave more room for the board and continuous result overlay. The demonstrated field solves a uniform copper plate; the pictured PCB traces provide visual context. [Capture and analytical reference](docs/audits/QUICK_PI_WORKSPACE.md).
+
+#### [QuickTherm — STEP models and transient heating](quick_therm_plugin/README.md)
+
+<a href="quick_therm_plugin/examples/quicktherm-component-heating.png"><img src="quick_therm_plugin/examples/quicktherm-component-heating.png" width="960" alt="QuickTherm native interactive 3D STEP board with heated component models, a temperature scale and transient playback controls"></a>
+
+Orbit real STEP geometry and scrub through calculated board and declared component RC temperatures. Each modeled part has one temperature; grey parts have unknown temperature. The example uses explicit demonstration thermal inputs. [Capture, thermal assumptions and validation](docs/audits/QUICKTHERM_COMPONENT_HEATING.md).
+
+#### [QuickTherm — editable component inputs](quick_therm_plugin/README.md)
+
+<a href="quick_therm_plugin/examples/quicktherm-input-workspace.png"><img src="quick_therm_plugin/examples/quicktherm-input-workspace.png" width="960" alt="QuickTherm full-width editable component table with scanned power and Rtheta JA, JB and JC values, temperature limits and select-all controls"></a>
+
+Review scanned values, select the analysis scope and edit power, thermal resistances and limits in one table. [Input workspace capture notes](docs/audits/QUICKTHERM_WORKSPACE.md#screenshot-provenance).
+
+### More plugin previews
+
+Application captures and rendered interface previews; select a picture or title for its guide. Machine-specific paths in these older previews are replaced with generic project locations; surrounding UI and numerical results are preserved.
 
 <table>
 <tr>
 <td width="50%"><h3><a href="fanout_generator_plugin/ReadMe.md">Adaptive fanout</a></h3><a href="fanout_generator_plugin/ReadMe.md"><img src="fanout_generator_plugin/help-adaptive.png" width="480" alt="Adaptive fanout native window preview"></a><p>Review pads, existing copper and proposed tracks/vias before applying.</p></td>
-<td width="50%"><h3><a href="quick_pi_plugin/README.md">Quick PI</a></h3><a href="quick_pi_plugin/README.md"><img src="quick_pi_plugin/help-power-rail.png" width="480" alt="Quick PI native window preview"></a><p>Marble MGTAVCC at a hypothetical 1 A; a selected rail path, not a whole-board load.</p></td>
-</tr>
-<tr>
 <td width="50%"><h3><a href="signal_integrity_advisor_plugin/ReadMe.md">Quick SI</a></h3><a href="signal_integrity_advisor_plugin/ReadMe.md"><img src="signal_integrity_advisor_plugin/help-protocols.png" width="480" alt="Quick SI native window preview"></a><p>Protocol screening keeps missing models and reference coverage visible.</p></td>
+</tr>
+<tr>
 <td width="50%"><h3><a href="trace_impedance_plugin/ReadMe.md">Trace RLC</a></h3><a href="trace_impedance_plugin/ReadMe.md"><img src="trace_impedance_plugin/help-ac-geometry.png" width="480" alt="Trace RLC native window preview"></a><p>Inspect the connected copper path and per-section electrical coverage.</p></td>
-</tr>
-<tr>
-<td colspan="2"><h3><a href="quick_therm_plugin/README.md">QuickTherm — independent thermal plugin</a></h3><a href="quick_therm_plugin/README.md"><img src="quick_therm_plugin/examples/quicktherm-board-model-view.png" width="960" alt="QuickTherm resizable native board view with modeled temperature overlay and virtual probes"></a><p>Map saved footprint thermal inputs and per-part temperature limits, inspect board overlays and sortable component results, place probes, and export HTML/JSON evidence. The pictured board model uses declared demonstration material and airflow inputs.</p></td>
-</tr>
-<tr>
 <td width="50%"><h3><a href="bom_studio_plugin/README.md">BOM Studio</a></h3><a href="bom_studio_plugin/README.md"><img src="bom_studio_plugin/help-cost-mass.png" width="480" alt="BOM Studio native window preview"></a><p>Templates, bulk editing, conditional exports and explicit cost/mass coverage.</p></td>
-<td width="50%"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/ReadMe.md"><img src="planar_magnetics_plugin/help-motor-emf.png" width="480" alt="Magnetics native window preview"></a><p>Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.</p></td>
+</tr>
+<tr>
+<td colspan="2"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/ReadMe.md"><img src="planar_magnetics_plugin/help-motor-emf.png" width="960" alt="Magnetics native window preview"></a><p>Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.</p></td>
 </tr>
 <tr>
 <td colspan="2"><h3><a href="protocol_constraint_composer_plugin/ReadMe.md">Constraint Studio — visual constraint manager</a></h3><a href="protocol_constraint_composer_plugin/ReadMe.md"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="960" alt="Constraint Studio visual worksheet with rule priorities, layout scope and context inspector"></a><p>Edit custom DRC rules visually, manage clearance matrices and reusable constraint sets, and stage per-layer routing profiles for reviewed export. Shipped interface rendered with a demonstration snapshot; scope colours are condition matches, not native DRC results.</p></td>
