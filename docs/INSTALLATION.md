@@ -17,6 +17,8 @@ Install **WayriCAD QuickTherm** as its own package. If you used the QuickTherm a
 
 ## Before you start
 
+- Review the [recommended system specifications](../README.md#recommended-system),
+  especially for PI, thermal and exact 3D mechanical studies on older laptops.
 - Install and open KiCad 10.
 - Use a normal KiCad project with a saved `.kicad_pro` and `.kicad_pcb` file.
 - On the first launch, KiCad may need network access to create each plugin's

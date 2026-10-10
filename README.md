@@ -10,7 +10,7 @@
 | Installation | [Quick start](#install-and-open) · [Installation guide](docs/INSTALLATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | GUI previews | [Latest GUI snapshots](#latest-gui-snapshots) · [More plugin previews](#more-plugin-previews) |
 | Releases and downloads | [Current suite release — 3.6.14](https://github.com/wayri/WayriCAD/releases/tag/v3.6.14) · [Latest release notes](docs/RELEASE_NOTES_3.6.14.md)<br>Independent testing packages: [Project Fusion 0.9.8 PCM](https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-project-fusion-0.9.8-PCM.zip) · [Variant Manager 0.6.1 PCM](https://github.com/wayri/WayriCAD/releases/download/v3.6.10/WayriCAD-variant-manager-0.6.1-PCM.zip) |
-| Requirements | **KiCad 10** is the validated target; KiCad 11-only installations are not supported yet. [Compatibility and known limits](docs/COMPATIBILITY.md) · [Runtime setup](wayricad_runtime/RUNTIME_SETUP.md) |
+| Requirements | [Recommended system](#recommended-system) · [Compatibility and known limits](docs/COMPATIBILITY.md) · [Runtime setup](wayricad_runtime/RUNTIME_SETUP.md)<br>**KiCad 10** is the validated target; KiCad 11-only installations are not supported yet. |
 | Upgrading | [Upgrade safely](#upgrade-safely) |
 | Automation and development | [Development](#automation-and-development) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Contributing](CONTRIBUTING.md) |
 | Project and licenses | [Maintainer: Wayri](https://github.com/wayri) · [Official source](https://github.com/wayri/WayriCAD) · [Acknowledgements and AI disclosure](#acknowledgements-and-ai-disclosure)<br>[GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed. |
@@ -42,6 +42,22 @@ All 19 packages install independently. Each row shows the current package versio
 | <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md)<br>Version 3.6.14 | Multilayer winding generation; LCR and field estimates; motor/actuator models; ngspice simulations | Designs PCB windings and evaluates supported magnetic and electromechanical concepts. |
 | <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md)<br>Version 3.6.14 | Fabricator profiles; board geometry audits; native DRC/jobsets; release gates; hashed ZIP exports | Checks manufacturing constraints and packages reviewed fabrication outputs. |
 | <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md)<br>Version 3.6.14 | 34 visual DRC rule forms; clearance matrices, netclasses and reusable sets; protocol/per-layer routing profiles and reviewed offline Apply Review [3.4.0]; responsive editing, long findings lists and guarded application with request recovery [3.6.12] | Creates and reviews KiCad design constraints in a staged project workspace. |
+
+## Recommended system
+
+These are workload-based planning recommendations, rather than benchmarked minimums. Hardware needs grow with board complexity, mesh density, STEP model detail and transient duration; a cross-hardware performance benchmark suite is not yet available.
+
+| Hardware | Everyday tools and smaller boards | Heavier PI, thermal and exact 3D mechanical studies |
+|---|---|---|
+| CPU | Modern 64-bit CPU with 4 or more physical cores and good single-core performance | 6–8 or more physical cores with strong sustained CPU performance; extra cores do not make every operation parallel |
+| RAM | **16 GB recommended** | **32 GB recommended**; consider **64 GB** for larger meshes, detailed assemblies or concurrent studies |
+| Storage | **SSD**, with roughly **20 GB free** for KiCad, libraries, plugin environments and working files | **SSD**, preferably NVMe, with **40 GB or more free** for additional models, caches, saved copies and reports |
+| Graphics | Integrated or dedicated graphics with a working hardware-accelerated OpenGL driver | Dedicated graphics can improve large interactive 3D scenes; the current PI/thermal solvers use CPU calculations and do not require CUDA |
+| Display | **1920 × 1080** or higher | **1920 × 1080** or higher; a larger display makes side panels and 3D inspection easier |
+
+The storage figures are suggested free-space budgets, not fixed installation sizes. Graphics should meet [KiCad's official system requirements](https://www.kicad.org/help/system-requirements/), including OpenGL 2.1 or greater with hardware shaders. WayriCAD's native GUI checks currently cover Windows with KiCad 10; see [compatibility](docs/COMPATIBILITY.md) for platform validation and each plugin's runtime dependencies. Exact mechanical checks also need FreeCAD; its setup is described in the [Mechanical Check guide](mechanical_check_plugin/README.md#runtime).
+
+**On an older laptop:** run one heavy analysis at a time, close unused applications and keep projects and dependency caches on an SSD. For initial PI/thermal previews, use a coarser mesh and a shorter transient study; refine the mesh and time settings and check convergence before relying on local peaks or heating times. Use [Mechanical Check's Quick 2D screen](mechanical_check_plugin/README.md#quick-in-editor-screening) for an initial envelope review, then run exact 3D checks for solid clearances and collisions. A coarse preview or Quick 2D screen does not replace the detailed analysis.
 
 ## Install and open
 
