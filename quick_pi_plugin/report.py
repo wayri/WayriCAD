@@ -559,7 +559,7 @@ def write_report(path,bundle,layer=None):
         style=settings.get('field_style','smooth')
         images.append('<figure><figcaption>'+escape(metric_name(bundle,metric)+scale_note+diagnostic)+'</figcaption><p>'+escape(field_note(metric,style))+'</p><img alt="'+escape(metric_name(bundle,metric))+'" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'"></figure>')
         figure.clear()
-    scope='Circuit' if bundle.get('request',{}).get('series') else 'Copper'
+    scope='Board + package' if result.get('package_contacts') else 'Circuit' if bundle.get('request',{}).get('series') else 'Copper'
     multisink=len(result.get('sinks',bundle.get('request',{}).get('sinks',[])))>1
     ratio_name=scope+(' apparent ΔV/I' if result.get('contains_forward_drop') else ' resistance ΔV/I')
     values=[('Worst drop / total demand ΔV/I' if multisink else ratio_name,_number(result.get('drop_over_current_ohm'),'mΩ',1000)),
@@ -572,7 +572,7 @@ def write_report(path,bundle,layer=None):
             ('Current balance error',_number(result.get('current_balance_error_A'),'A')),
             ('Energy relative error',_number(result.get('energy_relative_error'))),
             ('Floating triangles',str(result.get('floating_triangles',0)))]
-    for key,label in [('planar_power_W','Copper sheet loss'),('via_power_W','Via barrel loss'),('conductor_power_W','Conductor loss'),('component_power_W','Component loss')]:
+    for key,label in [('planar_power_W','Copper sheet loss'),('via_power_W','Via barrel loss'),('conductor_power_W','Conductor loss'),('component_power_W','Component loss'),('package_power_W','Package contact loss')]:
         if key in result:values.append((label,_number(result[key],'W')))
     table=''.join('<tr><th>'+escape(name)+'</th><td>'+escape(value)+'</td></tr>' for name,value in values)
     assumptions=result.get('thermal_assumptions',{})
@@ -611,6 +611,10 @@ def write_report(path,bundle,layer=None):
     if result.get('analytics'):
         from .analytics import details_text
         html+='<h2>Copper thickness, layer losses and hotspots</h2><pre>'+escape(details_text(result))+'</pre>'
+    if result.get('package_contacts'):
+        from .package_contacts import details_text as package_text
+        html+='<h2>Explicit package contacts</h2><pre>'+escape(package_text(result))+'</pre>'
+        html+='<p>One axial path per declared pad face; positive current flows from package to board. Parallel sharing is solved, with source and sink voltage limits at package endpoints. Sheet, barrel and package losses are separately conserved. No 3D package field or solder-interface resistance is inferred.</p>'
     if result.get('components'):
         html+='<h2>Explicit component branches</h2><p>Fixed and diode forward drops are evaluated at the specified DC load current. Before/after voltages follow the selected path. Inductance is reported as an input; this is not an AC or transient solve.</p>'
         html+='<table><tr><th>Component</th><th>Model</th><th>Current</th><th>Before</th><th>Drop</th><th>After</th><th>Power</th></tr>'

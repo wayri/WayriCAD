@@ -94,6 +94,19 @@ def write_diagnostic_report(path,bundle):
                 html+='<h2>Copper I²R heat</h2><p>'+_number(imported['input_w'],'W')+' · '+escape(imported['meaning'])+'</p>'
             if network.get('settings',{}).get('component_storage'):
                 html+='<h2>Reviewed component thermal RC</h2><pre>'+escape(json.dumps(network['settings']['component_storage'],indent=2,sort_keys=True))+'</pre>'
+            if network.get('package_conduction'):
+                html+='<h2>Physical lead / solder / BGA conduction</h2><p>Positive heat flows from the declared package node toward the saved pad face. Contacts are 1D conduction paths. Imported joint I²R heat is allocated separately; internal package gradients and joint thermal storage are unresolved.</p>'
+                html+='<table><tr><th>Path</th><th>Part / pad</th><th>Layer ID</th><th>R K/W</th><th>Package °C</th><th>Pad °C</th><th>Heat from package W</th><th>Heat to board W</th><th>Joint I²R W</th></tr>'
+                for contact in network['package_conduction']:
+                    definition=contact['definition']
+                    html+='<tr>'+''.join('<td>'+value+'</td>' for value in (
+                        escape(definition['id']),escape(definition['reference']+'.'+definition['pad_number']),
+                        str(definition['layer_id']),_number(contact['thermal_resistance_k_per_w']),
+                        _number(contact['package_c']),_number(contact['board_face_c']),
+                        _number(contact['heat_flow_from_package_w']),_number(contact['heat_flow_to_board_w']),
+                        _number(contact['electrical_joule_heat_w'])))+'</tr>'
+                definitions=[contact['definition'] for contact in network['package_conduction']]
+                html+='</table><details><summary>Reviewed geometry and materials</summary><pre>'+escape(json.dumps(definitions,indent=2))+'</pre></details>'
             html+='<h2>Optional board heat model</h2><p>'+escape(network['model'])+' · '+escape(network['status'])+'</p>'
             if network.get('layers'):
                 html+=('<p>Imported CalculiX nodal temperatures from an extruded 3D copper/dielectric mesh. The entire lower face is fixed; other faces are adiabatic. This is not CFD or a measurement.</p>'

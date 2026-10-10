@@ -35,6 +35,24 @@ class MultisinkInputTests(unittest.TestCase):
                                           {'terminal':'C','current_A':.6,'min_voltage_V':3}])
         self.assertNotIn('sink_terminal',request);self.assertNotIn('sink_current',request)
 
+    def test_package_button_passes_ports_and_clears_stale_results(self):
+        from quick_pi_plugin.tests.test_package_contacts import path
+        f=frame();f._busy=False;f._package_conduction=[]
+        f.inventory={'layers':[{'id':0,'name':'F.Cu'}]}
+        f._terminals=[{'id':'A','label':'J1.1','reference':'J1'},
+                      {'id':'B','label':'U1.1','reference':'U1'},
+                      {'id':'C','label':'U2.1','reference':'U2'}]
+        f._request=lambda action:QuickPIFrame._request(f,action)
+        changes=[];labels=[];f._invalidate=lambda:changes.append(True)
+        f.package_button=SimpleNamespace(SetLabel=labels.append)
+        with patch('wayricad_runtime.package_contact_editor.edit_package_contacts',
+                   return_value=[path('lead','J1','source')]) as editor:
+            QuickPIFrame.on_package_contacts(f)
+        self.assertEqual(editor.call_args.kwargs['ports'],['source','sink:B','sink:C'])
+        self.assertEqual(editor.call_args.kwargs['layers'],f.inventory['layers'])
+        self.assertEqual(changes,[True]);self.assertEqual(labels,['Package contacts (1)…'])
+        self.assertEqual(f._request('solve')['package_conduction'],f._package_conduction)
+
     def test_unlimited_and_zero_source_budget_are_distinct(self):
         f=frame();f.source_current_limit=control('')
         self.assertNotIn('source_current_limit',QuickPIFrame._request(f,'solve'))

@@ -448,6 +448,8 @@ def solve_electrothermal_transient(request,cancel=None):
     status=failed, coupled=None and feasible=False. Peaks/limits are sampled
     diagnostics; two independent step halvings are sensitivity evidence only.
     """
+    if request.get('package_conduction') or request.get('electrical',{}).get('package_conduction'):
+        raise ValueError('Explicit package contacts are unsupported in electrothermal rail transients.')
     if cancel is not None and not callable(cancel): raise TransientError('cancel must be callable or None.')
     _cancel(cancel)
     parameters,rail,elements = _normalize(request)

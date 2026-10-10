@@ -2,7 +2,7 @@
 import math
 
 
-def storage_from_rows(rows):
+def storage_from_rows(rows, *, contact_references=(), transient=True):
     """Rows: (reference, enabled, kind, R K/W, C J/K, initial °C)."""
     output = {}
     for ref, enabled, kind, resistance, capacity, initial, *surface in rows:
@@ -17,7 +17,9 @@ def storage_from_rows(rows):
                 value = float(raw)
             except (ValueError, TypeError):
                 raise ValueError(ref+': enter explicit positive '+label+'.') from None
-            if not math.isfinite(value) or value <= 0:
+            allow_zero = ref in contact_references and (key == 'resistance_k_per_w' or
+                          key == 'capacity_j_k' and not transient)
+            if not math.isfinite(value) or (value < 0 if allow_zero else value <= 0):
                 raise ValueError(ref+': enter explicit positive '+label+'.')
             values[key] = value
         values['temperature_kind'] = kind
@@ -45,7 +47,7 @@ def storage_from_rows(rows):
     return output
 
 
-def edit_storage(parent, references, previous):
+def edit_storage(parent, references, previous, *, contact_references=(), transient=True):
     """A compact reviewed table; blank properties never become defaults."""
     import wx
     import wx.grid
@@ -57,7 +59,9 @@ def edit_storage(parent, references, previous):
             'Body temperature does not establish junction limits. STEP models supply shape, not R or C.\n'
             'Blank initial uses the study initial. Optional surface cooling needs reviewed exposed area, h and emissivity.\n'
             'Use h=0 in vacuum. Blank surface fields mean no direct package cooling.\n'
-            'Enter a thermal contact pad when known; blank uses the saved footprint bounding box as a contact proxy.'))
+            'Enter a thermal contact pad when known; blank uses the saved footprint bounding box as a contact proxy.\n'
+            'Physical lead/solder paths replace R and the single pad selector. Their R is 0 here; add reviewed internal R per path.\n'
+            'Physical-contact steady studies may use C=0; transient studies require a reviewed positive C.'))
         layout.Add(note,0,wx.ALL,10)
         grid = wx.grid.Grid(dialog)
         grid.CreateGrid(len(references),10)
@@ -74,6 +78,11 @@ def edit_storage(parent, references, previous):
             for col,key in ((2,'temperature_kind'),(3,'resistance_k_per_w'),(4,'capacity_j_k'),(5,'initial_c'),
                             (6,'exposed_area_mm2'),(7,'h_w_m2k'),(8,'emissivity'),(9,'contact_pad_number')):
                 grid.SetCellValue(row,col,str(definition.get(key,'body' if col == 2 else '')))
+            if ref in contact_references:
+                grid.SetCellValue(row,3,'0');grid.SetReadOnly(row,3)
+                grid.SetCellValue(row,9,'');grid.SetReadOnly(row,9)
+                if not transient and not definition.get('capacity_j_k'):
+                    grid.SetCellValue(row,4,'0')
         layout.Add(grid,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
         error = wx.StaticText(dialog,label='');layout.Add(error,0,wx.EXPAND|wx.ALL,10)
         layout.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,10)
@@ -83,7 +92,8 @@ def edit_storage(parent, references, previous):
             grid.SaveEditControlValue();grid.DisableCellEditControl()
             try:
                 edited = storage_from_rows([(ref,grid.GetCellValue(row,1)=='1',
-                    *[grid.GetCellValue(row,col) for col in range(2,10)]) for row,ref in enumerate(references)])
+                    *[grid.GetCellValue(row,col) for col in range(2,10)]) for row,ref in enumerate(references)],
+                    contact_references=contact_references,transient=transient)
             except ValueError as exc:
                 error.SetLabel(str(exc));return
             # Keep hidden, unselected definitions until the owner explicitly filters the request.

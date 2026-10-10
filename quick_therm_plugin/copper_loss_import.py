@@ -88,10 +88,27 @@ def import_losses(bundle,source_sha256):
     if not math.isclose(total,expected,rel_tol=1e-8,abs_tol=1e-10):
         raise ValueError('PI conductor energy balance does not match the imported planar and barrel losses.')
     if len(sources)>50000:raise ValueError('Loss transfer exceeds 50,000 sources; use a smaller PI mesh.')
+    package_losses=[]
+    from wayricad_runtime.package_conduction import normalize_paths
+    for contact in result.get('package_contacts',[]):
+        definition=normalize_paths([contact.get('definition')],physics='electrical')[0]
+        watts=_number(contact.get('power_W'),'Package contact loss')
+        current=contact.get('current_A')
+        if isinstance(current,bool) or current is None or not math.isfinite(float(current)):
+            raise ValueError('Package contact current must be known before thermal transfer.')
+        if not math.isclose(float(current)**2*definition['electrical_resistance_ohm'],watts,rel_tol=1e-8,abs_tol=1e-10):
+            raise ValueError('PI package contact current/resistance/heat disagree.')
+        package_losses.append({'id':definition['definition']['id'],'definition':definition['definition'],
+                               'current_a':float(current),'power_w':watts})
+    if not math.isclose(math.fsum(row['power_w'] for row in package_losses),
+                        _number(result.get('package_power_W',0),'PI package power'),rel_tol=1e-8,abs_tol=1e-10):
+        raise ValueError('PI package contact energy balance is incomplete.')
     return {'sources':sources,'source_sha256':binding,'input_w':total,
+            'package_joule_losses':package_losses,
+            'package_joule_input_w':math.fsum(row['power_w'] for row in package_losses),
             'component_power_excluded_w':_number(result.get('component_power_W',0),'PI component power'),
             'layers':[{key:row[key] for key in ('id','z_mm','thickness_mm')} for row in layers],
-            'meaning':'Imported fixed-operating-point conductor I²R heat. Component/load power is separate; no current re-solve during playback.'}
+            'meaning':'Imported fixed-operating-point conductor I²R heat; package contact I²R is separate and needs matching thermal paths. Component/load power is separate; no current re-solve during playback.'}
 
 
 def validate_layer_binding(binding,geometry):

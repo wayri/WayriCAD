@@ -57,9 +57,10 @@ def summarize(mesh, result):
     planar=sum(row['planar_power_W'] for row in layers.values())
     barrels=sum(v.get('power_W') or 0 for v in result.get('vias',[]))
     component=result.get('component_power_W',0.)
+    package=result.get('package_power_W',0.)
     ranked=lambda heap:[dict(row,rank=index+1) for index,(_,_,row) in enumerate(sorted(heap,reverse=True))]
-    return {'layers':list(layers.values()),'losses':{'planar_W':planar,'via_W':barrels,'component_W':component,
-            'total_W':planar+barrels+component,'accounting_error_W':abs(planar+barrels+component-result['total_power_W'])},
+    return {'layers':list(layers.values()),'losses':{'planar_W':planar,'via_W':barrels,'component_W':component,'package_W':package,
+            'total_W':planar+barrels+component+package,'accounting_error_W':abs(planar+barrels+component+package-result['total_power_W'])},
             'hotspots_by_current_density':ranked(density_heap),'hotspots_by_heating_density':ranked(heating_heap),
             'thickness_basis':'Actual triangle thickness from saved board stackup or explicit stackup override; no nominal copper-weight guess.',
             'notice':'Areas and volumes describe meshed copper on the selected net(s); floating copper is reported separately. '
@@ -79,6 +80,9 @@ def details_text(result):
         lines.append(f"{row['name']}: {thickness_label(row)}; "
                      f"area {row['area_mm2']:.6g} mm²; volume {row['volume_mm3']:.6g} mm³; loss {row['planar_power_W']:.6g} W; "
                      f"peak J {peak_text}; connected area {row['connected_area_mm2']:.6g} mm²")
+    if result.get('package_contacts'):
+        from .package_contacts import details_text as package_text
+        lines.extend(['',package_text(result)])
     lines.extend(['','HOTSPOTS — HIGHEST VOLUMETRIC HEATING'])
     for row in analysis['hotspots_by_heating_density']:
         location=', '.join(f'{x:.5g}' for x in row['location_mm']) if row['location_mm'] else 'unavailable'

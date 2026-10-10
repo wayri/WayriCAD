@@ -56,6 +56,19 @@ class SavedBoardMultisinkTests(unittest.TestCase):
         self.assertEqual([s['current_A'] for s in limited['result']['sinks']], [1, 2])
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(), self.before)
 
+    def test_package_contacts_use_saved_pad_faces_and_preserve_source(self):
+        from quick_pi_plugin.tests.test_package_contacts import path
+        request={**self.request,'sinks':[self.request['sinks'][0],{**self.request['sinks'][1],'min_voltage_V':3.2}],'package_conduction':[
+            path('input-lead','J1','source',.02),
+            path('load-lead','U2','sink:U2.1',.05)]}
+        result=execute(request)['result']
+        self.assertAlmostEqual(result['package_contacts'][0]['current_A'],3,8)
+        self.assertAlmostEqual(result['package_contacts'][1]['current_A'],-2,8)
+        self.assertAlmostEqual(result['package_power_W'],.38,8)
+        self.assertLess(result['energy_relative_error'],1e-6)
+        self.assertFalse(result['sinks'][1]['within_voltage_limits'])
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),self.before)
+
     def test_label_uuid_alias_cannot_duplicate_a_load(self):
         inventory = execute(dict(action='inspect', board_path=str(self.path)))
         identity = next(t['id'] for t in inventory['terminals'] if t['label']=='U1.1')

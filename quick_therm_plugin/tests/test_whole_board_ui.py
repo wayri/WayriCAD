@@ -97,7 +97,10 @@ with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value=Path(sys
                 assert field['value_location']=='finite_volume_cell'
                 assert field['values_c'][0][0]>25 and field['values_c'][-1][-1]>25
                 assert abs(network['heat_balance']['residual_w'])<1e-5
-                assert frame.therm_mode.GetStringSelection()=='Top board model'
+                models=bundle.get('board_thermal_view',{}).get('component_models',{}).get('components')
+                expected_mode='3D overview' if models else 'Top board model'
+                assert frame.therm_mode.GetStringSelection()==expected_mode,(expected_mode,frame.therm_mode.GetStringSelection())
+                if models:assert frame.therm_figure.axes[0].name=='3d','Loaded STEP models select the interactive 3D view'
                 assert frame.therm_figure.axes and frame.therm_table.GetItemCount()==1
                 assert target.read_bytes()==original
                 frame.therm_mode.SetStringSelection('Bottom-side map')
@@ -113,6 +116,8 @@ with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value=Path(sys
                 state['phase']='complete';wx.CallLater(100,close);return
             wx.CallLater(100,check)
         except BaseException as error:
+            import traceback
+            traceback.print_exc()
             state['failure']=repr(error);print('Native workflow failure: '+repr(error),flush=True)
             wx.CallAfter(close)
     wx.CallLater(100,check);app.MainLoop()

@@ -470,6 +470,8 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
                 'ambient_c': ambient, 'temperature_limit_c': limit, 'pulse_duration_s': duration,
                 'density_kg_m3': density, 'specific_heat_J_kgK': heat,
                 'notice': 'No cooling, heat spreading, temperature feedback, melting or fuse-opening simulation. Not a fusing-current certification.'}}
+    from .package_contacts import ledger
+    ledger(mesh,result)
     from .analytics import summarize
     result['analytics'] = summarize(mesh,result)
     result['planar_power_W'] = result['analytics']['losses']['planar_W']

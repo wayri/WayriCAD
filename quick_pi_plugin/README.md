@@ -118,6 +118,53 @@ choose `--mesh-backend gmsh` to require Gmsh or `--mesh-backend vtk` to require
 VTK. A requested Gmsh run reports a setup error if its package is unavailable;
 geometry, area, edge length and cell-budget checks remain in force.
 
+### Explicit lead, solder and BGA contact paths
+
+**Package contacts** in Setup or CLI `--package-conduction paths.json` adds finite
+axial package paths to the selected 2.5D constant-current net. Supply a JSON list
+(or the request field `package_conduction`) with one record per pad face:
+
+```json
+[{"id":"U1-ball-A1","reference":"U1","pad_number":"A1","layer_id":0,
+  "port":"sink:U1.A1","segments":[
+    {"shape":"spherical_ball","length_mm":0.3,"diameter_mm":0.5,"rho_ohm_m":1.4e-7,"material":"User-declared solder"},
+    {"shape":"rectangular","length_mm":0.1,"width_mm":0.3,"thickness_mm":0.3,"rho_ohm_m":1.4e-7}
+  ],"evidence":"Replace with measured geometry/property source"}]
+```
+
+The numbers illustrate syntax, not recommended solder properties. Ports are
+`source` and `sink:<selected sink pad UUID>`. CLI also accepts
+`sink:<the exact requested sink terminal label/UUID>`; reports canonicalize the
+port and `pad_uuid` to the extracted UUID. Several balls/pads may share a port;
+the network solves their currents from the board and contact resistances. Do
+not prescribe per-ball currents. A source pad/sink selection remains the port's
+identity; configured paths define its actual board attachments. Ports without
+paths retain legacy ideal electrodes across their selected pad layers.
+
+Each record declares `reference`, `pad_number`, integer copper `layer_id`, and
+optionally `pad_uuid` to disambiguate repeated pad numbers. Attachment requires
+one unambiguous saved pad on the selected net and meshed copper on that face.
+Duplicate face ownership, cross-net pads, overlapping mesh contacts and overlap
+with legacy ideal terminals are rejected. A PTH face attachment preserves the
+finite plated-barrel path to other layers; it does not short all pad faces.
+
+Segments in one path are in series. `cylinder` requires `length_mm` and
+`diameter_mm`; `rectangular` requires `length_mm`, `width_mm`, `thickness_mm`;
+`spherical_ball` is a symmetric truncated sphere with `0 < length_mm < diameter_mm`,
+using the axial integral of inverse area. Every electrical segment requires
+positive `rho_ohm_m`. There are no inferred dimensions or default materials.
+Optional `additional_electrical_ohm` explicitly adds interface resistance.
+`material`/`evidence` text and computed segment properties remain in JSON.
+
+Reports separate sheet, barrel, package and component losses and give each
+contact's solved current, resistance, voltage drop, I²R, board voltage and
+package voltage. Source voltage and sink voltage bounds apply at package
+endpoints. Package contacts are 1D circuit paths coupled to the 2.5D board,
+not a 3D package/solder field solve or a solder reliability assessment. 3D,
+series paths, resistive loads, sweeps, rail transients and electrothermal modes
+reject explicit contacts; those modes cannot silently omit their losses.
+Changing contact definitions invalidates results. Analysis never changes the PCB.
+
 ### Opt-in volumetric DC analysis
 
 `--model-dimension 3d` builds copper solids from every extracted layer at its
@@ -443,6 +490,11 @@ revision; it does not supply circuit parameters. Exit 4 indicates a limit
 violation; exit 2 indicates invalid inputs or an execution failure.
 
 ## Electrothermal coupling
+
+For explicit lead/solder/BGA paths, the separate
+[package conduction guide](../docs/PACKAGE_CONDUCTION.md) describes fixed-point
+Joule-heat transfer to QuickTherm, pad bindings, assumptions and verification.
+Temperature feedback through those contacts remains unsupported.
 
 **More → Electrothermal study** offers steady saved-copper/layer-temperature
 feedback and explicit lumped rail/thermal-RC transients. The shared QuickTherm

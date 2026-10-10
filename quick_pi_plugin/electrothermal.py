@@ -45,6 +45,8 @@ def solve_electrothermal(request, cancel=None):
     """
     if not isinstance(request, Mapping) or request.get('schema_version', 1) != 1:
         raise ElectrothermalError('invalid_request', 'Expected electrothermal request schema_version 1.')
+    if request.get('package_conduction') or request.get('mesh',{}).get('package_contacts'):
+        raise ElectrothermalError('unsupported_package_contacts', 'Explicit package contacts are unsupported in electrothermal coupling.')
     request = copy.deepcopy(dict(request))
     def cancelled():
         if cancel and cancel():

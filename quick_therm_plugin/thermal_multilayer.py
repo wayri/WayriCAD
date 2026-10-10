@@ -40,11 +40,15 @@ def _component_storage(settings, result):
     if any(not isinstance(ref, str) or ref not in references for ref in raw):
         raise ValueError("component_storage references must be selected heat sources.")
     models = {}
+    physical_refs = {path['reference'] for path in settings.get('package_conduction', [])}
+    if physical_refs-set(raw):
+        raise ValueError('Physical contacts need an explicit body/junction definition in component_storage: '+', '.join(sorted(physical_refs-set(raw))))
     required = {"capacity_j_k", "resistance_k_per_w", "temperature_kind"}
     for ref in sorted(raw):
         spec = raw[ref]
         surface_keys = {"exposed_area_mm2", "h_w_m2k", "emissivity"}
-        if not isinstance(spec, Mapping) or not required <= set(spec) or set(spec)-required-{"initial_c"}-surface_keys:
+        expected = required-{'capacity_j_k'} if ref in physical_refs and not settings.get('transient_settings') else required
+        if not isinstance(spec, Mapping) or not expected <= set(spec) or set(spec)-required-{"initial_c"}-surface_keys:
             raise ValueError(ref + ": component storage requires capacity_j_k, resistance_k_per_w, temperature_kind, optional initial_c and optional explicit surface properties only.")
         if set(spec) & surface_keys and not surface_keys <= set(spec):
             raise ValueError(ref + ": exposed_area_mm2, h_w_m2k and emissivity must be supplied together.")
@@ -60,7 +64,10 @@ def _component_storage(settings, result):
                 value = float(spec[key])
             except (TypeError, ValueError, OverflowError) as exc:
                 raise ValueError(ref + ": " + key + " must be a finite number.") from exc
-            if not math.isfinite(value) or (key in ("capacity_j_k", "resistance_k_per_w", "exposed_area_mm2") and value <= 0):
+            allow_zero = ref in physical_refs and (key == 'resistance_k_per_w' or
+                         key == 'capacity_j_k' and not settings.get('transient_settings'))
+            if not math.isfinite(value) or (key in ("capacity_j_k", "resistance_k_per_w", "exposed_area_mm2") and
+                                           (value < 0 if allow_zero else value <= 0)):
                 raise ValueError(ref + ": " + key + " must be finite and positive.")
             if key == "initial_c" and not -273.15 < value <= 10000:
                 raise ValueError(ref + ": initial_c must exceed absolute zero and not exceed 10000 C.")
@@ -69,8 +76,122 @@ def _component_storage(settings, result):
             if key == "h_w_m2k" and result.get("environment", "air") == "vacuum" and value != 0:
                 raise ValueError(ref + ": vacuum requires zero component convection.")
             model[key] = value
+        if ref in physical_refs and model['resistance_k_per_w'] != 0:
+            raise ValueError(ref+': physical paths replace aggregate RC resistance; set R to 0 and enter internal/interface resistance per path to avoid double counting.')
+        model.setdefault('capacity_j_k', 0)
         models[ref] = model
     return models
+
+
+def _package_contact_stencils(paths, geometry, layers, cells, xs, ys, x_edges, y_edges):
+    """Attach each path to an actual saved pad face without a bbox fallback."""
+    output = {}
+    owners = set()
+    layer_indices = {layer['id']: index for index, layer in enumerate(layers)}
+    for path in paths:
+        definition = path['definition']
+        ref, pad, layer_id = (definition[key] for key in ('reference', 'pad_number', 'layer_id'))
+        matches = [record for record in geometry.get('source_contacts', [])
+                   if record['reference'] == ref and str(record['pad_number']) == pad and
+                   record['layer_id'] == layer_id and
+                   ('pad_uuid' not in definition or record.get('pad_uuid') == definition['pad_uuid'])]
+        if len(matches) != 1 or layer_id not in layer_indices:
+            raise ValueError(definition['id']+': saved pad face is missing or ambiguous; specify pad_uuid when pad numbers repeat.')
+        record = matches[0]
+        owner = (record.get('pad_uuid', (ref, pad)), layer_id)
+        if owner in owners:
+            raise ValueError(definition['id']+': pad face has duplicate physical contact ownership.')
+        owners.add(owner)
+        polygons = record.get('polygons_mm', [])
+        if not polygons:
+            raise ValueError(definition['id']+': pad face has no saved copper.')
+        points = [point for polygon in polygons for point in polygon['outer']]
+        box = [min(p[0] for p in points), min(p[1] for p in points),
+               max(p[0] for p in points), max(p[1] for p in points)]
+        weights, distribution, area, effective, moved = _source_weights(
+            {'reference': ref, 'bbox_mm': box}, cells, xs, ys, x_edges, y_edges,
+            polygons, [hole for hole in [*geometry.get('barrels', []), *geometry.get('mounting_holes', [])]
+                       if hole.get('drill_mm') or hole.get('drill_size_mm')])
+        saved_area = math.fsum(_ring_area(polygon['outer'])-
+                              math.fsum(_ring_area(hole) for hole in polygon.get('holes', []))
+                              for polygon in polygons)
+        if 'unresolved' in distribution or not math.isclose(area, saved_area, rel_tol=1e-6, abs_tol=1e-8):
+            raise ValueError(definition['id']+': physical pad contact is not resolved on the board grid; refine the grid or correct the geometry.')
+        if path['segments'][-1]['minimum_area_mm2'] > saved_area*(1+1e-6):
+            raise ValueError(definition['id']+': last segment neck exceeds the saved pad copper area; review solder geometry.')
+        li = layer_indices[layer_id]
+        nodes = [(li*len(cells)+ci, weight) for ci, weight in weights]
+        output.setdefault(ref, []).append({**path, 'nodes': nodes,
+            'pad_uuid': record.get('pad_uuid'), 'net': record.get('net'),
+            'contact_area_mm2': area, 'effective_source_cells': effective,
+            'source_drill_redistributed_mm2': moved, 'source_distribution': distribution})
+    return output
+
+
+def _package_joule_sources(raw, physical_contacts, storage_nodes):
+    """Eliminate massless 1D segment states while conserving I²R endpoint heat.
+
+Within a constant-property segment, Joule heat is uniform per thermal
+resistance coordinate. Its equivalent endpoint split is set by that segment's
+thermal-resistance midpoint within the complete series path. A half/half
+split is correct for a single segment; it need not be correct for lead+solder.
+"""
+    from wayricad_runtime.package_conduction import normalize_paths
+    if not isinstance(raw,list) or len(raw)>4096:
+        raise ValueError('package_joule_losses must be a list of at most 4096 source-bound contacts.')
+    paths={path['definition']['id']:path for group in physical_contacts.values() for path in group}
+    output=[];seen=set()
+    for loss in raw:
+        if not isinstance(loss,Mapping) or set(loss)!={'id','definition','current_a','power_w'}:
+            raise ValueError('Package Joule heat needs identity, bound geometry, current_a and power_w.')
+        identity=loss['id']
+        if identity in seen or identity not in paths:
+            raise ValueError('Package heat identity is duplicate or has no matching thermal path: '+str(identity))
+        seen.add(identity)
+        path=paths[identity];definition=path['definition']
+        electrical=normalize_paths([loss['definition']],physics='electrical')[0]
+        imported=electrical['definition']
+        dimensions=('shape','length_mm','diameter_mm','width_mm','thickness_mm')
+        if (identity!=imported['id'] or
+                any(definition.get(key)!=imported.get(key) for key in ('reference','pad_number','layer_id')) or
+                imported.get('pad_uuid') not in (None,path.get('pad_uuid')) or
+                len(imported['segments'])!=len(definition['segments']) or any(
+                    any(segment.get(key)!=other.get(key) for key in dimensions) or
+                    any(key in segment and key in other and segment[key]!=other[key] for key in ('rho_ohm_m','k_w_mk'))
+                    for segment,other in zip(definition['segments'],imported['segments']))):
+            raise ValueError(identity+': imported joint heat geometry/material binding differs from the thermal path.')
+        if (imported.get('additional_electrical_ohm',0) or imported.get('additional_thermal_k_per_w',0) or
+                definition.get('additional_thermal_k_per_w',0)):
+            raise ValueError(identity+': imported contact heat requires explicit material segments; extra lumped interface/internal resistances have unknown heat location.')
+        if isinstance(loss['current_a'],bool) or isinstance(loss['power_w'],bool):
+            raise ValueError(identity+': current and Joule heat must be finite numbers, not booleans.')
+        current=_num(loss['current_a'],identity+' current (A)')
+        power=_num(loss['power_w'],identity+' contact heat (W)',low=0)
+        if not math.isclose(power,current**2*electrical['electrical_resistance_ohm'],rel_tol=1e-8,abs_tol=1e-10):
+            raise ValueError(identity+': imported contact current/resistance/heat disagree.')
+        resistance=path['thermal_resistance_k_per_w']
+        accumulated=0.;into_board=0.
+        segment_powers=[]
+        for segment,other in zip(path['segments'],electrical['segments']):
+            watts=current**2*other['electrical_resistance_ohm']
+            fraction=(accumulated+segment['thermal_resistance_k_per_w']/2)/resistance
+            into_board+=watts*fraction
+            accumulated+=segment['thermal_resistance_k_per_w']
+            segment_powers.append(watts)
+        into_package=power-into_board
+        vector={storage_nodes[definition['reference']]:into_package}
+        for ni,weight in path['nodes']:
+            vector[ni]=vector.get(ni,0)+into_board*weight
+        if not math.isclose(math.fsum(vector.values()),power,rel_tol=1e-10,abs_tol=1e-10):
+            raise ArithmeticError(identity+': joint Joule heat was not fully allocated.')
+        source_id='contact:'+identity
+        path.update(joule_source_id=source_id,electrical_joule_heat_w=power,
+                    joule_into_package_w=into_package,joule_into_board_w=into_board,
+                    segment_joule_power_w=segment_powers)
+        output.append({'id':source_id,'contact_id':identity,'power_w':power,
+                       'nodes':[(ni,watts/power) for ni,watts in vector.items()] if power else [],
+                       'endpoint_power_w':sorted(vector.items())})
+    return output
 
 
 def _board_contains(point, outlines):
@@ -321,6 +442,8 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         raise RuntimeError("Layer-resolved QuickTherm requires NumPy and SciPy.") from exc
     if not isinstance(settings, Mapping):
         raise ValueError("Thermal settings must be a mapping.")
+    from wayricad_runtime.package_conduction import normalize_paths
+    physical_paths = normalize_paths(settings.get('package_conduction', []), physics='thermal')
     if geometry.get("outline_status") != "valid" or not geometry.get("outline"):
         raise ValueError("A verified closed Edge.Cuts outline is required.")
     # Bounds are run-local accelerators. A caller may revise public polygon
@@ -661,6 +784,12 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     if not isinstance(contact_pad_numbers, Mapping):
         raise ValueError("source_contact_pad_numbers must map references to pad numbers.")
     contact_records = geometry.get("source_contacts", [])
+    physical_contacts = _package_contact_stencils(physical_paths, geometry, layers, cells,
+                                                 xs, ys, x_edges, y_edges)
+    if set(physical_contacts) & (set(contact_pad_numbers) | set(board_resistances)):
+        raise ValueError('Physical contacts replace source_contact_pad_numbers and aggregate RthetaJB; clear those overlapping definitions.')
+    if set(physical_contacts) & {part['reference'] for part in sink_parts}:
+        raise ValueError('Physical board contacts cannot be combined with the exclusive virtual-heatsink path.')
     for label, mapping in (("sink_exposed_area_mm2", sink_areas),
                            ("sink_to_board_k_per_w", sink_to_board),
                            ("component_to_sink_k_per_w", sink_resistances),
@@ -707,6 +836,28 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                                       "board_site_c": None, "sink_c": None, "junction_c": None})
             continue
         li = 0 if component.get("side", "top").lower() == "top" else len(layers)-1
+        if ref in physical_contacts:
+            # A physical endpoint has its own solved temperature. Its board-site
+            # readout is weighted by contact conductance, not a guessed heat split.
+            contacts = physical_contacts[ref]
+            first_layer = contacts[0]['definition']['layer_id']
+            li = next(index for index, layer in enumerate(layers) if layer['id'] == first_layer)
+            source_sites[ref] = (li, [(ni-li*ncell, weight) for ni, weight in contacts[0]['nodes']])
+            contact_nodes={ni for path in contacts for ni,_ in path['nodes']}
+            widths=[x_edges[cells[ni % ncell][0]+1]-x_edges[cells[ni % ncell][0]] for ni in contact_nodes]
+            heights=[y_edges[cells[ni % ncell][1]+1]-y_edges[cells[ni % ncell][1]] for ni in contact_nodes]
+            output_components.append({'reference': ref, 'power_w': power,
+                'side': component.get('side', 'top'), 'heat_path': 'board', 'sink_c': None,
+                'source_distribution': 'physical_package_contacts', 'board_site_c': None,
+                'source_peak_c': None, 'source_peak_cell': None, 'junction_c': None,
+                'junction_peak_proxy_c': None, 'package_contacts': contacts,
+                'source_cells':len(contact_nodes),
+                'effective_source_cells':min(path['effective_source_cells'] for path in contacts),
+                'source_contact_area_mm2':math.fsum(path['contact_area_mm2'] for path in contacts),
+                'source_drill_redistributed_mm2':math.fsum(path['source_drill_redistributed_mm2'] for path in contacts),
+                'source_bbox_mm':component.get('bbox_mm'), 'source_pad_number':None,'source_net':None,
+                'source_cell_size_mm':{'min_x':min(widths),'max_x':max(widths),'min_y':min(heights),'max_y':max(heights)}})
+            continue
         contact_polygons = None
         pad_number = contact_pad_numbers.get(ref)
         if pad_number is not None:
@@ -777,6 +928,19 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     by_reference = {part["reference"]: part for part in output_components}
     for ref, spec in component_storage.items():
         ni = storage_nodes[ref]
+        if ref in physical_contacts:
+            conductances = {}
+            for path in physical_contacts[ref]:
+                for contact_node, weight in path['nodes']:
+                    g = weight/path['thermal_resistance_k_per_w']
+                    if not math.isfinite(g) or g <= 0:
+                        raise ValueError(ref+': physical contact conductance exceeds the numerical range.')
+                    add_edge(ni, contact_node, g)
+                    conductances[contact_node] = conductances.get(contact_node, 0)+g
+            total_g = math.fsum(conductances.values())
+            component_contacts[ref] = [(contact_node, g/total_g) for contact_node, g in sorted(conductances.items())]
+            sources[ni] = by_reference[ref]['power_w']
+            continue
         contacts = ([(sink_nodes[ref][0], 1.0)] if ref in sink_nodes else
                     [(node(source_sites[ref][0], ci), weight) for ci, weight in source_sites[ref][1]])
         component_contacts[ref] = contacts
@@ -786,7 +950,13 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                 raise ValueError(ref + ": component contact conductance exceeds the finite numerical range.")
             add_edge(ni, contact_node, conductance)
         sources[ni] = by_reference[ref]["power_w"]
-    declared_power = math.fsum(part["power_w"] for part in [*output_components, *copper_sources])
+    package_sources=_package_joule_sources(settings.get('package_joule_losses',[]),physical_contacts,storage_nodes)
+    if {source['id'] for source in package_sources} & (set(view_refs)|{source['id'] for source in copper_sources}):
+        raise ValueError('Joint heat source identities collide with component or copper sources.')
+    for source in package_sources:
+        for ni,watts in source['endpoint_power_w']:
+            sources[ni]+=watts
+    declared_power = math.fsum(part["power_w"] for part in [*output_components, *copper_sources, *package_sources])
     allocated_power = float(np.sum(sources))
     if not math.isclose(allocated_power, declared_power,
                         rel_tol=1e-10, abs_tol=1e-10):
@@ -933,8 +1103,32 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                     body_c=value if spec["temperature_kind"] == "body" else None,
                     junction_c=value if spec["temperature_kind"] == "junction" else None,
                     junction_peak_proxy_c=None, component_model="lumped_component_storage",
-                    contact_heat_w=math.fsum(weight*(value-float(temp[ni]))/spec["resistance_k_per_w"]
-                                            for ni, weight in component_contacts[ref]))
+                    contact_heat_w=(math.fsum((value-math.fsum(float(temp[ni])*weight for ni, weight in path['nodes']))/
+                                             path['thermal_resistance_k_per_w']-path.get('joule_into_package_w',0) for path in physical_contacts[ref])
+                                    if ref in physical_contacts else
+                                    math.fsum(weight*(value-float(temp[ni]))/spec["resistance_k_per_w"]
+                                              for ni, weight in component_contacts[ref])))
+        if ref in physical_contacts:
+            part['component_model'] = 'physical_1d_package_contacts'
+            part['board_site_c'] = math.fsum(float(temp[ni])*weight for ni, weight in component_contacts[ref])
+            peak_node = max((ni for ni, _ in component_contacts[ref]), key=lambda ni: temp[ni])
+            peak_layer, peak_ci = divmod(peak_node, ncell)
+            peak_i, peak_j = cells[peak_ci]
+            peak_point = (xs[peak_i], ys[peak_j])
+            part['source_peak_c'] = float(temp[peak_node])
+            part['source_peak_cell'] = {'x_mm': peak_point[0], 'y_mm': peak_point[1],
+                'layer_id': layers[peak_layer]['id'],
+                'center_in_drill_id': _drill_at(peak_point, layers[peak_layer]['id'], geometry),
+                'center_in_copper': any(_polygon_contains(peak_point, polygon)
+                    for polygon in layers[peak_layer].get('polygons_mm', [])),
+                'copper_area_fraction': max(memberships[peak_layer][peak_ci].values(), default=0)}
+            for path in physical_contacts[ref]:
+                path['board_face_c'] = math.fsum(float(temp[ni])*weight for ni, weight in path['nodes'])
+                path['package_c'] = value
+                conduction = (value-path['board_face_c'])/path['thermal_resistance_k_per_w']
+                path['heat_flow_from_package_w'] = conduction-path.get('joule_into_package_w',0)
+                path['heat_flow_to_board_w'] = conduction+path.get('joule_into_board_w',0)
+                path.setdefault('electrical_joule_heat_w', None)
     kelvin = temp+273.15
     conv_terms = surface_area*convection_h*(temp-ambient)
     rad_terms = surface_area*surface_e*SIGMA*(kelvin**4-(ambient+273.15)**4)
@@ -1026,6 +1220,11 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
             for ni, weight in source["nodes"]:
                 vector[ni] = source["power_w"]*weight
             source_vectors[source["id"]] = vector
+        for source in package_sources:
+            vector=np.zeros(nnode)
+            for ni,watts in source['endpoint_power_w']:
+                vector[ni]=watts
+            source_vectors[source['id']]=vector
         # Anchors used only to display an unpowered steady region are not
         # physical fixtures and must not drain its initial stored energy.
         transient_fixed = {ni: value for ni, value in fixed.items() if ni not in display_anchors}
@@ -1038,10 +1237,12 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                                                  for li, layer in enumerate(layers)],
                                       "active_cells_per_layer": ncell}
         transient["copper_loss_sources"] = copper_sources
+        transient['package_joule_sources'] = package_sources
         transient["components"] = []
         for part in output_components:
             ref = part["reference"]
-            sites = ([(sink_nodes[ref][0], 1.0)] if ref in sink_nodes else
+            sites = (component_contacts[ref] if ref in physical_contacts else
+                     [(sink_nodes[ref][0], 1.0)] if ref in sink_nodes else
                      [(node(source_sites[ref][0], ci), weight) for ci, weight in source_sites[ref][1]])
             definition = {"reference": ref, "nodes": sites, "power_w": part["power_w"]}
             if ref in storage_nodes:
@@ -1050,6 +1251,8 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                                   capacity_j_k=spec["capacity_j_k"], resistance_k_per_w=spec["resistance_k_per_w"],
                                   initial_c=float(transient["frames"][0]["temperatures_c"][storage_nodes[ref]]))
                 definition.update({key: spec[key] for key in ("exposed_area_mm2", "h_w_m2k", "emissivity") if key in spec})
+                if ref in physical_contacts:
+                    definition['package_contacts'] = physical_contacts[ref]
             else:
                 definition["junction_resistance_k_per_w"] = (sink_resistances.get(ref) if ref in sink_nodes
                                                               else board_resistances.get(ref))
@@ -1061,6 +1264,8 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
             "status": "converged" if abs(residual) <= tolerance else "imbalanced",
             "environment": environment, "ambient_c": ambient, "layers": fields,
             "components": output_components, "mounts": mounts, "copper_loss_sources": copper_sources,
+            "package_conduction": [path for paths in physical_contacts.values() for path in paths],
+            'package_joule_sources': package_sources,
             "heat_balance": {"input_w": input_w, "convection_w": convection,
                              "radiation_w": radiation, "mount_flux_w": mount_flux,
                              "board_convection_w": float(np.sum(conv_terms[:nboard])),
@@ -1070,6 +1275,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                              "component_convection_w": float(np.sum(conv_terms[nboard+len(sink_parts):])),
                              "component_radiation_w": float(np.sum(rad_terms[nboard+len(sink_parts):])),
                              "copper_loss_input_w": math.fsum(source["power_w"] for source in copper_sources),
+                             'package_joule_input_w': math.fsum(source['power_w'] for source in package_sources),
                              "component_input_w": math.fsum(part["power_w"] for part in output_components),
                              "residual_w": residual,
                              "relative_residual": abs(residual)/max(abs(input_w), 1e-12),
@@ -1099,7 +1305,8 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                 "The annulus stencil apportions axial barrel conductance among nearby cell centers outside circular or obround drills. Plated slots use exact capsule-wall metal area and actual flashed land polygons; this is not a resolved barrel/land solid mesh.",
                 "An explicitly declared NPTH mechanical contact couples to the nearest dielectric cell through entered contact resistance; no copper-plane contact is inferred.",
                 "Only top and bottom faces reject heat; edge radiation, package shadows, view factors, airflow fields are unresolved. Spatial transients require explicit volumetric heat capacities and time-step convergence.",
-                "Sources use footprint bounding boxes as contact proxies, or a labelled point fallback; junction temperature needs explicit component-to-board resistance.",
+                "Sources without explicit contacts use footprint bounding boxes as contact proxies, or a labelled point fallback; junction temperature needs a declared package-to-board path.",
+                "Explicit lead/solder/BGA paths conduct axially with constant material properties between a uniform package node and one saved pad face. Their massless segments have no internal solid gradients or thermal storage; imported I²R heat is eliminated conservatively in thermal-resistance coordinates, without electrical temperature feedback.",
                 "Legacy massless junction estimates use area-weighted contact temperature plus power times explicit package resistance; source peaks are not resolved die maxima.",
                 "Selected storage components use a uniform lumped node with explicit capacity and resistance. Its declared body temperature does not imply a junction temperature. Component surface cooling requires explicit exposed area, convection and emissivity; neither exposed geometry nor internal solid gradients are inferred.",
                 "Storage-node links use contact weight divided by resistance; an isothermal component can redistribute heat among nonuniform contact cells, unlike prescribed fixed source fractions.",

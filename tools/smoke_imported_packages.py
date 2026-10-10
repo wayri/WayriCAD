@@ -101,7 +101,7 @@ try:
         expected=('text/javascript' if path.endswith('.js') else
                   'image/x-icon' if path.endswith('.ico') else 'text/css')
         assert mime.startswith(expected),(path,mime)
-    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.13'
+    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.14'
     assert (Path(sys.argv[1])/'bom_studio_plugin/help.html').is_file()
     example=Path(sys.argv[1])/'bom_studio_plugin/examples/BOM_Demo.kicad_pro'
     assert example.is_file()
