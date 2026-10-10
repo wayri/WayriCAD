@@ -100,9 +100,10 @@ class WorkspaceTests(unittest.TestCase):
                     if capture:
                         frame.SetSize((1320,860));frame.field_style.SetSelection(0);frame._draw();frame._navigate('fit');settle();frame.Raise()
                         frame.Refresh();frame.Update();canvas.draw();app.Yield()
-                        width,height=frame.main_panel.GetClientSize();bitmap=wx.Bitmap(width,height);dc=wx.MemoryDC(bitmap)
+                        width,height=frame.main_panel.GetClientSize();bitmap=wx.Bitmap(width,height,24);dc=wx.MemoryDC(bitmap)
                         self.assertTrue(dc.Blit(0,0,width,height,wx.ClientDC(frame.main_panel),0,0));dc.SelectObject(wx.NullBitmap)
-                        self.assertTrue(bitmap.SaveFile(capture,wx.BITMAP_TYPE_PNG))
+                        image=bitmap.ConvertToImage();self.assertFalse(image.HasAlpha())
+                        self.assertTrue(image.SaveFile(capture,wx.BITMAP_TYPE_PNG))
                 finally:
                     frame._end();app.Yield()
 

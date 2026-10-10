@@ -6,6 +6,38 @@
 
 **Current suite release: [3.6.14](https://github.com/wayri/WayriCAD/releases/tag/v3.6.14) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
 
+[All 19 plugins](#all-19-plugins) · [Install and open](#install-and-open) · [Latest GUI snapshots](#latest-gui-snapshots)
+
+<a id="all-18-plugins"></a>
+
+## All 19 plugins
+
+This is the complete active package catalogue, including the independently installable **Project Fusion**, **Variant Manager** and **QuickTherm**. The 17 IPC tools are version **3.6.14**; Fusion is **0.9.8** and Variant Manager is **0.6.1**. Select a name for its guide, supported inputs and model limits. The [full tool directory](docs/USER_GUIDE.md#tool-directory) also explains write boundaries.
+
+| Plugin and guide | Current features | Purpose |
+|---|---|---|
+| <img src="project_fusion_plugin/icon.png" width="24" height="24" alt="Project Fusion icon"> [Project Fusion](project_fusion_plugin/README.md) | Project merging; subsheet extraction; visual block placement; linked updates | Combines schematics and routed PCB blocks into one saved KiCad project. |
+| <img src="variant_manager_plugin/icon.png" width="24" height="24" alt="Variant Manager icon"> [Variant Manager](variant_manager_plugin/README.md) | Assembly previews; compare, bulk edit/delete, merge, swap and promote; verified backups | Manages native KiCad variant definitions in its own independently installable desktop plugin. |
+| <img src="bom_studio_plugin/icon.png" width="24" height="24" alt="BOM Studio icon"> [BOM Studio](bom_studio_plugin/README.md) | Editable fields and templates; MPN/value consolidation; quantity-weighted mass/cost totals; analytics; CSV/XLSX/TSV exports | Organizes assembly data, purchasing totals and coverage; missing values and mixed currencies stay explicit. |
+| <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Local symbol and footprint libraries; 3D model copying/embedding; link repair; backups | Makes project libraries and 3D models portable by collecting dependencies locally. |
+| <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | 2.5D DC copper fields; multiple sinks and source-current budgets; rail R/L/C load-step transients; electrothermal studies; explicit lead/solder/BGA contacts; optional 3D DC copper model | Reviews voltage drop, current density, copper/contact losses and sink feasibility within the declared model. |
+| <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Editable scanned inputs; steady and transient board fields; air/vacuum boundaries; STEP component RC heating; copper/contact loss import; explicit thermal contacts | Reviews board heating and per-part temperatures with interactive 2D/3D views, playback and declared thermal assumptions. |
+| <img src="trace_impedance_plugin/icon.png" width="24" height="24" alt="Trace RLC / Impedance icon"> [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Connected route measurements; RLC estimates; reference-layer impedance; via and zone analysis | Measures routed copper and estimates its resistance, inductance, capacitance and impedance. |
+| <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Delay and electrical length; reflections and termination candidates; skew and I2C checks; return-path and test-point review | Screens routed signal paths for timing, termination and reference-layer concerns. |
+| <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Perimeter and BGA escapes; adaptive routing; differential-pair seeds; preview and grouped apply | Generates reviewed escape tracks and vias from SMD, BGA and LGA pads. |
+| <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Square/staggered grids; density profiles; net/layer filters; clearance checks; grouped apply | Places net-connected stitching vias in selected copper regions. |
+| <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Wildcard and regex replacements; references, values, fields and PCB text; preview and apply | Renames repeated labels and component text in bulk. |
+| <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | PCB cross-selection; pin/net tables; connector/IC diagrams; power trees; selection basket; safeguarded path tracing; CSV/Markdown exports | Turns board connectivity into interactive pinouts and signal-path documentation. |
+| <img src="harness_workbench_plugin/icon.png" width="24" height="24" alt="Harness Workbench icon"> [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Connector mapping; bundles and splices; wire gauges and loads; SVG/interactive maps; procurement BOM | Documents wiring between boards, connectors and peripherals. |
+| <img src="copper_balancer_plugin/icon.png" width="24" height="24" alt="Copper Balancer icon"> [Copper Balancer](copper_balancer_plugin/README.md) | Eight thieving patterns; per-layer density maps; clearance/keepout checks; saved-copy output | Adds reviewed isolated copper to balance local PCB copper density. |
+| <img src="mechanical_check_plugin/icon.png" width="24" height="24" alt="Mechanical Check icon"> [Mechanical Check](mechanical_check_plugin/README.md) | STEP collisions and proximity; point/edge/body-centre 3D rulers; part dimensions; top/bottom height limits; interboard checks and cross-sections | Measures saved geometry and marks collisions, close approaches and height excesses; coverage gaps remain visible. |
+| <img src="heater_designer_plugin/icon.png" width="24" height="24" alt="Heater Designer icon"> [Heater Designer](heater_designer_plugin/ReadMe.md) | Copper, foil and custom alloys; serpentine, spiral, organic, circular and maze patterns; multilayer heaters; electrical/thermal preview | Creates heating patterns for declared material, resistance and temperature targets. |
+| <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Multilayer winding generation; LCR and field estimates; motor/actuator models; ngspice simulations | Designs PCB windings and evaluates supported magnetic and electromechanical concepts. |
+| <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Fabricator profiles; board geometry audits; native DRC/jobsets; release gates; hashed ZIP exports | Checks manufacturing constraints and packages reviewed fabrication outputs. |
+| <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | 34 visual DRC rule forms; clearance matrices; netclasses; reusable sets; protocol and per-layer routing profiles; reviewed offline apply | Creates and reviews KiCad design constraints in a staged project workspace. |
+
+## Release updates
+
 **New in 3.6.14:** [Quick PI](quick_pi_plugin/README.md) and [QuickTherm](quick_therm_plugin/README.md) add explicit lead, solder and BGA conduction paths, separate contact Joule heat and source-bound PI-to-thermal transfer. QuickTherm inputs now fit its sidebar at smaller window sizes. See the [3.6.14 release notes](docs/RELEASE_NOTES_3.6.14.md) and [contact model guide](docs/PACKAGE_CONDUCTION.md) for supported modes and limits.
 
 **New in 3.6.13:** [Mechanical Check](mechanical_check_plugin/README.md) adds engineering 3D measurements, part dimensions, global height limits and proximity markers. [Quick PI](quick_pi_plugin/README.md) expands its board workspace. [QuickTherm](quick_therm_plugin/README.md) adds editable scanned inputs, interactive STEP component models and transient heating playback with explicit component RC inputs and air/vacuum boundaries. The shared loading window clears as soon as a plugin is ready. See the [3.6.13 release notes](docs/RELEASE_NOTES_3.6.13.md) for validation and model limits.
@@ -66,7 +98,7 @@ Select a tool title for its guide, or a latest screenshot to open it at full res
 
 ### Latest GUI snapshots
 
-These unmodified native captures use public or generated demonstration boards. Capture notes document their inputs and model limits; no private project paths appear.
+These unmodified native captures use public or generated demonstration boards. The PI, thermal-input and mechanical workspace images were recaptured with opaque backgrounds so they remain readable in light and dark GitHub themes. [Recapture provenance](docs/audits/README_GALLERY.md) records the fixtures and checks. Select any image for its original resolution.
 
 #### [3.6.14 — explicit contacts and fitted thermal controls](docs/PACKAGE_CONDUCTION.md)
 
@@ -102,55 +134,49 @@ Review scanned values, select the analysis scope and edit power, thermal resista
 
 ### More plugin previews
 
-Application captures and rendered interface previews; select a picture or title for its guide. Machine-specific paths in these older previews are replaced with generic project locations; surrounding UI and numerical results are preserved.
+Select a title for its guide, or a picture to open the original full-resolution capture. These older previews use generic project locations in place of machine-specific paths; surrounding UI and numerical results are preserved.
 
-<table>
-<tr>
-<td width="50%"><h3><a href="fanout_generator_plugin/ReadMe.md">Adaptive fanout</a></h3><a href="fanout_generator_plugin/ReadMe.md"><img src="fanout_generator_plugin/help-adaptive.png" width="480" alt="Adaptive fanout native window preview"></a><p>Review pads, existing copper and proposed tracks/vias before applying.</p></td>
-<td width="50%"><h3><a href="signal_integrity_advisor_plugin/ReadMe.md">Quick SI</a></h3><a href="signal_integrity_advisor_plugin/ReadMe.md"><img src="signal_integrity_advisor_plugin/help-protocols.png" width="480" alt="Quick SI native window preview"></a><p>Protocol screening keeps missing models and reference coverage visible.</p></td>
-</tr>
-<tr>
-<td width="50%"><h3><a href="trace_impedance_plugin/ReadMe.md">Trace RLC</a></h3><a href="trace_impedance_plugin/ReadMe.md"><img src="trace_impedance_plugin/help-ac-geometry.png" width="480" alt="Trace RLC native window preview"></a><p>Inspect the connected copper path and per-section electrical coverage.</p></td>
-<td width="50%"><h3><a href="bom_studio_plugin/README.md">BOM Studio</a></h3><a href="bom_studio_plugin/README.md"><img src="bom_studio_plugin/help-cost-mass.png" width="480" alt="BOM Studio native window preview"></a><p>Templates, bulk editing, conditional exports and explicit cost/mass coverage.</p></td>
-</tr>
-<tr>
-<td colspan="2"><h3><a href="planar_magnetics_plugin/ReadMe.md">Magnetics</a></h3><a href="planar_magnetics_plugin/ReadMe.md"><img src="planar_magnetics_plugin/help-motor-emf.png" width="960" alt="Magnetics native window preview"></a><p>Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.</p></td>
-</tr>
-<tr>
-<td colspan="2"><h3><a href="protocol_constraint_composer_plugin/ReadMe.md">Constraint Studio — visual constraint manager</a></h3><a href="protocol_constraint_composer_plugin/ReadMe.md"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="960" alt="Constraint Studio visual worksheet with rule priorities, layout scope and context inspector"></a><p>Edit custom DRC rules visually, manage clearance matrices and reusable constraint sets, and stage per-layer routing profiles for reviewed export. Shipped interface rendered with a demonstration snapshot; scope colours are condition matches, not native DRC results.</p></td>
-</tr>
-</table>
+#### [Adaptive fanout](fanout_generator_plugin/ReadMe.md)
 
-The independent [Variant Manager](variant_manager_plugin/README.md) compares saved and staged assembly states, with bulk edit/delete, conflict-aware merge, swap, promotion and verified recovery.
+<a href="fanout_generator_plugin/help-adaptive.png"><img src="fanout_generator_plugin/help-adaptive.png" width="960" alt="Adaptive fanout native window preview"></a>
 
-![Variant Manager native assembly comparison](variant_manager_plugin/help-workspace.png)
+Review pads, existing copper and proposed tracks/vias before applying.
 
-<a id="all-18-plugins"></a>
-## All 19 plugins
+#### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
 
-Every name below opens that plugin’s README. The [full tool directory](docs/USER_GUIDE.md#tool-directory) explains inputs, outputs and write boundaries.
+<a href="signal_integrity_advisor_plugin/help-protocols.png"><img src="signal_integrity_advisor_plugin/help-protocols.png" width="960" alt="Quick SI native window preview"></a>
 
-| Icon | Plugin and guide | Features | Description |
-|---|---|---|---|
-| <img src="project_fusion_plugin/icon.png" width="64" height="64" alt="Project Fusion icon"> | [Project Fusion](project_fusion_plugin/README.md) | Project merging; subsheet extraction; visual block placement; linked updates | Combines schematics and routed PCB blocks into one saved KiCad project. |
-| <img src="variant_manager_plugin/icon.png" width="64" height="64" alt="Variant Manager icon"> | [Variant Manager](variant_manager_plugin/README.md) | Assembly previews; compare, bulk edit/delete, merge, swap and promote; verified backups | Manages native KiCad variant definitions in its own independently installable desktop plugin. |
-| <img src="bom_studio_plugin/icon.png" width="64" height="64" alt="BOM Studio icon"> | [BOM Studio](bom_studio_plugin/README.md) | Templates and field editing; component grouping; variants; CSV/XLSX/TSV exports | Organizes component data and produces purchasing or assembly bills of materials. |
-| <img src="embed_3d_plugin/icon.png" width="64" height="64" alt="Embed3D icon"> | [Embed3D](embed_3d_plugin/README.md) | Local symbol and footprint libraries; 3D model copying/embedding; link repair; backups | Makes project libraries and 3D models portable by collecting dependencies locally. |
-| <img src="quick_pi_plugin/icon.png" width="64" height="64" alt="Quick PI icon"> | [Quick PI](quick_pi_plugin/README.md) | 2.5D DC solver; voltage, current-density and loss maps; copper meshes; decoupling review | Estimates voltage drop and Joule losses in PCB power rails using actual copper geometry. |
-| <img src="quick_therm_plugin/icon.png" width="64" height="64" alt="QuickTherm icon"> | [QuickTherm](quick_therm_plugin/README.md) | Component input mapping; temperature views; optional board conduction models; virtual heatsinks; HTML/JSON reports | Estimates steady-state component and board temperatures from declared losses and thermal assumptions. |
-| <img src="trace_impedance_plugin/icon.png" width="64" height="64" alt="Trace RLC / Impedance icon"> | [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Connected route measurements; RLC estimates; reference-layer impedance; via and zone analysis | Measures routed copper and estimates its resistance, inductance, capacitance and impedance. |
-| <img src="signal_integrity_advisor_plugin/icon.png" width="64" height="64" alt="Quick SI icon"> | [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Delay and electrical length; reflections and termination candidates; skew and I2C checks; return-path and test-point review | Screens routed signal paths for timing, termination and reference-layer concerns. |
-| <img src="fanout_generator_plugin/icon.png" width="64" height="64" alt="Fanout Generator icon"> | [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Perimeter and BGA escapes; adaptive routing; differential-pair seeds; preview and grouped apply | Generates reviewed escape tracks and vias from SMD, BGA and LGA pads. |
-| <img src="via_stitching_plugin/icon.png" width="64" height="64" alt="Via Stitching icon"> | [Via Stitching](via_stitching_plugin/ReadMe.md) | Square/staggered grids; density profiles; net/layer filters; clearance checks; grouped apply | Places net-connected stitching vias in selected copper regions. |
-| <img src="bulk_label_editor_plugin/icon.png" width="64" height="64" alt="Bulk Label Editor icon"> | [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Wildcard and regex replacements; references, values, fields and PCB text; preview and apply | Renames repeated labels and component text in bulk. |
-| <img src="extract_pins_plugin/icon.png" width="64" height="64" alt="Pin Extractor icon"> | [Pin Extractor](extract_pins_plugin/ReadMe.md) | PCB cross-selection; pin/net tables; safeguarded path tracing; diagrams; CSV/Markdown exports | Turns board connectivity into connector pinouts and signal-path documentation. |
-| <img src="harness_workbench_plugin/icon.png" width="64" height="64" alt="Harness Workbench icon"> | [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Connector mapping; bundles and splices; wire gauges and loads; SVG/interactive maps; procurement BOM | Documents wiring between boards, connectors and peripherals. |
-| <img src="copper_balancer_plugin/icon.png" width="64" height="64" alt="Copper Balancer icon"> | [Copper Balancer](copper_balancer_plugin/README.md) | Eight thieving patterns; per-layer density maps; clearance/keepout checks; saved-copy output | Adds reviewed isolated copper to balance local PCB copper density. |
-| <img src="mechanical_check_plugin/icon.png" width="64" height="64" alt="Mechanical Check icon"> | [Mechanical Check](mechanical_check_plugin/README.md) | STEP model coverage; collision, height and clearance checks; interboard placement; cross-sections | Reviews physical fit between components, boards and mechanical geometry. |
-| <img src="heater_designer_plugin/icon.png" width="64" height="64" alt="Heater Designer icon"> | [Heater Designer](heater_designer_plugin/ReadMe.md) | Serpentine and spiral copper; multilayer heaters; regional resistance control; electrical/thermal preview | Creates PCB heating patterns for declared resistance and temperature targets. |
-| <img src="planar_magnetics_plugin/icon.png" width="64" height="64" alt="Planar Magnetics icon"> | [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Multilayer winding generation; LCR and field estimates; motor/actuator models; ngspice simulations | Designs PCB windings and evaluates supported magnetic and electromechanical concepts. |
-| <img src="manufacturing_readiness_plugin/icon.png" width="64" height="64" alt="Manufacturing Readiness icon"> | [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Fabricator profiles; board geometry audits; native DRC/jobsets; release gates; hashed ZIP exports | Checks manufacturing constraints and packages reviewed fabrication outputs. |
-| <img src="protocol_constraint_composer_plugin/icon.png" width="64" height="64" alt="Constraint Studio icon"> | [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Visual DRC rule forms; clearance matrices; netclasses; reusable sets; per-layer routing profiles | Creates and reviews KiCad design constraints in a staged project workspace. |
+Protocol screening keeps missing models and reference coverage visible.
+
+#### [Trace RLC](trace_impedance_plugin/ReadMe.md)
+
+<a href="trace_impedance_plugin/help-ac-geometry.png"><img src="trace_impedance_plugin/help-ac-geometry.png" width="960" alt="Trace RLC native window preview"></a>
+
+Inspect the connected copper path and per-section electrical coverage.
+
+#### [BOM Studio](bom_studio_plugin/README.md)
+
+<a href="bom_studio_plugin/help-cost-mass.png"><img src="bom_studio_plugin/help-cost-mass.png" width="960" alt="BOM Studio native window preview"></a>
+
+Templates, bulk editing, conditional exports and explicit cost/mass coverage.
+
+#### [Magnetics](planar_magnetics_plugin/ReadMe.md)
+
+<a href="planar_magnetics_plugin/help-motor-emf.png"><img src="planar_magnetics_plugin/help-motor-emf.png" width="960" alt="Magnetics native window preview"></a>
+
+Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.
+
+#### [Constraint Studio — visual constraint manager](protocol_constraint_composer_plugin/ReadMe.md)
+
+<a href="protocol_constraint_composer_plugin/help-workflow.png"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="960" alt="Constraint Studio visual worksheet with rule priorities, layout scope and context inspector"></a>
+
+Edit custom DRC rules visually, manage clearance matrices and reusable constraint sets, and stage per-layer routing profiles for reviewed export. Shipped interface rendered with a demonstration snapshot; scope colours are condition matches, not native DRC results.
+
+#### [Variant Manager — assembly comparison](variant_manager_plugin/README.md)
+
+<a href="variant_manager_plugin/help-workspace.png"><img src="variant_manager_plugin/help-workspace.png" width="960" alt="Variant Manager native assembly comparison"></a>
+
+Compare saved and staged assembly states, with bulk edit/delete, conflict-aware merge, swap, promotion and verified recovery.
 
 ## Focused workflows, shared tools
 

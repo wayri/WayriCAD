@@ -28,7 +28,9 @@ def test_titles_and_remote_links_do_not_hide_missing_local_help():
 def test_inventory_and_zip_image_validation(tmp_path):
     folder = tmp_path/'one_plugin';folder.mkdir()
     (tmp_path/'docs').mkdir();(tmp_path/'pcm').mkdir();(tmp_path/'releases').mkdir()
-    (tmp_path/'README.md').write_text('[guide](docs/USER_GUIDE.md) [tool](one_plugin/README.md) ![icon](one_plugin/icon.png)')
+    (tmp_path/'README.md').write_text('[guide](docs/USER_GUIDE.md)\n\n## All 1 plugins\n\n'
+        '| Plugin and guide | Features | Purpose |\n|---|---|---|\n'
+        '| ![icon](one_plugin/icon.png) [tool](one_plugin/README.md) | Example | Example |\n')
     (tmp_path/'docs/USER_GUIDE.md').write_text('# Guide\n[tool](../one_plugin/README.md) ![icon](../one_plugin/icon.png)')
     (tmp_path/'docs/INSTALLATION.md').write_text('# Install')
     (tmp_path/'docs/PI_REFERENCE_BENCHMARKS.md').write_text('# Benchmarks')

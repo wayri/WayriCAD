@@ -167,10 +167,11 @@ def check(args):
     canvas.SaveFile(str(output/f'{args.mode}-canvas.png'),wx.BITMAP_TYPE_PNG)
     # Capture only our bounded, visible native client area. PrintWindow gives
     # damaged backgrounds/GL pixels on some Windows/wx combinations.
-    width,height=window.GetClientSize();bitmap=wx.Bitmap(width,height)
+    width,height=window.GetClientSize();bitmap=wx.Bitmap(width,height,24)
     memory=wx.MemoryDC(bitmap);memory.Blit(0,0,width,height,wx.ClientDC(window),0,0)
     memory.SelectObject(wx.NullBitmap)
-    bitmap.ConvertToImage().SaveFile(str(output/f'{args.mode}-workspace.png'),wx.BITMAP_TYPE_PNG)
+    captured=bitmap.ConvertToImage();assert not captured.HasAlpha()
+    captured.SaveFile(str(output/f'{args.mode}-workspace.png'),wx.BITMAP_TYPE_PNG)
     if args.mode=='exact3d':
         # The actual transient popup contains saved geometry dimensions, not defaults.
         scene.set_mode('select');window.scene_picked(hits[0]);settle()

@@ -53,6 +53,75 @@ def image_valid(data, suffix):
     except (OSError, ValueError, ET.ParseError):return False
 
 
+def markdown_section(text, heading):
+    """Return a level-two section, including its nested headings and tables."""
+    match = re.search(r'^##\s+' + re.escape(heading) + r'\s*$', text, re.M)
+    if match is None:return ''
+    end = re.search(r'^##\s+', text[match.end():], re.M)
+    return text[match.end():match.end() + end.start()] if end else text[match.end():]
+
+
+def check_plugin_catalogue(label, text, guides):
+    """Require one actual catalogue-table row for every active plugin guide."""
+    errors = []
+    headings = re.findall(r'^##\s+All\s+(\d+)\s+plugins\s*$', text, re.M)
+    if len(headings) != 1:
+        return [f'{label}: expected one All N plugins catalogue heading']
+    declared_count = int(headings[0])
+    if declared_count != len(guides):
+        errors.append(f'{label}: catalogue declares {declared_count} plugins; active metadata has {len(guides)}')
+    for count in re.findall(r'\b(\d+)(?:\*\*)?\s+KiCad\s+plugins\b', text):
+        if int(count) != len(guides):
+            errors.append(f'{label}: introduction declares {count} KiCad plugins; active metadata has {len(guides)}')
+
+    section = markdown_section(text, f'All {headings[0]} plugins')
+    tables = []; current = []
+    for line in section.splitlines() + ['']:
+        if line.strip().startswith('|') and line.strip().endswith('|'):
+            current.append(re.split(r'(?<!\\)\|', line.strip()[1:-1]))
+        elif current:
+            if len(current) >= 2 and all(re.fullmatch(r'\s*:?-+:?\s*', cell) for cell in current[1]):
+                if any(re.search(r'\bplugin\b', cell, re.I) for cell in current[0]):tables.append(current)
+            current = []
+    if len(tables) != 1:
+        return errors + [f'{label}: expected one Markdown plugin catalogue table']
+
+    normalize = lambda path: posixpath.normpath(path.replace('\\', '/'))
+    expected = {normalize(guide): folder for folder, guide in guides.items()}
+    occurrences = {folder: 0 for folder in guides}
+    table = tables[0]
+    for number, row in enumerate(table[2:], start=1):
+        if len(row) != len(table[0]):
+            errors.append(f'{label}: catalogue row {number} has {len(row)} columns; expected {len(table[0])}')
+        links, _ = references('|'.join(row))
+        targets = {normalize(path) for url in links if (path := local_path(url))}
+        matching = {expected[path] for path in targets if path in expected}
+        if len(matching) != 1:
+            errors.append(f'{label}: catalogue row {number} must link exactly one active plugin guide')
+        for folder in matching:occurrences[folder] += 1
+    for folder, count in occurrences.items():
+        if count == 0:errors.append(f'{label}: catalogue table missing guide row for {folder}')
+        elif count != 1:errors.append(f'{label}: catalogue table has {count} guide rows for {folder}; expected one')
+    return errors
+
+
+def check_readme_captures(label, text, read):
+    """Native GUI gallery captures must not disappear against GitHub's theme."""
+    errors = []; _, images = references(markdown_section(text, 'Plugin previews'))
+    for target in sorted({path for url in images if (path := local_path(url))}):
+        path = PurePosixPath(target)
+        if path.suffix.lower() == '.svg' or re.fullmatch(r'icon(?:[_-](?:dark|\d+))?', path.stem, re.I):continue
+        try:
+            with Image.open(BytesIO(read(target))) as capture:
+                capture.load()
+                if capture.convert('RGBA').getchannel('A').getextrema()[0] != 255:
+                    errors.append(f'{label}: GUI capture {target} has transparent pixels; recapture on an opaque background')
+        except (OSError, KeyError, ValueError):
+            # The ordinary document check supplies the missing/invalid-image error.
+            continue
+    return errors
+
+
 def check_document(label, text, read, *, require_image=False, check_links=True, name=''):
     errors = []; links, images = references(text)
     local_images = [p for url in images if (p := local_path(url))]
@@ -74,6 +143,16 @@ def check_document(label, text, read, *, require_image=False, check_links=True, 
 def validate(root=ROOT, packages=True):
     root = Path(root); errors = []; inventory = sorted(root.glob('*_plugin/metadata.json'))
     if not inventory:return ['No active plugin metadata found']
+    catalogue_guides = {}
+    for metadata_path in inventory:
+        readmes = [path for path in metadata_path.parent.iterdir() if path.name.lower() == 'readme.md']
+        if len(readmes) == 1:catalogue_guides[metadata_path.parent.name] = readmes[0].relative_to(root).as_posix()
+        else:catalogue_guides[metadata_path.parent.name] = metadata_path.parent.name + '/README.md'
+    readme_path = root/'README.md'
+    if readme_path.is_file():
+        readme_text = readme_path.read_text(encoding='utf-8-sig')
+        errors += check_plugin_catalogue(str(readme_path), readme_text, catalogue_guides)
+        errors += check_readme_captures(str(readme_path), readme_text, lambda target: (root/target).read_bytes())
     for path in [root/'README.md', root/'docs/USER_GUIDE.md', root/'docs/INSTALLATION.md', root/'docs/PI_REFERENCE_BENCHMARKS.md']:
         if not path.is_file():errors.append(f'{path}: missing document');continue
         errors += check_document(str(path), path.read_text(encoding='utf-8-sig'), lambda target, p=path: (p.parent/target).read_bytes())
