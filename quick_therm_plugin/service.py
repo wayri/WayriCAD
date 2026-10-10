@@ -90,6 +90,16 @@ def run_job(request, cancelled=None, timeout=1800, progress=None):
                 raise ValueError(result["error"])
             if process.returncode:
                 raise RuntimeError("QuickTherm worker failed: " + details)
+            if request.get('action')=='quick_therm' and request.get('load_step_models'):
+                from .component_models import load_component_models
+                try:
+                    models=load_component_models(request['board_path'],result['source_sha256'],cancelled,progress)
+                except (InterruptedError,TimeoutError,ValueError):
+                    raise
+                except (RuntimeError,OSError) as exc:
+                    models={'components':{},'coverage':{'loaded':[],'missing':[]},
+                            'diagnostic':str(exc)}
+                result['board_thermal_view']['component_models']=models
             return result
 
 
@@ -162,6 +172,9 @@ def execute(request):
 
     if request.get("thermal_model_kind", "thin_sheet") not in ("thin_sheet", "multilayer", "calculix"):
         raise ValueError("Choose a supported QuickTherm board model; unknown models are not substituted.")
+    storage=(request.get('thermal_network_settings') or {}).get('component_storage',{})
+    if storage and request.get('thermal_model_kind')!='multilayer':
+        raise ValueError('Component thermal storage requires the multilayer board model.')
 
     from .quick_therm import analyze_board, analyze_manual_board, analyze_power_sources
     from .thermal_board_view import build_board_thermal_view
@@ -170,7 +183,8 @@ def execute(request):
                    references=request.get("references"),
                    vacuum_board_to_environment_k_per_w=request.get("vacuum_board_to_environment_k_per_w"),
                    heatsinks=request.get("heatsinks"))
-    spatial_power_only = (request.get("transient_settings") is not None or
+    copper_sources=(request.get('thermal_network_settings') or {}).get('copper_loss_sources',[])
+    spatial_power_only = (bool(storage) or bool(copper_sources) or request.get("transient_settings") is not None or
                           request["environment"] in ("forced_air", "potting", "sealed") or
                           (request["environment"] == "vacuum" and
                            request.get("thermal_model_kind") == "multilayer"))
@@ -189,10 +203,34 @@ def execute(request):
             ambient_c=request.get("ambient_c", 20.0),
             references=request.get("references"),
             field_map=request.get("field_map"),
-            manual_values=request.get("manual_values") if request.get("input_mode") == "manual" else None)
+            manual_values=request.get("manual_values") if request.get("input_mode") == "manual" else None,
+            allow_empty=bool(copper_sources))
         if result["coverage"]["excluded"]:
             raise ValueError("Board field needs valid power for every selected component: " +
                              ", ".join(row["reference"] for row in result["coverage"]["excluded"]))
+        if request.get('heatsinks'):
+            from .quick_therm import _normalize_heatsinks,_footprint_properties,parse_field_quantity
+            base_environment='vacuum' if request['environment']=='vacuum' else 'air'
+            normalized=_normalize_heatsinks(request['heatsinks'],base_environment)
+            if set(normalized)-set(request.get('references') or []):
+                raise ValueError('Heatsink references must be selected heat sources.')
+            footprints={fp.GetReference():fp for fp in board.GetFootprints()}
+            theta_key='theta_sa_vacuum_k_per_w' if base_environment=='vacuum' else 'theta_sa_air_k_per_w'
+            for row in result['components']:
+                ref=row['reference']
+                if ref not in normalized:continue
+                if ref in storage:
+                    path_r=parse_field_quantity(storage[ref]['resistance_k_per_w'],'theta_jc_k_per_w')
+                else:
+                    raw=(request.get('manual_values') or {}).get(ref,{}).get('theta_jc_k_per_w')
+                    if raw is None:
+                        name=(request.get('field_map') or {}).get('theta_jc_k_per_w')
+                        raw=_footprint_properties(footprints[ref]).get(name)
+                    if raw is None:raise ValueError(ref+': enter RthetaJC for the virtual heatsink or an explicit RC contact path.')
+                    path_r=parse_field_quantity(raw,'theta_jc_k_per_w')+normalized[ref]['contact_k_per_w']
+                row.update(heat_path='heatsink',heatsink=normalized[ref],
+                           resistance_k_per_w=path_r+normalized[ref][theta_key])
+            result['board_path_power_w']=math.fsum(row['power_w'] for row in result['components'] if row['heat_path']=='board')
     elif request.get("input_mode") == "manual":
         result = analyze_manual_board(board, request.get("manual_values"), **options)
     else:
@@ -278,8 +316,8 @@ def execute(request):
                 for ref, values in request.get("manual_values", {}).items()
                 if "theta_jb_k_per_w" in values}
         sink_resistances = {}
-        sink_key = ("theta_sa_air_k_per_w" if request["environment"] == "air"
-                    else "theta_sa_vacuum_k_per_w")
+        sink_key = ("theta_sa_vacuum_k_per_w" if request["environment"] == "vacuum"
+                    else "theta_sa_air_k_per_w")
         for row in result["components"]:
             if row["heat_path"] == "heatsink":
                 sink_resistances[row["reference"]] = (
@@ -293,6 +331,14 @@ def execute(request):
             geometry = collect_thermal_geometry(
                 board, path, contact_pads=settings.get("source_contact_pad_numbers"),
                 progress=emit_progress)
+            if settings.get('copper_loss_sources'):
+                from .copper_loss_import import validate_layer_binding
+                binding=request.get('copper_loss_binding') or {}
+                if binding.get('source_sha256')!=before:
+                    raise ValueError('Copper loss input is not bound to this saved board.')
+                if request.get('thermal_model_kind')!='multilayer':
+                    raise ValueError('Copper loss transfer requires multilayer mode.')
+                validate_layer_binding(binding,geometry)
             if request.get("thermal_model_kind") == "calculix":
                 calculix_manifest, thermal_network = export_calculix(geometry)
                 thermal_network["settings"] = dict(request["calculix_settings"])
@@ -347,17 +393,22 @@ def execute(request):
             "board_references_missing_field": missing,
             "sink_references_from_explicit_rtheta_jc_and_contact": sorted(sink_resistances),
         }
-        if board_power_only and request.get("thermal_model_kind") != "calculix":
+        if (board_power_only or storage) and request.get("thermal_model_kind") != "calculix":
             modeled = {row["reference"]: row for row in thermal_network.get("components", [])}
             for row in result["components"]:
-                junction = modeled.get(row["reference"], {}).get("junction_c")
+                model=modeled.get(row['reference'],{})
+                junction = model.get("junction_c")
+                if model.get('storage_node') is not None:
+                    row.update({key:model.get(key) for key in ('junction_c','body_c','component_temperature_c','temperature_kind','component_model')})
                 if junction is not None:
-                    resistance = settings["component_to_board_k_per_w"][row["reference"]]
+                    resistance = model.get('resistance_k_per_w',settings.get('component_to_board_k_per_w',{}).get(row['reference']))
                     row.update(junction_c=junction, resistance_k_per_w=resistance,
                                rise_above_ambient_k=junction-result["ambient_c"],
-                               rise_local_k=row["power_w"]*resistance)
+                               rise_local_k=(model['contact_heat_w']*resistance
+                                             if model.get('storage_node') is not None
+                                             else row["power_w"]*resistance))
             result["coverage"]["solved"] = sum(row["junction_c"] is not None for row in result["components"])
-            result["assumptions"].append("Package junctions use modeled board sites plus declared RthetaJB; missing package paths remain unknown.")
+            result["assumptions"].append("Explicit component RC nodes store heat; body temperature does not establish junction temperature. Other package junctions use modeled board sites plus declared RthetaJB; missing paths remain unknown.")
             view = build_board_thermal_view(board, result)
     if request.get("calculix_export_dir") and calculix_manifest is None:
         from .thermal_geometry import collect_thermal_geometry

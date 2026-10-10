@@ -261,6 +261,8 @@ def build_board_thermal_view(board, result, *, grid_size=80):
                            "in_scope": ref in solved or ref in excluded,
                            "solved": row is not None and row.get("junction_c") is not None,
                            "junction_c": float(row["junction_c"]) if row and row.get("junction_c") is not None else None,
+                           "component_temperature_c": row.get('component_temperature_c') if row else None,
+                           "temperature_kind": row.get('temperature_kind') if row else None,
                            "power_w": float(row["power_w"]) if row else None,
                            "issues": list(excluded[ref].get("issues", [])) if ref in excluded else []})
     components.sort(key=lambda row: row["reference"])

@@ -332,6 +332,11 @@ class QuickThermFrame(wx.Frame):
         steps=wx.Button(transient_host,label='Power steps…');steps.Bind(wx.EVT_BUTTON,self._edit_power_steps)
         self.therm_power_steps=steps
         transient_box.Add(steps,0,wx.EXPAND|wx.ALL,6)
+        self._component_storage={}
+        self._copper_loss_import=None
+        component_rc=wx.Button(transient_host,label='Component heating · R / C…')
+        component_rc.Bind(wx.EVT_BUTTON,self._edit_component_storage)
+        transient_box.Add(component_rc,0,wx.EXPAND|wx.ALL,6)
         capacity_note=wx.StaticText(transient_host,label='Capacity defaults are illustrative. Review materials before relying on heating times.')
         _wrap_text(capacity_note,capacity_note.GetLabel());transient_box.Add(capacity_note,0,wx.ALL,6)
         schedule_pane=wx.CollapsiblePane(transient_host,label='Advanced schedules + sinks',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
@@ -440,6 +445,15 @@ class QuickThermFrame(wx.Frame):
         model_layout.Add(contacts_note,0,wx.TOP|wx.BOTTOM,6)
         model_layout.Add(mount_row,0,wx.EXPAND)
         model_layout.Add(self.therm_mount_mechanical,0,wx.TOP,5)
+        losses=wx.Button(model_pane,label='Import PI copper losses…')
+        losses.Bind(wx.EVT_BUTTON,self._import_copper_losses)
+        model_layout.Add(losses,0,wx.EXPAND|wx.TOP,6)
+        self.therm_copper_loss_status=wx.StaticText(model_pane,label='Copper losses: none imported')
+        self.therm_copper_loss_status.Wrap(270)
+        model_layout.Add(self.therm_copper_loss_status,0,wx.EXPAND|wx.TOP,4)
+        clear_losses=wx.Button(model_pane,label='Clear imported losses')
+        clear_losses.Bind(wx.EVT_BUTTON,lambda e:self._clear_copper_losses())
+        model_layout.Add(clear_losses,0,wx.TOP,4)
         model_pane.SetSizer(model_layout);layout.Add(self.therm_model,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         self.therm_model.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(page.FitInside(),page.Layout()))
         self.therm_env.Bind(wx.EVT_CHOICE,lambda e:self._therm_controls())
@@ -491,6 +505,11 @@ class QuickThermFrame(wx.Frame):
             if mode=='3D overview':self.therm_3d_button=button
         fit=wx.Button(visual_host,label='Fit',size=(45,-1));fit.Bind(wx.EVT_BUTTON,self._fit_thermal_view)
         switch.Add(fit,0,wx.RIGHT,5)
+        self.therm_step_models=wx.CheckBox(visual_host,label='STEP models')
+        self.therm_step_models.SetValue(True)
+        self.therm_step_models.SetToolTip('Load actual saved STEP models with KiCad and FreeCAD when running. Missing models remain footprint outlines.')
+        self.therm_step_models.Bind(wx.EVT_CHECKBOX,self._invalidate_thermal)
+        switch.Add(self.therm_step_models,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
         self.therm_mode=wx.Choice(visual_host,choices=['Top-side map','Bottom-side map','Top-side contour','Bottom-side contour',
             'Top board model','Bottom board model','3D overview','Temperature chart']);self.therm_mode.SetSelection(0)
         switch.Add(self.therm_mode,0,wx.RIGHT,5)
@@ -547,7 +566,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_table=wx.ListCtrl(inspector,style=wx.LC_REPORT)
         for i,(name,width) in enumerate([('Reference',80),('Junction °C',95),('Min Tj °C',85),('Max Tj °C',85),
             ('Limit check',85),('Power W',75),('Side',55),('Heat path',100),('Rθ K/W',80),('Rise K',75),
-            ('Board site °C',100),('Sink °C',80),('Model Tj °C',95),('X mm',75),('Y mm',75),('Status',200)]):
+            ('Board site °C',100),('Sink °C',80),('Component °C',105),('X mm',75),('Y mm',75),('Status',200)]):
             self.therm_table.InsertColumn(i,name,width=width)
         inspector.AddPage(self.therm_table,'Results')
         probes=wx.Panel(inspector);probe_layout=wx.BoxSizer(wx.VERTICAL)
@@ -690,6 +709,46 @@ class QuickThermFrame(wx.Frame):
             self._invalidate_thermal();dialog.EndModal(wx.ID_OK)
         dialog.Bind(wx.EVT_BUTTON,apply,id=wx.ID_OK);dialog.SetSizer(layout)
         dialog.ShowModal();dialog.Destroy()
+
+    def _edit_component_storage(self,event=None):
+        references=self.therm_inputs.selected_references()
+        if not references:
+            self.status.SetLabel('Include heat sources in Component inputs before entering thermal RC.');return
+        from .component_storage_inputs import edit_storage
+        if getattr(self,'_component_storage_board_sha',None)!=self.inventory.get('source_sha256'):
+            self._component_storage={}
+        updated=edit_storage(self,references,self._component_storage)
+        if updated is None:return
+        self._component_storage=updated
+        self._component_storage_board_sha=self.inventory.get('source_sha256')
+        if updated:
+            self.therm_model_enabled.SetValue(True);self.therm_model_kind.SetSelection(1)
+            self.therm_time_enabled.SetValue(True);self._transient_setup_changed()
+            self.therm_step_models.SetValue(True)
+        self._invalidate_thermal()
+        self.status.SetLabel(f'{len(updated)} component RC definitions. Run to compute their heating.')
+
+    def _clear_copper_losses(self):
+        self._copper_loss_import=None
+        self.therm_copper_loss_status.SetLabel('Copper losses: none imported')
+        self._invalidate_thermal()
+
+    def _import_copper_losses(self,event=None):
+        with wx.FileDialog(self,'Import solved Quick PI JSON report',wildcard='JSON reports (*.json)|*.json',
+                           style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as picker:
+            if picker.ShowModal()!=wx.ID_OK:return
+            from .copper_loss_import import import_losses
+            try:
+                path=Path(picker.GetPath())
+                if path.stat().st_size>100*1024*1024:raise ValueError('PI report exceeds 100 MiB.')
+                imported=import_losses(json.loads(path.read_text(encoding='utf-8-sig')),self.inventory.get('source_sha256'))
+            except (ValueError,OSError,KeyError,TypeError) as exc:
+                self.status.SetLabel('Copper loss import: '+str(exc));return
+        self._copper_loss_import=imported
+        self.therm_model_enabled.SetValue(True);self.therm_model_kind.SetSelection(1)
+        self.therm_copper_loss_status.SetLabel(f"{len(imported['sources'])} conductor sources · {imported['input_w']:.5g} W. "+imported['meaning'])
+        self.therm_copper_loss_status.Wrap(270)
+        self._invalidate_thermal()
 
     def on_calculix_browse(self,event=None):
         with wx.FileDialog(self,'Select CalculiX ccx executable',
@@ -852,7 +911,7 @@ class QuickThermFrame(wx.Frame):
                   self.therm_model_kind.GetSelection()==2)
         board_power_only=self.therm_model_enabled.GetValue() and not sinks
         power_only=board_power_only or calculix or (environment=='vacuum' and self.therm_model_enabled.GetValue() and self.therm_model_kind.GetSelection()==1) or environment not in ('air','vacuum') or self.therm_time_enabled.GetValue()
-        if not references:
+        if not references and not self._copper_loss_import:
             self.therm_status.SetLabel('Select at least one dissipating component before running QuickTherm.');return
         if manual:
             try:
@@ -870,7 +929,7 @@ class QuickThermFrame(wx.Frame):
                     return
             except ValueError as exc:
                 self.on_manual_setup();self.status.SetLabel(str(exc));return
-        elif not self.therm_power.GetValue() or (not power_only and unsinked and not field.GetValue()) or (not power_only and sinks and not self.therm_jc.GetValue()):
+        elif references and (not self.therm_power.GetValue() or (not power_only and unsinked and not field.GetValue()) or (not power_only and sinks and not self.therm_jc.GetValue())):
             self.therm_status.SetLabel('Map power and RθJA/RθJB for selected parts, plus RθJC for virtual heatsinks.');return
         try:
             request={'action':'quick_therm','board_path':self.board_path,'environment':environment,
@@ -882,6 +941,7 @@ class QuickThermFrame(wx.Frame):
                          ('minimum_c',self.therm_limit_min.GetValue()),
                          ('maximum_c',self.therm_limit_max.GetValue())) if name},
                      'probes':list(self.therm_probe_definitions)}
+            request['load_step_models']=self.therm_step_models.GetValue()
             if manual:
                 request['input_mode']='manual'
                 request['manual_values']={ref:effective[ref] for ref in references}
@@ -913,6 +973,20 @@ class QuickThermFrame(wx.Frame):
                     'board_airflow_m_s':float(self.therm_air_board.GetValue()),
                     'sink_airflow_m_s':float(self.therm_air_sink.GetValue()),
                     'grid_cells_long_axis':self.therm_grid.GetValue()}
+                storage=self._component_storage if getattr(self,'_component_storage_board_sha',None)==self.inventory.get('source_sha256') else {}
+                storage={ref:values for ref,values in storage.items() if ref in references}
+                if storage and model_index!=1:
+                    raise ValueError('Component heating requires the multilayer board model.')
+                if storage:
+                    settings['component_storage']={ref:{key:value for key,value in spec.items() if key!='contact_pad_number'} for ref,spec in storage.items()}
+                    settings['source_contact_pad_numbers']={ref:spec['contact_pad_number'] for ref,spec in storage.items() if spec.get('contact_pad_number')}
+                imported=self._copper_loss_import
+                if imported:
+                    if model_index!=1:raise ValueError('Copper loss transfer requires the multilayer board model.')
+                    if imported['source_sha256']!=self.inventory.get('source_sha256'):
+                        raise ValueError('Imported PI losses are stale; clear them and regenerate the PI report.')
+                    settings['copper_loss_sources']=imported['sources']
+                    request['copper_loss_binding']={key:value for key,value in imported.items() if key!='sources'}
                 if environment=='vacuum':
                     settings.update(board_airflow_m_s=0, sink_airflow_m_s=0, board_h_w_m2k=0, sink_h_w_m2k=0)
                 if environment in ('forced_air','sealed'):
@@ -979,6 +1053,7 @@ class QuickThermFrame(wx.Frame):
         from .thermal_plot import default_thermal_mode
         if self._thermal_default_view or original_mode not in modes:
             original_mode=default_thermal_mode(view,network,'bottom' if 'Bottom' in original_mode or original_mode.startswith('Layer model: B.') else 'top')
+            if view.get('component_models',{}).get('components'):original_mode='3D overview'
         self.therm_mode.SetStringSelection(original_mode)
         solved={row['reference']:row for row in result['components']}
         self._thermal_rows=[(item,solved.get(item['reference'])) for item in view.get('components',[]) if item.get('in_scope')]
@@ -1023,6 +1098,13 @@ class QuickThermFrame(wx.Frame):
               if result.get('input_source') else
               'Lumped steady-state screen; not a board temperature field.')))
         _wrap_text(self.therm_status,self.therm_status.GetLabel())
+        models=view.get('component_models',{})
+        if models:
+            coverage=models.get('coverage',{})
+            self.therm_status.SetLabel(self.therm_status.GetLabel()+
+                f" STEP: {len(coverage.get('loaded',[]))} parts loaded; {len(coverage.get('missing',[]))} coverage gaps. "+
+                str(models.get('diagnostic','')))
+            _wrap_text(self.therm_status,self.therm_status.GetLabel())
         self._therm_input_page.Layout();self._therm_input_page.FitInside()
         self.therm_inspector.GetPage(0).Layout();self.therm_inspector.GetPage(0).FitInside()
         self._buttons()
@@ -1052,8 +1134,9 @@ class QuickThermFrame(wx.Frame):
                     limit.get('status','UNKNOWN'),num(row.get('power_w') if row else None),
                     item.get('side','—'),path,num(row.get('resistance_k_per_w') if row else None),
                     num(row.get('rise_above_ambient_k') if row else None),num(model.get('board_site_c')),
-                    num(model.get('sink_c')),num(model.get('junction_c')),num(xy[0]),num(xy[1]),
-                    ('Solved' if row.get('junction_c') is not None else 'Board solved; Tj unknown') if row else
+                    num(model.get('sink_c')),num(model.get('component_temperature_c',model.get('junction_c'))),num(xy[0]),num(xy[1]),
+                    (model.get('temperature_kind','junction').capitalize()+' RC' if model.get('storage_node') is not None else
+                     'Solved' if row.get('junction_c') is not None else 'Board solved; Tj unknown') if row else
                     '; '.join(item.get('issues',[])) or 'Excluded']
         self._thermal_rows.sort(key=lambda pair:(cells(pair)[column]=='—',
             float(cells(pair)[column]) if column in (1,2,3,5,8,9,10,11,12,13,14) and cells(pair)[column]!='—' else cells(pair)[column]),reverse=descending)
@@ -1126,7 +1209,7 @@ class QuickThermFrame(wx.Frame):
                 self._thermal_selection_text(item,result)
                 break
         self._update_thermal_timeline()
-        self.therm_analytics.SetLabel('Selected time: computed board temperatures. Fixed scale across the study; package thermal storage is not modeled.' if self.therm_result_time.GetSelection()>0 else 'Steady-state result selected.')
+        self.therm_analytics.SetLabel('Computed board and declared component RC temperatures. Fixed scale across the study; body nodes leave junction limits unknown.' if self.therm_result_time.GetSelection()>0 else 'Steady-state result selected.')
         _wrap_text(self.therm_analytics,self.therm_analytics.GetLabel())
 
     def _display_view(self,network=None):
@@ -1170,8 +1253,8 @@ class QuickThermFrame(wx.Frame):
             'Component junction estimates and illustrative geometry; review the model assumptions.')
         if mode=='3D overview':
             self.therm_view_note.SetLabel('3D saved-board geometry · drag to orbit, Shift-drag to pan, wheel to zoom.\n'
-                'Footprint bounds represent saved outlines; component STEP solids are not loaded.\n'
-                'Thin-sheet fields lie at the board midplane; junction interpolation is not a solved surface field.')
+                f"STEP: {len(view.get('component_models',{}).get('components',{}))} real parts. Missing models remain footprint outlines.\n"
+                'Each RC part shows one uniform body/junction temperature; gray means unknown.')
         _wrap_text(self.therm_view_note,self.therm_view_note.GetLabel())
         self.therm_view_note.GetParent().Layout();self.therm_view_note.GetParent().FitInside()
         camera=None
@@ -1435,6 +1518,14 @@ class QuickThermFrame(wx.Frame):
             details.extend([f"Power {result.get('power_w','unknown')} W",
                 f"Junction {result['junction_c']:.5g} °C" if result.get('junction_c') is not None else 'Junction unknown',
                 f"Heat path: {result.get('heat_path','unknown')}"])
+            model=next((row for row in (self._display_network() or {}).get('components',[]) if row['reference']==item['reference']),{})
+            if model.get('component_temperature_c') is not None:
+                details.extend([f"{model['temperature_kind'].capitalize()} RC {model['component_temperature_c']:.5g} °C",
+                                f"R {model['resistance_k_per_w']:g} K/W · C {model['capacity_j_k']:g} J/K",
+                                f"Heat to contact {model.get('contact_heat_w',0):.5g} W"])
+        models=self.thermal_bundle.get('board_thermal_view',{}).get('component_models',{})
+        for gap in models.get('coverage',{}).get('missing',[]):
+            if gap['reference']==item['reference']:details.append('STEP: '+gap['reason'])
         if item['reference'] in self.therm_inputs.model.components:
             cell=self.therm_inputs.model.cell(item['reference'],'theta_jb_k_per_w')
             details.append('RθJB '+(f'{cell.value:g} K/W' if cell.value is not None else 'unknown'))

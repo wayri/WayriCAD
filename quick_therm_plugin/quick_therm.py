@@ -331,7 +331,7 @@ def analyze_manual_board(board, values_by_reference, *, environment, ambient_c,
 
 
 def analyze_power_sources(board, *, environment, ambient_c, references,
-                          field_map=None, manual_values=None):
+                          field_map=None, manual_values=None, allow_empty=False):
     """Extract verified heat inputs without inventing a junction resistance.
 
     CalculiX solves a board surface field from power and its declared boundary.
@@ -341,9 +341,11 @@ def analyze_power_sources(board, *, environment, ambient_c, references,
         raise ValueError("Environment must be 'air' or 'vacuum'.")
     ambient = _finite(ambient_c, "Ambient temperature")
     selected = [str(ref).strip() for ref in references or ()]
-    if not selected or len(set(selected)) != len(selected) or any(not ref for ref in selected):
+    if (not selected and not allow_empty) or len(set(selected)) != len(selected) or any(not ref for ref in selected):
         raise ValueError("Select distinct dissipating components for CalculiX.")
-    if manual_values is None:
+    if manual_values is None and not selected:
+        rows=[]
+    elif manual_values is None:
         if not isinstance(field_map, Mapping) or not field_map.get("power_w"):
             raise ValueError("Map the saved power field for CalculiX.")
         rows = extract_mapped_components(board, {"power_w": field_map["power_w"]},

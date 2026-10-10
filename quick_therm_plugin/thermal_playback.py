@@ -10,7 +10,7 @@ def frame_at_time(frames, time_s):
 
 
 def transient_temperature_limits(transient):
-    """One board-node scale over all frames, independent of the current camera."""
+    """One board/component scale over all frames, independent of camera."""
     low, high = math.inf, -math.inf
     spatial = transient.get('spatial_index', {})
     count = spatial.get('active_cells_per_layer', 0)*len(spatial.get('layers', []))
@@ -18,7 +18,10 @@ def transient_temperature_limits(transient):
     # scale rather than treating missing metadata as a zero temperature.
     for frame in transient.get('frames', []):
         temperatures = frame.get('temperatures_c', [])
-        for value in temperatures[:count or len(temperatures)]:
+        values=temperatures[:count or len(temperatures)]
+        values=values+[temperatures[row['storage_node']] for row in transient.get('components',[])
+                       if row.get('storage_node') is not None]
+        for value in values:
             if value is not None and math.isfinite(value):
                 low, high = min(low, value), max(high, value)
     if not math.isfinite(low):

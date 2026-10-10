@@ -56,12 +56,17 @@ def write_diagnostic_report(path,bundle):
                 for index, frame in enumerate(network['transient']['frames']):
                     selected = transient_frame_network(network, index)
                     for row in selected['components']:
-                        value = row.get('junction_c')
-                        time_rows.append([frame['time_s'], value, value, row['reference']])
+                        value = row.get('component_temperature_c',row.get('junction_c'))
+                        time_rows.append([frame['time_s'], value, value, row['reference']+' '+row.get('temperature_kind','junction')])
                 time_rows.sort(key=lambda row: (row[3], row[0]))
-                html += interactive_plot('Junction estimates over time', time_rows, unit='°C',
+                html += interactive_plot('Component temperatures over time', time_rows, unit='°C',
                                          x_unit='s', y_unit='°C', connect=True)
-                html += '<p>Time curves use stored frames and explicit package resistance; missing junction inputs remain unknown. Board surface probes are available in the interactive board above.</p>'
+                html += '<p>RC curves use computed stored-node temperatures. Other package estimates use massless resistance offsets. A body node does not establish junction limits. Board surface probes are available above.</p>'
+            models=view.get('component_models',{})
+            if models:
+                html+='<h2>STEP model coverage</h2><p>'+str(len(models.get('components',{})))+' real component meshes loaded. '+escape(models.get('diagnostic',''))+'</p>'
+                for gap in models.get('coverage',{}).get('missing',[]):
+                    html+='<p>'+escape(gap['reference']+': '+gap['reason'])+'</p>'
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_agg import FigureCanvasAgg
             from .thermal_plot import draw_thermal_view, draw_temperature_comparison
@@ -84,6 +89,11 @@ def write_diagnostic_report(path,bundle):
             html+='<h2>Temperature analytics</h2><p>'+summary+' · Hottest '+escape(str(analytics.get('hottest_reference') or '—'))+'</p>'
         if network:
             balance=network['heat_balance']
+            if bundle.get('request',{}).get('copper_loss_binding'):
+                imported=bundle['request']['copper_loss_binding']
+                html+='<h2>Copper I²R heat</h2><p>'+_number(imported['input_w'],'W')+' · '+escape(imported['meaning'])+'</p>'
+            if network.get('settings',{}).get('component_storage'):
+                html+='<h2>Reviewed component thermal RC</h2><pre>'+escape(json.dumps(network['settings']['component_storage'],indent=2,sort_keys=True))+'</pre>'
             html+='<h2>Optional board heat model</h2><p>'+escape(network['model'])+' · '+escape(network['status'])+'</p>'
             if network.get('layers'):
                 html+=('<p>Imported CalculiX nodal temperatures from an extruded 3D copper/dielectric mesh. The entire lower face is fixed; other faces are adiabatic. This is not CFD or a measurement.</p>'

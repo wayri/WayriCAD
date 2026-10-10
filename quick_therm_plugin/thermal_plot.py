@@ -106,7 +106,8 @@ def _field_quads(field, z):
 
 
 def _component_label(item, value):
-    return item['reference']+(f' Tj≈{value:.1f}°C' if value is not None else ' Tj unknown')
+    kind='Body' if item.get('temperature_kind')=='body' else 'Tj'
+    return item['reference']+(f' {kind}≈{value:.1f}°C' if value is not None else ' '+kind+' unknown')
 
 
 def _install_component_hover(ax, targets, selected_id, three_d=False):
@@ -282,7 +283,7 @@ def fit_thermal_3d(ax):
 
 def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None,
              temperature_limits_c=None,viewport=False):
-    """Saved board and thermal result geometry; footprint bounds are not solids."""
+    """Saved board, actual placed STEP meshes and reviewed part temperatures."""
     from matplotlib.cm import ScalarMappable
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
     from .thermal_mesh import board_tiles
@@ -295,17 +296,26 @@ def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None,
     temperatures=[float(value) for plane in available for row in plane['field'].get('values_c',[])
                   for value in row if value is not None and np.isfinite(value)]
     modeled={row['reference']:row for row in network.get('components',[])}
+    models=view.get('component_models',{}).get('components',{})
+    temperatures.extend(float(row['component_temperature_c']) for row in modeled.values()
+                        if row.get('component_temperature_c') is not None)
     if not temperatures and not has_model:
         temperatures=[float(part['junction_c']) for part in view.get('components',[])
                       if part.get('junction_c') is not None and np.isfinite(part['junction_c'])]
     norm=_field_norm({'values_c':[temperatures]},temperature_limits_c)
+    solid_faces=[];solid_colors=[]
+    def add_surface(artist,faces,colors):
+        if models:
+            solid_faces.extend(faces)
+            solid_colors.extend(colors if not isinstance(colors,str) else [colors]*len(faces))
+        else:ax.add_collection3d(artist)
     tiles=board_tiles(view)
     # Both faces and the walls use the same saved contours. Holes are open from
     # either camera direction; no background-colored caps simulate a void.
     if tiles and not available:
         surfaces=[[(x,y,z) for x,y in tile] for z in sorted({0.,thickness}) for tile in tiles]
         substrate=Poly3DCollection(surfaces,facecolor='#c6d2d0',edgecolor='none',antialiased=False)
-        substrate.set_gid('quicktherm-board-faces');ax.add_collection3d(substrate)
+        substrate.set_gid('quicktherm-board-faces');add_surface(substrate,surfaces,'#c6d2d0')
     rings=[ring for shape in view.get('outline',[]) for ring in [shape.get('outer_mm',[]),*shape.get('holes_mm',[])]]
     rings.extend(drill.get('contour_mm',[]) for drill in view.get('drills',[]))
     walls=[]
@@ -320,7 +330,7 @@ def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None,
                           for a,b in zip(ring,ring[1:]+ring[:1])])
     if walls:
         wall_artist=Poly3DCollection(walls,facecolor='#668185',edgecolor='none',antialiased=False)
-        wall_artist.set_gid('quicktherm-board-walls');ax.add_collection3d(wall_artist)
+        wall_artist.set_gid('quicktherm-board-walls');add_surface(wall_artist,walls,'#668185')
     ax._thermal_field_planes=[]
     for plane in planes:
         faces,values=_clipped_field_faces(plane['field'],plane['z_mm'],tiles) if field_available(plane['field']) else ([],[])
@@ -331,7 +341,7 @@ def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None,
             mesh=Poly3DCollection(faces,facecolors=colormaps['inferno'](norm(values)),antialiased=False,
                                   edgecolor='none',alpha=1. if plane['side']!='internal' else .5)
             mesh.set_gid('quicktherm-field-'+plane['side']+'-'+plane['source'])
-            ax.add_collection3d(mesh)
+            add_surface(mesh,faces,colormaps['inferno'](norm(values)))
     targets=[];extent_points=[]
     for item in view.get('components',[]):
         position=item.get('position_mm')
@@ -339,12 +349,26 @@ def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None,
         x,y=position;top=item.get('side','top' if item.get('top_side',True) else 'bottom')=='top'
         # Marker offset is for reading/picking only, never package height.
         z=thickness+.8 if top else -.8
-        value=modeled.get(item['reference'],{}).get('junction_c') if has_model else item.get('junction_c')
+        model=modeled.get(item['reference'],{})
+        value=model.get('component_temperature_c',model.get('junction_c')) if has_model else item.get('junction_c')
+        solid=models.get(item['reference'])
+        if solid:
+            vertices=np.asarray(solid['vertices_mm']);faces=vertices[np.asarray(solid['triangles'],dtype=int)]
+            z=float(solid['bounds_mm'][5] if top else solid['bounds_mm'][2])
+            x,y=np.mean(vertices,axis=0)[:2]
+            fill='#697985' if value is None else colormaps['inferno'](norm(value))
+            artist=Poly3DCollection(faces,facecolors=fill,edgecolors='#00d3b1' if item['id']==selected_id else 'none',
+                                    linewidths=.25,antialiased=False)
+            artist.set_gid('quicktherm-step-'+item['id'])
+            # Sort every physical face together. Separate collections sort by
+            # average depth and can incorrectly hide a package behind the PCB.
+            add_surface(artist,faces,[fill]*len(faces))
+            extent_points.extend([solid['bounds_mm'][:3],solid['bounds_mm'][3:]])
         color=('#f7fafc' if value is not None else '#697985') if has_model or available else (
             '#697985' if value is None else colormaps['inferno'](norm(value)))
         current=item['id']==selected_id
         box=item.get('bbox_mm')
-        if box and len(box)==4:
+        if box and len(box)==4 and not solid:
             corners=[(box[0],box[1],z),(box[2],box[1],z),(box[2],box[3],z),(box[0],box[3],z)]
             bounds_artist,=ax.plot(*np.asarray(corners+[corners[0]]).T,
                                    color='#00ad94' if current else '#547079',
@@ -354,18 +378,23 @@ def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None,
         # Line3D markers retain their explicit overlay order, unlike scatter's
         # automatic depth ordering against a whole-board Poly3DCollection.
         # Both sides remain inspectable; these are data markers, not package solids.
-        ax.plot([x],[y],[z],color=color,marker='o',linestyle='none',
-                markersize=11 if current else (7.5 if item.get('in_scope') else 3.5),
-                markeredgecolor='#00d3b1' if current else '#344b56',zorder=1e5)
-        text=_component_label(item,value)
+        if not solid:
+            ax.plot([x],[y],[z],color=color,marker='o',linestyle='none',
+                    markersize=11 if current else (7.5 if item.get('in_scope') else 3.5),
+                    markeredgecolor='#00d3b1' if current else '#344b56',zorder=1e5)
+        text=_component_label({**item,'temperature_kind':model.get('temperature_kind')},value)
         targets.append({'id':item['id'],'reference':item['reference'],'side':'top' if top else 'bottom',
                         'junction_c':value,'position':(x,y,z),'bbox':box,'label':text})
         if current:
             label=ax.text(x,y,z+.12,text,fontsize=8,zorder=1e6,
                           bbox={'facecolor':'white','alpha':.9,'edgecolor':'none','pad':2})
             label.set_gid('quicktherm-component-selected')
-        ax.plot([x,x],[y,y],[thickness if top else 0.,z],color='#64817e',linewidth=.6,zorder=1e4)
+        if not solid:ax.plot([x,x],[y,y],[thickness if top else 0.,z],color='#64817e',linewidth=.6,zorder=1e4)
         extent_points.append((x,y,z))
+    if solid_faces:
+        combined=Poly3DCollection(solid_faces,facecolors=solid_colors,edgecolor='none',antialiased=False,zsort='average')
+        combined.set_gid('quicktherm-step-scene');ax.add_collection3d(combined)
+    ax._thermal_step_parts=sorted(models)
     for probe in probes or []:
         x,y=probe['x_mm'],probe['y_mm'];z=thickness+.12 if probe.get('side')!='bottom' else -.12
         ax.scatter([x],[y],[z],color='#00d3b1',marker='+',s=90,depthshade=False)
@@ -403,14 +432,16 @@ def _draw_3d(figure,view,selected_id,network,azim,elev,probes=None,
     if temperatures:
         if viewport:
             cax=figure.add_axes([.915,.20,.02,.60])
-            label=('Board-surface estimate °C' if 'CalculiX' in network.get('model','') else
+            label=('Board + component °C' if any(row.get('storage_node') is not None for row in modeled.values()) else
+                   'Board-surface estimate °C' if 'CalculiX' in network.get('model','') else
                    'Layer temperature °C' if network.get('layers') else
                    'Board midplane °C' if network.get('board_field') else 'Junction estimate °C')
             figure.colorbar(ScalarMappable(norm=norm,cmap='inferno'),cax=cax,label=label)
         else:
             figure.colorbar(ScalarMappable(norm=norm,cmap='inferno'),ax=ax,
                             label=meaning,pad=.07,fraction=.032,shrink=.72)
-    note='Saved footprint bounds · marker offsets illustrative · blank/gray regions unknown'
+    note=(f'{len(models)} actual STEP parts · each RC part has one uniform temperature · gray is unknown' if models else
+          'Saved footprint bounds · marker offsets illustrative · blank/gray regions unknown')
     if not thickness:note+=' · board thickness unknown'
     if has_model and not available:note+=' · thermal field unavailable'
     if viewport:

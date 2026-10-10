@@ -22,7 +22,7 @@ def _finite(value, label, *, positive=False, nonnegative=False):
 
 
 def evolve(laplacian, capacity, source_vectors, surface_area, h, emissivity,
-           ambient, contact_g, contact_rhs, fixed, settings):
+           ambient, contact_g, contact_rhs, fixed, settings, *, initial_temperatures_c=None):
     """Integrate C dT/dt + K T + boundary loss = explicit scheduled power.
 
     Capacity is J/K per node; sources are W per reference. Schedule entries are
@@ -30,6 +30,8 @@ def evolve(laplacian, capacity, source_vectors, surface_area, h, emissivity,
     is linear; 'step' holds each multiplier until the next declared event.
     Integration lands on every schedule knot and uses exact interval-average
     input power. Conductive/radiative losses use the backward-Euler endpoint.
+    Optional initial_temperatures_c provides one explicit initial value per
+    node; fixed-temperature boundaries override their matching entries.
     Radiation is Newton-linearized; the linear sparse factorization is reused.
     """
     if not isinstance(settings, Mapping):
@@ -136,7 +138,12 @@ def evolve(laplacian, capacity, source_vectors, surface_area, h, emissivity,
         raise ValueError("Transient exceeds five million stored node values; increase frame_stride.")
     ids = np.array(sorted(fixed), dtype=int)
     free = np.array([i for i in range(n) if i not in fixed], dtype=int)
-    temp = np.full(n, initial)
+    if initial_temperatures_c is None:
+        temp = np.full(n, initial)
+    else:
+        temp = vector(initial_temperatures_c, "Initial node temperatures", nonnegative=False).copy()
+        if np.any(temp <= -273.15) or np.any(temp > 10000):
+            raise ValueError("Initial node temperatures must exceed absolute zero and not exceed 10000 C.")
     for i, v in fixed.items():
         temp[i] = v
     frames = [{"time_s": 0.0, "temperatures_c": temp.tolist()}]
@@ -212,6 +219,6 @@ def evolve(laplacian, capacity, source_vectors, surface_area, h, emissivity,
             "energy_balance": energy, "max_energy_residual_w": max(abs(r["residual_w"]) for r in energy),
             "steps": steps, "timestep_s": dt, "final_temperatures_c": temp.tolist(),
             "assumptions": [
-                "Explicit volumetric heat capacities; no package die thermal capacity or circuit electrothermal feedback. Copper raster occupancy and laminate slabs approximate storage; barrel metal storage and coating storage are unresolved.",
+                "Heat capacities are supplied explicitly by the owning thermal model; the integrator infers no package, barrel, coating or circuit electrothermal properties. Spatial and lumped nodes retain their declared temperature meanings.",
                 "Scheduled multipliers use declared " + interpolation + " interpolation and held endpoint values; integration lands on schedule knots and preserves their interval input energy. No operating losses are inferred.",
                 "Conductive, convective and radiative loss use backward-Euler endpoint temperatures; time-step convergence must be checked independently. Implicit stability and energy balance do not establish accuracy."]}

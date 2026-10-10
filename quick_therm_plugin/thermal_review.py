@@ -251,12 +251,28 @@ def transient_frame_network(network, index):
                 scale=float(np.interp(frame['time_s'],[point[0] for point in points],[point[1] for point in points]))
         else:scale=1.
         power=definition['power_w']*scale;resistance=definition.get('junction_resistance_k_per_w')
-        row.update(board_site_c=contact,power_w=power,
-                   junction_c=None if resistance is None else contact+power*resistance,
-                   junction_model='Massless package offset from transient contact; no die heat capacity')
+        row.update(board_site_c=contact,power_w=power)
+        row['source_peak_c']=max(temperatures[node] for node,_ in definition['nodes'])
+        row.pop('source_peak_cell',None)
+        row['junction_peak_proxy_c']=None
+        if definition.get('storage_node') is not None:
+            value=temperatures[definition['storage_node']];kind=definition['temperature_kind']
+            row.update(component_temperature_c=value,temperature_kind=kind,
+                       body_c=value if kind=='body' else None,
+                       junction_c=value if kind=='junction' else None,
+                       contact_heat_w=(value-contact)/definition['resistance_k_per_w'],
+                       junction_model='Explicit lumped '+kind+' RC node; no internal solid gradient')
+            if definition.get('exposed_area_mm2') is not None:
+                area=definition['exposed_area_mm2']*1e-6;ambient=result['ambient_c']
+                row['convection_w']=area*definition['h_w_m2k']*(value-ambient)
+                row['radiation_w']=area*definition['emissivity']*5.670374419e-8*((value+273.15)**4-(ambient+273.15)**4)
+        else:
+            row.update(junction_c=None if resistance is None else contact+power*resistance,
+                       junction_model='Massless package offset from transient contact; no die heat capacity')
         row['sink_c']=contact if row.get('sink_c') is not None else None
         components.append(row)
     result['components']=components
+    result['heat_balance_meaning']='Steady-state reference balance; frame heat storage and interval balances are in transient.energy_balance.'
     return result
 
 
@@ -268,7 +284,8 @@ def frame_view(view, network):
     components={row['reference']:row for row in network.get('components',[])}
     for part in result.get('components',[]):
         row=components.get(part['reference'],{})
-        part.update(junction_c=row.get('junction_c'),power_w=row.get('power_w'),solved=row.get('junction_c') is not None)
+        part.update(junction_c=row.get('junction_c'),power_w=row.get('power_w'),solved=row.get('junction_c') is not None,
+                    component_temperature_c=row.get('component_temperature_c'),temperature_kind=row.get('temperature_kind'))
     return result
 
 

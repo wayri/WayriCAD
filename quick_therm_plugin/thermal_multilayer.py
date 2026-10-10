@@ -28,6 +28,51 @@ def _num(value, name, *, low=None, high=None):
     return n
 
 
+
+def _component_storage(settings, result):
+    """Validate explicit lumped component models without inventing properties."""
+    raw = settings.get("component_storage", {})
+    if not isinstance(raw, Mapping):
+        raise ValueError("component_storage must map selected references to explicit thermal properties.")
+    references = [str(part["reference"]) for part in result.get("components", [])]
+    if raw and len(set(references)) != len(references):
+        raise ValueError("Component storage requires unique selected source references.")
+    if any(not isinstance(ref, str) or ref not in references for ref in raw):
+        raise ValueError("component_storage references must be selected heat sources.")
+    models = {}
+    required = {"capacity_j_k", "resistance_k_per_w", "temperature_kind"}
+    for ref in sorted(raw):
+        spec = raw[ref]
+        surface_keys = {"exposed_area_mm2", "h_w_m2k", "emissivity"}
+        if not isinstance(spec, Mapping) or not required <= set(spec) or set(spec)-required-{"initial_c"}-surface_keys:
+            raise ValueError(ref + ": component storage requires capacity_j_k, resistance_k_per_w, temperature_kind, optional initial_c and optional explicit surface properties only.")
+        if set(spec) & surface_keys and not surface_keys <= set(spec):
+            raise ValueError(ref + ": exposed_area_mm2, h_w_m2k and emissivity must be supplied together.")
+        if spec["temperature_kind"] not in ("body", "junction"):
+            raise ValueError(ref + ": temperature_kind must be body or junction.")
+        model = {"temperature_kind": spec["temperature_kind"]}
+        for key in ("capacity_j_k", "resistance_k_per_w", "initial_c", "exposed_area_mm2", "h_w_m2k", "emissivity"):
+            if key not in spec:
+                continue
+            try:
+                if isinstance(spec[key], bool):
+                    raise ValueError()
+                value = float(spec[key])
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError(ref + ": " + key + " must be a finite number.") from exc
+            if not math.isfinite(value) or (key in ("capacity_j_k", "resistance_k_per_w", "exposed_area_mm2") and value <= 0):
+                raise ValueError(ref + ": " + key + " must be finite and positive.")
+            if key == "initial_c" and not -273.15 < value <= 10000:
+                raise ValueError(ref + ": initial_c must exceed absolute zero and not exceed 10000 C.")
+            if key in ("h_w_m2k", "emissivity") and value < 0 or key == "emissivity" and value > 1:
+                raise ValueError(ref + ": invalid surface convection or emissivity.")
+            if key == "h_w_m2k" and result.get("environment", "air") == "vacuum" and value != 0:
+                raise ValueError(ref + ": vacuum requires zero component convection.")
+            model[key] = value
+        models[ref] = model
+    return models
+
+
 def _board_contains(point, outlines):
     return any(_inside(point, shape["outer_mm"]) and
                not any(_inside(point, hole) for hole in shape.get("holes_mm", []))
@@ -371,7 +416,10 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     ncell = len(cells)
     sink_parts = [part for part in result.get("components", []) if part.get("heat_path") == "heatsink"]
     nboard = ncell*len(layers)
-    nnode = nboard+len(sink_parts)
+    component_storage = _component_storage(settings, result)
+    storage_nodes = {ref: nboard+len(sink_parts)+index
+                     for index, ref in enumerate(component_storage)}
+    nnode = nboard+len(sink_parts)+len(storage_nodes)
     if nnode > 150000:
         raise ValueError("Thermal grid exceeds 150,000 layer cells; reduce resolution.")
     by_cell = {cell: index for index, cell in enumerate(cells)}
@@ -492,6 +540,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     via_edges = 0
     annulus_edges = 0
     unresolved_barrel_stencils = 0
+    barrel_loss_stencils = {}
     barrel_mode = settings.get("barrel_contact_mode", "annulus_stencil")
     if barrel_mode not in ("annulus_stencil", "nearest_cell"):
         raise ValueError("barrel_contact_mode must be annulus_stencil or nearest_cell.")
@@ -516,6 +565,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                 abs(ys[cells[ci][1]]-y)>y_widths[cells[ci][1]]*1000):
             continue
         for a, b in zip(span, span[1:]):
+            unresolved_before = unresolved_barrel_stencils
             if b != a+1:
                 raise ValueError(f"{via['id']}: barrel span is not continuous through the stackup.")
             if barrel_mode == "nearest_cell" and drill_dimensions(via)[0] != drill_dimensions(via)[1]:
@@ -576,6 +626,20 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                 total = math.fsum(raw)
                 stencil = [(candidate, weight/total)
                            for (candidate, _), weight in zip(candidates, raw)]
+            lands = via.get("land_polygons_mm", {})
+            pair_lands = [lands.get(str(layers[index]["id"]), []) for index in (a,b)]
+            verified = (barrel_mode == "annulus_stencil" and unresolved_before == unresolved_barrel_stencils
+                        and all(pair_lands) and all(
+                            _drill_at((xs[cells[ci][0]],ys[cells[ci][1]]),layers[li]["id"],geometry) is None
+                            and any(_polygon_cell_fraction(poly,x_edges[cells[ci][0]],y_edges[cells[ci][1]],
+                                                          x_edges[cells[ci][0]+1],y_edges[cells[ci][1]+1]) > 0
+                                    for poly in pair_lands[endpoint])
+                            for endpoint,li in enumerate((a,b)) for ci,_ in stencil))
+            key = (str(via["id"]),layers[a]["id"],layers[b]["id"])
+            if key in barrel_loss_stencils:
+                raise ValueError("Repeated barrel segment identity in thermal geometry.")
+            barrel_loss_stencils[key] = {"verified": bool(verified), "nodes": [
+                (node(li,ci),.5*weight) for li in (a,b) for ci,weight in stencil]}
             conductance = copper_k*barrel_area/((z[b]-z[a])/1000)
             for target, weight in stencil:
                 add_edge(node(a, target), node(b, target), conductance*weight)
@@ -624,11 +688,12 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                 raise ValueError(f"{ref}: enter sink_exposed_area_mm2; shape dimensions do not establish exposed area.")
             area = _num(sink_areas[ref], f"{ref} sink exposed area (mm²)", low=1e-9)/1e6
             sink_e = _num(sink_e_raw.get(ref, emissivity), f"{ref} sink emissivity", low=0, high=1)
-            if sink_h == 0 and sink_e == 0 and ref not in sink_to_board:
+            if sink_h == 0 and sink_e == 0 and ref not in sink_to_board and ref not in storage_nodes:
                 raise ValueError(f"{ref}: sink has no heat rejection path.")
             ni = nboard+len(sink_nodes)
             sink_nodes[ref] = (ni, area, sink_e)
-            sources[ni] += power
+            if ref not in storage_nodes:
+                sources[ni] += power
             if ref in sink_to_board:
                 resistance = _num(sink_to_board[ref], f"{ref} sink-to-board resistance (K/W)", low=1e-9)
                 pos = component["position_mm"]
@@ -671,8 +736,9 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         if not math.isclose(math.fsum(weight for _, weight in weights), 1.0,
                             rel_tol=1e-12, abs_tol=1e-12):
             raise ArithmeticError(f"{ref}: mapped source fractions do not conserve power.")
-        for ci, weight in weights:
-            sources[node(li, ci)] += power*weight
+        if ref not in storage_nodes:
+            for ci, weight in weights:
+                sources[node(li, ci)] += power*weight
         source_sites[ref] = (li, weights)
         output_components.append({"reference": ref, "power_w": power, "side": component.get("side", "top"),
                                   "heat_path": "board", "sink_c": None,
@@ -698,9 +764,29 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                                   "junction_peak_proxy_c": None,
                                   "board_site_c": None,
                                   "junction_c": None})
-    if not output_components:
-        raise ValueError("No mapped QuickTherm component power is available.")
-    declared_power = math.fsum(part["power_w"] for part in output_components)
+    copper_sources = _map_copper_losses(settings.get("copper_loss_sources", []), geometry, layers,
+                                        cells, x_edges, y_edges, barrel_loss_stencils)
+    if {source["id"] for source in copper_sources} & set(view_refs):
+        raise ValueError("Copper loss identities must not collide with component references.")
+    for source in copper_sources:
+        for ni, weight in source["nodes"]:
+            sources[ni] += source["power_w"]*weight
+    if not output_components and not copper_sources:
+        raise ValueError("No mapped QuickTherm component or copper loss power is available.")
+    component_contacts = {}
+    by_reference = {part["reference"]: part for part in output_components}
+    for ref, spec in component_storage.items():
+        ni = storage_nodes[ref]
+        contacts = ([(sink_nodes[ref][0], 1.0)] if ref in sink_nodes else
+                    [(node(source_sites[ref][0], ci), weight) for ci, weight in source_sites[ref][1]])
+        component_contacts[ref] = contacts
+        for contact_node, weight in contacts:
+            conductance = weight/spec["resistance_k_per_w"]
+            if not math.isfinite(conductance) or conductance <= 0:
+                raise ValueError(ref + ": component contact conductance exceeds the finite numerical range.")
+            add_edge(ni, contact_node, conductance)
+        sources[ni] = by_reference[ref]["power_w"]
+    declared_power = math.fsum(part["power_w"] for part in [*output_components, *copper_sources])
     allocated_power = float(np.sum(sources))
     if not math.isclose(allocated_power, declared_power,
                         rel_tol=1e-10, abs_tol=1e-10):
@@ -761,8 +847,15 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         surface_area[ni] = area
         convection_h[ni] = sink_h
         surface_e[ni] = sink_e
+    for ref, ni in storage_nodes.items():
+        spec = component_storage[ref]
+        if "exposed_area_mm2" in spec:
+            surface_area[ni] = spec["exposed_area_mm2"]/1e6
+            convection_h[ni] = spec["h_w_m2k"]
+            surface_e[ni] = spec["emissivity"]
     _, graph_labels = connected_components(laplacian, directed=False)
     unexcited_anchors = 0
+    display_anchors = set()
     for label in set(int(value) for value in graph_labels):
         indices = np.flatnonzero(graph_labels == label)
         has_rejection = (bool(np.any(surface_area[indices]*(convection_h[indices]+surface_e[indices])))
@@ -772,6 +865,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
             if np.any(sources[indices]):
                 raise ValueError("A powered thermal region has no convection, radiation or fixture path.")
             fixed[int(indices[0])] = ambient
+            display_anchors.add(int(indices[0]))
             unexcited_anchors += 1
     free = np.asarray([i for i in range(nnode) if i not in fixed], dtype=int)
     fixed_ids = np.asarray(sorted(fixed), dtype=int)
@@ -808,7 +902,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         if part["heat_path"] == "heatsink":
             ni, _, _ = sink_nodes[part["reference"]]
             part["sink_c"] = float(temp[ni])
-            if part["reference"] in sink_resistances:
+            if part["reference"] in sink_resistances and part["reference"] not in storage_nodes:
                 r = _num(sink_resistances[part["reference"]],
                          "Component-to-sink resistance (K/W)", low=0)
                 part["junction_c"] = part["sink_c"]+part["power_w"]*r
@@ -826,13 +920,29 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                                     for polygon in layers[li].get("polygons_mm", [])),
             "copper_area_fraction": max(memberships[li][peak_ci].values(), default=0),
         }
-        if part["reference"] in board_resistances:
+        if part["reference"] in board_resistances and part["reference"] not in storage_nodes:
             r = _num(board_resistances[part["reference"]], "Component-to-board resistance (K/W)", low=0)
             part["junction_c"] = part["board_site_c"]+part["power_w"]*r
             part["junction_peak_proxy_c"] = part["source_peak_c"]+part["power_w"]*r
+    for ref, spec in component_storage.items():
+        part = by_reference[ref]
+        value = float(temp[storage_nodes[ref]])
+        part.update(storage_node=storage_nodes[ref], temperature_kind=spec["temperature_kind"],
+                    capacity_j_k=spec["capacity_j_k"], resistance_k_per_w=spec["resistance_k_per_w"],
+                    component_temperature_c=value,
+                    body_c=value if spec["temperature_kind"] == "body" else None,
+                    junction_c=value if spec["temperature_kind"] == "junction" else None,
+                    junction_peak_proxy_c=None, component_model="lumped_component_storage",
+                    contact_heat_w=math.fsum(weight*(value-float(temp[ni]))/spec["resistance_k_per_w"]
+                                            for ni, weight in component_contacts[ref]))
     kelvin = temp+273.15
     conv_terms = surface_area*convection_h*(temp-ambient)
     rad_terms = surface_area*surface_e*SIGMA*(kelvin**4-(ambient+273.15)**4)
+    for ref, ni in storage_nodes.items():
+        part = by_reference[ref]
+        part.update(convection_w=float(conv_terms[ni]), radiation_w=float(rad_terms[ni]))
+        part.update({key: component_storage[ref][key] for key in ("exposed_area_mm2", "h_w_m2k", "emissivity")
+                     if key in component_storage[ref]})
     convection = float(np.sum(conv_terms))
     radiation = float(np.sum(rad_terms))
     residual_nodes = np.asarray(laplacian@temp + contact_g*temp-contact_rhs +
@@ -890,43 +1000,77 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
         for ref, (ni, _, _) in sink_nodes.items():
             capacity[ni] = _num(transient_settings.get("sink_capacity_j_k", {}).get(ref),
                                 ref + " sink heat capacity (J/K)", low=1e-9)
+        for ref, ni in storage_nodes.items():
+            capacity[ni] = component_storage[ref]["capacity_j_k"]
+        initial_vector = None
+        if storage_nodes:
+            initial = _num(transient_settings.get("initial_c", ambient), "Initial temperature (C)")
+            initial_vector = np.full(nnode, initial)
+            for ref, ni in storage_nodes.items():
+                initial_vector[ni] = component_storage[ref].get("initial_c", initial)
         source_vectors = {}
         for part in output_components:
             ref = part["reference"]
             vector = np.zeros(nnode)
-            if ref in sink_nodes:
+            if ref in storage_nodes:
+                vector[storage_nodes[ref]] = part["power_w"]
+            elif ref in sink_nodes:
                 vector[sink_nodes[ref][0]] = part["power_w"]
             else:
                 li, weights = source_sites[ref]
                 for ci, weight in weights:
                     vector[node(li, ci)] = part["power_w"]*weight
             source_vectors[ref] = vector
+        for source in copper_sources:
+            vector = np.zeros(nnode)
+            for ni, weight in source["nodes"]:
+                vector[ni] = source["power_w"]*weight
+            source_vectors[source["id"]] = vector
+        # Anchors used only to display an unpowered steady region are not
+        # physical fixtures and must not drain its initial stored energy.
+        transient_fixed = {ni: value for ni, value in fixed.items() if ni not in display_anchors}
         transient = evolve(laplacian, capacity, source_vectors, surface_area, convection_h,
-                           surface_e, ambient, contact_g, contact_rhs, fixed, transient_settings)
+                           surface_e, ambient, contact_g, contact_rhs, transient_fixed, transient_settings,
+                           initial_temperatures_c=initial_vector)
         # Flattening metadata makes every frame reusable without rebuilding copper geometry.
         transient["spatial_index"] = {"cells": cells, "x_centers_mm": xs, "y_centers_mm": ys,
                                       "layers": [{"id": layer["id"], "name": layer["name"], "z_mm": z[li]}
                                                  for li, layer in enumerate(layers)],
                                       "active_cells_per_layer": ncell}
+        transient["copper_loss_sources"] = copper_sources
         transient["components"] = []
         for part in output_components:
             ref = part["reference"]
             sites = ([(sink_nodes[ref][0], 1.0)] if ref in sink_nodes else
                      [(node(source_sites[ref][0], ci), weight) for ci, weight in source_sites[ref][1]])
-            transient["components"].append({"reference": ref, "nodes": sites,
-                "power_w": part["power_w"], "junction_resistance_k_per_w":
-                sink_resistances.get(ref) if ref in sink_nodes else board_resistances.get(ref)})
+            definition = {"reference": ref, "nodes": sites, "power_w": part["power_w"]}
+            if ref in storage_nodes:
+                spec = component_storage[ref]
+                definition.update(storage_node=storage_nodes[ref], temperature_kind=spec["temperature_kind"],
+                                  capacity_j_k=spec["capacity_j_k"], resistance_k_per_w=spec["resistance_k_per_w"],
+                                  initial_c=float(transient["frames"][0]["temperatures_c"][storage_nodes[ref]]))
+                definition.update({key: spec[key] for key in ("exposed_area_mm2", "h_w_m2k", "emissivity") if key in spec})
+            else:
+                definition["junction_resistance_k_per_w"] = (sink_resistances.get(ref) if ref in sink_nodes
+                                                              else board_resistances.get(ref))
+            transient["components"].append(definition)
+        if storage_nodes:
+            transient["assumptions"].append("Selected component nodes store heat using explicit lumped capacities and contact resistances; body and junction temperatures are distinct declared quantities, with no internal solid gradients.")
     return {"model": "steady-state layer-resolved finite-volume board screen",
             **({"transient": transient} if transient is not None else {}),
             "status": "converged" if abs(residual) <= tolerance else "imbalanced",
             "environment": environment, "ambient_c": ambient, "layers": fields,
-            "components": output_components, "mounts": mounts,
+            "components": output_components, "mounts": mounts, "copper_loss_sources": copper_sources,
             "heat_balance": {"input_w": input_w, "convection_w": convection,
                              "radiation_w": radiation, "mount_flux_w": mount_flux,
                              "board_convection_w": float(np.sum(conv_terms[:nboard])),
                              "board_radiation_w": float(np.sum(rad_terms[:nboard])),
-                             "sink_convection_w": float(np.sum(conv_terms[nboard:])),
-                             "sink_radiation_w": float(np.sum(rad_terms[nboard:])),
+                             "sink_convection_w": float(np.sum(conv_terms[nboard:nboard+len(sink_parts)])),
+                             "sink_radiation_w": float(np.sum(rad_terms[nboard:nboard+len(sink_parts)])),
+                             "component_convection_w": float(np.sum(conv_terms[nboard+len(sink_parts):])),
+                             "component_radiation_w": float(np.sum(rad_terms[nboard+len(sink_parts):])),
+                             "copper_loss_input_w": math.fsum(source["power_w"] for source in copper_sources),
+                             "component_input_w": math.fsum(part["power_w"] for part in output_components),
                              "residual_w": residual,
                              "relative_residual": abs(residual)/max(abs(input_w), 1e-12),
                              "tolerance_w": tolerance},
@@ -937,14 +1081,16 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                          "barrel_contact_mode": barrel_mode,
                          "grid_phase_fraction": [phase_x, phase_y],
                          "copper_blur_cells": blur, "board_h_w_m2k": h,
-                         "board_emissivity": emissivity, "sink_h_w_m2k": sink_h},
+                         "board_emissivity": emissivity, "sink_h_w_m2k": sink_h,
+                         "component_storage": component_storage},
             "mesh": {"nx": nx, "ny": ny, "active_cells_per_layer": ncell,
                      "source_refinement_factor": refinement,
                      "solver_iterations": iterations, "copper_lateral_edges": copper_edges,
                      "via_vertical_edges": via_edges,
                      "barrel_stencil_edges": annulus_edges,
                      "unresolved_barrel_stencils": unresolved_barrel_stencils,
-                     "unexcited_regions_anchored_at_ambient": unexcited_anchors},
+                     "unexcited_regions_anchored_at_ambient": unexcited_anchors,
+                     "component_storage_nodes": len(storage_nodes)},
             "assumptions": environment_notes + [
                 "Copper area and shared-face occupancy are clipped from saved polygons in area_face mode; subcell conductance remains a finite-volume approximation.",
                 "Dielectric is homogeneous and isotropic between copper midplanes; no anisotropic laminate data are inferred.",
@@ -954,7 +1100,10 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                 "An explicitly declared NPTH mechanical contact couples to the nearest dielectric cell through entered contact resistance; no copper-plane contact is inferred.",
                 "Only top and bottom faces reject heat; edge radiation, package shadows, view factors, airflow fields are unresolved. Spatial transients require explicit volumetric heat capacities and time-step convergence.",
                 "Sources use footprint bounding boxes as contact proxies, or a labelled point fallback; junction temperature needs explicit component-to-board resistance.",
-                "The model junction uses area-weighted source-cell temperature; source_peak_c and junction_peak_proxy_c expose hotter sampled cells but are not resolved die maximums.",
+                "Legacy massless junction estimates use area-weighted contact temperature plus power times explicit package resistance; source peaks are not resolved die maxima.",
+                "Selected storage components use a uniform lumped node with explicit capacity and resistance. Its declared body temperature does not imply a junction temperature. Component surface cooling requires explicit exposed area, convection and emissivity; neither exposed geometry nor internal solid gradients are inferred.",
+                "Storage-node links use contact weight divided by resistance; an isothermal component can redistribute heat among nonuniform contact cells, unlike prescribed fixed source fractions.",
+                "Reviewed copper losses enter their declared copper-layer cells by conservative polygon overlap. Unsupported board, copper or drill-void mappings are rejected; there is no nearest-cell heat relocation.",
                 "Virtual heatsink nodes use entered exposed area and component-to-sink resistance; they couple to the board only if an explicit sink-to-board resistance is supplied.",
                 "An unpowered region with no thermal boundary is anchored at ambient only to make its otherwise undefined temperature displayable.",
                 "A zero residual is numerical energy balance, not validation of material, boundary or contact assumptions.",
@@ -1128,3 +1277,183 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings,
         "note": "Cell count means overlap-area-equivalent cells, not cells touched. Contact spreading and source-shape fidelity remain unresolved.",
     }
     return fine
+
+
+def _loss_number(value, name, *, positive=False):
+    if isinstance(value, bool):
+        raise ValueError(name + ' must be finite and numeric.')
+    try:
+        value = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(name + ' must be finite and numeric.') from exc
+    if not math.isfinite(value) or value < 0 or positive and value == 0:
+        raise ValueError(name + ' is outside its finite physical range.')
+    return value
+
+
+def _loss_area(ring):
+    if len(ring) < 3:
+        return 0.
+    x, y = ring[0]
+    return abs(math.fsum((a[0]-x)*(b[1]-y)-(b[0]-x)*(a[1]-y)
+                        for a,b in zip(ring,ring[1:]+ring[:1])))/2
+
+
+def _loss_clip(subject, convex):
+    """Exact straight-edge clipping; clip polygon must be counter-clockwise."""
+    result = list(subject)
+    for a,b in zip(convex,convex[1:]+convex[:1]):
+        if not result:
+            break
+        previous = result[-1]
+        def side(p):
+            return (b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0])
+        old, result = result, []
+        fp = side(previous)
+        for current in old:
+            fc = side(current)
+            if (fp >= 0) != (fc >= 0):
+                fraction = fp/(fp-fc)
+                result.append((previous[0]+fraction*(current[0]-previous[0]),
+                               previous[1]+fraction*(current[1]-previous[1])))
+            if fc >= 0:
+                result.append(current)
+            previous, fp = current, fc
+    return result
+
+
+def _loss_polygon(raw, identifier):
+    if not isinstance(raw, (list,tuple)) or not 3 <= len(raw) <= 1024:
+        raise ValueError(identifier + ': polygon_mm requires 3 to 1024 convex XY vertices.')
+    ring = []
+    for point in raw:
+        if not isinstance(point, (list,tuple)) or len(point) != 2 or any(isinstance(v,bool) for v in point):
+            raise ValueError(identifier + ': polygon_mm requires finite XY coordinates.')
+        try:
+            xy = tuple(float(v) for v in point)
+        except (TypeError,ValueError,OverflowError) as exc:
+            raise ValueError(identifier + ': polygon_mm requires finite XY coordinates.') from exc
+        if not all(math.isfinite(v) for v in xy):
+            raise ValueError(identifier + ': polygon_mm requires finite XY coordinates.')
+        ring.append(xy)
+    if ring[0] == ring[-1]:
+        ring.pop()
+    if len(set(ring)) != len(ring) or _loss_area(ring) <= 1e-16:
+        raise ValueError(identifier + ': loss polygon is repeated or degenerate.')
+    x,y = ring[0]
+    signed = math.fsum((a[0]-x)*(b[1]-y)-(b[0]-x)*(a[1]-y) for a,b in zip(ring,ring[1:]+ring[:1]))
+    if signed < 0:
+        ring.reverse()
+    # Every vertex must lie to the left of every directed edge. This also
+    # rejects self-crossing star orderings that a turn-only test would accept.
+    for a,b in zip(ring,ring[1:]+ring[:1]):
+        if any((b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]) < -max(1e-24,_loss_area(ring)*1e-10) for p in ring):
+            raise ValueError(identifier + ': loss polygon must be convex and non-self-intersecting.')
+    return ring
+
+
+def _loss_overlaps_drill(ring, drill):
+    """Analytical segment-to-polygon distance for circular/rotated slot voids."""
+    dx,dy = drill_dimensions(drill)
+    angle = -math.radians(float(drill.get('drill_angle_deg',0))) + (math.pi/2 if dy > dx else 0)
+    run = abs(dx-dy)/2
+    direction = (run*math.cos(angle),run*math.sin(angle))
+    a = (drill['x_mm']-direction[0],drill['y_mm']-direction[1])
+    b = (drill['x_mm']+direction[0],drill['y_mm']+direction[1])
+    if _inside(a,ring) or _inside(b,ring) or any(_segments_cross(a,b,c,d) for c,d in zip(ring,ring[1:]+ring[:1])):
+        return True
+    def distance(p,c,d):
+        vx,vy = d[0]-c[0],d[1]-c[1]
+        norm = vx*vx+vy*vy
+        t = min(1.,max(0.,((p[0]-c[0])*vx+(p[1]-c[1])*vy)/norm)) if norm else 0.
+        return math.hypot(p[0]-c[0]-t*vx,p[1]-c[1]-t*vy)
+    minimum = min([distance(p,a,b) for p in ring]+
+                  [distance(p,c,d) for p in (a,b) for c,d in zip(ring,ring[1:]+ring[:1])])
+    return minimum < min(dx,dy)/2-1e-10
+
+
+def _map_copper_losses(raw, geometry, layers, cells, x_edges, y_edges, barrel_stencils=None):
+    """Retain integrated watts; incomplete physical support is an error."""
+    from .thermal_mesh import board_tiles
+    if not isinstance(raw,list):
+        raise ValueError('copper_loss_sources must be a list of reviewed loss records.')
+    if not raw:
+        return []
+    layer_indices = {row['id']:i for i,row in enumerate(layers)}
+    planar_keys = {'id','layer_id','polygon_mm','power_w'}
+    via_keys = {'id','barrel_id','top_layer','bottom_layer','power_w'}
+    seen = set(); output = []; tile_cache = {}
+    board_faces = None
+    indices = {cell:index for index,cell in enumerate(cells)}
+    holes = [h for h in [*geometry.get('barrels',[]),*geometry.get('mounting_holes',[])]
+             if h.get('drill_mm') or h.get('drill_size_mm')]
+    def faces_for(key):
+        nonlocal board_faces
+        if key is None:
+            if board_faces is None:
+                board_faces = [(face,_ring_bounds(face)) for face in board_tiles({'outline':geometry['outline']})]
+            return board_faces
+        if key not in tile_cache:
+            polygons = layers[layer_indices[key]].get('polygons_mm',[])
+            tile_cache[key] = [(face,_ring_bounds(face)) for face in board_tiles({'outline':[
+                {'outer_mm':p['outer'],'holes_mm':p.get('holes',[])} for p in polygons]})]
+        return tile_cache[key]
+    for record in raw:
+        if not isinstance(record,Mapping) or set(record) not in (planar_keys,via_keys):
+            raise ValueError('Copper loss records require explicit planar polygon/layer or adjacent barrel-segment fields.')
+        identifier = record['id']
+        if not isinstance(identifier,str) or not identifier.startswith('copper:') or len(identifier) <= 7 or identifier in seen:
+            raise ValueError('Copper loss IDs must be unique and prefixed copper:.')
+        seen.add(identifier)
+        power = _loss_number(record['power_w'],identifier+' power_w')
+        if 'barrel_id' in record:
+            if not isinstance(record['barrel_id'],str):
+                raise ValueError(identifier+': barrel_id must be a saved identity.')
+            top,bottom = record['top_layer'],record['bottom_layer']
+            if any(isinstance(lid,bool) or not isinstance(lid,(str,int)) or lid not in layer_indices for lid in (top,bottom)):
+                raise ValueError(identifier+': unknown via layer.')
+            mapping = (barrel_stencils or {}).get((record['barrel_id'],top,bottom))
+            if mapping is None or not mapping['verified']:
+                raise ValueError(identifier+': no resolved barrel contact stencil with saved land coverage; refine the grid or review flashed lands.')
+            weights = mapping['nodes']
+            output.append(dict(record,power_w=power,nodes=weights,mapped_power_w=power*math.fsum(w for _,w in weights),
+                               coverage_fraction=1.,mapping='retained_barrel_contact_stencil_uniform_axial'))
+            continue
+        layer = record['layer_id']
+        if isinstance(layer,bool) or not isinstance(layer,(str,int)) or layer not in layer_indices:
+            raise ValueError(identifier+': unknown copper layer_id.')
+        ring = _loss_polygon(record['polygon_mm'],identifier)
+        area = _loss_area(ring); bound = _ring_bounds(ring)
+        tolerance = max(1e-24,area*1e-8)
+        for kind in (None,layer):
+            overlap = math.fsum(_loss_area(_loss_clip(face,ring)) for face,bbox in faces_for(kind)
+                               if bbox[0] < bound[2] and bbox[2] > bound[0] and bbox[1] < bound[3] and bbox[3] > bound[1])
+            if abs(overlap-area) > tolerance:
+                raise ValueError(identifier+': loss polygon is not fully supported by saved board/copper material; clipped loss cannot be renormalized.')
+        for hole in holes:
+            if hole.get('span_layers') and layer not in hole['span_layers']:
+                continue
+            if _loss_overlaps_drill(ring,hole):
+                raise ValueError(identifier+': loss polygon intersects a drill void; provide actual copper-only support.')
+        hits = []
+        for j in range(max(0,bisect_right(y_edges,bound[1])-1),min(len(y_edges)-1,bisect_right(y_edges,bound[3]))):
+            for i in range(max(0,bisect_right(x_edges,bound[0])-1),min(len(x_edges)-1,bisect_right(x_edges,bound[2]))):
+                ci = indices.get((i,j))
+                if ci is None:
+                    continue
+                amount = _loss_area(_clip_ring_to_cell(ring,x_edges[i],y_edges[j],x_edges[i+1],y_edges[j+1]))
+                if amount <= 0:
+                    continue
+                center = ((x_edges[i]+x_edges[i+1])/2,(y_edges[j]+y_edges[j+1])/2)
+                if _drill_at(center,layer,geometry) is not None:
+                    raise ValueError(identifier+': mapped cell center lies in a drill void; refine the thermal grid.')
+                hits.append((layer_indices[layer]*len(cells)+ci,amount))
+        mapped_area = math.fsum(amount for _,amount in hits)
+        if not hits or abs(mapped_area-area) > tolerance:
+            raise ValueError(identifier+': unresolved thermal cell coverage; refine the grid instead of dropping heat.')
+        weights = [(ni,amount/mapped_area) for ni,amount in hits]
+        output.append(dict(id=identifier,layer_id=layer,polygon_mm=ring,power_w=power,nodes=weights,
+                           mapped_power_w=power*math.fsum(w for _,w in weights),area_mm2=area,
+                           mapped_area_mm2=mapped_area,coverage_fraction=mapped_area/area,
+                           mapping='exact_polygon_overlap'))
+    return output
