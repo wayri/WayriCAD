@@ -67,6 +67,24 @@ class ComponentHeatingIOTests(unittest.TestCase):
         report['result']['vias'][0]['id']='other'
         with self.assertRaises(ValueError):import_losses(report,'board')
 
+    def test_loss_import_keeps_contact_heat_separate_and_checks_current(self):
+        from wayricad_runtime.package_conduction import normalize_paths
+        definition={'id':'U1-1','reference':'U1','pad_number':'1','layer_id':0,'port':'source',
+            'segments':[{'shape':'cylinder','length_mm':.2,'diameter_mm':.3,
+                         'rho_ohm_m':1.3e-7,'k_w_mk':50}]}
+        contact=normalize_paths([definition],physics='electrical')[0]
+        power=4*contact['electrical_resistance_ohm']
+        report=pi_report()
+        report['result'].update(package_contacts=[{'definition':definition,'current_A':2,'power_W':power}],
+                                package_power_W=power)
+        imported=import_losses(report,'board')
+        self.assertAlmostEqual(imported['input_w'],.25)
+        self.assertAlmostEqual(imported['package_joule_input_w'],power)
+        self.assertEqual(imported['package_joule_losses'][0]['id'],'U1-1')
+        report['result']['package_contacts'][0]['current_A']=3
+        with self.assertRaisesRegex(ValueError,'current/resistance/heat'):
+            import_losses(report,'board')
+
     def test_converged_electrothermal_uses_explicit_mesh_layer_thickness(self):
         report=pi_report()
         coupled={'mode':'steady_electrothermal','converged':True,'mesh':report['mesh'],

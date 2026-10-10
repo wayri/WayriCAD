@@ -42,6 +42,7 @@ class QuickPIFrame(wx.Frame):
         self.bundle={};self.inventory={};self.return_bundle={};self.sweep_bundle={};self.volume_bundle={}
         self._busy=False;self._closed=False;self._closing=False
         self._series_request=None
+        self._package_conduction=[]
         self._cancel=threading.Event();self._terminals=[];self._layers=[];self._plot_keys={};self._probe_controllers={}
         self._extra_sinks=[];self._inspection=None;self._finding_rows=[];self._saved_source_current=True
         self._board_scene={};self._board_scene_hash=None
@@ -103,6 +104,9 @@ class QuickPIFrame(wx.Frame):
         self.sink_max_voltage.SetToolTip('Maximum allowed voltage at the primary sink; blank means unbounded')
         self.loads_button=icon_button(self.inputs,'Additional sinks (0)…',wx.ART_PLUS,'Add simultaneous loads on this net with individual current and voltage limits')
         controls.Add(self.loads_button,0,wx.EXPAND|wx.BOTTOM,6)
+        self.package_button=icon_button(self.inputs,'Package contacts (0)…',wx.ART_LIST_VIEW,'Enter explicit lead, solder and BGA geometry and resistivity per pad face')
+        controls.Add(self.package_button,0,wx.EXPAND|wx.BOTTOM,6)
+        self.package_button.Bind(wx.EVT_BUTTON,self.on_package_contacts)
         self.model_dimension=wx.Choice(self.inputs,choices=['2.5D · layered copper','3D · copper volume']);self.model_dimension.SetSelection(0)
         field('Copper model',self.model_dimension)
         self.operation_note=SidebarText(self.inputs,'Source voltage → sink current')
@@ -155,7 +159,7 @@ class QuickPIFrame(wx.Frame):
         self.gauge=wx.Gauge(panel,range=100,size=(100,-1));footer.Add(self.gauge,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
         self.cancel=icon_button(panel,'Cancel',wx.ART_CROSS_MARK,'Cancel the running study');footer.Add(self.cancel,0)
         root.Add(footer,0,wx.EXPAND|wx.ALL,6);panel.SetSizer(root)
-        self._controls=[self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
+        self._controls=[self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.package_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
         self.net.Bind(wx.EVT_COMBOBOX,self._net_changed);self.net_search.Bind(wx.EVT_TEXT,self._filter_nets)
         for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._invalidate)
         for control in (self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
@@ -708,7 +712,30 @@ class QuickPIFrame(wx.Frame):
             request['sinks']=([{'terminal':request['sink_terminal']}] if request.get('sink_terminal') else [])+list(self._extra_sinks)
         if require_terminals and self._series_request and action=='solve':
             for key in ('series','net','source_terminal','sink_terminal'):request[key]=self._series_request[key]
+        if getattr(self,'_package_conduction',[]):
+            request['package_conduction']=self._package_conduction
+            from .package_contacts import guard_request
+            guard_request(request)
         return request
+
+    def on_package_contacts(self,event=None):
+        if self._busy:return
+        try:
+            if self._series_request or self.load_mode.GetSelection()!=0 or self.model_dimension.GetSelection()!=0:
+                raise ValueError('Package contacts require a 2.5D constant-current net solve.')
+            request=self._request('solve')
+            from wayricad_runtime.package_contact_editor import edit_package_contacts
+            sink_ids=[row['terminal'] for row in request.get('sinks',[])]
+            if request.get('sink_terminal'):sink_ids.append(request['sink_terminal'])
+            rows=edit_package_contacts(self,self._package_conduction,physics='electrical',
+                ports=['source']+['sink:'+value for value in sink_ids],
+                references=sorted({t.get('reference',t['label'].rsplit('.',1)[0]) for t in self._terminals}),
+                layers=self.inventory.get('layers',[]))
+            if rows is not None:
+                self._package_conduction=rows
+                self.package_button.SetLabel(f'Package contacts ({len(rows)})…')
+                self._invalidate()
+        except ValueError as exc:self.status.SetLabel(str(exc))
 
     def on_loads(self,event=None):
         """Edit additional constant-current sinks on the currently selected net."""
@@ -800,13 +827,16 @@ class QuickPIFrame(wx.Frame):
         for warning in result.get('geometry',{}).get('warnings',[]):self._console_write('Geometry: '+str(warning))
         self._plot_keys.clear();self.book.SetSelection(2 if action=='solve' else 1 if action=='mesh' else 0)
         if result.get('result'):
-            r=result['result'];scope='Circuit' if request.get('series') else 'Copper'
+            r=result['result'];scope='Board + package' if r.get('package_contacts') else 'Circuit' if request.get('series') else 'Copper'
             multisink=len(r.get('sinks',[]))>1
             ratio='Worst drop / total demand' if multisink else scope+' ΔV/I'+(' (apparent)' if r.get('contains_forward_drop') else '')
             state=r.get('feasibility',{}).get('status','Solved')
             demand=r.get('total_sink_current_A',r.get('sink_current_A',0))
             self.summary.SetLabel(f"{state} · {len(r.get('sinks',[])) or 1} sink(s), {demand:.4g} A total   |   ΔV {r['voltage_drop_V']*1000:.4g} mV   |   {ratio} {r['drop_over_current_ohm']*1000:.4g} mΩ   |   Loss {r['total_power_W']:.4g} W")
             self.status.SetLabel('Mesh convergence not verified. Pulse risk is an adiabatic screen; peaks depend on mesh size and exclude cooling/fuse-opening physics.')
+            if r.get('package_contacts'):
+                from .package_contacts import details_text as package_text
+                self._console_write(package_text(r))
             self._console_write(f"{state}: drop={r['voltage_drop_V']:.8g} V; {ratio}={r['drop_over_current_ohm']:.8g} ohm; power={r['total_power_W']:.8g} W; requested-load source V/I={r['V_over_I_ohm']:.8g} ohm")
             self._console_write(feasibility_text(r));self._console_write(sink_results_text(r))
             for branch in r.get('components',[]):
@@ -929,7 +959,8 @@ class QuickPIFrame(wx.Frame):
             from .analytics import thickness_label
             losses=analysis['losses']
             state=result.get('feasibility',{}).get('status','Solved')
-            self.summary.SetLabel(f"{state} · ΔV {result['voltage_drop_V']*1000:.4g} mV\nSheets {losses['planar_W']:.4g} W · Vias {losses['via_W']:.4g} W · Components {losses['component_W']:.4g} W\n"
+            contacts=f" · Contacts {losses.get('package_W',0):.4g} W" if result.get('package_contacts') else ''
+            self.summary.SetLabel(f"{state} · ΔV {result['voltage_drop_V']*1000:.4g} mV\nSheets {losses['planar_W']:.4g} W · Vias {losses['via_W']:.4g} W · Components {losses['component_W']:.4g} W{contacts}\n"
                                   f"{row['name']}: {thickness_label(row)} copper | {row['area_mm2']:.4g} mm² | Layer loss {row['planar_power_W']:.4g} W · More → Layer details")
             self.summary.GetParent().Layout()
         if limits:ax.set_xlim(*limits[0]);ax.set_ylim(*limits[1])
@@ -1252,6 +1283,7 @@ class QuickPIFrame(wx.Frame):
             from .electrothermal_ui import ElectrothermalStudyDialog,initial_studies
             from .service import run_job
             request=self._request('solve')
+            if request.get('package_conduction'):raise ValueError('Package contacts are unsupported in electrothermal coupling.')
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
             dialog=ElectrothermalStudyDialog(self,initial_studies(request,self._terminals),
                 lambda payload,cancel:run_job(payload,cancelled=cancel),
@@ -1271,6 +1303,7 @@ class QuickPIFrame(wx.Frame):
             from .service import run_job
             from wayricad_runtime.transient_study_ui import TransientStudyDialog
             request=self._request('solve')
+            if request.get('package_conduction'):raise ValueError('Package contacts are unsupported in rail transient studies.')
             if request.get('series'):raise ValueError('Select a net source and sinks for the transient setup; enter the explicit path R/L in the study.')
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
             dialog=TransientStudyDialog(self,'pi',initial_study(request,self._terminals),

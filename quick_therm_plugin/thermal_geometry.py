@@ -38,7 +38,7 @@ def _backdrilled(item):
 
 
 def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005,
-                             contact_pads=None, progress=None):
+                             contact_pads=None, package_contacts=(), progress=None):
     """Return JSON-safe physical copper, barrel and hole data from a saved PCB.
 
     The caller loads ``board`` from ``source_path`` and checks that it has not
@@ -68,6 +68,8 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005,
             for ref, number in contact_pads.items()):
         raise ValueError("contact_pads must map references to pad numbers.")
     selected_contacts = {str(ref): str(number) for ref, number in contact_pads.items()}
+    requested_faces = {(path['reference'], str(path['pad_number']), path['layer_id'])
+                       for path in package_contacts}
     outline, outline_issue = _outline(board)
     if outline_issue:
         raise ValueError("A valid closed Edge.Cuts outline is required: " + outline_issue)
@@ -138,10 +140,11 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005,
         if pad:
             reference = str(item.GetParentFootprint().GetReference())
             pad_number = str(item.GetNumber())
-            if selected_contacts.get(reference) == pad_number:
-                for layer in flashed:
+            for layer in flashed:
+                if (selected_contacts.get(reference) == pad_number or
+                        (reference, pad_number, layer) in requested_faces):
                     contact = _shape(api, item, layer, error)
-                    contact_shapes.append((reference, pad_number, layer,
+                    contact_shapes.append((reference, pad_number, layer, _uid(item),
                                            str(item.GetNetname()), contact))
         drill_shape = {}
         if drilled:
@@ -220,10 +223,10 @@ def collect_thermal_geometry(board, source_path, *, curve_tolerance_mm=0.005,
     # The selected SMD contact can contain thermal vias belonging to separate
     # PCB items. Subtract the *complete* layer hole set only after every via and
     # drilled pad has been collected; subtracting the pad's own hole is not enough.
-    for reference, pad_number, layer, net, contact in contact_shapes:
+    for reference, pad_number, layer, pad_uuid, net, contact in contact_shapes:
         contact.BooleanSubtract(holes[layer])
         source_contacts.append({"reference": reference, "pad_number": pad_number,
-                                "layer_id": layer, "net": net,
+                                "layer_id": layer, "pad_uuid": pad_uuid, "net": net,
                                 "polygons_mm": _polygons(contact, api)})
     if hashlib.sha256(path.read_bytes()).digest() != hashlib.sha256(data).digest():
         raise ValueError("Saved PCB changed during thermal geometry extraction; reload and retry.")

@@ -50,6 +50,8 @@ def run_job(request, cancelled=None, timeout=300):
 
 
 def execute(request):
+    from .package_contacts import guard_request
+    guard_request(request)
     if request.get('action')=='electrothermal':
         from .electrothermal_service import execute as electrothermal_execute
         return electrothermal_execute(request)
@@ -84,7 +86,10 @@ def execute(request):
     action=request.get('action','inspect')
     if action=='inspect':
         nets=sorted({str(p.GetNetname()) for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0})
-        terminals=[{'id':p.m_Uuid.AsString(),'label':f'{fp.GetReference()}.{p.GetNumber()}', 'net':str(p.GetNetname())}
+        terminals=[{'id':p.m_Uuid.AsString(),'pad_uuid':p.m_Uuid.AsString(),
+                    'reference':str(fp.GetReference()),'pad_number':str(p.GetNumber()),
+                    'layer_ids':[int(l) for l in board.GetEnabledLayers().CuStack() if p.IsOnLayer(l)],
+                    'label':f'{fp.GetReference()}.{p.GetNumber()}', 'net':str(p.GetNetname())}
                    for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0]
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:
             raise ValueError('The board changed during inspection. Reload and run again.')
@@ -158,7 +163,12 @@ def execute(request):
             for spec in sink_requests(request):
                 row,indices=terminal(spec['terminal'])
                 sink_specs.append({**spec,'nodes':indices,'id':row['id'],'label':row['label']})
-            output['result']=solve(mesh,terminal(request['source_terminal'])[1],
+            source_row,source_nodes=terminal(request['source_terminal'])
+            if request.get('package_conduction'):
+                from .package_contacts import attach
+                mesh,source_nodes,sink_specs=attach(mesh,geometry,request['package_conduction'],source_row['id'],sink_specs)
+                output['mesh']=mesh
+            output['result']=solve(mesh,source_nodes,
                 source_voltage=request.get('source_voltage',1.),sinks=sink_specs,
                 source_current_limit=request.get('source_current_limit'),options=request.get('options'))
     output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)

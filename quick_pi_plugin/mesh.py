@@ -455,14 +455,16 @@ def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cance
         thickness.extend([float(layer['thickness_mm'])]*len(t));layers.extend([layer['id']]*len(t))
         reports.append({'layer':layer['name'],'backend':selected,**report})
     if not triangles:raise ValueError('The selected net has no meshed copper.')
-    terminal_nodes={}
+    terminal_nodes={};terminal_nodes_by_layer={}
     for terminal in geometry.get('terminals',[]):
-        nodes=[]
+        nodes=[];faces={}
         for layer,polygons in terminal.get('polygons',{}).items():
             if str(layer) not in offsets:continue
             offset,p=offsets[str(layer)]
-            nodes.extend((np.flatnonzero(contains(p,polygons))+offset).tolist())
+            faces[str(layer)]=(np.flatnonzero(contains(p,polygons))+offset).tolist()
+            nodes.extend(faces[str(layer)])
         terminal_nodes[terminal['id']]=sorted(set(nodes))
+        terminal_nodes_by_layer[terminal['id']]=faces
     vias=[]
     z_by_layer={str(l['id']):float(l['z_mm']) for l in geometry['layers']}
     for via in geometry.get('vias',[]):
@@ -488,5 +490,6 @@ def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cance
                          'x_mm':via['x_mm'],'y_mm':via['y_mm'],'top_layer':a,'bottom_layer':b})
     return {'points_mm':points,'triangles':triangles,'triangle_thickness_mm':thickness,
             'triangle_layer':layers,'vias':vias,'terminal_nodes':terminal_nodes,
+            'terminal_nodes_by_layer':terminal_nodes_by_layer,
             'mesh_report':reports,'geometry':geometry,'edge_mm':edge_mm,'plating_mm':plating_mm,
             'mesh_backend':selected}

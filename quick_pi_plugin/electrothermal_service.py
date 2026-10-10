@@ -24,6 +24,8 @@ def prepare_saved_study(path, study):
         raise ValueError('Steady saved-board coupling requires electrical net/source/sink settings.')
     if electrical.get('model_dimension','2.5d')!='2.5d' or electrical.get('load_resistance_ohm') is not None or electrical.get('sweep'):
         raise ValueError('Saved-board coupling requires 2.5D prescribed-current loads; 3D, voltage-driven loads and sweeps are separate models.')
+    if electrical.get('package_conduction'):
+        raise ValueError('Explicit package contacts are unsupported in electrothermal coupling.')
     electrical.update(board_path=str(path), action='mesh')
     bundle = execute(electrical)
     mesh, geometry = bundle['mesh'], bundle['geometry']
@@ -76,6 +78,9 @@ def execute(request):
     study = request.get('study')
     if not isinstance(study, dict):
         raise ValueError('Electrothermal study must be an object.')
+    if any(value.get('package_conduction') or value.get('package_contacts') for value in
+           (request,study,study.get('mesh',{}),study.get('electrical',{}))):
+        raise ValueError('Explicit package contacts are unsupported in electrothermal coupling.')
     mode = request.get('mode', 'steady')
     if mode not in ('steady', 'transient'):
         raise ValueError('Choose steady or transient electrothermal mode.')

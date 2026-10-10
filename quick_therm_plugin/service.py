@@ -155,6 +155,8 @@ def execute(request):
         if hashlib.sha256(path.read_bytes()).hexdigest() != before:
             raise ValueError("The board changed during inspection. Reload and run again.")
         return {
+            'layers':[{'id':int(layer),'name':board.GetLayerName(layer)}
+                      for layer in board.GetEnabledLayers().CuStack()] if hasattr(board,'GetEnabledLayers') else [],
             "component_references": sorted(fp.GetReference() for fp in components),
             "components": sorted(({
                 "reference": str(fp.GetReference()), "value": str(fp.GetValue()),
@@ -173,6 +175,10 @@ def execute(request):
     if request.get("thermal_model_kind", "thin_sheet") not in ("thin_sheet", "multilayer", "calculix"):
         raise ValueError("Choose a supported QuickTherm board model; unknown models are not substituted.")
     storage=(request.get('thermal_network_settings') or {}).get('component_storage',{})
+    from wayricad_runtime.package_conduction import normalize_paths
+    contacts = normalize_paths((request.get('thermal_network_settings') or {}).get('package_conduction', []), physics='thermal')
+    if contacts and request.get('thermal_model_kind') != 'multilayer':
+        raise ValueError('Physical lead/solder contacts require the multilayer thermal board model.')
     if storage and request.get('thermal_model_kind')!='multilayer':
         raise ValueError('Component thermal storage requires the multilayer board model.')
 
@@ -330,8 +336,9 @@ def execute(request):
 
             geometry = collect_thermal_geometry(
                 board, path, contact_pads=settings.get("source_contact_pad_numbers"),
+                package_contacts=[item['definition'] for item in contacts],
                 progress=emit_progress)
-            if settings.get('copper_loss_sources'):
+            if settings.get('copper_loss_sources') or settings.get('package_joule_losses'):
                 from .copper_loss_import import validate_layer_binding
                 binding=request.get('copper_loss_binding') or {}
                 if binding.get('source_sha256')!=before:
@@ -404,7 +411,7 @@ def execute(request):
                     resistance = model.get('resistance_k_per_w',settings.get('component_to_board_k_per_w',{}).get(row['reference']))
                     row.update(junction_c=junction, resistance_k_per_w=resistance,
                                rise_above_ambient_k=junction-result["ambient_c"],
-                               rise_local_k=(model['contact_heat_w']*resistance
+                               rise_local_k=((junction-model['board_site_c']) if model.get('component_model') == 'physical_1d_package_contacts' else model['contact_heat_w']*resistance
                                              if model.get('storage_node') is not None
                                              else row["power_w"]*resistance))
             result["coverage"]["solved"] = sum(row["junction_c"] is not None for row in result["components"])

@@ -272,7 +272,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_board_page=board_page
         workspace=wx.BoxSizer(wx.HORIZONTAL)
         page=wx.ScrolledWindow(board_page,style=wx.VSCROLL);page.SetScrollRate(0,10);layout=wx.BoxSizer(wx.VERTICAL)
-        page.SetMinSize((340, -1))
+        page.SetMinSize((self.FromDIP(340), -1))
         self._therm_input_page=page
         note=wx.StaticText(page,label='Review component inputs, choose the heat model, then run.')
         note.Wrap(270);layout.Add(note,0,wx.EXPAND|wx.ALL,8)
@@ -288,6 +288,13 @@ class QuickThermFrame(wx.Frame):
             setup.Add(wx.StaticText(page,label=label),0,wx.ALIGN_CENTER_VERTICAL)
             setup.Add(control,1,wx.EXPAND)
         setup.AddSpacer(1);setup.Add(self.therm_manual_button,0,wx.EXPAND)
+        self._package_contacts=[]
+        contacts_button=wx.Button(page,label='Lead / solder contacts…')
+        contacts_button.Bind(wx.EVT_BUTTON,self._edit_package_contacts)
+        setup.AddSpacer(1);setup.Add(contacts_button,0,wx.EXPAND)
+        component_rc=wx.Button(page,label='Component heating · R / C…')
+        component_rc.Bind(wx.EVT_BUTTON,self._edit_component_storage)
+        setup.AddSpacer(1);setup.Add(component_rc,0,wx.EXPAND)
         layout.Add(setup,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         self.therm_time_enabled=wx.CheckBox(page,label='Transient · watch board heating')
         self.therm_time_enabled.Bind(wx.EVT_CHECKBOX,self._transient_setup_changed)
@@ -334,9 +341,6 @@ class QuickThermFrame(wx.Frame):
         transient_box.Add(steps,0,wx.EXPAND|wx.ALL,6)
         self._component_storage={}
         self._copper_loss_import=None
-        component_rc=wx.Button(transient_host,label='Component heating · R / C…')
-        component_rc.Bind(wx.EVT_BUTTON,self._edit_component_storage)
-        transient_box.Add(component_rc,0,wx.EXPAND|wx.ALL,6)
         capacity_note=wx.StaticText(transient_host,label='Capacity defaults are illustrative. Review materials before relying on heating times.')
         _wrap_text(capacity_note,capacity_note.GetLabel());transient_box.Add(capacity_note,0,wx.ALL,6)
         schedule_pane=wx.CollapsiblePane(transient_host,label='Advanced schedules + sinks',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
@@ -397,11 +401,11 @@ class QuickThermFrame(wx.Frame):
         self.therm_air_sink=wx.TextCtrl(model_pane,value='0')
         self.therm_grid=wx.SpinCtrl(model_pane,min=12,max=80,initial=48,size=(80,-1))
         self.therm_sink_area=wx.TextCtrl(model_pane,value='');self.therm_sink_area.SetHint('One: 1200 · multiple: U1=1200, U2=800')
+        model_headings=wx.BoxSizer(wx.VERTICAL)
         for heading in (self.therm_model_enabled,
                         wx.StaticText(model_pane,label='Saved thickness used automatically'),
                         wx.StaticText(model_pane,label='Steady-state approximation; no CFD')):
-            model_grid.Add(heading,0,wx.ALIGN_CENTER_VERTICAL)
-            model_grid.AddSpacer(1)
+            model_headings.Add(heading,0,wx.EXPAND|wx.BOTTOM,4)
         for label,control in [('In-plane board k W/m·K',self.therm_k),('Board emissivity 0–1',self.therm_emissivity),
                               ('Board airflow m/s',self.therm_air_board),('Sink airflow m/s',self.therm_air_sink),
                               ('Mesh cells · long axis',self.therm_grid),
@@ -417,7 +421,9 @@ class QuickThermFrame(wx.Frame):
             caption=wx.StaticText(model_pane,label=label);caption.Wrap(140)
             model_grid.Add(caption,0,wx.ALIGN_CENTER_VERTICAL)
             model_grid.Add(control,1,wx.EXPAND)
-        model_layout=wx.BoxSizer(wx.VERTICAL);model_layout.Add(model_grid,0,wx.EXPAND)
+        model_layout=wx.BoxSizer(wx.VERTICAL)
+        model_layout.Add(model_headings,0,wx.EXPAND|wx.BOTTOM,6)
+        model_layout.Add(model_grid,0,wx.EXPAND)
         solver_setup=wx.BoxSizer(wx.VERTICAL)
         self.therm_ccx_browse=wx.Button(model_pane,label='Locate CalculiX…')
         self.therm_ccx_browse.Bind(wx.EVT_BUTTON,self.on_calculix_browse)
@@ -436,7 +442,8 @@ class QuickThermFrame(wx.Frame):
         mount_fields=wx.FlexGridSizer(0,2,4,6)
         self.therm_mount_temp=wx.TextCtrl(model_pane,value='10')
         self.therm_mount_r=wx.TextCtrl(model_pane,value='0')
-        self.therm_mount_mechanical=wx.CheckBox(model_pane,label='Mechanical fixture contacts selected NPTH holes')
+        self.therm_mount_mechanical=wx.CheckBox(model_pane,label='Include NPTH fixture contacts')
+        self.therm_mount_mechanical.SetToolTip('Mechanical fixture contacts selected non-plated mounting holes; enter reviewed contact resistance.')
         for label,ctrl in [('Fixture temperature °C',self.therm_mount_temp),('Contact resistance K/W',self.therm_mount_r)]:
             mount_fields.Add(wx.StaticText(model_pane,label=label),0,wx.ALIGN_CENTER_VERTICAL)
             mount_fields.Add(ctrl,1,wx.EXPAND)
@@ -485,10 +492,14 @@ class QuickThermFrame(wx.Frame):
         def compact(window):
             for child in window.GetChildren():
                 if isinstance(child,wx.StaticText):
-                    _wrap_text(child,child.GetLabel(),130 if child.GetParent() in (fields_host,model_pane,advanced_host) or child.GetContainingSizer() is transient_form else 270)
+                    _wrap_text(child,child.GetLabel(),130 if child.GetContainingSizer() in
+                        (form,model_grid,advanced_form,transient_form,mount_fields) else 270)
                 elif isinstance(child,(wx.ComboBox,wx.Choice,wx.TextCtrl)):
-                    child.SetMinSize((120,-1))
-                elif isinstance(child,wx.Button):child.SetMinSize((90,-1))
+                    sizer=child.GetContainingSizer()
+                    if sizer and sizer.GetItem(child).GetFlag()&wx.EXPAND:
+                        child.SetMinSize((1,-1))
+                elif isinstance(child,wx.Button) and child.GetMinSize().width<0:
+                    child.SetMinSize((90,-1))
                 compact(child)
         compact(page);page.Layout();page.FitInside()
         workspace.Add(page,0,wx.EXPAND|wx.RIGHT,6)
@@ -717,16 +728,33 @@ class QuickThermFrame(wx.Frame):
         from .component_storage_inputs import edit_storage
         if getattr(self,'_component_storage_board_sha',None)!=self.inventory.get('source_sha256'):
             self._component_storage={}
-        updated=edit_storage(self,references,self._component_storage)
+        contacts=getattr(self,'_package_contacts',[]) if getattr(self,'_package_contacts_board_sha',None)==self.inventory.get('source_sha256') else []
+        updated=edit_storage(self,references,self._component_storage,
+            contact_references={path['reference'] for path in contacts},transient=self.therm_time_enabled.GetValue())
         if updated is None:return
         self._component_storage=updated
         self._component_storage_board_sha=self.inventory.get('source_sha256')
         if updated:
             self.therm_model_enabled.SetValue(True);self.therm_model_kind.SetSelection(1)
-            self.therm_time_enabled.SetValue(True);self._transient_setup_changed()
+            if all(values.get('capacity_j_k',0)>0 for values in updated.values()):
+                self.therm_time_enabled.SetValue(True);self._transient_setup_changed()
             self.therm_step_models.SetValue(True)
         self._invalidate_thermal()
         self.status.SetLabel(f'{len(updated)} component RC definitions. Run to compute their heating.')
+
+    def _edit_package_contacts(self,event=None):
+        from wayricad_runtime.package_contact_editor import edit_package_contacts
+        if getattr(self,'_package_contacts_board_sha',None)!=self.inventory.get('source_sha256'):
+            self._package_contacts=[]
+        updated=edit_package_contacts(self,self._package_contacts,physics='thermal',
+            references=self.inventory.get('component_references',[]),layers=self.inventory.get('layers',[]))
+        if updated is None:return
+        self._package_contacts=updated
+        self._package_contacts_board_sha=self.inventory.get('source_sha256')
+        if updated:
+            self.therm_model_enabled.SetValue(True);self.therm_model_kind.SetSelection(1)
+        self._invalidate_thermal()
+        self.status.SetLabel(f'{len(updated)} physical pad paths. Set body/junction meaning and capacity in Component heating · R / C; clear overlapping RthetaJB.')
 
     def _clear_copper_losses(self):
         self._copper_loss_import=None
@@ -746,7 +774,8 @@ class QuickThermFrame(wx.Frame):
                 self.status.SetLabel('Copper loss import: '+str(exc));return
         self._copper_loss_import=imported
         self.therm_model_enabled.SetValue(True);self.therm_model_kind.SetSelection(1)
-        self.therm_copper_loss_status.SetLabel(f"{len(imported['sources'])} conductor sources · {imported['input_w']:.5g} W. "+imported['meaning'])
+        self.therm_copper_loss_status.SetLabel(f"{len(imported['sources'])} conductor sources · {imported['input_w']:.5g} W; "
+            f"{len(imported.get('package_joule_losses',[]))} contact losses · {imported.get('package_joule_input_w',0):.5g} W. "+imported['meaning'])
         self.therm_copper_loss_status.Wrap(270)
         self._invalidate_thermal()
 
@@ -980,12 +1009,20 @@ class QuickThermFrame(wx.Frame):
                 if storage:
                     settings['component_storage']={ref:{key:value for key,value in spec.items() if key!='contact_pad_number'} for ref,spec in storage.items()}
                     settings['source_contact_pad_numbers']={ref:spec['contact_pad_number'] for ref,spec in storage.items() if spec.get('contact_pad_number')}
+                contacts=self._package_contacts if getattr(self,'_package_contacts_board_sha',None)==self.inventory.get('source_sha256') else []
+                if contacts:
+                    if model_index!=1:raise ValueError('Physical lead/solder contacts require the multilayer model.')
+                    if any(path['reference'] not in references for path in contacts):
+                        raise ValueError('Include every physical-contact part in Component inputs, or remove its contact paths.')
+                    settings['package_conduction']=contacts
                 imported=self._copper_loss_import
                 if imported:
                     if model_index!=1:raise ValueError('Copper loss transfer requires the multilayer board model.')
                     if imported['source_sha256']!=self.inventory.get('source_sha256'):
                         raise ValueError('Imported PI losses are stale; clear them and regenerate the PI report.')
                     settings['copper_loss_sources']=imported['sources']
+                    if imported.get('package_joule_losses'):
+                        settings['package_joule_losses']=imported['package_joule_losses']
                     request['copper_loss_binding']={key:value for key,value in imported.items() if key!='sources'}
                 if environment=='vacuum':
                     settings.update(board_airflow_m_s=0, sink_airflow_m_s=0, board_h_w_m2k=0, sink_h_w_m2k=0)
@@ -1523,6 +1560,10 @@ class QuickThermFrame(wx.Frame):
                 details.extend([f"{model['temperature_kind'].capitalize()} RC {model['component_temperature_c']:.5g} °C",
                                 f"R {model['resistance_k_per_w']:g} K/W · C {model['capacity_j_k']:g} J/K",
                                 f"Heat to contact {model.get('contact_heat_w',0):.5g} W"])
+            for path in model.get('package_contacts',[]):
+                definition=path['definition']
+                details.append(f"{definition['id']} · pad {definition['pad_number']} · layer {definition['layer_id']}: "
+                    f"{path['thermal_resistance_k_per_w']:.5g} K/W · {path['heat_flow_to_board_w']:.5g} W to board")
         models=self.thermal_bundle.get('board_thermal_view',{}).get('component_models',{})
         for gap in models.get('coverage',{}).get('missing',[]):
             if gap['reference']==item['reference']:details.append('STEP: '+gap['reason'])

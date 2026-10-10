@@ -28,6 +28,45 @@ STACKUP = '''(stackup
 
 @unittest.skipIf(p is None, "Requires native KiCad pcbnew polygon geometry")
 class ThermalGeometryTests(unittest.TestCase):
+    def test_physical_contacts_bind_each_saved_pad_face_and_solve(self):
+        from quick_therm_plugin.service import execute
+        fp=next(item for item in self.board.GetFootprints() if item.GetReference()=='C1')
+        layer=p.B_Cu if fp.IsFlipped() else p.F_Cu
+        pads=list(fp.Pads())
+        paths=[{'id':'C1-'+str(pad.GetNumber()),'reference':'C1','pad_number':str(pad.GetNumber()),
+                'layer_id':layer,'pad_uuid':pad.m_Uuid.AsString(),
+                'segments':[{'shape':'cylinder','length_mm':.15,'diameter_mm':.2,
+                    'k_w_mk':50,'rho_ohm_m':1.3e-7,'material':'explicit illustrative test solder'}]}
+               for pad in pads if pad.IsOnLayer(layer)]
+        self.assertEqual(len(paths),2)
+        before=self.path.read_bytes()
+        geometry=collect_thermal_geometry(self.board,self.path,package_contacts=paths)
+        contacts=[row for row in geometry['source_contacts'] if row['reference']=='C1']
+        self.assertEqual({row['pad_uuid'] for row in contacts},{row['pad_uuid'] for row in paths})
+        self.assertEqual({row['layer_id'] for row in contacts},{layer})
+        inventory=execute({'action':'inspect','board_path':str(self.path)})
+        self.assertIn({'name':'F.Cu','id':p.F_Cu},inventory['layers'])
+        self.assertIn({'name':'B.Cu','id':p.B_Cu},inventory['layers'])
+        request={'action':'quick_therm','board_path':str(self.path),'environment':'air','ambient_c':20,
+            'references':['C1'],'input_mode':'manual','manual_values':{'C1':{'power_w':.2}},
+            'thermal_model_kind':'multilayer','thermal_network_settings':{
+                'dielectric_k_w_mk':.3,'copper_k_w_mk':385,'via_plating_mm':.025,
+                'grid_cells_long_axis':24,'board_emissivity':.9,'package_conduction':paths,
+                'component_storage':{'C1':{'temperature_kind':'body','resistance_k_per_w':0,'capacity_j_k':.2}}},
+            'transient_settings':{'duration_s':.5,'timestep_s':.05,'initial_c':20,
+                'copper_volumetric_capacity_j_m3k':3.45e6,'dielectric_volumetric_capacity_j_m3k':1.8e6}}
+        bundle=execute(request);network=bundle['thermal_network']
+        self.assertEqual(len(network['package_conduction']),2)
+        self.assertAlmostEqual(network['heat_balance']['input_w'],.2,12)
+        self.assertLess(abs(network['heat_balance']['residual_w']),1e-4)
+        self.assertLess(network['transient']['max_energy_residual_w'],1e-7)
+        self.assertGreater(network['components'][0]['body_c'],20)
+        self.assertIsNone(network['components'][0]['junction_c'])
+        self.assertEqual(self.path.read_bytes(),before)
+        for model in ('thin_sheet','calculix'):
+            with self.subTest(model=model),self.assertRaisesRegex(ValueError,'multilayer'):
+                execute({**request,'thermal_model_kind':model})
+
     def test_smd_contact_subtracts_separate_thermal_via_drill(self):
         footprint = next(fp for fp in self.board.GetFootprints()
                          if fp.GetReference() == "C1")

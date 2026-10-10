@@ -236,6 +236,14 @@ def transient_frame_network(network, index):
         layer['sampled_max_c']=max(known) if known else None
     result['display_time_s'] = frame['time_s']
     schedules=transient.get('power_schedules',{})
+    def multiplier(identity):
+        points=schedules.get(identity)
+        if not points:return 1.
+        if transient.get('schedule_interpolation','linear')=='step':
+            import bisect
+            return points[max(0,bisect.bisect_right([p[0] for p in points],frame['time_s'])-1)][1]
+        import numpy as np
+        return float(np.interp(frame['time_s'],[p[0] for p in points],[p[1] for p in points]))
     originals={row['reference']:row for row in result.get('components',[])}
     components=[]
     for definition in transient.get('components',[]):
@@ -257,10 +265,27 @@ def transient_frame_network(network, index):
         row['junction_peak_proxy_c']=None
         if definition.get('storage_node') is not None:
             value=temperatures[definition['storage_node']];kind=definition['temperature_kind']
+            physical=definition.get('package_contacts',[])
+            if physical:
+                import copy
+                physical=copy.deepcopy(physical)
+                for path in physical:
+                    path['board_face_c']=sum(temperatures[node]*weight for node,weight in path['nodes'])
+                    path['package_c']=value
+                    scale=multiplier(path.get('joule_source_id'))
+                    conduction=(value-path['board_face_c'])/path['thermal_resistance_k_per_w']
+                    path['heat_flow_from_package_w']=conduction-path.get('joule_into_package_w',0)*scale
+                    path['heat_flow_to_board_w']=conduction+path.get('joule_into_board_w',0)*scale
+                    if path.get('electrical_joule_heat_w') is not None:
+                        path['electrical_joule_heat_w']*=scale
+                row['package_contacts']=physical
+                contact_heat=sum(path['heat_flow_from_package_w'] for path in physical)
+            else:
+                contact_heat=(value-contact)/definition['resistance_k_per_w']
             row.update(component_temperature_c=value,temperature_kind=kind,
                        body_c=value if kind=='body' else None,
                        junction_c=value if kind=='junction' else None,
-                       contact_heat_w=(value-contact)/definition['resistance_k_per_w'],
+                       contact_heat_w=contact_heat,
                        junction_model='Explicit lumped '+kind+' RC node; no internal solid gradient')
             if definition.get('exposed_area_mm2') is not None:
                 area=definition['exposed_area_mm2']*1e-6;ambient=result['ambient_c']
@@ -272,6 +297,8 @@ def transient_frame_network(network, index):
         row['sink_c']=contact if row.get('sink_c') is not None else None
         components.append(row)
     result['components']=components
+    if result.get('package_conduction'):
+        result['package_conduction']=[path for row in components for path in row.get('package_contacts',[])]
     result['heat_balance_meaning']='Steady-state reference balance; frame heat storage and interval balances are in transient.energy_balance.'
     return result
 

@@ -23,6 +23,30 @@ def bundle():
 
 
 class ReportTests(unittest.TestCase):
+    def test_package_ledger_and_board_package_voltages_are_exported(self):
+        from quick_pi_plugin.package_contacts import attach
+        from quick_pi_plugin.tests.test_package_contacts import path
+        b=bundle();mesh=b['mesh'];geo=b['geometry']
+        for row,ref in zip(geo['terminals'],('J1','U1')):
+            row.update(reference=ref,pad_number='1',net=geo['net'])
+        source=[i for i,p in enumerate(mesh['points_mm']) if p[0]==0]
+        sink=[i for i,p in enumerate(mesh['points_mm']) if p[0]==10]
+        mesh.update(terminal_nodes={'A':source,'B':sink},terminal_nodes_by_layer={'A':{'0':source},'B':{'0':sink}})
+        contact=path('lead','J1','source')
+        contact['segments'][0].update(width_mm=.1,thickness_mm=.5,rho_ohm_m=5e-7)
+        net,src,loads=attach(mesh,geo,[contact],'A',
+                             [dict(id='B',terminal='B',nodes=sink,current_A=2)])
+        b.update(mesh=net,result=solve(net,src,sinks=loads))
+        with tempfile.TemporaryDirectory() as temporary:
+            output=Path(temporary)/'contacts.html'
+            write_report(output,b)
+            html=output.read_text(encoding='utf-8')
+            self.assertIn('Explicit package contacts',html)
+            self.assertIn('package 1 V; board',html)
+            self.assertIn('Package contact loss',html)
+            payload=json.loads(output.with_suffix('.json').read_text())
+            self.assertAlmostEqual(payload['result']['package_contacts'][0]['segments'][0]['power_W'],.04,10)
+
     def test_probe_hits_actual_triangle_and_retains_unknowns(self):
         b=bundle()
         row=probe_result(b,0,5,.5,'drop')

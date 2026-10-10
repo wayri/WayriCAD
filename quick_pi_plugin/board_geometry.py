@@ -202,7 +202,9 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
                 counts['drilled_objects']+=1
                 for layer in hole_layers:holes[layer].Append(hole)
         if item.GetNetname()!=net:continue
-        terminal={'id':_uid(item),'label':item.GetParentFootprint().GetReference()+'.'+item.GetNumber(),'polygons':{}} if pad else None
+        terminal={'id':_uid(item),'pad_uuid':_uid(item),'reference':str(item.GetParentFootprint().GetReference()),
+                  'pad_number':str(item.GetNumber()),'net':str(item.GetNetname()),
+                  'label':item.GetParentFootprint().GetReference()+'.'+item.GetNumber(),'polygons':{}} if pad else None
         layer_diameters={};contact_polygons={}
         for layer in span:
             if (pad or via) and not item.FlashLayer(layer):continue
@@ -276,7 +278,10 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
                     for x,y in ring:native_poly.Append(api.FromMM(x),api.FromMM(y),outer,hole)
             native_poly.BooleanIntersection(copper[int(key)])
             contact['polygons'][key]=_polygons(native_poly,api)
-    result={'schema_version':1,'net':net,'layers':layers,'terminals':terminals,'vias':barrels,
+    pad_catalog=[{'id':_uid(p),'pad_uuid':_uid(p),'reference':str(p.GetParentFootprint().GetReference()),
+                  'pad_number':str(p.GetNumber()),'net':str(p.GetNetname()),
+                  'layer_ids':[int(layer) for layer in enabled if p.IsOnLayer(layer)]} for p in pads]
+    result={'pad_catalog':pad_catalog,'schema_version':1,'net':net,'layers':layers,'terminals':terminals,'vias':barrels,
             'counts':counts,'warnings':warnings,'area_mm2':total_area,
             'curve_tolerance_mm':float(curve_tolerance_mm),'z_convention':'Copper midplanes; positive Z down from the top copper surface.',
             'stackup_source':'explicit_override' if stackup_override is not None else 'saved_board',

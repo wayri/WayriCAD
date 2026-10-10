@@ -59,6 +59,7 @@ def main(argv=None):
     parser.add_argument('--html',type=Path);parser.add_argument('--timeout',type=float,default=300.)
     parser.add_argument('--converge-levels',type=int,choices=(3,4,5),help='Run a fixed-input study, halving mesh edge each level; returns 3 if incomplete or not stable.')
     parser.add_argument('--convergence-tolerance-percent',type=float,default=1.,help='Maximum change in each of the final two refinements; default 1%%. Does not certify local peaks.')
+    parser.add_argument('--package-conduction',type=Path,help='JSON list of explicit lead/solder/BGA paths; 2.5D constant-current DC only.')
     parser.add_argument('--command',help='Console command, including a series-component path; quote the entire command.')
     args=parser.parse_args(argv)
     if args.electrothermal:
@@ -79,7 +80,7 @@ def main(argv=None):
             print(json.dumps({'error':str(exc)}));return 2
     if args.verify:
         try:
-            if args.board or args.html or args.net or args.source or args.sink or args.command or args.converge_levels or args.mesh_only or args.load_ohms is not None or args.sweep or args.return_path or args.load or args.load_voltage_limits or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None:raise ValueError('--verify uses no board, load, path, convergence or HTML options. Use --output for JSON.')
+            if args.package_conduction or args.board or args.html or args.net or args.source or args.sink or args.command or args.converge_levels or args.mesh_only or args.load_ohms is not None or args.sweep or args.return_path or args.load or args.load_voltage_limits or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None:raise ValueError('--verify uses no board, load, path, convergence or HTML options. Use --output for JSON.')
             if args.output and args.output.suffix.lower()!='.json':raise ValueError('Benchmark output must be a .json report.')
             from .service import run_job
             report=run_job({'action':'verify'},timeout=args.timeout)
@@ -99,6 +100,10 @@ def main(argv=None):
     if args.model_dimension=='3d':request['options']={'temperature_c':args.temperature}
     if args.pulse is not None:request['options']['pulse_duration_s']=args.pulse
     try:
+        if args.package_conduction:
+            request['package_conduction']=json.loads(args.package_conduction.read_text(encoding='utf-8-sig'))
+            from .package_contacts import guard_request
+            guard_request(request)
         if args.model_dimension=='3d' and (args.html or args.command or args.load or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None or args.load_ohms is not None or args.sweep or args.converge_levels or args.return_path or args.pulse is not None or args.mesh_backend=='vtk'):
             raise ValueError('Full 3D supports a selected net with prescribed current and JSON output; HTML, series commands, load/sweep, pulse screening, return-path and VTK modes remain 2.5D.')
         if sum(bool(value) for value in (args.return_path,args.load_ohms is not None,args.sweep))>1:
@@ -151,12 +156,14 @@ def main(argv=None):
             request.update(action='converge',convergence_levels=args.converge_levels,convergence_tolerance_percent=args.convergence_tolerance_percent)
         if args.html and request['action'] not in ('solve','converge','sweep','return_path'):
             raise ValueError('HTML export needs a solved path. Supply --net, --source and --sink, or a run pi --command.')
+        from .package_contacts import guard_request
+        guard_request(request)
         result=run_job(request,timeout=args.timeout)
         if args.output:
             args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(result,indent=2,allow_nan=False),encoding='utf-8')
         summary={k:v for k,v in result.items() if k not in ('mesh','geometry')}
         if 'result' in summary:
-            summary['result']={k:v for k,v in summary['result'].items() if not isinstance(v,(list,dict)) or k in ('sinks','feasibility')}
+            summary['result']={k:v for k,v in summary['result'].items() if not isinstance(v,(list,dict)) or k in ('sinks','feasibility','package_contacts','package_port_voltages_V')}
         print(json.dumps(summary,indent=2,allow_nan=False))
         if result.get('result',{}).get('feasibility',{}).get('feasible') is False:return 4
         return 3 if result.get('convergence',{}).get('status','STABLE_WITHIN_TOLERANCE')!='STABLE_WITHIN_TOLERANCE' else 0
