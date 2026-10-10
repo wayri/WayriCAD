@@ -36,14 +36,7 @@ All 19 packages install independently. Each row shows the current package versio
 | <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md)<br>Version 3.6.14 | Fabricator profiles; board geometry audits; native DRC/jobsets; release gates; hashed ZIP exports | Checks manufacturing constraints and packages reviewed fabrication outputs. |
 | <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md)<br>Version 3.6.14 | 34 visual DRC rule forms; clearance matrices, netclasses and reusable sets; protocol/per-layer routing profiles and reviewed offline Apply Review [3.4.0]; responsive editing, long findings lists and guarded application with request recovery [3.6.12] | Creates and reviews KiCad design constraints in a staged project workspace. |
 
-<details>
-<summary>Release notes and validation history</summary>
-
-[3.6.14](docs/RELEASE_NOTES_3.6.14.md) · [3.6.13](docs/RELEASE_NOTES_3.6.13.md) · [3.6.12](docs/RELEASE_NOTES_3.6.12.md) · [3.6.11](docs/RELEASE_NOTES_3.6.11.md) · [3.6.10](docs/RELEASE_NOTES_3.6.10.md) · [3.6.9](docs/RELEASE_NOTES_3.6.9.md) · [3.6.8](docs/RELEASE_NOTES_3.6.8.md) · [3.6.7](docs/RELEASE_NOTES_3.6.7.md) · [3.6.6](docs/RELEASE_NOTES_3.6.6.md) · [3.6.5](docs/RELEASE_NOTES_3.6.5.md) · [3.6.4](docs/RELEASE_NOTES_3.6.4.md) · [3.6.3](docs/RELEASE_NOTES_3.6.3.md) · [3.6.2](docs/RELEASE_NOTES_3.6.2.md) · [3.6.1](docs/RELEASE_NOTES_3.6.1.md) · [3.6.0](docs/RELEASE_NOTES_3.6.0.md) · [3.5.0](docs/RELEASE_NOTES_3.5.0.md) · [3.4.0](docs/RELEASE_NOTES_3.4.0.md)
-
-[Validation and limitations](docs/audits/2026-09-24-kicad10-local-validation.md) · [RLC/SI capability matrix](docs/audits/RLC_EMERGE_CAPABILITY_MATRIX.md)
-
-</details>
+[Latest release notes — 3.6.14](docs/RELEASE_NOTES_3.6.14.md)
 
 ## Install and open
 
