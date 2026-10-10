@@ -119,6 +119,6 @@ Imported applications have separate test suites. Native tests require the releva
 
 ## Acknowledgements and AI disclosure
 
-WayriCAD development has made substantial use of AI coding assistants and large language models (LLMs), including OpenAI Codex, for implementation, debugging, tests, documentation and research assistance. Project maintainers remain responsible for the code and release decisions. AI-generated code and explanations can contain errors; validation evidence and model limitations are documented separately.
+WayriCAD development has made substantial use of AI coding assistants and large language models (LLMs) for implementation, debugging, tests, documentation and research assistance. Project maintainers remain responsible for the code and release decisions. AI-generated code and explanations can contain errors; validation evidence and model limitations are documented separately.
 
 We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
