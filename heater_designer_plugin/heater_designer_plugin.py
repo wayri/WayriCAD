@@ -19,7 +19,7 @@ from .patterns import PATTERNS, circular_envelope, split_circular_envelope
 from .foil_export import export_svg
 
 
-VERSION = "3.6.13"
+VERSION = "3.6.14"
 PALETTE = ("#157f74", "#d1495b", "#edae49", "#5267a5", "#8f5aa6", "#3c91a3")
 ORGANIC_DEFAULT_TEXT = "\n".join(f"{x:g},{y:g}" for x,y in ORGANIC_DEFAULT_POINTS)
 

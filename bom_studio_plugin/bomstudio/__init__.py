@@ -1,2 +1,2 @@
 """WayriCAD BOM Studio: offline BOM and assembly-variant workbench."""
-__version__ = "3.6.13"
+__version__ = "3.6.14"

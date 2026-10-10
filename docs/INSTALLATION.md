@@ -80,10 +80,10 @@ packages, preview the destination, then install with backups. The public PCM
 feed is promoted only after release assets are published and verified:
 
 ```console
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.13
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.13
-python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.13
-python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.13 --apply
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.14
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.14
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.14
+python tools/install_suite.py --version 10.0 --archive-dir .validation/candidate-pcm-3.6.14 --apply
 ```
 
 Restart PCB Editor after installation. These local candidate ZIPs can also be

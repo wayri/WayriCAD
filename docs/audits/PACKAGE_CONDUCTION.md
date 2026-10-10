@@ -1,8 +1,8 @@
 # Package contact conduction acceptance
 
 Scope: explicit lead/solder/BGA paths in Quick PI 2.5D constant-current DC and
-QuickTherm multilayer steady/transient studies. This is unpublished development
-work beyond 3.6.13; public release binaries and the PCM feed are unchanged.
+QuickTherm multilayer steady/transient studies. This implementation is included in the 3.6.14 release candidate. The private
+pre-release 3.6.13 test archives described below were never published.
 See [inputs, equations and limits](../PACKAGE_CONDUCTION.md).
 
 Validation recorded on 2026-10-10.

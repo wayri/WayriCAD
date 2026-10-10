@@ -1,8 +1,8 @@
 # Lead, solder and BGA conduction
 
-This development feature adds explicit one-dimensional package contacts to
+WayriCAD 3.6.14 adds explicit one-dimensional package contacts to
 Quick PI's 2.5D constant-current DC network and QuickTherm's multilayer steady
-and transient board graph. It is separate from the published 3.6.13 feature set.
+and transient board graph. It extends the component heating and copper loss transfer introduced in 3.6.13.
 The board mesh already contains pads and plated barrels; their conduction is
 retained rather than replaced or counted again as a lead segment.
 

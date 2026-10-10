@@ -4,7 +4,9 @@
 
 **WayriCAD** is maintained by [Wayri](https://github.com/wayri). The official source repository is [wayri/WayriCAD](https://github.com/wayri/WayriCAD). Start with the tool that solves your immediate task.
 
-**Current suite release: [3.6.13](https://github.com/wayri/WayriCAD/releases/tag/v3.6.13) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
+**Current suite release: [3.6.14](https://github.com/wayri/WayriCAD/releases/tag/v3.6.14) · [GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed.**
+
+**New in 3.6.14:** [Quick PI](quick_pi_plugin/README.md) and [QuickTherm](quick_therm_plugin/README.md) add explicit lead, solder and BGA conduction paths, separate contact Joule heat and source-bound PI-to-thermal transfer. QuickTherm inputs now fit its sidebar at smaller window sizes. See the [3.6.14 release notes](docs/RELEASE_NOTES_3.6.14.md) and [contact model guide](docs/PACKAGE_CONDUCTION.md) for supported modes and limits.
 
 **New in 3.6.13:** [Mechanical Check](mechanical_check_plugin/README.md) adds engineering 3D measurements, part dimensions, global height limits and proximity markers. [Quick PI](quick_pi_plugin/README.md) expands its board workspace. [QuickTherm](quick_therm_plugin/README.md) adds editable scanned inputs, interactive STEP component models and transient heating playback with explicit component RC inputs and air/vacuum boundaries. The shared loading window clears as soon as a plugin is ready. See the [3.6.13 release notes](docs/RELEASE_NOTES_3.6.13.md) for validation and model limits.
 
@@ -62,9 +64,17 @@ Initial dependency setup needs internet access or a prepared wheel cache. Once p
 
 Select a tool title for its guide, or a latest screenshot to open it at full resolution. Demonstration values are not predictions for your board.
 
-### Latest GUI snapshots — 3.6.13
+### Latest GUI snapshots
 
 These unmodified native captures use public or generated demonstration boards. Capture notes document their inputs and model limits; no private project paths appear.
+
+#### [3.6.14 — explicit contacts and fitted thermal controls](docs/PACKAGE_CONDUCTION.md)
+
+<a href="docs/assets/package-conduction/quick-pi.png"><img src="docs/assets/package-conduction/quick-pi.png" width="960" alt="Quick PI with explicit package contacts and separately reported contact Joule losses"></a>
+
+<a href="docs/assets/package-conduction/quick-therm.png"><img src="docs/assets/package-conduction/quick-therm.png" width="960" alt="QuickTherm transient board field with numeric inputs and controls fitting the sidebar"></a>
+
+These captures use a generated board and illustrative lead/solder properties. The 1 s thermal frame includes imported copper and contact losses. [Capture provenance](docs/assets/package-conduction/PROVENANCE.md) and [validation](docs/audits/PACKAGE_CONDUCTION.md). The other feature captures below were introduced in 3.6.13.
 
 #### [Mechanical Check — 3D measurements and height checks](mechanical_check_plugin/README.md)
 
@@ -167,8 +177,8 @@ python -m pip install -e ".[test]"
 python tools/prepare_suite.py
 python tools/generate_suite_icons.py
 python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.13
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.13
+python build_pcm.py --output-dir .validation/candidate-pcm-3.6.14
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.14
 ```
 
 Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.
