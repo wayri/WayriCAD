@@ -1,7 +1,7 @@
 # RLC impedance capability matrix — EMerge model integration
 
 Checked on Windows with KiCad 10.0.6's bundled Python 3.11 and source branch
-`codex/rlc-emerge-models`. This distinguishes *board-extracted geometry* from
+`rlc-emerge-models`. This distinguishes *board-extracted geometry* from
 *manually entered cross sections*. Neither constitutes protocol compliance or
 a measurement of a fabricated board.
 
