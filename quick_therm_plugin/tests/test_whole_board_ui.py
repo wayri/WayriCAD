@@ -21,16 +21,10 @@ class FieldMappingTests(unittest.TestCase):
         self.assertTrue(all(value=='' for value in mapping.values()))
 
 
-NATIVE_FLOW=r'''
+NATIVE_FIXTURE=r'''
 from pathlib import Path
 import sys
-import time
-import faulthandler
-from unittest.mock import patch
-
 root=Path(sys.argv[1]);target=Path(sys.argv[2]);sys.path.insert(0,str(root))
-faulthandler.dump_traceback_later(20)
-from quick_therm_plugin.ui import QuickThermFrame
 import pcbnew
 board=pcbnew.LoadBoard(str(root/'mechanical_check_plugin/tests/fixtures/validation-fixture.kicad_pcb'))
 footprints=list(board.GetFootprints())
@@ -42,6 +36,18 @@ for footprint in footprints:
 pcbnew.SaveBoard(str(target),board)
 del part,footprint,footprints,board
 print('Native fixture saved before App',flush=True)
+'''
+
+NATIVE_FLOW=r'''
+from pathlib import Path
+import sys
+import time
+import faulthandler
+from unittest.mock import patch
+
+root=Path(sys.argv[1]);target=Path(sys.argv[2]);sys.path.insert(0,str(root))
+faulthandler.dump_traceback_later(20)
+from quick_therm_plugin.ui import QuickThermFrame
 original=target.read_bytes()
 import wx
 state={'phase':'inspect','failure':None};started=time.monotonic()
@@ -171,12 +177,19 @@ class NativeWholeBoardWorkflowTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as directory:
             log=Path(directory)/'native-window.log'
+            target=Path(directory)/'whole-board.kicad_pcb'
+            # Creating this fixture before wx.App crashes KiCad 10's interpreter
+            # shutdown. Keep pcbnew ownership in a separate process, as the
+            # standalone window does when reading boards in its workers.
+            fixture=subprocess.run([sys.executable,'-B','-I','-c',NATIVE_FIXTURE,str(root),str(target)],
+                                   stdin=subprocess.DEVNULL,capture_output=True,text=True,timeout=30)
+            self.assertEqual(fixture.returncode,0,fixture.stdout+'\n'+fixture.stderr)
             # File capture keeps any worker child from retaining an inherited
             # pipe reader and exposes the window's actual return code directly.
             with log.open('w',encoding='utf-8') as output:
                 try:
                     run=subprocess.run([sys.executable,'-B','-I','-c',NATIVE_FLOW,str(root),
-                                        str(Path(directory)/'whole-board.kicad_pcb')],
+                                        str(target)],
                                        stdout=output,stderr=subprocess.STDOUT,text=True,timeout=90)
                 except subprocess.TimeoutExpired:
                     output.flush()

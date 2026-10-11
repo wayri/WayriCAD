@@ -17,6 +17,8 @@ control to inspect a route in more detail.
 Use **Search net names** or **Select net on board** to choose a saved pad, via or
 track's net, then select source/receiver pads and run a fresh screen. Route previews
 provide coordinate probes through **Probe** or Ctrl-click; **Clear probes** removes them.
+Search preserves a selected matching net and otherwise clears the selection.
+It never assigns the first search result automatically.
 
 Offline route, eye and step plots support hover values, click-to-pin probes, pan,
 wheel zoom and Fit. Static figures remain available for printing. Native eye/step

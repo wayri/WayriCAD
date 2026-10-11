@@ -624,10 +624,9 @@ class QuickPIFrame(wx.Frame):
         dialog.ShowModal();dialog.Destroy()
 
     def _filter_nets(self,event=None):
-        current=self.net.GetValue();needle=self.net_search.GetValue().casefold()
-        names=[n for n in self.inventory.get('nets',[]) if needle in n.casefold()]
-        self.net.Set(names)
-        self.net.SetValue(current if current in names else (names[0] if names else ''))
+        from wayricad_runtime.net_filter import filter_combo
+        current=self.net.GetValue()
+        filter_combo(self.net,self.inventory.get('nets',[]),self.net_search.GetValue())
         if self.net.GetValue()!=current:self._net_changed()
 
     def _net_changed(self,event=None):

@@ -81,10 +81,9 @@ class QuickSIPanel(wx.Panel):
         dialog.ShowModal();dialog.Destroy()
 
     def filter_nets(self,event=None):
-        current=self.fields['net'].GetValue();needle=self.net_search.GetValue().casefold()
-        names=[name for name in self._net_names if needle in name.casefold()]
-        self.fields['net'].Set(names)
-        self.fields['net'].SetValue(current if current in names else (names[0] if names else ''))
+        from wayricad_runtime.net_filter import filter_combo
+        current=self.fields['net'].GetValue()
+        filter_combo(self.fields['net'],self._net_names,self.net_search.GetValue())
         if self.fields['net'].GetValue()!=current:self.net_changed(None)
 
     def changed(self,event):

@@ -6,6 +6,8 @@
 
 Use **Find net** or **Pick net** to choose an analysis input from
 saved pads, vias or tracks. Select the two terminals and rerun after changes.
+Search keeps an exact selected net when it matches. If it no longer matches,
+the selection clears; choose a result explicitly before running an analysis.
 Hover over solved Results cells and click to pin exact cell values; Ctrl-right-click
 clears probes. Holes and unresolved cells remain gaps.
 
