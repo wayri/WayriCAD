@@ -58,7 +58,7 @@ Run `wayricad-jobs presets` for the installed catalog.
 | `fabrication` | Native DRC JSON, ERC JSON, BOM CSV and board-statistics JSON | Saved project, board and schematic; KiCad CLI. DRC/ERC errors or warnings fail their steps. BOM requires successful ERC; statistics requires successful DRC. |
 | `inventory` | RLC, Quick PI and Quick SI inventory JSON | Saved board and prepared native runtimes. Lists available analysis inputs; no selected-path solve. |
 | `electrical` | PI JSON/HTML, SI JSON/HTML and RLC JSON | Explicit net, pads, voltage, current, rise time and frequency. Each tool retains its own coverage and approximation limits. |
-| `bom` | Existing BOM Studio pipeline exports, reports and checked manifest | Explicit BOM pipeline configuration; retains its templates, conditional exports and policy gates. |
+| `bom` | Existing Analytics Studio pipeline exports, reports and checked manifest | Explicit BOM pipeline configuration; retains its templates, conditional exports and policy gates. |
 | `thermal` | Standalone QuickTherm JSON and HTML, including probes and component limit checks | A reviewed QuickTherm JSON config with mapped power, Rθ, temperature-limit fields, scope and optional board model. Failed or unknown limits fail the job. |
 
 Configure an electrical path without baking demo values into the preset:
@@ -69,13 +69,13 @@ wayricad-jobs init Example.kicad_pro --preset electrical --output electrical-job
 
 These example values must be replaced with your actual design assumptions. Power rails and signal nets often need **different configurations**. The electrical preset is a convenient sequence, not a claim that all three models suit every net. Edit the PI argument list to use its existing `--command` series-R/RL syntax or add `--converge-levels 4`; use the SI `suite` command in a later step to aggregate protocol reports. RLC supports `path` and `zone`, frequency sweeps, and its documented limitations.
 
-For BOM Studio:
+For Analytics Studio:
 
 ```text
 wayricad-jobs init Example.kicad_pro --preset bom --output bom-jobs.json --set bom_pipeline=bom-pipeline.json
 ```
 
-Use a reviewed BOM Studio pipeline (for example, `bom_studio_plugin/examples/automation/pipeline-default.json`). Relative arguments resolve from the project directory. The runner gives BOM Studio a fresh `bom/` directory; it does not bypass the existing export or policy checks.
+Use a reviewed Analytics Studio pipeline (for example, `bom_studio_plugin/examples/automation/pipeline-default.json`). Relative arguments resolve from the project directory. The runner gives Analytics Studio a fresh `bom/` directory; it does not bypass the existing export or policy checks.
 
 ## Customize a sequence
 

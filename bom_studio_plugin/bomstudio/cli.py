@@ -32,8 +32,8 @@ class StrictParser(argparse.ArgumentParser):
 
 
 def parser():
-    p=StrictParser(prog='wayricad-bom',description='WayriCAD BOM Studio — offline automation; reads SAVED files and workspace. No unattended native writes.',allow_abbrev=False)
-    p.add_argument('--version',action='version',version='WayriCAD BOM Studio '+__version__)
+    p=StrictParser(prog='wayricad-bom',description='WayriCAD Analytics Studio — offline automation; reads SAVED files and workspace. No unattended native writes.',allow_abbrev=False)
+    p.add_argument('--version',action='version',version='WayriCAD Analytics Studio '+__version__)
     p.add_argument('--debug',action='store_true',help='Print a traceback for unexpected failures (may include local paths).')
     subs=p.add_subparsers(dest='command',required=True)
     def project(q,variant=True,source=True):

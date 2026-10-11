@@ -1,4 +1,4 @@
-# WayriCAD BOM Studio 0.8.3 — Full PCM installer
+# WayriCAD Analytics Studio 0.8.3 — Full PCM installer
 
 **Install `WayriCAD_BOM_Studio_0.8.3_PCM.zip` directly in KiCad Manager → Plugin and Content Manager → Install from File. Leave it compressed.**
 

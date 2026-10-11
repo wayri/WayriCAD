@@ -106,7 +106,7 @@ venv creation, package downloads, toolbar discovery and native plugin launches
 remain separate checks. An API-disabled report also requires enabling the API
 in Plugins preferences; the helper preserves that setting.
 
-### BOM Studio stalls during startup on macOS
+### Analytics Studio stalls during startup on macOS
 
 The 3.1.1 startup fix removes an unnecessary reverse-DNS lookup of the numeric
 loopback address. The previous lookup could delay the readiness handshake past

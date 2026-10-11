@@ -1,4 +1,4 @@
-/* WayriCAD BOM Studio v0.2 — columns, templates, text exports, reviewed schemas. */
+/* WayriCAD Analytics Studio v0.2 — columns, templates, text exports, reviewed schemas. */
 'use strict';
 titles.fieldtemplates=['Field name templates','A shared field standard, with explicit control over what changes.'];
 S.fieldProfile='Engineering standard';

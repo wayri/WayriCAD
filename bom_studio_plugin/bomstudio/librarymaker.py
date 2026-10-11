@@ -68,7 +68,7 @@ def _json(data):return (json.dumps(data,ensure_ascii=False,indent=2,allow_nan=Fa
 
 def _table(name,kind,uri):
     root='sym_lib_table' if kind=='symbol' else 'fp_lib_table'
-    return f'({root}\n  (version 7)\n  (lib (name {quote(name)}) (type "KiCad") (uri {quote(uri)}) (options "") (descr "Created by WayriCAD BOM Studio"))\n)\n'
+    return f'({root}\n  (version 7)\n  (lib (name {quote(name)}) (type "KiCad") (uri {quote(uri)}) (options "") (descr "Created by WayriCAD Analytics Studio"))\n)\n'
 
 
 def _unpack(raw,stage):

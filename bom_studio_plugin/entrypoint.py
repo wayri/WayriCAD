@@ -21,14 +21,14 @@ def pick():
 def _pick_with_wx(wx):
     """Use KiCad's bundled wx runtime for the browser fallback file picker."""
     app = wx.App.Get() or wx.App(False)
-    with wx.FileDialog(None, 'Open KiCad project — WayriCAD BOM Studio',
+    with wx.FileDialog(None, 'Open KiCad project — WayriCAD Analytics Studio',
                        wildcard='KiCad project or root schematic (*.kicad_pro;*.kicad_sch)|*.kicad_pro;*.kicad_sch|All files (*.*)|*.*',
                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
         return dialog.GetPath() if dialog.ShowModal() == wx.ID_OK else ''
 
 
 def main():
-    parser=argparse.ArgumentParser(description='WayriCAD BOM Studio: offline BOM and native-variant workbench')
+    parser=argparse.ArgumentParser(description='WayriCAD Analytics Studio: offline BOM and native-variant workbench')
     parser.add_argument('project',nargs='?',help='Root .kicad_sch or .kicad_pro path')
     parser.add_argument('--demo',action='store_true',help='Open a temporary working copy of the sample project')
     parser.add_argument('--analytics-demo',action='store_true',help='Open a temporary synthetic cost/mass/power sample with mapped settings')
@@ -70,7 +70,7 @@ def main():
             run(server,on_ready=ready)
         else:
             ready(mode)
-            print('WayriCAD BOM Studio — private local session:\n'+server.url,flush=True)
+            print('WayriCAD Analytics Studio — private local session:\n'+server.url,flush=True)
             if mode=='browser':webbrowser.open(server.url,new=2)
             try:server.serve_forever(poll_interval=.2)
             finally:server.server_close()
@@ -78,7 +78,7 @@ def main():
     except DesktopUnavailable as exc:
         notify_failure(str(exc));return 6
     except Exception as exc:
-        notify_failure('WayriCAD BOM Studio could not start: '+str(exc));return 1
+        notify_failure('WayriCAD Analytics Studio could not start: '+str(exc));return 1
     finally:
         if server:server.server_close()
     return 0

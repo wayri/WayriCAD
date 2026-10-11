@@ -19,7 +19,7 @@ from .native import sha
 MIME={'json':'application/json', 'csv':'text/csv; charset=utf-8', 'tsv':'text/tab-separated-values; charset=utf-8',
       'xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'html':'text/html; charset=utf-8',
       'txt':'text/plain; charset=utf-8', 'ascii':'text/plain; charset=us-ascii', 'md':'text/markdown; charset=utf-8', 'zip':'application/zip'}
-TABLES=('summary','components','groups','consolidated','procurement','scenarios','statistics','issues','families')
+TABLES=('summary','components','groups','consolidated','procurement','scenarios','statistics','issues','families','board','copper_layers','copper_nets','copper_net_layers','copper_zones','pad_contacts')
 STATUS='ADVISORY ANALYTICS SNAPSHOT — NOT A MANUFACTURING APPROVAL'
 
 
@@ -109,6 +109,17 @@ def tables(r):
     put('statistics',cols,[[field,s['canonical_unit'],s['scope'],s['known'],s['missing'],s['invalid'],s['minimum'],s['maximum'],s['mean'],s['median'],s['p95_nearest_rank'],', '.join(s.get('minimum_references',[])),', '.join(s.get('maximum_references',[]))] for field,s in r['statistics'].items()],cols[3:11])
     put('issues',['Severity','Reference','Field','Code','Message'],[[i['severity'],i['reference'],i['field'],i['code'],i['message']] for i in r['issues']])
     tables['families']=family_table
+    board=r.get('board_analysis',{})
+    put('board',['Metric','Value'],[[k,v] for k,v in board.get('summary',{}).items()],['Value'])
+    for table,key,label in [('copper_layers','layers','layer'),('copper_nets','nets','net')]:
+        columns=[label,'track_count','track_length_mm','pad_count','pad_area_mm2','via_count','zone_count','filled_zone_area_mm2','copper_area_mm2']
+        put(table,columns,[[x.get(k) for k in columns] for x in board.get(key,[])],columns[1:])
+    columns=['reference','value','side','pad_count','placement_pad_area_mm2','issues']
+    put('pad_contacts',columns,[[x.get(k) if k!='issues' else '; '.join(x.get(k,[])) for k in columns] for x in board.get('components',[])],columns[3:5])
+    columns=['net','layer','track_count','track_length_mm','pad_count','pad_area_mm2','via_count','zone_count','filled_zone_area_mm2','copper_area_mm2']
+    put('copper_net_layers',columns,[[x.get(k) for k in columns] for x in board.get('net_layers',[])],columns[2:])
+    columns=['name','id','net','layer','boundary_area_mm2','filled_zone_area_mm2','filled_polygon_count','status']
+    put('copper_zones',columns,[[x.get(k) for k in columns] for x in board.get('zones',[])],columns[4:7])
     return tables
 
 
@@ -138,8 +149,8 @@ def _plain(report, table, ascii_only=False):
 
 def html_bytes(report, all_tables):
     esc=lambda v:html.escape(str('—' if v is None else v),quote=True)
-    out=['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WayriCAD BOM analytics</title><style>body{font:14px system-ui;color:#18333c;background:#f5f8f9;margin:32px}h1{font-size:30px}h2{margin-top:32px}.status{padding:14px;border:2px solid #a86719;background:#fff7e8}.panel{overflow:auto;background:white;border:1px solid #d7e3e7;border-radius:8px;margin-top:12px}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:9px 12px;vertical-align:top;border-bottom:1px solid #e1e8eb;max-width:350px;overflow-wrap:anywhere}th{background:#173f4b;color:white}td.num{text-align:right;font-variant-numeric:tabular-nums}meter{width:180px}small{color:#526976}a{color:#065a72}@media print{body{margin:0;background:white}.panel{overflow:visible;border:0}table{font-size:9px}tr{break-inside:avoid}h2{break-after:avoid}}</style></head><body>',
-         '<h1>'+esc(report['project'])+' — BOM analytics</h1><p>'+esc(report['variant'])+' · '+esc(report['config']['scenario_name'])+' · '+esc(report['generated_at'])+'</p>',
+    out=['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WayriCAD board and component analytics</title><style>body{font:14px system-ui;color:#18333c;background:#f5f8f9;margin:32px}h1{font-size:30px}h2{margin-top:32px}.status{padding:14px;border:2px solid #a86719;background:#fff7e8}.panel{overflow:auto;background:white;border:1px solid #d7e3e7;border-radius:8px;margin-top:12px}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:9px 12px;vertical-align:top;border-bottom:1px solid #e1e8eb;max-width:350px;overflow-wrap:anywhere}th{background:#173f4b;color:white}td.num{text-align:right;font-variant-numeric:tabular-nums}meter{width:180px}small{color:#526976}a{color:#065a72}@media print{body{margin:0;background:white}.panel{overflow:visible;border:0}table{font-size:9px}tr{break-inside:avoid}h2{break-after:avoid}}</style></head><body>',
+         '<h1>'+esc(report['project'])+' — board and component analytics</h1><p>'+esc(report['variant'])+' · '+esc(report['config']['scenario_name'])+' · '+esc(report['generated_at'])+'</p>',
          '<p class="status">'+esc(STATUS)+'<br>Known subtotals only. Blank inputs are not zeros; no live prices, discounts or thermal simulation.</p>',
          '<p>'+str(report['scope']['matched_components'])+' matched components · '+str(report['scope']['pricing_components'])+' pricing eligible · '+str(report['scope']['physical_components'])+' physical eligible.</p>',
          '<nav>'+' · '.join('<a href="#'+name+'">'+name.title()+'</a>' for name in all_tables)+'</nav>']
@@ -150,6 +161,11 @@ def html_bytes(report, all_tables):
             out.append('<tr><td>'+esc(x['label'])+'</td><td class="num">'+esc(x['known_amount'])+'</td><td><meter min="0" max="100" value="'+str(numeric)+'"></meter> '+esc(share)+'%</td><td>'+esc(x['abc'])+'</td></tr>')
         out.append('</table></div>')
     analysis=report.get('component_analysis',{})
+    board=report.get('board_analysis',{})
+    if board:
+        source=board.get('source',{})
+        out.append('<h2>Board geometry evidence</h2><p>Status: '+esc(board.get('status'))+' · source SHA-256: '+esc(source.get('sha256'))+'</p><ul>'
+                   +''.join('<li>'+esc(v)+'</li>' for v in source.get('notes',[])+board.get('warnings',[]))+'</ul>')
     if analysis:
         out.append('<h2>Component insights and evidence</h2><ul>'+''.join('<li>'+esc(v)+'</li>' for v in analysis['insights']+analysis['limits'])+'</ul>')
         for group in analysis['groups']:

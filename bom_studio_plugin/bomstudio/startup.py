@@ -1,4 +1,4 @@
-"""Keep BOM Studio responsive while a saved KiCad project is parsed."""
+"""Keep Analytics Studio responsive while a saved KiCad project is parsed."""
 
 from pathlib import Path
 import sys
@@ -22,7 +22,7 @@ def _show_loading(done):
 
     global _wx_app
     _wx_app = wx.App.Get() or wx.App(False)
-    frame = wx.Frame(None, title='WayriCAD BOM Studio — loading', size=(460, 190),
+    frame = wx.Frame(None, title='WayriCAD Analytics Studio — loading', size=(460, 190),
                      style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | wx.CLOSE_BOX))
     icon_path = Path(__file__).resolve().parents[1] / 'resources' / 'icon.ico'
     if sys.platform == 'win32' and icon_path.is_file():
@@ -35,7 +35,7 @@ def _show_loading(done):
     panel = wx.Panel(frame)
     panel.SetBackgroundColour('#f5f8f8')
     layout = wx.BoxSizer(wx.VERTICAL)
-    title = wx.StaticText(panel, label='WayriCAD BOM Studio')
+    title = wx.StaticText(panel, label='WayriCAD Analytics Studio')
     title.SetFont(title.GetFont().Bold().Scale(1.45))
     layout.Add(title, 0, wx.LEFT | wx.RIGHT | wx.TOP, 22)
     detail = wx.StaticText(panel, label='Reading the saved KiCad project and preparing your workspace…')

@@ -1,7 +1,7 @@
 {
   "$schema": "https://go.kicad.org/api/schemas/v1",
   "identifier": "com.github.wayri.wayricad.bom-studio",
-  "name": "WayriCAD BOM Studio",
+  "name": "WayriCAD Analytics Studio",
   "description": "Review component fields, stage BOM edits, and export purchasing or assembly tables.",
   "runtime": {
     "type": "python",
@@ -10,7 +10,7 @@
   "actions": [
     {
       "identifier": "open",
-      "name": "WayriCAD BOM Studio",
+      "name": "WayriCAD Analytics Studio",
       "description": "Review component fields, stage BOM edits, and export purchasing or assembly tables.",
       "show-button": true,
       "scopes": [

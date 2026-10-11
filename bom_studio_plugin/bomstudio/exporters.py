@@ -280,7 +280,7 @@ def release(workspace,variants=None,template='Purchasing',draft=False):
         'Source and workspace paths may disclose local directory names; review before sharing.\n'
         'Prices/stock/lifecycle are manually recorded, not live or supplier-validated.\n'
         'The manifest uses SHA-256 for integrity, not digital signatures or regulatory approval.\n').encode()
-    manifest={'schema':1,'app':'WayriCAD BOM Studio '+__version__,'status':'DRAFT' if draft else 'CHECKED',
+    manifest={'schema':1,'app':'WayriCAD Analytics Studio '+__version__,'status':'DRAFT' if draft else 'CHECKED',
               'generated':now(),'project':workspace.project.name,'template':template,'variants':summaries,
               'source_sha256':workspace.project.hashes,'files':{k:sha(v) for k,v in files.items()}}
     files['manifest.json']=(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n').encode()

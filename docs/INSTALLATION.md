@@ -9,7 +9,7 @@ release; see [compatibility and known limits](COMPATIBILITY.md).
 
 ## Fusion and Variant Manager in 3.6.8
 
-Install **WayriCAD Variant Manager** as its own PCM package, independently of Fusion or BOM Studio. It has its own toolbar icon and opens a separate native window using KiCad's bundled Python; no user-managed pip environment is needed. **Project Fusion 0.9.6** also uses the native action loader. Restart PCB Editor after installation. Both tools preview saved files; close the affected project's editors and manager before offline application. See the [Variant Manager guide](../variant_manager_plugin/README.md) and [Fusion guide](../project_fusion_plugin/README.md).
+Install **WayriCAD Variant Manager** as its own PCM package, independently of Fusion or Analytics Studio. It has its own toolbar icon and opens a separate native window using KiCad's bundled Python; no user-managed pip environment is needed. **Project Fusion 0.9.6** also uses the native action loader. Restart PCB Editor after installation. Both tools preview saved files; close the affected project's editors and manager before offline application. See the [Variant Manager guide](../variant_manager_plugin/README.md) and [Fusion guide](../project_fusion_plugin/README.md).
 
 ## QuickTherm in 3.6.0
 

@@ -1,13 +1,14 @@
-# WayriCAD BOM Studio
+# WayriCAD Analytics Studio
 
-<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD BOM Studio icon">
+<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Analytics Studio icon">
 
 ## Capabilities
 
 - Edit component fields individually or in bulk, with grouping, reusable templates and a local desktop/browser interface.
 - Export grouped or individual BOMs with DNP/test-point filters, plus separate DNP and test-point lists.
 - Review staged changes before native source sync; save workspace settings and edits alongside the project.
-- Analyze declared component cost, mass and power, bare-PCB estimates, component families and supported saved-board areas.
+- Analyze declared component cost, mass and power, bare-PCB estimates and component families.
+- Inspect saved-board copper area by layer and net, filled-zone unions, track lengths, via counts and per-component pad contact area.
 - Reuse local shared-parts catalogues and export recipient-specific assembler handoffs.
 
 ## Limitations
@@ -24,7 +25,7 @@ Local BOM editing and exports for KiCad 10. The desktop window runs the bundled 
 
 ## Install
 
-In KiCad Manager, open Plugin and Content Manager â†’ Install from File and select the **WayriCAD BOM Studio 3.6.12 PCM ZIP**. Keep the ZIP intact. Restart KiCad and launch BOM Studio from the plugin toolbar. IPC support must be enabled in KiCad preferences. The toolbar launcher selects a compatible installed KiCad Python runtime and provisions its lightweight dependencies in a private WayriCAD cache. It does not build wxPython inside KiCad's managed plugin environment. Windows needs WebView2; Linux needs the distribution's wxGTK/WebKit runtime. If the native browser cannot initialize, the same fully local interface opens in your installed browser with the reason displayed.
+In KiCad Manager, open Plugin and Content Manager â†’ Install from File and select the **WayriCAD Analytics Studio PCM ZIP**. Keep the ZIP intact. Restart KiCad and launch Analytics Studio from the plugin toolbar. IPC support must be enabled in KiCad preferences. The toolbar launcher selects a compatible installed KiCad Python runtime and provisions its lightweight dependencies in a private WayriCAD cache. It does not build wxPython inside KiCad's managed plugin environment. Windows needs WebView2; Linux needs the distribution's wxGTK/WebKit runtime. If the native browser cannot initialize, the same fully local interface opens in your installed browser with the reason displayed.
 
 The UI is a separate local desktop window. Windows requires a working WebView2 runtime; Linux requires wxGTK WebKit support. If an embedded runtime is unavailable, the launcher opens the same authenticated local interface in your installed browser. Use the pageâ€™s Quit button to stop the local service. KiCad 11 compatibility is based on capability checks and an open-ended minimum version; live KiCad 11 acceptance has not been run.
 
@@ -32,19 +33,19 @@ In local browser mode, **Open project** uses KiCad's bundled wx file picker. You
 
 When a saved project takes time to parse, a native WayriCAD loading window shows indeterminate progress, then the desktop window shows a loading message until its local workspace is ready. Neither stage edits the KiCad project. First-time dependency setup occurs before the GUI runtime is available and can still take longer without a loading window; startup failures use the existing error dialog and setup log.
 
-The interface waits for all local UI modules before opening the workspace. If a module fails to load, the page names the failed file and offers **Reload interface**. If retrying does not help, restart BOM Studio and verify that the installed plugin package is complete. This failure screen does not apply project edits.
+The interface waits for all local UI modules before opening the workspace. If a module fails to load, the page names the failed file and offers **Reload interface**. If retrying does not help, restart Analytics Studio and verify that the installed plugin package is complete. This failure screen does not apply project edits.
 
 ## Current desktop workspace
 
-![Current WayriCAD BOM Studio desktop](help-workflow.png)
+![Current WayriCAD Analytics Studio desktop](help-workflow.png)
 
-The built-in sample contains 11 components and fictional part/pricing data. The screenshot shows the three primary views; it is not an electrically validated circuit.
+The built-in sample contains 11 components and fictional part/pricing data. The earlier screenshot shows the original BOM views; it is not an electrically validated circuit.
 
 ## Everyday workflow
 
 1. Launch from PCB Editor to use its saved project automatically. Standalone mode can open a `.kicad_pro` or root `.kicad_sch`, or explore the built-in sample.
 2. Use **BOM settings** to arrange fields, labels, visibility, grouping, sorting, DNP filtering and CSV delimiters.
-3. Work in three main views: **BOM workspace**, **Exports & templates**, and **Review & native sync**. Variants, help, catalogue, sourcing, checks and automation remain under **More tools**.
+3. Use **BOM workspace**, **Board, copper & components**, **Exports & templates**, and **Review & native sync**. Variants, help, catalogue, sourcing, checks and automation remain under **More tools**.
 4. Save workspace changes to the adjacent `.wayricad-bom.json` sidecar. Undo restores settings as well as component edits.
 5. Export using the saved KiCad native engine, or select a custom workspace template for staged edits. Native export reads saved KiCad source files; it does not automatically apply staged component edits. Review & native sync handles explicit backed-up source changes.
 
@@ -72,7 +73,7 @@ Expand **Templates, native exports and advanced settings** to edit, duplicate, i
 
 ### Custom mappings and component analytics
 
-Use **Cost, mass & power → field mappings** to select your own KiCad fields for unit cost, currency, mass, operating dissipation and component type. For example, map `PurchasePrice`, `PartWeight` and `OperatingLoss`; values such as `100 mg` and `250 mW` retain their units. Resolved KiCad variables are supported, with raw/resolved source values recorded. **Export mapping template** and **Import mapping template** share these settings as JSON; Save settings, then Save workspace, persists them. These are analytics profiles, separate from BOM export-layout templates, and do not rename or overwrite native properties. Power rating is not operating dissipation.
+Use **Board, copper & components → field mappings** to select your own KiCad fields for unit cost, currency, mass, operating dissipation and component type. For example, map `PurchasePrice`, `PartWeight` and `OperatingLoss`; values such as `100 mg` and `250 mW` retain their units. Resolved KiCad variables are supported, with raw/resolved source values recorded. **Export mapping template** and **Import mapping template** share these settings as JSON; Save settings, then Save workspace, persists them. These are analytics profiles, separate from BOM export-layout templates, and do not rename or overwrite native properties. Power rating is not operating dissipation.
 
 **Run analytics** uses the mapping inputs currently on screen. Choose **Save settings to workspace** to use those same mappings in the BOM dashboard and workspace export costs; **Save workspace** persists them to the sidecar. Explicit mass units override the selected unit for bare numbers. Build quantity multiplies installed mass and cost; purchasing attrition does not add mass to an assembled board.
 
@@ -82,7 +83,7 @@ Area analytics read the saved PCB beside the project (or the PCB path configured
 
 Power/area uses **only components with both known power and known area**, with coverage shown beside results. These figures are descriptive densities, not temperature or cooling predictions. Expand geometry coverage to inspect source/hash and per-component reasons. **Download analytics → families** exports the breakdown; HTML reports include histograms and assumptions, and full JSON/XLSX exports include the new analysis. Saved project HTML/JSON reports include it too.
 
-Open **Cost & mass…** beside BOM settings, or use **More tools → Cost, mass & power**. Map the component `UnitPrice`, `Currency` and `Mass` fields (custom field names are supported). Bulk-edit these fields in BOM workspace. Enter build quantity, pricing basis and mass units; explicit units such as `100 mg` override the default mass unit. Each physical component is counted once, even when represented by several schematic units.
+Open **Cost & mass…** beside BOM settings, or use **Board, copper & components**. Map the component `UnitPrice`, `Currency` and `Mass` fields (custom field names are supported). Bulk-edit these fields in BOM workspace. Enter build quantity, pricing basis and mass units; explicit units such as `100 mg` override the default mass unit. Each physical component is counted once, even when represented by several schematic units.
 
 ![Native cost and mass summary with deliberately incomplete component coverage](help-cost-mass.png)
 
@@ -122,7 +123,7 @@ Run `python -m unittest discover -s tests` from this directory. Contract tests d
 
 The optional DOM/HTTP workflow test uses an existing Node and jsdom installation. Set `BOM_STUDIO_JSDOM_PATH` to the jsdom package directory and optionally `BOM_STUDIO_NODE` to the Node executable, then run the same suite. It verifies shipped scripts, navigation, variant editing, preview/export consistency, analytics, save/reload and failed-file recovery. It does not establish native WebView rendering or live-editor compatibility; without the configured tools it is explicitly skipped.
 
-The imported BOM Studio implementation retains its original MIT license and copyright in [LICENSE](LICENSE). Suite bundles also include shared GPL-licensed runtime code with its own notice. The PCM package declares the combined distribution license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled asset attribution. Version-specific documents under `docs/` describe historical feature development; this README is the current installation guide.
+The imported Analytics Studio implementation retains its original MIT license and copyright in [LICENSE](LICENSE). Suite bundles also include shared GPL-licensed runtime code with its own notice. The PCM package declares the combined distribution license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled asset attribution. Version-specific documents under `docs/` describe historical feature development; this README is the current installation guide.
 
 ## Shared parts and plugin-only alternatives
 
@@ -148,3 +149,20 @@ OEM / assembly export also includes AISLER, PC Process and Krypton Solutions rec
 Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
 
 Report publication retries brief Windows file locks. Persistent locks, changed source or review evidence, and existing output folders still stop publication; a partial run is not published.
+
+## Board and copper analytics
+
+![Analytics Studio Board & copper view](help-board-copper.png)
+
+Current interface with a synthetic saved 20 × 15 mm PCB: two overlapping filled GND polygons, two pads, one track and one through via. All displayed values were calculated by the real saved-board backend. Only the local header path was replaced with `C:/Projects/AnalyticsDemo/AnalyticsDemo.kicad_pro` before capture; the image crops to the report panel. [Screenshot provenance and numerical checks](docs/SCREENSHOT_BOARD_COPPER.md).
+
+Analytics Studio is the new name for BOM Studio. Existing installations keep the `bom-studio` package identifier, CLI/module paths and `.wayricad-bom.json` workspace files, so upgrades retain your settings.
+
+1. Save your PCB in KiCad, then open Analytics Studio for that project.
+2. Open **Board, copper & components** in the sidebar and choose **Run analytics**.
+3. Open **Board & copper**. Summary cards show laminate area, copper summed across layers, saved filled zones, routing length, parts, pads and vias.
+4. Compare the layer table for combined copper union area and board coverage. Review **Individual zones** for each zone’s outline area, saved fill area and polygon count. The net table lists copper/fill area, track length, pad area and vias for each net; use **Find net** to narrow the rows.
+5. Use **Find component** to review IC or connector pad contact. Contact sum includes pad copper across layers; placement-side contact includes the footprint side only.
+6. Download JSON/HTML or the complete report formats to retain all rows and geometry coverage notes. Choose `board`, `copper_layers`, `copper_nets`, `copper_net_layers`, `copper_zones` or `pad_contacts` for an individual export table.
+
+Copper union areas merge overlaps on each layer. Board and net totals sum areas across layers, so they can exceed the board's physical face area. Filled-zone area is the last saved fill; refill and save in KiCad before comparing a changed zone. Via transitions count vias rather than tracing an inferred signal route. Nominal pad contact subtracts supported drill holes and does not predict solder wetting or thermal resistance. Unsupported shapes and missing geometry remain **Unknown**; expand source and geometry coverage to see the reasons. Analytics reads the saved board independently of the active component variant and never edits copper.

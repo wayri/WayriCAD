@@ -420,7 +420,7 @@ acceptance. Comparison ignores ordering and item UUIDs, retains geometry and
 descriptions, and requires compatible engine versions and report settings.
 Acceptance is a DRC check, not signal-integrity or manufacturing approval.
 
-`python -m embed_3d_plugin --help` lists asset scanning, embedding, extraction, relinking and recovery commands. Writes require `--apply`. From the BOM Studio source directory, `python -m bomstudio --help` exposes native BOM export and workspace tools. These CLI modules do not require a browser.
+`python -m embed_3d_plugin --help` lists asset scanning, embedding, extraction, relinking and recovery commands. Writes require `--apply`. From the Analytics Studio source directory, `python -m bomstudio --help` exposes native BOM export and workspace tools. These CLI modules do not require a browser.
 
 ## Trace, via and plane estimates
 

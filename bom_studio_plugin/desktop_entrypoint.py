@@ -17,14 +17,14 @@ def desktop_main():
     if '--help' not in sys.argv[1:] and '-h' not in sys.argv[1:]:
         from wayricad_runtime.bootstrap import relaunch, failure
         from wayricad_runtime.loading import LoadingWindow
-        loading = LoadingWindow('WayriCAD BOM Studio') if not os.environ.get('WAYRICAD_SPLASH_READY') else None
+        loading = LoadingWindow('WayriCAD Analytics Studio') if not os.environ.get('WAYRICAD_SPLASH_READY') else None
         try:
             status = relaunch(root, 'desktop_entrypoint.py', profile='bom', loading=loading)
             if status is not None: return status
             ready = os.environ.get('WAYRICAD_SPLASH_READY')
             if ready: Path(ready).touch()
         except Exception as exc:
-            return failure(exc, 'WayriCAD BOM Studio')
+            return failure(exc, 'WayriCAD Analytics Studio')
         finally:
             if loading: loading.finish()
     sys.argv += ['--ui','desktop']

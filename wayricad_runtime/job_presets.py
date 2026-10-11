@@ -45,7 +45,7 @@ DESCRIPTIONS = {
         "compliance or sign-off results."
     ),
     "bom": (
-        "Runs an explicit BOM Studio data-only pipeline in a fresh subdirectory. "
+        "Runs an explicit Analytics Studio data-only pipeline in a fresh subdirectory. "
         "Its manifest records hashes and policy gates; it does not certify ERC, DRC, "
         "or manufacturing approval."
     ),
@@ -175,7 +175,7 @@ PRESETS = {
     "bom": [
         {
             "id": "bom_pipeline",
-            "label": "BOM Studio pipeline report",
+            "label": "Analytics Studio pipeline report",
             "argv": [
                 "${python}", "-m", "bom_studio_plugin.bomstudio.cli", "run", "${project}",
                 "--config", "${bom_pipeline}", "--output-dir", "${step_dir}/bom",

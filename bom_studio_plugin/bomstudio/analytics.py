@@ -471,10 +471,12 @@ def _run(ws, variant, config):
     geometry, geometry_source = board_geometry(ws, rows)
     report['component_analysis'] = summarize(parts, geometry)
     report['component_analysis']['geometry_source'] = geometry_source
+    from .board_analytics import board_analysis
+    report['board_analysis'] = board_analysis(ws)
     for warning in report['pcb']['warnings']:
         issue('warning','PCB_CURRENCY_MISMATCH',warning)
     report['summary']=dict(Counter(i['severity'] for i in issues))
-    report['fingerprint']=sha((report['workspace_sha256']+json.dumps(c,sort_keys=True)+str(geometry_source['sha256'])).encode())
+    report['fingerprint']=sha((report['workspace_sha256']+json.dumps(c,sort_keys=True)+str(geometry_source['sha256'])+str(report['board_analysis']['source']['sha256'])).encode())
     return _json(report)
 
 

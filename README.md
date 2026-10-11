@@ -25,7 +25,7 @@ All 19 packages install independently. Each row shows the current package versio
 |---|---|---|
 | <img src="project_fusion_plugin/icon.png" width="24" height="24" alt="Project Fusion icon"> [Project Fusion](project_fusion_plugin/README.md)<br>Version 0.9.8 | Project/subsheet merging, visual layout placement and linked updates [3.6.4]; automatic project/sheet/layout-only discovery [3.6.8]; guided imports, variant destinations and saved-file CLI workflows [3.6.9]; recovery guidance, preserved repair choices and stale-review protection [3.6.10] | Combines schematics and routed PCB blocks into one saved KiCad project; reviewed apply requires closed target editors. |
 | <img src="variant_manager_plugin/icon.png" width="24" height="24" alt="Variant Manager icon"> [Variant Manager](variant_manager_plugin/README.md)<br>Version 0.6.1 | Saved/staged assembly previews; compare, bulk edit/delete, merge, swap, Default promotion and verified recovery [3.6.8]; preserved staged work, reload recovery and stale-apply protection [3.6.10] | Manages native KiCad assembly configurations in an independent desktop plugin; reviewed apply requires closed project editors. |
-| <img src="bom_studio_plugin/icon.png" width="24" height="24" alt="BOM Studio icon"> [BOM Studio](bom_studio_plugin/README.md)<br>Version 3.6.15 | Editable fields and templates; variants and CSV/XLSX/TSV exports; whole-board mass/cost totals, quantity and pack-price handling, MPN/value consolidation and analytics [3.6.12] | Organizes assembly data, purchasing totals and coverage; missing values and mixed currencies stay explicit. |
+| <img src="bom_studio_plugin/icon.png" width="24" height="24" alt="Analytics Studio icon"> [Analytics Studio](bom_studio_plugin/README.md)<br>Version 3.6.15 | Editable fields and BOM templates; component cost/mass/power, copper and filled-zone areas by layer/net, track lengths, vias and component pad contact | Organizes assembly data, purchasing totals and coverage; missing values and mixed currencies stay explicit. |
 | <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md)<br>Version 3.6.15 | Local symbol and footprint libraries; 3D model copying/embedding; link repair; backups | Makes project libraries and 3D models portable by collecting dependencies locally. |
 | <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md)<br>Version 3.6.15 | 2.5D DC voltage, current-density and copper-loss fields; diode series-path editing and return-path screening [3.5.0]; optional 3D copper-volume DC solve and result viewer [3.6.6]; prioritized voltage/current/loss plots [3.6.11]; multiple sinks, source-current budgets, sink-voltage limits, R/L/C load-step transients, electrothermal studies and continuous field gradients [3.6.12]; compact board workspace [3.6.13]; explicit [lead/solder/BGA contacts](docs/PACKAGE_CONDUCTION.md), separate contact Joule heat and source-bound PI-to-thermal contact-loss transfer [3.6.14] | Reviews voltage drop, current density, copper/contact losses and sink feasibility within the declared model. |
 | <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md)<br>Version 3.6.15 | Standalone package, thermal-field mapping, temperature limits and probe reports [3.6.0]; optional 3D steady board conduction [3.6.6]; plated slots and board-aware top/bottom reports [3.6.11]; whole-board field display, manual-input recovery and component power-step RC studies [3.6.12]; editable scanned inputs, interactive STEP component RC heating, copper-loss import and transient playback with air/vacuum boundaries [3.6.13]; explicit [lead/solder/BGA thermal paths](docs/PACKAGE_CONDUCTION.md), contact-loss transfer and fitted sidebar controls [3.6.14] | Reviews board heating and per-part temperatures with interactive 2D/3D views, playback and declared thermal assumptions. |
@@ -79,7 +79,7 @@ Initial dependency setup needs internet access or a prepared wheel cache. Once p
 - **Combine designs or reuse a circuit:** [Project Fusion](project_fusion_plugin/README.md) merges projects and selected schematic sheets with optional routed layout, variant selection, visual placement, dependency copying and reviewed linked updates.
 - **Inspect PCB electrical behaviour:** [Quick PI](quick_pi_plugin/README.md), [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) and [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) report results with explicit model assumptions and coverage.
 - **Review component temperatures:** [QuickTherm](quick_therm_plugin/README.md) models declared losses and thermal inputs with a board result overlay.
-- **Prepare assembly and fabrication:** [BOM Studio](bom_studio_plugin/README.md), [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) and [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) provide field editing, rules and release checks.
+- **Prepare assembly and fabrication:** [Analytics Studio](bom_studio_plugin/README.md), [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) and [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) provide field editing, rules and release checks.
 
 ## Plugin previews
 
@@ -143,9 +143,9 @@ Protocol screening keeps missing models and reference coverage visible.
 
 Inspect the connected copper path and per-section electrical coverage.
 
-#### [BOM Studio](bom_studio_plugin/README.md)
+#### [Analytics Studio](bom_studio_plugin/README.md)
 
-<a href="bom_studio_plugin/help-cost-mass.png"><img src="bom_studio_plugin/help-cost-mass.png" width="960" alt="BOM Studio native window preview"></a>
+<a href="bom_studio_plugin/help-cost-mass.png"><img src="bom_studio_plugin/help-cost-mass.png" width="960" alt="Analytics Studio native window preview"></a>
 
 Templates, bulk editing, conditional exports and explicit cost/mass coverage.
 
@@ -169,7 +169,7 @@ Compare saved and staged assembly states, with bulk edit/delete, conflict-aware 
 
 ## Focused workflows, shared tools
 
-BOM Studio keeps templates, cell and bulk editing, grouping, and conditional exports in three primary views. Mechanical Check retains exact solids and adds a quick 2D envelope screen without FreeCAD. Copper Balancer reports rejected sites and per-tile density deficits. Quick PI includes decoupling placement; QuickTherm is separately installable; Quick SI includes return-path and test-point workflows. These are distinct checks inside the suite, not claims of full electrical or mechanical certification.
+Analytics Studio keeps templates, cell and bulk editing, grouping, and conditional exports in three primary views. Mechanical Check retains exact solids and adds a quick 2D envelope screen without FreeCAD. Copper Balancer reports rejected sites and per-tile density deficits. Quick PI includes decoupling placement; QuickTherm is separately installable; Quick SI includes return-path and test-point workflows. These are distinct checks inside the suite, not claims of full electrical or mechanical certification.
 
 [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) is the suite's visual constraint manager: custom DRC rule forms, clearance matrices, netclasses, reusable sets and per-layer routing profiles share a staged workspace. Review generated rules and file diffs before offline apply, then validate with KiCad's native DRC.
 

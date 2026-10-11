@@ -67,3 +67,6 @@
 .compact-settings {margin-bottom:12px;}
 #nativeColumnEditor {max-height:42vh;overflow:auto;}
 #nativeColumnEditor input:not([type=checkbox]) {min-width:100px;width:100%;}
+
+/* Geometry tables size to their evidence, with horizontal scrolling on narrow windows. */
+.table-wrap.board-copper-table{min-height:0;max-height:520px;margin-bottom:20px}

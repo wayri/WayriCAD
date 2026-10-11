@@ -62,7 +62,7 @@ def notify_failure(message):
     if sys.platform=='win32':
         try:
             import ctypes
-            ctypes.windll.user32.MessageBoxW(None,message,'WayriCAD BOM Studio — startup error',0x10)
+            ctypes.windll.user32.MessageBoxW(None,message,'WayriCAD Analytics Studio — startup error',0x10)
         except Exception:pass
 
 
@@ -233,7 +233,7 @@ def _run_embedded(server,on_ready=None,module=None):
     worker=None
     try:
         project=server.app.workspace.project.pro_path.stem if server.app.workspace else 'Catalogue'
-        host.window=module.create_window('WayriCAD BOM Studio — '+project,server.url,js_api=host.api,
+        host.window=module.create_window('WayriCAD Analytics Studio — '+project,server.url,js_api=host.api,
             width=1440,height=940,min_size=(900,650),resizable=True,confirm_close=True,
             text_select=True,zoomable=True)
         host.api._window=host.window
@@ -243,7 +243,7 @@ def _run_embedded(server,on_ready=None,module=None):
         threading.Thread(target=close_after_quit,daemon=True,name='wayricad-window-quit').start()
         renderer='edgechromium' if sys.platform=='win32' else 'cocoa' if sys.platform=='darwin' else 'qt'
         options={'gui':renderer,'debug':False,'private_mode':True,
-                 'localization':{'global.quitConfirmation':'Close WayriCAD BOM Studio? Unsaved workspace, grid and form edits will be lost. Cancel and use Save workspace to keep them.'}}
+                 'localization':{'global.quitConfirmation':'Close WayriCAD Analytics Studio? Unsaved workspace, grid and form edits will be lost. Cancel and use Save workspace to keep them.'}}
         # macOS expects an .icns, not a PNG; retain its platform default here.
         if sys.platform!='darwin' and icon.is_file():options['icon']=str(icon)
         module.start(**options)

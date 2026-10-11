@@ -22,7 +22,7 @@ Changelog = "https://github.com/wayri/WayriCAD/releases"
 
 [project.optional-dependencies]
 si = ["matplotlib>=3.7,<4"]
-test = ["numpy>=1.24,<3", "scipy>=1.10,<2", "matplotlib>=3.7,<4", "Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9", "zstandard>=0.25.0,<1"]
+test = ["shapely>=2,<3", "numpy>=1.24,<3", "scipy>=1.10,<2", "matplotlib>=3.7,<4", "Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9", "zstandard>=0.25.0,<1"]
 
 [project.scripts]
 wayricad = "extract_pins_plugin.cli:main"

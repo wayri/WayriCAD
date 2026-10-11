@@ -89,7 +89,7 @@ def run(server, on_ready=None):
 
     class Window(wx.Frame):
         def __init__(self):
-            super().__init__(None, title='WayriCAD BOM Studio', size=(1280, 850))
+            super().__init__(None, title='WayriCAD Analytics Studio', size=(1280, 850))
             self.SetMinSize((860, 620))
             _set_window_icon(self, wx)
             backend = wx.html2.WebViewBackendEdge if sys.platform == 'win32' else wx.html2.WebViewBackendDefault
@@ -170,8 +170,8 @@ def run(server, on_ready=None):
 
         def close(self, event):
             if event.CanVeto() and not closing.is_set():
-                if wx.MessageBox('Close BOM Studio? Save workspace changes before closing.',
-                                 'WayriCAD BOM Studio', wx.YES_NO | wx.NO_DEFAULT, self) != wx.YES:
+                if wx.MessageBox('Close Analytics Studio? Save workspace changes before closing.',
+                                 'WayriCAD Analytics Studio', wx.YES_NO | wx.NO_DEFAULT, self) != wx.YES:
                     event.Veto()
                     return
             closing.set()

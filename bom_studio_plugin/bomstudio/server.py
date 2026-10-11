@@ -74,6 +74,8 @@ class Server(ThreadingHTTPServer):
             if hasattr(self.app,'engineering_tasks'):self.app.engineering_tasks.stop()
         finally:super().server_close()
     def __init__(self,app,port=0):
+        from .board_analytics import prepare_geometry
+        prepare_geometry()
         self.app=app
         super().__init__(('127.0.0.1',port),Handler)
         self.origin=f'http://127.0.0.1:{self.server_port}'
