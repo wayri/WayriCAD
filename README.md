@@ -180,8 +180,10 @@ Select a plugin for its full guide and supported models.
 
 ## Plugin previews
 
+<a id="latest-gui-snapshots"></a>
+
 <details>
-<summary>Show screenshots</summary>
+<summary>Show current screenshots</summary>
 
 Demonstration inputs are not predictions for your board. See
 [capture provenance](docs/audits/README_GALLERY.md) and each tool's guide.
@@ -209,6 +211,75 @@ Demonstration inputs are not predictions for your board. See
 **[Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md)**
 
 <a href="protocol_constraint_composer_plugin/help-workflow.png"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="800" alt="Constraint Studio with optional panels closed"></a>
+
+</details>
+
+<a id="more-plugin-previews"></a>
+
+<details>
+<summary>Show earlier feature screenshots and tool previews</summary>
+
+These retained native captures use public or generated demonstration boards. The PI, thermal-input and mechanical workspace images were recaptured with opaque backgrounds so they remain readable in light and dark GitHub themes. [Recapture provenance](docs/audits/README_GALLERY.md) records the fixtures and checks. Select any image for its original resolution.
+
+#### [3.6.14 — explicit contacts and fitted thermal controls](docs/PACKAGE_CONDUCTION.md)
+
+<a href="docs/assets/package-conduction/quick-pi.png"><img src="docs/assets/package-conduction/quick-pi.png" width="960" alt="Quick PI with explicit package contacts and separately reported contact Joule losses"></a>
+
+<a href="docs/assets/package-conduction/quick-therm.png"><img src="docs/assets/package-conduction/quick-therm.png" width="960" alt="QuickTherm transient board field with numeric inputs and controls fitting the sidebar"></a>
+
+These captures use a generated board and illustrative lead/solder properties. The 1 s thermal frame includes imported copper and contact losses. [Capture provenance](docs/assets/package-conduction/PROVENANCE.md) and [validation](docs/audits/PACKAGE_CONDUCTION.md). The mechanical and thermal-input captures below were introduced in 3.6.13.
+
+#### [Mechanical Check — 3D measurements and height checks](mechanical_check_plugin/README.md)
+
+<a href="mechanical_check_plugin/help-workflow.png"><img src="mechanical_check_plugin/help-workflow.png" width="960" alt="Mechanical Check native STEP board workspace with an edge-to-edge ruler, global height violation markers and a compact findings sidebar"></a>
+
+Inspect STEP geometry, engineering rulers and height/proximity findings in a large board viewport. The fixture deliberately includes height violations and incomplete coverage. [Capture and validation notes](docs/audits/MECHANICAL_INSPECTION.md).
+
+#### [QuickTherm — editable component inputs](quick_therm_plugin/README.md)
+
+<a href="quick_therm_plugin/examples/quicktherm-input-workspace.png"><img src="quick_therm_plugin/examples/quicktherm-input-workspace.png" width="960" alt="QuickTherm full-width editable component table with scanned power and Rtheta JA, JB and JC values, temperature limits and select-all controls"></a>
+
+Review scanned values, select the analysis scope and edit power, thermal resistances and limits in one table. [Input workspace capture notes](docs/audits/QUICKTHERM_WORKSPACE.md#screenshot-provenance).
+
+### Earlier tool previews
+
+Select a title for its guide, or a picture to open the original full-resolution capture. These older previews use generic project locations in place of machine-specific paths; surrounding UI and numerical results are preserved.
+
+#### [Adaptive fanout](fanout_generator_plugin/ReadMe.md)
+
+<a href="fanout_generator_plugin/help-adaptive.png"><img src="fanout_generator_plugin/help-adaptive.png" width="960" alt="Adaptive fanout native window preview"></a>
+
+Review pads, existing copper and proposed tracks/vias before applying.
+
+#### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
+
+<a href="signal_integrity_advisor_plugin/help-protocols.png"><img src="signal_integrity_advisor_plugin/help-protocols.png" width="960" alt="Quick SI native window preview"></a>
+
+Protocol screening keeps missing models and reference coverage visible.
+
+#### [Trace RLC](trace_impedance_plugin/ReadMe.md)
+
+<a href="trace_impedance_plugin/help-ac-geometry.png"><img src="trace_impedance_plugin/help-ac-geometry.png" width="960" alt="Trace RLC native window preview"></a>
+
+Inspect the connected copper path and per-section electrical coverage.
+
+#### [Analytics Studio](bom_studio_plugin/README.md)
+
+<a href="bom_studio_plugin/help-cost-mass.png"><img src="bom_studio_plugin/help-cost-mass.png" width="960" alt="Analytics Studio native window preview"></a>
+
+Templates, bulk editing, conditional exports and explicit cost/mass coverage.
+
+#### [Magnetics](planar_magnetics_plugin/ReadMe.md)
+
+<a href="planar_magnetics_plugin/help-motor-emf.png"><img src="planar_magnetics_plugin/help-motor-emf.png" width="960" alt="Magnetics native window preview"></a>
+
+Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.
+
+#### [Variant Manager — assembly comparison](variant_manager_plugin/README.md)
+
+<a href="variant_manager_plugin/help-workspace.png"><img src="variant_manager_plugin/help-workspace.png" width="960" alt="Variant Manager native assembly comparison"></a>
+
+Compare saved and staged assembly states, with bulk edit/delete, conflict-aware merge, swap, promotion and verified recovery.
 
 </details>
 
