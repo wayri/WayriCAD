@@ -1,2 +1,5 @@
 # Upstream artwork is verified against its original Git blob identity.
 bom_studio_plugin/resources/sources/*.svg -text
+
+# PCM checksums must match the bytes served by GitHub.
+pcm/*.json text eol=lf

@@ -9,7 +9,7 @@
     }
   },
   "packages": {
-    "sha256": "6832fe8c361e08042641c7bca301b7efc788e8b49339330dbe56ed5ff692fa5c",
+    "sha256": "b2a36effbd7215e47dd27c56b7296ee1d194babb2d632fe7be3192cb6e0dfb50",
     "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1791798930",
     "update_timestamp": 1791798930
   },
