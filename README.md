@@ -237,6 +237,7 @@ Hardware planning details are in [System requirements](docs/SYSTEM_REQUIREMENTS.
 ## Automation and development
 
 Use `wayricad jobs` for repeatable analysis/report sequences and KiCad jobsets.
+
 | Developer topic | Reference |
 |---|---|
 | Contribution and validation requirements | [CONTRIBUTING.md](CONTRIBUTING.md) |
