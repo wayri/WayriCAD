@@ -182,42 +182,38 @@ Select a plugin for its full guide and supported models.
 
 <a id="latest-gui-snapshots"></a>
 
-<details>
-<summary>Show current screenshots</summary>
+### Current screenshots
 
 Demonstration inputs are not predictions for your board. See
 [capture provenance](docs/audits/README_GALLERY.md) and each tool's guide.
 
 **[Quick PI](quick_pi_plugin/README.md)**
 
-<a href="quick_pi_plugin/help-workspace.png"><img src="quick_pi_plugin/help-workspace.png" width="800" alt="Native Quick PI board and result workspace"></a>
+<a href="quick_pi_plugin/help-workspace.png"><img src="quick_pi_plugin/help-workspace.png" width="960" alt="Native Quick PI board and result workspace"></a>
 
 **[QuickTherm](quick_therm_plugin/README.md)**
 
-<a href="quick_therm_plugin/examples/quicktherm-component-heating.png"><img src="quick_therm_plugin/examples/quicktherm-component-heating.png" width="800" alt="QuickTherm component heating and board results"></a>
+<a href="quick_therm_plugin/examples/quicktherm-component-heating.png"><img src="quick_therm_plugin/examples/quicktherm-component-heating.png" width="960" alt="QuickTherm component heating and board results"></a>
 
 **[Quick SI](signal_integrity_advisor_plugin/ReadMe.md)**
 
-<a href="signal_integrity_advisor_plugin/help-workflow.png"><img src="signal_integrity_advisor_plugin/help-workflow.png" width="800" alt="Quick SI routed signal analysis"></a>
+<a href="signal_integrity_advisor_plugin/help-workflow.png"><img src="signal_integrity_advisor_plugin/help-workflow.png" width="960" alt="Quick SI routed signal analysis"></a>
 
 **[Trace RLC](trace_impedance_plugin/ReadMe.md)**
 
-<a href="trace_impedance_plugin/help-marble-path.png"><img src="trace_impedance_plugin/help-marble-path.png" width="800" alt="Trace RLC saved-board route analysis"></a>
+<a href="trace_impedance_plugin/help-marble-path.png"><img src="trace_impedance_plugin/help-marble-path.png" width="960" alt="Trace RLC saved-board route analysis"></a>
 
 **[Analytics Studio](bom_studio_plugin/README.md)**
 
-<a href="bom_studio_plugin/help-board-copper.png"><img src="bom_studio_plugin/help-board-copper.png" width="800" alt="Analytics Studio board and copper tables"></a>
+<a href="bom_studio_plugin/help-board-copper.png"><img src="bom_studio_plugin/help-board-copper.png" width="960" alt="Analytics Studio board and copper tables"></a>
 
 **[Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md)**
 
-<a href="protocol_constraint_composer_plugin/help-workflow.png"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="800" alt="Constraint Studio with optional panels closed"></a>
-
-</details>
+<a href="protocol_constraint_composer_plugin/help-workflow.png"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="960" alt="Constraint Studio with optional panels closed"></a>
 
 <a id="more-plugin-previews"></a>
 
-<details>
-<summary>Show earlier feature screenshots and tool previews</summary>
+### Earlier feature screenshots
 
 These retained native captures use public or generated demonstration boards. The PI, thermal-input and mechanical workspace images were recaptured with opaque backgrounds so they remain readable in light and dark GitHub themes. [Recapture provenance](docs/audits/README_GALLERY.md) records the fixtures and checks. Select any image for its original resolution.
 
@@ -280,8 +276,6 @@ Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limi
 <a href="variant_manager_plugin/help-workspace.png"><img src="variant_manager_plugin/help-workspace.png" width="960" alt="Variant Manager native assembly comparison"></a>
 
 Compare saved and staged assembly states, with bulk edit/delete, conflict-aware merge, swap, promotion and verified recovery.
-
-</details>
 
 ## Help and upgrades
 
