@@ -1,205 +1,222 @@
-# WayriCAD — KiCad Plugins for PCB Design and Analysis
+# WayriCAD
 
-**WayriCAD** is an open-source suite of **19 KiCad plugins** for PCB design, analysis and project review. Each plugin installs independently through KiCad's Plugin and Content Manager (PCM) and runs locally after setup.
+**19 independently installable KiCad plugins** for PCB design, analysis and project review.
+Install just the tools you need. Processing runs locally after dependency setup.
+**KiCad 10 is the validated target**; see [compatibility](docs/COMPATIBILITY.md) for platform limits.
 
-## Contents
+[Download 3.6.16](https://github.com/wayri/WayriCAD/releases/tag/v3.6.16) · [Release notes](docs/RELEASE_NOTES_3.6.16.md) · [Full user guide](docs/USER_GUIDE.md)
 
-| Topic | Where to go |
-|---|---|
-| Plugins and workflows | [All 19 plugins](#all-19-plugins) · [Choose a workflow](#choose-a-kicad-workflow) · [Illustrated user guide](docs/USER_GUIDE.md) |
-| Installation | [Quick start](#install-and-open) · [Installation guide](docs/INSTALLATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) |
-| GUI previews | [Latest GUI snapshots](#latest-gui-snapshots) · [More plugin previews](#more-plugin-previews) |
-| Releases and downloads | [Current suite release — 3.6.16](https://github.com/wayri/WayriCAD/releases/tag/v3.6.16) · [Latest release notes](docs/RELEASE_NOTES_3.6.16.md)<br>Independent testing packages: [Project Fusion 0.9.8 PCM](https://github.com/wayri/WayriCAD/releases/download/v3.6.16/WayriCAD-project-fusion-0.9.8-PCM.zip) · [Variant Manager 0.6.1 PCM](https://github.com/wayri/WayriCAD/releases/download/v3.6.16/WayriCAD-variant-manager-0.6.1-PCM.zip) |
-| Requirements | [Recommended system](#recommended-system) · [Compatibility and known limits](docs/COMPATIBILITY.md) · [Runtime setup](wayricad_runtime/RUNTIME_SETUP.md)<br>**KiCad 10** is the validated target; KiCad 11-only installations are not supported yet. |
-| Upgrading | [Upgrade safely](#upgrade-safely) |
-| Automation and development | [Development](#automation-and-development) · [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) · [Contributing](CONTRIBUTING.md) |
-| Project and licenses | [Maintainer: Wayri](https://github.com/wayri) · [Official source](https://github.com/wayri/WayriCAD) · [Acknowledgements and AI disclosure](#acknowledgements-and-ai-disclosure)<br>[GPL-3.0 license](LICENSE); Project Fusion and Variant Manager are MIT licensed. |
+[Install](#install-and-open) · [Getting started](#getting-started) · [All plugins](#all-19-plugins) · [Screenshots](#plugin-previews) · [Help](#help-and-upgrades) · [Development](#automation-and-development)
 
+## Install and open
+
+1. Open **Plugin and Content Manager** in KiCad Manager. Add this repository:
+
+   ```text
+   https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json
+   ```
+
+2. Select **WayriCAD Plugin Repository** and install the tools you want. You can
+   also download a PCM ZIP from [Releases](https://github.com/wayri/WayriCAD/releases)
+   and use **Install from File**, without unpacking it.
+3. For IPC tools, enable the API and configure Python in **Preferences → Plugins**.
+   Allow the first dependency setup to finish, then restart PCB Editor.
+4. Open and save your project. Launch a tool from **Tools → External Plugins** or
+   the toolbar. **WayriCAD — All tools…** searches the installed tools if the menu is crowded.
+
+Fusion uses the native plugin loader and does not need the IPC API enabled.
+First-time setup may need internet access. For setup problems or offline use,
+read [installation](docs/INSTALLATION.md), [troubleshooting](docs/TROUBLESHOOTING.md)
+and [runtime setup](wayricad_runtime/RUNTIME_SETUP.md).
+
+<a id="choose-a-kicad-workflow"></a>
+
+## Getting started
+
+Save the PCB, refill its zones, and save Board Setup before analysis. Start with
+one net or a small component group, then expand the study. Unknown results mean
+an input or model is missing; they are not a pass.
+
+### Quick PI — check a power path
+
+1. Open **WayriCAD Quick PI**. In **Setup**, choose the power net, source pad and sink pad.
+2. Enter **Source · V** and **Load · A**. Add sink voltage limits or **Additional sinks** if needed.
+3. Click **Preview** to inspect the extracted copper, then **Run**.
+4. Inspect **Results** for voltage drop, current density and losses. Choose a layer,
+   hover for values, and click to pin probes. Use **Export** for HTML and JSON.
+
+For your first run, use the default layered DC model. Review copper thickness,
+via plating and mesh refinement before relying on local peaks.
+[Quick PI guide](quick_pi_plugin/README.md#workflow).
+
+### QuickTherm — check board and part temperatures
+
+1. Open **WayriCAD QuickTherm**. In **Component inputs**, select the parts to include
+   and enter their actual operating power, not their maximum power rating.
+2. Use **Field mapping…** for your property names. Add the thermal resistances and
+   temperature limits needed by the selected model; missing junction paths stay unknown.
+3. In **Board + results**, review the board heat model, materials, ambient temperature
+   and environment. Start with a steady-state study and click **Run thermal**.
+4. Use **Top**, **Bottom** or **3D**, probe the board and select parts in the temperature
+   table. Export the report. Add transient power steps after reviewing the steady result.
+
+QuickTherm installs separately from Quick PI. Air, vacuum and other environments
+need explicit heat-rejection paths; airflow fields are not solved.
+[Step-by-step thermal guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md).
+
+### Quick SI — screen a routed signal
+
+1. Open **WayriCAD Quick SI**. Search for a net or use **Select net on board**.
+2. Choose source and receiver pads. Review the saved physical stackup and the
+   driver/load assumptions, including rise time and resistance.
+3. Click **Screen selected path**. Inspect delay, routed sections, impedance coverage
+   and reflection estimates; unresolved sections remain visible.
+4. Inspect the route and waveform plots, then export HTML/JSON for review.
+
+Automatic timing assumes ideal continuous references where indicated. A mixed
+route may have usable section results without a single overall impedance.
+[Quick SI guide](signal_integrity_advisor_plugin/ReadMe.md).
+
+### Trace RLC — measure a routed connection
+
+1. Open **Trace RLC / Impedance**, choose the net and two different pads.
+2. Select **Path** for connected traces/vias/zones, or **Zone/plane** for a filled
+   island with a declared current-corridor width. Use **Auto** reference or select a layer.
+3. Run **Analyze**, then inspect the copper preview and per-section R, L, C and impedance.
+4. Export the results. Use **Line cross section** for manually entered supported CPW,
+   grounded CPW or coupled-stripline geometries.
+
+Automatic board impedance covers supported single-ended microstrip/stripline
+sections. Differential-pair mode measures paths/skew; it does not automatically
+extract coupled differential impedance. [RLC guide](trace_impedance_plugin/ReadMe.md#workflow).
+
+### BOM Studio workflow — now in Analytics Studio
+
+1. Open **WayriCAD Analytics Studio** from your saved project.
+2. In **BOM settings**, choose fields, grouping, sorting and DNP filters.
+3. Edit fields in **BOM workspace**, then save the workspace sidecar.
+4. Use **Exports & templates** to preview and export a BOM. Use **Review & native sync**
+   only when you want reviewed edits written back to the saved KiCad project.
+
+**BOM Studio was renamed Analytics Studio; they are one plugin.** Existing package
+IDs and workspace files are retained. Native KiCad exports read saved source;
+workspace exports can include staged edits. [BOM workflow guide](bom_studio_plugin/README.md#everyday-workflow).
+
+### Analytics Studio — inspect components and copper
+
+1. Open **Board, copper & components** in Analytics Studio.
+2. Review mapped cost, mass and power fields for component analytics.
+3. Open **Board & copper** for board area, layer coverage, net/zone copper areas,
+   track lengths, via counts and per-component pad-contact areas.
+4. Search by net or part, inspect unknowns, and export the tables as CSV, XLSX, JSON or HTML.
+
+Board analytics uses saved geometry and saved zone fills. Pad-contact area means
+nominal copper land area, not thermal conductance. Missing values and mixed
+currencies stay explicit. [Analytics guide](bom_studio_plugin/README.md).
+
+<a id="all-16-plugins"></a>
 <a id="all-18-plugins"></a>
 
 ## All 19 plugins
 
-All 19 packages install independently. Each row shows the current package version; feature brackets identify the WayriCAD suite release that added the feature or the listed improvement. Select a name for its guide, supported inputs and model limits. The [full tool directory](docs/USER_GUIDE.md#tool-directory) also explains write boundaries.
+The IPC packages are **3.6.16**; Fusion is **0.9.8**, and Variant Manager is **0.6.1**.
+Select a plugin for its full guide and supported models.
 
-| Plugin, guide and version | Features | Purpose |
-|---|---|---|
-| <img src="project_fusion_plugin/icon.png" width="24" height="24" alt="Project Fusion icon"> [Project Fusion](project_fusion_plugin/README.md)<br>Version 0.9.8 | Project/subsheet merging, visual layout placement and linked updates [3.6.4]; automatic project/sheet/layout-only discovery [3.6.8]; guided imports, variant destinations and saved-file CLI workflows [3.6.9]; recovery guidance, preserved repair choices and stale-review protection [3.6.10] | Combines schematics and routed PCB blocks into one saved KiCad project; reviewed apply requires closed target editors. |
-| <img src="variant_manager_plugin/icon.png" width="24" height="24" alt="Variant Manager icon"> [Variant Manager](variant_manager_plugin/README.md)<br>Version 0.6.1 | Saved/staged assembly previews; compare, bulk edit/delete, merge, swap, Default promotion and verified recovery [3.6.8]; preserved staged work, reload recovery and stale-apply protection [3.6.10] | Manages native KiCad assembly configurations in an independent desktop plugin; reviewed apply requires closed project editors. |
-| <img src="bom_studio_plugin/icon.png" width="24" height="24" alt="Analytics Studio icon"> [Analytics Studio](bom_studio_plugin/README.md)<br>Version 3.6.16 | Editable fields and BOM templates; component cost/mass/power, copper and filled-zone areas by layer/net, track lengths, vias and component pad contact | Organizes assembly data, purchasing totals and coverage; missing values and mixed currencies stay explicit. |
-| <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md)<br>Version 3.6.16 | Local symbol and footprint libraries; 3D model copying/embedding; link repair; backups | Makes project libraries and 3D models portable by collecting dependencies locally. |
-| <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md)<br>Version 3.6.16 | 2.5D DC voltage, current-density and copper-loss fields; diode series-path editing and return-path screening [3.5.0]; optional 3D copper-volume DC solve and result viewer [3.6.6]; prioritized voltage/current/loss plots [3.6.11]; multiple sinks, source-current budgets, sink-voltage limits, R/L/C load-step transients, electrothermal studies and continuous field gradients [3.6.12]; compact board workspace [3.6.13]; explicit [lead/solder/BGA contacts](docs/PACKAGE_CONDUCTION.md), separate contact Joule heat and source-bound PI-to-thermal contact-loss transfer [3.6.14] | Reviews voltage drop, current density, copper/contact losses and sink feasibility within the declared model. |
-| <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md)<br>Version 3.6.16 | Standalone package, thermal-field mapping, temperature limits and probe reports [3.6.0]; optional 3D steady board conduction [3.6.6]; plated slots and board-aware top/bottom reports [3.6.11]; whole-board field display, manual-input recovery and component power-step RC studies [3.6.12]; editable scanned inputs, interactive STEP component RC heating, copper-loss import and transient playback with air/vacuum boundaries [3.6.13]; explicit [lead/solder/BGA thermal paths](docs/PACKAGE_CONDUCTION.md), contact-loss transfer and fitted sidebar controls [3.6.14] | Reviews board heating and per-part temperatures with interactive 2D/3D views, playback and declared thermal assumptions. |
-| <img src="trace_impedance_plugin/icon.png" width="24" height="24" alt="Trace RLC / Impedance icon"> [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md)<br>Version 3.6.16 | Connected route measurements, RLC estimates and via/zone analysis; refreshed stackup with stale-result clearing [3.4.0]; corrected microstrip/stripline estimates and manual CPW/GCPW or coupled-stripline cross-sections [3.6.1]; synchronized routed-section measurement engine [3.6.11] | Measures routed copper and estimates its resistance, inductance, capacitance and impedance. |
-| <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)<br>Version 3.6.16 | Reflections, termination candidates, skew and I2C checks; return-path/test-point review; corrected microstrip/stripline estimates and manual CPW/GCPW or coupled-stripline cross-sections [3.6.1]; automatic saved-stackup timing and routed-section plots [3.6.11] | Screens routed signal paths for timing, termination and reference-layer concerns. |
-| <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md)<br>Version 3.6.16 | Perimeter and BGA escapes; adaptive routing; differential-pair seeds; preview and grouped apply | Generates reviewed escape tracks and vias from SMD, BGA and LGA pads. |
-| <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md)<br>Version 3.6.16 | Square/staggered grids; density profiles; net/layer filters; clearance checks; grouped apply | Places net-connected stitching vias in selected copper regions. |
-| <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md)<br>Version 3.6.16 | Wildcard and regex replacements; references, values, fields and PCB text; preview and apply | Renames repeated labels and component text in bulk. |
-| <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md)<br>Version 3.6.16 | PCB cross-selection; pin/net tables, power trees and selection basket; safeguarded path tracing and CSV/Markdown exports; native SVG diagrams and interactive connector/pin HTML [3.4.0] | Turns board connectivity into interactive pinouts and signal-path documentation. |
-| <img src="harness_workbench_plugin/icon.png" width="24" height="24" alt="Harness Workbench icon"> [Harness Workbench](harness_workbench_plugin/ReadMe.md)<br>Version 3.6.16 | Connector mapping; bundles and splices; wire gauges and loads; SVG/interactive maps; procurement BOM | Documents wiring between boards, connectors and peripherals. |
-| <img src="copper_balancer_plugin/icon.png" width="24" height="24" alt="Copper Balancer icon"> [Copper Balancer](copper_balancer_plugin/README.md)<br>Version 3.6.16 | Eight thieving patterns; per-layer density maps; clearance/keepout checks; saved-copy output | Adds reviewed isolated copper to balance local PCB copper density. |
-| <img src="mechanical_check_plugin/icon.png" width="24" height="24" alt="Mechanical Check icon"> [Mechanical Check](mechanical_check_plugin/README.md)<br>Version 3.6.16 | STEP model coverage, collision and clearance checks; interboard placement and per-finding cross-sections [3.6.4]; point/point, edge/edge, point/edge and body-centre 3D rulers, closest-approach hover distances, automatic part dimensions, top/bottom height-excess markers, proximity warnings and a larger board viewport [3.6.13] | Measures saved geometry and marks collisions, close approaches and height excesses; coverage gaps remain visible. |
-| <img src="heater_designer_plugin/icon.png" width="24" height="24" alt="Heater Designer icon"> [Heater Designer](heater_designer_plugin/ReadMe.md)<br>Version 3.6.16 | Copper, foil and custom alloys; serpentine, spiral, organic, circular and maze patterns; multilayer heaters; electrical/thermal preview | Creates heating patterns for declared material, resistance and temperature targets. |
-| <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md)<br>Version 3.6.16 | Multilayer winding generation; LCR and field estimates; motor/actuator models; ngspice simulations | Designs PCB windings and evaluates supported magnetic and electromechanical concepts. |
-| <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md)<br>Version 3.6.16 | Fabricator profiles; board geometry audits; native DRC/jobsets; release gates; hashed ZIP exports | Checks manufacturing constraints and packages reviewed fabrication outputs. |
-| <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md)<br>Version 3.6.16 | 34 visual DRC rule forms; clearance matrices, netclasses and reusable sets; protocol/per-layer routing profiles and reviewed offline Apply Review [3.4.0]; responsive editing, long findings lists and guarded application with request recovery [3.6.12] | Creates and reviews KiCad design constraints in a staged project workspace. |
-
-## Recommended system
-
-These are workload-based planning recommendations, rather than benchmarked minimums. Hardware needs grow with board complexity, mesh density, STEP model detail and transient duration; a cross-hardware performance benchmark suite is not yet available.
-
-| Hardware | Everyday tools and smaller boards | Heavier PI, thermal and exact 3D mechanical studies |
-|---|---|---|
-| CPU | Modern 64-bit CPU with 4 or more physical cores and good single-core performance | 6–8 or more physical cores with strong sustained CPU performance; extra cores do not make every operation parallel |
-| RAM | **16 GB recommended** | **32 GB recommended**; consider **64 GB** for larger meshes, detailed assemblies or concurrent studies |
-| Storage | **SSD**, with roughly **20 GB free** for KiCad, libraries, plugin environments and working files | **SSD**, preferably NVMe, with **40 GB or more free** for additional models, caches, saved copies and reports |
-| Graphics | Integrated or dedicated graphics with a working hardware-accelerated OpenGL driver | Dedicated graphics can improve large interactive 3D scenes; the current PI/thermal solvers use CPU calculations and do not require CUDA |
-| Display | **1920 × 1080** or higher | **1920 × 1080** or higher; a larger display makes side panels and 3D inspection easier |
-
-The storage figures are suggested free-space budgets, not fixed installation sizes. Graphics should meet [KiCad's official system requirements](https://www.kicad.org/help/system-requirements/), including OpenGL 2.1 or greater with hardware shaders. WayriCAD's native GUI checks currently cover Windows with KiCad 10; see [compatibility](docs/COMPATIBILITY.md) for platform validation and each plugin's runtime dependencies. Exact mechanical checks also need FreeCAD; its setup is described in the [Mechanical Check guide](mechanical_check_plugin/README.md#runtime).
-
-**On an older laptop:** run one heavy analysis at a time, close unused applications and keep projects and dependency caches on an SSD. For initial PI/thermal previews, use a coarser mesh and a shorter transient study; refine the mesh and time settings and check convergence before relying on local peaks or heating times. Use [Mechanical Check's Quick 2D screen](mechanical_check_plugin/README.md#quick-in-editor-screening) for an initial envelope review, then run exact 3D checks for solid clearances and collisions. A coarse preview or Quick 2D screen does not replace the detailed analysis.
-
-## Install and open
-
-![Illustrated KiCad 10 installation workflow](docs/images/install-workflow.svg)
-
-1. In KiCad Manager, open **Plugin and Content Manager**. Add the repository URL below, select **WayriCAD Plugin Repository**, and install the tools you need.
-2. Alternatively, download an individual `WayriCAD-<tool>-<version>-PCM.zip` from Releases and use **Install from File**. Do not unpack the ZIP yourself.
-3. For the IPC tools, in **Preferences → Plugins**, enable the API and configure Python. Let KiCad finish preparing each plugin environment, then restart the PCB Editor. **Fusion uses the native SWIG loader and does not require enabling the API:** install its PCM ZIP, apply, restart PCB Editor, and choose **Tools → External Plugins → Wayri Project Fusion**.
-4. Open and save your board/project, then launch a WayriCAD action from **Tools → External Plugins** or the **PCB Editor's top toolbar**. Use **WayriCAD — All tools…** at the top of the External Plugins menu to search the full installed list when the flat KiCad menu does not fit on screen. The KiCad 10 packages include lightweight menu launchers alongside their IPC toolbar actions. Maximize the editor if the toolbar is crowded; use **Preferences → PCB Editor → Plugins** to show or hide individual buttons. Toolbar launches use the originating project; standalone launches may need a file selection. Startup feedback stays visible while a plugin prepares its runtime and clears when the plugin is ready [3.6.13].
-
-```text
-https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json
-```
-
-Initial dependency setup needs internet access or a prepared wheel cache. Once prepared, application pages, previews and project processing run locally. Some tools use a separate native KiCad runtime; [runtime setup](wayricad_runtime/RUNTIME_SETUP.md) explains overrides and offline installation.
-
-## Choose a KiCad workflow
-
-- **Combine designs or reuse a circuit:** [Project Fusion](project_fusion_plugin/README.md) merges projects and selected schematic sheets with optional routed layout, variant selection, visual placement, dependency copying and reviewed linked updates.
-- **Inspect PCB electrical behaviour:** [Quick PI](quick_pi_plugin/README.md), [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) and [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) report results with explicit model assumptions and coverage.
-- **Review component temperatures:** [QuickTherm](quick_therm_plugin/README.md) models declared losses and thermal inputs with a board result overlay.
-- **Prepare assembly and fabrication:** [Analytics Studio](bom_studio_plugin/README.md), [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) and [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) provide field editing, rules and release checks.
+| Plugin | Use it for |
+|---|---|
+| <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. |
+| <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Board and component temperatures, heating playback and thermal reports. |
+| <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal delay, reflections, termination and return-path screening. |
+| <img src="trace_impedance_plugin/icon.png" width="24" height="24" alt="Trace RLC / Impedance icon"> [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Route resistance, inductance, capacitance and supported impedance estimates. |
+| <img src="bom_studio_plugin/icon.png" width="24" height="24" alt="Analytics Studio icon"> [Analytics Studio](bom_studio_plugin/README.md) | BOM editing, purchasing tables and board/copper analytics. |
+| <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Design rules, netclasses and per-layer routing profiles. |
+| <img src="project_fusion_plugin/icon.png" width="24" height="24" alt="Project Fusion icon"> [Project Fusion](project_fusion_plugin/README.md) | Combine projects or circuit blocks and review linked updates. |
+| <img src="variant_manager_plugin/icon.png" width="24" height="24" alt="Variant Manager icon"> [Variant Manager](variant_manager_plugin/README.md) | Compare, edit, merge and recover assembly variants. |
+| <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Collect libraries and 3D models for portable projects. |
+| <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Preview and place escape tracks and vias. |
+| <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. |
+| <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Rename references, fields and PCB text in bulk. |
+| <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. |
+| <img src="harness_workbench_plugin/icon.png" width="24" height="24" alt="Harness Workbench icon"> [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Map connectors, cables, bundles and wire requirements. |
+| <img src="copper_balancer_plugin/icon.png" width="24" height="24" alt="Copper Balancer icon"> [Copper Balancer](copper_balancer_plugin/README.md) | Add isolated copper patterns for more even copper density. |
+| <img src="mechanical_check_plugin/icon.png" width="24" height="24" alt="Mechanical Check icon"> [Mechanical Check](mechanical_check_plugin/README.md) | Inspect 3D collisions, clearances and board assemblies. |
+| <img src="heater_designer_plugin/icon.png" width="24" height="24" alt="Heater Designer icon"> [Heater Designer](heater_designer_plugin/ReadMe.md) | Design and preview PCB or foil heating patterns. |
+| <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Design PCB coils and screen magnetic/actuator behavior. |
+| <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Check fabrication constraints and prepare manufacturing outputs. |
 
 ## Plugin previews
 
-Select a tool title for its guide, or a latest screenshot to open it at full resolution. Demonstration values are not predictions for your board.
+<details>
+<summary>Show screenshots</summary>
 
-### Latest GUI snapshots
+Demonstration inputs are not predictions for your board. See
+[capture provenance](docs/audits/README_GALLERY.md) and each tool's guide.
 
-These unmodified native captures use public or generated demonstration boards. The PI, thermal-input and mechanical workspace images were recaptured with opaque backgrounds so they remain readable in light and dark GitHub themes. [Recapture provenance](docs/audits/README_GALLERY.md) records the fixtures and checks. Select any image for its original resolution.
+**[Quick PI](quick_pi_plugin/README.md)**
 
-#### [3.6.14 — explicit contacts and fitted thermal controls](docs/PACKAGE_CONDUCTION.md)
+<a href="quick_pi_plugin/help-workspace.png"><img src="quick_pi_plugin/help-workspace.png" width="800" alt="Native Quick PI board and result workspace"></a>
 
-<a href="docs/assets/package-conduction/quick-pi.png"><img src="docs/assets/package-conduction/quick-pi.png" width="960" alt="Quick PI with explicit package contacts and separately reported contact Joule losses"></a>
+**[QuickTherm](quick_therm_plugin/README.md)**
 
-<a href="docs/assets/package-conduction/quick-therm.png"><img src="docs/assets/package-conduction/quick-therm.png" width="960" alt="QuickTherm transient board field with numeric inputs and controls fitting the sidebar"></a>
+<a href="quick_therm_plugin/examples/quicktherm-component-heating.png"><img src="quick_therm_plugin/examples/quicktherm-component-heating.png" width="800" alt="QuickTherm component heating and board results"></a>
 
-These captures use a generated board and illustrative lead/solder properties. The 1 s thermal frame includes imported copper and contact losses. [Capture provenance](docs/assets/package-conduction/PROVENANCE.md) and [validation](docs/audits/PACKAGE_CONDUCTION.md). The other feature captures below were introduced in 3.6.13.
+**[Quick SI](signal_integrity_advisor_plugin/ReadMe.md)**
 
-#### [Mechanical Check — 3D measurements and height checks](mechanical_check_plugin/README.md)
+<a href="signal_integrity_advisor_plugin/help-workflow.png"><img src="signal_integrity_advisor_plugin/help-workflow.png" width="800" alt="Quick SI routed signal analysis"></a>
 
-<a href="mechanical_check_plugin/help-workflow.png"><img src="mechanical_check_plugin/help-workflow.png" width="960" alt="Mechanical Check native STEP board workspace with an edge-to-edge ruler, global height violation markers and a compact findings sidebar"></a>
+**[Trace RLC](trace_impedance_plugin/ReadMe.md)**
 
-Inspect STEP geometry, engineering rulers and height/proximity findings in a large board viewport. The fixture deliberately includes height violations and incomplete coverage. [Capture and validation notes](docs/audits/MECHANICAL_INSPECTION.md).
+<a href="trace_impedance_plugin/help-marble-path.png"><img src="trace_impedance_plugin/help-marble-path.png" width="800" alt="Trace RLC saved-board route analysis"></a>
 
-#### [Quick PI — copper and results workspace](quick_pi_plugin/README.md)
+**[Analytics Studio](bom_studio_plugin/README.md)**
 
-<a href="quick_pi_plugin/help-workspace.png"><img src="quick_pi_plugin/help-workspace.png" width="960" alt="Quick PI native board workspace with compact source and load controls, a smooth voltage-drop overlay and a results inspector"></a>
+<a href="bom_studio_plugin/help-board-copper.png"><img src="bom_studio_plugin/help-board-copper.png" width="800" alt="Analytics Studio board and copper tables"></a>
 
-Compact setup and inspection panels leave more room for the board and continuous result overlay. The demonstrated field solves a uniform copper plate; the pictured PCB traces provide visual context. [Capture and analytical reference](docs/audits/QUICK_PI_WORKSPACE.md).
+**[Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md)**
 
-#### [QuickTherm — STEP models and transient heating](quick_therm_plugin/README.md)
+<a href="protocol_constraint_composer_plugin/help-workflow.png"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="800" alt="Constraint Studio with optional panels closed"></a>
 
-<a href="quick_therm_plugin/examples/quicktherm-component-heating.png"><img src="quick_therm_plugin/examples/quicktherm-component-heating.png" width="960" alt="QuickTherm native interactive 3D STEP board with heated component models, a temperature scale and transient playback controls"></a>
+</details>
 
-Orbit real STEP geometry and scrub through calculated board and declared component RC temperatures. Each modeled part has one temperature; grey parts have unknown temperature. The example uses explicit demonstration thermal inputs. [Capture, thermal assumptions and validation](docs/audits/QUICKTHERM_COMPONENT_HEATING.md).
+## Help and upgrades
 
-#### [QuickTherm — editable component inputs](quick_therm_plugin/README.md)
+- [Installation and troubleshooting](docs/TROUBLESHOOTING.md) — missing actions, runtimes and installation paths.
+- [Compatibility](docs/COMPATIBILITY.md) — tested hosts and known limits.
+- [Analysis models and probes](docs/ANALYSIS_INTERACTIONS.md) — what views and results represent.
+- [CLI guide](docs/CLI_USER_GUIDE.md) and [jobsets](wayricad_runtime/JOBSETS.md) — repeatable reports and automation.
 
-<a href="quick_therm_plugin/examples/quicktherm-input-workspace.png"><img src="quick_therm_plugin/examples/quicktherm-input-workspace.png" width="960" alt="QuickTherm full-width editable component table with scanned power and Rtheta JA, JB and JC values, temperature limits and select-all controls"></a>
+<a id="upgrade-safely"></a>
 
-Review scanned values, select the analysis scope and edit power, thermal resistances and limits in one table. [Input workspace capture notes](docs/audits/QUICKTHERM_WORKSPACE.md#screenshot-provenance).
+Refresh PCM, install updates and restart PCB Editor. Keep project backups and BOM
+workspace files. Remove retired standalone tools to avoid duplicate actions:
+PDN Decoupling is in Quick PI; Return-Path Auditor and Test Point Descriptor are
+in Quick SI; Embed3D combines Localizer and Portable Assets.
 
-### More plugin previews
+<a id="recommended-system"></a>
 
-Select a title for its guide, or a picture to open the original full-resolution capture. These older previews use generic project locations in place of machine-specific paths; surrounding UI and numerical results are preserved.
-
-#### [Adaptive fanout](fanout_generator_plugin/ReadMe.md)
-
-<a href="fanout_generator_plugin/help-adaptive.png"><img src="fanout_generator_plugin/help-adaptive.png" width="960" alt="Adaptive fanout native window preview"></a>
-
-Review pads, existing copper and proposed tracks/vias before applying.
-
-#### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
-
-<a href="signal_integrity_advisor_plugin/help-protocols.png"><img src="signal_integrity_advisor_plugin/help-protocols.png" width="960" alt="Quick SI native window preview"></a>
-
-Protocol screening keeps missing models and reference coverage visible.
-
-#### [Trace RLC](trace_impedance_plugin/ReadMe.md)
-
-<a href="trace_impedance_plugin/help-ac-geometry.png"><img src="trace_impedance_plugin/help-ac-geometry.png" width="960" alt="Trace RLC native window preview"></a>
-
-Inspect the connected copper path and per-section electrical coverage.
-
-#### [Analytics Studio](bom_studio_plugin/README.md)
-
-<a href="bom_studio_plugin/help-cost-mass.png"><img src="bom_studio_plugin/help-cost-mass.png" width="960" alt="Analytics Studio native window preview"></a>
-
-Templates, bulk editing, conditional exports and explicit cost/mass coverage.
-
-#### [Magnetics](planar_magnetics_plugin/ReadMe.md)
-
-<a href="planar_magnetics_plugin/help-motor-emf.png"><img src="planar_magnetics_plugin/help-motor-emf.png" width="960" alt="Magnetics native window preview"></a>
-
-Motor EMF/force, winding layouts, coupled fields and KiCad SPICE; see model limits.
-
-#### [Constraint Studio — visual constraint manager](protocol_constraint_composer_plugin/ReadMe.md)
-
-<a href="protocol_constraint_composer_plugin/help-workflow.png"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="960" alt="Constraint Studio visual worksheet with rule priorities, layout scope and context inspector"></a>
-
-Edit custom DRC rules visually, manage clearance matrices and reusable constraint sets, and stage per-layer routing profiles for reviewed export. Shipped interface rendered with a demonstration snapshot; scope colours are condition matches, not native DRC results.
-
-#### [Variant Manager — assembly comparison](variant_manager_plugin/README.md)
-
-<a href="variant_manager_plugin/help-workspace.png"><img src="variant_manager_plugin/help-workspace.png" width="960" alt="Variant Manager native assembly comparison"></a>
-
-Compare saved and staged assembly states, with bulk edit/delete, conflict-aware merge, swap, promotion and verified recovery.
-
-## Focused workflows, shared tools
-
-Analytics Studio keeps templates, cell and bulk editing, grouping, and conditional exports in three primary views. Mechanical Check retains exact solids and adds a quick 2D envelope screen without FreeCAD. Copper Balancer reports rejected sites and per-tile density deficits. Quick PI includes decoupling placement; QuickTherm is separately installable; Quick SI includes return-path and test-point workflows. These are distinct checks inside the suite, not claims of full electrical or mechanical certification.
-
-[Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) is the suite's visual constraint manager: custom DRC rule forms, clearance matrices, netclasses, reusable sets and per-layer routing profiles share a staged workspace. Review generated rules and file diffs before offline apply, then validate with KiCad's native DRC.
-
-## Upgrade safely
-
-Remove obsolete suite package entries to avoid duplicate actions. Embed3D combines the former Localizer and Portable Assets workflows and keeps the `embed-3d` package ID. Visual Diff and Design Variant Workbench are retired; their standalone source directories and those of consolidated tools are removed from repository history. PDN Decoupling is now a tab in Quick PI. Return-Path Auditor and Test Point Descriptor are tabs in Quick SI; their separate packages are retired. Native KiCad variants replace the standalone variant tool. The source installer backs up retired installations; it does not delete project data. Keep existing BOM workspaces and project backups.
-
-For a source installation, build packages and run `python tools/install_suite.py` to preview the destination, then repeat with `--apply`. Use `--destination` for an explicit location. [Installation details](docs/TROUBLESHOOTING.md#installation-paths).
+Hardware planning details are in [System requirements](docs/SYSTEM_REQUIREMENTS.md).
 
 ## Automation and development
 
-Use `wayricad jobs` to create repeatable analysis/report sequences and insert them into KiCad jobsets. Native DRC/ERC, BOM, PI, SI and RLC presets collect a local HTML index, logs and JSON/hash evidence. [Setup and examples](wayricad_runtime/JOBSETS.md).
-
-Install the source interfaces with `python -m pip install -e .`. Use the [CLI guide](docs/CLI_USER_GUIDE.md) · [Jobsets and automatic reports](wayricad_runtime/JOBSETS.md) for reviewed plan/apply routing, native DRC verification, PI, RLC and library commands. Apply writes a new board copy; verification reports native DRC findings and preserves source hashes.
-
-For repository work, start with [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md): architecture, validation, runtime checks and release safeguards.
+Use `wayricad jobs` for repeatable analysis/report sequences and KiCad jobsets.
+For source development, read [CONTRIBUTING.md](CONTRIBUTING.md),
+[AGENTS.md](AGENTS.md) and [runtime setup](wayricad_runtime/RUNTIME_SETUP.md).
 
 ```text
 python -m pip install -e ".[test]"
-python tools/prepare_suite.py
-python tools/generate_suite_icons.py
-python -m unittest discover -s tests
-python build_pcm.py --output-dir .validation/candidate-pcm-3.6.14
-python tools/validate_packages.py --archive-dir .validation/candidate-pcm-3.6.14
+python -m pytest tests -q
+python build_pcm.py --output-dir .validation/candidate-pcm
+python tools/validate_packages.py --archive-dir .validation/candidate-pcm
 ```
 
-Imported applications have separate test suites. Native tests require the relevant installed engines; skipped checks are not compatibility evidence. Read [compatibility](docs/COMPATIBILITY.md) and the [Marble smoke-test record](docs/audits/MARBLE_SUITE_SMOKE.md) for the distinction between checks, demonstrations and unverified operations. Historical release notes describe their original versions.
+Each plugin also has its own tests. Skipped checks do not establish native GUI
+compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.16.md).
 
 ## Acknowledgements and AI disclosure
 
-WayriCAD development has made substantial use of AI coding assistants and large language models (LLMs) for implementation, debugging, tests, documentation and research assistance. Project maintainers remain responsible for the code and release decisions. AI-generated code and explanations can contain errors; validation evidence and model limitations are documented separately.
+WayriCAD uses AI assistance for development, research and documentation;
+maintainers remain responsible for validation and releases. See
+[acknowledgements and the full disclosure](ACKNOWLEDGEMENTS.md).
 
-We thank the KiCad community, upstream open-source projects, researchers and contributors whose work supports this suite. See [acknowledgements and the full AI-development disclosure](ACKNOWLEDGEMENTS.md).
+Maintained by [Wayri (Yawar)](https://github.com/wayri).
+WayriCAD is [GPL-3.0](LICENSE); Fusion and Variant Manager are MIT licensed.

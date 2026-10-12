@@ -7,17 +7,23 @@ release; see [compatibility and known limits](COMPATIBILITY.md).
 
 ![Illustrated installation workflow](images/install-workflow.svg)
 
-## Fusion and Variant Manager in 3.6.8
+## Independent plugin packages
 
-Install **WayriCAD Variant Manager** as its own PCM package, independently of Fusion or Analytics Studio. It has its own toolbar icon and opens a separate native window using KiCad's bundled Python; no user-managed pip environment is needed. **Project Fusion 0.9.6** also uses the native action loader. Restart PCB Editor after installation. Both tools preview saved files; close the affected project's editors and manager before offline application. See the [Variant Manager guide](../variant_manager_plugin/README.md) and [Fusion guide](../project_fusion_plugin/README.md).
+**Analytics Studio** includes the former BOM Studio workflows. Its package ID
+stays the same, so existing installations upgrade normally.
 
-## QuickTherm in 3.6.0
+**QuickTherm** is its own package and does not require Quick PI. If you used the
+older bundled thermal action, update Quick PI and install QuickTherm separately.
 
-Install **WayriCAD QuickTherm** as its own package. If you used the QuickTherm action bundled with Quick PI 3.5.0, update Quick PI to 3.6.0 as well, then restart KiCad. QuickTherm has a separate thermometer icon and does not require Quick PI.
+**Project Fusion** and **Variant Manager** use the native action loader. They do
+not require enabling the IPC API. Restart PCB Editor after installation. Both
+preview saved files; close the affected project's editors before offline apply.
+See the [Variant Manager guide](../variant_manager_plugin/README.md) and
+[Fusion guide](../project_fusion_plugin/README.md).
 
 ## Before you start
 
-- Review the [recommended system specifications](../README.md#recommended-system),
+- Review the [recommended system specifications](SYSTEM_REQUIREMENTS.md),
   especially for PI, thermal and exact 3D mechanical studies on older laptops.
 - Install and open KiCad 10.
 - Use a normal KiCad project with a saved `.kicad_pro` and `.kicad_pcb` file.
