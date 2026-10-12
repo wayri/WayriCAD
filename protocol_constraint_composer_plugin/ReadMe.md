@@ -10,6 +10,30 @@
 - Stage protocol presets and retain BGA, timing, field-solver and other specialist engineering worksheets.
 - Review generated rules and file diffs, export a separate project copy, and apply through the guarded offline review workflow.
 
+## A simpler workspace
+
+Start with the full-width rule table. **Scope filters**, **Board preview** and
+**Rule details** are closed initially; open each from the buttons above the table.
+They keep their visibility while you edit or switch views within the session.
+A visible **Clear filter** button prevents a hidden scope filter from obscuring
+which rules are shown. Select a row and use **Edit rule**, or edit dimensions
+in place. Opening Rule details adds a labelled width or clearance illustration;
+condition expressions and object/priority tracing expand separately.
+
+The three workflow cards lead to rules, optional layer profiles, and review/apply.
+**More settings & tools** retains clearance matrices, netclasses, constraint sets
+and specialist editors. Layer profiles use numbered setup sections; **Compare
+layer geometry** and **Saved profiles & diagnostics** expand on demand. Warning
+summaries remain visible even with diagnostics closed. Parallel trace previews
+share a scale, include dimension labels, and do not invent a missing pair gap.
+
+![Constraint Studio with supporting panels closed](help-workflow.png)
+
+![Expanded board preview and illustrated rule details](help-rule-panels.png)
+
+These are Chromium renders of the shipped UI with the public demonstration
+snapshot, not an installed KiCad screenshot. See [capture and test evidence](docs/UI_SIMPLIFICATION.md).
+
 ## Limitations
 
 - Not every native expression has a visual control; unfamiliar or version-specific syntax may need advanced text entry.
@@ -21,7 +45,7 @@
 
 Constraint Studio 0.3.1 is integrated into the existing Protocol Constraint Composer package. Its package ID stays `com.github.wayri.wayricad.protocol-constraints`; it uses the suite's IPC launcher and wx runtime. It edits a saved project snapshot, not the live board. Save the board and Board Setup before opening it.
 
-The **Constraint worksheet** uses an embedded desktop WebView with BOM Studio's visual language: scope navigation, directly editable constraint cells, priority controls, a linked layout preview and a context inspector. All 34 constraint forms can be authored from **New rule / Edit rule**. The map distinguishes condition matches, unknowns and non-matches. Select objects A and B for a conservative priority trace. Colours are not native DRC violations or effective-rule certification.
+The **Constraint worksheet** uses an embedded desktop WebView with Analytics Studio's visual language: scope navigation, directly editable constraint cells, priority controls, a linked layout preview and a context inspector. All 34 constraint forms can be authored from **New rule / Edit rule**. The map distinguishes condition matches, unknowns and non-matches. Select objects A and B for a conservative priority trace. Colours are not native DRC violations or effective-rule certification.
 
 **Clearance matrices** support symmetric cell editing, generated-rule preview and named-group staging. **Netclasses & settings** edits native dimensions and manufacturing floors while preserving inherited/unknown fields. **Constraint sets** configures the six original reusable profile families with ownership protection. Undo/redo and revision checks cover the visual and specialist workspaces.
 
