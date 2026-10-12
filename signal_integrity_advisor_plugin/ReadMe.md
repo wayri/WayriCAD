@@ -296,3 +296,24 @@ the application closes and surfaces failures. This exposes the original desktop
 workflow; it does not embed it in the Quick SI window or validate every upstream
 analysis. Upstream ERL, PZ and IXT remain their own installed console commands.
 See the [integration scope, setup, numerical checks and roadmap](https://github.com/wayri/WayriCAD/blob/develop/docs/QUICK_SI_SIGNALINTEGRITY.md).
+
+
+## References and research
+
+| Source | How it relates to Quick SI |
+|---|---|
+| [Pinned EMerge calculator](https://github.com/wayri/EMerge/blob/50283a2/src/emerge/_emerge/geo/pcb_tools/calculator.py) and [Qucs CPW equations](https://qucs.github.io/tech/node86.html) | Shared supported quasi-static cross-section estimates. The whole upstream calculator is not automatically available in board mode. |
+| [NXP UM10204, I2C specification](https://cache.nxp.com/docs/en/user-guide/UM10204.pdf) | I2C electrical/timing reference recorded in the protocol registry. |
+| [TI SLLA414, high-speed layout guidance](https://www.ti.com/lit/an/slla414/slla414.pdf) | USB hub/signal-conditioner routing context for representative profiles. |
+| [TI SLLA270, CAN physical layer](https://www.ti.com/lit/an/slla270/slla270.pdf) | Bus topology and termination context; a cable termination is not a universal PCB impedance requirement. |
+| [AMD UG863 DDR4 rules](https://docs.amd.com/r/en-US/ug863-versal-pcb-design/Physical-Design-Rules-for-DDR4-Signals) | Device/platform-specific memory-routing context; not universal DDR compliance. |
+| [Nubis SignalIntegrity](https://github.com/Nubis-Communications/SignalIntegrity) | Optional Touchstone interoperability and separately launched upstream desktop. Its full analysis suite is not embedded in Quick SI. |
+
+[All recorded protocol source URLs](protocol_profiles.py) ·
+[Protocol model scope](../docs/QUICK_SI_PROTOCOL_SUITES.md) ·
+[Nubis integration and numerical checks](../docs/QUICK_SI_SIGNALINTEGRITY.md).
+The registry retains original vendor URLs, which can move. For the Intel DDR5
+routing document, a related archived [Agilex M-Series guide, ID 772538 (2023)](https://cdrdv2-public.intel.com/789400/ug-772538-789400.pdf)
+is available; its revision differs from the registry's later web edition.
+Vendor guidance informs representative screens, not certification of every speed,
+protocol, device or complete channel.

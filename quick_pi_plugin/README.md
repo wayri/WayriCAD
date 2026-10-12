@@ -521,3 +521,18 @@ Report export starts in the originating board’s project folder and proposes `<
 Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
 
 HTML reports put three primary Matplotlib plots first: voltage drop, current density and copper loss density for the selected layer. Additional maps remain available in an expandable section. All images are embedded for offline viewing.
+
+
+## References and research
+
+| Source | How it relates to Quick PI |
+|---|---|
+| [MIT, *Electromagnetic Field Theory*, Chapter 3](https://ocw.mit.edu/courses/res-6-002-electromagnetic-field-theory-a-problem-solving-approach-spring-2008/2cccce322d387cccbc78c3ed65843f49_MITRES_6_002S08_chp03_text.pdf) | Conduction and cylindrical/annular resistor equations used for analytical known-answer checks. |
+| [Elmer published conductor/circuit fixture, pinned revision](https://github.com/ElmerCSC/elmerfem/tree/b461e4be77d0ca13bada61f04819fccb20a524ab/fem/tests/ConstantUnknownPotStatCurrent) | Geometry and operating-point reference for the reproduced beam benchmark. Elmer itself was not executed for that comparison. |
+| [NASA verification overview](https://www.grc.nasa.gov/www/wind/valid/tutorial/overview.html) and [grid convergence](https://www.grc.nasa.gov/www/wind/valid/tutorial/spatconv.html) | Verification/validation and refinement guidance. Arbitrary-board asymptotic convergence and GCI are not established. |
+| [Geuzaine & Remacle, Gmsh paper, 2009](https://gmsh.info/doc/preprints/gmsh_paper_preprint.pdf) — DOI [10.1002/nme.2579](https://doi.org/10.1002/nme.2579) | Research behind the optional 3D meshing backend; it does not validate the PI solver. |
+| [COMSOL busbar example](https://doc.comsol.com/6.3/doc/com.comsol.help.models.llac.busbar_llac/busbar_llac.html) | Background on Joule heating and conservation, already discussed in the contact-model notes. COMSOL is not the Quick PI backend. |
+
+[Implemented benchmark equations and results](../docs/PI_REFERENCE_BENCHMARKS.md) ·
+[Contact conduction model](../docs/PACKAGE_CONDUCTION.md).
+These references explain methods or checks; they are not measured validation of a user's PCB.

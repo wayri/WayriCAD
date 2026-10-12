@@ -120,3 +120,20 @@ Trace measurement and AC-sweep CSV exports start in the originating board’s pr
 ## Jobsets and automatic reports
 
 Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
+
+
+## References and research
+
+| Source | How it relates to Trace RLC / Impedance |
+|---|---|
+| [EMerge calculator, pinned revision 50283a2](https://github.com/wayri/EMerge/blob/50283a2/src/emerge/_emerge/geo/pcb_tools/calculator.py) | Recorded source of the scalar microstrip/stripline and supported manual cross-section port in `emerge_lines.py`. |
+| [Hammerstad & Jensen, *Accurate Models for Microstrip Computer-Aided Design*, 1980](https://doi.org/10.1109/MWSYM.1980.1124303) | Related microstrip/thickness-correction literature. This is not a claim that WayriCAD implements every equation or accuracy bound from the paper. |
+| [Qucs microstrip equations](https://qucs.github.io/tech/node75.html) and [CPW conformal mappings](https://qucs.github.io/tech/node86.html) | Independent equation background, including elliptic-integral and grounded-CPW formulations. The manual calculator keeps its zero-thickness restrictions. |
+| [TI Analog Engineer's Pocket Reference](https://www.ti.com/seclit/eb/slyw038d/slyw038d.pdf) | Approximate via-inductance relation already cited in the model documentation. |
+| [Analog Devices PCB layout guide](https://www.analog.com/en/resources/analog-dialogue/articles/high-speed-printed-circuit-board-layout.html) | Plane-overlap capacitance and layout context. |
+| [RFsim pinned validation sources](https://github.com/NBalciunas/kicad-rfsim/tree/efa0ea9bd34b13f7819c6f2d4c02e78d34b116c3/validation) | Independent geometry/formula fixtures used in the recorded open-board checks; not measured-board qualification. |
+
+[Implemented capability matrix](../docs/audits/RLC_EMERGE_CAPABILITY_MATRIX.md) ·
+[Open-board checks](../docs/audits/RLC_OPEN_BOARD_VALIDATION.md).
+The implementation is quasi-static with declared geometry limits; the bibliography
+does not add dispersion, arbitrary coupled fields or automatic differential CPW extraction.

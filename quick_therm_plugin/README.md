@@ -152,3 +152,20 @@ The PCM action uses the native KiCad Python runtime and launches a separate boun
 The offline HTML report opens with an interactive full-board viewport. **Top** and **Bottom** show the corresponding saved footprint bounds, reference labels, Edge.Cuts, mounting drills, slots and vias; the bottom view is mirrored. Only the selected component and the component under the pointer show a reference and junction estimate. Hover a part for a temporary label, or select it in the view or sortable table to keep its label visible. Moving away clears the hover label; missing junction values remain unknown. Wheel zooms, drag pans, and **Fit board** resets the view. Hover exposed board space to read the nearest valid thermal field cell. Drilled voids and space outside the saved outline have no probe temperature.
 
 **3D overview** provides an orbitable board extrusion and saved footprint bounds on both faces. Package heights are illustrative and no STEP models are loaded. The report also embeds three offline Matplotlib plots: top board overlay, bottom board overlay and component temperature comparison with available limits. Junction, package case and board contact temperatures are separate quantities; a missing case temperature stays unknown. A thin-sheet solve supplies one shared midplane field on both faces, not independently calculated top and bottom surface temperatures. Drilled slots can be displayed even when the multilayer thermal-contact model does not support solving them.
+
+
+## References and research
+
+| Source | How it relates to QuickTherm |
+|---|---|
+| [Geuzaine & Remacle, *Gmsh: a three-dimensional finite element mesh generator with built-in pre- and post-processing facilities*, 2009](https://gmsh.info/doc/preprints/gmsh_paper_preprint.pdf) — DOI [10.1002/nme.2579](https://doi.org/10.1002/nme.2579) | Research provenance for the optional 3D meshing backend. |
+| [Gmsh manual](https://gmsh.info/doc/texinfo/gmsh.html) | Mesh syntax and MSH format used by the optional bridge. |
+| [CalculiX manual, 2.22](https://www.dhondt.de/ccx_2.22.pdf) | Reference for the heat-transfer input format and documented boundary cards. This manual revision does not pin every supported installed executable. |
+| [COMSOL Joule-heated busbar](https://doc.comsol.com/6.3/doc/com.comsol.help.models.llac.busbar_llac/busbar_llac.html) | Electrical/energy conservation and heating context for explicit contact-loss transfer. It is not an independent QuickTherm run. |
+| [Ansys Icepak approximated package features](https://ansyshelp.ansys.com/public/Views/Secured/corp/v242/en/ice_ug/ice_ug_sec_mdlpkg_approx_feat.html) | Background on package/substrate/ball details omitted by simplified package models. Icepak is not invoked. |
+
+[CalculiX/Gmsh bridge and limits](CALCULIX_BRIDGE.md) ·
+[QuickTherm model](QUICK_THERM.md) · [Package conduction](../docs/PACKAGE_CONDUCTION.md).
+The paper documents the external mesher; the manuals describe backend interfaces.
+They do not turn the internal layered/RC screening model into CFD or a qualified
+package-gradient solver. Local analytical and energy checks remain separate evidence.

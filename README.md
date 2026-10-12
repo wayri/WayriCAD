@@ -201,6 +201,15 @@ The displayed field solves a uniform copper plate; the routed PCB provides visua
 
 Generated demonstration board with illustrative lead/solder properties. [Capture inputs](docs/assets/package-conduction/PROVENANCE.md) · [Contact model](docs/PACKAGE_CONDUCTION.md).
 
+**Research and model references**
+
+| Reference | Role |
+|---|---|
+| [MIT conduction chapter](https://ocw.mit.edu/courses/res-6-002-electromagnetic-field-theory-a-problem-solving-approach-spring-2008/2cccce322d387cccbc78c3ed65843f49_MITRES_6_002S08_chp03_text.pdf) | Analytical resistance checks. |
+| [Elmer beam fixture](https://github.com/ElmerCSC/elmerfem/tree/b461e4be77d0ca13bada61f04819fccb20a524ab/fem/tests/ConstantUnknownPotStatCurrent) | Published numerical benchmark inputs. |
+| [Full references](quick_pi_plugin/README.md#references-and-research) | Meshing paper, verification guidance and model limits. |
+
+
 ### [QuickTherm](quick_therm_plugin/README.md)
 
 **STEP models and transient heating**
@@ -221,6 +230,15 @@ Review power, thermal resistances, limits and analysis scope. [Capture notes](do
 
 The illustrative 1 s frame includes imported copper and contact losses. [Capture inputs](docs/assets/package-conduction/PROVENANCE.md) · [Validation](docs/audits/PACKAGE_CONDUCTION.md).
 
+**Research and model references**
+
+| Reference | Role |
+|---|---|
+| [Gmsh research paper (2009)](https://gmsh.info/doc/preprints/gmsh_paper_preprint.pdf) | Optional 3D mesher provenance. |
+| [CalculiX manual](https://www.dhondt.de/ccx_2.22.pdf) | Thermal backend input format. |
+| [Full references](quick_therm_plugin/README.md#references-and-research) | Package-model context, bridge and limitations. |
+
+
 ### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
 
 **Routed signal analysis**
@@ -235,6 +253,15 @@ Inspect the selected signal path and its available results.
 
 Missing models and reference coverage remain visible.
 
+**Research and model references**
+
+| Reference | Role |
+|---|---|
+| [TI high-speed layout guidance](https://www.ti.com/lit/an/slla414/slla414.pdf) | Protocol/routing context. |
+| [Nubis SignalIntegrity](https://github.com/Nubis-Communications/SignalIntegrity) | Optional network interoperability. |
+| [Full references](signal_integrity_advisor_plugin/ReadMe.md#references-and-research) | I2C/CAN/DDR sources and shared impedance model. |
+
+
 ### [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md)
 
 **Saved-board route analysis**
@@ -248,6 +275,15 @@ Inspect connected copper and per-section electrical coverage.
 <a href="trace_impedance_plugin/help-ac-geometry.png"><img src="trace_impedance_plugin/help-ac-geometry.png" width="960" alt="Trace RLC native window preview"></a>
 
 Review the route geometry and conductor-loss estimates.
+
+**Research and model references**
+
+| Reference | Role |
+|---|---|
+| [Pinned EMerge equations](https://github.com/wayri/EMerge/blob/50283a2/src/emerge/_emerge/geo/pcb_tools/calculator.py) | Scalar cross-section source. |
+| [Qucs CPW theory](https://qucs.github.io/tech/node86.html) | Conformal-mapping equation reference. |
+| [Full references](trace_impedance_plugin/ReadMe.md#references-and-research) | Microstrip paper, via/plane sources and validation fixtures. |
+
 
 ### [Analytics Studio](bom_studio_plugin/README.md)
 
@@ -294,6 +330,14 @@ Review pads, existing copper and proposed tracks/vias before applying.
 <a href="planar_magnetics_plugin/help-motor-emf.png"><img src="planar_magnetics_plugin/help-motor-emf.png" width="960" alt="Magnetics native window preview"></a>
 
 Review winding layouts, motor EMF/force and supported simulation models in the guide.
+
+**Research and model references**
+
+| Reference | Role |
+|---|---|
+| [Reviewed motor research](docs/MOTOR_MODELS.md#research-reviewed) | Published work and implemented/future model distinctions. |
+| [Magnetics equation references](docs/MAGNETICS_VERIFICATION.md) | Filament and capacitance-matrix checks. |
+
 
 ### [Variant Manager](variant_manager_plugin/README.md)
 
