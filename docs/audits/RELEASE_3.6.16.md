@@ -28,3 +28,17 @@ must match local builds before PCM promotion. Fusion 0.9.8 and Variant Manager
 
 Skipped tests are not passes. These checks do not establish every native editor,
 operating system, DPI configuration, physical accuracy or manufacturing acceptance.
+
+## Publication
+
+Release source `a05c399e53ce2aca3641dbbc2d79c2489214e026` passed all eight
+[CI jobs](https://github.com/wayri/WayriCAD/actions/runs/38233749389): Python
+3.10/3.12/3.14 on Windows/Linux, Python 3.12 on macOS, and PI reference checks.
+The local Analytics suite ran 1,270 tests successfully with three optional skips.
+The final rebuilt wheel passed isolated imports, CLI and report/service checks.
+
+[v3.6.16](https://github.com/wayri/WayriCAD/releases/tag/v3.6.16) has 23 assets:
+19 independent PCM ZIPs, resources, wheel, source archive and checksum manifest.
+All assets were downloaded after publication; the 22 artifact hashes and manifest
+bytes match the local release set. The PCM feed is promoted only after these
+checks. Earlier binaries and independent Fusion/Variant Manager hashes are retained.

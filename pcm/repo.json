@@ -1,21 +1,21 @@
 {
-    "schema_version": 2,
-    "$schema": "https://go.kicad.org/pcm/schemas/v2",
-    "name": "WayriCAD Plugin Repository",
-    "maintainer": {
-        "name": "Wayri (Yawar)",
-        "contact": {
-            "github": "https://github.com/wayri"
-        }
-    },
-    "packages": {
-        "sha256": "921ccf16ad87f49ef6e3b7a6f380e0268ff3351004cfb231ab3a21d6ef7efd86",
-        "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1791681867",
-        "update_timestamp": 1791681867
-    },
-    "resources": {
-        "url": "https://github.com/wayri/WayriCAD/releases/download/v3.6.15/resources.zip",
-        "sha256": "603ea9442de5ba224c01877b3c0ca586693e75e03f0a032cd26846d707727bfd",
-        "update_timestamp": 1791681867
+  "schema_version": 2,
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Plugin Repository",
+  "maintainer": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
     }
+  },
+  "packages": {
+    "sha256": "6832fe8c361e08042641c7bca301b7efc788e8b49339330dbe56ed5ff692fa5c",
+    "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1791798930",
+    "update_timestamp": 1791798930
+  },
+  "resources": {
+    "url": "https://github.com/wayri/WayriCAD/releases/download/v3.6.16/resources.zip",
+    "sha256": "603ea9442de5ba224c01877b3c0ca586693e75e03f0a032cd26846d707727bfd",
+    "update_timestamp": 1791798930
+  }
 }
