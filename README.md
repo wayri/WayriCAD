@@ -1,12 +1,26 @@
 # WayriCAD
 
-**19 independently installable KiCad plugins** for PCB design, analysis and project review.
-Install just the tools you need. Processing runs locally after dependency setup.
-**KiCad 10 is the validated target**; see [compatibility](docs/COMPATIBILITY.md) for platform limits.
+[![Release](https://img.shields.io/github/v/release/wayri/WayriCAD?color=168b78)](https://github.com/wayri/WayriCAD/releases/latest)
+[![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
+[![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
+[![Tools](https://img.shields.io/badge/Tools-19-168b78)](#all-19-plugins)
+[![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
-[Download 3.6.16](https://github.com/wayri/WayriCAD/releases/tag/v3.6.16) · [Release notes](docs/RELEASE_NOTES_3.6.16.md) · [Full user guide](docs/USER_GUIDE.md)
+**PCB design, analysis and project review in KiCad.** Choose from 19 independently
+installable plugins. Processing runs locally after setup. KiCad 10 is the validated target.
 
-[Install](#install-and-open) · [Getting started](#getting-started) · [All plugins](#all-19-plugins) · [Screenshots](#plugin-previews) · [Help](#help-and-upgrades) · [Development](#automation-and-development)
+## Start here
+
+| What you need | Where to go |
+|---|---|
+| Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
+| Run your first analysis | [Getting started](#getting-started) |
+| Download or update | [Release 3.6.16](https://github.com/wayri/WayriCAD/releases/tag/v3.6.16) · [Release notes](docs/RELEASE_NOTES_3.6.16.md) |
+| Choose a tool | [All 19 plugins](#all-19-plugins) |
+| See the interfaces | [Screenshots](#plugin-previews) |
+| Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
+| Resolve a problem | [Help and upgrades](#help-and-upgrades) |
+| Automate or contribute | [Development](#automation-and-development) |
 
 ## Install and open
 
@@ -26,16 +40,26 @@ Install just the tools you need. Processing runs locally after dependency setup.
 
 Fusion uses the native plugin loader and does not need the IPC API enabled.
 First-time setup may need internet access. For setup problems or offline use,
-read [installation](docs/INSTALLATION.md), [troubleshooting](docs/TROUBLESHOOTING.md)
-and [runtime setup](wayricad_runtime/RUNTIME_SETUP.md).
+use the [help table](#help-and-upgrades) below.
 
 <a id="choose-a-kicad-workflow"></a>
 
 ## Getting started
 
+| Your first task | Quick start | Detailed guide |
+|---|---|---|
+| Check voltage drop and copper losses | [Quick PI](#start-quick-pi) | [PI guide](quick_pi_plugin/README.md#workflow) |
+| Check board and component temperatures | [QuickTherm](#start-quicktherm) | [Thermal guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md) |
+| Screen signal delay and reflections | [Quick SI](#start-quick-si) | [SI guide](signal_integrity_advisor_plugin/ReadMe.md) |
+| Measure route R, L, C and impedance | [Trace RLC](#start-rlc) | [RLC guide](trace_impedance_plugin/ReadMe.md#workflow) |
+| Edit and export a BOM | [BOM workflow](#start-bom) | [BOM guide](bom_studio_plugin/README.md#everyday-workflow) |
+| Inspect copper and component analytics | [Analytics workflow](#start-analytics) | [Analytics guide](bom_studio_plugin/README.md) |
+
 Save the PCB, refill its zones, and save Board Setup before analysis. Start with
 one net or a small component group, then expand the study. Unknown results mean
 an input or model is missing; they are not a pass.
+
+<a id="start-quick-pi"></a>
 
 ### Quick PI — check a power path
 
@@ -47,7 +71,9 @@ an input or model is missing; they are not a pass.
 
 For your first run, use the default layered DC model. Review copper thickness,
 via plating and mesh refinement before relying on local peaks.
-[Quick PI guide](quick_pi_plugin/README.md#workflow).
+
+
+<a id="start-quicktherm"></a>
 
 ### QuickTherm — check board and part temperatures
 
@@ -62,7 +88,9 @@ via plating and mesh refinement before relying on local peaks.
 
 QuickTherm installs separately from Quick PI. Air, vacuum and other environments
 need explicit heat-rejection paths; airflow fields are not solved.
-[Step-by-step thermal guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md).
+
+
+<a id="start-quick-si"></a>
 
 ### Quick SI — screen a routed signal
 
@@ -75,7 +103,9 @@ need explicit heat-rejection paths; airflow fields are not solved.
 
 Automatic timing assumes ideal continuous references where indicated. A mixed
 route may have usable section results without a single overall impedance.
-[Quick SI guide](signal_integrity_advisor_plugin/ReadMe.md).
+
+
+<a id="start-rlc"></a>
 
 ### Trace RLC — measure a routed connection
 
@@ -88,7 +118,9 @@ route may have usable section results without a single overall impedance.
 
 Automatic board impedance covers supported single-ended microstrip/stripline
 sections. Differential-pair mode measures paths/skew; it does not automatically
-extract coupled differential impedance. [RLC guide](trace_impedance_plugin/ReadMe.md#workflow).
+extract coupled differential impedance.
+
+<a id="start-bom"></a>
 
 ### BOM Studio workflow — now in Analytics Studio
 
@@ -100,7 +132,9 @@ extract coupled differential impedance. [RLC guide](trace_impedance_plugin/ReadM
 
 **BOM Studio was renamed Analytics Studio; they are one plugin.** Existing package
 IDs and workspace files are retained. Native KiCad exports read saved source;
-workspace exports can include staged edits. [BOM workflow guide](bom_studio_plugin/README.md#everyday-workflow).
+workspace exports can include staged edits.
+
+<a id="start-analytics"></a>
 
 ### Analytics Studio — inspect components and copper
 
@@ -112,7 +146,7 @@ workspace exports can include staged edits. [BOM workflow guide](bom_studio_plug
 
 Board analytics uses saved geometry and saved zone fills. Pad-contact area means
 nominal copper land area, not thermal conductance. Missing values and mixed
-currencies stay explicit. [Analytics guide](bom_studio_plugin/README.md).
+currencies stay explicit.
 
 <a id="all-16-plugins"></a>
 <a id="all-18-plugins"></a>
@@ -180,10 +214,14 @@ Demonstration inputs are not predictions for your board. See
 
 ## Help and upgrades
 
-- [Installation and troubleshooting](docs/TROUBLESHOOTING.md) — missing actions, runtimes and installation paths.
-- [Compatibility](docs/COMPATIBILITY.md) — tested hosts and known limits.
-- [Analysis models and probes](docs/ANALYSIS_INTERACTIONS.md) — what views and results represent.
-- [CLI guide](docs/CLI_USER_GUIDE.md) and [jobsets](wayricad_runtime/JOBSETS.md) — repeatable reports and automation.
+| Topic | Guide |
+|---|---|
+| Missing actions, runtimes or installation paths | [Troubleshooting](docs/TROUBLESHOOTING.md) |
+| Dependencies and offline use | [Runtime setup](wayricad_runtime/RUNTIME_SETUP.md) |
+| Tested hosts and known limits | [Compatibility](docs/COMPATIBILITY.md) |
+| What plots, probes and analysis models represent | [Analysis interactions](docs/ANALYSIS_INTERACTIONS.md) |
+| Command-line use | [CLI guide](docs/CLI_USER_GUIDE.md) |
+| Repeatable reports and KiCad jobsets | [Jobsets](wayricad_runtime/JOBSETS.md) |
 
 <a id="upgrade-safely"></a>
 
@@ -199,8 +237,11 @@ Hardware planning details are in [System requirements](docs/SYSTEM_REQUIREMENTS.
 ## Automation and development
 
 Use `wayricad jobs` for repeatable analysis/report sequences and KiCad jobsets.
-For source development, read [CONTRIBUTING.md](CONTRIBUTING.md),
-[AGENTS.md](AGENTS.md) and [runtime setup](wayricad_runtime/RUNTIME_SETUP.md).
+| Developer topic | Reference |
+|---|---|
+| Contribution and validation requirements | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Repository structure and working conventions | [AGENTS.md](AGENTS.md) |
+| GUI dependencies and offline runtime setup | [Runtime setup](wayricad_runtime/RUNTIME_SETUP.md) |
 
 ```text
 python -m pip install -e ".[test]"
@@ -215,8 +256,11 @@ compatibility. Validation records are in [the release audit](docs/audits/RELEASE
 ## Acknowledgements and AI disclosure
 
 WayriCAD uses AI assistance for development, research and documentation;
-maintainers remain responsible for validation and releases. See
-[acknowledgements and the full disclosure](ACKNOWLEDGEMENTS.md).
+maintainers remain responsible for validation and releases.
 
-Maintained by [Wayri (Yawar)](https://github.com/wayri).
-WayriCAD is [GPL-3.0](LICENSE); Fusion and Variant Manager are MIT licensed.
+| Project information | Reference |
+|---|---|
+| Maintainer | [Wayri (Yawar)](https://github.com/wayri) |
+| WayriCAD license | [GPL-3.0](LICENSE) |
+| Fusion and Variant Manager | MIT licensed; see each package's license |
+| Credits and AI assistance | [Acknowledgements](ACKNOWLEDGEMENTS.md) |
