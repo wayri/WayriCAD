@@ -18,6 +18,7 @@ class NativeSvgPreview(wx.ScrolledWindow):
         self._bitmap = None
         self._error = ''
         self._areas = []
+        self._texts = []
         self._on_net = on_net
         self._drag = None
         self.Bind(wx.EVT_PAINT, self._paint)
@@ -40,6 +41,7 @@ class NativeSvgPreview(wx.ScrolledWindow):
         self._bitmap = None
         self._error = ''
         self._areas = []
+        self._texts = []
         if not svg:
             self.Refresh()
             return
@@ -50,6 +52,14 @@ class NativeSvgPreview(wx.ScrolledWindow):
                 raise ValueError('SVG has no positive viewBox')
             self._natural = (min(4000, round(view[2])), min(4000, round(view[3])))
             for group in root.iter():
+                if group.tag.rsplit('}', 1)[-1] == 'text' and group.text and group.text.strip():
+                    try:
+                        self._texts.append((float(group.attrib['x']), float(group.attrib['y']),
+                                            group.text.strip(), group.attrib.get('fill', '#e2edf2'),
+                                            float(group.attrib.get('font-size', '12')),
+                                            group.attrib.get('font-weight', '') in ('bold', '700')))
+                    except (KeyError, ValueError):
+                        pass
                 if 'net-row' not in group.attrib.get('class', '').split():
                     continue
                 net = group.attrib.get('data-net', '')
@@ -89,6 +99,15 @@ class NativeSvgPreview(wx.ScrolledWindow):
         dc.Clear()
         if self._bitmap:
             dc.DrawBitmap(self._bitmap, 0, 0)
+            # wx.BitmapBundle's SVG renderer omits SVG <text> nodes. Draw the
+            # label layer natively so diagram meaning is visible in KiCad.
+            for x, baseline, label, color, size, bold in self._texts:
+                info = wx.FontInfo(max(7, round(size * 0.75 * self._scale))).Family(wx.FONTFAMILY_SWISS)
+                if bold:
+                    info = info.Bold()
+                dc.SetFont(wx.Font(info))
+                dc.SetTextForeground(wx.Colour(color))
+                dc.DrawText(label, round(x * self._scale), round((baseline - size) * self._scale))
         elif self._error:
             dc.SetTextForeground(wx.Colour('#eff7fa'))
             dc.DrawText(self._error, 16, 16)

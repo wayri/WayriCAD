@@ -13,6 +13,7 @@
 - Shows a live selection basket and reference wildcards (for example `J*`), then previews exact pin rows and common nets before export.
 - Produces a self-contained, interactive HTML report for selected components and connectors. Net clicks cross-highlight matching pin rows; pin 1 and available board bounding-box dimensions are marked.
 - Renders IC charts, block diagrams, and power trees in a native SVG viewer, so these previews do not depend on Edge WebView2.
+- Draws connector-to-IC, GPIO, and protocol pin-to-pin interface maps with a native preview and searchable, interactive offline HTML export.
 
 ## Limitations
 
@@ -100,6 +101,28 @@ the scope or filters invalidates the previous export until it is previewed again
 - Use distinct signal, supply, power, and ground bus colors with pin labels
 - Switch between system map, signal topology, and directed power flow
 - Zoom with the mouse wheel, drag to pan, double-click to fit, and click nets to highlight them in KiCad
+
+#### Pin-to-pin interface diagram
+
+On **Extract Pins**, select the relevant ICs and connectors (or enter patterns such
+as `U1,J*,P*`), then click **Build pin-to-pin diagram**. Alternatively, open
+**6 Block Diagrams**, choose **Pin-to-pin interfaces**, set the **Components**
+scope and **Center IC**, and refresh the preview. The diagram puts the chosen IC
+in the center and shows selected connectors and peripheral components on either
+side. Each colored link represents an exact net shared by selected pads; pin
+numbers/functions are shown at the endpoints. Protocol names such as CAN, USB,
+I2C and GPIO are inferred from net/pin labels for presentation only. Enter
+optional `NET_PATTERN=Protocol` lines (for example `CAN*=CAN`) to label your
+own groups. Click a net to highlight it in PCB Editor, export the SVG, or use
+**Export Interactive HTML** for offline search, protocol filters and a
+pin-to-pin table. Include every endpoint of interest in the scope; a PCB net
+does not establish signal direction or continuity through an intervening part.
+
+The same board snapshot can be exported from KiCad's Python environment:
+
+```text
+python -m extract_pins_plugin.cli board-interface-diagram C:/Projects/Example/board.kicad_pcb --refs U1,J*,P* --center U1 --protocol CAN*=CAN -f html -o interfaces.html
+```
 
 ### Power Net Classification
 - Automatic detection of power/ground nets (VCC, VDD, GND, VSS, voltage rails, etc.)

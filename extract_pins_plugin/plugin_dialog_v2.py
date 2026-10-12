@@ -44,6 +44,7 @@ try:
     from .help_utils import open_help
     from .core.bringup_packager import collect_bringup_rows, markdown as bringup_markdown, c_header as bringup_c_header
     from .core.connector_report import common_net_rows, render_connector_report
+    from .core.interface_diagram import render_interface_svg, render_interface_html, interface_net_rows
 except ImportError:
     # Fallback for direct execution
     from native_visual import NativeSvgPreview
@@ -63,6 +64,7 @@ except ImportError:
     from help_utils import open_help
     from core.bringup_packager import collect_bringup_rows, markdown as bringup_markdown, c_header as bringup_c_header
     from core.connector_report import common_net_rows, render_connector_report
+    from core.interface_diagram import render_interface_svg, render_interface_html, interface_net_rows
 
 
 class PluginDialogV2(wx.Frame):
@@ -94,6 +96,7 @@ class PluginDialogV2(wx.Frame):
         self.sf_rows = []
         self.ic_rows = []
         self.current_diagram_svg = ""
+        self.current_diagram_html = ""
         self.current_ic_svg = ""
         self.power_tree_result = {"nodes": [], "edges": [], "issues": [], "roots": []}
         self.current_power_tree_svg = ""
@@ -394,6 +397,9 @@ class PluginDialogV2(wx.Frame):
         connector_btn = wx.Button(panel, label="View connector tables")
         connector_btn.Bind(wx.EVT_BUTTON, self.OnViewConnectorTables)
         export_sizer.Add(connector_btn, 0, wx.RIGHT, 6)
+        interface_btn = wx.Button(panel, label="Build pin-to-pin diagram")
+        interface_btn.Bind(wx.EVT_BUTTON, self.OnUseExtractionForInterfaceDiagram)
+        export_sizer.Add(interface_btn, 0, wx.RIGHT, 6)
         export_nets_btn = wx.Button(panel, label="Export Unique Nets...")
         export_nets_btn.Bind(wx.EVT_BUTTON, self.OnExtractUniqueNets)
         export_sizer.Add(export_nets_btn, 0)
@@ -751,12 +757,23 @@ class PluginDialogV2(wx.Frame):
         self.diagram_mode = wx.RadioBox(
             controls.GetStaticBox(),
             label="Diagram type",
-            choices=("System map", "Signal flow", "Power flow"),
-            majorDimension=3,
+            choices=("System map", "Signal flow", "Power flow", "Pin-to-pin interfaces"),
+            majorDimension=2,
             style=wx.RA_SPECIFY_COLS,
         )
         scope_row.Add(self.diagram_mode, 0)
         controls.Add(scope_row, 0, wx.EXPAND | wx.ALL, 6)
+
+        interface_row = wx.BoxSizer(wx.HORIZONTAL)
+        interface_row.Add(wx.StaticText(controls.GetStaticBox(), label="Center IC"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.diagram_center = wx.ComboBox(controls.GetStaticBox(), choices=self.all_ics)
+        self.diagram_center.SetHint("Reference, e.g. U1")
+        interface_row.Add(self.diagram_center, 0, wx.RIGHT, 16)
+        interface_row.Add(wx.StaticText(controls.GetStaticBox(), label="Protocol labels"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.diagram_protocols = wx.TextCtrl(controls.GetStaticBox(), style=wx.TE_MULTILINE, size=(-1, 48))
+        self.diagram_protocols.SetHint("Optional: CAN*=CAN, GPIO*=GPIO; one pattern=label per line")
+        interface_row.Add(self.diagram_protocols, 1, wx.EXPAND)
+        controls.Add(interface_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
         action_row = wx.BoxSizer(wx.HORIZONTAL)
         refresh = wx.Button(controls.GetStaticBox(), label="Refresh Visual Preview")
@@ -768,7 +785,11 @@ class PluginDialogV2(wx.Frame):
         self.export_diagram_btn = wx.Button(controls.GetStaticBox(), label="Export This SVG...")
         self.export_diagram_btn.Enable(False)
         self.export_diagram_btn.Bind(wx.EVT_BUTTON, self.OnExportDiagramPreview)
-        action_row.Add(self.export_diagram_btn, 0)
+        action_row.Add(self.export_diagram_btn, 0, wx.RIGHT, 6)
+        self.export_interface_btn = wx.Button(controls.GetStaticBox(), label="Export Interactive HTML...")
+        self.export_interface_btn.Enable(False)
+        self.export_interface_btn.Bind(wx.EVT_BUTTON, self.OnExportInterfaceDiagram)
+        action_row.Add(self.export_interface_btn, 0)
         controls.Add(action_row, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
         sizer.Add(controls, 0, wx.EXPAND | wx.ALL, 8)
 
@@ -778,6 +799,13 @@ class PluginDialogV2(wx.Frame):
         self.diagram_summary = wx.StaticText(preview_box.GetStaticBox(), label="Choose components and refresh the preview. No PCB objects are changed.")
         preview_box.Add(self.diagram_summary, 0, wx.EXPAND | wx.ALL, 5)
         sizer.Add(preview_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+
+        self.diagram_refs.Bind(wx.EVT_TEXT, self._invalidate_diagram)
+        self.diagram_center.Bind(wx.EVT_TEXT, self._invalidate_diagram)
+        self.diagram_protocols.Bind(wx.EVT_TEXT, self._invalidate_diagram)
+        self.diagram_mode.Bind(wx.EVT_RADIOBOX, self._invalidate_diagram)
+        self.diagram_center.Enable(False)
+        self.diagram_protocols.Enable(False)
 
         panel.SetSizer(sizer)
         return panel
@@ -1233,6 +1261,7 @@ setTimeout(fitView,50);
         return sorted(footprints.values(), key=lambda fp: DataExtractor.natural_sort_key(fp.GetReference()))
 
     def OnPreviewExtraction(self, event):
+        self._invalidate_diagram()
         footprints = self._resolve_extract_scope()
         self.pin_preview.DeleteAllItems()
         self.preview_rows = []
@@ -1831,6 +1860,34 @@ setTimeout(fitView,50);
             self._save_file(content, format_type.upper(), f"{ic_ref}_chart.{ext}")
 
     # Diagram handlers
+    def _invalidate_diagram(self, event=None):
+        self.current_diagram_svg = ""
+        self.current_diagram_html = ""
+        self.diagram_preview.SetSVG("")
+        self.export_diagram_btn.Enable(False)
+        self.export_interface_btn.Enable(False)
+        is_interface = self.diagram_mode.GetSelection() == 3
+        self.diagram_center.Enable(is_interface)
+        self.diagram_protocols.Enable(is_interface)
+        self.diagram_summary.SetLabel("Inputs changed. Refresh the visual preview before exporting.")
+        if event is not None:
+            event.Skip()
+
+    def OnUseExtractionForInterfaceDiagram(self, event):
+        if not self.preview_data:
+            self.OnPreviewExtraction(event)
+        refs = list(self.preview_data)
+        if not refs:
+            wx.MessageBox("Select components and preview their pins first.", "No diagram scope", wx.OK | wx.ICON_INFORMATION)
+            return
+        self.diagram_refs.SetValue(",".join(refs))
+        self.diagram_mode.SetSelection(3)
+        self.diagram_center.Enable(True)
+        self.diagram_protocols.Enable(True)
+        self.diagram_center.SetValue(next((ref for ref in refs if ref.upper().startswith("U")), refs[0]))
+        self.notebook.SetSelection(self.notebook.FindPage(self.diagram_panel))
+        self.OnDiagramPreview(event)
+
     def OnUseExtractionForDiagram(self, event):
         refs = list(self.preview_data)
         if not refs:
@@ -1869,6 +1926,7 @@ setTimeout(fitView,50);
         return rows
 
     def OnDiagramPreview(self, event):
+        self._invalidate_diagram()
         patterns = self.diagram_refs.GetValue().strip()
         footprints = self._get_footprints_by_pattern(patterns) if patterns else list(self.preview_footprints)
         refs = [fp.GetReference() for fp in footprints]
@@ -1876,8 +1934,48 @@ setTimeout(fitView,50);
             wx.MessageBox("Select components or enter reference patterns first.", "No diagram scope", wx.OK | wx.ICON_INFORMATION)
             return
 
-        rows = self._diagram_flow_rows(refs)
         mode = self.diagram_mode.GetSelection()
+        if mode == 3:
+            center_ref = self.diagram_center.GetValue().strip() or next((ref for ref in refs if ref.upper().startswith("U")), refs[0])
+            if center_ref not in refs:
+                wx.MessageBox("The center IC must be included in the component scope.", "Choose center IC", wx.OK | wx.ICON_INFORMATION)
+                return
+            try:
+                overrides = {}
+                for line in self.diagram_protocols.GetValue().replace(",", "\n").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if "=" not in line:
+                        raise ValueError("Use NET_PATTERN=Protocol for each override.")
+                    pattern, label = (part.strip() for part in line.split("=", 1))
+                    if not pattern or not label:
+                        raise ValueError("Use NET_PATTERN=Protocol for each override.")
+                    overrides[pattern] = label
+                data = self.extractor.extract_footprint_data(
+                    footprints, ignore_unconnected=False, ignore_power_nets=False)
+                self.current_diagram_svg = render_interface_svg(data, center_ref=center_ref,
+                    protocol_overrides=overrides, title=f"{center_ref} pin-to-pin interfaces")
+                self.current_diagram_html = render_interface_html(data, center_ref=center_ref,
+                    protocol_overrides=overrides, title=f"{center_ref} pin-to-pin interfaces")
+                nets = interface_net_rows(data, protocol_overrides=overrides)
+            except (ValueError, IndexError) as exc:
+                wx.MessageBox(str(exc), "Interface diagram", wx.OK | wx.ICON_WARNING)
+                return
+            self.diagram_preview.SetSVG(self.current_diagram_svg)
+            self.export_diagram_btn.Enable(True)
+            self.export_interface_btn.Enable(True)
+            self.diagram_summary.SetLabel(
+                f"{center_ref} · {len(refs)} selected components · {len(nets)} nets in scope. "
+                "Click a lane to highlight its PCB net. Export HTML for search and pin-to-pin tables. "
+                "Links are exact shared nets, not inferred signal direction."
+            )
+            self.status_text.SetLabel("Rendered pin-to-pin interface diagram from selected PCB pad/net data.")
+            return
+
+        self.current_diagram_html = ""
+        self.export_interface_btn.Enable(False)
+        rows = self._diagram_flow_rows(refs)
         filtered = []
         for row in rows:
             net_type = self.extractor.classify_net(row.get("Net Name", ""))
@@ -1926,6 +2024,12 @@ setTimeout(fitView,50);
             wx.MessageBox("Refresh the visual preview first.", "Preview required", wx.OK | wx.ICON_INFORMATION)
             return
         self._save_file(self.current_diagram_svg, "SVG", "wayricad_block_diagram.svg")
+
+    def OnExportInterfaceDiagram(self, event):
+        if not self.current_diagram_html:
+            wx.MessageBox("Build a pin-to-pin interface preview first.", "Preview required", wx.OK | wx.ICON_INFORMATION)
+            return
+        self._save_file(self.current_diagram_html, "HTML", "wayricad_pin_interfaces.html")
 
     def _save_file(self, content, format_name, default_name):
         """Show save dialog and write file."""
