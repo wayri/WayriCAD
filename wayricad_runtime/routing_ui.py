@@ -1,12 +1,13 @@
 """Compact local routing forms: primary choices first, detailed controls on demand."""
 import wx
+from .readable_choice import ReadableComboBox
 from .preview import GeometryPreview
 from .routing import FanoutPlanner, StitchingPlanner, netclass_names, copper_layer_names
 from .fanout_profiles import FANOUT_PATTERNS, SIGNAL_PROFILES, ANGLE_MODES, PAIR_MODES, profile_defaults
 
 
 def _combo(parent, choices, value):
-    control=wx.ComboBox(parent,choices=choices,style=wx.CB_READONLY)
+    control=ReadableComboBox(parent,choices=choices,style=wx.CB_READONLY)
     control.SetValue(value);return control
 
 
@@ -70,7 +71,12 @@ def _footer(frame,panel,root,help_callback):
         frame.Bind(wx.EVT_MENU,handler,id=item.GetId())
     frame.Bind(wx.EVT_MENU,lambda event:help_callback(),id=help_item.GetId())
     more=wx.Button(panel,label='More',size=(64,-1));more.Bind(wx.EVT_BUTTON,lambda event:more.PopupMenu(menu))
-    row.Add(more,0,wx.LEFT,8);row.AddStretchSpacer()
+    row.Add(more,0,wx.LEFT,8)
+    if hasattr(frame, 'export_connector_review'):
+        export=wx.Button(panel,label='Export local-rule review…');frame.export_button=export;export.Disable()
+        export.Bind(wx.EVT_BUTTON,frame.export_connector_review)
+        row.Add(export,0,wx.LEFT,8)
+    row.AddStretchSpacer()
     preview=wx.Button(panel,label='Preview',size=(100,-1));preview.Bind(wx.EVT_BUTTON,frame.preview);row.Add(preview,0,wx.RIGHT,8)
     frame.commit_button=wx.Button(panel,label='Apply to board',size=(128,-1));frame.commit_button.Disable()
     frame.commit_button.Bind(wx.EVT_BUTTON,frame.generate);frame.commit_button.SetDefault();row.Add(frame.commit_button,0)
@@ -80,7 +86,7 @@ def _footer(frame,panel,root,help_callback):
 def build_fanout(frame,api,help_callback):
     frame._routing_api=api
     panel,root,left,settings=_base(frame,'Fanout')
-    frame.scope=_combo(left,['Selected pads','Selected footprints','Reference wildcard','All SMD pads'],'Selected footprints')
+    frame.scope=_combo(left,['Selected pads','Selected footprints','Reference wildcard','All SMD pads','All connector pads'],'Selected footprints')
     frame.netclass_filter=_combo(left,['All netclasses']+netclass_names(frame.board),'All netclasses')
     frame.output_mode=_combo(left,['Escape traces','Via-in-pad'],'Escape traces')
     frame.pattern=_combo(left,list(FANOUT_PATTERNS),'Perimeter pitch expansion')
@@ -98,6 +104,14 @@ def build_fanout(frame,api,help_callback):
     for label,control in (('Pads to fan out',frame.scope),('Netclass',frame.netclass_filter),('Output',frame.output_mode),('Fanout style',frame.pattern),('Routing',frame.routing_mode),('Angle (degrees)',frame.escape_angle),('Trace layer',frame.escape_layer)):
         text=_row(left,settings,label,control)
         if control is frame.escape_angle:frame.angle_label=text
+    frame.connector_exit=_combo(left,['Nearest edge','Top','Bottom','Left','Right'],'Nearest edge')
+    _row(left,settings,'Connector exit (footprint coordinates)',frame.connector_exit)
+    def connector_defaults(event):
+        if frame.pattern.GetValue()=='Connector edge':
+            frame.add_vias.SetValue(False);frame.routing_mode.SetValue('Fixed');frame.pair_mode.SetValue('Independent')
+        event.Skip()
+    frame.pattern.Bind(wx.EVT_COMBOBOX,connector_defaults)
+    frame.connector_exit.SetToolTip('Connector edge style: choose the nearest body edge or a specific side in footprint-local coordinates. Includes plated through-hole pins.')
     frame.selection_status=wx.StaticText(left,label='Select pads or footprints in PCB Editor.')
     frame.selection_status.Wrap(255);settings.Add(frame.selection_status,0,wx.TOP|wx.BOTTOM,8)
     frame.fanout_groups=[];frame.group_unmatched='defaults'
@@ -116,9 +130,11 @@ def build_fanout(frame,api,help_callback):
     frame.pair_mode=_combo(parent,list(PAIR_MODES),'Independent')
     _row(parent,advanced,'Direction reference',frame.angle_mode)
     _row(parent,advanced,'Pair handling',frame.pair_mode)
-    for name,label,value in (('net_filter','Net names (wildcards)','*'),('ref','Reference wildcard','*'),('launch_length','Straight launch (mm)','0.50'),('stagger_pitch','Row stagger (mm)','0.50'),('spread_pitch','Outer pitch (mm; 0 = auto)','0'),('adaptive_radius','Adaptive radius (mm)','3.0'),('adaptive_step','Adaptive search step (mm)','0.25'),('pair_gap','Pair edge gap (mm)','0.20'),('max_pair_skew','Maximum escape pair skew (mm)','0.10'),('width','Track width (mm)','0.20'),('length','Escape length (mm)','1.50'),('via_diameter','Via diameter (mm)','0.60'),('via_drill','Via drill (mm)','0.30'),('clearance','Copper clearance (mm)','0.20'),('angle_offset','Additional rotation (degrees)','0'),('offset_x','Endpoint X offset (mm)','0'),('offset_y','Endpoint Y offset (mm)','0')):
+    for name,label,value in (('pad_filter','Pin numbers (wildcards)','*'),('connector_edge_margin','Beyond connector body (mm)','0.50'),('connector_clearance','Local connector clearance (mm; blank = unchanged)',''),('net_filter','Net names (wildcards)','*'),('ref','Reference wildcard','*'),('launch_length','Straight launch (mm)','0.50'),('stagger_pitch','Row stagger (mm)','0.50'),('spread_pitch','Outer pitch (mm; 0 = auto)','0'),('adaptive_radius','Adaptive radius (mm)','3.0'),('adaptive_step','Adaptive search step (mm)','0.25'),('pair_gap','Pair edge gap (mm)','0.20'),('max_pair_skew','Maximum escape pair skew (mm)','0.10'),('width','Track width (mm)','0.20'),('length','Escape length (mm)','1.50'),('via_diameter','Via diameter (mm)','0.60'),('via_drill','Via drill (mm)','0.30'),('clearance','Copper clearance (mm)','0.20'),('angle_offset','Additional rotation (degrees)','0'),('offset_x','Endpoint X offset (mm)','0'),('offset_y','Endpoint Y offset (mm)','0')):
         control=wx.TextCtrl(parent,value=value);setattr(frame,name,control);_row(parent,advanced,label,control)
     frame.escape_angle.SetToolTip('Custom-angle spread and straight + angled styles use this angle. Board and footprint direction modes use it as the absolute or relative direction.')
+    frame.connector_clearance.SetToolTip('Optional scoped clearance in a separate exported review project. Live board Apply is disabled; source rules are preserved. Must respect fabrication minimums.')
+    frame.pad_filter.SetToolTip('Comma-separated pin numbers or wildcards, combined with selected pads/footprints and net filters. Example: 1,2,5,1?.')
     frame.net_filter.SetToolTip('Comma-separated net-name wildcards; this combines with the selected scope and netclass.')
     frame.pair_gap.SetToolTip('Requested edge spacing on the parallel escape run. Terminal vias may flare for clearance.')
     frame.routing_mode.SetToolTip('Adaptive preserves existing copper and searches nearby short 45-degree escapes. Preview reports blocked or ambiguous existing routes. Fixed uses only the selected pattern.')
@@ -182,3 +198,10 @@ def build_stitching(frame,api,help_callback):
         control=getattr(frame,name);event=wx.EVT_COMBOBOX if isinstance(control,wx.ComboBox) else wx.EVT_CHECKBOX if isinstance(control,wx.CheckBox) else wx.EVT_TEXT
         control.Bind(event,frame.on_config_changed)
     _footer(frame,panel,root,help_callback);left.FitInside()
+
+
+def choose_review_destination(frame):
+    """Pick a new project basename; the fanout editor remains modeless."""
+    from pathlib import Path
+    with wx.FileDialog(frame, 'Export a new review project', wildcard='KiCad board (*.kicad_pcb)|*.kicad_pcb', style=wx.FD_SAVE) as dialog:
+        return Path(dialog.GetPath()) if dialog.ShowModal()==wx.ID_OK else None

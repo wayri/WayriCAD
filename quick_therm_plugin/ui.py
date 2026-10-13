@@ -9,6 +9,7 @@ import threading
 import time
 
 import wx
+from wayricad_runtime.readable_choice import ReadableChoice, ReadableComboBox
 from matplotlib.figure import Figure
 
 from .plot_canvas import FigureCanvasWxAgg, NavigationToolbar2WxAgg
@@ -277,9 +278,9 @@ class QuickThermFrame(wx.Frame):
         note=wx.StaticText(page,label='Review component inputs, choose the heat model, then run.')
         note.Wrap(270);layout.Add(note,0,wx.EXPAND|wx.ALL,8)
         setup=wx.FlexGridSizer(0,2,6,8);setup.AddGrowableCol(1)
-        self.therm_input_mode=wx.Choice(page,choices=['Scanned values + edits','Saved fields only'])
+        self.therm_input_mode=ReadableChoice(page,choices=['Scanned values + edits','Saved fields only'])
         self.therm_input_mode.SetSelection(0)
-        self.therm_env=wx.Choice(page,choices=['Air','Vacuum','Forced air','Potting','Sealed enclosure']);self.therm_env.SetSelection(0)
+        self.therm_env=ReadableChoice(page,choices=['Air','Vacuum','Forced air','Potting','Sealed enclosure']);self.therm_env.SetSelection(0)
         self.therm_ambient=wx.TextCtrl(page,value='20',size=(80,-1))
         self.therm_manual_button=wx.Button(page,label='▦  Component inputs')
         self.therm_manual_button.Bind(wx.EVT_BUTTON,self.on_manual_setup)
@@ -328,7 +329,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_time_initial=wx.TextCtrl(transient_host,value='20')
         self.therm_copper_capacity=wx.TextCtrl(transient_host,value='3450000')
         self.therm_dielectric_capacity=wx.TextCtrl(transient_host,value='1800000')
-        self.therm_schedule_interpolation=wx.Choice(transient_host,choices=['Linear ramps','Power steps'])
+        self.therm_schedule_interpolation=ReadableChoice(transient_host,choices=['Linear ramps','Power steps'])
         self.therm_schedule_interpolation.SetSelection(0)
         self.therm_schedule_interpolation.Bind(wx.EVT_CHOICE,self._invalidate_thermal)
         for label,ctrl in [('Duration s',self.therm_time_duration),('Max time step s',self.therm_time_step),('Initial °C',self.therm_time_initial),('Copper capacity J/m³K',self.therm_copper_capacity),('Dielectric capacity J/m³K',self.therm_dielectric_capacity),('Schedule',self.therm_schedule_interpolation)]:
@@ -359,12 +360,12 @@ class QuickThermFrame(wx.Frame):
                                                  style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         fields_host=self.therm_fields_pane.GetPane()
         form=wx.FlexGridSizer(0,2,7,8);form.AddGrowableCol(1)
-        self.therm_power=wx.ComboBox(fields_host,style=wx.CB_READONLY)
-        self.therm_ja=wx.ComboBox(fields_host,style=wx.CB_READONLY)
-        self.therm_jb=wx.ComboBox(fields_host,style=wx.CB_READONLY)
-        self.therm_jc=wx.ComboBox(fields_host,style=wx.CB_READONLY)
-        self.therm_limit_min=wx.ComboBox(fields_host,style=wx.CB_READONLY)
-        self.therm_limit_max=wx.ComboBox(fields_host,style=wx.CB_READONLY)
+        self.therm_power=ReadableComboBox(fields_host,style=wx.CB_READONLY)
+        self.therm_ja=ReadableComboBox(fields_host,style=wx.CB_READONLY)
+        self.therm_jb=ReadableComboBox(fields_host,style=wx.CB_READONLY)
+        self.therm_jc=ReadableComboBox(fields_host,style=wx.CB_READONLY)
+        self.therm_limit_min=ReadableComboBox(fields_host,style=wx.CB_READONLY)
+        self.therm_limit_max=ReadableComboBox(fields_host,style=wx.CB_READONLY)
         for name,ctrl in [('Dissipation field',self.therm_power),('RθJA field',self.therm_ja),('RθJB field',self.therm_jb),
                           ('RθJC field · heatsinks',self.therm_jc)]:
             form.Add(wx.StaticText(fields_host,label=name),0,wx.ALIGN_CENTER_VERTICAL);form.Add(ctrl,1,wx.EXPAND)
@@ -379,7 +380,7 @@ class QuickThermFrame(wx.Frame):
                                            style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         model_pane=self.therm_model.GetPane();model_grid=wx.FlexGridSizer(0,2,6,8);model_grid.AddGrowableCol(1)
         self.therm_model_enabled=wx.CheckBox(model_pane,label='Include board heat model in next run')
-        self.therm_model_kind=wx.Choice(model_pane,choices=['Thin sheet (screening)','Copper layers + vertical paths',
+        self.therm_model_kind=ReadableChoice(model_pane,choices=['Thin sheet (screening)','Copper layers + vertical paths',
                                                        'CalculiX 3D · fixed lower face'])
         self.therm_model_kind.SetSelection(0)
         self.therm_k=wx.TextCtrl(model_pane,value='0.3');self.therm_k.SetToolTip('Assumed effective in-plane conductivity W/(m·K); check against your stackup.')
@@ -393,9 +394,9 @@ class QuickThermFrame(wx.Frame):
         self.therm_ccx_executable=wx.TextCtrl(
             model_pane,value=self._calculix_executable)
         self.therm_ccx_executable.SetHint('Optional full path to ccx executable; otherwise PATH')
-        self.therm_blur=wx.Choice(model_pane,choices=['0 · exact cell occupancy','0.5 cell','1 cell'])
+        self.therm_blur=ReadableChoice(model_pane,choices=['0 · exact cell occupancy','0.5 cell','1 cell'])
         self.therm_blur.SetSelection(0)
-        self.therm_model_jb=wx.ComboBox(model_pane,style=wx.CB_READONLY)
+        self.therm_model_jb=ReadableComboBox(model_pane,style=wx.CB_READONLY)
         self.therm_emissivity=wx.TextCtrl(model_pane,value='0.9')
         self.therm_air_board=wx.TextCtrl(model_pane,value='0')
         self.therm_air_sink=wx.TextCtrl(model_pane,value='0')
@@ -521,10 +522,10 @@ class QuickThermFrame(wx.Frame):
         self.therm_step_models.SetToolTip('Load actual saved STEP models with KiCad and FreeCAD when running. Missing models remain footprint outlines.')
         self.therm_step_models.Bind(wx.EVT_CHECKBOX,self._invalidate_thermal)
         switch.Add(self.therm_step_models,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
-        self.therm_mode=wx.Choice(visual_host,choices=['Top-side map','Bottom-side map','Top-side contour','Bottom-side contour',
+        self.therm_mode=ReadableChoice(visual_host,choices=['Top-side map','Bottom-side map','Top-side contour','Bottom-side contour',
             'Top board model','Bottom board model','3D overview','Temperature chart']);self.therm_mode.SetSelection(0)
         switch.Add(self.therm_mode,0,wx.RIGHT,5)
-        self.therm_result_time=wx.Choice(visual_host,choices=['Steady state']);self.therm_result_time.SetSelection(0)
+        self.therm_result_time=ReadableChoice(visual_host,choices=['Steady state']);self.therm_result_time.SetSelection(0)
         self.therm_result_time.Bind(wx.EVT_CHOICE,lambda e:self._thermal_time_changed());switch.Add(self.therm_result_time,0,wx.RIGHT,5)
         self.therm_probe_button=wx.ToggleButton(visual_host,label='⌖  Probe');self.therm_probe_button.Bind(wx.EVT_TOGGLEBUTTON,self._toggle_thermal_probe)
         switch.Add(self.therm_probe_button,0,wx.RIGHT,5)
@@ -538,7 +539,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_time_slider=wx.Slider(visual_host,minValue=0,maxValue=1,value=0)
         self.therm_time_slider.Bind(wx.EVT_SLIDER,self._scrub_thermal_time);timeline.Add(self.therm_time_slider,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
         self.therm_time_label=wx.StaticText(visual_host,label='Run a transient study');timeline.Add(self.therm_time_label,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
-        self.therm_play_speed=wx.Choice(visual_host,choices=['1×','5×','20×']);self.therm_play_speed.SetSelection(1)
+        self.therm_play_speed=ReadableChoice(visual_host,choices=['1×','5×','20×']);self.therm_play_speed.SetSelection(1)
         self.therm_play_speed.Bind(wx.EVT_CHOICE,self._thermal_speed_changed);timeline.Add(self.therm_play_speed,0)
         visual.Add(timeline,0,wx.EXPAND|wx.BOTTOM,3)
         self.therm_figure=Figure(figsize=(8,6),dpi=100);self.therm_canvas=FigureCanvasWxAgg(visual_host,wx.ID_ANY,self.therm_figure)
@@ -1364,7 +1365,7 @@ class QuickThermFrame(wx.Frame):
         controls = wx.BoxSizer(wx.HORIZONTAL)
         controls.Add(wx.StaticText(dialog, label='Overlay'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         network = self.thermal_bundle.get('thermal_network')
-        modes = wx.Choice(dialog, choices=(['Board temperature', 'Component estimates']
+        modes = ReadableChoice(dialog, choices=(['Board temperature', 'Component estimates']
                                           if network else ['Component estimates']))
         modes.SetSelection(0)
         controls.Add(modes, 0, wx.RIGHT, 12)

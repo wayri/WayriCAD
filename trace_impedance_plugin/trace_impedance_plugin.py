@@ -10,6 +10,7 @@ from typing import Any, List, Optional
 
 import pcbnew
 import wx
+from wayricad_runtime.readable_choice import ReadableChoice, ReadableComboBox
 
 from .measurement import PathMeasurement, TraceMeasurementEngine
 from .help_utils import open_help
@@ -70,15 +71,15 @@ class TraceFrame(wx.Frame):
             root.Add(banner, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         config_box = wx.BoxSizer(wx.VERTICAL)
         config = wx.FlexGridSizer(0, 4, 6, 8)
-        self.net = wx.ComboBox(panel, style=wx.CB_READONLY)
-        self.start = wx.ComboBox(panel, style=wx.CB_READONLY)
-        self.end = wx.ComboBox(panel, style=wx.CB_READONLY)
-        self.diff_net = wx.ComboBox(panel, style=wx.CB_READONLY)
+        self.net = ReadableComboBox(panel, style=wx.CB_READONLY)
+        self.start = ReadableComboBox(panel, style=wx.CB_READONLY)
+        self.end = ReadableComboBox(panel, style=wx.CB_READONLY)
+        self.diff_net = ReadableComboBox(panel, style=wx.CB_READONLY)
         self.frequency = wx.TextCtrl(panel, value="100")
-        self.reference = wx.ComboBox(panel, style=wx.CB_READONLY)
-        self.mode = wx.Choice(panel, choices=["Path (traces + vias + zones)", "Zone / plane"])
+        self.reference = ReadableComboBox(panel, style=wx.CB_READONLY)
+        self.mode = ReadableChoice(panel, choices=["Path (traces + vias + zones)", "Zone / plane"])
         self.mode.SetSelection(0)
-        self.zone_layer = wx.ComboBox(panel, style=wx.CB_READONLY)
+        self.zone_layer = ReadableComboBox(panel, style=wx.CB_READONLY)
         self.zone_options = []
         self.corridor_width = wx.TextCtrl(panel, value="0.2")
         self.corridor_width.SetToolTip("Assumed current corridor width inside filled zone copper; does not modify the PCB.")
@@ -144,7 +145,7 @@ class TraceFrame(wx.Frame):
         add_zoom_toolbar(preview_page, self.route_preview, preview_sizer)
         display=wx.BoxSizer(wx.HORIZONTAL)
         display.Add(wx.StaticText(preview_page,label='Colour geometry by'),0,wx.ALL|wx.ALIGN_CENTER_VERTICAL,5)
-        self.route_colours=wx.Choice(preview_page,choices=['Copper layer','DC resistance contribution','AC resistance contribution','Model coverage'])
+        self.route_colours=ReadableChoice(preview_page,choices=['Copper layer','DC resistance contribution','AC resistance contribution','Model coverage'])
         self.route_colours.SetSelection(0)
         self.route_colours.Bind(wx.EVT_CHOICE,lambda e:self.route_preview.set_colour_mode(self.route_colours.GetSelection()))
         display.Add(self.route_colours,0,wx.ALL,5)

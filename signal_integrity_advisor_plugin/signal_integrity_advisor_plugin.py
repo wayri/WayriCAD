@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 import pcbnew
 import wx
+from wayricad_runtime.readable_choice import ReadableComboBox
 
 from .analysis import ImpedanceResult, PROTOCOL_PRESETS, SignalIntegrityEngine
 from .help_utils import open_help
@@ -177,8 +178,8 @@ class SignalIntegrityFrame(wx.Frame):
         page=wx.Panel(parent); root=wx.BoxSizer(wx.VERTICAL); split=wx.BoxSizer(wx.HORIZONTAL); config=wx.BoxSizer(wx.VERTICAL)
         config_title=wx.StaticText(page,label="Constraint and route"); config_title.SetFont(config_title.GetFont().Bold()); config.Add(config_title,0,wx.BOTTOM,6)
         grid=wx.FlexGridSizer(0,2,6,8); grid.AddGrowableCol(1,1)
-        self.protocol=wx.ComboBox(page,choices=list(PROTOCOL_PRESETS),style=wx.CB_READONLY); self.protocol.SetSelection(0); self.protocol.Bind(wx.EVT_COMBOBOX,self._preset)
-        self.net=wx.ComboBox(page,style=wx.CB_READONLY); self.start=wx.ComboBox(page,style=wx.CB_READONLY); self.end=wx.ComboBox(page,style=wx.CB_READONLY); self.mate=wx.ComboBox(page,style=wx.CB_READONLY); self.mate_start=wx.ComboBox(page,style=wx.CB_READONLY); self.mate_end=wx.ComboBox(page,style=wx.CB_READONLY); self.reference=wx.ComboBox(page,style=wx.CB_READONLY)
+        self.protocol=ReadableComboBox(page,choices=list(PROTOCOL_PRESETS),style=wx.CB_READONLY); self.protocol.SetSelection(0); self.protocol.Bind(wx.EVT_COMBOBOX,self._preset)
+        self.net=ReadableComboBox(page,style=wx.CB_READONLY); self.start=ReadableComboBox(page,style=wx.CB_READONLY); self.end=ReadableComboBox(page,style=wx.CB_READONLY); self.mate=ReadableComboBox(page,style=wx.CB_READONLY); self.mate_start=ReadableComboBox(page,style=wx.CB_READONLY); self.mate_end=ReadableComboBox(page,style=wx.CB_READONLY); self.reference=ReadableComboBox(page,style=wx.CB_READONLY)
         self.target=wx.TextCtrl(page,value="50"); self.tolerance=wx.TextCtrl(page,value="10"); self.frequency=wx.TextCtrl(page,value="100")
         for label,control in (("Protocol / constraint",self.protocol),("Target impedance (ohm)",self.target),("Tolerance (%)",self.tolerance),("Frequency (MHz)",self.frequency),("Primary net",self.net),("Start pad",self.start),("End pad",self.end),("Differential mate",self.mate),("Mate start pad",self.mate_start),("Mate end pad",self.mate_end),("Reference layer",self.reference)):
             grid.Add(wx.StaticText(page,label=label),0,wx.ALIGN_CENTER_VERTICAL); grid.Add(control,1,wx.EXPAND)

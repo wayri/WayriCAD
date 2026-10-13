@@ -2,6 +2,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 import wx
+from wayricad_runtime.readable_choice import ReadableComboBox
 from .measurement import TraceMeasurementEngine
 from .quick_si import analyze,html_report
 from .cli import write_report
@@ -15,7 +16,7 @@ class QuickSIPanel(wx.Panel):
         self.fields={}
         def row(name,label,value='',choices=None,parent=left,sizer=form):
             sizer.Add(wx.StaticText(parent,label=label),0,wx.TOP,7)
-            control=wx.ComboBox(parent,choices=choices,value=value,style=wx.CB_READONLY) if choices is not None else wx.TextCtrl(parent,value=value)
+            control=ReadableComboBox(parent,choices=choices,value=value,style=wx.CB_READONLY) if choices is not None else wx.TextCtrl(parent,value=value)
             sizer.Add(control,0,wx.EXPAND|wx.TOP,3);self.fields[name]=control
             return control
         self.engine=TraceMeasurementEngine(board)

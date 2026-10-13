@@ -4,7 +4,7 @@ Widths, clearance, impedance and timing must come from the project's stackup and
 interface constraints. Selecting a profile does not replace user dimensions.
 """
 FANOUT_PATTERNS = (
-    'Perimeter pitch expansion',
+    'Connector edge', 'Perimeter pitch expansion',
     'Dogbone outward', 'Dogbone inward', 'BGA/LGA grid outward',
     'Quadrant outward', 'Quadrant inward', 'Four-corner outward',
     'Four-corner inward', 'Perimeter outward', 'Radial outward',

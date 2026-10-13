@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import wx
+from wayricad_runtime.readable_choice import ReadableChoice
 import wx.grid
 from .protocol_profiles import list_profiles
 from .protocol_suite import screen_suite
@@ -20,7 +21,7 @@ class ProtocolPanel(wx.Panel):
         root=wx.BoxSizer(wx.VERTICAL)
         root.Add(wx.StaticText(self,label='1  Choose an interface   2  Add screened paths and assign roles   3  Review checks and missing evidence'),0,wx.ALL,10)
         top=wx.BoxSizer(wx.HORIZONTAL)
-        self.profile=wx.Choice(self,choices=[p['title'] for p in self.profiles]);self.profile.SetSelection(0)
+        self.profile=ReadableChoice(self,choices=[p['title'] for p in self.profiles]);self.profile.SetSelection(0)
         top.Add(self.profile,1,wx.RIGHT,10)
         add=wx.Button(self,label='Add current Quick SI path');add.Bind(wx.EVT_BUTTON,self.add_current)
         add.Bind(wx.EVT_UPDATE_UI,lambda e:e.Enable(self.quick.report is not None))

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pcbnew
 import wx
+from wayricad_runtime.readable_choice import ReadableComboBox
 import wx.grid as gridlib
 
 from .analysis import (
@@ -300,8 +301,8 @@ class HarnessFrame(wx.Frame):
         page = self._page("3  Pin Map"); root = wx.BoxSizer(wx.VERTICAL)
         seed = section(page, "Seed a connector pair, then edit any pin relationship")
         parent = seed.GetStaticBox(); row = wx.BoxSizer(wx.HORIZONTAL)
-        self.map_source = wx.ComboBox(parent, style=wx.CB_READONLY)
-        self.map_destination = wx.ComboBox(parent, style=wx.CB_READONLY)
+        self.map_source = ReadableComboBox(parent, style=wx.CB_READONLY)
+        self.map_destination = ReadableComboBox(parent, style=wx.CB_READONLY)
         seed_button = wx.Button(parent, label="Seed N-to-N Rows")
         seed_button.SetToolTip("Create editable starting rows for pins present on both connectors.")
         seed_button.Bind(wx.EVT_BUTTON, self._seed_pin_map)
@@ -350,10 +351,10 @@ class HarnessFrame(wx.Frame):
         grid = wx.FlexGridSizer(0, 4, 6, 10)
         grid.AddGrowableCol(1)
         grid.AddGrowableCol(3)
-        self.awg = wx.ComboBox(parent, choices=["30","28","26","24","22","20","18","16","14","12"], value="24", style=wx.CB_READONLY)
+        self.awg = ReadableComboBox(parent, choices=["30","28","26","24","22","20","18","16","14","12"], value="24", style=wx.CB_READONLY)
         self.color = wx.TextCtrl(parent); self.bundle_name = wx.TextCtrl(parent, value="MAIN")
         self.splice_name = wx.TextCtrl(parent); self.length = wx.TextCtrl(parent, value="1.0")
-        self.shield = wx.ComboBox(parent, choices=["","Overall shield","Pair shield","Drain wire"], style=wx.CB_READONLY)
+        self.shield = ReadableComboBox(parent, choices=["","Overall shield","Pair shield","Drain wire"], style=wx.CB_READONLY)
         for label, control in (("AWG",self.awg),("Color",self.color),("Bundle",self.bundle_name),
                                ("Splice",self.splice_name),("Length m",self.length),("Shield",self.shield)):
             grid.Add(wx.StaticText(parent,label=label),0,wx.ALIGN_CENTER_VERTICAL); grid.Add(control,1,wx.EXPAND)

@@ -19,6 +19,11 @@ Display movement does not modify board geometry or the solve.
 
 See [analysis views and probe controls](../docs/ANALYSIS_INTERACTIONS.md) for details.
 
+On Windows, net, terminal and settings dropdowns open wider than the sidebar
+when needed. Hover over the closed control to read the complete selected value
+and its help text. Filtering and programmatic selection keep exact names. Other
+platforms retain native popup sizing and the same full-value tooltips.
+
 ## Capabilities
 
 - Analyze saved traces, filled zones, pads and plated vias using a layered 2.5D DC conduction mesh and saved copper thicknesses.

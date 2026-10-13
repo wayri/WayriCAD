@@ -91,10 +91,10 @@ def execute(args):
     if args.operation=='settings':
         defaults=dict(FanoutPlanner.defaults if kind=='fanout' else StitchingPlanner.defaults)
         choices={'pattern': ['Square grid','Staggered grid']} if kind=='stitching' else {
-            'pattern':list(FANOUT_PATTERNS), 'signal_profile':list(SIGNAL_PROFILES),
+            'connector_exit':['Nearest edge','Top','Bottom','Left','Right'], 'pattern':list(FANOUT_PATTERNS), 'signal_profile':list(SIGNAL_PROFILES),
             'angle_mode':list(ANGLE_MODES),'pair_mode':list(PAIR_MODES),
             'output_mode':['Escape traces','Via-in-pad'],'routing_mode':['Fixed','Adaptive'],
-            'scope':['Selected pads','Selected footprints','Reference wildcard','All SMD pads'],
+            'scope':['Selected pads','Selected footprints','Reference wildcard','All SMD pads','All connector pads'],
             'netclass_filter':['All netclasses','Default'],
             'escape_layer':['Pad layer']}
         if args.board:
@@ -135,13 +135,16 @@ def execute(args):
     document=json.loads(Path(args.plan).read_text(encoding='utf-8-sig'))
     if document.get('schema')!=1 or document.get('kind')!=kind:raise ValueError('Plan schema or routing kind does not match.')
     current=plan_document(kind,board,api,document['settings'])
-    if any(current[key]!=document.get(key) for key in ('board_fingerprint','candidates','rejected')):
+    if any(current[key]!=document.get(key) for key in ('board_fingerprint','rules_fingerprint','candidates','rejected')):
         raise ValueError('Board or reviewed geometry changed. Generate a new plan before applying.')
     destination=Path(args.output).resolve()
     if destination==source or destination.exists():raise ValueError('Apply requires a new output board path; existing files are never overwritten.')
     if destination.suffix.lower()!='.kicad_pcb':raise ValueError('Output board must end in .kicad_pcb.')
     if not current['candidates']:raise ValueError('Plan contains no accepted candidates.')
     plans,_=(plan_fanout if kind=='fanout' else plan_stitching)(board,api,document['settings'])
+    if kind=='fanout' and any(p.local_clearance for p in plans):
+        from .connector_review import export_connector_review
+        return export_connector_review(board,api,plans,destination.with_suffix(''),name=destination.stem)
     items=fanout_items(board,api,plans) if kind=='fanout' else plans
     add_group(board,items,'WayriCAD '+kind.title()+' CLI',api.PCB_GROUP)
     if not api.SaveBoard(str(destination),board):raise RuntimeError('KiCad could not save the output board.')

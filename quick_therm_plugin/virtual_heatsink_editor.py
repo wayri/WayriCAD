@@ -37,6 +37,7 @@ def parse_heatsink_inputs(reference, shape, width, depth, height, contact, air, 
 class VirtualHeatsinkDialog:
     def __init__(self, parent, references, existing):
         import wx
+        from wayricad_runtime.readable_choice import ReadableChoice
         from matplotlib.figure import Figure
         from .plot_canvas import FigureCanvasWxAgg
         self.wx=wx;self.data={key:dict(value) for key,value in existing.items()};self.references=sorted(references)
@@ -51,9 +52,9 @@ class VirtualHeatsinkDialog:
         left.Add(self.list,1,wx.EXPAND);remove=wx.Button(self.dialog,label='Remove assignment')
         remove.Bind(wx.EVT_BUTTON,self._remove);left.Add(remove,0,wx.TOP,8);body.Add(left,0,wx.EXPAND|wx.RIGHT,16)
         right=wx.BoxSizer(wx.VERTICAL);grid=wx.FlexGridSizer(0,2,8,9);grid.AddGrowableCol(1,1)
-        self.reference=wx.Choice(self.dialog,choices=self.references)
+        self.reference=ReadableChoice(self.dialog,choices=self.references)
         if self.references:self.reference.SetSelection(0)
-        self.shape=wx.Choice(self.dialog,choices=[label for label,_ in SHAPES.values()]);self.shape.SetSelection(0)
+        self.shape=ReadableChoice(self.dialog,choices=[label for label,_ in SHAPES.values()]);self.shape.SetSelection(0)
         self.width=wx.TextCtrl(self.dialog,value='40');self.depth=wx.TextCtrl(self.dialog,value='40')
         self.height=wx.TextCtrl(self.dialog,value='15');self.contact=wx.TextCtrl(self.dialog)
         self.air=wx.TextCtrl(self.dialog);self.vacuum=wx.TextCtrl(self.dialog)

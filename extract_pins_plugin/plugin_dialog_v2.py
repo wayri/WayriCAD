@@ -17,6 +17,7 @@ THIS PLUGIN IS PROVIDED AS IS WITHOUT ANY GUARANTEE OR WARRANTY.
 """
 
 import wx
+from wayricad_runtime.readable_choice import ReadableComboBox
 import wx.html as wxhtml
 import pcbnew
 import csv
@@ -324,12 +325,12 @@ class PluginDialogV2(wx.Frame):
         self.ref_filter.Bind(wx.EVT_TEXT, self.InvalidatePreview)
         grid.Add(self.ref_filter, 1, wx.EXPAND)
         grid.Add(wx.StaticText(filter_box.GetStaticBox(), label="Net names"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.net_filter_ctrl = wx.ComboBox(filter_box.GetStaticBox(), choices=sorted(self.extractor.all_nets)[:100])
+        self.net_filter_ctrl = ReadableComboBox(filter_box.GetStaticBox(), choices=sorted(self.extractor.all_nets)[:100])
         self.net_filter_ctrl.SetToolTip("Optional. Comma-separated wildcard patterns, for example CAN_*, 28V*.")
         self.net_filter_ctrl.Bind(wx.EVT_TEXT, self.InvalidatePreview)
         grid.Add(self.net_filter_ctrl, 1, wx.EXPAND)
         grid.Add(wx.StaticText(filter_box.GetStaticBox(), label="Component value"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.value_filter_ctrl = wx.ComboBox(filter_box.GetStaticBox(), choices=sorted(set(fp.GetValue() for fp in self.extractor.footprints)))
+        self.value_filter_ctrl = ReadableComboBox(filter_box.GetStaticBox(), choices=sorted(set(fp.GetValue() for fp in self.extractor.footprints)))
         self.value_filter_ctrl.SetToolTip("Optional wildcard filter for component values.")
         self.value_filter_ctrl.Bind(wx.EVT_TEXT, self.InvalidatePreview)
         grid.Add(self.value_filter_ctrl, 1, wx.EXPAND)
@@ -357,7 +358,7 @@ class PluginDialogV2(wx.Frame):
 
         net_action_sizer = wx.WrapSizer(wx.HORIZONTAL)
         net_action_sizer.Add(wx.StaticText(preview_box.GetStaticBox(), label="PCB net:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.net_action_combo = wx.ComboBox(
+        self.net_action_combo = ReadableComboBox(
             preview_box.GetStaticBox(),
             choices=sorted(self.extractor.all_nets, key=DataExtractor.natural_sort_key),
             style=wx.CB_DROPDOWN,
@@ -685,7 +686,7 @@ class PluginDialogV2(wx.Frame):
         sel_sizer = wx.BoxSizer(wx.HORIZONTAL)
         sel_sizer.Add(wx.StaticText(panel, label="Select IC:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         
-        self.ic_combo = wx.ComboBox(panel, choices=self.all_ics, style=wx.CB_DROPDOWN)
+        self.ic_combo = ReadableComboBox(panel, choices=self.all_ics, style=wx.CB_DROPDOWN)
         if self.all_ics:
             self.ic_combo.SetValue(self.all_ics[0])
         sel_sizer.Add(self.ic_combo, 1, wx.ALL, 5)

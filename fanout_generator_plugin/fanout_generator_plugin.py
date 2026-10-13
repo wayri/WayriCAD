@@ -6,6 +6,7 @@ import os
 import hashlib
 import json
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, List, Tuple
 
 import pcbnew
@@ -15,9 +16,9 @@ from .help_utils import open_help
 from .selection_utils import select_items
 from .geometry_preview import GeometryPreview
 try:
-    from .wayricad_runtime.routing_ui import build_fanout
+    from .wayricad_runtime.routing_ui import build_fanout, choose_review_destination
 except ImportError:
-    from wayricad_runtime.routing_ui import build_fanout
+    from wayricad_runtime.routing_ui import build_fanout, choose_review_destination
 try:
     from .wayricad_runtime.operations import add_group, remove_group
 except ImportError:
@@ -111,7 +112,9 @@ class FanoutFrame(wx.Frame):
 
     def _rules_fingerprint(self):
         canonical=json.dumps(project_netclasses(self.board),sort_keys=True,separators=(',',':'),ensure_ascii=True)
-        return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+        rules=Path(self.board.GetFileName()).with_suffix('.kicad_dru') if self.board.GetFileName() else None
+        native=rules.read_bytes() if rules and rules.exists() else b''
+        return hashlib.sha256(canonical.encode('utf-8')+native).hexdigest()
 
     def _assert_preview_current(self, ignored=()):
         if self._settings_snapshot()!=self.preview_settings:
@@ -166,13 +169,14 @@ class FanoutFrame(wx.Frame):
                 line_widths=line_widths,
                 pad_sizes=[(pcbnew.ToMM(plan.pad.GetSize().x),pcbnew.ToMM(plan.pad.GetSize().y),-float(plan.pad.GetOrientationDegrees())) for plan in self.preview_plan])
             self.preview_items = fanout_items(self.board, pcbnew, self.preview_plan)
+            self.export_button.Enable(any(p.local_clearance for p in self.preview_plan))
             self.show_button.Enable(bool(self.preview_plan))
-            self.commit_button.Enable(bool(self.preview_items))
+            self.commit_button.Enable(bool(self.preview_items) and not any(p.local_clearance for p in self.preview_plan))
             for rejection in self.plan_rejections:
                 index=self.preview_list.InsertItem(self.preview_list.GetItemCount(), "Rejected")
                 self.preview_list.SetItem(index,4,rejection)
             pair_count=len({p.pair_id for p in self.preview_plan if p.pair_id})
-            self.status.SetLabel(f"Preview: {len(self.preview_plan)} escapes, {pair_count} pairs, {len(self.plan_rejections)} rejected. " + '; '.join(self.plan_rejections[:2]))
+            self.status.SetLabel(f"Preview: {len(self.preview_plan)} escapes, {pair_count} pairs, {len(self.plan_rejections)} rejected. " + ('Local clearance: export a review project. ' if any(p.local_clearance for p in self.preview_plan) else '') + '; '.join(self.plan_rejections[:2]))
             if not self.preview_plan and not silent:
                 wx.MessageBox("No fanouts accepted. Inspect rejection reasons, pad scope, and dimensions.", "No fanout preview", wx.OK | wx.ICON_INFORMATION)
         except Exception as exc:
@@ -191,7 +195,7 @@ class FanoutFrame(wx.Frame):
             select_items(self.board, [p.pad for p in self.preview_plan])
             if hasattr(pcbnew, "Refresh"):
                 pcbnew.Refresh()
-            self.commit_button.Enable(bool(self.preview_items))
+            self.commit_button.Enable(bool(self.preview_items) and not any(p.local_clearance for p in self.preview_plan))
             self.status.SetLabel(f"Prepared placement: {len(self.preview_items)} prepared items. Commit adds them to the PCB.")
         except Exception as exc:
             self.clear_pcb_preview()
@@ -207,6 +211,7 @@ class FanoutFrame(wx.Frame):
     def clear_preview(self, _event: Any) -> None:
         self.clear_pcb_preview()
         self.preview_plan = []
+        self.export_button.Disable()
         self.preview_list.DeleteAllItems()
         self.geometry_preview.clear()
         self.show_button.Enable(False)
@@ -244,6 +249,8 @@ class FanoutFrame(wx.Frame):
             if not self.preview_items:
                 wx.MessageBox("Create and inspect a preview before committing.", "Preview required", wx.OK | wx.ICON_INFORMATION)
                 return
+            if any(p.local_clearance for p in self.preview_plan):
+                raise ValueError('Local clearance requires Export review project; the live board is unchanged.')
             created = list(self.preview_items)
             self._assert_preview_current(self.preview_items)
             group = self._new_commit_group(created)
@@ -298,7 +305,25 @@ class FanoutFrame(wx.Frame):
         pcbnew.Refresh()
         self.status.SetLabel(f"Restored {len(items)} items.")
 
+    def export_connector_review(self, _event):
+        try:
+            if not self.preview_plan:raise ValueError('Create and inspect a preview first.')
+            self._assert_preview_current(self.preview_items)
+            destination=choose_review_destination(self)
+            if destination is None:return
+            try:
+                from .wayricad_runtime.connector_review import export_connector_review
+            except ImportError:
+                from wayricad_runtime.connector_review import export_connector_review
+            if destination.exists():raise ValueError('Choose a new project name; existing outputs are preserved.')
+            result=export_connector_review(self.board, pcbnew, self.preview_plan, destination.with_suffix(''), name=destination.stem)
+            self.status.SetLabel('Exported review project. Open it in KiCad and run DRC before adopting the routes.')
+        except Exception as exc:
+            wx.MessageBox(str(exc), 'Connector review export', wx.OK|wx.ICON_ERROR)
+
     def _update_controls(self) -> None:
+        connector = self.pattern.GetValue() == 'Connector edge'
+        for control in (self.connector_exit,self.connector_edge_margin,self.connector_clearance):control.Enable(connector)
         via_in_pad = self.output_mode.GetValue() == "Via-in-pad"
         forced = self.pattern.GetValue().startswith("Dogbone") or via_in_pad
         self.pattern.Enable(not via_in_pad)

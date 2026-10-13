@@ -60,6 +60,7 @@ def selected_component_references(board_path):
 class SeriesPathDialog:
     def __init__(self, parent, inventory, board_path, existing=None):
         import wx
+        from wayricad_runtime.readable_choice import ReadableChoice
         self.wx = wx;self.inventory=inventory;self.board_path=board_path;self.request=None
         self.branches=list(existing.get('branches', [])) if existing else []
         self.dialog=wx.Dialog(parent,title='Quick PI · Series path editor',
@@ -69,7 +70,7 @@ class SeriesPathDialog:
         intro.Wrap(parent.FromDIP(880));root.Add(intro,0,wx.EXPAND|wx.ALL,12)
         labels=sorted(row['label'] for row in inventory.get('terminals', []))
         endpoints=wx.BoxSizer(wx.HORIZONTAL)
-        self.source=wx.Choice(self.dialog,choices=labels);self.sink=wx.Choice(self.dialog,choices=labels)
+        self.source=ReadableChoice(self.dialog,choices=labels);self.sink=ReadableChoice(self.dialog,choices=labels)
         if labels:self.source.SetSelection(0);self.sink.SetSelection(min(1,len(labels)-1))
         for name,ctrl in (('Source pad',self.source),('Sink pad',self.sink)):
             endpoints.Add(wx.StaticText(self.dialog,label=name),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
@@ -87,8 +88,8 @@ class SeriesPathDialog:
         left.Add(actions,0,wx.TOP,7);main.Add(left,1,wx.EXPAND|wx.RIGHT,14)
         right=wx.BoxSizer(wx.VERTICAL)
         right.Add(wx.StaticText(self.dialog,label='Add next component'),0,wx.BOTTOM,5)
-        self.component=wx.Choice(self.dialog);right.Add(self.component,0,wx.EXPAND|wx.BOTTOM,10)
-        self.kind=wx.Choice(self.dialog,choices=['Resistance / RL','Fixed forward drop','Diode at DC current'])
+        self.component=ReadableChoice(self.dialog);right.Add(self.component,0,wx.EXPAND|wx.BOTTOM,10)
+        self.kind=ReadableChoice(self.dialog,choices=['Resistance / RL','Fixed forward drop','Diode at DC current'])
         self.kind.SetSelection(0);right.Add(self.kind,0,wx.EXPAND|wx.BOTTOM,10)
         self.values={};grid=wx.FlexGridSizer(0,2,6,9);grid.AddGrowableCol(1,1)
         for key,title,initial in (('r','Resistance (e.g. 5mΩ)','5m'),('l','Inductance (e.g. 1mH)',''),

@@ -1,5 +1,6 @@
 """Compact live test-point editing, explicit preview then grouped apply."""
 import wx
+from wayricad_runtime.readable_choice import ReadableChoice
 import wx.grid
 from .testpoint_labels import LiveTestPoints,make_plan,native_records,table_layout
 
@@ -36,7 +37,7 @@ class TestPointLabelsPanel(wx.Panel):
         super().__init__(parent);self.board=board;self.live=None;self.stamp=None;self.rows=[];self.cells=[]
         root=wx.BoxSizer(wx.VERTICAL);form=wx.BoxSizer(wx.HORIZONTAL)
         self.pattern=wx.TextCtrl(self,value='TP*',size=(90,-1));self.template=wx.TextCtrl(self,value='{net}',size=(190,-1))
-        self.silk=wx.CheckBox(self,label='Show values on silkscreen');self.add_table=wx.CheckBox(self,label='Add set table');self.side=wx.Choice(self,choices=['Front','Back']);self.side.SetSelection(0)
+        self.silk=wx.CheckBox(self,label='Show values on silkscreen');self.add_table=wx.CheckBox(self,label='Add set table');self.side=ReadableChoice(self,choices=['Front','Back']);self.side.SetSelection(0)
         for label,control in [('References',self.pattern),('Value template',self.template)]:form.Add(wx.StaticText(self,label=label),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5);form.Add(control,0,wx.RIGHT,12)
         root.Add(form,0,wx.ALL|wx.EXPAND,10)
         advanced=wx.CollapsiblePane(self,label='Silkscreen and table options');host=advanced.GetPane();details=wx.BoxSizer(wx.VERTICAL);options=wx.BoxSizer(wx.HORIZONTAL)

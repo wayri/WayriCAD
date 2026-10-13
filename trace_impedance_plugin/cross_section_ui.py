@@ -1,6 +1,7 @@
 """Manual cross-section view for impedance geometries not extracted from PCB."""
 
 import wx
+from wayricad_runtime.readable_choice import ReadableChoice
 
 from .cross_section import TOPOLOGIES, estimate
 
@@ -64,7 +65,7 @@ class CrossSectionPanel(wx.Panel):
         explanation = wx.StaticText(self, label="Manual cross-section screening. Enter measured dimensions; these values are not read from the selected route.")
         root.Add(explanation, 0, wx.EXPAND | wx.ALL, 9)
         form = wx.FlexGridSizer(0, 4, 7, 9)
-        self.topology = wx.Choice(self, choices=list(TOPOLOGIES))
+        self.topology = ReadableChoice(self, choices=list(TOPOLOGIES))
         self.topology.SetSelection(0)
         self.width = wx.TextCtrl(self, value="0.3")
         self.height = wx.TextCtrl(self, value="0.2")

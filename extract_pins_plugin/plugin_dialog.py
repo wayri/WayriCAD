@@ -16,6 +16,7 @@ THIS PLUGIN IS PROVIDED AS IS WITHOUT ANY GUARANTEE OR WARRANTY.
 """
 
 import wx
+from wayricad_runtime.readable_choice import ReadableComboBox
 import pcbnew
 import csv
 from io import StringIO
@@ -127,15 +128,15 @@ class PluginDialog(wx.Dialog):
         grid_filters = wx.GridSizer(3, 2, 2, 2) # Reduced gaps
 
         grid_filters.Add(wx.StaticText(filters_panel.GetStaticBox(), label="Value Filter (wildcard *):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.value_filter_ctrl = wx.ComboBox(filters_panel.GetStaticBox(), size=(120, -1), choices=self.all_values, style=wx.CB_DROPDOWN) # Reduced width
+        self.value_filter_ctrl = ReadableComboBox(filters_panel.GetStaticBox(), size=(120, -1), choices=self.all_values, style=wx.CB_DROPDOWN) # Reduced width
         grid_filters.Add(self.value_filter_ctrl, 0, wx.EXPAND)
 
         grid_filters.Add(wx.StaticText(filters_panel.GetStaticBox(), label="Net Name Filter (comma-sep, wildcard *):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.net_name_filter_ctrl = wx.ComboBox(filters_panel.GetStaticBox(), size=(120, -1), choices=self.all_net_names, style=wx.CB_DROPDOWN) # Reduced width
+        self.net_name_filter_ctrl = ReadableComboBox(filters_panel.GetStaticBox(), size=(120, -1), choices=self.all_net_names, style=wx.CB_DROPDOWN) # Reduced width
         grid_filters.Add(self.net_name_filter_ctrl, 0, wx.EXPAND)
 
         grid_filters.Add(wx.StaticText(filters_panel.GetStaticBox(), label="Connector Type Filter (comma-sep, wildcard *):"), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.connector_type_filter_ctrl = wx.ComboBox(filters_panel.GetStaticBox(), size=(120, -1), choices=self.all_connector_types, style=wx.CB_DROPDOWN) # Reduced width
+        self.connector_type_filter_ctrl = ReadableComboBox(filters_panel.GetStaticBox(), size=(120, -1), choices=self.all_connector_types, style=wx.CB_DROPDOWN) # Reduced width
         grid_filters.Add(self.connector_type_filter_ctrl, 0, wx.EXPAND)
 
         filters_panel.Add(grid_filters, 1, wx.EXPAND | wx.ALL, 2) # Reduced padding

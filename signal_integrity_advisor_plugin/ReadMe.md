@@ -20,6 +20,11 @@ provide coordinate probes through **Probe** or Ctrl-click; **Clear probes** remo
 Search preserves a selected matching net and otherwise clears the selection.
 It never assigns the first search result automatically.
 
+On Windows, net, terminal and settings dropdowns open wider than the sidebar
+when needed. Hover over the closed control to read the complete selected value
+and its help text. Filtering and programmatic selection keep exact names. Other
+platforms retain native popup sizing and the same full-value tooltips.
+
 Offline route, eye and step plots support hover values, click-to-pin probes, pan,
 wheel zoom and Fit. Static figures remain available for printing. Native eye/step
 plots show exact sample time and voltage; click pins and right-click clears them.

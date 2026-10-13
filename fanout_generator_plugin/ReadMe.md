@@ -14,7 +14,7 @@
 
 - This generates fanout seeds, not complete autorouting or guaranteed impedance, timing or protocol compliance.
 - Adaptive routing searches a bounded candidate family; branches, loops, arcs, existing-via endpoints and same-net zone topology require manual review. Coupled pairs use fixed routing.
-- Via-in-pad needs fabricator review; through vias span F.Cu to B.Cu. Through-hole pads and pads without nets are excluded.
+- Via-in-pad needs fabricator review; through vias span F.Cu to B.Cu. Plated through-hole pins are supported by Connector edge; other styles exclude them. Non-plated holes and pads without nets are excluded.
 - Conservative obstacle checks can reject feasible layouts; native KiCad DRC remains required. KiCad 11 live behavior is unverified.
 
 ## Overview
@@ -24,6 +24,26 @@ A fully local routing tool for PCB Editor. No hosted UI or remote preview assets
 ![Current native fanout preview with via-in-pad and two escape angles](help-workflow.png)
 
 Actual 3.1.1 window on a disposable SOIC fixture: pads 2–3 use via-in-pad, corner pads use 45° escapes, and pads 6–7 use 30° escapes. Existing copper is muted; new copper is teal. These example dimensions are not manufacturing recommendations.
+
+## Connector-edge breakout
+
+1. Select a connector footprint or individual pins in PCB Editor. Choose **Selected footprints** or **Selected pads**. For every connector on the board choose **All connector pads** and narrow the pin/net filters as needed. Alternatively choose **Reference wildcard** and enter the connector reference under advanced settings.
+2. Choose **Connector edge**. This enables plated through-hole and SMD pins, independent pin routing and a bounded obstacle search. Endpoint vias default off for this style.
+3. Select **Nearest edge**, **Top**, **Bottom**, **Left** or **Right** in footprint-local coordinates. Set **Beyond connector body** (initially 0.5 mm) and the trace layer. The target uses the courtyard when available, otherwise the body/pad hull. PTH pins already span copper layers, so routing on B.Cu does not add an unnecessary source via.
+4. Under advanced settings, filter **Pin numbers** and **Net names** with comma-separated wildcards, for example `1,2,5` and `/Interface/*`. Both filters combine with PCB selection and netclass. Use per-pin/net groups for different layers or dimensions.
+5. Click **Preview**. Inspect routes and rejected pins, then **Apply to board**. Existing copper is retained. Connected pins are rejected rather than given duplicate escapes; non-plated mounting holes, other copper, zones and board edges remain obstacles. Run native KiCad DRC.
+
+![Native connector-edge preview](help-connector.png)
+
+Actual KiCad 10 wxPython window on a disposable six-pin plated connector fixture. All six independent escapes were accepted. This is an illustrative fixture, not validation of a particular connector or manufacturing process. No personal paths appear in the capture.
+
+**Local clearance:** leave the field blank to preserve normal clearance. For a reviewed local exception, enter the requested clearance (at least the board fabrication minimum), preview, and use **Export local-rule review…**. Choose a new project name: a new directory of that name contains the board, project and scoped custom rules. Live Apply is disabled for these candidates. The source stays unchanged. The rule covers only enclosed copper pairs on the chosen layer, with at least one selected net, inside a named connector rule area. Hole and board-edge constraints remain unchanged; existing custom rules retain higher priority. Open the exported project and run DRC before adopting it.
+
+The search is bounded to 4,096 visited grid positions and three seconds per pin. It may reject dense or blocked connectors; narrow the scope, change the exit side/layer, or use a finer **Adaptive search step**. Differential-pair/skew constraints require the existing paired styles; Connector edge does not certify protocol performance.
+
+CLI settings use `pattern: "Connector edge"`, `pad_filter`, `net_filter`, `connector_exit`, `connector_edge_margin` and optional `connector_clearance` (millimetres; blank keeps normal clearance). Use the existing `fanout plan` / `fanout apply` commands. With local clearance, apply creates a new review directory named after the output board stem, containing all three project files. A changed board or saved custom-rule/netclass input invalidates the plan.
+
+Local rules use KiCad's [enclosedByArea condition](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#custom_design_rules): the whole item must be inside the area, not just its center.
 
 ## Fine-pitch perimeter packages
 

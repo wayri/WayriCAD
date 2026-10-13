@@ -14,6 +14,11 @@ RθJB is always editable. A physical board study without virtual heatsinks needs
 
 The board tab keeps compact setup at the left and **Details**, **Results** and **Probes** at the right. Hide either side for more viewport space. **Top**, **Bottom**, **3D**, **Fit**, field/time selection and probes stay above the board. The native viewport removes graph axes; exported scientific plots keep units and axes. In 3D, drag to orbit, Shift-drag to pan and wheel to zoom. Saved contours and drilled voids stay open; unknown field cells remain blank. A thin-sheet field is shown once at the board midplane, and layered fields retain their declared depths. **STEP models** loads real saved component shapes with KiCad CLI and FreeCAD; native and offline views retain their placements, offsets, scale and rotation. Missing models remain explicit footprint outlines and are listed in the report. Select or hover over a part to see its temperature; labels stay sparse.
 
+On Windows, net, terminal and settings dropdowns open wider than the sidebar
+when needed. Hover over the closed control to read the complete selected value
+and its help text. Filtering and programmatic selection keep exact names. Other
+platforms retain native popup sizing and the same full-value tooltips.
+
 ### Component heating and copper losses
 
 Setup inputs fit the available sidebar width. Long field names remain selectable,
