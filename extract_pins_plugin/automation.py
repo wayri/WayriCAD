@@ -23,6 +23,7 @@ PLUGIN_CAPABILITIES = (
     ("mechanical-check", "WayriCAD Mechanical Check", ("inspect", "validate", "report"), False, "saved-board"),
     ("bom-studio", "WayriCAD BOM Studio", ("inspect", "export", "variants"), True, "project"),
     ("embed-3d", "WayriCAD Embed3D", ("localize-project", "embed", "extract", "relink", "restore-local"), True, "project"),
+    ("silkscreen-label-placer", "WayriCAD Silkscreen Label Placer", ("preview", "apply", "undo", "redo"), True, "live-native-board"),
     ("bulk-label-editor", "WayriCAD Bulk Label Editor", ("preview", "apply"), True, "board"),
     ("extract-pins", "WayriCAD Pin Extractor", ("inspect", "extract", "crosslink", "report"), False, "netlist"),
     ("fanout-generator", "WayriCAD Fanout Generator", ("plan", "preview", "apply"), True, "board"),
@@ -50,6 +51,7 @@ def capabilities() -> dict[str, Any]:
             for key, name, actions, mutating, input_kind in PLUGIN_CAPABILITIES
         ],
         "operations": sorted(HANDLERS),
+        "native_gui_only": ["silkscreen-label-placer"],
         "additional_cli": {
             "project-fusion": "wayricad-fusion --help (native KiCad CLI required for merge; offline project apply)",
             "variant-manager": "wayricad-variants --help (native KiCad 10 variants; preview-first batch jobs and verified backups)",

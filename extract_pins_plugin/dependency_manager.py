@@ -52,6 +52,7 @@ SUITE_PACKAGES: tuple[tuple[str, str], ...] = (
     ('quick_therm_plugin', 'QuickTherm'),
     ('project_fusion_plugin', 'Project Fusion'),
     ('variant_manager_plugin', 'Variant Manager'),
+    ('silkscreen_label_plugin', 'Silkscreen Label Placer'),
     ('signal_integrity_advisor_plugin', 'Quick SI'),
     ('trace_impedance_plugin', 'Trace RLC / Impedance Analyzer'),
     ('via_stitching_plugin', 'Via Stitching'),

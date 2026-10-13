@@ -79,6 +79,7 @@ jobs:
         run: |
           python -m unittest discover -s copper_balancer_plugin/tests -v
           python -m unittest discover -s mechanical_check_plugin/tests -v
+          python -m unittest discover -s silkscreen_label_plugin/tests -v
           python -m pytest protocol_constraint_composer_plugin/tests -q
       - name: Portable PI and magnetics physics regressions
         run: |

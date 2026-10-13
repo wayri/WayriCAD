@@ -2,7 +2,7 @@
 
 [Install](INSTALLATION.md) · [Choose a tool](#tool-directory) · [Routing](#routing-review) · [Electrical analysis](#electrical-analysis) · [BOM and libraries](#bom-and-project-libraries) · [Troubleshooting](TROUBLESHOOTING.md) · [CLI](CLI_USER_GUIDE.md)
 
-This guide describes the 17-tool 3.6.4 release, including the independently installable QuickTherm plugin. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
+This guide covers the current 20-plugin source catalogue. Released packages and new candidate installers are identified in their individual guides. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
 
 ## Install and first launch
 
@@ -29,6 +29,7 @@ Select the linked name for detailed instructions. “Review” below means that 
 
 | Icon | Tool and detailed guide | Start with | Result and write boundary |
 |---|---|---|---|
+| <img src="../silkscreen_label_plugin/icon.png" width="28" height="28" alt="Silkscreen Label Placer icon"> | [Silkscreen Label Placer](../silkscreen_label_plugin/README.md) | Selected parts or whole board | Preview safe silk labels and guide lines, then apply with undo/redo |
 | <img src="../project_fusion_plugin/icon.png" width="28" height="28" alt="Project Fusion icon"> | [Project Fusion](../project_fusion_plugin/README.md) | Saved projects or selected subsheets | Guided source/variant destination, visual merge, CLI workflows and backed-up offline apply |
 | <img src="../variant_manager_plugin/icon.png" width="28" height="28" alt="Variant Manager icon"> | [Variant Manager](../variant_manager_plugin/README.md) | Native KiCad 10 variant definitions | Assembly comparison, bulk operations, conflict-aware merge/swap, Default promotion and verified recovery |
 | <img src="../bom_studio_plugin/icon.png" width="28" height="28" alt="Analytics Studio icon"> | [Analytics Studio](../bom_studio_plugin/README.md) | Saved schematic/project and desired fields | Review staged component data, export purchasing/assembly BOMs; native writes require a reviewed operation |
@@ -160,3 +161,7 @@ CLI: `wayricad-fusion --help` and `wayricad-variants --help`. Fusion exit code 3
 means the operation completed but saving its result failed; the result is on
 stdout. Inspect the result and backup before repeating a write. Always inspect
 reported rollback failures and recovery backups before another Apply.
+
+## Silkscreen label placement
+
+Open Silkscreen Label Placer, choose selected parts or the whole board, click Preview and inspect the top/bottom views. Apply only the accepted labels. Hidden/locked items stay untouched and unresolved placements remain listed. Options adds values or existing board text and sets size/spacing; distant component labels use checked guide lines. Run native DRC and inspect assembly readability before saving. The [plugin guide](../silkscreen_label_plugin/README.md) covers installation and limits.

@@ -3,10 +3,10 @@
 [![Release](https://img.shields.io/github/v/release/wayri/WayriCAD?color=168b78)](https://github.com/wayri/WayriCAD/releases/latest)
 [![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
 [![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
-[![Tools](https://img.shields.io/badge/Tools-19-168b78)](#all-19-plugins)
+[![Tools](https://img.shields.io/badge/Tools-20-168b78)](#all-20-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
-**PCB design, analysis and project review in KiCad.** Choose from 19 independently
+**PCB design, analysis and project review in KiCad.** Choose from 20 independently
 installable plugins. Processing runs locally after setup. KiCad 10 is the validated target.
 
 ## Start here
@@ -16,7 +16,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
 | Download or update | [Release 3.6.17](https://github.com/wayri/WayriCAD/releases/tag/v3.6.17) · [Release notes](docs/RELEASE_NOTES_3.6.17.md) |
-| Choose a tool | [All 19 plugins](#all-19-plugins) |
+| Choose a tool | [All 20 plugins](#all-20-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
@@ -151,7 +151,7 @@ currencies stay explicit.
 <a id="all-16-plugins"></a>
 <a id="all-18-plugins"></a>
 
-## All 19 plugins
+## All 20 plugins
 
 The IPC packages are **3.6.17**; Fusion is **0.9.8**, and Variant Manager is **0.6.1**.
 Select a plugin for its full guide and supported models.
@@ -169,6 +169,7 @@ Select a plugin for its full guide and supported models.
 | <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Collect libraries and 3D models for portable projects. |
 | <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Preview and place escape tracks and vias. |
 | <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. |
+| <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange reference labels, values and board text with checked guide lines. |
 | <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Rename references, fields and PCB text in bulk. |
 | <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. |
 | <img src="harness_workbench_plugin/icon.png" width="24" height="24" alt="Harness Workbench icon"> [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Map connectors, cables, bundles and wire requirements. |
@@ -177,6 +178,8 @@ Select a plugin for its full guide and supported models.
 | <img src="heater_designer_plugin/icon.png" width="24" height="24" alt="Heater Designer icon"> [Heater Designer](heater_designer_plugin/ReadMe.md) | Design and preview PCB or foil heating patterns. |
 | <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Design PCB coils and screen magnetic/actuator behavior. |
 | <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Check fabrication constraints and prepare manufacturing outputs. |
+
+Silkscreen Label Placer 0.1.0 is a new native KiCad 10 plugin. Its candidate PCM package can be built and installed separately; it is not included in the earlier 3.6.17 release. See its [installation guide](silkscreen_label_plugin/README.md#install).
 
 ## Plugin previews
 
@@ -314,6 +317,14 @@ Shipped UI rendered from a demonstration snapshot. Supporting panels open on dem
 <a href="mechanical_check_plugin/help-workflow.png"><img src="mechanical_check_plugin/help-workflow.png" width="960" alt="Mechanical Check native STEP board workspace with an edge-to-edge ruler, global height violation markers and a compact findings sidebar"></a>
 
 The fixture deliberately includes height violations and incomplete coverage. [Capture and validation](docs/audits/MECHANICAL_INSPECTION.md).
+
+### [Silkscreen Label Placer](silkscreen_label_plugin/README.md)
+
+Arrange visible reference labels with a simple Preview → Apply flow. Dense search tries nearby slots and alternate orientations; displaced labels use checked guide paths. Hidden/locked text stays untouched and unresolved placements remain listed.
+
+![Native silkscreen placement window](silkscreen_label_plugin/help-workflow.png)
+
+![Dense 100-part label placement preview](silkscreen_label_plugin/help-dense.png)
 
 ### [Fanout Generator](fanout_generator_plugin/ReadMe.md)
 
