@@ -15,7 +15,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.16](https://github.com/wayri/WayriCAD/releases/tag/v3.6.16) · [Release notes](docs/RELEASE_NOTES_3.6.16.md) |
+| Download or update | [Release 3.6.17](https://github.com/wayri/WayriCAD/releases/tag/v3.6.17) · [Release notes](docs/RELEASE_NOTES_3.6.17.md) |
 | Choose a tool | [All 19 plugins](#all-19-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
@@ -153,7 +153,7 @@ currencies stay explicit.
 
 ## All 19 plugins
 
-The IPC packages are **3.6.16**; Fusion is **0.9.8**, and Variant Manager is **0.6.1**.
+The IPC packages are **3.6.17**; Fusion is **0.9.8**, and Variant Manager is **0.6.1**.
 Select a plugin for its full guide and supported models.
 
 | Plugin | Use it for |
@@ -387,7 +387,7 @@ python tools/validate_packages.py --archive-dir .validation/candidate-pcm
 ```
 
 Each plugin also has its own tests. Skipped checks do not establish native GUI
-compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.16.md).
+compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.17.md).
 
 ## Acknowledgements and AI disclosure
 

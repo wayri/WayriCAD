@@ -42,7 +42,7 @@ class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-dark-24.png")
-        self.version = "3.6.16"
+        self.version = "3.6.17"
 
     def Run(self) -> None:
         try:
