@@ -16,6 +16,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
 | Download or update | [Release 3.6.17](https://github.com/wayri/WayriCAD/releases/tag/v3.6.17) · [Release notes](docs/RELEASE_NOTES_3.6.17.md) |
+| Place silkscreen labels | [Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 20 plugins](#all-20-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
@@ -38,7 +39,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 4. Open and save your project. Launch a tool from **Tools → External Plugins** or
    the toolbar. **WayriCAD — All tools…** searches the installed tools if the menu is crowded.
 
-Fusion uses the native plugin loader and does not need the IPC API enabled.
+Fusion, Variant Manager and Silkscreen Label Placer use the native plugin loader and do not need the IPC API enabled.
 First-time setup may need internet access. For setup problems or offline use,
 use the [help table](#help-and-upgrades) below.
 
@@ -54,10 +55,22 @@ use the [help table](#help-and-upgrades) below.
 | Measure route R, L, C and impedance | [Trace RLC](#start-rlc) | [RLC guide](trace_impedance_plugin/ReadMe.md#workflow) |
 | Edit and export a BOM | [BOM workflow](#start-bom) | [BOM guide](bom_studio_plugin/README.md#everyday-workflow) |
 | Inspect copper and component analytics | [Analytics workflow](#start-analytics) | [Analytics guide](bom_studio_plugin/README.md) |
+| Arrange silkscreen labels | [Label placement](#start-silkscreen) | [Silkscreen guide](silkscreen_label_plugin/README.md) |
 
 Save the PCB, refill its zones, and save Board Setup before analysis. Start with
 one net or a small component group, then expand the study. Unknown results mean
 an input or model is missing; they are not a pass.
+
+<a id="start-silkscreen"></a>
+
+### Silkscreen Label Placer — arrange readable labels
+
+1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its [0.2.0 PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/silkscreen-label-v0.2.0/WayriCAD-silkscreen-label-0.2.0-PCM.zip) and use **Install from File**. Restart PCB Editor.
+2. Open **WayriCAD Silkscreen Label Placer** and choose selected parts or the whole board.
+3. Under **Options**, enable automatic sizing and set a minimum height if needed. Choose allowed orientations and reading directions. Add editable bold, italic or knockout rules for test points and connectors.
+4. Click **Preview**, inspect both board sides and unresolved labels, then **Apply labels**. Run KiCad DRC before saving. Labels that cannot fit safely stay unchanged.
+
+[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Release](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0)
 
 <a id="start-quick-pi"></a>
 
@@ -169,7 +182,7 @@ Select a plugin for its full guide and supported models.
 | <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Collect libraries and 3D models for portable projects. |
 | <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Preview and place escape tracks and vias. |
 | <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. |
-| <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange reference labels, values and board text with checked guide lines. |
+| <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange labels with automatic sizing, reading directions, bold/italic/knockout rules and checked guide lines. |
 | <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Rename references, fields and PCB text in bulk. |
 | <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. |
 | <img src="harness_workbench_plugin/icon.png" width="24" height="24" alt="Harness Workbench icon"> [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Map connectors, cables, bundles and wire requirements. |
@@ -325,6 +338,13 @@ Arrange visible reference labels with a simple Preview → Apply flow. Dense sea
 ![Native silkscreen placement window](silkscreen_label_plugin/help-workflow.png)
 
 ![Dense 100-part label placement preview](silkscreen_label_plugin/help-dense.png)
+
+**Sizing, reading direction and formatting**
+
+<a href="silkscreen_label_plugin/help-typography.png"><img src="silkscreen_label_plugin/help-typography.png" width="480" alt="Silkscreen automatic text sizing and reading direction options"></a>
+<a href="silkscreen_label_plugin/help-formatting.png"><img src="silkscreen_label_plugin/help-formatting.png" width="480" alt="Silkscreen formatting rules for test points and connectors"></a>
+
+These options stay separate from the simple main workflow. Native fabrication minimums always apply; formatting patterns are editable to match your board.
 
 ### [Fanout Generator](fanout_generator_plugin/ReadMe.md)
 
