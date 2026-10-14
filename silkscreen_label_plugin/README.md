@@ -16,7 +16,27 @@ The capture uses a disposable example board. Teal boxes are checked native text 
 4. Click **Apply labels**. Only accepted changes are applied. Use this window's **Undo** or **Redo** while it remains open. Changes elsewhere on the board invalidate the preview and undo state; preview again rather than overwriting those edits.
 5. Run native DRC, inspect readable references and association lines, then save the board. The plugin does not rename references or update the schematic.
 
-**Options** adds existing visible values or board text already on silkscreen, and adjusts minimum text height, stroke, spacing, search distance (12 mm initially) and the guide-line threshold. Dense placement is automatic: larger labels go first, alternate orientations and fine nearby slots are tested, and spatial indexes keep collision queries local. A progress window supports cancellation without modifying the PCB. Text is not automatically shrunk to squeeze into a gap. The stricter native board text/stroke/clearance floor applies. Hidden fields are not made visible and fabrication-layer fields are not moved onto silkscreen.
+**Options** adds existing visible values or board text already on silkscreen, and adjusts minimum text height, stroke, spacing, search distance (12 mm initially) and the guide-line threshold. Dense placement is automatic: larger labels go first, alternate orientations and fine nearby slots are tested, and spatial indexes keep collision queries local. A progress window supports cancellation without modifying the PCB. Enable **Automatically shrink text when needed** to try the preferred height down to your minimum in the chosen size steps. With automatic sizing off, existing larger text is preserved. The stricter native board text/stroke/clearance floor applies. Hidden fields are not made visible and fabrication-layer fields are not moved onto silkscreen.
+
+### Size, direction and formatting
+
+Open **Options → Size & direction** to set preferred height, minimum automatic height and size step. For example, prefer 1.2 mm, allow a minimum of 0.8 mm and use 0.1 mm steps. Up to 16 heights are tried; stroke scales with automatic size while respecting the native stroke floor. The planner tries larger sizes first; native fabrication floors may raise the effective minimum. Choose horizontal, vertical or both orientations, then choose reading from bottom/right, top/left or either direction. These choices correspond to 0°/90°, 180°/270° or all four orthogonal angles, viewed from the label's own board side. Applied fields have Keep upright disabled to retain the chosen direction; Undo restores it.
+
+Open **Options → Formatting** and click **Add preset** or **Add**. Presets are suggestions to review, not automatic classification:
+
+| Preset | Initial matching pattern | Style |
+|---|---|---|
+| Test points | Reference `TP*` | Knockout |
+| Programming headers | Value `*SWD*,*JTAG*,*ISP*,*ICSP*,*PROG*` | Bold |
+| Input connectors | Value `*INPUT*,*POWER_IN*` | Italic |
+
+Edit patterns to match your board, for example references `J1,J4`. Patterns are case insensitive; comma-separated patterns match either entry, while filled Reference, Value and Label text criteria must all match. The first matching rule wins; move a rule **Up** to give it priority. Bold, Italic and Knockout each offer **Keep existing**, **On** and **Off**. Remove a rule to stop using it. Rules apply to the text categories included in the preview, without renaming any text. Styles are not applied when a label cannot be placed safely.
+
+Knockout uses KiCad's native filled text background. Its larger native envelope is included in clearance checks, so fewer labels may fit than with ordinary text. Review planned size, angle and styles under **Review details** before applying.
+
+![Native typography options](help-typography.png)
+
+![Native formatting rules](help-formatting.png)
 
 Distant component labels get a checked straight or single-bend guide path ending just outside the component body. Guides must clear pads, openings, other labels/graphics and board edges. If a distant label cannot get a safe guide, that candidate is rejected. Existing plugin-owned guides are managed as part of repeat placement and undo/redo; unrelated drawing lines are preserved. Disabling guide lines is an explicit option.
 
@@ -38,9 +58,9 @@ These fixtures do not establish that every label fits every dense board. The unr
 
 ## Install
 
-Version 0.1.0 uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent candidate PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
+Version 0.2.0 uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent candidate PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
 
-For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.1.0-PCM.zip`. Existing suite release 3.6.17 predates this plugin; a source catalogue entry does not make it part of that earlier release.
+For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.2.0-PCM.zip`. Existing suite release 3.6.17 predates this plugin; a source catalogue entry does not make it part of that earlier release.
 
 ## Checks and limits
 

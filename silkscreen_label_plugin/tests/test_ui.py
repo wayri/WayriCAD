@@ -32,4 +32,23 @@ class UITests(unittest.TestCase):
         self.assertIn('closed or replaced',warning.call_args.args[0])
         self.assertFalse(self.frame.transactions)
         self.frame.on_preview();self.assertIn('closed or replaced',self.frame.status.GetLabel())
+    def test_typography_options_roundtrip_and_validation(self):
+        from silkscreen_label_plugin.options_ui import OptionsDialog, PRESETS, RuleDialog
+        dialog=OptionsDialog(self.frame,self.frame.settings)
+        try:
+            dialog.controls['auto_size'].SetValue(True)
+            dialog.controls['height'].SetValue('1.2');dialog.controls['min_height'].SetValue('0.8')
+            dialog.horizontal.SetValue(False);dialog.vertical.SetValue(True);dialog.direction.SetSelection(1)
+            dialog.rules.append(dict(PRESETS[0]));result=dialog.result()
+            self.assertEqual(result['allowed_rotations'],(90,));self.assertEqual(result['reading_direction'],'Top/left')
+            self.assertEqual(result['min_height'],.8);self.assertTrue(result['formatting_rules'][0]['knockout'])
+            self.assertFalse(self.frame.settings['formatting_rules'])
+            dialog.vertical.SetValue(False)
+            with self.assertRaisesRegex(ValueError,'orientation'):dialog.result()
+        finally:dialog.Destroy()
+        editor=RuleDialog(self.frame,PRESETS[1])
+        try:
+            rule=editor.result();self.assertTrue(rule['bold']);self.assertNotIn('italic',rule)
+            editor.controls['italic'].SetSelection(2);self.assertFalse(editor.result()['italic'])
+        finally:editor.Destroy()
 if __name__=='__main__':unittest.main()

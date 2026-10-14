@@ -1,6 +1,7 @@
 """Minimal native UI: choose scope, preview, apply; details stay on demand."""
 from pathlib import Path
-import math
+from copy import deepcopy
+from .options_ui import OptionsDialog
 import pcbnew
 import wx
 from .placement import DEFAULTS, plan, apply
@@ -67,9 +68,13 @@ class LabelPreview(wx.Panel):
         if self.preview:
             for change in self.preview.changes:
                 if change.item.GetLayer()!=silk:continue
-                rectangle(change.box,'#008a7d','#e2f4ef')
+                knockout=bool(change.after[9]);rectangle(change.box,'#008a7d','#00685f' if knockout else '#e2f4ef')
                 x,y=point(change.after[0],change.after[1]);angle=change.after[2]
-                dc.SetTextForeground('#00685f');font=wx.Font(wx.FontInfo(max(7,min(32,round(change.after[4]*scale)))))
+                dc.SetTextForeground('#ffffff' if knockout else '#00685f')
+                info=wx.FontInfo(max(7,min(32,round(change.after[4]*scale))))
+                if change.after[7]:info.Bold()
+                if change.after[8]:info.Italic()
+                font=wx.Font(info)
                 dc.SetFont(font);value=change.item.GetShownText(False);tw,th=dc.GetTextExtent(value)
                 dc.DrawRotatedText(value,x-tw//2,y-th//2,angle if not self.back else -angle)
                 guide=getattr(change,'leader_path',())
@@ -88,7 +93,7 @@ class SilkscreenFrame(wx.Frame):
     def __init__(self,parent,board,board_guard=None):
         self.board_guard=board_guard or (lambda:True)
         super().__init__(parent,title='WayriCAD Silkscreen Label Placer',size=(1100,760))
-        self.SetMinSize((850,600));self.board=board;self.settings=dict(DEFAULTS);self.preview=None;self.transactions=[];self.redos=[]
+        self.SetMinSize((850,600));self.board=board;self.settings=deepcopy(DEFAULTS);self.preview=None;self.transactions=[];self.redos=[]
         panel=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL)
         title=wx.StaticText(panel,label='Arrange silkscreen labels');title.SetFont(title.GetFont().Bold().Larger());root.Add(title,0,wx.ALL,12)
         row=wx.BoxSizer(wx.HORIZONTAL);row.Add(wx.StaticText(panel,label='Place labels for'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
@@ -119,22 +124,12 @@ class SilkscreenFrame(wx.Frame):
     def invalidate(self,event=None):
         self.preview=None;self.canvas.preview=None;self.apply_button.Disable();self.canvas.Refresh();self.status.SetLabel('Settings changed. Preview again before applying.')
     def options(self,event):
-        dialog=wx.Dialog(self,title='Label options');sizer=wx.BoxSizer(wx.VERTICAL);controls={}
-        for key,label in [('values','Also place visible values'),('board_text','Also place existing board text'),('leaders','Guide lines for distant component labels')]:
-            control=wx.CheckBox(dialog,label=label);control.SetValue(bool(self.settings[key]));controls[key]=control;sizer.Add(control,0,wx.ALL,8)
-        for key,label in [('height','Minimum text height (mm)'),('thickness','Minimum stroke (mm)'),('clearance','Spacing (mm)'),('max_radius','Search distance (mm)'),('leader_distance','Guide line beyond distance (mm)')]:
-            row=wx.BoxSizer(wx.HORIZONTAL);row.Add(wx.StaticText(dialog,label=label),1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
-            control=wx.TextCtrl(dialog,value=str(self.settings[key]));controls[key]=control;row.Add(control,0);sizer.Add(row,0,wx.EXPAND|wx.ALL,8)
-        note=wx.StaticText(dialog,label='References are always included. Locked and hidden text is preserved. '+chr(10)+'Board fabrication minimums cannot be reduced. Existing text is never renamed.');sizer.Add(note,0,wx.ALL,8)
-        sizer.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.EXPAND|wx.ALL,10);dialog.SetSizerAndFit(sizer)
+        dialog=OptionsDialog(self,self.settings)
         try:
-            if dialog.ShowModal()==wx.ID_OK:
-                settings=dict(self.settings)
-                for key,control in controls.items():settings[key]=control.GetValue() if isinstance(control,wx.CheckBox) else float(control.GetValue())
-                for key in ('height','thickness','clearance','max_radius','leader_distance'):
-                    if not math.isfinite(settings[key]) or settings[key]<=0:raise ValueError(key+' must be positive and finite.')
-                self.settings=settings;self.invalidate()
-        except Exception as exc:wx.MessageBox(str(exc),'Label options',wx.OK|wx.ICON_ERROR)
+            while dialog.ShowModal()==wx.ID_OK:
+                try:
+                    self.settings=dialog.result();self.invalidate();break
+                except ValueError as exc:wx.MessageBox(str(exc),'Label options',wx.OK|wx.ICON_ERROR,parent=dialog)
         finally:dialog.Destroy()
     def on_preview(self,event=None):
         self.invalidate();self.list.DeleteAllItems()
@@ -151,7 +146,8 @@ class SilkscreenFrame(wx.Frame):
             finally:progress.Destroy()
             self.canvas.preview=self.preview
             for change in self.preview.changes:
-                row=self.list.InsertItem(self.list.GetItemCount(),change.label);self.list.SetItem(row,1,'Move / resize'+(' with guide line' if change.leader else ''))
+                row=self.list.InsertItem(self.list.GetItemCount(),change.label);styles=', '.join(name for name,on in zip(('bold','italic','knockout'),change.after[7:10]) if on)
+                self.list.SetItem(row,1,f'{pcbnew.ToMM(change.after[4]):.2f} mm · {change.after[2]:g}°'+(' · '+styles if styles else '')+(' · guide line' if change.leader else ''))
             for label in self.preview.rejected:
                 row=self.list.InsertItem(self.list.GetItemCount(),'Unresolved');self.list.SetItem(row,0,str(label[0]));self.list.SetItem(row,1,str(label[1]))
             for label in self.preview.skipped:

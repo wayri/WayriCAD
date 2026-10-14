@@ -29,3 +29,12 @@ The installer is a candidate, not a replacement for any published version. New i
 `help-workflow.png` is a native six-part front/back fixture preview. `help-dense.png` is a native 100-part fixture preview. Both were captured using only their own window handle after the progress dialog and paint events completed. No private paths or user project data appear. Numerical data and geometry were not redacted or altered. The viewport font and component outlines are illustrative; native text envelopes drive planning.
 
 Linux/macOS GUI and KiCad 11 behavior remain unverified. Conservative bounding boxes and bounded search can reject feasible positions; the result counts and unresolved items stay explicit. Physical fabrication tolerances and assembly readability still require review. Source boards and local test reports are excluded from installers.
+
+
+## Typography extension 0.2.0
+
+Windows, KiCad 10.0.6 native Python 3.11: 36 plugin tests passed, including sizing floors, both board sides, actual drawn reading angles, explicit wildcard matching, native knockout envelopes, stale style rejection, UI settings and style restoration through Undo/Redo. The main UI retains scope/Preview/Apply; typography and ordered formatting rules are on-demand options.
+
+A disposable 25-part dense fixture with bold, italic and knockout placed 11 labels and preserved 14 unresolved originals. Native DRC decreased from 60 to 35 warnings with all eligible labels requesting all three styles, automatic sizing off and final exact stroke restoration. No candidate violation involved any changed label UUID; the remaining warnings concern retained labels. This is a fixture result, not a universal dense-board fit guarantee. Earlier Marble and 100-part results above used ordinary text with automatic shrinking disabled.
+
+The isolated installer check also exercises bold/italic/knockout with a custom 0.15 mm stroke. Native `SetBold` resets stroke width; the setter now restores the reviewed width after style setters. A regression checks exact Apply/Undo/Redo states.

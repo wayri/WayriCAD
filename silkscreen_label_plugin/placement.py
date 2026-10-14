@@ -1,13 +1,15 @@
 """Conservative, read-only silk label planning for native KiCad boards.
 
 All settings are millimetres. Native text envelopes deliberately overestimate
-glyph area; a rejected label is left untouched rather than shrunk or forced.
+glyph area; rejected labels remain untouched. Optional bounded sizing never
+shrinks below the user minimum or native fabrication floors.
 """
 from dataclasses import dataclass, field
 import hashlib
 import json
 import math
 import time
+import fnmatch
 
 def point_segment_distance(point,start,end):
     dx,dy=end[0]-start[0],end[1]-start[1]
@@ -103,23 +105,33 @@ def segment_inside_native(start,end,radius,native):
 
 DEFAULTS = dict(references=True, values=False, board_text=False, selected_only=False,
                 height=1.0, thickness=0.15, clearance=0.2, max_radius=12.0,
-                step=0.5, leaders=True, leader_distance=3.0)
+                step=0.5, leaders=True, leader_distance=3.0,
+                auto_size=False, min_height=0.8, size_step=0.1,
+                allowed_rotations=(0, 90), reading_direction='Bottom/right',
+                formatting_rules=[])
 GUIDE_PREFIX = 'WayriCAD Silk guide '
 
 
 def _state(text):
     p, s = text.GetPosition(), text.GetTextSize()
     return (p.x, p.y, text.GetTextAngle().AsDegrees(), s.x, s.y,
-            text.GetTextThickness(), text.IsMirrored())
+            text.GetTextThickness(), text.IsMirrored(), text.IsBold(),
+            text.IsItalic(), text.IsKnockout(),
+            text.IsKeepUpright() if hasattr(text, 'IsKeepUpright') else None)
 
 
 def _set(text, state, api):
-    x, y, angle, w, h, stroke, mirror = state
+    x, y, angle, w, h, stroke, mirror = state[:7]
     text.SetPosition(api.VECTOR2I(x, y))
     text.SetTextAngle(api.EDA_ANGLE(angle, api.DEGREES_T))
     text.SetTextSize(api.VECTOR2I(w, h))
-    text.SetTextThickness(stroke)
     text.SetMirrored(mirror)
+    if len(state) > 7:
+        text.SetBold(state[7]); text.SetItalic(state[8]); text.SetIsKnockout(state[9])
+        if state[10] is not None and hasattr(text, 'SetKeepUpright'):
+            text.SetKeepUpright(state[10])
+    # Native SetBold recalculates stroke width. Restore the reviewed width last.
+    text.SetTextThickness(stroke)
 
 
 def _texts(board, api):
@@ -196,7 +208,65 @@ def _box(text, state, api):
     clone.SetText(text.GetShownText(False))
     clone.SetLayer(text.GetLayer())
     _set(clone, state, api)
-    return clone.GetBoundingBox()
+    box = clone.GetBoundingBox()
+    if clone.IsKnockout():
+        # Native knockout has a filled envelope beyond ordinary glyph strokes.
+        # Include that actual envelope, using outward polygon approximation.
+        shape = api.SHAPE_POLY_SET()
+        clone.TransformTextToPolySet(shape, 0, api.FromMM(.001), api.ERROR_OUTSIDE)
+        if shape.OutlineCount():
+            box.Merge(shape.BBox())
+    return box
+
+
+def _typography(options):
+    """Validate explicit orthogonal reading directions and ordered style rules."""
+    rotations = options['allowed_rotations']
+    if not isinstance(rotations, (list, tuple)) or not rotations:
+        raise ValueError('Choose at least one allowed rotation: 0 or 90 degrees.')
+    if any(isinstance(a, bool) or a not in (0, 90) for a in rotations):
+        raise ValueError('Allowed rotations must contain only 0 and 90 degrees.')
+    options['allowed_rotations'] = tuple(dict.fromkeys(rotations))
+    if options['reading_direction'] not in ('Bottom/right', 'Top/left', 'Either'):
+        raise ValueError('Unknown reading direction.')
+    rules = options['formatting_rules']
+    if not isinstance(rules, list) or len(rules) > 100:
+        raise ValueError('Formatting rules must be a list with at most 100 entries.')
+    keys = {'name', 'ref_pattern', 'value_pattern', 'text_pattern', 'bold', 'italic', 'knockout'}
+    for rule in rules:
+        if not isinstance(rule, dict) or set(rule)-keys:
+            raise ValueError('Unknown formatting rule fields.')
+        if not any(rule.get(k, '') for k in ('ref_pattern', 'value_pattern', 'text_pattern')):
+            raise ValueError('A formatting rule needs an explicit reference, value or text pattern.')
+        for key in ('name', 'ref_pattern', 'value_pattern', 'text_pattern'):
+            if key in rule and not isinstance(rule[key], str):
+                raise ValueError('Formatting patterns must be strings.')
+        for key in ('bold', 'italic', 'knockout'):
+            if key in rule and not isinstance(rule[key], bool):
+                raise ValueError('Formatting styles must be true or false.')
+
+
+def _style(text, fp, rules):
+    """First matching rule wins; provided wildcard criteria are ANDed."""
+    values = {'ref_pattern': fp.GetReference() if fp else '',
+              'value_pattern': fp.GetValue() if fp else '',
+              'text_pattern': text.GetShownText(False)}
+    for rule in rules:
+        if all(any(fnmatch.fnmatchcase(values[key].casefold(), pattern.strip().casefold())
+                       for pattern in rule[key].split(',') if pattern.strip())
+               for key in values if rule.get(key, '')):
+            return rule
+    return {}
+
+
+def _angles(options, old_angle):
+    """Angles are board coordinates viewed from the text's own board side."""
+    bases = options['allowed_rotations']
+    direction = options['reading_direction']
+    angles = [float(a+d) for d in ((0, 180) if direction == 'Either' else
+                                  (180,) if direction == 'Top/left' else (0,)) for a in bases]
+    old = old_angle % 360
+    return sorted(angles, key=lambda a: (min((a-old)%360, (old-a)%360), a))
 
 
 def _inflate(box, distance, api):
@@ -262,7 +332,11 @@ def plan(board, api, settings=None, progress=None):
 
     references/values select shown footprint fields; board_text selects existing
     silk text. selected_only restricts to selected footprints/text. max_radius
-    bounds a deterministic orthogonal search. leaders link distant fields to
+    bounds a deterministic orthogonal search. auto_size searches the preferred
+    height down to the larger user/native minimum in bounded size steps. Allowed
+    orientations and reading direction apply on each text's own board side.
+    Ordered wildcard rules explicitly select styles; unspecified styles remain.
+    leaders link distant fields to
     their body envelope only when the complete guide line is obstacle-free.
     """
     if getattr(board, 'raw', None) is not None:
@@ -273,11 +347,18 @@ def plan(board, api, settings=None, progress=None):
         if unknown:
             raise ValueError('Unknown settings: ' + ', '.join(sorted(unknown)))
         options.update(settings)
-    for name in ('height', 'thickness', 'clearance', 'max_radius', 'step', 'leader_distance'):
+    for name in ('height', 'thickness', 'clearance', 'max_radius', 'step', 'leader_distance', 'min_height', 'size_step'):
         value = float(options[name])
         if not math.isfinite(value) or value <= 0:
             raise ValueError(name + ' must be finite and positive.')
         options[name] = value
+    _typography(options)
+    if api.FromMM(options['size_step']) < 1:
+        raise ValueError('Size step must be at least one native distance unit.')
+    if options['min_height'] > options['height'] and options['auto_size']:
+        raise ValueError('Minimum text height must not exceed preferred height.')
+    if options['auto_size'] and (options['height']-options['min_height'])/options['size_step'] > 15:
+        raise ValueError('Automatic sizing supports at most 16 size steps.')
     if options['max_radius']/options['step'] > 40:
         raise ValueError('Search radius must be at most 40 search steps.')
     ds = board.GetDesignSettings()
@@ -350,14 +431,39 @@ def plan(board, api, settings=None, progress=None):
             continue
         before = _state(text)
         base = list(before)
-        base[2] = 90.0 if round(before[2]/90) % 2 else 0.0
-        base[3],base[4] = max(before[3],height),max(before[4],height)
-        base[5] = max(before[5],stroke)
+        style = _style(text, fp, options['formatting_rules'])
+        base[7] = style.get('bold', before[7])
+        base[8] = style.get('italic', before[8])
+        base[9] = style.get('knockout', before[9])
+        # Native field keep-upright otherwise reverses intentional 180/270 text.
+        base[10] = False if before[10] is not None else None
         base[6] = layer == api.B_SilkS
         templates = []
-        for angle in (base[2],90.0-base[2]):
-            state = tuple(base[:2]+[angle]+base[3:])
-            templates.append((state,_box(text,state,api)))
+        if options['auto_size']:
+            minimum = max(api.FromMM(options['min_height']), ds.m_MinSilkTextHeight,
+                          4*ds.m_MinSilkTextThickness)
+            if minimum > height:
+                raise ValueError('Preferred height is below the native text/stroke floor.')
+            sizes = list(range(height, minimum-1, -api.FromMM(options['size_step'])))
+            if not sizes or sizes[-1] != minimum:
+                sizes.append(minimum)
+        else:
+            sizes = [None]
+        for size in sizes:
+            if size is None:
+                base[3],base[4] = max(before[3],height),max(before[4],height)
+                base[5] = max(before[5],stroke)
+            else:
+                base[3] = base[4] = size
+                base[5] = max(ds.m_MinSilkTextThickness,
+                              min(stroke, round(stroke*size/height)))
+            if base[5]*4 > base[4]:
+                continue
+            for angle in _angles(options, before[2]):
+                state = tuple(base[:2]+[angle]+base[3:])
+                templates.append((state,_box(text,state,api)))
+        if not templates:
+            raise ValueError('Text height must be at least four times its stroke.')
         priority = max(box.GetWidth()*box.GetHeight() for _,box in templates)
         eligible.append((text,fp,key,label,before,templates,priority))
     eligible.sort(key=lambda row:(-row[6],row[3].casefold(),row[2]))
@@ -463,34 +569,48 @@ def plan(board, api, settings=None, progress=None):
             layer = text.GetLayer()
             origin = fp.GetPosition() if fp else text.GetPosition()
             chosen,attempts = None,0
-            for x,y in positions(origin,before,fp,templates):
-                for state,template in templates:
-                    attempts += 1;checks[0] += 1
-                    if attempts > 4096 or time.monotonic()>deadline:
-                        break
-                    after = (x,y)+state[2:]
-                    box = api.BOX2I(api.VECTOR2I(template.GetLeft()+x-before[0],template.GetTop()+y-before[1]),
-                                    api.VECTOR2I(template.GetWidth(),template.GetHeight()))
-                    expanded = _inflate(box,clearance,api)
-                    if any(expanded.Intersects(obstacle) for obstacle,_ in indices[layer].query(expanded)):
-                        continue
-                    corners = [api.VECTOR2I(a,b) for a,b in ((expanded.GetLeft(),expanded.GetTop()),(expanded.GetRight(),expanded.GetTop()),(expanded.GetRight(),expanded.GetBottom()),(expanded.GetLeft(),expanded.GetBottom()))]
-                    if any(not inside(corners[i],corners[(i+1)%4],1) for i in range(4)):
-                        continue
-                    if any(expanded.GetLeft() <= x <= expanded.GetRight() and
-                           expanded.GetTop() <= y <= expanded.GetBottom()
-                           for _,holes in native_polygons for hole in holes for x,y in hole):
-                        continue
-                    path,leader = (),None
-                    if fp and options['leaders'] and math.hypot(x-origin.x,y-origin.y)>api.FromMM(options['leader_distance']):
-                        path = check_leader(box,origin,fp,key,indices[layer],layer)
-                        if not path:
-                            continue
-                        leader = (*path[0],*path[1],stroke,layer)
-                    chosen = Change(text,before,after,label,box,leader,guides.get(key,[]),path)
+            size_groups = []
+            for template in templates:
+                if not size_groups or size_groups[-1][0][0][4] != template[0][4]:
+                    size_groups.append([])
+                size_groups[-1].append(template)
+            def candidates():
+                for group in size_groups:
+                    budget = max(128, 4096//len(size_groups))
+                    count = 0
+                    for x,y in positions(origin,before,fp,group):
+                        for state,template in group:
+                            if count >= budget:
+                                break
+                            count += 1
+                            yield x,y,state,template
+                        if count >= budget:
+                            break
+            for x,y,state,template in candidates():
+                attempts += 1;checks[0] += 1
+                if attempts > 4096 or time.monotonic()>deadline:
                     break
-                if chosen or attempts>4096 or time.monotonic()>deadline:
-                    break
+                after = (x,y)+state[2:]
+                box = api.BOX2I(api.VECTOR2I(template.GetLeft()+x-before[0],template.GetTop()+y-before[1]),
+                                api.VECTOR2I(template.GetWidth(),template.GetHeight()))
+                expanded = _inflate(box,clearance,api)
+                if any(expanded.Intersects(obstacle) for obstacle,_ in indices[layer].query(expanded)):
+                    continue
+                corners = [api.VECTOR2I(a,b) for a,b in ((expanded.GetLeft(),expanded.GetTop()),(expanded.GetRight(),expanded.GetTop()),(expanded.GetRight(),expanded.GetBottom()),(expanded.GetLeft(),expanded.GetBottom()))]
+                if any(not inside(corners[i],corners[(i+1)%4],1) for i in range(4)):
+                    continue
+                if any(expanded.GetLeft() <= x <= expanded.GetRight() and
+                       expanded.GetTop() <= y <= expanded.GetBottom()
+                       for _,holes in native_polygons for hole in holes for x,y in hole):
+                    continue
+                path,leader = (),None
+                if fp and options['leaders'] and math.hypot(x-origin.x,y-origin.y)>api.FromMM(options['leader_distance']):
+                    path = check_leader(box,origin,fp,key,indices[layer],layer)
+                    if not path:
+                        continue
+                    leader = (*path[0],*path[1],stroke,layer)
+                chosen = Change(text,before,after,label,box,leader,guides.get(key,[]),path)
+                break
             if chosen is None:
                 rejected.add(key)
                 continue
