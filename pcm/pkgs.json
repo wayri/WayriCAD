@@ -645,6 +645,48 @@
           ]
         }
       ]
+    },
+    {
+      "$schema": "https://go.kicad.org/pcm/schemas/v2",
+      "name": "WayriCAD Silkscreen Label Placer",
+      "description": "Arrange PCB silkscreen labels with checked spacing and guide lines.",
+      "description_full": "Preview and place visible reference labels, optional values and existing board text on their existing front or back silkscreen layer. Conservative native geometry checks preserve pads, holes, board edges, existing labels and component bodies. Displaced component labels use checked guide lines. Locked/hidden items and unresolved placements remain explicit. Native KiCad 10 workflow, with stale-preview protection and in-window undo/redo.",
+      "identifier": "com.github.wayri.wayricad.silkscreen-label-placer",
+      "type": "plugin",
+      "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+          "github": "https://github.com/wayri"
+        }
+      },
+      "maintainer": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+          "github": "https://github.com/wayri"
+        }
+      },
+      "license": "GPL-3.0",
+      "resources": {
+        "homepage": "https://github.com/wayri/WayriCAD"
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "status": "testing",
+          "kicad_version": "10.0",
+          "kicad_version_max": "10.0",
+          "runtime": "swig",
+          "platforms": [
+            "windows",
+            "linux",
+            "macos"
+          ],
+          "download_sha256": "7f9045b910017562b9c8b8f1921cf6655e89828262b19df37ad5e0d25d329f61",
+          "download_size": 149837,
+          "install_size": 236886,
+          "download_url": "https://github.com/wayri/WayriCAD/releases/download/silkscreen-label-v0.2.0/WayriCAD-silkscreen-label-0.2.0-PCM.zip"
+        }
+      ]
     }
   ]
 }

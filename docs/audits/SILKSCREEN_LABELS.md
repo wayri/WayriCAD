@@ -38,3 +38,10 @@ Windows, KiCad 10.0.6 native Python 3.11: 36 plugin tests passed, including sizi
 A disposable 25-part dense fixture with bold, italic and knockout placed 11 labels and preserved 14 unresolved originals. Native DRC decreased from 60 to 35 warnings with all eligible labels requesting all three styles, automatic sizing off and final exact stroke restoration. No candidate violation involved any changed label UUID; the remaining warnings concern retained labels. This is a fixture result, not a universal dense-board fit guarantee. Earlier Marble and 100-part results above used ordinary text with automatic shrinking disabled.
 
 The isolated installer check also exercises bold/italic/knockout with a custom 0.15 mm stroke. Native `SetBold` resets stroke width; the setter now restores the reviewed width after style setters. A regression checks exact Apply/Undo/Redo states.
+
+
+## Published 0.2.0
+
+[Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0) releases source commit `66576d9e7d55a4caedd83765e8d310eb938ebf3e`. All eight jobs in [CI run 38487919277](https://github.com/wayri/WayriCAD/actions/runs/38487919277) passed. Native GUI evidence remains Windows/KiCad 10.0.6; CI does not establish native cross-platform GUI compatibility.
+
+Both published installer and repository icon archives were downloaded and verified against local SHA-256 hashes. The installer SHA-256 is `7f9045b910017562b9c8b8f1921cf6655e89828262b19df37ad5e0d25d329f61`. Package-feed promotion preserves the previous 19 package records and adds this independent plugin and its icon. Local source/wheel builds, isolated wheel smoke checks, documentation validation and all 20 feed package/hash checks passed.

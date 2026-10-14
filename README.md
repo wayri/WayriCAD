@@ -179,7 +179,7 @@ Select a plugin for its full guide and supported models.
 | <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Design PCB coils and screen magnetic/actuator behavior. |
 | <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Check fabrication constraints and prepare manufacturing outputs. |
 
-Silkscreen Label Placer 0.2.0 is a new native KiCad 10 plugin. Its candidate PCM package can be built and installed separately; it is not included in the earlier 3.6.17 release. See its [installation guide](silkscreen_label_plugin/README.md#install).
+[Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0) is available as an independent native KiCad 10 plugin in the WayriCAD package feed, with its own icon, automatic sizing and formatting rules. See its [installation guide](silkscreen_label_plugin/README.md#install).
 
 ## Plugin previews
 
