@@ -131,11 +131,11 @@ The public Marble board preview was exercised on 41,044 tracks. Applying its can
 
 ## Install and compatibility
 
-This is a separate native ActionPlugin, version 0.1.1 in the 3.6.19 performance candidate. Build it with `python build_pcm.py --output-dir candidate`, then install `candidate/WayriCAD-trace-refiner-0.1.1-PCM.zip` with **KiCad Manager → Plugin and Content Manager → Install from File**. Restart PCB Editor. The plugin has its own toolbar icon and needs no IPC API or sibling plugin. It requires the matching KiCad CLI for validation.
+This is a separate native ActionPlugin, version 0.1.1 in [WayriCAD 3.6.19](https://github.com/wayri/WayriCAD/releases/tag/v3.6.19). Refresh the WayriCAD package repository, or download and install `WayriCAD-trace-refiner-0.1.1-PCM.zip` with **KiCad Manager → Plugin and Content Manager → Install from File**. Restart PCB Editor. The plugin has its own toolbar icon and needs no IPC API or sibling plugin. It requires the matching KiCad CLI for validation.
 
 For source development, `python build_pcm.py --output-dir candidate` builds disposable independent installers in `candidate/`.
 
-Windows with KiCad 10.0.6 is the native validation target. Linux/macOS GUI and KiCad 11 are unverified. Trace Refiner's plugin version is independent of the suite release number; published suite 3.6.18 includes plugin 0.1.0. The source performance candidate includes plugin 0.1.1.
+Windows with KiCad 10.0.6 is the native validation target. Linux/macOS GUI and KiCad 11 are unverified. Trace Refiner's plugin version is independent of the suite release number; suite 3.6.19 includes plugin 0.1.1.
 
 KiCad describes [routing and design-rule checking](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html). Review fabrication, tuning and stackup requirements for your board before accepting geometric changes.
 

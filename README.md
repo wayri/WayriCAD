@@ -15,7 +15,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.18](https://github.com/wayri/WayriCAD/releases/tag/v3.6.18) · [Release notes](docs/RELEASE_NOTES_3.6.18.md) |
+| Download or update | [Release 3.6.19](https://github.com/wayri/WayriCAD/releases/tag/v3.6.19) · [Release notes](docs/RELEASE_NOTES_3.6.19.md) |
 | Place silkscreen labels | [Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 21 plugins](#all-21-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
@@ -23,7 +23,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-Development performance work: [measured improvements and remaining coverage](docs/audits/performance-coverage-2026-10-15.md). The public feed continues to serve the published release above.
+[Performance improvements and measured coverage](docs/audits/performance-coverage-2026-10-15.md) · [3.6.19 release notes](docs/RELEASE_NOTES_3.6.19.md).
 
 ## Install and open
 
@@ -338,7 +338,7 @@ The fixture deliberately includes height violations and incomplete coverage. [Ca
 
 ### [Trace Refiner](trace_refiner_plugin/README.md)
 
-Clean small trace jogs with selected-track, selected-net, net-filter, net-class and layer scopes. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available in release 3.6.18 as its own PCM package, with an icon, detailed offline Help and a CLI for preview, validation and export to a new project.
+Clean small trace jogs with selected-track, selected-net, net-filter, net-class and layer scopes. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available in release 3.6.19 as its own PCM package, with an icon, detailed offline Help and a CLI for preview, validation and export to a new project.
 
 ![Native trace refinement preview](trace_refiner_plugin/help-workflow.png)
 
