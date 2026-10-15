@@ -1,1 +1,93 @@
-<!doctype html><html><head><meta charset="utf-8"><title>WayriCAD Trace Refiner</title><style>body{font:16px system-ui,sans-serif;max-width:960px;margin:30px auto;padding:16px;color:#173842}li{margin:12px 0}img{max-width:100%}</style></head><body><h1>Trace Refiner</h1><p>Preview small track-jog cleanup, validate with native KiCad DRC, then Apply.</p><ol><li>Refill zones and save the PCB and project rules. Open Trace Refiner in the originating PCB Editor.</li><li>Choose selected tracks, selected nets, whole board, checked net filters or native net classes. Checked layers restrict every scope; none means all layers.</li><li>Set displacement and shortening bounds in mm. Add all tuned or critical nets to Protected nets.</li><li>Preview. Amber is original routing; teal is the proposed replacement. Wheel zooms; dragging pans; double-click fits.</li><li>Validate candidate. Native terminal connectivity must stay unchanged and native DRC must introduce no new findings. A chain with baseline DRC findings blocks the batch. Baselines with 199 or more findings of one type are blocked because potentially capped reports cannot prove a reliable comparison. Resolve those findings first. Validation runs in a cancellable native Python process with a six-minute timeout. Core copper checks are enabled in disposable copies even when disabled in saved settings; the source project stays unchanged. Cancellation does not edit the PCB.</li><li>Apply refinement. Inspect the result, refill zones and run final DRC before saving. Undo/Redo is available while this window remains open.</li></ol><img src="help-workflow.png" alt="Native trace refiner preview"><h2>Protected routing</h2><p>Endpoints, contacts, branches, widths and layers are retained. Locked/grouped tracks, arcs, vias, repeated tuning and native differential-pair names stay untouched. Initial wildcards protect common critical net names, but cannot infer all intent. Custom length/skew/pair rules block this first version. No shove routing, pair retuning or clearance relaxation is performed.</p><h2>Limits</h2><p>Bounded local cleanup can leave valid but complex routing unchanged. Centreline similarity does not prove electrical timing, impedance or reference continuity. Native DRC is a separate gate. Unsaved rule changes are not part of the saved-rule context: save Board Setup before validation. Changed board geometry, selection or saved rules invalidate operations. Closing the window discards its Undo history; ordinary PCB Editor Undo is not claimed.</p><p><a href="README.md">Full guide, installation and limitations</a></p></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WayriCAD Trace Refiner — practical help</title>
+<style>
+:root{color-scheme:light dark;--ink:#173842;--paper:#fff;--muted:#edf4f5;--line:#b6cbd0;--link:#075d77}
+@media(prefers-color-scheme:dark){:root{--ink:#e3eef1;--paper:#142b34;--muted:#203e49;--line:#57717a;--link:#76d8ec}}
+*{box-sizing:border-box}body{font:16px/1.6 system-ui,sans-serif;max-width:1040px;margin:24px auto;padding:20px;color:var(--ink);background:var(--paper)}h1,h2{line-height:1.25}h2{margin-top:2em}a{color:var(--link)}header{display:flex;gap:18px;align-items:center}header img{width:64px;height:64px}img{max-width:100%;height:auto}nav,.note{padding:14px 20px;background:var(--muted);border-radius:8px}nav a{display:inline-block;margin-right:16px}li{margin:9px 0}table{border-collapse:collapse;width:100%;margin:18px 0}th,td{text-align:left;vertical-align:top;border:1px solid var(--line);padding:10px}th{background:var(--muted)}code,pre{font-family:ui-monospace,Consolas,monospace}pre{padding:14px;background:var(--muted);overflow:auto}figure{margin:24px 0}figcaption{font-size:.9em}.scroll{overflow:auto}
+</style>
+</head>
+<body>
+<header><img src="icon.png" alt="Trace Refiner icon"><div><h1>WayriCAD Trace Refiner</h1><p>Review and remove small routing jogs and redundant straight segments in KiCad 10.</p></div></header>
+<nav aria-label="Help sections"><a href="#workflow">Window workflow</a><a href="#scope">Scope and bounds</a><a href="#protections">Protections</a><a href="#validation">Validation</a><a href="#cli">Command line</a><a href="#remedies">Troubleshooting</a></nav>
+<p>Trace Refiner adjusts existing straight tracks. Preview shows a proposal; native connectivity and DRC must approve it before Apply. It does not route missing connections, tune lengths or establish signal integrity.</p>
+<h2 id="workflow">Window workflow</h2>
+<ol>
+<li><strong>Prepare the saved project.</strong> Refill zones, save the PCB and save Board Setup/project settings. Validation needs the matching <code>.kicad_pro</code> and, when present, <code>.kicad_dru</code>.</li>
+<li><strong>Choose a small scope.</strong> Start with selected tracks or one net. Restrict copper layers if useful. Add all tuned or critical net names to <strong>Protected nets</strong>.</li>
+<li><strong>Set geometric bounds.</strong> Displacement and shortening are in mm; both default to 0.10 mm. They must be greater than zero and at most 1 mm. These values are separate from copper clearance and timing requirements.</li>
+<li><strong>Preview.</strong> Amber is original routing, teal is the proposed replacement and grey is surrounding copper. Wheel zooms, dragging pans and double-click fits. Inspect each affected area.</li>
+<li><strong>Validate candidate.</strong> A separate native Python worker checks source/rule identity, terminal connectivity and before/after KiCad DRC. Validation can be cancelled and has a six-minute timeout. A failed, cancelled or crashed worker leaves Apply blocked.</li>
+<li><strong>Apply refinement.</strong> Only reviewed chains are replaced. Inspect the board, refill zones and run final DRC before saving. <strong>Undo</strong>/<strong>Redo</strong> is available in this window while the board remains in the expected state.</li>
+</ol>
+<figure><img src="help-workflow.png" alt="Native Trace Refiner window with scope controls and amber/teal routing preview"><figcaption>Native window capture using a disposable routing fixture, not results from your board. Collinear cleanup can make amber and teal overlap.</figcaption></figure>
+<p class="note">Closing this window discards its operation history. Ordinary PCB Editor Undo is not claimed. Keep a saved reference for comparison beyond this session.</p>
+<h2 id="scope">Scope and geometric bounds</h2>
+<table><thead><tr><th>Scope</th><th>Included routing</th></tr></thead><tbody>
+<tr><td>Selected tracks</td><td>Selected straight tracks. Selection boundaries remain fixed.</td></tr>
+<tr><td>Selected nets</td><td>Nets of selected tracks, vias, pads or footprints.</td></tr>
+<tr><td>Whole board</td><td>All eligible straight tracks on permitted copper layers.</td></tr>
+<tr><td>Net filters</td><td>Checked exact net names. Searching narrows the displayed list while retaining checked choices.</td></tr>
+<tr><td>Net groups</td><td>Checked native net classes, rather than KiCad component groups.</td></tr>
+</tbody></table>
+<p>Layer filters apply to every scope. No checked layers means all enabled copper layers. Checklist names are literal, including bus brackets such as <code>DATA[0]</code>; protected-net entries use comma-separated wildcards.</p>
+<p><strong>Maximum displacement</strong> bounds centreline distance in both directions. Every original portion must remain near the replacement and every replacement portion near the original. The complete candidate is checked again after rounding to KiCad coordinates. A 0.03 mm jog can fit a 0.05 mm bound, whereas a 0.005 mm bound preserves it. Larger settings permit more movement but do not guarantee a proposal.</p>
+<p><strong>Maximum shortening / chain</strong> bounds total length removed from each connected eligible chain, including all its local cleanup windows. It is an absolute distance, not a percentage or board-wide allowance. Independent chains can each shorten by up to the setting. Replacements do not deliberately add length; numerical equality uses a sub-nanometre tolerance.</p>
+<p>A chain has the same net, layer and width. Small local windows can become a straight segment or a single bend with horizontal, vertical or 45-degree legs. Larger necessary turns remain. Exact collinear subdivisions may disappear without visible displacement. Chains longer than 127 segments, loops and routing beyond the planning budget remain unchanged.</p>
+<p>An empty preview is valid: the route may already be simple, protected, outside scope or beyond the bounded geometry proof. Preservation notices describe encountered conditions; they do not count every excluded track. Changing controls clears the preview. Geometry, relevant selection, live rule dimensions/net classes or saved rule changes invalidate source-bound operations.</p>
+<h2 id="protections">Protected routing and limits</h2>
+<ul>
+<li>Endpoints, pad/via contacts, branches, net ownership, width boundaries and copper layers are retained.</li>
+<li>Locked/grouped tracks, vias, arcs and repeated tuning meanders are preserved.</li>
+<li>Names ending in <code>_P</code>, <code>_N</code>, <code>+</code> or <code>-</code>, and discovered P/N counterparts including numbered names, are protected. Default wildcards cover common clock, DDR, USB, PCIe, LVDS, RF and CAN names.</li>
+<li>Names cannot encode all intent. Add every other tuned or critical net to protection, even when selecting it explicitly.</li>
+<li>Saved custom length, skew and differential-pair gap/uncoupled constraints block this first version. Use native routing/tuning for constrained boards.</li>
+</ul>
+<p>There is no shove routing, via movement, pair retuning or clearance relaxation. Geometric similarity does not establish timing, impedance, reference-plane continuity, fabrication acceptance or electrical performance. Necessary detours remain when no accepted cleanup exists.</p>
+<h2 id="validation">What validation establishes</h2>
+<p>The live board is serialized for a disposable worker. Matching saved project/rule files accompany the snapshots. Live scalar Board Setup dimensions and effective net classes are compared with the saved context; save intended settings before validating. Source/rule identity is checked again before acceptance and Apply.</p>
+<p>Native pad/via/zone connected-component membership must remain unchanged. Baseline and candidate DRC runs refill zones. Core copper collision/dimension checks are enabled in disposable project copies even if disabled in saved settings; the source project remains unchanged.</p>
+<ul><li>A proposed chain with baseline DRC findings blocks the batch. Restrict scope to clean routing or fix the original findings.</li><li>New DRC or unconnected-item findings block acceptance. Equal report totals alone are insufficient.</li><li>A baseline with 199 or more findings of any one type is conservatively rejected because native report limits/order can prevent a reliable comparison.</li></ul>
+<p>These are acceptance gates for reviewed geometry and saved rule context, not general board qualification. Inspect the final board and rerun native DRC after zone refill. Windows/KiCad 10.0.6 is the native validation target; Linux/macOS GUI and KiCad 11 remain unverified.</p>
+<h2 id="cli">Command-line review and export</h2>
+<p>Run the module with KiCad's native Python supplying <code>pcbnew</code>, from the source checkout or an environment containing the package. It reads the saved PCB and excludes unsaved editor changes. PCM installation does not create a system-wide console command.</p>
+<pre><code>python -m trace_refiner_plugin C:/Projects/Example/board.kicad_pcb --net SIGNAL --layer F.Cu --report C:/Projects/Example/review.json</code></pre>
+<p>The default operation prints a JSON preview to stdout; <code>--report FILE</code> also saves it to a new file; existing reports are not overwritten. A preview report is not DRC approval. Add <code>--validate</code> to check the proposal without writing a PCB:</p>
+<pre><code>python -m trace_refiner_plugin C:/Projects/Example/board.kicad_pcb --net SIGNAL --validate</code></pre>
+<p>Export requires successful validation and a new destination. Create the destination directory before running:</p>
+<pre><code>python -m trace_refiner_plugin C:/Projects/Example/board.kicad_pcb --net SIGNAL --output C:/Projects/Example/review/refined.kicad_pcb</code></pre>
+<p>The source files remain unchanged. Matching project/custom-rule copies use the new board stem; existing output files are not overwritten. Open the exported project, inspect it, refill zones and run final DRC before adopting it. CLI export has no in-window Undo history.</p>
+<div class="scroll"><table><thead><tr><th>Argument</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>--net EXACT</code></td><td>Exact case-sensitive net name; repeat for several. Bus brackets are literal.</td></tr>
+<tr><td><code>--netclass NAME</code></td><td>Native net class; repeat for several classes.</td></tr>
+<tr><td><code>--track UUID</code></td><td>Native straight-track UUID; repeat for several tracks.</td></tr>
+<tr><td><code>--layer NAME</code></td><td>Copper layer such as F.Cu; repeat for several layers.</td></tr>
+<tr><td><code>--max-deviation MM</code></td><td>Bidirectional centreline displacement; default 0.10 mm.</td></tr>
+<tr><td><code>--max-shortening MM</code></td><td>Total shortening per chain; default 0.10 mm.</td></tr>
+<tr><td><code>--protected GLOBS</code></td><td>Replaces the default protected wildcards. Include every default protection you intend to retain; quote values such as <code>'*CLK*,*DDR*,ANALOG_*'</code> in the shell.</td></tr>
+<tr><td><code>--validate</code></td><td>Validate without writing a new board.</td></tr>
+<tr><td><code>--output NEW.kicad_pcb</code></td><td>Validate and export a separate board/project.</td></tr>
+<tr><td><code>--report FILE</code></td><td>Save the JSON report to a new file in an existing directory, as well as printing it.</td></tr>
+<tr><td><code>--help</code></td><td>Show installed usage.</td></tr>
+</tbody></table></div>
+<p>Choose one selector family: net, net class or track. Do not combine families; repeat values within one family. With no selector, eligible whole-board routing is considered. Layers and protection apply in every scope. Differential-pair protection still applies to explicitly selected items.</p>
+<p>The installed <code>wayricad-trace-refiner</code> entry point accepts the same arguments in an environment with native KiCad bindings. Validation/export requires the matching saved <code>.kicad_pro</code>, optional <code>.kicad_dru</code> and matching <code>kicad-cli</code>. See the <a href="README.md">README</a> for a Windows native-Python invocation and installation.</p>
+<h2 id="remedies">Failure remedies</h2>
+<table><thead><tr><th>Symptom</th><th>Next action</th></tr></thead><tbody>
+<tr><td>No proposals</td><td>Check scope, selection, layer names and protection. Try one known small jog; already-simple or complex protected routing may stay unchanged.</td></tr>
+<tr><td>Board/rules changed</td><td>Save intended board/settings, then preview and validate again.</td></tr>
+<tr><td>Live Board Setup differs</td><td>Save Board Setup and matching project settings before creating a new preview.</td></tr>
+<tr><td>Baseline chain has findings</td><td>Fix that chain or choose clean routing. Existing errors do not authorize moving it.</td></tr>
+<tr><td>199 or more findings of one type</td><td>Resolve the excessive baseline. Equal totals cannot establish no new findings.</td></tr>
+<tr><td>New DRC/connectivity findings</td><td>Keep the original. Reduce displacement or scope and validate again; do not disable checks to force approval.</td></tr>
+<tr><td>Custom length/skew/pair constraint</td><td>Use native routing/tuning. Removing the rule does not establish safe timing.</td></tr>
+<tr><td>Runtime/worker/CLI unavailable</td><td>Use matching KiCad 10 native Python and CLI. Restart PCB Editor after installation.</td></tr>
+<tr><td>Cancelled, timed out or crashed validation</td><td>Apply remains blocked and the live PCB unchanged. Address the runtime issue or retry a smaller scope.</td></tr>
+<tr><td>Export destination exists</td><td>Choose a new stem or directory; existing files are preserved.</td></tr>
+<tr><td>Undo/Redo blocked</td><td>The board no longer matches that transaction. Inspect it and use a saved reference if needed; do not force old objects into changed routing.</td></tr>
+</tbody></table>
+<p>Object exchanges recover on failure. If a message explicitly says recovery needs inspection, inspect the current board before continuing or saving; do not assume that operation completed.</p>
+<footer><p>Trace Refiner plugin 0.1.0 · included in suite 3.6.18 · <a href="README.md">Full guide</a> · <a href="https://github.com/wayri/WayriCAD/blob/develop/docs/audits/TRACE_REFINER.md">Recorded validation evidence</a></p></footer>
+</body></html>

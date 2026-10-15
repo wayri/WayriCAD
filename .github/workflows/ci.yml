@@ -63,6 +63,7 @@ jobs:
           wayricad benchmark --nets 500 --boards 3 --threshold-ms 3000 --format json
           wayricad-copper --help
           wayricad-mechanical --help
+          wayricad-trace-refiner --help
           wayricad-rlc --help
           wayricad-library --help
           wayricad-pi --help

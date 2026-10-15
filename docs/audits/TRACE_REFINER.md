@@ -27,3 +27,27 @@ Marble demonstrates preview scale and a safe rejection, not a validated edit or 
 ## API references
 
 Native API assumptions were checked against the installed bindings and KiCad 10 source: [board settings](https://gitlab.com/kicad/code/kicad/-/blob/10.0/pcbnew/board_design_settings.cpp), [DRC codes](https://gitlab.com/kicad/code/kicad/-/blob/10.0/pcbnew/drc/drc_item.h), and [project manager lifetime](https://gitlab.com/kicad/code/kicad/-/blob/10.0/common/settings/settings_manager.cpp). No severity enum pointer is treated as an integer value: the SWIG binding does not expose that value safely.
+
+## Release 3.6.18 CLI and documentation
+
+The command-line entry point is `wayricad-trace-refiner`; the source module is
+`python -m trace_refiner_plugin`. It handles saved projects only. A native child
+owns project lifetimes; analysis failures leave output files unwritten.
+
+Five CLI tests passed on Windows / KiCad 10.0.6 / Python 3.11: portable help,
+exact-net/netclass/UUID scoping and invalid selectors, validated export with
+source/project SHA-256 custody and no-overwrite, missing-project rejection,
+and a native copper-clearance failure that leaves no output PCB/project.
+The existing 28 geometry/native/UI tests also passed. Focused shared CLI,
+inventory and UX checks passed: 29 tests and 93 subtests.
+
+Offline Help and README now explain bounds, protected routing, saved settings,
+CLI arguments and JSON statuses, export review, and failure remedies. The native
+fixture screenshot and independent icon are retained. PCM installation exposes
+the native action; the wheel exposes the console entry point. Installing a PCM
+ZIP alone does not install a global shell command.
+
+An independently extracted 0.1.0 PCM archive also passed CLI exact-net selection,
+native worker connectivity/DRC and export to a new PCB/project with source-tree
+imports excluded. All 21 candidate ZIPs passed schema, entrypoint, icon and
+payload checks. Source documentation and local illustrations passed validation.

@@ -52,8 +52,9 @@ def capabilities() -> dict[str, Any]:
             for key, name, actions, mutating, input_kind in PLUGIN_CAPABILITIES
         ],
         "operations": sorted(HANDLERS),
-        "native_gui_only": ["silkscreen-label-placer", "trace-refiner"],
+        "native_gui_only": ["silkscreen-label-placer"],
         "additional_cli": {
+            "trace-refiner": "wayricad-trace-refiner --help (KiCad 10 Python; preview, validate, export a new project)",
             "project-fusion": "wayricad-fusion --help (native KiCad CLI required for merge; offline project apply)",
             "variant-manager": "wayricad-variants --help (native KiCad 10 variants; preview-first batch jobs and verified backups)",
             "trace-impedance": "wayricad-rlc --help (KiCad 10 Python; trace/via/hybrid and filled-zone estimates)",

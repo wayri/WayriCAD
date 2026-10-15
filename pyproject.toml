@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.6.17"
+version = "3.6.18"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -38,6 +38,7 @@ wayricad-therm-transient = "quick_therm_plugin.transient_cli:main"
 wayricad-si = "signal_integrity_advisor_plugin.cli:main"
 wayricad-fusion = "project_fusion_plugin.__main__:main"
 wayricad-variants = "variant_manager_plugin.wayri_variants.cli:main"
+wayricad-trace-refiner = "trace_refiner_plugin.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
