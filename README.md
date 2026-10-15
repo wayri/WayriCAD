@@ -3,10 +3,10 @@
 [![Release](https://img.shields.io/github/v/release/wayri/WayriCAD?color=168b78)](https://github.com/wayri/WayriCAD/releases/latest)
 [![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
 [![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
-[![Tools](https://img.shields.io/badge/Tools-20-168b78)](#all-20-plugins)
+[![Tools](https://img.shields.io/badge/Tools-21-168b78)](#all-21-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
-**PCB design, analysis and project review in KiCad.** Choose from 20 independently
+**PCB design, analysis and project review in KiCad.** Choose from 21 independently
 installable plugins. Processing runs locally after setup. KiCad 10 is the validated target.
 
 ## Start here
@@ -17,7 +17,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Run your first analysis | [Getting started](#getting-started) |
 | Download or update | [Release 3.6.17](https://github.com/wayri/WayriCAD/releases/tag/v3.6.17) · [Release notes](docs/RELEASE_NOTES_3.6.17.md) |
 | Place silkscreen labels | [Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0) · [Quick start](#start-silkscreen) |
-| Choose a tool | [All 20 plugins](#all-20-plugins) |
+| Choose a tool | [All 21 plugins](#all-21-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
@@ -164,7 +164,9 @@ currencies stay explicit.
 <a id="all-16-plugins"></a>
 <a id="all-18-plugins"></a>
 
-## All 20 plugins
+<a id="all-20-plugins"></a>
+
+## All 21 plugins
 
 The IPC packages are **3.6.17**; Fusion is **0.9.8**, and Variant Manager is **0.6.1**.
 Select a plugin for its full guide and supported models.
@@ -182,6 +184,7 @@ Select a plugin for its full guide and supported models.
 | <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Collect libraries and 3D models for portable projects. |
 | <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Preview and place escape tracks and vias. |
 | <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. |
+| <img src="trace_refiner_plugin/icon.png" width="24" height="24" alt="Trace Refiner icon"> [Trace Refiner](trace_refiner_plugin/README.md) | Preview small routing jog cleanup by selection, net class or layer; native connectivity and DRC gate Apply. |
 | <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange labels with automatic sizing, reading directions, bold/italic/knockout rules and checked guide lines. |
 | <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Rename references, fields and PCB text in bulk. |
 | <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. |
@@ -330,6 +333,12 @@ Shipped UI rendered from a demonstration snapshot. Supporting panels open on dem
 <a href="mechanical_check_plugin/help-workflow.png"><img src="mechanical_check_plugin/help-workflow.png" width="960" alt="Mechanical Check native STEP board workspace with an edge-to-edge ruler, global height violation markers and a compact findings sidebar"></a>
 
 The fixture deliberately includes height violations and incomplete coverage. [Capture and validation](docs/audits/MECHANICAL_INSPECTION.md).
+
+### [Trace Refiner](trace_refiner_plugin/README.md)
+
+Clean small trace jogs with selected-track, selected-net, net-filter, net-class and layer scopes. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. This new source plugin can be built as an independent PCM candidate; it is not included in earlier releases.
+
+![Native trace refinement preview](trace_refiner_plugin/help-workflow.png)
 
 ### [Silkscreen Label Placer](silkscreen_label_plugin/README.md)
 

@@ -29,6 +29,7 @@ Select the linked name for detailed instructions. “Review” below means that 
 
 | Icon | Tool and detailed guide | Start with | Result and write boundary |
 |---|---|---|---|
+| <img src="../trace_refiner_plugin/icon.png" width="28" height="28" alt="Trace Refiner icon"> | [Trace Refiner](../trace_refiner_plugin/README.md) | Selected tracks/nets, net classes or layers | Preview minor jog cleanup, validate native connectivity/DRC, then apply with in-window undo |
 | <img src="../silkscreen_label_plugin/icon.png" width="28" height="28" alt="Silkscreen Label Placer icon"> | [Silkscreen Label Placer](../silkscreen_label_plugin/README.md) | Selected parts or whole board | Preview safe silk labels and guide lines, then apply with undo/redo |
 | <img src="../project_fusion_plugin/icon.png" width="28" height="28" alt="Project Fusion icon"> | [Project Fusion](../project_fusion_plugin/README.md) | Saved projects or selected subsheets | Guided source/variant destination, visual merge, CLI workflows and backed-up offline apply |
 | <img src="../variant_manager_plugin/icon.png" width="28" height="28" alt="Variant Manager icon"> | [Variant Manager](../variant_manager_plugin/README.md) | Native KiCad 10 variant definitions | Assembly comparison, bulk operations, conflict-aware merge/swap, Default promotion and verified recovery |
