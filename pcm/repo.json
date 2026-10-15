@@ -9,13 +9,13 @@
     }
   },
   "packages": {
-    "sha256": "0564d40bc040d3874cfac07fd81f33a690f79061a73a76485edec955d96c09c4",
-    "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1791936670",
-    "update_timestamp": 1791936670
+    "sha256": "689a1a2fea78ac3ffff919eb40a5416bf573f51089f0c5e093546265c52215ee",
+    "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1792053200",
+    "update_timestamp": 1792053200
   },
   "resources": {
-    "url": "https://github.com/wayri/WayriCAD/releases/download/silkscreen-label-v0.2.0/resources.zip",
-    "sha256": "9be70e5669495e8bfe7a70f930d40219ff7e950692aef512dbf999398a0529c1",
-    "update_timestamp": 1791936670
+    "url": "https://github.com/wayri/WayriCAD/releases/download/v3.6.18/resources.zip",
+    "sha256": "7a2ff20aa0fa4b29eca88147afde68d278b10725546b3478c93825fa332e42c9",
+    "update_timestamp": 1792053200
   }
 }
