@@ -25,8 +25,10 @@ except ImportError:
     from wayricad_runtime.operations import add_group, remove_group
 try:
     from .wayricad_runtime.geometry import board_fingerprint
+    from .wayricad_runtime.ipc import read_snapshot
 except ImportError:
     from wayricad_runtime.geometry import board_fingerprint
+    from wayricad_runtime.ipc import read_snapshot
 
 
 try:
@@ -42,7 +44,7 @@ class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-dark-24.png")
-        self.version = "3.6.17"
+        self.version = "3.6.19"
 
     def Run(self) -> None:
         try:
@@ -349,7 +351,20 @@ class FanoutFrame(wx.Frame):
         self.status.SetLabel("Settings changed; create a fresh preview before committing.")
 
     def _selection_signature(self) -> Tuple[Any, ...]:
-        return tuple(sorted(self._selected_footprint_refs())), tuple(sorted(self._selected_pad_keys()))
+        with read_snapshot(self.board):
+            if hasattr(self.board, 'read_snapshot'):
+                refs=set();pads=set()
+                for item in self.board.GetSelection():
+                    if item.GetClass()=='FOOTPRINT':refs.add(str(item.GetReference()))
+                    elif item.GetClass()=='PAD':
+                        parent=item.GetParentFootprint()
+                        if parent is None:
+                            # Older API payloads may lack parent identifiers.
+                            return tuple(sorted(self._selected_footprint_refs())), tuple(sorted(self._selected_pad_keys()))
+                        ref=str(parent.GetReference());refs.add(ref)
+                        pads.add((ref,str(item.GetNumber())))
+                return tuple(sorted(refs)),tuple(sorted(pads))
+            return tuple(sorted(self._selected_footprint_refs())), tuple(sorted(self._selected_pad_keys()))
 
     def _sync_selection(self, force: bool = False) -> None:
         signature = self._selection_signature()

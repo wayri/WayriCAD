@@ -693,6 +693,8 @@ def write_diagnostic_report(path, bundle):
             'table{border-collapse:collapse;width:100%}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}</style>'
             '<h1>WayriCAD Return-path review</h1><p>Read-only saved-board analysis. '
             '<a href="' + escape(json_path.name) + '">Complete JSON evidence</a>.</p>')
+    from wayricad_runtime.return_path import html_details
+    html+=html_details(result)
     html += '<p>' + escape(result['basis']) + '</p>'
     html += '<p>' + str(result['warning_count']) + ' warnings · ' + str(result['unknown_count']) + ' unknowns</p>'
     html += '<table><tr><th>Level</th><th>Code</th><th>Layer</th><th>Position mm</th><th>Detail</th></tr>'

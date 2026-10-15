@@ -5,14 +5,83 @@ this scene is never solver input and never invents unfilled zone copper.
 """
 from __future__ import annotations
 import math
+from collections import defaultdict
 
 COPPER_ROLES = {'track', 'pad', 'via', 'zone'}
 
 
+class DisplayScene(dict):
+    """JSON-compatible immutable display snapshot with a private lazy pick index.
+
+    Re-extract the scene after board changes. Call invalidate() after changing
+    primitive geometry in place; selection/style changes need no invalidation.
+    The acceleration data is never exported or used for electrical analysis.
+    """
+    def invalidate(self):
+        self._pick_index = None
+
+    def pick_index(self):
+        token = (id(self['primitives']), len(self['primitives']))
+        if getattr(self, '_pick_token', None) != token or getattr(self, '_pick_index', None) is None:
+            self._pick_index = _PickIndex(self['primitives'])
+            self._pick_token = token
+        return self._pick_index
+
+
+def prepare_scene(scene):
+    """Prepare a loaded display snapshot without adding report JSON fields."""
+    return scene if isinstance(scene, DisplayScene) else DisplayScene(scene)
+
+
+def _bounds(row):
+    points = row.get('points', ())
+    if points:
+        xs, ys = zip(*points)
+        return min(xs), min(ys), max(xs), max(ys)
+    if row.get('kind') == 'circle':
+        x, y = row['center'];r = row['radius']
+        return x-r, y-r, x+r, y+r
+    return None
+
+
+class _PickIndex:
+    def __init__(self, rows):
+        self.rows = rows;self.boxes = {};self.cells = defaultdict(list)
+        self.broad = [];self.drills = defaultdict(list)
+        for i, row in enumerate(rows):
+            if row['role'] == 'drill':self.drills[(row['uuid'], row['layer'])].append(row)
+            if row['role'] in COPPER_ROLES:
+                box = _bounds(row)
+                if box:self.boxes[i] = box
+        if not self.boxes:
+            self.cell = 1.;return
+        left = min(b[0] for b in self.boxes.values());right = max(b[2] for b in self.boxes.values())
+        top = min(b[1] for b in self.boxes.values());bottom = max(b[3] for b in self.boxes.values())
+        self.cell = max(math.sqrt(max(right-left, .01)*max(bottom-top, .01)/max(1, len(self.boxes))), .01)
+        for i, (a, b, c, d) in self.boxes.items():
+            x0, y0, x1, y1 = (math.floor(value/self.cell) for value in (a, b, c, d))
+            if (x1-x0+1)*(y1-y0+1) > 256:
+                self.broad.append(i);continue
+            for x in range(x0, x1+1):
+                for y in range(y0, y1+1):self.cells[x, y].append(i)
+
+    def candidates(self, x, y, tolerance):
+        x0, y0, x1, y1 = (math.floor(value/self.cell) for value in
+                           (x-tolerance, y-tolerance, x+tolerance, y+tolerance))
+        # A large pick radius must not allocate an unbounded cell walk.
+        if (x1-x0+1)*(y1-y0+1) > 256:indices = self.boxes.keys()
+        else:
+            indices = set(self.broad)
+            for a in range(x0, x1+1):
+                for b in range(y0, y1+1):indices.update(self.cells.get((a, b), ()))
+        return [self.rows[i] for i in sorted(indices)
+                if self.boxes[i][0]-tolerance <= x <= self.boxes[i][2]+tolerance
+                and self.boxes[i][1]-tolerance <= y <= self.boxes[i][3]+tolerance]
+
+
 def extract_board(board):
     import pcbnew as p
-    scene = {'layers': {}, 'primitives': [], 'bounds': None, 'warnings': [],
-             'tessellation_mm': .01}
+    scene = DisplayScene(layers={}, primitives=[], bounds=None, warnings=[], tessellation_mm=.01)
     enabled = list(board.GetEnabledLayers().Seq())
     copper = set(board.GetEnabledLayers().CuStack())
     scene['layers'] = {int(layer): str(board.GetLayerName(layer)) for layer in enabled}
@@ -106,15 +175,21 @@ def _inside(point, ring):
 
 def hit_test(scene, x, y, visible_layers=None, net=None, tolerance_mm=0):
     hits = []
-    for row in visible_primitives(scene, visible_layers):
+    layers = None if visible_layers is None else set(visible_layers)
+    index = scene.pick_index() if isinstance(scene, DisplayScene) else None
+    rows = index.candidates(x, y, max(1e-9, tolerance_mm)) if index else visible_primitives(scene, layers)
+    drills = index.drills if index else None
+    for row in rows:
+        if layers is not None and row['layer'] not in layers:continue
         if row['role'] not in COPPER_ROLES or (net is not None and row.get('net') != net):
             continue
         if row['kind'] == 'polygon':
             hit = _inside((x, y), row['points']) and not any(_inside((x, y), hole) for hole in row.get('holes', []))
             # Explicit drill primitives share copper identity and are excluded from probes.
             if hit:
-                drills = [d for d in scene['primitives'] if d['role']=='drill' and d['uuid']==row['uuid'] and d['layer']==row['layer']]
-                hit = not any(_inside((x,y), d['points']) for d in drills)
+                matching = (drills.get((row['uuid'], row['layer']), ()) if drills is not None else
+                            [d for d in scene['primitives'] if d['role']=='drill' and d['uuid']==row['uuid'] and d['layer']==row['layer']])
+                hit = not any(_inside((x,y), d['points']) for d in matching)
         elif row['kind'] == 'circle':
             hit = math.hypot(x-row['center'][0], y-row['center'][1]) <= row['radius']+tolerance_mm
         else:
@@ -144,9 +219,12 @@ def draw_matplotlib(ax, scene, visible_layers=None, highlight_ids=(), alpha=.45,
     from matplotlib.path import Path
     from matplotlib.patches import PathPatch
     artists = []
-    for row in sorted(visible_primitives(scene, visible_layers), key=lambda r: r['role']=='drill'):
-        color, opacity = _color(row, set(highlight_ids), set(highlight_nets))
-        highlighted = row.get('uuid') in highlight_ids or row.get('net') in highlight_nets
+    rows = sorted(visible_primitives(scene, visible_layers), key=lambda r: r['role']=='drill')
+    ids, nets = set(highlight_ids), set(highlight_nets)
+    batches = defaultdict(list) if len(rows)>256 else None
+    for row in rows:
+        color, opacity = _color(row, ids, nets)
+        highlighted = row.get('uuid') in ids or row.get('net') in nets
         if row['kind'] == 'polygon':
             vertices, codes = [], []
             for ring in _rings(row):
@@ -154,20 +232,33 @@ def draw_matplotlib(ax, scene, visible_layers=None, highlight_ids=(), alpha=.45,
                 vertices.extend(ring+[ring[0]])
                 codes.extend([Path.MOVETO]+[Path.LINETO]*(len(ring)-1)+[Path.CLOSEPOLY])
             if not vertices: continue
-            patch = PathPatch(Path(vertices, codes), facecolor=color, edgecolor=color,
+            path = Path(vertices, codes)
+            if batches is not None:
+                batches[color, opacity, highlighted, row['role']=='drill'].append(path)
+                continue
+            patch = PathPatch(path, facecolor=color, edgecolor=color,
                               linewidth=1.2 if highlighted else .4,
                               alpha=opacity*alpha, zorder=6 if highlighted else 0)
             ax.add_patch(patch); artists.append(patch)
         elif row['kind'] == 'text':
             artists.append(ax.text(*row['center'], row['text'], fontsize=6, color=color,
                                    alpha=alpha, clip_on=True, zorder=1))
+    if batches is not None:
+        from matplotlib.collections import PathCollection
+        for (color, opacity, highlighted, drill), paths in batches.items():
+            collection = PathCollection(paths, facecolors=[color], edgecolors=[color],
+                                        linewidths=1.2 if highlighted else .4, alpha=opacity*alpha,
+                                        zorder=6 if highlighted else .1 if drill else 0,
+                                        transform=ax.transData)
+            ax.add_collection(collection);artists.append(collection)
     return artists
 
 
 def draw_wx(gc, scene, project, visible_layers=None, highlight_ids=(), alpha=.45, scale=1, highlight_nets=()):
     import wx
+    ids, nets = set(highlight_ids), set(highlight_nets)
     for row in sorted(visible_primitives(scene, visible_layers), key=lambda r:r['role']=='drill'):
-        color, opacity = _color(row, set(highlight_ids), set(highlight_nets))
+        color, opacity = _color(row, ids, nets)
         c = wx.Colour(color); c.Set(c.Red(),c.Green(),c.Blue(),int(255*opacity*alpha))
         gc.SetPen(wx.Pen(c,1)); gc.SetBrush(wx.Brush(c))
         if row['kind'] == 'polygon':

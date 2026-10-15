@@ -9,7 +9,8 @@ import threading
 import time
 
 import wx
-from wayricad_runtime.readable_choice import ReadableChoice, ReadableComboBox
+from wayricad_runtime.readable_choice import ReadableChoice, ReadableComboBox, SearchableCheckListBox
+from wayricad_runtime.searchable_selection import searchable_row
 from matplotlib.figure import Figure
 
 from .plot_canvas import FigureCanvasWxAgg, NavigationToolbar2WxAgg
@@ -124,13 +125,19 @@ class QuickThermFrame(wx.Frame):
         self._cancel.clear()
         self.status.SetLabel(message)
         self._buttons()
+        revision=getattr(self,'_input_revision',0)
+
+        def deliver(answer,error):
+            if revision!=getattr(self,'_input_revision',0):
+                error=ValueError('Inputs changed while working; the stale result was discarded. Run again.')
+            self._finish(finished,answer,error)
 
         def worker():
             try:
                 answer, error = operation(), None
             except Exception as exc:
                 answer, error = None, exc
-            wx.CallAfter(self._finish, finished, answer, error)
+            wx.CallAfter(deliver, answer, error)
 
         threading.Thread(target=worker, name="WayriCAD QuickTherm job", daemon=True).start()
 
@@ -150,6 +157,7 @@ class QuickThermFrame(wx.Frame):
                 self.status.SetLabel(str(exc))
                 self.therm_status.SetLabel(str(exc))
         self._buttons()
+        if getattr(self,'_pending_thermal_selection',None):self._flush_thermal_selection()
 
     def _job(self, request, finished, message):
         from .service import run_job
@@ -437,9 +445,9 @@ class QuickThermFrame(wx.Frame):
         model_layout.Add(solver_setup,0,wx.EXPAND|wx.TOP|wx.BOTTOM,8)
         self.therm_ccx_status.Wrap(250)
         mount_row=wx.BoxSizer(wx.VERTICAL)
-        self.therm_mounts=wx.CheckListBox(model_pane,size=(240,80))
+        self.therm_mounts=SearchableCheckListBox(model_pane,size=(240,80))
         self._therm_mount_candidates=[]
-        mount_row.Add(self.therm_mounts,1,wx.EXPAND|wx.RIGHT,8)
+        mount_row.Add(searchable_row(self.therm_mounts),1,wx.EXPAND|wx.RIGHT,8)
         mount_fields=wx.FlexGridSizer(0,2,4,6)
         self.therm_mount_temp=wx.TextCtrl(model_pane,value='10')
         self.therm_mount_r=wx.TextCtrl(model_pane,value='0')
@@ -605,6 +613,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_azim.Bind(wx.EVT_SPINCTRL,lambda e:self._draw_thermal())
         self.therm_elev.Bind(wx.EVT_SPINCTRL,lambda e:self._draw_thermal())
         self.therm_table.Bind(wx.EVT_LIST_ITEM_SELECTED,self._thermal_table_selected)
+        self.therm_table.Bind(wx.EVT_LIST_ITEM_DESELECTED,self._thermal_table_selected)
         self.therm_table.Bind(wx.EVT_LIST_COL_CLICK,self._thermal_sort_clicked)
         for ctrl in (self.therm_power,self.therm_ja,self.therm_jb,self.therm_jc,
                      self.therm_limit_min,self.therm_limit_max):ctrl.Bind(wx.EVT_COMBOBOX,self._invalidate_thermal)
@@ -914,6 +923,10 @@ class QuickThermFrame(wx.Frame):
 
 
     def _invalidate_thermal(self,event=None):
+        self._input_revision=getattr(self,'_input_revision',0)+1
+        self._pending_thermal_selection=None
+        self._thermal_selected_ids=set()
+        if self._busy:self._cancel.set()
         self._stop_thermal_playback()
         self._thermal_frame_cache=None
         if event and event.GetEventObject() in (self.therm_power,self.therm_ja,self.therm_jb,self.therm_jc,
@@ -925,6 +938,7 @@ class QuickThermFrame(wx.Frame):
         _wrap_text(self.therm_status,self.therm_status.GetLabel())
         self.therm_canvas.draw_idle();self.therm_status.SetLabel('Inputs changed. Run QuickTherm to update the estimate.')
         self._buttons()
+
         if event:event.Skip()
 
 
@@ -1150,41 +1164,53 @@ class QuickThermFrame(wx.Frame):
 
 
     def _populate_thermal_table(self):
-        self.therm_table.DeleteAllItems();column,descending=self._thermal_sort
-        display=self._display_network() or {}
-        transient='display_time_s' in display
-        network={row['reference']:row for row in display.get('components',[])}
-        limits={row['reference']:row for row in self.thermal_bundle.get('temperature_limits',{}).get('rows',[])}
-        def cells(pair):
-            item,row=pair;xy=item.get('position_mm') or [None,None]
-            model=network.get(item['reference'],{})
-            limit=dict(limits.get(item['reference'],{}))
-            if transient:
-                from .thermal_review import frame_limit_status
-                row=model
-                limit['status']=frame_limit_status(limit,row.get('junction_c'))
-            num=lambda value:'—' if value is None else f'{value:.5g}'
-            path=('CalculiX board field' if (self.thermal_bundle.get('thermal_network') or {}).get('model') == 'CalculiX 3D steady conduction' else
-                  'Virtual heatsink' if row.get('heat_path')=='heatsink' else
-                  ('RθJA air' if self.thermal_bundle['quick_therm']['environment']=='air' else 'Shared board')) if row else '—'
-            return [item['reference'],num(row.get('junction_c') if row else None),
-                    num(limit.get('minimum_c')),num(limit.get('maximum_c')),
-                    limit.get('status','UNKNOWN'),num(row.get('power_w') if row else None),
-                    item.get('side','—'),path,num(row.get('resistance_k_per_w') if row else None),
-                    num(row.get('rise_above_ambient_k') if row else None),num(model.get('board_site_c')),
-                    num(model.get('sink_c')),num(model.get('component_temperature_c',model.get('junction_c'))),num(xy[0]),num(xy[1]),
-                    (model.get('temperature_kind','junction').capitalize()+' RC' if model.get('storage_node') is not None else
-                     'Solved' if row.get('junction_c') is not None else 'Board solved; Tj unknown') if row else
-                    '; '.join(item.get('issues',[])) or 'Excluded']
-        self._thermal_rows.sort(key=lambda pair:(cells(pair)[column]=='—',
-            float(cells(pair)[column]) if column in (1,2,3,5,8,9,10,11,12,13,14) and cells(pair)[column]!='—' else cells(pair)[column]),reverse=descending)
-        for item,row in self._thermal_rows:
-            values=cells((item,row));index=self.therm_table.InsertItem(self.therm_table.GetItemCount(),values[0])
-            for col,value in enumerate(values[1:],1):self.therm_table.SetItem(index,col,value)
-            colour={'PASS':wx.Colour(20,125,83),'FAIL':wx.Colour(190,50,50),
-                    'UNKNOWN':wx.Colour(160,112,20)}.get(values[4])
-            if colour:self.therm_table.SetItemTextColour(index,colour)
+        self._syncing_thermal_table=True
+        self.therm_table.Freeze()
+        try:
+            self.therm_table.DeleteAllItems();column,descending=self._thermal_sort
+            display=self._display_network() or {}
+            transient='display_time_s' in display
+            network={row['reference']:row for row in display.get('components',[])}
+            limits={row['reference']:row for row in self.thermal_bundle.get('temperature_limits',{}).get('rows',[])}
+            def cells(pair):
+                item,row=pair;xy=item.get('position_mm') or [None,None]
+                model=network.get(item['reference'],{})
+                limit=dict(limits.get(item['reference'],{}))
+                if transient:
+                    from .thermal_review import frame_limit_status
+                    row=model
+                    limit['status']=frame_limit_status(limit,row.get('junction_c'))
+                num=lambda value:'—' if value is None else f'{value:.5g}'
+                path=('CalculiX board field' if (self.thermal_bundle.get('thermal_network') or {}).get('model') == 'CalculiX 3D steady conduction' else
+                      'Virtual heatsink' if row.get('heat_path')=='heatsink' else
+                      ('RθJA air' if self.thermal_bundle['quick_therm']['environment']=='air' else 'Shared board')) if row else '—'
+                return [item['reference'],num(row.get('junction_c') if row else None),
+                        num(limit.get('minimum_c')),num(limit.get('maximum_c')),
+                        limit.get('status','UNKNOWN'),num(row.get('power_w') if row else None),
+                        item.get('side','—'),path,num(row.get('resistance_k_per_w') if row else None),
+                        num(row.get('rise_above_ambient_k') if row else None),num(model.get('board_site_c')),
+                        num(model.get('sink_c')),num(model.get('component_temperature_c',model.get('junction_c'))),num(xy[0]),num(xy[1]),
+                        (model.get('temperature_kind','junction').capitalize()+' RC' if model.get('storage_node') is not None else
+                         'Solved' if row.get('junction_c') is not None else 'Board solved; Tj unknown') if row else
+                        '; '.join(item.get('issues',[])) or 'Excluded']
+            values_by_id={item['id']:cells((item,row)) for item,row in self._thermal_rows}
+            def sort_key(pair):
+                value=values_by_id[pair[0]['id']][column]
+                return (value=='—',float(value) if column in (1,2,3,5,8,9,10,11,12,13,14) and value!='—' else value)
+            self._thermal_rows.sort(key=sort_key,reverse=descending)
+            for item,row in self._thermal_rows:
+                values=values_by_id[item['id']];index=self.therm_table.InsertItem(self.therm_table.GetItemCount(),values[0])
+                for col,value in enumerate(values[1:],1):self.therm_table.SetItem(index,col,value)
+                colour={'PASS':wx.Colour(20,125,83),'FAIL':wx.Colour(190,50,50),
+                        'UNKNOWN':wx.Colour(160,112,20)}.get(values[4])
+                if colour:self.therm_table.SetItemTextColour(index,colour)
 
+            selected=getattr(self,'_thermal_selected_ids',())
+            for index,(item,_) in enumerate(self._thermal_rows):
+                if item['id'] in selected:self.therm_table.Select(index)
+        finally:
+            self.therm_table.Thaw()
+            self._syncing_thermal_table=False
 
     def _thermal_frames(self):
         return ((self.thermal_bundle.get('thermal_network') or {}).get('transient') or {}).get('frames',[])
@@ -1301,10 +1327,14 @@ class QuickThermFrame(wx.Frame):
             camera=(old.get_xlim(),old.get_ylim(),old.get_zlim3d() if hasattr(old,'get_zlim3d') else None,
                     getattr(old,'elev',None),getattr(old,'azim',None))
         axes=draw_thermal_view(self.therm_figure,view,
-                          mode,self._thermal_selected,
+                          mode,(getattr(self,'_thermal_selected_ids',()) or self._thermal_selected) if mode=='Temperature chart' else None,
                           self._display_network(),self.therm_azim.GetValue(),self.therm_elev.GetValue(),
                           probes=self.thermal_bundle.get('probes',[]),viewport=True,
                           temperature_limits_c=getattr(self,'_thermal_time_limits',None) if self.therm_result_time.GetSelection()>0 else None)
+        if hasattr(axes,'_thermal_targets'):
+            from .thermal_plot import update_component_selection
+            update_component_selection(axes,getattr(self,'_thermal_selected_ids',()) or
+                                        ([self._thermal_selected] if self._thermal_selected else []))
         if camera:
             axes.set_xlim(camera[0]);axes.set_ylim(camera[1])
             if camera[2] is not None and hasattr(axes,'get_zlim3d'):
@@ -1575,21 +1605,63 @@ class QuickThermFrame(wx.Frame):
         self.therm_selection_detail.GetParent().Layout();self.therm_selection_detail.GetParent().FitInside()
 
     def _thermal_choose(self,identifier,from_editor=False):
-        for index,(item,result) in enumerate(self._thermal_rows):
-            if item['id']==identifier:
-                self._thermal_selected=identifier
-                self._thermal_selection_text(item,result)
-                self.therm_table.Select(index);self.therm_table.EnsureVisible(index);self._draw_thermal()
-                if not from_editor:self._task(lambda:self._select_thermal_in_editor(identifier),
-                    lambda answer:self.therm_status.SetLabel('Selected '+item['reference']+' in PCB Editor; focus '+answer['focus']+'.'))
-                return
+        self._thermal_apply_selection([identifier],from_editor=from_editor,update_table=True)
+
+    def _thermal_apply_selection(self,identifiers,from_editor=False,update_table=False):
+        wanted=set(identifiers)
+        matches=[(i,item,result) for i,(item,result) in enumerate(self._thermal_rows) if item['id'] in wanted]
+        chosen=tuple(sorted(item['id'] for _,item,_ in matches))
+        self._thermal_selected_ids=set(chosen)
+        self._thermal_selected=matches[0][1]['id'] if matches else None
+        if matches:self._thermal_selection_text(matches[0][1],matches[0][2])
+        if update_table:
+            self._syncing_thermal_table=True
+            try:
+                for index,(item,_) in enumerate(self._thermal_rows):self.therm_table.Select(index,item['id'] in wanted)
+                if matches:self.therm_table.EnsureVisible(matches[0][0])
+            finally:self._syncing_thermal_table=False
+        if self.therm_figure.axes and hasattr(self.therm_figure.axes[0],'_thermal_targets'):
+            from .thermal_plot import update_component_selection
+            update_component_selection(self.therm_figure.axes[0],chosen)
+        else:self._draw_thermal(preserve_camera=True)
+        if from_editor:
+            self._pending_thermal_selection=None
+            self._last_thermal_sent=chosen
+            self.therm_status.SetLabel(f'{len(chosen)} components selected from PCB Editor.')
+        elif chosen and chosen!=getattr(self,'_last_thermal_sent',None):
+            self._pending_thermal_selection=chosen
+            self._flush_thermal_selection()
+        elif not chosen:self._pending_thermal_selection=None
+
+    def _flush_thermal_selection(self):
+        if self._closed or self._busy:return
+        chosen=getattr(self,'_pending_thermal_selection',None)
+        self._pending_thermal_selection=None
+        valid={item['id'] for item,_ in self._thermal_rows}
+        if not chosen or not set(chosen)<=valid:return
+        from .thermal_selection import select_origin_components
+        expected=self.thermal_bundle.get('source_sha256')
+        def finish(answer):
+            self._last_thermal_sent=chosen
+            self.therm_status.SetLabel(f"Selected {answer['count']} components in PCB Editor; focus {answer['focus']}.")
+        self._task(lambda:select_origin_components(self.board_path,chosen,expected_sha256=expected),finish,
+                   'Selecting reviewed components in the originating PCB Editor…')
 
 
     def _thermal_table_selected(self,event):
-        index=event.GetIndex()
-        if 0<=index<len(self._thermal_rows):
-            identifier=self._thermal_rows[index][0]['id']
-            if identifier!=self._thermal_selected:self._thermal_choose(identifier)
+        event.Skip()
+        if getattr(self,'_syncing_thermal_table',False):return
+        pending=getattr(self,'_thermal_selection_later',None)
+        if pending and pending.IsRunning():pending.Stop()
+        self._thermal_selection_later=wx.CallLater(75,self._thermal_commit_table_selection)
+
+    def _thermal_commit_table_selection(self):
+        if self._closed:return
+        ids=[];index=self.therm_table.GetFirstSelected()
+        while index!=-1:
+            if index<len(self._thermal_rows):ids.append(self._thermal_rows[index][0]['id'])
+            index=self.therm_table.GetNextSelected(index)
+        self._thermal_apply_selection(ids)
 
 
     def _thermal_plot_pressed(self,event):
@@ -1727,4 +1799,4 @@ class QuickThermFrame(wx.Frame):
         from .thermal_selection import selected_origin_component_ids
         self._task(lambda:selected_origin_component_ids(self.board_path,
             expected_sha256=self.thermal_bundle.get('source_sha256')),
-            lambda ids:self._thermal_choose(ids[0],from_editor=True) if ids else self.therm_status.SetLabel('No scoped footprint selected in PCB Editor.'))
+            lambda ids:self._thermal_apply_selection(ids,from_editor=True,update_table=True))

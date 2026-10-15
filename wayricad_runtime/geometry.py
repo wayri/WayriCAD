@@ -93,6 +93,11 @@ def segment_hits_pad(start, end, pad, margin, api):
 
 def board_fingerprint(board,ignore=()):
     """Snapshot relevant geometry; ignore only objects owned by this preview."""
+    # The IPC transport can return complete item protobufs in six bulk reads.
+    # Asking its bounding-box command once per item turns a source check into
+    # tens of thousands of synchronous editor round trips on a large board.
+    from .ipc import Board
+    if isinstance(board,Board):return board.fingerprint(ignore)
     import hashlib,json
     ignored={item_id(x) for x in ignore}
     data=[]

@@ -10,6 +10,7 @@ import math
 import fnmatch
 import re
 from .fanout_profiles import FANOUT_PATTERNS, SIGNAL_PROFILES, ANGLE_MODES, PAIR_MODES, profile_defaults
+from .ipc import read_snapshot
 from .geometry import (dimensions, positive, inside_native, segment_hits_box,
                        segment_segment_distance, segment_inside_native, item_id, segment_hits_pad)
 
@@ -724,13 +725,15 @@ class StitchingPlanner:
 
 
 def plan_fanout(board, api, settings=None):
-    planner = FanoutPlanner(board, api, settings or {})
-    return planner._plan(), planner.plan_rejections
+    with read_snapshot(board):
+        planner = FanoutPlanner(board, api, settings or {})
+        return planner._plan(), planner.plan_rejections
 
 
 def plan_stitching(board, api, settings=None):
-    planner = StitchingPlanner(board, api, settings or {})
-    return planner._plan(), planner.plan_rejections
+    with read_snapshot(board):
+        planner = StitchingPlanner(board, api, settings or {})
+        return planner._plan(), planner.plan_rejections
 
 
 def fanout_items(board, api, plans):

@@ -322,3 +322,74 @@ routing document, a related archived [Agilex M-Series guide, ID 772538 (2023)](h
 is available; its revision differs from the registry's later web edition.
 Vendor guidance informs representative screens, not certification of every speed,
 protocol, device or complete channel.
+
+## Explicit return-path evidence
+
+Choose the signal and its actual return net(s); **Find…** searches the multi-select
+return list without clearing hidden selections. Optional source/load return pads
+record the declared terminals. No ground or return current is inferred from a net
+name. Quick SI exposes these controls under **Explicit return-path review**;
+Quick PI uses its **Return path** tab.
+
+The result includes per-layer sampled reference coverage and each signal-via
+transition's observed routing layers, local reference nets/layers and nearby
+return-via candidates. Candidates show distance, layer span and sampled annulus
+contact to filled copper on their own net. A nearby via that lacks contact evidence
+stays unresolved. Changes between reference nets require separate engineering
+review; geometric proximity cannot establish a transfer path between them.
+
+The review covers the whole selected signal net, even in Quick SI's two-terminal
+workflow. It does not solve return-current distribution, closed-loop continuity,
+return resistance or loop inductance. Undeclared return terminals remain unresolved.
+HTML reports retain the detailed evidence and warnings; Quick PI's paired JSON
+also retains the filled polygon and terminal inventory. Refill zones and save
+before reviewing a changed board.
+
+Signal-via centers normally lie in reference antipad voids. Local reference
+candidates are therefore sampled around a recorded radius equal to the saved
+via diameter; the drill/antipad is never filled in by the review. A stitching
+candidate must contact the same local filled polygon on its own net, not merely
+a different island with the same net name. Both annular checks are sampled
+geometric evidence; neither proves the closed return circuit.
+
+## Responsive saved-board runs
+
+The normal native sidecar runs Quick SI, its optional eye calculation and explicit
+return review in a separate worker process. The window remains available while
+it runs. **Cancel analysis**, changing an input, or closing the window cancels the
+owned job. A result from older inputs cannot replace the current preview.
+
+The worker checks the saved PCB, project and custom-rule hashes before and after
+analysis; the window checks them again before accepting or exporting the result.
+If those files change, reopen Quick SI and screen the new snapshot. Runs have a
+300-second budget and terminate their worker on cancellation or timeout. No PCB
+file is written. The first managed-runtime setup can take longer than subsequent
+runs.
+
+A legacy/live-board window retains synchronous, UI-thread analysis of its current
+board objects. It does not silently analyze a saved copy in place of unsaved edits.
+Use the normal saved-board sidecar for cancellable background screening.
+
+## Cross-selection with the originating PCB Editor
+
+- **Select route in PCB** selects the measured route's exact saved item UUIDs.
+  Clicking a route item in the preview selects that item. Geometry probes remain
+  separate from this ordinary click action.
+- **Select return nets in PCB** selects all items on every checked return net.
+  The selection must resolve completely; missing or ambiguous identifiers fail
+  before replacing the editor selection. The shared selection transaction checks
+  the result and restores the prior selection if confirmation fails.
+- **Use PCB selection** reads the launching editor's selected UUIDs and maps them
+  to the local analysis view. It prefers the current signal net if present. If
+  several unrelated nets are selected, it retains the current inputs and asks
+  for one explicit signal net. Selected footprints include their pads.
+
+Pad selection does not establish signal direction. With two selected pads and a
+known existing source or receiver role, the other endpoint can be filled in.
+Otherwise choose Source and Receiver explicitly; a new signal net starts with
+unassigned terminal roles. Reverse synchronization clears the old analysis.
+
+IPC navigation runs separately from analysis and does not share native board
+objects with a worker thread. It uses only the connection that launched the
+plugin. Save/reopen after source changes or when selected UUIDs no longer match
+this view. Selecting or focusing items does not edit PCB geometry.

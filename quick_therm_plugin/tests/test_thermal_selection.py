@@ -40,3 +40,17 @@ def test_stale_or_missing_footprint_does_not_change_selection(monkeypatch, tmp_p
     with pytest.raises(ValueError, match='uniquely'):
         thermal_selection.select_origin_component(path, 'missing')
     assert board.selected == [board.parts[1]]
+
+
+def test_multiple_parts_and_selected_pads_sync_to_all_component_rows(monkeypatch,tmp_path):
+    path=tmp_path/'board.kicad_pcb';path.write_text('board')
+    board=FakeBoard()
+    pad=SimpleNamespace(id=SimpleNamespace(value='PAD'))
+    board.parts[1].definition=SimpleNamespace(pads=[pad])
+    client=SimpleNamespace(get_board=lambda:board,run_action=lambda action:1)
+    monkeypatch.setattr(context,'connect',lambda:client)
+    monkeypatch.setattr(context,'saved_board',lambda caller:path.resolve())
+    result=thermal_selection.select_origin_components(path,['AAAA','BBBB'])
+    assert result['selected_ids']==['aaaa','bbbb'] and result['count']==2
+    board.selected=[board.parts[0],pad]
+    assert thermal_selection.selected_origin_component_ids(path)==['aaaa','bbbb']

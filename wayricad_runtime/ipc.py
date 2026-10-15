@@ -5,6 +5,7 @@ these IDs are never sent to KiCad as deprecated native net codes.
 """
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from contextlib import contextmanager, nullcontext
 import hashlib
 import math
 import uuid
@@ -12,6 +13,29 @@ import uuid
 
 class UnsupportedCapability(RuntimeError):
     pass
+
+
+def read_snapshot(board):
+    """Use a bounded IPC read scope, or a no-op for a native board.
+
+    Scope one synchronous analysis/preview operation, never a window's lifetime
+    or an event loop. This is a read optimisation, not an atomic editor lock.
+    Perform source-change checks after leaving the scope. Mutations through this
+    facade invalidate cached reads, even when the editor rejects the write.
+    """
+    factory = getattr(board, 'read_snapshot', None)
+    return factory() if factory is not None else nullcontext(board)
+
+
+def selected_footprints(board):
+    """Read selected footprints without scanning every IPC footprint or pad.
+
+    A selected child pad does not implicitly select its footprint. Keep native
+    adapters' existing selection flags when the bulk facade method is absent.
+    """
+    reader=getattr(board,'selected_footprints',None)
+    if callable(reader):return reader()
+    return [fp for fp in board.GetFootprints() if bool(getattr(fp,'IsSelected',lambda:False)())]
 
 
 class Box:
@@ -49,9 +73,7 @@ class Net:
     def GetNetCode(self): return self.board.net_id(self.name)
     def GetNetClassName(self):
         if not self.name:return ''
-        classes=self.board.raw.get_netclass_for_nets(self.board.types.Net(name=self.name))
-        if self.name not in classes:raise UnsupportedCapability('KiCad did not return the net class for '+self.name+'.')
-        return classes[self.name].name
+        return self.board.netclass_name(self.name)
 
 
 class Item:
@@ -63,8 +85,10 @@ class Item:
         names={'FootprintInstance':'FOOTPRINT','Pad':'PAD','Track':'PCB_TRACK','ArcTrack':'PCB_ARC','Via':'PCB_VIA','Group':'PCB_GROUP'}
         return names.get(type(self.raw).__name__,type(self.raw).__name__)
     def IsSelected(self): return uid(self.raw) in self.board.selected_ids()
-    def SetSelected(self): self.board.raw.add_to_selection([self.raw])
-    def ClearSelected(self): self.board.raw.remove_from_selection([self.raw])
+    def SetSelected(self):
+        self.board.invalidate_reads();self.board.raw.add_to_selection([self.raw])
+    def ClearSelected(self):
+        self.board.invalidate_reads();self.board.raw.remove_from_selection([self.raw])
     def HasSelectedAncestorGroup(self): return self.IsSelected()
     def IsLocked(self): return bool(getattr(self.raw,'locked',False))
     def GetParent(self): return self.parent or self.board
@@ -129,6 +153,7 @@ class Item:
         self.flush()
     def flush(self):
         if self.existing:
+            self.board.invalidate_reads()
             target=self.parent.raw if self.parent else self.raw
             result=self.board.raw.update_items([target])
             if len(result)!=1 or uid(result[0])!=uid(target):
@@ -170,7 +195,8 @@ class Item:
     def SetName(self,value): self.raw.proto.name=value; self.flush()
     def GetItems(self):
         ids=list(self.raw.proto.items)
-        return [self.board.wrap(x) for x in self.board.raw.get_items_by_id(ids)] if ids else []
+        return [self.board.wrap(x) for x in self.board._read(('group', tuple(i.value for i in ids)),
+                lambda:self.board.raw.get_items_by_id(ids))] if ids else []
     def AddItem(self,item):
         if not any(i.value==item.raw.id.value for i in self.raw.proto.items): self.raw.proto.items.append(item.raw.id)
         self.flush()
@@ -178,9 +204,11 @@ class Item:
         ids=[x for x in self.raw.proto.items if x.value!=item.raw.id.value]
         del self.raw.proto.items[:];self.raw.proto.items.extend(ids);self.flush()
     def GetBoundingBox(self):
-        box=self.board.raw.get_item_bounding_box(self.raw)
-        if box is None: raise UnsupportedCapability('KiCad did not return geometry for this item.')
-        return Box(box.pos.x,box.pos.y,box.pos.x+box.size.x,box.pos.y+box.size.y)
+        def bounds():
+            box=self.board.raw.get_item_bounding_box(self.raw)
+            if box is None: raise UnsupportedCapability('KiCad did not return geometry for this item.')
+            return (box.pos.x,box.pos.y,box.pos.x+box.size.x,box.pos.y+box.size.y)
+        return Box(*self.board._read(('bounds', uid(self.raw)), bounds))
     def HitTest(self,position): return self.board.raw.hit_test(self.raw,position)
     def GetIsRuleArea(self): return self.raw.is_rule_area()
     def GetDoNotAllowVias(self): return self.raw.is_rule_area() and self.raw.proto.rule_area_settings.keepout_vias
@@ -287,12 +315,42 @@ class IPCPolySet:
 class Board:
     def __init__(self,raw,types):
         self.raw,self.types=raw,types
-        self.net_names={0:''};self.cache={}
+        self.net_names={0:''};self._net_ids={'':0};self.cache={};self._snapshot=None
         for net in raw.get_nets(): self.net_id(net.name)
+    @contextmanager
+    def read_snapshot(self):
+        """Reuse reads only during one synchronous operation; nested scopes share."""
+        previous=self._snapshot
+        if previous is None:self._snapshot={}
+        try:
+            yield self
+        finally:
+            self._snapshot=previous
+    def invalidate_reads(self):
+        """Drop operation reads before a write; never retain a rejected-write cache."""
+        if self._snapshot is not None:self._snapshot.clear()
+    def _read(self,key,loader):
+        if self._snapshot is None:return loader()
+        if key not in self._snapshot:self._snapshot[key]=loader()
+        return self._snapshot[key]
+    def netclass_name(self,name):
+        if self._snapshot is None:
+            classes=self.raw.get_netclass_for_nets(self.types.Net(name=name))
+        else:
+            classes=self._snapshot.setdefault('netclasses',{})
+            if name not in classes:
+                # Official API accepts a sequence. Bound message size on large
+                # boards instead of issuing one editor round trip per item.
+                names=[n for n in self.net_names.values() if n and n not in classes]
+                if name not in names:names.append(name)
+                for start in range(0,len(names),512):
+                    batch=[self.types.Net(name=n) for n in names[start:start+512]]
+                    classes.update(self.raw.get_netclass_for_nets(batch))
+        if name not in classes:raise UnsupportedCapability('KiCad did not return the net class for '+name+'.')
+        return classes[name].name
     def net_id(self,name):
-        for code,value in self.net_names.items():
-            if value==name:return code
-        code=len(self.net_names);self.net_names[code]=name;return code
+        if name in self._net_ids:return self._net_ids[name]
+        code=len(self.net_names);self.net_names[code]=name;self._net_ids[name]=code;return code
     def wrap(self,raw,parent=None,existing=True):
         key=uid(raw)
         if key and key in self.cache:
@@ -302,23 +360,55 @@ class Board:
         item=Item(self,raw,parent,existing)
         if key:self.cache[key]=item
         return item
-    def selected_ids(self): return {uid(x) for x in self.raw.get_selection()}
-    def GetSelection(self): return [self.wrap(x) for x in self.raw.get_selection()]
-    def GetFootprints(self): return [self.wrap(x) for x in self.raw.get_footprints()]
+    def selected_ids(self): return self._read('selected_ids',lambda:frozenset(uid(x) for x in self._read('selection',self.raw.get_selection)))
+    def selected_footprints(self):
+        return [self.wrap(raw) for raw in self._read('selection',self.raw.get_selection)
+                if isinstance(raw,self.types.FootprintInstance)]
+    def GetSelection(self):
+        selected=self._read('selection',self.raw.get_selection)
+        def parents():
+            known={uid(raw):raw for raw in selected}
+            requested={str(raw.parent.value):raw.parent for raw in selected
+                       if isinstance(raw,getattr(self.types,'Pad',())) and raw.parent is not None
+                       and str(raw.parent.value) not in known}
+            ids=list(requested.values())
+            for start in range(0,len(ids),512):
+                known.update((uid(raw),raw) for raw in self.raw.get_items_by_id(ids[start:start+512]))
+            return known
+        parent_map=self._read('selection_parents',parents)
+        for raw in selected:
+            if isinstance(raw,getattr(self.types,'Pad',())):
+                value=parent_map.get(str(raw.parent.value)) if raw.parent is not None else None
+                if not isinstance(value,getattr(self.types,'FootprintInstance',())):
+                    # Never let wrap(raw, None) reuse a cached obsolete parent.
+                    self.invalidate_reads()
+                    raise UnsupportedCapability('KiCad did not return the selected pad footprint. '
+                                                'Refresh PCB selection and retry.')
+        result=[]
+        for raw in selected:
+            parent=None
+            if isinstance(raw,getattr(self.types,'Pad',())) and raw.parent is not None:
+                value=parent_map.get(str(raw.parent.value))
+                if value is not None:parent=self.wrap(value)
+            result.append(self.wrap(raw,parent))
+        return result
+    def GetFootprints(self): return [self.wrap(x) for x in self._read('footprints',self.raw.get_footprints)]
     def FindFootprintByReference(self,reference):
         return next((fp for fp in self.GetFootprints() if fp.GetReference()==reference),None)
-    def GetTracks(self): return [self.wrap(x) for x in [*self.raw.get_tracks(),*self.raw.get_vias()]]
-    def GetDrawings(self): return [self.wrap(x) for x in [*self.raw.get_shapes(),*self.raw.get_text()]]
-    def Zones(self): return [self.wrap(x) for x in self.raw.get_zones()]
-    def Groups(self): return [self.wrap(x) for x in self.raw.get_groups()]
+    def GetTracks(self): return [self.wrap(x) for x in [*self._read('tracks',self.raw.get_tracks),*self._read('vias',self.raw.get_vias)]]
+    def GetDrawings(self): return [self.wrap(x) for x in [*self._read('shapes',self.raw.get_shapes),*self._read('text',self.raw.get_text)]]
+    def Zones(self): return [self.wrap(x) for x in self._read('zones',self.raw.get_zones)]
+    def Groups(self): return [self.wrap(x) for x in self._read('groups',self.raw.get_groups)]
     def GetFileName(self):
-        name=Path(self.raw.name)
-        return str(name if name.is_absolute() else Path(self.raw.get_project().path)/name)
-    def GetCopperLayerCount(self): return self.raw.get_copper_layer_count()
-    def GetLayerName(self,layer): return self.raw.get_layer_name(layer)
+        def filename():
+            name=Path(self.raw.name)
+            return str(name if name.is_absolute() else Path(self.raw.get_project().path)/name)
+        return self._read('filename',filename)
+    def GetCopperLayerCount(self): return self._read('copper_count',self.raw.get_copper_layer_count)
+    def GetLayerName(self,layer): return self._read(('layer_name',layer),lambda:self.raw.get_layer_name(layer))
     def GetEnabledLayers(self):
         from kipy.util.board_layer import is_copper_layer, iter_copper_layers
-        layers=list(self.raw.get_enabled_layers())
+        layers=list(self._read('layers',self.raw.get_enabled_layers))
         copper=[layer for layer in iter_copper_layers() if layer in layers]
         return SimpleNamespace(Seq=lambda:layers,CuStack=lambda:copper)
     def FindNet(self,name): return Net(self,str(name)) if str(name) in self.net_names.values() else None
@@ -352,7 +442,7 @@ class Board:
         from kipy.proto.board.board_types_pb2 import BL_Edge_Cuts
         rings=[]; segments=[]
         point=lambda p:(p.x,p.y)
-        for shape in self.raw.get_shapes():
+        for shape in self._read('shapes',self.raw.get_shapes):
             if shape.layer!=BL_Edge_Cuts: continue
             if isinstance(shape,self.types.BoardSegment):
                 segments.append((point(shape.start),point(shape.end)))
@@ -383,19 +473,40 @@ class Board:
         if not rings:raise UnsupportedCapability('The board has no closed Edge.Cuts outline.')
         return IPCPolySet.from_rings(rings)
     def Add(self,item):
+        self.invalidate_reads()
         result=self.raw.create_items([item.raw])
         if len(result)!=1:raise RuntimeError('KiCad did not create the requested item.')
         item.raw=result[0];item.existing=True;self.cache[uid(item.raw)]=item
-    def Remove(self,item): self.raw.remove_items([item.raw]);item.existing=False
+    def Remove(self,item):
+        self.invalidate_reads();self.raw.remove_items([item.raw]);item.existing=False
     def SetHighLightNet(self,code):
+        self.invalidate_reads()
         self.raw.clear_selection()
         items=[x.raw for fp in self.GetFootprints() for x in fp.Pads() if x.GetNetCode()==code]
         if items:self.raw.add_to_selection(items)
-    def fingerprint(self):
-        blobs=[]
-        for getter in (self.raw.get_footprints,self.raw.get_tracks,self.raw.get_vias,self.raw.get_zones,self.raw.get_shapes):
-            blobs.extend(x.proto.SerializeToString(deterministic=True) for x in getter())
-        return hashlib.sha256(b''.join(sorted(blobs))).hexdigest()
+    def fingerprint(self,ignore=()):
+        """Hash fresh bulk IPC geometry, never operation-cached reads.
+
+        Protobufs include nested footprint pads/fields and filled zone geometry.
+        Ignore only the supplied top-level preview objects, matching the native
+        geometry fingerprint contract. Length framing makes record boundaries
+        unambiguous. Any transport or serialization failure remains an error.
+        """
+        ignored={uid(getattr(item,'raw',item)) for item in ignore}
+        records=[]
+        for getter in (self.raw.get_footprints,self.raw.get_tracks,self.raw.get_vias,
+                       self.raw.get_zones,self.raw.get_shapes,self.raw.get_text):
+            for item in getter():
+                key=uid(item)
+                if key not in ignored:
+                    records.append((type(item).__name__.encode('utf-8'),key.encode('utf-8'),
+                                    item.proto.SerializeToString(deterministic=True)))
+        digest=hashlib.sha256(b'WayriCAD IPC board fingerprint 1\0')
+        digest.update(len(records).to_bytes(8,'big'))
+        for record in sorted(records):
+            for field in record:
+                digest.update(len(field).to_bytes(8,'big'));digest.update(field)
+        return digest.hexdigest()
 
 
 def module(client=None):

@@ -23,6 +23,8 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
+Development performance work: [measured improvements and remaining coverage](docs/audits/performance-coverage-2026-10-15.md). The public feed continues to serve the published release above.
+
 ## Install and open
 
 1. Open **Plugin and Content Manager** in KiCad Manager. Add this repository:

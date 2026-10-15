@@ -131,10 +131,18 @@ The public Marble board preview was exercised on 41,044 tracks. Applying its can
 
 ## Install and compatibility
 
-This is a separate native ActionPlugin, version 0.1.0. Refresh the WayriCAD PCM repository, or download `WayriCAD-trace-refiner-0.1.0-PCM.zip` from [release 3.6.18](https://github.com/wayri/WayriCAD/releases/tag/v3.6.18) and use **KiCad Manager → Plugin and Content Manager → Install from File**. Restart PCB Editor. The plugin has its own toolbar icon and needs no IPC API or sibling plugin. It requires the matching KiCad CLI for validation.
+This is a separate native ActionPlugin, version 0.1.1 in the 3.6.19 performance candidate. Build it with `python build_pcm.py --output-dir candidate`, then install `candidate/WayriCAD-trace-refiner-0.1.1-PCM.zip` with **KiCad Manager → Plugin and Content Manager → Install from File**. Restart PCB Editor. The plugin has its own toolbar icon and needs no IPC API or sibling plugin. It requires the matching KiCad CLI for validation.
 
 For source development, `python build_pcm.py --output-dir candidate` builds disposable independent installers in `candidate/`.
 
-Windows with KiCad 10.0.6 is the native validation target. Linux/macOS GUI and KiCad 11 are unverified. Trace Refiner's plugin version is independent of the suite release number; suite 3.6.18 includes plugin 0.1.0. Older published suite releases do not contain this plugin.
+Windows with KiCad 10.0.6 is the native validation target. Linux/macOS GUI and KiCad 11 are unverified. Trace Refiner's plugin version is independent of the suite release number; published suite 3.6.18 includes plugin 0.1.0. The source performance candidate includes plugin 0.1.1.
 
 KiCad describes [routing and design-rule checking](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html). Review fabrication, tuning and stackup requirements for your board before accepting geometric changes.
+
+## Faster viewport
+
+The viewport captures display geometry once when opened and refreshes it on
+Preview, Apply, Undo and Redo. Pan/zoom/fit repaint cached geometry with batched
+drawing and viewport culling, including curved arcs. Run Preview after external
+board changes to refresh the display context. Apply still checks the live
+source and saved rules; the display cache cannot approve a stale proposal.

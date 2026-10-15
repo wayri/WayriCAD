@@ -110,6 +110,10 @@ def _component_label(item, value):
     return item['reference']+(f' {kind}≈{value:.1f}°C' if value is not None else ' '+kind+' unknown')
 
 
+def _selected(identifier, selected):
+    return identifier==selected if isinstance(selected,str) else identifier in (selected or ())
+
+
 def _install_component_hover(ax, targets, selected_id, three_d=False):
     """Keep one reusable hover label; component markers and fields stay intact."""
     ax._thermal_targets=targets;ax._thermal_selected_id=selected_id
@@ -148,6 +152,37 @@ def update_component_hover(ax, event=None):
             label.set_verticalalignment('top' if top else 'bottom')
     ax.figure.canvas.draw_idle()
     return identifier
+
+
+def update_component_selection(ax, identifiers):
+    """Replace only navigation overlays, keeping thermal meshes and camera intact."""
+    chosen = set(identifiers)
+    targets = [row for row in getattr(ax, '_thermal_targets', ()) if row['id'] in chosen]
+    if chosen==getattr(ax,'_thermal_selected_ids',None):return len(targets)
+    for artist in getattr(ax, '_thermal_selection_artists', ()):
+        artist.remove()
+    artists = []
+    if targets:
+        positions = np.asarray([row['position'] for row in targets])
+        if getattr(ax, '_thermal_hover_3d', False):
+            marker, = ax.plot(*positions.T, linestyle='none', marker='o', markersize=12,
+                              markerfacecolor='none', markeredgecolor='#00d3b1',
+                              markeredgewidth=2, zorder=1e6)
+            artists.append(marker)
+            label = ax.text(*positions[0], targets[0]['label'], fontsize=8, zorder=1e6,
+                            bbox={'facecolor':'white','alpha':.9,'edgecolor':'none','pad':2})
+        else:
+            artists.append(ax.scatter(*positions.T, s=210, facecolors='none',
+                                      edgecolors='#00d3b1', linewidths=2, zorder=8))
+            label = ax.annotate(targets[0]['label'], positions[0], xytext=(5,5),
+                                textcoords='offset points', fontsize=8, zorder=9,
+                                bbox={'facecolor':'white','alpha':.9,'edgecolor':'none','pad':2})
+        label.set_gid('quicktherm-selection-overlay');artists.append(label)
+    ax._thermal_selection_artists = artists
+    ax._thermal_selected_ids = chosen
+    ax._thermal_selected_id = targets[0]['id'] if targets else None
+    ax.figure.canvas.draw_idle()
+    return len(targets)
 
 
 def component_at_event(ax, event=None):
@@ -472,7 +507,7 @@ def draw_thermal_view(figure, view, mode='Top-side map', selected_id=None,
         rows=sorted((item for item in components if item.get('solved')),key=lambda item:item['junction_c'])
         if rows:
             ax.barh([item['reference'] for item in rows],[item['junction_c'] for item in rows],
-                    color=['#e07337' if item['id']==selected_id else '#408d9b' for item in rows])
+                    color=['#e07337' if _selected(item['id'],selected_id) else '#408d9b' for item in rows])
             ax.set_xlabel('Estimated component junction °C')
         else:ax.text(.5,.5,'No solved components',ha='center',transform=ax.transAxes)
         figure.tight_layout();return ax

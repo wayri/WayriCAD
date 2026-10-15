@@ -174,3 +174,11 @@ The offline HTML report opens with an interactive full-board viewport. **Top** a
 The paper documents the external mesher; the manuals describe backend interfaces.
 They do not turn the internal layered/RC screening model into CFD or a qualified
 package-gradient solver. Local analytical and energy checks remain separate evidence.
+
+## Search long names and choose multiple contacts
+
+Use **Find…** beside mounting contacts to search any part of a contact name and check several contacts in one dialog. **Check visible** and **Uncheck visible** affect only matching rows; previously checked hidden contacts remain checked. The count includes hidden contacts. **OK** commits the selection; **Cancel** keeps it unchanged. The virtual-heatsink component selector has its own **Find…** button for long component references. Scalar inputs still select one item. Existing readable dropdowns also support **Ctrl+F** and a context-menu search.
+
+## Select components together
+
+Use Ctrl/Shift in the component table to select several parts. Plot highlights update without rebuilding the thermal mesh or resetting the camera. PCB synchronization retains multiple parts; selecting pads in PCB Editor also identifies their parent components. Selection changes queued during a job use the latest selection. Changing thermal inputs cancels the current job and discards its late output.

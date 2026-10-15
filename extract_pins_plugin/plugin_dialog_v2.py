@@ -18,6 +18,7 @@ THIS PLUGIN IS PROVIDED AS IS WITHOUT ANY GUARANTEE OR WARRANTY.
 
 import wx
 from wayricad_runtime.readable_choice import ReadableComboBox
+from wayricad_runtime.ipc import selected_footprints
 import wx.html as wxhtml
 import pcbnew
 import csv
@@ -1118,8 +1119,7 @@ setTimeout(fitView,50);
         """Timer callback - check for newly selected components."""
         try:
             # Get currently selected footprints from PCB
-            currently_selected = {fp.GetReference(): fp 
-                                  for fp in self.board.GetFootprints() if fp.IsSelected()}
+            currently_selected = {fp.GetReference(): fp for fp in selected_footprints(self.board)}
             
             # Find new selections (not already in our list)
             existing_refs = {fp.GetReference() for fp in self.current_display_footprints}
@@ -1178,7 +1178,7 @@ setTimeout(fitView,50);
             event.Skip()
 
     def OnRefreshSelection(self, event):
-        newly_selected = [f for f in self.board.GetFootprints() if f.IsSelected()]
+        newly_selected = selected_footprints(self.board)
         self._update_footprint_list_display(newly_selected)
         self.status_text.SetLabel(f"Found {len(self.current_display_footprints)} components.")
 
@@ -1531,8 +1531,7 @@ setTimeout(fitView,50);
         selected = sorted(
             (
                 fp.GetReference()
-                for fp in self.board.GetFootprints()
-                if fp.IsSelected()
+                for fp in selected_footprints(self.board)
             ),
             key=DataExtractor.natural_sort_key,
         )

@@ -1,6 +1,8 @@
 """Native, DPI-aware wxPython controls and an interactive PCB preview."""
 import wx
 import wx.lib.scrolledpanel
+from wayricad_runtime.readable_choice import SearchableCheckListBox
+from wayricad_runtime.searchable_selection import searchable_row
 from .engine import Settings, SHAPES, MODES, LATTICES, Cancelled
 from . import kicad_backend as backend
 
@@ -234,10 +236,10 @@ class CopperBalancerDialog(wx.Dialog):
         advanced.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, lambda e: (sidebar.Layout(), sidebar.SetupScrolling(scroll_x=False)))
         form.Add(advanced,0,wx.EXPAND|wx.BOTTOM,8)
         self.section(sidebar,form,"Layers and region")
-        self.layer_check = wx.CheckListBox(sidebar,choices=[name for _,name in self.layers],size=self.FromDIP((-1,88)))
+        self.layer_check = SearchableCheckListBox(sidebar,choices=[name for _,name in self.layers],size=self.FromDIP((-1,88)))
         self.layer_check.Check(0)
         self.layer_check.Bind(wx.EVT_CHECKLISTBOX,self.on_change)
-        form.Add(self.layer_check,0,wx.EXPAND|wx.BOTTOM,10)
+        form.Add(searchable_row(self.layer_check),0,wx.EXPAND|wx.BOTTOM,10)
         self.region_choice = wx.Choice(sidebar,choices=["Entire board","Selected items bounds","Manual rectangle"])
         self.region_choice.SetSelection(0)
         self.region_choice.Bind(wx.EVT_CHOICE,self.on_change)

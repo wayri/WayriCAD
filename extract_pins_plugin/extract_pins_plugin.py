@@ -23,6 +23,7 @@ THIS PLUGIN IS PROVIDED AS IS WITHOUT ANY GUARANTEE OR WARRANTY.
 """
 
 import pcbnew
+from wayricad_runtime.ipc import selected_footprints as read_selected_footprints
 import wx
 import os
 
@@ -58,7 +59,7 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
         # Define the path to the optional icon file. It should be in the same directory.
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.17"
+        self.version = "3.6.19"
 
     def Run(self):
         """
@@ -74,10 +75,9 @@ class ExtractPinsPlugin(pcbnew.ActionPlugin):
             wx.MessageBox("Open a PCB in PCB Editor before launching WayriCAD Extract Pins.", "WayriCAD Extract Pins", wx.OK | wx.ICON_INFORMATION)
             return
 
-        # Retrieve all footprints on the board and filter for those that are currently selected.
-        # This is the robust way to get user-selected footprints in KiCad 9's pcbnew API.
+        # IPC reads the selection once; native adapters retain selection flags.
         try:
-            selected_footprints = [f for f in board.GetFootprints() if getattr(f, "IsSelected", lambda: False)()]
+            selected_footprints = read_selected_footprints(board)
         except Exception as exc:
             wx.MessageBox(f"Could not read PCB footprints: {exc}", "WayriCAD Extract Pins", wx.OK | wx.ICON_ERROR)
             return
@@ -106,7 +106,7 @@ class InterboardHarnessPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = False
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.17"
+        self.version = "3.6.19"
 
     def Run(self):
         if PluginUI is None:

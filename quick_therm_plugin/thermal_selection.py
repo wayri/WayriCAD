@@ -1,56 +1,26 @@
-"""Exact, read-only-to-design cross-selection in the originating PCB Editor."""
-from __future__ import annotations
-
-import hashlib
-from pathlib import Path
+"""Exact component navigation with confirmed multi-selection and rollback."""
+from wayricad_runtime.analysis_selection import _origin, identity, select_origin
 
 
-def _origin(board_path, expected_sha256=None):
-    from wayricad_runtime.context import connect, saved_board
-    path = Path(board_path).resolve()
-    if expected_sha256 and hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256:
-        raise ValueError('The saved PCB changed after QuickTherm ran. Reload and rerun before cross-selection.')
-    client = connect()
-    if saved_board(client) != path:
-        raise ValueError('The originating PCB Editor changed boards. Reopen QuickTherm from this board.')
-    return client, client.get_board()
-
-
-def _identity(item):
-    identifier = getattr(item, 'id', None)
-    return str(getattr(identifier, 'value', '')).lower()
+def select_origin_components(board_path, footprint_ids, *, expected_sha256=None,
+                             focus=True, additive=False):
+    """Select reviewed footprint UUIDs atomically; no geometry writes."""
+    return select_origin(board_path, footprint_ids, expected_sha256=expected_sha256,
+                         focus=focus, additive=additive, footprints_only=True, return_details=True)
 
 
 def select_origin_component(board_path, footprint_id, *, expected_sha256=None, focus=True):
-    """Select one exact saved footprint UUID; restore prior selection on failure."""
-    client, board = _origin(board_path, expected_sha256)
-    matches = [fp for fp in board.get_footprints() if _identity(fp) == str(footprint_id).lower()]
-    if len(matches) != 1:
-        raise ValueError('The selected footprint no longer resolves uniquely in the originating PCB Editor.')
-    previous = list(board.get_selection())
-    try:
-        board.clear_selection()
-        board.add_to_selection(matches)
-        if {_identity(item) for item in board.get_selection()} != {_identity(matches[0])}:
-            raise RuntimeError('KiCad did not confirm the requested footprint selection.')
-    except Exception:
-        try:
-            board.clear_selection()
-            if previous:board.add_to_selection(previous)
-        except Exception:pass
-        raise
-    focus_result = 'not requested'
-    if focus:
-        try:
-            status = client.run_action('common.Control.zoomFitSelection')
-            focus_result = 'requested' if int(status) == 1 else 'unavailable'
-        except Exception:
-            focus_result = 'unavailable'
-    return {'selected_id': _identity(matches[0]), 'focus': focus_result}
+    """Compatibility wrapper for one reviewed component and explicit focus status."""
+    result = select_origin_components(board_path, [footprint_id],
+                                     expected_sha256=expected_sha256, focus=focus)
+    return dict(selected_id=result['selected_ids'][0], focus=result['focus'])
 
 
 def selected_origin_component_ids(board_path, *, expected_sha256=None):
-    """Read exact selected footprint UUIDs for on-demand table/map sync."""
+    """Map selected footprints or their pads back to all matching component rows."""
     _, board = _origin(board_path, expected_sha256)
-    ids = {_identity(item) for item in board.get_selection()}
-    return sorted(_identity(fp) for fp in board.get_footprints() if _identity(fp) in ids)
+    chosen = {identity(item) for item in board.get_selection()}
+    if not chosen:return []
+    return sorted(identity(fp) for fp in board.get_footprints()
+                  if identity(fp) in chosen or any(identity(pad) in chosen for pad in
+                      getattr(getattr(fp, 'definition', None), 'pads', ())))

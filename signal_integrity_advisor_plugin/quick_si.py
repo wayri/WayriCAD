@@ -112,6 +112,12 @@ def screen(path, *, rise_ns=1., frequency_mhz=100., source_ohm=20., load_ohm=Non
 
 
 def analyze(board,net,start,end,reference='Auto',**inputs):
+    from wayricad_runtime.ipc import read_snapshot
+    with read_snapshot(board):return _analyze(board,net,start,end,reference,**inputs)
+
+
+def _analyze(board,net,start,end,reference='Auto',**inputs):
+    return_nets=inputs.pop('return_nets',None);return_terminals=inputs.pop('return_terminal_ids',None);return_roles=inputs.pop('return_terminal_roles',None)
     for key,label,strict in [('rise_ns','Rise time',True),('frequency_mhz','Frequency',False),('source_ohm','Source resistance',False)]:
         if key in inputs:inputs[key]=finite(inputs[key],label,strict=strict)
     engine=TraceMeasurementEngine(board)
@@ -119,13 +125,19 @@ def analyze(board,net,start,end,reference='Auto',**inputs):
     if start==end or start not in pads or end not in pads:
         raise ValueError('Choose two distinct pads belonging to the selected net.')
     path=engine.measure(net,start,end,float(inputs.get('frequency_mhz',100.)),reference)
-    return screen(path,terminal_count=len(pads),**inputs),path
+    report=screen(path,terminal_count=len(pads),**inputs)
+    if return_nets:
+        from wayricad_runtime.return_path import collect_board_evidence,audit_return_path
+        evidence=collect_board_evidence(board,net,return_nets)
+        report['return_path']=audit_return_path(evidence,return_terminal_ids=return_terminals,return_terminal_roles=return_roles)
+        report['return_path']['scope']='Whole selected signal net on the loaded board; not just the source-to-receiver path.'
+    return report,path
 
 
 def html_report(report):
     escape=lambda value:html.escape(str(value))
     rows=''.join('<tr><th>'+escape(key.replace('_',' '))+'</th><td>'+escape('Unknown' if value is None else value)+'</td></tr>'
-                 for key,value in report.items() if key not in ('path','inputs','notes','blockers','schema','eye','route_summary','endpoint_screen'))
+                 for key,value in report.items() if key not in ('path','inputs','notes','blockers','schema','eye','route_summary','endpoint_screen','return_path'))
     summary=report.get('route_summary',{})
     overview='<h2>Route results</h2><table>'+''.join('<tr><th>'+escape(k.replace('_',' '))+'</th><td>'+escape('Unknown' if v is None else v)+'</td></tr>' for k,v in summary.items())+'</table>'
     if report.get('endpoint_screen'):
@@ -148,4 +160,8 @@ def html_report(report):
     from .eye_view import eye_section
     eye=eye_section(report['eye']) if 'eye' in report else ''
     blockers=''.join('<li><strong>'+escape(b['code'])+':</strong> '+escape(b['message'])+' <em>Next: '+escape(b['action'])+'</em></li>' for b in report.get('blockers',[]))
-    return '<!doctype html><meta charset="utf-8"><title>WayriCAD Quick SI</title><style>body{font:15px system-ui;max-width:950px;margin:30px auto;color:#20303c}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}pre{white-space:pre-wrap}</style><h1>WayriCAD Quick SI</h1><p>Read-only first-order screening, not protocol signoff.</p>'+svg+overview+plots+'<h2>Timing and termination screen</h2><table>'+rows+'</table>'+eye+sections+'<h2>Blocking inputs and next actions</h2><ul>'+blockers+'</ul><h2>Assumptions and limitations</h2><ul>'+''.join('<li>'+escape(n)+'</li>' for n in report['notes'])+'</ul><h2>Inputs and path evidence</h2><pre>'+escape(json.dumps({'inputs':report['inputs'],'path':report['path']},indent=2,allow_nan=False))+'</pre>'
+    return_section=''
+    if report.get('return_path'):
+        from wayricad_runtime.return_path import html_details
+        return_section=html_details(report['return_path'])
+    return '<!doctype html><meta charset="utf-8"><title>WayriCAD Quick SI</title><style>body{font:15px system-ui;max-width:950px;margin:30px auto;color:#20303c}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}pre{white-space:pre-wrap}</style><h1>WayriCAD Quick SI</h1><p>Read-only first-order screening, not protocol signoff.</p>'+svg+overview+plots+'<h2>Timing and termination screen</h2><table>'+rows+'</table>'+eye+sections+return_section+'<h2>Blocking inputs and next actions</h2><ul>'+blockers+'</ul><h2>Assumptions and limitations</h2><ul>'+''.join('<li>'+escape(n)+'</li>' for n in report['notes'])+'</ul><h2>Inputs and path evidence</h2><pre>'+escape(json.dumps({'inputs':report['inputs'],'path':report['path']},indent=2,allow_nan=False))+'</pre>'

@@ -11,6 +11,7 @@ from typing import Any, List, Optional
 import pcbnew
 import wx
 from wayricad_runtime.readable_choice import ReadableChoice, ReadableComboBox
+from wayricad_runtime.searchable_selection import searchable_row
 
 from .measurement import PathMeasurement, TraceMeasurementEngine
 from .help_utils import open_help
@@ -31,7 +32,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.17"
+        self.version = "3.6.19"
 
     def Run(self) -> None:
         try:
@@ -84,7 +85,7 @@ class TraceFrame(wx.Frame):
         self.corridor_width = wx.TextCtrl(panel, value="0.2")
         self.corridor_width.SetToolTip("Assumed current corridor width inside filled zone copper; does not modify the PCB.")
         for label, control in (("Mode", self.mode), ("Net", self.net), ("Start terminal", self.start), ("End terminal", self.end), ("Frequency (MHz)", self.frequency), ("Filled island", self.zone_layer)):
-            config.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL); config.Add(control, 1, wx.EXPAND)
+            config.Add(wx.StaticText(panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL); config.Add(searchable_row(control) if control in (self.net,self.start,self.end,self.zone_layer) else control, 1, wx.EXPAND)
         config.AddGrowableCol(1, 1)
         config.AddGrowableCol(3, 1)
         config_box.Add(config, 0, wx.EXPAND | wx.ALL, 4)
@@ -105,7 +106,7 @@ class TraceFrame(wx.Frame):
         self.auto_pair.SetToolTip("Detect pair mates via _P/_N, +/-, _DP/_DM and P/N suffix patterns")
         advanced = wx.FlexGridSizer(0, 4, 6, 8)
         for label, control in (("Reference layer", self.reference), ("Differential mate", self.diff_net)):
-            advanced.Add(wx.StaticText(options_panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL); advanced.Add(control, 1, wx.EXPAND)
+            advanced.Add(wx.StaticText(options_panel, label=label), 0, wx.ALIGN_CENTER_VERTICAL); advanced.Add(searchable_row(control), 1, wx.EXPAND)
         advanced.Add(self.auto_refresh); advanced.Add(self.auto_pair)
         advanced.Add(wx.StaticText(options_panel, label="Zone current width (mm)"), 0, wx.ALIGN_CENTER_VERTICAL)
         advanced.Add(self.corridor_width, 1, wx.EXPAND)

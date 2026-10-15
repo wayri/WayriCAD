@@ -69,3 +69,7 @@ From a source checkout: `python copper_balancer_plugin/desktop_entrypoint.py boa
 ## Development
 
 From this folder run `python -m unittest discover -s tests -v`; native tests skip without pcbnew. Repeat with KiCad 10's bundled Python for polygon/serialization tests. `tools/ui_smoke.py` opens and captures only a disposable fixture dialog. The upstream MIT license is preserved in `LICENSE`; the distributed suite runtime is GPL-3.0-only. See `PROVENANCE.md`.
+
+## Search and select copper layers
+
+Use **Find…** beside the copper-layer checklist to search layer names and check multiple layers. **Check visible** or **Uncheck visible** changes only the filtered rows; hidden checks remain selected and are included in the count. **OK** applies the complete checked selection; **Cancel** preserves the current layers. This changes only the analysis configuration; preview and apply remain separate actions.

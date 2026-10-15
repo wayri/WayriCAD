@@ -236,7 +236,14 @@ class QuickPIFrame(wx.Frame):
         settings.Add(self.return_run,0,wx.RIGHT,7);settings.Add(self.return_export,0);layout.Add(settings,0,wx.EXPAND|wx.ALL,10)
         body=wx.BoxSizer(wx.HORIZONTAL)
         side=wx.BoxSizer(wx.VERTICAL);side.Add(wx.StaticText(page,label='Return nets'),0,wx.BOTTOM,5)
-        self.return_nets=wx.CheckListBox(page,size=(180,-1));side.Add(self.return_nets,1,wx.EXPAND)
+        from wayricad_runtime.readable_choice import SearchableCheckListBox
+        from wayricad_runtime.searchable_selection import searchable_row
+        self.return_nets=SearchableCheckListBox(page,size=(180,-1));side.Add(searchable_row(self.return_nets),1,wx.EXPAND)
+        self.return_source=ReadableChoice(page,choices=['Not specified']);self.return_source.SetSelection(0)
+        self.return_sink=ReadableChoice(page,choices=['Not specified']);self.return_sink.SetSelection(0)
+        for label,control in [('Source return pad (optional)',self.return_source),('Load return pad (optional)',self.return_sink)]:
+            side.Add(wx.StaticText(page,label=label),0,wx.TOP,5);side.Add(control,0,wx.EXPAND|wx.TOP,3)
+            control.Bind(wx.EVT_CHOICE,self._invalidate_return)
         body.Add(side,0,wx.EXPAND|wx.RIGHT,10)
         self.return_figure=Figure(figsize=(8,4),dpi=100);self.return_canvas=FigureCanvasWxAgg(page,wx.ID_ANY,self.return_figure)
         body.Add(self.return_canvas,1,wx.EXPAND);layout.Add(body,1,wx.EXPAND|wx.ALL,10)
@@ -244,11 +251,12 @@ class QuickPIFrame(wx.Frame):
         for i,(name,width) in enumerate([('Level',90),('Finding',210),('Layer',100),('Position mm',120),('Detail',510)]):
             self.return_table.InsertColumn(i,name,width=width)
         layout.Add(self.return_table,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        self.return_details=wx.TextCtrl(page,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,100));layout.Add(self.return_details,0,wx.EXPAND|wx.ALL,10)
         self.return_status=wx.StaticText(page,label='Choose explicit return net(s), then run the saved-board review.')
         layout.Add(self.return_status,0,wx.EXPAND|wx.ALL,10)
         self.return_signal.Bind(wx.EVT_CHOICE,self._invalidate_return)
         for ctrl in (self.return_pitch,self.return_radius):ctrl.Bind(wx.EVT_TEXT,self._invalidate_return)
-        self.return_nets.Bind(wx.EVT_CHECKLISTBOX,self._invalidate_return)
+        self.return_nets.Bind(wx.EVT_CHECKLISTBOX,self._return_nets_changed)
         page.SetSizer(layout);self.book.AddPage(page,'Return path')
 
 
@@ -256,8 +264,17 @@ class QuickPIFrame(wx.Frame):
 
 
 
+    def _return_nets_changed(self,event=None):
+        selected={self.return_nets.GetString(i) for i in range(self.return_nets.GetCount()) if self.return_nets.IsChecked(i)}
+        choices=['Not specified']+[row['label'] for row in self.inventory.get('terminals',[]) if row.get('net') in selected]
+        for control in (self.return_source,self.return_sink):
+            old=control.GetStringSelection();control.Set(choices);control.SetStringSelection(old if old in choices else 'Not specified')
+        self._invalidate_return(event)
+
     def _invalidate_return(self,event=None):
-        self.return_bundle={};self.return_table.DeleteAllItems();self.return_figure.clear()
+        self._input_revision=getattr(self,'_input_revision',0)+1
+        if self._busy:self._cancel.set()
+        self.return_bundle={};self.return_table.DeleteAllItems();self.return_details.Clear();self.return_figure.clear()
         self.return_canvas.draw_idle();self.return_status.SetLabel('Inputs changed. Review the saved return path again.')
         self._buttons()
         if event:event.Skip()
@@ -266,7 +283,7 @@ class QuickPIFrame(wx.Frame):
         placement=self.book.GetSelection()>=len(self.views)
         self._sync_workspace()
         for control in self._controls:control.Enable(not self._busy)
-        for control in (self.return_signal,self.return_pitch,self.return_radius,self.return_nets):
+        for control in (self.return_signal,self.return_pitch,self.return_radius,self.return_nets,self.return_source,self.return_sink):
             control.Enable(not self._busy)
         self.return_run.Enable(not self._busy)
         self.return_export.Enable(not self._busy and bool(self.return_bundle.get('return_path')))
@@ -353,6 +370,8 @@ class QuickPIFrame(wx.Frame):
         self.inspector_read=icon_button(self.inspector,'Read',wx.ART_FIND,'Read the current PCB editor selection')
         for button in (self.inspector_select,self.inspector_read):actions.Add(button,1,wx.RIGHT,4)
         layout.Add(actions,0,wx.EXPAND|wx.ALL,8)
+        self.inspector_add=wx.CheckBox(self.inspector,label='Add to existing PCB selection')
+        layout.Add(self.inspector_add,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
         self.inspector_terminals=icon_button(self.inspector,'Source & sinks',wx.ART_FIND,'Select the source and every sink in the PCB editor')
         layout.Add(self.inspector_terminals,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
         self.model_details=wx.CollapsiblePane(self.inspector,label='Model details',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE);self.model_details.Collapse(True)
@@ -516,7 +535,8 @@ class QuickPIFrame(wx.Frame):
     def _select_ids(self,identifiers):
         if not self._snapshot_current():self.status.SetLabel('Saved board changed. Reload and rerun before selecting.');return
         from .origin_selection import select_origin
-        self._task(lambda:select_origin(self.board_path,identifiers,expected_sha256=self._origin_sha(),focus=True),
+        expected=self._origin_sha();additive=self.inspector_add.GetValue()
+        self._task(lambda:select_origin(self.board_path,identifiers,expected_sha256=expected,focus=True,additive=additive),
                    lambda count:self.status.SetLabel(f'Selected {count} exact saved objects in the originating PCB Editor.'),'Selecting reviewed objects in PCB Editor…')
 
     def _select_inspected(self,event=None):
@@ -530,25 +550,38 @@ class QuickPIFrame(wx.Frame):
     def _read_editor_selection(self,event=None):
         from .origin_selection import selected_origin_ids
         def finish(ids):
+            wanted=set(ids)
+            matched={item.get('uuid') for item in self._board_scene.get('primitives',[])
+                     if item.get('uuid') in wanted or item.get('parent_uuid') in wanted}
+            related=sorted(wanted|matched)
+            def show(row):
+                row['source_ids']=related
+                self._choose_inspection(row,focus=True)
+                self.status.SetLabel(f'{len(wanted)} PCB items selected; all matching copper highlighted. Numeric inspector shows the primary hit.')
             for barrel in self.bundle.get('mesh',{}).get('vias',[]):
                 row=inspection_record(self.bundle,'via',barrel['id'])
-                if row and set(row['source_ids']).intersection(ids):self._choose_inspection(row,focus=True);return
-            primitive=next((item for item in self._board_scene.get('primitives',[]) if item.get('uuid') in ids and item.get('role') in ('track','pad','via')),None)
+                if row and set(row['source_ids']).intersection(matched):show(row);return
+            primitive=next((item for item in self._board_scene.get('primitives',[]) if item.get('uuid') in matched and item.get('role') in ('track','pad','via')),None)
             if primitive:
                 row=self._object_inspection(primitive)
                 candidate=probe_result(self.bundle,primitive['layer'],*row['location_mm'][:2],list(METRICS)[max(0,self.metric.GetSelection())])
                 if candidate:candidate['source_ids']=[primitive['uuid']];row=candidate
-                self._choose_inspection(row,focus=True);return
+                show(row);return
             self.status.SetLabel('No extracted track, pad or via selected in the originating PCB Editor.')
         self._task(lambda:selected_origin_ids(self.board_path,expected_sha256=self._origin_sha()),finish,'Reading selection from originating PCB Editor…')
 
     def _task(self,operation,finished,message):
         if self._busy:return
         self._busy=True;self._cancel.clear();self.status.SetLabel(message);self._buttons();self.Layout()
+        revision=getattr(self,'_input_revision',0)
+        def deliver(result,error):
+            if revision!=getattr(self,'_input_revision',0):
+                error=ValueError('Inputs changed while working; the stale result was discarded. Run again.')
+            self._finish(finished,result,error)
         def worker():
             try:result=operation();error=None
             except Exception as exc:result=None;error=exc
-            wx.CallAfter(self._finish,finished,result,error)
+            wx.CallAfter(deliver,result,error)
         threading.Thread(target=worker,name='WayriCAD Quick PI job',daemon=True).start()
 
     def _finish(self,finished,result,error):
@@ -583,7 +616,7 @@ class QuickPIFrame(wx.Frame):
     def _inspect(self):
         if self._closed or self._closing:return
         self._series_request=None;self._extra_sinks=[];self.loads_button.SetLabel('Additional sinks (0)…');self.bundle={};self.volume_bundle={};self.return_bundle={}
-        self.sweep_bundle={};self.return_table.DeleteAllItems()
+        self.sweep_bundle={};self.return_table.DeleteAllItems();self.return_details.Clear()
         self.return_figure.clear();self.return_canvas.draw_idle()
         def finished(result):
             import pcbnew
@@ -595,6 +628,7 @@ class QuickPIFrame(wx.Frame):
             self.decoupling.summary.SetLabel('Saved board reloaded; run a fresh placement check.')
             self.inventory=result;names=result.get('nets',[]);self.net.Set(names)
             self.return_signal.Set(names);self.return_nets.Set(names)
+            self._return_nets_changed()
             if names:self.return_signal.SetSelection(0)
             if names:
                 choice=next((n for n in names if n.startswith(('+','VCC','VDD'))),names[0]);self.net.SetValue(choice)
@@ -631,12 +665,16 @@ class QuickPIFrame(wx.Frame):
         if self.net.GetValue()!=current:self._net_changed()
 
     def _net_changed(self,event=None):
+        self._input_revision=getattr(self,'_input_revision',0)+1
+        if self._busy:self._cancel.set()
         self._inspection=None
         self._series_request=None;self._extra_sinks=[];self.loads_button.SetLabel('Additional sinks (0)…');self.operation_note.SetLabel('Source voltage → sink current')
         self.bundle={};self.volume_bundle={};self._set_terminals();self._plot_keys.clear();self._draw()
         self.status.SetLabel('Preview this net or run the analysis.')
 
     def _invalidate(self,event=None):
+        self._input_revision=getattr(self,'_input_revision',0)+1
+        if self._busy:self._cancel.set()
         if event and event.GetEventObject() is self.load_mode:
             self.current_label.SetLabel('Load · Ω' if self.load_mode.GetSelection()==1 else 'Load · A')
             self.operation_note.SetLabel('Source voltage → resistive load to 0 V' if self.load_mode.GetSelection()==1 else 'Source voltage → specified sink current')
@@ -994,13 +1032,15 @@ class QuickPIFrame(wx.Frame):
         try:
             request={'action':'return_path','board_path':self.board_path,'signal_net':signal,'return_nets':returns,
                      'sample_pitch_mm':float(self.return_pitch.GetValue()),
-                     'return_via_radius_mm':float(self.return_radius.GetValue())}
+                     'return_via_radius_mm':float(self.return_radius.GetValue()),'return_terminal_ids':[c.GetStringSelection() for c in (self.return_source,self.return_sink) if c.GetSelection()>0], 'return_terminal_roles':{role:c.GetStringSelection() for role,c in [('source',self.return_source),('load',self.return_sink)] if c.GetSelection()>0}}
         except ValueError as exc:self.return_status.SetLabel(str(exc));return
         self.return_bundle={};self.return_table.DeleteAllItems();self.return_status.SetLabel('Checking saved filled return copper and transitions…')
         self._job(request,self._accept_return,'Screening the saved-board return path…')
 
     def _accept_return(self,bundle):
         self.return_bundle=bundle;result=bundle['return_path'];evidence=bundle['evidence']
+        from wayricad_runtime.return_path import summary_text
+        self.return_details.SetValue(summary_text(result))
         self.return_table.DeleteAllItems()
         for row in result['findings']:
             index=self.return_table.InsertItem(self.return_table.GetItemCount(),row['level'])
@@ -1015,6 +1055,9 @@ class QuickPIFrame(wx.Frame):
         for segment in evidence.get('segments',[]):
             a,b=segment['start'],segment['end']
             ax.plot([a[0],b[0]],[a[1],b[1]],color=layer_colors.get(segment['layer'],'#174c75'),linewidth=2.5)
+        for via in evidence.get('return_vias',[]):ax.plot(*via['position'],marker='.',color='#27864a',markersize=5)
+        for pad in result.get('selected_return_terminals',[]):
+            ax.plot(*pad['position_mm'],marker='s',color='#7b3f9a',markersize=7);ax.annotate(pad['label'],pad['position_mm'],xytext=(5,5),textcoords='offset points',fontsize=8)
         for row in result['findings']:
             if row['position_mm']:
                 ax.plot(*row['position_mm'],marker='x' if row['level']=='warning' else 'o',

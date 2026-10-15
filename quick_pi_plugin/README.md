@@ -541,3 +541,36 @@ HTML reports put three primary Matplotlib plots first: voltage drop, current den
 [Implemented benchmark equations and results](../docs/PI_REFERENCE_BENCHMARKS.md) ·
 [Contact conduction model](../docs/PACKAGE_CONDUCTION.md).
 These references explain methods or checks; they are not measured validation of a user's PCB.
+
+## Explicit return-path evidence
+
+Choose the signal and its actual return net(s); **Find…** searches the multi-select
+return list without clearing hidden selections. Optional source/load return pads
+record the declared terminals. No ground or return current is inferred from a net
+name. Quick SI exposes these controls under **Explicit return-path review**;
+Quick PI uses its **Return path** tab.
+
+The result includes per-layer sampled reference coverage and each signal-via
+transition's observed routing layers, local reference nets/layers and nearby
+return-via candidates. Candidates show distance, layer span and sampled annulus
+contact to filled copper on their own net. A nearby via that lacks contact evidence
+stays unresolved. Changes between reference nets require separate engineering
+review; geometric proximity cannot establish a transfer path between them.
+
+The review covers the whole selected signal net, even in Quick SI's two-terminal
+workflow. It does not solve return-current distribution, closed-loop continuity,
+return resistance or loop inductance. Undeclared return terminals remain unresolved.
+HTML reports retain the detailed evidence and warnings; Quick PI's paired JSON
+also retains the filled polygon and terminal inventory. Refill zones and save
+before reviewing a changed board.
+
+Signal-via centers normally lie in reference antipad voids. Local reference
+candidates are therefore sampled around a recorded radius equal to the saved
+via diameter; the drill/antipad is never filled in by the review. A stitching
+candidate must contact the same local filled polygon on its own net, not merely
+a different island with the same net name. Both annular checks are sampled
+geometric evidence; neither proves the closed return circuit.
+
+## Selection and responsive results
+
+**Read PCB selection** retains all selected copper in the preview and expands selected component pads. The numeric inspector still describes its primary item. Enable **Add to existing PCB selection** to extend the editor selection rather than replace it. Inputs changed during a job cancel that job and discard late results. Navigation uses the originating saved board and confirms selection; it does not edit copper or certify unsaved geometry.

@@ -38,6 +38,7 @@ class VirtualHeatsinkDialog:
     def __init__(self, parent, references, existing):
         import wx
         from wayricad_runtime.readable_choice import ReadableChoice
+        from wayricad_runtime.searchable_selection import searchable_row
         from matplotlib.figure import Figure
         from .plot_canvas import FigureCanvasWxAgg
         self.wx=wx;self.data={key:dict(value) for key,value in existing.items()};self.references=sorted(references)
@@ -61,7 +62,7 @@ class VirtualHeatsinkDialog:
         for label,ctrl in [('Component',self.reference),('Shape',self.shape),('Width mm',self.width),
             ('Depth mm',self.depth),('Height mm',self.height),('Contact Rθ K/W',self.contact),
             ('Air sink-to-ambient Rθ K/W',self.air),('Vacuum sink-to-environment Rθ K/W',self.vacuum)]:
-            grid.Add(wx.StaticText(self.dialog,label=label),0,wx.ALIGN_CENTER_VERTICAL);grid.Add(ctrl,1,wx.EXPAND)
+            grid.Add(wx.StaticText(self.dialog,label=label),0,wx.ALIGN_CENTER_VERTICAL);grid.Add(searchable_row(ctrl) if ctrl is self.reference else ctrl,1,wx.EXPAND)
         right.Add(grid,0,wx.EXPAND|wx.BOTTOM,8)
         self.figure=Figure(figsize=(5,2.3),dpi=100);self.canvas=FigureCanvasWxAgg(self.dialog,wx.ID_ANY,self.figure)
         right.Add(self.canvas,1,wx.EXPAND)

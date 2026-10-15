@@ -137,3 +137,7 @@ Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner 
 [Open-board checks](../docs/audits/RLC_OPEN_BOARD_VALIDATION.md).
 The implementation is quasi-static with declared geometry limits; the bibliography
 does not add dispersion, arbitrary coupled fields or automatic differential CPW extraction.
+
+## Search long net and terminal names
+
+Use **Find…** beside net, start/end terminal, saved filled-island, reference-layer and differential-mate selectors. Search matches any literal part of a name, case-insensitively, and displays the full selected name below the results. Choose an item and **OK**, or **Cancel** without changing the route. These fields remain single selections. **Ctrl+F** and the dropdown context menu open the same picker.

@@ -20,11 +20,62 @@ class _ReadableItems:
     def _readable_init(self):
         self._choice_help = ''
         self._popup_dirty = True
+        self._items_revision = 0
         for event in (wx.EVT_CHOICE, wx.EVT_COMBOBOX, wx.EVT_ENTER_WINDOW,
                       wx.EVT_SET_FOCUS, wx.EVT_TEXT):
             self.Bind(event, self._readable_event)
         self.Bind(wx.EVT_SIZE, self._readable_size)
+        self.Bind(wx.EVT_CHAR_HOOK, self._search_key)
+        self.Bind(wx.EVT_CONTEXT_MENU, self._search_context)
         self._refresh_tip()
+
+    def _search_key(self, event):
+        if event.ControlDown() and event.GetKeyCode() in (ord('F'), ord('f')):
+            self.ShowSearch()
+        else:
+            event.Skip()
+
+    def _search_context(self, event):
+        menu = wx.Menu()
+        item = menu.Append(wx.ID_ANY, 'Search full item names…\tCtrl+F')
+        self.Bind(wx.EVT_MENU, lambda event: self.ShowSearch(), id=item.GetId())
+        try:
+            self.PopupMenu(menu)
+        finally:
+            self.Unbind(wx.EVT_MENU, id=item.GetId())
+            menu.Destroy()
+
+    def ShowSearch(self):
+        """Choose by substring without filtering or replacing native items."""
+        if getattr(self, '_search_dispatching', False) or not self.IsEnabled():
+            return False
+        from .searchable_selection import choose_items
+        items = self.GetStrings()
+        revision = self._items_revision
+        result = choose_items(self, items, self.GetSelection())
+        if result is None:
+            return False
+        # Modal background callbacks may repopulate a project-bound control.
+        if revision != self._items_revision or items != self.GetStrings():
+            return False
+        index = result[0]
+        if not 0 <= index < len(items):
+            return False
+        if index == self.GetSelection():
+            return True
+        self.SetSelection(index)
+        event_type = wx.wxEVT_COMBOBOX if isinstance(self, wx.ComboBox) else wx.wxEVT_CHOICE
+        event = wx.CommandEvent(event_type, self.GetId())
+        event.SetEventObject(self)
+        event.SetInt(index)
+        event.SetString(items[index])
+        event.SetClientData(self.GetClientData(index))
+        self._search_dispatching = True
+        try:
+            self.GetEventHandler().ProcessEvent(event)
+        finally:
+            self._search_dispatching = False
+        return True
 
     def SetToolTip(self, tip):
         """Retain caller help alongside the complete selected item."""
@@ -51,6 +102,7 @@ class _ReadableItems:
         event.Skip()
 
     def _items_changed(self):
+        self._items_revision = getattr(self, '_items_revision', 0) + 1
         self._popup_dirty = True
         self._refresh_tip()
         self._update_popup()
@@ -125,3 +177,70 @@ class ReadableComboBox(_ReadableItems, wx.ComboBox):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._readable_init()
+
+
+class SearchableCheckListBox(wx.CheckListBox):
+    """Native checked list with a separate search-and-multiselect dialog."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._items_revision = 0
+        self.Bind(wx.EVT_CHAR_HOOK, self._search_key)
+
+    def Set(self, *args, **kwargs):
+        self._items_revision += 1
+        return super().Set(*args, **kwargs)
+
+    def SetItems(self, *args, **kwargs):
+        self._items_revision += 1
+        return super().SetItems(*args, **kwargs)
+
+    def Append(self, *args, **kwargs):
+        self._items_revision += 1
+        return super().Append(*args, **kwargs)
+
+    def Clear(self):
+        self._items_revision += 1
+        return super().Clear()
+
+    def Delete(self, *args, **kwargs):
+        self._items_revision += 1
+        return super().Delete(*args, **kwargs)
+
+    def SetString(self, *args, **kwargs):
+        self._items_revision += 1
+        return super().SetString(*args, **kwargs)
+
+    def _search_key(self, event):
+        if event.ControlDown() and event.GetKeyCode() in (ord('F'), ord('f')):
+            self.ShowSearch()
+        else:
+            event.Skip()
+
+    def ShowSearch(self):
+        if getattr(self, '_search_dispatching', False) or not self.IsEnabled():
+            return False
+        from .searchable_selection import choose_items
+        items = self.GetStrings()
+        revision = self._items_revision
+        result = choose_items(self, items, self.GetSelection(), self.GetCheckedItems())
+        if result is None or revision != self._items_revision or items != self.GetStrings():
+            return False
+        checked = set(result)
+        changed = [index for index in range(len(items))
+                   if self.IsChecked(index) != (index in checked)]
+        for index in changed:
+            self.Check(index, index in checked)
+        # Each event sees the final complete checked set, never half an update.
+        self._search_dispatching = True
+        try:
+            for index in changed:
+                if not self or self.IsBeingDeleted() or revision != self._items_revision:
+                    break
+                event = wx.CommandEvent(wx.wxEVT_CHECKLISTBOX, self.GetId())
+                event.SetEventObject(self)
+                event.SetInt(index)
+                event.SetString(items[index])
+                self.GetEventHandler().ProcessEvent(event)
+        finally:
+            self._search_dispatching = False
+        return True

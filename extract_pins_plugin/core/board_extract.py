@@ -6,6 +6,7 @@ import fnmatch
 from typing import Any, Dict, Iterable, List, Sequence
 
 from .data_extractor import DataExtractor
+from wayricad_runtime.ipc import selected_footprints
 
 
 def _matches(value: str, patterns: str) -> bool:
@@ -45,7 +46,7 @@ def extract_board_pin_rows(
     selected = set()
     if selected_only:
         try:
-            selected = {item.GetReference() for item in board.GetSelection() if hasattr(item, "GetReference")}
+            selected = {item.GetReference() for item in selected_footprints(board)}
         except Exception:
             selected = set()
     rows: List[Dict[str, Any]] = []

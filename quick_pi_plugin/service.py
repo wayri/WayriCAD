@@ -100,7 +100,7 @@ def execute(request):
         evidence=collect_board_evidence(board,request['signal_net'],request['return_nets'])
         result=audit_return_path(evidence,
             sample_pitch_mm=float(request.get('sample_pitch_mm',.25)),
-            return_via_radius_mm=float(request.get('return_via_radius_mm',2.)))
+            return_via_radius_mm=float(request.get('return_via_radius_mm',2.)),return_terminal_ids=request.get('return_terminal_ids'),return_terminal_roles=request.get('return_terminal_roles'))
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during return-path review. Reload and run again.')
         return {'return_path':result,'evidence':evidence,'request':request,'source_sha256':before}
     if action not in ('geometry','mesh','solve'):raise ValueError('Unknown Quick PI action: '+str(action))

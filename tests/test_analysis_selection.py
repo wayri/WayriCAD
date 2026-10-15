@@ -87,3 +87,127 @@ def test_explicit_net_and_legacy_board_object(origin):
     legacy = NS(GetFileName=lambda:str(path))
     assert selection.select_origin(legacy, net='VCC') == 1
     assert board.selected == [board.via]
+
+
+def test_bulk_uuid_lookup_avoids_full_board_reads(origin, monkeypatch):
+    path, board, _ = origin
+    calls = []
+    monkeypatch.setattr(selection, '_request_ids', lambda values: values)
+    board.get_items_by_id = lambda ids: calls.append(ids) or [board.pad, board.track]
+    board.get_footprints = lambda: pytest.fail('Bulk UUID selection must not fetch all footprints')
+    board.get_tracks = lambda: pytest.fail('Bulk UUID selection must not fetch all tracks')
+    assert selection.select_origin(path, ['PAD', 'TRACK'], additive=True) == 3
+    assert calls == [['pad', 'track']]
+    assert {selection.identity(row) for row in board.selected} == {'fp', 'pad', 'track'}
+
+
+def test_bulk_multinet_and_uuid_overlap_preserve_complete_request(origin, monkeypatch):
+    path, board, _ = origin
+    monkeypatch.setattr(selection, '_request_ids', lambda values: values)
+    monkeypatch.setattr(selection, '_request_nets', lambda values: values)
+    board.via.net.name = 'VCC'
+    board.get_items_by_id = lambda ids: [board.track]
+    board.get_items_by_net = lambda nets: [board.track, board.via]
+    assert selection.select_origin(path, ['TRACK'], nets=['GND', 'VCC']) == 2
+    previous = board.selected[:]
+    with pytest.raises(ValueError, match='requested nets'):
+        selection.select_origin(path, nets=['VCC', 'MISSING'])
+    assert board.selected == previous
+
+
+def test_duplicate_bulk_response_is_not_hidden_by_net_overlap(origin, monkeypatch):
+    path, board, _ = origin
+    monkeypatch.setattr(selection, '_request_ids', lambda values: values)
+    monkeypatch.setattr(selection, '_request_nets', lambda values: values)
+    board.get_items_by_id = lambda ids: [board.track, item('TRACK')]
+    board.get_items_by_net = lambda nets: [board.track]
+    with pytest.raises(ValueError, match='uniquely'):
+        selection.select_origin(path, ['TRACK'], net='GND')
+    assert board.selected == [board.fp]
+
+
+def test_component_navigation_rejects_bulk_non_footprint_uuid(origin, monkeypatch):
+    path, board, _ = origin
+    monkeypatch.setattr(selection, '_request_ids', lambda values: values)
+    monkeypatch.setattr(selection, '_is_footprint', lambda value: value is board.fp)
+    board.get_items_by_id = lambda ids: [board.pad]
+    with pytest.raises(ValueError, match='uniquely'):
+        selection.select_origin(path, ['PAD'], footprints_only=True)
+    assert board.selected == [board.fp]
+
+
+def test_uuid_lookup_cannot_mask_incomplete_net_response(origin, monkeypatch):
+    path, board, _ = origin
+    monkeypatch.setattr(selection, '_request_ids', lambda values: values)
+    monkeypatch.setattr(selection, '_request_nets', lambda values: values)
+    board.pad.net.name='VCC'
+    board.get_items_by_id=lambda ids:[board.pad]
+    board.get_items_by_net=lambda nets:[board.track]
+    with pytest.raises(ValueError,match='requested nets'):
+        selection.select_origin(path,['PAD'],nets=['VCC','GND'])
+    assert board.selected == [board.fp]
+
+
+def field(identifier):
+    # Matches the real SDK: Field.id is an enum, text.id is the KIID.
+    return NS(id=1,text=NS(id=NS(value=identifier)))
+
+
+def test_additive_selection_preserves_distinct_preselected_fields(origin):
+    path,board,_=origin
+    first,second=field('FIELD1'),field('FIELD2')
+    board.selected=[first,second]
+    assert selection.select_origin(path,['TRACK'],additive=True)==3
+    assert {selection.identity(item) for item in board.selected}=={'field1','field2','track'}
+
+
+def test_partial_selection_restores_every_preselected_field(origin):
+    path,board,_=origin
+    first,second=field('FIELD1'),field('FIELD2')
+    board.selected=[first,second];board.drop_once=True
+    with pytest.raises(RuntimeError,match='confirm'):
+        selection.select_origin(path,['TRACK'],additive=True)
+    assert board.selected==[first,second]
+
+
+def test_missing_previous_identity_refuses_before_selection_write(origin):
+    path,board,_=origin
+    unknown=NS(id=1)
+    board.selected=[unknown,board.fp]
+    with pytest.raises(ValueError,match='missing or ambiguous'):
+        selection.select_origin(path,['TRACK'],additive=True)
+    assert board.selected==[unknown,board.fp]
+    with pytest.raises(ValueError,match='missing or ambiguous'):
+        selection.selected_origin_ids(path)
+
+
+def test_ambiguous_previous_identity_refuses_before_selection_write(origin):
+    path,board,_=origin
+    board.selected=[field('SAME'),field('SAME')]
+    previous=board.selected[:]
+    with pytest.raises(ValueError,match='missing or ambiguous'):
+        selection.select_origin(path,['TRACK'])
+    assert board.selected==previous
+
+
+def test_missing_readback_identity_restores_every_preselected_field(origin):
+    path,board,_=origin
+    first,second=field('FIELD1'),field('FIELD2')
+    board.selected=[first,second]
+    original=board.add_to_selection
+    def incomplete_once(items):
+        board.add_to_selection=original
+        board.selected=[NS(id=1)]
+    board.add_to_selection=incomplete_once
+    with pytest.raises(ValueError,match='missing or ambiguous'):
+        selection.select_origin(path,['TRACK'])
+    assert board.selected==[first,second]
+
+
+def test_net_response_with_unidentifiable_item_refuses_partial_selection(origin,monkeypatch):
+    path,board,_=origin
+    monkeypatch.setattr(selection,'_request_nets',lambda values:values)
+    board.get_items_by_net=lambda nets:[board.track,NS(net=NS(name='GND'))]
+    with pytest.raises(ValueError,match='without a selectable identity'):
+        selection.select_origin(path,net='GND')
+    assert board.selected==[board.fp]

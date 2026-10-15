@@ -17,6 +17,7 @@ THIS PLUGIN IS PROVIDED AS IS WITHOUT ANY GUARANTEE OR WARRANTY.
 
 import wx
 from wayricad_runtime.readable_choice import ReadableComboBox
+from wayricad_runtime.ipc import selected_footprints
 import pcbnew
 import csv
 from io import StringIO
@@ -268,7 +269,7 @@ class PluginDialog(wx.Dialog):
         """
         print("DEBUG: OnRefreshSelection method called.")
         
-        newly_selected_from_pcb = [f for f in self.board.GetFootprints() if f.IsSelected()]
+        newly_selected_from_pcb = selected_footprints(self.board)
         
         if self.multi_select_checkbox.IsChecked():
             print("DEBUG: Multi-select mode enabled. Merging selections.")
