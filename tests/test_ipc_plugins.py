@@ -33,7 +33,7 @@ class WorkbenchPluginTests(unittest.TestCase):
                     expected = {"trace_refiner_plugin": ("com.github.wayri.wayricad.trace-refiner", "0.1.1"),
                                 "project_fusion_plugin": ("org.wayri.projectfusion", "0.9.8"),
                                 "variant_manager_plugin": ("org.wayri.variant-manager", "0.6.1"),
-                                "silkscreen_label_plugin": ("com.github.wayri.wayricad.silkscreen-label-placer", "0.2.1")}
+                                "silkscreen_label_plugin": ("com.github.wayri.wayricad.silkscreen-label-placer", "0.2.2")}
                     self.assertEqual(expected[package.name], (metadata["identifier"], metadata["versions"][0]["version"]))
                     self.assertFalse((package / "plugin.json").exists())
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):

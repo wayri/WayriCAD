@@ -278,8 +278,14 @@ class PlacementTests(unittest.TestCase):
         preview=plan(self.board,api,{'leaders':False,'max_radius':4})
         self.assertEqual(len(preview.changes),1)
         change=preview.changes[0]
-        self.assertAlmostEqual(api.ToMM(change.position[0]),21.4,places=1)
-        self.assertAlmostEqual(api.ToMM(change.position[1]),17.2,places=1)
+        # Edge-derived placement need not land on the older sampling grid.
+        # Verify the complete native envelope plus clearance fits the only slot.
+        from silkscreen_label_plugin.placement import _inflate
+        checked=_inflate(change.box,api.FromMM(.2),api)
+        self.assertGreater(checked.GetLeft(),api.FromMM(20.05))
+        self.assertLess(checked.GetRight(),api.FromMM(22.75))
+        self.assertGreater(checked.GetTop(),api.FromMM(16.1))
+        self.assertLess(checked.GetBottom(),api.FromMM(18.3))
 
     def test_difficult_long_labels_take_priority(self):
         # A large slot and a small slot: the long label cannot fit the latter.

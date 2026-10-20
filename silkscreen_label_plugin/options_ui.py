@@ -42,7 +42,7 @@ class OptionsDialog(wx.Dialog):
         self.settings=deepcopy(settings);self.rules=deepcopy(settings['formatting_rules']);self.controls={}
         root=wx.BoxSizer(wx.VERTICAL);book=wx.Notebook(self);root.Add(book,1,wx.EXPAND|wx.ALL,10)
         def page(title):
-            panel=wx.Panel(book);sizer=wx.BoxSizer(wx.VERTICAL);panel.SetSizer(sizer);book.AddPage(panel,title);return panel,sizer
+            panel=wx.ScrolledWindow(book);panel.SetScrollRate(0,12);sizer=wx.BoxSizer(wx.VERTICAL);panel.SetSizer(sizer);book.AddPage(panel,title);return panel,sizer
         def check(panel,sizer,key,label):
             control=wx.CheckBox(panel,label=label);control.SetValue(bool(settings[key]));self.controls[key]=control;sizer.Add(control,0,wx.ALL,8)
         def number(panel,sizer,key,label):
@@ -50,7 +50,15 @@ class OptionsDialog(wx.Dialog):
             control=wx.TextCtrl(panel,value=str(settings[key]),size=(110,-1));self.controls[key]=control;row.Add(control);sizer.Add(row,0,wx.EXPAND|wx.ALL,8)
         panel,sizer=page('Placement')
         for key,label in [('values','Also place visible values'),('board_text','Also place existing board text'),('leaders','Guide lines for distant component labels')]:check(panel,sizer,key,label)
-        for key,label in [('clearance','Spacing (mm)'),('max_radius','Search distance (mm)'),('leader_distance','Guide line beyond distance (mm)')]:number(panel,sizer,key,label)
+        check(panel,sizer,'testpoint_net_names','Use connected net names for test point labels')
+        row=wx.BoxSizer(wx.HORIZONTAL)
+        row.Add(wx.StaticText(panel,label='Test point reference pattern'),1,wx.ALIGN_CENTER_VERTICAL)
+        self.controls['testpoint_pattern']=wx.TextCtrl(panel,value=settings.get('testpoint_pattern','TP*'),size=(150,-1))
+        self.controls['testpoint_pattern'].SetToolTip('Reference wildcard, for example TP*. Only parts with one connected net are labelled; actual component references stay unchanged.')
+        row.Add(self.controls['testpoint_pattern']);sizer.Add(row,0,wx.EXPAND|wx.ALL,8)
+        note=wx.StaticText(panel,label='Net names are separate silkscreen annotations. The actual TP reference stays intact. Missing or ambiguous nets remain unchanged for review.')
+        note.Wrap(570);sizer.Add(note,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        for key,label in [('clearance','Spacing (mm)'),('max_radius','Search beyond footprint (mm)'),('leader_distance','Guide line beyond distance (mm)')]:number(panel,sizer,key,label)
         sizer.Add(wx.StaticText(panel,label='Hidden and locked items stay untouched. Unresolved labels retain their original placement.'),0,wx.ALL,8)
         panel,sizer=page('Size & direction')
         check(panel,sizer,'auto_size','Automatically shrink text when needed')
@@ -58,8 +66,15 @@ class OptionsDialog(wx.Dialog):
         self.horizontal=wx.CheckBox(panel,label='Allow horizontal text');self.vertical=wx.CheckBox(panel,label='Allow vertical text')
         self.horizontal.SetValue(0 in settings['allowed_rotations']);self.vertical.SetValue(90 in settings['allowed_rotations'])
         sizer.Add(self.horizontal,0,wx.ALL,8);sizer.Add(self.vertical,0,wx.ALL,8)
+        self.diagonal=wx.CheckBox(panel,label='Allow 45-degree text (45° / 135°)')
+        self.diagonal.SetValue(any(a in (45,135) for a in settings['allowed_rotations']))
+        sizer.Add(self.diagonal,0,wx.ALL,8)
+        sizer.Add(wx.StaticText(panel,label='Other fallback angles (degrees, comma-separated)'),0,wx.LEFT|wx.TOP,8)
+        self.other_angles=wx.TextCtrl(panel,value=', '.join(str(a) for a in settings['allowed_rotations'] if a not in (0,45,90,135)))
+        self.other_angles.SetToolTip('Any angles from 0 up to 180 degrees; at most 36 total. Nearby horizontal labels and smaller sizes are tried first, then 45-degree steps, then these angles. Distant guided positions come last.')
+        sizer.Add(self.other_angles,0,wx.EXPAND|wx.ALL,8)
         sizer.Add(wx.StaticText(panel,label='Read from'),0,wx.LEFT|wx.TOP,8)
-        self.direction=wx.Choice(panel,choices=['Bottom/right (0° / 90°)','Top/left (180° / 270°)','Either direction'])
+        self.direction=wx.Choice(panel,choices=['Bottom/right','Top/left (add 180 degrees)','Either direction'])
         self.direction.SetSelection(['Bottom/right','Top/left','Either'].index(settings['reading_direction']));sizer.Add(self.direction,0,wx.EXPAND|wx.ALL,8)
         note=wx.StaticText(panel,label='Automatic sizing tries up to 16 heights and scales the stroke with size. With it off, existing larger text and stroke are preserved. KiCad fabrication minimums always apply.');note.Wrap(570);sizer.Add(note,0,wx.ALL,8)
         def sizing(event=None):
@@ -104,10 +119,18 @@ class OptionsDialog(wx.Dialog):
     def result(self):
         result=deepcopy(self.settings)
         for key,control in self.controls.items():
+            if key=='testpoint_pattern':
+                result[key]=control.GetValue().strip()
+                continue
             value=control.GetValue() if isinstance(control,wx.CheckBox) else float(control.GetValue())
             if not isinstance(value,bool) and (not math.isfinite(value) or value<=0):raise ValueError(key+' must be positive and finite.')
             result[key]=value
-        result['allowed_rotations']=tuple(x for x,control in [(0,self.horizontal),(90,self.vertical)] if control.GetValue())
+        if result.get('testpoint_net_names') and not result.get('testpoint_pattern'):
+            raise ValueError('Enter a test point reference pattern, for example TP*.')
+        angles=[x for x,control in [(0,self.horizontal),(45,self.diagonal),(90,self.vertical),(135,self.diagonal)] if control.GetValue()]
+        angles.extend(float(value.strip()) for value in self.other_angles.GetValue().split(',') if value.strip())
+        result['allowed_rotations']=tuple(dict.fromkeys(angles))
+        if len(result['allowed_rotations'])>36 or any(not math.isfinite(a) or not 0<=a<180 for a in angles):raise ValueError('Choose at most 36 finite angles from 0 up to 180 degrees.')
         if not result['allowed_rotations']:raise ValueError('Allow at least one text orientation.')
         if result['auto_size'] and result['min_height']>result['height']:raise ValueError('Minimum height cannot exceed preferred height.')
         if result['auto_size'] and (result['height']-result['min_height'])/result['size_step']>15:raise ValueError('Choose a larger size step: at most 16 heights are supported.')

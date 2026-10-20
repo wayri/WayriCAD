@@ -43,7 +43,7 @@ class TypographyTests(unittest.TestCase):
 
     def test_all_reading_directions_and_both_sides_render_requested_angles(self):
         for bottom in (False,True):
-            for rotation in (0,90):
+            for rotation in (0,17,45,90,135):
                 for direction,offset in (('Bottom/right',0),('Top/left',180)):
                     b=dense_board(api,1,1)
                     fp=next(iter(b.GetFootprints())); fp.SetOrientationDegrees(45); t=fp.Reference()
@@ -103,9 +103,39 @@ class TypographyTests(unittest.TestCase):
         tx.undo();self.assertEqual(_state(t),before)
         tx.redo();self.assertEqual(_state(t),preview.changes[0].after)
 
+    def test_common_horizontal_wins_over_existing_rotation(self):
+        b=dense_board(api,1,1);t=next(iter(b.GetFootprints())).Reference()
+        t.SetTextAngle(api.EDA_ANGLE(90,api.DEGREES_T))
+        source=fingerprint(b,api);review=plan(b,api)
+        self.assertEqual(len(review.changes),1)
+        self.assertEqual(review.changes[0].after[2],0)
+        self.assertEqual(source,fingerprint(b,api))
+
+    def test_angle_preference_and_custom_angles(self):
+        from silkscreen_label_plugin.placement import _angles,DEFAULTS
+        options=dict(DEFAULTS,allowed_rotations=[17,90,45,0,135])
+        self.assertEqual(_angles(options,90),[0,45,90,135,17])
+        options['allowed_rotations']=[17]
+        self.assertEqual(_angles(options,0),[17])
+
+    def test_nearby_smaller_horizontal_precedes_distant_large_text(self):
+        b=self.board(30,30)
+        for left,right in ((0,12),(18,30)):
+            obstacle=api.PCB_SHAPE(b);obstacle.SetLayer(api.F_SilkS)
+            obstacle.SetShape(api.SHAPE_T_RECT);obstacle.SetStart(self.v(left,10));obstacle.SetEnd(self.v(right,20))
+            obstacle.SetWidth(api.FromMM(.1));b.Add(obstacle)
+        t=api.PCB_TEXT(b);t.SetText('TP12345');t.SetPosition(self.v(15,15));t.SetLayer(api.F_SilkS)
+        t.SetTextSize(self.v(2,2));t.SetTextThickness(api.FromMM(.15));b.Add(t)
+        review=plan(b,api,dict(references=False,board_text=True,height=2,min_height=.7,size_step=.1,max_radius=10))
+        self.assertEqual(len(review.changes),1)
+        change=review.changes[0]
+        self.assertEqual(change.after[2],0)
+        self.assertLess(change.after[4],api.FromMM(2))
+        self.assertLessEqual(((change.after[0]-t.GetPosition().x)**2+(change.after[1]-t.GetPosition().y)**2)**.5,api.FromMM(2))
+
     def test_invalid_settings_are_rejected_without_mutation(self):
         b=dense_board(api,1,1); source=fingerprint(b,api)
-        cases=[dict(allowed_rotations=[]),dict(allowed_rotations=[45]),
+        cases=[dict(allowed_rotations=[]),dict(allowed_rotations=[180]),
                dict(reading_direction='Unknown'),dict(auto_size=True,min_height=2,height=1),
                dict(formatting_rules=[dict(bold=True)]),dict(formatting_rules=[dict(ref_pattern='TP*',bold='yes')])]
         for settings in cases:

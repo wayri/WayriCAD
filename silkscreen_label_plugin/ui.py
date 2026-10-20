@@ -4,7 +4,7 @@ from copy import deepcopy
 from .options_ui import OptionsDialog
 import pcbnew
 import wx
-from .placement import DEFAULTS, plan, apply, text_geometry, polygons, item_id
+from .placement import DEFAULTS, plan, apply, text_geometry, polygons, item_id, _net_ownership
 
 
 class LabelPreview(wx.Panel):
@@ -53,6 +53,8 @@ class LabelPreview(wx.Panel):
         silk=pcbnew.B_SilkS if self.back else pcbnew.F_SilkS
         mask=pcbnew.B_Mask if self.back else pcbnew.F_Mask
         moving={item_id(c.item) for c in self.preview.changes} if self.preview else set()
+        if self.preview:
+            moving.update(key for c in self.preview.changes for key in getattr(c,'suppressed_item_ids',()))
         for drawing in self.board.GetDrawings():
             if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_SHAPE) and drawing.GetShape()==pcbnew.SHAPE_T_SEGMENT:
                 dc.SetPen(wx.Pen('#82969d',max(1,round(drawing.GetWidth()*scale))));a,b=drawing.GetStart(),drawing.GetEnd();dc.DrawLine(*point(a.x,a.y),*point(b.x,b.y))
@@ -77,7 +79,7 @@ class LabelPreview(wx.Panel):
                     self._glyphs={};self._geometry_plan=self.preview
                 key=item_id(change.item)
                 if key not in self._glyphs:
-                    _,shape=text_geometry(change.item,change.after,pcbnew)
+                    _,shape=text_geometry(getattr(change,'preview_item',None) or change.item,change.after,pcbnew)
                     self._glyphs[key]=polygons(shape)
                 # Board-scale native glyph polygons retain rotation, mirroring,
                 # font, stroke and knockout; never enlarge small screen labels.
@@ -109,6 +111,14 @@ class SilkscreenFrame(wx.Frame):
         self.board_guard=board_guard or (lambda:True)
         super().__init__(parent,title='WayriCAD Silkscreen Label Placer',size=(1100,760))
         self.SetMinSize((850,600));self.board=board;self.settings=deepcopy(DEFAULTS);self.preview=None;self.transactions=[];self.redos=[]
+        # Preserve existing net-label presentation when reopening the tool.
+        # Only infer exact owned references; do not guess the previous scope.
+        try:owned=_net_ownership(board,pcbnew)
+        except ValueError:owned={}  # Preview reports invalid ownership before writes.
+        if owned:
+            escape=lambda ref:''.join({'*':'[*]','?':'[?]','[':'[[]',']':'[]]'}.get(c,c) for c in ref)
+            self.settings['testpoint_net_names']=True
+            self.settings['testpoint_pattern']=','.join(escape(row[0].GetText()) for _,row in sorted(owned.items()))
         panel=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL)
         title=wx.StaticText(panel,label='Arrange silkscreen labels');title.SetFont(title.GetFont().Bold().Larger());root.Add(title,0,wx.ALL,12)
         row=wx.BoxSizer(wx.HORIZONTAL);row.Add(wx.StaticText(panel,label='Place labels for'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
@@ -123,6 +133,7 @@ class SilkscreenFrame(wx.Frame):
         self.list.InsertColumn(0,'Label',width=150);self.list.InsertColumn(1,'Result',width=730);self.list.SetMinSize((-1,140))
         ds=wx.BoxSizer(wx.VERTICAL);ds.Add(self.list,1,wx.EXPAND);self.details.GetPane().SetSizer(ds);root.Add(self.details,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
         self.details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:self.Layout())
+        self.list.Bind(wx.EVT_MOTION,self.detail_tooltip)
         buttons=wx.BoxSizer(wx.HORIZONTAL);help_button=wx.Button(panel,label='Help');buttons.Add(help_button,0)
         self.undo_button=wx.Button(panel,label='Undo');self.redo_button=wx.Button(panel,label='Redo');buttons.Add(self.undo_button,0,wx.LEFT,8);buttons.Add(self.redo_button,0,wx.LEFT,8)
         buttons.AddStretchSpacer();preview_button=wx.Button(panel,label='Preview');self.apply_button=wx.Button(panel,label='Apply labels')
@@ -133,6 +144,12 @@ class SilkscreenFrame(wx.Frame):
         fit.Bind(wx.EVT_BUTTON,self.canvas.fit);preview_button.Bind(wx.EVT_BUTTON,self.on_preview)
         self.apply_button.Bind(wx.EVT_BUTTON,self.on_apply);self.undo_button.Bind(wx.EVT_BUTTON,self.undo);self.redo_button.Bind(wx.EVT_BUTTON,self.redo)
         help_button.Bind(wx.EVT_BUTTON,lambda e:wx.LaunchDefaultBrowser(Path(__file__).with_name('help.html').as_uri()))
+    def detail_tooltip(self,event):
+        row,_=self.list.HitTest(event.GetPosition())
+        text=(self.list.GetItemText(row)+'\n'+self.list.GetItemText(row,1)) if row>=0 else ''
+        if text!=getattr(self,'_detail_tooltip',''):
+            self._detail_tooltip=text;self.list.SetToolTip(text)
+        event.Skip()
     def require_board(self):
         if not self.board_guard():raise ValueError('The originating board was closed or replaced. Reopen this plugin.')
     def current_settings(self):return dict(self.settings,selected_only=self.scope.GetSelection()==0)

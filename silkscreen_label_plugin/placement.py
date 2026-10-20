@@ -10,6 +10,7 @@ import json
 import math
 import time
 import fnmatch
+from .guide_routing import dogleg_paths, visibility_path
 
 def point_segment_distance(point,start,end):
     dx,dy=end[0]-start[0],end[1]-start[1]
@@ -107,9 +108,10 @@ DEFAULTS = dict(references=True, values=False, board_text=False, selected_only=F
                 height=1.0, thickness=0.15, clearance=0.2, max_radius=12.0,
                 step=0.5, leaders=True, leader_distance=3.0,
                 auto_size=True, min_height=0.8, size_step=0.1,
-                allowed_rotations=(0, 90), reading_direction='Bottom/right',
-                formatting_rules=[])
+                allowed_rotations=(0, 45, 90, 135, 15, 30, 60, 75, 105, 120, 150, 165), reading_direction='Bottom/right',
+                formatting_rules=[], testpoint_net_names=False, testpoint_pattern='TP*')
 GUIDE_PREFIX = 'WayriCAD Silk guide '
+NET_PREFIX = 'WayriCAD Silk net '
 
 
 def _state(text):
@@ -179,6 +181,9 @@ def fingerprint(board, api):
     ds = board.GetDesignSettings()
     floors = [getattr(ds, k, 0) for k in
               ('m_MinSilkTextHeight', 'm_MinSilkTextThickness', 'm_SilkClearance')]
+    # Native Remove/Add can reorder identical text/groups during Undo.
+    # Compare current properties canonically, never incidental container order.
+    rows.sort(key=lambda row:str(row[0]))
     return hashlib.sha256((board_fingerprint(board) + json.dumps([rows, floors])).encode()).hexdigest()
 
 
@@ -192,6 +197,16 @@ class Change:
     leader: tuple = None
     previous_guides: list = field(default_factory=list)
     leader_path: tuple = ()
+    preview_item: object = None
+    annotation: object = None
+
+    @property
+    def suppressed_reference_id(self):
+        return item_id(self.annotation.reference) if self.annotation and not self.annotation.remove else ''
+
+    @property
+    def suppressed_item_ids(self):
+        return tuple(item_id(text) for text in self.annotation.originals) if self.annotation else ()
 
     @property
     def text(self): return self.item
@@ -217,6 +232,111 @@ class Plan:
     rejected: list = field(default_factory=list)
     skipped: list = field(default_factory=list)
     stats: dict = field(default_factory=dict)
+
+
+@dataclass
+class NetAnnotation:
+    reference: object
+    text: object
+    group: object
+    original_visibility: bool
+    reference_visible_before: bool
+    text_before: str
+    net: str
+    originals: tuple
+    create: bool = False
+    remove: bool = False
+
+
+def _net_ownership(board, api):
+    """Resolve saved ownership conservatively; never adopt arbitrary silk text."""
+    footprints = {item_id(fp): fp for fp in board.GetFootprints()}
+    drawings = {item_id(text) for text in board.GetDrawings()}
+    result = {}
+    for group in board.Groups():
+        if not group.GetName().startswith(NET_PREFIX):continue
+        try:
+            data = json.loads(group.GetName()[len(NET_PREFIX):])
+            if (not isinstance(data,dict) or set(data) != {'v','footprint','reference','visible'}
+                    or data['v'] != 1 or not isinstance(data['visible'],bool)):
+                raise ValueError('unsupported ownership metadata')
+            fp = footprints[data['footprint']]
+            reference = fp.Reference()
+            members = list(group.GetItems())
+            if (data['reference'] != item_id(reference) or len(members) != 1
+                    or not isinstance(members[0],api.PCB_TEXT)
+                    or item_id(members[0]) not in drawings
+                    or members[0].GetParentFootprint() is not None
+                    or members[0].GetParentGroup() is None
+                    or members[0].GetParentGroupId().AsString() != item_id(group)
+                    or data['footprint'] in result):
+                raise ValueError('ownership does not resolve uniquely')
+            result[data['footprint']] = (reference,members[0],group,data['visible'])
+        except (ValueError,KeyError,TypeError) as exc:
+            raise ValueError('Managed test-point label ownership is invalid. Restore or remove the affected ownership group before retrying.') from exc
+    return result
+
+
+def _selected_label(fp, reference, annotation=None):
+    return (reference.IsSelected() or annotation is not None and annotation.IsSelected()
+            or fp.IsSelected() or any(pad.IsSelected() for pad in fp.Pads()))
+
+
+def _annotation_targets(board, api, options, texts, result):
+    """Build detached presentation targets; reference values are never rewritten."""
+    owners = _net_ownership(board,api)
+    managed_ids = {item_id(row[1]) for row in owners.values()}
+    actions, renders, blocked = {}, {}, set()
+    targets = []
+    patterns = [part.strip().casefold() for part in options['testpoint_pattern'].split(',') if part.strip()]
+    for fp in board.GetFootprints():
+        reference = fp.Reference();ref_id = item_id(reference)
+        record = owners.get(item_id(fp))
+        wanted = options['testpoint_net_names'] and any(fnmatch.fnmatchcase(fp.GetReference().casefold(),pattern) for pattern in patterns)
+        if not wanted and record is None:continue
+        blocked.add(ref_id)
+        text, group = (record[1],record[2]) if record else (None,None)
+        label = fp.GetReference() + ' / net'
+        if options['selected_only'] and not _selected_label(fp,reference,text):continue
+        if (fp.IsLocked() or reference.IsLocked() or text is not None and text.IsLocked()
+                or group is not None and (group.IsLocked() or group.GetParentGroup() is not None)):
+            result.skipped.append((label,'Locked footprint, reference or managed annotation; original retained.'));continue
+        if wanted:
+            if (text is None and not reference.IsVisible()) or text is not None and not text.IsVisible():
+                result.skipped.append((label,'Hidden reference or managed annotation; original retained.'));continue
+            nets = {pad.GetNetname() for pad in fp.Pads() if pad.GetNetCode() > 0 and pad.GetNetname()}
+            if len(nets) != 1:
+                reason = 'No connected pad net' if not nets else 'Ambiguous connected pad nets: ' + ', '.join(sorted(nets))
+                result.skipped.append((label,reason+'; original retained.'));continue
+            net = next(iter(nets))
+            if '${' in net or any(ord(char)<32 or ord(char)==127 for char in net):
+                result.skipped.append((label,'Net contains text-variable or control syntax that cannot be displayed literally; original retained.'));continue
+            create = record is None
+            if create:
+                text = api.PCB_TEXT(board)
+                text.SetAttributes(reference)
+                text.SetLayer(reference.GetLayer());text.SetText(net);text.SetVisible(True)
+                group = api.PCB_GROUP(board)
+                data = dict(v=1,footprint=item_id(fp),reference=ref_id,visible=reference.IsVisible())
+                group.SetName(NET_PREFIX+json.dumps(data,sort_keys=True,separators=(',',':')))
+            render = api.PCB_TEXT(text);render.SetText(net)
+            originals = (reference,) if create else (reference,text)
+            action = NetAnnotation(reference,text,group,record[3] if record else reference.IsVisible(),
+                                   reference.IsVisible(),text.GetText(),net,originals,create=create)
+            targets.append((text,fp,'testpoint'))
+        else:
+            net = text.GetText()
+            render = api.PCB_TEXT(reference);render.SetVisible(record[3])
+            action = NetAnnotation(reference,text,group,record[3],reference.IsVisible(),
+                                   text.GetText(),net,(reference,text),remove=True)
+            targets.append((reference,fp,'restore_reference'))
+        key = item_id(targets[-1][0]);actions[key] = action;renders[key] = render
+    # Managed board text is handled only through its explicit owner, never by
+    # the unrelated "board text" switch. Blocked references stay fixed unless
+    # a safe replacement/restoration is accepted.
+    working = [(text,fp,kind) for text,fp,kind in texts
+               if item_id(text) not in managed_ids and item_id(text) not in blocked]
+    return working+targets, actions, renders
 
 
 def text_geometry(text, state, api):
@@ -262,12 +382,12 @@ def courtyard_envelopes(fp, api):
 
 
 def _typography(options):
-    """Validate explicit orthogonal reading directions and ordered style rules."""
+    """Validate finite explicit reading angles and ordered style rules."""
     rotations = options['allowed_rotations']
     if not isinstance(rotations, (list, tuple)) or not rotations:
-        raise ValueError('Choose at least one allowed rotation: 0 or 90 degrees.')
-    if any(isinstance(a, bool) or a not in (0, 90) for a in rotations):
-        raise ValueError('Allowed rotations must contain only 0 and 90 degrees.')
+        raise ValueError('Choose at least one allowed rotation in [0, 180) degrees.')
+    if len(rotations)>36 or any(isinstance(a, bool) or not isinstance(a,(int,float)) or not math.isfinite(a) or not 0<=a<180 for a in rotations):
+        raise ValueError('Choose at most 36 finite angles in [0, 180) degrees.')
     options['allowed_rotations'] = tuple(dict.fromkeys(rotations))
     if options['reading_direction'] not in ('Bottom/right', 'Top/left', 'Either'):
         raise ValueError('Unknown reading direction.')
@@ -307,8 +427,9 @@ def _angles(options, old_angle):
     direction = options['reading_direction']
     angles = [float(a+d) for d in ((0, 180) if direction == 'Either' else
                                   (180,) if direction == 'Top/left' else (0,)) for a in bases]
-    old = old_angle % 360
-    return sorted(angles, key=lambda a: (min((a-old)%360, (old-a)%360), a))
+    # A common direction wins over each label's existing rotation. Explicit
+    # angles remain supported; 45-degree increments precede finer fallbacks.
+    return sorted(angles, key=lambda a: (a%180 != 0, a%45 != 0, a%180, a))
 
 
 def _inflate(box, distance, api):
@@ -395,6 +516,11 @@ def plan(board, api, settings=None, progress=None):
             raise ValueError(name + ' must be finite and positive.')
         options[name] = value
     _typography(options)
+    if not isinstance(options['testpoint_net_names'],bool):
+        raise ValueError('Test-point net names must be enabled or disabled explicitly.')
+    if (not isinstance(options['testpoint_pattern'],str)
+            or options['testpoint_net_names'] and not any(part.strip() for part in options['testpoint_pattern'].split(','))):
+        raise ValueError('Enter at least one test-point reference pattern.')
     if api.FromMM(options['size_step']) < 1:
         raise ValueError('Size step must be at least one native distance unit.')
     if options['min_height'] > options['height'] and options['auto_size']:
@@ -414,6 +540,7 @@ def plan(board, api, settings=None, progress=None):
         raise ValueError('A closed valid Edge.Cuts outline is required.')
     result = Plan(fingerprint(board, api), options)
     texts = list(_texts(board, api))
+    working_texts, annotation_actions, render_items = _annotation_targets(board,api,options,texts,result)
     obstacles = {api.F_SilkS: [], api.B_SilkS: []}
     bodies = {}
     guides, guide_owners = {}, {}
@@ -458,21 +585,23 @@ def plan(board, api, settings=None, progress=None):
                 expansion = max(0,track.GetSolderMaskExpansion())
                 obstacles[silk].append((_inflate(track.GetBoundingBox(),expansion,api),item_id(track)))
     eligible = []
-    for text, fp, kind in texts:
+    for text, fp, kind in working_texts:
         layer,key = text.GetLayer(),item_id(text)
-        label = (fp.GetReference() + ' / ' if fp else '') + text.GetShownText(False)
-        enabled = options['references'] if kind == 'reference' else options['values'] if kind == 'value' else options['board_text'] if kind == 'board' else False
+        annotation = annotation_actions.get(key)
+        render = render_items.get(key,text)
+        label = (fp.GetReference() + ' / ' if fp else '') + render.GetShownText(False)
+        enabled = True if annotation else options['references'] if kind == 'reference' else options['values'] if kind == 'value' else options['board_text'] if kind == 'board' else False
         if not enabled or layer not in obstacles:
             continue
-        if not text.IsVisible() or text.IsLocked() or (fp and fp.IsLocked()):
+        if (not text.IsVisible() and not (annotation and annotation.remove)) or text.IsLocked() or (fp and fp.IsLocked()):
             result.skipped.append((label,'Hidden or locked text/footprint.'))
             continue
-        if options['selected_only'] and not (text.IsSelected() or fp and
+        if options['selected_only'] and annotation is None and not (text.IsSelected() or fp and
                 (fp.IsSelected() or any(p.IsSelected() for p in fp.Pads()))):
             continue
         before = _state(text)
         base = list(before)
-        style = _style(text, fp, options['formatting_rules'])
+        style = _style(render, fp, options['formatting_rules'])
         base[7] = style.get('bold', before[7])
         base[8] = style.get('italic', before[8])
         base[9] = style.get('knockout', before[9])
@@ -502,7 +631,7 @@ def plan(board, api, settings=None, progress=None):
                 continue
             for angle in _angles(options, before[2]):
                 state = tuple(base[:2]+[angle]+base[3:])
-                templates.append((state,_box(text,state,api)))
+                templates.append((state,_box(render,state,api)))
         if not templates:
             raise ValueError('Text height must be at least four times its stroke.')
         priority = max(box.GetWidth()*box.GetHeight() for _,box in templates)
@@ -526,6 +655,7 @@ def plan(board, api, settings=None, progress=None):
     started = time.monotonic()
     deadline = started+30.0
     checks = [0]
+    label_deadline = [deadline]
 
     def inside(a,b,radius):
         first,second = (a.x,a.y),(b.x,b.y)
@@ -535,8 +665,16 @@ def plan(board, api, settings=None, progress=None):
         return all(segment_segment_distance(first,second,*boundary_edges[index])>=radius
                    for _,index in boundary.query(region))
 
-    def positions(origin,before,fp,templates,layer):
-        yield before[0],before[1]
+    def positions(origin,before,fp,templates,layer,local,index):
+        radius = api.FromMM(min(2.,options['max_radius']) if local else options['max_radius'])
+        body = bodies.get((item_id(fp),layer),bodies[item_id(fp)]) if fp else None
+        def near(x,y):
+            # Search distance is measured from the footprint envelope, so large
+            # connectors are not penalized for their distance from their origin.
+            dx=max(body.GetLeft()-x,0,x-body.GetRight()) if body else x-origin.x
+            dy=max(body.GetTop()-y,0,y-body.GetBottom()) if body else y-origin.y
+            return math.hypot(dx,dy)<=radius
+        if near(before[0],before[1]):yield before[0],before[1]
         if fp:
             body = bodies.get((item_id(fp),layer),bodies[item_id(fp)])
             # Clearance-derived side positions find narrow slots even when
@@ -546,23 +684,41 @@ def plan(board, api, settings=None, progress=None):
                 right = body.GetRight()+clearance+1-(box.GetLeft()-before[0])
                 top = body.GetTop()-clearance-1-(box.GetBottom()-before[1])
                 bottom = body.GetBottom()+clearance+1-(box.GetTop()-before[1])
-                for distance in range(min(rings,12)+1):
+                for distance in range((min(rings,12) if local else rings)+1):
                     for offset in ({0} if not distance else (-distance*step,distance*step)):
                         corridor = 2*clearance+stroke+api.FromMM(.1)
                         offsets = (0,corridor) if options['leaders'] else (0,)
                         for extra in offsets:
                             for x,y in ((left-extra,origin.y+offset),(right+extra,origin.y+offset),
                                         (origin.x+offset,top-extra),(origin.x+offset,bottom+extra)):
-                                if math.hypot(x-origin.x,y-origin.y)<=api.FromMM(options['max_radius']):
+                                if near(x,y):
                                     yield x,y
-        for ring in range(1,rings+1):
+        # Native obstacle edges reveal narrow off-grid slots without scanning
+        # thousands of empty grid positions. Limit axes before combining them.
+        region = _inflate(body,radius,api) if body else api.BOX2I(
+            api.VECTOR2I(origin.x-radius,origin.y-radius),api.VECTOR2I(2*radius,2*radius))
+        nearby = sorted((obstacle for obstacle,_ in index.query(region)),
+                        key=lambda r:(abs(r.GetCenter().x-origin.x)+abs(r.GetCenter().y-origin.y),r.GetLeft(),r.GetTop()))[:64]
+        for state,box in templates:
+            xs={origin.x};ys={origin.y}
+            for obstacle in nearby:
+                xs.update((obstacle.GetLeft()-clearance-1-(box.GetRight()-before[0]),
+                           obstacle.GetRight()+clearance+1-(box.GetLeft()-before[0])))
+                ys.update((obstacle.GetTop()-clearance-1-(box.GetBottom()-before[1]),
+                           obstacle.GetBottom()+clearance+1-(box.GetTop()-before[1])))
+            xs=sorted(xs,key=lambda x:(abs(x-origin.x),x))[:12]
+            ys=sorted(ys,key=lambda y:(abs(y-origin.y),y))[:12]
+            for x,y in sorted(((x,y) for x in xs for y in ys),
+                              key=lambda xy:((xy[0]-origin.x)**2+(xy[1]-origin.y)**2,xy)):
+                if near(x,y):yield x,y
+        for ring in range(1,int(radius/step)+1):
             offsets = [(x,y) for x in range(-ring,ring+1)
                        for y in (-ring,ring)]
             offsets += [(x,y) for x in (-ring,ring)
                         for y in range(-ring+1,ring)]
             offsets.sort(key=lambda xy:(xy[0]*xy[0]+xy[1]*xy[1],xy[1],xy[0]))
             for x,y in offsets:
-                if x*x+y*y <= rings*rings:
+                if x*x+y*y <= (radius/step)**2:
                     yield origin.x+x*step,origin.y+y*step
 
     def check_leader(box,origin,fp,key,index,layer):
@@ -573,34 +729,47 @@ def plan(board, api, settings=None, progress=None):
              min(max(origin.y,label_box.GetTop()),label_box.GetBottom()))
         b = (min(max(box.GetCenter().x,body.GetLeft()),body.GetRight()),
              min(max(box.GetCenter().y,body.GetTop()),body.GetBottom()))
-        paths = [(a,b),(a,(a[0],b[1]),b),(a,(b[0],a[1]),b)]
         own_label = _inflate(box,gap-1,api)
-        for path in paths:
-            path = tuple(point for i,point in enumerate(path) if not i or point != path[i-1])
-            valid = len(path)>1
-            for first,second in zip(path,path[1:]):
-                p,q = api.VECTOR2I(*first),api.VECTOR2I(*second)
-                segment = (*first,*second,stroke,layer)
-                if not inside(p,q,clearance+stroke//2) or segment_hits_box(p,q,own_label):
-                    valid = False;break
-                near = index.query(_line_box(segment,api,clearance))
-                if any(segment_hits_box(p,q,obstacle,clearance+stroke//2)
-                       for obstacle,oid in near if oid not in (key,'guide:'+key)):
-                    valid = False;break
-            if valid:
-                return path
-        return None
+        def clear(first,second):
+            if time.monotonic()>label_deadline[0]:return False
+            p,q = api.VECTOR2I(*first),api.VECTOR2I(*second)
+            segment = (*first,*second,stroke,layer)
+            if not inside(p,q,clearance+stroke//2) or segment_hits_box(p,q,own_label):return False
+            return not any(segment_hits_box(p,q,obstacle,clearance+stroke//2)
+                           for obstacle,oid in index.query(_line_box(segment,api,clearance))
+                           if oid not in (key,'guide:'+key))
+        region = _line_box((*a,*b,stroke,layer),api,api.FromMM(options['max_radius']))
+        nearby = [obstacle for obstacle,oid in index.query(region)
+                  if oid not in (key,'guide:'+key) and obstacle.Intersects(region)]
+        boxes = [(r.GetLeft(),r.GetTop(),r.GetRight(),r.GetBottom()) for r in nearby]
+        def candidate_paths():
+            dx,dy=b[0]-a[0],b[1]-a[1]
+            diagonal=min(abs(dx),abs(dy))
+            sx=1 if dx>=0 else -1;sy=1 if dy>=0 else -1
+            yield from ((a,b),(a,(a[0]+sx*diagonal,a[1]+sy*diagonal),b),
+                        (a,(b[0]-sx*diagonal,b[1]-sy*diagonal),b),
+                        (a,(a[0],b[1]),b),(a,(b[0],a[1]),b))
+            yield from dogleg_paths(a,b,boxes,gap,limit=16)
+        for path in candidate_paths():
+            path = tuple(point for i,point in enumerate(path) if not i or point!=path[i-1])
+            if len(path)>1 and all(clear(first,second) for first,second in zip(path,path[1:])):return path
+        # Multi-bend fallback is strictly bounded. The same native full-stroke
+        # checker validates every edge, including holes and previously routed guides.
+        return visibility_path(a,b,boxes,gap,clear,max_nodes=48,max_checks=2048)
 
     def assign(active):
+        replaced = {item_id(text) for key in active if key in annotation_actions
+                    for text in annotation_actions[key].originals}
+        removed_guide_owners = active | replaced
         indices = {layer:_SpatialIndex(api.FromMM(4)) for layer in obstacles}
         for layer,rows in obstacles.items():
             for box,key in rows:
-                if key.startswith('guide:') and key[6:] in active:
+                if key.startswith('guide:') and key[6:] in removed_guide_owners:
                     continue
                 indices[layer].add(box,key)
         for text,_,_ in texts:
             layer,key = text.GetLayer(),item_id(text)
-            if layer in indices and text.IsVisible() and key not in active:
+            if layer in indices and text.IsVisible() and key not in active and key not in replaced:
                 indices[layer].add(_box(text,_state(text),api),key)
         assignments,rejected = [],set()
         completed = 0
@@ -613,26 +782,25 @@ def plan(board, api, settings=None, progress=None):
             layer = text.GetLayer()
             origin = fp.GetPosition() if fp else text.GetPosition()
             chosen,attempts = None,0
-            size_groups = []
-            for template in templates:
-                if not size_groups or size_groups[-1][0][0][4] != template[0][4]:
-                    size_groups.append([])
-                size_groups[-1].append(template)
+            # Share the plan budget across difficult labels and replans.
+            # An impossible long name must not starve the rest of a dense board.
+            label_deadline[0] = min(deadline,time.monotonic()+max(.04,min(.4,30./(2*max(1,len(eligible))))))
+            angle_groups = []
+            for angle in dict.fromkeys(state[2] for state,_ in templates):
+                angle_groups.append([t for t in templates if t[0][2]==angle])
             def candidates():
-                for group in size_groups:
-                    budget = 4096
-                    count = 0
-                    for x,y in positions(origin,before,fp,group,layer):
-                        for state,template in group:
-                            if count >= budget:
-                                break
-                            count += 1
-                            yield x,y,state,template
-                        if count >= budget:
-                            break
+                # Exhaust nearby common-direction sizes before rotations. Only
+                # after all nearby angle alternatives try distant guided slots.
+                for local in (True,False):
+                    for angle_index,group in enumerate(angle_groups):
+                        for template in group:
+                            state,envelope = template
+                            for count,(x,y) in enumerate(positions(origin,before,fp,[template],layer,local,indices[layer])):
+                                if count >= ((768 if angle_index==0 else 128) if local else (4096 if angle_index==0 else 512)):break
+                                yield x,y,state,envelope
             for x,y,state,template in candidates():
                 attempts += 1;checks[0] += 1
-                if attempts > 4096*len(size_groups) or time.monotonic()>deadline:
+                if attempts>12000 or time.monotonic()>label_deadline[0]:
                     break
                 after = (x,y)+state[2:]
                 box = api.BOX2I(api.VECTOR2I(template.GetLeft()+x-before[0],template.GetTop()+y-before[1]),
@@ -653,7 +821,12 @@ def plan(board, api, settings=None, progress=None):
                     if not path:
                         continue
                     leader = (*path[0],*path[1],stroke,layer)
-                chosen = Change(text,before,after,label,box,leader,guides.get(key,[]),path)
+                previous = []
+                owner_ids = {key}
+                if key in annotation_actions:owner_ids.update(item_id(t) for t in annotation_actions[key].originals)
+                for owner_id in sorted(owner_ids):previous.extend(guides.get(owner_id,[]))
+                chosen = Change(text,before,after,label,box,leader,previous,path,
+                                preview_item=render_items.get(key),annotation=annotation_actions.get(key))
                 break
             if chosen is None:
                 rejected.add(key)
@@ -680,12 +853,14 @@ def plan(board, api, settings=None, progress=None):
     preserved_indices = {layer:_SpatialIndex(api.FromMM(4)) for layer in obstacles}
     text_by_key = {item_id(text):text for text,_,_ in texts}
     def preserve(key):
-        text = text_by_key[key]
-        if text.IsVisible() and text.GetLayer() in preserved_indices:
-            preserved_indices[text.GetLayer()].add(_box(text,_state(text),api),key)
-        for _,shapes in guides.get(key,[]):
-            for shape in shapes:
-                preserved_indices[shape.GetLayer()].add(shape.GetBoundingBox(),'guide:'+key)
+        originals = annotation_actions[key].originals if key in annotation_actions else (text_by_key[key],)
+        for text in originals:
+            owner_id = item_id(text)
+            if text.IsVisible() and text.GetLayer() in preserved_indices:
+                preserved_indices[text.GetLayer()].add(_box(text,_state(text),api),owner_id)
+            for _,shapes in guides.get(owner_id,[]):
+                for shape in shapes:
+                    preserved_indices[shape.GetLayer()].add(shape.GetBoundingBox(),'guide:'+owner_id)
     for key in preserved:
         preserve(key)
     # Bounded replanning may expose a chain of preserved originals. Demotion to
@@ -708,7 +883,10 @@ def plan(board, api, settings=None, progress=None):
     for chosen in assignments:
         old_shapes = [shape for _,shapes in chosen.previous_guides for shape in shapes]
         matches = sorted(_line_state(shape) for shape in old_shapes) == sorted(_leader_segments(chosen))
-        if chosen.after != chosen.before or not matches:
+        annotation = chosen.annotation
+        presentation_changed = annotation and (annotation.create or annotation.remove
+            or annotation.text_before != annotation.net or annotation.reference_visible_before)
+        if chosen.after != chosen.before or not matches or presentation_changed:
             result.changes.append(chosen)
     result.stats = dict(eligible=len(eligible),placed=len(assignments),changed=len(result.changes),
                         unresolved=len(preserved),candidate_checks=checks[0],
@@ -751,6 +929,61 @@ class Transaction:
         action()
         journal.append(inverse)
 
+    def _owned_presence(self, item, present, journal):
+        """Journal before writes, including a native call which raises after mutation."""
+        def exists():
+            items = self.board.Groups() if isinstance(item,self.api.PCB_GROUP) else self.board.GetDrawings()
+            return any(item_id(value)==item_id(item) for value in items)
+        def ensure(wanted):
+            if exists() != wanted:
+                (self.board.Add if wanted else self.board.Remove)(item)
+        before = exists()
+        journal.append(lambda:ensure(before))
+        ensure(present)
+
+    @staticmethod
+    def _owned_membership(group, text, present, journal):
+        def exists():return any(item_id(value)==item_id(text) for value in group.GetItems())
+        def ensure(wanted):
+            if exists() != wanted:(group.AddItem if wanted else group.RemoveItem)(text)
+        before = exists()
+        journal.append(lambda:ensure(before))
+        ensure(present)
+
+    @staticmethod
+    def _presentation_set(item, getter, setter, value, journal):
+        before = getattr(item,getter)()
+        journal.append(lambda:getattr(item,setter)(before))
+        getattr(item,setter)(value)
+        if getattr(item,getter)() != value:
+            raise ValueError('KiCad did not retain the reviewed annotation presentation.')
+
+    def _annotation_redo(self, action, journal):
+        if action.remove:
+            self._owned_membership(action.group,action.text,False,journal)
+            self._owned_presence(action.text,False,journal)
+            self._owned_presence(action.group,False,journal)
+            self._presentation_set(action.reference,'IsVisible','SetVisible',action.original_visibility,journal)
+        else:
+            self._presentation_set(action.text,'GetText','SetText',action.net,journal)
+            self._presentation_set(action.reference,'IsVisible','SetVisible',False,journal)
+            if action.create:
+                self._owned_presence(action.text,True,journal)
+                self._owned_membership(action.group,action.text,True,journal)
+                self._owned_presence(action.group,True,journal)
+
+    def _annotation_undo(self, action, journal):
+        if action.remove:
+            self._owned_presence(action.group,True,journal)
+            self._owned_presence(action.text,True,journal)
+            self._owned_membership(action.group,action.text,True,journal)
+        elif action.create:
+            self._owned_membership(action.group,action.text,False,journal)
+            self._owned_presence(action.group,False,journal)
+            self._owned_presence(action.text,False,journal)
+        self._presentation_set(action.reference,'IsVisible','SetVisible',action.reference_visible_before,journal)
+        self._presentation_set(action.text,'GetText','SetText',action.text_before,journal)
+
     def redo(self):
         if self.applied:
             raise ValueError('This placement is already applied.')
@@ -768,6 +1001,7 @@ class Transaction:
                                  lambda s=shape:self.board.Add(s),journal)
                     self._do(lambda g=group:self.board.Remove(g),
                              lambda g=group:self.board.Add(g),journal)
+                if change.annotation:self._annotation_redo(change.annotation,journal)
                 # Text setters can fail after one of the individual attributes.
                 journal.append(lambda c=change:_set(c.item,c.before,self.api))
                 _set(change.item,change.after,self.api)
@@ -823,6 +1057,7 @@ class Transaction:
             for change in self.preview.changes:
                 journal.append(lambda c=change:_set(c.item,c.after,self.api))
                 _set(change.item,change.before,self.api)
+                if change.annotation:self._annotation_undo(change.annotation,journal)
                 for group,shapes in change.previous_guides:
                     self._do(lambda g=group:self.board.Add(g),
                              lambda g=group:self.board.Remove(g),journal)
