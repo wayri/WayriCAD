@@ -23,7 +23,18 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-[Readable windows and adjustable panels](docs/UI_ACCESSIBILITY.md) · [Help for all 23 plugins](docs/HELP_INDEX.md) · [3.6.20 release notes](docs/RELEASE_NOTES_3.6.20.md).
+## Latest release — 3.6.20
+
+Update through KiCad's Plugin and Content Manager, then restart PCB Editor.
+
+| What's new | How to use it |
+|---|---|
+| Adjustable settings, previews and result panels | Drag the dividers; expand optional sections and scroll within them. [Panel guide](docs/UI_ACCESSIBILITY.md). |
+| Read complete native table values | Focus a supported table and press **Ctrl+Shift+Enter** for a searchable reader, or **Ctrl+C** to copy selected rows. |
+| Offline help for all 23 plugins | Use the plugin's **Help** action, or browse the [plugin help index](docs/HELP_INDEX.md). |
+| Updated plugin packages | [Download 3.6.20](https://github.com/wayri/WayriCAD/releases/tag/v3.6.20) · [Changes](docs/RELEASE_NOTES_3.6.20.md) · [Validation](docs/audits/RELEASE_3.6.20.md). |
+
+See [screenshots and workflow previews grouped by plugin](#plugin-previews).
 
 ## Install and open
 
@@ -41,7 +52,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 4. Open and save your project. Launch a tool from **Tools → External Plugins** or
    the toolbar. **WayriCAD — All tools…** searches the installed tools if the menu is crowded.
 
-Fusion, Variant Manager, Silkscreen Label Placer and Trace Refiner use the native plugin loader and do not need the IPC API enabled.
+Fusion, Variant Manager, Silkscreen Label Placer, Trace Refiner, Component Arranger and Layer Counter use the native plugin loader and do not need the IPC API enabled.
 First-time setup may need internet access. For setup problems or offline use,
 use the [help table](#help-and-upgrades) below.
 
@@ -419,6 +430,8 @@ Compare saved and staged assembly states, with bulk operations and reviewed reco
 
 | Topic | Guide |
 |---|---|
+| Instructions for a specific plugin | [All 23 offline guides](docs/HELP_INDEX.md) |
+| Small panels, clipped tables or hidden options | [Resize, scroll and read complete values](docs/UI_ACCESSIBILITY.md) |
 | Missing actions, runtimes or installation paths | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | Dependencies and offline use | [Runtime setup](wayricad_runtime/RUNTIME_SETUP.md) |
 | Tested hosts and known limits | [Compatibility](docs/COMPATIBILITY.md) |
