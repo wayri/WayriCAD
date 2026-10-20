@@ -2,6 +2,52 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+## Multi-net cases, return copper and Joule feedback
+
+| Goal | In the window | Command line |
+|---|---|---|
+| Several independent rails | Choose a rail's source/load, then **Multi-net cases…**. Use **Add net case…** for each additional rail; enter its voltage, current and pads. | `wayricad-pi board.kicad_pcb --batch cases.json --output raw-cases.json --html cases.html` |
+| Include ground-return voltage drop | In **Add net case…**, enable **Solve explicit DC return copper** and select the return net, load-ground pad and source-ground pad. | Add `return_conduction` to that case, as in the [example study](studies/batch-rails.example.json). |
+| Review reference planes and return vias | Open **Return path**, or add a case's `return_path` settings with explicit `return_nets`. | Existing `--return-path --return-nets GND`, or the batch example. |
+| Solve temperature feedback | Check **Include Joule heating / temperature feedback**, then **Run**. Fill the explicit thermal/material settings before running the steady study. | Existing `--electrothermal study.json`; batch cases may include explicit `electrothermal` settings. |
+
+Ordinary DC **always computes copper I²R loss**. The checkbox adds a steady
+thermal solve and temperature-dependent resistance; it does not switch losses
+on or off. Its setup leaves material conductivity, cooling, emissivity, ambient,
+material temperature range, temperature cap, resistivity and its temperature
+coefficient unset until reviewed. Missing values prevent the run. Delivered
+load power is not automatically counted as board heat. See
+[the coupling model and inputs](ELECTROTHERMAL.md).
+
+Batch studies contain **1–32 independent cases bound to one saved PCB hash**.
+They retain failures per case, and source/study changes invalidate the batch.
+They do not combine heat between rails, solve inter-net crosstalk or infer a
+shared ground-current distribution. Each net has its own explicit terminals
+and demand; **Additional sinks** remains the simultaneous-load tool for one net.
+
+An explicit return loop currently requires one prescribed-current load, 2.5D
+linear copper, distinct supply/return nets, and fixed temperatures. Select the
+return **source_terminal at the load ground** and **sink_terminal at source
+ground**: current flows from load to supply on that leg. The report combines
+supply and return resistance, voltage drop and I²R losses, then checks actual
+load voltage `Vs − supply_drop − return_drop`. Return-field potentials retain
+an auxiliary solver reference with the offset to source-ground zero recorded
+in JSON and the report. Multisink/shared returns, packages, series branches,
+resistive-load current solving, full 3D loops and coupled loop heating are
+rejected rather than approximated silently.
+
+The separate geometric return audit screens reference coverage and via
+transitions. It establishes neither a closed electrical loop nor loop
+inductance/AC impedance. Supply-only cases continue to assume their declared
+load return reference; use `return_conduction` when return copper drop matters.
+
+Start from [batch-rails.example.json](studies/batch-rails.example.json), replace
+the sample nets/pads with those on your saved board, and review every load.
+These example values are illustrative inputs, not a validated board design.
+CLI exits: **0** all cases completed; **3** failed/incomplete/review-needed cases;
+**4** an infeasible case; **2** invalid intake or execution/publication errors.
+JSON output and HTML's paired JSON must use different destinations.
+
 ## Interactive inspection
 
 Use **Find net** or **Pick net** to choose an analysis input from

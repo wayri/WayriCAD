@@ -1,0 +1,55 @@
+{
+  "schema": "wayricad.pi-batch/v1",
+  "cases": [
+    {
+      "name": "3V3 supply and return",
+      "electrical": {
+        "net": "3V3",
+        "source_terminal": "J1.1",
+        "source_voltage": 3.3,
+        "sinks": [
+          {
+            "terminal": "U1.1",
+            "current_A": 0.5,
+            "min_voltage_V": 3.1
+          }
+        ],
+        "edge_mm": 0.5,
+        "plating_mm": 0.025
+      },
+      "return_conduction": {
+        "net": "GND",
+        "source_terminal": "U1.2",
+        "sink_terminal": "J1.2"
+      },
+      "return_path": {
+        "return_nets": [
+          "GND"
+        ],
+        "return_terminal_roles": {
+          "source": "J1.2",
+          "load": "U1.2"
+        },
+        "sample_pitch_mm": 0.25,
+        "return_via_radius_mm": 2.0
+      }
+    },
+    {
+      "name": "1V8 independent load",
+      "electrical": {
+        "net": "1V8",
+        "source_terminal": "J2.1",
+        "source_voltage": 1.8,
+        "sinks": [
+          {
+            "terminal": "U2.1",
+            "current_A": 0.2,
+            "min_voltage_V": 1.7
+          }
+        ],
+        "edge_mm": 0.5,
+        "plating_mm": 0.025
+      }
+    }
+  ]
+}

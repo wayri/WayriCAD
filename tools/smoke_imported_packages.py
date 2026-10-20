@@ -39,7 +39,7 @@ def main():
                     'Wheel contains inactive plugin files: ' + ', '.join(sorted(stale_plugins))
                 )
             archive.extractall(root)
-        modules = ('wayricad_runtime.jobs', 'wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
+        modules = ('wayricad_runtime.tool_cli', 'silkscreen_label_plugin.cli', 'wayricad_runtime.jobs', 'wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
                    'embed_3d_plugin.__main__', 'quick_pi_plugin.cli', 'quick_therm_plugin.cli', 'signal_integrity_advisor_plugin.cli', 'project_fusion_plugin.__main__', 'variant_manager_plugin.wayri_variants.cli', 'trace_refiner_plugin.cli', 'layer_counter_plugin.cli', 'component_arranger_plugin.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'
@@ -54,6 +54,12 @@ def main():
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from argparse import Namespace
+from wayricad_runtime.tool_cli import catalogue
+assert len(catalogue()['tools'])==23
+from wayricad_runtime.control_cli import main as control_main
+params=Path(sys.argv[1])/'tool-params.json'
+params.write_text('{"pattern":"R*","replacement":"X*","values":["R1"]}',encoding='utf-8')
+assert control_main(['bulk-label-editor','--request',str(params),'--output',str(params.with_name('tool-result.json'))])==0
 from wayricad_runtime.cli import execute
 settings=execute(Namespace(kind='fanout',operation='settings',board=None))
 assert 'Custom-angle spread' in settings['choices']['pattern']
@@ -106,7 +112,7 @@ try:
     assert mime.startswith('text/html') and b'/help.css' in help_html
     assert get_bom('/help.css')[0].startswith('text/css')
     assert get_bom('/SHARED_PARTS.md')[0].startswith('text/plain')
-    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.20'
+    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.21'
     assert (Path(sys.argv[1])/'bom_studio_plugin/help.html').is_file()
     example=Path(sys.argv[1])/'bom_studio_plugin/examples/BOM_Demo.kicad_pro'
     assert example.is_file()

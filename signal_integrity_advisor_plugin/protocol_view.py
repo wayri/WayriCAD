@@ -56,4 +56,10 @@ def html_report(report):
             try:paths+=eye_section(path_report['eye'])
             except (KeyError,TypeError,ValueError,IndexError,ZeroDivisionError,AttributeError,OverflowError):
                 paths+='<p>Eye plot unavailable: incomplete or invalid imported eye data. Rerun the Quick SI eye model.</p>'
-    return '<!doctype html><meta charset="utf-8"><title>WayriCAD protocol suite</title><style>body{font:15px system-ui;max-width:1200px;margin:24px auto;color:#20303c;padding:0 16px}table{border-collapse:collapse;width:100%}td,th{padding:8px;border:1px solid #ccd7df;text-align:left;vertical-align:top}pre{white-space:pre-wrap;overflow-wrap:anywhere}svg{background:#f7fafc}</style><h1>Quick SI · Protocol suite</h1>'+render_section(report)+paths+'<details><summary>Profile, inputs and evidence JSON</summary><pre>'+escape(json.dumps(report,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details>'
+    document='<!doctype html><meta charset="utf-8"><title>WayriCAD protocol suite</title><style>body{font:15px system-ui;max-width:1200px;margin:24px auto;color:#20303c;padding:0 16px}table{border-collapse:collapse;width:100%}td,th{padding:8px;border:1px solid #ccd7df;text-align:left;vertical-align:top}pre{white-space:pre-wrap;overflow-wrap:anywhere}svg{background:#f7fafc}</style><h1>Quick SI · Protocol suite</h1>'+render_section(report)+paths+'<details><summary>Profile, inputs and evidence JSON</summary><pre>'+escape(json.dumps(report,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details>'
+
+    from wayricad_runtime.report_ui import enhance_report, provenance
+    checks=report.get('checks',[])
+    counts={status:sum(row.get('status')==status for row in checks) for status in ('PASS','FAIL','UNKNOWN','INCOMPLETE')}
+    summary=[('Model','Declared protocol screening checks; not certification'),('Checks',len(checks)),('Failed checks',counts['FAIL']),('Unknown checks',counts['UNKNOWN']+counts['INCOMPLETE']),('Included route reports',len(report.get('paths',[])))]
+    return enhance_report(document,status=report.get('status','UNKNOWN'),summary=summary,notice='Only the listed modeled checks are evaluated. Unresolved coupling, discontinuities, device behavior or channel evidence remain outside this result; a check pass is not whole-protocol qualification.',provenance=provenance(report))

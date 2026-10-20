@@ -5,6 +5,7 @@ from html import escape
 import io
 import json
 from pathlib import Path
+from wayricad_runtime.report_ui import enhance_report, provenance, publish_report, report_paths
 
 
 def _number(value,unit='',scale=1.):
@@ -15,9 +16,7 @@ def write_diagnostic_report(path,bundle):
     """Export mapped QuickTherm findings without remote assets."""
     thermal=bundle.get('quick_therm')
     if not thermal:raise ValueError('No QuickTherm result is available.')
-    path=Path(path).with_suffix('.html');path.parent.mkdir(parents=True,exist_ok=True)
-    json_path=path.with_suffix('.json')
-    json_path.write_text(json.dumps(bundle,indent=2,allow_nan=False),encoding='utf-8')
+    path,json_path=report_paths(path)
     heading='QuickTherm'
     html=('<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD '+heading+'</title>'
           '<style>body{font:15px system-ui,sans-serif;max-width:1500px;margin:32px auto;padding:0 20px;color:#173039}'
@@ -213,7 +212,12 @@ def write_diagnostic_report(path,bundle):
             html+='<h2>Incomplete field mapping</h2><ul>'+''.join('<li>'+escape(row['reference']+': '+', '.join(row['issues']))+'</li>'
                 for row in thermal['coverage']['excluded'])+'</ul>'
         html+='<h2>Assumptions</h2><ul>'+''.join('<li>'+escape(note)+'</li>' for note in thermal['assumptions'])+'</ul>'
-    path.write_text(html+'</html>',encoding='utf-8')
-    return {'html':str(path),'json':str(json_path)}
+    coverage=thermal.get('coverage',{})
+    complete=coverage.get('solved',0)==coverage.get('scoped',0) and coverage.get('scoped',0)>0
+    limits=bundle.get('temperature_limits',{});network=bundle.get('thermal_network',{})
+    status='FAIL' if limits.get('status')=='FAIL' else 'INCOMPLETE' if not complete else 'COMPUTED · REVIEW REQUIRED'
+    summary=[('Model',thermal.get('model','Unknown')),('Environment',thermal.get('environment','Unknown')),('Ambient',_number(thermal.get('ambient_c'),'°C')),('Components solved',str(coverage.get('solved',0))+' / '+str(coverage.get('scoped',0))),('Temperature limits',limits.get('status','Not supplied')),('Mesh acceptance',network.get('mesh_acceptance',{}).get('status','Not verified')),('Board field',network.get('status','Not solved; component estimates only'))]
+    document=enhance_report(html+'</html>',status=status,summary=summary,notice='Component junction estimates, board-surface fields and interpolated presentation maps are distinct results. Missing power/material/package inputs and unverified mesh acceptance do not become a pass.',provenance=provenance(bundle))
+    return publish_report(path,document,bundle)
 
 write_report = write_diagnostic_report

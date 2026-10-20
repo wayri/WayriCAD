@@ -113,6 +113,13 @@ class QuickPIFrame(wx.Frame):
         self.package_button.Bind(wx.EVT_BUTTON,self.on_package_contacts)
         self.model_dimension=ReadableChoice(self.inputs,choices=['2.5D · layered copper','3D · copper volume']);self.model_dimension.SetSelection(0)
         field('Copper model',self.model_dimension)
+        self.joule_feedback=wx.CheckBox(self.inputs,label='Include Joule heating /\ntemperature feedback')
+        self.joule_feedback.SetToolTip('DC always calculates copper I²R losses. Check this to configure explicit materials, cooling boundaries and steady temperature-to-resistance feedback. Supported for 2.5D prescribed-current loads only.')
+        controls.Add(self.joule_feedback,0,wx.EXPAND|wx.BOTTOM,6)
+        self.joule_feedback.Bind(wx.EVT_CHECKBOX,self._invalidate)
+        self.batch_button=wx.Button(self.inputs,label='Multi-net cases…')
+        self.batch_button.SetToolTip('Batch independent rail cases with their own source, loads and declared return nets; not a coupled multi-net field solve.')
+        controls.Add(self.batch_button,0,wx.EXPAND|wx.BOTTOM,6);self.batch_button.Bind(wx.EVT_BUTTON,self.on_batch)
         self.operation_note=SidebarText(self.inputs,'Source voltage → sink current')
         controls.Add(self.operation_note,0,wx.EXPAND|wx.BOTTOM,6)
         self.options=wx.CollapsiblePane(self.inputs,label='Mesh & material',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
@@ -164,7 +171,7 @@ class QuickPIFrame(wx.Frame):
         self.gauge=wx.Gauge(panel,range=100,size=(100,-1));footer.Add(self.gauge,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
         self.cancel=icon_button(panel,'Cancel',wx.ART_CROSS_MARK,'Cancel the running study');footer.Add(self.cancel,0)
         root.Add(footer,0,wx.EXPAND|wx.ALL,6);panel.SetSizer(root)
-        self._controls=[self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.package_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
+        self._controls=[self.joule_feedback,self.batch_button,self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.package_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
         self.net.Bind(wx.EVT_COMBOBOX,self._net_changed);self.net_search.Bind(wx.EVT_TEXT,self._filter_nets)
         for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._invalidate)
         for control in (self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
@@ -712,6 +719,8 @@ class QuickPIFrame(wx.Frame):
             self.status.SetLabel('2.5D layered copper is the default model. Choose two pads and run the analysis.')
 
     def on_run(self,event=None):
+        if getattr(self,'joule_feedback',None) and self.joule_feedback.GetValue():
+            self.on_electrothermal(feedback=True);return
         if self.model_dimension.GetSelection()==1:self.on_3d_analysis()
         else:self._analyze('solve')
 
@@ -1325,21 +1334,38 @@ class QuickPIFrame(wx.Frame):
         layout.Add(dialog.CreateButtonSizer(wx.CLOSE),0,wx.ALIGN_RIGHT|wx.ALL,10)
         dialog.SetSizer(layout);canvas.draw();dialog.ShowModal();dialog.Destroy()
 
-    def on_electrothermal(self,event=None):
+    def on_batch(self,event=None):
+        if self._busy:return
+        if not self._snapshot_current():self.status.SetLabel('Saved PCB changed. Reload before running batch cases.');return
+        try:
+            import hashlib
+            from .batch import initial_study
+            from .batch_ui import BatchStudyDialog
+            from .service import run_job
+            selected=self._request('solve')
+            if selected.get('series'):raise ValueError('Batch cases use explicit per-net terminals; clear the series path first.')
+            sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
+            dialog=BatchStudyDialog(self,initial_study(selected),self.inventory,
+                lambda payload,cancel:run_job(payload,cancelled=cancel,timeout=1800),self.board_path,sha)
+            try:dialog.ShowModal()
+            finally:dialog.Destroy()
+        except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
+
+    def on_electrothermal(self,event=None,feedback=False):
         if self._busy:return
         if not self._snapshot_current():self.status.SetLabel('Saved PCB changed. Reload before opening electrothermal coupling.');return
         try:
             if self.model_dimension.GetSelection()!=0 or self.load_mode.GetSelection()!=0:
                 raise ValueError('Seed electrothermal studies from 2.5D specified-current loads. 3D and resistive-load modes are separate models.')
             import hashlib
-            from .electrothermal_ui import ElectrothermalStudyDialog,initial_studies
+            from .electrothermal_ui import ElectrothermalStudyDialog,initial_studies,feedback_studies
             from .service import run_job
             request=self._request('solve')
             if request.get('package_conduction'):raise ValueError('Package contacts are unsupported in electrothermal coupling.')
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
-            dialog=ElectrothermalStudyDialog(self,initial_studies(request,self._terminals),
+            dialog=ElectrothermalStudyDialog(self,(feedback_studies if feedback else initial_studies)(request,self._terminals),
                 lambda payload,cancel:run_job(payload,cancelled=cancel),
-                (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha)
+                (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha,steady_only=feedback)
             try:dialog.ShowModal()
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))

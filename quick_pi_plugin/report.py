@@ -6,6 +6,7 @@ import io
 import json
 import math
 from pathlib import Path
+from wayricad_runtime.report_ui import enhance_report, provenance, publish_report, report_paths
 
 METRICS={
     'voltage':('Potential','V','viridis'),
@@ -534,11 +535,33 @@ def _number(value,unit='',scale=1.):
     return 'Unknown' if value is None else f'{float(value)*scale:.6g} {unit}'.strip()
 
 
+
+def _review_html(document,bundle):
+    result=bundle.get('result',{});diagnostic=bundle.get('return_path',{});sweep=bundle.get('sweep',{})
+    if result:
+        feasibility=result.get('feasibility',{})
+        status='INFEASIBLE' if feasibility.get('feasible') is False or result.get('negative_sink_voltage') else 'COMPUTED · REVIEW REQUIRED'
+        summary=[('Model','2.5D DC conduction; explicit lumped branches only'),('Net',bundle.get('request',{}).get('net',bundle.get('geometry',{}).get('net','Unknown'))),('Sink current',_number(result.get('total_sink_current_A',result.get('sink_current_A')),'A')),('Copper / component loss',_number(result.get('total_power_W'),'W')),('Mesh refinement','Evidence included' if bundle.get('convergence') else 'Not verified'),('Floating triangles',result.get('floating_triangles','Unknown'))]
+        reference=bundle.get('return_voltage_reference') or bundle.get('request',{}).get('return_voltage_reference')
+        if isinstance(reference,dict):
+            summary.extend([('Potential gauge','Auxiliary raw solver potential; apply the declared offset'),('Source-ground zero terminal',reference.get('zero_terminal','Unknown')),('Add to raw potential',_number(reference.get('add_to_raw_potential_V'),'V')),('Load-ground rise',_number(reference.get('load_ground_voltage_V'),'V'))])
+        notice='Numerical completion is separate from supply feasibility, mesh convergence and physical qualification. I²R losses do not establish a coupled thermal solution.'
+        if bundle.get('return_conduction_notice'):notice+=' '+str(bundle['return_conduction_notice'])
+    elif sweep:
+        status='INFEASIBLE POINTS' if any(row.get('negative_sink_voltage') for row in sweep.get('rows',[])) else 'COMPUTED · REVIEW REQUIRED'
+        summary=[('Model','Fixed-temperature DC current sweep'),('Computed operating points',len(sweep.get('rows',[])))]
+        notice='Each point is an imposed DC load; these curves do not represent transient or electrothermal feedback.'
+    else:
+        status='INCOMPLETE' if diagnostic.get('unknown_count',0) else 'REVIEW REQUIRED'
+        summary=[('Model','Return-path geometry review'),('Warnings',diagnostic.get('warning_count','Unknown')),('Unknowns',diagnostic.get('unknown_count','Unknown'))]
+        notice='Missing return-path evidence remains unresolved. Geometric coverage does not prove high-frequency return current or impedance.'
+    return enhance_report(document,status=status,summary=summary,notice=notice,provenance=provenance(bundle))
+
 def write_report(path,bundle,layer=None):
     """Export current-layer maps plus all numeric mesh/results as paired JSON."""
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_agg import FigureCanvasAgg
-    path=Path(path).with_suffix('.html');path.parent.mkdir(parents=True,exist_ok=True)
+    path,json_path=report_paths(path)
     result=bundle.get('result')
     if not result:raise ValueError('Run the analysis before exporting results.')
     rows=layer_rows(bundle)
@@ -576,8 +599,6 @@ def write_report(path,bundle,layer=None):
         if key in result:values.append((label,_number(result[key],'W')))
     table=''.join('<tr><th>'+escape(name)+'</th><td>'+escape(value)+'</td></tr>' for name,value in values)
     assumptions=result.get('thermal_assumptions',{})
-    json_path=path.with_suffix('.json')
-    json_path.write_text(json.dumps(bundle,indent=2,allow_nan=False),encoding='utf-8')
     html='''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WayriCAD Quick PI</title><style>body{font:15px system-ui,sans-serif;margin:32px auto;max-width:1080px;padding:0 20px;color:#172a2b;background:#fff}h1{font-size:26px}p{line-height:1.5}table{border-collapse:collapse}th,td{text-align:left;padding:7px 20px 7px 0;border-bottom:1px solid #e0e6e5}section{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:18px}figure{margin:0;border:1px solid #e0e6e5;border-radius:5px;padding:12px}figcaption{font-weight:600}img{width:100%;height:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f6;padding:14px}</style><h1>WayriCAD Quick PI</h1>'''
     html+='<p>2.5D DC copper conduction · plotted layer '+escape(selected)+'. All layer mesh and numerical data are in <a href="'+escape(json_path.name)+'">the paired JSON report</a>.</p>'
     if result.get('feasibility'):
@@ -636,8 +657,7 @@ def write_report(path,bundle,layer=None):
             html+='<tr>'+''.join('<td>'+escape(value)+'</td>' for value in values)+'</tr>'
         html+='</table>'
     html+='<h2>Assumptions and inputs</h2><p>'+escape(assumptions.get('notice','DC conduction approximation; not an AC or thermal field solve.'))+'</p><pre>'+escape(json.dumps({'request':bundle.get('request',{}),'material':result.get('material',{}),'thermal':assumptions,'geometry_warnings':bundle.get('geometry',{}).get('warnings',[]),'mesh_report':bundle.get('mesh',{}).get('mesh_report',[])},indent=2))+'</pre></html>'
-    path.write_text(html,encoding='utf-8')
-    return {'html':str(path),'json':str(json_path)}
+    return publish_report(path,_review_html(html,bundle),bundle)
 
 
 def write_sweep_report(path,bundle):
@@ -645,15 +665,13 @@ def write_sweep_report(path,bundle):
     sweep=bundle.get('sweep')
     if not sweep or not sweep.get('rows'):
         raise ValueError('Run a current sweep before exporting its report.')
-    path=Path(path).with_suffix('.html');path.parent.mkdir(parents=True,exist_ok=True)
-    json_path=path.with_suffix('.json')
-    json_path.write_text(json.dumps(bundle,indent=2,allow_nan=False),encoding='utf-8')
+    path,json_path=report_paths(path)
     rows=sweep['rows'];width=820;height=300;pad=42
     xmax=max(row['current_A'] for row in rows);xmin=min(row['current_A'] for row in rows)
     values=[row['path_drop_V'] for row in rows]+[row['sink_voltage_V'] for row in rows]
     ymin=min(values);ymax=max(values)
     if ymax==ymin:ymax=ymin+1
-    x=lambda value:pad+(value-xmin)/(xmax-xmin)*(width-2*pad)
+    x=lambda value:pad+(value-xmin)/(xmax-xmin if xmax!=xmin else 1.)*(width-2*pad)
     y=lambda value:height-pad-(value-ymin)/(ymax-ymin)*(height-2*pad)
     lines=[]
     for key,color in (('path_drop_V','#b45134'),('sink_voltage_V','#17657c')):
@@ -675,8 +693,7 @@ def write_sweep_report(path,bundle):
     from wayricad_runtime.interactive_plots import interactive_plot
     samples=[[row['current_A'],row[key],row[key],key] for key in ('path_drop_V','sink_voltage_V') for row in rows]
     html=html.replace('</html>',interactive_plot('DC current sweep',samples,'V',x_unit='A',y_unit='V',connect=True)+'</html>')
-    path.write_text(html,encoding='utf-8')
-    return {'html':str(path),'json':str(json_path)}
+    return publish_report(path,_review_html(html,bundle),bundle)
 
 
 def write_diagnostic_report(path, bundle):
@@ -684,10 +701,7 @@ def write_diagnostic_report(path, bundle):
     result = bundle.get('return_path')
     if not result:
         raise ValueError('No return-path result is available.')
-    path = Path(path).with_suffix('.html')
-    path.parent.mkdir(parents=True, exist_ok=True)
-    json_path = path.with_suffix('.json')
-    json_path.write_text(json.dumps(bundle, indent=2, allow_nan=False), encoding='utf-8')
+    path,json_path=report_paths(path)
     html = ('<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD Return-path review</title>'
             '<style>body{font:15px system-ui,sans-serif;max-width:1050px;margin:32px auto;padding:0 20px;color:#173039}'
             'table{border-collapse:collapse;width:100%}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}</style>'
@@ -702,8 +716,7 @@ def write_diagnostic_report(path, bundle):
         position = ', '.join(f'{value:.4g}' for value in row['position_mm']) if row['position_mm'] else '—'
         html += '<tr>' + ''.join('<td>' + escape(str(value)) + '</td>' for value in (
             row['level'], row['code'], row['layer'], position, row['detail'])) + '</tr>'
-    path.write_text(html + '</table></html>', encoding='utf-8')
-    return {'html': str(path), 'json': str(json_path)}
+    return publish_report(path,_review_html(html+'</table></html>',bundle),bundle)
 
 
 def interactive_fields(bundle,layer):
@@ -722,3 +735,50 @@ def interactive_fields(bundle,layer):
         rows=[[float(x),float(y),float(values[i]),'Cell '+str(i)] for (x,y),i in zip(centers,indices)]
         html+=interactive_plot(METRICS[metric][0],rows,METRICS[metric][1],polygons=polygons)
     return html
+
+
+def write_batch_report(path,bundle):
+    """Publish an offline independent-case index plus linked per-case evidence."""
+    from tempfile import TemporaryDirectory
+    from urllib.parse import quote
+    from wayricad_runtime.report_ui import checked_sources, publish_documents
+    batch=bundle.get('batch')
+    if not isinstance(batch,dict) or not batch.get('cases'):raise ValueError('No batch cases are available to export.')
+    output,evidence=report_paths(path)
+    output.parent.mkdir(parents=True,exist_ok=True)
+    case_folder=output.stem+'-cases'
+    documents={};comparison=[];details=[];links=[]
+    with TemporaryDirectory(prefix='.wayricad-report-',dir=output.parent) as staging:
+        for index,case in enumerate(batch['cases']):
+            case_links=[];failures=[]
+            for kind,key in (('DC','electrical'),('Return conduction','return_conduction'),('Return path','return_path'),('Electrothermal','electrothermal')):
+                child=case.get(key)
+                if not child:continue
+                filename='case-'+str(index+1).zfill(3)+'-'+key+'.html'
+                candidate=Path(staging)/filename
+                try:
+                    if key in ('electrical','return_conduction'):write_report(candidate,child)
+                    elif key=='return_path':write_diagnostic_report(candidate,child)
+                    else:
+                        from .electrothermal_report import write_report as coupled_report
+                        coupled_report(candidate,child)
+                    for generated in (candidate,candidate.with_suffix('.json')):
+                        documents[output.parent/case_folder/generated.name]=generated.read_bytes()
+                except (ValueError,RuntimeError,OSError,KeyError,TypeError,IndexError) as error:
+                    failures.append(kind+': '+str(error))
+                    fallback=enhance_report('<!doctype html><html lang="en"><meta charset="utf-8"><title>Case report unavailable</title><h1>Case report unavailable</h1><p>'+escape(str(error))+'</p><p><a href="'+escape(candidate.with_suffix('.json').name)+'">Exact case JSON evidence</a></p></html>',status='REPORT ERROR',notice='The numerical case status has not been upgraded. Correct the report/model inputs and rerun the export.')
+                    documents[output.parent/case_folder/candidate.name]=fallback
+                    documents[output.parent/case_folder/candidate.with_suffix('.json').name]=json.dumps(child,indent=2,ensure_ascii=False,allow_nan=False)
+                relative=case_folder+'/'+filename
+                case_links.append('<a href="'+escape(quote(relative,safe='/'))+'">'+escape(kind)+'</a>')
+                links.append(relative)
+            result=(case.get('electrical') or {}).get('result',{});loop=case.get('loop') or {}
+            values=[case.get('name','Case '+str(index+1)),case.get('status','UNKNOWN'),_number(loop.get('supply_drop_V',result.get('voltage_drop_V')),'mV',1000),_number(loop.get('return_drop_V'),'mV',1000) if loop else 'Not requested',_number(loop.get('total_drop_V'),'mV',1000) if loop else 'Not requested',_number(loop.get('delivered_load_voltage_V'),'V') if loop else 'Not solved',_number(loop.get('total_loss_W',result.get('total_power_W')),'W'),loop.get('status','Not requested'),case.get('error') or ' — '.join(failures) or 'Review individual evidence']
+            comparison.append('<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in values[:8])+'<td>'+(' · '.join(case_links) or 'No completed result report')+'</td><td>'+escape(str(values[8]))+'</td></tr>')
+            details.append('<details class="report-evidence"><summary>'+escape(str(values[0]))+' · exact inputs and case status</summary><pre>'+escape(json.dumps(case,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details>')
+    document=('<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD Quick PI independent cases</title><h1>WayriCAD Quick PI · Independent case comparison</h1><p><a href="'+escape(evidence.name)+'">Complete batch JSON evidence</a></p><h2>Case comparison</h2><table><thead><tr><th>Case</th><th>Status</th><th>Supply drop</th><th>Return drop</th><th>Loop drop</th><th>Delivered voltage</th><th>Total loss</th><th>Loop status</th><th>Individual reports</th><th>Error / next action</th></tr></thead><tbody>'+''.join(comparison)+'</tbody></table><h2>Case inputs and provenance</h2>'+''.join(details)+'<h2>Assumptions and boundaries</h2><ul>'+''.join('<li>'+escape(str(note))+'</li>' for note in batch.get('notes',batch.get('assumptions',[])))+'</ul></html>')
+    document=enhance_report(document,status=batch.get('status','UNKNOWN'),summary=[('Cases',len(batch['cases'])),('Failed cases',sum(case.get('status')=='FAILED' for case in batch['cases'])),('Incomplete / review cases',sum(case.get('status') not in ('COMPLETED','FAILED') for case in batch['cases']))],notice='Cases run independently against the same saved source. Cross-case electromagnetic or thermal interaction is not solved. Only explicitly configured electrothermal cases include feedback; ordinary DC losses alone do not.',provenance=provenance(bundle))
+    documents[evidence]=json.dumps(bundle,indent=2,ensure_ascii=False,allow_nan=False)+'\n'
+    documents[output]=document
+    publish_documents(documents,sources=checked_sources(bundle))
+    return {'html':str(output),'json':str(evidence),'case_reports':links}

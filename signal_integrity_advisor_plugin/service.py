@@ -31,6 +31,11 @@ def execute(request):
     from .quick_si import analyze
     board=pcbnew.LoadBoard(str(Path(request['board_path']).resolve()))
     if board is None:raise ValueError('KiCad could not load this saved PCB.')
+    if request.get('mode')=='study':
+        from .study import run_study
+        report=run_study(board,request['study'],guard=lambda:require_source(request))
+        report['source_fingerprints']=before
+        return {'study':report,'source_fingerprints':before}
     report,path=analyze(board,request['net'],request['start'],request['end'],request.get('reference','Auto'),**request.get('inputs',{}))
     require_source(request)
     identifiers=[str(item.m_Uuid.AsString()) for item in path.board_items]

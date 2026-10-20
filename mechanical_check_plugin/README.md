@@ -33,7 +33,7 @@ On Rules, enter the PnP **tip radius**, **head radius**, **head setback** above 
 
 ## Review findings without losing the board
 
-The current source includes a simpler review workspace. [Validation and screenshot provenance](../docs/audits/MECHANICAL_REVIEW_UI.md). These changes follow release 3.6.20; the published 3.6.20 installers retain the earlier interface.
+Release 3.6.21 includes a simpler review workspace. [Validation and screenshot provenance](../docs/audits/MECHANICAL_REVIEW_UI.md).
 
 ![Mechanical Check findings and 3D inspection](help-review.png)
 

@@ -36,7 +36,9 @@ def main(argv=None):
                 print(json.dumps({'error':'Worker response must not overwrite the source PCB.'}));return 2
             result=importlib.import_module('.service',name).execute(payload)
             if payload.get('html_output'):
-                if payload.get('action')=='electrothermal':
+                if payload.get('action')=='batch':
+                    importlib.import_module('.report',name).write_batch_report(payload['html_output'],result)
+                elif payload.get('action')=='electrothermal':
                     importlib.import_module('.electrothermal_report',name).write_report(payload['html_output'],result)
                 elif payload.get('action')=='transient':
                     from wayricad_runtime.transient_study import write_study_report

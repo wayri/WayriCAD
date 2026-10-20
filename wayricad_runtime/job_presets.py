@@ -26,10 +26,12 @@ REQUIRED_VARIABLES = {
     ),
     "bom": ("bom_pipeline",),
     "thermal": ("thermal_config",),
+    "analysis-studies": ("pi_study", "si_study", "thermal_config"),
 }
 
 
 DESCRIPTIONS = {
+    "analysis-studies": "Run reviewed independent PI/SI multi-net cases and a QuickTherm configuration, preserving explicit return nets and thermal assumptions.",
     "fabrication": (
         "Runs KiCad's saved-board DRC and saved-schematic ERC with violation "
         "exit codes, then exports a native BOM CSV and board statistics. "
@@ -57,6 +59,17 @@ DESCRIPTIONS = {
 
 
 PRESETS = {
+    "analysis-studies": [
+        {"id":"pi_study","label":"Independent PI rail cases and explicit returns",
+         "argv":["${native_python}","-m","quick_pi_plugin.cli","${board}","--batch","${pi_study}","--output","${step_dir}/pi.json","--html","${step_dir}/pi.html"],
+         "outputs":["pi.json","pi.html"],"timeout_seconds":1800},
+        {"id":"si_study","label":"Independent SI routes and explicit returns",
+         "argv":["${native_python}","-m","signal_integrity_advisor_plugin.cli","study","${board}","--config","${si_study}","--output","${step_dir}/si.json","--html","${step_dir}/si.html"],
+         "outputs":["si.json","si.html"],"timeout_seconds":600},
+        {"id":"thermal_study","label":"Reviewed component and board temperature report",
+         "argv":["${native_python}","-m","quick_therm_plugin.cli","${board}","--config","${thermal_config}","--output","${step_dir}/thermal.json","--html","${step_dir}/thermal.html","--require-limits-pass"],
+         "outputs":["thermal.json","thermal.html"],"timeout_seconds":1800},
+    ],
     "fabrication": [
         {
             "id": "pcb_drc",

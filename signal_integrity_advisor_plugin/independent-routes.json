@@ -1,0 +1,38 @@
+{
+  "schema": "wayricad.quick-si-study-input/v1",
+  "description": "Illustrative assignments. Replace all nets and pads with exact names from your saved board.",
+  "cases": [
+    {
+      "id": "data-to-connector",
+      "net": "DATA",
+      "start": "U1.1",
+      "end": "J1.1",
+      "reference": "Auto",
+      "inputs": {
+        "rise_ns": 1.0,
+        "frequency_mhz": 100.0,
+        "source_ohm": 20.0,
+        "load_ohm": null,
+        "return_nets": ["GND"],
+        "return_terminal_ids": ["U1.3", "J1.3"],
+        "return_terminal_roles": {"source": "U1.3", "load": "J1.3"}
+      }
+    },
+    {
+      "id": "clock-to-connector",
+      "net": "CLOCK",
+      "start": "U1.2",
+      "end": "J1.2",
+      "reference": "Auto",
+      "inputs": {
+        "rise_ns": 0.5,
+        "frequency_mhz": 200.0,
+        "source_ohm": 25.0,
+        "load_ohm": 1000.0,
+        "return_nets": ["GND"],
+        "return_terminal_ids": ["U1.3", "J1.3"],
+        "return_terminal_roles": {"source": "U1.3", "load": "J1.3"}
+      }
+    }
+  ]
+}

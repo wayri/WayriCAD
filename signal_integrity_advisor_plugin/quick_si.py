@@ -124,6 +124,14 @@ def _analyze(board,net,start,end,reference='Auto',**inputs):
     pads=engine.pads_for_net(net)
     if start==end or start not in pads or end not in pads:
         raise ValueError('Choose two distinct pads belonging to the selected net.')
+    if pads.count(start)!=1 or pads.count(end)!=1:
+        raise ValueError('Source/receiver pad labels are ambiguous on this net. Resolve duplicate footprint references or pad numbers first.')
+    if return_nets:
+        if not isinstance(return_nets,(list,tuple)) or len(set(return_nets))!=len(return_nets) or any(not isinstance(value,str) or not value for value in return_nets):
+            raise ValueError('Return nets must be distinct net names.')
+        if net in return_nets:raise ValueError('The signal net cannot also be its return net.')
+        missing=set(return_nets)-set(engine.net_names())
+        if missing:raise ValueError('Return nets are absent from this saved board: '+', '.join(sorted(missing)))
     path=engine.measure(net,start,end,float(inputs.get('frequency_mhz',100.)),reference)
     report=screen(path,terminal_count=len(pads),**inputs)
     if return_nets:
@@ -142,19 +150,13 @@ def html_report(report):
     overview='<h2>Route results</h2><table>'+''.join('<tr><th>'+escape(k.replace('_',' '))+'</th><td>'+escape('Unknown' if v is None else v)+'</td></tr>' for k,v in summary.items())+'</table>'
     if report.get('endpoint_screen'):
         overview+='<h2>Local endpoint screening</h2><p>Local section impedances only. These reflection coefficients do not include intervening vias, line changes or differential coupling.</p><pre>'+escape(json.dumps(report['endpoint_screen'],indent=2))+'</pre>'
-    sections='<h2>Routed sections</h2><p>Extracted section impedance and ideal-stackup timing estimates have separate evidence. A section value does not validate via reflections or coupling.</p><div style="overflow:auto"><table><tr><th>Kind / layer</th><th>Length mm</th><th>R DC Î©</th><th>Section Z0 Î©</th><th>Screening delay ns</th><th>Model / review</th></tr>'
+    sections='<h2>Routed sections</h2><p>Extracted section impedance and ideal-stackup timing estimates have separate evidence. A section value does not validate via reflections or coupling.</p><div style="overflow:auto"><table><tr><th>Kind / layer</th><th>Length mm</th><th>R DC Ω</th><th>Section Z0 Ω</th><th>Screening delay ns</th><th>Model / review</th></tr>'
     for section in report['path'].get('segments',[]):
         values=[str(section.get('kind',''))+' / '+str(section.get('layer','')),section.get('length_mm'),section.get('resistance_ohm'),section.get('impedance_ohm'),section.get('screening_delay_ns'),section.get('model','')+'; '+section.get('screening_model','')]
         sections+='<tr>'+''.join('<td>'+escape('Unresolved' if v is None else f'{v:.6g}' if isinstance(v,(int,float)) else v)+'</td>' for v in values)+'</tr>'
     sections+='</table></div>'
-    points=[]
-    for segment in report['path'].get('segments',[]):
-        if segment.get('start_mm') and segment.get('end_mm'):points.append((segment['start_mm'],segment['end_mm']))
-    svg=''
-    if points:
-        xs=[p[0] for pair in points for p in pair];ys=[p[1] for pair in points for p in pair]
-        x,y=min(xs)-1,min(ys)-1;w,h=max(xs)-min(xs)+2,max(ys)-min(ys)+2
-        svg=f'<svg viewBox="{x} {y} {w} {h}" width="100%" height="280" aria-label="Resolved route geometry">'+''.join(f'<line x1="{a[0]}" y1="{a[1]}" x2="{b[0]}" y2="{b[1]}" stroke="#287a9a" stroke-width=".12"/>' for a,b in points)+'</svg>'
+    from .protocol_view import route_svg
+    svg=route_svg(report['path'])
     from .report_plots import plot_section
     plots=plot_section(report)
     from .eye_view import eye_section
@@ -164,4 +166,10 @@ def html_report(report):
     if report.get('return_path'):
         from wayricad_runtime.return_path import html_details
         return_section=html_details(report['return_path'])
-    return '<!doctype html><meta charset="utf-8"><title>WayriCAD Quick SI</title><style>body{font:15px system-ui;max-width:950px;margin:30px auto;color:#20303c}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}pre{white-space:pre-wrap}</style><h1>WayriCAD Quick SI</h1><p>Read-only first-order screening, not protocol signoff.</p>'+svg+overview+plots+'<h2>Timing and termination screen</h2><table>'+rows+'</table>'+eye+sections+return_section+'<h2>Blocking inputs and next actions</h2><ul>'+blockers+'</ul><h2>Assumptions and limitations</h2><ul>'+''.join('<li>'+escape(n)+'</li>' for n in report['notes'])+'</ul><h2>Inputs and path evidence</h2><pre>'+escape(json.dumps({'inputs':report['inputs'],'path':report['path']},indent=2,allow_nan=False))+'</pre>'
+    document='<!doctype html><meta charset="utf-8"><title>WayriCAD Quick SI</title><style>body{font:15px system-ui;max-width:950px;margin:30px auto;color:#20303c}td,th{padding:7px;text-align:left;border-bottom:1px solid #ddd}pre{white-space:pre-wrap}</style><h1>WayriCAD Quick SI</h1><p>Read-only first-order screening, not protocol signoff.</p>'+svg+overview+plots+'<h2>Timing and termination screen</h2><table>'+rows+'</table>'+eye+sections+return_section+'<h2>Blocking inputs and next actions</h2><ul>'+blockers+'</ul><h2>Assumptions and limitations</h2><ul>'+''.join('<li>'+escape(n)+'</li>' for n in report['notes'])+'</ul><h2>Inputs and path evidence</h2><pre>'+escape(json.dumps({'inputs':report['inputs'],'path':report['path']},indent=2,allow_nan=False))+'</pre>'
+
+    from wayricad_runtime.report_ui import enhance_report, provenance
+    path=report.get('path',{});segments=path.get('segments',[])
+    known=sum(section.get('impedance_ohm') is not None for section in segments)
+    summary=[('Model','Independent first-order route screen'),('Net',path.get('net_name','Unknown')),('Routed length mm',path.get('length_mm','Unknown')),('Section impedance coverage',str(known)+' / '+str(len(segments))),('Delay source',report.get('delay_source','unavailable')),('Z0 source',report.get('z0_source','unavailable')),('Blocking inputs',len(report.get('blockers',[])))]
+    return enhance_report(document,status=report.get('status','UNKNOWN'),summary=summary,notice='Screening completion does not establish protocol compliance, crosstalk, differential coupling or discontinuity reflections. Review the route coverage, explicit assumptions and blockers below.',provenance=provenance(report))

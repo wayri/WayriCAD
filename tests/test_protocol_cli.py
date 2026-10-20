@@ -2,6 +2,7 @@
 import contextlib
 import io
 import json
+from html.parser import HTMLParser
 from pathlib import Path
 import tempfile
 import unittest
@@ -32,7 +33,22 @@ class ProtocolCLITests(unittest.TestCase):
             self.assertEqual(before,source.read_bytes())
             self.assertEqual(report,json.loads(output.read_text()))
             rendered=page.read_text(encoding='utf-8')
-            self.assertIn('DATA&lt;script&gt;',rendered);self.assertNotIn('<script>',rendered)
+            self.assertIn('DATA&lt;script&gt;',rendered)
+            self.assertNotIn('DATA<script>',rendered)
+            class Scripts(HTMLParser):
+                def __init__(self):
+                    super().__init__();self.programs=[];self.active=None
+                def handle_starttag(self,tag,attrs):
+                    if tag=='script':self.active=''
+                def handle_data(self,data):
+                    if self.active is not None:self.active+=data
+                def handle_endtag(self,tag):
+                    if tag=='script' and self.active is not None:
+                        self.programs.append(self.active);self.active=None
+            from wayricad_runtime.report_ui import REPORT_JS
+            scripts=Scripts();scripts.feed(rendered)
+            self.assertEqual(scripts.programs,[REPORT_JS])
+
             self.assertIn('<svg',rendered)
 
     def test_input_overwrite_and_nonfinite_json_rejected(self):

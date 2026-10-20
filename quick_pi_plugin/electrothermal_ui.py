@@ -31,11 +31,22 @@ def initial_studies(electrical, terminals=()):
     return {'steady': steady, 'transient': transient}
 
 
+def feedback_studies(electrical, terminals=()):
+    """Visible null inputs prevent guessed materials or cooling in feedback mode."""
+    studies=initial_studies(electrical,terminals)
+    steady=studies['steady']
+    for key in ('ambient_c','dielectric_k_w_mk','copper_k_w_mk','board_h_w_m2k','board_emissivity'):
+        steady['thermal_settings'][key]=None
+    steady['coupling'].update(material_temperature_range_c=[None,None],temperature_cap_c=None)
+    steady['electrical'].setdefault('options',{}).update(resistivity_ohm_m=None,temperature_coefficient=None)
+    return studies
+
+
 class ElectrothermalStudyDialog(wx.Dialog):
-    def __init__(self, parent, initial, runner, canvas_types, board_path=None, source_sha256=None):
+    def __init__(self, parent, initial, runner, canvas_types, board_path=None, source_sha256=None, steady_only=False):
         super().__init__(parent, title='Quick PI · Electrothermal study', size=(1120, 800),
                          style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
-        self.SetMinSize((820, 600)); self.runner=runner; self.initial=copy.deepcopy(initial)
+        self.SetMinSize((820, 600)); self.steady_only=steady_only; self.runner=runner; self.initial=copy.deepcopy(initial)
         self.board_path=board_path; self.sha=source_sha256; self.result=None
         self._busy=False; self._closed=False; self._closing=False; self._cancel=threading.Event()
         self.input_path=None; self.input_sha=None
@@ -46,6 +57,7 @@ class ElectrothermalStudyDialog(wx.Dialog):
         note.Wrap(1060); root.Add(note,0,wx.EXPAND|wx.ALL,10)
         choices=wx.BoxSizer(wx.HORIZONTAL)
         self.mode=wx.Choice(self,choices=['Steady saved-board coupling','Transient lumped coupling']); self.mode.SetSelection(0)
+        if steady_only:self.mode.SetItems(['Steady saved-board coupling']);self.mode.SetSelection(0)
         self.load=wx.Button(self,label='Load study JSON…'); self.reset=wx.Button(self,label='Reset selected model')
         for control in (self.mode,self.load,self.reset): choices.Add(control,0,wx.RIGHT,8)
         root.Add(choices,0,wx.ALL,10)
@@ -100,6 +112,9 @@ class ElectrothermalStudyDialog(wx.Dialog):
         from .electrothermal_cli import parse_envelope
         envelope=parse_envelope(('{"mode":'+json.dumps(self._kind())+',"study":'+text+'}').encode('utf-8'))
         request={'action':'electrothermal',**envelope}
+        if self.steady_only:
+            from .electrothermal_service import validate_feedback_inputs
+            validate_feedback_inputs(envelope['study']);request['require_explicit_thermal']=True
         if self.board_path: request.update(board_path=str(self.board_path),source_sha256=self.sha)
         if self.input_path: request.update(study_input_path=self.input_path,study_file_sha256=self.input_sha)
         return request

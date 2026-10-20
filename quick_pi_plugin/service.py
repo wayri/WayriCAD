@@ -50,6 +50,9 @@ def run_job(request, cancelled=None, timeout=300):
 
 
 def execute(request):
+    if request.get('action')=='batch':
+        from .batch import execute as execute_batch
+        return execute_batch(request,execute)
     from .package_contacts import guard_request
     guard_request(request)
     if request.get('action')=='electrothermal':

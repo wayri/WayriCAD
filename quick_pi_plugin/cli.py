@@ -31,6 +31,7 @@ def _loads(loads, limits):
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('board',type=Path,nargs='?')
+    parser.add_argument('--batch',type=Path,help='Independent multi-net cases JSON (wayricad.pi-batch/v1), explicit per-case sources/loads and optional return review/thermal feedback.')
     parser.add_argument('--transient',type=Path,help='Explicit R/L/C load-step JSON; optional board supplies saved-file provenance. Returns 4 for limit violations.')
     parser.add_argument('--electrothermal',type=Path,help='Explicit steady/transient electrothermal study JSON. Returns 3 for nonconvergence, 4 for operating-limit violations.')
     parser.add_argument('--verify',action='store_true',help='Run analytical/reference benchmarks in the prepared PI runtime; no board required.')
@@ -62,6 +63,14 @@ def main(argv=None):
     parser.add_argument('--package-conduction',type=Path,help='JSON list of explicit lead/solder/BGA paths; 2.5D constant-current DC only.')
     parser.add_argument('--command',help='Console command, including a series-component path; quote the entire command.')
     args=parser.parse_args(argv)
+    if args.batch:
+        try:
+            from .batch import cli_main
+            from .service import run_job
+            options={word.split('=')[0] for word in (argv if argv is not None else sys.argv[1:]) if word.startswith('--')}
+            return cli_main(args,run_job,forbidden=bool(options-{'--batch','--output','--html','--timeout'}))
+        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            print(json.dumps({'error':str(exc)}));return 2
     if args.electrothermal:
         try:
             from .electrothermal_cli import main as electrothermal_cli

@@ -29,7 +29,7 @@ class QuickSIPanel(wx.Panel):
         super().__init__(parent);self.board=board;self.saved_board=saved_board;self.report=None;self.path=None
         self._closed=False;self._busy=False;self._generation=0;self._job_serial=0;self._cancel=threading.Event();self._result_fingerprints=None
         self._navigation_busy=False;self._navigation_serial=0
-        self._source_fingerprints=None
+        self._source_fingerprints=None;self.study_cases=[];self.study_report=None
         if saved_board:
             from .service import source_fingerprints
             self._source_fingerprints=source_fingerprints(board.GetFileName())
@@ -70,6 +70,19 @@ class QuickSIPanel(wx.Panel):
         returns_host.SetSizer(returns_layout);form.Add(returns_pane,0,wx.EXPAND|wx.TOP,10)
         returns_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.FitInside(),self.Layout()))
         self.return_nets.Bind(wx.EVT_CHECKLISTBOX,self.return_nets_changed)
+        study_pane=wx.CollapsiblePane(left,label='Multi-net study',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        study_host=study_pane.GetPane();study_form=wx.BoxSizer(wx.VERTICAL)
+        study_note=wx.StaticText(study_host,label='Independent route screens. Choose nets, then edit every source/receiver and return assignment before running.');study_note.Wrap(295)
+        study_form.Add(study_note,0,wx.EXPAND|wx.BOTTOM,5)
+        self.study_nets=SearchableCheckListBox(study_host,choices=nets,size=(-1,130));study_form.Add(searchable_row(self.study_nets),0,wx.EXPAND)
+        self.study_add=wx.Button(study_host,label='Add checked nets to study')
+        self.study_edit=wx.Button(study_host,label='Edit study cases…')
+        self.study_run=wx.Button(study_host,label='Run independent multi-net study')
+        for control,handler in [(self.study_add,self._add_study_cases),(self.study_edit,self._edit_study_cases),(self.study_run,self.run_study)]:
+            control.Bind(wx.EVT_BUTTON,handler);study_form.Add(control,0,wx.EXPAND|wx.TOP,5)
+        study_host.SetSizer(study_form);form.Add(study_pane,0,wx.EXPAND|wx.TOP,10)
+        study_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.Layout(),left.FitInside(),self.Layout()))
+
         eye_pane=wx.CollapsiblePane(left,style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE,label='Illustrative eye (optional)');eye_form=wx.BoxSizer(wx.VERTICAL);eye_host=eye_pane.GetPane()
         self.eye_enabled=wx.CheckBox(eye_host,label='Generate ideal NRZ eye and step response')
         eye_form.Add(self.eye_enabled,0,wx.TOP,6)
@@ -99,6 +112,10 @@ class QuickSIPanel(wx.Panel):
         add_zoom_toolbar(route,self.preview,route_sizer);route.SetSizer(route_sizer);self.views.AddPage(route,'Route')
         from .eye_ui import EyePanel
         self.eye_preview=EyePanel(self.views);self.views.AddPage(self.eye_preview,'Eye / step');right.Add(self.views,2,wx.EXPAND)
+        self.study_choice=ReadableComboBox(view_host,choices=[],style=wx.CB_READONLY)
+        self.study_choice.SetToolTip('Select one completed study case to inspect its own route, return audit and results.')
+        self.study_choice.Hide();self.study_choice.Bind(wx.EVT_COMBOBOX,self._select_study_case)
+        right.Add(self.study_choice,0,wx.EXPAND|wx.TOP,5)
         self.status=wx.StaticText(view_host,label='Choose the source and receiver, review the inputs, then screen the path.');right.Add(self.status,0,wx.EXPAND|wx.ALL,7)
         self.results=wx.ListCtrl(self.results_splitter,style=wx.LC_REPORT);self.results.InsertColumn(0,'Measure',width=210);self.results.InsertColumn(1,'Result / evidence',width=620)
         self.results.SetMinSize((-1, 175))
@@ -122,6 +139,132 @@ class QuickSIPanel(wx.Panel):
         self.fields['net'].SetValue(selected[0][0] if selected else selected_tracks[0] if selected_tracks else candidate);self.net_changed(None)
         if selected:self.set_launch_selection({'net':selected[0][0],'pads':[label for net,label in selected if net==selected[0][0]]})
         left.FitInside()
+
+    def _review_return_nets(self):
+        if self.study_report and self.study_choice.GetSelection()!=wx.NOT_FOUND:
+            return self.study_report['cases'][self.study_choice.GetSelection()].get('inputs',{}).get('return_nets',[])
+        return [self.return_nets.GetString(i) for i in self.return_nets.GetCheckedItems()]
+
+    def _add_study_cases(self,event=None):
+        try:
+            values=self._inputs()
+            selected=[self.study_nets.GetString(i) for i in self.study_nets.GetCheckedItems()]
+            if not selected:raise ValueError('Check at least one study net first.')
+            existing={case['net'] for case in self.study_cases}
+            selected=[net for net in selected if net not in existing]
+            if len(self.study_cases)+len(selected)>64:raise ValueError('Use at most 64 cases per study.')
+            for net in selected:
+                current=net==self.fields['net'].GetValue()
+                self.study_cases.append({'id':'case-'+str(len(self.study_cases)+1),'net':net,
+                    'start':self.fields['start'].GetValue() if current else '',
+                    'end':self.fields['end'].GetValue() if current else '',
+                    'reference':self.fields['reference'].GetValue() or 'Auto','inputs':dict(values)})
+            self.changed(None);self.study_edit.SetLabel('Edit study cases ('+str(len(self.study_cases))+')…')
+            self.status.SetLabel('Study prepared. Edit all source/receiver pads; no direction is inferred for newly added nets.')
+        except Exception as error:self.status.SetLabel(str(error))
+
+    def _edit_study_cases(self,event=None):
+        if not self.study_cases:self._add_study_cases()
+        if not self.study_cases:return
+        import copy
+        import wx.grid as gridlib
+        from wayricad_runtime.layout import install_accessibility
+        dialog=wx.Dialog(self,title='Quick SI · Explicit independent route cases',size=(1080,670),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        layout=wx.BoxSizer(wx.VERTICAL)
+        note=wx.StaticText(dialog,label='Each row is independent. Start/end use Reference.Pad (inspect the net in the single-route form). Return nets are comma-separated; return pads belong to those nets. Blank source/receiver remains an explicit case error. Delete checked rows to remove cases.')
+        note.Wrap(980);layout.Add(note,0,wx.EXPAND|wx.ALL,10)
+        grid=gridlib.Grid(dialog);columns=['Remove','Case','Net','Source pad','Receiver pad','Reference','Rise ns','Frequency MHz','Driver Ω','Load Ω','Assumed Z0 Ω','Assumed Er','Return nets','Source return','Receiver return']
+        grid.CreateGrid(len(self.study_cases),len(columns))
+        for col,name in enumerate(columns):grid.SetColLabelValue(col,name);grid.SetColSize(col,140 if col not in (0,6,8,9,11) else 95)
+        for row,case in enumerate(self.study_cases):
+            inputs=case.get('inputs',{});roles=inputs.get('return_terminal_roles',{})
+            values=['',case['id'],case['net'],case.get('start',''),case.get('end',''),case.get('reference','Auto'),
+                    inputs.get('rise_ns',1),inputs.get('frequency_mhz',100),inputs.get('source_ohm',20),inputs.get('load_ohm'),inputs.get('z0_ohm'),inputs.get('epsilon_eff'),
+                    ', '.join(inputs.get('return_nets',[])),roles.get('source',''),roles.get('load','')]
+            for col,value in enumerate(values):grid.SetCellValue(row,col,'' if value is None else str(value))
+            grid.SetCellEditor(row,0,gridlib.GridCellBoolEditor());grid.SetCellRenderer(row,0,gridlib.GridCellBoolRenderer())
+        layout.Add(grid,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        layout.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,10);dialog.SetSizer(layout)
+        install_accessibility(dialog)
+        try:
+            if dialog.ShowModal()!=wx.ID_OK:return
+            grid.SaveEditControlValue();cases=[]
+            for row,original in enumerate(self.study_cases):
+                cell=lambda col:grid.GetCellValue(row,col).strip()
+                if cell(0)=='1':continue
+                case=copy.deepcopy(original);case.update(id=cell(1),net=cell(2),start=cell(3),end=cell(4),reference=cell(5) or 'Auto')
+                inputs=case['inputs']
+                for col,key in [(6,'rise_ns'),(7,'frequency_mhz'),(8,'source_ohm'),(9,'load_ohm'),(10,'z0_ohm'),(11,'epsilon_eff')]:inputs[key]=float(cell(col)) if cell(col) else None
+                returns=[value.strip() for value in cell(12).split(',') if value.strip()]
+                for key in ('return_nets','return_terminal_roles','return_terminal_ids'):inputs.pop(key,None)
+                if returns or cell(13) or cell(14):
+                    roles={key:value for key,value in [('source',cell(13)),('load',cell(14))] if value}
+                    inputs.update(return_nets=returns,return_terminal_roles=roles,return_terminal_ids=list(roles.values()))
+                cases.append(case)
+            if cases:
+                from .study import cases_from_config
+                cases_from_config({'cases':cases})
+            self.study_cases=cases;self.changed(None);self.study_edit.SetLabel('Edit study cases ('+str(len(cases))+')…')
+        except Exception as error:self.status.SetLabel('Study edit not applied: '+str(error))
+        finally:dialog.Destroy()
+
+    def run_study(self,event=None):
+        if self._busy or self._closed:return
+        self.changed(None)
+        try:
+            import copy
+            from .study import cases_from_config,run_study
+            config={'cases':copy.deepcopy(self.study_cases)};cases_from_config(config)
+            if not self.saved_board:
+                with wx.BusyCursor(),read_snapshot(self.board):report=run_study(self.board,config)
+                self._show_study(report);return
+            from .service import source_fingerprints,run_job
+            fingerprints=source_fingerprints(self.board.GetFileName())
+            if fingerprints!=self._source_fingerprints:raise ValueError('Saved PCB or rules changed. Reopen Quick SI before running.')
+            request={'mode':'study','board_path':self.board.GetFileName(),'source_fingerprints':fingerprints,'study':config}
+            self._cancel=threading.Event();cancel=self._cancel;generation=self._generation;self._job_serial+=1;serial=self._job_serial
+            self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self.status.SetLabel('Screening independent routes and explicit returns in one saved snapshot…')
+            def work():
+                payload=error=None
+                try:payload=run_job(request,cancelled=cancel.is_set)
+                except Exception as caught:error=caught
+                if not self._closed:
+                    try:wx.CallAfter(self._study_finished,serial,generation,request,payload,error)
+                    except RuntimeError:pass
+            self._worker_thread=threading.Thread(target=work,daemon=True,name='Quick SI study worker');self._worker_thread.start()
+        except Exception as error:
+            self._busy=False;self.run_button.Enable();self.cancel_button.Disable();self.status.SetLabel(str(error))
+
+    def _study_finished(self,serial,generation,request,payload,error):
+        if self._closed or serial!=self._job_serial:return
+        self._busy=False;self.run_button.Enable();self.cancel_button.Disable()
+        if generation!=self._generation:self.status.SetLabel('Study cancelled or inputs changed; rerun the study.');return
+        if error is not None:self.status.SetLabel(str(error));return
+        try:
+            from .service import require_source
+            require_source(request)
+            if payload.get('source_fingerprints')!=request['source_fingerprints']:raise ValueError('Study result source does not match this request.')
+            self._show_study(payload['study']);self._result_fingerprints=payload['source_fingerprints']
+        except Exception as caught:self.changed(None);self.status.SetLabel(str(caught))
+
+    def _show_study(self,report):
+        self.study_report=report
+        self.study_choice.Set([case['id']+' · '+case.get('net','')+' · '+case['status'] for case in report['cases']])
+        self.study_choice.SetSelection(0);self.study_choice.Show();self.GetSizer().Layout()
+        self._select_study_case();self.export.Enable()
+
+    def _select_study_case(self,event=None):
+        if not self.study_report or self.study_choice.GetSelection()==wx.NOT_FOUND:return
+        case=self.study_report['cases'][self.study_choice.GetSelection()]
+        self.results.DeleteAllItems();self.report=None;self.path=None;self.eye_preview.show_result(None)
+        self.preview.show_result(SimpleNamespace(primary=None,mate=None))
+        if 'report' in case:
+            from .service import restore_path
+            with read_snapshot(self.board):self._show_report(case['report'],restore_path(case,self.board),case.get('inputs',{}))
+        else:
+            row=self.results.InsertItem(0,case['id']+' · ERROR');self.results.SetItem(row,1,case.get('error','Unresolved case'))
+            self.status.SetLabel('Case failed; other case results are retained. '+case.get('error',''));self._navigation_buttons()
+        self.export.Enable()
 
     def return_nets_changed(self,event=None):
         selected={self.return_nets.GetString(i) for i in range(self.return_nets.GetCount()) if self.return_nets.IsChecked(i)}
@@ -154,6 +297,8 @@ class QuickSIPanel(wx.Panel):
 
     def changed(self,event):
         self._generation+=1;self._cancel.set();self._result_fingerprints=None
+        self.study_report=None
+        if hasattr(self,'study_choice'):self.study_choice.Clear();self.study_choice.Hide()
         self.report=None;self.path=None;self.export.Disable();self.results.DeleteAllItems();self.preview.show_result(SimpleNamespace(primary=None,mate=None))
         self.eye_preview.show_result(None)
         self.status.SetLabel('Inputs changed; run a fresh screen before exporting.')
@@ -180,7 +325,7 @@ class QuickSIPanel(wx.Panel):
     def _navigation_buttons(self):
         ready=not self._closed and not self._navigation_busy
         self.select_route_button.Enable(ready and self.path is not None and self.report is not None)
-        self.select_returns_button.Enable(ready and bool(self.return_nets.GetCheckedItems()))
+        self.select_returns_button.Enable(ready and bool(self._review_return_nets()))
         self.read_selection_button.Enable(ready)
 
     def _navigation_context(self):
@@ -238,7 +383,7 @@ class QuickSIPanel(wx.Panel):
         self._navigate('select',identifiers=ids)
 
     def select_returns_in_pcb(self,event=None):
-        nets=[self.return_nets.GetString(i) for i in self.return_nets.GetCheckedItems()]
+        nets=self._review_return_nets()
         if not nets:self.status.SetLabel('Choose explicit return nets first.');return
         self._navigate('select',nets=nets)
 
@@ -353,7 +498,7 @@ class QuickSIPanel(wx.Panel):
             if section.get('kind')=='zone' and 'start_mm' in section and 'end_mm' in section:
                 self.preview.tracks.append((*section['start_mm'],*section['end_mm'],section['layer'],0,None))
         self.preview.fit();self.preview.Refresh()
-        rows=[('Line model','User assumptions' if values['z0_ohm'] is not None or values['epsilon_eff'] is not None else 'Board geometry / unresolved terms retained'),('Route',f'{path.net_name}: {path.start_pad} → {path.end_pad}'),('Length / geometry',f'{path.length_mm:.3f} mm; {path.track_count} tracks, {path.via_count} vias, {path.zone_count} zones')]
+        rows=[('Line model','User assumptions' if values.get('z0_ohm') is not None or values.get('epsilon_eff') is not None else 'Board geometry / unresolved terms retained'),('Route',f'{path.net_name}: {path.start_pad} → {path.end_pad}'),('Length / geometry',f'{path.length_mm:.3f} mm; {path.track_count} tracks, {path.via_count} vias, {path.zone_count} zones')]
         for key,label,unit in [('delay_ns','One-way delay',' ns'),('electrical_length_deg','Electrical length',' deg'),('delay_to_rise_ratio','Delay / rise time',''),('z0_ohm','Uniform Z0',' ohm'),('source_reflection','Source reflection Γ',''),('load_reflection','Load reflection Γ',''),('first_load_step_per_source_step','First load step / source step',''),('series_match_candidate_ohm','Series-match candidate',' ohm')]:
             value=report[key];rows.append((label,'Unknown / not applicable' if value is None else f'{value:.5g}'+unit))
         for endpoint,detail in report.get('endpoint_screen',{}).items():
@@ -375,7 +520,7 @@ class QuickSIPanel(wx.Panel):
         self.status.SetLabel(report['status']+' — '+report['edge_screen']);self.export.Enable();self._navigation_buttons()
 
     def export_report(self,event):
-        if self.report is None:return
+        if self.report is None and self.study_report is None:return
         source=Path(self.board.GetFileName())
         if self.saved_board:
             from .service import source_fingerprints
@@ -383,5 +528,10 @@ class QuickSIPanel(wx.Panel):
                 self.changed(None);self.status.SetLabel('Saved sources changed; reopen Quick SI and rerun before export.');return
         with wx.FileDialog(self,'Export Quick SI report',defaultDir=str(source.parent),defaultFile=source.stem+'-quick-si.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
-            try:write_report(dialog.GetPath(),html_report(self.report),source,'.html')
+            try:
+                if self.study_report:
+                    from .report_plots import study_html
+                    payload=study_html(self.study_report)
+                else:payload=html_report(self.report)
+                write_report(dialog.GetPath(),payload,source,'.html')
             except Exception as exc:wx.MessageBox(str(exc),'Report export failed',wx.OK|wx.ICON_ERROR,self)

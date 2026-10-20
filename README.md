@@ -15,7 +15,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.20](https://github.com/wayri/WayriCAD/releases/tag/v3.6.20) · [Release notes](docs/RELEASE_NOTES_3.6.20.md) |
+| Download or update | [Release 3.6.21](https://github.com/wayri/WayriCAD/releases/tag/v3.6.21) · [Release notes](docs/RELEASE_NOTES_3.6.21.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 23 plugins](#all-23-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
@@ -23,18 +23,22 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-## Latest release — 3.6.20
+## Latest release — 3.6.21
 
-Update through KiCad's Plugin and Content Manager, then restart PCB Editor.
+Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
 
-| What's new | How to use it |
+| Improvement | Workflow |
 |---|---|
-| Adjustable settings, previews and result panels | Drag the dividers; expand optional sections and scroll within them. [Panel guide](docs/UI_ACCESSIBILITY.md). |
-| Read complete native table values | Focus a supported table and press **Ctrl+Shift+Enter** for a searchable reader, or **Ctrl+C** to copy selected rows. |
-| Offline help for all 23 plugins | Use the plugin's **Help** action, or browse the [plugin help index](docs/HELP_INDEX.md). |
-| Updated plugin packages | [Download 3.6.20](https://github.com/wayri/WayriCAD/releases/tag/v3.6.20) · [Changes](docs/RELEASE_NOTES_3.6.20.md) · [Validation](docs/audits/RELEASE_3.6.20.md). |
+| Quick PI multi-net cases and return copper | Declare each rail's source and loads. Optional single-load supply/return cases include return resistance, voltage drop and I²R loss. [PI guide](quick_pi_plugin/README.md). |
+| PI Joule heating checkbox | Enable temperature feedback, then supply reviewed material and cooling inputs. Plain DC already reports copper losses. |
+| Quick SI multi-net studies | Edit each route's terminals, driver assumptions and explicit return nets; review each case independently. [SI guide](signal_integrity_advisor_plugin/ReadMe.md). |
+| PI / SI / Therm reports | Read status, coverage and provenance; search/sort tables, navigate sections and print. Interactive plots and probes remain available. |
+| CLI access across all 23 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
+| Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-See [screenshots and workflow previews grouped by plugin](#plugin-previews).
+Multi-net cases are independent screens, not a coupled bus/crosstalk simulation. PI temperature feedback and explicit return-conduction cases have separate supported models; read their assumptions before comparing results. [Release notes](docs/RELEASE_NOTES_3.6.21.md).
+
+See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
 ## Install and open
 
@@ -78,12 +82,12 @@ an input or model is missing; they are not a pass.
 
 ### Silkscreen Label Placer — arrange readable labels
 
-1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its [0.2.3 PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.20/WayriCAD-silkscreen-label-0.2.3-PCM.zip) and use **Install from File**. Restart PCB Editor.
+1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its [0.3.0 PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.21/WayriCAD-silkscreen-label-0.3.0-PCM.zip) and use **Install from File**. Restart PCB Editor.
 2. Open **WayriCAD Silkscreen Label Placer** and choose selected parts or the whole board.
 3. Under **Options**, enable automatic sizing and set a minimum height if needed. Choose allowed orientations and reading directions. Add editable bold, italic or knockout rules for test points and connectors.
 4. Click **Preview**, inspect both board sides and unresolved labels, then **Apply labels**. Run KiCad DRC before saving. Labels that cannot fit safely stay unchanged.
 
-[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Release](https://github.com/wayri/WayriCAD/releases/tag/v3.6.20)
+[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Release](https://github.com/wayri/WayriCAD/releases/tag/v3.6.21)
 
 <a id="start-quick-pi"></a>
 
@@ -246,6 +250,12 @@ Generated demonstration board with illustrative lead/solder properties. [Capture
 | [Full references](quick_pi_plugin/README.md#references-and-research) | Meshing paper, verification guidance and model limits. |
 
 
+**Report preview**
+
+![Quick PI report status and evidence](quick_pi_plugin/help-report-review.png)
+
+Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
+
 ### [QuickTherm](quick_therm_plugin/README.md)
 
 **STEP models and transient heating**
@@ -275,6 +285,12 @@ The illustrative 1 s frame includes imported copper and contact losses. [Capture
 | [Full references](quick_therm_plugin/README.md#references-and-research) | Package-model context, bridge and limitations. |
 
 
+**Report preview**
+
+![QuickTherm report coverage summary](quick_therm_plugin/help-report-review.png)
+
+Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
+
 ### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
 
 **Routed signal analysis**
@@ -297,6 +313,12 @@ Missing models and reference coverage remain visible.
 | [Nubis SignalIntegrity](https://github.com/Nubis-Communications/SignalIntegrity) | Optional network interoperability. |
 | [Full references](signal_integrity_advisor_plugin/ReadMe.md#references-and-research) | I2C/CAN/DDR sources and shared impedance model. |
 
+
+**Report preview**
+
+![Quick SI report summary](signal_integrity_advisor_plugin/help-report-review.png)
+
+Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
 
 ### [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md)
 
@@ -351,7 +373,7 @@ Shipped UI rendered from a demonstration snapshot. Supporting panels open on dem
 
 The fixture deliberately includes height violations and incomplete coverage. [Capture and validation](docs/audits/MECHANICAL_INSPECTION.md).
 
-**Current source preview:** Mechanical Check has a hideable findings sidebar, clearer filters and detail cards, direct focus/isolation controls, and separate Measure/Display tabs. See the [review workflow](mechanical_check_plugin/README.md#review-findings-without-losing-the-board). These changes are not included in the published 3.6.20 installers.
+Mechanical Check has a hideable findings sidebar, clearer filters and detail cards, direct focus/isolation controls, and separate Measure/Display tabs. See the [review workflow](mechanical_check_plugin/README.md#review-findings-without-losing-the-board).
 
 ![Mechanical Check revised findings workspace](mechanical_check_plugin/help-review.png)
 
@@ -457,6 +479,8 @@ Hardware planning details are in [System requirements](docs/SYSTEM_REQUIREMENTS.
 ## Automation and development
 
 Use `wayricad jobs` for repeatable analysis/report sequences and KiCad jobsets.
+
+Use `wayricad tools list` to discover all 23 command interfaces, `wayricad tools doctor` to check an interpreter, and `wayricad tools run TOOL -- --help` for detailed options. The [all-tools CLI catalogue](docs/TOOL_CLI_CATALOGUE.md) includes multi-net PI/SI studies, thermal reports and repeatable jobsets.
 
 | Developer topic | Reference |
 |---|---|

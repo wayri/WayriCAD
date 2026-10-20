@@ -12,6 +12,32 @@ def _digest(value):
                                      allow_nan=False).encode('utf-8')).hexdigest()
 
 
+
+def validate_feedback_inputs(study):
+    """Require reviewed physical inputs for the one-click feedback workflow."""
+    import math
+    settings=study.get('thermal_settings',{});coupling=study.get('coupling',{})
+    for key,low,high in [('ambient_c',-273.15,None),('dielectric_k_w_mk',1e-12,None),
+                         ('copper_k_w_mk',1e-12,None),('via_plating_mm',1e-12,None),
+                         ('board_h_w_m2k',0,None),('board_emissivity',0,1)]:
+        value=settings.get(key)
+        if (not isinstance(value,(int,float)) or isinstance(value,bool) or not math.isfinite(value)
+                or value<low or high is not None and value>high):
+            raise ValueError('Enter an explicit finite thermal_settings.'+key+' in its physical range.')
+    bounds=coupling.get('material_temperature_range_c')
+    if (not isinstance(bounds,list) or len(bounds)!=2 or
+            any(not isinstance(value,(int,float)) or isinstance(value,bool) or not math.isfinite(value) for value in bounds)
+            or bounds[0]<-273.15 or bounds[1]<=bounds[0]):
+        raise ValueError('Enter a reviewed coupling.material_temperature_range_c [minimum, maximum].')
+    cap=coupling.get('temperature_cap_c')
+    if not isinstance(cap,(int,float)) or isinstance(cap,bool) or not math.isfinite(cap) or not settings['ambient_c']<=cap<=bounds[1]:
+        raise ValueError('Enter an explicit coupling.temperature_cap_c within the material range and at or above ambient.')
+    options=study.get('electrical',{}).get('options',{})
+    for key in ('resistivity_ohm_m','temperature_coefficient'):
+        value=options.get(key)
+        if not isinstance(value,(int,float)) or isinstance(value,bool) or not math.isfinite(value) or value<0 or key=='resistivity_ohm_m' and value==0:
+            raise ValueError('Enter an explicit electrical.options.'+key+'; resistivity is at 20 C.')
+
 def prepare_saved_study(path, study):
     """Extract both geometries from one saved board; never import a sibling plugin."""
     import pcbnew
@@ -81,6 +107,8 @@ def execute(request):
     if any(value.get('package_conduction') or value.get('package_contacts') for value in
            (request,study,study.get('mesh',{}),study.get('electrical',{}))):
         raise ValueError('Explicit package contacts are unsupported in electrothermal coupling.')
+    if request.get('require_explicit_thermal'):
+        validate_feedback_inputs(study)
     mode = request.get('mode', 'steady')
     if mode not in ('steady', 'transient'):
         raise ValueError('Choose steady or transient electrothermal mode.')

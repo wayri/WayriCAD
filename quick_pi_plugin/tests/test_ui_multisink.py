@@ -16,7 +16,7 @@ def control(value,selection=-1):
 
 
 def frame():
-    return SimpleNamespace(board_path='example.kicad_pcb',net=control('VCC'),edge=control('.5'),plating=control('.025'),
+    return SimpleNamespace(_busy=False,board_path='example.kicad_pcb',net=control('VCC'),edge=control('.5'),plating=control('.025'),
         source=control('A',0),sink=control('B',1),voltage=control('3.3'),current=control('.8'),
         source_current_limit=control('2'),sink_min_voltage=control('3.1'),sink_max_voltage=control('3.4'),
         temperature=control('20'),ambient=control('20'),limit=control('105'),pulse=control('1'),

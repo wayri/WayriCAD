@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.6.20"
+version = "3.6.21"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,6 +26,8 @@ test = ["shapely>=2,<3", "numpy>=1.24,<3", "scipy>=1.10,<2", "matplotlib>=3.7,<4
 
 [project.scripts]
 wayricad = "extract_pins_plugin.cli:main"
+wayricad-tools = "wayricad_runtime.tool_cli:main"
+wayricad-silkscreen = "silkscreen_label_plugin.cli:main"
 wayricad-jobs = "wayricad_runtime.jobs:main"
 wayricad-route = "wayricad_runtime.cli:main"
 wayricad-rlc = "trace_impedance_plugin.cli:main"

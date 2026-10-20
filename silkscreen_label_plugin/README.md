@@ -160,11 +160,11 @@ These fixtures do not establish that every label fits every dense board. The unr
 
 ## Install
 
-The current source version, 0.2.2, uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
+Version 0.3.0, uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
 
-The source changes below are available as a local candidate until the next release. Download the latest published Silkscreen Label Placer from the [releases page](https://github.com/wayri/WayriCAD/releases), or find it in the WayriCAD Plugin Repository in PCM. Other plugin installers retain their published versions.
+Download the latest Silkscreen Label Placer from the [releases page](https://github.com/wayri/WayriCAD/releases), or find it in the WayriCAD Plugin Repository in PCM.
 
-For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.2.2-PCM.zip`.
+For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.3.0-PCM.zip`.
 
 ## Checks and limits
 
@@ -183,3 +183,7 @@ KiCad documents [silkscreen setup and design rules](https://docs.kicad.org/10.0/
 Expand Review details when needed, then drag its divider to give the proposal table more height. The board preview keeps the remaining space, and the Options dialog scrolls its longer settings instead of requiring an oversized window.
 
 Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.
+
+## Read-only command line preview
+
+`wayricad-silkscreen settings` prints the settings schema. Use `wayricad-silkscreen preview board.kicad_pcb --refs U1 TP1 --output labels.json` for a saved-board preview, optionally adding `--settings silk.json` and `--timeout 180`. The CLI reports proposed text and guide coordinates plus unresolved items; it never saves or applies board changes. Source and rule-file hashes are checked before returning the preview. Apply remains in PCB Editor with its active project settings and native DRC. See the [all-tools CLI catalogue](../docs/TOOL_CLI_CATALOGUE.md).

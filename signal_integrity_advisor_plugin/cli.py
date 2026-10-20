@@ -38,6 +38,11 @@ def parser():
     suite.add_argument('--output',type=Path)
     suite.add_argument('--html',type=Path)
     protocol_budgets(suite)
+    study=subs.add_parser('study',help='Run independent explicit multi-net route screens from a JSON case list.')
+    study.add_argument('board',type=Path)
+    study.add_argument('--config',type=Path,required=True,help='Study JSON with explicit start/end pads, references, drivers and optional returns for each case.')
+    study.add_argument('--output',type=Path)
+    study.add_argument('--html',type=Path)
     for name in ('inspect','screen'):
         sub=subs.add_parser(name)
         sub.add_argument('board',type=Path,help='Saved KiCad PCB; never modified.')
@@ -56,6 +61,9 @@ def parser():
             sub.add_argument('--html',type=Path,help='Self-contained local HTML with route geometry and evidence.')
             sub.add_argument('--eye-bitrate-mbps',type=float,help='Opt in to an illustrative uniform-line PRBS7 eye at this bit rate.')
             sub.add_argument('--eye-swing-v',type=float,default=1.,help='Eye source open-circuit swing, default 1 V; an explicit modeling assumption.')
+            sub.add_argument('--return-net',action='append',default=[],help='Explicit return net; repeat for multiple return nets. No return net is inferred.')
+            sub.add_argument('--return-source',help='Source return pad, e.g. U1.2; requires --return-net.')
+            sub.add_argument('--return-load',help='Receiver return pad, e.g. J1.2; requires --return-net.')
             sub.add_argument('--role',choices=['P','N','clock','data','control'],help='Optional protocol suite assignment for this route report.')
             sub.add_argument('--group',default='',help='Pair/bus group for --role, e.g. lane0 or byte0.')
     eye=subs.add_parser('eye',help='Standalone illustrative eye/step model; no KiCad runtime required.')
@@ -131,10 +139,27 @@ def execute(args):
         if args.output:write_report(args.output,json.dumps(report,indent=2,allow_nan=False)+'\n',__file__,'.json')
         if args.html:write_report(args.html,standalone_html(report),__file__,'.html')
         return report
+    if args.command=='study':
+        from .service import source_fingerprints,execute as execute_saved
+        from .report_plots import study_html
+        if args.config.stat().st_size>1024*1024:raise ValueError('Study input must be smaller than 1 MiB.')
+        raw=args.config.read_bytes()
+        def reject_constant(value):raise ValueError('Non-finite JSON number: '+value)
+        config=json.loads(raw.decode('utf-8-sig'),parse_constant=reject_constant)
+        protected={args.config.resolve(),args.board.resolve(),args.board.with_suffix('.kicad_pro').resolve(),args.board.with_suffix('.kicad_dru').resolve()}
+        if any(target and target.resolve() in protected for target in (args.output,args.html)):raise ValueError('Study outputs must not overwrite its input configuration or design files.')
+        request={'mode':'study','board_path':str(args.board.resolve()),'source_fingerprints':source_fingerprints(args.board),'study':config}
+        report=execute_saved(request)['study'];report['config_sha256']=hashlib.sha256(raw).hexdigest()
+        if args.config.read_bytes()!=raw:raise ValueError('Study configuration changed during analysis; rerun before exporting.')
+        if args.output:write_report(args.output,json.dumps(report,indent=2,allow_nan=False)+'\n',args.board,'.json')
+        if args.html:write_report(args.html,study_html(report),args.board,'.html')
+        return report
     try:import pcbnew
     except ImportError as exc:raise RuntimeError("Use KiCad's Python interpreter for saved-board SI analysis; --help works with ordinary Python.") from exc
     source=args.board.resolve()
     if not source.is_file() or source.suffix.lower()!='.kicad_pcb':raise ValueError('Choose an existing .kicad_pcb file.')
+    from .service import source_fingerprints
+    fingerprints=source_fingerprints(source)
     original=hashlib.sha256(source.read_bytes()).hexdigest()
     board=pcbnew.LoadBoard(str(source))
     if board is None:raise ValueError('KiCad could not load the board.')
@@ -145,9 +170,15 @@ def execute(args):
         report={'schema':'wayricad.quick-si-inventory/v1','nets':engine.net_names(),'layers':engine.available_layers(),'ground_nets':engine.ground_nets()}
         if args.net:report['pads']=engine.pads_for_net(args.net)
     else:
-        report,_=analyze(board,args.net,args.start,args.end,args.reference,**{name:getattr(args,name) for name in ('rise_ns','frequency_mhz','source_ohm','load_ohm','z0_ohm','epsilon_eff','eye_bitrate_mbps','eye_swing_v')})
-    if hashlib.sha256(source.read_bytes()).hexdigest()!=original:raise ValueError('Board file changed during analysis; rerun before exporting.')
-    report.update(board=str(source),board_sha256=original)
+        inputs={name:getattr(args,name) for name in ('rise_ns','frequency_mhz','source_ohm','load_ohm','z0_ohm','epsilon_eff','eye_bitrate_mbps','eye_swing_v')}
+        if args.return_net or args.return_source or args.return_load:
+            roles={key:value for key,value in [('source',args.return_source),('load',args.return_load)] if value}
+            inputs.update(return_nets=args.return_net,return_terminal_roles=roles,return_terminal_ids=list(roles.values()))
+            from .study import checked_case
+            checked_case({'net':args.net,'start':args.start,'end':args.end,'inputs':inputs})
+        report,_=analyze(board,args.net,args.start,args.end,args.reference,**inputs)
+    if source_fingerprints(source)!=fingerprints:raise ValueError('Board or project rules changed during analysis; rerun before exporting.')
+    report.update(board=str(source),board_sha256=original,source_fingerprints=fingerprints)
     if args.command=='screen':
         if args.role and not args.group.strip():raise ValueError('Supply --group with a protocol --role.')
         if args.group.strip() and not args.role:raise ValueError('Supply --role with a protocol --group.')
@@ -160,7 +191,7 @@ def execute(args):
 def main(argv=None):
     args=parser().parse_args(argv)
     try:
-        if args.command in ('inspect','screen'):
+        if args.command in ('inspect','screen','study'):
             try:import pcbnew
             except ImportError:
                 from wayricad_runtime.native_analysis import run_cli

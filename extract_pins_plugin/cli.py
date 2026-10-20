@@ -31,7 +31,7 @@ from .core.controller_connector_mapper import (
     parse_traversal_rules,
 )
 
-VERSION = "3.6.20"
+VERSION = "3.6.21"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3
@@ -49,6 +49,9 @@ class CliError(Exception):
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
+    if raw and raw[0] == "tools":
+        from wayricad_runtime.tool_cli import main as tools_main
+        return tools_main(raw[1:])
     if raw and raw[0] == "jobs":
         from wayricad_runtime.jobs import main as jobs_main
         return jobs_main(raw[1:])
@@ -86,6 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_validate(sub)
     add_report(sub)
     add_jobset_run(sub)
+    sub.add_parser("tools", help="Discover all23tool CLIs: list, show, doctor, run.")
     add_jobs(sub)
     add_benchmark(sub)
     add_dependencies(sub)

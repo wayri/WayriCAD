@@ -54,3 +54,33 @@ def plot_section(report):
         plots.append(interactive_plot(title,rows,ylabel,y_unit=ylabel,connect=not title.startswith('Section')))
         plots.append('<details><summary>Static export</summary><figure><figcaption>'+title+'</figcaption><img style="width:100%;height:auto" alt="'+title+'" src="data:image/png;base64,'+image+'"></figure></details>')
     return '<h2>Route plots</h2><p>Vertical markers indicate vias. Missing impedance values are omitted; unknown delay/resistance interrupts the cumulative curve. Ideal estimates do not resolve discontinuity reflections or differential coupling.</p>'+''.join(plots)
+
+
+def study_html(report):
+    """Compare independent route screens, retaining every error and unknown."""
+    from html import escape
+    import json
+    from wayricad_runtime.report_ui import enhance_report, provenance
+    cases=report.get('cases',[])
+    document='<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD Quick SI study</title><h1>WayriCAD Quick SI · Independent route study</h1><h2>Case comparison</h2><table><thead><tr><th>Case</th><th>Net</th><th>Source → receiver</th><th>Status</th><th>Delay ns</th><th>Z0 Ω</th><th>Return review</th><th>Next action / error</th></tr></thead><tbody>'
+    details=[]
+    for index,case in enumerate(cases):
+        child=case.get('report') or {};identifier='si-case-'+str(index)
+        blockers=child.get('blockers',[])
+        next_action=case.get('error') or '; '.join(str(row.get('action',row.get('message',''))) for row in blockers) or 'Review model coverage and assumptions'
+        values=[case.get('id',index+1),case.get('net','Unknown'),str(case.get('start','Unknown'))+' → '+str(case.get('end','Unknown')),case.get('status','UNKNOWN'),child.get('delay_ns'),child.get('z0_ohm'),case.get('return_status','Not requested'),next_action]
+        document+='<tr><td><a href="#'+identifier+'">'+escape(str(values[0]))+'</a></td>'+''.join('<td>'+escape('Unknown' if value is None else str(value))+'</td>' for value in values[1:])+'</tr>'
+        detail='<details id="'+identifier+'"><summary>'+escape(str(values[0]))+' · '+escape(str(values[1]))+' · '+escape(str(case.get('status','UNKNOWN')))+'</summary>'
+        if case.get('error'):detail+='<p><strong>Case failed:</strong> '+escape(str(case['error']))+'</p>'
+        if child:
+            detail+='<p>'+escape(str(child.get('delay_source','Delay source unavailable')))+'</p>'
+            detail+='<ul>'+''.join('<li>'+escape(str(note))+'</li>' for note in child.get('notes',[]))+'</ul>'
+            detail+=plot_section(child)
+            if child.get('return_path'):
+                from wayricad_runtime.return_path import html_details
+                detail+=html_details(child['return_path'])
+        detail+='<details class="report-evidence"><summary>Exact case inputs, results and source object identities</summary><pre>'+escape(json.dumps(case,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details></details>'
+        details.append(detail)
+    document+='</tbody></table><h2>Individual case evidence</h2>'+''.join(details)+'</html>'
+    summary=report.get('summary',{})
+    return enhance_report(document,status=report.get('status','UNKNOWN'),summary=[('Cases',summary.get('cases',len(cases))),('Reported',summary.get('reported',sum(bool(case.get('report')) for case in cases))),('Errors',summary.get('errors',sum(case.get('status')=='ERROR' for case in cases))),('Model',report.get('model','Independent route screens'))],notice='Cases are independent source-to-receiver screens. This comparison does not solve inter-net coupling, crosstalk, simultaneous switching or whole-bus qualification. Error and incomplete cases remain in the report.',provenance=provenance(report))

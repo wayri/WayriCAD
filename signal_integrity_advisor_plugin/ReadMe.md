@@ -6,11 +6,64 @@ triangle mesh, so Gmsh meshing alone would not improve its impedance or timing
 estimates. Coupled impedance, full plane fields and via discontinuities still
 need a validated field model.
 
-The Quick SI route preview uses the available window height; its result table
-stays compact below the preview. Resize the window or use the preview's Fit
-control to inspect a route in more detail.
+Drag the horizontal divider to share space between the route preview and its
+results table. Drag the input divider to widen settings, or use the preview's
+Fit control to inspect the whole route.
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
+
+## Multi-net studies and explicit returns
+
+A study runs up to 64 **independent source-to-receiver route screens** on the same
+saved PCB and rules snapshot. It does not solve inter-net coupling, crosstalk,
+simultaneous switching, differential coupling or full-bus/protocol qualification.
+Missing geometry, return continuity and model terms remain unresolved.
+
+1. Open **Multi-net study**, search/check the desired nets and choose **Add checked nets to study**.
+2. Choose **Edit study cases**. Enter each source and receiver as `Reference.Pad`;
+   use the single-route pad lists to inspect exact labels. Newly added nets have
+   blank terminals until you explicitly assign signal direction.
+3. Set each row's reference layer, rise time, frequency, driver/load resistance and
+   optional assumed impedance/permittivity. Blank assumed values preserve the
+   geometry model's unknowns. Default numeric inputs are editable assumptions.
+4. Enter explicit return nets, source-return pad and receiver-return pad per row.
+   This invokes the real copper/via return-path audit, including sampled coverage,
+   reference transitions and return-pad inventory. It covers the whole signal net,
+   rather than only the chosen source-to-receiver branch. It does not prove a
+   continuous low-inductance return loop or solve plane fields.
+5. Run the study and choose a case above the route preview. Failed cases retain
+   their error while successful cases retain their own route, return evidence,
+   plots and measurements. Export creates an offline comparison report.
+
+Editing inputs clears the study result. Changed saved board/project/custom-rule
+files abort the study and block export. Locked source files are never modified.
+
+### CLI study
+
+Use KiCad's Python or the installed `wayricad-si` command. First discover exact
+net and terminal labels; then adapt [the example study](independent-routes.json).
+
+```text
+wayricad-si inspect C:/Projects/Example/board.kicad_pcb --net DATA
+wayricad-si study C:/Projects/Example/board.kicad_pcb --config independent-routes.json --output study-results.json --html study-results.html
+```
+
+The JSON records a common hash for the PCB, project and custom rules, plus each
+case's exact assumptions, terminal roles, result and error. One invalid case does
+not discard other cases; changed sources invalidate the entire run. `COMPLETE`
+means every independent numerical screen completed, not physical qualification.
+`REVIEW` and `INCOMPLETE` return exit code 3.
+
+A single route supports the same explicit return audit:
+
+```text
+wayricad-si screen C:/Projects/Example/board.kicad_pcb --net DATA --start U1.1 --end J1.1 --rise-ns 1 --source-ohm 20 --return-net GND --return-source U1.3 --return-load J1.3 --html data-return-review.html
+```
+
+Repeat `--return-net` for multiple return nets. No ground name or source/receiver
+return pad is inferred. Ambiguous pad labels and absent return nets produce an
+explicit error. Omitting returns preserves the route screen and makes no return
+closure claim.
 
 ## Interactive inspection
 

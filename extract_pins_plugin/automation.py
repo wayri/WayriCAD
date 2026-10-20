@@ -54,8 +54,11 @@ def capabilities() -> dict[str, Any]:
             for key, name, actions, mutating, input_kind in PLUGIN_CAPABILITIES
         ],
         "operations": sorted(HANDLERS),
-        "native_gui_only": ["silkscreen-label-placer"],
+        "native_gui_only": [],
+        "tool_cli": "wayricad tools list / show TOOL / run TOOL -- --help",
         "additional_cli": {
+            "silkscreen-label-placer": "wayricad-silkscreen --help (read-only settings/placement preview; apply stays in PCB Editor)",
+            "signal-integrity": "wayricad-si --help (route, return-path and explicit multi-net studies)",
             "component-arranger": "wayricad-arrange --help (KiCad 10 Python; group, preview, validate, export a new project)",
             "layer-counter": "wayricad-layer-counter --help (KiCad 10 Python; read-only preview or new candidate board)",
             "trace-refiner": "wayricad-trace-refiner --help (KiCad 10 Python; preview, validate, export a new project)",
