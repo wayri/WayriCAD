@@ -162,6 +162,24 @@ The offline HTML report opens with an interactive full-board viewport. **Top** a
 **3D overview** provides an orbitable board extrusion and saved footprint bounds on both faces. Package heights are illustrative and no STEP models are loaded. The report also embeds three offline Matplotlib plots: top board overlay, bottom board overlay and component temperature comparison with available limits. Junction, package case and board contact temperatures are separate quantities; a missing case temperature stays unknown. A thin-sheet solve supplies one shared midplane field on both faces, not independently calculated top and bottom surface temperatures. Drilled slots can be displayed even when the multilayer thermal-contact model does not support solving them.
 
 
+## Solver methods
+
+| Workflow | Method used | References and limits |
+|---|---|---|
+| Independent component screen | Lumped thermal resistances: ambient plus dissipated power times the applicable Rθ, or explicitly connected junction/case/sink paths. | [Model and field meanings](QUICK_THERM.md), [package conduction assumptions](../docs/PACKAGE_CONDUCTION.md). Datasheet thermal resistance depends on its test conditions; maximum power ratings are not operating dissipation. |
+| Thin-sheet board | Conservative cell-centered finite-volume conductance network for lateral heat flow, with convection and gray-body radiation. Sparse solves and Newton linearization enforce the nonlinear boundary balance. | [Implementation](thermal_network.py), [NIST finite-volume discretization](https://pages.nist.gov/fipy/en/stable/numerical/discret.html). NIST explains the method; FiPy is not a dependency. One shared midplane field cannot resolve a top-to-bottom gradient. |
+| Copper layers and vertical paths | Rectilinear finite-volume network using saved copper coverage, lateral and interlayer conductances, plated-barrel paths and explicit package/fixture/sink connections. Radiation is Newton-linearized. | [Implementation](thermal_multilayer.py), [layered model](QUICK_THERM.md#layer-resolved-board-screen), [finite-volume background](https://pages.nist.gov/fipy/en/stable/numerical/discret.html). Subcell coverage approximates copper geometry; unresolved contacts and failed mesh checks remain visible. |
+| Spatial thermal transient | Backward Euler for the assembled thermal conductance/capacitance network, with scheduled power and Newton-linearized radiation. | [Implementation](thermal_spatial_transient.py), [finite-volume transient discretization](https://pages.nist.gov/fipy/en/stable/numerical/discret.html#transient-term-partial-rho-phi-partial-t). Explicit heat capacities and initial/boundary conditions are required. Implicit stability does not replace time-step refinement. |
+| Independent single-RC transient | Analytical exponential response to a declared component power step, sampled at the requested output times. | [Implementation](transient.py). This separate lumped mode has one temperature per component; it does not resolve a board field or package gradients. |
+| Optional 3D steady conduction | Gmsh creates the supported volume mesh; the external CalculiX `ccx` FEM solver computes nodal temperatures. QuickTherm imports the field and checks heat balance. | [Bridge setup and restrictions](CALCULIX_BRIDGE.md), [Gmsh paper](https://doi.org/10.1002/nme.2579), [CalculiX manuals](https://www.dhondt.de/). This bridge requires a fixed lower-face temperature and currently rejects vias, mounting contacts, heatsinks, convection and radiation. |
+
+Air, forced-air, vacuum, potting and sealed-enclosure settings select explicit
+boundary approximations; they do not run CFD or calculate radiation view factors.
+Imported PI losses stay fixed unless explicitly scheduled; a thermal-only run
+does not recompute electrical current. See the
+[Marble mesh, balance and unresolved-contact results](../docs/audits/MARBLE_COUPLED_ANALYSIS.md)
+for the distinction between a completed solve and an accepted thermal estimate.
+
 ## References and research
 
 | Source | How it relates to QuickTherm |

@@ -442,6 +442,21 @@ analysis. Upstream ERL, PZ and IXT remain their own installed console commands.
 See the [integration scope, setup, numerical checks and roadmap](https://github.com/wayri/WayriCAD/blob/develop/docs/QUICK_SI_SIGNALINTEGRITY.md).
 
 
+## Solver methods
+
+| Workflow | Method used | References and limits |
+|---|---|---|
+| Routed-net delay and impedance | Extract the saved connected route, estimate supported quasi-static cross sections, and accumulate section propagation delays. Transmission-line relations provide reflection coefficients and first-step screening from the declared driver/load values. | [RLC cross-section methods](../trace_impedance_plugin/ReadMe.md#solver-methods), [pinned EMerge equations](https://github.com/wayri/EMerge/blob/50283a2/src/emerge/_emerge/geo/pcb_tools/calculator.py). Missing reference geometry or electrical inputs remain unresolved; this is not a full-channel waveform solve. |
+| Local coupled-line fields | Electrostatic boundary-element method on finite rectangular conductor contours, using integrated single-plane image or two-plane Dirichlet Green functions. Modal capacitances give lossless homogeneous TEM even/odd impedances. | [Implementation](crosstalk.py), [coupled-line theory](https://eng.libretexts.org/Bookshelves/Electrical_Engineering/Electronics/Microwave_and_RF_Design_II_-_Transmission_Lines_%28Steer%29/05%3A_Coupled_Lines_and_Applications/5.03%3A_Coupled_Transmission_Line_Theory), [Cohn's centered-stripline reference](https://doi.org/10.1109/TMTT.1955.1124973). Cohn is an independent zero-thickness check, not the finite-thickness solver. Only supported straight, parallel equal-width sections are modeled. |
+| Local NEXT/FEXT | Even/odd modal superposition with reflected finite linear edges and four ports matched to the geometric mean of the modal impedances. | [Modal theory](https://eng.libretexts.org/Bookshelves/Electrical_Engineering/Electronics/Microwave_and_RF_Design_II_-_Transmission_Lines_%28Steer%29/05%3A_Coupled_Lines_and_Applications/5.03%3A_Coupled_Transmission_Line_Theory), [directed-crosstalk setup and refinement gates](#directed-local-crosstalk). Equal modal velocities give zero FEXT in this ideal model. Local sections are not summed or cascaded into a complete-board prediction. |
+| Return-path review | Sample reference-zone coverage along the signal and inspect declared return nets, layer transitions and local via contacts. | [Return-path evidence](#explicit-return-path-evidence). Geometry alone does not establish return impedance or solve return-current distribution. |
+
+Protocol presets supply representative checks, not a separate solver for each
+protocol. Bends, vias, branches, packages and unsupported dielectric/coupling
+geometry can leave a study incomplete. See the
+[Marble results and modeled coverage](../docs/audits/MARBLE_COUPLED_ANALYSIS.md)
+before interpreting local crosstalk as a whole-route result.
+
 ## References and research
 
 | Source | How it relates to Quick SI |

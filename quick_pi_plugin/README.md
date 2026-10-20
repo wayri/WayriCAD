@@ -635,6 +635,22 @@ Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner 
 HTML reports put three primary Matplotlib plots first: voltage drop, current density and copper loss density for the selected layer. Additional maps remain available in an expandable section. All images are embedded for offline viewing.
 
 
+## Solver methods
+
+| Workflow | Method used | References and limits |
+|---|---|---|
+| Layered DC copper | Linear triangular finite-element method (FEM) for scalar conductivity, with copper thickness in each sheet and axial plated-barrel resistors between layers. The assembled sparse system uses SciPy's SuperLU factorization. | [Implementation](solver.py), [SciPy sparse LU](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.splu.html), [analytical conductor benchmarks](../docs/PI_REFERENCE_BENCHMARKS.md). This is 2.5D DC conduction; it does not solve AC return currents, skin effect or electromagnetic waves. |
+| Volumetric DC copper | Linear tetrahedral conductivity FEM on supported Gmsh volumes. | [Implementation](full3d.py), [Gmsh paper](https://doi.org/10.1002/nme.2579). Gmsh generates the mesh; Quick PI solves the electrical system. Unsupported volume/contact geometry remains blocked. |
+| Multi-pad sources and sinks | Ideal equipotential electrodes with a prescribed total current per unit; the conduction solution determines individual pad currents. | [Terminal model](terminals.py), [contact model and assumptions](../docs/PACKAGE_CONDUCTION.md). An electrode does not supply missing package-internal impedance or justify equal current per pad. |
+| Shared return across rails | One linear DC solve on the common return conductor with all declared load currents; the resulting return potentials reduce the delivered supply voltages. Shared-return loss is counted once. | [Implementation](shared_return.py), [Marble study and limitations](../docs/audits/MARBLE_COUPLED_ANALYSIS.md). Fixed-temperature, prescribed-current model; shared electrothermal feedback and regulator dynamics are not solved. |
+| Optional Joule-heating feedback | Steady fixed-point iteration between copper conduction, conservative I²R heat transfer and the board thermal model, updating copper resistivity with temperature. | [Implementation](electrothermal.py), [Joule-heating background](https://doc.comsol.com/6.3/doc/com.comsol.help.models.llac.busbar_llac/busbar_llac.html). COMSOL is a reference, not a backend. Supported independent studies require explicit thermal/material inputs and convergence checks. |
+| Return-path review | Geometric sampling of saved reference copper and nearby return-via contacts. | [Return-path method](RETURN_PATH.md). This evidence review does not calculate an AC return-current field or loop inductance. |
+
+Mesh refinement, current conservation and power balance check different aspects
+of a result. None alone establishes physical accuracy; see the
+[benchmark evidence](../docs/PI_REFERENCE_BENCHMARKS.md) and
+[Marble coupled study](../docs/audits/MARBLE_COUPLED_ANALYSIS.md).
+
 ## References and research
 
 | Source | How it relates to Quick PI |
@@ -642,7 +658,7 @@ HTML reports put three primary Matplotlib plots first: voltage drop, current den
 | [MIT, *Electromagnetic Field Theory*, Chapter 3](https://ocw.mit.edu/courses/res-6-002-electromagnetic-field-theory-a-problem-solving-approach-spring-2008/2cccce322d387cccbc78c3ed65843f49_MITRES_6_002S08_chp03_text.pdf) | Conduction and cylindrical/annular resistor equations used for analytical known-answer checks. |
 | [Elmer published conductor/circuit fixture, pinned revision](https://github.com/ElmerCSC/elmerfem/tree/b461e4be77d0ca13bada61f04819fccb20a524ab/fem/tests/ConstantUnknownPotStatCurrent) | Geometry and operating-point reference for the reproduced beam benchmark. Elmer itself was not executed for that comparison. |
 | [NASA verification overview](https://www.grc.nasa.gov/www/wind/valid/tutorial/overview.html) and [grid convergence](https://www.grc.nasa.gov/www/wind/valid/tutorial/spatconv.html) | Verification/validation and refinement guidance. Arbitrary-board asymptotic convergence and GCI are not established. |
-| [Geuzaine & Remacle, Gmsh paper, 2009](https://gmsh.info/doc/preprints/gmsh_paper_preprint.pdf) — DOI [10.1002/nme.2579](https://doi.org/10.1002/nme.2579) | Research behind the optional 3D meshing backend; it does not validate the PI solver. |
+| [Geuzaine & Remacle, Gmsh paper, 2009](https://gmsh.info/doc/preprints/gmsh_paper_preprint.pdf) — DOI [10.1002/nme.2579](https://doi.org/10.1002/nme.2579) | Research behind the optional planar and volumetric meshing backend; it does not validate the PI solver. |
 | [COMSOL busbar example](https://doc.comsol.com/6.3/doc/com.comsol.help.models.llac.busbar_llac/busbar_llac.html) | Background on Joule heating and conservation, already discussed in the contact-model notes. COMSOL is not the Quick PI backend. |
 
 [Implemented benchmark equations and results](../docs/PI_REFERENCE_BENCHMARKS.md) ·

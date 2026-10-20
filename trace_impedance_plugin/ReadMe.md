@@ -122,6 +122,23 @@ Trace measurement and AC-sweep CSV exports start in the originating board’s pr
 Use this tool’s existing CLI in a shared WayriCAD report sequence. The runner adds ordered steps, failure propagation, per-run logs and an HTML/JSON report index, and can insert the sequence into a native KiCad jobset. See [setup, presets and examples](../wayricad_runtime/JOBSETS.md). The CLI keeps the same input requirements and engineering limitations as interactive use.
 
 
+## Solver methods
+
+| Quantity or workflow | Method used | References and limits |
+|---|---|---|
+| Trace resistance and conductor loss | DC resistance from resistivity, length and cross-sectional area; skin-depth/slab approximations for frequency sweeps. | [Implemented equations](rlc_model.py). Proximity effect, roughness and a complete frequency-dependent return path are not solved. |
+| Board-section Z0, L and C | EMerge-derived quasi-static microstrip or centered-stripline equations, including supported copper-thickness corrections; telegrapher relations convert impedance and velocity to distributed L/C. | [Pinned EMerge source](https://github.com/wayri/EMerge/blob/50283a2/src/emerge/_emerge/geo/pcb_tools/calculator.py), [local port](emerge_lines.py), [Qucs microstrip equations](https://qucs.github.io/tech/node75.html). Actual saved reference coverage and supported stackup geometry are required. |
+| Manual CPW/GCPW and coupled stripline | Conformal-mapping/elliptic-integral cross-section formulas evaluated from user-entered dimensions. | [Qucs CPW method](https://qucs.github.io/tech/node86.html), [local implementation](emerge_lines.py). These manual models use zero-thickness conductors and ideal continuous grounds; they do not extract actual board gaps or add automatic differential-pair impedance. |
+| Vias | Plated-barrel DC resistance and isolated partial-inductance approximation. | [TI Analog Engineer's Pocket Reference](https://www.ti.com/seclit/eb/slyw038d/slyw038d.pdf), [implementation](rlc_model.py). Antipad capacitance and return-loop inductance need additional geometry and remain unknown. |
+| Filled zones and planes | An assumed terminal-to-terminal current corridor for R/L, with parallel-plate capacitance from saved plane overlap and dielectric separation. | [Model and result meanings](#what-the-numbers-mean), [plane-capacitance background](https://www.analog.com/en/resources/analog-dialogue/articles/high-speed-printed-circuit-board-layout.html). Corridor R/L and whole-island C are different estimates, not one extracted circuit. |
+
+This tool combines geometry extraction and analytical approximations; it does
+not run a whole-board FEM or full-wave electromagnetic solver. Mixed routes
+retain section results and unresolved terms. The
+[capability matrix](../docs/audits/RLC_EMERGE_CAPABILITY_MATRIX.md) and
+[open-board checks](../docs/audits/RLC_OPEN_BOARD_VALIDATION.md) record what was
+tested separately from the literature's broader formula coverage.
+
 ## References and research
 
 | Source | How it relates to Trace RLC / Impedance |
