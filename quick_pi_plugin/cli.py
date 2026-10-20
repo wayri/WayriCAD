@@ -31,7 +31,7 @@ def _loads(loads, limits):
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('board',type=Path,nargs='?')
-    parser.add_argument('--batch',type=Path,help='Independent multi-net cases JSON (wayricad.pi-batch/v1), explicit per-case sources/loads and optional return review/thermal feedback.')
+    parser.add_argument('--batch',type=Path,help='Multi-net DC study JSON (wayricad.pi-batch/v1), pad units, shared-return groups and optional independent return review/thermal feedback.')
     parser.add_argument('--transient',type=Path,help='Explicit R/L/C load-step JSON; optional board supplies saved-file provenance. Returns 4 for limit violations.')
     parser.add_argument('--electrothermal',type=Path,help='Explicit steady/transient electrothermal study JSON. Returns 3 for nonconvergence, 4 for operating-limit violations.')
     parser.add_argument('--verify',action='store_true',help='Run analytical/reference benchmarks in the prepared PI runtime; no board required.')
@@ -48,6 +48,8 @@ def main(argv=None):
     parser.add_argument('--return-nets',nargs='+');parser.add_argument('--return-pitch',type=float,default=.25)
     parser.add_argument('--return-via-radius',type=float,default=2.)
     parser.add_argument('--mesh-edge',type=float,default=.5);parser.add_argument('--plating',type=float,default=.025)
+    parser.add_argument('--max-cells',type=int,
+                        help='Explicit 2.5D copper triangle budget across all layers: 1000–2000000; default 400000. Batch studies set max_cells per case/group.')
     parser.add_argument('--mesh-backend',choices=('auto','gmsh','vtk'),default='auto',
                         help='Use Gmsh if installed (auto), require Gmsh, or use the VTK mesher.')
     parser.add_argument('--model-dimension',choices=('2.5d','3d'),default='2.5d',
@@ -89,6 +91,7 @@ def main(argv=None):
             print(json.dumps({'error':str(exc)}));return 2
     if args.verify:
         try:
+            if args.max_cells is not None:raise ValueError('--max-cells applies to a saved-board 2.5D copper mesh, not reference benchmarks.')
             if args.package_conduction or args.board or args.html or args.net or args.source or args.sink or args.command or args.converge_levels or args.mesh_only or args.load_ohms is not None or args.sweep or args.return_path or args.load or args.load_voltage_limits or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None:raise ValueError('--verify uses no board, load, path, convergence or HTML options. Use --output for JSON.')
             if args.output and args.output.suffix.lower()!='.json':raise ValueError('Benchmark output must be a .json report.')
             from .service import run_job
@@ -109,6 +112,10 @@ def main(argv=None):
     if args.model_dimension=='3d':request['options']={'temperature_c':args.temperature}
     if args.pulse is not None:request['options']['pulse_duration_s']=args.pulse
     try:
+        if args.max_cells is not None:
+            request['max_cells']=args.max_cells
+            from .service import mesh_cell_budget
+            mesh_cell_budget(request)
         if args.package_conduction:
             request['package_conduction']=json.loads(args.package_conduction.read_text(encoding='utf-8-sig'))
             from .package_contacts import guard_request
@@ -167,6 +174,9 @@ def main(argv=None):
             raise ValueError('HTML export needs a solved path. Supply --net, --source and --sink, or a run pi --command.')
         from .package_contacts import guard_request
         guard_request(request)
+        if args.max_cells is not None:
+            from .service import mesh_cell_budget
+            mesh_cell_budget(request)
         result=run_job(request,timeout=args.timeout)
         if args.output:
             args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(result,indent=2,allow_nan=False),encoding='utf-8')

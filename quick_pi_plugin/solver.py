@@ -24,7 +24,8 @@ class _Union:
 
 
 def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
-          sink_current=1.0, options=None, *, sinks=None, source_current_limit=None):
+          sink_current=1.0, options=None, *, sinks=None, source_current_limit=None,
+          mesh_cell_budget=500000, mesh_vertex_budget=250000):
     """Solve a selected net mesh and return JSON-serializable physical results.
 
     mesh: points_mm[N,3], triangles[M,3], triangle_thickness_mm[M], optional
@@ -46,7 +47,20 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     specific_heat_J_kgK. Defaults describe copper; user parameters are retained
     in the report. Fusing risk is a no-cooling adiabatic temperature-limit screen,
     not a certified fuse-opening current or an electrothermal simulation.
+
+    Explicit resource limits retain the default 500,000 triangles / 250,000
+    vertices, with explicit hard ceilings of 2,000,000 for each.
     """
+    for value,name,minimum,maximum in (
+            (mesh_cell_budget,'mesh_cell_budget',1,2000000),
+            (mesh_vertex_budget,'mesh_vertex_budget',2,2000000)):
+        if isinstance(value,bool) or not isinstance(value,int) or not minimum<=value<=maximum:
+            raise SolverError(f'{name} must be an integer from {minimum:,} to {maximum:,}.')
+    # Reject oversized inputs before NumPy copies or sparse assembly allocations.
+    for key,limit in (('points_mm',mesh_vertex_budget),('triangles',mesh_cell_budget)):
+        try:count=len(mesh[key])
+        except (KeyError,TypeError):continue  # Detailed shape validation below.
+        if count>limit:raise SolverError(f'{key} exceeds the explicit mesh budget of {limit:,}.')
     try:
         import numpy as np
         from scipy.sparse import coo_matrix, triu
@@ -106,9 +120,9 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
         raise SolverError('points_mm must be a finite N by 3 array.')
     n = len(points)
-    if not 2 <= n <= 250000: raise SolverError('Mesh requires 2 to 250,000 vertices.')
-    if raw_triangles.ndim != 2 or raw_triangles.shape[1] != 3 or not 1 <= len(raw_triangles) <= 500000:
-        raise SolverError('triangles must contain 1 to 500,000 vertex triples.')
+    if not 2 <= n <= mesh_vertex_budget: raise SolverError(f'Mesh requires 2 to {mesh_vertex_budget:,} vertices.')
+    if raw_triangles.ndim != 2 or raw_triangles.shape[1] != 3 or not 1 <= len(raw_triangles) <= mesh_cell_budget:
+        raise SolverError(f'triangles must contain 1 to {mesh_cell_budget:,} vertex triples.')
     if not np.issubdtype(raw_triangles.dtype, np.integer): raise SolverError('Triangle node indices must be integers.')
     triangles = raw_triangles.astype(np.int64)
     if np.any(triangles < 0) or np.any(triangles >= n): raise SolverError('Triangle node index is outside the mesh.')
@@ -184,7 +198,9 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
         drill = number(via.get('drill_mm'), 'Via drill', positive=True)
         plating = number(via.get('plating_mm'), 'Via plating', positive=True)
         union.merge(top); union.merge(bottom)
-        barrel_area_mm2 = math.pi * plating * (drill + plating)
+        from .barrel import barrel_area_mm2 as axial_area
+        try:barrel_area_mm2 = axial_area(via,plating)
+        except ValueError as exc:raise SolverError(str(exc)) from exc
         resistance = float(via_rho[index]) * (length * 1e-3) / (barrel_area_mm2 * 1e-6)
         via_segments.append((via.get('id', str(index)), top[0], bottom[0], resistance, barrel_area_mm2, length))
     from .series_models import forward_drop, validate_model

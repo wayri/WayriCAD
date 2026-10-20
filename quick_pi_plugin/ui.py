@@ -118,7 +118,7 @@ class QuickPIFrame(wx.Frame):
         controls.Add(self.joule_feedback,0,wx.EXPAND|wx.BOTTOM,6)
         self.joule_feedback.Bind(wx.EVT_CHECKBOX,self._invalidate)
         self.batch_button=wx.Button(self.inputs,label='Multi-net cases…')
-        self.batch_button.SetToolTip('Batch independent rail cases with their own source, loads and declared return nets; not a coupled multi-net field solve.')
+        self.batch_button.SetToolTip('Configure multiple rail cases, equipotential source/load pad units, and simultaneous shared-return DC coupling.')
         controls.Add(self.batch_button,0,wx.EXPAND|wx.BOTTOM,6);self.batch_button.Bind(wx.EVT_BUTTON,self.on_batch)
         self.operation_note=SidebarText(self.inputs,'Source voltage → sink current')
         controls.Add(self.operation_note,0,wx.EXPAND|wx.BOTTOM,6)

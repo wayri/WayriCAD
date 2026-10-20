@@ -22,12 +22,14 @@ FIELD_STYLES={'smooth':'Smooth gradient','cells':'Solver cells'}
 
 def terminal_ids(request):
     """All requested load pads, including legacy two-terminal studies."""
-    return {value for value in [request.get('source_terminal',request.get('source')),
-                               request.get('sink_terminal',request.get('sink')),
-                               *(row.get('terminal') for row in request.get('sinks',[]))] if value is not None}
+    values=[request.get('source_terminal',request.get('source')),
+            request.get('sink_terminal',request.get('sink')),*request.get('source_terminals',[])]
+    for row in request.get('sinks',[]):values.extend(row.get('terminals',[row.get('terminal')]))
+    return {value for value in values if value is not None}
 
 
 def metric_name(bundle,metric):
+    if bundle.get('physical_return') and metric in ('voltage','drop'):return 'Ground rise above source ground'
     if metric=='resistance' and len(bundle.get('result',{}).get('sinks',bundle.get('request',{}).get('sinks',[])))>1:
         return 'DC drop / total demand ΔV/I'
     return METRICS[metric][0]
@@ -73,8 +75,9 @@ def cell_values(mesh,result,metric):
         values=np.asarray([float('nan') if value is None else value for value in result['potential_V']])
         values=values[triangles].mean(axis=1)
         if metric=='voltage':return values
-        drop=(float(result['source_voltage_V'])-values)*1000
-        return drop/float(result['sink_current_A']) if metric=='resistance' else drop
+        drop=(values-float(result['source_voltage_V']) if result.get('physical_return') else float(result['source_voltage_V'])-values)*1000
+        demand=abs(float(result['sink_current_A'])) if result.get('physical_return') else float(result['sink_current_A'])
+        return drop/demand if metric=='resistance' else drop
     if metric in ('density','flow'):
         key='cell_J_A_mm2' if metric=='density' else 'cell_sheet_current_A_mm'
         vectors=np.asarray([v if v is not None else [float('nan'),float('nan')] for v in result[key]])
@@ -93,8 +96,8 @@ def _nodal_values(result,metric):
     import numpy as np
     values=np.asarray([np.nan if value is None else value for value in result['potential_V']],dtype=float)
     if metric!='voltage':
-        values=(float(result['source_voltage_V'])-values)*1000
-        if metric=='resistance':values=values/float(result['sink_current_A'])
+        values=(values-float(result['source_voltage_V']) if result.get('physical_return') else float(result['source_voltage_V'])-values)*1000
+        if metric=='resistance':values=values/abs(float(result['sink_current_A']))
     return values
 
 
@@ -155,11 +158,15 @@ def via_markers(mesh,result,geometry,layer,metric):
         if solved is None or 'x_mm' not in barrel or 'y_mm' not in barrel:continue
         value=solved.get('current_density_A_mm2') if metric=='density' else solved.get('thermal',{}).get('energy_ratio')
         if value is None or not math.isfinite(float(value)):continue
-        key=(float(barrel['x_mm']),float(barrel['y_mm']))
+        from .barrel import drill_dimensions
+        dimensions=drill_dimensions(barrel)
+        key=(float(barrel['x_mm']),float(barrel['y_mm']),dimensions,float(barrel.get('drill_angle_deg',0.)))
         radius=float(barrel['drill_mm'])/2;outer=radius+float(barrel['plating_mm'])
         marker=groups.setdefault(key,{'x_mm':key[0],'y_mm':key[1],'drill_radius_mm':radius,
-                                     'outer_radius_mm':outer,'value':float(value),'segments':[]})
+            'drill_mm':float(barrel['drill_mm']),'drill_size_mm':list(dimensions),'drill_angle_deg':key[3],
+            'plating_mm':float(barrel['plating_mm']),'outer_radius_mm':outer,'value':float(value),'segments':[]})
         marker['value']=max(marker['value'],float(value));marker['outer_radius_mm']=max(marker['outer_radius_mm'],outer)
+        marker['plating_mm']=max(marker['plating_mm'],float(barrel['plating_mm']))
         marker['segments'].append(barrel['id'])
     return list(groups.values())
 
@@ -245,10 +252,10 @@ def probe_result(bundle, layer, x, y, metric='density'):
         span=[order.get(str(barrel.get(key))) for key in ('top_layer','bottom_layer')]
         selected=order.get(str(layer))
         if selected is None or None in span or not min(span)<=selected<=max(span):continue
-        radius=math.hypot(x-barrel['x_mm'],y-barrel['y_mm'])
-        inner=barrel['drill_mm']/2;outer=inner+barrel['plating_mm']
-        if radius<inner-1e-10:return None  # a white drill hole has no copper field
-        if radius<=outer+1e-10:
+        from .barrel import drill_wall_distance
+        distance=drill_wall_distance((x,y),barrel)
+        if distance < -1e-10:return None  # the entire capsule void has no copper field
+        if distance<=barrel['plating_mm']+1e-10:
             record=inspection_record(bundle,'via',barrel['id'],metric)
             if record:candidates.append(record)
     if candidates:return max(candidates,key=lambda row:row.get('value') if row.get('value') is not None else -math.inf)
@@ -375,7 +382,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
     inspector legend. Scientific report plots remain the default.
     """
     import numpy as np
-    from matplotlib.collections import PolyCollection
+    from matplotlib.collections import PolyCollection,PatchCollection
     from matplotlib.patches import Circle
     geometry=bundle.get('geometry') or bundle.get('mesh',{}).get('geometry',{})
     field_style=field_style or bundle.get('view_settings',{}).get('field_style','smooth')
@@ -390,6 +397,20 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X (mm)');ax.set_ylabel('Y (mm)')
     ax._wayricad_color_scale=None;ax._wayricad_color_mappable=None
     ax.grid(False)
+    # Keep exact patch paths/colors but avoid thousands of independent Axes
+    # artists on dense boards. Separate z orders preserve drill/annulus layering.
+    batch_patches=len(geometry.get('vias',[]))>=250
+    pending={}
+    def add_geometry_patch(patch):
+        if batch_patches:pending.setdefault(patch.get_zorder(),[]).append(patch)
+        else:ax.add_patch(patch)
+    def flush_geometry_patches():
+        for zorder,patches in pending.items():
+            collection=PatchCollection(patches,match_original=True,zorder=zorder)
+            collection.set_gid('pi-geometry-'+str(zorder))
+            collection._wayricad_patch_gids=[patch.get_gid() for patch in patches]
+            ax.add_collection(collection)
+        pending.clear()
     scene=bundle.get('board_scene',{})
     if show_context and scene:
         from wayricad_runtime.board_render import draw_matplotlib
@@ -406,7 +427,8 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         else:figure.tight_layout()
         return ax
     if show_copper:
-        for polygon in selected.get('polygons',[]):ax.add_patch(_polygon_patch(polygon))
+        for polygon in selected.get('polygons',[]):add_geometry_patch(_polygon_patch(polygon))
+    flush_geometry_patches()  # Copper backgrounds must remain behind the field.
     if view=='Results' and not show_overlay:view='Net'
     mesh=bundle.get('mesh');result=bundle.get('result');image=None
     markers=via_markers(mesh or {},result or {},geometry,layer,metric) if view=='Results' else []
@@ -463,13 +485,34 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         if 'x_mm' not in via:continue
         center=(via['x_mm'],via['y_mm'])
         face='none'
-        ax.add_patch(Circle(center,via.get('diameter_mm',.5)/2,facecolor=face,edgecolor='#355b67',linewidth=.6))
-        ax.add_patch(Circle(center,via.get('drill_mm',.3)/2,facecolor=ax.get_facecolor(),edgecolor='#355b67',linewidth=.3))
+        from .barrel import drill_dimensions,drill_contour
+        dimensions=drill_dimensions(via)
+        if dimensions[0]==dimensions[1]:
+            add_geometry_patch(Circle(center,via.get('diameter_mm',.5)/2,facecolor=face,edgecolor='#355b67',linewidth=.6))
+            add_geometry_patch(Circle(center,via.get('drill_mm',.3)/2,facecolor=ax.get_facecolor(),edgecolor='#355b67',linewidth=.3))
+        else:
+            # Actual extracted land outlines can be rectangular/custom. A
+            # circle based on the minor dimension invents a different contact.
+            for polygon in via.get('polygons',{}).get(str(layer),[]):
+                patch=_polygon_patch(polygon);patch.set_facecolor('none');patch.set_edgecolor('#355b67')
+                add_geometry_patch(patch)
+            patch=_polygon_patch({'outer':drill_contour(via,circumscribed=True)})
+            patch.set_facecolor(ax.get_facecolor());patch.set_edgecolor('#355b67');patch.set_linewidth(.3)
+            add_geometry_patch(patch)
     for marker in markers:
         center=(marker['x_mm'],marker['y_mm']);color=image.cmap(image.norm(marker['value']))
-        patch=Circle(center,marker['outer_radius_mm'],facecolor=color,edgecolor=color,linewidth=1.5,zorder=5)
-        patch.set_gid('via-barrel:'+','.join(marker['segments']));ax.add_patch(patch)
-        ax.add_patch(Circle(center,marker['drill_radius_mm'],facecolor=ax.get_facecolor(),edgecolor=color,linewidth=.6,zorder=6))
+        dimensions=marker['drill_size_mm']
+        if dimensions[0]==dimensions[1]:
+            patch=Circle(center,marker['outer_radius_mm'],facecolor=color,edgecolor=color,linewidth=1.5,zorder=5)
+            hole=Circle(center,marker['drill_radius_mm'],facecolor=ax.get_facecolor(),edgecolor=color,linewidth=.6,zorder=6)
+        else:
+            from matplotlib.patches import Polygon
+            from .barrel import drill_contour
+            patch=Polygon(drill_contour(marker,marker['plating_mm']),facecolor=color,edgecolor=color,linewidth=1.5,zorder=5)
+            hole=Polygon(drill_contour(marker,circumscribed=True),facecolor=ax.get_facecolor(),edgecolor=color,linewidth=.6,zorder=6)
+        patch.set_gid('via-barrel:'+','.join(marker['segments']));add_geometry_patch(patch)
+        hole.set_gid('via-drill:'+','.join(marker['segments']));add_geometry_patch(hole)
+    flush_geometry_patches()
     request=bundle.get('request',{})
     if mesh and request.get('series'):
         points=np.asarray(mesh['points_mm'],dtype=float)
@@ -557,31 +600,75 @@ def _review_html(document,bundle):
         notice='Missing return-path evidence remains unresolved. Geometric coverage does not prove high-frequency return current or impedance.'
     return enhance_report(document,status=status,summary=summary,notice=notice,provenance=provenance(bundle))
 
-def write_report(path,bundle,layer=None):
-    """Export current-layer maps plus all numeric mesh/results as paired JSON."""
+def _static_report_plan(bundle):
+    """Bound raster rendering work without sampling numerical/interactive data."""
+    options=bundle.get('report_options',{})
+    if not isinstance(options,dict) or set(options)-{'extended_snapshots'}:
+        raise ValueError('report_options supports only extended_snapshots (boolean).')
+    extended=options.get('extended_snapshots',False)
+    if not isinstance(extended,bool):raise ValueError('extended_snapshots must be boolean.')
+    mesh=bundle.get('mesh',{})
+    geometry=bundle.get('geometry') or mesh.get('geometry',{})
+    large=len(mesh.get('triangles',[]))>100000 or len(geometry.get('vias',[]))>=250
+    primary=('drop','density','loss')
+    metrics=primary if large and not extended else primary+tuple(key for key in METRICS if key not in primary)
+    style='cells' if large else bundle.get('view_settings',{}).get('field_style','smooth')
+    return metrics,style,large
+
+
+def _report_snapshot(bundle,layer,metric,style):
+    """Dispose of native renderer and Figure reference cycles between maps."""
+    import gc
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_agg import FigureCanvasAgg
-    path,json_path=report_paths(path)
-    result=bundle.get('result')
-    if not result:raise ValueError('Run the analysis before exporting results.')
-    rows=layer_rows(bundle)
-    if layer is None and rows:layer=rows[0]['id']
-    selected=next((row['name'] for row in rows if str(row['id'])==str(layer)),str(layer))
-    images=[]
-    primary_metrics=("drop","density","loss")
-    ordered_metrics=primary_metrics+tuple(metric for metric in METRICS if metric not in primary_metrics)
-    for metric in ordered_metrics:
-        figure=Figure(figsize=(8.8,5.2),dpi=110);FigureCanvasAgg(figure)
+    figure=Figure(figsize=(8.8,5.2),dpi=110);FigureCanvasAgg(figure)
+    stream=io.BytesIO()
+    try:
         settings=bundle.get('view_settings',{});mode=settings.get('scale_mode',0)
         manual=settings.get('manual',{})
         limits=result_scale(bundle,metric) if mode==1 else tuple(manual['limits']) if mode==2 and manual.get('metric')==metric else None
-        draw_view(figure,bundle,'Results',layer,metric,limits)
-        stream=io.BytesIO();figure.savefig(stream,format='png',dpi=110,facecolor='white')
+        draw_view(figure,bundle,'Results',layer,metric,limits,field_style=style)
+        figure.savefig(stream,format='png',dpi=110,facecolor='white')
         scale_note=(' · all-layer scale' if mode==1 else ' · manual scale' if limits is not None else '')
-        diagnostic=' · requested-load diagnostic (source current limit exceeded)' if result.get('feasibility',{}).get('source_current_limit_exceeded') else ''
-        style=settings.get('field_style','smooth')
-        images.append('<figure><figcaption>'+escape(metric_name(bundle,metric)+scale_note+diagnostic)+'</figcaption><p>'+escape(field_note(metric,style))+'</p><img alt="'+escape(metric_name(bundle,metric))+'" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'"></figure>')
-        figure.clear()
+        diagnostic=' · requested-load diagnostic (source current limit exceeded)' if bundle['result'].get('feasibility',{}).get('source_current_limit_exceeded') else ''
+        return '<figure><figcaption>'+escape(metric_name(bundle,metric)+scale_note+diagnostic)+'</figcaption><p>'+escape(field_note(metric,style))+'</p><img alt="'+escape(metric_name(bundle,metric))+'" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'"></figure>'
+    finally:
+        stream.close();figure.clear()
+        del figure
+        gc.collect()
+
+
+def _linked_evidence(bundle,reference):
+    """Small batch-child descriptor; authoritative arrays remain in the parent."""
+    if (not isinstance(reference,dict) or set(reference)-{'json','json_pointer','sign_transforms'} or
+            not isinstance(reference.get('json'),str) or not reference['json'] or
+            not isinstance(reference.get('json_pointer'),str) or not reference['json_pointer'].startswith('/')):
+        raise ValueError('Evidence reference requires a JSON filename and exact JSON pointer.')
+    result=bundle.get('result',{})
+    geometry=bundle.get('geometry') or bundle.get('mesh',{}).get('geometry',{})
+    request=bundle.get('request',{})
+    return {'schema':'wayricad.pi-report-reference/v1',
+        'evidence_reference':reference,'model':bundle.get('model'),
+        'physical_return':bool(bundle.get('physical_return')),
+        'summary':{key:value for key,value in result.items() if value is None or isinstance(value,(str,int,float,bool))},
+        'source_custody':{'bundle':provenance(bundle),
+            'request':{key:request[key] for key in ('board_path','source_path','source_sha256','study_input_path','study_file_sha256') if key in request},
+            'geometry':{key:geometry[key] for key in ('source_path','source_sha256','geometry_sha256','net') if key in geometry}},
+        'notice':'This descriptor is not a standalone numerical result. Resolve the JSON pointer in the linked complete parent batch JSON. '
+                 'Physical return maps apply only the declared sign transforms to raw potentials/currents; geometry and positive losses are unchanged.'}
+
+
+def write_report(path,bundle,layer=None,*,evidence_reference=None):
+    """Export current-layer maps plus all numeric mesh/results as paired JSON."""
+    path,json_path=report_paths(path)
+    result=bundle.get('result')
+    if not result:raise ValueError('Run the analysis before exporting results.')
+    linked=_linked_evidence(bundle,evidence_reference) if evidence_reference is not None else None
+    rows=layer_rows(bundle)
+    if layer is None and rows:layer=rows[0]['id']
+    selected=next((row['name'] for row in rows if str(row['id'])==str(layer)),str(layer))
+    ordered_metrics,style,large=_static_report_plan(bundle)
+    images=[_report_snapshot(bundle,layer,metric,style) for metric in ordered_metrics]
     scope='Board + package' if result.get('package_contacts') else 'Circuit' if bundle.get('request',{}).get('series') else 'Copper'
     multisink=len(result.get('sinks',bundle.get('request',{}).get('sinks',[])))>1
     ratio_name=scope+(' apparent ΔV/I' if result.get('contains_forward_drop') else ' resistance ΔV/I')
@@ -600,9 +687,20 @@ def write_report(path,bundle,layer=None):
     table=''.join('<tr><th>'+escape(name)+'</th><td>'+escape(value)+'</td></tr>' for name,value in values)
     assumptions=result.get('thermal_assumptions',{})
     html='''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WayriCAD Quick PI</title><style>body{font:15px system-ui,sans-serif;margin:32px auto;max-width:1080px;padding:0 20px;color:#172a2b;background:#fff}h1{font-size:26px}p{line-height:1.5}table{border-collapse:collapse}th,td{text-align:left;padding:7px 20px 7px 0;border-bottom:1px solid #e0e6e5}section{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:18px}figure{margin:0;border:1px solid #e0e6e5;border-radius:5px;padding:12px}figcaption{font-weight:600}img{width:100%;height:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f6;padding:14px}</style><h1>WayriCAD Quick PI</h1>'''
-    html+='<p>2.5D DC copper conduction · plotted layer '+escape(selected)+'. All layer mesh and numerical data are in <a href="'+escape(json_path.name)+'">the paired JSON report</a>.</p>'
+    html+='<p>2.5D DC copper conduction · plotted layer '+escape(selected)+'. '
+    if linked:
+        html+='Complete mesh and numerical arrays are in <a href="'+escape(evidence_reference['json'],quote=True)+'">the parent batch JSON</a>, JSON pointer <code>'+escape(evidence_reference['json_pointer'])+'</code>. <a href="'+escape(json_path.name)+'">Paired evidence descriptor and sign convention</a>; this child JSON is not a standalone numerical result.</p>'
+    else:
+        html+='All layer mesh and numerical data are in <a href="'+escape(json_path.name)+'">the paired JSON report</a>.</p>'
+    if large:
+        html+='<p>Large-board static rendering uses every solved cell on this layer (Solver cells style), with all copper and drill contours retained. No cells are sampled. Three primary static maps are generated by default; set report_options.extended_snapshots=true in the result bundle to render all seven. Complete numerical JSON and the three interactive fields are retained.</p>'
+    auxiliary=bundle.get('auxiliary_reversed_current_result_reference')
+    if auxiliary:
+        html+='<p>Original reversed-current solver evidence: <a href="'+escape(auxiliary['json'],quote=True)+'">complete parent batch JSON</a>, JSON pointer <code>'+escape(auxiliary['json_pointer'])+'</code>.</p>'
     if result.get('feasibility'):
         html+='<h2>Source and load feasibility</h2><pre>'+escape(feasibility_text(result))+'</pre>'
+    if bundle.get('terminal_units'):
+        html+='<h2>Ideal equipotential pad units</h2><pre>'+escape(json.dumps(bundle['terminal_units'],indent=2,ensure_ascii=False))+'</pre>'
     if result.get('sinks'):
         html+='<h2>Constant-current sinks</h2><table><tr><th>Sink</th><th>Demand A</th><th>Voltage V</th><th>Drop mV</th><th>Min V</th><th>Max V</th><th>Voltage limits</th></tr>'
         for sink in result['sinks']:
@@ -626,7 +724,9 @@ def write_report(path,bundle,layer=None):
     if result.get('contains_forward_drop'):
         resistance_note=scope+' ΔV/I is an apparent operating-point ratio at the specified load current, not resistance.'
     html+= '<h2>Interactive field probes</h2>'+interactive_fields(bundle,layer)
-    html+='<table>'+table+'</table><p>'+resistance_note+' Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><h2>Three primary result plots</h2><section>'+''.join(images[:3])+'</section><details><summary>Additional potential, resistance, flow and pulse-risk plots</summary><section>'+''.join(images[3:])+'</section></details>'
+    html+='<table>'+table+'</table><p>'+resistance_note+' Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><h2>Three primary result plots</h2><section>'+''.join(images[:3])+'</section>'
+    if images[3:]:
+        html+='<details><summary>Additional potential, resistance, flow and pulse-risk plots</summary><section>'+''.join(images[3:])+'</section></details>'
     if result.get('negative_sink_voltage'):
         html+='<p><strong>Operating-point warning:</strong> The requested current makes sink voltage negative; check source voltage and load. The imposed-current path may be infeasible.</p>'
     if result.get('analytics'):
@@ -657,7 +757,14 @@ def write_report(path,bundle,layer=None):
             html+='<tr>'+''.join('<td>'+escape(value)+'</td>' for value in values)+'</tr>'
         html+='</table>'
     html+='<h2>Assumptions and inputs</h2><p>'+escape(assumptions.get('notice','DC conduction approximation; not an AC or thermal field solve.'))+'</p><pre>'+escape(json.dumps({'request':bundle.get('request',{}),'material':result.get('material',{}),'thermal':assumptions,'geometry_warnings':bundle.get('geometry',{}).get('warnings',[]),'mesh_report':bundle.get('mesh',{}).get('mesh_report',[])},indent=2))+'</pre></html>'
-    return publish_report(path,_review_html(html,bundle),bundle)
+    document=_review_html(html,bundle)
+    if linked:
+        from wayricad_runtime.report_ui import checked_sources,publish_documents
+        sources=checked_sources(bundle)  # Validate full original custody, not the descriptor.
+        publish_documents({json_path:json.dumps(linked,indent=2,ensure_ascii=False,allow_nan=False)+'\n',
+                           path:document},sources=sources)
+        return {'html':str(path),'json':str(json_path)}
+    return publish_report(path,document,bundle)
 
 
 def write_sweep_report(path,bundle):
@@ -733,7 +840,7 @@ def interactive_fields(bundle,layer):
     for metric in ('drop','density','loss'):
         values=cell_values(mesh,result,metric)
         rows=[[float(x),float(y),float(values[i]),'Cell '+str(i)] for (x,y),i in zip(centers,indices)]
-        html+=interactive_plot(METRICS[metric][0],rows,METRICS[metric][1],polygons=polygons)
+        html+=interactive_plot(metric_name(bundle,metric),rows,METRICS[metric][1],polygons=polygons)
     return html
 
 
@@ -747,17 +854,19 @@ def write_batch_report(path,bundle):
     output,evidence=report_paths(path)
     output.parent.mkdir(parents=True,exist_ok=True)
     case_folder=output.stem+'-cases'
-    documents={};comparison=[];details=[];links=[]
+    documents={};comparison=[];details=[];links=[];shared_sections=[]
     with TemporaryDirectory(prefix='.wayricad-report-',dir=output.parent) as staging:
         for index,case in enumerate(batch['cases']):
             case_links=[];failures=[]
             for kind,key in (('DC','electrical'),('Return conduction','return_conduction'),('Return path','return_path'),('Electrothermal','electrothermal')):
                 child=case.get(key)
                 if not child:continue
+                if 'report_options' in bundle:child={**child,'report_options':bundle['report_options']}
                 filename='case-'+str(index+1).zfill(3)+'-'+key+'.html'
                 candidate=Path(staging)/filename
+                reference={'json':'../'+evidence.name,'json_pointer':'/batch/cases/'+str(index)+'/'+key} if key in ('electrical','return_conduction') else None
                 try:
-                    if key in ('electrical','return_conduction'):write_report(candidate,child)
+                    if key in ('electrical','return_conduction'):write_report(candidate,child,evidence_reference=reference)
                     elif key=='return_path':write_diagnostic_report(candidate,child)
                     else:
                         from .electrothermal_report import write_report as coupled_report
@@ -766,19 +875,72 @@ def write_batch_report(path,bundle):
                         documents[output.parent/case_folder/generated.name]=generated.read_bytes()
                 except (ValueError,RuntimeError,OSError,KeyError,TypeError,IndexError) as error:
                     failures.append(kind+': '+str(error))
-                    fallback=enhance_report('<!doctype html><html lang="en"><meta charset="utf-8"><title>Case report unavailable</title><h1>Case report unavailable</h1><p>'+escape(str(error))+'</p><p><a href="'+escape(candidate.with_suffix('.json').name)+'">Exact case JSON evidence</a></p></html>',status='REPORT ERROR',notice='The numerical case status has not been upgraded. Correct the report/model inputs and rerun the export.')
+                    fallback=enhance_report('<!doctype html><html lang="en"><meta charset="utf-8"><title>Case report unavailable</title><h1>Case report unavailable</h1><p>'+escape(str(error))+'</p><p><a href="'+escape(candidate.with_suffix('.json').name)+'">'+('Evidence descriptor linking exact parent case JSON' if reference else 'Exact case JSON evidence')+'</a></p></html>',status='REPORT ERROR',notice='The numerical case status has not been upgraded. Correct the report/model inputs and rerun the export.')
                     documents[output.parent/case_folder/candidate.name]=fallback
-                    documents[output.parent/case_folder/candidate.with_suffix('.json').name]=json.dumps(child,indent=2,ensure_ascii=False,allow_nan=False)
+                    documents[output.parent/case_folder/candidate.with_suffix('.json').name]=json.dumps(_linked_evidence(child,reference) if reference else child,indent=2,ensure_ascii=False,allow_nan=False)
                 relative=case_folder+'/'+filename
                 case_links.append('<a href="'+escape(quote(relative,safe='/'))+'">'+escape(kind)+'</a>')
                 links.append(relative)
             result=(case.get('electrical') or {}).get('result',{});loop=case.get('loop') or {}
+            shared=case.get('shared_return',{});shared_loads=shared.get('loads',[])
+            if shared_loads:
+                loop={'supply_drop_V':max(v['supply_drop_V'] for v in shared_loads),
+                    'return_drop_V':max(v['ground_rise_V'] for v in shared_loads),
+                    'total_drop_V':max(v['supply_drop_V']+v['ground_rise_V'] for v in shared_loads),
+                    'delivered_load_voltage_V':min(v['delivered_load_voltage_V'] for v in shared_loads),
+                    'total_loss_W':result.get('total_power_W'),'status':'Shared: '+shared['group']}
+
             values=[case.get('name','Case '+str(index+1)),case.get('status','UNKNOWN'),_number(loop.get('supply_drop_V',result.get('voltage_drop_V')),'mV',1000),_number(loop.get('return_drop_V'),'mV',1000) if loop else 'Not requested',_number(loop.get('total_drop_V'),'mV',1000) if loop else 'Not requested',_number(loop.get('delivered_load_voltage_V'),'V') if loop else 'Not solved',_number(loop.get('total_loss_W',result.get('total_power_W')),'W'),loop.get('status','Not requested'),case.get('error') or ' — '.join(failures) or 'Review individual evidence']
             comparison.append('<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in values[:8])+'<td>'+(' · '.join(case_links) or 'No completed result report')+'</td><td>'+escape(str(values[8]))+'</td></tr>')
-            details.append('<details class="report-evidence"><summary>'+escape(str(values[0]))+' · exact inputs and case status</summary><pre>'+escape(json.dumps(case,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details>')
-    document=('<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD Quick PI independent cases</title><h1>WayriCAD Quick PI · Independent case comparison</h1><p><a href="'+escape(evidence.name)+'">Complete batch JSON evidence</a></p><h2>Case comparison</h2><table><thead><tr><th>Case</th><th>Status</th><th>Supply drop</th><th>Return drop</th><th>Loop drop</th><th>Delivered voltage</th><th>Total loss</th><th>Loop status</th><th>Individual reports</th><th>Error / next action</th></tr></thead><tbody>'+''.join(comparison)+'</tbody></table><h2>Case inputs and provenance</h2>'+''.join(details)+'<h2>Assumptions and boundaries</h2><ul>'+''.join('<li>'+escape(str(note))+'</li>' for note in batch.get('notes',batch.get('assumptions',[])))+'</ul></html>')
-    document=enhance_report(document,status=batch.get('status','UNKNOWN'),summary=[('Cases',len(batch['cases'])),('Failed cases',sum(case.get('status')=='FAILED' for case in batch['cases'])),('Incomplete / review cases',sum(case.get('status') not in ('COMPLETED','FAILED') for case in batch['cases']))],notice='Cases run independently against the same saved source. Cross-case electromagnetic or thermal interaction is not solved. Only explicitly configured electrothermal cases include feedback; ordinary DC losses alone do not.',provenance=provenance(bundle))
-    documents[evidence]=json.dumps(bundle,indent=2,ensure_ascii=False,allow_nan=False)+'\n'
+            inputs=next((v for v in bundle.get('request',{}).get('study',{}).get('cases',[]) if v.get('name')==case.get('name')),None)
+            compact={key:case[key] for key in ('name','status','source_sha256','error','error_type','loop','shared_return') if key in case}
+            compact['inputs']=inputs or (case.get('electrical') or {}).get('request',{})
+            compact['evidence_notice']='Complete mesh and numerical arrays are available in the linked JSON evidence.'
+            details.append('<details class="report-evidence"><summary>'+escape(str(values[0]))+' · exact inputs and case status</summary><pre>'+escape(json.dumps(compact,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details>')
+        for index,group in enumerate(batch.get('shared_returns',[])):
+            heading='<h3>'+escape(group['name'])+' · '+escape(group['status'])+'</h3>'
+            child=group.get('return_conduction')
+            if child:
+                filename='shared-return-'+str(index+1).zfill(3)+'.html';candidate=Path(staging)/filename
+                from .shared_return import physical_report_bundle
+                physical=physical_report_bundle(group)
+                physical.pop('auxiliary_reversed_current_result',None)
+                physical['auxiliary_reversed_current_result_reference']={
+                    'json':'../'+evidence.name,
+                    'json_pointer':'/batch/shared_returns/'+str(index)+'/return_conduction/result'}
+                physical['return_conduction_notice']=physical.get('return_conduction_notice','').replace(
+                    'retained in auxiliary_reversed_current_result',
+                    'retained in the parent batch JSON at auxiliary_reversed_current_result_reference')
+                if 'report_options' in bundle:physical['report_options']=bundle['report_options']
+                transforms={key:-1 for key in (
+                    '/result/potential_V','/result/cell_J_A_mm2','/result/cell_sheet_current_A_mm',
+                    '/result/source_voltage_V','/result/sink_voltage_V','/result/source_current_A',
+                    '/result/sink_current_A','/result/total_sink_current_A',
+                    '/result/vias/*/current_A','/result/sinks/*/voltage_V','/result/sinks/*/current_A')}
+                write_report(candidate,physical,evidence_reference={
+                    'json':'../'+evidence.name,
+                    'json_pointer':'/batch/shared_returns/'+str(index)+'/return_conduction',
+                    'sign_transforms':transforms})
+                del physical
+                for generated in (candidate,candidate.with_suffix('.json')):
+                    documents[output.parent/case_folder/generated.name]=generated.read_bytes()
+                relative=case_folder+'/'+filename;links.append(relative)
+                heading+='<p><a href="'+escape(quote(relative,safe='/'))+'">Common copper mesh, physical ground rise and return-current evidence</a></p>'
+            headings=('Rail','Load ID','Current (A)','Ground rise (V)','Delivered voltage (V)','Load voltage limits')
+            body=[]
+            for load in group.get('loads',[]):
+                values=(load['case'],load['sink'],load['current_A'],load['ground_rise_V'],load['delivered_load_voltage_V'],
+                        'PASS' if load['voltage_limits_met'] else 'INFEASIBLE')
+                body.append('<tr>'+''.join('<td>'+escape(str(v))+'</td>' for v in values)+'</tr>')
+            heading+='<table><thead><tr>'+''.join('<th>'+v+'</th>' for v in headings)+'</tr></thead><tbody>'+''.join(body)+'</tbody></table>'
+            heading+='<p>Shared return loss (counted once): '+_number(group.get('return_loss_W'),'W')+'. Total supply and return loss: '+_number(group.get('total_loss_W'),'W')+'. Power balance error: '+_number(group.get('power_balance_error_W'),'W')+'.</p>'
+            heading+='<p>'+escape(group.get('notice',group.get('error','')))+'</p>'
+            shared_sections.append(heading)
+    document=('<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD Quick PI DC study</title><h1>WayriCAD Quick PI · DC study comparison</h1><p><a href="'+escape(evidence.name)+'">Complete batch JSON evidence</a></p><h2>Case comparison</h2><table><thead><tr><th>Case</th><th>Status</th><th>Supply drop</th><th>Return drop</th><th>Loop drop</th><th>Minimum delivered voltage</th><th>Case loss (shared return separate)</th><th>Loop status</th><th>Individual reports</th><th>Error / next action</th></tr></thead><tbody>'+''.join(comparison)+'</tbody></table><h2>Shared-return coupling</h2>'+''.join(shared_sections)+'<h2>Case inputs and provenance</h2>'+''.join(details)+'<h2>Assumptions and boundaries</h2><ul>'+''.join('<li>'+escape(str(note))+'</li>' for note in batch.get('notes',batch.get('assumptions',[])))+'</ul></html>')
+    document=enhance_report(document,status=batch.get('status','UNKNOWN'),summary=[('Cases',len(batch['cases'])),('Failed cases',sum(case.get('status')=='FAILED' for case in batch['cases'])),('Incomplete / review cases',sum(case.get('status') not in ('COMPLETED','FAILED') for case in batch['cases']))],notice='Explicit shared-return groups include common copper impedance at prescribed DC currents and fixed temperature. Other cases remain independent. Inter-net electromagnetic fields and cross-case thermal feedback are not solved.',provenance=provenance(bundle))
+    # Escaping the sparse non-ASCII labels keeps large array archives in a
+    # one-byte Python string. Avoid copying the entire archive to add a newline.
+    documents[evidence]=json.dumps(bundle,separators=(',',':'),ensure_ascii=True,allow_nan=False)
     documents[output]=document
     publish_documents(documents,sources=checked_sources(bundle))
     return {'html':str(output),'json':str(evidence),'case_reports':links}

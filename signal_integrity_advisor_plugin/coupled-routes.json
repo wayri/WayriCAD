@@ -1,0 +1,36 @@
+{
+  "schema": "wayricad.quick-si-study-input/v1",
+  "description": "Template: replace every net, terminal and layer with actual inspected board names.",
+  "cases": [
+    {
+      "id": "clock",
+      "net": "CLOCK",
+      "start": "U1.1",
+      "end": "J1.1",
+      "reference": "Auto",
+      "inputs": {"rise_ns": 0.2, "frequency_mhz": 100, "source_ohm": 20}
+    },
+    {
+      "id": "data",
+      "net": "DATA",
+      "start": "U1.2",
+      "end": "J1.2",
+      "reference": "Auto",
+      "inputs": {"rise_ns": 0.2, "frequency_mhz": 100, "source_ohm": 20}
+    }
+  ],
+  "crosstalk": [
+    {
+      "id": "clock-to-data",
+      "aggressor": "clock",
+      "victim": "data",
+      "rise_ns": 0.2,
+      "swing_v": 1.0,
+      "reference": {
+        "model": "saved-stripline",
+        "layer": "In1.Cu",
+        "upper_layer": "In3.Cu"
+      }
+    }
+  ]
+}

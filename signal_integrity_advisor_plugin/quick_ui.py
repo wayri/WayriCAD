@@ -29,7 +29,7 @@ class QuickSIPanel(wx.Panel):
         super().__init__(parent);self.board=board;self.saved_board=saved_board;self.report=None;self.path=None
         self._closed=False;self._busy=False;self._generation=0;self._job_serial=0;self._cancel=threading.Event();self._result_fingerprints=None
         self._navigation_busy=False;self._navigation_serial=0
-        self._source_fingerprints=None;self.study_cases=[];self.study_report=None
+        self._source_fingerprints=None;self.study_cases=[];self.study_report=None;self.crosstalk_pairs=[]
         if saved_board:
             from .service import source_fingerprints
             self._source_fingerprints=source_fingerprints(board.GetFileName())
@@ -72,13 +72,15 @@ class QuickSIPanel(wx.Panel):
         self.return_nets.Bind(wx.EVT_CHECKLISTBOX,self.return_nets_changed)
         study_pane=wx.CollapsiblePane(left,label='Multi-net study',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         study_host=study_pane.GetPane();study_form=wx.BoxSizer(wx.VERTICAL)
-        study_note=wx.StaticText(study_host,label='Independent route screens. Choose nets, then edit every source/receiver and return assignment before running.');study_note.Wrap(295)
+        study_note=wx.StaticText(study_host,label='Choose nets, edit source/receiver assignments, then optionally configure directed local crosstalk pairs.');study_note.Wrap(295)
         study_form.Add(study_note,0,wx.EXPAND|wx.BOTTOM,5)
         self.study_nets=SearchableCheckListBox(study_host,choices=nets,size=(-1,130));study_form.Add(searchable_row(self.study_nets),0,wx.EXPAND)
         self.study_add=wx.Button(study_host,label='Add checked nets to study')
         self.study_edit=wx.Button(study_host,label='Edit study cases…')
-        self.study_run=wx.Button(study_host,label='Run independent multi-net study')
-        for control,handler in [(self.study_add,self._add_study_cases),(self.study_edit,self._edit_study_cases),(self.study_run,self.run_study)]:
+        self.crosstalk_edit=wx.Button(study_host,label='Configure crosstalk pairs (optional)…')
+        self.crosstalk_results=wx.Button(study_host,label='Review crosstalk results…');self.crosstalk_results.Disable()
+        self.study_run=wx.Button(study_host,label='Run multi-net study')
+        for control,handler in [(self.study_add,self._add_study_cases),(self.study_edit,self._edit_study_cases),(self.crosstalk_edit,self._edit_crosstalk),(self.study_run,self.run_study),(self.crosstalk_results,self._show_crosstalk)]:
             control.Bind(wx.EVT_BUTTON,handler);study_form.Add(control,0,wx.EXPAND|wx.TOP,5)
         study_host.SetSizer(study_form);form.Add(study_pane,0,wx.EXPAND|wx.TOP,10)
         study_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.Layout(),left.FitInside(),self.Layout()))
@@ -208,13 +210,77 @@ class QuickSIPanel(wx.Panel):
         except Exception as error:self.status.SetLabel('Study edit not applied: '+str(error))
         finally:dialog.Destroy()
 
+    def _edit_crosstalk(self,event=None):
+        import copy
+        import wx.grid as gridlib
+        from .crosstalk import checked_pairs
+        if len(self.study_cases)<2:
+            self.status.SetLabel('Add and assign at least two route cases before choosing a directed crosstalk pair.');return
+        dialog=wx.Dialog(self,title='Local crosstalk · Explicit aggressor and victim',size=(1090,560),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        layout=wx.BoxSizer(wx.VERTICAL)
+        note=wx.StaticText(dialog,label='Local equal-width parallel sections only. saved-stripline checks the actual stackup and two filled bounding planes (Height/Er unused). homogeneous-plane is a what-if model requiring one plane, center-to-plane Height and Er. Four section ports match sqrt(Zeven × Zodd); route driver/load settings do not apply. Swing is open-circuit; rise is 10–90%.')
+        note.Wrap(1020);layout.Add(note,0,wx.EXPAND|wx.ALL,10)
+        columns=['Remove','Pair ID','Aggressor case','Victim case','Rise ns','Swing V','Model','Plane 1','Plane 2','Height mm','Er']
+        grid=gridlib.Grid(dialog);grid.CreateGrid(max(1,len(self.crosstalk_pairs)),len(columns))
+        for i,name in enumerate(columns):grid.SetColLabelValue(i,name);grid.SetColSize(i,125 if i in (1,2,3,6) else 95)
+        ids=[case['id'] for case in self.study_cases]
+        layers=[str(self.board.GetLayerName(layer)) for layer in self.board.GetEnabledLayers().CuStack()]
+        def fill(row,pair):
+            ref=pair.get('reference',{})
+            values=['',pair.get('id','coupling-'+str(row+1)),pair.get('aggressor',''),pair.get('victim',''),pair.get('rise_ns',1),pair.get('swing_v',1),ref.get('model','saved-stripline'),ref.get('layer',''),ref.get('upper_layer',''),ref.get('height_mm',''),ref.get('epsilon_r','')]
+            for col,value in enumerate(values):grid.SetCellValue(row,col,str(value))
+            grid.SetCellEditor(row,0,gridlib.GridCellBoolEditor());grid.SetCellRenderer(row,0,gridlib.GridCellBoolRenderer())
+            for col in (2,3):grid.SetCellEditor(row,col,gridlib.GridCellChoiceEditor(ids))
+            grid.SetCellEditor(row,6,gridlib.GridCellChoiceEditor(['saved-stripline','homogeneous-plane']))
+            for col in (7,8):grid.SetCellEditor(row,col,gridlib.GridCellChoiceEditor(layers))
+        for row,pair in enumerate(self.crosstalk_pairs or [{}]):fill(row,pair)
+        layout.Add(grid,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        add=wx.Button(dialog,label='Add directed pair')
+        def add_row(event):
+            if grid.GetNumberRows()<64:grid.AppendRows(1);fill(grid.GetNumberRows()-1,{})
+        add.Bind(wx.EVT_BUTTON,add_row);layout.Add(add,0,wx.ALL,10)
+        layout.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,10);dialog.SetSizer(layout)
+        try:
+            if dialog.ShowModal()!=wx.ID_OK:return
+            grid.SaveEditControlValue();pairs=[]
+            for row in range(grid.GetNumberRows()):
+                cell=lambda col:grid.GetCellValue(row,col).strip()
+                if cell(0)=='1':continue
+                ref={'model':cell(6),'layer':cell(7)}
+                if cell(6)=='saved-stripline':ref['upper_layer']=cell(8)
+                else:ref.update(height_mm=float(cell(9)),epsilon_r=float(cell(10)))
+                pairs.append({'id':cell(1),'aggressor':cell(2),'victim':cell(3),'rise_ns':float(cell(4)),'swing_v':float(cell(5)),'reference':ref})
+            self.crosstalk_pairs=checked_pairs({'crosstalk':pairs},self.study_cases)
+            self.changed(None);self.crosstalk_edit.SetLabel('Configure crosstalk pairs ('+str(len(pairs))+')…')
+            self.status.SetLabel('Directed local coupling inputs saved. Run the multi-net study to refresh all evidence.')
+        except Exception as error:self.status.SetLabel('Crosstalk inputs not applied: '+str(error))
+        finally:dialog.Destroy()
+
+    def _show_crosstalk(self,event=None):
+        if not self.study_report:return
+        lines=['LOCAL COUPLED-SECTION SCREENING','Section peaks are not summed or cascaded into whole-route terminal waveforms.','']
+        for pair in self.study_report.get('crosstalk',[]):
+            lines.extend([pair['id']+' · '+pair['aggressor']+' → '+pair['victim']+' · '+pair['status'],
+                          'Reference: '+str(pair['reference']),*pair['limitations']])
+            for section in pair['sections']:
+                peak=(f"< {section['next_numerical_resolution_v']*1000:.3g} mV numerical floor" if section['coupling_numerical_status']=='BELOW_NUMERICAL_FLOOR' else f"{section['next_peak_v']*1000:.4g} mV")
+                lines.append(f"{section['layer']} · overlap {section['length_mm']:.6g} mm · gap {section['gap_mm']:.6g} mm · {section['direction']} direction · NEXT {peak} at victim {section['near_victim_role']} · FEXT 0 (ideal homogeneous model only) · delay {section['delay_ns']:.6g} ns · coupling refinement Δk={section['coupling_refinement_absolute']:.3g}")
+            for role,coverage in pair.get('coverage',{}).items():
+                lines.append(f"{role}: {coverage['supported_overlap_mm']:.6g} mm supported overlap / {coverage['route_length_mm']:.6g} mm route; {coverage['unmodeled_length_mm']:.6g} mm unmodeled.")
+            lines.extend('Unresolved: '+entry['reason'] for entry in pair['unresolved'])
+            lines.append('')
+        dialog=wx.Dialog(self,title='Crosstalk results · Local assumptions and coverage',size=(1000,650),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        layout=wx.BoxSizer(wx.VERTICAL);text=wx.TextCtrl(dialog,value='\n'.join(lines),style=wx.TE_MULTILINE|wx.TE_READONLY|wx.HSCROLL)
+        layout.Add(text,1,wx.EXPAND|wx.ALL,10);layout.Add(dialog.CreateButtonSizer(wx.OK),0,wx.ALIGN_RIGHT|wx.ALL,10);dialog.SetSizer(layout)
+        dialog.ShowModal();dialog.Destroy()
+
     def run_study(self,event=None):
         if self._busy or self._closed:return
         self.changed(None)
         try:
             import copy
             from .study import cases_from_config,run_study
-            config={'cases':copy.deepcopy(self.study_cases)};cases_from_config(config)
+            config={'cases':copy.deepcopy(self.study_cases),'crosstalk':copy.deepcopy(self.crosstalk_pairs)};cases_from_config(config)
             if not self.saved_board:
                 with wx.BusyCursor(),read_snapshot(self.board):report=run_study(self.board,config)
                 self._show_study(report);return
@@ -223,7 +289,7 @@ class QuickSIPanel(wx.Panel):
             if fingerprints!=self._source_fingerprints:raise ValueError('Saved PCB or rules changed. Reopen Quick SI before running.')
             request={'mode':'study','board_path':self.board.GetFileName(),'source_fingerprints':fingerprints,'study':config}
             self._cancel=threading.Event();cancel=self._cancel;generation=self._generation;self._job_serial+=1;serial=self._job_serial
-            self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self.status.SetLabel('Screening independent routes and explicit returns in one saved snapshot…')
+            self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self.status.SetLabel('Screening routes, explicit returns and requested local coupling in one saved snapshot…')
             def work():
                 payload=error=None
                 try:payload=run_job(request,cancelled=cancel.is_set)
@@ -249,6 +315,7 @@ class QuickSIPanel(wx.Panel):
 
     def _show_study(self,report):
         self.study_report=report
+        self.crosstalk_results.Enable(bool(report.get('crosstalk')))
         self.study_choice.Set([case['id']+' · '+case.get('net','')+' · '+case['status'] for case in report['cases']])
         self.study_choice.SetSelection(0);self.study_choice.Show();self.GetSizer().Layout()
         self._select_study_case();self.export.Enable()
@@ -298,6 +365,7 @@ class QuickSIPanel(wx.Panel):
     def changed(self,event):
         self._generation+=1;self._cancel.set();self._result_fingerprints=None
         self.study_report=None
+        if hasattr(self,'crosstalk_results'):self.crosstalk_results.Disable()
         if hasattr(self,'study_choice'):self.study_choice.Clear();self.study_choice.Hide()
         self.report=None;self.path=None;self.export.Disable();self.results.DeleteAllItems();self.preview.show_result(SimpleNamespace(primary=None,mate=None))
         self.eye_preview.show_result(None)

@@ -3,8 +3,9 @@
 Quick SI analyzes routed paths, filled-zone corridors and via transitions with
 its existing path and screening models. It does not consume a finite-element
 triangle mesh, so Gmsh meshing alone would not improve its impedance or timing
-estimates. Coupled impedance, full plane fields and via discontinuities still
-need a validated field model.
+estimates. Optional local coupled-strip screening uses a two-dimensional
+electrostatic boundary-element model; full plane fields and via discontinuities
+remain outside its scope.
 
 Drag the horizontal divider to share space between the route preview and its
 results table. Drag the input divider to widen settings, or use the preview's
@@ -15,8 +16,9 @@ Fit control to inspect the whole route.
 ## Multi-net studies and explicit returns
 
 A study runs up to 64 **independent source-to-receiver route screens** on the same
-saved PCB and rules snapshot. It does not solve inter-net coupling, crosstalk,
-simultaneous switching, differential coupling or full-bus/protocol qualification.
+saved PCB and rules snapshot. Optional directed **crosstalk pairs** add local
+parallel-section coupling estimates. The study does not solve simultaneous
+switching, whole-route coupled waveforms or full-bus/protocol qualification.
 Missing geometry, return continuity and model terms remain unresolved.
 
 1. Open **Multi-net study**, search/check the desired nets and choose **Add checked nets to study**.
@@ -64,6 +66,90 @@ Repeat `--return-net` for multiple return nets. No ground name or source/receive
 return pad is inferred. Ambiguous pad labels and absent return nets produce an
 explicit error. Omitting returns preserves the route screen and makes no return
 closure claim.
+
+### Directed local crosstalk
+
+After assigning route cases, choose **Configure crosstalk pairs (optional)**.
+Select an aggressor case and a victim case, the aggressor's 10–90% rise time and
+open-circuit source swing. The source/receiver order of both cases determines
+the near/far victim side; reversing the victim changes that mapping.
+Choose a reference model:
+
+- **saved-stripline**: select the two copper layers bounding the signal layer.
+  The saved stackup supplies copper thickness, center-to-plane distances and Er.
+  Both layers must be immediately adjacent; all intervening dielectric must have
+  the same Er. Actual filled copper must cover the complete pair corridor and a
+  transverse field margin of three plane spacings. A third same-layer conductor
+  in that corridor, including a same-net branch, makes the section unresolved.
+  Three plane spacings are excluded at both ends of each overlap to keep the
+  local section away from pads, vias and bends; these lengths remain unmodeled.
+  Dielectric sublayer records are currently rejected instead of being collapsed.
+- **homogeneous-plane**: enter one reference layer, center-to-plane height and Er
+  as explicit hypothetical assumptions. This ideal single-plane model does not
+  establish the board's actual dielectric or return geometry.
+
+Run the study, then choose **Review crosstalk results**. The offline report links
+each directed pair back to its route cases and includes local step plots, exact
+overlap coordinates/object IDs, widths, gaps, modal impedances and coverage.
+Via transitions, arcs, crossing/broadside coupling, unequal trace widths and
+unsupported materials remain unresolved. Extra physical pads or branches are
+retained as omitted loading; local section values never become whole-route
+terminal voltages. Source groups with several physical pads are not silently
+collapsed into an SI two-port.
+
+The numerical model uses finite rectangular conductor contours, integrated
+electrostatic image/Dirichlet Green functions and even/odd lossless TEM modes.
+Adaptive panel refinement must change modal capacitance by less than 2%.
+The coupling coefficient has a separate 2% refinement gate with an absolute
+`1e-9` reporting floor; this prevents nearly cancelling modal values from
+appearing as a precise weak NEXT estimate. Reports show both changes and label
+below-resolution coupling. These are numerical convergence checks, not physical
+error bounds. Four local section ports
+use `R = sqrt(Zeven × Zodd)`; the independent route's driver/load values do not
+apply. The model integrates finite linear edges and modal reflections to report
+the exact piecewise-linear NEXT peak. Its equal modal velocities give zero FEXT:
+**that is an ideal homogeneous-model property, not a zero-crosstalk board result**.
+Section peaks are neither summed nor cascaded. Infinite PEC-plane boundaries,
+lossless material and electrically uniform straight sections remain assumptions
+even where saved stackup and filled reference coverage are verified.
+
+CLI studies use the same optional top-level `crosstalk` list:
+
+```json
+{
+  "id": "clock-to-data",
+  "aggressor": "clock",
+  "victim": "data",
+  "rise_ns": 0.2,
+  "swing_v": 1.0,
+  "reference": {
+    "model": "saved-stripline",
+    "layer": "In1.Cu",
+    "upper_layer": "In3.Cu"
+  }
+}
+```
+
+Each entry references IDs in `cases`. See [coupled-routes.json](coupled-routes.json)
+for a complete template; exact net, pad and copper layer names must be adapted
+to the inspected PCB. A hypothetical reference instead uses
+`{"model":"homogeneous-plane","layer":"B.Cu","height_mm":0.2,"epsilon_r":4.0}`.
+Coupling always requires review; wholly unresolved requested pairs make the
+study incomplete. The native worker preserves the saved PCB/project/rules hash.
+
+Validation includes analytic cylinder-over-plane capacitance, centered
+stripline conformal-map references, zero/thin-copper limits, refinement,
+reciprocity, scale/Er/TEM identities, direct independent even/odd reflected-step
+superposition, zero coupling and native straight/crossing/reversed paths.
+Mode superposition follows
+[Steer, Coupled Transmission Line Theory](https://eng.libretexts.org/Bookshelves/Electrical_Engineering/Electronics/Microwave_and_RF_Design_II_-_Transmission_Lines_%28Steer%29/05%3A_Coupled_Lines_and_Applications/5.03%3A_Coupled_Transmission_Line_Theory).
+The independent zero-thickness centered reference follows
+[Cohn's 1955 shielded-strip analysis](https://doi.org/10.1109/TMTT.1955.1124973),
+also implemented in
+[KiCad's coupled-stripline calculator](https://github.com/KiCad/kicad-source-mirror/blob/master/common/transline_calculations/coupled_stripline.cpp).
+The two-plane Green kernel is checked independently against its eigenfunction
+series and integrated image-charge series. These checks validate the bounded
+model, not arbitrary PCB topology.
 
 ## Interactive inspection
 
@@ -114,7 +200,7 @@ User-entered Z0/Er overrides retain their explicit assumption labels.
 
 ## Limitations
 
-- Screening is not IBIS simulation, coupled-crosstalk analysis, BER measurement or protocol compliance certification.
+- Screening is not IBIS simulation, whole-route coupled-circuit analysis, BER measurement or protocol compliance certification.
 - The illustrative eye omits loss, jitter/noise, branches and via discontinuities; unresolved parameters, zone routes and extra terminals can disable it.
 - Path endpoints must be on the same net; the tool does not silently bridge series components or disconnected copper.
 - Saved-board geometry and explicit source/load/stackup assumptions determine coverage. Unknown results are not passes; test-point edits require separate review.

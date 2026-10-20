@@ -6,8 +6,9 @@
 
 | Goal | In the window | Command line |
 |---|---|---|
-| Several independent rails | Choose a rail's source/load, then **Multi-net cases…**. Use **Add net case…** for each additional rail; enter its voltage, current and pads. | `wayricad-pi board.kicad_pcb --batch cases.json --output raw-cases.json --html cases.html` |
+| Several rails | Choose a rail's source/load, then **Multi-net cases…**. Use **Add net case…** for each additional rail; enter its voltage, current and pads. | `wayricad-pi board.kicad_pcb --batch cases.json --output raw-cases.json --html cases.html` |
 | Include ground-return voltage drop | In **Add net case…**, enable **Solve explicit DC return copper** and select the return net, load-ground pad and source-ground pad. | Add `return_conduction` to that case, as in the [example study](studies/batch-rails.example.json). |
+| Shared ground and multi-pad units | In **Multi-net cases…**, use **Edit source / load pad units…**, then **Add shared return group…**. Select each unit’s pads and total current. | Add top-level `shared_returns`, as in [the shared-return example](studies/shared-return.example.json). |
 | Review reference planes and return vias | Open **Return path**, or add a case's `return_path` settings with explicit `return_nets`. | Existing `--return-path --return-nets GND`, or the batch example. |
 | Solve temperature feedback | Check **Include Joule heating / temperature feedback**, then **Run**. Fill the explicit thermal/material settings before running the steady study. | Existing `--electrothermal study.json`; batch cases may include explicit `electrothermal` settings. |
 
@@ -19,27 +20,54 @@ coefficient unset until reviewed. Missing values prevent the run. Delivered
 load power is not automatically counted as board heat. See
 [the coupling model and inputs](ELECTROTHERMAL.md).
 
-Batch studies contain **1–32 independent cases bound to one saved PCB hash**.
-They retain failures per case, and source/study changes invalidate the batch.
-They do not combine heat between rails, solve inter-net crosstalk or infer a
-shared ground-current distribution. Each net has its own explicit terminals
-and demand; **Additional sinks** remains the simultaneous-load tool for one net.
+Batch studies contain **1–32 cases bound to one saved PCB hash**. They retain
+failures per case; source/study changes invalidate the entire batch. Cases are
+independent unless explicitly connected by a `shared_returns` group. Each group
+solves the common return copper **once with every mapped load current**, including
+common-impedance coupling. Ground rise at each load is subtracted from its solved
+supply-pad voltage. Group loss counts shared copper once, with current and total
+source/load/copper power conservation checks. No inter-net AC fields, regulator
+interaction or combined heating between rails is inferred.
 
-An explicit return loop currently requires one prescribed-current load, 2.5D
-linear copper, distinct supply/return nets, and fixed temperatures. Select the
-return **source_terminal at the load ground** and **sink_terminal at source
-ground**: current flows from load to supply on that leg. The report combines
-supply and return resistance, voltage drop and I²R losses, then checks actual
-load voltage `Vs − supply_drop − return_drop`. Return-field potentials retain
-an auxiliary solver reference with the offset to source-ground zero recorded
-in JSON and the report. Multisink/shared returns, packages, series branches,
-resistive-load current solving, full 3D loops and coupled loop heating are
-rejected rather than approximated silently.
+Use `source_terminals: ["J1.1", "J1.2"]` instead of `source_terminal` to select
+multiple source pads. A load uses `{"id":"chip", "terminals":["U1.1","U1.2"],
+"current_A":0.2}`. All pads in a unit must be on the selected net and are explicitly
+assumed **ideal equipotential contacts**. The FEM distributes total unit current
+according to copper conductance; it does not divide the demand equally. This is
+an explicit ideal internal connection, not an inference from matching pad nets.
+Package/internal contact resistance is not modeled by these ideal units. Repeated
+pads, aliases, overlapping contacts and cross-net pad selections fail validation.
+Legacy single-pad fields remain supported, but must not be combined with their
+plural counterparts. Grouped units currently support fixed-current 2.5D copper.
+
+Each `shared_returns` entry needs `name`, `net`, `source_terminals` (source-ground
+zero reference), and `loads`. Each load mapping has `case`, `sink` (the supply
+load's stable `id`), and `terminals` (its load-ground unit). Map every load of a
+participating case exactly once. Put loads on the same supply net in one case;
+use one group for each common return net. Separate groups may not reuse a case.
+Return mesh/material settings belong to the group. Changing one rail's current
+can change ground rise at other rails through the shared copper. Load reports
+show delivered voltage and actual voltage-limit status; they do not count the
+same shared loss again per rail.
+
+The solver uses an auxiliary reversed-current solve at zero source-ground
+potential and reverses its field signs to obtain physical return injection.
+JSON retains the raw auxiliary evidence and explicit sign convention; shared
+return HTML maps show **physical positive ground rise and return-current arrows**.
+The analytical tests check a common two-section strip with transfer resistance
+matrix `[[R,R],[R,2R]]`, superposition, conservation, and unequal parallel pad
+current division. These are numerical reference checks, not board measurements.
+
+The legacy case-level `return_conduction` remains available for one prescribed
+load. Its `source_terminal` is load ground and `sink_terminal` is source ground;
+its raw plots retain the declared auxiliary reference offset. Use a shared-return
+group for multiple loads or rails. Shared-return groups reject packages, series
+branches, resistive-load current solving, 3D loops and coupled loop heating.
 
 The separate geometric return audit screens reference coverage and via
 transitions. It establishes neither a closed electrical loop nor loop
 inductance/AC impedance. Supply-only cases continue to assume their declared
-load return reference; use `return_conduction` when return copper drop matters.
+load return reference; use `return_conduction` or `shared_returns` when return copper drop matters.
 
 Start from [batch-rails.example.json](studies/batch-rails.example.json), replace
 the sample nets/pads with those on your saved board, and review every load.
@@ -62,6 +90,25 @@ The native 3D copper view supports orbit, pan, wheel zoom and sampled-cell probe
 HTML 3D views use drag to orbit, Shift-drag to pan and the wheel to zoom. Planar
 reports include three interactive field maps alongside static print figures.
 Display movement does not modify board geometry or the solve.
+
+Large planar reports (more than 100,000 mesh triangles or at least 250 extracted
+vias/PTHs) render three static maps: voltage drop or ground rise, current density,
+and copper loss density. Static figures use **Solver cells**, preserve every
+cell and drill contour on the plotted layer, and batch dense geometry into
+collections without sampling. Three interactive fields and complete numerical
+JSON remain available. To request all seven static maps, set
+`"report_options": {"extended_snapshots": true}` on the result bundle before
+calling `write_report` or `write_batch_report`; batch options apply to its child
+reports. This export option has no CLI flag. Small reports retain seven maps.
+Each static figure is released before rendering the next. Batch DC and return
+child JSON files are small evidence descriptors, with source custody, scalar
+summaries, and exact JSON pointers into the complete parent batch JSON.
+Shared-return descriptors declare the potential/current sign transforms used
+by their physical maps. Keep the parent JSON beside the case-report folder:
+these descriptors are not standalone numerical results. All original arrays
+remain in the parent archive; they are not serialized again for each child.
+Standalone `write_report` exports retain full paired JSON. Its optional
+`evidence_reference` keyword is used by batch publication to link parent data.
 
 See [analysis views and probe controls](../docs/ANALYSIS_INTERACTIONS.md) for details.
 
@@ -99,7 +146,7 @@ Quick PI estimates DC voltage drop and current flow through saved PCB copper. It
 2. Use the left **Setup** panel to choose a net, source pad and primary sink pad. Enter **Source · V** and **Load · A** (or switch to a resistive load in Ω). Set **Limit · A** for an optional source current budget and **Min · V / Max · V** for the primary sink's bounds. Use **Additional sinks** for further loads.
 3. Click **Preview** or **Run** at the bottom of Setup. The **Net**, **Mesh** and **Results** tabs show the same extracted geometry in a full-height board canvas. The window opens maximized.
 4. Use the right **Inspect** panel to choose a layer and result. Its colour legend gives the numerical range and units. Drag the board to pan, scroll to zoom, or double-click / click **Fit** to restore the board extent. **Setup** and **Inspect** in the header hide either panel; the divider adjusts the inspector width. **Board**, **Copper** and **Field** toggle saved context, extracted copper and the result overlay independently. Millimetres stay proportional during resizing, and a compact ruler replaces graph axes.
-5. Use **Export** for an offline HTML report with seven maps of the selected layer and paired JSON containing all layers and numerical results. The save-image icon exports the current board view. **Mesh & material**, **Console** and **Model details** start collapsed; **More** retains transient, electrothermal and diagnostic studies.
+5. Use **Export** for an offline HTML report with maps of the selected layer and paired JSON containing all layers and numerical results. Large reports default to three static maps; smaller reports include seven. The save-image icon exports the current board view. **Mesh & material**, **Console** and **Model details** start collapsed; **More** retains transient, electrothermal and diagnostic studies.
 
 ![Compact native Quick PI workspace with a full-height board canvas](help-workspace.png)
 
@@ -159,8 +206,19 @@ series path retains source current and sink voltage limits.
 The mesher preserves copper, hole and terminal boundaries while improving triangle
 angles. Broad, complex planes receive interior mesh points to avoid spending the
 cell budget on long, thin triangles. Geometry, area and electrical conservation
-checks still apply; the mesh budget is unchanged. A successful solve or stable
+checks still apply; the default mesh budget is 400,000 triangles across all layers. A successful solve or stable
 total resistance does not establish convergence of local current-density peaks.
+
+For a dense saved-board 2.5D copper net, explicitly raise capacity with
+`--max-cells 1500000`, or set `"max_cells": 1500000` in a batch case's
+`electrical` settings or a `shared_returns` group. The advanced batch JSON editor
+accepts the same field. It must be an integer from 1,000 through 2,000,000;
+omitting it retains the default. Each rail and return group has its own total
+triangle budget. The solver also caps vertices at 2,000,000 for an enlarged
+request. Larger limits can require several GB of memory and longer execution;
+they do not alter mesh edge length or relax contour, hole, area or conservation
+checks. These overrides apply to 2.5D copper only; explicit series/package paths
+retain their existing limits, and 3D uses its separate tetrahedron budget.
 
 If the Quick PI Python runtime has the optional `gmsh` package, meshing uses
 Gmsh's conforming planar surfaces for extracted copper and contact regions.
@@ -168,8 +226,11 @@ The default internal 2.5D DC solver uses those triangles. With no Gmsh
 package, `auto` uses the existing VTK mesher.
 The JSON mesh report records the selected backend. For a reproducible CLI run,
 choose `--mesh-backend gmsh` to require Gmsh or `--mesh-backend vtk` to require
-VTK. A requested Gmsh run reports a setup error if its package is unavailable;
-geometry, area, edge length and cell-budget checks remain in force.
+VTK. Managed launches prepare Gmsh automatically when explicitly selected,
+including within batch rails, independent returns and shared-return groups.
+Setup failures remain actionable; direct worker use requires the selected
+backend to be installed. Geometry, area, edge length and cell-budget checks
+remain in force.
 
 ### Explicit lead, solder and BGA contact paths
 

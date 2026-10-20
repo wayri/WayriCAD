@@ -40,6 +40,16 @@ Multi-net cases are independent screens, not a coupled bus/crosstalk simulation.
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
+### Development updates
+
+Source development adds jointly solved shared-return copper for multi-net PI,
+multiple source/load pads per PI unit, and local coupled-line crosstalk analysis
+for SI. These additions are newer than release 3.6.21. Read the
+[Marble validation results and model limits](docs/audits/MARBLE_COUPLED_ANALYSIS.md),
+[PI guide](quick_pi_plugin/README.md) and
+[SI guide](signal_integrity_advisor_plugin/ReadMe.md) before interpreting them
+as whole-board predictions.
+
 ## Install and open
 
 1. Open **Plugin and Content Manager** in KiCad Manager. Add this repository:

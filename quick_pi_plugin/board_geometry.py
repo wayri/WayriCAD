@@ -133,26 +133,83 @@ def _intersects(a,b):
     return not (a[2]<b[0] or a[0]>b[2] or a[3]<b[1] or a[1]>b[3])
 
 
+class _NativeContourIndex:
+    """Index whole native contour bounds; never cut or rasterize geometry."""
+    def __init__(self,api,polygons,cell_mm=2.):
+        self.api=api;self.polygons=polygons;self.step=api.FromMM(cell_mm)
+        self.records=[];self.grid={};self.large=[]
+        for outer in range(polygons.OutlineCount()):
+            for hole in [-1,*range(polygons.HoleCount(outer))]:
+                chain=polygons.COutline(outer) if hole<0 else polygons.CHole(outer,hole)
+                box=chain.BBox();bounds=(box.GetLeft(),box.GetTop(),box.GetRight(),box.GetBottom())
+                index=len(self.records);self.records.append((outer,hole,bounds))
+                tiles=self._tiles(bounds)
+                if tiles is None:self.large.append(index)
+                else:
+                    for tile in tiles:self.grid.setdefault(tile,[]).append(index)
+
+    def _tiles(self,bounds):
+        x0,y0,x1,y1=(int(value)//self.step for value in bounds)
+        if (x1-x0+1)*(y1-y0+1)>1024:return None
+        return ((x,y) for x in range(x0,x1+1) for y in range(y0,y1+1))
+
+    def subset(self,bounds):
+        """Keep relevant full outlines with their relevant full hole contours."""
+        tiles=self._tiles(bounds)
+        candidates=set(range(len(self.records))) if tiles is None else set(self.large)
+        if tiles is not None:
+            for tile in tiles:candidates.update(self.grid.get(tile,()))
+        selected={}
+        for index in sorted(candidates):
+            outer,hole,box=self.records[index]
+            if _intersects(bounds,box):selected.setdefault(outer,set()).add(hole)
+        result=self.api.SHAPE_POLY_SET()
+        for outer,holes in selected.items():
+            if -1 not in holes:continue
+            target=result.AddOutline(self.polygons.COutline(outer))
+            for hole in sorted(holes-{-1}):result.AddHole(self.polygons.CHole(outer,hole),target)
+        return result
+
+    def subtract_from(self,contact):
+        result=_copy(self.api,contact)
+        local=self.subset(_bounds(contact))
+        if local.OutlineCount():result.BooleanSubtract(local)
+        return result
+
+
 def _partition(api,copper,contacts,progress):
-    """Disjoint cells split at every contact, including overlapping contacts."""
-    regions=[copper]
+    """Split contact overlaps locally and subtract their union from copper once.
+
+    Recutting the complete plane for every pad/via repeatedly copies thousands
+    of drilled contours. Only the small contact regions need individual cuts;
+    the background and all native contact boundaries retain the same domain.
+    """
+    if not contacts:return _polygons(copper,api)
+    united=api.SHAPE_POLY_SET()
+    for contact in contacts:united.Append(contact)
+    united.Simplify()
+    background=_copy(api,copper);background.BooleanSubtract(united)
+    regions=[]
     for index,contact in enumerate(contacts):
         if progress and index%25==0 and progress('Partitioning contacts',index,len(contacts)) is False:
             raise ValueError('Geometry extraction cancelled; the board was not changed.')
-        cut_bounds=_bounds(contact);next_regions=[]
-        for region in regions:
-            if not _intersects(_bounds(region),cut_bounds):
-                next_regions.append(region);continue
+        cut_bounds=_bounds(contact);next_regions=[];remaining=_copy(api,contact)
+        for region,bounds in regions:
+            if not _intersects(bounds,cut_bounds):
+                next_regions.append((region,bounds));continue
             inside=_copy(api,region);inside.BooleanIntersection(contact)
             if not inside.OutlineCount():
-                next_regions.append(region);continue
+                next_regions.append((region,bounds));continue
             outside=_copy(api,region);outside.BooleanSubtract(contact)
-            next_regions.append(inside)
-            if outside.OutlineCount():next_regions.append(outside)
+            next_regions.append((inside,_bounds(inside)))
+            if outside.OutlineCount():next_regions.append((outside,_bounds(outside)))
+            remaining.BooleanSubtract(region)
+        if remaining.OutlineCount():next_regions.append((remaining,_bounds(remaining)))
         regions=next_regions
         if len(regions)>30000:
             raise ValueError('More than 30,000 contact regions; split the analysis scope before meshing.')
-    return [polygon for region in regions for polygon in _polygons(region,api)]
+    return [polygon for region in [background,*[r for r,_ in regions]]
+            for polygon in _polygons(region,api)]
 
 
 def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_mm=.005,progress=None):
@@ -214,8 +271,9 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
             if pad or via:
                 contact=_copy(api,poly);contact.BooleanSubtract(_hole(api,item,error))
                 if contact.OutlineCount():
-                    contacts[layer].append(contact)
                     contact_polygons[str(layer)]=_polygons(contact,api)
+                    # Shared terminal/barrel list: clip once in native coordinates.
+                    contacts[layer].append((contact,contact_polygons[str(layer)]))
                     if terminal is not None:terminal['polygons'][str(layer)]=contact_polygons[str(layer)]
             if via:layer_diameters[str(layer)]=api.ToMM(item.GetWidth(layer))
         if pad:
@@ -228,12 +286,17 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
             if plated_pad:
                 size=item.GetDrillSize()
                 if size.x<=0 or size.y<=0:raise ValueError('Plated pad has no valid drill: '+terminal['label'])
-                if size.x!=size.y:raise ValueError('Plated slots need an explicit noncircular barrel model: '+terminal['label'])
-                drill=api.ToMM(size.x)
+                if size.x!=size.y and item.GetDrillShape()!=api.PAD_DRILL_SHAPE_OBLONG:
+                    raise ValueError('Only circular and obround plated drills are supported: '+terminal['label'])
+                drill=min(api.ToMM(size.x),api.ToMM(size.y))
+                drill_size=[api.ToMM(size.x),api.ToMM(size.y)]
+                if item.GetSize().x<=size.x or item.GetSize().y<=size.y:
+                    raise ValueError('Plated drill must fit within the copper land: '+terminal['label'])
                 span=enabled[:]
                 layer_diameters={str(layer):min(api.ToMM(item.GetSize().x),api.ToMM(item.GetSize().y)) for layer in span if str(layer) in contact_polygons}
                 counts['plated_pads']+=1
-            else:drill=api.ToMM(item.GetDrillValue())
+            else:
+                drill=api.ToMM(item.GetDrillValue());drill_size=[drill,drill]
             if not layer_diameters:raise ValueError('Plated barrel has no flashed copper contacts: '+_uid(item))
             if drill<=0 or any(d<=drill for d in layer_diameters.values()):
                 raise ValueError('Barrel drill must be smaller than each copper land: '+_uid(item))
@@ -241,7 +304,10 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
             for layer in span:contact_polygons.setdefault(str(layer),[])
             barrels.append({'id':_uid(item),'kind':'plated_pad' if plated_pad else 'via',
                             'layers':span,'x_mm':api.ToMM(position.x),'y_mm':api.ToMM(position.y),
-                            'drill_mm':drill,'diameter_mm':max(layer_diameters.values()),
+                            'drill_mm':drill,'drill_size_mm':drill_size,
+                            'drill_shape':'circle' if drill_size[0]==drill_size[1] else 'obround',
+                            'drill_angle_deg':float(item.GetOrientationDegrees()) if plated_pad else 0.,
+                            'diameter_mm':max(layer_diameters.values()),
                             'diameters_mm':layer_diameters,'polygons':contact_polygons})
     for item in drawings:
         if hasattr(item,'GetNetname') and item.GetNetname()==net:
@@ -260,24 +326,20 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
         cu.Simplify();holes[layer].Simplify();cu.BooleanSubtract(holes[layer])
         row['polygons']=_polygons(cu,api)
         total_area+=abs(cu.Area())/(api.FromMM(1)**2)
+        drill_index=_NativeContourIndex(api,holes[layer])
         clean_contacts=[]
-        for contact in contacts[layer]:
-            clipped=_copy(api,contact);clipped.BooleanIntersection(cu)
+        for index,(contact,records) in enumerate(contacts[layer]):
+            if progress and index%250==0 and progress('Clipping contacts · '+row['name'],index,len(contacts[layer])) is False:
+                raise ValueError('Geometry extraction cancelled; the board was not changed.')
+            # Each contact is a subset of a selected-net shape appended to this
+            # layer's copper. Intersecting final copper is exactly equivalent
+            # to subtracting drilled voids from that contact. The spatial index
+            # omits only whole native contours outside the contact bounding box.
+            clipped=drill_index.subtract_from(contact)
+            records[:]=_polygons(clipped,api)
             if clipped.OutlineCount():clean_contacts.append(clipped)
         row['mesh_regions']=_partition(api,cu,clean_contacts,progress) if cu.OutlineCount() else []
     if total_area<=0:raise ValueError('The selected net has no extractable copper.')
-    # Electrode/barrel polygons must also exclude other nets' drill openings.
-    for contact in [*terminals,*barrels]:
-        for key in list(contact['polygons']):
-            native_poly=api.SHAPE_POLY_SET()
-            for record in contact['polygons'][key]:
-                outer=native_poly.NewOutline()
-                for x,y in record['outer']:native_poly.Append(api.FromMM(x),api.FromMM(y),outer)
-                for ring in record['holes']:
-                    hole=native_poly.NewHole(outer)
-                    for x,y in ring:native_poly.Append(api.FromMM(x),api.FromMM(y),outer,hole)
-            native_poly.BooleanIntersection(copper[int(key)])
-            contact['polygons'][key]=_polygons(native_poly,api)
     pad_catalog=[{'id':_uid(p),'pad_uuid':_uid(p),'reference':str(p.GetParentFootprint().GetReference()),
                   'pad_number':str(p.GetNumber()),'net':str(p.GetNetname()),
                   'layer_ids':[int(layer) for layer in enabled if p.IsOnLayer(layer)]} for p in pads]

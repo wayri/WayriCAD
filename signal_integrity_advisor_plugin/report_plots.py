@@ -81,6 +81,47 @@ def study_html(report):
                 detail+=html_details(child['return_path'])
         detail+='<details class="report-evidence"><summary>Exact case inputs, results and source object identities</summary><pre>'+escape(json.dumps(case,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details></details>'
         details.append(detail)
-    document+='</tbody></table><h2>Individual case evidence</h2>'+''.join(details)+'</html>'
+    document+='</tbody></table>'+crosstalk_html(report)+'<h2>Individual case evidence</h2>'+''.join(details)+'</html>'
     summary=report.get('summary',{})
-    return enhance_report(document,status=report.get('status','UNKNOWN'),summary=[('Cases',summary.get('cases',len(cases))),('Reported',summary.get('reported',sum(bool(case.get('report')) for case in cases))),('Errors',summary.get('errors',sum(case.get('status')=='ERROR' for case in cases))),('Model',report.get('model','Independent route screens'))],notice='Cases are independent source-to-receiver screens. This comparison does not solve inter-net coupling, crosstalk, simultaneous switching or whole-bus qualification. Error and incomplete cases remain in the report.',provenance=provenance(report))
+    notice=('Route cases are independent. Optional crosstalk results describe local parallel sections under an explicit ideal homogeneous reference and matched ports. No whole-route coupling waveform, simultaneous switching or whole-bus qualification is claimed. Error and incomplete cases remain in the report.'
+            if report.get('crosstalk') else 'Cases are independent source-to-receiver screens. This comparison does not solve inter-net coupling, crosstalk, simultaneous switching or whole-bus qualification. Error and incomplete cases remain in the report.')
+    return enhance_report(document,status=report.get('status','UNKNOWN'),summary=[('Cases',summary.get('cases',len(cases))),('Reported',summary.get('reported',sum(bool(case.get('report')) for case in cases))),('Errors',summary.get('errors',sum(case.get('status')=='ERROR' for case in cases))),('Model',report.get('model','Independent route screens'))],notice=notice,provenance=provenance(report))
+
+
+def crosstalk_html(report):
+    """Local directed coupling evidence, exact assumptions and route crosslinks."""
+    from html import escape
+    import json
+    from wayricad_runtime.interactive_plots import interactive_plot
+    pairs=report.get('crosstalk',[])
+    if not pairs:return ''
+    indexes={case['id']:index for index,case in enumerate(report['cases'])}
+    document='<h2>Local crosstalk sections</h2><p>Peaks below are individual section estimates. They are not a sum, whole-route waveform or compliance result. FEXT zero is a property of the assumed homogeneous model, not a board measurement.</p>'
+    for pair in pairs:
+        document+='<section><h3>'+escape(pair['id'])+' · '+escape(pair['status'])+'</h3><p>'
+        for role in ('aggressor','victim'):
+            identifier=pair[role]
+            document+=escape(role.title())+': <a href="#si-case-'+str(indexes[identifier])+'">'+escape(identifier)+'</a> '
+        document+='</p><p>Reference model: '+escape(json.dumps(pair['reference'],ensure_ascii=False))+'</p><ul>'
+        document+=''.join('<li>'+escape(note)+'</li>' for note in pair['limitations'])+'</ul>'
+        document+='<table><tr><th>Layer / direction</th><th>Overlap mm</th><th>Gap mm</th><th>Width / copper mm</th><th>Zeven / Zodd Ω</th><th>Matched port Ω</th><th>Delay ns</th><th>NEXT mV / victim side</th><th>FEXT mV (ideal)</th><th>Modal / coupling refinement</th></tr>'
+        for i,s in enumerate(pair['sections']):
+            peak=(f"< {s['next_numerical_resolution_v']*1000:.3g} (numerical floor)" if s['coupling_numerical_status']=='BELOW_NUMERICAL_FLOOR' else f"{s['next_peak_v']*1000:.4g}")
+            values=[s['layer']+' / '+s['direction'],s['length_mm'],s['gap_mm'],
+                    f"{s['width_mm']:.6g} / {s['copper_thickness_mm']:.6g}",
+                    f"{s['z_even_ohm']:.6g} / {s['z_odd_ohm']:.6g}",s['matched_port_ohm'],s['delay_ns'],
+                    peak+' / '+s['near_victim_role'],s['fext_peak_v']*1000,
+                    f"{s['panel_refinement_relative']:.3g} / Δk={s['coupling_refinement_absolute']:.3g} ({s['coupling_numerical_status']})"]
+            document+='<tr>'+''.join('<td>'+escape(f'{v:.6g}' if isinstance(v,(int,float)) else str(v))+'</td>' for v in values)+'</tr>'
+        document+='</table>'
+        for role,c in pair.get('coverage',{}).items():
+            document+='<p>'+escape(f"{role.title()}: {c['supported_overlap_mm']:.6g} mm supported overlap of {c['route_length_mm']:.6g} mm; {c['unmodeled_length_mm']:.6g} mm unmodeled. Layers: "+', '.join(c['layers']))+'</p>'
+        document+='<ul>'+''.join('<li>Unresolved: '+escape(row['reason'])+'</li>' for row in pair['unresolved'])+'</ul>'
+        for i,s in enumerate(pair['sections']):
+            if s['coupling_numerical_status']=='BELOW_NUMERICAL_FLOOR':continue
+            document+='<details><summary>Section '+str(i+1)+' local near-end step</summary>'
+            document+=interactive_plot(pair['id']+' · section '+str(i+1)+' NEXT',
+                                       [[t,v,v,'Local NEXT'] for t,v in s['next_samples']],
+                                       'V',x_unit='ns',y_unit='V',connect=True)+'</details>'
+        document+='<details><summary>Exact coupling inputs, geometry and numerical evidence</summary><pre>'+escape(json.dumps(pair,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details></section>'
+    return document

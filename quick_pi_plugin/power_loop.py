@@ -25,7 +25,7 @@ def return_request(electrical,definition):
         raise ValueError('Explicit DC loops support 2.5D linear copper with one prescribed-current load; packages, series, 3D and resistive loads are unsupported.')
     sinks=sink_requests(electrical)
     if len(sinks)!=1:
-        raise ValueError('Explicit DC loops require one supply load; shared return-current distribution for multiple loads is unsupported.')
+        raise ValueError('Case-level return_conduction requires one supply load; use shared_returns to solve common return copper for multiple loads.')
     request={key:copy.deepcopy(value) for key,value in electrical.items()
              if key in ('edge_mm','plating_mm','mesh_backend','options','stackup_override','source_voltage')}
     request.update(copy.deepcopy(definition),action='solve',model_dimension='2.5d',

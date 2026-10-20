@@ -38,9 +38,9 @@ def parser():
     suite.add_argument('--output',type=Path)
     suite.add_argument('--html',type=Path)
     protocol_budgets(suite)
-    study=subs.add_parser('study',help='Run independent explicit multi-net route screens from a JSON case list.')
+    study=subs.add_parser('study',help='Run explicit multi-net route screens and optional directed local crosstalk pairs.')
     study.add_argument('board',type=Path)
-    study.add_argument('--config',type=Path,required=True,help='Study JSON with explicit start/end pads, references, drivers and optional returns for each case.')
+    study.add_argument('--config',type=Path,required=True,help='Study JSON: cases with explicit pads/inputs and optional crosstalk directed pairs with rise, swing and ideal reference geometry.')
     study.add_argument('--output',type=Path)
     study.add_argument('--html',type=Path)
     for name in ('inspect','screen'):

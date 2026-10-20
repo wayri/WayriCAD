@@ -41,9 +41,9 @@ The commands below expose the existing headless workflows. They do **not** imply
 | `planar-magnetics` | Headless JSON parameters: magnetics.analyze; GUI write operations are separate | `wayricad tools run planar-magnetics -- --help` |
 | `project-fusion` | Analyze and merge saved projects | `wayricad tools run project-fusion -- --help` |
 | `protocol-constraints` | Headless JSON parameters: protocol-constraints.compose; GUI write operations are separate | `wayricad tools run protocol-constraints -- --help` |
-| `quick-pi` | DC copper conduction, explicit returns and independent rail studies | `wayricad tools run quick-pi -- --help` |
+| `quick-pi` | DC copper, grouped pads and shared-return rail studies | `wayricad tools run quick-pi -- --help` |
 | `quick-therm` | Board/component temperature screening and thermal reports | `wayricad tools run quick-therm -- --help` |
-| `signal-integrity` | Route screening, return paths and independent multi-route studies | `wayricad tools run signal-integrity -- --help` |
+| `signal-integrity` | Route and return-path screening with local coupled-line crosstalk | `wayricad tools run signal-integrity -- --help` |
 | `silkscreen-label-placer` | Read-only placement preview and settings; apply remains in the GUI | `wayricad tools run silkscreen-label-placer -- --help` |
 | `trace-impedance` | Trace, differential-pair and filled-zone RLC estimates | `wayricad tools run trace-impedance -- --help` |
 | `trace-refiner` | Preview, validate and export refined traces | `wayricad tools run trace-refiner -- --help` |
@@ -70,7 +70,9 @@ This generates a preview, without writing PCB labels. Output must be a new JSON 
 
 ## Multi-net analysis and return paths
 
-PI and SI studies require explicit terminal assignments for each case. Their batch execution shares source provenance, not current, temperature or crosstalk between nets. Optional PI return-conduction cases solve a declared single-load supply/return loop; this is distinct from a geometric return-path audit. Review the per-case model and limitations before interpreting aggregate totals.
+PI and SI studies require explicit terminal assignments. PI `source_terminals` and each load's `terminals` accept several pads on the same net as one ideal equipotential unit; the solver determines current sharing. Optional `shared_returns` solve common return copper once for all mapped loads and include its ground rise and interaction losses. This fixed-current, fixed-temperature 2.5D model is distinct from the geometric return audit and temperature feedback. See the [shared-return example](../quick_pi_plugin/studies/shared-return.example.json).
+
+SI `crosstalk` entries select aggressor/victim routes and a reference model. `saved-stripline` checks the saved homogeneous stackup, finite copper thickness and local reference coverage; a hypothetical single-plane model remains explicit. Reports give local matched-port NEXT/FEXT, numerical refinement and unmodeled lengths. These are section estimates, not a whole-route terminal waveform or shared thermal simulation. See the [coupled-route example](../signal_integrity_advisor_plugin/coupled-routes.json).
 
 ```text
 wayricad-pi board.kicad_pcb --batch pi-study.json --output pi.json --html pi.html

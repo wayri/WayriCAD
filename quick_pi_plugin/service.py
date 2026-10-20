@@ -10,13 +10,49 @@ import tempfile
 import time
 
 
+def mesh_cell_budget(request):
+    """Explicit total triangle capacity for one saved-board 2.5D copper mesh."""
+    value=request.get('max_cells',400000)
+    if isinstance(value,bool) or not isinstance(value,int) or not 1000<=value<=2000000:
+        raise ValueError('max_cells must be an integer from 1,000 to 2,000,000 (default 400,000).')
+    if 'max_cells' in request and (request.get('model_dimension','2.5d')!='2.5d' or
+                                   request.get('series') or request.get('package_conduction')):
+        raise ValueError('max_cells supports 2.5D copper only; 3D, series and package paths retain their separate budgets.')
+    return value
+
+
+def _solver_mesh_budgets(request):
+    # Keep existing direct callers and default requests on the original guards.
+    if 'max_cells' not in request:return {}
+    value=mesh_cell_budget(request)
+    return {'mesh_cell_budget':max(500000,value),
+            'mesh_vertex_budget':max(250000,min(2000000,value))}
+
+
+def _requires_gmsh(request):
+    """Inspect only supported mesh-setting locations before preparing a worker."""
+    def selected(settings):
+        return isinstance(settings,dict) and (settings.get('model_dimension')=='3d' or settings.get('mesh_backend')=='gmsh')
+    if selected(request):return True
+    if request.get('action')!='batch':return False
+    study=request.get('study')
+    if not isinstance(study,dict):return False
+    cases=study.get('cases',[])
+    if isinstance(cases,list):
+        for case in cases:
+            if isinstance(case,dict) and any(selected(case.get(key)) for key in ('electrical','return_conduction')):
+                return True
+    groups=study.get('shared_returns',[])
+    return isinstance(groups,list) and any(selected(group) for group in groups)
+
+
 def run_job(request, cancelled=None, timeout=300):
     if not math.isfinite(float(timeout)) or float(timeout)<=0:
         raise ValueError('Worker timeout must be finite and positive.')
     if cancelled and cancelled():raise InterruptedError('Quick PI cancelled before starting the worker.')
     from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_QUICK_PI, child_environment
     requirements={name: spec for name, spec in REQUIREMENTS_QUICK_PI.items() if name != 'kipy'}
-    if request.get('model_dimension')=='3d':
+    if _requires_gmsh(request):
         requirements['gmsh']='gmsh>=4.11,<5'
     python=ensure_runtime(requirements)
     with tempfile.TemporaryDirectory(prefix='wayricad-quick-pi-') as temporary:
@@ -53,6 +89,7 @@ def execute(request):
     if request.get('action')=='batch':
         from .batch import execute as execute_batch
         return execute_batch(request,execute)
+    max_cells=mesh_cell_budget(request)
     from .package_contacts import guard_request
     guard_request(request)
     if request.get('action')=='electrothermal':
@@ -107,7 +144,14 @@ def execute(request):
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during return-path review. Reload and run again.')
         return {'return_path':result,'evidence':evidence,'request':request,'source_sha256':before}
     if action not in ('geometry','mesh','solve'):raise ValueError('Unknown Quick PI action: '+str(action))
-    if action=='solve': sink_requests(request)
+    if action=='solve':
+        from .terminals import source_names
+        source_names(request)
+        specs=sink_requests(request)
+        grouped='source_terminals' in request or any('terminals' in spec for spec in specs)
+        if grouped and (request.get('model_dimension','2.5d')!='2.5d' or request.get('series') or
+                        request.get('package_conduction') or voltage_mode or sweep_mode):
+            raise ValueError('Grouped pad units support fixed-current 2.5D copper only; package, series, 3D and resistive/sweep modes are unsupported.')
     from .board_geometry import extract
     full3d=request.get('model_dimension','2.5d')=='3d'
     if request.get('model_dimension','2.5d') not in ('2.5d','3d'):
@@ -151,29 +195,22 @@ def execute(request):
     if action!='geometry':
         from .mesh import build_mesh
         mesh=build_mesh(geometry,edge_mm=float(request.get('edge_mm',.5)),plating_mm=float(request.get('plating_mm',.025)),
-                        backend=request.get('mesh_backend','auto'))
+                        backend=request.get('mesh_backend','auto'),max_cells=max_cells)
         output['mesh']=mesh
         if action=='solve':
             from .solver import solve
-            def terminal(chosen):
-                if chosen in mesh['terminal_nodes']:
-                    row=next(t for t in geometry['terminals'] if t['id']==chosen)
-                    return row,mesh['terminal_nodes'][chosen]
-                match=[t['id'] for t in geometry['terminals'] if t['label']==chosen]
-                if len(match)!=1:raise ValueError('Select one unambiguous source and sink pad on this net: '+str(chosen))
-                return next(t for t in geometry['terminals'] if t['id']==match[0]),mesh['terminal_nodes'][match[0]]
-            sink_specs=[]
-            for spec in sink_requests(request):
-                row,indices=terminal(spec['terminal'])
-                sink_specs.append({**spec,'nodes':indices,'id':row['id'],'label':row['label']})
-            source_row,source_nodes=terminal(request['source_terminal'])
+            from .terminals import resolve_units
+            source_rows,source_nodes,sink_specs,units=resolve_units(request,geometry,mesh,sink_requests(request))
+            source_row=source_rows[0]
+            output['terminal_units']=units
             if request.get('package_conduction'):
                 from .package_contacts import attach
                 mesh,source_nodes,sink_specs=attach(mesh,geometry,request['package_conduction'],source_row['id'],sink_specs)
                 output['mesh']=mesh
             output['result']=solve(mesh,source_nodes,
                 source_voltage=request.get('source_voltage',1.),sinks=sink_specs,
-                source_current_limit=request.get('source_current_limit'),options=request.get('options'))
+                source_current_limit=request.get('source_current_limit'),options=request.get('options'),
+                **_solver_mesh_budgets(request))
     output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
     if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
     return output
@@ -213,7 +250,8 @@ def _operating_result(output,request,original_request,voltage_mode,sweep_mode):
         spec=sink_requests({**request,'sink_current':current})[0]
         output['result']=solve(mesh,terminal('source_terminal'),
                                source_voltage=source,sinks=[{**spec,'nodes':terminal('sink_terminal')}],
-                               source_current_limit=request.get('source_current_limit'),options=request.get('options'))
+                               source_current_limit=request.get('source_current_limit'),options=request.get('options'),
+                               **_solver_mesh_budgets(request))
         output['result']['load_resistance_ohm']=load
         output['result']['load_power_W']=current*current*load
         output['result']['operating_mode']='voltage_driven_resistive_load'
@@ -244,22 +282,26 @@ def sink_requests(request):
         if request.get('sink_max_voltage') is not None: specs[0]['max_voltage_V']=request['sink_max_voltage']
     if not isinstance(specs,(list,tuple)) or not 1<=len(specs)<=1024:
         raise ValueError('Specify 1 to 1,024 sinks.')
-    result=[];seen=set()
+    from .terminals import pad_names
+    result=[];seen=set();identifiers=set()
     for spec in specs:
         if not isinstance(spec,dict): raise ValueError('Each sink needs a terminal and current_A.')
-        unknown=set(spec)-{'terminal','current_A','min_voltage_V','max_voltage_V'}
+        unknown=set(spec)-{'terminal','terminals','id','label','current_A','min_voltage_V','max_voltage_V'}
         if unknown: raise ValueError('Unknown sink parameter: '+', '.join(sorted(unknown)))
-        chosen=spec.get('terminal')
-        if not isinstance(chosen,str) or not chosen.strip(): raise ValueError('Each sink needs a nonempty pad label or UUID.')
-        if chosen in seen: raise ValueError('Repeated sink terminal: '+chosen)
-        seen.add(chosen)
+        chosen=pad_names(spec)
+        if seen.intersection(chosen):raise ValueError('Repeated sink terminal: '+', '.join(chosen))
+        seen.update(chosen)
+        if 'id' in spec:
+            if not isinstance(spec['id'],str) or not spec['id'].strip() or spec['id'] in identifiers:
+                raise ValueError('Load unit IDs must be unique nonempty strings.')
+            identifiers.add(spec['id'])
         current=number(spec.get('current_A'),'Sink current',True)
         minimum=number(spec.get('min_voltage_V',0),'Sink minimum voltage')
         maximum=spec.get('max_voltage_V')
         if maximum is not None:
             maximum=number(maximum,'Sink maximum voltage')
             if maximum<minimum: raise ValueError('Sink maximum voltage must be at least its minimum voltage.')
-        result.append({'terminal':chosen,'current_A':current,'min_voltage_V':minimum,'max_voltage_V':maximum})
+        result.append({**spec,'current_A':current,'min_voltage_V':minimum,'max_voltage_V':maximum})
     try: total=math.fsum(row['current_A'] for row in result)
     except OverflowError as exc: raise ValueError('Total sink current must be finite.') from exc
     if not math.isfinite(total):

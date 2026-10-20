@@ -1,0 +1,74 @@
+{
+  "schema": "wayricad.pi-batch/v1",
+  "cases": [
+    {
+      "name": "A",
+      "electrical": {
+        "net": "A",
+        "source_terminals": [
+          "J1.1",
+          "J1.2"
+        ],
+        "source_voltage": 3.3,
+        "sinks": [
+          {
+            "id": "chip",
+            "terminals": [
+              "U1.1",
+              "U1.2"
+            ],
+            "current_A": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "B",
+      "electrical": {
+        "net": "B",
+        "source_terminals": [
+          "J2.1"
+        ],
+        "source_voltage": 3.3,
+        "sinks": [
+          {
+            "id": "chip",
+            "terminals": [
+              "U2.1",
+              "U2.2"
+            ],
+            "current_A": 2.0
+          }
+        ]
+      }
+    }
+  ],
+  "shared_returns": [
+    {
+      "name": "Ground",
+      "net": "GND",
+      "source_terminals": [
+        "J1.3",
+        "J2.3"
+      ],
+      "loads": [
+        {
+          "case": "A",
+          "sink": "chip",
+          "terminals": [
+            "U1.3",
+            "U1.4"
+          ]
+        },
+        {
+          "case": "B",
+          "sink": "chip",
+          "terminals": [
+            "U2.3",
+            "U2.4"
+          ]
+        }
+      ]
+    }
+  ]
+}

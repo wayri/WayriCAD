@@ -13,16 +13,41 @@ from matplotlib.path import Path
 def contains(points, polygons):
     points = np.asarray(points, dtype=float)[:, :2]
     result = np.zeros(len(points), dtype=bool)
+    def candidates(ring,eligible):
+        # Path's AGG contour uses half the radius as stroke width. Outer joins
+        # have miter limit 4, but inner miters may reach the shorter adjacent
+        # edge length: a radius-only padded AABB is therefore NOT sufficient.
+        # The ring's bounding-box diagonal bounds every such edge (including
+        # edges created by AGG's duplicate-vertex removal). Outer smart-bevel
+        # joins are bounded by 8 half-widths; use 8 full radii conservatively.
+        # See Matplotlib extern/agg24-svn/include/agg_math_stroke.h, calc_join
+        # and calc_miter. No angle/convexity assumption or contour change.
+        with np.errstate(over='ignore',invalid='ignore'):
+            low=np.min(ring,axis=0);high=np.max(ring,axis=0)
+            padding=np.hypot(*(high-low))+8e-8
+            low=np.nextafter(low-padding,-np.inf);high=np.nextafter(high+padding,np.inf)
+        if not (np.isfinite(low).all() and np.isfinite(high).all()):
+            return np.flatnonzero(eligible)  # Preserve native handling of pathological rings.
+        return np.flatnonzero(eligible & (points[:,0]>=low[0]) & (points[:,0]<=high[0]) &
+                              (points[:,1]>=low[1]) & (points[:,1]<=high[1]))
     for polygon in polygons:
         outer = np.asarray(polygon['outer'], dtype=float)
         # Matplotlib's positive-radius direction follows ring orientation.
         area = np.sum(outer[:,0]*np.roll(outer[:,1],-1)-outer[:,1]*np.roll(outer[:,0],-1))
-        inside = Path(np.vstack((outer,outer[0]))).contains_points(points,radius=1e-8 if area>0 else -1e-8)
+        indices=candidates(outer,~result)
+        if not len(indices):continue
+        inside=np.zeros(len(points),dtype=bool)
+        inside[indices]=Path(np.vstack((outer,outer[0]))).contains_points(points[indices],radius=1e-8 if area>0 else -1e-8)
+        remaining=int(np.count_nonzero(inside))
         for ring in polygon.get('holes', []):
+            if not remaining:break
             ring = np.asarray(ring,dtype=float)
             area = np.sum(ring[:,0]*np.roll(ring[:,1],-1)-ring[:,1]*np.roll(ring[:,0],-1))
             # Keep hole boundaries, which are valid electrode edge nodes.
-            inside &= ~Path(np.vstack((ring,ring[0]))).contains_points(points,radius=-1e-8 if area>0 else 1e-8)
+            indices=candidates(ring,inside)
+            if not len(indices):continue
+            removed=indices[Path(np.vstack((ring,ring[0]))).contains_points(points[indices],radius=-1e-8 if area>0 else 1e-8)]
+            inside[removed]=False;remaining-=len(removed)
         result |= inside
     return result
 
@@ -338,6 +363,67 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
                'point_contacts_separated':splits}
 
 
+def _refine_long_edges(points,triangles,edge_mm,max_cells,cancelled=None,max_passes=24):
+    """Conforming local midpoint refinement; an edge is shared by both owners.
+
+    Each triangle with k marked edges yields k+1 children. Original vertices
+    stay fixed and every old edge remains itself or a union of its halves, so
+    contour/contact constraints and holes are preserved. The exact child count
+    is checked before allocating new points or cells.
+    """
+    p=np.asarray(points,dtype=float);t=np.asarray(triangles,dtype=np.int64)
+    initial=len(t)
+    if not len(t):raise ValueError('No copper triangles to refine.')
+    if len(t)>max_cells:raise ValueError(f'Mesh exceeds {max_cells:,} triangles. Increase mesh edge length.')
+    for step in range(max_passes+1):
+        if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
+        edges=np.sort(t[:,[[0,1],[1,2],[2,0]]].reshape(-1,2),axis=1)
+        unique,inverse=np.unique(edges,axis=0,return_inverse=True)
+        lengths=np.linalg.norm(p[unique[:,1]]-p[unique[:,0]],axis=1)
+        if not np.isfinite(lengths).all():raise ValueError('Non-finite copper mesh edge.')
+        if float(lengths.max())<=edge_mm*(1+1e-8):
+            return p,t,{'local_refinement_passes':step,'initial_triangles':initial,
+                        'maximum_edge_mm':float(lengths.max())}
+        if step==max_passes:raise ValueError('Local mesh refinement did not meet the requested edge length.')
+        marked=lengths>edge_mm
+        owned=marked[inverse].reshape(-1,3)
+        counts=owned.sum(axis=1)
+        predicted=len(t)+int(counts.sum())
+        if predicted>max_cells:
+            raise ValueError(f'Local refinement needs {predicted:,} triangles, exceeding the remaining mesh budget of {max_cells:,}. Increase mesh edge length.')
+        if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
+        selected=np.flatnonzero(marked)
+        middle=np.full(len(unique),-1,dtype=np.int64)
+        middle[selected]=len(p)+np.arange(len(selected))
+        added=(p[unique[selected,0]]+p[unique[selected,1]])/2
+        new_points=np.vstack((p,added));midpoints=middle[inverse].reshape(-1,3)
+        children=np.empty((predicted,3),dtype=np.int64)
+        unchanged=t[counts==0];cursor=len(unchanged);children[:cursor]=unchanged
+        for index in np.flatnonzero(counts):
+            if index%4096==0 and cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
+            vertices=t[index];mids=midpoints[index];count=int(counts[index])
+            if count==1:
+                edge=int(np.flatnonzero(owned[index])[0])
+                a,b,c=map(int,(vertices[edge],vertices[(edge+1)%3],vertices[(edge+2)%3]))
+                m=int(mids[edge]);rows=((a,m,c),(m,b,c))
+            elif count==2:
+                start=(int(np.flatnonzero(~owned[index])[0])+1)%3
+                a,b,c=map(int,(vertices[start],vertices[(start+1)%3],vertices[(start+2)%3]))
+                ab,bc=map(int,(mids[start],mids[(start+1)%3]))
+                # The shorter quadrilateral diagonal avoids an unnecessary
+                # long internal edge; ties always choose the same topology.
+                if np.sum((new_points[a]-new_points[bc])**2)<=np.sum((new_points[ab]-new_points[c])**2):
+                    rows=((ab,b,bc),(a,ab,bc),(a,bc,c))
+                else:rows=((ab,b,bc),(a,ab,c),(ab,bc,c))
+            else:
+                a,b,c=map(int,vertices);ab,bc,ca=map(int,mids)
+                rows=((a,ab,ca),(ab,b,bc),(ca,bc,c),(ab,bc,ca))
+            children[cursor:cursor+len(rows)]=rows;cursor+=len(rows)
+        if cursor!=predicted:raise ValueError('Local mesh refinement cell count mismatch.')
+        p,t=new_points,children
+    raise ValueError('Local mesh refinement did not converge.')
+
+
 def triangulate_gmsh(polygons, edge_mm, max_cells=400_000, cancelled=None):
     """Mesh the existing 2D copper/contact regions with shared Gmsh curves.
 
@@ -394,27 +480,21 @@ def triangulate_gmsh(polygons, edge_mm, max_cells=400_000, cancelled=None):
             surfaces.append(gmsh.model.geo.addPlaneSurface(loops))
         gmsh.model.geo.synchronize()
         gmsh.model.mesh.generate(2)
-        # Gmsh's size field is a target, not a strict maximum edge length.
-        # Uniform refinement enforces the same edge contract as the VTK path.
-        for _ in range(12):
-            if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
-            tags,xyz,_=gmsh.model.mesh.getNodes()
-            p=np.asarray(xyz,dtype=float).reshape(-1,3)
-            tag_to_index={int(tag):i for i,tag in enumerate(tags)}
-            pieces=[]
-            for surface in surfaces:
-                types,_,node_blocks=gmsh.model.mesh.getElements(2,surface)
-                for kind,nodes in zip(types,node_blocks):
-                    if int(kind)!=2:raise ValueError('Gmsh returned a non-linear or non-triangle copper cell.')
-                    pieces.extend(tag_to_index[int(tag)] for tag in nodes)
-            if not pieces:raise ValueError('Gmsh returned no copper triangles.')
-            t=np.asarray(pieces,dtype=np.int64).reshape(-1,3)
-            if len(t)>max_cells:raise ValueError(f'Mesh exceeds {max_cells:,} triangles. Increase mesh edge length.')
-            lengths=np.linalg.norm(p[t]-np.roll(p[t],-1,axis=1),axis=2)
-            if float(lengths.max())<=edge_mm*(1+1e-8):break
-            if len(t)*4>max_cells:raise ValueError('Further refinement exceeds the mesh budget. Increase mesh edge length.')
-            gmsh.model.mesh.refine()
-        else:raise ValueError('Gmsh mesh refinement did not meet the requested edge length.')
+        if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
+        tags,xyz,_=gmsh.model.mesh.getNodes()
+        p=np.asarray(xyz,dtype=float).reshape(-1,3)
+        tag_to_index={int(tag):i for i,tag in enumerate(tags)}
+        pieces=[]
+        for surface in surfaces:
+            types,_,node_blocks=gmsh.model.mesh.getElements(2,surface)
+            for kind,nodes in zip(types,node_blocks):
+                if int(kind)!=2:raise ValueError('Gmsh returned a non-linear or non-triangle copper cell.')
+                pieces.extend(tag_to_index[int(tag)] for tag in nodes)
+        if not pieces:raise ValueError('Gmsh returned no copper triangles.')
+        t=np.asarray(pieces,dtype=np.int64).reshape(-1,3)
+        # Gmsh's size field is a target. Split only long edges using one shared
+        # midpoint per global edge; global x4 refinement wastes the layer budget.
+        p,t,refinement=_refine_long_edges(p,t,edge_mm,max_cells,cancelled)
         a=p[t[:,1],:2]-p[t[:,0],:2];b=p[t[:,2],:2]-p[t[:,0],:2]
         cross=a[:,0]*b[:,1]-a[:,1]*b[:,0]
         if np.any(abs(cross)<1e-16):raise ValueError('Gmsh returned a degenerate copper triangle.')
@@ -425,7 +505,7 @@ def triangulate_gmsh(polygons, edge_mm, max_cells=400_000, cancelled=None):
         if not np.all(contains(p[t].mean(axis=1),polygons)):
             raise ValueError('A Gmsh triangle crosses outside copper or into a hole.')
         p,t,splits=_split_point_contacts(p,t)
-        return p,t,{'area_mm2':area,'maximum_edge_mm':float(lengths.max()),
+        return p,t,{'area_mm2':area,**refinement,
                     'triangles':len(t),'point_contacts_separated':splits}
     finally:
         gmsh.clear()
@@ -476,6 +556,10 @@ def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cance
             polygons=via.get('polygons',{}).get(key)
             if polygons is not None:mask=contains(p,polygons)
             else:
+                from .barrel import drill_dimensions
+                dx,dy=drill_dimensions(via)
+                if dx!=dy:
+                    raise ValueError('Obround barrels require extracted native contact polygons; circular contacts are not substituted.')
                 r=np.hypot(p[:,0]-via['x_mm'],p[:,1]-via['y_mm'])
                 mask=(r<=via['diameter_mm']/2+1e-8)&(r>=via['drill_mm']/2-1e-8)
             nodes=(np.flatnonzero(mask)+offset).tolist()
@@ -486,7 +570,9 @@ def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cance
         for (a,top),(b,bottom) in zip(contacts,contacts[1:]):
             vias.append({'id':via['id']+f':{a}-{b}','top_nodes':top,'bottom_nodes':bottom,
                          'length_mm':abs(z_by_layer[str(b)]-z_by_layer[str(a)]),
-                         'drill_mm':via['drill_mm'],'plating_mm':plating_mm,
+                         'drill_mm':via['drill_mm'],'drill_size_mm':via.get('drill_size_mm',[via['drill_mm']]*2),
+                         'drill_shape':via.get('drill_shape','circle' if len(set(via.get('drill_size_mm',[via['drill_mm']]*2)))==1 else 'obround'),
+                         'drill_angle_deg':via.get('drill_angle_deg',0.),'plating_mm':plating_mm,
                          'x_mm':via['x_mm'],'y_mm':via['y_mm'],'top_layer':a,'bottom_layer':b})
     return {'points_mm':points,'triangles':triangles,'triangle_thickness_mm':thickness,
             'triangle_layer':layers,'vias':vias,'terminal_nodes':terminal_nodes,

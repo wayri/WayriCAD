@@ -75,6 +75,26 @@ class SavedBoardMultisinkTests(unittest.TestCase):
         request = {**self.request, 'sinks': [dict(terminal='U1.1', current_A=1), dict(terminal=identity, current_A=1)]}
         with self.assertRaisesRegex(ValueError, 'Repeated sink identity'): execute(request)
 
+    def test_grouped_load_and_source_units_use_native_pad_geometry(self):
+        load_request={**self.request,'sinks':[{'id':'chip','terminals':['U1.1','U2.1'],'current_A':3}]}
+        grouped=execute(load_request)
+        result=grouped['result']
+        self.assertEqual(result['sinks'][0]['id'],'chip')
+        self.assertEqual(result['sinks'][0]['current_A'],3.)
+        self.assertEqual(grouped['terminal_units']['loads'][0]['labels'],['U1.1','U2.1'])
+        terminals=grouped['mesh']['terminal_nodes']
+        by_label={t['label']:t['id'] for t in grouped['geometry']['terminals']}
+        a=terminals[by_label['U1.1']][0];b=terminals[by_label['U2.1']][0]
+        self.assertAlmostEqual(result['potential_V'][a],result['potential_V'][b],12)
+        source_request={**self.request,'source_terminals':['J1.1','U1.1'],
+                        'sinks':[{'id':'far','terminals':['U2.1'],'current_A':2}]}
+        source_request.pop('source_terminal')
+        supplied=execute(source_request)
+        self.assertEqual(supplied['terminal_units']['source_labels'],['J1.1','U1.1'])
+        self.assertAlmostEqual(supplied['result']['source_current_A'],2.,8)
+        self.assertLess(supplied['result']['energy_relative_error'],1e-6)
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),self.before)
+
     def test_legacy_source_current_limit_and_voltage_window_are_preserved(self):
         request = {k:v for k,v in self.request.items() if k!='sinks'}
         result = execute({**request, 'sink_terminal':'U2.1', 'sink_current':2,

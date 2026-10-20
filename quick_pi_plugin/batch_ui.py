@@ -1,4 +1,4 @@
-"""Explicit independent-net study editor with bounded worker lifecycle."""
+"""Explicit rail and shared-return study editor with bounded worker lifecycle."""
 from __future__ import annotations
 import copy
 import hashlib
@@ -13,18 +13,19 @@ from .batch import parse_study, validate_study, load_study
 
 class BatchStudyDialog(wx.Dialog):
     def __init__(self,parent,initial,inventory,runner,board_path,source_sha256):
-        super().__init__(parent,title='Quick PI · Independent multi-net cases',size=(1000,740),
+        super().__init__(parent,title='Quick PI · Multi-net DC studies',size=(1000,740),
                          style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         self.SetMinSize((700,500));self.runner=runner;self.inventory=inventory
         self.board_path=str(board_path);self.sha=source_sha256;self.result=None
         self._busy=False;self._closed=False;self._closing=False;self._cancel=threading.Event()
         root=wx.BoxSizer(wx.VERTICAL)
-        note=wx.StaticText(self,label='Each case has its own net, source and loads. Cases share a saved-board hash, not current or temperature. '
-            'DC includes I²R loss; optional return geometry review does not solve a ground-loop voltage drop.')
+        note=wx.StaticText(self,label='Select source and load pad units on each rail, then map loads into a shared return group to solve common ground copper once. '
+            'Pad units are ideal equipotential contacts; total current divides according to copper conductance.')
         note.Wrap(930);root.Add(note,0,wx.EXPAND|wx.ALL,10)
         row=wx.WrapSizer(wx.HORIZONTAL)
         self.add=wx.Button(self,label='Add net case…');self.load=wx.Button(self,label='Load JSON…');self.save=wx.Button(self,label='Save study JSON…')
-        for control in (self.add,self.load,self.save):row.Add(control,0,wx.RIGHT|wx.BOTTOM,6)
+        self.units=wx.Button(self,label='Edit source / load pad units…');self.returns=wx.Button(self,label='Add shared return group…')
+        for control in (self.add,self.units,self.returns,self.load,self.save):row.Add(control,0,wx.RIGHT|wx.BOTTOM,6)
         root.Add(row,0,wx.LEFT|wx.RIGHT,10)
         self.book=wx.Notebook(self)
         self.setup=wx.TextCtrl(self.book,value=json.dumps(initial,indent=2,allow_nan=False),style=wx.TE_MULTILINE|wx.TE_DONTWRAP)
@@ -42,6 +43,7 @@ class BatchStudyDialog(wx.Dialog):
         for control in (self.run,self.stop,self.export,close):actions.Add(control,0,wx.RIGHT,8)
         root.Add(actions,0,wx.ALIGN_RIGHT|wx.ALL,10);self.SetSizer(root)
         self.setup.Bind(wx.EVT_TEXT,self.changed);self.add.Bind(wx.EVT_BUTTON,self.add_case)
+        self.units.Bind(wx.EVT_BUTTON,self.edit_units);self.returns.Bind(wx.EVT_BUTTON,self.add_shared_return)
         self.load.Bind(wx.EVT_BUTTON,self.load_study);self.save.Bind(wx.EVT_BUTTON,self.save_study)
         self.run.Bind(wx.EVT_BUTTON,self.run_cases);self.stop.Bind(wx.EVT_BUTTON,lambda e:self._cancel.set())
         self.export.Bind(wx.EVT_BUTTON,self.export_report);close.Bind(wx.EVT_BUTTON,self.close);self.Bind(wx.EVT_CLOSE,self.close)
@@ -54,9 +56,88 @@ class BatchStudyDialog(wx.Dialog):
 
     def study(self):return parse_study(self.setup.GetValue().encode('utf-8'))
 
+    def choose_pads(self,net,title,selected=()):
+        pads=[t for t in self.inventory.get('terminals',[]) if t.get('net')==net]
+        if not pads:raise ValueError('No saved-board pads on '+net)
+        with wx.MultiChoiceDialog(self,title+'\nSelected pads form one ideal equipotential unit.',net,
+                                  [t['label'] for t in pads]) as dialog:
+            dialog.SetSelections([i for i,t in enumerate(pads) if t['id'] in selected or t['label'] in selected])
+            if dialog.ShowModal()!=wx.ID_OK:return None
+            choices=[pads[i]['id'] for i in dialog.GetSelections()]
+        if not choices:raise ValueError('Select at least one pad.')
+        return choices
+
+    def edit_units(self,event=None):
+        """Discoverable grouped-pad editor; raw JSON remains the exact saved contract."""
+        try:
+            study=self.study()
+            with wx.SingleChoiceDialog(self,'Select the rail case','Pad units',[c['name'] for c in study['cases']]) as dialog:
+                if dialog.ShowModal()!=wx.ID_OK:return
+                case=study['cases'][dialog.GetSelection()]
+            from .service import sink_requests
+            from .terminals import pad_names,source_names
+            electrical=case['electrical'];sinks=sink_requests(electrical)
+            labels=['Source unit']+['Load '+s.get('id',str(i+1)) for i,s in enumerate(sinks)]+['Add load unit']
+            with wx.SingleChoiceDialog(self,'Select a unit to edit. Load current is the total across its selected pads.','Pad units',labels) as dialog:
+                if dialog.ShowModal()!=wx.ID_OK:return
+                selection=dialog.GetSelection()
+            if selection==0:
+                chosen=self.choose_pads(electrical['net'],'Source pads',source_names(electrical))
+                if chosen is None:return
+                electrical.pop('source_terminal',None);electrical['source_terminals']=chosen
+            else:
+                index=selection-1;existing=sinks[index] if index<len(sinks) else {}
+                chosen=self.choose_pads(electrical['net'],'Load pads',pad_names(existing) if existing else ())
+                if chosen is None:return
+                with wx.TextEntryDialog(self,'Stable load ID (used in shared-return mappings)','Load unit',existing.get('id','load-'+str(index+1))) as dialog:
+                    if dialog.ShowModal()!=wx.ID_OK:return
+                    identity=dialog.GetValue().strip()
+                with wx.TextEntryDialog(self,'Total current in amperes; FEM determines the pad distribution','Load unit',str(existing.get('current_A',''))) as dialog:
+                    if dialog.ShowModal()!=wx.ID_OK:return
+                    demand=float(dialog.GetValue())
+                load={**existing,'id':identity,'terminals':chosen,'current_A':demand};load.pop('terminal',None)
+                if index<len(sinks):sinks[index]=load
+                else:sinks.append(load)
+                for key in ('sink_terminal','sink_current','sink_min_voltage','sink_max_voltage'):electrical.pop(key,None)
+                electrical['sinks']=sinks;sink_requests(electrical)
+            validate_study(study);self.setup.SetValue(json.dumps(study,indent=2,allow_nan=False))
+        except (ValueError,TypeError) as exc:wx.MessageBox(str(exc),'Pad units',wx.OK|wx.ICON_WARNING,self)
+
+    def add_shared_return(self,event=None):
+        try:
+            study=self.study()
+            with wx.MultiChoiceDialog(self,'Select rails whose complete load currents share one return mesh.','Shared DC return',
+                                      [c['name'] for c in study['cases']]) as dialog:
+                if dialog.ShowModal()!=wx.ID_OK:return
+                selected=[study['cases'][i] for i in dialog.GetSelections()]
+            if not selected:raise ValueError('Select at least one rail case.')
+            with wx.TextEntryDialog(self,'Unique name for the shared return group','Shared DC return','Common ground') as dialog:
+                if dialog.ShowModal()!=wx.ID_OK:return
+                name=dialog.GetValue().strip()
+            nets=self.inventory.get('nets',[])
+            with wx.SingleChoiceDialog(self,'Select the explicit return copper net','Shared DC return',nets) as dialog:
+                if dialog.ShowModal()!=wx.ID_OK:return
+                net=nets[dialog.GetSelection()]
+            source=self.choose_pads(net,'Source-ground pads (zero reference)')
+            if source is None:return
+            group={'name':name,'net':net,'source_terminals':source,'loads':[]}
+            from .service import sink_requests
+            for case in selected:
+                electrical=case['electrical'];sinks=sink_requests(electrical)
+                for i,sink in enumerate(sinks):
+                    sink.setdefault('id','load-'+str(i+1))
+                    pads=self.choose_pads(net,case['name']+' · '+sink['id']+' · load-ground pads')
+                    if pads is None:return
+                    group['loads'].append({'case':case['name'],'sink':sink['id'],'terminals':pads})
+                for key in ('sink_terminal','sink_current','sink_min_voltage','sink_max_voltage'):electrical.pop(key,None)
+                electrical['sinks']=sinks
+            study.setdefault('shared_returns',[]).append(group)
+            validate_study(study);self.setup.SetValue(json.dumps(study,indent=2,allow_nan=False))
+        except (ValueError,TypeError) as exc:wx.MessageBox(str(exc),'Shared DC return',wx.OK|wx.ICON_WARNING,self)
+
     def add_case(self,event=None):
         if self._busy:return
-        dialog=wx.Dialog(self,title='Add an independent rail case',size=(680,650),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        dialog=wx.Dialog(self,title='Add a rail case',size=(680,650),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         box=wx.BoxSizer(wx.VERTICAL);form=wx.ScrolledWindow(dialog);form.SetScrollRate(8,12)
         fields=wx.FlexGridSizer(cols=2,vgap=10,hgap=10);fields.AddGrowableCol(1)
         net=ReadableComboBox(form,choices=self.inventory.get('nets',[]),style=wx.CB_READONLY)
@@ -135,8 +216,8 @@ class BatchStudyDialog(wx.Dialog):
             if hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()!=self.sha:raise ValueError('Saved PCB changed; close the study and reload.')
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc));return
         self.changed();self._busy=True;self._cancel.clear();self.run.Disable();self.stop.Enable()
-        for control in (self.setup,self.add,self.load,self.save):control.Disable()
-        self.status.SetLabel('Running bounded independent cases. Cancel discards the batch.')
+        for control in (self.setup,self.add,self.units,self.returns,self.load,self.save):control.Disable()
+        self.status.SetLabel('Running rails and simultaneous shared-return groups. Cancel discards the batch.')
         request={'action':'batch','study':study,'board_path':self.board_path,'source_sha256':self.sha}
         def work():
             result=None;error=None
@@ -150,14 +231,16 @@ class BatchStudyDialog(wx.Dialog):
         if self._closed:return
         if self._closing:self.finish_close();return
         self.run.Enable();self.stop.Disable()
-        for control in (self.setup,self.add,self.load,self.save):control.Enable()
+        for control in (self.setup,self.add,self.units,self.returns,self.load,self.save):control.Enable()
         if self._cancel.is_set():error='Cancelled; no partial batch accepted.'
         if not error and (not isinstance(result,dict) or 'batch' not in result):error='Worker returned no batch evidence.'
         if error:self.status.SetLabel(error);return
         self.result=result;rows=result['batch']['cases']
         self.details.SetValue('\n\n'.join(row['name']+' · '+row['status']+('\n'+row['error'] if row.get('error') else '') for row in rows))
+        if result['batch'].get('shared_returns'):
+            self.details.AppendText('\n\nShared-return coupling\n'+json.dumps([{k:v for k,v in group.items() if k not in ('return_conduction','physical_return_potential_V')} for group in result['batch']['shared_returns']],indent=2))
         self.book.SetSelection(1);self.export.Enable()
-        self.status.SetLabel(result['batch']['status']+' · '+str(len(rows))+' independent cases; review failures, limits and assumptions.')
+        self.status.SetLabel(result['batch']['status']+' · '+str(len(rows))+' cases; review shared-return loads, failures and assumptions.')
 
     def export_report(self,event=None):
         if not self.result:return
@@ -166,7 +249,7 @@ class BatchStudyDialog(wx.Dialog):
             target=dialog.GetPath()
         try:
             from .report import write_batch_report
-            write_batch_report(target,self.result);self.status.SetLabel('Exported independent-case reports: '+target)
+            write_batch_report(target,self.result);self.status.SetLabel('Exported DC study reports: '+target)
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
 
     def close(self,event=None):

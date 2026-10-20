@@ -57,6 +57,9 @@ def build_volume_mesh(geometry, edge_mm=.25, plating_mm=.025, max_tetrahedra=250
     All layer polygons and barrels are boolean-unioned, so a barrel cannot
     become a disconnected lumped resistor in this path.
     """
+    from .barrel import drill_dimensions
+    if any(drill_dimensions(v)[0]!=drill_dimensions(v)[1] for v in geometry.get('vias',[])):
+        raise VolumeModelError('Noncircular plated slots are supported by the 2.5D axial model only; a qualified slot volume mesh is required for full 3D.')
     import numpy as np
     try:
         import gmsh

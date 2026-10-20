@@ -12,6 +12,29 @@ def _number(value,unit='',scale=1.):
     return 'Unknown' if value is None else f'{float(value)*scale:.6g} {unit}'.strip()
 
 
+def printable_modes(view,network,options=None):
+    """Bound automatic print work; every layer and 3D remain interactive.
+
+    Large saved boards otherwise triangulate thousands of drilled voids into
+    every printable 3D field plane. Extended snapshots are an explicit export
+    choice, independent of numerical mesh resolution and retained JSON data.
+    """
+    options={} if options is None else options
+    if not isinstance(options,dict) or set(options)-{'extended_snapshots'}:
+        raise ValueError('Unknown thermal report options.')
+    extended=options.get('extended_snapshots')
+    if extended is not None and not isinstance(extended,bool):
+        raise ValueError('extended_snapshots must be true or false.')
+    large=len(view.get('components',[]))>250 or len(view.get('drills',[]))>500
+    modes=['Top board model','Bottom board model'] if network else ['Top-side map','Bottom-side map']
+    modes.append('Component temperature comparison')
+    if extended is True or (extended is None and not large):
+        modes.extend(['3D overview','Top-side contour','Bottom-side contour'])
+        if network and network.get('layers'):
+            modes.extend('Layer model: '+row['name'] for row in network['layers'])
+    return modes
+
+
 def write_diagnostic_report(path,bundle):
     """Export mapped QuickTherm findings without remote assets."""
     thermal=bundle.get('quick_therm')
@@ -69,10 +92,9 @@ def write_diagnostic_report(path,bundle):
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_agg import FigureCanvasAgg
             from .thermal_plot import draw_thermal_view, draw_temperature_comparison
-            modes=(['Top board model', 'Bottom board model'] if network else ['Top-side map', 'Bottom-side map'])
-            modes.extend(['Component temperature comparison', '3D overview', 'Top-side contour', 'Bottom-side contour'])
-            if network and network.get('layers'):
-                modes.extend('Layer model: '+row['name'] for row in network['layers'])
+            modes=printable_modes(view,network,bundle.get('request',{}).get('report_options'))
+            if len(modes)==3:
+                html+='<p>Compact printable export: top, bottom and component temperatures. All computed layers, probes and the interactive 3D overview remain available above and in the complete JSON. Extended printable snapshots can be requested explicitly; this does not change the thermal solve.</p>'
             for mode in modes:
                 figure=Figure(figsize=(10,5),dpi=115);FigureCanvasAgg(figure)
                 if mode == 'Component temperature comparison':

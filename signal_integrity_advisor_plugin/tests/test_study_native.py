@@ -62,15 +62,21 @@ class NativeStudyUITests(unittest.TestCase):
             frame=wx.Frame(None,size=(1024,720));panel=QuickSIPanel(frame,board,RoutePreview,saved_board=True)
             layout=wx.BoxSizer(wx.VERTICAL);layout.Add(panel,1,wx.EXPAND);frame.SetSizer(layout)
             try:
-                panel.study_cases=config['cases'];frame.Show();panel.run_study()
+                panel.study_cases=config['cases']
+                panel.crosstalk_pairs=[{'id':'data-clock','aggressor':'data','victim':'clock','rise_ns':1.,'swing_v':1.,
+                                       'reference':{'model':'homogeneous-plane','layer':'B.Cu','height_mm':.2,'epsilon_r':4.}}]
+                frame.Show();panel.run_study()
                 deadline=time.monotonic()+30
                 while panel._busy and time.monotonic()<deadline:_app.Yield();time.sleep(.05)
                 self.assertFalse(panel._busy,panel.status.GetLabel());self.assertIsNotNone(panel.study_report,panel.status.GetLabel())
                 self.assertEqual(panel.study_choice.GetCount(),3);self.assertIsNotNone(panel.path)
+                self.assertTrue(panel.crosstalk_results.IsEnabled())
+                self.assertTrue(panel.study_report['crosstalk'][0]['sections'])
                 self.assertEqual(panel._review_return_nets(),['GND'])
                 panel.study_choice.SetSelection(2);panel._select_study_case()
                 self.assertIsNone(panel.path);self.assertIn('Case failed',panel.status.GetLabel());self.assertTrue(panel.export.IsEnabled())
                 panel.study_choice.SetSelection(1);panel._select_study_case()
                 self.assertEqual(panel.path.net_name,'CLOCK');self.assertEqual(panel._review_return_nets(),['GND'])
                 panel.changed(None);self.assertIsNone(panel.study_report);self.assertFalse(panel.export.IsEnabled())
+                self.assertFalse(panel.crosstalk_results.IsEnabled())
             finally:frame.Destroy();_app.Yield()

@@ -28,6 +28,8 @@ def main(argv=None):
     parser.add_argument("--ambient", type=float)
     parser.add_argument("--output", type=Path, help="JSON result")
     parser.add_argument("--html", type=Path, help="Self-contained HTML and companion JSON")
+    parser.add_argument('--extended-report-snapshots',action='store_true',
+                        help='Also render static 3D, contours and every computed layer; large boards may take substantially longer. Interactive views and full JSON are always retained.')
     parser.add_argument("--calculix-dir", type=Path,
                         help="New directory retaining Gmsh/CalculiX input and result evidence")
     parser.add_argument("--run-calculix", action="store_true",
@@ -117,6 +119,8 @@ def main(argv=None):
             }
         if args.html:
             request["html_output"] = str(args.html.resolve())
+        if args.extended_report_snapshots:
+            request['report_options']={'extended_snapshots':True}
         if args.calculix_dir:
             request["calculix_export_dir"] = str(args.calculix_dir.resolve())
         if args.run_calculix:

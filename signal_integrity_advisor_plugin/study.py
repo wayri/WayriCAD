@@ -10,7 +10,7 @@ CASE_KEYS={'id','net','start','end','reference','inputs'}
 
 def cases_from_config(config):
     """Read up to 64 explicit routes; preserve incomplete cases for per-case errors."""
-    if not isinstance(config,dict) or set(config)-{'schema','cases','description'}:
+    if not isinstance(config,dict) or set(config)-{'schema','cases','description','crosstalk'}:
         raise ValueError('Study JSON must contain cases and optional schema/description.')
     if config.get('schema','wayricad.quick-si-study-input/v1')!='wayricad.quick-si-study-input/v1':
         raise ValueError('Unsupported Quick SI study input schema.')
@@ -22,6 +22,8 @@ def cases_from_config(config):
         case=copy.deepcopy(case);identifier=case.get('id','case-'+str(index+1))
         if not isinstance(identifier,str) or not identifier.strip() or identifier in seen:raise ValueError('Case IDs must be nonempty and unique.')
         seen.add(identifier);case['id']=identifier;result.append(case)
+    from .crosstalk import checked_pairs
+    checked_pairs(config,result)
     return result
 
 
@@ -76,7 +78,18 @@ def run_study(board,config,*,guard=None,analyzer=None):
         output.append(row)
     incomplete=any(row['status'] not in ('SCREENED','REVIEW') or row.get('return_status') in ('INCOMPLETE','UNRESOLVED','UNKNOWN') for row in output)
     review=any(row['status']=='REVIEW' or row.get('return_status')=='REVIEW' for row in output)
-    return {'schema':'wayricad.quick-si-study/v1','status':'INCOMPLETE' if incomplete else 'REVIEW' if review else 'COMPLETE',
+    result={'schema':'wayricad.quick-si-study/v1','status':'INCOMPLETE' if incomplete else 'REVIEW' if review else 'COMPLETE',
             'model':'Independent source-to-receiver route screens; no inter-net coupling, crosstalk or full-bus qualification.',
             'cases':output,'summary':{'cases':len(output),'reported':sum('report' in row for row in output),
                                     'errors':sum(row['status']=='ERROR' for row in output)}}
+    if config.get('crosstalk'):
+        from .crosstalk import checked_pairs,screen_pair
+        result['crosstalk']=[]
+        for pair in checked_pairs(config,cases):
+            if guard:guard()
+            result['crosstalk'].append(screen_pair(board,pair,{row['id']:row for row in output}))
+            if guard:guard()
+        result['model']='Independent route screens plus local coupled-strip sections with saved homogeneous stripline or explicit single-plane geometry and matched local ports; no whole-circuit or full-bus qualification.'
+        if any(row['status']=='UNRESOLVED' for row in result['crosstalk']):result['status']='INCOMPLETE'
+        elif result['status']=='COMPLETE':result['status']='REVIEW'
+    return result

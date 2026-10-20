@@ -1,4 +1,4 @@
-"""Independent saved-board PI cases with explicit terminals and source bindings."""
+"""Saved-board PI rail cases and shared-return groups with explicit bindings."""
 from __future__ import annotations
 import copy
 import hashlib
@@ -8,20 +8,20 @@ from pathlib import Path
 
 SCHEMA = 'wayricad.pi-batch/v1'
 MAX_CASES = 32
-_ELECTRICAL = {'net','source_terminal','source_voltage','sinks','sink_terminal','sink_current',
+_ELECTRICAL = {'net','source_terminal','source_terminals','source_voltage','sinks','sink_terminal','sink_current',
     'source_current_limit','sink_min_voltage','sink_max_voltage','edge_mm','plating_mm',
-    'mesh_backend','model_dimension','max_tetrahedra','options','stackup_override',
+    'mesh_backend','max_cells','model_dimension','max_tetrahedra','options','stackup_override',
     'package_conduction','load_resistance_ohm'}
 _RETURN = {'return_nets','sample_pitch_mm','return_via_radius_mm','return_terminal_ids','return_terminal_roles'}
 
 
 def validate_study(study):
     """Validate case ownership and bounds; numerical errors stay per-case results."""
-    if not isinstance(study,dict) or set(study) != {'schema','cases'} or study['schema'] != SCHEMA:
-        raise ValueError('Batch study needs exactly schema=wayricad.pi-batch/v1 and cases.')
+    if not isinstance(study,dict) or set(study)-{'schema','cases','shared_returns'} or not {'schema','cases'}<=set(study) or study.get('schema') != SCHEMA:
+        raise ValueError('Batch study needs schema=wayricad.pi-batch/v1, cases and optional shared_returns.')
     cases=study['cases']
     if not isinstance(cases,list) or not 1<=len(cases)<=MAX_CASES:
-        raise ValueError('A batch needs 1 to 32 independent cases.')
+        raise ValueError('A batch needs 1 to 32 rail cases.')
     names=set()
     for case in cases:
         if not isinstance(case,dict) or set(case)-{'name','electrical','return_path','return_conduction','electrothermal'}:
@@ -33,10 +33,12 @@ def validate_study(study):
         electrical=case.get('electrical')
         if not isinstance(electrical,dict) or set(electrical)-_ELECTRICAL:
             raise ValueError('Case electrical settings contain unsupported fields or a case-owned board/action.')
-        if not all(key in electrical for key in ('net','source_terminal','source_voltage')):
-            raise ValueError('Every case needs explicit net, source_terminal and source_voltage.')
-        if not all(isinstance(electrical[key],str) and electrical[key].strip() for key in ('net','source_terminal')):
-            raise ValueError('Case net and source_terminal must be nonempty strings.')
+        if not all(key in electrical for key in ('net','source_voltage')):
+            raise ValueError('Every case needs explicit net, source pad unit and source_voltage.')
+        from .terminals import source_names
+        source_names(electrical)
+        if not isinstance(electrical['net'],str) or not electrical['net'].strip():
+            raise ValueError('Case net must be a nonempty string.')
         if 'sinks' not in electrical and not all(key in electrical for key in ('sink_terminal','sink_current')):
             raise ValueError('Every case needs explicit sinks/current_A or sink_terminal and sink_current.')
         if 'return_path' in case:
@@ -57,6 +59,8 @@ def validate_study(study):
                 raise ValueError('Coupling accepts explicit thermal_settings, coupling, thermal_result and branch_heat_mappings.')
             if not isinstance(thermal.get('thermal_settings'),dict) or not isinstance(thermal.get('coupling'),dict):
                 raise ValueError('Coupling needs explicit thermal_settings and coupling objects.')
+    from .shared_return import validate_groups
+    validate_groups(study)
     return study
 
 
@@ -86,7 +90,7 @@ def _sha(path):
 
 
 def execute(request, execute_case):
-    """Run independent cases; any source change invalidates the entire batch.
+    """Run rail cases and shared returns; source changes invalidate the batch.
 
     Return-path review is geometric evidence, not solved return-loop resistance.
     Temperature feedback is independent per case, never combined board heating.
@@ -162,10 +166,12 @@ def execute(request, execute_case):
         except Exception as exc:
             row.update(status='FAILED',error=str(exc),error_type=type(exc).__name__)
         current();cases.append(row)
+    from .shared_return import execute_groups
+    shared=execute_groups(study,cases,execute_case,str(path),before,current)
     current()
     batch={'schema':SCHEMA,'status':'COMPLETED' if all(row['status']=='COMPLETED' for row in cases) else 'INCOMPLETE',
-           'source_sha256':before,'cases':cases,
-           'assumptions':['Independent cases on one saved PCB; no inter-net crosstalk or shared-source interaction is solved.',
+           'source_sha256':before,'cases':cases,'shared_returns':shared,
+           'assumptions':['Explicit shared-return groups solve common copper once with all mapped rail currents. Other cases remain independent; no AC fields or shared-source regulation is solved.',
                'Ordinary DC always includes copper I²R losses. Optional thermal feedback uses only each case’s explicit materials and boundaries.',
                'Return-path geometry is reviewed separately; return-loop voltage drop is calculated only with explicit return_conduction. Loop inductance and AC impedance are not inferred.']}
     return {'batch':batch,'source_sha256':before,'request':copy.deepcopy(request)}
