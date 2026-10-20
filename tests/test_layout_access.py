@@ -53,6 +53,13 @@ class LayoutAccessTests(unittest.TestCase):
         finally:
             dialog.Destroy()
 
+    def test_table_reader_retains_supplementary_unicode_characters(self):
+        from wayricad_runtime.layout import full_item_text
+        table = self.table()
+        value = '\U0001f9ea'*600
+        table.SetItem(0, 1, value)
+        self.assertEqual(full_item_text(table, 0, 1), value)
+
     def test_collapsible_parent_scrolls_to_new_content(self):
         from wayricad_runtime.layout import relayout
         scroll = wx.ScrolledWindow(self.frame, style=wx.VSCROLL)

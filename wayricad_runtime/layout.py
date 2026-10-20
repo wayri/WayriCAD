@@ -36,7 +36,9 @@ def fit_to_display(frame):
 def full_item_text(control, row, column):
     """Avoid wxMSW's fixed 512-character ListCtrl retrieval buffer."""
     text = control.GetItemText(row, column)
-    if sys.platform != 'win32' or len(text) < 511:
+    # Windows limits UTF-16 units, so a clipped supplementary character
+    # can leave a lone surrogate even when Python's character count is short.
+    if sys.platform != 'win32' or len(text.encode('utf-16-le', errors='surrogatepass'))//2 < 511:
         return text
     import ctypes
     from ctypes import wintypes
