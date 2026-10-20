@@ -84,6 +84,8 @@ def write_volume_report(path,bundle):
     path=Path(path).with_suffix('.html');path.parent.mkdir(parents=True,exist_ok=True)
     path.with_suffix('.json').write_text(json.dumps(bundle,allow_nan=False),encoding='utf-8')
     html='<html lang="en"><meta charset="utf-8"><title>Quick PI 3D copper</title><style>body{font:15px system-ui;max-width:1100px;margin:30px auto}figure{margin:18px 0}</style><h1>Quick PI 3D copper</h1><p>Display samples only. Exact complete tetrahedron results are retained in the paired JSON. This is fixed-temperature DC conduction, not AC impedance or thermal transient analysis.</p>'
+    from .sankey import sankey_section
+    html+=sankey_section(bundle)
     for label,quantity in QUANTITIES.items():
         xyz,values,count=sampled_cells(bundle,quantity=quantity)
         rows=[[float(p[0]),float(p[1]),float(v),'Sampled cell',float(p[2])] for p,v in zip(xyz,values)]

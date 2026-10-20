@@ -50,6 +50,16 @@ These native Windows/KiCad 10.0.6 captures use the public thermal demo with four
 
 ### Interactive views and time evolution
 
+After a run, **Dissipation Sankey…** opens an offline, hoverable diagram in your
+browser. HTML reports from the UI and CLI always include the same diagram:
+individual components on the left flow into **Total known dissipation** on the
+right, in watts. Retained copper and package-contact I²R sources appear separately;
+component watts, imported Joule losses and heat-balance totals are not added twice.
+Known zero-power sources and unknown/excluded parts are listed explicitly.
+The total covers only known scoped sources at the saved steady/reference operating
+point; it is not heat-transfer routing, transient heat storage or proof that all
+board power has been captured. It does not change when playback selects a frame.
+
 Component labels appear only for the selected part or the part under the pointer in the main map, paired top/bottom workspace and 3D overview. Selection keeps one label visible; hovering another component shows one temporary label, which clears when the pointer leaves. Hovering does not reset the view or change component selection. Unknown junction temperatures stay unknown.
 
 Choose top, bottom or 3D board views. Drag to orbit a 3D view, Shift-drag to pan, and use the wheel or plot toolbar to zoom. Hover to inspect the local board temperature and component estimates; click to pin a probe. Select a component in the view or table to cross-highlight it. Changing the time frame updates the board field, component power, junction estimate and temperature-limit status together. Camera movements do not modify the PCB. Enable STEP models to add the real saved component geometry to the computed board field.

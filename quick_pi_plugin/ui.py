@@ -140,12 +140,13 @@ class QuickPIFrame(wx.Frame):
         controls.Add(self.summary,0,wx.EXPAND|wx.TOP,6)
         content=wx.BoxSizer(wx.VERTICAL);content.Add(controls,0,wx.EXPAND|wx.ALL,8);self.inputs.SetSizer(content)
         setup.Add(self.inputs,1,wx.EXPAND)
-        actions=wx.GridSizer(2,2,5,5)
+        actions=wx.GridSizer(0,2,5,5)
         self.preview=icon_button(self.setup_panel,'Preview',wx.ART_FIND,'Preview saved copper before solving')
         self.run=icon_button(self.setup_panel,'Run',wx.ART_GO_FORWARD,'Run the selected copper simulation')
         self.export=icon_button(self.setup_panel,'Export',wx.ART_FILE_SAVE,'Export the solved report')
         self.series_button=icon_button(self.setup_panel,'Series',wx.ART_LIST_VIEW,'Build a series path with explicit components')
-        for control in (self.preview,self.run,self.export,self.series_button):actions.Add(control,0,wx.EXPAND)
+        self.power_flow=icon_button(self.setup_panel,'Power flow',wx.ART_REPORT_VIEW,'Open the source-to-sink Sankey power budget')
+        for control in (self.preview,self.run,self.export,self.series_button,self.power_flow):actions.Add(control,0,wx.EXPAND)
         setup.Add(actions,0,wx.EXPAND|wx.ALL,8);self.setup_panel.SetSizer(setup)
 
         self.splitter=wx.SplitterWindow(self.workspace_splitter,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
@@ -187,6 +188,7 @@ class QuickPIFrame(wx.Frame):
         self.image_button.Bind(wx.EVT_BUTTON,self._save_view_image)
         self.preview.Bind(wx.EVT_BUTTON,self.preview_geometry);self.run.Bind(wx.EVT_BUTTON,self.on_run)
         self.more.Bind(wx.EVT_BUTTON,self.on_more);self.export.Bind(wx.EVT_BUTTON,self.on_export);self.help_button.Bind(wx.EVT_BUTTON,self.on_help)
+        self.power_flow.Bind(wx.EVT_BUTTON,self.on_power_flow)
         self.series_button.Bind(wx.EVT_BUTTON,self.on_series_editor);self.cancel.Bind(wx.EVT_BUTTON,self.on_cancel)
         self.Bind(wx.EVT_CLOSE,self.on_close);self.Bind(wx.EVT_ACTIVATE,self._activated)
         self.timer=wx.Timer(self);self.Bind(wx.EVT_TIMER,lambda event:self.gauge.Pulse() if self._busy else None,self.timer);self.timer.Start(120)
@@ -310,6 +312,7 @@ class QuickPIFrame(wx.Frame):
                         (not volume or (not self._series_request and self.load_mode.GetSelection()==0)))
         self.export.SetLabel('Export')
         self.export.Enable(not self._busy and bool(self.volume_bundle.get('result') if volume else self.bundle.get('result')) and self._saved_source_current)
+        self.power_flow.Enable(self.export.IsEnabled())
         self.cancel.Enable(self._busy);self.cancel.Show(not placement);self.gauge.Show(self._busy and not placement)
         self.more.SetLabel('Reload' if placement else 'More')
         self.more.SetToolTip('Reload the saved board' if placement else 'Transient PI, electrothermal, series studies and diagnostics')
@@ -326,7 +329,7 @@ class QuickPIFrame(wx.Frame):
         for control in (self.ambient,self.pulse,self.limit):control.Enable(not self._busy and not volume)
         self.max_tetrahedra.Enable(not self._busy and volume)
         if self.book.GetSelection()>=len(self.views):
-            for control in (self.net,self.source,self.sink,self.voltage,self.current,self.layer,self.metric,self.preview,self.run,self.export):control.Disable()
+            for control in (self.net,self.source,self.sink,self.voltage,self.current,self.layer,self.metric,self.preview,self.run,self.export,self.power_flow):control.Disable()
 
     def _build_inspector(self):
         self.inspector=wx.ScrolledWindow(self.splitter)
@@ -1472,6 +1475,17 @@ class QuickPIFrame(wx.Frame):
                 return
             self.edge.SetValue(f'{value:g}');self._analyze('solve')
         except Exception as exc:self.status.SetLabel(str(exc))
+
+    def on_power_flow(self,event=None):
+        if not self._snapshot_current():
+            self.status.SetLabel('Saved board changed. Reload and rerun before viewing power flow.');return
+        bundle=self.volume_bundle if self.model_dimension.GetSelection()==1 else self.bundle
+        if not bundle.get('result'):return
+        try:
+            from .sankey import open_sankey
+            open_sankey(bundle)
+            self.status.SetLabel('Opened offline source-to-sink power flow. Hover each ribbon for watts.')
+        except Exception as exc:self.status.SetLabel('Power flow: '+str(exc))
 
     def on_export(self,event=None):
         if self.model_dimension.GetSelection()==1:

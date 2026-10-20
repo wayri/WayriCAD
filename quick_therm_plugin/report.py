@@ -57,6 +57,8 @@ def write_diagnostic_report(path,bundle):
         else:
             html+='<p><strong>Input source:</strong> saved footprint fields '+escape(json.dumps(thermal.get('field_map',{}),sort_keys=True))+'</p>'
         html+='<p>Coverage: '+str(thermal['coverage']['solved'])+'/'+str(thermal['coverage']['scoped'])+' scoped components solved.</p>'
+        from .sankey import thermal_sankey_html
+        html += thermal_sankey_html(bundle)
         view=bundle.get('board_thermal_view',{});analytics=view.get('analytics',{})
         network=bundle.get('thermal_network')
         calculix=bool(network and network.get('model')=='CalculiX 3D steady conduction')

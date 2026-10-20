@@ -40,19 +40,30 @@ class BatchStudyDialog(wx.Dialog):
         self.status.Wrap(930);root.Add(self.status,0,wx.EXPAND|wx.ALL,10)
         actions=wx.BoxSizer(wx.HORIZONTAL)
         self.run=wx.Button(self,label='Run all cases');self.stop=wx.Button(self,label='Cancel');self.export=wx.Button(self,label='Export HTML / JSON…');close=wx.Button(self,wx.ID_CLOSE,'Close')
-        for control in (self.run,self.stop,self.export,close):actions.Add(control,0,wx.RIGHT,8)
+        self.power_flow=wx.Button(self,label='Power flow…')
+        self.power_flow.SetToolTip('Source-to-sink power budget; common return losses counted once')
+        for control in (self.run,self.stop,self.export,self.power_flow,close):actions.Add(control,0,wx.RIGHT,8)
         root.Add(actions,0,wx.ALIGN_RIGHT|wx.ALL,10);self.SetSizer(root)
         self.setup.Bind(wx.EVT_TEXT,self.changed);self.add.Bind(wx.EVT_BUTTON,self.add_case)
         self.units.Bind(wx.EVT_BUTTON,self.edit_units);self.returns.Bind(wx.EVT_BUTTON,self.add_shared_return)
         self.load.Bind(wx.EVT_BUTTON,self.load_study);self.save.Bind(wx.EVT_BUTTON,self.save_study)
         self.run.Bind(wx.EVT_BUTTON,self.run_cases);self.stop.Bind(wx.EVT_BUTTON,lambda e:self._cancel.set())
         self.export.Bind(wx.EVT_BUTTON,self.export_report);close.Bind(wx.EVT_BUTTON,self.close);self.Bind(wx.EVT_CLOSE,self.close)
+        self.power_flow.Bind(wx.EVT_BUTTON,self.show_power_flow)
         self.stop.Disable();self.export.Disable();fit_to_display(self);install_accessibility(self,Path(__file__).with_name('help.html'))
 
     def changed(self,event=None):
         self.result=None;self.export.Disable();self.details.Clear()
         self.status.SetLabel('Study changed. Rerun every case before exporting.')
         if event:event.Skip()
+
+    def show_power_flow(self,event=None):
+        if self._busy or not self.result:
+            self.status.SetLabel('Run the current study before viewing power flow.');return
+        try:
+            from .sankey import open_sankey
+            open_sankey(self.result)
+        except Exception as exc:self.status.SetLabel('Power flow: '+str(exc))
 
     def study(self):return parse_study(self.setup.GetValue().encode('utf-8'))
 

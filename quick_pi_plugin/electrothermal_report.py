@@ -110,6 +110,8 @@ def write_report(path, bundle):
     html = '<!doctype html><html lang="en"><meta charset="utf-8"><title>Electrothermal study</title><style>body{font:15px system-ui;max-width:1100px;margin:30px auto;padding:0 20px}img{width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>'
     html += '<h1>Quick PI · Electrothermal ' + escape(bundle['mode']) + '</h1><p>' + escape(note) + '</p>'
     html += '<p>Operating-point checks: ' + ('accepted' if valid_operating_point(bundle) else 'failed or violated') + '.</p>'
+    from .sankey import sankey_section
+    html += sankey_section(bundle)
     if bundle.get('board_binding') == 'provenance_only':
         html += '<p>The saved PCB supplies provenance only. Geometry and physical parameters are an explicit supplied model.</p>'
     html += '<p><a href="' + escape(json_path.name) + '">Raw results, model inputs and provenance (JSON)</a></p>'

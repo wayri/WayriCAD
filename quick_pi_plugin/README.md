@@ -2,6 +2,30 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+## Source-to-sink power flow
+
+After solving, choose **Power flow** to open an offline Sankey diagram. Sources
+appear on the left; delivered load power and modeled losses appear on the
+right. Hover or select a ribbon to inspect its watts. HTML exports include this
+diagram automatically, including CLI `--html`, 3D exports and multi-net studies.
+The multi-net dialog also has **Power flow…** for a lightweight preview.
+
+The diagram uses solved source voltage × total source current and each load
+unit's solved voltage × total current. A unit with several pads is counted
+once; individual pad sharing is not invented. Shared-return studies pool their
+sources, show delivered load power and count common return loss once. Explicit
+independent loops include both supply and return losses. Ordinary rail reports
+include their modeled supply-path losses only. These are accounting budgets,
+not geometric current streamlines or a prediction of where delivered load power
+becomes board heat. Large lists combine additional loads without dropping power.
+
+Missing, negative, non-finite or inconsistent power evidence produces a visible
+**Power flow unavailable** explanation instead of a misleading balanced plot.
+Infeasible requested-current diagnostics stay labelled as such. Return-only
+ground-reference plots direct you to the coupled study. Steady electrothermal
+reports show separate cold and hot DC budgets with acceptance status; transient storage is not
+represented by a DC Sankey.
+
 ## Multi-net cases, return copper and Joule feedback
 
 | Goal | In the window | Command line |

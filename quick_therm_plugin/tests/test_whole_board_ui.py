@@ -81,6 +81,7 @@ with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value=Path(sys
                 frame.therm_dielectric_k.ChangeValue('.42');frame.therm_plating.ChangeValue('.025')
                 frame.thermal_bundle={'quick_therm':{'model':'previous'}};frame._buttons()
                 assert frame.therm_export.IsEnabled(),'previous export state'
+                assert frame.therm_sankey.IsEnabled(),'previous Sankey state'
                 event=wx.CommandEvent(wx.EVT_BUTTON.typeId,frame.therm_whole_board.GetId())
                 frame.therm_whole_board.GetEventHandler().ProcessEvent(event)
                 assert frame.therm_model_enabled.GetValue() and not frame.therm_model.IsCollapsed(),'model setup visible'
@@ -88,6 +89,7 @@ with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value=Path(sys
                 assert frame.therm_dielectric_k.GetValue()=='.42' and frame.therm_plating.GetValue()=='.025','retained material inputs'
                 assert frame.manual_values['C1']['power_w']==.5 and frame.therm_refs.IsChecked(0),'retained power and scope'
                 assert not frame.therm_export.IsEnabled() and not frame.thermal_bundle,'stale export invalidated'
+                assert not frame.therm_sankey.IsEnabled(),'stale Sankey invalidated'
                 assert hasattr(frame,'therm_time_enabled') and hasattr(frame,'therm_probe_button')
                 frame.therm_model_kind.SetSelection(0);frame._therm_controls()
                 frame.therm_input_mode.SetSelection(0);frame._input_mode_changed(None)
@@ -103,6 +105,13 @@ with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value=Path(sys
                 assert field['value_location']=='finite_volume_cell'
                 assert field['values_c'][0][0]>25 and field['values_c'][-1][-1]>25
                 assert abs(network['heat_balance']['residual_w'])<1e-5
+                assert frame.therm_sankey.IsEnabled(),'current Sankey available'
+                with patch('tempfile.mkdtemp',return_value=str(target.parent)),patch('wx.LaunchDefaultBrowser') as opened:
+                    event=wx.CommandEvent(wx.EVT_BUTTON.typeId,frame.therm_sankey.GetId())
+                    frame.therm_sankey.GetEventHandler().ProcessEvent(event)
+                    assert opened.call_count==1,'Sankey button opens local result'
+                    assert opened.call_args[0][0]==(target.parent/'dissipation.html').as_uri()
+                    assert 'Total known dissipation: 0.5 W' in (target.parent/'dissipation.html').read_text(encoding='utf-8')
                 models=bundle.get('board_thermal_view',{}).get('component_models',{}).get('components')
                 expected_mode='3D overview' if models else 'Top board model'
                 assert frame.therm_mode.GetStringSelection()==expected_mode,(expected_mode,frame.therm_mode.GetStringSelection())
@@ -118,6 +127,7 @@ with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value=Path(sys
             elif state['phase']=='final_reload' and frame.inventory and not frame._busy:
                 assert frame.manual_values['C1']['power_w']==.5 and frame.therm_refs.IsChecked(0),'retained power and scope'
                 assert not frame.thermal_bundle and not frame.therm_export.IsEnabled()
+                assert not frame.therm_sankey.IsEnabled(),'reload invalidates Sankey'
                 assert target.read_bytes()==original
                 state['phase']='complete';wx.CallLater(100,close);return
             wx.CallLater(100,check)

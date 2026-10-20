@@ -7,6 +7,18 @@ The base component calculation is a lumped thermal screen. Optional board
 models add either a thin-sheet field or a layer-resolved stackup/copper field.
 Neither is CFD or a qualified measurement. The multilayer model also supports explicitly parameterized spatial transients.
 
+After running, click **Dissipation Sankey…** to open the offline source-power
+diagram. Every exported HTML report (UI or CLI) includes it automatically.
+Ribbons run left to right from individual parts and retained copper/contact I²R
+sources to total known dissipation in watts. Hover or focus a ribbon for its
+value, or click to pin a probe. Large studies group sources after the largest 30;
+the complete source table retains their individual watts. Known zero sources and
+unknown/excluded parts are listed separately. It is the saved steady/reference
+operating point, independent of playback time; it shows generated heat, not heat
+transfer paths, environmental outflow or transient heat storage. Unmapped parts
+make the total incomplete, not zero. Avoid duplicating imported Joule heat in
+component dissipation inputs.
+
 ![Native vacuum transient heating with time controls](examples/quicktherm-transient-workspace.png)
 
 *Standalone PCM on Windows/KiCad 10.0.6, using the public demo and an assumed 35 µm / 1.53 mm / 35 µm stackup. Illustrative copper/dielectric capacities are 3.45 / 1.8 MJ/(m³·K); emissivity is 0.8, initial/ambient temperature 20 °C and C2 switches off at 4 s. The displayed field is a computed thermal screen, not measured temperatures or an imported component-solid assembly.*

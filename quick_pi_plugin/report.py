@@ -699,6 +699,8 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
         html+='<p>Original reversed-current solver evidence: <a href="'+escape(auxiliary['json'],quote=True)+'">complete parent batch JSON</a>, JSON pointer <code>'+escape(auxiliary['json_pointer'])+'</code>.</p>'
     if result.get('feasibility'):
         html+='<h2>Source and load feasibility</h2><pre>'+escape(feasibility_text(result))+'</pre>'
+    from .sankey import sankey_section
+    html+=sankey_section(bundle)
     if bundle.get('terminal_units'):
         html+='<h2>Ideal equipotential pad units</h2><pre>'+escape(json.dumps(bundle['terminal_units'],indent=2,ensure_ascii=False))+'</pre>'
     if result.get('sinks'):
@@ -937,6 +939,8 @@ def write_batch_report(path,bundle):
             heading+='<p>'+escape(group.get('notice',group.get('error','')))+'</p>'
             shared_sections.append(heading)
     document=('<!doctype html><html lang="en"><meta charset="utf-8"><title>WayriCAD Quick PI DC study</title><h1>WayriCAD Quick PI · DC study comparison</h1><p><a href="'+escape(evidence.name)+'">Complete batch JSON evidence</a></p><h2>Case comparison</h2><table><thead><tr><th>Case</th><th>Status</th><th>Supply drop</th><th>Return drop</th><th>Loop drop</th><th>Minimum delivered voltage</th><th>Case loss (shared return separate)</th><th>Loop status</th><th>Individual reports</th><th>Error / next action</th></tr></thead><tbody>'+''.join(comparison)+'</tbody></table><h2>Shared-return coupling</h2>'+''.join(shared_sections)+'<h2>Case inputs and provenance</h2>'+''.join(details)+'<h2>Assumptions and boundaries</h2><ul>'+''.join('<li>'+escape(str(note))+'</li>' for note in batch.get('notes',batch.get('assumptions',[])))+'</ul></html>')
+    from .sankey import sankey_section
+    document=document.replace('<h2>Case comparison</h2>',sankey_section(bundle)+'<h2>Case comparison</h2>')
     document=enhance_report(document,status=batch.get('status','UNKNOWN'),summary=[('Cases',len(batch['cases'])),('Failed cases',sum(case.get('status')=='FAILED' for case in batch['cases'])),('Incomplete / review cases',sum(case.get('status') not in ('COMPLETED','FAILED') for case in batch['cases']))],notice='Explicit shared-return groups include common copper impedance at prescribed DC currents and fixed temperature. Other cases remain independent. Inter-net electromagnetic fields and cross-case thermal feedback are not solved.',provenance=provenance(bundle))
     # Escaping the sparse non-ASCII labels keeps large array archives in a
     # one-byte Python string. Avoid copying the entire archive to add a newline.
