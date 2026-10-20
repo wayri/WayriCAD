@@ -19,6 +19,8 @@ from .measurement_service import MeasurementSession
 from .inspection_state import measurement_text
 from .part_inspector import PartInspector
 from .extract import is_mounting
+from .review import filtered_findings, finding_details, review_summary
+from wayricad_runtime.layout import install_accessibility, relayout, fit_to_display
 
 INK, MUTED, BG, TEAL = '#243444', '#5c7180', '#f7fafc', '#267269'
 
@@ -137,7 +139,7 @@ class Window(wx.Frame):
         global INK, MUTED, BG, TEAL
         INK, MUTED, BG, TEAL = theme_palette(wx.SystemSettings.GetAppearance().IsDark())
         super().__init__(None, title='WayriCAD Mechanical Check — Board validation', size=(1160, 820))
-        self.SetMinSize((980, 680))
+        self.SetMinSize((760, 520))
         self.SetBackgroundColour(BG)
         icon=Path(__file__).resolve().parents[2]/'resources/icon-24.png'
         if icon.exists():self.SetIcon(wx.Icon(str(icon),wx.BITMAP_TYPE_PNG))
@@ -177,8 +179,10 @@ class Window(wx.Frame):
         vertical.Add(header,0,wx.EXPAND|wx.ALL,12)
         self.book=wx.Simplebook(content)
         self.pages=[]
-        for _ in range(5):
-            page=wx.Panel(self.book)
+        for index in range(5):
+            page=(wx.Panel(self.book) if index==3 else
+                  wx.ScrolledWindow(self.book,style=wx.VSCROLL|wx.HSCROLL))
+            if index!=3:page.SetScrollRate(8,12);page.SetMinSize((1,1))
             page.SetBackgroundColour(BG)
             self.book.AddPage(page,'')
             self.pages.append(page)
@@ -190,6 +194,8 @@ class Window(wx.Frame):
         vertical.Add(self.book,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
         footer=wx.BoxSizer(wx.HORIZONTAL)
         self.status=label(content,'Checks the saved file. Save PCB edits before running.',10,False,MUTED)
+        self.status.SetMinSize((1,-1))
+        self.status.SetWindowStyleFlag(self.status.GetWindowStyleFlag()|wx.ST_ELLIPSIZE_END)
         footer.Add(self.status,1,wx.ALIGN_CENTER_VERTICAL)
         self.back=button(content,'Back',lambda e:self.show_step(max(0,self.step-1)))
         self.next=button(content,'Continue',lambda e:self.show_step(min(4,self.step+1)))
@@ -206,17 +212,29 @@ class Window(wx.Frame):
             self.status.SetLabel('IPC snapshot captured at launch — reopen WayriCAD Mechanical Check after editing the PCB')
         self.show_step(0)
         self.Centre()
+        install_accessibility(self)
+        self.Bind(wx.EVT_CHAR_HOOK,self.review_shortcuts)
 
     def board_page(self):
         p=self.pages[0]; s=wx.BoxSizer(wx.VERTICAL)
         s.Add(label(p,'Choose the saved board to check.',12,True),0,wx.BOTTOM,12)
-        s.Add(label(p,'Inspect solid interference, fasteners, height allowances and assembly access.\nThe report records exactly what was checked and what needs more information.',11,False,MUTED),0,wx.BOTTOM,28)
+        s.Add(label(p,'Read-only review of the saved PCB. Missing geometry stays unchecked.',11,False,MUTED),0,wx.BOTTOM,14)
         s.Add(label(p,'BOARD FILE',9,True,MUTED),0,wx.BOTTOM,8)
         self.file=wx.FilePickerCtrl(p,path=self.board_path,message='Choose a KiCad board',wildcard='KiCad board (*.kicad_pcb)|*.kicad_pcb',style=wx.FLP_OPEN|wx.FLP_FILE_MUST_EXIST|wx.FLP_USE_TEXTCTRL)
         self.file.Enable(self.live_board is None)
         self.file.Bind(wx.EVT_FILEPICKER_CHANGED,lambda e:self.load_board())
         s.Add(self.file,0,wx.EXPAND|wx.BOTTOM,14)
-        s.Add(label(p,'COMPARISON BOARD — OPTIONAL',9,True,MUTED),0,wx.BOTTOM,5)
+        self.mode=wx.Choice(p,choices=['Quick 2D footprint screen (no FreeCAD)', 'Exact 3D solids (FreeCAD)'])
+        self.mode.SetSelection(0 if self.config['mode']=='quick2d' else 1)
+        self.mode.Bind(wx.EVT_CHOICE,self.mode_changed)
+        s.Add(self.mode,0,wx.EXPAND|wx.BOTTOM,6)
+        self.mode_description=label(p,'',10,False,MUTED)
+        s.Add(self.mode_description,0,wx.EXPAND|wx.BOTTOM,14)
+        self.mode_changed()
+        page=p;outer=s
+        self.comparison_options=wx.CollapsiblePane(page,label='Compare another board (exact 3D)',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        outer.Add(self.comparison_options,0,wx.EXPAND|wx.BOTTOM,12)
+        p=self.comparison_options.GetPane();s=wx.BoxSizer(wx.VERTICAL)
         self.comparison_file=wx.FilePickerCtrl(p,path=(self.config['comparison_board'] or {}).get('path',''),
             message='Choose another KiCad board',wildcard='KiCad board (*.kicad_pcb)|*.kicad_pcb',
             style=wx.FLP_OPEN|wx.FLP_FILE_MUST_EXIST|wx.FLP_USE_TEXTCTRL)
@@ -236,6 +254,8 @@ class Window(wx.Frame):
         placement.Add(self.comparison_rotation,1)
         s.Add(placement,0,wx.EXPAND|wx.BOTTOM,8)
         s.Add(label(p,'Position relative to the current board’s KiCad STEP export origin. Save both boards before checking.',10,False,MUTED),0,wx.BOTTOM,14)
+        p.SetSizer(s);self.comparison_options.Collapse(not bool(self.config['comparison_board']))
+        p=page;s=outer
         form=wx.FlexGridSizer(cols=2,hgap=18,vgap=14);form.AddGrowableCol(1)
         self.project=wx.TextCtrl(p,value=self.config['project_name'])
         self.revision=wx.TextCtrl(p,value=self.config['project_revision'])
@@ -245,15 +265,18 @@ class Window(wx.Frame):
         s.Add(form,0,wx.EXPAND|wx.BOTTOM,25)
         self.board_stats=label(p,'Choose a board to inspect its model inventory.',12,True)
         s.Add(self.board_stats,0,wx.BOTTOM,18)
-        runtime=discover()
-        self.mode=wx.Choice(p,choices=['Quick 2D footprint screen (no FreeCAD)', 'Exact 3D solids (FreeCAD)'])
-        self.mode.SetSelection(0 if self.config['mode']=='quick2d' else 1)
-        s.Add(self.mode,0,wx.EXPAND|wx.BOTTOM,12)
-        s.Add(label(p,'GEOMETRY ENGINE',9,True,MUTED),0,wx.BOTTOM,8)
-        s.Add(label(p,'KiCad STEP exporter + FreeCAD / Open CASCADE\n'+('Executables found — Run checks runtime compatibility' if all(runtime.values()) else 'Setup needed — open Help'),11,False,MUTED),0,wx.BOTTOM,15)
         s.AddStretchSpacer()
         s.Add(label(p,'Missing STEP models are reported as coverage gaps. They never count as a pass.',10,False,TEAL),0,wx.BOTTOM,20)
         p.SetSizer(s)
+
+    def mode_changed(self,event=None):
+        if self.mode.GetSelection()==0:
+            message='Fast footprint envelopes only. Heights, enclosure fit and exact collisions remain unchecked.'
+        elif discover()['freecad_python']:
+            message='STEP solid inspection. Save PCB changes before running; missing models remain coverage gaps.'
+        else:
+            message='Exact 3D needs FreeCAD Python. Open Help for setup, or choose Quick 2D for an envelope screen.'
+        self.mode_description.SetLabel(message)
 
     def rules_page(self):
         p=self.pages[1]; s=wx.BoxSizer(wx.VERTICAL)
@@ -268,6 +291,10 @@ class Window(wx.Frame):
             self.numbers[key]=control
         s.Add(fields,0,wx.EXPAND|wx.BOTTOM,8)
         s.Add(label(p,'Height is measured outward from each PCB face, including opposite-side protrusions.\nProximity warning: 0 = off. Quick 2D checks footprint gaps; heights require 3D models.',10,False,MUTED),0,wx.BOTTOM,14)
+        page=p;outer=s
+        self.hardware_options=wx.CollapsiblePane(page,label='Hardware, nozzle and section options',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        outer.Add(self.hardware_options,0,wx.EXPAND|wx.BOTTOM,12)
+        p=self.hardware_options.GetPane();s=wx.BoxSizer(wx.VERTICAL)
         fields=wx.FlexGridSizer(cols=4,vgap=10,hgap=14);fields.AddGrowableCol(1);fields.AddGrowableCol(3)
         for title,key in [('Horizontal allowance','xy_clearance_mm'),('Vertical allowance','z_clearance_mm'),('PnP tip radius','nozzle_radius_mm'),('Hardware clearance','screw_clearance_mm'),('PnP head radius','nozzle_head_radius_mm'),('PnP head setback','nozzle_head_setback_mm'),('Nozzle travel','nozzle_travel_mm')]:
             control=wx.SpinCtrlDouble(p,min=0,max=10000,inc=.1,initial=self.config[key]);control.SetDigits(3)
@@ -307,7 +334,9 @@ class Window(wx.Frame):
             self.mount_grid.SetLabelBackgroundColour('#28343d')
             self.mount_grid.SetLabelTextColour(INK)
             self.mount_grid.SetGridLineColour('#465865')
-        s.Add(self.mount_grid,1,wx.EXPAND|wx.BOTTOM,12)
+        self.mount_grid.SetMinSize((-1,220))
+        s.Add(self.mount_grid,0,wx.EXPAND|wx.BOTTOM,12)
+        p.SetSizer(s);p=page;s=outer
         actions=wx.BoxSizer(wx.HORIZONTAL)
         for title,fn in [('Load rules…',self.import_rules),('Save rules…',self.save_rules),('Zones / enclosure / advanced…',self.advanced)]:
             actions.Add(button(p,title,fn),0,wx.RIGHT,8)
@@ -332,109 +361,183 @@ class Window(wx.Frame):
 
     def review_page(self):
         p=self.pages[3];s=wx.BoxSizer(wx.VERTICAL)
-        toolbar=wx.BoxSizer(wx.HORIZONTAL)
+        toolbar=wx.WrapSizer(wx.HORIZONTAL,wx.REMOVE_LEADING_SPACES)
         self.geometry_mode=label(p,'No geometry loaded',10,True)
-        toolbar.Add(self.geometry_mode,1,wx.ALIGN_CENTER_VERTICAL)
+        s.Add(self.geometry_mode,0,wx.EXPAND|wx.BOTTOM,4)
         self.view_3d=button(p,'Load 3D models',self.show_3d)
-        self.view_3d.SetToolTip('Run exact STEP analysis using KiCad and FreeCAD, then orbit the solid assembly.')
-        toolbar.Add(self.view_3d,0,wx.RIGHT,5)
+        self.view_3d.SetToolTip('Load exact STEP solids using KiCad and FreeCAD. Quick 2D envelopes do not establish height or solid interference.')
+        toolbar.Add(self.view_3d,0,wx.RIGHT|wx.BOTTOM,5)
         for name,title in [('top','Top'),('bottom','Bottom'),('side','Side')]:
-            toolbar.Add(button(p,title,lambda e,n=name:self.view(n)),0,wx.RIGHT,5)
-        toolbar.Add(button(p,'Fit',lambda e:self.scene.fit()),0)
-        s.Add(toolbar,0,wx.EXPAND|wx.BOTTOM,6)
+            toolbar.Add(button(p,title,lambda e,n=name:self.view(n)),0,wx.RIGHT|wx.BOTTOM,5)
+        toolbar.Add(button(p,'Fit board',self.fit_board),0,wx.RIGHT|wx.BOTTOM,5)
+        self.focus_button=button(p,'Focus finding',self.focus_finding)
+        self.focus_button.SetToolTip('Center the selected conflict region or measured closest approach. Double-click a finding for the same action.')
+        toolbar.Add(self.focus_button,0,wx.RIGHT|wx.BOTTOM,5)
+        self.isolate_button=wx.ToggleButton(p,label='Isolate parts')
+        self.isolate_button.Bind(wx.EVT_TOGGLEBUTTON,self.toggle_isolation)
+        toolbar.Add(self.isolate_button,0,wx.RIGHT|wx.BOTTOM,5)
+        self.sidebar_button=wx.ToggleButton(p,label='Findings / tools');self.sidebar_button.SetValue(True)
+        self.sidebar_button.Bind(wx.EVT_TOGGLEBUTTON,self.toggle_review_sidebar)
+        toolbar.Add(self.sidebar_button,0,wx.BOTTOM,5)
+        s.Add(toolbar,0,wx.EXPAND)
         self.review_split=split=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
-        left=wx.Panel(split);left.SetBackgroundColour(BG);ls=wx.BoxSizer(wx.VERTICAL)
-        self.scene=Scene(left);ls.Add(self.scene,1,wx.EXPAND)
-        left.SetSizer(ls)
-        right=wx.Panel(split);right.SetBackgroundColour(BG);rs=wx.BoxSizer(wx.VERTICAL)
+        self.review_canvas=left=wx.Panel(split);left.SetBackgroundColour(BG);ls=wx.BoxSizer(wx.VERTICAL)
+        self.scene=Scene(left);ls.Add(self.scene,1,wx.EXPAND);left.SetSizer(ls)
+        self.review_sidebar=right=wx.Panel(split);right.SetBackgroundColour(BG);rs=wx.BoxSizer(wx.VERTICAL)
         self.summary=label(right,'Run validation to see findings.',10,True)
+        self.summary.SetMinSize((1,-1))
         rs.Add(self.summary,0,wx.EXPAND|wx.BOTTOM,6)
-        tools=wx.BoxSizer(wx.HORIZONTAL)
-        self.measure_mode=wx.Choice(right,choices=['Select / orbit','Minimum part gap','Point → point',
-                                                  'Edge → edge','Point → edge','Body center → center'])
+        self.review_tabs=tabs=wx.Notebook(right)
+        findings=wx.Panel(tabs);findings.SetBackgroundColour(BG);fs=wx.BoxSizer(wx.VERTICAL)
+        self.search=wx.SearchCtrl(findings,style=wx.TE_PROCESS_ENTER);self.search.SetDescriptiveText('Search parts, rules or findings')
+        self.search.ShowCancelButton(True);self.search.Bind(wx.EVT_TEXT,self.filter_findings)
+        self.search.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN,lambda e:self.search.SetValue(''))
+        fs.Add(self.search,0,wx.EXPAND|wx.BOTTOM,5)
+        filters=wx.BoxSizer(wx.HORIZONTAL)
+        self.severity=wx.Choice(findings,choices=['All','Errors','Warnings','Waived','Open']);self.severity.SetSelection(0)
+        self.sort_findings=wx.Choice(findings,choices=['Priority','Parts','Rule']);self.sort_findings.SetSelection(0)
+        self.severity.SetToolTip('Errors and Warnings show open findings. Waived findings remain available separately.')
+        self.sort_findings.SetToolTip('Sort findings by priority, affected references or rule.')
+        for control in (self.severity,self.sort_findings):
+            control.Bind(wx.EVT_CHOICE,self.filter_findings);filters.Add(control,1,wx.RIGHT,4)
+        fs.Add(filters,0,wx.EXPAND|wx.BOTTOM,5)
+        nav=wx.BoxSizer(wx.HORIZONTAL)
+        self.previous_finding=button(findings,'Previous',lambda e:self.move_finding(-1))
+        self.next_finding=button(findings,'Next',lambda e:self.move_finding(1))
+        nav.Add(self.previous_finding,0,wx.RIGHT,4);nav.Add(self.next_finding,0,wx.RIGHT,4)
+        self.finding_count=label(findings,'0 visible',9,False,MUTED);nav.Add(self.finding_count,1,wx.ALIGN_CENTER_VERTICAL)
+        fs.Add(nav,0,wx.EXPAND|wx.BOTTOM,5)
+        self.finding_split=wx.SplitterWindow(findings,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        self.list=wx.ListCtrl(self.finding_split,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        self.list.SetBackgroundColour(BG);self.list.SetForegroundColour(INK)
+        for i,(title,width) in enumerate([('Level',65),('Parts',90),('Finding',280)]):self.list.InsertColumn(i,title,width=width)
+        self.list.Bind(wx.EVT_LIST_ITEM_SELECTED,self.select_finding)
+        self.list.Bind(wx.EVT_LIST_ITEM_DESELECTED,self.deselect_finding)
+        self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED,self.focus_finding)
+        self.detail=wx.TextCtrl(self.finding_split,style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE)
+        self.finding_split.SetMinimumPaneSize(70);self.finding_split.SetSashGravity(.5)
+        self.finding_split.SplitHorizontally(self.list,self.detail,220)
+        fs.Add(self.finding_split,1,wx.EXPAND)
+        self.auto_focus=wx.CheckBox(findings,label='Frame parts when selecting a finding');self.auto_focus.SetValue(True)
+        fs.Add(self.auto_focus,0,wx.TOP|wx.BOTTOM,5)
+        actions=wx.WrapSizer(wx.HORIZONTAL)
+        self.finding_actions=[]
+        for title,action in [('Locate in KiCad',self.locate),('Waiver…',self.waive),('Coverage…',self.coverage)]:
+            control=button(findings,title,action);actions.Add(control,0,wx.RIGHT|wx.BOTTOM,4)
+            if title!='Coverage…':self.finding_actions.append(control)
+        fs.Add(actions,0,wx.EXPAND);findings.SetSizer(fs);tabs.AddPage(findings,'Findings')
+        measure=wx.ScrolledWindow(tabs);measure.SetBackgroundColour(BG);measure.SetScrollRate(8,12)
+        ms=wx.BoxSizer(wx.VERTICAL)
+        ms.Add(label(measure,'Choose a ruler, then pick geometry on the board.',10),0,wx.BOTTOM,8)
+        self.measure_mode=wx.Choice(measure,choices=['Select / orbit','Minimum part gap','Point → point',
+                                                   'Edge → edge','Point → edge','Body center → center'])
         self.measure_mode.SetSelection(0);self.measure_mode.Bind(wx.EVT_CHOICE,self.change_measure_mode)
-        tools.Add(self.measure_mode,1,wx.RIGHT,5)
-        tools.Add(button(right,'Clear',self.clear_rulers))
-        rs.Add(tools,0,wx.EXPAND|wx.BOTTOM,6)
-        self.part_panel=wx.Panel(right);pairs=wx.BoxSizer(wx.HORIZONTAL)
+        ms.Add(self.measure_mode,0,wx.EXPAND|wx.BOTTOM,8)
+        self.part_panel=wx.Panel(measure);pairs=wx.BoxSizer(wx.VERTICAL)
         self.part_a=wx.ComboBox(self.part_panel);self.part_b=wx.ComboBox(self.part_panel)
         self.part_a.SetHint('First part');self.part_b.SetHint('Second part')
-        pairs.Add(self.part_a,1,wx.RIGHT,4);pairs.Add(self.part_b,1,wx.RIGHT,4)
-        self.measure_button=button(self.part_panel,'Measure',self.measure_selected_parts)
-        pairs.Add(self.measure_button)
+        for control in (self.part_a,self.part_b):pairs.Add(control,0,wx.EXPAND|wx.BOTTOM,5)
+        self.measure_button=button(self.part_panel,'Measure selected geometry',self.measure_selected_parts);pairs.Add(self.measure_button,0,wx.EXPAND|wx.BOTTOM,5)
         self.edge_panel=wx.Panel(self.part_panel);edges=wx.BoxSizer(wx.HORIZONTAL)
         self.edge_a=wx.SpinCtrl(self.edge_panel,min=1,max=100000,initial=1,size=(70,-1))
         self.edge_b=wx.SpinCtrl(self.edge_panel,min=1,max=100000,initial=1,size=(70,-1))
         for title,control in [('Edge A',self.edge_a),('Edge B',self.edge_b)]:
-            edges.Add(label(self.edge_panel,title,9),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4)
-            edges.Add(control,1,wx.RIGHT,5)
-        self.edge_panel.SetSizer(edges)
-        pair_layout=wx.BoxSizer(wx.VERTICAL);pair_layout.Add(pairs,0,wx.EXPAND)
-        pair_layout.Add(self.edge_panel,0,wx.EXPAND|wx.TOP,5);self.edge_panel.Hide()
-        self.part_panel.SetSizer(pair_layout)
-        rs.Add(self.part_panel,0,wx.EXPAND|wx.BOTTOM,6);self.part_panel.Hide()
-        self.measure_readout=wx.TextCtrl(right,value='Hover a part for closest approach. Select a ruler tool to measure.',
-                                       style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE,size=(-1,100))
-        rs.Add(self.measure_readout,0,wx.EXPAND|wx.BOTTOM,6)
-        self.scene.on_measure=self.measure_pair
-        self.scene.on_pick=self.scene_picked
-        self.scene.on_hover=self.scene_hovered
-        self.scene.on_ruler=self.point_ruler
-        self.scene.on_features=self.measure_features
-        tabs=wx.Notebook(right)
-        findings=wx.Panel(tabs);findings.SetBackgroundColour(BG);fs=wx.BoxSizer(wx.VERTICAL)
-        row=wx.BoxSizer(wx.HORIZONTAL)
-        self.search=wx.SearchCtrl(findings,style=wx.TE_PROCESS_ENTER);self.search.SetDescriptiveText('Search findings')
-        self.search.Bind(wx.EVT_TEXT,self.filter_findings)
-        self.severity=wx.Choice(findings,choices=['All','Errors','Warnings','Waived']);self.severity.SetSelection(0);self.severity.Bind(wx.EVT_CHOICE,self.filter_findings)
-        row.Add(self.search,1,wx.RIGHT,5);row.Add(self.severity)
-        fs.Add(row,0,wx.EXPAND|wx.BOTTOM,6)
-        self.list=wx.ListCtrl(findings,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
-        self.list.SetBackgroundColour(BG);self.list.SetForegroundColour(INK)
-        for i,(title,width) in enumerate([('Level',65),('Parts',75),('Finding',280)]):self.list.InsertColumn(i,title,width=width)
-        self.list.Bind(wx.EVT_LIST_ITEM_SELECTED,self.select_finding)
-        fs.Add(self.list,1,wx.EXPAND)
-        self.detail=wx.TextCtrl(findings,style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_SIMPLE,size=(-1,130))
-        fs.Add(self.detail,0,wx.EXPAND|wx.TOP,6)
-        actions=wx.WrapSizer(wx.HORIZONTAL)
-        for title,action in [('Locate',self.locate),('Waiver…',self.waive),('Coverage…',self.coverage)]:
-            actions.Add(button(findings,title,action),0,wx.RIGHT|wx.TOP,4)
-        fs.Add(actions,0,wx.EXPAND|wx.TOP,4);findings.SetSizer(fs)
-        tabs.AddPage(findings,'Findings')
-        display=wx.ScrolledWindow(tabs);display.SetBackgroundColour(BG);display.SetScrollRate(0,12)
-        ds=wx.BoxSizer(wx.VERTICAL)
-        controls=wx.WrapSizer(wx.HORIZONTAL)
-        controls.Add(button(display,'Focus contact',lambda e:self.scene.focus_contact()),0,wx.RIGHT,5)
-        controls.Add(button(display,'Isometric',lambda e:self.view('iso')))
-        ds.Add(controls,0,wx.TOP|wx.BOTTOM,8)
+            edges.Add(label(self.edge_panel,title,9),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4);edges.Add(control,1,wx.RIGHT,5)
+        self.edge_panel.SetSizer(edges);pairs.Add(self.edge_panel,0,wx.EXPAND|wx.TOP,5);self.edge_panel.Hide()
+        self.part_panel.SetSizer(pairs);ms.Add(self.part_panel,0,wx.EXPAND|wx.BOTTOM,8);self.part_panel.Hide()
+        self.measure_readout=wx.TextCtrl(measure,value='Hover a part for its measured nearest-part gap.',style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,180))
+        ms.Add(self.measure_readout,1,wx.EXPAND|wx.BOTTOM,8);ms.Add(button(measure,'Clear rulers',self.clear_rulers),0,wx.BOTTOM,8)
+        measure.SetSizer(ms);tabs.AddPage(measure,'Measure')
+        self.scene.on_measure=self.measure_pair;self.scene.on_pick=self.scene_picked
+        self.scene.on_hover=self.scene_hovered;self.scene.on_ruler=self.point_ruler;self.scene.on_features=self.measure_features
+        display=wx.ScrolledWindow(tabs);display.SetBackgroundColour(BG);display.SetScrollRate(8,12);ds=wx.BoxSizer(wx.VERTICAL)
+        ds.Add(button(display,'Isometric',lambda e:self.view('iso')),0,wx.BOTTOM,8)
         ds.Add(button(display,'Save view…',self.save_view),0,wx.BOTTOM,10)
-        for title,key,initial in [('Violation / proximity markers','alert_markers',True),('Isolate selected parts','isolate',False),('Transparent PCB','ghost',False),('Cutaway PCB','section',False),('Grid','grid',False),('Selected / hovered references','labels',True)]:
+        for title,key,initial in [('Violation / proximity markers','alert_markers',True),('Transparent PCB','ghost',False),('Cutaway PCB','section',False),('Grid','grid',False),('Selected / hovered references','labels',True)]:
             control=wx.CheckBox(display,label=title);control.SetValue(initial)
             control.Bind(wx.EVT_CHECKBOX,lambda e,k=key:(setattr(self.scene,k,e.IsChecked()),self.scene.Refresh()))
             ds.Add(control,0,wx.BOTTOM,8)
         self.ortho=wx.CheckBox(display,label='Orthographic')
         self.ortho.Bind(wx.EVT_CHECKBOX,lambda e:(setattr(self.scene,'orthographic',e.IsChecked()),self.scene.Refresh(False)))
-        ds.Add(self.ortho,0,wx.BOTTOM,12)
-        ds.Add(label(display,'Section plane',10,True),0,wx.BOTTOM,6)
+        ds.Add(self.ortho,0,wx.BOTTOM,12);ds.Add(label(display,'Section plane',10,True),0,wx.BOTTOM,6)
         sections=wx.BoxSizer(wx.HORIZONTAL)
-        self.section_axis=wx.Choice(display,choices=['X','Y','Z','Custom'])
-        self.section_axis.SetSelection(1)
-        self.section_axis.Bind(wx.EVT_CHOICE,self.change_section_axis)
-        sections.Add(self.section_axis,0,wx.RIGHT,8)
-        self.section_offset=wx.SpinCtrlDouble(display,min=-100000,max=100000,inc=.1,initial=0)
-        self.section_offset.SetDigits(2)
+        self.section_axis=wx.Choice(display,choices=['X','Y','Z','Custom']);self.section_axis.SetSelection(1)
+        self.section_axis.Bind(wx.EVT_CHOICE,self.change_section_axis);sections.Add(self.section_axis,0,wx.RIGHT,8)
+        self.section_offset=wx.SpinCtrlDouble(display,min=-100000,max=100000,inc=.1,initial=0);self.section_offset.SetDigits(2)
         self.section_offset.Bind(wx.EVT_SPINCTRLDOUBLE,self.change_section_offset)
-        sections.Add(label(display,'mm',10),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
-        sections.Add(self.section_offset,1,wx.RIGHT,8)
-        ds.Add(sections,0,wx.EXPAND|wx.BOTTOM,8)
-        ds.Add(button(display,'2D section…',self.show_section_profile),0,wx.BOTTOM,12)
+        sections.Add(label(display,'mm',10),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5);sections.Add(self.section_offset,1,wx.RIGHT,8)
+        ds.Add(sections,0,wx.EXPAND|wx.BOTTOM,8);ds.Add(button(display,'2D section…',self.show_section_profile),0,wx.BOTTOM,12)
         self.scene_legend=label(display,'Rulers show through surfaces.\nCAD XYZ, millimetres.',9,False,MUTED)
-        ds.Add(self.scene_legend,0,wx.BOTTOM,8);display.SetSizer(ds)
-        tabs.AddPage(display,'Display');rs.Add(tabs,1,wx.EXPAND)
-        right.SetSizer(rs);split.SetMinimumPaneSize(300);split.SetSashGravity(1)
-        split.SplitVertically(left,right,800)
-        s.Add(split,1,wx.EXPAND)
-        p.SetSizer(s)
+        ds.Add(self.scene_legend,0,wx.BOTTOM,8);display.SetSizer(ds);tabs.AddPage(display,'Display')
+        rs.Add(tabs,1,wx.EXPAND);right.SetSizer(rs);split.SetMinimumPaneSize(240);split.SetSashGravity(1)
+        split.SplitVertically(left,right,800);s.Add(split,1,wx.EXPAND);p.SetSizer(s)
+        self._review_sidebar_width=300;self._updating_findings=False
+        wx.CallAfter(self.initial_review_layout)
+        self.update_finding_actions()
+
+    def initial_review_layout(self):
+        if not self or self.IsBeingDeleted():return
+        self.review_split.SetSashPosition(max(240,self.review_split.GetClientSize().width-300))
+        self.finding_split.SetSashPosition(max(70,self.finding_split.GetClientSize().height-180))
+
+    def toggle_review_sidebar(self,event=None):
+        split=self.review_split
+        if self.sidebar_button.GetValue():
+            if not split.IsSplit():
+                split.SplitVertically(self.review_canvas,self.review_sidebar)
+                split.SetSashPosition(max(240,split.GetClientSize().width-self._review_sidebar_width))
+        elif split.IsSplit():
+            self._review_sidebar_width=max(240,self.review_sidebar.GetSize().width)
+            split.Unsplit(self.review_sidebar)
+        self.pages[3].Layout()
+
+    def fit_board(self,event=None):
+        self.isolate_button.SetValue(False);self.scene.isolate=False;self.scene.fit()
+        finding=self.selected()
+        if finding:self.scene.issue=finding;self.scene.refs=set(finding['refs'])
+        self.scene.Refresh()
+
+    def toggle_isolation(self,event=None):
+        self.scene.isolate=self.isolate_button.GetValue() and self.selected() is not None
+        self.isolate_button.SetValue(self.scene.isolate);self.scene.Refresh()
+
+    def focus_finding(self,event=None):
+        finding=self.selected()
+        if finding:
+            self.scene.issue=finding;self.scene.refs=set(finding['refs']);self.scene.focus_contact()
+
+    def update_finding_actions(self):
+        present=self.selected() is not None
+        for control in [self.focus_button,self.isolate_button,*self.finding_actions]:control.Enable(present)
+        for control in (self.previous_finding,self.next_finding):control.Enable(len(self.filtered)>1)
+        if not present:self.isolate_button.SetValue(False);self.scene.isolate=False
+
+    def move_finding(self,delta):
+        if not self.filtered:return
+        index=self.list.GetFirstSelected();self.choose_finding((max(0,index)+delta)%len(self.filtered))
+
+    def choose_finding(self,index,frame=True):
+        if not 0<=index<len(self.filtered):return
+        self._updating_findings=True
+        try:
+            current=self.list.GetFirstSelected()
+            if current>=0:self.list.Select(current,False)
+            self.list.Select(index);self.list.Focus(index);self.list.EnsureVisible(index)
+        finally:self._updating_findings=False
+        self.show_finding(self.filtered[index],frame=frame)
+
+    def show_finding(self,finding,frame=True):
+        if frame and self.auto_focus.GetValue():self.scene.select(finding)
+        else:self.scene.issue=finding;self.scene.refs=set(finding['refs']);self.scene.Refresh()
+        self.detail.SetValue(finding_details(finding))
+        self.finding_count.SetLabel(f'{self.list.GetFirstSelected()+1} / {len(self.filtered)} visible')
+        self.update_finding_actions()
+
+    def review_shortcuts(self,event):
+        if event.GetKeyCode()==wx.WXK_F1:self.help(event);return
+        if self.step==3 and event.ControlDown() and event.GetKeyCode()==ord('F'):
+            self.sidebar_button.SetValue(True);self.toggle_review_sidebar();self.review_tabs.SetSelection(0);self.search.SetFocus();return
+        event.Skip()
 
     def report_page(self):
         p=self.pages[4];s=wx.BoxSizer(wx.VERTICAL)
@@ -453,10 +556,15 @@ class Window(wx.Frame):
         self.result=None
         self.export_button.Disable()
         self.list.DeleteAllItems()
+        self.filtered=[];self.finding_count.SetLabel('0 visible')
+        self.update_finding_actions()
         self.detail.Clear()
         self.report_info.Clear()
         self.summary.SetLabel('Run validation to see findings for this board.')
         self.scene.set_report({'bodies': []})
+        self.geometry_mode.SetLabel('No geometry loaded');self.view_3d.SetLabel('Load 3D models')
+        self.measure_mode.SetSelection(0);self.change_measure_mode(None)
+        self.fill_mounts([])
         self.part_a.Clear();self.part_b.Clear()
         if not path and not self.live_board:return
         try:
@@ -528,7 +636,7 @@ class Window(wx.Frame):
         self.heading.SetLabel(['Board and project','Clearance and hardware rules','Run mechanical checks','Review findings','Export local report'][n])
         self.back.Enable(n>0 and not self.running);self.next.Enable(n<4 and not self.running)
         self.export_button.Enable(self.result is not None)
-        self.Layout()
+        relayout(self.pages[n]);self.Layout()
 
     def start(self,event):
         if self.running:return
@@ -593,34 +701,51 @@ class Window(wx.Frame):
         refs=sorted({body['ref'] for body in r['bodies'] if body['kind'] not in ('hardware envelope','hole allowance')})
         self.part_a.SetItems(refs);self.part_b.SetItems(refs)
         self.part_a.AutoComplete(refs);self.part_b.AutoComplete(refs)
-        self.summary.SetLabel(f"{r['status'].replace('_',' ').upper()} · {len(r['findings'])} findings\n{len(r['coverage']['gaps'])} coverage gaps")
+        self.summary.SetLabel(review_summary(r))
+        self.summary.Wrap(max(220,self.review_sidebar.GetClientSize().width-10))
         self.status.SetLabel('Completed '+r['local_timestamp'][:19].replace('T',' '))
         self.report_info.SetValue(f"Project: {r['project_name']}\nRevision: {r['project_revision'] or 'Unspecified'}\nBoard: {r['board_name']}\nReviewer: {r['reviewer'] or 'Unspecified'}\n\nStarted (UTC): {r['started_at']}\nCompleted (UTC): {r['completed_at']}\nLocal time: {r['local_timestamp']}\nDuration: {r['duration_seconds']} s\n\nResult: {r['status']}\nBoard SHA-256: {r['board_sha256']}\n\nEvery finding includes rule, affected references, evidence, measurement, corrective action and waiver reason.")
         self.filter_findings();self.export_button.Enable()
 
     def filter_findings(self,event=None):
         if not self.result:return
-        self.list.DeleteAllItems();self.filtered=[]
-        query=self.search.GetValue().lower();severity=self.severity.GetSelection()
-        for f in self.result['findings']:
-            if query and query not in json.dumps(f).lower():continue
-            if severity==1 and f['severity']!='error' or severity==2 and f['severity']!='warning' or severity==3 and not f['waiver']:continue
-            self.filtered.append(f)
-            i=self.list.InsertItem(self.list.GetItemCount(),'Waived' if f['waiver'] else f['severity'].title())
-            self.list.SetItem(i,1,', '.join(f['refs']));self.list.SetItem(i,2,f['summary'])
-        if self.filtered:self.list.Select(0)
-        else:self.detail.SetValue('No findings match this filter. Review model coverage before accepting the run.')
+        previous=self.selected();identity=previous.get('id') if previous else None
+        self._updating_findings=True
+        try:
+            self.list.Freeze();self.list.DeleteAllItems()
+            self.filtered=filtered_findings(self.result['findings'],self.search.GetValue(),self.severity.GetStringSelection(),self.sort_findings.GetStringSelection())
+            for finding in self.filtered:
+                row=self.list.InsertItem(self.list.GetItemCount(),'Waived' if finding.get('waiver') else finding['severity'].title())
+                self.list.SetItem(row,1,', '.join(finding['refs']));self.list.SetItem(row,2,finding['summary'])
+        finally:self.list.Thaw();self._updating_findings=False
+        if self.filtered:
+            index=next((i for i,finding in enumerate(self.filtered) if finding.get('id')==identity),0)
+            self.choose_finding(index,frame=self.filtered[index].get('id')!=identity)
+        else:
+            self.detail.SetValue('No findings match this filter. Review model coverage before accepting the run.')
+            self.finding_count.SetLabel('0 visible');self.scene.issue=None;self.scene.refs=set();self.scene.Refresh()
+            self.update_finding_actions()
 
     def selected(self):
         index=self.list.GetFirstSelected()
         return self.filtered[index] if 0<=index<len(self.filtered) else None
 
     def select_finding(self,event):
-        f=self.filtered[event.GetIndex()];self.scene.select(f)
-        limit_title='Maximum' if f['rule'].startswith('height.') else 'Warning below' if f['rule'].endswith('proximity_warning') else 'Required'
-        measurement='' if f['measured'] is None else f"\nMeasured: {f['measured']:.6g} {f.get('unit','')}" + (f"   {limit_title}: {f['limit']} {f.get('unit','')}" if f['limit'] is not None else '')
-        if f.get('excess_mm') is not None:measurement+=f"\nOver limit: +{f['excess_mm']:.6g} mm ({f.get('side','')} side)"
-        self.detail.SetValue(f"{f['summary']}\n{f['rule']}  ·  Evidence: {f['evidence']}  ·  {', '.join(f['refs'])}{measurement}\n{f['action']}\n"+('Waiver: '+f['waiver'] if f['waiver'] else ''))
+        if not self._updating_findings and 0<=event.GetIndex()<len(self.filtered):
+            self.show_finding(self.filtered[event.GetIndex()])
+
+    def deselect_finding(self,event):
+        if not self._updating_findings:
+            # A row switch emits deselection before selection. Wait until both
+            # events finish so isolation survives navigation to another issue.
+            wx.CallAfter(self.clear_unselected_finding)
+
+    def clear_unselected_finding(self):
+        if not self or self._closing or self.IsBeingDeleted() or self.selected() is not None:return
+        self.detail.SetValue('Select a finding to inspect its evidence and suggested action.')
+        self.finding_count.SetLabel(f'{len(self.filtered)} visible')
+        self.scene.issue=None;self.scene.refs=set();self.scene.Refresh()
+        self.update_finding_actions()
 
     def change_section_axis(self,event):
         axis=self.section_axis.GetStringSelection()
@@ -660,7 +785,7 @@ class Window(wx.Frame):
         if self.running:return
         if self.result and self.result['rules'].get('mode')=='exact3d':
             self.view('iso');self.scene.fit();return
-        self.mode.SetSelection(1)
+        self.mode.SetSelection(1);self.mode_changed()
         if not discover()['freecad_python']:
             self.show_step(0)
             self.status.SetLabel('3D setup: FreeCAD Python was not found. Open Help for installation and path overrides.')
@@ -708,6 +833,9 @@ class Window(wx.Frame):
 
     def scene_picked(self,hit):
         if self.scene.inspection.mode=='select':
+            match=next((i for i,finding in enumerate(self.filtered) if hit['reference'] in finding['refs']),None)
+            if match is not None:
+                self.choose_finding(match,frame=False);self.review_tabs.SetSelection(0)
             index=hit.get('body_index')
             body=(self.scene.bodies[index] if index is not None else
                   next((b for b in self.scene.bodies if b['ref']==hit['reference']),None))
@@ -842,9 +970,9 @@ class Window(wx.Frame):
 
     def coverage(self,event):
         if self.result:
-            dlg=wx.Dialog(self,title='Model coverage and limits',size=(760,550))
+            dlg=wx.Dialog(self,title='Model coverage and limits',size=(760,550),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
             s=wx.BoxSizer(wx.VERTICAL);s.Add(wx.TextCtrl(dlg,value=json.dumps(self.result['coverage'],indent=2),style=wx.TE_MULTILINE|wx.TE_READONLY),1,wx.EXPAND|wx.ALL,15)
-            s.Add(dlg.CreateButtonSizer(wx.OK),0,wx.ALL|wx.ALIGN_RIGHT,15);dlg.SetSizer(s);dlg.ShowModal();dlg.Destroy()
+            s.Add(dlg.CreateButtonSizer(wx.OK),0,wx.ALL|wx.ALIGN_RIGHT,15);dlg.SetSizer(s);fit_to_display(dlg);dlg.ShowModal();dlg.Destroy()
 
     def import_rules(self,event):
         with wx.FileDialog(self,'Load project rules',wildcard='JSON (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dlg:
@@ -854,7 +982,8 @@ class Window(wx.Frame):
                 for key,control in self.numbers.items():control.SetValue(self.config[key])
                 for axis,value in zip('XYZ',self.config['section_normal']):self.section_normal_inputs[axis].SetValue(value)
                 self.project.SetValue(self.config['project_name']);self.revision.SetValue(self.config['project_revision']);self.reviewer.SetValue(self.config['reviewer']);self.dnp.SetValue(self.config['include_dnp'])
-                self.mode.SetSelection(0 if self.config['mode']=='quick2d' else 1)
+                self.mode.SetSelection(0 if self.config['mode']=='quick2d' else 1);self.mode_changed()
+                self.comparison_options.Collapse(not bool(self.config['comparison_board']))
                 comparison=self.config['comparison_board'] or {}
                 self.comparison_file.SetPath(comparison.get('path',''))
                 for index,axis in enumerate('XYZ'):
@@ -897,14 +1026,15 @@ class Window(wx.Frame):
     def help(self,event):
         dlg=wx.Dialog(self,title='WayriCAD Mechanical Check — Help',size=(1050,820),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         dlg.SetMinSize((540,480))
-        path=Path(__file__).resolve().parents[2]/'resources/help.html'
+        path=Path(__file__).resolve().parents[2]/'help.html'
+        if not path.exists():path=Path(__file__).resolve().parents[2]/'resources/help.html'
         if path.exists():
             from .help_viewer import HelpViewer
             viewer=HelpViewer(dlg,path)
         else:
             viewer=wx.html.HtmlWindow(dlg)
             viewer.SetPage('<h1>WayriCAD Mechanical Check help</h1><p>Reinstall the plugin ZIP to restore resources/help.html.</p>')
-        s=wx.BoxSizer(wx.VERTICAL);s.Add(viewer,1,wx.EXPAND);s.Add(dlg.CreateButtonSizer(wx.OK),0,wx.ALL|wx.ALIGN_RIGHT,12);dlg.SetSizer(s);dlg.ShowModal();dlg.Destroy()
+        s=wx.BoxSizer(wx.VERTICAL);s.Add(viewer,1,wx.EXPAND);s.Add(dlg.CreateButtonSizer(wx.OK),0,wx.ALL|wx.ALIGN_RIGHT,12);dlg.SetSizer(s);fit_to_display(dlg);dlg.ShowModal();dlg.Destroy()
 
     def close(self,event):
         if self.running:

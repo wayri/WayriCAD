@@ -204,12 +204,48 @@ def check(args):
             settle()
             assert (issue in scene.inspection.alerts.get(issue['refs'][0],[]))==(not bool(reason))
             assert scene.inspection.active is active
+    # Review navigation, filtering and pane controls must preserve camera and source evidence.
+    window.show_step(3);window.review_tabs.SetSelection(0)
+    window.search.SetValue('');window.severity.SetSelection(0);window.filter_findings();settle()
+    assert window.filtered
+    window.choose_finding(min(1,len(window.filtered)-1));chosen=window.selected()['id']
+    camera=(tuple(scene.center),scene.span,scene.zoom)
+    window.sort_findings.SetStringSelection('Parts');window.filter_findings();settle()
+    assert window.selected()['id']==chosen
+    assert (tuple(scene.center),scene.span,scene.zoom)==camera,'Sorting unexpectedly reframed the board'
+    window.auto_focus.SetValue(False);window.move_finding(1);settle()
+    assert (tuple(scene.center),scene.span,scene.zoom)==camera,'Manual camera was not preserved'
+    window.focus_finding();assert scene.issue is window.selected()
+    window.list.Select(window.list.GetFirstSelected(),False);settle()
+    assert window.selected() is None and scene.issue is None and not window.focus_button.IsEnabled()
+    window.choose_finding(0,frame=False)
+    window.isolate_button.SetValue(True);window.toggle_isolation();assert scene.isolate
+    window.search.SetValue('no-such-finding-unique');settle()
+    assert not window.filtered and scene.issue is None and not scene.refs and not scene.isolate
+    assert not window.focus_button.IsEnabled()
+    window.search.SetValue('');settle();assert window.selected() and window.focus_button.IsEnabled()
+    window.fit_board();assert not scene.isolate and scene.issue is window.selected()
+    window.SetSize((1024,720));settle();old_width=scene.GetClientSize().width
+    window.sidebar_button.SetValue(False);window.toggle_review_sidebar();settle()
+    assert not window.review_split.IsSplit() and scene.GetClientSize().width>old_width+200
+    window.sidebar_button.SetValue(True);window.toggle_review_sidebar();settle();assert window.review_split.IsSplit()
+    window.finding_split.SetSashPosition(120);settle();assert window.detail.GetClientSize().height>100
+    window.show_step(1);window.hardware_options.Collapse(False)
+    from wayricad_runtime.layout import relayout
+    relayout(window.hardware_options);settle()
+    page=window.pages[1];assert page.GetVirtualSize().height>page.GetClientSize().height
+    page.Scroll(0,100);assert page.GetViewStart()[1]>0
+    window.hardware_options.Collapse(True);relayout(window.hardware_options)
+    window.show_step(3);window.auto_focus.SetValue(True);window.SetSize((min(1200,screen.width-40),min(820,screen.height-40)));settle()
     assert hashlib.sha256(board.read_bytes()).hexdigest()==before
     evidence={'mode':args.mode,'canvas':[canvas.GetWidth(),canvas.GetHeight()],
               'window':[width,height],'labels':len(rectangles),'solid_bodies':len(result['bodies']),
-              'source_unchanged':True,'ray_picks':len(hits),'gl_error':0,'feature_tools':feature_kinds}
+              'review_controls':True,'source_unchanged':True,'ray_picks':len(hits),'gl_error':0,'feature_tools':feature_kinds}
     evidence.update(height_violations=len(height_issues),proximity_warnings=len(warning_issues))
     (output/f'{args.mode}-checks.json').write_text(json.dumps(evidence,indent=2),encoding='utf-8')
+    window.load_board();settle()
+    assert window.result is None and not window.filtered and not window.focus_button.IsEnabled()
+    assert window.geometry_mode.GetLabel()=='No geometry loaded'
     session.close();window._closing=True;window.reset_measurement_session();window.Hide();window.Destroy();app.Yield()
     print(json.dumps(evidence),flush=True)
 

@@ -351,6 +351,10 @@ Shipped UI rendered from a demonstration snapshot. Supporting panels open on dem
 
 The fixture deliberately includes height violations and incomplete coverage. [Capture and validation](docs/audits/MECHANICAL_INSPECTION.md).
 
+**Current source preview:** Mechanical Check has a hideable findings sidebar, clearer filters and detail cards, direct focus/isolation controls, and separate Measure/Display tabs. See the [review workflow](mechanical_check_plugin/README.md#review-findings-without-losing-the-board). These changes are not included in the published 3.6.20 installers.
+
+![Mechanical Check revised findings workspace](mechanical_check_plugin/help-review.png)
+
 ### [Trace Refiner](trace_refiner_plugin/README.md)
 
 Clean small trace jogs with selected-track, selected-net, net-filter, net-class and layer scopes. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available in release 3.6.20 as its own PCM package, with an icon, detailed offline Help and a CLI for preview, validation and export to a new project.

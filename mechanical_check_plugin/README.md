@@ -31,6 +31,29 @@ The compact Board → Rules → Run → Review → Report navigation retains cle
 
 On Rules, enter the PnP **tip radius**, **head radius**, **head setback** above the pickup plane, and **access travel** in millimetres. The side-view diagram updates as values change. The head radius must be at least the tip radius, and setback cannot exceed travel. Exact 3D runs screen same-side obstacles against each circular section and identify which one triggered a warning. The HTML report shows the configured profile and a schematic obstacle for a selected nozzle warning; use the 3D viewer for actual locations. This is an access envelope, not a machine-path or certified nozzle simulation.
 
+## Review findings without losing the board
+
+The current source includes a simpler review workspace. [Validation and screenshot provenance](../docs/audits/MECHANICAL_REVIEW_UI.md). These changes follow release 3.6.20; the published 3.6.20 installers retain the earlier interface.
+
+![Mechanical Check findings and 3D inspection](help-review.png)
+
+Actual KiCad/FreeCAD STEP-solid review of the public synthetic fixture. It deliberately has collisions, height violations and incomplete coverage; the picture is not a passed board audit.
+
+| Task | Control |
+|---|---|
+| Give the board more room | Toggle **Findings / tools** to hide the sidebar, or drag its divider. Drag the divider between the findings list and selected details too. |
+| Find an issue | Search for a reference, rule or description. Multiple search words must all match. Choose **Errors**, **Warnings**, **Waived** or **Open**, and sort by priority, parts or rule. |
+| Review issues in order | Use **Previous / Next**. The selected issue remains selected after sorting when it still matches. |
+| Inspect the contact | Double-click a finding or click **Focus finding**. **Isolate parts** hides unrelated components; **Fit board** restores the assembly context. |
+| Preserve a manual camera view | Turn off **Frame parts when selecting a finding**. Search/sort keeps the camera when the same finding remains selected. |
+| Cross-select from 3D | Click a part to select its first finding in the visible filtered list and show the part's dimension card. The camera stays where it is. |
+| Measure geometry | Open **Measure** for part gaps, surface points, CAD edges or body centers. **Display** contains cutaway, transparency, sections and PNG export. |
+| Use keyboard help | **Ctrl+F** opens findings search. **F1** opens the bundled guide. In supported tables, **Ctrl+Shift+Enter** reads complete row values. |
+
+Errors and Warnings show unwaived findings; Waived remains a separate review filter. Filtering to zero findings clears the old 3D highlight and disables issue actions. A clean filtered list does not establish a pass: coverage gaps and the overall report status remain visible.
+
+Board, Rules and Report pages scroll on smaller screens. **Compare another board** and **Hardware, nozzle and section options** keep optional setup out of the main flow. Expand hardware options to confirm mounting intent; hiding that section does not waive any check.
+
 ## Interboard collision workflow
 
 1. Save both KiCad boards. Open **Mechanical Check** from the current board and choose **Exact 3D solids**.
