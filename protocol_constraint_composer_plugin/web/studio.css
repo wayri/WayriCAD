@@ -21,3 +21,24 @@ dialog{border:1px solid var(--line);border-radius:12px;padding:0;width:min(840px
 @media(max-width:760px){.workbench.has-filters,.workbench.has-details,.workbench.has-filters.has-details{grid-template-columns:minmax(0,1fr)}.workbench .inspector .panel-body{display:block}}
 
 .toolbar .check{display:flex;align-items:center;gap:6px;white-space:nowrap;margin:0}.toolbar .check input{flex:none;width:auto;min-width:0}.toolbar .check{font-size:11px}
+
+/* Panels remain opt-in; opened content must remain scrollable and readable. */
+.sidebar{overflow-y:auto;min-height:0;overscroll-behavior:contain}
+.sidebar>.brand,.sidebar>.side-label,.sidebar>.side-bottom,.sidebar>nav{flex-shrink:0}
+.shell,.panel,.panel-body,.workbench>*,.two-col>*,.three-col>*,.form-grid>*,.param-grid>*{min-width:0}
+.topbar{height:auto;min-height:76px;flex-wrap:wrap}.top-actions{flex-wrap:wrap;max-width:100%}
+.panel-head,.table-foot,.page-head,.map-toolbar,.dialog-foot{flex-wrap:wrap}
+.table-wrap,.table-wrap.tall,.workbench:not(.has-details) .table-wrap{height:clamp(16rem,45vh,34rem);min-height:10rem;max-height:80vh;resize:vertical;overflow:auto;max-width:100%;overscroll-behavior:contain}
+.data-table td small{max-width:none;white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
+.scope-scroll,.routing-net-list,.code-block{min-height:5rem;resize:vertical;max-height:70vh;overflow:auto}
+.scope-scroll{height:10rem}.routing-net-list{height:13.75rem}.code-block{max-height:70vh}
+.map-wrap{min-height:15rem;max-height:85vh;resize:vertical}
+.routing-table-wrap{max-width:100%;overflow:auto}.routing-table select{max-width:none;min-width:8.5rem}
+.routing-tab{white-space:normal;overflow-wrap:anywhere;overflow:visible}
+.routing-preview-layer,.routing-preview-metrics span{flex-wrap:wrap}
+#dialog[open]{display:flex;flex-direction:column;overflow:hidden;resize:both;min-width:min(25rem,92vw);min-height:14rem;max-width:96vw;max-height:92vh}
+.dialog-head,.dialog-foot{flex:0 0 auto}.dialog-head{gap:12px}.dialog-head h2{min-width:0;overflow-wrap:anywhere}
+#dialog-form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:hidden}
+#dialog-body{flex:1 1 auto;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain}
+@media(max-width:1150px){.workbench.has-details,.workbench.has-filters.has-details{grid-template-columns:minmax(0,1fr)}.workbench.has-filters{grid-template-columns:145px minmax(0,1fr)}.workbench .inspector{grid-column:1/-1}.workbench.has-filters.has-details #workspace-filters{grid-column:1/-1}.workbench .inspector .panel-body{display:block}.three-col{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.workbench.has-filters{grid-template-columns:minmax(0,1fr)}.scope-nav{max-height:none;overflow:visible}.form-grid,.param-grid,.three-col{grid-template-columns:minmax(0,1fr)}.clause-values{flex-wrap:wrap}.clause-values label{min-width:min(12rem,100%)}.dialog-foot button{white-space:normal}}

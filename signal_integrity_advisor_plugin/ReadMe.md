@@ -393,3 +393,8 @@ IPC navigation runs separately from analysis and does not share native board
 objects with a worker thread. It uses only the connection that launched the
 plugin. Save/reopen after source changes or when selected UUIDs no longer match
 this view. Selecting or focusing items does not edit PCB geometry.
+
+
+## Resizing the workspace
+
+In Quick SI, drag the vertical divider to widen the input form, or the horizontal divider to enlarge the results table. Expanded assumptions, return-path and eye sections scroll inside the input pane. The Help button opens the packaged workflow and model limitations.

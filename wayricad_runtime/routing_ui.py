@@ -19,34 +19,49 @@ def _row(parent,sizer,label,control):
 
 
 def _base(frame,title):
-    panel=wx.Panel(frame);root=wx.BoxSizer(wx.VERTICAL);workspace=wx.BoxSizer(wx.HORIZONTAL)
-    left=wx.ScrolledWindow(panel,style=wx.VSCROLL);left.SetScrollRate(0,12);left.SetMinSize((280,-1))
+    panel=wx.Panel(frame);root=wx.BoxSizer(wx.VERTICAL)
+    workspace=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D);workspace.SetMinimumPaneSize(210);workspace.SetSashGravity(0)
+    frame.workspace_splitter=workspace
+    left=wx.ScrolledWindow(workspace,style=wx.VSCROLL);left.SetScrollRate(0,12);left.SetMinSize((210,1))
     settings=wx.BoxSizer(wx.VERTICAL)
     heading=wx.StaticText(left,label=title);heading.SetFont(heading.GetFont().Bold())
     settings.Add(heading,0,wx.BOTTOM,12)
-    right=wx.Panel(panel);preview=wx.BoxSizer(wx.VERTICAL)
-    bar=wx.BoxSizer(wx.HORIZONTAL);label=wx.StaticText(right,label='Board preview')
+    right=wx.Panel(workspace);preview=wx.BoxSizer(wx.VERTICAL)
+    results=wx.SplitterWindow(right,style=wx.SP_LIVE_UPDATE|wx.SP_3D);results.SetMinimumPaneSize(80);results.SetSashGravity(.7)
+    frame.results_splitter=results
+    drawing=wx.Panel(results);drawing_sizer=wx.BoxSizer(wx.VERTICAL)
+    bar=wx.BoxSizer(wx.HORIZONTAL);label=wx.StaticText(drawing,label='Board preview')
     label.SetFont(label.GetFont().Bold());bar.Add(label,1,wx.ALIGN_CENTER_VERTICAL)
-    grid=wx.CheckBox(right,label='Grid');bar.Add(grid,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
-    fit=wx.Button(right,label='Fit',size=(58,-1));bar.Add(fit,0)
-    preview.Add(bar,0,wx.EXPAND|wx.BOTTOM,8)
-    frame.geometry_preview=GeometryPreview(right,'Choose pads or a net, then click Preview.')
+    grid=wx.CheckBox(drawing,label='Grid');bar.Add(grid,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
+    fit=wx.Button(drawing,label='Fit',size=(58,-1));bar.Add(fit,0)
+    drawing_sizer.Add(bar,0,wx.EXPAND|wx.BOTTOM,8)
+    frame.geometry_preview=GeometryPreview(drawing,'Choose pads or a net, then click Preview.')
+    frame.geometry_preview.SetMinSize((160,100))
     frame.geometry_preview.set_board(frame.board,frame._routing_api)
     grid.Bind(wx.EVT_CHECKBOX,lambda event:(setattr(frame.geometry_preview,'show_grid',grid.GetValue()),frame.geometry_preview.Refresh()))
     fit.Bind(wx.EVT_BUTTON,frame.geometry_preview.fit)
-    preview.Add(frame.geometry_preview,1,wx.EXPAND)
-    details=wx.CollapsiblePane(right,label='Candidate details and rejected items')
+    drawing_sizer.Add(frame.geometry_preview,1,wx.EXPAND);drawing.SetSizer(drawing_sizer)
+    details=wx.Panel(results)
     detail_sizer=wx.BoxSizer(wx.VERTICAL)
-    frame.preview_list=wx.ListCtrl(details.GetPane(),style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
-    frame.preview_list.SetMinSize((-1,150));detail_sizer.Add(frame.preview_list,1,wx.EXPAND)
-    details.GetPane().SetSizer(detail_sizer);details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:frame.Layout())
+    frame.preview_list=wx.ListCtrl(details,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+    frame.preview_list.SetMinSize((1,80));detail_sizer.Add(frame.preview_list,1,wx.EXPAND)
+    details.SetSizer(detail_sizer)
     frame.preview_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED,frame.on_preview_row_activated)
-    preview.Add(details,0,wx.EXPAND|wx.TOP,8)
-    right.SetSizer(preview);workspace.Add(left,0,wx.EXPAND|wx.RIGHT,18);workspace.Add(right,1,wx.EXPAND)
+    results.Initialize(drawing);details.Hide()
+    preview.Add(results,1,wx.EXPAND)
+    toggle=wx.ToggleButton(right,label='Candidate details and rejected items');frame.details_toggle=toggle
+    def show_details(event):
+        if toggle.GetValue():
+            details.Show();results.SplitHorizontally(drawing,details,max(100,round(results.GetClientSize().height*.65)))
+        elif results.IsSplit():results.Unsplit(details);details.Hide()
+        right.Layout()
+    toggle.Bind(wx.EVT_TOGGLEBUTTON,show_details);preview.Add(toggle,0,wx.EXPAND|wx.TOP,8)
+    right.SetSizer(preview);workspace.SplitVertically(left,right,320)
     root.Add(workspace,1,wx.EXPAND|wx.ALL,16)
     frame.status=wx.StaticText(panel,label='Preview changes before applying them to the board.')
     root.Add(frame.status,0,wx.EXPAND|wx.LEFT|wx.RIGHT,16)
     left.SetSizer(settings);panel.SetSizer(root)
+    frame.SetMinSize((680,480))
     return panel,root,left,settings
 
 
@@ -72,6 +87,7 @@ def _footer(frame,panel,root,help_callback):
     frame.Bind(wx.EVT_MENU,lambda event:help_callback(),id=help_item.GetId())
     more=wx.Button(panel,label='More',size=(64,-1));more.Bind(wx.EVT_BUTTON,lambda event:more.PopupMenu(menu))
     row.Add(more,0,wx.LEFT,8)
+    help_button=wx.Button(panel,label='Help');help_button.Bind(wx.EVT_BUTTON,lambda event:help_callback());row.Add(help_button,0,wx.LEFT,8)
     if hasattr(frame, 'export_connector_review'):
         export=wx.Button(panel,label='Export local-rule review…');frame.export_button=export;export.Disable()
         export.Bind(wx.EVT_BUTTON,frame.export_connector_review)
@@ -81,6 +97,12 @@ def _footer(frame,panel,root,help_callback):
     frame.commit_button=wx.Button(panel,label='Apply to board',size=(128,-1));frame.commit_button.Disable()
     frame.commit_button.Bind(wx.EVT_BUTTON,frame.generate);frame.commit_button.SetDefault();row.Add(frame.commit_button,0)
     root.Add(row,0,wx.EXPAND|wx.ALL,16)
+    from .layout import install_accessibility
+    install_accessibility(frame)
+    def help_key(event):
+        if event.GetKeyCode()==wx.WXK_F1:help_callback()
+        else:event.Skip()
+    frame.Bind(wx.EVT_CHAR_HOOK,help_key)
 
 
 def build_fanout(frame,api,help_callback):

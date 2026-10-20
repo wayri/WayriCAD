@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import secrets
+import re
 from socketserver import TCPServer
 import shutil
 import subprocess
@@ -161,6 +162,26 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/favicon.ico':
                 self.respond((ROOT/'resources'/'icon.ico').read_bytes(),content_type='image/x-icon')
                 return
+            if path in ('/help.html', '/help.css'):
+                document=(ROOT/'help.html').read_text(encoding='utf-8')
+                if path=='/help.css':
+                    styles='\n'.join(re.findall(r'<style[^>]*>(.*?)</style>',document,re.S|re.I))
+                    self.respond(styles.encode('utf-8'),content_type='text/css; charset=utf-8')
+                else:
+                    # Keep the existing strict style-src 'self' policy. Offline
+                    # help's bundled styles are served through a local CSS route.
+                    document=re.sub(r'<style[^>]*>.*?</style>','',document,flags=re.S|re.I)
+                    document=document.replace('</head>','<link rel="stylesheet" href="/help.css"></head>')
+                    self.respond(document.encode('utf-8'),content_type='text/html; charset=utf-8')
+                return
+            help_images={('/'+file.name):file for file in ROOT.glob('help*.png')}
+            if path in help_images:
+                self.respond(help_images[path].read_bytes(),content_type='image/png');return
+            if path in ('/ReadMe.md','/README.md'):
+                guide=next(file for file in ROOT.iterdir() if file.name.lower()=='readme.md')
+                self.respond(guide.read_bytes(),content_type='text/plain; charset=utf-8');return
+            if path=='/SHARED_PARTS.md':
+                self.respond((ROOT/'SHARED_PARTS.md').read_bytes(),content_type='text/plain; charset=utf-8');return
             files={'/':'index.html','/app.js':'app.js','/workbench.js':'workbench.js','/intelligence.js':'intelligence.js','/automation.js':'automation.js','/engineering.js':'engineering.js','/assets.js':'assets.js','/analytics.js':'analytics.js','/style.css':'style.css','/studio8.js':'studio8.js','/library8.js':'library8.js','/nativefirst.js':'nativefirst.js','/vendors.js':'vendors.js','/assemblers.js':'assemblers.js','/workspace.js':'workspace.js','/sharedparts.js':'sharedparts.js'}
             if path not in files:self.respond({'error':'Not found.'},404);return
             file=ROOT/'web'/files[path]

@@ -103,6 +103,16 @@ class QuickThermFrame(wx.Frame):
         self.Centre()
         self.Maximize(True)
         wx.CallAfter(self._inspect)
+        from wayricad_runtime.layout import install_accessibility
+        install_accessibility(self,Path(__file__).with_name('help.html'))
+
+    def _toggle_thermal_pane(self, splitter, first, second, visible, position, hide_second=False):
+        """Keep the board expanded when either sidebar is hidden."""
+        if visible and not splitter.IsSplit():
+            first.Show();second.Show();splitter.SplitVertically(first,second,position)
+        elif not visible and splitter.IsSplit():
+            splitter.Unsplit(second if hide_second else first)
+        self.therm_board_page.Layout()
 
     def _buttons(self):
         self.reload.Enable(not self._busy)
@@ -280,8 +290,14 @@ class QuickThermFrame(wx.Frame):
         board_page=wx.Panel(self.book)
         self.therm_board_page=board_page
         workspace=wx.BoxSizer(wx.HORIZONTAL)
-        page=wx.ScrolledWindow(board_page,style=wx.VSCROLL);page.SetScrollRate(0,10);layout=wx.BoxSizer(wx.VERTICAL)
-        page.SetMinSize((self.FromDIP(340), -1))
+        self.therm_setup_splitter=wx.SplitterWindow(board_page,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        self.therm_setup_splitter.SetMinimumPaneSize(self.FromDIP(300))
+        self.therm_setup_splitter.SetSashGravity(0.)
+        self.therm_result_splitter=wx.SplitterWindow(self.therm_setup_splitter,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        self.therm_result_splitter.SetMinimumPaneSize(self.FromDIP(240))
+        self.therm_result_splitter.SetSashGravity(1.)
+        page=wx.ScrolledWindow(self.therm_setup_splitter,style=wx.VSCROLL);page.SetScrollRate(0,10);layout=wx.BoxSizer(wx.VERTICAL)
+        page.SetMinSize((self.FromDIP(300), -1))
         self._therm_input_page=page
         note=wx.StaticText(page,label='Review component inputs, choose the heat model, then run.')
         note.Wrap(270);layout.Add(note,0,wx.EXPAND|wx.ALL,8)
@@ -511,12 +527,12 @@ class QuickThermFrame(wx.Frame):
                     child.SetMinSize((90,-1))
                 compact(child)
         compact(page);page.Layout();page.FitInside()
-        workspace.Add(page,0,wx.EXPAND|wx.RIGHT,6)
 
-        visual_host=wx.Panel(board_page)
+
+        visual_host=wx.Panel(self.therm_result_splitter)
         visual=wx.BoxSizer(wx.VERTICAL);switch=wx.WrapSizer(wx.HORIZONTAL)
         settings=wx.ToggleButton(visual_host,label='☰  Setup');settings.SetValue(True)
-        settings.Bind(wx.EVT_TOGGLEBUTTON,lambda e:(page.Show(settings.GetValue()),board_page.Layout()))
+        settings.Bind(wx.EVT_TOGGLEBUTTON,lambda e:self._toggle_thermal_pane(self.therm_setup_splitter,page,self.therm_result_splitter,settings.GetValue(),self.FromDIP(340)))
         switch.Add(settings,0,wx.RIGHT,5)
         for label,mode in [('Top','Top-side map'),('Bottom','Bottom-side map'),('3D','3D overview')]:
             button=wx.Button(visual_host,label=label,size=(55,-1))
@@ -562,11 +578,11 @@ class QuickThermFrame(wx.Frame):
         visual.Add(self.therm_canvas,1,wx.EXPAND)
         self.therm_cursor=wx.StaticText(visual_host,label='Hover to inspect · drag to pan · wheel to zoom · 3D: drag to orbit')
         visual.Add(self.therm_cursor,0,wx.EXPAND|wx.TOP,4)
-        visual_host.SetSizer(visual);workspace.Add(visual_host,1,wx.EXPAND)
+        visual_host.SetSizer(visual)
 
-        inspector=wx.Notebook(board_page);inspector.SetMinSize((300,-1))
+        inspector=wx.Notebook(self.therm_result_splitter);inspector.SetMinSize((240,-1))
         self.therm_inspector=inspector
-        inspect.Bind(wx.EVT_TOGGLEBUTTON,lambda e:(inspector.Show(inspect.GetValue()),board_page.Layout()))
+        inspect.Bind(wx.EVT_TOGGLEBUTTON,lambda e:self._toggle_thermal_pane(self.therm_result_splitter,visual_host,inspector,inspect.GetValue(),-self.FromDIP(340),hide_second=True))
         details=wx.ScrolledWindow(inspector);details.SetScrollRate(0,10);detail_layout=wx.BoxSizer(wx.VERTICAL)
         self.therm_view_note=wx.StaticText(details,label='Junction estimates and interpolated fields are distinct from physical board fields.');self.therm_view_note.Wrap(270)
         detail_layout.Add(self.therm_view_note,0,wx.EXPAND|wx.ALL,8)
@@ -595,7 +611,9 @@ class QuickThermFrame(wx.Frame):
         self.therm_probe_table=wx.ListCtrl(probes,style=wx.LC_REPORT)
         for i,(name,width) in enumerate([('Probe',65),('Side',60),('X mm',75),('Y mm',75),('Temperature °C',120),('Source',180),('Status',90)]):self.therm_probe_table.InsertColumn(i,name,width=width)
         probe_layout.Add(self.therm_probe_table,1,wx.EXPAND);probes.SetSizer(probe_layout);inspector.AddPage(probes,'Probes')
-        workspace.Add(inspector,0,wx.EXPAND|wx.LEFT,6)
+        self.therm_result_splitter.SplitVertically(visual_host,inspector,-self.FromDIP(340))
+        self.therm_setup_splitter.SplitVertically(page,self.therm_result_splitter,self.FromDIP(340))
+        workspace.Add(self.therm_setup_splitter,1,wx.EXPAND)
         board_page.SetSizer(workspace);self.book.AddPage(board_page,'Board + results')
 
         inputs_page=wx.Panel(self.book);inputs_layout=wx.BoxSizer(wx.VERTICAL)

@@ -66,3 +66,10 @@ window discards its local history; normal editor Undo is not claimed.
 
 [KiCad 10 PCB Editor manual](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html)
 describes native copper text, groups and rule-area zone exclusions.
+
+
+## Resize the workspace and find help
+
+Drag the divider between the scrolling counter settings and the layer preview. Widen the settings area to inspect styles, copper layers and core-pair text before adding a counter.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

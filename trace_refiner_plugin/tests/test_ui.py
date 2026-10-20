@@ -23,6 +23,15 @@ class UITests(unittest.TestCase):
         self.warning=patch.object(wx,'MessageBox');self.messages=self.warning.start()
     def tearDown(self):
         self.warning.stop();self.frame.Destroy();wx.Yield();self.fixture.tearDown()
+    def test_resize_and_drag_review_panes(self):
+        self.frame.SetSize((1024,720));self.frame.Show();wx.Yield()
+        for splitter in (self.frame.settings_splitter,self.frame.results_splitter):
+            before=splitter.GetWindow1().GetSize()
+            splitter.SetSashPosition(splitter.GetSashPosition()-35);wx.Yield()
+            self.assertNotEqual(before,splitter.GetWindow1().GetSize())
+        self.assertGreater(self.frame.details.GetClientSize().height,100)
+        self.frame.details.SetFocus();self.assertIs(wx.Window.FindFocus(),self.frame.details)
+
     def test_preview_validation_apply_undo(self):
         from trace_refiner_plugin.refiner import snapshot
         before=snapshot(self.fixture.board,test_native.api)

@@ -70,7 +70,10 @@ class QuickPIFrame(wx.Frame):
             header.Add(control,0,wx.ALIGN_CENTER_VERTICAL|wx.LEFT,4)
         root.Add(header,0,wx.EXPAND|wx.ALL,6)
         body=wx.BoxSizer(wx.HORIZONTAL)
-        self.setup_panel=wx.Panel(panel);self.setup_panel.SetMinSize((self.FromDIP(240),1))
+        self.workspace_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        self.workspace_splitter.SetMinimumPaneSize(self.FromDIP(220))
+        self.workspace_splitter.SetSashGravity(0.)
+        self.setup_panel=wx.Panel(self.workspace_splitter);self.setup_panel.SetMinSize((self.FromDIP(220),1))
         setup=wx.BoxSizer(wx.VERTICAL)
         self.inputs=wx.ScrolledWindow(self.setup_panel,style=wx.VSCROLL)
         self.inputs.SetScrollRate(0,12);self.inputs.SetMinSize((1,1))
@@ -137,8 +140,8 @@ class QuickPIFrame(wx.Frame):
         self.series_button=icon_button(self.setup_panel,'Series',wx.ART_LIST_VIEW,'Build a series path with explicit components')
         for control in (self.preview,self.run,self.export,self.series_button):actions.Add(control,0,wx.EXPAND)
         setup.Add(actions,0,wx.EXPAND|wx.ALL,8);self.setup_panel.SetSizer(setup)
-        body.Add(self.setup_panel,0,wx.EXPAND|wx.RIGHT,4)
-        self.splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+
+        self.splitter=wx.SplitterWindow(self.workspace_splitter,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         self.splitter.SetMinimumPaneSize(self.FromDIP(200));self.splitter.SetSashGravity(1.)
         self.book=wx.Notebook(self.splitter);self.book.SetMinSize((200,200));self.views=[]
         for name in ('Net','Mesh','Results'):
@@ -154,7 +157,8 @@ class QuickPIFrame(wx.Frame):
         import pcbnew
         self.decoupling=PdnFrame(self.book,pcbnew.LoadBoard(self.board_path));self.book.AddPage(self.decoupling,'Decoupling')
         self._build_inspector();self.splitter.SplitVertically(self.book,self.inspector,790)
-        body.Add(self.splitter,1,wx.EXPAND);root.Add(body,1,wx.EXPAND|wx.LEFT|wx.RIGHT,4)
+        self.workspace_splitter.SplitVertically(self.setup_panel,self.splitter,self.FromDIP(260))
+        body.Add(self.workspace_splitter,1,wx.EXPAND);root.Add(body,1,wx.EXPAND|wx.LEFT|wx.RIGHT,4)
         footer=wx.BoxSizer(wx.HORIZONTAL)
         self.status=StatusText(panel,'Reading the saved board…');footer.Add(self.status,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
         self.gauge=wx.Gauge(panel,range=100,size=(100,-1));footer.Add(self.gauge,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
@@ -182,6 +186,8 @@ class QuickPIFrame(wx.Frame):
         self._buttons();self._draw();self.Centre();self.Maximize(True)
         wx.CallAfter(lambda:self.splitter.SetSashPosition(max(self.FromDIP(200),self.splitter.GetClientSize().width-self.FromDIP(260))))
         wx.CallAfter(self._inspect)
+        from wayricad_runtime.layout import install_accessibility
+        install_accessibility(self,Path(__file__).with_name('help.html'))
 
     def _layout_inputs(self,event=None):
         self.inputs.Layout();self.inputs.FitInside();self.setup_panel.Layout()
@@ -189,7 +195,10 @@ class QuickPIFrame(wx.Frame):
 
     def _sync_workspace(self):
         placement=self.book.GetSelection()>=len(self.views)
-        self.setup_panel.Show(not placement and self._inputs_visible)
+        show_setup=not placement and self._inputs_visible
+        if show_setup and not self.workspace_splitter.IsSplit():
+            self.setup_panel.Show();self.workspace_splitter.SplitVertically(self.setup_panel,self.splitter,self.FromDIP(260))
+        elif not show_setup and self.workspace_splitter.IsSplit():self.workspace_splitter.Unsplit(self.setup_panel)
         visible=not placement and self._inspector_visible
         if not visible and self.splitter.IsSplit():self.splitter.Unsplit(self.inspector)
         elif visible and not self.splitter.IsSplit():

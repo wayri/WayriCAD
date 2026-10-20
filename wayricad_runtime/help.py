@@ -58,7 +58,8 @@ def open_help(parent, path, title='WayriCAD Help'):
     close.Bind(wx.EVT_BUTTON, lambda event: frame.Close())
     layout.Add(close, 0, wx.ALL | wx.ALIGN_RIGHT, 8)
     if parent: parent._wayricad_help_window = frame
-    frame.CentreOnParent(); frame.Show(); return frame
+    from .layout import fit_to_display
+    frame.CentreOnParent(); fit_to_display(frame); frame.Show(); return frame
 
 
 def open_tk_help(parent, path, title='WayriCAD Help'):

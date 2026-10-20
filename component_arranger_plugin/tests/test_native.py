@@ -326,7 +326,12 @@ class NativeTests(unittest.TestCase):
         errors = []
         frame.error = lambda error: errors.append(str(error))
         try:
-            frame.Show(); wx.YieldIfNeeded()
+            frame.SetSize((1024,720));frame.Show(); wx.YieldIfNeeded()
+            for splitter in (frame.settings_splitter,frame.results_splitter):
+                before_size=splitter.GetWindow1().GetSize()
+                splitter.SetSashPosition(splitter.GetSashPosition()-35);wx.YieldIfNeeded()
+                self.assertNotEqual(before_size,splitter.GetWindow1().GetSize())
+            self.assertGreater(frame.canvas.GetSize().width,280)
             frame.find_groups(None)
             frame.area_w.SetValue('20'); frame.area_h.SetValue('10')
             before = self.native.fingerprint(self.board, api)

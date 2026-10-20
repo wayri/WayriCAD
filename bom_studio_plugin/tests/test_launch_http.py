@@ -1,5 +1,6 @@
 """Real loopback HTTP acceptance: shipped assets, MIME and isolated sessions."""
 import http.client
+from html.parser import HTMLParser
 import json
 import mimetypes
 from pathlib import Path
@@ -8,6 +9,7 @@ import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
+from urllib.parse import urlsplit
 from bomstudio.server import Application, Server
 from bomstudio.bridge import _check_sdk_version, BridgeUnavailable
 from bomstudio.desktop import DesktopUnavailable, run
@@ -47,9 +49,77 @@ class LaunchHTTPTests(unittest.TestCase):
                     self.assertEqual(status, 200)
                     self.assertTrue(body)
                     expected = ('text/javascript' if path.endswith('.js') else
-                                'image/x-icon' if path.endswith('.ico') else 'text/css')
+                                'image/x-icon' if path.endswith('.ico') else
+                                'text/html' if path.endswith('.html') else 'text/css')
                     self.assertEqual(mime.split(';')[0], expected)
         self.assertEqual(self.get(0, '/not-a-file.js')[0], 404)
+
+    def test_offline_help_is_linked_and_serves_its_exact_local_dependencies(self):
+        class References(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.references = []
+
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag in ('img', 'link', 'a'):
+                    target = attrs.get('src') if tag == 'img' else attrs.get('href')
+                    if target:
+                        self.references.append(target)
+
+        _, _, page = self.get(0, '/')
+        self.assertRegex(page.decode(), r'<a[^>]+href="/help\.html"[^>]+rel="noopener"')
+        status, mime, body = self.get(0, '/help.html')
+        self.assertEqual(status, 200)
+        self.assertEqual(mime.split(';')[0], 'text/html')
+        document = body.decode('utf-8')
+        self.assertIn('WayriCAD Analytics Studio', document)
+        self.assertNotRegex(document, r'(?i)<style(?:\s|>)')
+        self.assertIn('href="/help.css"', document)
+        parser = References()
+        parser.feed(document)
+        expected_mime = {'.css': 'text/css', '.png': 'image/png', '.md': 'text/plain'}
+        root = Path(__file__).resolve().parents[1]
+        paths = {urlsplit(target).path for target in parser.references
+                 if not urlsplit(target).scheme and not urlsplit(target).netloc
+                 and urlsplit(target).path}
+        self.assertIn('/help.css', paths)
+        self.assertTrue(any(path.endswith('.png') for path in paths))
+        with patch.object(mimetypes, 'guess_type', return_value=('text/plain', None)):
+            for path in sorted(paths):
+                route = '/' + path.lstrip('/')
+                with self.subTest(route=route):
+                    status, mime, data = self.get(0, route)
+                    self.assertEqual(status, 200)
+                    self.assertEqual(mime.split(';')[0], expected_mime[Path(path).suffix])
+                    self.assertTrue(data)
+                    if path.endswith('.png'):
+                        self.assertEqual(data, (root / Path(path).name).read_bytes())
+                    elif path.endswith('.md'):
+                        self.assertEqual(data, (root / Path(path).name).read_bytes())
+        _, _, css = self.get(0, '/help.css')
+        source = (root / 'help.html').read_text(encoding='utf-8')
+        styles = re.findall(r'<style[^>]*>(.*?)</style>', source, re.S | re.I)
+        self.assertEqual(css.decode('utf-8'), '\n'.join(styles))
+        self.assertIn('help-navigation', css.decode('utf-8'))
+
+    def test_help_retains_strict_csp_and_does_not_expose_arbitrary_files(self):
+        conn = http.client.HTTPConnection('127.0.0.1', self.servers[0].server_port, timeout=10)
+        try:
+            conn.request('GET', '/help.html')
+            response = conn.getresponse()
+            self.assertEqual(response.status, 200)
+            policy = response.getheader('Content-Security-Policy')
+            self.assertIn("style-src 'self'", policy)
+            self.assertNotIn("'unsafe-inline'", policy)
+            self.assertEqual(response.getheader('X-Content-Type-Options'), 'nosniff')
+            response.read()
+        finally:
+            conn.close()
+        for path in ('/help.css/extra', '/help-not-installed.png', '/metadata.json',
+                     '/../metadata.json', '/%2e%2e/metadata.json', '/help.html/../metadata.json'):
+            with self.subTest(path=path):
+                self.assertEqual(self.get(0, path)[0], 404)
 
     def test_independent_projects_ports_and_authentication(self):
         self.assertNotEqual(self.servers[0].server_port, self.servers[1].server_port)

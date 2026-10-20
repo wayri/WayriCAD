@@ -574,3 +574,8 @@ geometric evidence; neither proves the closed return circuit.
 ## Selection and responsive results
 
 **Read PCB selection** retains all selected copper in the preview and expands selected component pads. The numeric inspector still describes its primary item. Enable **Add to existing PCB selection** to extend the editor selection rather than replace it. Inputs changed during a job cancel that job and discard late results. Navigation uses the originating saved board and confirms selection; it does not edit copper or certify unsaved geometry.
+
+
+## Resizing the workspace
+
+Drag the divider beside Setup to widen input fields. Drag the divider beside Inspect to widen result details. Setup and Inspect can be hidden and reopened without losing the study. Expanded Mesh & material and Console sections scroll inside Setup.

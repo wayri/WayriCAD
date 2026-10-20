@@ -18,6 +18,23 @@ class UITests(unittest.TestCase):
         self.open=True
         self.frame=SilkscreenFrame(None,self.fixture.board,board_guard=lambda:self.open)
     def tearDown(self):self.frame.Destroy();wx.Yield()
+    def test_review_expands_into_resizable_split_and_options_resize(self):
+        from silkscreen_label_plugin.options_ui import OptionsDialog
+        self.frame.SetSize((1024,720));self.frame.Show();wx.Yield()
+        self.frame.details.Expand();self.frame.toggle_details(None);wx.Yield()
+        self.assertTrue(self.frame.review_splitter.IsSplit())
+        split=self.frame.review_splitter;before=self.frame.list.GetSize()
+        split.SetSashPosition(split.GetSashPosition()-40);wx.Yield()
+        self.assertGreater(self.frame.list.GetSize().height,before.height)
+        self.frame.details.Collapse();self.frame.toggle_details(None);wx.Yield()
+        self.assertFalse(split.IsSplit())
+        dialog=OptionsDialog(self.frame,self.frame.settings)
+        try:
+            dialog.SetSize((560,470));dialog.Show();wx.Yield()
+            self.assertTrue(dialog.GetWindowStyle()&wx.RESIZE_BORDER)
+            self.assertGreater(dialog.controls['testpoint_pattern'].GetSize().height,15)
+        finally:dialog.Destroy();wx.Yield()
+
     def test_preview_apply_undo_redo(self):
         from silkscreen_label_plugin.placement import fingerprint
         before=fingerprint(self.fixture.board,api)

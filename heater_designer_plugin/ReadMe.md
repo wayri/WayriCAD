@@ -153,3 +153,10 @@ Native operational validation uses `python tools/validate_marble_operations.py` 
 Generated serpentine preview from the documentation fixture. Geometry preview alone does not establish thermal performance or placement acceptance.
 
 The installed package includes [offline help](help.html) with its workflow and limitations.
+
+
+## Resize the workspace and find help
+
+Drag the settings/preview divider to make room for pattern and material controls. When results are open, drag the preview/results divider to enlarge the metrics; settings scroll independently.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

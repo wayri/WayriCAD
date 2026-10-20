@@ -16,7 +16,7 @@ class PlacementCanvas(wx.Panel):
     def __init__(self, parent, on_pick):
         super().__init__(parent)
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.SetMinSize((520, 420))
+        self.SetMinSize((280, 180))
         self.models = (); self.before = (); self.area = None;self.net_edges=()
         self.side = 'both'; self.focus = ''; self.groups = {}; self.hits = []
         self.scale = 1.; self.offset = (0., 0.); self.drag = None
@@ -114,8 +114,10 @@ class ArrangerFrame(wx.Frame):
         self.board=board;self.board_guard=board_guard or (lambda: True)
         self.plan=None;self.transaction=None;self.clusters=[];self.loading=False;self.busy=False
         self.models={};self.refs=sorted(fp.GetReference() for fp in board.GetFootprints())
-        panel=wx.Panel(self);layout=wx.BoxSizer(wx.HORIZONTAL)
-        left=wx.lib.scrolledpanel.ScrolledPanel(panel,size=(350,-1));self.settings_panel=left;left.SetMinSize((350,-1));controls=wx.BoxSizer(wx.VERTICAL)
+        panel=wx.Panel(self);layout=wx.BoxSizer(wx.VERTICAL)
+        self.settings_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        right_panel=wx.Panel(self.settings_splitter)
+        left=wx.lib.scrolledpanel.ScrolledPanel(self.settings_splitter,size=(350,-1));self.settings_panel=left;left.SetMinSize((260,120));controls=wx.BoxSizer(wx.VERTICAL)
         def label(text): controls.Add(wx.StaticText(left,label=text),0,wx.TOP|wx.BOTTOM,5)
         def choice(title,items):
             label(title);c=wx.Choice(left,choices=items);c.SetSelection(0);controls.Add(c,0,wx.EXPAND|wx.BOTTOM,4);return c
@@ -127,7 +129,7 @@ class ArrangerFrame(wx.Frame):
         self.labels=wx.CheckBox(left,label='Include local-label linked clusters');self.globals=wx.CheckBox(left,label='Include global-label linked clusters')
         controls.Add(self.labels,0,wx.TOP,4);controls.Add(self.globals,0,wx.TOP,4)
         self.search=wx.SearchCtrl(left);self.search.SetDescriptiveText('Search references');controls.Add(self.search,0,wx.EXPAND|wx.TOP,8)
-        self.parts=wx.CheckListBox(left,choices=self.refs,size=(-1,140));controls.Add(self.parts,0,wx.EXPAND|wx.TOP,4);self.checked=set()
+        self.parts=wx.CheckListBox(left,choices=self.refs,size=(-1,140),style=wx.LB_HSCROLL);controls.Add(self.parts,0,wx.EXPAND|wx.TOP,4);self.checked=set()
         self.anchor=choice('2. Confirm anchor (kept fixed)',self.refs or ['No footprints'])
         self.infer=wx.Button(left,label='Infer anchor and area');controls.Add(self.infer,0,wx.EXPAND)
         self.sides=choice('3. Allowed placement sides',['Top','Bottom','Top and bottom'])
@@ -145,16 +147,25 @@ class ArrangerFrame(wx.Frame):
         self.apply_button=wx.Button(left,label='Apply reviewed placement');controls.Add(self.apply_button,0,wx.EXPAND|wx.TOP,5)
         self.undo_button=wx.Button(left,label='Undo placement');controls.Add(self.undo_button,0,wx.EXPAND|wx.TOP,5)
         self.help_button=wx.Button(left,label='Help');controls.Add(self.help_button,0,wx.EXPAND|wx.TOP,5)
-        left.SetSizer(controls);left.SetupScrolling(scroll_x=False)
+        left.SetSizer(controls);left.SetupScrolling(scroll_x=True)
         right=wx.BoxSizer(wx.VERTICAL)
-        self.view_side=wx.Choice(panel,choices=['Both sides','Top','Bottom']);self.view_side.SetSelection(0);right.Add(self.view_side,0,wx.ALL,6)
-        self.canvas=PlacementCanvas(panel,self.pick_anchor);right.Add(self.canvas,1,wx.EXPAND|wx.ALL,6)
-        self.summary=wx.TextCtrl(panel,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,150));right.Add(self.summary,0,wx.EXPAND|wx.ALL,6)
+        self.results_splitter=wx.SplitterWindow(right_panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        view_panel=wx.Panel(self.results_splitter);view=wx.BoxSizer(wx.VERTICAL)
+        self.view_side=wx.Choice(view_panel,choices=['Both sides','Top','Bottom']);self.view_side.SetSelection(0);view.Add(self.view_side,0,wx.ALL,6)
+        self.canvas=PlacementCanvas(view_panel,self.pick_anchor);view.Add(self.canvas,1,wx.EXPAND|wx.ALL,6);view_panel.SetSizer(view)
+        self.summary=wx.TextCtrl(self.results_splitter,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,150))
+        self.summary.SetMinSize((180,70))
+        self.results_splitter.SetMinimumPaneSize(100);self.results_splitter.SplitHorizontally(view_panel,self.summary,-150);self.results_splitter.SetSashGravity(1)
+        right.Add(self.results_splitter,1,wx.EXPAND)
         actions=wx.BoxSizer(wx.HORIZONTAL)
         for button,text in [(self.preview_button,'Preview'),(self.validate_button,'Validate candidate'),(self.apply_button,'Apply placement'),(self.undo_button,'Undo placement'),(self.help_button,'Help')]:
-            controls.Detach(button);button.Reparent(panel);button.SetLabel(text);actions.Add(button,1,wx.RIGHT,5)
+            controls.Detach(button);button.Reparent(right_panel);button.SetLabel(text);actions.Add(button,1,wx.RIGHT,5)
         right.Add(actions,0,wx.EXPAND|wx.ALL,6)
-        layout.Add(left,0,wx.EXPAND|wx.ALL,8);layout.Add(right,1,wx.EXPAND);panel.SetSizer(layout)
+        right_panel.SetSizer(right)
+        self.settings_splitter.SetMinimumPaneSize(250);self.settings_splitter.SplitVertically(left,right_panel,350);self.settings_splitter.SetSashGravity(0)
+        layout.Add(self.settings_splitter,1,wx.EXPAND|wx.ALL,8);panel.SetSizer(layout)
+        self.SetMinSize((820,580))
+        self.Bind(wx.EVT_HELP,lambda e:webbrowser.open(Path(__file__).with_name('help.html').as_uri()))
         self.refresh_button.Bind(wx.EVT_BUTTON,self.find_groups);self.mode.Bind(wx.EVT_CHOICE,self.find_groups)
         self.cluster.Bind(wx.EVT_CHOICE,self.choose_cluster);self.search.Bind(wx.EVT_TEXT,self.filter_parts)
         self.parts.Bind(wx.EVT_CHECKLISTBOX,self.check_parts);self.infer.Bind(wx.EVT_BUTTON,self.infer_area)
@@ -167,6 +178,9 @@ class ArrangerFrame(wx.Frame):
         self.labels.Bind(wx.EVT_CHECKBOX,self.confirm_links);self.globals.Bind(wx.EVT_CHECKBOX,self.confirm_links)
         self.Bind(wx.EVT_CLOSE,self.close)
         self.update_buttons();wx.CallAfter(self.find_groups,None)
+        area=wx.Display(self).GetClientArea()
+        self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
+        self.CentreOnScreen()
 
     def close(self,event):
         if self.busy: event.Veto();return

@@ -135,3 +135,10 @@ Supply the fundamental air-gap B and active geometry, or use the explicitly limi
 ![Actual KiCad-SPICE motor mechanics](help-motor-motion.png)
 
 **Export reviewed report** creates a unique project folder under `reports/wayricad-magnetics/motor-*`, with model/input/evidence JSON, logical coil CSV, all native plot SVGs, HTML and the mechanical SPICE deck when simulated. Changed inputs invalidate results; a changed saved board requires review before export. Native validation covered the 36-slot/4-pole/3-phase layout, 12 reference phase events, a 2,015-point real ngspice transient (final speed 5.69565358 rad/s), linear force/EMF review and complete project reports. These are numerical reference checks, not measured motor validation.
+
+
+## Resize the workspace and find help
+
+Drag the settings/preview dividers in Design and Actuator to enlarge the controls or geometry. Actuator plots and result tables also have an adjustable divider; scrolling a control area does not change its numerical assumptions.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

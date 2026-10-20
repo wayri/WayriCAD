@@ -8,6 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import pcbnew
+from wayricad_runtime.help import open_help as open_native_help
 import wx
 
 from .analysis import (GRADIENT_AXES, ORGANIC_DEFAULT_POINTS, HeatZone, HeaterEngine,
@@ -19,7 +20,7 @@ from .patterns import PATTERNS, circular_envelope, split_circular_envelope
 from .foil_export import export_svg
 
 
-VERSION = "3.6.19"
+VERSION = "3.6.20"
 PALETTE = ("#157f74", "#d1495b", "#edae49", "#5267a5", "#8f5aa6", "#3c91a3")
 ORGANIC_DEFAULT_TEXT = "\n".join(f"{x:g},{y:g}" for x,y in ORGANIC_DEFAULT_POINTS)
 
@@ -262,7 +263,7 @@ except ImportError:
 class HeaterFrame(ReviewedGeometry, wx.Frame):
     group_prefix = 'WayriCAD Heater Commit'
     def __init__(self,parent,board):
-        super().__init__(parent,title="WayriCAD PCB / Foil Heater Designer",size=(1280,850));self.SetIcon(wx.Icon(str(Path(__file__).with_name("resources") / "icon-48.png"), wx.BITMAP_TYPE_PNG));self.SetMinSize((1040,720));self.board=board;self.result=None;self.thermal=None;self.preview_items=[];self.undo_stack=[];self.redo_stack=[];self._build();self.undo_stack=self._persistent_groups();self.Bind(wx.EVT_CLOSE,self.on_close);self.Centre()
+        super().__init__(parent,title="WayriCAD PCB / Foil Heater Designer",size=(1280,850));self.SetIcon(wx.Icon(str(Path(__file__).with_name("resources") / "icon-48.png"), wx.BITMAP_TYPE_PNG));self.SetMinSize((760,520));self.board=board;self.result=None;self.thermal=None;self.preview_items=[];self.undo_stack=[];self.redo_stack=[];self._build();self.undo_stack=self._persistent_groups();self.Bind(wx.EVT_CLOSE,self.on_close);self.Centre()
     def _settings_signature(self):
         return super()._settings_signature() + (("heating_regions", self.zones.GetValue()),
                                                 ("organic_points", self.organic_points.GetValue()),
@@ -280,10 +281,11 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         panel = wx.Panel(self)
         root = wx.BoxSizer(wx.VERTICAL)
         self.guide = add_workflow(panel, root, "Heater Designer", "Preview copper and temperature, then apply the reviewed pattern.",
-                                  ("Configure", "Review", "Apply"))
-        body = wx.BoxSizer(wx.HORIZONTAL)
-        controls = wx.Notebook(panel)
-        controls.SetMinSize((330, -1))
+                                  ("Configure", "Review", "Apply"),lambda event: open_native_help(self,Path(__file__).with_name("help.html")))
+        body = wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        body.SetMinimumPaneSize(220);body.SetSashGravity(0);self.workspace_splitter=body
+        controls = wx.Notebook(body)
+        controls.SetMinSize((220, 1))
         geometry, geometry_layout, grid = form_page(controls, "Geometry")
         thermal, thermal_layout, thermal_grid = form_page(controls, "Thermal")
         placement, _, placement_grid = form_page(controls, "Placement")
@@ -357,20 +359,30 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         self.zones = wx.TextCtrl(zone_parent, value="", style=wx.TE_MULTILINE)
         self.zones.SetMinSize((-1,90))
         zone_layout.Add(self.zones, 0, wx.EXPAND | wx.ALL, 6)
-        body.Add(controls, 0, wx.EXPAND | wx.RIGHT, 14)
-        right = wx.BoxSizer(wx.VERTICAL)
-        self.preview = HeaterPreview(panel,self.add_region,self.add_path_point)
-        right.Add(self.preview, 1, wx.EXPAND)
-        metrics_parent, metrics_layout = details(panel, right, "Electrical and thermal results")
-        self.metrics = wx.ListCtrl(metrics_parent, style=wx.LC_REPORT)
-        self.metrics.SetMinSize((-1,180))
+        right_panel=wx.Panel(body);right=wx.BoxSizer(wx.VERTICAL)
+        results=wx.SplitterWindow(right_panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        results.SetMinimumPaneSize(80);results.SetSashGravity(.65);self.results_splitter=results
+        self.preview = HeaterPreview(results,self.add_region,self.add_path_point)
+        self.preview.SetMinSize((160,100))
+        metrics_panel=wx.Panel(results);metrics_layout=wx.BoxSizer(wx.VERTICAL)
+        self.metrics = wx.ListCtrl(metrics_panel, style=wx.LC_REPORT)
+        self.metrics.SetMinSize((1,80))
         for index, (label, width) in enumerate((("Metric",190),("Value",170),("Review note",350))):
             self.metrics.InsertColumn(index, label, width=width)
-        metrics_layout.Add(self.metrics, 1, wx.EXPAND)
-        body.Add(right, 1, wx.EXPAND)
+        metrics_layout.Add(self.metrics,1,wx.EXPAND);metrics_panel.SetSizer(metrics_layout)
+        results.Initialize(self.preview);metrics_panel.Hide();right.Add(results,1,wx.EXPAND)
+        toggle=wx.ToggleButton(right_panel,label="Electrical and thermal results");self.results_toggle=toggle
+        def show_results(event):
+            if toggle.GetValue():
+                metrics_panel.Show();results.SplitHorizontally(self.preview,metrics_panel,max(100,round(results.GetClientSize().height*.6)))
+            elif results.IsSplit():results.Unsplit(metrics_panel);metrics_panel.Hide()
+            right_panel.Layout()
+        toggle.Bind(wx.EVT_TOGGLEBUTTON,show_results);right.Add(toggle,0,wx.EXPAND|wx.TOP,6)
+        right_panel.SetSizer(right);body.SplitVertically(controls,right_panel,350)
         root.Add(body, 1, wx.EXPAND | wx.ALL, 14)
         actions = wx.BoxSizer(wx.HORIZONTAL)
-        self.status = wx.StaticText(panel, label="Choose dimensions, then preview.")
+        self.status = wx.StaticText(panel, label="Choose dimensions, then preview.",style=wx.ST_ELLIPSIZE_END)
+        self.status.SetMinSize((1,-1))
         actions.Add(self.status, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         for label, handler in (("Preview",self.generate),("Simulate / tune",self.simulate),("Apply to PCB",self.commit)):
             button = wx.Button(panel, label=label)

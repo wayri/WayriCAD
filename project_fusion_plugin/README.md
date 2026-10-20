@@ -679,3 +679,10 @@ CLI result paths must be new files outside the candidate. Exit code 2 means an
 operation was stopped; exit code 3 means the operation completed but its result
 file could not be saved. In that case the result is printed on stdout: inspect
 it before repeating a write.
+
+
+## Resize the workspace and find help
+
+Drag the dividers in Sources and Preview to give the source list, board/schematic preview or issue inspector more room. Guided setup tabs and issue actions scroll independently; resizing does not change the import/update choices.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

@@ -9,7 +9,7 @@ class CounterPreview(wx.Panel):
     def __init__(self,parent):
         super().__init__(parent,style=wx.BORDER_SIMPLE)
         self.preview=None;self.layer=None;self.glyphs=[]
-        self.SetMinSize((440,380));self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.SetMinSize((280,180));self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.Bind(wx.EVT_PAINT,self.paint)
         self.Bind(wx.EVT_SIZE,lambda event:(self.Refresh(),event.Skip()))
         self.SetToolTip('All selected copper layers are overlaid in this diagram. The dashed rectangle is the zone-only keepout. Native copper text is mirrored on bottom when enabled.')
@@ -80,8 +80,9 @@ class LayerCounterFrame(wx.Frame):
         self.board=board;self.board_guard=board_guard or (lambda:True)
         self.preview=None;self.undo_stack=[];self.redo_stack=[]
         settings=core.defaults(board,pcbnew)
-        panel=wx.Panel(self);outer=wx.BoxSizer(wx.VERTICAL);body=wx.BoxSizer(wx.HORIZONTAL)
-        controls=wx.ScrolledWindow(panel);controls.SetScrollRate(0,12);controls.SetMinSize((320,420))
+        panel=wx.Panel(self);outer=wx.BoxSizer(wx.VERTICAL);body=wx.BoxSizer(wx.VERTICAL)
+        self.settings_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D);view_panel=wx.Panel(self.settings_splitter)
+        controls=wx.ScrolledWindow(self.settings_splitter);controls.SetScrollRate(12,12);controls.SetMinSize((260,120))
         form=wx.BoxSizer(wx.VERTICAL)
         title=wx.StaticText(controls,label='Identify the physical copper layers')
         title.SetFont(title.GetFont().Bold());form.Add(title,0,wx.ALL,8)
@@ -92,7 +93,7 @@ class LayerCounterFrame(wx.Frame):
         self.style.SetToolTip('Choose the shape of the identification pattern. Core styles use the explicit physical layer pairs below.')
         self.layers=core.copper_layers(board,pcbnew)
         form.Add(wx.StaticText(controls,label='Copper layers to include'),0,wx.LEFT,8)
-        self.layer_list=wx.CheckListBox(controls,choices=[f'L{number} · {name}' for layer,name,number in self.layers],size=(-1,140))
+        self.layer_list=wx.CheckListBox(controls,choices=[f'L{number} · {name}' for layer,name,number in self.layers],size=(-1,140),style=wx.LB_HSCROLL)
         for index,(layer,_,_) in enumerate(self.layers):self.layer_list.Check(index,layer in settings['layers'])
         form.Add(self.layer_list,0,wx.EXPAND|wx.ALL,8)
         grid=wx.FlexGridSizer(cols=2,hgap=8,vgap=7);grid.AddGrowableCol(1)
@@ -110,15 +111,17 @@ class LayerCounterFrame(wx.Frame):
         self.pairs.SetToolTip('Example: L1/L2,L3/L4. These are explicit pairs, not inferred core/prepreg material boundaries.')
         note=wx.StaticText(controls,label='Preview first, then Add. Close this window and\nmove the resulting group with KiCad M.\nCheck copper text and keepout with native DRC.')
         form.Add(note,0,wx.ALL,8);controls.SetSizer(form)
-        self.canvas=CounterPreview(panel)
+        self.canvas=CounterPreview(view_panel)
         view=wx.BoxSizer(wx.VERTICAL)
-        self.view_layer=wx.Choice(panel,choices=['All selected layers']+[f'L{number} - {name}' for layer,name,number in self.layers])
+        self.view_layer=wx.Choice(view_panel,choices=['All selected layers']+[f'L{number} - {name}' for layer,name,number in self.layers])
         self.view_layer.SetSelection(0);self.view_layer.SetToolTip('Inspect one physical layer or overlay all selected layers.')
         def change_view(event):
             index=self.view_layer.GetSelection();self.canvas.layer=None if index==0 else self.layers[index-1][0];self.canvas.Refresh()
         self.view_layer.Bind(wx.EVT_CHOICE,change_view)
         view.Add(self.view_layer,0,wx.EXPAND|wx.BOTTOM,8);view.Add(self.canvas,1,wx.EXPAND)
-        body.Add(controls,0,wx.EXPAND|wx.ALL,8);body.Add(view,1,wx.EXPAND|wx.ALL,8)
+        view_panel.SetSizer(view)
+        self.settings_splitter.SetMinimumPaneSize(250);self.settings_splitter.SplitVertically(controls,view_panel,340);self.settings_splitter.SetSashGravity(0)
+        body.Add(self.settings_splitter,1,wx.EXPAND|wx.ALL,8)
         outer.Add(body,1,wx.EXPAND)
         self.status=wx.StaticText(panel,label='Ready. No board changes.');outer.Add(self.status,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         buttons=wx.BoxSizer(wx.HORIZONTAL)
@@ -133,6 +136,10 @@ class LayerCounterFrame(wx.Frame):
         self.undo_button.Bind(wx.EVT_BUTTON,lambda event:self.history(False));self.redo_button.Bind(wx.EVT_BUTTON,lambda event:self.history(True))
         help_button.Bind(wx.EVT_BUTTON,self.help);close.Bind(wx.EVT_BUTTON,lambda event:self.Close())
         self.SetMinSize((850,620));self.update_buttons()
+        self.Bind(wx.EVT_HELP,self.help)
+        area=wx.Display(self).GetClientArea()
+        self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
+        self.CentreOnScreen()
 
     def update_buttons(self):
         self.add_button.Enable(self.preview is not None);self.undo_button.Enable(bool(self.undo_stack));self.redo_button.Enable(bool(self.redo_stack))
@@ -174,7 +181,8 @@ class LayerCounterFrame(wx.Frame):
         except Exception as exc:self.error(exc)
 
     def help(self,event=None):
-        dialog=wx.Dialog(self,title='Layer Counter help',size=(720,570))
-        box=wx.BoxSizer(wx.VERTICAL);text=wx.TextCtrl(dialog,value=Path(__file__).with_name('HELP.md').read_text(encoding='utf-8'),style=wx.TE_MULTILINE|wx.TE_READONLY|wx.TE_WORDWRAP)
+        dialog=wx.Dialog(self,title='Layer Counter help',size=(720,570),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        from wx import html
+        box=wx.BoxSizer(wx.VERTICAL);text=html.HtmlWindow(dialog);text.LoadPage(str(Path(__file__).with_name('help.html')))
         box.Add(text,1,wx.EXPAND|wx.ALL,12);box.Add(dialog.CreateButtonSizer(wx.OK),0,wx.ALIGN_RIGHT|wx.ALL,8);dialog.SetSizer(box)
         dialog.ShowModal();dialog.Destroy()

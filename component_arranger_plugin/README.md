@@ -85,3 +85,10 @@ Omit area dimensions to size a suggested region from reserved envelopes and requ
 Source/candidate **0.1.0**, independently packaged as `WayriCAD-component-arranger-0.1.0-PCM.zip`. Install with **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor. No sibling plugin or IPC API is required. It is not in the published release/feed yet.
 
 See [offline help](help.html) and [validation evidence](https://github.com/wayri/WayriCAD/blob/develop/docs/audits/COMPONENT_ARRANGER.md). Windows/KiCad 10.0.6 is the native test target. Other platforms/versions require native verification.
+
+
+## Resize the workspace and find help
+
+Drag the vertical divider to widen the scrolling group/anchor settings, or the horizontal divider to enlarge the board preview or results summary. Confirm the highlighted area and retained anchor before applying a placement.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

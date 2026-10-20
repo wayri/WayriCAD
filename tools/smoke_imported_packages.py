@@ -99,9 +99,14 @@ try:
     for path in paths:
         mime,data=get_bom(path)
         expected=('text/javascript' if path.endswith('.js') else
-                  'image/x-icon' if path.endswith('.ico') else 'text/css')
+                  'image/x-icon' if path.endswith('.ico') else
+                  'text/html' if path.endswith('.html') else 'text/css')
         assert mime.startswith(expected),(path,mime)
-    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.19'
+    mime,help_html=get_bom('/help.html')
+    assert mime.startswith('text/html') and b'/help.css' in help_html
+    assert get_bom('/help.css')[0].startswith('text/css')
+    assert get_bom('/SHARED_PARTS.md')[0].startswith('text/plain')
+    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.20'
     assert (Path(sys.argv[1])/'bom_studio_plugin/help.html').is_file()
     example=Path(sys.argv[1])/'bom_studio_plugin/examples/BOM_Demo.kicad_pro'
     assert example.is_file()

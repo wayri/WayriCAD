@@ -13,7 +13,7 @@ PRESETS = [
 
 class RuleDialog(wx.Dialog):
     def __init__(self, parent, rule=None):
-        super().__init__(parent, title='Formatting rule')
+        super().__init__(parent, title='Formatting rule',style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         rule = rule or {}; self.controls = {}; root = wx.BoxSizer(wx.VERTICAL)
         for key, label in [('name','Rule name'), ('ref_pattern','References'), ('value_pattern','Component values'), ('text_pattern','Label text')]:
             row = wx.BoxSizer(wx.HORIZONTAL)
@@ -38,11 +38,12 @@ class RuleDialog(wx.Dialog):
 
 class OptionsDialog(wx.Dialog):
     def __init__(self,parent,settings):
-        super().__init__(parent,title='Label options',size=(650,650))
+        super().__init__(parent,title='Label options',size=(650,650),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        self.SetMinSize((540,430))
         self.settings=deepcopy(settings);self.rules=deepcopy(settings['formatting_rules']);self.controls={}
         root=wx.BoxSizer(wx.VERTICAL);book=wx.Notebook(self);root.Add(book,1,wx.EXPAND|wx.ALL,10)
         def page(title):
-            panel=wx.ScrolledWindow(book);panel.SetScrollRate(0,12);sizer=wx.BoxSizer(wx.VERTICAL);panel.SetSizer(sizer);book.AddPage(panel,title);return panel,sizer
+            panel=wx.ScrolledWindow(book);panel.SetScrollRate(12,12);sizer=wx.BoxSizer(wx.VERTICAL);panel.SetSizer(sizer);book.AddPage(panel,title);return panel,sizer
         def check(panel,sizer,key,label):
             control=wx.CheckBox(panel,label=label);control.SetValue(bool(settings[key]));self.controls[key]=control;sizer.Add(control,0,wx.ALL,8)
         def number(panel,sizer,key,label):
@@ -84,7 +85,7 @@ class OptionsDialog(wx.Dialog):
         note=wx.StaticText(panel,label='Rules are optional. Add a preset or your own patterns. First match wins; select a rule to edit it.');note.Wrap(570);sizer.Add(note,0,wx.ALL,8)
         self.list=wx.ListBox(panel);sizer.Add(self.list,1,wx.EXPAND|wx.ALL,8)
         self.preset=wx.Choice(panel,choices=[r['name'] for r in PRESETS]);self.preset.SetSelection(0);sizer.Add(self.preset,0,wx.EXPAND|wx.ALL,8)
-        row=wx.BoxSizer(wx.HORIZONTAL)
+        row=wx.WrapSizer(wx.HORIZONTAL)
         for label,callback in [('Add preset',self.add_preset),('Add',self.add),('Edit',self.edit),('Remove',self.remove),('Up',self.up)]:
             button=wx.Button(panel,label=label);button.Bind(wx.EVT_BUTTON,callback);row.Add(button,0,wx.RIGHT,4)
         sizer.Add(row,0,wx.ALL,8);self.refresh()

@@ -176,3 +176,10 @@ For a source build, run `python build_pcm.py --output-dir candidate` from the Wa
 - This window owns its operation history. Closing it discards that history; save only after review. Do not assume the PCB Editor's ordinary Undo has captured these native Python changes.
 
 KiCad documents [silkscreen setup and design rules](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html). The plugin follows the board's native silk minimums; it does not replace fabricator requirements.
+
+
+## Resize the workspace and find help
+
+Expand Review details when needed, then drag its divider to give the proposal table more height. The board preview keeps the remaining space, and the Options dialog scrolls its longer settings instead of requiring an oversized window.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

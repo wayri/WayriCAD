@@ -127,12 +127,15 @@ class SilkscreenFrame(wx.Frame):
         row.Add(self.scope,0,wx.RIGHT,10);options=wx.Button(panel,label='Options…');row.Add(options,0)
         row.AddStretchSpacer();self.side=wx.Choice(panel,choices=['Top view','Bottom view']);self.side.SetSelection(0);row.Add(self.side,0,wx.RIGHT,8)
         fit=wx.Button(panel,label='Fit',size=(55,-1));row.Add(fit,0);root.Add(row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
-        self.canvas=LabelPreview(panel,board);self.canvas.source_guard=self.board_guard;root.Add(self.canvas,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
+        self.review_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        self.canvas=LabelPreview(self.review_splitter,board);self.canvas.source_guard=self.board_guard;self.canvas.SetMinSize((280,180))
+        self.review_splitter.Initialize(self.canvas);self.review_splitter.SetMinimumPaneSize(100);self.review_splitter.SetSashGravity(1)
+        root.Add(self.review_splitter,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
         self.status=wx.StaticText(panel,label='Preview visible reference labels. Hidden and locked items stay untouched.');root.Add(self.status,0,wx.EXPAND|wx.ALL,12)
-        self.details=wx.CollapsiblePane(panel,label='Review details');self.list=wx.ListCtrl(self.details.GetPane(),style=wx.LC_REPORT)
-        self.list.InsertColumn(0,'Label',width=150);self.list.InsertColumn(1,'Result',width=730);self.list.SetMinSize((-1,140))
-        ds=wx.BoxSizer(wx.VERTICAL);ds.Add(self.list,1,wx.EXPAND);self.details.GetPane().SetSizer(ds);root.Add(self.details,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
-        self.details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:self.Layout())
+        self.details=wx.CollapsiblePane(panel,label='Review details');self.list=wx.ListCtrl(self.review_splitter,style=wx.LC_REPORT)
+        self.list.InsertColumn(0,'Label',width=150);self.list.InsertColumn(1,'Result',width=730);self.list.SetMinSize((180,100))
+        self.list.Hide();self.details.GetPane().SetSizer(wx.BoxSizer(wx.VERTICAL));root.Add(self.details,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
+        self.details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,self.toggle_details)
         self.list.Bind(wx.EVT_MOTION,self.detail_tooltip)
         buttons=wx.BoxSizer(wx.HORIZONTAL);help_button=wx.Button(panel,label='Help');buttons.Add(help_button,0)
         self.undo_button=wx.Button(panel,label='Undo');self.redo_button=wx.Button(panel,label='Redo');buttons.Add(self.undo_button,0,wx.LEFT,8);buttons.Add(self.redo_button,0,wx.LEFT,8)
@@ -144,6 +147,16 @@ class SilkscreenFrame(wx.Frame):
         fit.Bind(wx.EVT_BUTTON,self.canvas.fit);preview_button.Bind(wx.EVT_BUTTON,self.on_preview)
         self.apply_button.Bind(wx.EVT_BUTTON,self.on_apply);self.undo_button.Bind(wx.EVT_BUTTON,self.undo);self.redo_button.Bind(wx.EVT_BUTTON,self.redo)
         help_button.Bind(wx.EVT_BUTTON,lambda e:wx.LaunchDefaultBrowser(Path(__file__).with_name('help.html').as_uri()))
+        self.Bind(wx.EVT_HELP,lambda e:wx.LaunchDefaultBrowser(Path(__file__).with_name('help.html').as_uri()))
+        area=wx.Display(self).GetClientArea()
+        self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
+        self.CentreOnScreen()
+    def toggle_details(self,event):
+        if self.details.IsExpanded():
+            if not self.review_splitter.IsSplit():
+                self.list.Show();self.review_splitter.SplitHorizontally(self.canvas,self.list,-180)
+        elif self.review_splitter.IsSplit():self.review_splitter.Unsplit(self.list)
+        self.Layout()
     def detail_tooltip(self,event):
         row,_=self.list.HitTest(event.GetPosition())
         text=(self.list.GetItemText(row)+'\n'+self.list.GetItemText(row,1)) if row>=0 else ''

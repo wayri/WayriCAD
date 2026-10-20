@@ -65,3 +65,10 @@ Plan is read-only and produces reviewable JSON plus an optional standalone local
 ## Compatibility
 
 Native in-memory board tests, file round-trips, and hidden wx frame smoke checks run against KiCad 10. The suite also packages an IPC entry point for forward compatibility; supported geometry depends on the live IPC API. Unsupported capabilities fail explicitly. Live KiCad 11 behavior must be validated against its released runtime.
+
+
+## Resize the workspace and find help
+
+Drag the settings/board-preview divider to make room for net, grid and area/exclusion controls. Expanded settings scroll independently; inspect the accepted/rejected candidates before Apply.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

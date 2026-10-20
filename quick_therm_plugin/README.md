@@ -182,3 +182,8 @@ Use **Find…** beside mounting contacts to search any part of a contact name an
 ## Select components together
 
 Use Ctrl/Shift in the component table to select several parts. Plot highlights update without rebuilding the thermal mesh or resetting the camera. PCB synchronization retains multiple parts; selecting pads in PCB Editor also identifies their parent components. Selection changes queued during a job use the latest selection. Changing thermal inputs cancels the current job and discards its late output.
+
+
+## Resizing the workspace
+
+Drag the divider beside Setup or Details to resize that sidebar. Both sidebars can be hidden from the board toolbar and reopened; the board fills the released space. Setup sections scroll independently, and the Results and Probes tables retain horizontal scrolling for all columns.

@@ -13,6 +13,7 @@ import platform
 import sys
 import time
 import traceback
+from wayricad_runtime.help import open_help as open_native_help
 import wx
 import wx.dataview as dv
 from . import __version__
@@ -336,6 +337,8 @@ class WorkspaceDialog(wx.Dialog):
         runline.Add(self.unwind_button,0,wx.RIGHT,self.FromDIP(8))
         self.footer_hint=self._label(bottom,'Check component assets above.')
         runline.Add(self.footer_hint,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,self.FromDIP(8))
+        help_button=self._button(bottom,'Help',lambda event: open_native_help(self,Path(__file__).with_name('help.html')))
+        runline.Add(help_button,0,wx.RIGHT,self.FromDIP(8))
         self.close_button=self._button(bottom,'Close',self.on_close)
         self.apply_button=self._button(bottom,'Apply preview',self.apply_preview)
         self.apply_button.SetDefault();runline.Add(self.close_button,0,wx.RIGHT,self.FromDIP(8));runline.Add(self.apply_button)
@@ -344,6 +347,8 @@ class WorkspaceDialog(wx.Dialog):
         screen=wx.GetClientDisplayRect().GetSize()
         width=min(self.FromDIP(1030),max(720,screen.width-40));height=min(self.FromDIP(850),max(500,screen.height-55))
         self.SetSize((width,height));self.SetMinSize((min(self.FromDIP(780),width),min(self.FromDIP(560),height)))
+        from wayricad_runtime.layout import install_accessibility
+        install_accessibility(self,Path(__file__).with_name('help.html'))
         self.search.Bind(wx.EVT_TEXT,lambda e:self.filter_rows())
         self.search.Bind(wx.EVT_SEARCHCTRL_CANCEL_BTN,lambda e:self.search.SetValue(''))
         self.table.Bind(dv.EVT_DATAVIEW_SELECTION_CHANGED,self.show_component)

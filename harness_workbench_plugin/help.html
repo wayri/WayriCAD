@@ -1,11 +1,11 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Harness Workbench Help</title>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Harness Workbench Help</title>
 <style>body{font:16px system-ui;max-width:1100px;margin:32px auto;line-height:1.55;color:#17202a}img{max-width:100%;border:1px solid #9aa6b2}code,pre{background:#eef2f5;padding:2px 5px}pre{padding:12px;overflow:auto}h1,h2{color:#17365d}table{border-collapse:collapse;width:100%}th,td{border:1px solid #b8c2cc;padding:7px;text-align:left}.warn{border-left:5px solid #c47718;padding:10px;background:#fff7e8}</style>
-</head><body><h1>WayriCAD Harness and Cable Workbench 3.1.1</h1>
+<style id="wayricad-help-layout">html{scroll-behavior:smooth}body{box-sizing:border-box;width:auto;max-width:76rem;margin:2rem auto;padding:0 1.25rem;font:16px/1.6 system-ui,"Segoe UI",sans-serif;color:#203541;background:#fff;overflow-wrap:anywhere}h1,h2,h3{line-height:1.3}h2{margin-top:2rem}img,svg,video{max-width:100%;height:auto}pre{max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:1rem;background:#f1f5f7}table{display:block;max-width:100%;overflow:auto;border-collapse:collapse}th,td{padding:.55rem;border:1px solid #c9d4da;vertical-align:top;text-align:left;min-width:7rem}a{color:#155b94}li{margin:.45rem 0}.help-navigation{padding:1rem;border:1px solid #c9d4da;background:#f1f6f8}.help-navigation ul{margin:.4rem 0;padding-left:1.5rem}@media(max-width:700px){body{margin:1rem auto;padding:0 .8rem}h1{font-size:1.8rem}th,td{min-width:6rem}}@media print{.help-navigation{display:none}body{max-width:none;margin:0;color:#000}pre,table{overflow:visible}a{color:#000}}</style></head><body><h1>WayriCAD Harness and Cable Workbench 3.1.1</h1><nav class="help-navigation" aria-label="Offline help contents"><strong>On this page</strong><ul><li><a href="#help-section-1">1. Import sources</a></li><li><a href="#help-section-2">2. Define links</a></li><li><a href="#help-section-3">3. Edit arbitrary pin mappings</a></li><li><a href="#help-section-4">4. Add external loads</a></li><li><a href="#help-section-5">5. Review construction</a></li><li><a href="#help-section-6">6. Build IC / peripheral paths</a></li><li><a href="#help-section-7">7. Draft and outputs</a></li><li><a href="#help-section-8">Troubleshooting</a></li><li><a href="#help-section-9">Units and source freshness</a></li></ul><p><a href="ReadMe.md">Full plugin guide and command reference</a>. This page and its illustrations are installed locally; an internet connection is not required.</p></nav>
 <p>Build a reviewed system harness from board pin exports and endpoint loads. The workbench reads project data only and never modifies the PCB.</p>
 <p>The summary strip stays visible on every tab: project, connector, mapped-wire, and end-to-end-path counts plus the next workflow action. It updates after source imports, harness builds, and path previews.</p>
 <img src="help-workflow.png" alt="Actual Harness Workbench window">
-<h2>1. Import sources</h2>
+<h2 id="help-section-1">1. Import sources</h2>
 <p>Import multiple CSV files or scan a directory recursively. A project set may contain up to 50 unique project names.</p>
 <table><tr><th>Column</th><th>Purpose</th></tr>
 <tr><td>project</td><td>Unique board or endpoint group name.</td></tr>
@@ -15,37 +15,37 @@
 <tr><td>function, voltage</td><td>Documentation and voltage-conflict checks.</td></tr>
 <tr><td>connector part, contact part</td><td>Parts used by the harness BoM.</td></tr>
 <tr><td>load A</td><td>Endpoint current shown in the net map.</td></tr></table>
-<h2>2. Define links</h2>
+<h2 id="help-section-2">2. Define links</h2>
 <p>Indexed matching groups equal net names across different connectors and projects. Use a wildcard or regex to restrict candidates. Power nets are excluded by default to prevent accidental cross-products.</p>
 <pre>DEMO_CTRL:J1 -&gt; DEMO_IO:J2
 DEMO_IO:J4 -&gt; LOADS:P1 [offset=1]
 DEMO_A:J3 -&gt; DEMO_B:J7 [map=1:3,2:4]</pre>
 <p>The first rule maps N to N. Offset changes numeric destination pins. An explicit map overrides listed pins.</p>
-<h2>3. Edit arbitrary pin mappings</h2>
+<h2 id="help-section-3">3. Edit arbitrary pin mappings</h2>
 <p>Open <b>Pin Mapping Editor</b>, choose a source and destination connector, and click <b>Seed N-to-N Rows</b>. Every cell remains editable: change either pin, add or delete rows, and assign wire ID, AWG, color, bundle, splice, length, shield, and notes.</p>
 <p>Use <b>Validate Mapping</b> before building. A source may appear on several rows for an intentional splice, but the validator reports it for review. Missing imported endpoints are marked unmatched rather than silently accepted.</p>
 <pre>source_project,source_connector,source_pin,destination_project,destination_connector,destination_pin,gauge_awg,length_m
 DEMO_CTRL,J1,1,DEMO_IO,J7,8,24,1.25
 DEMO_CTRL,J1,2,DEMO_IO,J7,12,24,1.25</pre>
 <p><b>Import Mapping CSV</b> and <b>Export Mapping CSV</b> provide round trips for engineering review and source control. Explicit table rows take precedence over duplicate automatic links.</p>
-<h2>4. Add external loads</h2>
+<h2 id="help-section-4">4. Add external loads</h2>
 <pre>PROJECT,REFERENCE,PIN,NET,FUNCTION,VOLTAGE,CURRENT_A,CONNECTOR_PART
 LOADS,MOTOR_A,1,MOTOR_POS,Drive motor,24V,3.5,DEMO-CONN</pre>
-<h2>5. Review construction</h2>
+<h2 id="help-section-5">5. Review construction</h2>
 <p>Sort tables by clicking a header. Select wires, then apply AWG, color, bundle, splice, length, and shielding. With no selection, the action applies to every link. Review unmatched, ambiguous, duplicate-destination, and voltage-conflict findings.</p>
 <p>Select one or more rows in <b>Wire List</b> and click <b>View selected on draft</b> to highlight those exact wires. The draft legend identifies bundle colours and wire counts; choosing no rows restores the full-colour view.</p>
-<h2>6. Build IC / peripheral paths</h2>
+<h2 id="help-section-6">6. Build IC / peripheral paths</h2>
 <p>In Pin Extractor, build and export a <b>Controller Map CSV</b> for each board. Its exact traversal retains net changes, resistors, inductors, ferrites, fuses, and user-authorized active-device pin transitions. Import those CSV files with <b>Import IC / Connector Paths</b>.</p>
 <p>The controller-map filename without <code>.csv</code>, or a <code>Project</code> column, must equal the board project name used in the connector pin document. The workbench joins records only when project, connector reference, and connector pin all match exactly.</p>
 <p>On <b>IC / Peripheral Paths</b>, enter comma-separated reference wildcards such as <code>U1,U2</code>, <code>U*</code>, or <code>MCU*</code>. Build the preview and review every Conditional, Ambiguous, or Incomplete path. A missing endpoint may be retained as a connector-only path; a wildcard-excluded endpoint is omitted.</p>
 <pre>DEMO_CTRL:U1.21 -&gt; R12.1 -&gt; R12.2 -&gt; J1.3
   -- W00003 / DATA-A --&gt;
 DEMO_SENSOR:J2.8 -&gt; R7.2 -&gt; R7.1 -&gt; U3.5</pre>
-<h2>7. Draft and outputs</h2>
+<h2 id="help-section-7">7. Draft and outputs</h2>
 <p>The native Draft Canvas shows each connector once. Mouse wheel zooms, drag pans, and double-click inspects a connector. Its bundle colours and selected-wire emphasis describe connectivity, not cable length or physical placement. The self-contained interactive HTML adds separate IC/peripheral, connector, and bundle stages; wheel zoom, empty-space pan, draggable nodes, clickable path details, search, bundle/status filters, sortable tables, findings, and the procurement BoM. It requires no web connection or external script.</p>
 <img src="help-interactive-report.png" alt="Actual generated interactive system harness report">
 <p>Export pin map, net map, wire list, system paths, procurement BoM, universal SVG, or interactive HTML. The native UI displays at most 10,000 rows; exports contain every generated row.</p>
-<h2>Troubleshooting</h2><ul>
+<h2 id="help-section-8">Troubleshooting</h2><ul>
 <li><b>No links:</b> confirm project/connector spelling, net pattern, and CSV columns.</li>
 <li><b>Too many links:</b> disable indexed matching for straight-through cables or narrow the pattern. Automatic generation stops at 50,000 links.</li>
 <li><b>Unmatched pins:</b> inspect connector population and use offset or explicit maps.</li>
@@ -54,4 +54,4 @@ DEMO_SENSOR:J2.8 -&gt; R7.2 -&gt; R7.1 -&gt; U3.5</pre>
 <li><b>Missing BoM parts:</b> provide connector/contact part columns. Unknown parts remain TBD.</li>
 </ul>
 <p class="warn"><b>Engineering limitation:</b> correspondence does not prove polarity, pin gender, mating orientation, electrical compatibility, ampacity, temperature derating, insulation, creepage, shielding, bend radius, regulatory compliance, manufacturability, or testability. Verify these before release.</p>
-</body></html>
+<h2 id="help-section-9">Units and source freshness</h2><p>Mapping CSV length_m is metres and load A/current columns are amperes. AWG is a wire-size designation, not a current rating. The native diagram's distances are display layout only; they do not supply cable lengths. Re-export board pin/controller maps after connectivity changes, then rebuild and inspect unmatched or conditional paths before exporting a construction document.</p></body></html>

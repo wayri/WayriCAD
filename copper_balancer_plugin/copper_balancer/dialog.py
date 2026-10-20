@@ -1,5 +1,7 @@
 """Native, DPI-aware wxPython controls and an interactive PCB preview."""
+from wayricad_runtime.help import open_help as open_native_help
 import wx
+from pathlib import Path
 import wx.lib.scrolledpanel
 from wayricad_runtime.readable_choice import SearchableCheckListBox
 from wayricad_runtime.searchable_selection import searchable_row
@@ -177,6 +179,8 @@ class CopperBalancerDialog(wx.Dialog):
         self.CentreOnParent()
         self.Bind(wx.EVT_CLOSE,self.on_close)
         self.update_enabled()
+        from wayricad_runtime.layout import install_accessibility
+        install_accessibility(self,Path(__file__).resolve().parents[1]/'help.html')
 
     def build_ui(self):
         root = wx.BoxSizer(wx.VERTICAL)
@@ -189,9 +193,10 @@ class CopperBalancerDialog(wx.Dialog):
         header.Add(badge,0,wx.ALIGN_CENTER_VERTICAL)
         root.Add(header,0,wx.EXPAND|wx.ALL,12)
         root.Add(wx.StaticLine(self),0,wx.EXPAND|wx.LEFT|wx.RIGHT,20)
-        body = wx.BoxSizer(wx.HORIZONTAL)
-        sidebar = wx.lib.scrolledpanel.ScrolledPanel(self,size=self.FromDIP((300,-1)),style=wx.TAB_TRAVERSAL)
-        sidebar.SetMinSize(self.FromDIP((290,-1)))
+        body = wx.SplitterWindow(self,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        body.SetMinimumPaneSize(self.FromDIP(220));body.SetSashGravity(0);self.workspace_splitter=body
+        sidebar = wx.lib.scrolledpanel.ScrolledPanel(body,size=self.FromDIP((300,-1)),style=wx.TAB_TRAVERSAL)
+        sidebar.SetMinSize(self.FromDIP((220,1)))
         form = wx.BoxSizer(wx.VERTICAL)
         self.section(sidebar,form,"Pattern")
         preset = wx.Choice(sidebar,choices=list(PRESETS))
@@ -271,48 +276,49 @@ class CopperBalancerDialog(wx.Dialog):
         form.Add(note,0,wx.EXPAND|wx.BOTTOM,14)
         sidebar.SetSizer(form)
         sidebar.SetupScrolling(scroll_x=False)
-        body.Add(sidebar,0,wx.EXPAND|wx.RIGHT,18)
+        right_panel=wx.Panel(body)
         right = wx.BoxSizer(wx.VERTICAL)
         toolbar = wx.BoxSizer(wx.HORIZONTAL)
-        toolbar.Add(label(self,"BOARD PREVIEW",True,10),1,wx.ALIGN_CENTER_VERTICAL)
-        self.preview_layer = wx.Choice(self,choices=["No preview"])
+        toolbar.Add(label(right_panel,"BOARD PREVIEW",True,10),1,wx.ALIGN_CENTER_VERTICAL)
+        self.preview_layer = wx.Choice(right_panel,choices=["No preview"])
         self.preview_layer.SetSelection(0)
         self.preview_layer.Bind(wx.EVT_CHOICE,self.on_preview_layer)
         toolbar.Add(self.preview_layer,0,wx.RIGHT,8)
-        self.heat = wx.CheckBox(self,label="Density map")
+        self.heat = wx.CheckBox(right_panel,label="Density map")
         self.heat.Bind(wx.EVT_CHECKBOX,self.on_heat)
         toolbar.Add(self.heat,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
-        fit = wx.Button(self,label="Fit",size=self.FromDIP((45,-1)))
+        fit = wx.Button(right_panel,label="Fit",size=self.FromDIP((45,-1)))
         fit.Bind(wx.EVT_BUTTON,lambda e: self.canvas.fit())
         toolbar.Add(fit)
         right.Add(toolbar,0,wx.EXPAND|wx.BOTTOM,10)
-        self.canvas = BoardCanvas(self)
+        self.canvas = BoardCanvas(right_panel)
         right.Add(self.canvas,1,wx.EXPAND)
         legend = wx.BoxSizer(wx.HORIZONTAL)
         for color,text in (("#ba8748","Existing copper"),("#259b7c","Proposed fill"),("#607d81","Available space")):
-            swatch = wx.Panel(self,size=self.FromDIP((10,10)))
+            swatch = wx.Panel(right_panel,size=self.FromDIP((10,10)))
             swatch.SetBackgroundColour(color)
             legend.Add(swatch,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
-            legend.Add(label(self,text),0,wx.RIGHT,16)
+            legend.Add(label(right_panel,text),0,wx.RIGHT,16)
         right.Add(legend,0,wx.TOP|wx.BOTTOM,10)
         metrics = wx.BoxSizer(wx.HORIZONTAL)
         self.stats = []
         for name in ("NEW SHAPES","ADDED COPPER","COVERAGE BEFORE → AFTER"):
             box = wx.BoxSizer(wx.VERTICAL)
-            value = label(self,"—",True,18)
+            value = label(right_panel,"—",True,18)
             self.stats.append(value)
             box.Add(value,0,wx.BOTTOM,4)
-            box.Add(label(self,name,False,8))
+            box.Add(label(right_panel,name,False,8))
             metrics.Add(box,1,wx.RIGHT,8)
         right.Add(metrics,0,wx.EXPAND|wx.TOP|wx.BOTTOM,8)
-        self.status = wx.TextCtrl(self,value="Ready. Choose settings, then build a preview.",style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_NONE,size=self.FromDIP((-1,60)))
+        self.status = wx.TextCtrl(right_panel,value="Ready. Choose settings, then build a preview.",style=wx.TE_MULTILINE|wx.TE_READONLY|wx.BORDER_NONE,size=self.FromDIP((-1,60)))
         right.Add(self.status,0,wx.EXPAND|wx.TOP,8)
-        body.Add(right,1,wx.EXPAND)
+        right_panel.SetSizer(right);body.SplitVertically(sidebar,right_panel,self.FromDIP(320))
         root.Add(body,1,wx.EXPAND|wx.ALL,12)
         footer = wx.BoxSizer(wx.HORIZONTAL)
         remove = wx.Button(self,label="Remove generated fill…")
         remove.Bind(wx.EVT_BUTTON,self.on_remove)
         footer.Add(remove)
+        help_button=wx.Button(self,label="Help");help_button.Bind(wx.EVT_BUTTON,lambda event: open_native_help(self,Path(__file__).resolve().parents[1]/"help.html"));footer.Add(help_button,0,wx.LEFT,8)
         footer.AddStretchSpacer()
         cancel = wx.Button(self,wx.ID_CANCEL,"Close")
         footer.Add(cancel,0,wx.RIGHT,8)

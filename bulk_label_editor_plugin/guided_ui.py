@@ -51,6 +51,15 @@ class WorkflowGuide:
 def add_workflow(parent,sizer,title,summary,steps,help_handler=None):
     guide=WorkflowGuide(parent,title,summary,steps,help_handler)
     sizer.Add(guide.panel,0,wx.EXPAND)
+    from wayricad_runtime.layout import install_accessibility
+    window=wx.GetTopLevelParent(parent)
+    install_accessibility(window)
+    if help_handler is not None and not getattr(window,'_wayricad_help_shortcut',False):
+        window._wayricad_help_shortcut=True
+        def help_key(event):
+            if event.GetKeyCode()==wx.WXK_F1:help_handler(event)
+            else:event.Skip()
+        window.Bind(wx.EVT_CHAR_HOOK,help_key)
     return guide
 
 

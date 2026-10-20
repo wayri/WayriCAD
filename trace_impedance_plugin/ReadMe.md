@@ -141,3 +141,8 @@ does not add dispersion, arbitrary coupled fields or automatic differential CPW 
 ## Search long net and terminal names
 
 Use **Find…** beside net, start/end terminal, saved filled-island, reference-layer and differential-mate selectors. Search matches any literal part of a name, case-insensitively, and displays the full selected name below the results. Choose an item and **OK**, or **Cancel** without changing the route. These fields remain single selections. **Ctrl+F** and the dropdown context menu open the same picker.
+
+
+## Resizing the workspace
+
+Drag the horizontal divider under the path settings to give reference/pair options more room or enlarge the analysis views. The settings scroll independently when expanded. Help is available beside the workflow header.

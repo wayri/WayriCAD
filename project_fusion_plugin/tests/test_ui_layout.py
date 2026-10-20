@@ -18,8 +18,12 @@ class LayoutTests(unittest.TestCase):
     def test_responsive_workflow_icons_and_busy_guard(self):
         dialog=gui.FusionDialog()
         try:
-            dialog.SetSize((960,720));dialog.Show();wx.Yield()
+            dialog.SetSize((1024,720));dialog.Show();wx.Yield()
             self.assertEqual(dialog.notebook.GetPageCount(),4)
+            for split in (dialog.source_splitter,dialog.review_splitter):
+                before=split.GetWindow1().GetSize()
+                split.SetSashPosition(split.GetSashPosition()-40);wx.Yield()
+                self.assertNotEqual(before,split.GetWindow1().GetSize())
             self.assertIn(gui.VERSION,dialog.GetTitle())
             self.assertTrue(dialog.analyse_button.GetBitmap().IsOk())
             self.assertTrue(dialog.merge_button.GetBitmap().IsOk())

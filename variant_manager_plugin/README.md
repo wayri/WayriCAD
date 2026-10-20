@@ -65,3 +65,10 @@ KiCad 10 native schematic variants are required. PCM uses the native action-plug
 Reused sheet occurrences retain distinct variant overrides by UUID and instance path. Promoting conflicting states of the same reused symbol is refused because its serialized Default is shared. External/symlink hierarchies, unknown variant tokens, changed field schemas during restore and ambiguous identities are refused for writes. Existing unrelated unknown tokens are preserved. This tool manages variant definitions; it does not merge circuits or keep independent routing layouts per variant.
 
 See [offline help](help.html) and [validation evidence](VALIDATION.md). The parser and backup service retain the standalone Variant Manager's MIT license and are packaged independently of Fusion.
+
+
+## Resize the workspace and find help
+
+Drag the dividers between variants, board preview, component table and file review to enlarge the information you are checking. The comparison and staging workflow remains unchanged.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

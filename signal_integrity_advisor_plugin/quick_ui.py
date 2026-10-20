@@ -35,7 +35,10 @@ class QuickSIPanel(wx.Panel):
             self._source_fingerprints=source_fingerprints(board.GetFileName())
         self.Bind(wx.EVT_WINDOW_DESTROY,self._destroyed)
         root=wx.BoxSizer(wx.HORIZONTAL)
-        left=wx.ScrolledWindow(self,size=(340,-1));left.SetScrollRate(0,12);form=wx.BoxSizer(wx.VERTICAL)
+        self.workspace_splitter=wx.SplitterWindow(self,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        self.workspace_splitter.SetMinimumPaneSize(self.FromDIP(250))
+        self.workspace_splitter.SetSashGravity(0.)
+        left=wx.ScrolledWindow(self.workspace_splitter,size=(340,-1));self.inputs=left;left.SetScrollRate(0,12);form=wx.BoxSizer(wx.VERTICAL)
         self.fields={}
         def row(name,label,value='',choices=None,parent=left,sizer=form):
             sizer.Add(wx.StaticText(parent,label=label),0,wx.TOP,7)
@@ -50,12 +53,12 @@ class QuickSIPanel(wx.Panel):
         pick=wx.Button(left,label='Select net on board');form.Add(pick,0,wx.EXPAND|wx.TOP,5);pick.Bind(wx.EVT_BUTTON,self.select_board_net)
         row('start','Source pad',choices=[]);row('end','Receiver pad',choices=[])
         row('rise_ns','Driver rise time (ns)','1');row('source_ohm','Driver resistance (ohm)','20')
-        pane=wx.CollapsiblePane(left,label='Line and load assumptions');details=wx.BoxSizer(wx.VERTICAL);host=pane.GetPane()
+        pane=wx.CollapsiblePane(left,style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE,label='Line and load assumptions');details=wx.BoxSizer(wx.VERTICAL);host=pane.GetPane()
         for name,label,value in [('frequency_mhz','Frequency (MHz)','100'),('load_ohm','Load resistance (ohm; blank = open)',''),('z0_ohm','Assumed uniform Z0 (ohm; blank = geometry)',''),('epsilon_eff','Assumed effective Er (blank = stackup)','')]:row(name,label,value,parent=host,sizer=details)
         with read_snapshot(board):layers=self.engine.available_layers()
         row('reference','Reference layer','Auto',['Auto']+layers,host,details)
         host.SetSizer(details);form.Add(pane,0,wx.EXPAND|wx.TOP,10);pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.FitInside(),self.Layout()))
-        returns_pane=wx.CollapsiblePane(left,label='Explicit return-path review (optional)');returns_layout=wx.BoxSizer(wx.VERTICAL);returns_host=returns_pane.GetPane()
+        returns_pane=wx.CollapsiblePane(left,style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE,label='Explicit return-path review (optional)');returns_layout=wx.BoxSizer(wx.VERTICAL);returns_host=returns_pane.GetPane()
         returns_note=wx.StaticText(returns_host,label='Choose actual return nets; no return net or current loop is inferred. Review covers the whole signal net.');returns_note.Wrap(285);returns_layout.Add(returns_note,0,wx.EXPAND|wx.BOTTOM,5)
         from wayricad_runtime.readable_choice import SearchableCheckListBox
         from wayricad_runtime.searchable_selection import searchable_row
@@ -67,7 +70,7 @@ class QuickSIPanel(wx.Panel):
         returns_host.SetSizer(returns_layout);form.Add(returns_pane,0,wx.EXPAND|wx.TOP,10)
         returns_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.FitInside(),self.Layout()))
         self.return_nets.Bind(wx.EVT_CHECKLISTBOX,self.return_nets_changed)
-        eye_pane=wx.CollapsiblePane(left,label='Illustrative eye (optional)');eye_form=wx.BoxSizer(wx.VERTICAL);eye_host=eye_pane.GetPane()
+        eye_pane=wx.CollapsiblePane(left,style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE,label='Illustrative eye (optional)');eye_form=wx.BoxSizer(wx.VERTICAL);eye_host=eye_pane.GetPane()
         self.eye_enabled=wx.CheckBox(eye_host,label='Generate ideal NRZ eye and step response')
         eye_form.Add(self.eye_enabled,0,wx.TOP,6)
         row('eye_bitrate_mbps','Bit rate (Mbps)','1000',parent=eye_host,sizer=eye_form)
@@ -84,17 +87,27 @@ class QuickSIPanel(wx.Panel):
         self.read_selection_button=wx.Button(left,label='Use PCB selection')
         for control,handler in [(self.select_route_button,self.select_route_in_pcb),(self.select_returns_button,self.select_returns_in_pcb),(self.read_selection_button,self.use_pcb_selection)]:
             control.Bind(wx.EVT_BUTTON,handler);form.Add(control,0,wx.EXPAND|wx.TOP,5)
-        left.SetSizer(form);root.Add(left,0,wx.EXPAND|wx.ALL,10)
-        right=wx.BoxSizer(wx.VERTICAL);self.views=wx.Notebook(self)
+        from .help_utils import open_help
+        help_button=wx.Button(left,wx.ID_HELP,label='Help: Quick SI workflow')
+        help_button.Bind(wx.EVT_BUTTON,lambda event:open_help(self));form.Add(help_button,0,wx.EXPAND|wx.TOP,8)
+        left.SetSizer(form)
+        self.results_splitter=wx.SplitterWindow(self.workspace_splitter,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        self.results_splitter.SetMinimumPaneSize(self.FromDIP(120));self.results_splitter.SetSashGravity(.7)
+        view_host=wx.Panel(self.results_splitter);right=wx.BoxSizer(wx.VERTICAL);self.views=wx.Notebook(view_host)
         route=wx.Panel(self.views);route_sizer=wx.BoxSizer(wx.VERTICAL);self.preview=preview_class(route);self.preview.on_pick=self._pick_route_item;route_sizer.Add(self.preview,1,wx.EXPAND)
         from .preview_kit import add_zoom_toolbar
         add_zoom_toolbar(route,self.preview,route_sizer);route.SetSizer(route_sizer);self.views.AddPage(route,'Route')
         from .eye_ui import EyePanel
         self.eye_preview=EyePanel(self.views);self.views.AddPage(self.eye_preview,'Eye / step');right.Add(self.views,2,wx.EXPAND)
-        self.status=wx.StaticText(self,label='Choose the source and receiver, review the inputs, then screen the path.');right.Add(self.status,0,wx.EXPAND|wx.ALL,7)
-        self.results=wx.ListCtrl(self,style=wx.LC_REPORT);self.results.InsertColumn(0,'Measure',width=210);self.results.InsertColumn(1,'Result / evidence',width=620);right.Add(self.results,0,wx.EXPAND)
+        self.status=wx.StaticText(view_host,label='Choose the source and receiver, review the inputs, then screen the path.');right.Add(self.status,0,wx.EXPAND|wx.ALL,7)
+        self.results=wx.ListCtrl(self.results_splitter,style=wx.LC_REPORT);self.results.InsertColumn(0,'Measure',width=210);self.results.InsertColumn(1,'Result / evidence',width=620)
         self.results.SetMinSize((-1, 175))
-        root.Add(right,1,wx.EXPAND|wx.ALL,10);self.SetSizer(root)
+        view_host.SetSizer(right)
+        self.results_splitter.SplitHorizontally(view_host,self.results,-self.FromDIP(200))
+        self.workspace_splitter.SplitVertically(left,self.results_splitter,self.FromDIP(350))
+        root.Add(self.workspace_splitter,1,wx.EXPAND|wx.ALL,8);self.SetSizer(root)
+        from wayricad_runtime.layout import install_accessibility
+        install_accessibility(self,Path(__file__).with_name('help.html'))
         for name,control in self.fields.items():
             control.Bind(wx.EVT_COMBOBOX if isinstance(control,wx.ComboBox) else wx.EVT_TEXT,self.changed)
         self.fields['net'].Bind(wx.EVT_COMBOBOX,self.net_changed)

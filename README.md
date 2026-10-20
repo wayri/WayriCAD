@@ -15,15 +15,15 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.19](https://github.com/wayri/WayriCAD/releases/tag/v3.6.19) · [Release notes](docs/RELEASE_NOTES_3.6.19.md) |
-| Place silkscreen labels | [Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0) · [Quick start](#start-silkscreen) |
+| Download or update | [Release 3.6.20](https://github.com/wayri/WayriCAD/releases/tag/v3.6.20) · [Release notes](docs/RELEASE_NOTES_3.6.20.md) |
+| Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 23 plugins](#all-23-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-[Performance improvements and measured coverage](docs/audits/performance-coverage-2026-10-15.md) · [3.6.19 release notes](docs/RELEASE_NOTES_3.6.19.md).
+[Readable windows and adjustable panels](docs/UI_ACCESSIBILITY.md) · [Help for all 23 plugins](docs/HELP_INDEX.md) · [3.6.20 release notes](docs/RELEASE_NOTES_3.6.20.md).
 
 ## Install and open
 
@@ -67,12 +67,12 @@ an input or model is missing; they are not a pass.
 
 ### Silkscreen Label Placer — arrange readable labels
 
-1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its [0.2.0 PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/silkscreen-label-v0.2.0/WayriCAD-silkscreen-label-0.2.0-PCM.zip) and use **Install from File**. Restart PCB Editor.
+1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its [0.2.3 PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.20/WayriCAD-silkscreen-label-0.2.3-PCM.zip) and use **Install from File**. Restart PCB Editor.
 2. Open **WayriCAD Silkscreen Label Placer** and choose selected parts or the whole board.
 3. Under **Options**, enable automatic sizing and set a minimum height if needed. Choose allowed orientations and reading directions. Add editable bold, italic or knockout rules for test points and connectors.
 4. Click **Preview**, inspect both board sides and unresolved labels, then **Apply labels**. Run KiCad DRC before saving. Labels that cannot fit safely stay unchanged.
 
-[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Release](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0)
+[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Release](https://github.com/wayri/WayriCAD/releases/tag/v3.6.20)
 
 <a id="start-quick-pi"></a>
 
@@ -201,7 +201,7 @@ Select a plugin for its full guide and supported models.
 | <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Design PCB coils and screen magnetic/actuator behavior. |
 | <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Check fabrication constraints and prepare manufacturing outputs. |
 
-[Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0) is available as an independent native KiCad 10 plugin in the WayriCAD package feed, with its own icon, automatic sizing and formatting rules. See its [installation guide](silkscreen_label_plugin/README.md#install).
+[Silkscreen Label Placer](silkscreen_label_plugin/README.md) is available as an independent native KiCad 10 plugin in the WayriCAD package feed, with its own icon, automatic sizing and formatting rules. See its [installation guide](silkscreen_label_plugin/README.md#install).
 
 ## Plugin previews
 
@@ -342,26 +342,29 @@ The fixture deliberately includes height violations and incomplete coverage. [Ca
 
 ### [Trace Refiner](trace_refiner_plugin/README.md)
 
-Clean small trace jogs with selected-track, selected-net, net-filter, net-class and layer scopes. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available in release 3.6.19 as its own PCM package, with an icon, detailed offline Help and a CLI for preview, validation and export to a new project.
+Clean small trace jogs with selected-track, selected-net, net-filter, net-class and layer scopes. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available in release 3.6.20 as its own PCM package, with an icon, detailed offline Help and a CLI for preview, validation and export to a new project.
 
 ![Native trace refinement preview](trace_refiner_plugin/help-workflow.png)
 
-Source/candidate 0.2.0 adds metrics, focused review and proposal exclusion.
+Version 0.2.1 includes metrics, focused review, proposal exclusion and resizable settings and review panels.
 
 ![Trace Refiner proposal review](trace_refiner_plugin/help-review.png)
 
+![Trace Refiner adjustable panels](trace_refiner_plugin/help-layout.png)
+
 ### [Component Arranger](component_arranger_plugin/README.md)
 
-Choose selected parts, PCB groups, schematic sheets or wire clusters; confirm the anchor and highlighted area. Review courtyard-aware placement, capacitor ordering, crossings and length before native validation. Independent source/candidate package with icon, offline help and CLI.
+Choose selected parts, PCB groups, schematic sheets or wire clusters; confirm the anchor and highlighted area. Review courtyard-aware placement, capacitor ordering, crossings and length before native validation. Independent package with icon, offline help, adjustable panels and CLI.
 
 ![Component Arranger native group preview](component_arranger_plugin/help-workflow.png)
+
+![Component Arranger adjustable panels](component_arranger_plugin/help-layout.png)
 
 ### [Layer Counter](layer_counter_plugin/README.md)
 
 Create physical copper-layer labels as a native movable group with a zone-only
 keepout. Choose from twelve styles, including mirrored and overlapping core
-pairs, then Preview and Add. The source/candidate plugin is not yet in the
-published PCM feed. [Setup and CLI](layer_counter_plugin/README.md).
+pairs, then Preview and Add. Available in release 3.6.20 as an independently installable package. [Setup and CLI](layer_counter_plugin/README.md).
 
 ![Layer Counter native four-layer preview](layer_counter_plugin/help-preview.png)
 

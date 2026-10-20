@@ -75,7 +75,7 @@ class WorkspaceTests(unittest.TestCase):
                         canvas=frame.views[2][1];height=frame.main_panel.GetClientSize().height
                         self.assertGreater(canvas.GetClientSize().height,.78*height)
                         self.assertGreater(canvas.GetClientSize().width,.42*frame.main_panel.GetClientSize().width)
-                        self.assertLessEqual(frame.setup_panel.GetSize().width,frame.FromDIP(245))
+                        self.assertAlmostEqual(frame.setup_panel.GetSize().width,frame.FromDIP(260),delta=2)
                         self.assertTrue(frame.run.IsShownOnScreen())
                         axes=frame.views[2][0].axes[0];self.assertFalse(axes.axison)
                         self.assertGreater(axes.get_position().width,.97);self.assertGreater(axes.get_position().height,.97)

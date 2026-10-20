@@ -73,3 +73,10 @@ From this folder run `python -m unittest discover -s tests -v`; native tests ski
 ## Search and select copper layers
 
 Use **Find…** beside the copper-layer checklist to search layer names and check multiple layers. **Check visible** or **Uncheck visible** changes only the filtered rows; hidden checks remain selected and are included in the count. **OK** applies the complete checked selection; **Cancel** preserves the current layers. This changes only the analysis configuration; preview and apply remain separate actions.
+
+
+## Resize the workspace and find help
+
+Drag the divider to balance the scrolling settings area against the board/density preview. Expand advanced geometry or density only when needed; resizing the workspace does not change the saved-copy workflow.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

@@ -24,7 +24,7 @@ class FusionDialog(wx.Dialog):
         super().__init__(parent, title=f'Wayri Project Fusion {VERSION} — Testing release',
                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
                          size=(1060, 900))
-        self.SetMinSize((860, 700))
+        self.SetMinSize((860, 600))
         from .variant_import_gui import apply_window_icon
         apply_window_icon(self)
         self._closed = False
@@ -72,6 +72,7 @@ class FusionDialog(wx.Dialog):
         self.merge_button.Bind(wx.EVT_BUTTON, lambda e: self.start(True))
         self.open_button.Bind(wx.EVT_BUTTON, self.open_output)
         self.help_button.Bind(wx.EVT_BUTTON, self.help)
+        self.Bind(wx.EVT_HELP,self.help)
         self.close_button.Bind(wx.EVT_BUTTON, self.close)
         for button,art,tip in ((self.analyse_button,wx.ART_FIND,'Read saved sources and review placement and reference mapping.'),
                                (self.merge_button,wx.ART_NEW_DIR,'Create a new combined project after reviewing settings.'),
@@ -107,8 +108,9 @@ class FusionDialog(wx.Dialog):
         self.Bind(wx.EVT_TIMER, lambda e: self.gauge.Pulse(), self.timer)
         # Keep the full dialog usable on smaller displays.
         area = wx.GetClientDisplayRect()
-        self.SetSize((min(1060, max(860, area.width-40)), min(900, max(700, area.height-60))))
+        self.SetSize((min(1060, max(860, area.width-40)), min(900, max(600, area.height-60))))
         self.CentreOnScreen()
+        wx.CallAfter(self.review_splitter.SetSashPosition,round(self.GetClientSize().width*.56))
 
     @staticmethod
     def decorate(button, art, tip=''):
@@ -164,7 +166,7 @@ class FusionDialog(wx.Dialog):
         modebar.Add(self.copy_libraries,0,wx.LEFT,12)
         main.Add(modebar,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         main.Add(self.note(p,'Add whole projects or selected subsheets with their routed layout. Each row is an independent instance; up to 100 instances are supported.'),0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
-        self.source_splitter=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE);self.source_splitter.SetMinimumPaneSize(240)
+        self.source_splitter=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE);self.source_splitter.SetMinimumPaneSize(180)
         self.grid=wx.grid.Grid(self.source_splitter);self.grid.CreateGrid(0,6)
         from .source_selection import SourceSelectionPanel
         self.source_selector=SourceSelectionPanel(self.source_splitter,self.selection_changed)
@@ -172,7 +174,7 @@ class FusionDialog(wx.Dialog):
         for i,label in enumerate(('Design file','Alias','Variant','X (mm)','Y (mm)','Scope')):self.grid.SetColLabelValue(i,label)
         for i,width in enumerate((190,110,130,60,60,75)):self.grid.SetColSize(i,width)
         self.grid.GetGridWindow().Bind(wx.EVT_MOTION,self.source_tooltip)
-        self.grid.SetRowLabelSize(36);self.grid.SetMinSize((1,250));self.grid.SetSelectionMode(wx.grid.Grid.SelectRows)
+        self.grid.SetRowLabelSize(36);self.grid.SetMinSize((1,170));self.grid.SetSelectionMode(wx.grid.Grid.SelectRows)
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED,self.on_source_cell_changed)
         self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL,self.select_source_row)
         main.Add(self.source_splitter,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
@@ -334,7 +336,7 @@ class FusionDialog(wx.Dialog):
         bar.Add(self.preview_details,0,wx.RIGHT,8);bar.Add(self.preview_labels,0,wx.RIGHT,8)
         bar.Add(self.action(p,'Go to source',self.go_to_source,wx.ART_GO_BACK,'Return to the selected source row.'),0,wx.RIGHT|wx.BOTTOM,8)
         box.Add(bar,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
-        self.review_splitter=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE);self.review_splitter.SetMinimumPaneSize(240)
+        self.review_splitter=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE);self.review_splitter.SetMinimumPaneSize(180)
         self.visual_tabs=wx.Notebook(self.review_splitter)
         self.preview=PlacementPreview(self.visual_tabs);self.preview.on_select=self.select_preview_source
         self.preview.on_move=self.move_preview_source
@@ -360,8 +362,8 @@ class FusionDialog(wx.Dialog):
         self.design_tree.Bind(wx.EVT_TREE_SEL_CHANGED,self.tree_selected)
         tree_box.Add(self.design_tree,1,wx.EXPAND);tree_page.SetSizer(tree_box)
         inspector.AddPage(tree_page,'Hierarchy')
-        issue_page=wx.Panel(inspector);issue_box=wx.BoxSizer(wx.VERTICAL)
-        self.issue_list=wx.ListCtrl(issue_page,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        issue_page=wx.ScrolledWindow(inspector);issue_page.SetScrollRate(12,12);issue_box=wx.BoxSizer(wx.VERTICAL)
+        self.issue_list=wx.ListCtrl(issue_page,style=wx.LC_REPORT|wx.LC_SINGLE_SEL);self.issue_list.SetMinSize((180,120))
         self.issue_list.Bind(wx.EVT_LIST_ITEM_SELECTED,self.select_issue_source)
         for i,(label,width) in enumerate([('Design',110),('Issue',370),('Decision',180)]):
             self.issue_list.InsertColumn(i,label,width=width)

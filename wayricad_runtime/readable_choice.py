@@ -17,6 +17,12 @@ def popup_width(text_widths, control_width, available_width, padding=36):
 
 
 class _ReadableItems:
+    def _readable_alive(self):
+        try:
+            return bool(self) and not self.IsBeingDeleted()
+        except RuntimeError:
+            return False
+
     def _readable_init(self):
         self._choice_help = ''
         self._popup_dirty = True
@@ -83,7 +89,7 @@ class _ReadableItems:
         self._refresh_tip()
 
     def _refresh_tip(self):
-        if not hasattr(self, '_choice_help'):
+        if not hasattr(self, '_choice_help') or not self._readable_alive():
             return
         selected = self.GetValue() if isinstance(self, wx.ComboBox) else self.GetStringSelection()
         text = selected
@@ -108,7 +114,7 @@ class _ReadableItems:
         self._update_popup()
 
     def _update_popup(self):
-        if not getattr(self, '_popup_dirty', False) or not self.GetHandle():
+        if not self._readable_alive() or not getattr(self, '_popup_dirty', False) or not self.GetHandle():
             return
         if sys.platform != 'win32':
             return

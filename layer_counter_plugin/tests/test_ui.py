@@ -22,6 +22,21 @@ class UITests(unittest.TestCase):
     def tearDown(self):
         self.frame.Destroy();wx.Yield()
 
+    def test_help_event_opens_resizable_offline_guide(self):
+        with patch.object(wx.Dialog,'ShowModal',return_value=wx.ID_OK) as modal:
+            event=wx.HelpEvent(wx.EVT_HELP.typeId,self.frame.GetId())
+            self.assertTrue(self.frame.GetEventHandler().ProcessEvent(event))
+            modal.assert_called_once()
+
+    def test_settings_can_resize_and_scroll_at_laptop_size(self):
+        self.frame.SetSize((1024,720));wx.Yield()
+        split=self.frame.settings_splitter;before=split.GetWindow1().GetSize()
+        split.SetSashPosition(400);wx.Yield()
+        self.assertNotEqual(before,split.GetWindow1().GetSize())
+        self.assertGreater(self.frame.canvas.GetClientSize().width,280)
+        split.GetWindow1().FitInside();split.GetWindow1().Scroll(0,200);wx.Yield()
+        self.frame.pairs.SetFocus();self.assertIs(wx.Window.FindFocus(),self.frame.pairs)
+
     def test_preview_insert_undo_redo_and_settings_invalidation(self):
         before=core.fingerprint(self.board,api)
         self.frame.make_preview();wx.Yield()

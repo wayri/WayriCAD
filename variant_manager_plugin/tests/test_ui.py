@@ -8,6 +8,21 @@ import unittest
 
 @unittest.skipUnless(os.environ.get('VARIANT_NATIVE_UI') == '1', 'Opt-in KiCad wx native window')
 class NativeUI(unittest.TestCase):
+    def test_laptop_size_and_independent_review_panes(self):
+        import wx
+        from variant_manager_plugin.wayri_variants.gui import VariantFrame
+        app=wx.GetApp() or wx.App(False);frame=VariantFrame()
+        try:
+            frame.SetSize((1024,720));frame.Show();app.Yield()
+            self.assertEqual(tuple(frame.GetSize()),(1024,720))
+            for splitter in (frame.variant_splitter,frame.results_splitter,frame.review_splitter):
+                before=splitter.GetWindow1().GetSize()
+                splitter.SetSashPosition(splitter.GetSashPosition()-35);app.Yield()
+                self.assertNotEqual(before,splitter.GetWindow1().GetSize())
+            self.assertGreater(frame.table.GetSize().height,100)
+            frame.table.SetFocus();self.assertIs(wx.Window.FindFocus(),frame.table)
+        finally:frame.Close();app.Yield()
+
     def test_failed_tasks_preserve_review_and_ignore_obsolete_results(self):
         import wx
         from concurrent.futures import Future

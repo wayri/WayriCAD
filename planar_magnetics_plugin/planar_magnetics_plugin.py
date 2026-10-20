@@ -17,7 +17,7 @@ from .guided_ui import add_workflow
 from .placement import validate_placement
 
 
-VERSION="3.6.19";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
+VERSION="3.6.20";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
 def point(x,y):return pcbnew.VECTOR2I(pcbnew.FromMM(x),pcbnew.FromMM(y))
 def copper_layer(index,count):
     if index<=0:return int(pcbnew.F_Cu)
@@ -168,7 +168,7 @@ except ImportError:
 class MagneticsFrame(ReviewedGeometry, wx.Frame):
     group_prefix = 'WayriCAD Planar Magnetics Commit'
     def __init__(self,parent,board):
-        super().__init__(parent,title="WayriCAD Planar Magnetics & Actuator Workbench",size=(1320,880));self.SetIcon(wx.Icon(str(Path(__file__).with_name("resources") / "icon-48.png"), wx.BITMAP_TYPE_PNG));self.SetMinSize((1080,740));self.board=board;self.catalog=dict(CORE_CATALOG);self.result=None;self.preview_items=[];self.undo_stack=[];self.redo_stack=[];self._build();self.undo_stack=self._persistent_groups();self.Bind(wx.EVT_CLOSE,self.on_close);self.Centre()
+        super().__init__(parent,title="WayriCAD Planar Magnetics & Actuator Workbench",size=(1320,880));self.SetIcon(wx.Icon(str(Path(__file__).with_name("resources") / "icon-48.png"), wx.BITMAP_TYPE_PNG));self.SetMinSize((760,520));self.board=board;self.catalog=dict(CORE_CATALOG);self.result=None;self.preview_items=[];self.undo_stack=[];self.redo_stack=[];self._build();self.undo_stack=self._persistent_groups();self.Bind(wx.EVT_CLOSE,self.on_close);self.Centre()
     def _build(self):
         p=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL);self.guide=add_workflow(p,root,"Planar Magnetics and Actuator Workbench","Generate multilayer/via-connected windings, apply core and frequency models, inspect fields and motion, then commit only reviewed copper.",("Winding","Model","Field and motion","PCB commit"),lambda e:open_native_help(self,Path(__file__).with_name("help.html")));self.tabs=wx.Notebook(p);self.tabs.AddPage(self.design_page(self.tabs),"Winding and Core");self.tabs.AddPage(self.model_page(self.tabs),"LCR / Parasitics");self.tabs.AddPage(self.actuator_page(self.tabs),"Field and Actuator");root.Add(self.tabs,1,wx.EXPAND|wx.ALL,8);p.SetSizer(root)
     def design_page(self,parent):
@@ -176,8 +176,8 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
             from .wayricad_runtime.ui import form_page, field, choice, more_button
         except ImportError:
             from wayricad_runtime.ui import form_page, field, choice, more_button
-        panel=wx.Panel(parent);root=wx.BoxSizer(wx.HORIZONTAL)
-        controls=wx.Notebook(panel);controls.SetMinSize((330,-1))
+        panel=wx.Panel(parent);outer=wx.BoxSizer(wx.VERTICAL);root=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D);root.SetMinimumPaneSize(220);root.SetSashGravity(0);self.design_splitter=root
+        controls=wx.Notebook(root);controls.SetMinSize((220,1))
         geometry,_,grid=form_page(controls,"Winding")
         drive,drive_layout,drive_grid=form_page(controls,"Drive")
         placement,_,placement_grid=form_page(controls,"Placement")
@@ -197,24 +197,24 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
         nets=["<no net>"]+self._nets()
         self.net=choice(placement,placement_grid,"Primary net",nets)
         self.secondary_net=choice(placement,placement_grid,"Secondary net",nets)
-        root.Add(controls,0,wx.EXPAND|wx.ALL,12)
-        right=wx.BoxSizer(wx.VERTICAL);self.preview=MagneticPreview(panel);right.Add(self.preview,1,wx.EXPAND)
+        right_panel=wx.Panel(root)
+        right=wx.BoxSizer(wx.VERTICAL);self.preview=MagneticPreview(right_panel);right.Add(self.preview,1,wx.EXPAND)
         actions=wx.BoxSizer(wx.HORIZONTAL)
         for label,handler in (("Preview",self.analyze),("Apply to PCB",self.commit)):
-            button=wx.Button(panel,label=label);button.Bind(wx.EVT_BUTTON,handler)
+            button=wx.Button(right_panel,label=label);button.Bind(wx.EVT_BUTTON,handler)
             if label=="Preview":button.SetDefault()
             actions.Add(button,0,wx.RIGHT,6)
-        actions.Add(more_button(panel,[("Review placement",self.show_pcb),("Clear placement",self.clear_preview),
+        actions.Add(more_button(right_panel,[("Review placement",self.show_pcb),("Clear placement",self.clear_preview),
                                       ("Undo last apply",self.undo),("Redo",self.redo),
                                       ("Equivalent model & report…",self.equivalent_model),
                                       ("Export JSON…",self.export_json),("Export geometry CSV…",self.export_csv)]))
         right.Add(actions,0,wx.TOP,10)
-        self.status=wx.StaticText(panel,label="Configure the winding, then preview.");right.Add(self.status,0,wx.TOP,8)
-        root.Add(right,1,wx.EXPAND|wx.ALL,12);panel.SetSizer(root);return panel
+        self.status=wx.StaticText(right_panel,label="Configure the winding, then preview.");right.Add(self.status,0,wx.TOP,8)
+        right_panel.SetSizer(right);root.SplitVertically(controls,right_panel,350);outer.Add(root,1,wx.EXPAND|wx.ALL,10);panel.SetSizer(outer);return panel
     def model_page(self,parent):
         p=wx.Panel(parent);root=wx.BoxSizer(wx.VERTICAL);self.results=wx.ListCtrl(p,style=wx.LC_REPORT);self.results.InsertColumn(0,"Metric",width=270);self.results.InsertColumn(1,"Result",width=250);self.results.InsertColumn(2,"Model / review note",width=680);root.Add(self.results,1,wx.EXPAND|wx.ALL,10);p.SetSizer(root);return p
     def actuator_page(self,parent):
-        p=wx.Panel(parent);root=wx.BoxSizer(wx.HORIZONTAL);rail=wx.ScrolledWindow(p,style=wx.VSCROLL);rail.SetMinSize((390,-1));rail.SetScrollRate(0,12);rs=wx.BoxSizer(wx.VERTICAL)
+        p=wx.Panel(parent);outer=wx.BoxSizer(wx.VERTICAL);root=wx.SplitterWindow(p,style=wx.SP_LIVE_UPDATE|wx.SP_3D);root.SetMinimumPaneSize(220);root.SetSashGravity(0);self.actuator_splitter=root;rail=wx.ScrolledWindow(root,style=wx.VSCROLL|wx.HSCROLL);rail.SetMinSize((220,1));rail.SetScrollRate(8,12);rs=wx.BoxSizer(wx.VERTICAL)
         concept=wx.StaticBoxSizer(wx.VERTICAL,rail,"Actuator and drive");cp=concept.GetStaticBox();grid=wx.FlexGridSizer(0,2,6,8);grid.AddGrowableCol(1,1)
         self.actuator=wx.Choice(cp,choices=["Voice coil","Linear solenoid","PCB coil motor","PCB magnetic torquer"]);self.actuator.SetSelection(0)
         self.external=wx.TextCtrl(cp,value="50");self.drive_mode=wx.Choice(cp,choices=["Voltage step","Voltage sine","Current step","Current sine"]);self.drive_mode.SetSelection(0)
@@ -224,9 +224,9 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
         for label,key,value in (("Moving mass (ng)","mass_ng","1000000"),("Spring stiffness (N/m)","spring","1"),("Mechanical Q","mech_q","20"),("Damping (N s/m, 0=Q)","damping","0"),("Initial magnetic gap (um)","gap_um","500"),("Travel limit (um or urad)","stroke_um","1000"),("Opposing load (uN)","load_un","0"),("Static friction (uN)","friction_un","0"),("Drive frequency (Hz)","drive_hz","100"),("Duration (ms)","duration_ms","20"),("Requested step (us)","step_us","2"),("Temperature (K)","temperature","293.15"),("Rotor inertia (kg m2)","inertia","1e-10"),("Angular stiffness (N m/rad)","angular_stiffness","0")):
             control=wx.TextCtrl(mp,value=value);self.motion_fields[key]=control;g.Add(wx.StaticText(mp,label=label),0,wx.ALIGN_CENTER_VERTICAL);g.Add(control,1,wx.EXPAND)
         mechanics.Add(g,1,wx.EXPAND|wx.ALL,8);preset=wx.BoxSizer(wx.HORIZONTAL);macro=wx.Button(mp,label="Macro Preset");macro.Bind(wx.EVT_BUTTON,lambda e:self._motion_preset(False));nano=wx.Button(mp,label="Nano Screening Preset");nano.Bind(wx.EVT_BUTTON,lambda e:self._motion_preset(True));preset.Add(macro,1,wx.RIGHT,6);preset.Add(nano,1);mechanics.Add(preset,0,wx.EXPAND|wx.ALL,8);rs.Add(mechanics,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
-        run=wx.Button(rail,label="Run Coupled Motion Simulation");run.SetDefault();run.Bind(wx.EVT_BUTTON,self.run_dynamics);rs.Add(run,0,wx.EXPAND|wx.ALL,8);rail.SetSizer(rs);rail.FitInside();root.Add(rail,0,wx.EXPAND|wx.ALL,8)
-        right=wx.BoxSizer(wx.VERTICAL);toolbar=wx.BoxSizer(wx.HORIZONTAL);self.animate=wx.ToggleButton(p,label="Animate Simulated Motion");self.animate.Bind(wx.EVT_TOGGLEBUTTON,lambda e:self.preview.set_animation(self.animate.GetValue()));toolbar.Add(self.animate,0,wx.RIGHT,8);export=wx.Button(p,label="Export Motion CSV...");export.Bind(wx.EVT_BUTTON,self.export_motion);toolbar.Add(export);right.Add(toolbar,0,wx.BOTTOM,8)
-        self.motion_plot=MotionPlot(p);right.Add(self.motion_plot,1,wx.EXPAND|wx.BOTTOM,8);self.actuator_results=wx.ListCtrl(p,style=wx.LC_REPORT|wx.LC_HRULES|wx.LC_VRULES);self.actuator_results.InsertColumn(0,"Quantity",width=250);self.actuator_results.InsertColumn(1,"Estimate",width=220);self.actuator_results.InsertColumn(2,"Interpretation",width=520);right.Add(self.actuator_results,1,wx.EXPAND);root.Add(right,1,wx.EXPAND|wx.ALL,10);p.SetSizer(root);return p
+        run=wx.Button(rail,label="Run Coupled Motion Simulation");run.SetDefault();run.Bind(wx.EVT_BUTTON,self.run_dynamics);rs.Add(run,0,wx.EXPAND|wx.ALL,8);rail.SetSizer(rs);rail.FitInside();right_panel=wx.Panel(root)
+        right=wx.BoxSizer(wx.VERTICAL);toolbar=wx.BoxSizer(wx.HORIZONTAL);self.animate=wx.ToggleButton(right_panel,label="Animate Simulated Motion");self.animate.Bind(wx.EVT_TOGGLEBUTTON,lambda e:self.preview.set_animation(self.animate.GetValue()));toolbar.Add(self.animate,0,wx.RIGHT,8);export=wx.Button(right_panel,label="Export Motion CSV...");export.Bind(wx.EVT_BUTTON,self.export_motion);toolbar.Add(export);right.Add(toolbar,0,wx.BOTTOM,8)
+        plot_split=wx.SplitterWindow(right_panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D);plot_split.SetMinimumPaneSize(80);plot_split.SetSashGravity(.6);self.motion_results_splitter=plot_split;self.motion_plot=MotionPlot(plot_split);self.motion_plot.SetMinSize((1,80));self.actuator_results=wx.ListCtrl(plot_split,style=wx.LC_REPORT|wx.LC_HRULES|wx.LC_VRULES);self.actuator_results.InsertColumn(0,"Quantity",width=250);self.actuator_results.InsertColumn(1,"Estimate",width=220);self.actuator_results.InsertColumn(2,"Interpretation",width=520);self.actuator_results.SetMinSize((1,80));plot_split.SplitHorizontally(self.motion_plot,self.actuator_results,300);right.Add(plot_split,1,wx.EXPAND);right_panel.SetSizer(right);root.SplitVertically(rail,right_panel,390);outer.Add(root,1,wx.EXPAND|wx.ALL,8);p.SetSizer(outer);return p
     def _nets(self):
         try:return sorted(str(n) for n in self.board.GetNetsByName().keys() if str(n))
         except Exception:return []

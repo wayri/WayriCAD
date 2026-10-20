@@ -190,3 +190,10 @@ examines at most 1,024 local windows per chain. It can leave valid improvements
 undiscovered. Differential pairs, tuning meanders, custom timing/pair constraints
 and existing DRC acceptance gates remain protected. This is still geometric
 cleanup, not a shove router, timing optimizer or impedance qualification.
+
+
+## Resize the workspace and find help
+
+Drag the settings/preview divider or the preview/results divider to inspect full routing proposals at a useful size. Settings scroll independently; changing the retained proposal subset still requires fresh native validation.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

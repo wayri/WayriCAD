@@ -49,3 +49,10 @@ Without `--apply`, localization is a dry run. Exit 3 indicates explicitly retain
 Unavailable external files cannot be recreated from a filename. [CERN's public library](https://gitlab.com/ohwr/cern-kicad-libs) excludes its 3D collection; supply the original model folder for complete localization of designs using those references.
 
 From the repository root, run `python -m unittest discover -s embed_3d_plugin/tests` for regression tests. Native tests are opt-in and are not covered by a passing pure-Python test count. Original license notices remain in LICENSE. Older documents under docs describe the imported releases and are historical.
+
+
+## Resize the workspace and find help
+
+The main workspace scrolls, so long component inventories and lower asset actions remain reachable in smaller windows. Resize the window for wider paths and tables; checked assets remain selected when the visible list is filtered.
+
+Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.

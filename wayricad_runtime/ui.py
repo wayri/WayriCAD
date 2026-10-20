@@ -3,8 +3,9 @@ import wx
 
 
 def form_page(notebook, title):
-    page = wx.ScrolledWindow(notebook, style=wx.VSCROLL)
-    page.SetScrollRate(0, 12)
+    page = wx.ScrolledWindow(notebook, style=wx.VSCROLL | wx.HSCROLL)
+    page.SetScrollRate(8, 12)
+    page.SetMinSize((1, 1))
     layout = wx.BoxSizer(wx.VERTICAL)
     grid = wx.FlexGridSizer(0, 2, 10, 10)
     grid.AddGrowableCol(1, 1)
@@ -52,5 +53,6 @@ def details(parent, layout, title):
     inner = wx.BoxSizer(wx.VERTICAL)
     content.SetSizer(inner)
     layout.Add(pane, 0, wx.EXPAND | wx.TOP, 8)
-    pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, lambda event: parent.Layout())
+    from .layout import relayout
+    pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, lambda event: (relayout(parent), event.Skip()))
     return content, inner

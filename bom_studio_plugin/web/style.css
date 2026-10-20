@@ -70,3 +70,27 @@
 
 /* Geometry tables size to their evidence, with horizontal scrolling on narrow windows. */
 .table-wrap.board-copper-table{min-height:0;max-height:520px;margin-bottom:20px}
+
+/* Keep controls reachable at desktop display scaling and allow larger review panes. */
+.sidebar{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.sidebar>.brand,.sidebar>.workspace-label,.sidebar>.sidebar-bottom{flex-shrink:0}
+.sidebar nav{min-height:0;flex-shrink:0}
+.shell,.panel,.panel-body,.split>*,.columns2>*,.field-row>*,.form-grid>*,.schema-values>*{min-width:0}
+.topbar{height:auto;min-height:83px;flex-wrap:wrap}
+.top-actions,.page-head,.panel-title,.table-footer,.form-actions{flex-wrap:wrap}
+.top-actions{max-width:100%}.top-actions button{white-space:normal}
+.page-head>*{min-width:0}.tabs{flex-wrap:wrap}
+.table-wrap,.table-wrap.tall{height:clamp(16rem,45vh,36rem);min-height:10rem;max-height:80vh;resize:vertical;overflow:auto;max-width:100%;overscroll-behavior:contain}
+.data-table td{max-width:none;overflow:visible;text-overflow:clip}
+.data-table td.wrap,.data-table td .wrap{white-space:normal;overflow-wrap:anywhere}
+.scroll-card,.ordered-list,#templateColumns,.enforce-table,.codeblock,.native-output,.native-output8{min-height:6rem;resize:vertical;overflow:auto;max-height:80vh}
+.asset-viewport{resize:vertical;max-height:80vh}
+#dialog[open]{display:flex;flex-direction:column;overflow:hidden;resize:both;min-width:min(25rem,92vw);min-height:14rem;max-width:96vw;max-height:92vh}
+.dialog-head{flex:0 0 auto;gap:12px}.dialog-head h2{min-width:0;overflow-wrap:anywhere}
+#dialogBody{flex:1 1 auto;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain}
+#dialogBody .table-wrap{max-height:55vh}
+#dialogBody .form-actions{position:sticky;bottom:-24px;padding:12px 0;background:var(--surface);z-index:3}
+@media(max-width:1150px){.split,.columns2{grid-template-columns:minmax(0,1fr)}.finder-layout8{grid-template-columns:150px minmax(0,1fr)}.exports-layout,.schema-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:650px){.field-row,.schema-values,.checkbox-grid{grid-template-columns:minmax(0,1fr)}.table-wrap,.table-wrap.tall{height:45vh}.panel-title{padding:12px}.form-actions button{white-space:normal}.project-name small{max-width:70vw}}
+
+.help-link{display:inline-block;border:1px solid var(--line);border-radius:8px;padding:8px 13px;color:var(--accent);font-weight:600;text-decoration:none}.help-link:hover{background:var(--surface2)}
