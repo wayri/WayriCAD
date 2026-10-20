@@ -170,7 +170,11 @@ def _attach_table(control):
         if event.ControlDown() and event.ShiftDown() and event.GetKeyCode() in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER):
             read_table(control); return
         if event.ControlDown() and event.GetKeyCode() == ord('C'):
-            headers, rows, selected = table_data(control)
+            try:
+                headers, rows, selected = table_data(control)
+            except ValueError as exc:
+                wx.MessageBox(str(exc), 'Copy table', wx.OK | wx.ICON_INFORMATION, control)
+                return
             if selected and wx.TheClipboard.Open():
                 try:
                     text = '\t'.join(headers)+'\n'+'\n'.join('\t'.join(map(str, rows[i])) for i in selected)
