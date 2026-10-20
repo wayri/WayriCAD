@@ -160,11 +160,11 @@ These fixtures do not establish that every label fits every dense board. The unr
 
 ## Install
 
-Version 0.3.0, uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
+Version 0.3.1, uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
 
 Download the latest Silkscreen Label Placer from the [releases page](https://github.com/wayri/WayriCAD/releases), or find it in the WayriCAD Plugin Repository in PCM.
 
-For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.3.0-PCM.zip`.
+For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.3.1-PCM.zip`.
 
 ## Checks and limits
 

@@ -1,2 +1,2 @@
 """WayriCAD Quick PI: local layered DC conduction analysis."""
-__version__ = '3.6.21'
+__version__ = '3.6.22'
