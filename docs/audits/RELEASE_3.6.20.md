@@ -15,12 +15,19 @@ Windows; KiCad 10.0.6 bundled Python 3.11 and wxPython. Native frame tests use 1
 - New screenshots: Component Arranger and Trace Refiner help-layout.png, captured from native windows at 1024×720; existing workflow screenshots retained. Captures contain only generic fixture data.
 - Offline help coverage: 23 bundled guides checked for navigation, local images and independent package dependencies.
 
-- Root portable suite: 475 passed, 89 skipped, 222 subtests passed. Skips include unavailable native bindings.
+- Root portable suite: 476 passed, 88 skipped, 222 subtests passed. Skips include unavailable native bindings.
 - Analytics/BOM suite: 1,272 tests run, 2 skipped, process exit 0; 7 focused HTTP tests passed. Local help HTML, extracted CSS, images, guide text, MIME/CSP and route boundaries checked.
 - Actual WebView2 rendering at 1024×720: Analytics grid and Constraint scope/worksheet/map areas resized to 480 px; horizontal/vertical scrolling and real dialog action visibility passed. These are DOM geometry checks, not pixel appearance checks.
 - Official KiCad schemas, independent PCM payloads, entrypoints, icons, documentation images and ZIP hashes passed validation.
 
-Exact-source GitHub CI and public asset verification are release gates; their final identifiers are recorded with publication.
+## Published release
+
+- Source: `21cc4d94db6e46b82345d6633035fe4a822204b7`.
+- [All eight exact-source CI jobs passed](https://github.com/wayri/WayriCAD/actions/runs/39441625748), covering Windows/Linux Python 3.10, 3.12, 3.14, macOS Python 3.12 and the PI reference benchmarks.
+- [WayriCAD 3.6.20](https://github.com/wayri/WayriCAD/releases/tag/v3.6.20): 30 uploaded files, each verified against the local SHA-256 and then downloaded and compared byte-for-byte. The public PCM feed was promoted only afterward.
+- Final staged wheel: isolated CLI, local Analytics assets/API and report/study acceptance passed.
+
+The source audit's earlier portable count was corrected here to the final 476 passed / 88 skipped result; seven native layout regressions passed separately.
 
 ## Limits
 
