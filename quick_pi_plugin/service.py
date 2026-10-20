@@ -196,8 +196,9 @@ def execute(request):
             raise ValueError('The board changed during analysis. Reload and run again.')
         return output
     output={'geometry':geometry,'request':request,'model':'2.5D DC copper conduction; layered sheets and plated barrels'}
-    from .mesh_sizing import recommend
-    output['mesh_sizing_recommendation']=recommend(geometry,max_cells)
+    if sizing_mode(request)=='auto':
+        from .mesh_sizing import recommend
+        output['mesh_sizing_recommendation']=recommend(geometry,max_cells)
     if action!='geometry':
         from .mesh import build_mesh
         mesh=build_mesh(geometry,edge_mm=float(request.get('edge_mm',.5)),plating_mm=float(request.get('plating_mm',.025)),
