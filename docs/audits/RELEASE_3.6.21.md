@@ -18,7 +18,13 @@ Windows native environment: KiCad 10.0.6 Python 3.11/wxPython/OpenGL and FreeCAD
 - QuickTherm: 230 passed, 26 skipped, 190 subtests.
 - Fresh builds of all 23 independent PCM ZIPs passed package validation. PI and SI native workers were then run from extracted ZIPs with isolated Python paths; PI completed its loop and thermal-feedback cases, SI retained two reported routes and one expected invalid-terminal case.
 
-Exact-source CI and final wheel/public asset checks are release gates; publication identifiers are recorded after verification.
+## Published release
+
+- Source: `d8b70d55546b4c8d6b10a2d9685e1120ce2efe28`.
+- [All eight exact-source CI jobs passed](https://github.com/wayri/WayriCAD/actions/runs/39463784995), covering Windows/Linux Python 3.10, 3.12, 3.14, macOS Python 3.12 and the PI reference benchmarks.
+- [WayriCAD 3.6.21](https://github.com/wayri/WayriCAD/releases/tag/v3.6.21): 30 uploaded assets, verified by SHA-256 and downloaded byte-for-byte before PCM feed promotion.
+- The final source-aligned wheel passed isolated CLI/control, local Analytics server/assets, report and study acceptance checks.
+
 
 ## Screenshot provenance
 
