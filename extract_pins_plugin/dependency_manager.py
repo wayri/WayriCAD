@@ -53,6 +53,7 @@ SUITE_PACKAGES: tuple[tuple[str, str], ...] = (
     ('project_fusion_plugin', 'Project Fusion'),
     ('variant_manager_plugin', 'Variant Manager'),
     ('silkscreen_label_plugin', 'Silkscreen Label Placer'),
+    ('component_arranger_plugin', 'Component Arranger'),
     ('layer_counter_plugin', 'Layer Counter'),
     ('trace_refiner_plugin', 'Trace Refiner'),
     ('signal_integrity_advisor_plugin', 'Quick SI'),

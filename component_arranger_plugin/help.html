@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>WayriCAD Component Arranger help</title><style>body{max-width:1100px;margin:32px auto;padding:0 20px;font:16px/1.6 system-ui,sans-serif;color:#203742;background:#f4f8fa}h1,h2{color:#146d68}img{max-width:100%;height:auto}table{border-collapse:collapse;width:100%;margin:20px 0;background:white}td,th{border:1px solid #c4d4dc;padding:10px;text-align:left;vertical-align:top}pre{overflow:auto;padding:14px;background:#e2ecef}code{font-size:.9em}.step{padding:10px 14px;background:white;border-left:4px solid #368c80}a{color:#166c8d}</style></head><body>
+<h1>WayriCAD Component Arranger</h1>
+<img src="icon.png" width="64" height="64" alt="Component Arranger icon">
+<p>Arrange a chosen set of <strong>unrouted PCB footprints</strong> around a fixed anchor. Choose a schematic sub-sheet, a PCB group, wire-connected schematic clusters, or check parts yourself. Review the allowed area, original/proposed courtyards, projected connections and measured improvement before applying.</p>
+<p><img alt="Native Component Arranger preview" src="help-workflow.png"></p>
+<p>This native synthetic six-part example reduces projected crossings from two to zero and net-MST length from 71.85 to 17.49 mm. It is a fixture, not a result promised for other boards. Dashed courtyards are original positions; solid outlines show the proposal; <code>[B]</code> marks bottom parts. The white outline is the anchor.</p>
+<h2>Quick start</h2>
+<p class="step">1. Save the PCB and matching project, including intended Board Setup changes. A valid closed <strong>Edge.Cuts</strong> outline and closed courtyards are required. Start with a small unrouted group.</p>
+<p class="step">2. Open <strong>WayriCAD Component Arranger</strong> from PCB Editor. Choose <strong>Selected PCB parts / group</strong>, <strong>Schematic sub-sheet</strong>, <strong>Native PCB group</strong>, <strong>Schematic wire clusters</strong>, or <strong>Manual selection</strong>. Search narrows the checked-reference list without clearing hidden choices.</p>
+<p class="step">3. Select the group and inspect its A/B/C labels. Check or uncheck its members. For wire clusters, adjust the drawn-wire threshold and review the updated groups. Label jumps are separate: explicitly confirm whether local or global label-linked clusters should be combined.</p>
+<p class="step">4. Click <strong>Infer anchor and area</strong>. The inferred anchor is normally a connected, high-pin-count part. Confirm it in the anchor selector or click a checked footprint in the preview. The anchor stays at its exact original position, side and angle.</p>
+<p class="step">5. Choose <strong>Top</strong>, <strong>Bottom</strong>, or <strong>Top and bottom</strong>, desired density and area width/height. The area stays centred on the anchor. Both sides use the same XY region. Default movable-part rotations are <code>0,90</code>; enter <code>0,45,90,135,180,225,270,315</code> to allow all 45-degree orientations. These are absolute board angles, not relative turns.</p>
+<p class="step">6. Review the capacitor section below. Click <strong>Preview arrangement</strong>. Wheel zooms, drag pans and double-click fits. The highlighted rectangle is a hard placement boundary. If no complete legal placement is found, original poses are retained; enlarge the area or reduce the selected group.</p>
+<p class="step">7. Inspect before/after crossings, net length, achieved density and warnings. <strong>Validate native candidate</strong> runs independent before/after native KiCad DRC and pad/via/zone connectivity checks on detached copies with matching saved project rules. No live placement changes during preview or validation.</p>
+<p class="step">8. <strong>Apply reviewed placement</strong> creates a board backup beside the source before moving footprints. Inspect the board, refill zones and run final DRC before saving. <strong>Undo placement</strong> restores that window&#x27;s placement transaction. It is not PCB Editor&#x27;s ordinary Undo; a backup survives closing the window. Undo restores complete native footprint data, including child fields and their identities. Saving or external edits can invalidate window history.</p>
+<h2>What the controls mean</h2>
+<table>
+<tr><th>Control</th><th>Behaviour</th></tr>
+<tr><td>Group</td><td>A placement scope; no new KiCad group is created. Native group membership is retained. Non-footprint group items are not moved.</td></tr>
+<tr><td>Wire threshold</td><td>Shortest length along actual drawn schematic wires between pins, in mm. It is not visual straight-line proximity or a routed PCB length. Unjoined wire crossings do not connect.</td></tr>
+<tr><td>Label-linked clusters</td><td>Local/global jumps are shown separately and merged only after explicit opt-in. Parent/child sheet-port mapping, buses and implicit power connections remain warned limitations.</td></tr>
+<tr><td>Area</td><td>Courtyard plus routing reservation must fit inside the rectangle, the actual board outline and its cutouts, outside obstacles/footprint keepouts. The plugin never silently expands a user area.</td></tr>
+<tr><td>Density</td><td>Courtyard area divided by the enclosing occupied rectangle on each permitted side. A screening metric, not actual routing capacity. The search aims within five percentage points, then shorter connections; otherwise it reports the nearest sampled legal result.</td></tr>
+<tr><td>Routing space</td><td>Effective native net-class track width plus clearance reserves space around selected courtyards. Native DRC evaluates the final materialized candidate; custom rules may reject a proposal. This does not prove pin escape or return-path continuity.</td></tr>
+<tr><td>Side</td><td>Movable SMD parts may flip when allowed. Through-hole parts keep their original side and obstruct both sides. Anchor, locks and parts contacting existing copper stay fixed.</td></tr>
+<tr><td>Crossings</td><td>Intersections between different-net straight edges of actual pad/net minimum spanning trees, projected in XY across both sides. This is a ratsnest proxy, not a count of routed shorts.</td></tr>
+</table>
+<p>The search prioritizes capacitor order, then fewer projected crossings, requested density tolerance, and shorter net/capacitor distances. Zero crossings and more than 90% reduction are goals, <strong>not guarantees</strong>. Pin mappings and geometry can force crossovers. Results report measured counts, including zero-baseline cases, instead of calling every proposal an improvement.</p>
+<h2>Bypass and decoupling capacitors</h2>
+<p>The engine identifies capacitor-like references/metadata and shared power-like net names. Inference is advisory: confirm the intended anchor power pin. Add overrides such as:</p>
+<pre><code>C1=12, C2=12, C3=24</code></pre>
+<p>Each value is an <strong>anchor pad number</strong>, not a capacitor pin number. Only electrically shared-net capacitor pads are used for distance. The smallest known capacitance must have the smallest pad-to-pin distance within its assigned pin group; equal known values need no ordering. If the policy cannot be met, the search remains incomplete rather than accepting reversed order.</p>
+<table>
+<tr><th>Metadata</th><th>Interpretation</th></tr>
+<tr><td><code>100nF</code>, <code>0.1 uF</code>, <code>10 µF</code>, <code>4n7</code></td><td>Explicit capacitance; converted to farads</td></tr>
+<tr><td><code>104</code> in an explicitly named capacitance-code/marking field</td><td>EIA code: 100 nF</td></tr>
+<tr><td><code>104</code> in an ordinary Value field</td><td>Unknown; no invented unit</td></tr>
+<tr><td>Missing, contradictory or ambiguous values</td><td>Reported as unknown; ordering cannot be established for them</td></tr>
+</table>
+<p>Recognized capacitance/value fields are inspected using explicit-unit patterns and normalized aliases such as Cap Value and Nominal Capacitance. This does not infer a reliable capacitance from an arbitrary part number. Unknown values remain warnings. Value ordering is a requested placement policy, not a universal PDN design rule: package inductance, return vias, stackup and device guidance still determine the real bypass loop. Capacitor distance is a pad-distance proxy, not a loop-inductance calculation.</p>
+<h2>Package handling and limits</h2>
+<table>
+<tr><th>Package</th><th>Current handling</th></tr>
+<tr><td>SMD passives, QFP, QFN</td><td>Actual native pads/courtyard, rotations, side permissions, routing-space reservation</td></tr>
+<tr><td>BGA/LGA</td><td>Same measured geometry and pad-net objective; explicit escape/via-access warnings. No automatic dogbones, via-in-pad approval or routing qualification.</td></tr>
+<tr><td>THT/connectors</td><td>Both-side obstruction, original side retained; locked/mechanical interfaces should remain fixed</td></tr>
+</table>
+<p>Bounds: 128 selected footprints, 512 selected plus relevant external pad endpoints, a finite pose-evaluation budget and finite passes. Endpoints are never silently discarded to fit a limit. Missing or malformed courtyards fail actionably. Other footprints use conservative courtyard/body obstacles. Three-dimensional component collisions, height and assembly access require separate mechanical review.</p>
+<p>Parts already touching tracks, vias, zones or other footprints are held fixed. This tool does not rip up or move their attached copper. Existing tracks, vias, nets, references and UUIDs are preserved. A complete geometric proposal is <strong>not</strong> permission to Apply: native validation can still reject existing findings involving the group, new findings, excessive baseline reports, changed connectivity or stale inputs. It does not replace schematic parity checks or final routing.</p>
+<p>Saved schematic groups are available from PCB Editor. Live selections in a separate Schematic Editor window are not exposed by this native action; use a sub-sheet, saved wire cluster or explicit references instead. Unsupported hierarchical port/bus/power semantics are reported, not guessed.</p>
+<h2>Command line</h2>
+<p>Use the matching KiCad native Python with <code>pcbnew</code>, or <code>wayricad-arrange</code> in an equivalent configured environment. Reports and output projects must use new filenames.</p>
+<pre><code>python -m component_arranger_plugin.cli C:/Projects/Example/board.kicad_pcb --refs U1,C1,C2,R1 --anchor U1 --sides both --density 0.5 --width-mm 24 --height-mm 20 --report preview.json
+python -m component_arranger_plugin.cli C:/Projects/Example/board.kicad_pcb --scope schematic --wire-mm 20 --list-groups
+python -m component_arranger_plugin.cli C:/Projects/Example/board.kicad_pcb --scope schematic --group B --include-local-labels --capacitor C1=12 --validate --report checked.json
+python -m component_arranger_plugin.cli C:/Projects/Example/board.kicad_pcb --refs U1,C1,C2,R1 --anchor U1 --angles 0,45,90,135,180,225,270,315 --output C:/Projects/Review/arranged.kicad_pcb</code></pre>
+<p>Omit area dimensions to size a suggested region from reserved envelopes and requested density. <code>--scope sheet</code> and <code>--scope native_groups</code> list/import those scopes. Label flags are explicit CLI authorization to merge those links. JSON includes original/result geometry, anchor, area, metrics, warnings, source hash and validation evidence. Export copies matching project/rules to the new basename; the original remains untouched.</p>
+<h2>Installation and evidence</h2>
+<p>Source/candidate <strong>0.1.0</strong>, independently packaged as <code>WayriCAD-component-arranger-0.1.0-PCM.zip</code>. Install with <strong>KiCad Manager → Plugin and Content Manager → Install from File</strong>, restart PCB Editor. No sibling plugin or IPC API is required. It is not in the published release/feed yet.</p>
+<p>See <a href="help.html">offline help</a> and <a href="https://github.com/wayri/WayriCAD/blob/develop/docs/audits/COMPONENT_ARRANGER.md">validation evidence</a>. Windows/KiCad 10.0.6 is the native test target. Other platforms/versions require native verification.</p>
+<p><a href="README.md">Source guide</a> · Component Arranger 0.1.0 source/candidate</p></body></html>

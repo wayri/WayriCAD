@@ -3,10 +3,10 @@
 [![Release](https://img.shields.io/github/v/release/wayri/WayriCAD?color=168b78)](https://github.com/wayri/WayriCAD/releases/latest)
 [![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
 [![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
-[![Tools](https://img.shields.io/badge/Tools-22-168b78)](#all-22-plugins)
+[![Tools](https://img.shields.io/badge/Tools-23-168b78)](#all-23-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
-**PCB design, analysis and project review in KiCad.** Choose from 22 independently
+**PCB design, analysis and project review in KiCad.** Choose from 23 independently
 installable plugins. Processing runs locally after setup. KiCad 10 is the validated target.
 
 ## Start here
@@ -17,7 +17,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Run your first analysis | [Getting started](#getting-started) |
 | Download or update | [Release 3.6.19](https://github.com/wayri/WayriCAD/releases/tag/v3.6.19) · [Release notes](docs/RELEASE_NOTES_3.6.19.md) |
 | Place silkscreen labels | [Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0) · [Quick start](#start-silkscreen) |
-| Choose a tool | [All 22 plugins](#all-22-plugins) |
+| Choose a tool | [All 23 plugins](#all-23-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
@@ -170,7 +170,7 @@ currencies stay explicit.
 
 <a id="all-21-plugins"></a>
 
-## All 22 plugins
+## All 23 plugins
 
 The IPC packages are **3.6.17**; Fusion is **0.9.8**, and Variant Manager is **0.6.1**.
 Select a plugin for its full guide and supported models.
@@ -190,6 +190,7 @@ Select a plugin for its full guide and supported models.
 | <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. |
 | <img src="trace_refiner_plugin/icon.png" width="24" height="24" alt="Trace Refiner icon"> [Trace Refiner](trace_refiner_plugin/README.md) | Review routing jog cleanup with metrics, focused proposals and exclusions; native connectivity and DRC gate Apply. |
 | <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange labels with automatic sizing, reading directions, bold/italic/knockout rules and checked guide lines. |
+| <img src="component_arranger_plugin/icon.png" width="24" height="24" alt="Component Arranger icon"> [Component Arranger](component_arranger_plugin/README.md) | Preview compact anchored group placement, side/rotation/density choices and capacitor order; native validation gates Apply. |
 | <img src="layer_counter_plugin/icon.png" width="24" height="24" alt="Layer Counter icon"> [Layer Counter](layer_counter_plugin/README.md) | Movable copper L1/L2 markers with zone keepouts, twelve styles and explicit mirrored/overlapping core pairs. |
 | <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Rename references, fields and PCB text in bulk. |
 | <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. |
@@ -348,6 +349,12 @@ Clean small trace jogs with selected-track, selected-net, net-filter, net-class 
 Source/candidate 0.2.0 adds metrics, focused review and proposal exclusion.
 
 ![Trace Refiner proposal review](trace_refiner_plugin/help-review.png)
+
+### [Component Arranger](component_arranger_plugin/README.md)
+
+Choose selected parts, PCB groups, schematic sheets or wire clusters; confirm the anchor and highlighted area. Review courtyard-aware placement, capacitor ordering, crossings and length before native validation. Independent source/candidate package with icon, offline help and CLI.
+
+![Component Arranger native group preview](component_arranger_plugin/help-workflow.png)
 
 ### [Layer Counter](layer_counter_plugin/README.md)
 

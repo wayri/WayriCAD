@@ -25,12 +25,13 @@ class WorkbenchPluginTests(unittest.TestCase):
     def test_active_pcm_packages_have_visible_ipc_actions(self) -> None:
         from build_pcm import discover_plugins
         packages = discover_plugins(ROOT)
-        self.assertEqual(22, len(packages))
+        self.assertEqual(23, len(packages))
         for package in packages:
             with self.subTest(folder=package.name):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
                 if metadata["versions"][0]["runtime"] == "swig":
-                    expected = {"trace_refiner_plugin": ("com.github.wayri.wayricad.trace-refiner", "0.2.0"),
+                    expected = {"component_arranger_plugin": ("com.github.wayri.wayricad.component-arranger", "0.1.0"),
+                                "trace_refiner_plugin": ("com.github.wayri.wayricad.trace-refiner", "0.2.0"),
                                 "project_fusion_plugin": ("org.wayri.projectfusion", "0.9.8"),
                                 "variant_manager_plugin": ("org.wayri.variant-manager", "0.6.1"),
                                 "layer_counter_plugin": ("com.github.wayri.wayricad.layer-counter", "0.1.0"),

@@ -83,6 +83,7 @@ jobs:
           python -m unittest discover -s silkscreen_label_plugin/tests -v
           python -m unittest discover -s layer_counter_plugin/tests -v
           python -m unittest discover -s trace_refiner_plugin/tests -v
+          python -m unittest discover -s component_arranger_plugin/tests -v
           python -m pytest protocol_constraint_composer_plugin/tests -q
       - name: Portable PI and magnetics physics regressions
         run: |

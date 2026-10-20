@@ -24,6 +24,7 @@ PLUGIN_CAPABILITIES = (
     ("bom-studio", "WayriCAD BOM Studio", ("inspect", "export", "variants"), True, "project"),
     ("embed-3d", "WayriCAD Embed3D", ("localize-project", "embed", "extract", "relink", "restore-local"), True, "project"),
     ("trace-refiner", "WayriCAD Trace Refiner", ("preview", "validate", "apply", "undo", "redo"), True, "live-native-board"),
+    ("component-arranger", "WayriCAD Component Arranger", ("groups", "preview", "validate", "export", "apply", "undo"), True, "native-board"),
     ("layer-counter", "WayriCAD Layer Counter", ("preview", "export", "add", "undo", "redo"), True, "native-board"),
     ("silkscreen-label-placer", "WayriCAD Silkscreen Label Placer", ("preview", "apply", "undo", "redo"), True, "live-native-board"),
     ("bulk-label-editor", "WayriCAD Bulk Label Editor", ("preview", "apply"), True, "board"),
@@ -55,6 +56,7 @@ def capabilities() -> dict[str, Any]:
         "operations": sorted(HANDLERS),
         "native_gui_only": ["silkscreen-label-placer"],
         "additional_cli": {
+            "component-arranger": "wayricad-arrange --help (KiCad 10 Python; group, preview, validate, export a new project)",
             "layer-counter": "wayricad-layer-counter --help (KiCad 10 Python; read-only preview or new candidate board)",
             "trace-refiner": "wayricad-trace-refiner --help (KiCad 10 Python; preview, validate, export a new project)",
             "project-fusion": "wayricad-fusion --help (native KiCad CLI required for merge; offline project apply)",

@@ -30,6 +30,7 @@ Select the linked name for detailed instructions. “Review” below means that 
 | Icon | Tool and detailed guide | Start with | Result and write boundary |
 |---|---|---|---|
 | <img src="../trace_refiner_plugin/icon.png" width="28" height="28" alt="Trace Refiner icon"> | [Trace Refiner](../trace_refiner_plugin/README.md) | Selected tracks/nets, net classes or layers | Preview minor jog cleanup, validate native connectivity/DRC, then apply with in-window undo |
+| <img src="../component_arranger_plugin/icon.png" width="28" height="28" alt="Component Arranger icon"> | [Component Arranger](../component_arranger_plugin/README.md) | Selected parts, sheets or confirmed schematic clusters | Preview anchored courtyard-aware group placement and measured crossings; native validation, backed-up Apply and in-window Undo; source/candidate |
 | <img src="../layer_counter_plugin/icon.png" width="28" height="28" alt="Layer Counter icon"> | [Layer Counter](../layer_counter_plugin/README.md) | Enabled copper layers and explicit core pairs | Preview and add grouped physical layer markers plus a zone-only keepout; source/candidate package |
 | <img src="../silkscreen_label_plugin/icon.png" width="28" height="28" alt="Silkscreen Label Placer icon"> | [Silkscreen Label Placer](../silkscreen_label_plugin/README.md) | Selected parts or whole board | Preview safe silk labels and guide lines, then apply with undo/redo |
 | <img src="../project_fusion_plugin/icon.png" width="28" height="28" alt="Project Fusion icon"> | [Project Fusion](../project_fusion_plugin/README.md) | Saved projects or selected subsheets | Guided source/variant destination, visual merge, CLI workflows and backed-up offline apply |
@@ -175,3 +176,7 @@ physical copper-layer labels as a native group. Choose a style and copper layers
 review Preview, then Add. Move the group with KiCad M; its multilayer zone-only
 keepout moves with it. Refill zones and inspect DRC/manufacturing plots. Core
 styles require explicit adjacent layer pairs from your fabrication stackup.
+
+## Anchored component arrangement
+
+[Component Arranger](../component_arranger_plugin/README.md) adds a guided group/anchor/area workflow. It supports rotation, top/bottom choices, requested density and capacitor ordering. Preview is read-only; locked/routed footprints stay fixed, and native DRC/connectivity gates Apply. See its guide for wire-cluster label confirmation, CLI, package limits and the meaning of its ratsnest proxy.
