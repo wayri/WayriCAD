@@ -26,7 +26,7 @@ class TypographyTests(unittest.TestCase):
         b=self.board(6,8)
         t=api.PCB_TEXT(b); t.SetText('TP12345'); t.SetPosition(self.v(3,4))
         t.SetLayer(api.F_SilkS); t.SetTextSize(self.v(2,2)); t.SetTextThickness(api.FromMM(.15)); b.Add(t)
-        fixed=plan(b,api,dict(references=False,board_text=True,height=2,
+        fixed=plan(b,api,dict(references=False,board_text=True,height=2,auto_size=False,
                              allowed_rotations=[0],max_radius=2))
         self.assertEqual(fixed.stats['placed'],0)
         source=fingerprint(b,api)

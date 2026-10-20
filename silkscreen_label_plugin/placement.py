@@ -106,7 +106,7 @@ def segment_inside_native(start,end,radius,native):
 DEFAULTS = dict(references=True, values=False, board_text=False, selected_only=False,
                 height=1.0, thickness=0.15, clearance=0.2, max_radius=12.0,
                 step=0.5, leaders=True, leader_distance=3.0,
-                auto_size=False, min_height=0.8, size_step=0.1,
+                auto_size=True, min_height=0.8, size_step=0.1,
                 allowed_rotations=(0, 90), reading_direction='Bottom/right',
                 formatting_rules=[])
 GUIDE_PREFIX = 'WayriCAD Silk guide '
@@ -160,6 +160,22 @@ def fingerprint(board, api):
              for track in board.GetTracks()]
     rows += [(item_id(group), group.GetName(), sorted(item_id(i) for i in group.GetItems()))
              for group in board.Groups()]
+    for fp in board.GetFootprints():
+        for graphic in fp.GraphicalItems():
+            if isinstance(graphic, api.PCB_TEXT):continue
+            box = graphic.GetBoundingBox()
+            row = [item_id(graphic), graphic.GetLayer(), box.GetLeft(), box.GetTop(),
+                   box.GetRight(), box.GetBottom()]
+            for name in ('GetStart', 'GetEnd', 'GetMid'):
+                getter = getattr(graphic, name, None)
+                if getter:
+                    point = getter();row.append((name, point.x, point.y))
+            for name in ('GetShape', 'GetWidth', 'IsFilled'):
+                getter = getattr(graphic, name, None)
+                if getter:row.append((name, str(getter())))
+            if hasattr(graphic, 'GetPolyShape'):
+                row.append(polygons(graphic.GetPolyShape()))
+            rows.append(row)
     ds = board.GetDesignSettings()
     floors = [getattr(ds, k, 0) for k in
               ('m_MinSilkTextHeight', 'm_MinSilkTextThickness', 'm_SilkClearance')]
@@ -203,20 +219,46 @@ class Plan:
     stats: dict = field(default_factory=dict)
 
 
-def _box(text, state, api):
+def text_geometry(text, state, api):
+    """Native filled glyph/knockout geometry at the reviewed size and placement."""
     clone = api.PCB_TEXT(text)
     clone.SetText(text.GetShownText(False))
     clone.SetLayer(text.GetLayer())
     _set(clone, state, api)
+    shape = api.SHAPE_POLY_SET()
+    clone.TransformTextToPolySet(shape, 0, api.FromMM(.001), api.ERROR_OUTSIDE)
+    return clone, shape
+
+
+def _box(text, state, api):
+    clone, shape = text_geometry(text, state, api)
     box = clone.GetBoundingBox()
-    if clone.IsKnockout():
-        # Native knockout has a filled envelope beyond ordinary glyph strokes.
-        # Include that actual envelope, using outward polygon approximation.
-        shape = api.SHAPE_POLY_SET()
-        clone.TransformTextToPolySet(shape, 0, api.FromMM(.001), api.ERROR_OUTSIDE)
-        if shape.OutlineCount():
-            box.Merge(shape.BBox())
+    if shape.OutlineCount():
+        box.Merge(shape.BBox())
     return box
+
+
+def courtyard_envelopes(fp, api):
+    """Refresh native caches and reserve each face's whole courtyard envelope.
+
+    Open/invalid courtyards still reserve their drawn extents. A footprint with
+    no courtyard on its component face uses its conservative native body hull.
+    """
+    fp.BuildCourtyardCaches()
+    owner = api.B_SilkS if fp.GetLayer() == api.B_Cu else api.F_SilkS
+    result = {}
+    for silk, court in ((api.F_SilkS, api.F_CrtYd), (api.B_SilkS, api.B_CrtYd)):
+        hull = fp.GetCourtyard(court)
+        box = hull.BBox() if hull.OutlineCount() else None
+        for graphic in fp.GraphicalItems():
+            if graphic.GetLayer() == court:
+                if box is None:box = graphic.GetBoundingBox()
+                else:box.Merge(graphic.GetBoundingBox())
+        if box is None and silk == owner:
+            hull = fp.GetBoundingHull()
+            box = hull.BBox() if hull.OutlineCount() else fp.GetBoundingBox(False)
+        if box is not None:result[silk] = box
+    return result
 
 
 def _typography(options):
@@ -386,12 +428,11 @@ def plan(board, api, settings=None, progress=None):
             guide_owners.update((item_id(s),owner) for s in shapes)
     for fp in board.GetFootprints():
         layer = api.B_SilkS if fp.GetLayer() == api.B_Cu else api.F_SilkS
-        hull = fp.GetCourtyard(api.B_CrtYd if layer == api.B_SilkS else api.F_CrtYd)
-        if not hull.OutlineCount():
-            hull = fp.GetBoundingHull()
-        body = hull.BBox() if hull.OutlineCount() else fp.GetBoundingBox(False)
-        bodies[item_id(fp)] = body
-        obstacles[layer].append((body, 'body:' + item_id(fp)))
+        envelopes = courtyard_envelopes(fp, api)
+        bodies[item_id(fp)] = envelopes[layer]
+        for silk, body in envelopes.items():
+            bodies[(item_id(fp),silk)] = body
+            obstacles[silk].append((body, 'body:' + item_id(fp)))
         for pad in fp.Pads():
             for silk, mask in ((api.F_SilkS, api.F_Mask), (api.B_SilkS, api.B_Mask)):
                 if pad.IsOnLayer(mask) or pad.GetDrillSize().x or pad.GetDrillSize().y:
@@ -494,10 +535,10 @@ def plan(board, api, settings=None, progress=None):
         return all(segment_segment_distance(first,second,*boundary_edges[index])>=radius
                    for _,index in boundary.query(region))
 
-    def positions(origin,before,fp,templates):
+    def positions(origin,before,fp,templates,layer):
         yield before[0],before[1]
         if fp:
-            body = bodies[item_id(fp)]
+            body = bodies.get((item_id(fp),layer),bodies[item_id(fp)])
             # Clearance-derived side positions find narrow slots even when
             # their centre does not lie on the user-visible search grid.
             for state,box in templates:
@@ -507,10 +548,13 @@ def plan(board, api, settings=None, progress=None):
                 bottom = body.GetBottom()+clearance+1-(box.GetTop()-before[1])
                 for distance in range(min(rings,12)+1):
                     for offset in ({0} if not distance else (-distance*step,distance*step)):
-                        for x,y in ((left,origin.y+offset),(right,origin.y+offset),
-                                    (origin.x+offset,top),(origin.x+offset,bottom)):
-                            if math.hypot(x-origin.x,y-origin.y)<=api.FromMM(options['max_radius']):
-                                yield x,y
+                        corridor = 2*clearance+stroke+api.FromMM(.1)
+                        offsets = (0,corridor) if options['leaders'] else (0,)
+                        for extra in offsets:
+                            for x,y in ((left-extra,origin.y+offset),(right+extra,origin.y+offset),
+                                        (origin.x+offset,top-extra),(origin.x+offset,bottom+extra)):
+                                if math.hypot(x-origin.x,y-origin.y)<=api.FromMM(options['max_radius']):
+                                    yield x,y
         for ring in range(1,rings+1):
             offsets = [(x,y) for x in range(-ring,ring+1)
                        for y in (-ring,ring)]
@@ -524,7 +568,7 @@ def plan(board, api, settings=None, progress=None):
     def check_leader(box,origin,fp,key,index,layer):
         gap = clearance+stroke//2+1
         label_box = _inflate(box,gap,api)
-        body = _inflate(bodies[item_id(fp)],gap,api)
+        body = _inflate(bodies.get((item_id(fp),layer),bodies[item_id(fp)]),gap,api)
         a = (min(max(origin.x,label_box.GetLeft()),label_box.GetRight()),
              min(max(origin.y,label_box.GetTop()),label_box.GetBottom()))
         b = (min(max(box.GetCenter().x,body.GetLeft()),body.GetRight()),
@@ -557,7 +601,7 @@ def plan(board, api, settings=None, progress=None):
         for text,_,_ in texts:
             layer,key = text.GetLayer(),item_id(text)
             if layer in indices and text.IsVisible() and key not in active:
-                indices[layer].add(text.GetBoundingBox(),key)
+                indices[layer].add(_box(text,_state(text),api),key)
         assignments,rejected = [],set()
         completed = 0
         for text,fp,key,label,before,templates,_ in eligible:
@@ -576,9 +620,9 @@ def plan(board, api, settings=None, progress=None):
                 size_groups[-1].append(template)
             def candidates():
                 for group in size_groups:
-                    budget = max(128, 4096//len(size_groups))
+                    budget = 4096
                     count = 0
-                    for x,y in positions(origin,before,fp,group):
+                    for x,y in positions(origin,before,fp,group,layer):
                         for state,template in group:
                             if count >= budget:
                                 break
@@ -588,7 +632,7 @@ def plan(board, api, settings=None, progress=None):
                             break
             for x,y,state,template in candidates():
                 attempts += 1;checks[0] += 1
-                if attempts > 4096 or time.monotonic()>deadline:
+                if attempts > 4096*len(size_groups) or time.monotonic()>deadline:
                     break
                 after = (x,y)+state[2:]
                 box = api.BOX2I(api.VECTOR2I(template.GetLeft()+x-before[0],template.GetTop()+y-before[1]),
@@ -638,7 +682,7 @@ def plan(board, api, settings=None, progress=None):
     def preserve(key):
         text = text_by_key[key]
         if text.IsVisible() and text.GetLayer() in preserved_indices:
-            preserved_indices[text.GetLayer()].add(text.GetBoundingBox(),key)
+            preserved_indices[text.GetLayer()].add(_box(text,_state(text),api),key)
         for _,shapes in guides.get(key,[]):
             for shape in shapes:
                 preserved_indices[shape.GetLayer()].add(shape.GetBoundingBox(),'guide:'+key)
@@ -727,6 +771,12 @@ class Transaction:
                 # Text setters can fail after one of the individual attributes.
                 journal.append(lambda c=change:_set(c.item,c.before,self.api))
                 _set(change.item,change.after,self.api)
+                actual = change.item.GetBoundingBox()
+                glyphs = self.api.SHAPE_POLY_SET()
+                change.item.TransformTextToPolySet(glyphs,0,self.api.FromMM(.001),self.api.ERROR_OUTSIDE)
+                if glyphs.OutlineCount():actual.Merge(glyphs.BBox())
+                if not change.box.Contains(actual):
+                    raise ValueError('Applied text exceeds its reviewed envelope; placement was rolled back.')
                 if change.leader:
                     group = next(retained_groups,None)
                     if group is None:

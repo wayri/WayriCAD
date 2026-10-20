@@ -4,14 +4,14 @@ from copy import deepcopy
 from .options_ui import OptionsDialog
 import pcbnew
 import wx
-from .placement import DEFAULTS, plan, apply
+from .placement import DEFAULTS, plan, apply, text_geometry, polygons, item_id
 
 
 class LabelPreview(wx.Panel):
     def __init__(self,parent,board):
         self.source_guard=lambda:True
         super().__init__(parent,style=wx.BORDER_SIMPLE)
-        self.board=board;self.preview=None;self.back=False;self.zoom=1.;self.pan=[0.,0.];self.drag=None
+        self._geometry_plan=None;self._glyphs={};self.board=board;self.preview=None;self.back=False;self.zoom=1.;self.pan=[0.,0.];self.drag=None
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetToolTip('Wheel: zoom. Drag: pan. Double-click: fit. Boxes show checked native text envelopes; teal marks proposed labels and guides.')
         self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_SIZE,lambda e:(self.Refresh(),e.Skip()))
@@ -29,10 +29,12 @@ class LabelPreview(wx.Panel):
         if self.drag is not None and event.Dragging():
             point=event.GetPosition();self.pan[0]+=point.x-self.drag.x;self.pan[1]+=point.y-self.drag.y;self.drag=point;self.Refresh()
     def paint(self,event):
-        dc=wx.AutoBufferedPaintDC(self);dc.SetBackground(wx.Brush('#f3f7f8'));dc.Clear()
+        self.draw(wx.AutoBufferedPaintDC(self),self.GetClientSize())
+    def draw(self,dc,size):
+        dc.SetBackground(wx.Brush('#f3f7f8'));dc.Clear()
         if not self.source_guard():
             dc.DrawText('The originating board was closed or replaced. Reopen this plugin.',12,12);return
-        box=self.board.GetBoardEdgesBoundingBox();w,h=self.GetClientSize()
+        box=self.board.GetBoardEdgesBoundingBox();w,h=size
         if box.GetWidth()<=0 or box.GetHeight()<=0:return
         scale=min((w-60)/box.GetWidth(),(h-60)/box.GetHeight())*self.zoom
         cx=(box.GetLeft()+box.GetRight())/2;cy=(box.GetTop()+box.GetBottom())/2
@@ -50,10 +52,11 @@ class LabelPreview(wx.Panel):
                     ring=outline.CHole(i,k);dc.DrawLines([point(ring.CPoint(j).x,ring.CPoint(j).y) for j in range(ring.PointCount())]+[point(ring.CPoint(0).x,ring.CPoint(0).y)])
         silk=pcbnew.B_SilkS if self.back else pcbnew.F_SilkS
         mask=pcbnew.B_Mask if self.back else pcbnew.F_Mask
+        moving={item_id(c.item) for c in self.preview.changes} if self.preview else set()
         for drawing in self.board.GetDrawings():
             if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_SHAPE) and drawing.GetShape()==pcbnew.SHAPE_T_SEGMENT:
                 dc.SetPen(wx.Pen('#82969d',max(1,round(drawing.GetWidth()*scale))));a,b=drawing.GetStart(),drawing.GetEnd();dc.DrawLine(*point(a.x,a.y),*point(b.x,b.y))
-            if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_TEXT):rectangle(drawing.GetBoundingBox(),'#aab5be')
+            if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_TEXT) and item_id(drawing) not in moving:rectangle(drawing.GetBoundingBox(),'#aab5be')
         for fp in self.board.GetFootprints():
             if fp.IsFlipped()==self.back:
                 hull=fp.GetBoundingHull()
@@ -64,19 +67,30 @@ class LabelPreview(wx.Panel):
             for pad in fp.Pads():
                 if pad.IsOnLayer(mask):rectangle(pad.GetBoundingBox(),'#ad8639','#e8d5a6')
             for text in fp.GetFields():
-                if text.GetLayer()==silk and text.IsVisible():rectangle(text.GetBoundingBox(),'#aab5be')
+                if text.GetLayer()==silk and text.IsVisible() and item_id(text) not in moving:rectangle(text.GetBoundingBox(),'#aab5be')
         if self.preview:
+            gc=wx.GraphicsContext.Create(dc)
             for change in self.preview.changes:
                 if change.item.GetLayer()!=silk:continue
-                knockout=bool(change.after[9]);rectangle(change.box,'#008a7d','#00685f' if knockout else '#e2f4ef')
-                x,y=point(change.after[0],change.after[1]);angle=change.after[2]
-                dc.SetTextForeground('#ffffff' if knockout else '#00685f')
-                info=wx.FontInfo(max(7,min(32,round(change.after[4]*scale))))
-                if change.after[7]:info.Bold()
-                if change.after[8]:info.Italic()
-                font=wx.Font(info)
-                dc.SetFont(font);value=change.item.GetShownText(False);tw,th=dc.GetTextExtent(value)
-                dc.DrawRotatedText(value,x-tw//2,y-th//2,angle if not self.back else -angle)
+                rectangle(change.box,'#008a7d','#e2f4ef')
+                if self._geometry_plan is not self.preview:
+                    self._glyphs={};self._geometry_plan=self.preview
+                key=item_id(change.item)
+                if key not in self._glyphs:
+                    _,shape=text_geometry(change.item,change.after,pcbnew)
+                    self._glyphs[key]=polygons(shape)
+                # Board-scale native glyph polygons retain rotation, mirroring,
+                # font, stroke and knockout; never enlarge small screen labels.
+                if gc:
+                    gc.SetPen(wx.TRANSPARENT_PEN);gc.SetBrush(wx.Brush('#00685f'))
+                    path=gc.CreatePath()
+                    for outer,holes in self._glyphs[key]:
+                        for ring in [outer,*holes]:
+                            if not ring:continue
+                            path.MoveToPoint(*point(*ring[0]))
+                            for vertex in ring[1:]:path.AddLineToPoint(*point(*vertex))
+                            path.CloseSubpath()
+                    gc.DrawPath(path,wx.ODDEVEN_RULE)
                 guide=getattr(change,'leader_path',())
                 if not guide and change.leader:
                     x1,y1,x2,y2,stroke,layer=change.leader;guide=((x1,y1),(x2,y2))
@@ -84,6 +98,7 @@ class LabelPreview(wx.Panel):
                     stroke=change.leader[4] if change.leader else change.thickness
                     dc.SetPen(wx.Pen('#008a7d',max(1,round(stroke*scale))))
                     for a,b in zip(guide,guide[1:]):dc.DrawLine(*point(*a),*point(*b))
+            if gc:gc.Flush()
         dc.SetFont(wx.Font(wx.FontInfo(10)));dc.SetTextForeground('#405665')
         dc.DrawText('Bottom view' if self.back else 'Top view',12,10)
         dc.DrawText('Teal: proposed labels / guides    Gold: pads    Grey: existing text envelopes',12,h-25)

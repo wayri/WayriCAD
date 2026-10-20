@@ -17,7 +17,7 @@ class UITests(unittest.TestCase):
         self.fixture=fixture.PlacementTests();self.fixture.setUp()
         self.open=True
         self.frame=SilkscreenFrame(None,self.fixture.board,board_guard=lambda:self.open)
-    def tearDown(self):self.frame.Destroy();self.app.ProcessPendingEvents()
+    def tearDown(self):self.frame.Destroy();wx.Yield()
     def test_preview_apply_undo_redo(self):
         from silkscreen_label_plugin.placement import fingerprint
         before=fingerprint(self.fixture.board,api)

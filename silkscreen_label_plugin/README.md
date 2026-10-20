@@ -4,9 +4,21 @@
 
 Arrange visible reference labels on an open KiCad 10 PCB. Preview checked placements, then apply. Labels that cannot fit safely stay unresolved. This is a separate plugin from Bulk Label Editor, which renames text.
 
-![Native silkscreen placement window](help-workflow.png)
+![Current board-scale native preview](help-clearance.png)
 
-The capture uses a disposable example board. Teal boxes are checked native text envelopes and proposed guide lines; the displayed preview font is illustrative. Gold marks pads and grey marks existing text. Inspect the final native silkscreen and run KiCad DRC before saving.
+The preview above is rendered by the actual drawing code from a disposable
+100-part board with explicit courtyards. Native glyph polygons use the reviewed
+board scale, rotation and mirroring. Gold marks pads and grey marks body/text
+envelopes. This is a preview raster, not a desktop screenshot.
+
+<details><summary>Earlier window layout</summary>
+
+![Earlier native silkscreen placement window](help-workflow.png)
+
+This retained capture documents the window controls before 0.2.1. Its older
+illustrative preview font is replaced by the board-scale rendering above.
+
+</details>
 
 ## Use
 
@@ -16,7 +28,7 @@ The capture uses a disposable example board. Teal boxes are checked native text 
 4. Click **Apply labels**. Only accepted changes are applied. Use this window's **Undo** or **Redo** while it remains open. Changes elsewhere on the board invalidate the preview and undo state; preview again rather than overwriting those edits.
 5. Run native DRC, inspect readable references and association lines, then save the board. The plugin does not rename references or update the schematic.
 
-**Options** adds existing visible values or board text already on silkscreen, and adjusts minimum text height, stroke, spacing, search distance (12 mm initially) and the guide-line threshold. Dense placement is automatic: larger labels go first, alternate orientations and fine nearby slots are tested, and spatial indexes keep collision queries local. A progress window supports cancellation without modifying the PCB. Enable **Automatically shrink text when needed** to try the preferred height down to your minimum in the chosen size steps. With automatic sizing off, existing larger text is preserved. The stricter native board text/stroke/clearance floor applies. Hidden fields are not made visible and fabrication-layer fields are not moved onto silkscreen.
+**Options** adds existing visible values or board text already on silkscreen, and adjusts minimum text height, stroke, spacing, search distance (12 mm initially) and the guide-line threshold. Dense placement is automatic: larger labels go first, alternate orientations and fine nearby slots are tested, and spatial indexes keep collision queries local. A progress window supports cancellation without modifying the PCB. **Automatically shrink text when needed** is enabled by default; it tries the preferred height down to your minimum in the chosen size steps. With automatic sizing off, existing larger text is preserved. The stricter native board text/stroke/clearance floor applies. Hidden fields are not made visible and fabrication-layer fields are not moved onto silkscreen.
 
 ### Size, direction and formatting
 
@@ -42,11 +54,33 @@ Distant component labels get a checked straight or single-bend guide path ending
 
 ![Placement workflow](workflow.svg)
 
+## Courtyard and silkscreen clearance
+
+All accepted labels stay outside the complete same-side courtyard envelope,
+including their own component's courtyard. Both board faces are checked. Native
+courtyard caches are refreshed before planning; incomplete courtyard drawings
+still reserve their full drawn extents. Parts without a courtyard use a
+conservative body hull. Pads, mask openings, existing silk text/graphics and
+other accepted labels/guides remain obstacles. Clearance is never relaxed to
+force a fit. Native glyph geometry, including knockout backgrounds, contributes
+to the checked envelope. Apply checks that the real native text still fits the
+reviewed envelope and rolls back if it does not.
+
+The preview no longer uses an enlarged screen font. Its native glyphs remain
+inside their reviewed boxes at every zoom; the original boxes of moved labels
+are hidden. Grey unchanged labels can still have pre-existing violations. An
+unresolved label is retained and reported, not approved as clear and not hidden.
+
+The current preview image at the top uses those checked native envelopes.
+
 ## Dense boards
 
 Dense search is enabled automatically. It uses a clearance-scale grid and footprint-edge slots, tries 0°/90° label orientations, places larger labels first and checks straight or single-bend guides. Spatial indexes keep checks local. Search has per-label candidate and overall time budgets; an exhausted search keeps the original label and reports it as unresolved.
 
 ![Actual dense 100-part preview](help-dense.png)
+
+The following measurements describe the earlier 0.2.0 release; see the
+[0.2.1 clearance validation](../docs/audits/SILKSCREEN_CLEARANCE_0.2.1.md) for current checks.
 
 | Native KiCad 10 check | Result |
 |---|---|
@@ -58,11 +92,11 @@ These fixtures do not establish that every label fits every dense board. The unr
 
 ## Install
 
-Version 0.2.0 uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
+Version 0.2.1 uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
 
-Download [Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0), or find it in the WayriCAD Plugin Repository in PCM. This separate release adds the plugin without replacing the existing suite 3.6.17 installers.
+Download the current Silkscreen Label Placer from the [releases page](https://github.com/wayri/WayriCAD/releases), or find it in the WayriCAD Plugin Repository in PCM. Other plugin installers retain their published versions.
 
-For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.2.0-PCM.zip`.
+For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.2.1-PCM.zip`.
 
 ## Checks and limits
 

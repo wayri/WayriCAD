@@ -118,7 +118,7 @@ class PlacementTests(unittest.TestCase):
         self.fp.SetSelected()
         self.board.GetDesignSettings().m_MinSilkTextHeight = api.FromMM(1.4)
         self.board.GetDesignSettings().m_MinSilkTextThickness = api.FromMM(.2)
-        preview = plan(self.board,api,{'selected_only':True,'height':.7,'thickness':.1})
+        preview = plan(self.board,api,{'selected_only':True,'height':.7,'thickness':.1,'auto_size':False})
         self.assertTrue(preview.changes)
         self.assertGreaterEqual(preview.changes[0].size[0],api.FromMM(1.4))
         self.assertGreaterEqual(preview.changes[0].thickness,api.FromMM(.2))
