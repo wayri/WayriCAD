@@ -462,3 +462,12 @@ SI prefixes are case-sensitive: `m` is milli, `M`/`Meg` mega, `u`/`µ`/`μ` micr
 ## Jobset sequences and automatic reports
 
 Use `wayricad jobs init Example.kicad_pro --preset fabrication`, then `wayricad jobs run --config wayricad-jobs.json --keep-going`. For native KiCad integration, generate a `.kicad_jobset` with `wayricad jobs jobset --config wayricad-jobs.json --output WayriCAD.kicad_jobset`. See the [complete jobset guide](../wayricad_runtime/JOBSETS.md) for presets, existing-sequence insertion, automatic HTML/JSON reports, runtimes and failure handling.
+
+## Copper layer counters
+
+Use KiCad 10's native Python with `python -m layer_counter_plugin.cli board.kicad_pcb
+--style row --layers L1,L2,L4` for read-only JSON. Add `--output candidate.kicad_pcb`
+to write a new board with grouped copper labels and a zone-only keepout. Existing
+destinations are rejected and source project/rule companions are preserved. The
+installed wheel also exposes `wayricad-layer-counter`. See [Layer Counter](../layer_counter_plugin/README.md)
+for core-pair mapping, styles and fabrication limitations.

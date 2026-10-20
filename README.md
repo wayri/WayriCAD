@@ -3,10 +3,10 @@
 [![Release](https://img.shields.io/github/v/release/wayri/WayriCAD?color=168b78)](https://github.com/wayri/WayriCAD/releases/latest)
 [![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
 [![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
-[![Tools](https://img.shields.io/badge/Tools-21-168b78)](#all-21-plugins)
+[![Tools](https://img.shields.io/badge/Tools-22-168b78)](#all-22-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
-**PCB design, analysis and project review in KiCad.** Choose from 21 independently
+**PCB design, analysis and project review in KiCad.** Choose from 22 independently
 installable plugins. Processing runs locally after setup. KiCad 10 is the validated target.
 
 ## Start here
@@ -17,7 +17,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Run your first analysis | [Getting started](#getting-started) |
 | Download or update | [Release 3.6.19](https://github.com/wayri/WayriCAD/releases/tag/v3.6.19) · [Release notes](docs/RELEASE_NOTES_3.6.19.md) |
 | Place silkscreen labels | [Silkscreen Label Placer 0.2.0](https://github.com/wayri/WayriCAD/releases/tag/silkscreen-label-v0.2.0) · [Quick start](#start-silkscreen) |
-| Choose a tool | [All 21 plugins](#all-21-plugins) |
+| Choose a tool | [All 22 plugins](#all-22-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
@@ -168,7 +168,9 @@ currencies stay explicit.
 
 <a id="all-20-plugins"></a>
 
-## All 21 plugins
+<a id="all-21-plugins"></a>
+
+## All 22 plugins
 
 The IPC packages are **3.6.17**; Fusion is **0.9.8**, and Variant Manager is **0.6.1**.
 Select a plugin for its full guide and supported models.
@@ -188,6 +190,7 @@ Select a plugin for its full guide and supported models.
 | <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. |
 | <img src="trace_refiner_plugin/icon.png" width="24" height="24" alt="Trace Refiner icon"> [Trace Refiner](trace_refiner_plugin/README.md) | Preview small routing jog cleanup by selection, net class or layer; native connectivity and DRC gate Apply. |
 | <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange labels with automatic sizing, reading directions, bold/italic/knockout rules and checked guide lines. |
+| <img src="layer_counter_plugin/icon.png" width="24" height="24" alt="Layer Counter icon"> [Layer Counter](layer_counter_plugin/README.md) | Movable copper L1/L2 markers with zone keepouts, twelve styles and explicit mirrored/overlapping core pairs. |
 | <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Rename references, fields and PCB text in bulk. |
 | <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. |
 | <img src="harness_workbench_plugin/icon.png" width="24" height="24" alt="Harness Workbench icon"> [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Map connectors, cables, bundles and wire requirements. |
@@ -341,6 +344,15 @@ The fixture deliberately includes height violations and incomplete coverage. [Ca
 Clean small trace jogs with selected-track, selected-net, net-filter, net-class and layer scopes. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available in release 3.6.19 as its own PCM package, with an icon, detailed offline Help and a CLI for preview, validation and export to a new project.
 
 ![Native trace refinement preview](trace_refiner_plugin/help-workflow.png)
+
+### [Layer Counter](layer_counter_plugin/README.md)
+
+Create physical copper-layer labels as a native movable group with a zone-only
+keepout. Choose from twelve styles, including mirrored and overlapping core
+pairs, then Preview and Add. The source/candidate plugin is not yet in the
+published PCM feed. [Setup and CLI](layer_counter_plugin/README.md).
+
+![Layer Counter native four-layer preview](layer_counter_plugin/help-preview.png)
 
 ### [Silkscreen Label Placer](silkscreen_label_plugin/README.md)
 

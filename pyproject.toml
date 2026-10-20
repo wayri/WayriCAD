@@ -38,6 +38,7 @@ wayricad-therm-transient = "quick_therm_plugin.transient_cli:main"
 wayricad-si = "signal_integrity_advisor_plugin.cli:main"
 wayricad-fusion = "project_fusion_plugin.__main__:main"
 wayricad-variants = "variant_manager_plugin.wayri_variants.cli:main"
+wayricad-layer-counter = "layer_counter_plugin.cli:main"
 wayricad-trace-refiner = "trace_refiner_plugin.cli:main"
 
 [tool.setuptools.packages.find]
@@ -50,6 +51,7 @@ wayricad_runtime = ["*.md"]
 bom_studio_plugin = ["*.html", "*.md", "*.json", "*.png", "web/*.html", "web/*.js", "web/*.css", "resources/*.png", "resources/*.ico", "resources/*.md", "examples/*", "examples/*/*", "examples/*/*/*"]
 project_fusion_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "*.svg"]
 trace_refiner_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "resources/*.svg"]
+layer_counter_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png", "resources/*.svg"]
 silkscreen_label_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png", "resources/*.svg"]
 variant_manager_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png"]
 "*" = ["LICENSE", "LICENSE.*", "SOURCE_PROVENANCE.json"]
