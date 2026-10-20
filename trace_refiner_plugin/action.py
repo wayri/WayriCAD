@@ -13,15 +13,16 @@ class TraceRefinerAction(pcbnew.ActionPlugin):
     def Run(self):
         import wx
         from .ui import RefinerFrame
+        from .refiner import board_identity
         try:
             board=pcbnew.GetBoard()
             if board is None:raise ValueError('Open a PCB in PCB Editor first.')
             existing=getattr(self,'_frame',None)
             if existing and existing.guard():existing.Show();existing.Raise();return
             if existing:existing.Destroy()
-            identity=int(board.this)
+            identity=board_identity(board)
             def guard():
                 current=pcbnew.GetBoard()
-                return current is not None and int(current.this)==identity
+                return current is not None and board_identity(current)==identity
             self._frame=RefinerFrame(wx.GetActiveWindow(),board,guard);self._frame.Show();self._frame.Raise()
         except Exception as exc:wx.MessageBox(str(exc),'Trace Refiner',wx.OK|wx.ICON_ERROR)

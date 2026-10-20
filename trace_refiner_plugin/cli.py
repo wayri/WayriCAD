@@ -28,7 +28,7 @@ def parser():
 def run_native(options):
     """Run in an owned native child; retain source custody through validated export."""
     import pcbnew as api
-    from .refiner import DEFAULTS, materialize, native_rules, propose, snapshot, validate_detached
+    from .refiner import DEFAULTS, materialize, native_rules, propose, snapshot, validate_detached, change_metrics
 
     source = Path(options['board']).resolve(strict=True)
     if source.suffix != '.kicad_pcb':
@@ -89,7 +89,7 @@ def run_native(options):
     report = dict(schema='wayricad.trace-refiner/v1', status='VALIDATED' if plan.validated else 'PREVIEW',
                   source_sha256=hashes[source], settings=settings, evidence=plan.evidence,
                   changes=[dict(net=c.net, layer=board.GetLayerName(c.layer), width_mm=api.ToMM(c.width),
-                                track_ids=[t.m_Uuid.AsString() for t in c.originals],
+                                track_ids=[t.m_Uuid.AsString() for t in c.originals],metrics=change_metrics(c,api),
                                 before_mm=[[api.ToMM(x), api.ToMM(y)] for x, y in c.before],
                                 after_mm=[[api.ToMM(x), api.ToMM(y)] for x, y in c.after])
                            for c in plan.changes], skipped=plan.skipped)

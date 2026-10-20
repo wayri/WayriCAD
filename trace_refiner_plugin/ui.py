@@ -6,6 +6,7 @@ from collections import defaultdict
 import pcbnew
 import wx
 from .refiner import DEFAULTS, propose, validate_detached, Transaction
+from . import refiner
 
 
 class Preview(wx.Panel):
@@ -13,6 +14,7 @@ class Preview(wx.Panel):
         super().__init__(parent,style=wx.BORDER_SIMPLE)
         self.board,self.guard=board,guard;self.plan=None;self.zoom=1.;self.pan=[0,0];self.drag=None
         self.context=();self.context_bounds=(0,0,1,1);self.context_generation=0
+        self.overlays=();self.active_change=None;self.focus_bounds=None
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetToolTip('Grey: PCB context snapshot; Preview refreshes it after external PCB edits. Amber: original chains. Teal: proposed replacement. Wheel zooms; drag pans; double-click fits.')
         self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_SIZE,lambda e:(self.Refresh(),e.Skip()))
@@ -78,7 +80,26 @@ class Preview(wx.Panel):
         for width,positions in vias.items():
             dc.SetPen(wx.Pen('#546a73',1))
             for x,y in positions:dc.DrawCircle(x,y,max(2,round(width/2)))
-    def fit(self,event=None):self.zoom=1.;self.pan=[0,0];self.Refresh()
+    def set_plan(self,plan):
+        """Cache review geometry and bounds before any repaint or focus action."""
+        self.plan=plan;self.active_change=None;self.focus_bounds=None;records=[]
+        for index,change in enumerate(plan.changes if plan else ()):
+            before=tuple(tuple(point) for point in change.before);after=tuple(tuple(point) for point in change.after)
+            points=before+after
+            bounds=(min(p[0] for p in points),min(p[1] for p in points),max(p[0] for p in points),max(p[1] for p in points))
+            records.append((index,change.width,before,after,bounds))
+        self.overlays=tuple(records);self.Refresh()
+
+    def focus_change(self,index):
+        """Move only the cached viewport; never change native item selection."""
+        record=next((row for row in self.overlays if row[0]==index),None)
+        if record is None:return False
+        _,width,_,_,bounds=record
+        margin=max(width*4,max(bounds[2]-bounds[0],bounds[3]-bounds[1])*.2,1)
+        self.focus_bounds=(bounds[0]-margin,bounds[1]-margin,bounds[2]+margin,bounds[3]+margin)
+        self.active_change=index;self.zoom=1.;self.pan=[0,0];self.Refresh();return True
+
+    def fit(self,event=None):self.zoom=1.;self.pan=[0,0];self.focus_bounds=None;self.Refresh()
     def wheel(self,event):self.zoom=max(.25,min(50,self.zoom*(1.25 if event.GetWheelRotation()>0 else .8)));self.Refresh()
     def down(self,event):self.drag=event.GetPosition();self.CaptureMouse()
     def up(self,event):
@@ -90,24 +111,26 @@ class Preview(wx.Panel):
     def paint(self,event):
         dc=wx.AutoBufferedPaintDC(self);dc.SetBackground(wx.Brush('#162f3a'));dc.Clear()
         if not self.guard():return
-        bounds=self.context_bounds;w,h=self.GetClientSize()
+        bounds=self.focus_bounds or self.context_bounds;w,h=self.GetClientSize()
         scale=max(1e-12,min(max(1,w-40)/max(1,bounds[2]-bounds[0]),max(1,h-40)/max(1,bounds[3]-bounds[1]))*self.zoom)
         cx=(bounds[0]+bounds[2])/2;cy=(bounds[1]+bounds[3])/2
         def p(x,y):return round(w/2+(x-cx)*scale+self.pan[0]),round(h/2+(y-cy)*scale+self.pan[1])
         view=(cx+(-w/2-self.pan[0])/scale,cy+(-h/2-self.pan[1])/scale,
               cx+(w/2-self.pan[0])/scale,cy+(h/2-self.pan[1])/scale)
         self.draw_context(dc,p,scale,view)
-        if self.plan:
-            for c in self.plan.changes:
-                for points,colour in ((c.before,'#e6a44a'),(c.after,'#4bdebe')):
-                    dc.SetPen(wx.Pen(colour,max(2,round(c.width*scale))));dc.DrawLines([p(*a) for a in points])
+        for index,width,before,after,_ in self.overlays:
+            if index==self.active_change:
+                dc.SetPen(wx.Pen('#eff9ff',max(7,round(width*scale)+5)))
+                for points in (before,after):dc.DrawLines([p(*a) for a in points])
+            for points,colour in ((before,'#e6a44a'),(after,'#4bdebe')):
+                dc.SetPen(wx.Pen(colour,max(2,round(width*scale))));dc.DrawLines([p(*a) for a in points])
         dc.SetTextForeground('#f1f6f7');dc.DrawText('Amber: before · Teal: proposed · PCB context snapshot: click Preview after PCB edits',12,12)
 
 
 class RefinerFrame(wx.Frame):
     def __init__(self,parent,board,guard=None):
         super().__init__(parent,title='WayriCAD Trace Refiner',size=(1150,780))
-        self.SetMinSize((950,650));self.board=board;self.guard=guard or (lambda:True);self.review=None;self.transactions=[];self.redos=[]
+        self.SetMinSize((950,650));self.board=board;self.guard=guard or (lambda:True);self.review=None;self.transactions=[];self.redos=[];self._table_rows=[];self._excluded_notices=[];self._last_tooltip=None
         self.checked=set();self.nets=sorted({t.GetNetname() for t in board.GetTracks() if t.GetNetname()})
         panel=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL)
         title=wx.StaticText(panel,label='Refine small routing jogs');title.SetFont(title.GetFont().Bold().Larger());root.Add(title,0,wx.ALL,12)
@@ -126,7 +149,14 @@ class RefinerFrame(wx.Frame):
         self.protected=wx.TextCtrl(left,value=DEFAULTS['protected']);self.protected.SetToolTip('Comma-separated protected net wildcards. Native differential-pair names are always protected. Add any other tuned or critical nets.');setup.Add(wx.StaticText(left,label='Protected nets (wildcards)'),0,wx.TOP,5);setup.Add(self.protected,0,wx.EXPAND|wx.BOTTOM,5)
         left.SetSizer(setup);left.FitInside();body.Add(left,0,wx.EXPAND|wx.RIGHT,12)
         right=wx.BoxSizer(wx.VERTICAL);self.canvas=Preview(panel,board,self.guard);right.Add(self.canvas,1,wx.EXPAND)
-        self.details=wx.ListCtrl(panel,style=wx.LC_REPORT);self.details.InsertColumn(0,'Net',width=330);self.details.InsertColumn(1,'Change / preserved',width=430);self.details.SetMinSize((-1,130));right.Add(self.details,0,wx.EXPAND|wx.TOP,8)
+        self.details=wx.ListCtrl(panel,style=wx.LC_REPORT)
+        for index,(label,width) in enumerate([('Net',230),('Layer',75),('Before mm',90),('After mm',90),('Shorter mm',95),('Segments',110),('Review / preserved',330)]):self.details.InsertColumn(index,label,width=width)
+        self.details.SetMinSize((-1,160));right.Add(self.details,0,wx.EXPAND|wx.TOP,8)
+        actions=wx.BoxSizer(wx.HORIZONTAL);self.exclude_button=wx.Button(panel,label='Exclude selected proposals');self.exclude_button.Disable();actions.Add(self.exclude_button,0,wx.RIGHT,8)
+        actions.Add(wx.StaticText(panel,label='Click a proposed row to focus. Ctrl/Shift selects several; exclusions require revalidation.'),1,wx.ALIGN_CENTER_VERTICAL)
+        right.Add(actions,0,wx.EXPAND|wx.TOP,5)
+        self.details.Bind(wx.EVT_LIST_ITEM_SELECTED,self._review_selected);self.details.Bind(wx.EVT_LIST_ITEM_DESELECTED,self._review_selection_changed)
+        self.details.Bind(wx.EVT_MOTION,self._review_tooltip);self.exclude_button.Bind(wx.EVT_BUTTON,self.exclude_selected)
         body.Add(right,1,wx.EXPAND);root.Add(body,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
         self.status=wx.StaticText(panel,label='Select tracks or choose another scope. Preview is read-only; native DRC is required before Apply.');root.Add(self.status,0,wx.EXPAND|wx.ALL,12)
         row=wx.BoxSizer(wx.HORIZONTAL)
@@ -141,6 +171,63 @@ class RefinerFrame(wx.Frame):
         preview.Bind(wx.EVT_BUTTON,self.on_preview);self.validate_button.Bind(wx.EVT_BUTTON,self.on_validate);self.apply_button.Bind(wx.EVT_BUTTON,self.on_apply)
         self.undo_button.Bind(wx.EVT_BUTTON,self.undo);self.redo_button.Bind(wx.EVT_BUTTON,self.redo)
         help_button.Bind(wx.EVT_BUTTON,lambda e:wx.LaunchDefaultBrowser(Path(__file__).with_name('help.html').as_uri()))
+    def _populate_review(self):
+        self.details.DeleteAllItems();self._table_rows=[];self._last_tooltip=None
+        self.canvas.set_plan(self.review)
+        if self.review is None:return
+        for index,change in enumerate(self.review.changes):
+            metrics=refiner.change_metrics(change,pcbnew)
+            row=self.details.InsertItem(self.details.GetItemCount(),change.net);self._table_rows.append(index)
+            cells=[self.board.GetLayerName(change.layer),f"{metrics['before_mm']:.4f}",f"{metrics['after_mm']:.4f}",f"{metrics['shortening_mm']:.4f}",f'{len(change.before)-1} → {len(change.after)-1}',f"Proposed; {metrics['removed_segments']} segments removed"]
+            for column,value in enumerate(cells,1):self.details.SetItem(row,column,value)
+        for net,reason in [*self.review.skipped,*self._excluded_notices]:
+            row=self.details.InsertItem(self.details.GetItemCount(),net);self._table_rows.append(None)
+            self.details.SetItem(row,6,reason)
+        self.exclude_button.Disable()
+
+    def _review_summary(self):
+        changes=self.review.changes if self.review else ()
+        metrics=[refiner.change_metrics(change,pcbnew) for change in changes]
+        return (f"{len(changes)} proposed chains · {sum(row['shortening_mm'] for row in metrics):.4f} mm shorter · "
+                f"{sum(row['removed_segments'] for row in metrics)} segments removed · "
+                f"{len(self.review.skipped) if self.review else 0} preserved · {len(self._excluded_notices)} excluded.")
+
+    def _selected_changes(self):
+        result=set();row=self.details.GetNextItem(-1,wx.LIST_NEXT_ALL,wx.LIST_STATE_SELECTED)
+        while row!=-1:
+            if row<len(self._table_rows) and self._table_rows[row] is not None:result.add(self._table_rows[row])
+            row=self.details.GetNextItem(row,wx.LIST_NEXT_ALL,wx.LIST_STATE_SELECTED)
+        return result
+
+    def _review_selection_changed(self,event=None):
+        self.exclude_button.Enable(bool(self.review and self._selected_changes()))
+        if event:event.Skip()
+
+    def _review_selected(self,event):
+        row=event.GetIndex()
+        if row<len(self._table_rows) and self._table_rows[row] is not None:self.canvas.focus_change(self._table_rows[row])
+        self._review_selection_changed(event)
+
+    def _review_tooltip(self,event):
+        row,_=self.details.HitTest(event.GetPosition())
+        value=(self.details.GetItemText(row)+'\n'+self.details.GetItemText(row,6)) if row>=0 else None
+        if value!=self._last_tooltip:
+            self.details.SetToolTip(value or 'Select proposals to inspect or exclude. Preserved notices are not proposals.');self._last_tooltip=value
+        event.Skip()
+
+    def exclude_selected(self,event=None):
+        if self.review is None:return
+        selected=self._selected_changes()
+        if not selected:return
+        try:
+            self.require_board()
+            excluded=[self.review.changes[index] for index in sorted(selected)]
+            self.review=refiner.subset_plan(self.review,[index for index in range(len(self.review.changes)) if index not in selected])
+            self._excluded_notices.extend((change.net,'Excluded by review; original copper retained.') for change in excluded)
+            self._populate_review();self.apply_button.Disable();self.validate_button.Enable(bool(self.review.changes))
+            self.status.SetLabel(self._review_summary()+(' Validate this subset again before Apply.' if self.review.changes else 'No proposals remain. Preview again to start a new review.'))
+        except Exception as exc:self.error(exc)
+
     def require_board(self):
         if not self.guard():raise ValueError('Originating board closed or replaced. Reopen Trace Refiner.')
     def remember_nets(self):
@@ -152,7 +239,7 @@ class RefinerFrame(wx.Frame):
         self.remember_nets()
         return dict(scope=['selected tracks','selected nets','whole board','net filters','groups'][self.scope.GetSelection()],nets=sorted(self.checked),layers=list(self.layers.GetCheckedStrings()),groups=list(self.groups.GetCheckedStrings()),max_deviation=float(self.deviation.GetValue()),max_shortening=float(self.shortening.GetValue()),protected=self.protected.GetValue())
     def invalidate(self,event=None):
-        self.review=None;self.canvas.plan=None;self.canvas.Refresh();self.validate_button.Disable();self.apply_button.Disable()
+        self.review=None;self.canvas.set_plan(None);self.details.DeleteAllItems();self._table_rows=[];self._excluded_notices=[];self.validate_button.Disable();self.apply_button.Disable();self.exclude_button.Disable()
         self.status.SetLabel('Inputs changed. Preview again.')
     def error(self,exc):self.status.SetLabel(str(exc));wx.MessageBox(str(exc),'Trace Refiner',wx.OK|wx.ICON_ERROR,parent=self)
     def on_preview(self,event=None):
@@ -164,17 +251,13 @@ class RefinerFrame(wx.Frame):
                 return self.guard() and progress.Pulse(label)[0]
             self.review=propose(self.board,pcbnew,self.settings(),progress=pulse)
             self.canvas.capture_context()
-            self.canvas.plan=self.review
-            for c in self.review.changes:
-                row=self.details.InsertItem(self.details.GetItemCount(),c.net);self.details.SetItem(row,1,f'{self.board.GetLayerName(c.layer)} · {len(c.before)-1} → {len(c.after)-1} segments')
-            for net,reason in self.review.skipped:
-                row=self.details.InsertItem(self.details.GetItemCount(),net);self.details.SetItem(row,1,reason)
+            self._populate_review()
             self.validate_button.Enable(bool(self.review.changes));self.canvas.Refresh()
-            self.status.SetLabel(f'{len(self.review.changes)} proposed chains · {len(self.review.skipped)} preserved. Validate before Apply. Protected/locked/grouped items are untouched.')
+            self.status.SetLabel(self._review_summary()+' Validate before Apply. Protected/locked/grouped items are untouched.')
         except Exception as exc:self.error(exc)
         finally:progress.Destroy()
     def on_validate(self,event=None):
-        if self.review is None:return
+        if self.review is None or not self.review.changes:return
         progress=wx.ProgressDialog('Validate trace refinement','Preparing native snapshot…',parent=self,style=wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
         try:
             self.require_board();review=self.review

@@ -97,8 +97,8 @@ class NativeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'DRC|findings'):validate(self.board,api,review)
         self.assertFalse(review.validated)
     def test_partial_mutation_failure_recovers(self):
-        from trace_refiner_plugin.refiner import Transaction,snapshot
-        review=self.plan();review.validated=True;before=snapshot(self.board,api);original=self.board.Add
+        from trace_refiner_plugin.refiner import Transaction,snapshot,proposal_digest
+        review=self.plan();review.validated=True;review.validation_digest=proposal_digest(review);before=snapshot(self.board,api);original=self.board.Add
         count=[0]
         def fail_once(item):
             count[0]+=1
@@ -116,8 +116,8 @@ class NativeTests(unittest.TestCase):
         review=self.plan()
         with self.assertRaisesRegex(ValueError,'Board Setup'):validate_detached(self.board,api,review)
     def test_post_exchange_snapshot_failure_recovers(self):
-        from trace_refiner_plugin.refiner import Transaction,snapshot
-        review=self.plan();review.validated=True;before=snapshot(self.board,api)
+        from trace_refiner_plugin.refiner import Transaction,snapshot,proposal_digest
+        review=self.plan();review.validated=True;review.validation_digest=proposal_digest(review);before=snapshot(self.board,api)
         count=[0]
         def fail_after_exchange(board,native):
             count[0]+=1
@@ -141,6 +141,102 @@ class NativeTests(unittest.TestCase):
         review=self.plan()
         with self.assertRaisesRegex(ValueError,'DRC|findings'):validate_detached(self.board,api,review)
         self.assertEqual(json.loads(self.path.with_suffix('.kicad_pro').read_text()),project)
+
+    def test_long_fragmented_chain_is_refined_with_fixed_terminals(self):
+        from trace_refiner_plugin.refiner import validate_detached,Transaction,snapshot,connectivity
+        for item in self.tracks:self.board.Remove(item)
+        points=[(1,2)]+[(2+4*i/400,2) for i in range(401)]+[(7,2)]
+        self.tracks=[self.track(a,b) for a,b in zip(points,points[1:])]
+        before=snapshot(self.board,api);partitions=connectivity(self.board,api)
+        review=self.plan();self.assertEqual(len(review.changes),1)
+        self.assertEqual(len(review.changes[0].originals),402)
+        self.assertEqual(len(review.changes[0].after),2)
+        validate_detached(self.board,api,review)
+        tx=Transaction(self.board,api,review).redo()
+        self.assertEqual(connectivity(self.board,api),partitions)
+        tx.undo();self.assertEqual(snapshot(self.board,api),before)
+
+    def test_chain_over_work_cap_is_preserved_as_one_unit(self):
+        for item in self.tracks:self.board.Remove(item)
+        for fp in list(self.board.GetFootprints()):self.board.Remove(fp)
+        for i in range(2050):self.track((1+6*i/2050,2),(1+6*(i+1)/2050,2))
+        review=self.plan();self.assertFalse(review.changes)
+        self.assertEqual(len(review.skipped),1)
+        self.assertIn('Long chain',review.skipped[0][1])
+
+    def test_validation_is_bound_to_proposal_and_replacement_geometry(self):
+        from trace_refiner_plugin.refiner import validate,Transaction,snapshot,subset_plan
+        review=self.plan();validate(self.board,api,review);before=snapshot(self.board,api)
+        change=review.changes[0];after=change.after[:]
+        change.after[-1]=(change.after[-1][0]+10,change.after[-1][1])
+        with self.assertRaisesRegex(ValueError,'Proposal changed'):Transaction(self.board,api,review)
+        change.after=after
+        forged=change.originals[0].Duplicate();forged.SetStart(api.VECTOR2I(*after[0]));forged.SetEnd(api.VECTOR2I(*after[-1]));forged.SetWidth(api.FromMM(.3))
+        change.added=[forged]
+        with self.assertRaisesRegex(ValueError,'Replacement track'):Transaction(self.board,api,review).redo()
+        self.assertEqual(snapshot(self.board,api),before)
+        subset=subset_plan(review,[0]);self.assertFalse(subset.validated);self.assertFalse(subset.validation_digest)
+        with self.assertRaisesRegex(ValueError,'Validate'):Transaction(self.board,api,subset)
+
+    def test_post_mutation_add_and_remove_failures_restore_source(self):
+        from trace_refiner_plugin.refiner import Transaction,snapshot,proposal_digest
+        for operation in ('Add','Remove'):
+            review=self.plan();review.validated=True;review.validation_digest=proposal_digest(review)
+            before=snapshot(self.board,api);original=getattr(self.board,operation);calls=[0]
+            def failing(item):
+                original(item);calls[0]+=1
+                if calls[0]==1:raise RuntimeError('Injected after mutation')
+            with patch.object(self.board,operation,side_effect=failing):
+                with self.assertRaisesRegex(RuntimeError,'after mutation'):Transaction(self.board,api,review).redo()
+            self.assertEqual(snapshot(self.board,api),before)
+
+    def test_snapshot_uses_no_temporary_board_save(self):
+        from trace_refiner_plugin.refiner import snapshot
+        before=self.board.GetFileName()
+        with patch.object(api,'SaveBoard',side_effect=AssertionError('Snapshot wrote a file')):
+            self.assertEqual(snapshot(self.board,api),snapshot(self.board,api))
+        self.assertEqual(self.board.GetFileName(),before)
+
+    def test_copper_index_matches_brute_force_native_bounds(self):
+        from trace_refiner_plugin.refiner import _CopperIndex,uid
+        for i in range(30):self.track((i-15,-i/2),(i-14,1-i/2))
+        rows=list(self.board.GetTracks());index=_CopperIndex(rows,[api.F_Cu,api.B_Cu],api)
+        for x in range(-20,22,3):
+            values=[api.FromMM(v) for v in (x,-10,x+4,10)]
+            left,top,right,bottom=values
+            expected={uid(t) for t in rows if not (t.GetBoundingBox().GetRight()<left or t.GetBoundingBox().GetLeft()>right or t.GetBoundingBox().GetBottom()<top or t.GetBoundingBox().GetTop()>bottom)}
+            self.assertEqual({uid(t) for t in index.query(1,api.F_Cu,values)},expected)
+            self.assertFalse(index.query(1,api.B_Cu,values))
+
+    def test_invalid_settings_are_actionable(self):
+        from trace_refiner_plugin.refiner import propose
+        for settings in (dict(max_deviation=True),dict(max_deviation='0.1'),dict(protected=[]),dict(nets='SIGNAL'),dict(unknown=1)):
+            with self.assertRaises(ValueError):propose(self.board,api,settings)
+
+    def test_mask_boundaries_and_real_groups_are_protected(self):
+        first=self.tracks[0];first.SetHasSolderMask(True);first.SetLocalSolderMaskMargin(api.FromMM(.1))
+        review=self.plan()
+        self.assertTrue(all(len({(t.HasSolderMask(),t.GetLocalSolderMaskMargin()) for t in c.originals})==1 for c in review.changes))
+        self.assertTrue(all(first not in c.originals for c in review.changes))
+        group=api.PCB_GROUP(self.board);group.SetName('Protected routing');self.board.Add(group)
+        for track in self.tracks:group.AddItem(track)
+        self.assertFalse(self.plan().changes)
+
+    def test_via_and_other_layer_routing_survive_real_refinement(self):
+        from trace_refiner_plugin.refiner import validate_detached,Transaction,connectivity,uid
+        via=api.PCB_VIA(self.board);via.SetPosition(self.v(1,2));via.SetWidth(api.FromMM(.6));via.SetDrill(api.FromMM(.3))
+        via.SetViaType(api.VIATYPE_THROUGH);via.SetLayerPair(api.F_Cu,api.B_Cu);via.SetNet(self.net);self.board.Add(via)
+        bottom=self.track((1,2),(9,2.03));bottom.SetLayer(api.B_Cu)
+        fp=api.FOOTPRINT(self.board);fp.SetReference('J3');fp.SetPosition(self.v(9,2.03));self.board.Add(fp)
+        pad=api.PAD(fp);pad.SetPosition(self.v(9,2.03));pad.SetSize(self.v(.6,.6));pad.SetShape(api.PAD_SHAPE_RECT)
+        pad.SetAttribute(api.PAD_ATTRIB_SMD);mask=api.LSET();mask.AddLayer(api.B_Cu);mask.AddLayer(api.B_Mask);pad.SetLayerSet(mask);pad.SetNet(self.net);fp.Add(pad)
+        before=connectivity(self.board,api);original=(uid(via),via.GetPosition().x,via.GetPosition().y,via.GetDrill(),tuple(via.GetLayerSet().Seq()))
+        review=self.plan();self.assertTrue(review.changes)
+        self.assertTrue(all(c.layer==api.F_Cu for c in review.changes))
+        validate_detached(self.board,api,review);Transaction(self.board,api,review).redo()
+        self.assertEqual(before,connectivity(self.board,api))
+        self.assertEqual(original,(uid(via),via.GetPosition().x,via.GetPosition().y,via.GetDrill(),tuple(via.GetLayerSet().Seq())))
+        self.assertIn(uid(bottom),{uid(t) for t in self.board.GetTracks()})
 
 
 if __name__=='__main__':unittest.main()

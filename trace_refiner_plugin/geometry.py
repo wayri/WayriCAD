@@ -2,7 +2,8 @@
 
 This module knows nothing about nets, clearance, tracks, or native KiCad APIs.
 Callers must check those contracts separately. A returned path has fixed ends
-and at most one 0/45/90-degree bend. None means no eligible improvement.
+and, for simplify(), at most one 0/45/90-degree bend. Local cleanup retains
+larger route bends. None means no eligible improvement.
 """
 
 from math import hypot, isfinite
@@ -10,6 +11,8 @@ from math import hypot, isfinite
 # Far below KiCad's 1 nm coordinate grid. Used only for angle/length equality,
 # never to expand the requested deviation capsule.
 _EQUALITY_MM = 1e-9
+MAX_VERTICES = 2049
+MAX_LOCAL_ATTEMPTS = 1024
 
 
 def _sub(a, b):
@@ -58,7 +61,13 @@ def _covered(source, target, radius):
     work/depth limits can reject a valid borderline path, never approve an
     unproved interval. Testing in both directions bounds Hausdorff distance.
     """
+    source, target = _collapse(source), _collapse(target)
+    if len(source)<2 or len(target)<2:
+        return False
     segments = list(zip(target, target[1:]))
+    exact = {tuple(sorted((a,b))) for a,b in segments}
+    bounds = [(min(c[0],d[0])-radius,min(c[1],d[1])-radius,
+               max(c[0],d[0])+radius,max(c[1],d[1])+radius) for c,d in segments]
     pending = [(a, b, 0) for a, b in zip(source, source[1:])]
     limit = radius * radius
     budget = 8192
@@ -67,8 +76,14 @@ def _covered(source, target, radius):
         if budget < 0:
             return False
         a, b, depth = pending.pop()
+        if tuple(sorted((a,b))) in exact:
+            continue
+        left,top,right,bottom=min(a[0],b[0]),min(a[1],b[1]),max(a[0],b[0]),max(a[1],b[1])
         distances = [(_distance_squared(a, c, d), _distance_squared(b, c, d))
-                     for c, d in segments]
+                     for (c,d),(l,t,r,bt) in zip(segments,bounds)
+                     if l<=right and left<=r and t<=bottom and top<=bt]
+        if not distances:
+            return False
         if any(x <= limit and y <= limit for x, y in distances):
             continue
         if min(x for x, _ in distances) > limit or min(y for _, y in distances) > limit:
@@ -94,6 +109,23 @@ def _intersects(a, b, c, d):
         return True
     return ((p == 0 and _on_segment(c, a, b)) or (q == 0 and _on_segment(d, a, b))
             or (r == 0 and _on_segment(a, c, d)) or (s == 0 and _on_segment(b, c, d)))
+
+
+
+def _simple(points):
+    """Exact nonadjacent intersection check, pruned by closed segment bounds."""
+    records=[]
+    for index,(a,b) in enumerate(zip(points,points[1:])):
+        records.append((min(a[0],b[0]),max(a[0],b[0]),min(a[1],b[1]),max(a[1],b[1]),index,a,b))
+    active=[]
+    for record in sorted(records):
+        left,right,top,bottom,index,a,b=record
+        active=[old for old in active if old[1]>=left]
+        for old in active:
+            if abs(index-old[4])>1 and old[2]<=bottom and top<=old[3] and _intersects(a,b,old[5],old[6]):
+                return False
+        active.append(record)
+    return True
 
 
 def _octilinear(a, b):
@@ -141,22 +173,19 @@ def simplify(points, max_deviation=0.05, max_shortening=0.1):
         points = [tuple(map(float, point)) for point in points]
         if (not isfinite(max_deviation) or not isfinite(max_shortening)
                 or max_deviation < 0 or max_shortening < 0
-                or len(points) < 3 or len(points) > 256
+                or len(points) < 3 or len(points) > MAX_VERTICES
                 or any(len(p) != 2 or not all(map(isfinite, p)) for p in points)
                 or len(set(points)) != len(points)):
             return None
     except (TypeError, ValueError, OverflowError):
         return None
     direction = _sub(points[-1], points[0])
-    segments = list(zip(points, points[1:]))
-    for index, (a, b) in enumerate(segments):
-        vector = _sub(b, a)
-        if _dot(vector, direction) < 0:
-            return None
-        for c, d in segments[index + 2:]:
-            if _intersects(a, b, c, d):
-                return None
     original = _collapse(points)
+    for a,b in zip(original,original[1:]):
+        if _dot(_sub(b,a),direction)<0:
+            return None
+    if not _simple(original):
+        return None
     start, end = points[0], points[-1]
     candidates = []
     if _octilinear(start, end):
@@ -195,45 +224,47 @@ def simplify(points, max_deviation=0.05, max_shortening=0.1):
 def simplify_local(points, max_deviation=0.05, max_shortening=0.1):
     """Clean bounded 3..8-vertex windows while retaining larger route bends.
 
-    At most 1024 windows are considered, with at most 129 source vertices.
+    At most MAX_LOCAL_ATTEMPTS windows and MAX_VERTICES source vertices are considered.
     Every accepted replacement is checked against the entire original path,
     in both directions, and against the total shortening budget. Repeated
     excursions in forward octilinear subchains conservatively exclude tuning
-    patterns before any window is changed. None means no eligible cleanup.
+    patterns before any window is changed. Work exhaustion returns only changes
+    already proved safe; it does not promise to visit every vertex. Exact
+    collinear preprocessing covers the whole input independently of that cap.
+    None means no eligible cleanup.
     """
     try:
         original = [tuple(map(float, point)) for point in points]
         if (not isfinite(max_deviation) or not isfinite(max_shortening)
                 or max_deviation < 0 or max_shortening < 0
-                or not 3 <= len(original) <= 129
+                or not 3 <= len(original) <= MAX_VERTICES
                 or any(len(p) != 2 or not all(map(isfinite, p)) for p in original)
                 or len(set(original)) != len(original)):
             return None
     except (TypeError, ValueError, OverflowError):
         return None
-    original_segments = list(zip(original, original[1:]))
     for a, b, c in zip(original, original[1:], original[2:]):
         first, second = _sub(b, a), _sub(c, b)
         if _cross(first, second) == 0 and _dot(first, second) < 0:
             return None
-    for index, (a, b) in enumerate(original_segments):
-        if any(_intersects(a, b, c, d) for c, d in original_segments[index + 2:]):
-            return None
-    for start in range(len(original) - 4):
-        for size in range(5, min(9, len(original) - start) + 1):
-            window = original[start:start + size]
+    collapsed = _collapse(original)
+    if not _simple(collapsed):
+        return None
+    for start in range(len(collapsed) - 4):
+        for size in range(5, min(9, len(collapsed) - start) + 1):
+            window = collapsed[start:start + size]
             chord = _sub(window[-1], window[0])
             if (_octilinear(window[0], window[-1])
                     and all(_dot(_sub(b, a), chord) >= 0 for a, b in zip(window, window[1:]))
                     and not _single_excursions(window, [window[0], window[-1]])):
                 return None
-    result = original[:]
-    initial_length = _length(_collapse(original))
+    result = collapsed[:]
+    initial_length = _length(collapsed)
     start, attempts = 0, 0
-    while start < len(result) - 2 and attempts < 1024:
+    while start < len(result) - 2 and attempts < MAX_LOCAL_ATTEMPTS:
         changed = False
         for size in range(min(8, len(result) - start), 2, -1):
-            if attempts >= 1024:
+            if attempts >= MAX_LOCAL_ATTEMPTS:
                 break
             attempts += 1
             remaining = max(0.0, max_shortening - (initial_length - _length(_collapse(result))))
@@ -246,12 +277,10 @@ def simplify_local(points, max_deviation=0.05, max_shortening=0.1):
                 continue
             if len(set(candidate)) != len(candidate):
                 continue
-            segments = list(zip(candidate, candidate[1:]))
-            if any(_intersects(a, b, c, d) for i, (a, b) in enumerate(segments)
-                   for c, d in segments[i + 2:]):
+            if not _simple(candidate):
                 continue
-            if (_covered(_collapse(original), _collapse(candidate), max_deviation)
-                    and _covered(_collapse(candidate), _collapse(original), max_deviation)):
+            if (_covered(collapsed, _collapse(candidate), max_deviation)
+                    and _covered(_collapse(candidate), collapsed, max_deviation)):
                 result, changed = candidate, True
                 break
         start = max(0, start - 1) if changed else start + 1

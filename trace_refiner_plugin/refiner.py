@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 import time
 import sys
-from .geometry import simplify_local, _covered, _collapse, _length
+from .geometry import simplify_local, _covered, _collapse, _length, MAX_VERTICES
 
 DEFAULTS = dict(scope='selected tracks', nets=[], layers=[], groups=[],
                 max_deviation=.10, max_shortening=.10,
@@ -38,13 +38,45 @@ def copy_board(board, api):
 
 def snapshot(board, api):
     """Hash complete native serialization without changing the live board filename."""
-    with tempfile.TemporaryDirectory(prefix='wayricad-refine-hash-') as directory:
-        path=Path(directory)/'board.kicad_pcb'
-        if not api.SaveBoard(str(path),board,True):
-            raise RuntimeError('Could not snapshot the current PCB.')
-        selected=sorted(uid(t) for t in board.GetTracks() if t.IsSelected())
-        selected+=sorted(uid(p) for fp in board.GetFootprints() for p in fp.Pads() if p.IsSelected() or fp.IsSelected())
-        return hashlib.sha256(path.read_bytes()+json.dumps([selected,native_rules(board)]).encode()).hexdigest()
+    formatter=api.STRING_FORMATTER()
+    api.PCB_IO_KICAD_SEXPR().FormatBoardToFormatter(formatter,board)
+    selected=sorted(uid(t) for t in board.GetTracks() if t.IsSelected())
+    selected+=sorted(uid(p) for fp in board.GetFootprints() for p in fp.Pads() if p.IsSelected() or fp.IsSelected())
+    return hashlib.sha256(formatter.GetString().encode('utf-8')+json.dumps([selected,native_rules(board)]).encode()).hexdigest()
+
+
+def board_identity(board):
+    """Unwrap both traditional and nested native KiCad BOARD proxies."""
+    pointer=board
+    for _ in range(8):
+        try:return int(pointer)
+        except (TypeError,ValueError):pointer=getattr(pointer,'this',None)
+        if pointer is None:break
+    raise ValueError('Cannot identify the originating native board.')
+
+
+def proposal_digest(preview):
+    """Bind native validation to the exact proposed coordinates and settings."""
+    rows=[dict(ids=[uid(t) for t in c.originals],before=c.before,after=c.after,
+               net=c.net,layer=c.layer,width=c.width) for c in preview.changes]
+    return hashlib.sha256(json.dumps([preview.settings,rows],sort_keys=True,allow_nan=False).encode()).hexdigest()
+
+
+def change_metrics(change,api):
+    before=_length([(api.ToMM(x),api.ToMM(y)) for x,y in change.before])
+    after=_length([(api.ToMM(x),api.ToMM(y)) for x,y in change.after])
+    return dict(before_mm=before,after_mm=after,shortening_mm=before-after,
+                removed_segments=len(change.before)-len(change.after))
+
+
+def subset_plan(preview,indices):
+    """Keep explicit proposal indices, always discarding prior validation."""
+    from dataclasses import replace
+    indices=list(indices)
+    if any(type(i) is not int or i<0 or i>=len(preview.changes) for i in indices) or len(indices)!=len(set(indices)):
+        raise ValueError('Choose distinct proposal indices from the current preview.')
+    return replace(preview,changes=[preview.changes[i] for i in sorted(indices)],
+                   validated=False,validation_digest='',evidence={})
 
 
 def native_rules(board):
@@ -137,20 +169,55 @@ class Plan:
     skipped: list = field(default_factory=list)
     validated: bool = False
     evidence: dict = field(default_factory=dict)
+    board_id: int = None
+    validation_digest: str = ''
+
+
+class _CopperIndex:
+    """Conservative native bounding-box broad phase, keyed by net and layer."""
+    def __init__(self,items,layers,api):
+        self.cell=api.FromMM(4);self.rows=defaultdict(dict);self.bins=defaultdict(set);self.large=defaultdict(set)
+        for item in items:
+            box=item.GetBoundingBox();bounds=(box.GetLeft(),box.GetTop(),box.GetRight(),box.GetBottom())
+            key=uid(item)
+            for layer in layers:
+                if not item.IsOnLayer(layer):continue
+                group=(item.GetNetCode(),layer);self.rows[group][key]=(item,bounds)
+                x1,y1,x2,y2=(value//self.cell for value in bounds)
+                if (x2-x1+1)*(y2-y1+1)>4096:self.large[group].add(key);continue
+                for x in range(x1,x2+1):
+                    for y in range(y1,y2+1):self.bins[(*group,x,y)].add(key)
+
+    def query(self,net,layer,bounds):
+        group=(net,layer);rows=self.rows[group]
+        left,top,right,bottom=bounds;x1,y1,x2,y2=(value//self.cell for value in bounds)
+        if (x2-x1+1)*(y2-y1+1)>4096:keys=set(rows)
+        else:
+            keys=self.large[group].copy()
+            for x in range(x1,x2+1):
+                for y in range(y1,y2+1):keys.update(self.bins.get((*group,x,y),()))
+        return [rows[key][0] for key in sorted(keys)
+                if not (rows[key][1][2]<left or rows[key][1][0]>right or rows[key][1][3]<top or rows[key][1][1]>bottom)]
 
 
 def propose(board, api, settings=None, progress=None):
     """Build bounded, endpoint-preserving proposals; does not modify the board."""
+    if settings and set(settings)-set(DEFAULTS):raise ValueError('Unknown refinement setting.')
     options=dict(DEFAULTS);options.update(settings or {})
+    for key in ('nets','layers','groups'):
+        if not isinstance(options[key],(list,tuple)) or any(not isinstance(value,str) for value in options[key]):
+            raise ValueError(key+' must be a list of names.')
+        options[key]=list(dict.fromkeys(options[key]))
+    if not isinstance(options['protected'],str):raise ValueError('Protected nets must be wildcard text.')
     if options['scope'] not in ('selected tracks','selected nets','whole board','net filters','groups'):
         raise ValueError('Choose a supported scope.')
     for key in ('max_deviation','max_shortening'):
-        if not math.isfinite(float(options[key])) or not 0<float(options[key])<=1:
+        if isinstance(options[key],bool) or not isinstance(options[key],(int,float)) or not math.isfinite(options[key]) or not 0<options[key]<=1:
             raise ValueError(key+' must be greater than zero and at most 1 mm.')
     inputs=project_inputs(board)
     if inputs[1].is_file() and re.search(r'\(constraint\s+(?:length|skew|diff_pair_gap|diff_pair_uncoupled)\b',inputs[1].read_text(encoding='utf-8')):
         raise ValueError('Custom length, skew or differential-pair rules are present. This first version preserves this board; use native routing for constrained nets.')
-    result=Plan(snapshot(board,api),rule_hash(board),options)
+    result=Plan(snapshot(board,api),rule_hash(board),options,board_id=board_identity(board))
     tracks=list(board.GetTracks());selected_nets={t.GetNetname() for t in tracks if t.IsSelected()}
     selected_nets.update(p.GetNetname() for fp in board.GetFootprints() for p in fp.Pads() if p.IsSelected() or fp.IsSelected())
     globs=patterns(options['protected'])
@@ -183,40 +250,54 @@ def propose(board, api, settings=None, progress=None):
         for pad in fp.Pads():anchors[pad.GetNetCode()].append(pad)
     for t in tracks:
         if isinstance(t,api.PCB_VIA):anchors[t.GetNetCode()].append(t)
+    copper_layers=list(board.GetEnabledLayers().CuStack())
+    anchor_index=_CopperIndex([p for values in anchors.values() for p in values],copper_layers,api)
+    track_index=_CopperIndex(tracks,copper_layers,api)
+    allowed_ids={uid(t) for t in tracks if allowed(t)}
     def continuation(t,p):
         neighbours=adjacency[(t.GetNetCode(),t.GetLayer(),p)]
         if len(neighbours)!=2:return None
         other=next((x for x in neighbours if uid(x)!=uid(t)),None)
-        if other is None or not allowed(other) or other.GetWidth()!=t.GetWidth():return None
+        if other is None or uid(other) not in allowed_ids or other.GetWidth()!=t.GetWidth():return None
+        if (other.HasSolderMask(),other.GetLocalSolderMaskMargin())!=(t.HasSolderMask(),t.GetLocalSolderMaskMargin()):return None
         v=api.VECTOR2I(*p)
-        for anchor in anchors[t.GetNetCode()]:
+        for anchor in anchor_index.query(t.GetNetCode(),t.GetLayer(),(*p,*p)):
             if anchor.IsOnLayer(t.GetLayer()) and anchor.GetBoundingBox().Contains(v):return None
         return other
-    copper_by_net=defaultdict(list)
-    for t in tracks:copper_by_net[t.GetNetCode()].append(t)
     visited=set();deadline=time.monotonic()+30
-    eligible=sorted((t for t in tracks if allowed(t)),key=uid)
+    eligible=sorted((t for t in tracks if uid(t) in allowed_ids),key=uid)
     for index,first in enumerate(eligible):
         if progress and progress(f'Inspecting routing {index+1}/{len(eligible)}') is False:raise ValueError('Preview cancelled; board unchanged.')
         if time.monotonic()>deadline:
             result.skipped.append(('Search budget','30-second planning budget reached; remaining routing is unchanged. Narrow the scope.'));break
         if uid(first) in visited:continue
-        chain=[first];points=[point(first),point(first,True)]
+        chain=[first];points=[point(first),point(first,True)];chain_ids={uid(first)};timed_out=False
         for front in (True,False):
-            while len(chain)<128:
+            while True:
                 current=chain[0] if front else chain[-1];p=points[0] if front else points[-1]
                 other=continuation(current,p)
-                if other is None or uid(other) in {uid(x) for x in chain}:break
+                if other is None or uid(other) in chain_ids or uid(other) in visited:break
+                chain_ids.add(uid(other))
+                if len(chain_ids)%128==0 and time.monotonic()>deadline:
+                    timed_out=True;break
                 q=point(other,True) if point(other)==p else point(other)
                 if front:chain.insert(0,other);points.insert(0,q)
                 else:chain.append(other);points.append(q)
-        visited.update(uid(t) for t in chain)
+        visited.update(chain_ids)
+        if timed_out:
+            result.skipped.append(('Search budget','Planning time exhausted while walking a long chain; remaining routing unchanged.'));break
         if len(chain)<2:continue
-        if len(chain)>=128 or points[0]==points[-1]:
+        if len(chain)>=MAX_VERTICES or points[0]==points[-1]:
             result.skipped.append((first.GetNetname(),'Long chain or loop preserved'));continue
         # Preserve mid-segment T connections, crossing contacts and pad/via contacts.
         own={uid(t) for t in chain};unsafe=False
-        for item in copper_by_net[first.GetNetCode()]:
+        # Exact straight subdivision collapse preserves the entire copper
+        # capsule union, including off-centre contacts; no contact moves.
+        unchanged_copper=len(_collapse(points))==2
+        radius=first.GetWidth()//2+2
+        bounds=(min(p[0] for p in points)-radius,min(p[1] for p in points)-radius,
+                max(p[0] for p in points)+radius,max(p[1] for p in points)+radius)
+        for item in (() if unchanged_copper else track_index.query(first.GetNetCode(),first.GetLayer(),bounds)):
             if uid(item) in own or item.GetNetCode()!=first.GetNetCode() or not item.IsOnLayer(first.GetLayer()):continue
             shape=item.GetEffectiveShape()
             other_width=item.GetWidth(first.GetLayer()) if isinstance(item,api.PCB_VIA) else item.GetWidth()
@@ -234,7 +315,7 @@ def propose(board, api, settings=None, progress=None):
                 if shape.Collide(api.SEG(start,end),first.GetWidth()//2):unsafe=True;break
             if unsafe:break
         # A pad touching the moving portion is immutable, even off its centre.
-        for pad in anchors[first.GetNetCode()]:
+        for pad in (() if unchanged_copper else anchor_index.query(first.GetNetCode(),first.GetLayer(),bounds)):
             if not pad.IsOnLayer(first.GetLayer()):continue
             shape=pad.GetEffectiveShape(first.GetLayer()) if isinstance(pad,api.PAD) else pad.GetEffectiveShape()
             if any(shape.Collide(api.VECTOR2I(*p),first.GetWidth()//2) for p in (points[0],points[-1])):continue
@@ -289,6 +370,8 @@ def require_comparable_baseline(report):
 
 def validate_detached(board,api,preview,progress=None,evidence_dir=None):
     """Run native analysis outside the PCB Editor, with cancellation and timeout."""
+    preview.validated=False;preview.validation_digest='';preview.evidence={}
+    requested=proposal_digest(preview)
     if snapshot(board,api)!=preview.fingerprint or rule_hash(board)!=preview.rules:raise ValueError('Board or rules changed. Preview again.')
     source=Path(board.GetFileName())
     if not source.is_file() or not source.with_suffix('.kicad_pro').is_file():raise ValueError('Save the PCB and matching project before validation.')
@@ -322,12 +405,15 @@ def validate_detached(board,api,preview,progress=None,evidence_dir=None):
         response=json.loads(result.read_text(encoding='utf-8'))
         if process.returncode or not response.get('validated'):raise ValueError(response.get('error','Native validation failed; Apply remains blocked.'))
         if snapshot(board,api)!=preview.fingerprint or rule_hash(board)!=preview.rules:raise ValueError('Board or rules changed during validation. Preview again.')
-        preview.evidence=response['evidence'];preview.validated=True
+        if proposal_digest(preview)!=requested:raise ValueError('Proposal changed during validation; validate again.')
+        preview.evidence=response['evidence'];preview.validated=True;preview.validation_digest=requested
     return preview
 
 
 def validate(board,api,preview,cli=None,progress=None,evidence_dir=None):
     """Independent native connectivity and before/after DRC, with matching saved rules."""
+    preview.validated=False;preview.validation_digest='';preview.evidence={}
+    requested=proposal_digest(preview)
     if snapshot(board,api)!=preview.fingerprint or rule_hash(board)!=preview.rules:raise ValueError('Board or rules changed. Preview again.')
     source=Path(board.GetFileName())
     if not source.is_file() or not source.with_suffix('.kicad_pro').is_file():
@@ -381,19 +467,23 @@ def validate(board,api,preview,cli=None,progress=None,evidence_dir=None):
         if new:raise ValueError(f'Candidate has {len(new)} new native DRC/connectivity findings; Apply is blocked. Reduce scope or displacement.')
         preview.evidence=dict(baseline=len(findings(reports['baseline'])),candidate=len(findings(reports['candidate'])),new_findings=0,connectivity='unchanged')
     if snapshot(board,api)!=preview.fingerprint or rule_hash(board)!=preview.rules:raise ValueError('Board or rules changed during validation. Preview again.')
-    preview.validated=True
+    if proposal_digest(preview)!=requested:raise ValueError('Proposal changed during validation; validate again.')
+    preview.validated=True;preview.validation_digest=requested
     return preview
 
 
 class Transaction:
     """Window-owned native history; stale inputs block Apply, Undo and Redo."""
     def __init__(self,board,api,preview):
-        if not preview.validated:raise ValueError('Validate with native DRC before Apply.')
+        if not preview.validated or not preview.validation_digest:raise ValueError('Validate with native DRC before Apply.')
+        if preview.board_id!=board_identity(board):raise ValueError('Preview belongs to another board. Preview and validate again.')
+        if preview.validation_digest!=proposal_digest(preview):raise ValueError('Proposal changed after validation; validate again.')
         self.board,self.api,self.preview=board,api,preview;self.applied=False;self.expected=preview.fingerprint
     def check(self):
         if snapshot(self.board,self.api)!=self.expected or rule_hash(self.board)!=self.preview.rules:raise ValueError('Board or project rules changed; operation blocked.')
     def redo(self):
         self.check()
+        if self.preview.validation_digest!=proposal_digest(self.preview):raise ValueError('Proposal changed after validation; validate again.')
         if self.applied:raise ValueError('Already applied.')
         # Journal each object operation so partial failures can be reversed.
         if not all(c.added for c in self.preview.changes):
@@ -403,6 +493,12 @@ class Transaction:
                     clone=c.originals[min(i,len(c.originals)-1)].Duplicate()
                     if i==0:clone.SetUuid(c.originals[0].m_Uuid)
                     clone.SetStart(self.api.VECTOR2I(*a));clone.SetEnd(self.api.VECTOR2I(*b));clone.ClearSelected();c.added.append(clone)
+        for c in self.preview.changes:
+            if len(c.added)!=len(c.after)-1 or any(type(t) is not self.api.PCB_TRACK
+                or point(t)!=tuple(a) or point(t,True)!=tuple(b)
+                or t.GetNetCode()!=c.originals[0].GetNetCode() or t.GetLayer()!=c.layer or t.GetWidth()!=c.width
+                for t,(a,b) in zip(c.added,zip(c.after,c.after[1:]))):
+                raise ValueError('Replacement track geometry changed; preview and validate again.')
         self._exchange(True)
         try:expected=snapshot(self.board,self.api)
         except Exception:
@@ -417,18 +513,35 @@ class Transaction:
             self._exchange(True);raise
         self.applied=False;self.expected=expected
     def _exchange(self,forward):
-        journal=[]
+        # Journal the initial native identities before writes. Reconcile once
+        # after a batch (or immediately after a throwing native call), avoiding
+        # a whole-board scan for every replaced segment on dense boards.
+        originals=[t for c in self.preview.changes for t in c.originals]
+        added=[t for c in self.preview.changes for t in c.added]
+        objects=originals+added
+        def actual():return {board_identity(track) for track in self.board.GetTracks()}
+        current=actual();source=current.copy()
+        initial=[(item,board_identity(item) in current) for item in objects]
+        def ensure(item,wanted):
+            key=board_identity(item)
+            if (key in current)==wanted:return
+            try:(self.board.Add if wanted else self.board.Remove)(item)
+            except BaseException:
+                current.clear();current.update(actual());raise
+            if wanted:current.add(key)
+            else:current.discard(key)
         try:
-            for c in self.preview.changes:
-                remove,add=(c.originals,c.added) if forward else (c.added,c.originals)
-                for t in remove:self.board.Remove(t);journal.append(lambda t=t:self.board.Add(t))
-                for t in add:self.board.Add(t);journal.append(lambda t=t:self.board.Remove(t))
+            remove,add=(originals,added) if forward else (added,originals)
+            for item in remove:ensure(item,False)
+            for item in add:ensure(item,True)
+            if actual()!=current:raise RuntimeError('Native track exchange did not complete.')
             self.board.BuildConnectivity()
         except Exception as original:
-            failures=[]
-            for inverse in reversed(journal):
-                try:inverse()
+            current.clear();current.update(actual());failures=[]
+            for item,wanted in reversed(initial):
+                try:ensure(item,wanted)
                 except Exception as exc:failures.append(str(exc))
             self.board.BuildConnectivity()
+            if actual()!=source:failures.append('Native routing membership differs after recovery.')
             if failures:raise RuntimeError('Recovery needs inspection: '+'; '.join(failures)) from original
             raise

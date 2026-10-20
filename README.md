@@ -188,7 +188,7 @@ Select a plugin for its full guide and supported models.
 | <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Collect libraries and 3D models for portable projects. |
 | <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Preview and place escape tracks and vias. |
 | <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. |
-| <img src="trace_refiner_plugin/icon.png" width="24" height="24" alt="Trace Refiner icon"> [Trace Refiner](trace_refiner_plugin/README.md) | Preview small routing jog cleanup by selection, net class or layer; native connectivity and DRC gate Apply. |
+| <img src="trace_refiner_plugin/icon.png" width="24" height="24" alt="Trace Refiner icon"> [Trace Refiner](trace_refiner_plugin/README.md) | Review routing jog cleanup with metrics, focused proposals and exclusions; native connectivity and DRC gate Apply. |
 | <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange labels with automatic sizing, reading directions, bold/italic/knockout rules and checked guide lines. |
 | <img src="layer_counter_plugin/icon.png" width="24" height="24" alt="Layer Counter icon"> [Layer Counter](layer_counter_plugin/README.md) | Movable copper L1/L2 markers with zone keepouts, twelve styles and explicit mirrored/overlapping core pairs. |
 | <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Rename references, fields and PCB text in bulk. |
@@ -344,6 +344,10 @@ The fixture deliberately includes height violations and incomplete coverage. [Ca
 Clean small trace jogs with selected-track, selected-net, net-filter, net-class and layer scopes. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available in release 3.6.19 as its own PCM package, with an icon, detailed offline Help and a CLI for preview, validation and export to a new project.
 
 ![Native trace refinement preview](trace_refiner_plugin/help-workflow.png)
+
+Source/candidate 0.2.0 adds metrics, focused review and proposal exclusion.
+
+![Trace Refiner proposal review](trace_refiner_plugin/help-review.png)
 
 ### [Layer Counter](layer_counter_plugin/README.md)
 

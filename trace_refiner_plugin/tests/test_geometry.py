@@ -102,5 +102,97 @@ class GeometryTests(unittest.TestCase):
         self.assertIsNone(geometry.simplify_local([(0, 0), (1, 0), (2, 1)], .05, .1))
 
 
+class LongGeometryTests(unittest.TestCase):
+    @staticmethod
+    def samples(path, subdivisions=32):
+        return [(a[0]+(b[0]-a[0])*i/subdivisions,a[1]+(b[1]-a[1])*i/subdivisions)
+                for a,b in zip(path,path[1:]) for i in range(subdivisions+1)]
+
+    @staticmethod
+    def distance(point,path):
+        # Independent closest-point reference, used only to check returned paths.
+        distances=[]
+        for a,b in zip(path,path[1:]):
+            dx,dy=b[0]-a[0],b[1]-a[1]
+            fraction=max(0,min(1,((point[0]-a[0])*dx+(point[1]-a[1])*dy)/(dx*dx+dy*dy)))
+            distances.append(hypot(point[0]-a[0]-fraction*dx,point[1]-a[1]-fraction*dy))
+        return min(distances)
+
+    def test_2049_exact_fragments_in_all_octilinear_directions(self):
+        for dx,dy in ((1,0),(0,1),(1,1),(-1,1),(-1,0),(0,-1),(1,-1),(-1,-1)):
+            points=[(dx*i,dy*i) for i in range(geometry.MAX_VERTICES)]
+            expected=[points[0],points[-1]]
+            self.assertEqual(geometry.simplify_local(points,0,0),expected)
+            self.assertEqual(simplify(points,0,0),expected)
+        self.assertIsNone(geometry.simplify_local([(i,0) for i in range(geometry.MAX_VERTICES+1)],0,0))
+
+    def test_exact_oblique_fragments_do_not_require_new_routing_angles(self):
+        points=[(2*i,i) for i in range(2049)]
+        self.assertEqual(geometry.simplify_local(points,0,0),[points[0],points[-1]])
+
+    def test_long_fragmented_local_jog_and_major_turn(self):
+        points=[(i/2,0) for i in range(1001)]
+        points += [(500.02,.02),(501,.02),(501.02,0)]
+        points += [(i/2,0) for i in range(1003,2001)]
+        points += [(1001,1),(1001,3),(1000,4)]
+        result=geometry.simplify_local(points,.025,.1)
+        self.assertIsNotNone(result)
+        self.assertLess(len(result),10)
+        self.assertIn((1001.,3.),result)
+        self.assertEqual((result[0],result[-1]),(points[0],points[-1]))
+        self.assertTrue(geometry._covered(points,result,.025))
+        self.assertTrue(geometry._covered(result,points,.025))
+
+    def test_dense_reference_rotated_translated_jogs(self):
+        import random
+        randomizer=random.Random(1847)
+        for dx,dy in ((1,0),(0,1),(-1,0),(0,-1),(1,1),(-1,1)):
+            for _ in range(8):
+                height=randomizer.uniform(.002,.03)
+                source=[(0,0),(1,0),(1+height,height),(2,height),(2+height,0),(3,0)]
+                points=[(100+dx*x-dy*y,200+dy*x+dx*y) for x,y in source]
+                result=geometry.simplify_local(points,.06,.1)
+                self.assertIsNotNone(result)
+                for a,b in ((points,result),(result,points)):
+                    self.assertLessEqual(max(self.distance(p,b) for p in self.samples(a)),.06)
+                self.assertLessEqual(geometry._length(points)-geometry._length(result),.1+1e-9)
+                self.assertEqual(result,geometry.simplify_local(points,.06,.1))
+
+    def test_multiple_windows_share_one_shortening_budget(self):
+        points=[(0,0),(1,0),(1.04,.04),(2,.04),(2.04,0),(3,0),
+                (4,1),(4,2),(3.96,2.04),(3.96,3),(4,3.04),(4,4),(5,5)]
+        for budget in (0,.01,.025,.04,.1):
+            result=geometry.simplify_local(points,.05,budget)
+            if result is not None:
+                self.assertLessEqual(geometry._length(points)-geometry._length(result),budget+1e-9)
+                self.assertTrue(geometry._covered(points,result,.05))
+                self.assertTrue(geometry._covered(result,points,.05))
+        self.assertIsNotNone(geometry.simplify_local(points,.05,.1))
+
+    def test_fragmentation_does_not_hide_tuning_or_intersections(self):
+        tuning=[(0,0),(10,1),(20,0),(30,1),(40,0),(50,10),(50,20)]
+        fragmented=[]
+        for a,b in zip(tuning,tuning[1:]):
+            fragmented.extend((a[0]+(b[0]-a[0])*i/64,a[1]+(b[1]-a[1])*i/64) for i in range(64))
+        fragmented.append(tuning[-1])
+        self.assertIsNone(geometry.simplify_local(fragmented,10,100))
+        invalid=[[(0,0),(3,0),(2,0),(4,0)],[(0,0),(2,2),(0,2),(2,0),(3,0)],
+                 [(0,0),(1,0),(1,0),(2,0)],[(0,0),(1,float('inf')),(2,0)],
+                 [(0,0),(1,0,2),(2,0)],[],None]
+        for points in invalid:
+            self.assertIsNone(geometry.simplify_local(points))
+
+    def test_exact_intersection_sweep_matches_pairwise_reference(self):
+        import random
+        randomizer=random.Random(462)
+        for _ in range(100):
+            points=[(randomizer.randrange(30),randomizer.randrange(30)) for i in range(12)]
+            if len(set(points))!=len(points):continue
+            segments=list(zip(points,points[1:]))
+            expected=not any(geometry._intersects(a,b,c,d) for index,(a,b) in enumerate(segments)
+                             for c,d in segments[index+2:])
+            self.assertEqual(geometry._simple(points),expected)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,7 @@
 # Trace Refiner validation
 
+Historical 0.1.x evidence. See [0.2.0 improvements and validation](TRACE_REFINER_0.2.0.md) for the current source candidate.
+
 ## Scope and environment
 
 2026-10-15, Windows, KiCad 10.0.6 native Python 3.11. Trace Refiner 0.1.0 is a new native ActionPlugin candidate. Source and independently extracted PCM checks are distinct from an installed plugin being launched inside PCB Editor; the latter is not claimed here. Linux/macOS GUI and KiCad 11 are unverified.

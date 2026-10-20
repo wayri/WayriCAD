@@ -56,6 +56,19 @@ class ContextTests(unittest.TestCase):
             self.canvas.fit();self.canvas.Update();wx.Yield()
             self.canvas.draw_context(Mock(),lambda x,y:(round(x/100000),round(y/100000)),.00001,(-1,-1,31000000,31000000))
 
+    def test_focus_uses_cached_proposal_geometry_without_native_reads(self):
+        from types import SimpleNamespace as NS
+        before=[(2000000,3000000),(5000000,3010000),(8000000,3000000)]
+        after=[before[0],before[-1]]
+        self.canvas.set_plan(NS(changes=[NS(before=before,after=after,width=200000)]))
+        source_selected=[item.IsSelected() for item in (self.line,self.arc,self.via)]
+        with patch.object(self.board,'GetTracks',side_effect=AssertionError('Focus read native geometry')),patch.object(self.board,'GetBoardEdgesBoundingBox',side_effect=AssertionError('Focus read native bounds')):
+            self.assertTrue(self.canvas.focus_change(0));self.canvas.Update();wx.Yield()
+            self.assertEqual(self.canvas.active_change,0);self.assertIsNotNone(self.canvas.focus_bounds)
+            self.assertFalse(self.canvas.focus_change(20))
+        self.assertEqual([item.IsSelected() for item in (self.line,self.arc,self.via)],source_selected)
+        self.canvas.fit();self.assertIsNone(self.canvas.focus_bounds)
+
     def test_culling_and_batched_strokes_exclude_offscreen_geometry(self):
         dc=Mock()
         self.canvas.draw_context(dc,lambda x,y:(round(x/100000),round(y/100000)),.00001,(0,0,9000000,5000000))

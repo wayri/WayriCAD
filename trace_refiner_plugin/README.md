@@ -8,6 +8,10 @@ Remove small routing jogs and redundant straight segments from an open KiCad 10 
 
 The screenshot uses a disposable routing fixture. Amber and teal show centreline changes; grey is surrounding routing. It is a native window capture, not a result from your board.
 
+![Proposal metrics and focused review](help-review.png)
+
+The 0.2.0 native fixture capture shows per-chain metrics, click-to-focus highlighting and proposal exclusion. Neither screenshot is a result from a user board.
+
 ## Use
 
 1. Refill zones, then save the PCB and matching project. Save Board Setup changes first so validation uses the intended `.kicad_pro` and `.kicad_dru`.
@@ -45,18 +49,35 @@ An empty preview is a valid result. It can mean the selected routing is already 
 
 Changing scope, checked nets, classes, layers or numeric inputs clears the preview. Changing the board, its relevant selection, live Board Setup dimensions/net classes or saved project/rule files invalidates source-bound operations. Save the intended settings and preview again rather than reusing an old proposal.
 
+## Review and choose changes
+
+The review table shows the layer, original and proposed lengths, shortening in
+mm, and segment counts for each chain. Click a proposed row to focus and
+highlight that chain in the preview. This does not change the PCB selection or
+copper. Hover over rows for full hierarchical net names and preservation reasons.
+
+Select one or more proposed rows, then **Exclude selected** to leave those chains
+unchanged. Preserved notices cannot be excluded as if they were proposals. Every
+subset edit clears the old validation evidence and disables Apply: **Validate
+candidate** checks the retained subset again. Excluding everything gives a valid
+empty preview with no writes. This is useful when a baseline DRC finding belongs
+to one proposal and the other chains can be reviewed separately; it never skips
+DRC checks for the remaining changes.
+
 ## What is protected
 
 - Chain endpoints, pad/via contacts, branch junctions, net ownership, width boundaries and original copper layers.
 - Vias, arcs, grouped routing, locked tracks and repeated tuning meanders.
 - Native differential-pair names ending in `_P`, `_N`, `+` or `-`, numbered P/N counterparts found on the board, plus editable protected wildcards. Initial wildcards protect common clock, DDR, USB, PCIe, LVDS, RF and CAN names. Names alone cannot identify all design intent: protect any other critical or tuned nets yourself.
-- Boards with saved custom length, skew or differential-pair gap/uncoupled constraints are blocked in this first version. It does not infer a safe pair/skew update.
+- Boards with saved custom length, skew or differential-pair gap/uncoupled constraints are blocked in the current implementation. It does not infer a safe pair/skew update.
 - A baseline with 199 or more findings of any one type is blocked conservatively: potentially capped native reports cannot prove a reliable no-new-findings comparison. Resolve those existing findings first.
 - Chains with existing native DRC findings are not changed. New DRC or unconnected-item findings block the entire candidate. Narrow the scope if an otherwise valid proposal shares a batch with an unsafe one.
 
+Native validation is bound to the exact proposed geometry and settings; modifying a proposal or its replacement tracks after validation blocks Apply. Native operations that mutate and then raise also restore the original routing or report a recovery failure explicitly.
+
 Geometry generation checks both directions of the original/replacement centreline distance, absolute shortening and self intersections. Native copper checks remain required because centreline similarity does not establish clearance, plane-reference continuity, timing or signal integrity. Necessary routing detours remain if no accepted local replacement exists.
 
-Search is local and bounded: chains longer than 127 segments, loops and exhausted planning budgets remain unchanged. No shove routing, rule relaxation, via movement or automatic differential-pair correction is performed. Whole-board validation can be slow; selected nets or layers give a smaller review.
+Search is local and bounded: eligible chains up to 2,048 segments are supported; longer chains, loops and exhausted planning budgets remain unchanged. Exact collinear fragmentation is collapsed before the bounded local-window search. Mask-opening or local mask-margin changes are chain boundaries, just like width changes. No shove routing, rule relaxation, via movement or automatic differential-pair correction is performed. Whole-board validation can be slow; selected nets or layers give a smaller review.
 
 ## Command line
 
@@ -125,17 +146,23 @@ Apply, Undo and Redo use a grouped object exchange with recovery on failure. If 
 
 ## Validation
 
-Windows / KiCad 10.0.6: native and geometry checks cover the UI, scopes, endpoint/branch/contact preservation, protected nets, source/rule staleness, clearance rejection and rollback. An extracted PCM package was tested without source-tree or sibling-plugin imports; this is distinct from launching a PCM-installed plugin inside PCB Editor. The repository records exact checks and counts in [validation details](https://github.com/wayri/WayriCAD/blob/develop/docs/audits/TRACE_REFINER.md).
+Windows / KiCad 10.0.6: native and geometry checks cover the UI, scopes, endpoint/branch/contact preservation, protected nets, source/rule staleness, clearance rejection and rollback. An extracted PCM package was tested without source-tree or sibling-plugin imports; this is distinct from launching a PCM-installed plugin inside PCB Editor. The repository records exact checks and counts in [validation details](https://github.com/wayri/WayriCAD/blob/develop/docs/audits/TRACE_REFINER_0.2.0.md).
 
 The public Marble board preview was exercised on 41,044 tracks. Applying its candidate remains blocked by the large existing native DRC baseline; this is not a claim of validated Marble edits.
 
 ## Install and compatibility
 
-This is a separate native ActionPlugin, version 0.1.1 in [WayriCAD 3.6.19](https://github.com/wayri/WayriCAD/releases/tag/v3.6.19). Refresh the WayriCAD package repository, or download and install `WayriCAD-trace-refiner-0.1.1-PCM.zip` with **KiCad Manager → Plugin and Content Manager → Install from File**. Restart PCB Editor. The plugin has its own toolbar icon and needs no IPC API or sibling plugin. It requires the matching KiCad CLI for validation.
+The current source/candidate is **0.2.0**. The latest published suite package is
+0.1.1 in [WayriCAD 3.6.19](https://github.com/wayri/WayriCAD/releases/tag/v3.6.19);
+the public PCM feed is unchanged until the new candidate is published.
+Install the new `WayriCAD-trace-refiner-0.2.0-PCM.zip` using **KiCad Manager →
+Plugin and Content Manager → Install from File**, then restart PCB Editor.
+The plugin has its own toolbar icon and needs no IPC API or sibling plugin. It
+requires the matching KiCad CLI for validation.
 
 For source development, `python build_pcm.py --output-dir candidate` builds disposable independent installers in `candidate/`.
 
-Windows with KiCad 10.0.6 is the native validation target. Linux/macOS GUI and KiCad 11 are unverified. Trace Refiner's plugin version is independent of the suite release number; suite 3.6.19 includes plugin 0.1.1.
+Windows with KiCad 10.0.6 is the native validation target. Linux/macOS GUI and KiCad 11 are unverified. Trace Refiner's plugin version is independent of the suite release number; suite 3.6.19 includes plugin 0.1.1; source/candidate 0.2.0 is validated separately.
 
 KiCad describes [routing and design-rule checking](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html). Review fabrication, tuning and stackup requirements for your board before accepting geometric changes.
 
@@ -146,3 +173,20 @@ Preview, Apply, Undo and Redo. Pan/zoom/fit repaint cached geometry with batched
 drawing and viewport culling, including curved arcs. Run Preview after external
 board changes to refresh the display context. Apply still checks the live
 source and saved rules; the display cache cannot approve a stale proposal.
+
+## Geometry and performance changes in 0.2.0
+
+Exact straight subdivisions are removed without moving their copper, including
+safe unchanged collinear contact geometry. Nonzero jog changes retain the
+conservative interior-contact checks. Spatial indexes narrow native contact
+queries by net/layer and bounding box; the final checks still use native shapes.
+Board fingerprints use KiCad's in-memory serializer rather than temporary PCB
+writes. Native transaction membership is reconciled per batch rather than by
+rescanning the board for every exchanged segment.
+
+The 2,048-segment limit is per eligible chain, between fixed topology/protection
+boundaries. The planner keeps the 30-second overall budget; geometry cleanup
+examines at most 1,024 local windows per chain. It can leave valid improvements
+undiscovered. Differential pairs, tuning meanders, custom timing/pair constraints
+and existing DRC acceptance gates remain protected. This is still geometric
+cleanup, not a shove router, timing optimizer or impedance qualification.
