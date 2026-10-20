@@ -16,7 +16,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python-version: ["3.10", "3.12", "3.14"]
         include:
-          - os: macos-latest
+          # Avoid the ARM64 hosted-runner capacity pool; retain macOS tests.
+          - os: macos-15-intel
             python-version: "3.12"
 
     steps:
