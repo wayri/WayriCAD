@@ -9,7 +9,7 @@ import math
 from .terminals import pad_names,source_names
 from .service import sink_requests,mesh_cell_budget
 
-_SETTINGS={'edge_mm','plating_mm','mesh_backend','options','stackup_override','max_cells'}
+_SETTINGS={'edge_mm','plating_mm','mesh_backend','mesh_sizing','options','stackup_override','max_cells'}
 
 
 def validate_groups(study):
@@ -21,6 +21,8 @@ def validate_groups(study):
         if not isinstance(group,dict) or set(group)-({'name','net','source_terminals','loads'}|_SETTINGS):
             raise ValueError('Unknown shared-return settings.')
         mesh_cell_budget(group)
+        from .mesh_sizing import mode as sizing_mode
+        sizing_mode(group)
         for key in ('name','net'):
             if not isinstance(group.get(key),str) or not group[key].strip():
                 raise ValueError('Shared return requires explicit '+key+'.')

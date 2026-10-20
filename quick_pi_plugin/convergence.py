@@ -74,6 +74,12 @@ def run_study(request, execute):
     base=deepcopy(request)
     for key in ('html_output','convergence_levels','convergence_tolerance_percent'):base.pop(key,None)
     base['action']='solve';samples=[];last=None;identity=None;failure=None
+    if base.get('mesh_sizing')=='auto':
+        preview=execute({**base,'action':'geometry'})
+        edge=float(preview['mesh_sizing_recommendation']['background_edge_mm'])
+        # A refinement study must halve actual sizes, not recompute one automatic
+        # recommendation at every level. Use one fixed uniform sizing family.
+        base['mesh_sizing']='manual'
     for level in range(levels):
         current={**base,'edge_mm':edge/(2**level)}
         try:
@@ -98,6 +104,8 @@ def run_study(request, execute):
         raise ValueError('The board changed during refinement; discard the study.')
     last['convergence']=assess(samples,tolerance,failure)
     last['convergence'].update(source_sha256=identity[0],geometry_sha256=identity[1],requested_levels=levels)
+    if request.get('mesh_sizing')=='auto':
+        last['convergence']['automatic_start_notice']='Recommendation fixed once, then uniform manual edge halved each level; local automatic thresholds are not recomputed.'
     return last
 
 

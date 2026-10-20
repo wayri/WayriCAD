@@ -105,7 +105,8 @@ an input or model is missing; they are not a pass.
 
 1. Open **WayriCAD Quick PI**. In **Setup**, choose the power net, source pad and sink pad.
 2. Enter **Source · V** and **Load · A**. Add sink voltage limits or **Additional sinks** if needed.
-3. Click **Preview** to inspect the extracted copper, then **Run**.
+3. Leave **Automatic mesh** enabled for geometry-based sizing, or turn it off to
+   enter a manual mesh edge. Click **Preview** to inspect the copper, then **Run**.
 4. Inspect **Results** for voltage drop, current density and losses. Choose a layer,
    hover for values, and click to pin probes. Use **Export** for HTML and JSON.
 
@@ -122,12 +123,19 @@ via plating and mesh refinement before relying on local peaks.
 2. Use **Field mapping…** for your property names. Add the thermal resistances and
    temperature limits needed by the selected model; missing junction paths stay unknown.
 3. In **Board + results**, review the board heat model, materials, ambient temperature
-   and environment. Start with a steady-state study and click **Run thermal**.
+   and environment. Use **Automatic mesh** for supported board models, then start
+   with a steady-state study and click **Run thermal**.
 4. Use **Top**, **Bottom** or **3D**, probe the board and select parts in the temperature
    table. Export the report. Add transient power steps after reviewing the steady result.
 
 QuickTherm installs separately from Quick PI. Air, vacuum and other environments
 need explicit heat-rejection paths; airflow fields are not solved.
+
+Automatic sizing refines supported regions near sources and contacts within
+the mesh budget. It is a starting recommendation, not proof of convergence.
+Review the selected sizes and unresolved-feature warnings in the report;
+compare finer meshes before trusting a local peak. Manual sizing remains
+available, including for backends without automatic sizing.
 
 
 <a id="start-quick-si"></a>

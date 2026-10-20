@@ -173,7 +173,14 @@ def solve_thermal_network(view, quick_therm_result, settings):
               if "sink_h_w_m2k" in settings else (5 + 5 * sink_airflow if environment == "air" else 0))
     if environment == "vacuum" and (board_h or sink_h):
         raise ValueError("Convection coefficients must be zero in vacuum.")
-    raw_n = settings.get("grid_cells_long_axis", 48)
+    from .mesh_sizing import mesh_mode, recommend_mesh
+    automatic = mesh_mode(settings) == 'auto'
+    sizing_result = {**quick_therm_result, 'components': [
+        {**part, 'heat_path': 'board' if part.get('heat_path') == 'air' else part.get('heat_path')}
+        for part in quick_therm_result.get('components', [])]}
+    recommendation = recommend_mesh({}, view, sizing_result, settings) if automatic else None
+    raw_n = (recommendation['recommended_grid_cells_long_axis'] if automatic else
+             settings.get("grid_cells_long_axis", 48))
     if isinstance(raw_n, bool) or not isinstance(raw_n, int) or not 4 <= raw_n <= 100:
         raise ValueError("grid_cells_long_axis must be an integer from 4 to 100.")
     xmin, ymin, xmax, ymax = [_number(v, "Board bound") for v in view["bbox_mm"]]
@@ -279,6 +286,7 @@ def solve_thermal_network(view, quick_therm_result, settings):
         "status": "converged" if abs(residual) <= tolerance else "imbalanced",
         "environment": environment, "ambient_c": ambient,
         "settings": {"board_k_w_mk": k, "board_thickness_mm": thickness_m * 1000,
+                     'mesh_mode': 'auto' if automatic else 'manual', 'grid_cells_long_axis': raw_n,
                      "board_emissivity": emissivity, "board_airflow_m_s": board_airflow,
                      "sink_airflow_m_s": sink_airflow, "board_h_w_m2k": board_h,
                      "sink_h_w_m2k": sink_h},
@@ -291,6 +299,12 @@ def solve_thermal_network(view, quick_therm_result, settings):
                         "sampled_min_c": min(temp), "sampled_max_c": max(temp),
                         "top_bottom_note": "One through-thickness midplane temperature per cell; top and bottom PCB faces are assumed equal."},
         "components": result_components,
+        'mesh': {'nx': nx, 'ny': ny, 'minimum_cell_size_mm': min(dx_mm, dy_mm),
+                 'maximum_cell_size_mm': max(dx_mm, dy_mm),
+                 'automatic_sizing': ({key: value for key, value in recommendation.items() if key != 'features'} |
+                 {'effective_grid_cells_long_axis': raw_n, 'nx': nx, 'ny': ny,
+                  'minimum_cell_size_mm': min(dx_mm, dy_mm), 'maximum_cell_size_mm': max(dx_mm, dy_mm),
+                  'warnings': recommendation['warnings'] + ['Thin-sheet automatic sizing is uniform; use multilayer mode for local source/contact refinement.']}) if automatic else None},
         "heat_balance": {"input_w": input_power, "board_convection_w": board_conv,
                          "board_radiation_w": board_rad, "sink_convection_w": sink_conv,
                          "sink_radiation_w": sink_rad, "residual_w": residual,

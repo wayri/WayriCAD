@@ -47,6 +47,8 @@ def _requires_gmsh(request):
 
 
 def run_job(request, cancelled=None, timeout=300):
+    from .mesh_sizing import mode as sizing_mode
+    sizing_mode(request)
     if not math.isfinite(float(timeout)) or float(timeout)<=0:
         raise ValueError('Worker timeout must be finite and positive.')
     if cancelled and cancelled():raise InterruptedError('Quick PI cancelled before starting the worker.')
@@ -86,6 +88,8 @@ def run_job(request, cancelled=None, timeout=300):
 
 
 def execute(request):
+    from .mesh_sizing import mode as sizing_mode
+    sizing_mode(request)
     if request.get('action')=='batch':
         from .batch import execute as execute_batch
         return execute_batch(request,execute)
@@ -192,10 +196,12 @@ def execute(request):
             raise ValueError('The board changed during analysis. Reload and run again.')
         return output
     output={'geometry':geometry,'request':request,'model':'2.5D DC copper conduction; layered sheets and plated barrels'}
+    from .mesh_sizing import recommend
+    output['mesh_sizing_recommendation']=recommend(geometry,max_cells)
     if action!='geometry':
         from .mesh import build_mesh
         mesh=build_mesh(geometry,edge_mm=float(request.get('edge_mm',.5)),plating_mm=float(request.get('plating_mm',.025)),
-                        backend=request.get('mesh_backend','auto'),max_cells=max_cells)
+                        backend=request.get('mesh_backend','auto'),max_cells=max_cells,sizing=request.get('mesh_sizing','manual'))
         output['mesh']=mesh
         if action=='solve':
             from .solver import solve
@@ -361,7 +367,10 @@ def series_execute(board,path,request):
     for net in dict.fromkeys(nets):
         geometry=extract(board,net,source_path=path,stackup_override=request.get('stackup_override'))
         local=build_mesh(geometry,edge_mm=mesh['edge_mm'],plating_mm=mesh['plating_mm'],
-                         backend=request.get('mesh_backend','auto'))
+                         backend=request.get('mesh_backend','auto'),sizing=request.get('mesh_sizing','manual'),
+                         max_cells=min(400000,500000-len(mesh['triangles'])))
+        mesh.setdefault('mesh_sizing',{'mode':request.get('mesh_sizing','manual'),'domains':[]})['domains'].append(
+            {'net':net,**local['mesh_sizing']})
         offset=len(mesh['points_mm']);mesh['points_mm'].extend(local['points_mm'])
         if has_drop:mesh.setdefault('series_domains',[]).append({'net':net,'start':offset,'end':len(mesh['points_mm'])})
         mesh['triangles'].extend([[i+offset for i in t] for t in local['triangles']])

@@ -440,9 +440,12 @@ class QuickThermFrame(wx.Frame):
         self.therm_air_board=wx.TextCtrl(model_pane,value='0')
         self.therm_air_sink=wx.TextCtrl(model_pane,value='0')
         self.therm_grid=wx.SpinCtrl(model_pane,min=12,max=80,initial=48,size=(80,-1))
+        self.therm_auto_mesh=wx.CheckBox(model_pane,label='Automatic mesh');self.therm_auto_mesh.SetValue(True)
+        self.therm_auto_mesh.SetToolTip('Recommend base cells from saved geometry; multilayer mode refines source/contact/material regions within a total-layer-cell budget. A heuristic, not proof of convergence. Uncheck for manual grid control. CalculiX remains manual.')
+        self.therm_mesh_summary=wx.StaticText(model_pane,label='Automatic recommendation is computed from saved geometry when the model runs. Review effective sizes and warnings after solving.');self.therm_mesh_summary.Wrap(260)
         self.therm_sink_area=wx.TextCtrl(model_pane,value='');self.therm_sink_area.SetHint('One: 1200 · multiple: U1=1200, U2=800')
         model_headings=wx.BoxSizer(wx.VERTICAL)
-        for heading in (self.therm_model_enabled,
+        for heading in (self.therm_model_enabled,self.therm_auto_mesh,self.therm_mesh_summary,
                         wx.StaticText(model_pane,label='Saved thickness used automatically'),
                         wx.StaticText(model_pane,label='Steady-state approximation; no CFD')):
             model_headings.Add(heading,0,wx.EXPAND|wx.BOTTOM,4)
@@ -659,6 +662,8 @@ class QuickThermFrame(wx.Frame):
                      self.therm_ccx_mesh,self.therm_ccx_bottom,self.therm_ccx_executable):ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
         self.therm_model_jb.Bind(wx.EVT_COMBOBOX,self._invalidate_thermal)
         self.therm_grid.Bind(wx.EVT_SPINCTRL,self._invalidate_thermal)
+        self.therm_grid.Bind(wx.EVT_TEXT,self._invalidate_thermal)
+        self.therm_auto_mesh.Bind(wx.EVT_CHECKBOX,self._invalidate_thermal)
         self.therm_model_enabled.Bind(wx.EVT_CHECKBOX,self._therm_model_changed)
         self.therm_model_kind.Bind(wx.EVT_CHOICE,self._therm_model_changed)
         self.therm_blur.Bind(wx.EVT_CHOICE,self._invalidate_thermal)
@@ -691,6 +696,8 @@ class QuickThermFrame(wx.Frame):
         self.therm_emissivity.Enable(selected in (0,1) and not self._busy)
         for ctrl in (self.therm_grid,self.therm_sink_area):
             ctrl.Enable(selected in (0,1) and not self._busy)
+        self.therm_auto_mesh.Enable(selected in (0,1) and not self._busy)
+        self.therm_grid.Enable(selected in (0,1) and not self._busy and not self.therm_auto_mesh.GetValue())
         for ctrl in (self.therm_air_board,self.therm_air_sink):
             ctrl.Enable(selected in (0,1) and environment==0 and not self._busy)
         self.therm_explicit_h.Enable(environment in (2,4) and not self._busy)
@@ -958,6 +965,8 @@ class QuickThermFrame(wx.Frame):
 
 
     def _invalidate_thermal(self,event=None):
+        self.therm_mesh_summary.SetLabel('Automatic recommendation pending a new run.' if self.therm_auto_mesh.GetValue() and self.therm_model_kind.GetSelection()!=2 else 'Manual mesh; review resolution and convergence after running.')
+        self.therm_mesh_summary.Wrap(260)
         self._input_revision=getattr(self,'_input_revision',0)+1
         self._pending_thermal_selection=None
         self._thermal_selected_ids=set()
@@ -1051,7 +1060,8 @@ class QuickThermFrame(wx.Frame):
                     'board_emissivity':float(self.therm_emissivity.GetValue()),
                     'board_airflow_m_s':float(self.therm_air_board.GetValue()),
                     'sink_airflow_m_s':float(self.therm_air_sink.GetValue()),
-                    'grid_cells_long_axis':self.therm_grid.GetValue()}
+                    'grid_cells_long_axis':self.therm_grid.GetValue(),
+                    'mesh_mode':'auto' if self.therm_auto_mesh.GetValue() and model_index!=2 else 'manual'}
                 storage=self._component_storage if getattr(self,'_component_storage_board_sha',None)==self.inventory.get('source_sha256') else {}
                 storage={ref:values for ref,values in storage.items() if ref in references}
                 if storage and model_index!=1:
@@ -1157,6 +1167,18 @@ class QuickThermFrame(wx.Frame):
         network=bundle.get('thermal_network')
         if network:
             balance=network['heat_balance']
+            sizing=network.get('mesh',{}).get('automatic_sizing')
+            if sizing:
+                mesh_text=(f"Auto mesh: {sizing['nx']} × {sizing['ny']} cells per layer; "
+                           f"{sizing['minimum_cell_size_mm']:.4g}–{sizing['maximum_cell_size_mm']:.4g} mm. "
+                           f"{sizing.get('unresolved_feature_count',0)} feature targets unmet. "+' '.join(sizing['warnings']))
+                self.therm_mesh_summary.SetLabel(mesh_text);self.therm_mesh_summary.Wrap(260)
+            else:
+                mesh=network.get('mesh',{})
+                mesh_text=(f"Manual mesh: {mesh['nx']} × {mesh['ny']} cells per layer; "
+                           f"{mesh['minimum_cell_size_mm']:.4g}–{mesh['maximum_cell_size_mm']:.4g} mm. "
+                           if mesh.get('minimum_cell_size_mm') is not None else 'Manual mesh. ')
+                self.therm_mesh_summary.SetLabel(mesh_text+'Review source coverage and perform spatial/time-step convergence checks.');self.therm_mesh_summary.Wrap(260)
             if network.get('model') == 'CalculiX 3D steady conduction':
                 layers=network['layers'];lo=min(row['sampled_min_c'] for row in layers)
                 hi=max(row['sampled_max_c'] for row in layers)

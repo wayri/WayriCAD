@@ -200,6 +200,10 @@ def execute(request):
         raise ValueError("Expanded environment and transient models require multilayer board mode.")
     if request.get("transient_settings") is not None and request.get("mesh_acceptance") is not None:
         raise ValueError("Run transient spatial refinement as separate explicit grid analyses.")
+    from .mesh_sizing import mesh_mode
+    if (mesh_mode(request.get('thermal_network_settings') or {}) == 'auto' and
+            request.get('thermal_model_kind') == 'calculix'):
+        raise ValueError('CalculiX mesh sizing remains manual; automatic sizing requires thin-sheet or multilayer mode.')
     board_power_only = bool(request.get("board_power_only"))
     if board_power_only and (request.get("thermal_network_settings") is None or request.get("heatsinks")):
         raise ValueError("Power-only board inputs need a physical board model without virtual heatsinks.")

@@ -1,5 +1,32 @@
 # QuickTherm: step-by-step user guide
 
+## Automatic and manual mesh
+
+In **Board model**, leave **Automatic mesh** checked to size the supported board
+model from saved geometry. Multilayer mode refines actual rectilinear intervals
+near heat sources, pad/fixture contacts, barrels and copper regions; source/contact
+targets have priority under tight budgets. After a run, read the effective X/Y
+cells, cell-size range and warnings below that control. The HTML report and JSON
+retain the same evidence. Uncheck the option to edit **Mesh cells · long axis**;
+manual mode preserves the existing `source_refinement_factor` setting.
+
+CLI: `wayricad-therm board.kicad_pcb --config study.json --auto-mesh`. The same
+configuration uses `thermal_network_settings.mesh_mode = "auto"`; pass
+`--mesh-mode manual` to use its explicit `grid_cells_long_axis`. Automatic sizing
+defaults to 50,000 total layer cells, four split passes, 511 intervals per axis
+and 2048 sizing regions. Review `auto_mesh_max_layer_cells` and
+`auto_mesh_max_refinement_passes` to adjust those bounded budgets. Storage/sink
+nodes remain within the existing 150,000-node hard limit. Unmet targets and
+omitted features stay warnings; the program never calls a budget-limited mesh
+converged just because a recommendation was used.
+
+Sizing uses region bounds, not a solved thermal-error estimator. Tiny/rotated
+conductors, plated-wall thickness and package solids can remain unresolved.
+Thin-sheet automatic sizing is uniform, and CalculiX sizing remains manual.
+Transient playback does not remesh each frame. Explicit spatial grid sweeps use
+their requested grids and reject identical actual meshes; independently refine
+time steps for transient studies. Automatic sizing does not replace either test.
+
 QuickTherm is the **standalone WayriCAD QuickTherm plugin**. It reads saved
 footprint properties, estimates steady-state component junction temperatures,
 and exports an HTML report with paired JSON evidence. It does not edit the PCB.

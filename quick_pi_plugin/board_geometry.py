@@ -233,7 +233,7 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
     copper={layer:api.SHAPE_POLY_SET() for layer in enabled}
     holes={layer:api.SHAPE_POLY_SET() for layer in enabled}
     contacts={layer:[] for layer in enabled}
-    terminals=[];barrels=[];counts={'tracks':0,'arcs':0,'pads':0,'zones':0,'vias':0,'plated_pads':0,'drilled_objects':0}
+    terminals=[];barrels=[];mesh_features=[];counts={'tracks':0,'arcs':0,'pads':0,'zones':0,'vias':0,'plated_pads':0,'drilled_objects':0}
     warnings=['Copper curves use inscribed polygons and drills use circumscribed polygons at the stated tolerance; no geometric gap snapping is performed.']
     items=list(board.GetTracks())
     footprints=list(board.GetFootprints())
@@ -259,6 +259,11 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
                 counts['drilled_objects']+=1
                 for layer in hole_layers:holes[layer].Append(hole)
         if item.GetNetname()!=net:continue
+        if not pad and not via and not isinstance(item,api.PCB_ARC):
+            mesh_features.append({'kind':'track','id':_uid(item),'layer':str(item.GetLayer()),
+                'width_mm':float(api.ToMM(item.GetWidth())),
+                'start_mm':[api.ToMM(item.GetStart().x),api.ToMM(item.GetStart().y)],
+                'end_mm':[api.ToMM(item.GetEnd().x),api.ToMM(item.GetEnd().y)]})
         terminal={'id':_uid(item),'pad_uuid':_uid(item),'reference':str(item.GetParentFootprint().GetReference()),
                   'pad_number':str(item.GetNumber()),'net':str(item.GetNetname()),
                   'label':item.GetParentFootprint().GetReference()+'.'+item.GetNumber(),'polygons':{}} if pad else None
@@ -343,7 +348,7 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
     pad_catalog=[{'id':_uid(p),'pad_uuid':_uid(p),'reference':str(p.GetParentFootprint().GetReference()),
                   'pad_number':str(p.GetNumber()),'net':str(p.GetNetname()),
                   'layer_ids':[int(layer) for layer in enabled if p.IsOnLayer(layer)]} for p in pads]
-    result={'pad_catalog':pad_catalog,'schema_version':1,'net':net,'layers':layers,'terminals':terminals,'vias':barrels,
+    result={'pad_catalog':pad_catalog,'schema_version':1,'net':net,'layers':layers,'terminals':terminals,'vias':barrels,'mesh_features':mesh_features,
             'counts':counts,'warnings':warnings,'area_mm2':total_area,
             'curve_tolerance_mm':float(curve_tolerance_mm),'z_convention':'Copper midplanes; positive Z down from the top copper surface.',
             'stackup_source':'explicit_override' if stackup_override is not None else 'saved_board',

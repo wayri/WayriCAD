@@ -363,7 +363,7 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
                'point_contacts_separated':splits}
 
 
-def _refine_long_edges(points,triangles,edge_mm,max_cells,cancelled=None,max_passes=24):
+def _refine_long_edges(points,triangles,edge_mm,max_cells,cancelled=None,max_passes=24,target_function=None):
     """Conforming local midpoint refinement; an edge is shared by both owners.
 
     Each triangle with k marked edges yields k+1 children. Original vertices
@@ -381,11 +381,15 @@ def _refine_long_edges(points,triangles,edge_mm,max_cells,cancelled=None,max_pas
         unique,inverse=np.unique(edges,axis=0,return_inverse=True)
         lengths=np.linalg.norm(p[unique[:,1]]-p[unique[:,0]],axis=1)
         if not np.isfinite(lengths).all():raise ValueError('Non-finite copper mesh edge.')
-        if float(lengths.max())<=edge_mm*(1+1e-8):
+        targets=(target_function((p[unique[:,1]]+p[unique[:,0]])/2) if target_function else np.full(len(lengths),edge_mm))
+        if np.shape(targets)!=np.shape(lengths) or not np.isfinite(targets).all() or np.any(targets<=0):
+            raise ValueError('Local mesh targets must be finite and positive.')
+        marked=lengths>targets*(1+1e-8)
+        if not np.any(marked):
             return p,t,{'local_refinement_passes':step,'initial_triangles':initial,
-                        'maximum_edge_mm':float(lengths.max())}
+                        'maximum_edge_mm':float(lengths.max()),'minimum_edge_mm':float(lengths.min()),
+                        'maximum_target_ratio':float(np.max(lengths/targets))}
         if step==max_passes:raise ValueError('Local mesh refinement did not meet the requested edge length.')
-        marked=lengths>edge_mm
         owned=marked[inverse].reshape(-1,3)
         counts=owned.sum(axis=1)
         predicted=len(t)+int(counts.sum())
@@ -512,7 +516,12 @@ def triangulate_gmsh(polygons, edge_mm, max_cells=400_000, cancelled=None):
         if not initialized:gmsh.finalize()
 
 
-def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cancelled=None, backend='auto'):
+def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cancelled=None, backend='auto',sizing='manual'):
+    from .mesh_sizing import mode,recommend,edge_targets
+    mode({'mesh_sizing':sizing})
+    recommendation=recommend(geometry,max_cells) if sizing=='auto' else None
+    if recommendation:
+        edge_mm=recommendation['background_edge_mm']
     if not math.isfinite(plating_mm) or plating_mm<=0:raise ValueError('Via plating thickness must be positive.')
     if backend not in ('auto','gmsh','vtk'):
         raise ValueError('Mesh backend must be auto, gmsh or vtk.')
@@ -530,6 +539,12 @@ def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cance
     for layer in geometry['layers']:
         if not layer.get('polygons'):continue
         p,t,report=mesher(layer.get('mesh_regions') or layer['polygons'],edge_mm,max_cells-len(triangles),cancelled)
+        if recommendation:
+            features=[f for f in recommendation['features'] if str(f['layer'])==str(layer['id'])]
+            p,t,local=_refine_long_edges(p,t,edge_mm,max_cells-len(triangles),cancelled,
+                target_function=lambda xy:edge_targets(xy,features,edge_mm,cancelled))
+            report.update(local)
+            report['triangles']=len(t);report['automatic_features']=len(features)
         p[:,2]=float(layer['z_mm']);offsets[str(layer['id'])]=(count,p)
         triangles.extend((t+count).tolist());points.extend(p.tolist());count+=len(p)
         thickness.extend([float(layer['thickness_mm'])]*len(t));layers.extend([layer['id']]*len(t))
@@ -578,4 +593,8 @@ def build_mesh(geometry, edge_mm=0.5, plating_mm=0.025, max_cells=400_000, cance
             'triangle_layer':layers,'vias':vias,'terminal_nodes':terminal_nodes,
             'terminal_nodes_by_layer':terminal_nodes_by_layer,
             'mesh_report':reports,'geometry':geometry,'edge_mm':edge_mm,'plating_mm':plating_mm,
-            'mesh_backend':selected}
+            'mesh_backend':selected,
+            'mesh_sizing':({**recommendation,'actual_triangles':len(triangles),'actual_vertices':len(points),
+                'budget_fraction':len(triangles)/max_cells,'status':'GEOMETRY_TARGETS_MET_NOT_CONVERGENCE'} if recommendation else
+                {'mode':'manual','background_edge_mm':edge_mm,'cell_budget':max_cells,
+                 'actual_triangles':len(triangles),'status':'MANUAL_EDGE_NOT_CONVERGENCE'})}

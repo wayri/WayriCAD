@@ -37,6 +37,9 @@ def main(argv=None):
     parser.add_argument("--calculix-exe", type=Path,
                         help="Explicit ccx executable; otherwise discover it on PATH")
     parser.add_argument("--timeout", type=float, default=1800.0)
+    meshing = parser.add_mutually_exclusive_group()
+    meshing.add_argument('--mesh-mode',choices=('auto','manual'),help='Override mesh_mode in --config thermal_network_settings; auto uses geometry-based sizing, not a convergence guarantee.')
+    meshing.add_argument('--auto-mesh',dest='mesh_mode',action='store_const',const='auto',help='Enable automatic sizing in --config thermal_network_settings.')
     args = parser.parse_args(argv)
     if args.transient:
         try:
@@ -117,6 +120,12 @@ def main(argv=None):
                                                             ("maximum_c", args.temp_max_field)) if name},
                 "probes": probes,
             }
+        if args.mesh_mode:
+            if not args.config or not isinstance(request.get('thermal_network_settings'),dict):
+                raise ValueError('--mesh-mode requires --config with thermal_network_settings for a board model.')
+            if request.get('thermal_model_kind')=='calculix' and args.mesh_mode=='auto':
+                raise ValueError('CalculiX mesh size is manual; automatic rectilinear sizing applies to thin-sheet/multilayer modes.')
+            request['thermal_network_settings']['mesh_mode']=args.mesh_mode
         if args.html:
             request["html_output"] = str(args.html.resolve())
         if args.extended_report_snapshots:

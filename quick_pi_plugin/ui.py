@@ -125,6 +125,10 @@ class QuickPIFrame(wx.Frame):
         self.options=wx.CollapsiblePane(self.inputs,label='Mesh & material',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         self.options.Collapse(True);pane=self.options.GetPane();grid=wx.FlexGridSizer(0,2,5,5);grid.AddGrowableCol(1)
         self.edge=wx.TextCtrl(pane,value='0.5');self.plating=wx.TextCtrl(pane,value='0.025')
+        self.auto_mesh=wx.CheckBox(pane,label='Automatic mesh');self.auto_mesh.SetValue(True)
+        self.auto_mesh.SetToolTip('Recommend the background edge from saved copper extent and refine locally near tracks, pad contacts and via annuli. This is not mesh convergence. Uncheck for a manual edge or 3D.')
+        grid.Add(wx.StaticText(pane,label='Sizing'));grid.Add(self.auto_mesh,0,wx.EXPAND)
+        self.auto_mesh.Bind(wx.EVT_CHECKBOX,self._invalidate)
         self.temperature=wx.TextCtrl(pane,value='20');self.ambient=wx.TextCtrl(pane,value='20')
         self.pulse=wx.TextCtrl(pane,value='1');self.limit=wx.TextCtrl(pane,value='150');self.max_tetrahedra=wx.TextCtrl(pane,value='250000')
         for label,control in [('Mesh · mm',self.edge),('Via plating · mm',self.plating),('Copper · °C',self.temperature),('Ambient · °C',self.ambient),('Pulse · s',self.pulse),('Limit · °C',self.limit),('3D cell budget',self.max_tetrahedra)]:
@@ -319,6 +323,8 @@ class QuickPIFrame(wx.Frame):
         self.main_panel.Layout()
         if not self._busy:self.metric.Enable(self.book.GetSelection()==2)
         self.field_style.Enable(not self._busy and self.book.GetSelection()==2)
+        self.auto_mesh.Enable(not self._busy and not volume)
+        self.edge.Enable(not self._busy and not self.auto_mesh.GetValue())
         current=bool(self.bundle.get('geometry')) and self._saved_source_current
         self.inspector_select.Enable(not self._busy and current and bool((self._inspection or {}).get('source_ids')))
         self.inspector_read.Enable(not self._busy and bool(self.bundle.get('geometry')) and self._saved_source_current)
@@ -713,6 +719,7 @@ class QuickPIFrame(wx.Frame):
         if event:event.Skip()
 
     def _model_changed(self,event=None):
+        if self.model_dimension.GetSelection()==1:self.auto_mesh.SetValue(False)
         self._invalidate(event)
         if self.model_dimension.GetSelection()==1:
             self.status.SetLabel('3D copper needs a specified sink current; switch Mode from resistive load before running.'
@@ -735,6 +742,7 @@ class QuickPIFrame(wx.Frame):
             return value
         request={'action':action,'board_path':self.board_path,'net':self.net.GetValue(),
                  'edge_mm':number(self.edge,'Mesh edge',True),'plating_mm':number(self.plating,'Via plating',True)}
+        if getattr(self,'auto_mesh',None) and self.auto_mesh.GetValue():request['mesh_sizing']='auto'
         if require_terminals and not request['net']:raise ValueError('Choose a net.')
         if action=='solve':
             a,b=self.source.GetSelection(),self.sink.GetSelection()
@@ -914,6 +922,14 @@ class QuickPIFrame(wx.Frame):
             metric_index=max(0,self.metric.GetSelection())
             self.metric.Set([metric_name(self.bundle,key) for key in METRICS]);self.metric.SetSelection(metric_index)
         else:self.summary.SetLabel('Actual filled copper, pad contacts and via barrels. Pan and zoom to inspect the selected layer.');self.status.SetLabel('Preview ready.')
+        sizing=result.get('mesh_sizing_recommendation')
+        if sizing:
+            message=f"Recommended background: {sizing['background_edge_mm']:.4g} mm\nLocal target: {sizing['minimum_local_target_mm']:.4g} mm · {sizing['feature_count']} features\nHeuristic only; check convergence."
+            self.mesh_count.SetLabel(self.mesh_count.GetLabel()+'\n'+message)
+            self.mesh_count.SetToolTip(message+' '+('Estimated background exceeds budget; review scope or explicit budget.' if sizing['budget_warning'] else 'Local refinement can still exceed the budget.'))
+            if not mesh:self.status.SetLabel('Preview ready. '+message.replace('\n',' · '))
+        if result.get('convergence'):
+            self.auto_mesh.SetValue(False);self.edge.Enable(not self._busy)
         self._update_inspector(True);self._draw()
 
 
@@ -1400,7 +1416,8 @@ class QuickPIFrame(wx.Frame):
         except (ValueError,KeyError) as exc:self.status.SetLabel(str(exc));return
         dialog=wx.Dialog(self,title='Check mesh convergence',size=self.FromDIP((510,280)),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         box=wx.BoxSizer(wx.VERTICAL)
-        note=wx.StaticText(dialog,label=f"Start at {request['edge_mm']:g} mm and halve mesh edge each level. The board, contacts and material inputs stay fixed. Cancellation and mesh limits remain active.");note.Wrap(self.FromDIP(465));box.Add(note,0,wx.ALL,12)
+        start=('Fix the recommended background once, then use uniform manual meshes' if request.get('mesh_sizing')=='auto' else f"Start at {request['edge_mm']:g} mm")
+        note=wx.StaticText(dialog,label=start+" and halve mesh edge each level. Contacts and material inputs stay fixed. Cancellation and mesh limits remain active.");note.Wrap(self.FromDIP(465));box.Add(note,0,wx.ALL,12)
         form=wx.FlexGridSizer(2,2,10,12);form.Add(wx.StaticText(dialog,label='Refinement levels'))
         levels=wx.SpinCtrl(dialog,min=3,max=5,initial=4);form.Add(levels)
         form.Add(wx.StaticText(dialog,label='Final two changes, maximum %'));tolerance=wx.TextCtrl(dialog,value='1');form.Add(tolerance)
@@ -1467,12 +1484,15 @@ class QuickPIFrame(wx.Frame):
 
     def _refine(self,event=None):
         try:
-            value=float(self.edge.GetValue())/2
+            value=float(self.bundle.get('mesh',{}).get('edge_mm',self.edge.GetValue()))/2
             if not math.isfinite(value) or value<=0:raise ValueError('Mesh edge must be positive.')
             if self.model_dimension.GetSelection()==1:
+                value=float(self.edge.GetValue())/2
+                if not math.isfinite(value) or value<=0:raise ValueError('Mesh edge must be positive.')
                 self.edge.SetValue(f'{value:g}')
                 self.on_3d_analysis()
                 return
+            if getattr(self,'auto_mesh',None):self.auto_mesh.SetValue(False)
             self.edge.SetValue(f'{value:g}');self._analyze('solve')
         except Exception as exc:self.status.SetLabel(str(exc))
 

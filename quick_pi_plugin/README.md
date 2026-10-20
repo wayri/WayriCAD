@@ -2,6 +2,36 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+## Automatic mesh sizing
+
+**Automatic mesh** is enabled in the 2.5D window. Preview the saved copper to
+review the recommended background edge and smallest local target in the
+inspector. Run uses that recommendation and grades the mesh near straight
+tracks, pad contacts and plated-barrel lands. Uncheck the option to enable the
+manual edge field; its previous value is retained. Switching to 3D selects manual
+sizing because automatic volumetric size fields are not supported yet.
+
+| Control | Behaviour |
+|---|---|
+| Automatic sizing | Background starts from occupied copper extent / 40, capped at 0.8 mm. An area-based cost estimate reserves 75% of the triangle budget for local features and boundary vertices by increasing only the background target when necessary. |
+| Local refinement | Physical track width, contact bounding-box width and conservative annular-land width target three edges across the feature. Sizes grow gradually with distance. Each split is shared by both neighbouring triangles; copper contours, holes and contact partitions remain intact. |
+| Budget reached | The run stops with an actionable budget error; local splitting checks its exact predicted child count before allocation. Local feature targets are not silently coarsened or dropped. The initial cost estimate is not a guarantee that a complex net fits. |
+| Reports | HTML/JSON record ideal and chosen background sizes, local target, budget, actual cell counts, achieved edge/target ratios and unresolved feature classes. |
+| Convergence | A convergence study fixes the recommended background once, then uses uniformly sized manual meshes and halves the actual edge each level. It does not recompute the same automatic mesh repeatedly. **Refine** also switches to a manual half-edge mesh. |
+
+CLI: add `--auto-mesh` to a normal solve or mesh-only command. Use
+`--mesh-edge 0.2` for manual sizing; combining both is rejected. JSON requests
+and batch rail/return settings use `"mesh_sizing": "auto"` or `"manual"`.
+Legacy requests without this key keep their manual edge behaviour. Series paths
+record separate recommendations for each copper domain.
+
+These are geometry heuristics, not an error estimator or convergence result.
+Arcs retain native polygon contours but have no centreline-width target;
+arbitrary zone necks, curved-contour error and ideal-contact singularities need
+separate review. Contact bounding boxes approximate local support. Review both
+terminal-drop refinement and local current-density sensitivity before relying
+on a result.
+
 ## Source-to-sink power flow
 
 After solving, choose **Power flow** to open an offline Sankey diagram. Sources

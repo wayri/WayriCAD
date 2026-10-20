@@ -47,7 +47,8 @@ def main(argv=None):
     parser.add_argument('--return-path',action='store_true',help='Screen saved signal tracks against explicitly selected return nets.')
     parser.add_argument('--return-nets',nargs='+');parser.add_argument('--return-pitch',type=float,default=.25)
     parser.add_argument('--return-via-radius',type=float,default=2.)
-    parser.add_argument('--mesh-edge',type=float,default=.5);parser.add_argument('--plating',type=float,default=.025)
+    parser.add_argument('--mesh-edge',type=float);parser.add_argument('--plating',type=float,default=.025)
+    parser.add_argument('--auto-mesh',action='store_true',help='Use geometry-recommended background and dynamic local 2.5D refinement; cannot combine with --mesh-edge. Budget failures are not coarsened automatically.')
     parser.add_argument('--max-cells',type=int,
                         help='Explicit 2.5D copper triangle budget across all layers: 1000–2000000; default 400000. Batch studies set max_cells per case/group.')
     parser.add_argument('--mesh-backend',choices=('auto','gmsh','vtk'),default='auto',
@@ -105,13 +106,17 @@ def main(argv=None):
     if not args.board:parser.error('Supply a saved board or use --verify for reference benchmarks.')
     request={'action':'inspect' if not args.net else ('mesh' if args.mesh_only else 'solve'),
         'board_path':str(args.board.resolve()),'net':args.net,'source_terminal':args.source,'sink_terminal':args.sink,
-        'source_voltage':args.voltage,'sink_current':1. if args.current is None else args.current,'edge_mm':args.mesh_edge,'plating_mm':args.plating,
+        'source_voltage':args.voltage,'sink_current':1. if args.current is None else args.current,'edge_mm':.5 if args.mesh_edge is None else args.mesh_edge,'plating_mm':args.plating,
         'mesh_backend':args.mesh_backend,
         'model_dimension':args.model_dimension,'max_tetrahedra':args.max_tetrahedra,
         'options':{'temperature_c':args.temperature,'ambient_c':args.ambient,'temperature_limit_c':args.temperature_limit}}
+    if args.auto_mesh:request['mesh_sizing']='auto'
     if args.model_dimension=='3d':request['options']={'temperature_c':args.temperature}
     if args.pulse is not None:request['options']['pulse_duration_s']=args.pulse
     try:
+        if args.auto_mesh and args.mesh_edge is not None:raise ValueError('Choose --auto-mesh or a manual --mesh-edge, not both.')
+        from .mesh_sizing import mode as sizing_mode
+        sizing_mode(request)
         if args.max_cells is not None:
             request['max_cells']=args.max_cells
             from .service import mesh_cell_budget

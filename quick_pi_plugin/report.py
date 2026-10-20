@@ -701,6 +701,8 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
         html+='<h2>Source and load feasibility</h2><pre>'+escape(feasibility_text(result))+'</pre>'
     from .sankey import sankey_section
     html+=sankey_section(bundle)
+    from .mesh_sizing import sizing_html
+    html+=sizing_html(bundle.get('mesh',{}))
     if bundle.get('terminal_units'):
         html+='<h2>Ideal equipotential pad units</h2><pre>'+escape(json.dumps(bundle['terminal_units'],indent=2,ensure_ascii=False))+'</pre>'
     if result.get('sinks'):

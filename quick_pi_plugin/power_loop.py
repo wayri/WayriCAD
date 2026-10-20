@@ -2,7 +2,7 @@
 import copy
 import math
 
-_ALLOWED={'net','source_terminal','sink_terminal','edge_mm','plating_mm','mesh_backend','options','stackup_override'}
+_ALLOWED={'net','source_terminal','sink_terminal','edge_mm','plating_mm','mesh_backend','mesh_sizing','options','stackup_override'}
 
 
 def return_request(electrical,definition):
@@ -27,7 +27,7 @@ def return_request(electrical,definition):
     if len(sinks)!=1:
         raise ValueError('Case-level return_conduction requires one supply load; use shared_returns to solve common return copper for multiple loads.')
     request={key:copy.deepcopy(value) for key,value in electrical.items()
-             if key in ('edge_mm','plating_mm','mesh_backend','options','stackup_override','source_voltage')}
+             if key in ('edge_mm','plating_mm','mesh_backend','mesh_sizing','options','stackup_override','source_voltage')}
     request.update(copy.deepcopy(definition),action='solve',model_dimension='2.5d',
                    sink_current=sinks[0]['current_A'])
     return request

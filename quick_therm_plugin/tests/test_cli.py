@@ -11,6 +11,33 @@ from quick_therm_plugin.cli import main
 
 
 class QuickThermCLITests(TestCase):
+    def test_auto_mesh_cli_and_manual_override_keep_request_parity(self):
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as temporary:
+            config = Path(temporary) / 'thermal.json'
+            config.write_text(json.dumps({'field_map': {'power_w': 'Power_W'},
+                'thermal_model_kind': 'multilayer',
+                'thermal_network_settings': {'mesh_mode': 'manual', 'grid_cells_long_axis': 32}}), encoding='utf-8')
+            for arguments, expected in ((['--auto-mesh'], 'auto'), (['--mesh-mode', 'manual'], 'manual')):
+                with patch('quick_therm_plugin.service.run_job', return_value={}) as job:
+                    with contextlib.redirect_stdout(StringIO()):
+                        status = main(['C:/Projects/Example/board.kicad_pcb', '--config', str(config), *arguments])
+                self.assertEqual(status, 0)
+                self.assertEqual(job.call_args.args[0]['thermal_network_settings']['mesh_mode'], expected)
+                self.assertEqual(job.call_args.args[0]['thermal_network_settings']['grid_cells_long_axis'], 32)
+
+    def test_calculix_rejects_unsupported_auto_sizing_before_worker(self):
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as temporary:
+            config = Path(temporary) / 'thermal.json'
+            config.write_text(json.dumps({'field_map': {'power_w': 'Power_W'},
+                'thermal_model_kind': 'calculix', 'thermal_network_settings': {}}), encoding='utf-8')
+            with patch('quick_therm_plugin.service.run_job') as job, contextlib.redirect_stdout(StringIO()) as output:
+                status = main(['C:/Projects/Example/board.kicad_pcb', '--config', str(config), '--auto-mesh'])
+            self.assertEqual(status, 2)
+            self.assertIn('manual', output.getvalue())
+            job.assert_not_called()
+
     def test_reviewed_config_pass_gate_propagates_failed_limits(self):
         from tempfile import TemporaryDirectory
 

@@ -112,6 +112,13 @@ def write_diagnostic_report(path,bundle):
             html+='<h2>Temperature analytics</h2><p>'+summary+' · Hottest '+escape(str(analytics.get('hottest_reference') or '—'))+'</p>'
         if network:
             balance=network['heat_balance']
+            sizing=network.get('mesh',{}).get('automatic_sizing')
+            mesh=network.get('mesh',{})
+            if not sizing and mesh.get('minimum_cell_size_mm') is not None:
+                html+='<h2>Manual mesh</h2><p>Cells per layer: '+str(mesh['nx'])+' × '+str(mesh['ny'])+'; cell size '+_number(mesh['minimum_cell_size_mm'],'mm')+' to '+_number(mesh['maximum_cell_size_mm'],'mm')+'. Manual resolution is not a convergence result.</p>'
+            if sizing:
+                html+='<h2>Automatic mesh recommendation</h2><p>Heuristic geometry sizing, not a convergence result. Effective cells per layer: '+str(sizing['nx'])+' × '+str(sizing['ny'])+'; cell size '+_number(sizing['minimum_cell_size_mm'],'mm')+' to '+_number(sizing['maximum_cell_size_mm'],'mm')+'. Unmet retained feature targets: '+str(sizing.get('unresolved_feature_count',0))+'.</p>'
+                html+='<ul>'+''.join('<li>'+escape(note)+'</li>' for note in sizing['warnings'])+'</ul><details><summary>Sizing evidence</summary><pre>'+escape(json.dumps(sizing,indent=2))+'</pre></details>'
             if bundle.get('request',{}).get('copper_loss_binding'):
                 imported=bundle['request']['copper_loss_binding']
                 html+='<h2>Copper I²R heat</h2><p>'+_number(imported['input_w'],'W')+' · '+escape(imported['meaning'])+'</p>'

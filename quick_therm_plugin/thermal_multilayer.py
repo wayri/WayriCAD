@@ -426,7 +426,7 @@ def _source_weights(component, cells, xs, ys, x_edges, y_edges,
             "footprint_bbox_proxy", total, effective_cells, moved)
 
 
-def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
+def solve_multilayer_thermal(geometry, view, result, settings, progress=None, *, _grid_override=None):
     """Solve layer temperatures, explicit mount fluxes and a heat balance.
 
     ``geometry`` is from ``collect_thermal_geometry``; ``view`` and ``result``
@@ -473,7 +473,12 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     h = _num(settings.get("board_h_w_m2k", 5+4*airflow if environment == "air" else 0),
              "Board convection coefficient (W/m²/K)", low=0)
     emissivity = _num(settings.get("board_emissivity", emissivity), "Emissivity", low=0, high=1)
-    grid_n = settings.get("grid_cells_long_axis", 48)
+    from .mesh_sizing import mesh_mode, recommend_mesh, refine_edges
+    automatic = mesh_mode(settings) == 'auto'
+    recommendation = recommend_mesh(geometry, view, result, settings, progress) if automatic else None
+    grid_n = (_grid_override if _grid_override is not None else
+              recommendation['recommended_grid_cells_long_axis'] if automatic else
+              settings.get("grid_cells_long_axis", 48))
     if isinstance(grid_n, bool) or not isinstance(grid_n, int) or not 24 <= grid_n <= 80:
         raise ValueError("grid_cells_long_axis must be an integer from 24 to 80.")
     blur = _num(settings.get("copper_blur_cells", 0), "Copper supersampling", low=0, high=1)
@@ -501,7 +506,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
     refinement = settings.get("source_refinement_factor", 1)
     if isinstance(refinement, bool) or refinement not in (1, 2):
         raise ValueError("source_refinement_factor must be 1 or 2.")
-    if refinement == 2:
+    if refinement == 2 and not automatic:
         sources_by_ref = {part["reference"] for part in result.get("components", [])
                           if part.get("heat_path") == "board"}
         source_boxes = []
@@ -527,6 +532,13 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
 
         x_edges = split_near_sources(x_edges, 0)
         y_edges = split_near_sources(y_edges, 1)
+    sizing = None
+    if automatic:
+        if (len(x_edges)-1)*(len(y_edges)-1)*len(layers) > recommendation['maximum_layer_cells']:
+            raise ValueError('Explicit mesh study grid exceeds the automatic total-layer-cell budget; increase the reviewed budget or reduce study grids.')
+        x_edges, y_edges, sizing = refine_edges(
+            x_edges, y_edges, recommendation, len(layers), grid_n, progress,
+            passes=settings.get('auto_mesh_max_refinement_passes', 4))
     nx, ny = len(x_edges)-1, len(y_edges)-1
     xs = [(x_edges[i]+x_edges[i+1])/2 for i in range(nx)]
     ys = [(y_edges[j]+y_edges[j+1])/2 for j in range(ny)]
@@ -1281,6 +1293,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                              "relative_residual": abs(residual)/max(abs(input_w), 1e-12),
                              "tolerance_w": tolerance},
             "settings": {"dielectric_k_w_mk": dielectric_k, "copper_k_w_mk": copper_k,
+                         'mesh_mode': 'auto' if automatic else 'manual',
                          "via_plating_mm": plating, "grid_cells_long_axis": grid_n,
                          "source_refinement_factor": refinement,
                          "copper_raster_mode": copper_mode,
@@ -1290,6 +1303,9 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None):
                          "board_emissivity": emissivity, "sink_h_w_m2k": sink_h,
                          "component_storage": component_storage},
             "mesh": {"nx": nx, "ny": ny, "active_cells_per_layer": ncell,
+                     'minimum_cell_size_mm': min(min(x_widths), min(y_widths))*1000,
+                     'maximum_cell_size_mm': max(max(x_widths), max(y_widths))*1000,
+                     'automatic_sizing': sizing,
                      "source_refinement_factor": refinement,
                      "solver_iterations": iterations, "copper_lateral_edges": copper_edges,
                      "via_vertical_edges": via_edges,
@@ -1356,7 +1372,7 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings,
             if progress:
                 progress(f"grid {grid}: {stage}", completed, total, elapsed, eta)
         solves.append(solve_multilayer_thermal(geometry, view, result, selected,
-                                                progress=stage_progress))
+                                                progress=stage_progress, _grid_override=grid))
     coarse, fine = solves[-2:]
     coarse_parts = {part["reference"]: part for part in coarse["components"]}
     changes = {}
@@ -1427,6 +1443,7 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings,
         shifted_settings["grid_phase_fraction"] = list(phase_offset)
         shifted = solve_multilayer_thermal(
             geometry, view, result, shifted_settings,
+            _grid_override=grids[-1],
             progress=(lambda stage, completed, total, elapsed, eta:
                       progress(f"grid {grids[-1]} phase: {stage}", completed,
                                total, elapsed, eta)) if progress else None)
@@ -1450,7 +1467,10 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings,
                         "maximum_layer_peak_change_c": layer_delta,
                         "maximum_field_change_c": field_delta,
                         "unmatched_field_cells": unmatched_shifted}
-    passed = (all(solve["status"] == "converged" for solve in solves) and
+    distinct_meshes = all(any(a['layers'][0][key] != b['layers'][0][key]
+                              for key in ('x_edges_mm', 'y_edges_mm'))
+                          for a, b in zip(solves, solves[1:]))
+    passed = (distinct_meshes and all(solve["status"] == "converged" for solve in solves) and
               not underresolved and not drill_center_peaks and
               not unresolved_contacts and
               fine["mesh"]["unresolved_barrel_stencils"] == 0 and
@@ -1461,6 +1481,10 @@ def solve_multilayer_thermal_convergence(geometry, view, result, settings,
     fine["mesh_acceptance"] = {
         "status": "PASS" if passed else "FAIL",
         "grid_cells_long_axis": grids, "maximum_change_c": worst,
+        'distinct_spatial_meshes': distinct_meshes,
+        'effective_meshes': [{'base_grid': solve['settings']['grid_cells_long_axis'],
+                              'nx': solve['mesh']['nx'], 'ny': solve['mesh']['ny']}
+                             for solve in solves],
         "allowed_change_c": tolerance,
         "component_changes_c": changes,
         "layer_peak_changes_c": layer_peak_changes,

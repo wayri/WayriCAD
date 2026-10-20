@@ -10,7 +10,7 @@ SCHEMA = 'wayricad.pi-batch/v1'
 MAX_CASES = 32
 _ELECTRICAL = {'net','source_terminal','source_terminals','source_voltage','sinks','sink_terminal','sink_current',
     'source_current_limit','sink_min_voltage','sink_max_voltage','edge_mm','plating_mm',
-    'mesh_backend','max_cells','model_dimension','max_tetrahedra','options','stackup_override',
+    'mesh_backend','mesh_sizing','max_cells','model_dimension','max_tetrahedra','options','stackup_override',
     'package_conduction','load_resistance_ohm'}
 _RETURN = {'return_nets','sample_pitch_mm','return_via_radius_mm','return_terminal_ids','return_terminal_roles'}
 
@@ -33,6 +33,8 @@ def validate_study(study):
         electrical=case.get('electrical')
         if not isinstance(electrical,dict) or set(electrical)-_ELECTRICAL:
             raise ValueError('Case electrical settings contain unsupported fields or a case-owned board/action.')
+        from .mesh_sizing import mode as sizing_mode
+        sizing_mode(electrical)
         if not all(key in electrical for key in ('net','source_voltage')):
             raise ValueError('Every case needs explicit net, source pad unit and source_voltage.')
         from .terminals import source_names

@@ -11,6 +11,34 @@ For the separate steady multilayer model, set `"source_refinement_factor": 2` in
 
 ### Native workspace and component inputs
 
+**Automatic mesh** is on by default in the native board setup. A run reviews the
+saved board dimensions, scoped heat-source bounds, selected pad/fixture contacts,
+barrels and copper-region bounds, then chooses a base grid and nonuniform local
+intervals for the multilayer finite-volume model. Heat sources and contacts take
+priority over tiny barrel/material targets when the budget is tight. The result
+shows the actual X/Y cells, minimum/maximum cell sizes, omitted regions and unmet
+targets in the setup sidebar, HTML report and JSON evidence. Uncheck the option
+to retain full manual control of the long-axis cells and existing source refinement.
+
+For CLI/config and job requests, set `"mesh_mode": "auto"` inside
+`thermal_network_settings`, or use `--config study.json --auto-mesh`.
+`--mesh-mode manual` restores the explicit `grid_cells_long_axis`. Automatic
+base grids use 24–64 long-axis cells, with up to four midpoint-refinement passes,
+at most 511 intervals per axis and a default budget of **50,000 cells summed
+across all layers**. `auto_mesh_max_layer_cells` (1152–150000) and
+`auto_mesh_max_refinement_passes` (1–4) may be reviewed explicitly. Storage/sink
+nodes still count against the solver's existing 150,000-node hard limit. At most
+2048 feature regions drive sizing; omitted/unmet features remain explicit.
+
+This is geometry-based sizing, not field-error adaptivity, contact qualification
+or proof of mesh convergence. Region bounds do not resolve rotated trace width,
+plated-wall thickness or package solids. Existing copper face connectivity and
+hole/annulus checks still apply. Thin-sheet mode recommends a **uniform** grid;
+CalculiX/Gmsh 3D sizing remains manual. Transient playback keeps one spatial grid
+and does not remesh at every frame. Explicit `mesh_acceptance` grid sweeps retain
+each requested base grid, scale local targets with that grid, and reject identical
+actual meshes; spatial and time-step convergence remain separate checks.
+
 QuickTherm opens maximized with two tabs: **Component inputs** and **Board + results**. The input table scans saved values and shows every component's power, RθJA, RθJB, RθJC, temperature limits, source and status. Edit numeric cells to add or override values. **Select all**, **Select none**, search and **Include visible** control the scope; filtering preserves checked hidden rows. **Restore saved row** removes overrides. Blank values remain unknown, and the PCB is unchanged.
 
 RθJB is always editable. A physical board study without virtual heatsinks needs known power, reviewed material/boundary settings and optional RθJB; it does not also require RθJA. A known RθJB gives `modeled board site + power × RθJB`; missing RθJB leaves the package junction and its limit check unknown. The independent air screen still requires RθJA, and virtual heatsink screening uses RθJC and declared sink paths. **Field mapping…** maps nonstandard property names or resolves ambiguous aliases. The default **Scanned values + edits** combines saved inputs with explicit overrides; **Saved fields only** ignores table overrides.

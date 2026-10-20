@@ -90,6 +90,13 @@ with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value=Path(sys
                 assert frame.manual_values['C1']['power_w']==.5 and frame.therm_refs.IsChecked(0),'retained power and scope'
                 assert not frame.therm_export.IsEnabled() and not frame.thermal_bundle,'stale export invalidated'
                 assert not frame.therm_sankey.IsEnabled(),'stale Sankey invalidated'
+                assert frame.therm_auto_mesh.GetValue() and not frame.therm_grid.IsEnabled(),'automatic default disables manual grid'
+                frame.therm_auto_mesh.SetValue(False)
+                frame.therm_auto_mesh.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.EVT_CHECKBOX.typeId,frame.therm_auto_mesh.GetId()))
+                assert frame.therm_grid.IsEnabled(),'manual mesh override enables grid'
+                frame.therm_auto_mesh.SetValue(True)
+                frame.therm_auto_mesh.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.EVT_CHECKBOX.typeId,frame.therm_auto_mesh.GetId()))
+                assert not frame.therm_grid.IsEnabled(),'auto mesh restored'
                 assert hasattr(frame,'therm_time_enabled') and hasattr(frame,'therm_probe_button')
                 frame.therm_model_kind.SetSelection(0);frame._therm_controls()
                 frame.therm_input_mode.SetSelection(0);frame._input_mode_changed(None)
@@ -105,6 +112,8 @@ with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value=Path(sys
                 assert field['value_location']=='finite_volume_cell'
                 assert field['values_c'][0][0]>25 and field['values_c'][-1][-1]>25
                 assert abs(network['heat_balance']['residual_w'])<1e-5
+                assert network['settings']['mesh_mode']=='auto'
+                assert 'Auto mesh:' in frame.therm_mesh_summary.GetLabel(),'effective mesh visible'
                 assert frame.therm_sankey.IsEnabled(),'current Sankey available'
                 with patch('tempfile.mkdtemp',return_value=str(target.parent)),patch('wx.LaunchDefaultBrowser') as opened:
                     event=wx.CommandEvent(wx.EVT_BUTTON.typeId,frame.therm_sankey.GetId())
