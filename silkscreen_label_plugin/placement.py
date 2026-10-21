@@ -10,7 +10,7 @@ import json
 import math
 import time
 import fnmatch
-from .guide_routing import dogleg_paths, visibility_path
+from .guide_routing import dogleg_paths, visibility_path, visibility_path_between
 
 def point_segment_distance(point,start,end):
     dx,dy=end[0]-start[0],end[1]-start[1]
@@ -232,6 +232,7 @@ class Plan:
     rejected: list = field(default_factory=list)
     skipped: list = field(default_factory=list)
     stats: dict = field(default_factory=dict)
+    unresolved_ids: set = field(default_factory=set)
 
 
 @dataclass
@@ -351,11 +352,14 @@ def text_geometry(text, state, api):
 
 
 def _box(text, state, api):
+    """Reserve the complete visible glyph envelope, without font layout padding.
+
+    KiCad's text layout box includes ascent/descent padding beyond the rendered
+    strokes. The native filled polygons include stroke and knockout geometry;
+    their bounding rectangle plus clearance is the manufacturing obstacle.
+    """
     clone, shape = text_geometry(text, state, api)
-    box = clone.GetBoundingBox()
-    if shape.OutlineCount():
-        box.Merge(shape.BBox())
-    return box
+    return shape.BBox() if shape.OutlineCount() else clone.GetBoundingBox()
 
 
 def courtyard_envelopes(fp, api):
@@ -435,6 +439,14 @@ def _angles(options, old_angle):
 def _inflate(box, distance, api):
     return api.BOX2I(api.VECTOR2I(box.GetLeft()-distance, box.GetTop()-distance),
                     api.VECTOR2I(box.GetWidth()+2*distance, box.GetHeight()+2*distance))
+
+
+def box_distance(first, second):
+    """Shortest distance between closed native rectangles, in board units."""
+    return math.hypot(max(first.GetLeft()-second.GetRight(),
+                          second.GetLeft()-first.GetRight(),0),
+                      max(first.GetTop()-second.GetBottom(),
+                          second.GetTop()-first.GetBottom(),0))
 
 
 def _line_state(shape):
@@ -614,7 +626,10 @@ def plan(board, api, settings=None, progress=None):
                           4*ds.m_MinSilkTextThickness)
             if minimum > height:
                 raise ValueError('Preferred height is below the native text/stroke floor.')
-            sizes = list(range(height, minimum-1, -api.FromMM(options['size_step'])))
+            # Correcting a small reference must not enlarge it merely because
+            # the preferred-height control has a larger default value.
+            preferred = max(minimum,min(height,before[4]))
+            sizes = list(range(preferred, minimum-1, -api.FromMM(options['size_step'])))
             if not sizes or sizes[-1] != minimum:
                 sizes.append(minimum)
         else:
@@ -624,9 +639,12 @@ def plan(board, api, settings=None, progress=None):
                 base[3],base[4] = max(before[3],height),max(before[4],height)
                 base[5] = max(before[5],stroke)
             else:
-                base[3] = base[4] = size
+                # Preserve deliberately condensed or stretched lettering;
+                # changing only placement must not widen an existing label.
+                base[3] = max(1,round(before[3]*size/max(1,before[4])))
+                base[4] = size
                 base[5] = max(ds.m_MinSilkTextThickness,
-                              min(stroke, round(stroke*size/height)))
+                              min(before[5],stroke, round(stroke*size/height)))
             if base[5]*4 > base[4]:
                 continue
             for angle in _angles(options, before[2]):
@@ -665,7 +683,7 @@ def plan(board, api, settings=None, progress=None):
         return all(segment_segment_distance(first,second,*boundary_edges[index])>=radius
                    for _,index in boundary.query(region))
 
-    def positions(origin,before,fp,templates,layer,local,index):
+    def raw_positions(origin,before,fp,templates,layer,local,index):
         radius = api.FromMM(min(2.,options['max_radius']) if local else options['max_radius'])
         body = bodies.get((item_id(fp),layer),bodies[item_id(fp)]) if fp else None
         def near(x,y):
@@ -721,6 +739,47 @@ def plan(board, api, settings=None, progress=None):
                 if x*x+y*y <= (radius/step)**2:
                     yield origin.x+x*step,origin.y+y*step
 
+    def positions(origin,before,fp,templates,layer,local,index):
+        # Preserve a legal, unambiguous common-direction original before
+        # moving neighbours. The caller still checks ownership and clearance.
+        # Otherwise search closest slots first instead of the first body side.
+        # Keep generation bounded as well as checking.
+        radius=api.FromMM(min(2.,options['max_radius']) if local else options['max_radius'])
+        if fp:
+            body=bodies.get((item_id(fp),layer),bodies[item_id(fp)])
+            distance=math.hypot(max(body.GetLeft()-before[0],0,before[0]-body.GetRight()),
+                                max(body.GetTop()-before[1],0,before[1]-body.GetBottom()))
+        else:distance=math.hypot(before[0]-origin.x,before[1]-origin.y)
+        if distance<=radius:yield before[0],before[1]
+        points = []
+        seen = set()
+        for point in raw_positions(origin,before,fp,templates,layer,local,index):
+            if point not in seen:
+                seen.add(point);points.append(point)
+            if len(points)>= (768 if local else 4096):break
+        if fp:
+            body=bodies.get((item_id(fp),layer),bodies[item_id(fp)])
+            state,template=templates[0]
+            def rank(point):
+                x,y=point
+                box=api.BOX2I(api.VECTOR2I(template.GetLeft()+x-before[0],template.GetTop()+y-before[1]),
+                              api.VECTOR2I(template.GetWidth(),template.GetHeight()))
+                return (box_distance(box,body),(box.GetCenter().x-origin.x)**2+
+                        (box.GetCenter().y-origin.y)**2,y,x)
+            points.sort(key=rank)
+        else:points.sort(key=lambda p:((p[0]-origin.x)**2+(p[1]-origin.y)**2,p))
+        yield from points
+
+    def ambiguous_owner(box,fp,layer,index):
+        """A label beside a different component needs an association guide."""
+        own='body:'+item_id(fp)
+        body=bodies.get((item_id(fp),layer),bodies[item_id(fp)])
+        distance=box_distance(box,body)
+        margin=api.FromMM(.2)
+        return distance>api.FromMM(2) or any(
+            oid.startswith('body:') and oid!=own and box_distance(box,other)+margin<distance
+            for other,oid in index.query(_inflate(box,math.ceil(distance+margin),api)))
+
     def check_leader(box,origin,fp,key,index,layer):
         gap = clearance+stroke//2+1
         label_box = _inflate(box,gap,api)
@@ -742,7 +801,7 @@ def plan(board, api, settings=None, progress=None):
         nearby = [obstacle for obstacle,oid in index.query(region)
                   if oid not in (key,'guide:'+key) and obstacle.Intersects(region)]
         boxes = [(r.GetLeft(),r.GetTop(),r.GetRight(),r.GetBottom()) for r in nearby]
-        def candidate_paths():
+        def candidate_paths(a,b):
             dx,dy=b[0]-a[0],b[1]-a[1]
             diagonal=min(abs(dx),abs(dy))
             sx=1 if dx>=0 else -1;sy=1 if dy>=0 else -1
@@ -750,12 +809,39 @@ def plan(board, api, settings=None, progress=None):
                         (a,(b[0]-sx*diagonal,b[1]-sy*diagonal),b),
                         (a,(a[0],b[1]),b),(a,(b[0],a[1]),b))
             yield from dogleg_paths(a,b,boxes,gap,limit=16)
-        for path in candidate_paths():
-            path = tuple(point for i,point in enumerate(path) if not i or point!=path[i-1])
-            if len(path)>1 and all(clear(first,second) for first,second in zip(path,path[1:])):return path
-        # Multi-bend fallback is strictly bounded. The same native full-stroke
-        # checker validates every edge, including holes and previously routed guides.
-        return visibility_path(a,b,boxes,gap,clear,max_nodes=48,max_checks=2048)
+        # The nearest body exit may be blocked by a neighbour. Search other
+        # faces before declaring that the component cannot receive a guide.
+        targets=[b]
+        for fraction in (.5,.25,.75,0.,1.):
+            x=round(body.GetLeft()+fraction*body.GetWidth())
+            y=round(body.GetTop()+fraction*body.GetHeight())
+            targets.extend(((body.GetLeft(),y),(body.GetRight(),y),
+                            (x,body.GetTop()),(x,body.GetBottom())))
+        targets=list(dict.fromkeys(targets))
+        targets=[target for target in targets if clear(target,target)]
+        starts=[a,(label_box.GetLeft(),label_box.GetCenter().y),
+                (label_box.GetRight(),label_box.GetCenter().y),
+                (label_box.GetCenter().x,label_box.GetTop()),
+                (label_box.GetCenter().x,label_box.GetBottom())]
+        starts=[start for start in dict.fromkeys(starts) if clear(start,start)]
+        if not starts or not targets:return None
+        pairs=sorted(((start,target) for start in starts for target in targets),
+                     key=lambda pair:(math.dist(*pair),pair))
+        for start,target in pairs:
+            for path in candidate_paths(start,target):
+                path=tuple(point for i,point in enumerate(path) if not i or point!=path[i-1])
+                if len(path)>1 and all(clear(first,second) for first,second in zip(path,path[1:])):return path
+        # Only four accessible exits receive the more expensive multi-bend
+        # fallback. Every edge still passes the same full-stroke native gate.
+        for start,target in pairs[:4]:
+            path=visibility_path(start,target,boxes,gap,clear,max_nodes=48,max_checks=2048)
+            if path:return path
+        # Corridor-only corner pruning can miss a necessary detour around an
+        # entire component group. One wider graph gets the remaining label
+        # time budget; it never bypasses the native edge checker or deadline.
+        if time.monotonic()<label_deadline[0]:
+            return visibility_path_between(starts,targets,boxes,gap,clear,max_nodes=256,max_checks=16000)
+        return None
 
     def assign(active):
         replaced = {item_id(text) for key in active if key in annotation_actions
@@ -784,7 +870,9 @@ def plan(board, api, settings=None, progress=None):
             chosen,attempts = None,0
             # Share the plan budget across difficult labels and replans.
             # An impossible long name must not starve the rest of a dense board.
-            label_deadline[0] = min(deadline,time.monotonic()+max(.04,min(.4,30./(2*max(1,len(eligible))))))
+            label_started=time.monotonic()
+            label_deadline[0] = min(deadline,label_started+max(.04,min(1.5,30./(2*max(1,len(active))))))
+            local_deadline=label_started+.6*max(0,label_deadline[0]-label_started)
             angle_groups = []
             for angle in dict.fromkeys(state[2] for state,_ in templates):
                 angle_groups.append([t for t in templates if t[0][2]==angle])
@@ -792,10 +880,14 @@ def plan(board, api, settings=None, progress=None):
                 # Exhaust nearby common-direction sizes before rotations. Only
                 # after all nearby angle alternatives try distant guided slots.
                 for local in (True,False):
+                    phase_deadline=local_deadline if local else label_deadline[0]
                     for angle_index,group in enumerate(angle_groups):
+                        if time.monotonic()>phase_deadline:break
                         for template in group:
+                            if time.monotonic()>phase_deadline:break
                             state,envelope = template
                             for count,(x,y) in enumerate(positions(origin,before,fp,[template],layer,local,indices[layer])):
+                                if time.monotonic()>phase_deadline:break
                                 if count >= ((768 if angle_index==0 else 128) if local else (4096 if angle_index==0 else 512)):break
                                 yield x,y,state,envelope
             for x,y,state,template in candidates():
@@ -816,7 +908,10 @@ def plan(board, api, settings=None, progress=None):
                        for _,holes in native_polygons for hole in holes for x,y in hole):
                     continue
                 path,leader = (),None
-                if fp and options['leaders'] and math.hypot(x-origin.x,y-origin.y)>api.FromMM(options['leader_distance']):
+                needs_guide = fp and ambiguous_owner(box,fp,layer,indices[layer])
+                if needs_guide and not options['leaders']:
+                    continue
+                if fp and options['leaders'] and (needs_guide or math.hypot(x-origin.x,y-origin.y)>api.FromMM(options['leader_distance'])):
                     path = check_leader(box,origin,fp,key,indices[layer],layer)
                     if not path:
                         continue
@@ -837,19 +932,13 @@ def plan(board, api, settings=None, progress=None):
                 indices[layer].add(_line_box(segment,api),'leader:'+key)
         return assignments,rejected
 
-    # Movable original fields are not obstacles to one another. When a field
-    # cannot be placed, its original envelope is restored as a fixed obstacle
-    # and the active set is replanned. This avoids both deadlocks and overlaps
-    # with labels which must remain in their original positions.
+    # Movable originals are not obstacles to one another. Restore unresolved
+    # originals below and demote every dependent placement to close conflicts.
+    # Do not replan the entire active set against a nearly expired deadline:
+    # that discarded successful placements simply because time had run out.
     active,preserved = set(all_keys),set()
-    assignments = []
-    for _ in range(4):
-        assignments,rejected = assign(active)
-        if not rejected:
-            break
-        active -= rejected;preserved.update(rejected)
-        if time.monotonic()>deadline:
-            break
+    assignments,rejected = assign(active)
+    preserved.update(rejected)
     preserved_indices = {layer:_SpatialIndex(api.FromMM(4)) for layer in obstacles}
     text_by_key = {item_id(text):text for text,_,_ in texts}
     def preserve(key):
@@ -863,7 +952,7 @@ def plan(board, api, settings=None, progress=None):
                     preserved_indices[shape.GetLayer()].add(shape.GetBoundingBox(),'guide:'+owner_id)
     for key in preserved:
         preserve(key)
-    # Bounded replanning may expose a chain of preserved originals. Demotion to
+    # Restoring failures may expose a chain of preserved originals. Demotion to
     # the unchanged state closes that chain without ever applying an overlap.
     changed = True
     while changed:
@@ -879,7 +968,23 @@ def plan(board, api, settings=None, progress=None):
             if conflict:
                 assignments.remove(change);preserved.add(key);preserve(key);changed = True
     for key in sorted(preserved,key=lambda key:(label_by_key[key],key)):
-        result.rejected.append((label_by_key[key],'No safe text/guide position within the bounded dense search; original retained.'))
+        text=text_by_key.get(key)
+        reason='No unambiguous safe text/guide position within the bounded search.'
+        if text is not None:
+            original=_box(text,_state(text),api)
+            corners=[api.VECTOR2I(x,y) for x,y in ((original.GetLeft(),original.GetTop()),
+                     (original.GetRight(),original.GetTop()),(original.GetRight(),original.GetBottom()),
+                     (original.GetLeft(),original.GetBottom()))]
+            if any(not inside(corners[i],corners[(i+1)%4],1) for i in range(4)):
+                reason+=' Original crosses the board edge or a cutout.'
+            elif any(original.Intersects(box) for box,oid in obstacles[text.GetLayer()]
+                     if oid.startswith('body:')):
+                reason+=' Original overlaps a component courtyard/body.'
+        result.rejected.append((label_by_key[key],reason+' Original retained, not approved.'))
+    result.unresolved_ids = set(preserved)
+    for key in preserved:
+        if key in annotation_actions:
+            result.unresolved_ids.update(item_id(text) for text in annotation_actions[key].originals)
     for chosen in assignments:
         old_shapes = [shape for _,shapes in chosen.previous_guides for shape in shapes]
         matches = sorted(_line_state(shape) for shape in old_shapes) == sorted(_leader_segments(chosen))
@@ -1005,10 +1110,9 @@ class Transaction:
                 # Text setters can fail after one of the individual attributes.
                 journal.append(lambda c=change:_set(c.item,c.before,self.api))
                 _set(change.item,change.after,self.api)
-                actual = change.item.GetBoundingBox()
                 glyphs = self.api.SHAPE_POLY_SET()
                 change.item.TransformTextToPolySet(glyphs,0,self.api.FromMM(.001),self.api.ERROR_OUTSIDE)
-                if glyphs.OutlineCount():actual.Merge(glyphs.BBox())
+                actual = glyphs.BBox() if glyphs.OutlineCount() else change.item.GetBoundingBox()
                 if not change.box.Contains(actual):
                     raise ValueError('Applied text exceeds its reviewed envelope; placement was rolled back.')
                 if change.leader:

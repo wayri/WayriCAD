@@ -100,3 +100,70 @@ def visibility_path(start, end, obstacles, margin, segment_clear, *,
                 distances[neighbor]=candidate;previous[neighbor]=index
                 heapq.heappush(queue,(candidate,neighbor))
     return None
+
+
+def visibility_path_between(starts, ends, obstacles, margin, segment_clear, *,
+                            max_nodes=256, max_checks=16000):
+    """Find one checked route between any accessible label/body exits.
+
+    Keep actual obstacle corners instead of supplemental angle vertices. One
+    multi-source graph shares visibility checks across all endpoint choices,
+    avoiding a separate expensive search for each pair. Bounds only generate
+    candidates; the caller's complete stroke checker remains authoritative.
+    """
+    import heapq
+    import math
+
+    starts=sorted(set(tuple(p) for p in starts));ends=sorted(set(tuple(p) for p in ends))
+    anchors=list(dict.fromkeys(starts+ends))
+    if margin<0 or max_nodes<max(2,len(anchors)) or max_checks<1:
+        raise ValueError('Guide margin must be nonnegative and budgets positive.')
+    if not starts or not ends:return None
+    boxes=sorted(set(tuple(box) for box in obstacles),
+                 key=lambda b:(-(b[2]-b[0])*(b[3]-b[1]),b))
+    outer=[]
+    for left,top,right,bottom in boxes:
+        if left>right or top>bottom:raise ValueError('Guide obstacle bounds must be ordered.')
+        # Corners inside a larger reserved rectangle cannot aid routing.
+        # Native acceptance still checks every original obstacle.
+        if any(a<=left and b<=top and c>=right and d>=bottom for a,b,c,d in outer):continue
+        outer.append((left,top,right,bottom))
+    corners=set()
+    for left,top,right,bottom in outer:
+        left-=margin+1;top-=margin+1;right+=margin+1;bottom+=margin+1
+        corners.update(((left,top),(right,top),(right,bottom),(left,bottom)))
+    corners.difference_update(anchors)
+    slots=max_nodes-len(anchors)
+    if len(corners)>slots:
+        def rank(point):return (min(math.dist(p,point) for p in starts)+
+                                min(math.dist(point,p) for p in ends),point)
+        corners=sorted(corners,key=rank)[:slots]
+    points=anchors+sorted(corners)
+    goals={points.index(point) for point in ends}
+    distances={points.index(point):0. for point in starts}
+    previous={index:None for index in distances}
+    queue=[(0.,index) for index in distances];heapq.heapify(queue)
+    settled=set();visibility={};checks=0
+    while queue:
+        distance,index=heapq.heappop(queue)
+        if index in settled:continue
+        if index in goals and previous[index] is not None:
+            route=[]
+            while index is not None:
+                route.append(points[index]);index=previous[index]
+            return tuple(reversed(route)) if len(route)>1 else None
+        settled.add(index)
+        for neighbor,point in enumerate(points):
+            if neighbor in settled or neighbor==index:continue
+            key=tuple(sorted((index,neighbor)))
+            if key not in visibility:
+                if checks>=max_checks:return None
+                checks+=1;visibility[key]=bool(segment_clear(points[index],point))
+            if not visibility[key]:continue
+            dx=abs(point[0]-points[index][0]);dy=abs(point[1]-points[index][1])
+            penalty=1. if not dx or not dy or dx==dy else 1.02
+            candidate=distance+math.hypot(dx,dy)*penalty
+            if candidate<distances.get(neighbor,float('inf')):
+                distances[neighbor]=candidate;previous[neighbor]=index
+                heapq.heappush(queue,(candidate,neighbor))
+    return None

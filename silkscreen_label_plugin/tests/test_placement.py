@@ -84,7 +84,9 @@ class PlacementTests(unittest.TestCase):
 
     def test_search_exhaustion_never_forces(self):
         self.pad.SetSize(self.v(20,20))
-        preview = plan(self.board,api,{'max_radius':1,'step':.5})
+        # The search is body-relative; a 1 mm allowance admits a real slot.
+        # This narrower allowance cannot contain the text plus clearance.
+        preview = plan(self.board,api,{'max_radius':.25,'step':.5})
         self.assertFalse(preview.changes)
         self.assertTrue(preview.rejected)
 
@@ -262,7 +264,12 @@ class PlacementTests(unittest.TestCase):
         self.assertLess(preview.stats['elapsed_seconds'],15)
         apply(board,api,preview)
         texts=[fp.Reference() for fp in board.GetFootprints()]
-        boxes=[t.GetBoundingBox() for t in texts]
+        boxes=[]
+        for text in texts:
+            glyphs=api.SHAPE_POLY_SET()
+            text.TransformTextToPolySet(glyphs,0,api.FromMM(.001),api.ERROR_OUTSIDE)
+            self.assertTrue(glyphs.OutlineCount())
+            boxes.append(glyphs.BBox())
         for i,box in enumerate(boxes):
             self.assertFalse(any(_inflate(box,api.FromMM(.2),api).Intersects(other) for other in boxes[i+1:]))
         self.assertFalse(plan(board,api).changes)
@@ -334,7 +341,9 @@ class PlacementTests(unittest.TestCase):
         preview=plan(self.board,api)
         self.assertTrue(preview.changes)
         apply(self.board,api,preview)
-        actual=self.text.GetBoundingBox(); expected=preview.changes[0].box
+        glyphs=api.SHAPE_POLY_SET()
+        self.text.TransformTextToPolySet(glyphs,0,api.FromMM(.001),api.ERROR_OUTSIDE)
+        actual=glyphs.BBox(); expected=preview.changes[0].box
         self.assertEqual((actual.GetLeft(),actual.GetTop(),actual.GetRight(),actual.GetBottom()),
                          (expected.GetLeft(),expected.GetTop(),expected.GetRight(),expected.GetBottom()))
 

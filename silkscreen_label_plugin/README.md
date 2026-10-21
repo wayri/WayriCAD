@@ -4,10 +4,10 @@
 
 Arrange visible reference labels on an open KiCad 10 PCB. Preview checked placements, then apply. Labels that cannot fit safely stay unresolved. This is a separate plugin from Bulk Label Editor, which renames text.
 
-![Current board-scale native preview](help-clearance.png)
+![Current board-scale native preview](help-reference-placement.png)
 
 The preview above is rendered by the actual drawing code from a disposable
-100-part board with explicit courtyards. Native glyph polygons use the reviewed
+100-part board with explicit courtyards. All 100 labels are horizontal; the saved candidate has zero native KiCad DRC findings. Native glyph polygons use the reviewed
 board scale, rotation and mirroring. Gold marks pads and grey marks body/text
 envelopes. This is a preview raster, not a desktop screenshot.
 
@@ -22,7 +22,7 @@ illustrative preview font is replaced by the board-scale rendering above.
 
 ## Use
 
-1. Select parts or pads in PCB Editor, then open **WayriCAD Silkscreen Label Placer**. Choose **Selected parts / text** or **Whole board**.
+1. Select parts or pads in PCB Editor, then open **WayriCAD Silkscreen Label Placer**. Choose **Selected parts / text** or **Whole board**, and keep **References only (R1, C1…)** selected to preserve manually entered text and values.
 2. Click **Preview**. The default arranges visible reference labels on their existing F.SilkS or B.SilkS side. It preserves hidden/locked labels and locked parts.
 3. Inspect **Top view** and **Bottom view**. Wheel zooms, dragging pans and **Fit** restores the view. Open **Review details** for unresolved or preserved items.
 4. Click **Apply labels**. Only accepted changes are applied. Use this window's **Undo** or **Redo** while it remains open. Changes elsewhere on the board invalidate the preview and undo state; preview again rather than overwriting those edits.
@@ -35,10 +35,10 @@ illustrative preview font is replaced by the board-scale rendering above.
 Each **Preview** recomputes sizes separately for every label using current free
 space. Keep **Automatically shrink text when needed** enabled: the planner tries
 the preferred size and smaller steps down to the minimum/native fabrication floor.
-One board can therefore contain 1.0 mm labels where there is room and 0.8 mm labels
+Automatic sizing never enlarges an existing smaller label unless the native fabrication floor requires it. The preferred height is a ceiling, and existing condensed or stretched text proportions are retained. One board can therefore contain 1.0 mm labels where there is room and 0.8 mm labels
 in tighter gaps. This is bounded sizing, not a single board-wide text-size change.
 
-Keep **Guide lines for distant component labels** enabled. If a label cannot fit
+Keep **Guide lines for distant or ambiguous component labels** enabled. If a label cannot fit
 locally, the planner searches within **Search beyond footprint** for another clear nearby
 position and checks a straight or multi-bend guide back to its component. Adjust
 **Guide line beyond distance** to control when that association line is required.
@@ -65,11 +65,33 @@ they never run through component courtyards to reach a part. Each label retains
 its own component association; labels are not combined into an ambiguous group.
 
 The search is bounded: up to 768 nearby or 4,096 distant candidates per size and
-angle, 12,000 candidates per label, and 30 seconds for a plan. Each label also
-receives a share of the time budget so difficult labels do not starve the board. Multi-bend routing uses at most 48 vertices and
-2,048 segment checks per fallback. These limits and conservative rotated text
+angle, 12,000 candidates per label attempt, and 30 seconds for the placement search (native geometry preparation and final source checks add to total time). Each label also
+receives a share of the time budget so difficult labels do not starve the board. Multi-bend routing first uses at most 48 vertices and 2,048 segment checks per fallback. One shared graph across accessible label/body exits may use 256 vertices and 16,000 segment checks within the same label deadline; inaccessible label/body exits are skipped before routing. Guides try alternate clear exits from the component when the nearest exit is blocked. These limits and conservative rotated text
 boxes can leave a feasible arrangement undiscovered; unresolved labels are
 reported and preserved rather than forced.
+
+### Keep references with their components
+
+**References only** is the default main-window text selection. It moves actual
+reference fields (R1, C1, U1, etc.) and leaves manual board text, footprint text
+and values unchanged. Preserved text still blocks other labels. To explicitly
+include values or board text, choose **Custom text selection (Options)** and
+check the desired categories in **Options → Placement**. The CLI flag
+`--references-only` overrides those categories in a settings file.
+
+Legal, unambiguous existing labels are kept where possible. Otherwise nearby
+slots are ranked by distance from their own component. A candidate closer to
+another component by more than 0.2 mm, or more than 2 mm from its own body,
+requires a checked guide even if the normal guide-distance threshold is larger.
+Turning guides off rejects such ambiguous or remote candidates. Nearby
+common-direction text and smaller sizes are tried before rotations and distant
+placements.
+
+**Apply is a partial correction, not board approval.** Red unresolved labels
+remain in their original positions and may still overlap pads, lie under parts
+or extend outside the board. Review details explains existing edge/body
+violations where detected. Dense assemblies may have no legal position at the
+board's minimum text size and spacing; the plugin does not force an overlap.
 
 ### Test point net names
 
@@ -130,14 +152,11 @@ courtyard caches are refreshed before planning; incomplete courtyard drawings
 still reserve their full drawn extents. Parts without a courtyard use a
 conservative body hull. Pads, mask openings, existing silk text/graphics and
 other accepted labels/guides remain obstacles. Clearance is never relaxed to
-force a fit. Native glyph geometry, including knockout backgrounds, contributes
-to the checked envelope. Apply checks that the real native text still fits the
-reviewed envelope and rolls back if it does not.
+force a fit. The checked rectangle encloses native filled glyph geometry, including stroke and knockout backgrounds, with the full spacing around it. Invisible font layout padding is not reserved as an extra obstacle. Apply checks the actual rendered envelope against the reviewed envelope and rolls back if it exceeds it.
 
 The preview no longer uses an enlarged screen font. Its native glyphs remain
 inside their reviewed boxes at every zoom; the original boxes of moved labels
-are hidden. Grey unchanged labels can still have pre-existing violations. An
-unresolved label is retained and reported, not approved as clear and not hidden.
+are hidden. Grey marks preserved text. Red marks unresolved originals, which can still have pre-existing violations. The unresolved count and review remain visible after Apply; those originals are not approved or hidden.
 
 The current preview image at the top uses those checked native envelopes.
 
@@ -160,11 +179,11 @@ These fixtures do not establish that every label fits every dense board. The unr
 
 ## Install
 
-Version 0.3.1, uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
+Version 0.3.2, uses KiCad 10's native ActionPlugin runtime. It does not require the IPC API or a sibling plugin. Install the independent PCM ZIP through **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor, then use the plugin menu or toolbar icon.
 
 Download the latest Silkscreen Label Placer from the [releases page](https://github.com/wayri/WayriCAD/releases), or find it in the WayriCAD Plugin Repository in PCM.
 
-For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.3.1-PCM.zip`.
+For a source build, run `python build_pcm.py --output-dir candidate` from the WayriCAD root. The installer is `candidate/WayriCAD-silkscreen-label-0.3.2-PCM.zip`.
 
 ## Checks and limits
 
@@ -186,4 +205,4 @@ Open [offline help](help.html) for the workflow and troubleshooting. See [readab
 
 ## Read-only command line preview
 
-`wayricad-silkscreen settings` prints the settings schema. Use `wayricad-silkscreen preview board.kicad_pcb --refs U1 TP1 --output labels.json` for a saved-board preview, optionally adding `--settings silk.json` and `--timeout 180`. The CLI reports proposed text and guide coordinates plus unresolved items; it never saves or applies board changes. Source and rule-file hashes are checked before returning the preview. Apply remains in PCB Editor with its active project settings and native DRC. See the [all-tools CLI catalogue](../docs/TOOL_CLI_CATALOGUE.md).
+`wayricad-silkscreen settings` prints the settings schema. Use `wayricad-silkscreen preview board.kicad_pcb --references-only --refs U1 TP1 --output labels.json` for a saved-board preview, optionally adding `--settings silk.json` and `--timeout 180`. The CLI reports proposed text and guide coordinates plus unresolved items; it never saves or applies board changes. Source and rule-file hashes are checked before returning the preview. Apply remains in PCB Editor with its active project settings and native DRC. See the [all-tools CLI catalogue](../docs/TOOL_CLI_CATALOGUE.md).

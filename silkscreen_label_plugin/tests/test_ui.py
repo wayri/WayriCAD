@@ -43,6 +43,32 @@ class UITests(unittest.TestCase):
             self.frame.on_apply();self.assertEqual(len(self.frame.transactions),1)
             self.frame.undo();self.assertEqual(fingerprint(self.fixture.board,api),before)
             self.frame.redo();self.assertEqual(len(self.frame.transactions),1)
+
+    def test_references_only_overrides_custom_categories(self):
+        self.frame.settings.update(references=False,values=True,board_text=True)
+        settings=self.frame.current_settings()
+        self.assertTrue(settings['references'])
+        self.assertFalse(settings['values']);self.assertFalse(settings['board_text'])
+        self.frame.text_scope.SetSelection(1)
+        self.assertTrue(self.frame.current_settings()['board_text'])
+        self.frame.SetSize((850,600));self.frame.Show();wx.Yield()
+        self.assertLessEqual(self.frame.text_scope.GetRect().GetRight(),self.frame.text_scope.GetParent().GetClientSize().width)
+
+    def test_partial_apply_retains_unresolved_review_and_red_originals(self):
+        fp=api.FOOTPRINT(self.fixture.board);fp.SetReference('R99')
+        fp.SetPosition(self.fixture.v(100,100));self.fixture.board.Add(fp)
+        fp.Reference().SetLayer(api.F_SilkS);fp.Reference().SetVisible(True)
+        fp.Reference().SetPosition(self.fixture.v(100,100))
+        self.frame.on_preview()
+        self.assertEqual(len(self.frame.preview.rejected),1)
+        self.assertEqual(self.frame.preview.stats['placed'],1)
+        reviewed=self.frame.preview
+        with patch.object(api,'Refresh'):self.frame.on_apply()
+        self.assertIsNone(self.frame.preview)
+        self.assertIs(self.frame.canvas.preview,reviewed)
+        self.assertIn('1 unresolved',self.frame.status.GetLabel())
+        self.assertIn(str(fp.Reference().m_Uuid.AsString()),reviewed.unresolved_ids)
+        self.assertFalse(self.frame.apply_button.IsEnabled())
     def test_replaced_board_blocks_apply_and_preview(self):
         self.frame.on_preview();self.open=False
         with patch.object(wx,'MessageBox') as warning:self.frame.on_apply()

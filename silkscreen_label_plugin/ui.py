@@ -53,12 +53,13 @@ class LabelPreview(wx.Panel):
         silk=pcbnew.B_SilkS if self.back else pcbnew.F_SilkS
         mask=pcbnew.B_Mask if self.back else pcbnew.F_Mask
         moving={item_id(c.item) for c in self.preview.changes} if self.preview else set()
+        unresolved=getattr(self.preview,'unresolved_ids',set()) if self.preview else set()
         if self.preview:
             moving.update(key for c in self.preview.changes for key in getattr(c,'suppressed_item_ids',()))
         for drawing in self.board.GetDrawings():
             if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_SHAPE) and drawing.GetShape()==pcbnew.SHAPE_T_SEGMENT:
                 dc.SetPen(wx.Pen('#82969d',max(1,round(drawing.GetWidth()*scale))));a,b=drawing.GetStart(),drawing.GetEnd();dc.DrawLine(*point(a.x,a.y),*point(b.x,b.y))
-            if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_TEXT) and item_id(drawing) not in moving:rectangle(drawing.GetBoundingBox(),'#aab5be')
+            if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_TEXT) and item_id(drawing) not in moving:rectangle(drawing.GetBoundingBox(),'#c52c36' if item_id(drawing) in unresolved else '#aab5be')
         for fp in self.board.GetFootprints():
             if fp.IsFlipped()==self.back:
                 hull=fp.GetBoundingHull()
@@ -69,7 +70,7 @@ class LabelPreview(wx.Panel):
             for pad in fp.Pads():
                 if pad.IsOnLayer(mask):rectangle(pad.GetBoundingBox(),'#ad8639','#e8d5a6')
             for text in fp.GetFields():
-                if text.GetLayer()==silk and text.IsVisible() and item_id(text) not in moving:rectangle(text.GetBoundingBox(),'#aab5be')
+                if text.GetLayer()==silk and text.IsVisible() and item_id(text) not in moving:rectangle(text.GetBoundingBox(),'#c52c36' if item_id(text) in unresolved else '#aab5be')
         if self.preview:
             gc=wx.GraphicsContext.Create(dc)
             for change in self.preview.changes:
@@ -103,7 +104,7 @@ class LabelPreview(wx.Panel):
             if gc:gc.Flush()
         dc.SetFont(wx.Font(wx.FontInfo(10)));dc.SetTextForeground('#405665')
         dc.DrawText('Bottom view' if self.back else 'Top view',12,10)
-        dc.DrawText('Teal: proposed labels / guides    Gold: pads    Grey: existing text envelopes',12,h-25)
+        dc.DrawText('Teal: checked labels / guides    Red: unresolved originals    Gold: pads    Grey: preserved text',12,h-25)
 
 
 class SilkscreenFrame(wx.Frame):
@@ -124,9 +125,17 @@ class SilkscreenFrame(wx.Frame):
         row=wx.BoxSizer(wx.HORIZONTAL);row.Add(wx.StaticText(panel,label='Place labels for'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
         self.scope=wx.Choice(panel,choices=['Selected parts / text','Whole board']);self.scope.SetSelection(0 if any(f.IsSelected() or any(p.IsSelected() for p in f.Pads()) for f in board.GetFootprints()) or any(isinstance(t,pcbnew.PCB_TEXT) and t.IsSelected() for t in board.GetDrawings()) else 1)
         self.scope.SetToolTip('Selected scope includes selected parts, parts containing selected pads, and selected board text. Whole board checks both sides.')
-        row.Add(self.scope,0,wx.RIGHT,10);options=wx.Button(panel,label='Options…');row.Add(options,0)
+        row.Add(self.scope,0,wx.RIGHT,10)
+        self.text_scope=wx.Choice(panel,choices=['References only (R1, C1…)','Custom text selection (Options)'])
+        self.text_scope.SetSelection(0)
+        self.text_scope.SetToolTip('References only preserves manually entered board text, footprint text and value fields. They still block placement. Custom selection uses the text categories in Options.')
+        options=wx.Button(panel,label='Options…');row.Add(options,0)
         row.AddStretchSpacer();self.side=wx.Choice(panel,choices=['Top view','Bottom view']);self.side.SetSelection(0);row.Add(self.side,0,wx.RIGHT,8)
         fit=wx.Button(panel,label='Fit',size=(55,-1));row.Add(fit,0);root.Add(row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        text_row=wx.BoxSizer(wx.HORIZONTAL)
+        text_row.Add(wx.StaticText(panel,label='Text to arrange'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        text_row.Add(self.text_scope,0,wx.RIGHT,8)
+        root.Add(text_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         self.review_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         self.canvas=LabelPreview(self.review_splitter,board);self.canvas.source_guard=self.board_guard;self.canvas.SetMinSize((280,180))
         self.review_splitter.Initialize(self.canvas);self.review_splitter.SetMinimumPaneSize(100);self.review_splitter.SetSashGravity(1)
@@ -143,6 +152,7 @@ class SilkscreenFrame(wx.Frame):
         buttons.Add(preview_button,0,wx.RIGHT,8);buttons.Add(self.apply_button,0);root.Add(buttons,0,wx.EXPAND|wx.ALL,12)
         panel.SetSizer(root);self.apply_button.Disable();self.undo_button.Disable();self.redo_button.Disable()
         options.Bind(wx.EVT_BUTTON,self.options);self.scope.Bind(wx.EVT_CHOICE,self.invalidate)
+        self.text_scope.Bind(wx.EVT_CHOICE,self.invalidate)
         self.side.Bind(wx.EVT_CHOICE,lambda e:(setattr(self.canvas,'back',self.side.GetSelection()==1),self.canvas.Refresh()))
         fit.Bind(wx.EVT_BUTTON,self.canvas.fit);preview_button.Bind(wx.EVT_BUTTON,self.on_preview)
         self.apply_button.Bind(wx.EVT_BUTTON,self.on_apply);self.undo_button.Bind(wx.EVT_BUTTON,self.undo);self.redo_button.Bind(wx.EVT_BUTTON,self.redo)
@@ -165,7 +175,11 @@ class SilkscreenFrame(wx.Frame):
         event.Skip()
     def require_board(self):
         if not self.board_guard():raise ValueError('The originating board was closed or replaced. Reopen this plugin.')
-    def current_settings(self):return dict(self.settings,selected_only=self.scope.GetSelection()==0)
+    def current_settings(self):
+        settings=dict(self.settings,selected_only=self.scope.GetSelection()==0)
+        if self.text_scope.GetSelection()==0:
+            settings.update(references=True,values=False,board_text=False)
+        return settings
     def invalidate(self,event=None):
         self.preview=None;self.canvas.preview=None;self.apply_button.Disable();self.canvas.Refresh();self.status.SetLabel('Settings changed. Preview again before applying.')
     def options(self,event):
@@ -173,7 +187,10 @@ class SilkscreenFrame(wx.Frame):
         try:
             while dialog.ShowModal()==wx.ID_OK:
                 try:
-                    self.settings=dialog.result();self.invalidate();break
+                    self.settings=dialog.result()
+                    if self.settings['values'] or self.settings['board_text'] or not self.settings['references']:
+                        self.text_scope.SetSelection(1)
+                    self.invalidate();break
                 except ValueError as exc:wx.MessageBox(str(exc),'Label options',wx.OK|wx.ICON_ERROR,parent=dialog)
         finally:dialog.Destroy()
     def on_preview(self,event=None):
@@ -207,8 +224,12 @@ class SilkscreenFrame(wx.Frame):
             if self.preview is None:raise ValueError('Create a preview first.')
             if self.preview.settings!=self.current_settings():raise ValueError('Settings changed. Preview again.')
             transaction=apply(self.board,pcbnew,self.preview);self.transactions.append(transaction);self.redos=[]
-            count=len(self.preview.changes);self.invalidate();self.undo_button.Enable(True);self.redo_button.Disable()
-            pcbnew.Refresh();self.status.SetLabel(f'Applied {count} labels. Run KiCad DRC and inspect the silkscreen before saving.')
+            count=len(self.preview.changes);unresolved=len(self.preview.rejected)
+            # Retain the reviewed geometry and unresolved originals for visual
+            # inspection. It cannot be applied twice; a new preview is required.
+            self.preview=None;self.apply_button.Disable();self.canvas.Refresh()
+            self.undo_button.Enable(True);self.redo_button.Disable()
+            pcbnew.Refresh();self.status.SetLabel(f'Applied {count} labels · {unresolved} unresolved originals remain unchanged (red). Review details and run KiCad DRC before saving.')
         except Exception as exc:
             self.apply_button.Disable();self.status.SetLabel(str(exc));wx.MessageBox(str(exc),'Labels not applied',wx.OK|wx.ICON_ERROR)
     def undo(self,event=None):

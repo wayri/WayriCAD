@@ -9,6 +9,21 @@ from unittest.mock import patch
 from silkscreen_label_plugin import cli
 
 class SilkscreenCLITests(unittest.TestCase):
+    def test_references_only_overrides_settings_before_native_launch(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as raw:
+            settings=Path(raw)/'settings.json'
+            settings.write_text(json.dumps(dict(references=False,values=True,board_text=True)))
+            captured=[]
+            def native(command,**kwargs):
+                request=json.loads(Path(command[-2]).read_text(encoding='utf-8'))
+                captured.append(request['settings'])
+                Path(command[-1]).write_text(json.dumps({'status':'PREVIEW'}),encoding='utf-8')
+                return SimpleNamespace(returncode=0,stderr='')
+            with patch('wayricad_runtime.runtime_setup.native_python',return_value=Path('native-python')),patch.object(cli.subprocess,'run',side_effect=native),contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(['preview','board.kicad_pcb','--settings',str(settings),'--references-only']),0)
+            self.assertEqual(captured,[dict(references=True,values=False,board_text=False)])
+
     def test_settings_are_machine_readable_without_opening_board(self):
         out=io.StringIO()
         with contextlib.redirect_stdout(out):self.assertEqual(cli.main(['settings']),0)

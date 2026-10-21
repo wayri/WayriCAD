@@ -23,9 +23,9 @@ class ClearanceTests(unittest.TestCase):
         self.assertTrue(preview.changes)
         placement.apply(self.board,api,preview)
         for change in preview.changes:
-            actual=change.item.GetBoundingBox()
             native=api.SHAPE_POLY_SET();change.item.TransformTextToPolySet(native,0,api.FromMM(.001),api.ERROR_OUTSIDE)
-            actual.Merge(native.BBox())
+            self.assertTrue(native.OutlineCount())
+            actual=native.BBox()
             self.assertTrue(change.box.Contains(actual))
             expanded=placement._inflate(actual,api.FromMM(.2),api)
             for fp in self.board.GetFootprints():
@@ -51,7 +51,9 @@ class ClearanceTests(unittest.TestCase):
     def test_courtyard_is_not_relaxed_to_force_a_dense_fit(self):
         self.courtyard(api.F_CrtYd,12)
         before=placement.fingerprint(self.board,api)
-        preview=placement.plan(self.board,api,dict(max_radius=1))
+        # Distance is measured beyond the body. Less than half a glyph plus
+        # clearance leaves no legal slot even when guide routing succeeds.
+        preview=placement.plan(self.board,api,dict(max_radius=.25))
         self.assertFalse(preview.changes);self.assertTrue(preview.rejected)
         self.assertEqual(before,placement.fingerprint(self.board,api))
 

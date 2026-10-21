@@ -7,7 +7,9 @@ p=fixture.api
 @unittest.skipIf(p is None,'Native KiCad required')
 class AdaptiveLabelTests(unittest.TestCase):
     def test_one_plan_uses_different_sizes_for_different_spaces(self):
-        board=fixture.dense_board(p,6,3)
+        # The visible glyph envelope, unlike font padding, fits at full size
+        # on the old 3.4 mm pitch. This tighter pitch requires real shrinking.
+        board=fixture.dense_board(p,6,3,pitch=2.95)
         for fp in board.GetFootprints():
             c=fp.GetPosition();x=p.FromMM(1.1);y=p.FromMM(.7)
             corners=[(c.x-x,c.y-y),(c.x+x,c.y-y),(c.x+x,c.y+y),(c.x-x,c.y+y)]

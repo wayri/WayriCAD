@@ -54,6 +54,7 @@ def main(argv=None):
     preview=subs.add_parser('preview',help='Plan labels without saving or editing the PCB.')
     preview.add_argument('board',type=Path);preview.add_argument('--settings',type=Path)
     preview.add_argument('--refs',nargs='+',help='Exact footprint references; omit for the whole board.')
+    preview.add_argument('--references-only',action='store_true',help='Arrange reference fields only; preserve manual text and values even when enabled in settings.')
     preview.add_argument('--output',type=Path,help='NEW JSON preview file.')
     preview.add_argument('--timeout',type=float,default=180,help='Native planner timeout in seconds.')
     args=parser.parse_args(argv)
@@ -64,6 +65,7 @@ def main(argv=None):
         from wayricad_runtime.jobs import load_json
         settings=load_json(args.settings) if args.settings else {}
         if not isinstance(settings,dict):raise ValueError('Settings must be an object.')
+        if args.references_only:settings.update(references=True,values=False,board_text=False)
         if args.output and (args.output.exists() or args.output.suffix.lower()!='.json' or args.output.resolve()==args.board.resolve()):
             raise ValueError('Choose a separate NEW .json preview file.')
         import math

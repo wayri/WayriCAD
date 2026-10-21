@@ -50,7 +50,7 @@ class OptionsDialog(wx.Dialog):
             row=wx.BoxSizer(wx.HORIZONTAL);row.Add(wx.StaticText(panel,label=label),1,wx.ALIGN_CENTER_VERTICAL)
             control=wx.TextCtrl(panel,value=str(settings[key]),size=(110,-1));self.controls[key]=control;row.Add(control);sizer.Add(row,0,wx.EXPAND|wx.ALL,8)
         panel,sizer=page('Placement')
-        for key,label in [('values','Also place visible values'),('board_text','Also place existing board text'),('leaders','Guide lines for distant component labels')]:check(panel,sizer,key,label)
+        for key,label in [('references','Place component references (R1, C1, U1…)'),('values','Also place visible values'),('board_text','Also place existing board text'),('leaders','Guide lines for distant or ambiguous component labels')]:check(panel,sizer,key,label)
         check(panel,sizer,'testpoint_net_names','Use connected net names for test point labels')
         row=wx.BoxSizer(wx.HORIZONTAL)
         row.Add(wx.StaticText(panel,label='Test point reference pattern'),1,wx.ALIGN_CENTER_VERTICAL)

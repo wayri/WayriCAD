@@ -2,6 +2,7 @@
 import unittest
 from silkscreen_label_plugin.guide_routing import dogleg_paths, visibility_path
 from silkscreen_label_plugin.placement import segment_segment_distance
+from silkscreen_label_plugin.guide_routing import visibility_path_between
 
 class DoglegTests(unittest.TestCase):
     def test_orthogonal_two_bend_path_clears_blocked_straight_line(self):
@@ -82,5 +83,34 @@ class VisibilityTests(unittest.TestCase):
             options=dict(margin=0);options.update(kwargs)
             with self.assertRaises(ValueError):
                 visibility_path((0,0),(10,0),[],segment_clear=blocked,**options)
+
+
+class MultipleExitTests(unittest.TestCase):
+    def test_route_can_use_a_pair_other_than_the_closest_pair(self):
+        blocked={(0,0),(10,0)}
+        def clear(a,b):return a not in blocked and b not in blocked
+        route=visibility_path_between([(0,0),(0,10)],[(10,0),(10,10)],[],0,clear)
+        self.assertEqual(route,((0,10),(10,10)))
+
+    def test_shared_anchor_does_not_hide_another_nonzero_route(self):
+        route=visibility_path_between([(0,0)],[(0,0),(10,0)],[],0,lambda a,b:True)
+        self.assertEqual(route,((0,0),(10,0)))
+
+    def test_contained_pad_vertices_do_not_displace_outer_detour_corners(self):
+        boxes=[(4,0,6,8)]+[(4.1+i*.01,2,4.2+i*.01,3) for i in range(100)]
+        clear=VisibilityTests.clear_for(boxes,margin=1)
+        route=visibility_path_between([(0,5)],[(10,5)],boxes,1,clear,max_nodes=8,max_checks=20)
+        self.assertIsNotNone(route)
+        self.assertTrue(all(clear(a,b) for a,b in zip(route,route[1:])))
+        self.assertEqual(route,visibility_path_between([(0,5)],[(10,5)],list(reversed(boxes)),1,clear,max_nodes=8,max_checks=20))
+
+    def test_budget_and_native_callback_failures_are_not_success(self):
+        calls=[]
+        def blocked(a,b):calls.append((a,b));return False
+        self.assertIsNone(visibility_path_between([(0,0)],[(10,0)],[(4,-2,6,2)],1,blocked,max_checks=2))
+        self.assertLessEqual(len(calls),2)
+        def failure(a,b):raise RuntimeError('native check failed')
+        with self.assertRaisesRegex(RuntimeError,'native check failed'):
+            visibility_path_between([(0,0)],[(10,0)],[],0,failure)
 
 if __name__=='__main__':unittest.main()

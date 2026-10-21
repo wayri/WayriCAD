@@ -111,6 +111,17 @@ class TypographyTests(unittest.TestCase):
         self.assertEqual(review.changes[0].after[2],0)
         self.assertEqual(source,fingerprint(b,api))
 
+    def test_automatic_correction_preserves_condensed_text_proportions(self):
+        b=dense_board(api,1,1);t=next(iter(b.GetFootprints())).Reference()
+        t.SetTextSize(self.v(.7,.8))
+        review=plan(b,api)
+        self.assertTrue(review.changes)
+        change=review.changes[0]
+        self.assertEqual(change.after[3],api.FromMM(.7))
+        self.assertEqual(change.after[4],api.FromMM(.8))
+        apply(b,api,review)
+        self.assertEqual(t.GetTextSize(),self.v(.7,.8))
+
     def test_angle_preference_and_custom_angles(self):
         from silkscreen_label_plugin.placement import _angles,DEFAULTS
         options=dict(DEFAULTS,allowed_rotations=[17,90,45,0,135])
