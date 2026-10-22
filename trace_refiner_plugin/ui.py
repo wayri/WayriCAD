@@ -58,6 +58,16 @@ class Preview(wx.Panel):
             bounds=(min(p[0] for p in points)-radius,min(p[1] for p in points)-radius,
                     max(p[0] for p in points)+radius,max(p[1] for p in points)+radius)
             records.append((kind,width,points,bounds))
+        for footprint in self.board.GetFootprints():
+            for pad in footprint.Pads():
+                shape=pcbnew.SHAPE_POLY_SET()
+                pad.TransformShapeToPolygon(shape,pad.GetLayer(),0,pcbnew.FromMM(.01),pcbnew.ERROR_OUTSIDE)
+                for index in range(shape.OutlineCount()):
+                    ring=shape.COutline(index)
+                    points=tuple((int(ring.CPoint(i).x),int(ring.CPoint(i).y)) for i in range(ring.PointCount()))
+                    if not points:continue
+                    bounds=(min(p[0] for p in points),min(p[1] for p in points),max(p[0] for p in points),max(p[1] for p in points))
+                    records.append(('pad',0,points,bounds))
         box=self.board.GetBoardEdgesBoundingBox()
         if box.GetWidth()<=0 or box.GetHeight()<=0:box=self.board.GetBoundingBox()
         bounds=(int(box.GetLeft()),int(box.GetTop()),int(box.GetRight()),int(box.GetBottom()))
@@ -69,6 +79,9 @@ class Preview(wx.Panel):
         left,top,right,bottom=view
         for kind,width,points,bounds in self.context:
             if bounds[2]<left or bounds[0]>right or bounds[3]<top or bounds[1]>bottom:continue
+            if kind=='pad':
+                dc.SetPen(wx.Pen('#b89a55',1));dc.SetBrush(wx.Brush('#796c47'))
+                dc.DrawPolygon([project(*point) for point in points]);continue
             pixels=max(1,round(width*scale))
             if kind=='via':vias[pixels].append(project(*points[0]))
             else:
@@ -124,7 +137,7 @@ class Preview(wx.Panel):
                 for points in (before,after):dc.DrawLines([p(*a) for a in points])
             for points,colour in ((before,'#e6a44a'),(after,'#4bdebe')):
                 dc.SetPen(wx.Pen(colour,max(2,round(width*scale))));dc.DrawLines([p(*a) for a in points])
-        dc.SetTextForeground('#f1f6f7');dc.DrawText('Amber: before · Teal: proposed · PCB context snapshot: click Preview after PCB edits',12,12)
+        dc.SetTextForeground('#f1f6f7');dc.DrawText('Amber: before · Teal: proposed · Gold: pads/vias · Click Preview after PCB edits',12,12)
 
 
 class RefinerFrame(wx.Frame):
@@ -133,7 +146,14 @@ class RefinerFrame(wx.Frame):
         self.SetMinSize((950,650));self.board=board;self.guard=guard or (lambda:True);self.review=None;self.transactions=[];self.redos=[];self._table_rows=[];self._excluded_notices=[];self._last_tooltip=None
         self.checked=set();self.nets=sorted({t.GetNetname() for t in board.GetTracks() if t.GetNetname()})
         panel=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL)
-        title=wx.StaticText(panel,label='Refine small routing jogs');title.SetFont(title.GetFont().Bold().Larger());root.Add(title,0,wx.ALL,12)
+        title=wx.StaticText(panel,label='Repair existing routing');title.SetFont(title.GetFont().Bold().Larger());root.Add(title,0,wx.ALL,12)
+        self.operation=wx.Notebook(panel)
+        for label,hint in [('Routing jogs','Remove small kinks and redundant segments; preserve contact endpoints.'),
+                           ('Pad / via centering','Center off-center track ends already touching a same-net pad or via. Preview, validate, then apply.')]:
+            page=wx.Panel(self.operation);layout=wx.BoxSizer(wx.VERTICAL)
+            text=wx.StaticText(page,label=hint);text.Wrap(800);layout.Add(text,0,wx.ALL,8);page.SetSizer(layout)
+            self.operation.AddPage(page,label)
+        root.Add(self.operation,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         self.settings_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D);right_panel=wx.Panel(self.settings_splitter)
         left=wx.ScrolledWindow(self.settings_splitter,size=(290,-1));left.SetMinSize((250,100));left.SetScrollRate(12,15);setup=wx.BoxSizer(wx.VERTICAL)
         setup.Add(wx.StaticText(left,label='Scope'),0,wx.BOTTOM,5)
@@ -144,9 +164,13 @@ class RefinerFrame(wx.Frame):
         self.groups=wx.CheckListBox(left,choices=sorted({t.GetNetClassName() for t in board.GetTracks()}),size=(270,65),style=wx.LB_HSCROLL);setup.Add(self.groups,0,wx.EXPAND|wx.BOTTOM,8)
         setup.Add(wx.StaticText(left,label='Layers (none checked = all)'),0,wx.BOTTOM,5)
         self.layers=wx.CheckListBox(left,choices=[board.GetLayerName(layer) for layer in board.GetEnabledLayers().CuStack()],size=(270,75),style=wx.LB_HSCROLL);setup.Add(self.layers,0,wx.EXPAND|wx.BOTTOM,8)
-        self.deviation=wx.TextCtrl(left,value='.10');self.shortening=wx.TextCtrl(left,value='.10')
+        self.deviation=wx.TextCtrl(left,value='.10');self.shortening=wx.TextCtrl(left,value='.10');self.jog_controls=[];self.setup_window=left
         for label,control in [('Maximum displacement (mm)',self.deviation),('Maximum shortening / chain (mm)',self.shortening)]:
-            setup.Add(wx.StaticText(left,label=label),0,wx.TOP,5);setup.Add(control,0,wx.EXPAND|wx.BOTTOM,5)
+            caption=wx.StaticText(left,label=label);self.jog_controls.extend((caption,control))
+            setup.Add(caption,0,wx.TOP,5);setup.Add(control,0,wx.EXPAND|wx.BOTTOM,5)
+        self.center_caption=wx.StaticText(left,label='Maximum contact centering shift (mm)');setup.Add(self.center_caption,0,wx.TOP,5)
+        self.center_shift=wx.TextCtrl(left,value='.25');self.center_shift.SetToolTip('Pad / via centering only. Maximum endpoint movement; does not bridge gaps or move pads/vias. Native DRC is still required.')
+        setup.Add(self.center_shift,0,wx.EXPAND|wx.BOTTOM,5)
         self.protected=wx.TextCtrl(left,value=DEFAULTS['protected']);self.protected.SetToolTip('Comma-separated protected net wildcards. Native differential-pair names are always protected. Add any other tuned or critical nets.');setup.Add(wx.StaticText(left,label='Protected nets (wildcards)'),0,wx.TOP,5);setup.Add(self.protected,0,wx.EXPAND|wx.BOTTOM,5)
         left.SetSizer(setup);left.FitInside()
         right=wx.BoxSizer(wx.VERTICAL)
@@ -173,7 +197,8 @@ class RefinerFrame(wx.Frame):
         root.Add(row,0,wx.EXPAND|wx.ALL,12);panel.SetSizer(root)
         for button in (self.validate_button,self.apply_button,self.undo_button,self.redo_button):button.Disable()
         self.search.Bind(wx.EVT_TEXT,self.filter_nets)
-        for control in (self.scope,self.netlist,self.groups,self.layers,self.deviation,self.shortening,self.protected):
+        self.operation.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED,self._operation_changed)
+        for control in (self.scope,self.netlist,self.groups,self.layers,self.deviation,self.shortening,self.center_shift,self.protected):
             control.Bind(wx.EVT_CHOICE if control is self.scope else wx.EVT_CHECKLISTBOX if isinstance(control,wx.CheckListBox) else wx.EVT_TEXT,self.invalidate)
         preview.Bind(wx.EVT_BUTTON,self.on_preview);self.validate_button.Bind(wx.EVT_BUTTON,self.on_validate);self.apply_button.Bind(wx.EVT_BUTTON,self.on_apply)
         self.undo_button.Bind(wx.EVT_BUTTON,self.undo);self.redo_button.Bind(wx.EVT_BUTTON,self.redo)
@@ -182,6 +207,18 @@ class RefinerFrame(wx.Frame):
         area=wx.Display(self).GetClientArea()
         self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
         self.CentreOnScreen()
+        self._operation_changed()
+    def _operation_changed(self,event=None):
+        center=self.operation.GetSelection()==1
+        self.deviation.Enable(not center);self.shortening.Enable(not center);self.center_shift.Enable(center)
+        for control in self.jog_controls:control.Show(not center)
+        self.center_caption.Show(center);self.center_shift.Show(center)
+        self.apply_button.SetLabel('Apply contact centering' if center else 'Apply refinement')
+        self.apply_button.SetMinSize(self.apply_button.GetBestSize())
+        self.setup_window.Layout();self.setup_window.FitInside();self.apply_button.GetParent().Layout()
+        self.invalidate()
+        self.status.SetLabel('Center contacts: only unambiguous, already touching same-net pads/vias are eligible. Preview first.' if center else 'Select routing, then Preview. Validate before Apply.')
+        if event:event.Skip()
     def _populate_review(self):
         self.details.DeleteAllItems();self._table_rows=[];self._last_tooltip=None
         self.canvas.set_plan(self.review)
@@ -189,7 +226,8 @@ class RefinerFrame(wx.Frame):
         for index,change in enumerate(self.review.changes):
             metrics=refiner.change_metrics(change,pcbnew)
             row=self.details.InsertItem(self.details.GetItemCount(),change.net);self._table_rows.append(index)
-            cells=[self.board.GetLayerName(change.layer),f"{metrics['before_mm']:.4f}",f"{metrics['after_mm']:.4f}",f"{metrics['shortening_mm']:.4f}",f'{len(change.before)-1} → {len(change.after)-1}',f"Proposed; {metrics['removed_segments']} segments removed"]
+            reason='Proposed contact centering; pads/vias stay fixed' if self.review.settings.get('mode')=='center contacts' else f"Proposed; {metrics['removed_segments']} segments removed"
+            cells=[self.board.GetLayerName(change.layer),f"{metrics['before_mm']:.4f}",f"{metrics['after_mm']:.4f}",f"{metrics['shortening_mm']:.4f}",f'{len(change.before)-1} → {len(change.after)-1}',reason]
             for column,value in enumerate(cells,1):self.details.SetItem(row,column,value)
         for net,reason in [*self.review.skipped,*self._excluded_notices]:
             row=self.details.InsertItem(self.details.GetItemCount(),net);self._table_rows.append(None)
@@ -199,6 +237,9 @@ class RefinerFrame(wx.Frame):
     def _review_summary(self):
         changes=self.review.changes if self.review else ()
         metrics=[refiner.change_metrics(change,pcbnew) for change in changes]
+        if self.review and self.review.settings.get('mode')=='center contacts':
+            return (f"{len(changes)} proposed contact repairs · {sum(row['after_mm']-row['before_mm'] for row in metrics):+.4f} mm length change · "
+                    f"{len(self.review.skipped)} preserved · {len(self._excluded_notices)} excluded.")
         return (f"{len(changes)} proposed chains · {sum(row['shortening_mm'] for row in metrics):.4f} mm shorter · "
                 f"{sum(row['removed_segments'] for row in metrics)} segments removed · "
                 f"{len(self.review.skipped) if self.review else 0} preserved · {len(self._excluded_notices)} excluded.")
@@ -248,7 +289,7 @@ class RefinerFrame(wx.Frame):
         for i,n in enumerate(values):self.netlist.Check(i,n in self.checked)
     def settings(self):
         self.remember_nets()
-        return dict(scope=['selected tracks','selected nets','whole board','net filters','groups'][self.scope.GetSelection()],nets=sorted(self.checked),layers=list(self.layers.GetCheckedStrings()),groups=list(self.groups.GetCheckedStrings()),max_deviation=float(self.deviation.GetValue()),max_shortening=float(self.shortening.GetValue()),protected=self.protected.GetValue())
+        return dict(scope=['selected tracks','selected nets','whole board','net filters','groups'][self.scope.GetSelection()],nets=sorted(self.checked),layers=list(self.layers.GetCheckedStrings()),groups=list(self.groups.GetCheckedStrings()),max_deviation=float(self.deviation.GetValue()),max_shortening=float(self.shortening.GetValue()),protected=self.protected.GetValue(),mode='center contacts' if self.operation.GetSelection()==1 else 'refine',max_center_shift=float(self.center_shift.GetValue()))
     def invalidate(self,event=None):
         self.review=None;self.canvas.set_plan(None);self.details.DeleteAllItems();self._table_rows=[];self._excluded_notices=[];self.validate_button.Disable();self.apply_button.Disable();self.exclude_button.Disable()
         self.status.SetLabel('Inputs changed. Preview again.')

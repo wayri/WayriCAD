@@ -85,6 +85,17 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(next(row for row in self.canvas.context if row[0]=='line')[2][-1],(9000000,3000000))
         self.assertEqual(len(list(self.board.GetTracks())),3)
 
+    def test_rotated_pad_context_is_cached_and_drawn_without_native_reads(self):
+        fp=pcbnew.FOOTPRINT(self.board);fp.SetPosition(self.point(4,4));self.board.Add(fp)
+        pad=pcbnew.PAD(fp);pad.SetPosition(self.point(4,4));pad.SetSize(self.point(1,.5))
+        pad.SetShape(pcbnew.PAD_SHAPE_RECT);pad.SetLayerSet(pad.SMDMask());pad.SetOrientationDegrees(45);fp.Add(pad)
+        self.canvas.capture_context()
+        record=next(row for row in self.canvas.context if row[0]=='pad')
+        self.assertGreater(len(record[2]),2)
+        with patch.object(self.board,'GetFootprints',side_effect=AssertionError('Drawing read native pads')):
+            dc=Mock();self.canvas.draw_context(dc,lambda x,y:(round(x/100000),round(y/100000)),.00001,(0,0,9000000,9000000))
+        dc.DrawPolygon.assert_called_once()
+
 
 @unittest.skipIf(wx is None or pcbnew is None,'KiCad native wxPython required')
 class ContextLifecycleTests(unittest.TestCase):

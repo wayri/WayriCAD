@@ -15,7 +15,7 @@ import sys
 from .geometry import simplify_local, _covered, _collapse, _length, MAX_VERTICES
 
 DEFAULTS = dict(scope='selected tracks', nets=[], layers=[], groups=[],
-                max_deviation=.10, max_shortening=.10,
+                mode='refine', max_center_shift=.25, max_deviation=.10, max_shortening=.10,
                 protected='*CLK*,*CLOCK*,*DDR*,*DQS*,*USB*,*PCIE*,*LVDS*,*RF*,*CAN*')
 
 
@@ -211,6 +211,11 @@ def propose(board, api, settings=None, progress=None):
     if not isinstance(options['protected'],str):raise ValueError('Protected nets must be wildcard text.')
     if options['scope'] not in ('selected tracks','selected nets','whole board','net filters','groups'):
         raise ValueError('Choose a supported scope.')
+    if options['mode'] not in ('refine','center contacts'):
+        raise ValueError('Choose refine or center contacts.')
+    shift=options['max_center_shift']
+    if isinstance(shift,bool) or not isinstance(shift,(int,float)) or not math.isfinite(shift) or not 0<shift<=2:
+        raise ValueError('max_center_shift must be greater than zero and at most 2 mm.')
     for key in ('max_deviation','max_shortening'):
         if isinstance(options[key],bool) or not isinstance(options[key],(int,float)) or not math.isfinite(options[key]) or not 0<options[key]<=1:
             raise ValueError(key+' must be greater than zero and at most 1 mm.')
@@ -254,6 +259,12 @@ def propose(board, api, settings=None, progress=None):
     anchor_index=_CopperIndex([p for values in anchors.values() for p in values],copper_layers,api)
     track_index=_CopperIndex(tracks,copper_layers,api)
     allowed_ids={uid(t) for t in tracks if allowed(t)}
+    if options['mode']=='center contacts':
+        from .centering import propose_contacts
+        propose_contacts(board,api,result,[t for t in tracks if uid(t) in allowed_ids],
+                         anchor_index,track_index,progress)
+        if snapshot(board,api)!=result.fingerprint:raise ValueError('Board changed during planning. Preview again.')
+        return result
     def continuation(t,p):
         neighbours=adjacency[(t.GetNetCode(),t.GetLayer(),p)]
         if len(neighbours)!=2:return None
@@ -437,7 +448,7 @@ def validate(board,api,preview,cli=None,progress=None,evidence_dir=None):
             folder=directory/label;folder.mkdir();path=folder/source.name
             for context in project_inputs(board):
                 if context.is_file():shutil.copy2(context,folder/context.name)
-            api.SaveBoard(str(path),copy)
+            api.SaveBoard(str(path),copy,True)
             output=folder/'drc.json'
             process=subprocess.Popen([str(cli),'pcb','drc','--format','json','--severity-all','--all-track-errors','--refill-zones','-o',str(output),str(path)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             deadline=time.monotonic()+180
@@ -454,18 +465,27 @@ def validate(board,api,preview,cli=None,progress=None,evidence_dir=None):
             if evidence_dir:shutil.copytree(folder,evidence_dir/label)
             if label=='baseline':require_comparable_baseline(reports[label])
         affected={uid(t) for c in preview.changes for t in c.originals}
-        if any(i.get('uuid') in affected for category in ('violations','unconnected_items')
-               for finding in reports['baseline'].get(category,[]) for i in finding.get('items',[])):
-            raise ValueError('A proposed chain already has native DRC findings. Restrict the scope to clean routing before refining.')
         # Candidate uses source first-track UUIDs; map added replacement UUIDs back
         # before comparing existing findings. New findings still block acceptance.
         mapping={uid(t):uid(c.originals[0]) for c in changes for t in c.added}
         for category in ('violations','unconnected_items'):
             for finding in reports['candidate'].get(category,[]):
                 for item in finding.get('items',[]):item['uuid']=mapping.get(item.get('uuid'),item.get('uuid'))
+        repaired_via_centers=0
+        candidate_findings=findings(reports['candidate'])
+        for category in ('violations','unconnected_items'):
+            for finding in reports['baseline'].get(category,[]):
+                if not any(i.get('uuid') in affected for i in finding.get('items',[])):continue
+                permitted=False
+                if preview.settings.get('mode')=='center contacts' and not findings({category:[finding]}) & candidate_findings:
+                    from .centering import repairs_via_finding
+                    permitted=repairs_via_finding(finding,preview.changes,board,api,preview.settings['max_center_shift'])
+                if not permitted:
+                    raise ValueError('A proposed chain already has native DRC findings. Restrict the scope to clean routing before refining.')
+                repaired_via_centers+=1
         new=findings(reports['candidate'])-findings(reports['baseline'])
         if new:raise ValueError(f'Candidate has {len(new)} new native DRC/connectivity findings; Apply is blocked. Reduce scope or displacement.')
-        preview.evidence=dict(baseline=len(findings(reports['baseline'])),candidate=len(findings(reports['candidate'])),new_findings=0,connectivity='unchanged')
+        preview.evidence=dict(baseline=len(findings(reports['baseline'])),candidate=len(findings(reports['candidate'])),new_findings=0,connectivity='unchanged',repaired_via_centers=repaired_via_centers)
     if snapshot(board,api)!=preview.fingerprint or rule_hash(board)!=preview.rules:raise ValueError('Board or rules changed during validation. Preview again.')
     if proposal_digest(preview)!=requested:raise ValueError('Proposal changed during validation; validate again.')
     preview.validated=True;preview.validation_digest=requested

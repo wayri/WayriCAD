@@ -1,27 +1,27 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v2",
-  "name": "WayriCAD Constraint Studio",
-  "description": "Visual constraint worksheets, matrices, layout scope and reviewed project rules.",
-  "description_full": "Constraint Studio with a BOM Studio-style native desktop WebView: editable constraint worksheets, all 34 rule forms, linked scope preview, A/B priority traces, clearance matrices, reusable sets, netclass dimensions and reviewed export. Original BGA, engineering, team and native help workspaces remain available. Saved-project staging with offline apply; KiCad 10 testing target. Layer routing profiles persist native per-layer widths and differential gaps, with stackup fingerprints and reviewed DRC limits.",
-  "identifier": "com.github.wayri.wayricad.protocol-constraints",
-  "type": "plugin",
-  "author": {
-    "name": "Wayri (Yawar)",
-    "contact": {
-      "github": "https://github.com/wayri"
-    }
-  },
-  "license": "GPL-3.0-only",
-  "resources": {
-    "homepage": "https://github.com/wayri/WayriCAD",
-    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/protocol_constraint_composer_plugin/icon.png"
-  },
-  "versions": [
-    {
-      "version": "3.6.24",
-      "status": "testing",
-      "kicad_version": "10.0",
-      "runtime": "ipc"
-    }
-  ]
+    "$schema": "https://go.kicad.org/pcm/schemas/v2",
+    "name": "WayriCAD Constraint Studio",
+    "description": "Visual constraint worksheets, matrices, layout scope and reviewed project rules.",
+    "description_full": "Constraint Studio with a BOM Studio-style native desktop WebView: editable constraint worksheets, all 34 rule forms, linked scope preview, A/B priority traces, clearance matrices, reusable sets, netclass dimensions and reviewed export. Original BGA, engineering, team and native help workspaces remain available. Saved-project staging with offline apply; KiCad 10 testing target. Layer routing profiles persist native per-layer widths and differential gaps, with stackup fingerprints and reviewed DRC limits.",
+    "identifier": "com.github.wayri.wayricad.protocol-constraints",
+    "type": "plugin",
+    "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
+    "license": "GPL-3.0-only",
+    "resources": {
+        "homepage": "https://github.com/wayri/WayriCAD",
+        "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/protocol_constraint_composer_plugin/icon.png"
+    },
+    "versions": [
+        {
+            "version": "3.6.25",
+            "status": "testing",
+            "kicad_version": "10.0",
+            "runtime": "ipc"
+        }
+    ]
 }

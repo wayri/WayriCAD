@@ -18,6 +18,8 @@ def parser():
     result.add_argument('--layer', action='append', default=[], help='Copper layer name; default all copper')
     result.add_argument('--max-deviation', type=float, default=.1, help='Maximum displacement in mm (0, 1]')
     result.add_argument('--max-shortening', type=float, default=.1, help='Maximum shortening per chain in mm (0, 1]')
+    result.add_argument('--center-contacts', action='store_true', help='Center already contacting pad/via endpoints instead of simplifying routing')
+    result.add_argument('--max-center-shift', type=float, default=.25, help='Maximum pad/via endpoint shift in mm (0, 2]; centering mode only')
     result.add_argument('--protected', help='Replace default comma-separated protected net wildcards')
     result.add_argument('--validate', action='store_true', help='Run native connectivity and before/after DRC')
     result.add_argument('--output', type=Path, help='Validate and export a NEW PCB/project; never overwrite')
@@ -74,6 +76,8 @@ def run_native(options):
     if set(options['layer']) - layers:
         raise ValueError('Unknown or disabled copper layer in --layer.')
     settings.update(max_deviation=options['max_deviation'], max_shortening=options['max_shortening'])
+    settings.update(mode='center contacts' if options.get('center_contacts') else 'refine',
+                    max_center_shift=options.get('max_center_shift',.25))
     if options.get('protected') is not None:
         settings['protected'] = options['protected']
     plan = propose(board, api, settings)

@@ -30,6 +30,8 @@ def main():
                     'annular_width','drill_out_of_range','isolated_copper',
                     'starved_thermal','zones_intersect'):
             severities[key]='error'
+        if request['settings'].get('mode')=='center contacts':
+            severities['track_not_centered_on_via']='error'
         project_path.write_text(json.dumps(context),encoding='utf-8')
         by_id={t.m_Uuid.AsString():t for t in board.GetTracks()}
         changes=[Change([by_id[i] for i in c['ids']],c['before'],c['after'],c['net'],c['layer'],c['width']) for c in request['changes']]

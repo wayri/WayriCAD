@@ -15,6 +15,7 @@ class HelpTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('--output', result.stdout)
         self.assertIn('--track', result.stdout)
+        self.assertIn('--center-contacts', result.stdout)
 
 
 @unittest.skipIf(test_native.api is None, 'KiCad native Python required')
@@ -57,6 +58,22 @@ class CLITests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('already exist', payload['error'])
         self.assertEqual(output.read_bytes(), before)
+
+    def test_contact_centering_cli_export_and_invalid_shift(self):
+        api=test_native.api
+        self.fixture.tracks[0].SetStart(self.fixture.v(1.1,2))
+        api.SaveBoard(str(self.source),self.fixture.board)
+        self.hashes[self.source]=hashlib.sha256(self.source.read_bytes()).hexdigest()
+        output=self.source.with_name('centered.kicad_pcb')
+        result,payload=self.run_cli('--center-contacts','--max-center-shift','.2','--output',str(output))
+        self.assertEqual(result.returncode,0,payload)
+        self.assertEqual(payload['settings']['mode'],'center contacts')
+        self.assertEqual(len(payload['changes']),1)
+        self.assertEqual(payload['evidence']['new_findings'],0)
+        self.assertEqual(payload['changes'][0]['after_mm'][0],[1.,2.])
+        for value in ('nan','0','2.1'):
+            result,payload=self.run_cli('--center-contacts','--max-center-shift',value)
+            self.assertNotEqual(result.returncode,0,payload)
 
     def test_scope_and_invalid_inputs(self):
         result, payload = self.run_cli('--netclass', 'Default')

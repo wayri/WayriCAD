@@ -15,7 +15,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.24](https://github.com/wayri/WayriCAD/releases/tag/v3.6.24) · [Release notes](docs/RELEASE_NOTES_3.6.24.md) |
+| Download or update | [Release 3.6.25](https://github.com/wayri/WayriCAD/releases/tag/v3.6.25) · [Release notes](docs/RELEASE_NOTES_3.6.25.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 23 plugins](#all-23-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
@@ -23,12 +23,13 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-## Latest release — 3.6.24
+## Latest release — 3.6.25
 
 Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
 
 | Improvement | Workflow |
 |---|---|
+| Pad/via endpoint centering | Run the separate Trace Refiner action for pad/via endpoint centering. [Trace Refiner guide](trace_refiner_plugin/README.md). |
 | Readable local silkscreen | Preserve acceptable references; try footprint-axis placement, bounded sizing and local repacking near the owning courtyard. Every eligible reference receives an outcome. [Silkscreen guide](silkscreen_label_plugin/README.md). |
 | Managed silkscreen guides | Leaders default off. Optional short straight guides have persistent ownership, detached-guide auditing and reversible cleanup. CLI HTML reports show both board faces. [Silkscreen guide](silkscreen_label_plugin/README.md). |
 | Shared-return PI and multi-pad units | Solve common return copper across rails; choose multiple physical source/load pads per unit. Shared return losses count once. [PI guide](quick_pi_plugin/README.md). |
@@ -40,7 +41,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | CLI access across all 23 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.24.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.25.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -401,15 +402,17 @@ Mechanical Check has a hideable findings sidebar, clearer filters and detail car
 
 ### [Trace Refiner](trace_refiner_plugin/README.md)
 
-Clean small trace jogs with selected-track, selected-net, net-filter, net-class and layer scopes. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available in release 3.6.20 as its own PCM package, with an icon, detailed offline Help and a CLI for preview, validation and export to a new project.
+Clean small routing jogs or center existing pad/via track contacts with selected-track, selected-net, net-filter, net-class and layer scopes. Centering only adjusts an endpoint already touching one unambiguous same-net terminal; actual gaps remain unchanged. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available as its own PCM package, with offline Help and a CLI for preview, validation and export to a new project.
 
 ![Native trace refinement preview](trace_refiner_plugin/help-workflow.png)
 
-Version 0.2.1 includes metrics, focused review, proposal exclusion and resizable settings and review panels.
+Version 0.3.0 includes separate pad/via endpoint centering, metrics, focused review, proposal exclusion and resizable settings and review panels.
 
 ![Trace Refiner proposal review](trace_refiner_plugin/help-review.png)
 
 ![Trace Refiner adjustable panels](trace_refiner_plugin/help-layout.png)
+
+![Trace Refiner pad and via endpoint centering](trace_refiner_plugin/help-centering.png)
 
 ### [Component Arranger](component_arranger_plugin/README.md)
 

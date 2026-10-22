@@ -1,25 +1,25 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v2",
-  "name": "WayriCAD Quick PI",
-  "description": "DC PI, explicit rail transients and QuickTherm-based electrothermal coupling.",
-  "description_full": "Solve DC voltage drop, current density and Joule loss on saved traces, pads, filled zones and plated via barrels. The default 2.5D model and an optional Gmsh tetrahedral 3D copper-volume model have native result views and export field evidence. Independently specified current sinks support supply budgets and voltage requirements. Explicit R/L/C load-step studies, uniform-grid steady electrothermal coupling and lumped thermal-RC transient coupling are available with declared parameters and model limits. KiCad 10 native Python with NumPy, SciPy, VTK and Matplotlib is required; the 3D mode additionally needs Gmsh. These are screening models; full-wave AC and regulator current-limit control loops are not modeled.",
-  "identifier": "com.github.wayri.wayricad.quick-pi",
-  "type": "plugin",
-  "author": {
-    "name": "WayriCAD contributors",
-    "contact": {}
-  },
-  "license": "GPL-3.0-only",
-  "versions": [
-    {
-      "version": "3.6.24",
-      "status": "testing",
-      "kicad_version": "10.0",
-      "runtime": "ipc"
+    "$schema": "https://go.kicad.org/pcm/schemas/v2",
+    "name": "WayriCAD Quick PI",
+    "description": "DC PI, explicit rail transients and QuickTherm-based electrothermal coupling.",
+    "description_full": "Solve DC voltage drop, current density and Joule loss on saved traces, pads, filled zones and plated via barrels. The default 2.5D model and an optional Gmsh tetrahedral 3D copper-volume model have native result views and export field evidence. Independently specified current sinks support supply budgets and voltage requirements. Explicit R/L/C load-step studies, uniform-grid steady electrothermal coupling and lumped thermal-RC transient coupling are available with declared parameters and model limits. KiCad 10 native Python with NumPy, SciPy, VTK and Matplotlib is required; the 3D mode additionally needs Gmsh. These are screening models; full-wave AC and regulator current-limit control loops are not modeled.",
+    "identifier": "com.github.wayri.wayricad.quick-pi",
+    "type": "plugin",
+    "author": {
+        "name": "WayriCAD contributors",
+        "contact": {}
+    },
+    "license": "GPL-3.0-only",
+    "versions": [
+        {
+            "version": "3.6.25",
+            "status": "testing",
+            "kicad_version": "10.0",
+            "runtime": "ipc"
+        }
+    ],
+    "resources": {
+        "homepage": "https://github.com/wayri/WayriCAD",
+        "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/quick_pi_plugin/icon.png"
     }
-  ],
-  "resources": {
-    "homepage": "https://github.com/wayri/WayriCAD",
-    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/quick_pi_plugin/icon.png"
-  }
 }

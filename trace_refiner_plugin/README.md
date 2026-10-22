@@ -2,7 +2,7 @@
 
 <img src="icon.png" width="64" height="64" alt="Trace Refiner icon">
 
-Remove small routing jogs and redundant straight segments from an open KiCad 10 PCB. Preview the changes, validate them with native KiCad connectivity and DRC, then apply. This tool adjusts existing tracks; it does not route missing connections or tune signals.
+Remove small routing jogs or center off-center track contacts on an open KiCad 10 PCB. Choose **Routing jogs** or the separate **Pad / via centering** tab, preview the changes, validate them with native KiCad connectivity and DRC, then apply. This tool adjusts existing tracks; it does not route missing connections or tune signals.
 
 ![Native Trace Refiner preview](help-workflow.png)
 
@@ -20,6 +20,25 @@ The 0.2.0 native fixture capture shows per-chain metrics, click-to-focus highlig
 4. Click **Preview**. Amber shows original chains, teal shows proposed replacements. Wheel zooms, drag pans and double-click fits. A bounded search may leave routing unchanged.
 5. Click **Validate candidate**. The tool serializes detached copies of the current live geometry, copies the matching saved project/rule files, checks native pad/via/zone connectivity, refills candidate zones for DRC and compares before/after native reports. Validation runs in a separate native Python process with cancellation and a six-minute timeout. The live PCB is not edited during validation. Core copper collision/dimension checks are enabled in the disposable validation project even if disabled in your saved settings; the original project is unchanged. Cancellation or any failed check blocks Apply.
 6. Click **Apply refinement**. Inspect routing, refill zones and run final KiCad DRC before saving. This window provides **Undo** and **Redo**. Closing it discards that operation history; ordinary PCB Editor Undo is not claimed.
+
+### Center pad and via contacts
+
+1. Open **Pad / via centering**. Choose selected tracks, selected nets, net filters/classes or the whole board, and optionally restrict layers.
+2. Set **Maximum contact centering shift**. The initial limit is 0.25 mm; the permitted range is greater than zero and at most 2 mm. This is a movement bound, not permission to bridge a gap or ignore clearance.
+3. Click **Preview**. The proposal moves an eligible straight-track endpoint to the center of an unambiguous same-net pad or via it already contacts. Pads, vias, footprints, layers and widths remain fixed. Already centered contacts need no change.
+4. Inspect the amber/teal overlay and preservation reasons. Centering can increase trace length; the signed **Shorter mm** column is negative when it does. Routing-jog displacement and shortening controls do not govern this separate mode.
+5. Click **Validate candidate**, then **Apply contact centering**. Apply remains blocked until native terminal connectivity and before/after DRC checks succeed. Undo/Redo uses the same source-bound history as jog refinement.
+
+The native **Track endpoint not centered on via** finding is a repair target for this mode. Validation enables that rule in disposable copies, verifies the exact reviewed track/via contact and requires the candidate to remove the finding. Other affected-track errors still block Apply. Copied project/custom rules are preserved during validation serialization.
+
+This is endpoint centering, not a general unconnected-net repair. Ambiguous contacts, uncertain pad geometry, branch/interior contacts and protected or detected tuning routing remain unchanged. A native DRC marker can have other causes; inspect the reported reason rather than assuming every marker is an off-center endpoint.
+
+![Native pad/via centering tab](help-centering.png)
+
+Actual KiCad 10 native window on a disposable two-pad fixture after validation.
+The focused preview shows the fixed gold pad and teal centered track; no user
+project appears in this capture. The image is stored as opaque RGB without
+altering the displayed geometry or results.
 
 | Scope | What it includes |
 |---|---|
@@ -66,12 +85,12 @@ DRC checks for the remaining changes.
 
 ## What is protected
 
-- Chain endpoints, pad/via contacts, branch junctions, net ownership, width boundaries and original copper layers.
+- In Routing jogs mode, chain endpoints and pad/via contacts. Centering mode explicitly permits only the reviewed terminal endpoint moves. Both modes protect branch junctions, net ownership, width boundaries and original copper layers.
 - Vias, arcs, grouped routing, locked tracks and repeated tuning meanders.
 - Native differential-pair names ending in `_P`, `_N`, `+` or `-`, numbered P/N counterparts found on the board, plus editable protected wildcards. Initial wildcards protect common clock, DDR, USB, PCIe, LVDS, RF and CAN names. Names alone cannot identify all design intent: protect any other critical or tuned nets yourself.
 - Boards with saved custom length, skew or differential-pair gap/uncoupled constraints are blocked in the current implementation. It does not infer a safe pair/skew update.
 - A baseline with 199 or more findings of any one type is blocked conservatively: potentially capped native reports cannot prove a reliable no-new-findings comparison. Resolve those existing findings first.
-- Chains with existing native DRC findings are not changed. New DRC or unconnected-item findings block the entire candidate. Narrow the scope if an otherwise valid proposal shares a batch with an unsafe one.
+- Chains with existing native DRC findings are not changed, except a verified **Track endpoint not centered on via** finding for the exact contact reviewed in centering mode. That finding must disappear; other affected-track baseline errors and all new DRC/unconnected findings block the entire candidate. Narrow the scope if an otherwise valid proposal shares a batch with an unsafe one.
 
 Native validation is bound to the exact proposed geometry and settings; modifying a proposal or its replacement tracks after validation blocks Apply. Native operations that mutate and then raise also restore the original routing or report a recovery failure explicitly.
 
@@ -106,6 +125,12 @@ python -m trace_refiner_plugin C:/Projects/Example/board.kicad_pcb --net SIGNAL 
 
 `--output` validates before writing. It creates the new PCB with matching project/custom-rule copies under the new board stem, leaving the source files unchanged. Existing output files are not overwritten. Open the exported project in KiCad, inspect it, refill zones and run final DRC before adopting it. CLI export has no in-window Undo history; the original project remains the review reference.
 
+Center existing contacts on one net and export a separate validated project:
+
+```text
+python -m trace_refiner_plugin C:/Projects/Example/board.kicad_pcb --center-contacts --net SIGNAL --max-center-shift 0.25 --output C:/Projects/Example/review/centered.kicad_pcb
+```
+
 | Argument | Meaning |
 |---|---|
 | `BOARD` | Saved `.kicad_pcb` input path |
@@ -115,6 +140,8 @@ python -m trace_refiner_plugin C:/Projects/Example/board.kicad_pcb --net SIGNAL 
 | `--layer NAME` | Restrict every scope to a copper layer such as `F.Cu`; repeat for several layers |
 | `--max-deviation MM` | Bidirectional centreline displacement bound; default `0.10` mm |
 | `--max-shortening MM` | Total shortening bound per chain; default `0.10` mm |
+| `--center-contacts` | Use pad/via endpoint centering instead of jog cleanup |
+| `--max-center-shift MM` | Endpoint movement bound for centering; default `0.25` mm, range `(0, 2]` |
 | `--protected GLOBS` | Replace the default protected-net wildcards with a comma-separated list, such as `*CLK*,*DDR*,ANALOG_*`; quote it in your shell and include every default protection you intend to retain |
 | `--validate` | Run native connectivity and before/after DRC without writing a new board |
 | `--output NEW.kicad_pcb` | Validate, then export a separate board and matching project/rules |

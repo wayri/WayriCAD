@@ -1,39 +1,39 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v2",
-  "name": "WayriCAD Trace Refiner",
-  "description": "Preview and validate small PCB trace jog cleanup by selection, net group or layer.",
-  "description_full": "Refine short routing jogs and redundant straight segments using bounded displacement and shortening. Select tracks, selected nets, net filters, net classes or board layers. Supports up to 2,048 segments per eligible chain and review-table focus, metrics and proposal exclusions before revalidation. Preserves endpoints, widths, layers, locked and grouped routing. Differential-pair names and user-protected critical nets are excluded; custom length/skew/pair rules remain protected. Native connectivity and before/after KiCad DRC must pass before applying. Includes source/rule staleness protection and in-window Undo/Redo. Not a router, length tuner or signal-integrity qualification tool.",
-  "identifier": "com.github.wayri.wayricad.trace-refiner",
-  "type": "plugin",
-  "author": {
-    "name": "Wayri (Yawar)",
-    "contact": {
-      "github": "https://github.com/wayri"
-    }
-  },
-  "maintainer": {
-    "name": "Wayri (Yawar)",
-    "contact": {
-      "github": "https://github.com/wayri"
-    }
-  },
-  "license": "GPL-3.0-only",
-  "resources": {
-    "homepage": "https://github.com/wayri/WayriCAD",
-    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/trace_refiner_plugin/icon.png"
-  },
-  "versions": [
-    {
-      "version": "0.2.3",
-      "status": "testing",
-      "kicad_version": "10.0",
-      "kicad_version_max": "10.0",
-      "runtime": "swig",
-      "platforms": [
-        "windows",
-        "linux",
-        "macos"
-      ]
-    }
-  ]
+    "$schema": "https://go.kicad.org/pcm/schemas/v2",
+    "name": "WayriCAD Trace Refiner",
+    "description": "Preview bounded routing-jog cleanup or center existing pad/via track contacts.",
+    "description_full": "Choose separate routing-jog refinement or pad/via endpoint centering. Centering adjusts only an existing straight-track endpoint already touching one unambiguous same-net copper pad or via; the default movement bound is 0.25 mm and the allowed range is greater than zero through 2 mm. It does not bridge actual gaps or move terminals. Jog refinement supports bounded displacement and shortening, up to 2,048 segments per eligible chain, review-table focus, metrics and proposal exclusions before revalidation. Preserves protected endpoints, widths and layers; locked, grouped and uncertain routing stays unchanged. Differential-pair names and user-protected critical nets are excluded; custom length/skew/pair rules remain protected. Native connectivity and before/after KiCad DRC must pass before applying either mode. Includes source/rule staleness protection and in-window Undo/Redo. Not a router, length tuner or signal-integrity qualification tool.",
+    "identifier": "com.github.wayri.wayricad.trace-refiner",
+    "type": "plugin",
+    "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
+    "maintainer": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
+    "license": "GPL-3.0-only",
+    "resources": {
+        "homepage": "https://github.com/wayri/WayriCAD",
+        "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/trace_refiner_plugin/icon.png"
+    },
+    "versions": [
+        {
+            "version": "0.3.0",
+            "status": "testing",
+            "kicad_version": "10.0",
+            "kicad_version_max": "10.0",
+            "runtime": "swig",
+            "platforms": [
+                "windows",
+                "linux",
+                "macos"
+            ]
+        }
+    ]
 }

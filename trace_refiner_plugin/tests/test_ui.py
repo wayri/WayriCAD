@@ -42,6 +42,29 @@ class UITests(unittest.TestCase):
             self.frame.on_apply();self.assertEqual(len(self.frame.transactions),1)
             self.frame.undo();self.assertEqual(snapshot(self.fixture.board,test_native.api),before)
         self.messages.assert_not_called()
+    def test_contact_centering_tab_preview_validation_apply_undo(self):
+        from trace_refiner_plugin.refiner import snapshot
+        api=test_native.api
+        self.fixture.tracks[0].SetStart(self.fixture.v(1.1,2))
+        before=snapshot(self.fixture.board,api)
+        self.frame.operation.SetSelection(1);wx.Yield()
+        self.assertTrue(self.frame.center_shift.IsEnabled())
+        self.assertFalse(self.frame.deviation.IsEnabled())
+        self.frame.scope.SetSelection(2);self.frame.on_preview();wx.Yield()
+        self.assertEqual(self.frame.review.settings['mode'],'center contacts')
+        self.assertEqual(len(self.frame.review.changes),1)
+        self.assertEqual(tuple(self.frame.review.changes[0].after[0]),(api.FromMM(1),api.FromMM(2)))
+        self.assertIn('contact repairs',self.frame.status.GetLabel())
+        self.assertFalse(self.frame.apply_button.IsEnabled())
+        self.frame.on_validate();wx.Yield()
+        self.assertTrue(self.frame.apply_button.IsEnabled(),self.frame.status.GetLabel())
+        with patch.object(api,'Refresh'):
+            self.frame.on_apply();self.assertEqual(len(self.frame.transactions),1)
+            self.frame.undo();self.assertEqual(snapshot(self.fixture.board,api),before)
+        self.frame.operation.SetSelection(0);wx.Yield()
+        self.assertIsNone(self.frame.review)
+        self.assertFalse(self.frame.center_shift.IsEnabled())
+        self.messages.assert_not_called()
     def test_review_metrics_focus_subset_requires_native_revalidation(self):
         from trace_refiner_plugin.refiner import snapshot
         api=test_native.api

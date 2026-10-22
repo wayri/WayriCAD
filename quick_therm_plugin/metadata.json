@@ -1,25 +1,25 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v2",
-  "name": "WayriCAD QuickTherm",
-  "description": "Saved-board thermal screening with STEP models, component RC heating and copper loss transfer.",
-  "description_full": "Read-only steady-state and scheduled spatial-transient thermal screening using declared dissipation, thermal paths and heat capacities. Real STEP component meshes use KiCad and FreeCAD placement; per-part RC nodes distinguish body/junction temperature and optional air/vacuum surface cooling. Source-bound Quick PI 2.5D imports transfer conductor I2R heat conservatively; imported losses stay fixed unless scheduled. Editable scanned inputs, copper-layer and vertical paths, virtual heatsinks, mounting boundaries, interactive views, playback and local HTML/JSON evidence. Optional Gmsh/CalculiX mode solves bounded 3D steady board conduction with a fixed lower face. KiCad 10 native Python, NumPy, SciPy and Matplotlib are required; STEP display also needs FreeCAD. This is not CFD or an internal component-gradient solve.",
-  "identifier": "com.github.wayri.wayricad.quick-therm",
-  "type": "plugin",
-  "author": {
-    "name": "Wayri (Yawar)",
-    "contact": {}
-  },
-  "license": "GPL-3.0-only",
-  "versions": [
-    {
-      "version": "3.6.24",
-      "status": "testing",
-      "kicad_version": "10.0",
-      "runtime": "ipc"
+    "$schema": "https://go.kicad.org/pcm/schemas/v2",
+    "name": "WayriCAD QuickTherm",
+    "description": "Saved-board thermal screening with STEP models, component RC heating and copper loss transfer.",
+    "description_full": "Read-only steady-state and scheduled spatial-transient thermal screening using declared dissipation, thermal paths and heat capacities. Real STEP component meshes use KiCad and FreeCAD placement; per-part RC nodes distinguish body/junction temperature and optional air/vacuum surface cooling. Source-bound Quick PI 2.5D imports transfer conductor I2R heat conservatively; imported losses stay fixed unless scheduled. Editable scanned inputs, copper-layer and vertical paths, virtual heatsinks, mounting boundaries, interactive views, playback and local HTML/JSON evidence. Optional Gmsh/CalculiX mode solves bounded 3D steady board conduction with a fixed lower face. KiCad 10 native Python, NumPy, SciPy and Matplotlib are required; STEP display also needs FreeCAD. This is not CFD or an internal component-gradient solve.",
+    "identifier": "com.github.wayri.wayricad.quick-therm",
+    "type": "plugin",
+    "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {}
+    },
+    "license": "GPL-3.0-only",
+    "versions": [
+        {
+            "version": "3.6.25",
+            "status": "testing",
+            "kicad_version": "10.0",
+            "runtime": "ipc"
+        }
+    ],
+    "resources": {
+        "homepage": "https://github.com/wayri/WayriCAD",
+        "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/quick_therm_plugin/icon.png"
     }
-  ],
-  "resources": {
-    "homepage": "https://github.com/wayri/WayriCAD",
-    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/quick_therm_plugin/icon.png"
-  }
 }
