@@ -15,7 +15,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.23](https://github.com/wayri/WayriCAD/releases/tag/v3.6.23) · [Release notes](docs/RELEASE_NOTES_3.6.23.md) |
+| Download or update | [Release 3.6.24](https://github.com/wayri/WayriCAD/releases/tag/v3.6.24) · [Release notes](docs/RELEASE_NOTES_3.6.24.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 23 plugins](#all-23-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
@@ -23,13 +23,14 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-## Latest release — 3.6.23
+## Latest release — 3.6.24
 
 Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
 
 | Improvement | Workflow |
 |---|---|
-| Silkscreen placement corrections | References-only mode preserves manual text; sizing keeps existing proportions, association checks and stronger guides reduce misleading placements. Unresolved originals stay marked after Apply. [Silkscreen guide](silkscreen_label_plugin/README.md). |
+| Readable local silkscreen | Preserve acceptable references; try footprint-axis placement, bounded sizing and local repacking near the owning courtyard. Every eligible reference receives an outcome. [Silkscreen guide](silkscreen_label_plugin/README.md). |
+| Managed silkscreen guides | Leaders default off. Optional short straight guides have persistent ownership, detached-guide auditing and reversible cleanup. CLI HTML reports show both board faces. [Silkscreen guide](silkscreen_label_plugin/README.md). |
 | Shared-return PI and multi-pad units | Solve common return copper across rails; choose multiple physical source/load pads per unit. Shared return losses count once. [PI guide](quick_pi_plugin/README.md). |
 | Automatic mesh sizing | PI and thermal models recommend sizes and refine supported regions locally, with manual overrides and explicit budget warnings. |
 | Power and thermal Sankeys | Follow source-to-load power or individual-part dissipation in native actions and offline HTML reports. |
@@ -39,7 +40,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | CLI access across all 23 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.23.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.24.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -95,12 +96,12 @@ an input or model is missing; they are not a pass.
 
 ### Silkscreen Label Placer — arrange readable labels
 
-1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its [0.3.2 PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.23/WayriCAD-silkscreen-label-0.3.2-PCM.zip) and use **Install from File**. Restart PCB Editor.
-2. Open **WayriCAD Silkscreen Label Placer** and choose selected parts or the whole board. Leave **References only (R1, C1…)** selected to preserve manual text.
+1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its [0.3.3 PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.24/WayriCAD-silkscreen-label-0.3.3-PCM.zip) and use **Install from File**. Restart PCB Editor.
+2. Open **WayriCAD Silkscreen Label Placer** and choose all eligible labels, problem-only correction or selected parts. Leave **References only (R1, C1…)** selected to preserve values and manual text. Acceptable labels are preserved and leaders are off by default.
 3. Under **Options**, enable automatic sizing and set a minimum height if needed. Choose allowed orientations and reading directions. Add editable bold, italic or knockout rules for test points and connectors.
 4. Click **Preview**, inspect both board sides and unresolved labels, then **Apply labels**. Run KiCad DRC before saving. Labels that cannot fit safely stay unchanged.
 
-[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Release](https://github.com/wayri/WayriCAD/releases/tag/v3.6.23)
+[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Release](https://github.com/wayri/WayriCAD/releases/tag/v3.6.24)
 
 <a id="start-quick-pi"></a>
 
@@ -225,7 +226,7 @@ Select a plugin for its full guide and supported models.
 | <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Preview and place escape tracks and vias. |
 | <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. |
 | <img src="trace_refiner_plugin/icon.png" width="24" height="24" alt="Trace Refiner icon"> [Trace Refiner](trace_refiner_plugin/README.md) | Review routing jog cleanup with metrics, focused proposals and exclusions; native connectivity and DRC gate Apply. |
-| <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange labels with automatic sizing, reading directions, bold/italic/knockout rules and checked guide lines. |
+| <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange labels with bounded sizing, footprint-axis placement, formatting rules and exceptional short guides. |
 | <img src="component_arranger_plugin/icon.png" width="24" height="24" alt="Component Arranger icon"> [Component Arranger](component_arranger_plugin/README.md) | Preview compact anchored group placement, side/rotation/density choices and capacitor order; native validation gates Apply. |
 | <img src="layer_counter_plugin/icon.png" width="24" height="24" alt="Layer Counter icon"> [Layer Counter](layer_counter_plugin/README.md) | Movable copper L1/L2 markers with zone keepouts, twelve styles and explicit mirrored/overlapping core pairs. |
 | <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Rename references, fields and PCB text in bulk. |
@@ -237,7 +238,7 @@ Select a plugin for its full guide and supported models.
 | <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Design PCB coils and screen magnetic/actuator behavior. |
 | <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Check fabrication constraints and prepare manufacturing outputs. |
 
-[Silkscreen Label Placer](silkscreen_label_plugin/README.md) is available as an independent native KiCad 10 plugin in the WayriCAD package feed, with its own icon, automatic sizing and formatting rules. See its [installation guide](silkscreen_label_plugin/README.md#install).
+[Silkscreen Label Placer](silkscreen_label_plugin/README.md) is available as an independent native KiCad 10 plugin in the WayriCAD package feed, with its own icon, automatic sizing and formatting rules. See its [installation guide](silkscreen_label_plugin/README.md#install-and-limits).
 
 ## Plugin previews
 
@@ -428,7 +429,11 @@ pairs, then Preview and Add. Available in release 3.6.20 as an independently ins
 
 ### [Silkscreen Label Placer](silkscreen_label_plugin/README.md)
 
-Arrange visible reference labels with a simple Preview → Apply flow. Dense search tries nearby slots and alternate orientations; displaced labels use checked guide paths. Hidden/locked text stays untouched and unresolved placements remain listed.
+Arrange visible reference labels with a simple Preview → Apply flow. Preserve acceptable labels, then try footprint-axis placement, bounded sizes and staggered edge slots. Leaders are off by default; optional short straight guides are audited and removable. Hidden/locked text stays untouched and unresolved placements remain listed.
+
+![Current native synthetic edge-aligned label preview](silkscreen_label_plugin/help-edge-alignment.png)
+
+Current native canvas render on a public synthetic 100-part fixture; no unresolved labels or guides. The retained window and dense-board captures below show earlier controls.
 
 ![Native silkscreen placement window](silkscreen_label_plugin/help-workflow.png)
 

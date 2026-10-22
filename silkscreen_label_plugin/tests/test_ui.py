@@ -44,6 +44,19 @@ class UITests(unittest.TestCase):
             self.frame.undo();self.assertEqual(fingerprint(self.fixture.board,api),before)
             self.frame.redo();self.assertEqual(len(self.frame.transactions),1)
 
+    def test_preserved_reference_renders_native_glyphs_instead_of_only_a_box(self):
+        from silkscreen_label_plugin import placement as m
+        tx=m.apply(self.fixture.board,api,m.plan(self.fixture.board,api))
+        preview=m.plan(self.fixture.board,api)
+        self.assertFalse(preview.changes)
+        self.frame.canvas.preview=preview
+        bitmap=wx.Bitmap(900,650);dc=wx.MemoryDC(bitmap)
+        try:self.frame.canvas.draw(dc,(900,650))
+        finally:dc.SelectObject(wx.NullBitmap)
+        self.assertTrue(any(polygons for polygons in self.frame.canvas._glyphs.values()))
+        self.assertTrue(any(key[0]==m.item_id(self.fixture.text) for key in self.frame.canvas._glyphs))
+        tx.undo()
+
     def test_references_only_overrides_custom_categories(self):
         self.frame.settings.update(references=False,values=True,board_text=True)
         settings=self.frame.current_settings()
@@ -69,6 +82,13 @@ class UITests(unittest.TestCase):
         self.assertIn('1 unresolved',self.frame.status.GetLabel())
         self.assertIn(str(fp.Reference().m_Uuid.AsString()),reviewed.unresolved_ids)
         self.assertFalse(self.frame.apply_button.IsEnabled())
+    def test_replaced_origin_blocks_generated_object_audit_and_cleanup(self):
+        self.open=False
+        with patch.object(wx,'MessageBox') as warning:self.frame.on_generated_objects()
+        self.assertIn('closed or replaced',warning.call_args.args[0])
+        with self.assertRaisesRegex(ValueError,'closed or replaced'):
+            self.frame.cleanup_verified_leaders(None,confirmed=True)
+
     def test_replaced_board_blocks_apply_and_preview(self):
         self.frame.on_preview();self.open=False
         with patch.object(wx,'MessageBox') as warning:self.frame.on_apply()
@@ -115,10 +135,15 @@ class UITests(unittest.TestCase):
             dialog.controls['auto_size'].SetValue(True)
             dialog.controls['testpoint_net_names'].SetValue(True)
             dialog.controls['testpoint_pattern'].SetValue('TP*')
+            dialog.controls['edge_margin'].SetValue('0')
             dialog.controls['height'].SetValue('1.2');dialog.controls['min_height'].SetValue('0.8')
             dialog.horizontal.SetValue(False);dialog.vertical.SetValue(True);dialog.diagonal.SetValue(False);dialog.other_angles.SetValue('');dialog.direction.SetSelection(1)
             dialog.rules.append(dict(PRESETS[0]));result=dialog.result()
             self.assertTrue(result['testpoint_net_names']);self.assertEqual(result['testpoint_pattern'],'TP*')
+            self.assertEqual(result['edge_margin'],0)
+            dialog.controls['edge_margin'].SetValue('-1')
+            with self.assertRaisesRegex(ValueError,'edge_margin'):dialog.result()
+            dialog.controls['edge_margin'].SetValue('0.5')
             self.assertEqual(result['allowed_rotations'],(90,));self.assertEqual(result['reading_direction'],'Top/left')
             self.assertEqual(result['min_height'],.8);self.assertTrue(result['formatting_rules'][0]['knockout'])
             self.assertFalse(self.frame.settings['formatting_rules'])
@@ -130,4 +155,96 @@ class UITests(unittest.TestCase):
             rule=editor.result();self.assertTrue(rule['bold']);self.assertNotIn('italic',rule)
             editor.controls['italic'].SetSelection(2);self.assertFalse(editor.result()['italic'])
         finally:editor.Destroy()
+
+    def test_readability_and_local_repack_controls_roundtrip(self):
+        from silkscreen_label_plugin.options_ui import OptionsDialog
+        dialog=OptionsDialog(self.frame,self.frame.settings)
+        try:
+            self.assertTrue(dialog.controls['preserve_acceptable'].GetValue())
+            self.assertFalse(dialog.controls['leaders'].GetValue())
+            self.assertEqual(dialog.orientation.GetStringSelection(),'Footprint axis')
+            for key,value in [('normal_distance','2.0'),('min_width','0.6'),('min_width_ratio','0.75'),('repack_neighbours','6'),('repack_displacement','2.0'),('leader_limit','10'),('leader_max_length','3.0')]:
+                dialog.controls[key].SetValue(value)
+            result=dialog.result()
+            self.assertEqual(result['orientation_preference'],'Footprint axis')
+            self.assertEqual(result['repack_neighbours'],6)
+            self.assertEqual(result['leader_limit'],10)
+            self.assertEqual(result['normal_distance'],2.0)
+            dialog.controls['repack_neighbours'].SetValue('13')
+            with self.assertRaisesRegex(ValueError,'0 to 12'):dialog.result()
+            dialog.controls['repack_neighbours'].SetValue('6')
+            dialog.controls['leader_limit'].SetValue('100001')
+            with self.assertRaisesRegex(ValueError,'0 to 100000'):dialog.result()
+        finally:dialog.Destroy()
+
+    def test_three_scope_choices_map_to_planner_settings(self):
+        self.frame.scope.SetSelection(0)
+        self.assertFalse(self.frame.current_settings()['selected_only'])
+        self.assertFalse(self.frame.current_settings()['problem_only'])
+        self.frame.scope.SetSelection(1)
+        self.assertFalse(self.frame.current_settings()['selected_only'])
+        self.assertTrue(self.frame.current_settings()['problem_only'])
+        self.frame.scope.SetSelection(2)
+        self.assertTrue(self.frame.current_settings()['selected_only'])
+        self.assertFalse(self.frame.current_settings()['problem_only'])
+
+    def test_verified_leader_cleanup_is_reversible_and_retains_text(self):
+        from silkscreen_label_plugin import lifecycle
+        from silkscreen_label_plugin.placement import GUIDE_PREFIX, item_id
+        group=api.PCB_GROUP(self.fixture.board);group.SetName(GUIDE_PREFIX+item_id(self.fixture.text))
+        self.fixture.board.Add(group)
+        leader=api.PCB_SHAPE(self.fixture.board);leader.SetShape(api.SHAPE_T_SEGMENT)
+        leader.SetStart(self.fixture.v(20,18));leader.SetEnd(self.fixture.v(21,18))
+        leader.SetWidth(api.FromMM(.08));leader.SetLayer(api.F_SilkS)
+        self.fixture.board.Add(leader);group.AddItem(leader)
+        self.fixture.board.SetProperties(lifecycle.generation_properties(
+            self.fixture.board,api,[(self.fixture.fp,self.fixture.text,group)],{'leaders':True}))
+        reviewed=lifecycle.audit(self.fixture.board,api)
+        self.assertEqual(reviewed.as_dict()['cleanup_group_ids'],[item_id(group)])
+        text_id=item_id(self.fixture.text)
+        text_state=(self.fixture.text.GetText(),self.fixture.text.GetPosition().x,self.fixture.text.GetPosition().y,
+                    self.fixture.text.GetTextSize().x,self.fixture.text.GetTextSize().y)
+        original_fingerprint=reviewed.source_fingerprint
+        self.frame.preview=object();self.frame.canvas.preview=self.frame.preview
+        self.frame.cleanup_verified_leaders(reviewed,confirmed=True)
+        self.assertEqual(len(self.fixture.board.Groups()),0)
+        self.assertEqual(item_id(self.fixture.fp.Reference()),text_id)
+        self.assertEqual((self.fixture.text.GetText(),self.fixture.text.GetPosition().x,self.fixture.text.GetPosition().y,
+                          self.fixture.text.GetTextSize().x,self.fixture.text.GetTextSize().y),text_state)
+        self.assertIsNone(self.frame.preview);self.assertIsNone(self.frame.canvas.preview)
+        self.assertTrue(self.frame.undo_button.IsEnabled())
+        self.frame.undo()
+        self.assertEqual(len(self.fixture.board.Groups()),1)
+        self.assertEqual(lifecycle.audit(self.fixture.board,api).source_fingerprint,original_fingerprint)
+        self.frame.redo()
+        self.assertEqual(len(self.fixture.board.Groups()),0)
+
+    def test_stale_generated_audit_cannot_clean_up(self):
+        from silkscreen_label_plugin import lifecycle
+        from silkscreen_label_plugin.placement import GUIDE_PREFIX, item_id
+        group=api.PCB_GROUP(self.fixture.board);group.SetName(GUIDE_PREFIX+item_id(self.fixture.text))
+        self.fixture.board.Add(group)
+        leader=api.PCB_SHAPE(self.fixture.board);leader.SetShape(api.SHAPE_T_SEGMENT)
+        leader.SetStart(self.fixture.v(20,18));leader.SetEnd(self.fixture.v(21,18))
+        leader.SetWidth(api.FromMM(.08));leader.SetLayer(api.F_SilkS)
+        self.fixture.board.Add(leader);group.AddItem(leader)
+        self.fixture.board.SetProperties(lifecycle.generation_properties(
+            self.fixture.board,api,[(self.fixture.fp,self.fixture.text,group)],{'leaders':True}))
+        reviewed=lifecycle.audit(self.fixture.board,api)
+        self.fixture.text.SetText('Changed after audit')
+        with self.assertRaisesRegex(ValueError,'Board changed after the audit'):
+            self.frame.cleanup_verified_leaders(reviewed,confirmed=True)
+        self.assertEqual(len(self.fixture.board.Groups()),1)
+
+    def test_unverified_legacy_group_is_audited_but_not_removable(self):
+        from silkscreen_label_plugin import lifecycle
+        from silkscreen_label_plugin.placement import GUIDE_PREFIX
+        legacy=api.PCB_GROUP(self.fixture.board);legacy.SetName(GUIDE_PREFIX+'legacy-name-only')
+        self.fixture.board.Add(legacy)
+        reviewed=lifecycle.audit(self.fixture.board,api)
+        self.assertIn('legacy_unverified',[row['status'] for row in reviewed.findings])
+        self.assertEqual(reviewed.as_dict()['cleanup_group_ids'],[])
+        with self.assertRaisesRegex(ValueError,'no verified generated leaders'):
+            self.frame.cleanup_verified_leaders(reviewed,confirmed=True)
+        self.assertEqual(len(self.fixture.board.Groups()),1)
 if __name__=='__main__':unittest.main()

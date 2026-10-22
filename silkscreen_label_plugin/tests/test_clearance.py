@@ -30,7 +30,7 @@ class ClearanceTests(unittest.TestCase):
             expanded=placement._inflate(actual,api.FromMM(.2),api)
             for fp in self.board.GetFootprints():
                 env=placement.courtyard_envelopes(fp,api)
-                if change.item.GetLayer() in env:self.assertFalse(expanded.Intersects(env[change.item.GetLayer()]))
+                if change.item.GetLayer() in env:self.assertFalse(placement._inflate(actual,api.FromMM(preview.settings['body_clearance']),api).Intersects(env[change.item.GetLayer()]))
                 for pad in fp.Pads():
                     if pad.IsOnLayer(api.F_Mask if change.item.GetLayer()==api.F_SilkS else api.B_Mask):
                         self.assertFalse(expanded.Intersects(pad.GetBoundingBox()))
@@ -51,11 +51,34 @@ class ClearanceTests(unittest.TestCase):
     def test_courtyard_is_not_relaxed_to_force_a_dense_fit(self):
         self.courtyard(api.F_CrtYd,12)
         before=placement.fingerprint(self.board,api)
-        # Distance is measured beyond the body. Less than half a glyph plus
-        # clearance leaves no legal slot even when guide routing succeeds.
-        preview=placement.plan(self.board,api,dict(max_radius=.25))
+        # The allowed glyph-edge gap is narrower than the requested extra
+        # courtyard padding; no legal candidate may bypass that padding.
+        preview=placement.plan(self.board,api,dict(max_radius=.25,body_clearance=.3))
         self.assertFalse(preview.changes);self.assertTrue(preview.rejected)
         self.assertEqual(before,placement.fingerprint(self.board,api))
+
+    def test_guide_strokes_use_exact_geometry_not_filled_diagonal_boxes(self):
+        index=placement._SpatialIndex(api.FromMM(4))
+        segment=(*tuple(self.v(0,0)),*tuple(self.v(10,10)),api.FromMM(.1),api.F_SilkS)
+        index.add(placement._line_box(segment,api),'guide',segment)
+        safe=(*tuple(self.v(0,3)),*tuple(self.v(7,10)),api.FromMM(.1),api.F_SilkS)
+        crossing=(*tuple(self.v(0,10)),*tuple(self.v(10,0)),api.FromMM(.1),api.F_SilkS)
+        self.assertFalse(index.hits_segment(safe,api.FromMM(.2),0,api))
+        self.assertTrue(index.hits_segment(crossing,api.FromMM(.2),0,api))
+        empty=api.BOX2I(self.v(0,8),self.v(1,1))
+        occupied=api.BOX2I(self.v(4.9,4.9),self.v(.2,.2))
+        self.assertFalse(index.hits_box(empty,api.FromMM(.2),0,api))
+        self.assertTrue(index.hits_box(occupied,api.FromMM(.2),0,api))
+
+    def test_courtyard_padding_is_distinct_from_exposed_copper_clearance(self):
+        index=placement._SpatialIndex(api.FromMM(4))
+        obstacle=api.BOX2I(self.v(1,1),self.v(1,1))
+        nearby=api.BOX2I(self.v(2.05,1),self.v(1,1))
+        index.add(obstacle,'body:part')
+        self.assertFalse(index.hits_box(nearby,api.FromMM(.2),0,api))
+        self.assertTrue(index.hits_box(nearby,api.FromMM(.2),api.FromMM(.1),api))
+        index.add(obstacle,'exposed-pad')
+        self.assertTrue(index.hits_box(nearby,api.FromMM(.2),0,api))
 
     def test_default_sizing_caps_an_existing_oversized_label(self):
         self.text.SetTextSize(self.v(3,3))

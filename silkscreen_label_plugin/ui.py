@@ -4,7 +4,7 @@ from copy import deepcopy
 from .options_ui import OptionsDialog
 import pcbnew
 import wx
-from .placement import DEFAULTS, plan, apply, text_geometry, polygons, item_id, _net_ownership
+from .placement import DEFAULTS, plan, apply, text_geometry, polygons, item_id, _net_ownership, _state
 
 
 class LabelPreview(wx.Panel):
@@ -50,6 +50,24 @@ class LabelPreview(wx.Panel):
                 ring=outline.COutline(i);dc.DrawLines([point(ring.CPoint(j).x,ring.CPoint(j).y) for j in range(ring.PointCount())]+[point(ring.CPoint(0).x,ring.CPoint(0).y)])
                 for k in range(outline.HoleCount(i)):
                     ring=outline.CHole(i,k);dc.DrawLines([point(ring.CPoint(j).x,ring.CPoint(j).y) for j in range(ring.PointCount())]+[point(ring.CPoint(0).x,ring.CPoint(0).y)])
+        gc=wx.GraphicsContext.Create(dc)
+        if self._geometry_plan is not self.preview:
+            self._glyphs={};self._geometry_plan=self.preview
+        def draw_native(text,state,colour):
+            if not gc:return
+            key=(item_id(text),text.GetShownText(False),state)
+            if key not in self._glyphs:
+                _,shape=text_geometry(text,state,pcbnew)
+                self._glyphs[key]=polygons(shape)
+            gc.SetPen(wx.TRANSPARENT_PEN);gc.SetBrush(wx.Brush(colour))
+            path=gc.CreatePath()
+            for outer,holes in self._glyphs[key]:
+                for ring in [outer,*holes]:
+                    if not ring:continue
+                    path.MoveToPoint(*point(*ring[0]))
+                    for vertex in ring[1:]:path.AddLineToPoint(*point(*vertex))
+                    path.CloseSubpath()
+            gc.DrawPath(path,wx.ODDEVEN_RULE)
         silk=pcbnew.B_SilkS if self.back else pcbnew.F_SilkS
         mask=pcbnew.B_Mask if self.back else pcbnew.F_Mask
         moving={item_id(c.item) for c in self.preview.changes} if self.preview else set()
@@ -59,7 +77,9 @@ class LabelPreview(wx.Panel):
         for drawing in self.board.GetDrawings():
             if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_SHAPE) and drawing.GetShape()==pcbnew.SHAPE_T_SEGMENT:
                 dc.SetPen(wx.Pen('#82969d',max(1,round(drawing.GetWidth()*scale))));a,b=drawing.GetStart(),drawing.GetEnd();dc.DrawLine(*point(a.x,a.y),*point(b.x,b.y))
-            if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_TEXT) and item_id(drawing) not in moving:rectangle(drawing.GetBoundingBox(),'#c52c36' if item_id(drawing) in unresolved else '#aab5be')
+            if drawing.GetLayer()==silk and isinstance(drawing,pcbnew.PCB_TEXT) and item_id(drawing) not in moving:
+                colour='#c52c36' if item_id(drawing) in unresolved else '#82969d'
+                rectangle(drawing.GetBoundingBox(),colour);draw_native(drawing,_state(drawing),colour)
         for fp in self.board.GetFootprints():
             if fp.IsFlipped()==self.back:
                 hull=fp.GetBoundingHull()
@@ -69,31 +89,15 @@ class LabelPreview(wx.Panel):
                     if pts:dc.DrawLines(pts+[pts[0]])
             for pad in fp.Pads():
                 if pad.IsOnLayer(mask):rectangle(pad.GetBoundingBox(),'#ad8639','#e8d5a6')
-            for text in fp.GetFields():
-                if text.GetLayer()==silk and text.IsVisible() and item_id(text) not in moving:rectangle(text.GetBoundingBox(),'#c52c36' if item_id(text) in unresolved else '#aab5be')
+            for text in [*fp.GetFields(),*[g for g in fp.GraphicalItems() if isinstance(g,pcbnew.PCB_TEXT)]]:
+                if text.GetLayer()==silk and text.IsVisible() and item_id(text) not in moving:
+                    colour='#c52c36' if item_id(text) in unresolved else '#82969d'
+                    rectangle(text.GetBoundingBox(),colour);draw_native(text,_state(text),colour)
         if self.preview:
-            gc=wx.GraphicsContext.Create(dc)
             for change in self.preview.changes:
                 if change.item.GetLayer()!=silk:continue
                 rectangle(change.box,'#008a7d','#e2f4ef')
-                if self._geometry_plan is not self.preview:
-                    self._glyphs={};self._geometry_plan=self.preview
-                key=item_id(change.item)
-                if key not in self._glyphs:
-                    _,shape=text_geometry(getattr(change,'preview_item',None) or change.item,change.after,pcbnew)
-                    self._glyphs[key]=polygons(shape)
-                # Board-scale native glyph polygons retain rotation, mirroring,
-                # font, stroke and knockout; never enlarge small screen labels.
-                if gc:
-                    gc.SetPen(wx.TRANSPARENT_PEN);gc.SetBrush(wx.Brush('#00685f'))
-                    path=gc.CreatePath()
-                    for outer,holes in self._glyphs[key]:
-                        for ring in [outer,*holes]:
-                            if not ring:continue
-                            path.MoveToPoint(*point(*ring[0]))
-                            for vertex in ring[1:]:path.AddLineToPoint(*point(*vertex))
-                            path.CloseSubpath()
-                    gc.DrawPath(path,wx.ODDEVEN_RULE)
+                draw_native(getattr(change,'preview_item',None) or change.item,change.after,'#00685f')
                 guide=getattr(change,'leader_path',())
                 if not guide and change.leader:
                     x1,y1,x2,y2,stroke,layer=change.leader;guide=((x1,y1),(x2,y2))
@@ -101,7 +105,7 @@ class LabelPreview(wx.Panel):
                     stroke=change.leader[4] if change.leader else change.thickness
                     dc.SetPen(wx.Pen('#008a7d',max(1,round(stroke*scale))))
                     for a,b in zip(guide,guide[1:]):dc.DrawLine(*point(*a),*point(*b))
-            if gc:gc.Flush()
+        if gc:gc.Flush()
         dc.SetFont(wx.Font(wx.FontInfo(10)));dc.SetTextForeground('#405665')
         dc.DrawText('Bottom view' if self.back else 'Top view',12,10)
         dc.DrawText('Teal: checked labels / guides    Red: unresolved originals    Gold: pads    Grey: preserved text',12,h-25)
@@ -123,8 +127,10 @@ class SilkscreenFrame(wx.Frame):
         panel=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL)
         title=wx.StaticText(panel,label='Arrange silkscreen labels');title.SetFont(title.GetFont().Bold().Larger());root.Add(title,0,wx.ALL,12)
         row=wx.BoxSizer(wx.HORIZONTAL);row.Add(wx.StaticText(panel,label='Place labels for'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
-        self.scope=wx.Choice(panel,choices=['Selected parts / text','Whole board']);self.scope.SetSelection(0 if any(f.IsSelected() or any(p.IsSelected() for p in f.Pads()) for f in board.GetFootprints()) or any(isinstance(t,pcbnew.PCB_TEXT) and t.IsSelected() for t in board.GetDrawings()) else 1)
-        self.scope.SetToolTip('Selected scope includes selected parts, parts containing selected pads, and selected board text. Whole board checks both sides.')
+        self.scope=wx.Choice(panel,choices=['All eligible references','Problem references only','Selected references'])
+        selected=any(f.IsSelected() or any(p.IsSelected() for p in f.Pads()) for f in board.GetFootprints())
+        self.scope.SetSelection(2 if selected else 0)
+        self.scope.SetToolTip('All eligible references checks both sides. Problem references limits work to labels the planner flags. Selected references includes selected footprints and footprints containing selected pads.')
         row.Add(self.scope,0,wx.RIGHT,10)
         self.text_scope=wx.Choice(panel,choices=['References only (R1, C1…)','Custom text selection (Options)'])
         self.text_scope.SetSelection(0)
@@ -147,6 +153,7 @@ class SilkscreenFrame(wx.Frame):
         self.details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,self.toggle_details)
         self.list.Bind(wx.EVT_MOTION,self.detail_tooltip)
         buttons=wx.BoxSizer(wx.HORIZONTAL);help_button=wx.Button(panel,label='Help');buttons.Add(help_button,0)
+        self.generated_button=wx.Button(panel,label='Generated objects…');buttons.Add(self.generated_button,0,wx.LEFT,8)
         self.undo_button=wx.Button(panel,label='Undo');self.redo_button=wx.Button(panel,label='Redo');buttons.Add(self.undo_button,0,wx.LEFT,8);buttons.Add(self.redo_button,0,wx.LEFT,8)
         buttons.AddStretchSpacer();preview_button=wx.Button(panel,label='Preview');self.apply_button=wx.Button(panel,label='Apply labels')
         buttons.Add(preview_button,0,wx.RIGHT,8);buttons.Add(self.apply_button,0);root.Add(buttons,0,wx.EXPAND|wx.ALL,12)
@@ -157,6 +164,7 @@ class SilkscreenFrame(wx.Frame):
         fit.Bind(wx.EVT_BUTTON,self.canvas.fit);preview_button.Bind(wx.EVT_BUTTON,self.on_preview)
         self.apply_button.Bind(wx.EVT_BUTTON,self.on_apply);self.undo_button.Bind(wx.EVT_BUTTON,self.undo);self.redo_button.Bind(wx.EVT_BUTTON,self.redo)
         help_button.Bind(wx.EVT_BUTTON,lambda e:wx.LaunchDefaultBrowser(Path(__file__).with_name('help.html').as_uri()))
+        self.generated_button.Bind(wx.EVT_BUTTON,self.on_generated_objects)
         self.Bind(wx.EVT_HELP,lambda e:wx.LaunchDefaultBrowser(Path(__file__).with_name('help.html').as_uri()))
         area=wx.Display(self).GetClientArea()
         self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
@@ -176,7 +184,8 @@ class SilkscreenFrame(wx.Frame):
     def require_board(self):
         if not self.board_guard():raise ValueError('The originating board was closed or replaced. Reopen this plugin.')
     def current_settings(self):
-        settings=dict(self.settings,selected_only=self.scope.GetSelection()==0)
+        scope=self.scope.GetSelection()
+        settings=dict(self.settings,selected_only=scope==2,problem_only=scope==1)
         if self.text_scope.GetSelection()==0:
             settings.update(references=True,values=False,board_text=False)
         return settings
@@ -207,15 +216,22 @@ class SilkscreenFrame(wx.Frame):
                 with wx.BusyCursor():self.preview=plan(self.board,pcbnew,self.current_settings(),progress=advance)
             finally:progress.Destroy()
             self.canvas.preview=self.preview
+            gaps={row['id']:row.get('courtyard_gap_mm') for row in getattr(self.preview,'outcomes',[])}
             for change in self.preview.changes:
                 row=self.list.InsertItem(self.list.GetItemCount(),change.label);styles=', '.join(name for name,on in zip(('bold','italic','knockout'),change.after[7:10]) if on)
-                self.list.SetItem(row,1,f'{pcbnew.ToMM(change.after[4]):.2f} mm · {change.after[2]:g}°'+(' · '+styles if styles else '')+(' · guide line' if change.leader else ''))
+                gap=gaps.get(item_id(change.item))
+                self.list.SetItem(row,1,f'{pcbnew.ToMM(change.after[4]):.2f} mm · {change.after[2]:g}°'+(' · '+styles if styles else '')+(' · guide line' if change.leader else '')+(f' · courtyard gap {gap:.2f} mm' if gap is not None else ''))
+            for outcome in getattr(self.preview,'outcomes',[]):
+                if outcome['status']=='UNCHANGED':
+                    row=self.list.InsertItem(self.list.GetItemCount(),outcome['label'])
+                    self.list.SetItem(row,1,'Checked; existing placement retained.')
             for label in self.preview.rejected:
                 row=self.list.InsertItem(self.list.GetItemCount(),'Unresolved');self.list.SetItem(row,0,str(label[0]));self.list.SetItem(row,1,str(label[1]))
             for label in self.preview.skipped:
                 row=self.list.InsertItem(self.list.GetItemCount(),'Preserved');self.list.SetItem(row,0,str(label[0]));self.list.SetItem(row,1,str(label[1]))
             leaders=sum(bool(c.leader) for c in self.preview.changes)
-            self.status.SetLabel(f"{self.preview.stats.get('placed',len(self.preview.changes))}/{self.preview.stats.get('eligible',len(self.preview.changes)+len(self.preview.rejected))} labels placed · {len(self.preview.changes)} changes · {leaders} guides · {len(self.preview.rejected)} unresolved. Review, then Apply.")
+            guide_note=' Guide allowance reached; review Options.' if self.preview.stats.get('guide_budget_limited') else ''
+            self.status.SetLabel(f"{self.preview.stats.get('placed',len(self.preview.changes))}/{self.preview.stats.get('eligible',len(self.preview.changes)+len(self.preview.rejected))} labels placed · {len(self.preview.changes)} changes · {self.preview.stats.get('guides',leaders)} guides · {len(self.preview.rejected)} unresolved. Review, then Apply."+guide_note)
             self.apply_button.Enable(bool(self.preview.changes));self.canvas.Refresh()
         except Exception as exc:self.status.SetLabel(str(exc))
     def on_apply(self,event=None):
@@ -246,3 +262,59 @@ class SilkscreenFrame(wx.Frame):
             transaction=self.redos[-1];transaction.redo();self.redos.pop();self.transactions.append(transaction);self.invalidate()
             self.undo_button.Enable(True);self.redo_button.Enable(bool(self.redos));pcbnew.Refresh();self.status.SetLabel('Reapplied the reviewed labels and guide lines.')
         except Exception as exc:wx.MessageBox(str(exc),'Redo failed',wx.OK|wx.ICON_ERROR)
+
+    def cleanup_verified_leaders(self,reviewed_audit,confirmed=False):
+        """Apply only verified groups in an unchanged audit, preserving text."""
+        from . import lifecycle
+        self.require_board()
+        if not confirmed:raise ValueError('Confirm removal of the reviewed verified leaders first.')
+        current=lifecycle.audit(self.board,pcbnew)
+        if current.source_fingerprint!=reviewed_audit.source_fingerprint:
+            raise ValueError('Board changed after the audit. Review generated objects again.')
+        group_ids=reviewed_audit.as_dict()['cleanup_group_ids']
+        if not group_ids:raise ValueError('The audit found no verified generated leaders to remove.')
+        preview=lifecycle.plan_cleanup(self.board,pcbnew,group_ids)
+        if preview.source_fingerprint!=reviewed_audit.source_fingerprint:
+            raise ValueError('Board changed after the audit. Review generated objects again.')
+        transaction=lifecycle.apply_cleanup(self.board,pcbnew,preview)
+        self.transactions.append(transaction);self.redos=[]
+        self.invalidate();self.undo_button.Enable(True);self.redo_button.Disable()
+        pcbnew.Refresh()
+        self.status.SetLabel(f'Removed {len(group_ids)} verified guide group(s); label text was retained. Use Undo to restore them.')
+        return transaction
+
+    def on_generated_objects(self,event=None):
+        from . import lifecycle
+        try:
+            self.require_board();report=lifecycle.audit(self.board,pcbnew)
+        except Exception as exc:
+            wx.MessageBox(str(exc),'Generated-object audit failed',wx.OK|wx.ICON_ERROR,parent=self);return
+        dialog=wx.Dialog(self,title='Generated silkscreen objects',size=(760,430),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        root=wx.BoxSizer(wx.VERTICAL)
+        note=wx.StaticText(dialog,label='Read-only ownership audit. Uncertain and legacy artwork is listed for review and cannot be removed here. Cleanup removes verified guide strokes and retains label text.')
+        note.Wrap(710);root.Add(note,0,wx.EXPAND|wx.ALL,10)
+        findings=wx.ListCtrl(dialog,style=wx.LC_REPORT|wx.BORDER_SUNKEN)
+        findings.InsertColumn(0,'Kind',width=100);findings.InsertColumn(1,'Status',width=130);findings.InsertColumn(2,'Details',width=500)
+        for finding in report.findings:
+            row=findings.InsertItem(findings.GetItemCount(),str(finding.get('kind','unknown')))
+            findings.SetItem(row,1,str(finding.get('status','unknown')))
+            findings.SetItem(row,2,str(finding.get('reason') or finding.get('group') or 'Managed annotation; text retained.'))
+        if not report.findings:
+            row=findings.InsertItem(0,'None');findings.SetItem(row,1,'clean');findings.SetItem(row,2,'No generated-object findings.')
+        root.Add(findings,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        buttons=wx.BoxSizer(wx.HORIZONTAL);remove=wx.Button(dialog,label='Remove verified leaders')
+        group_ids=report.as_dict()['cleanup_group_ids'];remove.Enable(bool(group_ids));buttons.Add(remove,0,wx.RIGHT,8)
+        close=wx.Button(dialog,id=wx.ID_CLOSE,label='Close');buttons.Add(close,0)
+        root.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,10);dialog.SetSizer(root)
+        def confirm_cleanup(_event):
+            count=len(group_ids)
+            answer=wx.MessageBox(f'Remove {count} verified generated leader group(s)? The associated label text will be retained. This action can be undone.',
+                                 'Confirm generated leader cleanup',wx.YES_NO|wx.NO_DEFAULT|wx.ICON_QUESTION,parent=dialog)
+            if answer!=wx.YES:return
+            try:self.cleanup_verified_leaders(report,confirmed=True)
+            except Exception as exc:
+                wx.MessageBox(str(exc),'Generated-object cleanup failed',wx.OK|wx.ICON_ERROR,parent=dialog);return
+            dialog.EndModal(wx.ID_OK)
+        remove.Bind(wx.EVT_BUTTON,confirm_cleanup);close.Bind(wx.EVT_BUTTON,lambda _event:dialog.EndModal(wx.ID_CANCEL))
+        try:dialog.ShowModal()
+        finally:dialog.Destroy()

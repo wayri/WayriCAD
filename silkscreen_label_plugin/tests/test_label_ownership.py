@@ -8,6 +8,19 @@ from silkscreen_label_plugin import placement
 api = fixture.api
 
 
+class EdgeAlignmentTests(unittest.TestCase):
+    def test_centred_wide_text_can_spill_past_a_short_edge(self):
+        self.assertEqual(placement.edge_alignment((-4,-2,6,-1),(0,0,2,8),.5),(0,0))
+
+    def test_diagonal_label_is_not_in_a_projected_edge_corridor(self):
+        self.assertEqual(placement.edge_alignment((-3,-2,-1,-.5),(0,0,4,4),.5)[0],1)
+
+    def test_margin_allows_small_centre_offset_without_changing_clearance(self):
+        bounds=(-2,3.9,-1,4.5)
+        self.assertEqual(placement.edge_alignment(bounds,(0,0,4,4),.5)[0],0)
+        self.assertEqual(placement.edge_alignment(bounds,(0,0,4,4),0)[0],1)
+
+
 @unittest.skipIf(api is None, 'Native KiCad bindings required')
 class LabelOwnershipTests(unittest.TestCase):
     setUp = fixture.PlacementTests.setUp
@@ -79,6 +92,8 @@ class LabelOwnershipTests(unittest.TestCase):
         self.assertFalse(initial.Intersects(other_body))
         review = placement.plan(self.board, api, dict(leaders=False))
         self.assertTrue(review.changes)
+        self.assertIn('C1',review.outcomes[0]['before_association_warning'])
+        self.assertEqual(review.outcomes[0]['association_warning'],'')
         placement.apply(self.board, api, review)
         actual = self.actual_envelope(self.text)
         self.assertNotEqual((self.text.GetPosition().x, self.text.GetPosition().y), old_position)
@@ -86,7 +101,7 @@ class LabelOwnershipTests(unittest.TestCase):
                              self.distance(actual, other_body)+api.FromMM(.2))
         self.assertLessEqual(self.distance(actual, own_body), api.FromMM(2))
 
-    def test_remote_label_uses_clear_exit_when_nearest_exit_is_blocked(self):
+    def test_enclosed_component_does_not_receive_a_maze_leader(self):
         self.fp.SetPosition(self.v(10, 20))
         self.pad.SetPosition(self.v(10, 20))
         self.text.SetPosition(self.v(10, 20))
@@ -106,26 +121,75 @@ class LabelOwnershipTests(unittest.TestCase):
             for obstacle in [body, *neighbours]:
                 self.assertFalse(placement.segment_hits_box(
                     self.v(*first), self.v(*second), obstacle, api.FromMM(.275)))
-        review = placement.plan(self.board, api, dict(allowed_rotations=(0,)))
+        review = placement.plan(self.board, api, dict(body_clearance=.2,allowed_rotations=(0,)))
+        # A collision-free multi-bend route exists, but its distant label has
+        # no direct sightline. Do not misrepresent that as a resolved label.
+        self.assertFalse(review.changes)
+        self.assertEqual(review.stats['placed'], 0)
+        self.assertEqual(len(review.rejected), 1)
+
+    def test_nearby_reference_reserves_a_straight_unprinted_association(self):
+        body=self.courtyard(self.fp)
+        review=placement.plan(self.board,api,dict(leaders=False))
         self.assertTrue(review.changes)
-        change = review.changes[0]
-        self.assertTrue(change.leader_path)
-        endpoint = change.leader_path[-1]
-        self.assertLess(endpoint[0], body.GetLeft())
-        self.assertAlmostEqual(api.ToMM(endpoint[1]), 20, delta=.1)
-        for first, second in zip(change.leader_path, change.leader_path[1:]):
-            for obstacle in neighbours:
-                self.assertFalse(placement.segment_hits_box(
-                    api.VECTOR2I(*first), api.VECTOR2I(*second), obstacle,
-                    api.FromMM(.2)+change.leader[4]//2))
-        placement.apply(self.board, api, review)
-        actual = self.actual_envelope(self.text)
-        self.assertFalse(actual.Intersects(body))
-        self.assertTrue(all(not actual.Intersects(obstacle) for obstacle in neighbours))
+        change=review.changes[0]
+        self.assertEqual(len(change.sightline),2)
+        self.assertFalse(change.leader_path)
+        self.assertLessEqual(self.distance(change.box,body),api.FromMM(2))
+        self.assertFalse(placement.segment_hits_box(
+            api.VECTOR2I(*change.sightline[0]),api.VECTOR2I(*change.sightline[1]),body))
+
+    def test_long_label_is_near_when_its_glyph_edge_is_near(self):
+        self.fp.SetReference('TP_LONG_SIGNAL_NAME')
+        body=self.courtyard(self.fp,1.2,.6)
+        # Only a horizontal channel is free. The text's centre must be more
+        # than 2 mm away even though its nearest glyph edge is adjacent.
+        for top,bottom in ((0,19.1),(20.9,40)):
+            obstacle=api.PCB_SHAPE(self.board)
+            obstacle.SetShape(api.SHAPE_T_RECT);obstacle.SetLayer(api.F_SilkS)
+            obstacle.SetStart(self.v(0,top));obstacle.SetEnd(self.v(40,bottom))
+            obstacle.SetWidth(api.FromMM(.1));self.board.Add(obstacle)
+        review=placement.plan(self.board,api,dict(max_radius=2,leaders=False,allowed_rotations=(0,)))
+        self.assertEqual(review.stats['placed'],1)
+        change=review.changes[0]
+        self.assertLessEqual(self.distance(change.box,body),api.FromMM(2))
+        self.assertGreater(abs(change.after[0]-self.fp.GetPosition().x),api.FromMM(2))
+
+    def test_wide_reference_centres_on_short_edge_without_requiring_full_text_containment(self):
+        self.fp.SetReference('TP_LONG_SIGNAL_NAME')
+        body=self.courtyard(self.fp,.6,1.8)
+        review=placement.plan(self.board,api,dict(leaders=False,allowed_rotations=(0,)))
+        self.assertEqual(review.stats['placed'],1)
+        change=review.changes[0]
+        self.assertLessEqual(abs(change.box.GetCenter().x-body.GetCenter().x),1)
+        self.assertGreater(change.box.GetWidth(),body.GetWidth())
+        self.assertLessEqual(self.distance(change.box,body),api.FromMM(2))
+
+    def test_native_edge_centring_handles_rotation_justification_and_input_mirroring(self):
+        for angle in (0,90):
+            for justification in (api.GR_TEXT_H_ALIGN_LEFT,api.GR_TEXT_H_ALIGN_CENTER,api.GR_TEXT_H_ALIGN_RIGHT):
+                for mirror in (False,True):
+                    with self.subTest(angle=angle,justification=justification,mirror=mirror):
+                        self.setUp()
+                        self.pad.SetSize(self.v(.4,.4))
+                        body=self.courtyard(self.fp)
+                        self.fp.SetReference('R100')
+                        self.text.SetTextSize(self.v(.8,.8))
+                        self.text.SetTextAngle(api.EDA_ANGLE(angle,api.DEGREES_T))
+                        self.text.SetHorizJustify(justification)
+                        self.text.SetMirrored(mirror)
+                        review=placement.plan(self.board,api,dict(allowed_rotations=(angle,),
+                            auto_size=False,height=.8,edge_margin=0))
+                        self.assertEqual(review.stats['placed'],1)
+                        change=review.changes[0]
+                        box=change.box
+                        side=box.GetRight()<=body.GetLeft() or box.GetLeft()>=body.GetRight()
+                        offset=abs(box.GetCenter().y-body.GetCenter().y) if side else abs(box.GetCenter().x-body.GetCenter().x)
+                        self.assertLessEqual(offset,1)
     def test_visible_glyph_clearance_does_not_reserve_font_padding(self):
         self.fp.SetReference('R260')
         body = self.courtyard(self.fp, 1.2, 1.2)
-        review = placement.plan(self.board, api, dict(leaders=False))
+        review = placement.plan(self.board, api, dict(leaders=False,body_clearance=.2))
         self.assertTrue(review.changes)
         placement.apply(self.board, api, review)
         visible = self.actual_envelope(self.text)
@@ -217,7 +281,7 @@ class LabelOwnershipTests(unittest.TestCase):
     def test_unresolved_overlapping_original_is_not_counted_as_accepted(self):
         self.pad.SetSize(self.v(20, 20))
         before = self.snapshot(self.text)
-        review = placement.plan(self.board, api, dict(max_radius=.25))
+        review = placement.plan(self.board, api, dict(max_radius=.1))
         self.assertFalse(review.changes)
         self.assertEqual(review.stats['placed'], 0)
         self.assertEqual(review.stats['unresolved'], 1)

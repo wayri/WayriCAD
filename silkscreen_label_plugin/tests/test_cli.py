@@ -24,6 +24,75 @@ class SilkscreenCLITests(unittest.TestCase):
                 self.assertEqual(cli.main(['preview','board.kicad_pcb','--settings',str(settings),'--references-only']),0)
             self.assertEqual(captured,[dict(references=True,values=False,board_text=False)])
 
+    def test_problems_only_sets_planner_scope_before_native_launch(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as raw:
+            captured=[]
+            def native(command,**kwargs):
+                captured.append(json.loads(Path(command[-2]).read_text(encoding='utf-8'))['settings'])
+                Path(command[-1]).write_text(json.dumps({'status':'PREVIEW'}),encoding='utf-8')
+                return SimpleNamespace(returncode=0,stderr='')
+            with patch('wayricad_runtime.runtime_setup.native_python',return_value=Path('native-python')),patch.object(cli.subprocess,'run',side_effect=native),contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(['preview','board.kicad_pcb','--problems-only']),0)
+            self.assertEqual(captured,[{'problem_only':True}])
+
+    def test_generated_audit_cli_is_read_only_native_worker_request(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as raw:
+            source=Path(raw)/'board.kicad_pcb';source.write_text('board bytes')
+            captured=[]
+            def native(command,**kwargs):
+                request=json.loads(Path(command[-2]).read_text(encoding='utf-8'))
+                captured.append(request)
+                Path(command[-1]).write_text(json.dumps({'status':'AUDIT','findings':[]}),encoding='utf-8')
+                return SimpleNamespace(returncode=0,stderr='')
+            out=io.StringIO()
+            with patch('wayricad_runtime.runtime_setup.native_python',return_value=Path('native-python')),patch.object(cli.subprocess,'run',side_effect=native),contextlib.redirect_stdout(out):
+                self.assertEqual(cli.main(['audit-generated',str(source)]),0)
+            self.assertEqual(captured[0]['operation'],'audit-generated')
+            self.assertEqual(captured[0]['board'],str(source.resolve()))
+            self.assertEqual(captured[0]['settings'],{})
+            self.assertEqual(source.read_text(),'board bytes')
+            self.assertEqual(json.loads(out.getvalue())['status'],'AUDIT')
+
+    def test_report_option_writes_only_explicit_new_html_path(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as raw:
+            source=Path(raw)/'board.kicad_pcb';source.write_text('board bytes')
+            report=Path(raw)/'review.html';captured=[]
+            def native(command,**kwargs):
+                request=json.loads(Path(command[-2]).read_text(encoding='utf-8'));captured.append(request)
+                payload={'status':'PREVIEW','source_sha256':'hash','stats':{},'rejected':[],'skipped':[],
+                    'review_geometry':{'board_mm':[0,0,1,1],'features':[],'outcomes':[{'id':'i','side':'top','label':'<script>','status':'UNRESOLVED'}]}}
+                Path(command[-1]).write_text(json.dumps(payload),encoding='utf-8')
+                return SimpleNamespace(returncode=0,stderr='')
+            out=io.StringIO()
+            with patch('wayricad_runtime.runtime_setup.native_python',return_value=Path('native-python')),patch.object(cli.subprocess,'run',side_effect=native),contextlib.redirect_stdout(out):
+                self.assertEqual(cli.main(['preview',str(source),'--report',str(report)]),0)
+            self.assertTrue(captured[0]['include_report_geometry'])
+            self.assertTrue(report.is_file())
+            self.assertEqual(source.read_text(),'board bytes')
+            html=report.read_text(encoding='utf-8')
+            self.assertIn('&lt;script&gt;',html)
+            self.assertEqual(html.count('<script>'),1)
+            self.assertNotIn('review_geometry',out.getvalue())
+
+    def test_run_native_generated_audit_returns_findings_without_mutation(self):
+        from types import SimpleNamespace
+        import sys
+        from silkscreen_label_plugin import lifecycle, placement
+        with tempfile.TemporaryDirectory() as raw:
+            source=Path(raw)/'board.kicad_pcb';source.write_text('board bytes')
+            native=SimpleNamespace(LoadBoard=lambda _path:object())
+            report=SimpleNamespace(source_fingerprint='fingerprint',as_dict=lambda:{'findings':[{'status':'legacy_unverified'}],'cleanup_group_ids':[]})
+            with patch.dict(sys.modules,{'pcbnew':native}),patch.object(placement,'fingerprint',return_value='same'),patch.object(lifecycle,'audit',return_value=report):
+                result=cli.run_native({'operation':'audit-generated','board':str(source)})
+            self.assertEqual(result['status'],'AUDIT')
+            self.assertFalse(result['writes_board'])
+            self.assertFalse(result['can_apply'])
+            self.assertEqual(result['findings'],[{'status':'legacy_unverified'}])
+            self.assertEqual(source.read_text(),'board bytes')
+
     def test_settings_are_machine_readable_without_opening_board(self):
         out=io.StringIO()
         with contextlib.redirect_stdout(out):self.assertEqual(cli.main(['settings']),0)

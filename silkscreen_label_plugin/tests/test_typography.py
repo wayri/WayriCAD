@@ -125,7 +125,7 @@ class TypographyTests(unittest.TestCase):
     def test_angle_preference_and_custom_angles(self):
         from silkscreen_label_plugin.placement import _angles,DEFAULTS
         options=dict(DEFAULTS,allowed_rotations=[17,90,45,0,135])
-        self.assertEqual(_angles(options,90),[0,45,90,135,17])
+        self.assertEqual(_angles(options,90),[0,90,45,135,17])
         options['allowed_rotations']=[17]
         self.assertEqual(_angles(options,0),[17])
 

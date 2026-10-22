@@ -84,9 +84,9 @@ class PlacementTests(unittest.TestCase):
 
     def test_search_exhaustion_never_forces(self):
         self.pad.SetSize(self.v(20,20))
-        # The search is body-relative; a 1 mm allowance admits a real slot.
-        # This narrower allowance cannot contain the text plus clearance.
-        preview = plan(self.board,api,{'max_radius':.25,'step':.5})
+        # Radius is the glyph-edge gap, so .25 mm would admit a legal slot.
+        # A .1 mm gap cannot satisfy the .2 mm native/configured pad clearance.
+        preview = plan(self.board,api,{'max_radius':.1,'step':.5})
         self.assertFalse(preview.changes)
         self.assertTrue(preview.rejected)
 
@@ -101,7 +101,7 @@ class PlacementTests(unittest.TestCase):
         tx.undo()
 
     def test_leader_is_checked_and_reversible(self):
-        preview = plan(self.board,api,{'leader_distance':.5})
+        preview = plan(self.board,api,{'leaders':True,'leader_distance':.1,'body_clearance':.2})
         self.assertTrue(preview.changes)
         self.assertTrue(preview.changes[0].leader)
         before = len(list(self.board.GetDrawings()))
@@ -143,7 +143,7 @@ class PlacementTests(unittest.TestCase):
         obstacle.SetText('BLOCK'); obstacle.SetLayer(api.F_SilkS)
         obstacle.SetPosition(self.v(20,17)); obstacle.SetTextSize(self.v(2,2))
         self.board.Add(obstacle)
-        preview = plan(self.board,api,{'leader_distance':.5})
+        preview = plan(self.board,api,{'leaders':True,'leader_distance':.1,'body_clearance':.2})
         self.assertTrue(preview.changes)
         from silkscreen_label_plugin.placement import segment_hits_box
         for change in preview.changes:
@@ -177,26 +177,26 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual(fingerprint(self.board,api),before)
 
     def test_leader_identity_and_chained_transactions(self):
-        tx1=apply(self.board,api,plan(self.board,api,{'leader_distance':.5}))
+        tx1=apply(self.board,api,plan(self.board,api,{'leaders':True,'leader_distance':.1,'body_clearance':.2}))
         leader_ids=[shape.m_Uuid.AsString() for shape in tx1.leaders]
-        tx2=apply(self.board,api,plan(self.board,api,{'height':1.3,'leader_distance':.5}))
+        tx2=apply(self.board,api,plan(self.board,api,{'height':1.3,'leader_distance':.1,'body_clearance':.2}))
         tx2.undo(); tx1.undo(); tx1.redo(); tx2.redo()
         self.assertEqual(leader_ids,[shape.m_Uuid.AsString() for shape in tx1.leaders])
         tx2.undo(); tx1.undo()
 
     def test_repeated_plan_does_not_duplicate_guides(self):
-        settings={'leader_distance':.5}
+        settings={'leaders':True,'leader_distance':.1,'body_clearance':.2}
         tx=apply(self.board,api,plan(self.board,api,settings))
         self.assertTrue(tx.leaders)
         self.assertFalse(plan(self.board,api,settings).changes)
-        changed=plan(self.board,api,{'leader_distance':.5,'height':1.4})
+        changed=plan(self.board,api,{'leaders':True,'leader_distance':.1,'body_clearance':.2,'height':1.4})
         tx2=apply(self.board,api,changed)
         self.assertEqual(len(list(self.board.Groups())),1)
         tx2.undo();self.assertEqual(len(list(self.board.Groups())),1)
         tx.undo();self.assertFalse(list(self.board.Groups()))
 
     def test_guide_ownership_survives_save_reload(self):
-        settings={'leader_distance':.5}
+        settings={'leaders':True,'leader_distance':.1,'body_clearance':.2}
         apply(self.board,api,plan(self.board,api,settings))
         with tempfile.TemporaryDirectory() as folder:
             filename=str(Path(folder)/'labels.kicad_pcb')
@@ -206,7 +206,7 @@ class PlacementTests(unittest.TestCase):
             self.assertEqual(len(list(loaded.Groups())),1)
 
     def test_failed_group_add_rolls_back_membership_and_text(self):
-        preview=plan(self.board,api,{'leader_distance':.5})
+        preview=plan(self.board,api,{'leaders':True,'leader_distance':.1,'body_clearance':.2})
         before=fingerprint(self.board,api)
         add=self.board.Add
         def fail_group(item):
@@ -219,7 +219,7 @@ class PlacementTests(unittest.TestCase):
         self.assertFalse(list(self.board.Groups()))
 
     def test_failed_undo_restore_recovers_applied_state(self):
-        settings={'leader_distance':.5}
+        settings={'leaders':True,'leader_distance':.1,'body_clearance':.2}
         tx1=apply(self.board,api,plan(self.board,api,settings))
         tx2=apply(self.board,api,plan(self.board,api,dict(settings,height=1.4)))
         before=fingerprint(self.board,api); add=self.board.Add
@@ -237,7 +237,7 @@ class PlacementTests(unittest.TestCase):
         tx2.undo();tx1.undo()
 
     def test_rollback_failure_is_explicit(self):
-        preview=plan(self.board,api,{'leader_distance':.5})
+        preview=plan(self.board,api,{'leaders':True,'leader_distance':.1,'body_clearance':.2})
         add=self.board.Add
         def fail_group(item):
             if isinstance(item,api.PCB_GROUP):raise RuntimeError('Injected add failure')
