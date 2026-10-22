@@ -1,21 +1,12 @@
 """Filtered native pickers that preserve original item indices and hidden checks."""
 from __future__ import annotations
 
-
-def matching_indices(items, query):
-    """Return original indices matching a case-insensitive literal substring."""
-    return SearchIndex(items).match(query)
+from .net_filter import SearchIndex
 
 
-class SearchIndex:
-    """Cache immutable labels once rather than recase long names per keypress."""
-    def __init__(self, items):
-        self.labels = tuple(str(item) for item in items)
-        self.folded = tuple(item.casefold() for item in self.labels)
-
-    def match(self, query):
-        query = str(query).strip().casefold()
-        return [index for index, label in enumerate(self.folded) if query in label]
+def matching_indices(items, query, mode=None):
+    """Return original indices using shared literal, wildcard or fuzzy search."""
+    return SearchIndex(items).match(query, mode=mode)
 
 
 class CheckedSelection:
@@ -54,7 +45,7 @@ def choose_items(parent, items, selection=-1, checked=None):
     dialog.SetMinSize((460, 330))
     root = wx.BoxSizer(wx.VERTICAL)
     search = wx.SearchCtrl(dialog)
-    search.SetDescriptiveText('Search any part of the name; clear to show all')
+    search.SetDescriptiveText('Substring; * and ? wildcards; prefix ~ for fuzzy')
     search.ShowCancelButton(True)
     root.Add(search, 0, wx.EXPAND | wx.ALL, 12)
     status = wx.StaticText(dialog)

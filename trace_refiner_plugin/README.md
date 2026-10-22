@@ -224,3 +224,17 @@ cleanup, not a shove router, timing optimizer or impedance qualification.
 Drag the settings/preview divider or the preview/results divider to inspect full routing proposals at a useful size. Settings scroll independently; changing the retained proposal subset still requires fresh native validation.
 
 Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.
+
+## Comparing proposed routes
+
+The preview's **Compare** selector offers **Overlay**, **Before**, **After** and
+**Side by side**. Original routing is amber; proposed routing is teal. Overlay
+adds a wider amber comparison outline so coincident paths remain distinguishable;
+that outline is a visual aid, not a proposed copper width. The separate views
+retain the same zoom, pan and reviewed changes. Repaints use cached geometry.
+
+Native validation and Apply preserve the first source track identity through
+the UUID APIs available in the installed KiCad bindings, or through an
+independent native clone when setters are unavailable. Identity and uniqueness
+are checked before exchanging tracks. Undo, source-hash, connectivity and DRC
+checks remain required.

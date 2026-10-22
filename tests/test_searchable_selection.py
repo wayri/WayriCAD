@@ -39,6 +39,32 @@ class SelectionModelTests(unittest.TestCase):
         self.assertEqual(index.match(''), [0])
         self.assertEqual(calls, ['converted'])
 
+    def test_shared_search_supports_wildcards_without_bus_bracket_classes(self):
+        items = ['/Board/U1/DATA[0]', '/Board/U1/DATA[1]', '/Board/U1/CLK_P']
+        index = SearchIndex(items)
+        self.assertEqual(index.match('data[0]'), [0])
+        self.assertEqual(index.match('DATA[*]'), [0, 1])
+        self.assertEqual(index.match('DATA[?]'), [0, 1])
+        self.assertEqual(index.match('DATA[*]', mode='literal'), [])
+
+    def test_fuzzy_is_opt_in_ranked_and_deterministic(self):
+        items = ['/z/CLX', '/a/CLY', '/exact/CLK', '/unrelated/GND']
+        index = SearchIndex(items)
+        self.assertEqual(index.match('CLK'), [2])
+        self.assertEqual(index.match('~CLK'), [2, 1, 0])
+        self.assertEqual(index.match('CLY', mode='fuzzy'), [1, 2, 0])
+        self.assertEqual(index.match('~zzzz'), [])
+
+    def test_fuzzy_search_handles_long_hierarchical_net_names(self):
+        items = [
+            '/Project/Connector/Controller/HighSpeed/RAIL_MAIN',
+            '/Project/Connector/Controller/HighSpeed/RAIL_AUX',
+        ]
+        self.assertEqual(matching_indices(items, '~RAIL_MAUN'), [0])
+        state = CheckedSelection(items, [1])
+        state.check_visible('~RAIL_MAUN')
+        self.assertEqual(state.checked, {0, 1})
+
 
 @unittest.skipIf(wx is None, 'Requires native wxPython')
 class NativeSearchTests(unittest.TestCase):

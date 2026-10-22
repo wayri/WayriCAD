@@ -750,7 +750,32 @@ geometric evidence; neither proves the closed return circuit.
 
 ## Selection and responsive results
 
-**Read PCB selection** retains all selected copper in the preview and expands selected component pads. The numeric inspector still describes its primary item. Enable **Add to existing PCB selection** to extend the editor selection rather than replace it. Inputs changed during a job cancel that job and discard late results. Navigation uses the originating saved board and confirms selection; it does not edit copper or certify unsaved geometry.
+Search accepts case-insensitive text, `*` and `?` wildcards, or `~text` for fuzzy
+matching. Bus brackets remain literal (`DATA[*]` matches indexed bus members).
+Typing filters the list without changing the chosen net or invalidating a solved
+study. Choose a result explicitly. Multi-net cases retain their separate source,
+load and return models; a search pattern never silently becomes a simulation.
+
+**Only simulated nets** is enabled by default. Net, mesh, result maps and exported
+reports show the selected copper domain with board outlines and component
+context. Turn it off to review surrounding copper. **Select simulated nets in
+PCB** replaces the editor selection with those exact net objects across layers;
+it does not expand to every pad of a component or to similar net names.
+
+Choose **All copper layers (projected)** to overlay the solved layers in one
+view, including HTML maps. Layer fields overlap visually; they are not summed or
+averaged. Click an overlapping solved point to choose its layer. Single-layer
+maps remain the clearest way to inspect local values. Offline report probes
+identify each cell's layer.
+
+Board display extraction runs in the isolated worker. The Decoupling tab loads
+its native board only when needed. Display paths and unchanged plot artists are
+reused during navigation; numerical geometry is unchanged. See the
+[performance measurements](../docs/audits/QUICK_TOOLS_PERFORMANCE.md) for measured
+scope, cold/warm timing and limitations.
+
+
+**Read PCB selection** expands selected component pads only on the selected or simulated nets. Unrelated pad nets are excluded. The numeric inspector still describes its primary item. Enable **Add to existing PCB selection** to extend the editor selection rather than replace it. Inputs changed during a job cancel that job and discard late results. Navigation uses the originating saved board and confirms selection; it does not edit copper or certify unsaved geometry.
 
 
 ## Resizing the workspace

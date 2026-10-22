@@ -81,7 +81,7 @@ class QuickPIFrame(wx.Frame):
         def field(label,control):
             controls.Add(wx.StaticText(self.inputs,label=label),0,wx.EXPAND|wx.TOP|wx.BOTTOM,4)
             control.SetMinSize((1,-1));controls.Add(control,0,wx.EXPAND|wx.BOTTOM,3)
-        self.net_search=wx.SearchCtrl(self.inputs);self.net_search.SetHint('Find net');self.net_search.SetMinSize((1,-1))
+        self.net_search=wx.SearchCtrl(self.inputs);self.net_search.SetHint('Find net: * wildcard, ~ fuzzy');self.net_search.SetMinSize((1,-1))
         controls.Add(self.net_search,0,wx.EXPAND|wx.BOTTOM,4)
         self.net=ReadableComboBox(self.inputs,style=wx.CB_READONLY);field('Net',self.net)
         pick=icon_button(self.inputs,'Pick net',wx.ART_FIND,'Pick a saved pad, track or via on the board to choose its net')
@@ -167,7 +167,7 @@ class QuickPIFrame(wx.Frame):
         self._build_return_page()
         from .decoupling.pdn_decoupling_plugin import PdnFrame
         import pcbnew
-        self.decoupling=PdnFrame(self.book,pcbnew.LoadBoard(self.board_path));self.book.AddPage(self.decoupling,'Decoupling')
+        self.decoupling=PdnFrame(self.book,None,board_loader=lambda:pcbnew.LoadBoard(self.board_path));self.book.AddPage(self.decoupling,'Decoupling')
         self._build_inspector();self.splitter.SplitVertically(self.book,self.inspector,790)
         self.workspace_splitter.SplitVertically(self.setup_panel,self.splitter,self.FromDIP(260))
         body.Add(self.workspace_splitter,1,wx.EXPAND);root.Add(body,1,wx.EXPAND|wx.LEFT|wx.RIGHT,4)
@@ -177,7 +177,7 @@ class QuickPIFrame(wx.Frame):
         self.cancel=icon_button(panel,'Cancel',wx.ART_CROSS_MARK,'Cancel the running study');footer.Add(self.cancel,0)
         root.Add(footer,0,wx.EXPAND|wx.ALL,6);panel.SetSizer(root)
         self._controls=[self.joule_feedback,self.batch_button,self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.package_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
-        self.net.Bind(wx.EVT_COMBOBOX,self._net_changed);self.net_search.Bind(wx.EVT_TEXT,self._filter_nets)
+        self.net.Bind(wx.EVT_COMBOBOX,self._net_changed);self.net_search.Bind(wx.EVT_TEXT,self._schedule_net_filter)
         for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._invalidate)
         for control in (self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
         self.load_mode.Bind(wx.EVT_CHOICE,self._invalidate);self.model_dimension.Bind(wx.EVT_CHOICE,self._model_changed)
@@ -323,6 +323,7 @@ class QuickPIFrame(wx.Frame):
         self.main_panel.Layout()
         if not self._busy:self.metric.Enable(self.book.GetSelection()==2)
         self.field_style.Enable(not self._busy and self.book.GetSelection()==2)
+        self.isolate_nets.Enable(not self._busy)
         self.auto_mesh.Enable(not self._busy and not volume)
         self.edge.Enable(not self._busy and not self.auto_mesh.GetValue())
         current=bool(self.bundle.get('geometry')) and self._saved_source_current
@@ -356,6 +357,11 @@ class QuickPIFrame(wx.Frame):
         for control in (self.show_context,self.show_copper,self.show_overlay):
             control.SetValue(True);visibility.Add(control,0,wx.RIGHT,7);control.Bind(wx.EVT_CHECKBOX,lambda event:self._draw(preserve=True))
         layout.Add(visibility,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        self.isolate_nets=wx.CheckBox(self.inspector,label='Only simulated nets')
+        self.isolate_nets.SetValue(True)
+        self.isolate_nets.SetToolTip('Show only the chosen or solved copper domain. Turn off to review surrounding board copper; probes and PCB selection stay scoped to the simulated nets.')
+        self.isolate_nets.Bind(wx.EVT_CHECKBOX,self._scope_changed)
+        layout.Add(self.isolate_nets,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
         self.mesh_count=StatusText(self.inspector);layout.Add(self.mesh_count,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
         self.field_style=ReadableChoice(self.inspector,choices=['Smooth gradient','Solver cells'])
         self.field_style.SetSelection(0)
@@ -397,6 +403,9 @@ class QuickPIFrame(wx.Frame):
         layout.Add(actions,0,wx.EXPAND|wx.ALL,8)
         self.inspector_add=wx.CheckBox(self.inspector,label='Add to existing PCB selection')
         layout.Add(self.inspector_add,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        net_scope=icon_button(self.inspector,'Select simulated nets in PCB',wx.ART_FIND,'Replace the PCB selection with only the exact selected or simulated net copper, across all layers')
+        net_scope.Bind(wx.EVT_BUTTON,self._select_net_scope)
+        layout.Add(net_scope,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
         self.inspector_terminals=icon_button(self.inspector,'Source & sinks',wx.ART_FIND,'Select the source and every sink in the PCB editor')
         layout.Add(self.inspector_terminals,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
         self.model_details=wx.CollapsiblePane(self.inspector,label='Model details',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE);self.model_details.Collapse(True)
@@ -418,7 +427,7 @@ class QuickPIFrame(wx.Frame):
     def _snapshot_current(self):
         import hashlib
         geometry=self.bundle.get('geometry') or self.bundle.get('mesh',{}).get('geometry',{})
-        expected=geometry.get('source_sha256')
+        expected=geometry.get('source_sha256') or getattr(self,'_board_scene_hash',None)
         try:return not expected or hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()==expected
         except OSError:return False
 
@@ -535,11 +544,22 @@ class QuickPIFrame(wx.Frame):
         selected=self.layer.GetSelection()
         if selected<0:return
         metric=list(METRICS)[max(0,self.metric.GetSelection())]
-        row=probe_result(self.bundle,self._layers[selected]['id'],x,y,metric)
+        layer=self._layers[selected]['id']
+        if layer=='all':
+            hits=[probe_result(self.bundle,item['id'],x,y,metric) for item in self._layers if item['id']!='all']
+            hits=[item for item in hits if item]
+            if len(hits)>1:
+                with wx.SingleChoiceDialog(self,'Several layers overlap here. Choose the layer to inspect.',
+                                           'Layer probe',[str(item.get('layer_name',item['layer'])) for item in hits]) as dialog:
+                    if dialog.ShowModal()!=wx.ID_OK:return
+                    row=hits[dialog.GetSelection()]
+            else:row=hits[0] if hits else None
+        else:row=probe_result(self.bundle,layer,x,y,metric)
         if row:self._choose_inspection(row,switch_view=False)
         else:
             from wayricad_runtime.board_render import hit_test
-            hits=hit_test(self._board_scene,x,y,visible_layers=[self._layers[selected]['id']])
+            hits=hit_test(self._board_scene,x,y,visible_layers=None if layer=='all' else [layer])
+            hits=[item for item in hits if item.get('net') in self._visible_nets()]
             primitive=next((item for item in hits if item.get('uuid') and item.get('role') in ('track','pad','via')),None)
             if primitive:self._choose_inspection(self._object_inspection(primitive,(x,y)),switch_view=False)
             else:self._inspection=None;self._draw(preserve=True);self.status.SetLabel('No solved copper or selectable saved object at this point on the selected layer.')
@@ -555,14 +575,55 @@ class QuickPIFrame(wx.Frame):
                 'source_ids':[primitive['uuid']],'current_density_A_mm2':None,'power_W':None}
 
     def _origin_sha(self):
-        return (self.bundle.get('geometry') or self.bundle.get('mesh',{}).get('geometry',{})).get('source_sha256')
+        return (self.bundle.get('geometry') or self.bundle.get('mesh',{}).get('geometry',{})).get('source_sha256') or self._board_scene_hash
 
-    def _select_ids(self,identifiers):
+    def _select_ids(self,identifiers,additive=None):
         if not self._snapshot_current():self.status.SetLabel('Saved board changed. Reload and rerun before selecting.');return
         from .origin_selection import select_origin
-        expected=self._origin_sha();additive=self.inspector_add.GetValue()
+        expected=self._origin_sha();additive=self.inspector_add.GetValue() if additive is None else additive
         self._task(lambda:select_origin(self.board_path,identifiers,expected_sha256=expected,focus=True,additive=additive),
                    lambda count:self.status.SetLabel(f'Selected {count} exact saved objects in the originating PCB Editor.'),'Selecting reviewed objects in PCB Editor…')
+
+    def _load_result_scene(self,bundle,expected,nets):
+        """Refresh missing or differently scoped context without native UI IO."""
+        if self._closed or self._closing or self.bundle is not bundle:return
+        def finished(result):
+            if self.bundle is not bundle:return
+            if result.get('source_sha256')!=expected or not self._snapshot_current():
+                self.status.SetLabel('Saved board changed. Reload and rerun before viewing context.');return
+            from wayricad_runtime.board_render import prepare_scene
+            self._board_scene=prepare_scene(result.pop('board_scene'));self._board_scene_hash=expected
+            bundle['board_scene']=self._board_scene
+            self._draw(preserve=True)
+        self._job({'action':'inspect','board_path':self.board_path,'include_display_scene':True,
+                   'display_nets':nets if self.isolate_nets.GetValue() else None},finished,
+                  'Loading matching saved-board context…')
+
+    def _scope_changed(self,event=None):
+        if self.isolate_nets.GetValue() or 'net_scope' not in self._board_scene:
+            self._draw(preserve=True);return
+        expected=self._board_scene_hash
+        def finished(result):
+            if result.get('source_sha256')!=expected or not self._snapshot_current():
+                self.isolate_nets.SetValue(True)
+                self.status.SetLabel('Saved board changed. Reload before viewing surrounding copper.');return
+            from wayricad_runtime.board_render import prepare_scene
+            self._board_scene=prepare_scene(result.pop('board_scene'))
+            self.bundle['board_scene']=self._board_scene
+            self._draw(preserve=True)
+            self.status.SetLabel('Surrounding copper loaded. Selection and probes still use the simulated nets.')
+        self._job({'action':'inspect','board_path':self.board_path,'include_display_scene':True,
+                   'display_nets':None},finished,'Loading surrounding board copper…')
+
+    def _select_net_scope(self,event=None):
+        if self._busy:return
+        nets=set(self._visible_nets())
+        identifiers=sorted({row['uuid'] for row in self._board_scene.get('primitives',[])
+                            if row.get('uuid') and row.get('net') in nets
+                            and row.get('role') in ('track','pad','via','zone')})
+        if not identifiers:
+            self.status.SetLabel('No saved copper matches the selected net scope. Preview or reload first.');return
+        self._select_ids(identifiers,additive=False)
 
     def _select_inspected(self,event=None):
         self._select_ids((self._inspection or {}).get('source_ids',[]))
@@ -577,8 +638,9 @@ class QuickPIFrame(wx.Frame):
         def finish(ids):
             wanted=set(ids)
             matched={item.get('uuid') for item in self._board_scene.get('primitives',[])
-                     if item.get('uuid') in wanted or item.get('parent_uuid') in wanted}
-            related=sorted(wanted|matched)
+                     if (item.get('uuid') in wanted or item.get('parent_uuid') in wanted)
+                     and item.get('net') in self._visible_nets()}
+            related=sorted(matched)
             def show(row):
                 row['source_ids']=related
                 self._choose_inspection(row,focus=True)
@@ -629,12 +691,15 @@ class QuickPIFrame(wx.Frame):
     def _job(self,request,finished,message):
         if self._closed or self._closing:return
         from .service import run_job
-        if request.get('action') in ('geometry','mesh','solve','converge'):
+        if request.get('action') in ('geometry','mesh','solve'):
             self._inspection=None
             self.bundle.pop('result',None)
             self.bundle.pop('convergence',None)
             self.summary.SetLabel('Waiting for the current request. No current electrical result is available.')
             self._draw(preserve=True)
+        if request.get('action') in ('geometry','mesh','solve','converge'):
+            request=dict(request,include_display_scene=True)
+            if not self.isolate_nets.GetValue():request['display_nets']=None
         self._console_write('Job: '+json.dumps(request,ensure_ascii=False))
         self._task(lambda:run_job(request,cancelled=self._cancel.is_set,timeout=300),finished,message)
 
@@ -644,10 +709,9 @@ class QuickPIFrame(wx.Frame):
         self.sweep_bundle={};self.return_table.DeleteAllItems();self.return_details.Clear()
         self.return_figure.clear();self.return_canvas.draw_idle()
         def finished(result):
-            import pcbnew
-            from wayricad_runtime.board_render import extract_board
-            self.decoupling.board=pcbnew.LoadBoard(self.board_path)
-            self._board_scene=extract_board(self.decoupling.board)
+            from wayricad_runtime.board_render import prepare_scene
+            self.decoupling.board=None
+            self._board_scene=prepare_scene(result.pop('board_scene',{'primitives':[]}))
             self._board_scene_hash=result.get('source_sha256')
             self.decoupling.invalidate()
             self.decoupling.summary.SetLabel('Saved board reloaded; run a fresh placement check.')
@@ -659,7 +723,7 @@ class QuickPIFrame(wx.Frame):
                 choice=next((n for n in names if n.startswith(('+','VCC','VDD'))),names[0]);self.net.SetValue(choice)
             self._set_terminals();self.status.SetLabel(f'{len(names)} saved nets. Choose source and sink terminals.')
             if names:wx.CallAfter(self.preview_geometry)
-        self._job({'action':'inspect','board_path':self.board_path},finished,'Reading saved net names and pad terminals…')
+        self._job({'action':'inspect','board_path':self.board_path,'include_display_scene':True,'display_nets':'default'},finished,'Reading saved net names and pad terminals…')
 
     def _set_terminals(self):
         net=self.net.GetValue();self._terminals=[t for t in self.inventory.get('terminals',[]) if t.get('net')==net]
@@ -675,7 +739,7 @@ class QuickPIFrame(wx.Frame):
         layout=wx.BoxSizer(wx.VERTICAL);view=GeometryPreview(dialog);layout.Add(view,1,wx.EXPAND|wx.ALL,8)
         layout.Add(wx.StaticText(dialog,label='Click a pad, via or track to choose its net. Drag to pan; wheel to zoom.'),0,wx.ALL,8)
         layout.Add(dialog.CreateButtonSizer(wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,8);dialog.SetSizer(layout)
-        view.set_board(pcbnew.LoadBoard(self.board_path),pcbnew)
+        view.set_board(self.decoupling.get_board() if self._snapshot_current() else pcbnew.LoadBoard(self.board_path),pcbnew)
         def selected(net,xy):
             self.net_search.ChangeValue('');self.net.Set(self.inventory.get('nets', []))
             self.net.SetValue(net);self._net_changed()
@@ -683,7 +747,17 @@ class QuickPIFrame(wx.Frame):
         view.on_net_select=selected
         dialog.ShowModal();dialog.Destroy()
 
+    def _schedule_net_filter(self,event=None):
+        pending=getattr(self,'_net_filter_timer',None)
+        if pending:pending.Stop()
+        self._net_filter_timer=wx.CallLater(180,self._filter_nets)
+
+    def _visible_nets(self):
+        geometry=self.bundle.get('geometry') or self.bundle.get('mesh',{}).get('geometry',{})
+        return geometry.get('nets') or [geometry.get('net') or self.net.GetValue()]
+
     def _filter_nets(self,event=None):
+        if self._closed or self._closing:return
         from wayricad_runtime.net_filter import filter_combo
         current=self.net.GetValue()
         filter_combo(self.net,self.inventory.get('nets',[]),self.net_search.GetValue())
@@ -694,7 +768,7 @@ class QuickPIFrame(wx.Frame):
         if self._busy:self._cancel.set()
         self._inspection=None
         self._series_request=None;self._extra_sinks=[];self.loads_button.SetLabel('Additional sinks (0)…');self.operation_note.SetLabel('Source voltage → sink current')
-        self.bundle={};self.volume_bundle={};self._set_terminals();self._plot_keys.clear();self._draw()
+        self.bundle={'board_scene':self._board_scene};self.volume_bundle={};self._set_terminals();self._plot_keys.clear();self._draw()
         self.status.SetLabel('Preview this net or run the analysis.')
 
     def _invalidate(self,event=None):
@@ -875,16 +949,17 @@ class QuickPIFrame(wx.Frame):
         self.bundle=result;self.bundle.setdefault('request',request)
         geometry=result.get('geometry') or result.get('mesh',{}).get('geometry',{})
         expected=geometry.get('source_sha256')
-        if expected and expected!=self._board_scene_hash:
-            import hashlib
-            import pcbnew
-            from wayricad_runtime.board_render import extract_board
-            scene=extract_board(pcbnew.LoadBoard(self.board_path))
-            current=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
-            self._board_scene=scene if current==expected else {}
-            self._board_scene_hash=current if current==expected else None
+        if result.get('board_scene'):
+            from wayricad_runtime.board_render import prepare_scene
+            self._board_scene=prepare_scene(result.pop('board_scene'));self._board_scene_hash=expected
+        required=set(geometry.get('nets') or [geometry.get('net')])
+        scope=self._board_scene.get('net_scope')
+        if expected and (expected!=self._board_scene_hash or scope is not None and not required.issubset(scope)):
+            self._board_scene={};self._board_scene_hash=None
+            wx.CallAfter(self._load_result_scene,result,expected,sorted(net for net in required if net))
         self.bundle['board_scene']=self._board_scene
         self._layers=list(layer_rows(result))
+        if len(self._layers)>1:self._layers.append({'id':'all','name':'All copper layers (projected)'})
         self.layer.Set([row['name'] for row in self._layers])
         if self._layers:
             initial=next((index for index,row in enumerate(self._layers) if row.get('polygons') or
@@ -1010,6 +1085,8 @@ class QuickPIFrame(wx.Frame):
         metric=list(METRICS)[max(0,self.metric.GetSelection())]
         self.bundle.setdefault('view_settings',{})['scale_mode']=self.scale_mode.GetSelection()
         key=(index,str(layer));limits=None
+        self.bundle['view_settings']['visible_nets']=self._visible_nets()
+        self.bundle['view_settings']['isolate_nets']=self.isolate_nets.GetValue()
         self.bundle['view_settings']['field_style']='cells' if self.field_style.GetSelection()==1 else 'smooth'
         if preserve and self._plot_keys.get(index)==key and figure.axes:limits=(figure.axes[0].get_xlim(),figure.axes[0].get_ylim())
         if self.scale_mode.GetSelection()==2:
@@ -1020,13 +1097,22 @@ class QuickPIFrame(wx.Frame):
                     self.scale_min.ChangeValue(f'{defaults[0]:.8g}');self.scale_max.ChangeValue(f'{defaults[1]:.8g}')
                     self.bundle.setdefault('view_settings',{})['manual']={'metric':metric,'limits':list(defaults)}
         self._update_inspector()
+        render_key=(id(self.bundle),id(self.bundle.get('result')),id(self.bundle.get('mesh')),
+                    id(self.bundle.get('geometry')),id(self.bundle.get('board_scene')),key,metric,
+                    repr(self.bundle['view_settings']),repr(self._inspection),self._saved_source_current,
+                    self.show_context.GetValue(),self.show_copper.GetValue(),self.show_overlay.GetValue(),
+                    tuple(self._visible_nets()),repr(self._scale_limits(metric)))
+        if getattr(figure,'_wayricad_render_key',None)==render_key and figure.axes:
+            self.color_legend.set_scale(getattr(figure.axes[0],'_wayricad_color_scale',None))
+            canvas.draw_idle();return
         if not self._saved_source_current:
             self.color_legend.set_scale(None)
+            figure._wayricad_render_key=None
             figure.clear();ax=figure.add_subplot(111)
             ax.text(.5,.5,'Saved PCB changed. Reload and rerun before viewing results.',ha='center',va='center',transform=ax.transAxes)
             ax.set_axis_off();toolbar.update();canvas.draw_idle();return
         ax=draw_view(figure,self.bundle,('Net','Mesh','Results')[index],layer,metric,self._scale_limits(metric),self._inspection,
-                     show_context=self.show_context.GetValue(),show_copper=self.show_copper.GetValue(),show_overlay=self.show_overlay.GetValue(),board_view=True)
+                     show_context=self.show_context.GetValue(),show_copper=self.show_copper.GetValue(),show_overlay=self.show_overlay.GetValue(),board_view=True,visible_nets=self._visible_nets())
         self.color_legend.set_scale(getattr(ax,'_wayricad_color_scale',None))
         result=self.bundle.get('result',{});analysis=result.get('analytics',{})
         row=next((item for item in analysis.get('layers',[]) if str(item['layer'])==str(layer)),None)
@@ -1040,7 +1126,7 @@ class QuickPIFrame(wx.Frame):
             self.summary.GetParent().Layout()
         if limits:ax.set_xlim(*limits[0]);ax.set_ylim(*limits[1])
         if index in self._probe_controllers:self._probe_controllers[index]['disconnect']()
-        if index==2 and self.bundle.get('result') and self.bundle.get('mesh'):
+        if index==2 and layer!='all' and self.bundle.get('result') and self.bundle.get('mesh'):
             import numpy as np
             from .report import cell_values
             from wayricad_runtime.plot_probe import attach_probes
@@ -1048,6 +1134,7 @@ class QuickPIFrame(wx.Frame):
             polygons=points[np.asarray(mesh['triangles'],dtype=int)[indices],:2];centers=polygons.mean(axis=1);values=cell_values(mesh,self.bundle['result'],metric)
             samples=[[float(x),float(y),float(values[i]),'Cell '+str(i)] for (x,y),i in zip(centers,indices)]
             self._probe_controllers[index]=attach_probes(canvas,ax,samples,METRICS[metric][1],polygons=polygons)
+        figure._wayricad_render_key=render_key
         self._plot_keys[index]=key;toolbar.update();canvas.draw_idle()
 
 
@@ -1520,12 +1607,16 @@ class QuickPIFrame(wx.Frame):
         selected=self.layer.GetSelection();layer=self._layers[selected]['id'] if selected>=0 else None
         bundle=self.bundle
         self._task(lambda:write_report(path,bundle,layer),lambda result:self.status.SetLabel('Exported HTML maps and all-layer JSON: '+result['html']),
-                   'Rendering the selected layer’s seven maps and exporting all numerical results…')
+                   'Rendering the selected copper view and exporting all numerical results…')
 
     def on_cancel(self,event=None):
+        pending=getattr(self,'_net_filter_timer',None)
+        if pending:pending.Stop()
         self._cancel.set();self.status.SetLabel('Stopping the isolated worker…')
 
     def on_close(self,event):
+        pending=getattr(self,'_net_filter_timer',None)
+        if pending:pending.Stop()
         if self._busy:
             self._closing=True;self.on_cancel()
             if event.CanVeto():event.Veto()

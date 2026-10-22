@@ -74,6 +74,7 @@ def _conforming_contours(polygons, cancelled=None, maximum_edge=None):
         normalized.append(rings)
     if not all_points:raise ValueError('No filled copper area can be meshed.')
     cloud=np.unique(np.asarray(all_points),axis=0);tree=cKDTree(cloud);result=[]
+    vertex_ids={tuple(point):index for index,point in enumerate(cloud)}
     tolerance=1e-9
     for rings in normalized:
         if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
@@ -84,7 +85,15 @@ def _conforming_contours(polygons, cancelled=None, maximum_edge=None):
                 direction=b-a; length=float(np.linalg.norm(direction))
                 if length<=tolerance:continue
                 out.append(a.tolist())
-                nearby=cloud[tree.query_ball_point((a+b)/2,length/2+tolerance)]
+                # The query includes the edge's own corners, which can never
+                # split it. Most rounded contours have no other candidates.
+                # Remove only exact cloud identities before allocating the
+                # projection/distance arrays; tolerance tests stay unchanged.
+                endpoints=(vertex_ids[tuple(a)],vertex_ids[tuple(b)])
+                candidates=[i for i in tree.query_ball_point((a+b)/2,length/2+tolerance)
+                            if i not in endpoints]
+                if not candidates:continue
+                nearby=cloud[candidates]
                 fraction=((nearby-a)@direction)/(length*length)
                 distance=np.linalg.norm(nearby-(a+fraction[:,None]*direction),axis=1)
                 keep=(fraction>tolerance/length)&(fraction<1-tolerance/length)&(distance<=tolerance)

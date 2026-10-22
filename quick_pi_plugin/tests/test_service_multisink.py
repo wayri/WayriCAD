@@ -3,6 +3,8 @@ import hashlib
 import importlib.util
 import tempfile
 import unittest
+import json
+from unittest.mock import patch
 from pathlib import Path
 
 from quick_pi_plugin.service import execute
@@ -55,6 +57,20 @@ class SavedBoardMultisinkTests(unittest.TestCase):
         self.assertFalse(limited['result']['feasibility']['operating_point_valid'])
         self.assertEqual([s['current_A'] for s in limited['result']['sinks']], [1, 2])
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(), self.before)
+
+    def test_display_snapshot_reuses_owned_board_and_is_json_only(self):
+        import pcbnew
+        for settings,scope in [({'action':'inspect','display_nets':'default'},['VCC']),
+                               ({'action':'geometry'},['VCC']),
+                               ({'action':'inspect','display_nets':None},None)]:
+            with self.subTest(settings=settings),patch.object(pcbnew,'LoadBoard',wraps=pcbnew.LoadBoard) as load:
+                output=execute({**self.request,**settings,'include_display_scene':True})
+                self.assertEqual(load.call_count,1)
+                self.assertEqual(output['scene_nets'],scope)
+                self.assertTrue(output['board_scene']['primitives'])
+                self.assertEqual(output['board_scene']['source_sha256'],self.before)
+                self.assertEqual(json.loads(json.dumps(output))['board_scene']['source_sha256'],self.before)
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),self.before)
 
     def test_package_contacts_use_saved_pad_faces_and_preserve_source(self):
         from quick_pi_plugin.tests.test_package_contacts import path

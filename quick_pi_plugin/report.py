@@ -153,7 +153,7 @@ def via_markers(mesh,result,geometry,layer,metric):
     groups={}
     for barrel in mesh.get('vias',[]):
         a,b,selected=(order.get(str(value)) for value in (barrel.get('top_layer'),barrel.get('bottom_layer'),layer))
-        if None in (a,b,selected) or not min(a,b)<=selected<=max(a,b):continue
+        if a is None or b is None or (layer!='all' and (selected is None or not min(a,b)<=selected<=max(a,b))):continue
         solved=records.get(barrel['id'])
         if solved is None or 'x_mm' not in barrel or 'y_mm' not in barrel:continue
         value=solved.get('current_density_A_mm2') if metric=='density' else solved.get('thermal',{}).get('energy_ratio')
@@ -348,7 +348,7 @@ def _fit_board_view(ax):
     ax._wayricad_scale_bar=(line,label)
 
 
-def _draw_board_context(ax,scene,layer,layer_name=''):
+def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None):
     """Saved non-copper contours stay readable over an opaque solved plane."""
     from matplotlib import patheffects
     names={str(key):name for key,name in scene.get('layers',{}).items()}
@@ -356,7 +356,8 @@ def _draw_board_context(ax,scene,layer,layer_name=''):
     side='B.' if name=='B.Cu' else 'F.' if name=='F.Cu' or layer is None else None
     graphics={side+suffix for suffix in ('SilkS','Silkscreen','Fab','CrtYd','Courtyard')} if side else set()
     for row in scene.get('primitives',[]):
-        role=row.get('role');on_layer=str(row.get('layer'))==str(layer)
+        role=row.get('role');on_layer=layer=='all' or str(row.get('layer'))==str(layer)
+        if role=='drill' and visible_nets is not None and row.get('net') and row.get('net') not in visible_nets:continue
         visible=(role=='outline' or role=='drill' and on_layer or
                  role=='reference' and (on_layer or layer is None and names.get(str(row.get('layer')))=='F.Cu') or
                  role in ('drawing','footprint') and names.get(str(row.get('layer'))) in graphics)
@@ -375,7 +376,8 @@ def _draw_board_context(ax,scene,layer,layer_name=''):
 
 
 def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits=None,inspection=None,
-              show_context=True,show_copper=True,show_overlay=True,field_style=None,board_view=False):
+              show_context=True,show_copper=True,show_overlay=True,field_style=None,board_view=False,
+              visible_nets=None):
     """Draw actual geometry; board_view uses a native viewport without chart chrome.
 
     Native color meaning is available in ``ax._wayricad_color_scale`` for an
@@ -389,7 +391,10 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
     if field_style not in FIELD_STYLES:raise ValueError('Unknown field style: '+str(field_style))
     rows=geometry.get('layers',[])
     if layer is None and rows:layer=rows[0]['id']
-    selected=next((row for row in rows if str(row['id'])==str(layer)),None)
+    combined=layer=='all'
+    selected=({'id':'all','name':'All copper layers (projected)',
+               'polygons':[polygon for row in rows for polygon in row.get('polygons',[])]}
+              if combined and rows else next((row for row in rows if str(row['id'])==str(layer)),None))
     figure.clear()
     if board_view:ax=_board_axes(figure)
     else:
@@ -412,17 +417,23 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
             ax.add_collection(collection)
         pending.clear()
     scene=bundle.get('board_scene',{})
+    if visible_nets is None:
+        visible_nets=bundle.get('view_settings',{}).get('visible_nets')
+    if visible_nets is None:
+        visible_nets=geometry.get('nets') or [geometry.get('net') or bundle.get('request',{}).get('net')]
+        visible_nets=[net for net in visible_nets if net] or None
+    if bundle.get('view_settings',{}).get('isolate_nets') is False:visible_nets=None
     if show_context and scene:
         from wayricad_runtime.board_render import draw_matplotlib
         if not show_copper:
             scene=dict(scene,primitives=[row for row in scene.get('primitives',[]) if row.get('role') not in ('track','pad','via','zone')])
-        draw_matplotlib(ax,scene,visible_layers=[layer] if layer is not None else None,
-                        highlight_ids=(inspection or {}).get('source_ids',[]),alpha=.35)
+        draw_matplotlib(ax,scene,visible_layers=None if combined or layer is None else [layer],
+                        visible_nets=visible_nets,highlight_ids=(inspection or {}).get('source_ids',[]),alpha=.35)
     if not selected:
         if not board_view:ax.set_aspect('auto')
         ax.text(.5,.5,'Choose a net and preview its copper.',ha='center',va='center',transform=ax.transAxes)
         if board_view:
-            if show_context and scene:_draw_board_context(ax,scene,layer)
+            if show_context and scene:_draw_board_context(ax,scene,layer,visible_nets=visible_nets)
             ax.autoscale_view();ax.invert_yaxis();_fit_board_view(ax)
         else:figure.tight_layout()
         return ax
@@ -437,7 +448,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
     if view in ('Mesh','Results') and mesh:
         points=np.asarray(mesh['points_mm'],dtype=float)
         triangles=np.asarray(mesh['triangles'],dtype=int)
-        mask=np.asarray([str(value)==str(layer) for value in mesh['triangle_layer']])
+        mask=np.asarray([combined or str(value)==str(layer) for value in mesh['triangle_layer']])
         selected_triangles=triangles[mask]
         if len(selected_triangles):
             polygons=points[selected_triangles,:2]
@@ -455,7 +466,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
                         xy,faces,colors=gradient_surface(mesh,result,metric,np.flatnonzero(mask))
                         image=TriMesh(Triangulation(xy[:,0],xy[:,1],faces),array=colors,cmap=cmap,edgecolors='none',rasterized=True)
                     else:image=PolyCollection(polygons[finite],array=values[finite],cmap=cmap,edgecolors='none',rasterized=True)
-                    image.set_clim(*result_scale(bundle,metric,layer))
+                    image.set_clim(*result_scale(bundle,metric,None if combined else layer))
                     if color_limits is not None:image.set_clim(*validate_scale(*color_limits))
                     ax.add_collection(image)
                     if not board_view:figure.colorbar(image,ax=ax,pad=.025,label=f'{metric_name(bundle,metric)} ({unit})')
@@ -481,7 +492,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         ax.text(.02,.98,'No available solved '+METRICS[metric][0].lower()+' on this layer.',va='top',transform=ax.transAxes,
                 bbox={'facecolor':'white','edgecolor':'none','alpha':.9})
     for via in geometry.get('vias',[]) if show_copper else []:
-        if not any(str(v)==str(layer) for v in via.get('layers',[])):continue
+        if not combined and not any(str(v)==str(layer) for v in via.get('layers',[])):continue
         if 'x_mm' not in via:continue
         center=(via['x_mm'],via['y_mm'])
         face='none'
@@ -527,37 +538,53 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
                 ax.plot([start[0],end[0]],[start[1],end[1]],'--',color='#70439e',linewidth=1)
                 ax.annotate(str(branch.get('id','Component')), (start+end)/2,fontsize=8,color='#70439e',
                             bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
-    source=request.get('source_terminal',request.get('source'));chosen=terminal_ids(request)
+    sources=set(request.get('source_terminals',[]))
+    source=request.get('source_terminal',request.get('source'))
+    if source is not None:sources.add(source)
+    chosen=terminal_ids(request)
     for terminal in geometry.get('terminals',[]):
         if terminal.get('id') not in chosen and terminal.get('label') not in chosen:continue
-        polygons=terminal.get('polygons',{}).get(str(layer),terminal.get('polygons',{}).get(layer,[]))
+        polygons=([polygon for values in terminal.get('polygons',{}).values() for polygon in values] if combined else terminal.get('polygons',{}).get(str(layer),terminal.get('polygons',{}).get(layer,[])))
         if not polygons:continue
         ring=np.asarray(polygons[0]['outer'])[:,:2];center=ring.mean(axis=0)
-        is_source=terminal['id']==source or terminal.get('label')==source
+        is_source=terminal['id'] in sources or terminal.get('label') in sources
         ax.plot(*center,marker='o' if is_source else 's',markersize=4.5 if board_view else 6,color='#13854c' if is_source else '#b94535',markeredgecolor='white')
         label=('Source' if is_source else 'Sink') if board_view else ('Source: ' if is_source else 'Sink: ')+terminal.get('label',terminal['id'])
         offset=7 if not board_view or center[0]<sum(ax.dataLim.intervalx)/2 else -7
         ax.annotate(label,center,xytext=(offset,7),ha='left' if offset>0 else 'right',textcoords='offset points',fontsize=8,
                     bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
-    if board_view and show_context and scene:_draw_board_context(ax,scene,layer,selected['name'])
+    if board_view and show_context and scene:_draw_board_context(ax,scene,layer,selected['name'],visible_nets)
     if inspection and inspection.get('source_ids') and bundle.get('board_scene'):
         from wayricad_runtime.board_render import draw_matplotlib
         scene=bundle['board_scene'];wanted=set(inspection['source_ids'])
-        selected_scene=dict(scene,primitives=[row for row in scene.get('primitives',[]) if row.get('uuid') in wanted and row.get('role') in ('track','pad','via')])
-        for artist in draw_matplotlib(ax,selected_scene,visible_layers=[layer],highlight_ids=wanted,alpha=1.):
+        selected_scene=dict(scene,primitives=[row for row in scene.get('primitives',[]) if row.get('uuid') in wanted and row.get('role') in ('track','pad','via') and (visible_nets is None or row.get('net') in visible_nets)])
+        for artist in draw_matplotlib(ax,selected_scene,visible_layers=None if combined else [layer],highlight_ids=wanted,alpha=1.):
             artist.set_zorder(9)
             if hasattr(artist,'set_facecolor'):artist.set_facecolor('none');artist.set_linewidth(1.8)
     if inspection and inspection.get('location_mm'):
         span=inspection.get('layer');span=span if isinstance(span,list) else [span]
-        if any(str(value)==str(layer) for value in span):
+        if combined or any(str(value)==str(layer) for value in span):
             x,y=inspection['location_mm'][:2]
             ax.plot(x,y,marker='+',markersize=15,markeredgewidth=2,color='#06a7a0',zorder=10)
             ax.annotate(f"{inspection['kind']} {str(inspection['id'])[:16]}",(x,y),xytext=(8,-14),textcoords='offset points',fontsize=8,
                         bbox={'facecolor':'white','edgecolor':'#06a7a0','alpha':.9,'pad':2})
+    if combined:title+='\nProjected layer fields overlap; values are not summed. Choose a layer for unambiguous inspection.'
     if view=='Results' and result and result.get('feasibility',{}).get('source_current_limit_exceeded'):
         title+='\nINFEASIBLE · requested-load diagnostic; source current limit exceeded'
     elif view=='Results' and result and result.get('feasibility',{}).get('feasible') is False:
         title+='\nINFEASIBLE · requested load/voltage limits violated'
+    if bundle.get('view_settings',{}).get('isolate_nets',True):
+        # Context is clipped to the studied copper rather than forcing a tiny
+        # result into the full-board extent. This changes only the camera.
+        support=[point for polygon in selected.get('polygons',[]) for point in polygon.get('outer',[])]
+        wanted=set((inspection or {}).get('source_ids',[]))
+        support.extend(point for row in bundle.get('board_scene',{}).get('primitives',[])
+                       if row.get('uuid') in wanted and (combined or str(row.get('layer'))==str(layer))
+                       and (visible_nets is None or row.get('net') in visible_nets)
+                       for point in row.get('points',[]))
+        if support:
+            xy=np.asarray(support,dtype=float)[:,:2]
+            ax.dataLim.set_points(np.array([xy.min(axis=0),xy.max(axis=0)]))
     ax.autoscale_view();ax.invert_yaxis()
     if image is not None:
         ax._wayricad_color_mappable=image
@@ -666,7 +693,7 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
     linked=_linked_evidence(bundle,evidence_reference) if evidence_reference is not None else None
     rows=layer_rows(bundle)
     if layer is None and rows:layer=rows[0]['id']
-    selected=next((row['name'] for row in rows if str(row['id'])==str(layer)),str(layer))
+    selected='All copper layers (projected; overlapping fields are not summed)' if layer=='all' else next((row['name'] for row in rows if str(row['id'])==str(layer)),str(layer))
     ordered_metrics,style,large=_static_report_plan(bundle)
     images=[_report_snapshot(bundle,layer,metric,style) for metric in ordered_metrics]
     scope='Board + package' if result.get('package_contacts') else 'Circuit' if bundle.get('request',{}).get('series') else 'Copper'
@@ -836,14 +863,14 @@ def interactive_fields(bundle,layer):
     from wayricad_runtime.interactive_plots import interactive_plot
     mesh=bundle['mesh'];result=bundle['result']
     points=np.asarray(mesh['points_mm'])
-    indices=[i for i,v in enumerate(mesh['triangle_layer']) if str(v)==str(layer)]
+    indices=[i for i,v in enumerate(mesh['triangle_layer']) if layer=='all' or str(v)==str(layer)]
     triangles=np.asarray(mesh['triangles'],dtype=int)[indices]
     polygons=points[triangles,:2].tolist()
     centers=points[triangles,:2].mean(axis=1)
     html=''
     for metric in ('drop','density','loss'):
         values=cell_values(mesh,result,metric)
-        rows=[[float(x),float(y),float(values[i]),'Cell '+str(i)] for (x,y),i in zip(centers,indices)]
+        rows=[[float(x),float(y),float(values[i]),'Layer '+str(mesh['triangle_layer'][i])+' · Cell '+str(i)] for (x,y),i in zip(centers,indices)]
         html+=interactive_plot(metric_name(bundle,metric),rows,METRICS[metric][1],polygons=polygons)
     return html
 

@@ -10,13 +10,15 @@ from . import refiner
 
 
 class Preview(wx.Panel):
+    DISPLAY_MODES=('Overlay','Before','After','Side by side')
     def __init__(self,parent,board,guard):
         super().__init__(parent,style=wx.BORDER_SIMPLE)
         self.board,self.guard=board,guard;self.plan=None;self.zoom=1.;self.pan=[0,0];self.drag=None
         self.context=();self.context_bounds=(0,0,1,1);self.context_generation=0
         self.overlays=();self.active_change=None;self.focus_bounds=None
+        self.display_mode='Overlay';self.affected_segments=set()
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
-        self.SetToolTip('Grey: PCB context snapshot; Preview refreshes it after external PCB edits. Amber: original chains. Teal: proposed replacement. Wheel zooms; drag pans; double-click fits.')
+        self.SetToolTip('Amber: before. Teal: proposed. Overlay adds an amber comparison outline so coincident paths remain visible; the outline is not copper width. Choose Before, After or Side by side for separate views. Wheel zooms; drag pans; double-click fits.')
         self.Bind(wx.EVT_PAINT,self.paint);self.Bind(wx.EVT_SIZE,lambda e:(self.Refresh(),e.Skip()))
         self.Bind(wx.EVT_MOUSEWHEEL,self.wheel);self.Bind(wx.EVT_LEFT_DOWN,self.down);self.Bind(wx.EVT_LEFT_UP,self.up)
         self.Bind(wx.EVT_MOTION,self.motion);self.Bind(wx.EVT_LEFT_DCLICK,self.fit)
@@ -85,6 +87,7 @@ class Preview(wx.Panel):
             pixels=max(1,round(width*scale))
             if kind=='via':vias[pixels].append(project(*points[0]))
             else:
+                if kind=='line' and (width,tuple(sorted(points))) in self.affected_segments:continue
                 projected=[project(*point) for point in points]
                 lines[pixels].extend((*a,*b) for a,b in zip(projected,projected[1:]))
         for width,segments in lines.items():
@@ -96,12 +99,20 @@ class Preview(wx.Panel):
     def set_plan(self,plan):
         """Cache review geometry and bounds before any repaint or focus action."""
         self.plan=plan;self.active_change=None;self.focus_bounds=None;records=[]
+        self.affected_segments=set()
         for index,change in enumerate(plan.changes if plan else ()):
             before=tuple(tuple(point) for point in change.before);after=tuple(tuple(point) for point in change.after)
             points=before+after
             bounds=(min(p[0] for p in points),min(p[1] for p in points),max(p[0] for p in points),max(p[1] for p in points))
             records.append((index,change.width,before,after,bounds))
+            self.affected_segments.update((change.width,tuple(sorted((a,b))))
+                                          for points in (before,after) for a,b in zip(points,points[1:]))
         self.overlays=tuple(records);self.Refresh()
+
+    def set_display_mode(self,mode):
+        """Change only cached presentation; retain the reviewed proposal."""
+        if mode not in self.DISPLAY_MODES:raise ValueError('Choose a supported comparison view.')
+        self.display_mode=mode;self.Refresh()
 
     def focus_change(self,index):
         """Move only the cached viewport; never change native item selection."""
@@ -122,22 +133,42 @@ class Preview(wx.Panel):
         if self.drag is not None and event.Dragging():
             p=event.GetPosition();self.pan[0]+=p.x-self.drag.x;self.pan[1]+=p.y-self.drag.y;self.drag=p;self.Refresh()
     def paint(self,event):
-        dc=wx.AutoBufferedPaintDC(self);dc.SetBackground(wx.Brush('#162f3a'));dc.Clear()
+        dc=wx.AutoBufferedPaintDC(self)
+        self.draw(dc,self.GetClientSize())
+
+    def draw(self,dc,size):
+        """Draw cached geometry in linked comparison views, without native reads."""
+        dc.SetBackground(wx.Brush('#162f3a'));dc.Clear()
         if not self.guard():return
-        bounds=self.focus_bounds or self.context_bounds;w,h=self.GetClientSize()
+        w,h=size
+        if self.display_mode=='Side by side':
+            half=w//2
+            for origin,width,mode in ((0,half,'Before'),(half,w-half,'After')):
+                dc.SetClippingRegion(origin,0,width,h)
+                self.draw_view(dc,origin,width,h,mode)
+                dc.DestroyClippingRegion()
+            dc.SetPen(wx.Pen('#8aa5af',1));dc.DrawLine(half,0,half,h)
+        else:self.draw_view(dc,0,w,h,self.display_mode)
+
+    def draw_view(self,dc,origin,w,h,mode):
+        bounds=self.focus_bounds or self.context_bounds
         scale=max(1e-12,min(max(1,w-40)/max(1,bounds[2]-bounds[0]),max(1,h-40)/max(1,bounds[3]-bounds[1]))*self.zoom)
         cx=(bounds[0]+bounds[2])/2;cy=(bounds[1]+bounds[3])/2
-        def p(x,y):return round(w/2+(x-cx)*scale+self.pan[0]),round(h/2+(y-cy)*scale+self.pan[1])
+        def p(x,y):return round(origin+w/2+(x-cx)*scale+self.pan[0]),round(h/2+(y-cy)*scale+self.pan[1])
         view=(cx+(-w/2-self.pan[0])/scale,cy+(-h/2-self.pan[1])/scale,
               cx+(w/2-self.pan[0])/scale,cy+(h/2-self.pan[1])/scale)
         self.draw_context(dc,p,scale,view)
         for index,width,before,after,_ in self.overlays:
+            paths=((before,'#e6a44a'),) if mode=='Before' else ((after,'#4bdebe'),) if mode=='After' else ((before,'#e6a44a'),(after,'#4bdebe'))
+            pixels=max(2,round(width*scale))
             if index==self.active_change:
-                dc.SetPen(wx.Pen('#eff9ff',max(7,round(width*scale)+5)))
-                for points in (before,after):dc.DrawLines([p(*a) for a in points])
-            for points,colour in ((before,'#e6a44a'),(after,'#4bdebe')):
-                dc.SetPen(wx.Pen(colour,max(2,round(width*scale))));dc.DrawLines([p(*a) for a in points])
-        dc.SetTextForeground('#f1f6f7');dc.DrawText('Amber: before · Teal: proposed · Gold: pads/vias · Click Preview after PCB edits',12,12)
+                dc.SetPen(wx.Pen('#eff9ff',pixels+8))
+                for points,_ in paths:dc.DrawLines([p(*a) for a in points])
+            for points,colour in paths:
+                outline=4 if mode=='Overlay' and colour=='#e6a44a' else 0
+                dc.SetPen(wx.Pen(colour,pixels+outline));dc.DrawLines([p(*a) for a in points])
+        label='Overlay · Amber outline: before · Teal: proposed' if mode=='Overlay' else 'Before · Amber: original' if mode=='Before' else 'After · Teal: proposed'
+        dc.SetTextForeground('#f1f6f7');dc.DrawText(label,origin+12,12)
 
 
 class RefinerFrame(wx.Frame):
@@ -174,6 +205,11 @@ class RefinerFrame(wx.Frame):
         self.protected=wx.TextCtrl(left,value=DEFAULTS['protected']);self.protected.SetToolTip('Comma-separated protected net wildcards. Native differential-pair names are always protected. Add any other tuned or critical nets.');setup.Add(wx.StaticText(left,label='Protected nets (wildcards)'),0,wx.TOP,5);setup.Add(self.protected,0,wx.EXPAND|wx.BOTTOM,5)
         left.SetSizer(setup);left.FitInside()
         right=wx.BoxSizer(wx.VERTICAL)
+        comparison=wx.BoxSizer(wx.HORIZONTAL);comparison.Add(wx.StaticText(right_panel,label='Compare'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        self.view_mode=wx.Choice(right_panel,choices=list(Preview.DISPLAY_MODES));self.view_mode.SetSelection(0)
+        self.view_mode.SetToolTip('Presentation only; switching views keeps the current preview and native validation.')
+        self.view_mode.Bind(wx.EVT_CHOICE,lambda e:self.canvas.set_display_mode(self.view_mode.GetStringSelection()))
+        comparison.Add(self.view_mode,0);right.Add(comparison,0,wx.EXPAND|wx.BOTTOM,6)
         self.results_splitter=wx.SplitterWindow(right_panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         self.canvas=Preview(self.results_splitter,board,self.guard);self.canvas.SetMinSize((250,160))
         self.details=wx.ListCtrl(self.results_splitter,style=wx.LC_REPORT)
@@ -296,7 +332,8 @@ class RefinerFrame(wx.Frame):
     def error(self,exc):self.status.SetLabel(str(exc));wx.MessageBox(str(exc),'Trace Refiner',wx.OK|wx.ICON_ERROR,parent=self)
     def on_preview(self,event=None):
         self.invalidate();self.details.DeleteAllItems()
-        progress=wx.ProgressDialog('Preview trace refinement','Inspecting native routing…',parent=self,style=wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
+        # Generic progress avoids native task-dialog teardown during wx repaints.
+        progress=wx.GenericProgressDialog('Preview trace refinement','Inspecting native routing…',parent=self,style=wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
         try:
             self.require_board()
             def pulse(label):
@@ -310,7 +347,7 @@ class RefinerFrame(wx.Frame):
         finally:progress.Destroy()
     def on_validate(self,event=None):
         if self.review is None or not self.review.changes:return
-        progress=wx.ProgressDialog('Validate trace refinement','Preparing native snapshot…',parent=self,style=wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
+        progress=wx.GenericProgressDialog('Validate trace refinement','Preparing native snapshot…',parent=self,style=wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
         try:
             self.require_board();review=self.review
             def pulse(label):

@@ -63,6 +63,8 @@ class WorkspaceTests(unittest.TestCase):
                     for choice,selection in ((frame.source,0),(frame.sink,1)):choice.Set(['Source rail','Load rail']);choice.SetSelection(selection)
                     frame.voltage.ChangeValue('5');frame.current.ChangeValue('2')
                     data=portrait_result();data['geometry']['source_sha256']=original
+                    from wayricad_runtime.board_render import extract_board
+                    data['board_scene']=extract_board(pcbnew.LoadBoard(str(path)),['5V_DEMO'])
                     frame._accept_result(data,data['request'],'solve');frame.Show();frame.Maximize(False)
                     self.assertIsNotNone(frame.color_legend.scale)
                     self.assertIn('mV',frame.color_legend.scale['unit'])

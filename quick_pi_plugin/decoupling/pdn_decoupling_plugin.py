@@ -60,7 +60,14 @@ class PdnDecouplingPlugin(pcbnew.ActionPlugin):
         if board is None:return
         PdnFrame(None,board).Show()
 class PdnFrame(wx.Panel):
-    def __init__(self,parent,board):super().__init__(parent);self.board=board;self.findings=[];self._build()
+    def __init__(self,parent,board,board_loader=None):
+        super().__init__(parent);self.board=board;self.board_loader=board_loader;self.findings=[];self._build()
+    def get_board(self):
+        """Load saved native geometry only when the decoupling workflow needs it."""
+        if self.board is None:
+            if self.board_loader is None:raise ValueError('Reload the saved board before analyzing decoupling.')
+            with wx.BusyCursor():self.board=self.board_loader()
+        return self.board
     def _build(self):
         p=wx.Panel(self);r=wx.BoxSizer(wx.VERTICAL)
         self.guide=add_workflow(p,r,"PDN and Decoupling Planner","Qualify rail-to-ground capacitors, check load proximity, and review regulator candidates without changing placement.",("Classify","Analyze","Review","Export"),lambda e:open_native_help(self,Path(__file__).with_name("help.html")))
@@ -77,7 +84,7 @@ class PdnFrame(wx.Panel):
         for control in (self.rails,self.ground,self.distance,self.loads):control.Bind(wx.EVT_TEXT,self.invalidate)
     def pads(self):
         rows=[]
-        for fp in self.board.GetFootprints():
+        for fp in self.get_board().GetFootprints():
             ref,value=str(fp.GetReference()),str(fp.GetValue())
             for pad in fp.Pads():pos=pad.GetPosition();rows.append(PadNode(ref,str(pad.GetNumber()),str(pad.GetNetname()),float(pcbnew.ToMM(pos.x)),float(pcbnew.ToMM(pos.y)),value))
         return rows

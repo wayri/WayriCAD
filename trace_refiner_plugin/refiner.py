@@ -23,6 +23,46 @@ def uid(item):
     return item.m_Uuid.AsString()
 
 
+def replacement_track(original,api,preserve_uuid=False):
+    """Create an independent track, retaining the first source UUID portably.
+
+    KiCad bindings differ: some expose a setter, some a writable UUID property,
+    and others only native Clone (whose generic result needs downcasting).
+    Verify the resulting identity before it can enter a board transaction.
+    """
+    expected=uid(original)
+    if preserve_uuid:
+        method=next((name for name in ('SetUuid','SetUuidDirect') if callable(getattr(original,name,None))),None)
+        descriptor=getattr(type(original),'m_Uuid',None)
+        if method:
+            result=original.Duplicate();getattr(result,method)(original.m_Uuid)
+        elif isinstance(descriptor,property) and descriptor.fset is not None:
+            result=original.Duplicate();result.m_Uuid=api.KIID(expected)
+        else:
+            result=api.Cast_to_PCB_TRACK(api.Cast_to_BOARD_ITEM(original.Clone()))
+        if uid(result)!=expected:raise ValueError('Native track UUID could not be preserved; board unchanged.')
+    else:
+        result=original.Duplicate()
+        if uid(result)==expected:raise ValueError('Native duplicate reused a routing UUID; board unchanged.')
+    if board_identity(result)==board_identity(original):
+        raise ValueError('Native track copy is not independent; board unchanged.')
+    return result
+
+
+def check_replacement_ids(board,changes):
+    """Reject duplicate or unrelated native identities before any exchange."""
+    live=[uid(item) for item in board.GetTracks()]
+    originals=[uid(item) for change in changes for item in change.originals]
+    added=[uid(item) for change in changes for item in change.added]
+    if len(set(live))!=len(live) or len(set(originals))!=len(originals) or len(set(added))!=len(added):
+        raise ValueError('Routing UUID collision; board unchanged.')
+    live=set(live)
+    for change in changes:
+        for index,item in enumerate(change.added):
+            if (index==0 and uid(item)!=uid(change.originals[0])) or (index>0 and uid(item) in live):
+                raise ValueError('Replacement routing UUID does not match its source; board unchanged.')
+
+
 def point(item, end=False):
     p = item.GetEnd() if end else item.GetStart()
     return p.x, p.y
@@ -357,11 +397,12 @@ def materialize(board,api,changes):
         originals=change.originals
         if not change.added:
             for i,(a,b) in enumerate(zip(change.after,change.after[1:])):
-                t=originals[min(i,len(originals)-1)].Duplicate()
-                if i==0:t.SetUuid(originals[0].m_Uuid)
+                t=replacement_track(originals[min(i,len(originals)-1)],api,i==0)
                 t.SetStart(api.VECTOR2I(*a));t.SetEnd(api.VECTOR2I(*b));t.ClearSelected()
                 change.added.append(t)
-        for t in originals:board.Remove(t)
+    check_replacement_ids(board,changes)
+    for change in changes:
+        for t in change.originals:board.Remove(t)
         for t in change.added:board.Add(t)
     board.BuildConnectivity()
 
@@ -510,8 +551,7 @@ class Transaction:
             for c in self.preview.changes:
                 c.added=[]
                 for i,(a,b) in enumerate(zip(c.after,c.after[1:])):
-                    clone=c.originals[min(i,len(c.originals)-1)].Duplicate()
-                    if i==0:clone.SetUuid(c.originals[0].m_Uuid)
+                    clone=replacement_track(c.originals[min(i,len(c.originals)-1)],self.api,i==0)
                     clone.SetStart(self.api.VECTOR2I(*a));clone.SetEnd(self.api.VECTOR2I(*b));clone.ClearSelected();c.added.append(clone)
         for c in self.preview.changes:
             if len(c.added)!=len(c.after)-1 or any(type(t) is not self.api.PCB_TRACK
@@ -519,6 +559,7 @@ class Transaction:
                 or t.GetNetCode()!=c.originals[0].GetNetCode() or t.GetLayer()!=c.layer or t.GetWidth()!=c.width
                 for t,(a,b) in zip(c.added,zip(c.after,c.after[1:]))):
                 raise ValueError('Replacement track geometry changed; preview and validate again.')
+        check_replacement_ids(self.board,self.preview.changes)
         self._exchange(True)
         try:expected=snapshot(self.board,self.api)
         except Exception:

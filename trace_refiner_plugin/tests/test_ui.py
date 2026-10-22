@@ -21,6 +21,7 @@ class UITests(unittest.TestCase):
         from trace_refiner_plugin.ui import RefinerFrame
         self.open=True;self.frame=RefinerFrame(None,self.fixture.board,lambda:self.open)
         self.warning=patch.object(wx,'MessageBox');self.messages=self.warning.start()
+        self.frame.Show();wx.Yield()
     def tearDown(self):
         self.warning.stop();self.frame.Destroy();wx.Yield();self.fixture.tearDown()
     def test_resize_and_drag_review_panes(self):
@@ -64,6 +65,22 @@ class UITests(unittest.TestCase):
         self.frame.operation.SetSelection(0);wx.Yield()
         self.assertIsNone(self.frame.review)
         self.assertFalse(self.frame.center_shift.IsEnabled())
+        self.messages.assert_not_called()
+
+    def test_comparison_view_switch_keeps_validated_proposal_and_source(self):
+        from trace_refiner_plugin.refiner import snapshot
+        api=test_native.api
+        self.frame.scope.SetSelection(2);self.frame.on_preview();self.frame.on_validate();wx.Yield()
+        self.assertTrue(self.frame.review.validated,self.frame.status.GetLabel())
+        review=self.frame.review;before=snapshot(self.fixture.board,api)
+        for mode in self.frame.canvas.DISPLAY_MODES:
+            self.frame.view_mode.SetStringSelection(mode)
+            event=wx.CommandEvent(wx.wxEVT_CHOICE,self.frame.view_mode.GetId())
+            event.SetEventObject(self.frame.view_mode);self.frame.view_mode.GetEventHandler().ProcessEvent(event)
+            self.assertEqual(self.frame.canvas.display_mode,mode)
+            self.assertIs(self.frame.review,review);self.assertTrue(review.validated)
+            self.assertTrue(self.frame.apply_button.IsEnabled())
+        self.assertEqual(snapshot(self.fixture.board,api),before)
         self.messages.assert_not_called()
     def test_review_metrics_focus_subset_requires_native_revalidation(self):
         from trace_refiner_plugin.refiner import snapshot

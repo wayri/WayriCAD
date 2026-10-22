@@ -19,6 +19,25 @@ class DisplayScene(dict):
     """
     def invalidate(self):
         self._pick_index = None
+        self._render_paths = {}
+        self._render_token = None
+
+    def polygon_path(self, row):
+        """Reuse immutable display paths across selection and layer redraws."""
+        from matplotlib.path import Path
+        token = (id(self['primitives']), len(self['primitives']))
+        if getattr(self, '_render_token', None) != token:
+            self._render_paths = {}
+            self._render_token = token
+        key = id(row)
+        if key not in self._render_paths:
+            vertices, codes = [], []
+            for ring in _rings(row):
+                if len(ring) < 3:continue
+                vertices.extend(ring + [ring[0]])
+                codes.extend([Path.MOVETO] + [Path.LINETO]*(len(ring)-1) + [Path.CLOSEPOLY])
+            self._render_paths[key] = Path(vertices, codes) if vertices else None
+        return self._render_paths[key]
 
     def pick_index(self):
         token = (id(self['primitives']), len(self['primitives']))
@@ -79,9 +98,14 @@ class _PickIndex:
                 and self.boxes[i][1]-tolerance <= y <= self.boxes[i][3]+tolerance]
 
 
-def extract_board(board):
+def extract_board(board, visible_nets=None):
     import pcbnew as p
+    nets=None if visible_nets is None else set(visible_nets)
     scene = DisplayScene(layers={}, primitives=[], bounds=None, warnings=[], tessellation_mm=.01)
+    if nets is not None:scene['net_scope']=sorted(nets)
+    def excluded(item):
+        name=str(item.GetNetname())
+        return nets is not None and bool(name) and name not in nets
     enabled = list(board.GetEnabledLayers().Seq())
     copper = set(board.GetEnabledLayers().CuStack())
     scene['layers'] = {int(layer): str(board.GetLayerName(layer)) for layer in enabled}
@@ -119,12 +143,14 @@ def extract_board(board):
     except (AttributeError, TypeError, RuntimeError) as exc:
         scene['warnings'].append(f'Closed board outline unavailable: {exc}')
     for item in board.GetTracks():
+        if excluded(item):continue
         role = 'via' if isinstance(item, p.PCB_VIA) else 'track'
         layers = [layer for layer in copper if item.IsOnLayer(layer)] if role == 'via' else [item.GetLayer()]
         for layer in layers:
             shape(item, layer, role)
     for fp in board.GetFootprints():
         for pad in fp.Pads():
+            if excluded(pad):continue
             for layer in copper:
                 if pad.IsOnLayer(layer):
                     shape(pad, layer, 'pad', reference=fp.GetReference(), parent_uuid=uid(fp))
@@ -136,7 +162,7 @@ def extract_board(board):
             text=fp.GetReference(), reference=fp.GetReference(), uuid=uid(fp), net='',
             role='reference', layer=int(fp.GetLayer())))
     for zone in board.Zones():
-        if zone.GetIsRuleArea():
+        if zone.GetIsRuleArea() or excluded(zone):
             continue
         for layer in copper:
             if zone.IsOnLayer(layer):
@@ -155,10 +181,13 @@ def extract_board(board):
     return scene
 
 
-def visible_primitives(scene, visible_layers=None):
+def visible_primitives(scene, visible_layers=None, visible_nets=None):
     layers = None if visible_layers is None else set(visible_layers)
-    return [row for row in scene['primitives'] if row['role'] == 'outline'
-            or layers is None or row['layer'] in layers]
+    nets = None if visible_nets is None else set(visible_nets)
+    return [row for row in scene['primitives'] if
+            (row['role'] == 'outline' or layers is None or row['layer'] in layers)
+            and (nets is None or row['role'] not in COPPER_ROLES | {'drill'} or row.get('net') in nets
+                 or row['role']=='drill' and not row.get('net'))]
 
 
 def _inside(point, ring):
@@ -215,24 +244,26 @@ def _rings(row):
     return [r if (area(r)>0)==(i==0) else list(reversed(r)) for i,r in enumerate(rings)]
 
 
-def draw_matplotlib(ax, scene, visible_layers=None, highlight_ids=(), alpha=.45, highlight_nets=()):
+def draw_matplotlib(ax, scene, visible_layers=None, highlight_ids=(), alpha=.45, highlight_nets=(), visible_nets=None):
     from matplotlib.path import Path
     from matplotlib.patches import PathPatch
     artists = []
-    rows = sorted(visible_primitives(scene, visible_layers), key=lambda r: r['role']=='drill')
+    rows = sorted(visible_primitives(scene, visible_layers, visible_nets), key=lambda r: r['role']=='drill')
     ids, nets = set(highlight_ids), set(highlight_nets)
     batches = defaultdict(list) if len(rows)>256 else None
     for row in rows:
         color, opacity = _color(row, ids, nets)
         highlighted = row.get('uuid') in ids or row.get('net') in nets
         if row['kind'] == 'polygon':
-            vertices, codes = [], []
-            for ring in _rings(row):
-                if len(ring)<3: continue
-                vertices.extend(ring+[ring[0]])
-                codes.extend([Path.MOVETO]+[Path.LINETO]*(len(ring)-1)+[Path.CLOSEPOLY])
-            if not vertices: continue
-            path = Path(vertices, codes)
+            if isinstance(scene, DisplayScene):path = scene.polygon_path(row)
+            else:
+                vertices, codes = [], []
+                for ring in _rings(row):
+                    if len(ring)<3: continue
+                    vertices.extend(ring+[ring[0]])
+                    codes.extend([Path.MOVETO]+[Path.LINETO]*(len(ring)-1)+[Path.CLOSEPOLY])
+                path = Path(vertices, codes) if vertices else None
+            if path is None:continue
             if batches is not None:
                 batches[color, opacity, highlighted, row['role']=='drill'].append(path)
                 continue

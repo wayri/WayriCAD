@@ -69,6 +69,8 @@ class InspectorTests(unittest.TestCase):
                 frame=QuickPIFrame(None,str(path))
                 try:
                     b=bundle();b['geometry']['source_sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
+                    from wayricad_runtime.board_render import extract_board
+                    b['board_scene']=extract_board(board,['Analytical strip'])
                     frame.net.Set(['Analytical strip']);frame.net.SetValue('Analytical strip')
                     frame._terminals=[{'id':'A','label':'A.1'},{'id':'B','label':'B.1'}]
                     frame.source.Set(['A.1','B.1']);frame.source.SetSelection(0)

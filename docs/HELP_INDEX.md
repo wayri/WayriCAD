@@ -40,6 +40,8 @@ Each independently installed package includes `help.html` and its local illustra
 
 Resize the window and expand the named options section. Scroll the settings area and the result table independently; use a table’s horizontal scrollbar for long names. Search/filter changes which rows are visible and may retain hidden checked selections. Inspect the selected-item count before a bulk action. A tooltip or details view is useful for the complete name, but it does not change the selection.
 
+For net-name search, plain text is a case-insensitive literal substring. `*` and `?` opt into wildcard matching; square brackets remain literal KiCad bus punctuation, so `DATA[0]` names one bit while `DATA[*]` searches the bus. Prefix a query with `~` for opt-in typo-tolerant, ranked matches. Filtering never creates a net or changes an existing selection; an already selected net remains pinned when it does not match the current query.
+
 If a window remains unreadable, record the plugin name, KiCad version, display scale and the affected panel. Do not apply an unreviewed operation merely to dismiss the window. Keep the source intact and reopen the tool after correcting the display or installed package.
 
 External research links are optional background. The workflow text and bundled images remain readable without a network connection.

@@ -96,6 +96,36 @@ class ContextTests(unittest.TestCase):
             dc=Mock();self.canvas.draw_context(dc,lambda x,y:(round(x/100000),round(y/100000)),.00001,(0,0,9000000,9000000))
         dc.DrawPolygon.assert_called_once()
 
+    def test_comparison_views_keep_both_coincident_colors_and_use_cached_geometry(self):
+        from types import SimpleNamespace as NS
+        points=((2000000,3000000),(8000000,3000000))
+        self.canvas.set_plan(NS(changes=[NS(before=points,after=points,width=200000)]))
+        self.canvas.focus_bounds=(0,0,10000000,6000000)
+        def pixels(mode):
+            self.canvas.set_display_mode(mode)
+            bitmap=wx.Bitmap(600,360);dc=wx.MemoryDC(bitmap)
+            self.canvas.draw(dc,(600,360));dc.SelectObject(wx.NullBitmap)
+            data=bytes(bitmap.ConvertToImage().GetData())
+            colors={color:[] for color in (b'\xe6\xa4\x4a',b'\x4b\xde\xbe')}
+            for index in range(0,len(data),3):
+                rgb=data[index:index+3]
+                if rgb in colors:colors[rgb].append((index//3)%600)
+            return list(colors.values())
+        with patch.object(self.board,'GetTracks',side_effect=AssertionError('view read native tracks')),patch.object(self.board,'GetFootprints',side_effect=AssertionError('view read native pads')):
+            amber,teal=pixels('Overlay');self.assertTrue(amber);self.assertTrue(teal)
+            amber,teal=pixels('Before');self.assertTrue(amber);self.assertFalse(teal)
+            amber,teal=pixels('After');self.assertFalse(amber);self.assertTrue(teal)
+            amber,teal=pixels('Side by side');self.assertTrue(amber);self.assertTrue(teal)
+            self.assertLess(max(amber),300);self.assertGreaterEqual(min(teal),300)
+
+    def test_original_track_context_does_not_leak_into_after_view(self):
+        from types import SimpleNamespace as NS
+        before=((2000000,3000000),(8000000,3000000))
+        after=((2000000,3000000),(8000000,3500000))
+        self.canvas.set_plan(NS(changes=[NS(before=before,after=after,width=200000)]))
+        dc=Mock();self.canvas.draw_context(dc,lambda x,y:(x,y),.00001,(0,0,9000000,5000000))
+        dc.DrawLineList.assert_not_called()
+
 
 @unittest.skipIf(wx is None or pcbnew is None,'KiCad native wxPython required')
 class ContextLifecycleTests(unittest.TestCase):

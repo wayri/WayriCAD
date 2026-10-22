@@ -8,6 +8,72 @@ from pathlib import Path
 import subprocess
 import tempfile
 import time
+from collections import OrderedDict
+from threading import RLock
+
+
+class _ResultCache:
+    """Bounded JSON bytes only; no live boards, arrays or mutable result aliases."""
+    def __init__(self,max_bytes=96*1024*1024,max_entries=4):
+        self.max_bytes=max_bytes;self.max_entries=max_entries
+        self.entries=OrderedDict();self.size=0;self.lock=RLock()
+
+    def get(self,key):
+        if key is None:return None
+        with self.lock:
+            value=self.entries.get(key)
+            if value is not None:self.entries.move_to_end(key)
+            return value
+
+    def put(self,key,value):
+        if key is None or len(value)>self.max_bytes//2:return
+        with self.lock:
+            previous=self.entries.pop(key,None)
+            if previous is not None:self.size-=len(previous)
+            self.entries[key]=value;self.size+=len(value)
+            while self.size>self.max_bytes or len(self.entries)>self.max_entries:
+                _,removed=self.entries.popitem(last=False);self.size-=len(removed)
+
+
+_RESULT_CACHE=_ResultCache()
+
+
+def _request_key(request):
+    """Identity of a read-only saved-board request and all saved rule inputs."""
+    if request.get('action','inspect') not in ('inspect','geometry','mesh','solve') or request.get('html_output'):
+        return None
+    if not request.get('board_path'):return None
+    try:
+        source=Path(request['board_path']).resolve()
+        if source.suffix.lower()!='.kicad_pcb' or not source.is_file():return None
+        inputs=[]
+        for path in (source,source.with_suffix('.kicad_pro'),source.with_suffix('.kicad_dru')):
+            inputs.append((str(path),hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None))
+        # Runtime overrides select different native installations. Never serve
+        # an earlier result after the caller changes that explicit identity.
+        payload=[request,inputs,os.environ.get('WAYRICAD_KICAD_PYTHON')]
+        return hashlib.sha256(json.dumps(payload,sort_keys=True,allow_nan=False).encode()).hexdigest()
+    except OSError:
+        return None  # Let the worker provide its normal saved-source diagnostic.
+
+
+def _display_output(output,request,board,path,source_hash):
+    """Return display-only JSON from the worker's already owned native board."""
+    if not request.get('include_display_scene'):return output
+    from wayricad_runtime.board_render import extract_board
+    geometry=output.get('geometry',{})
+    scope=request.get('display_nets',geometry.get('nets') or ([geometry['net']] if geometry.get('net') else None))
+    if scope=='default':
+        names=output.get('nets',[])
+        scope=[next((name for name in names if name.startswith(('+','VCC','VDD'))),names[0])] if names else []
+    if scope is not None and (not isinstance(scope,(list,tuple)) or any(not isinstance(n,str) for n in scope)):
+        raise ValueError('display_nets must be a list of net names, default, or null for all board copper.')
+    scene=extract_board(board,visible_nets=scope)
+    if hashlib.sha256(path.read_bytes()).hexdigest()!=source_hash:
+        raise ValueError('The board changed during display extraction. Reload and run again.')
+    scene['source_sha256']=source_hash
+    output['board_scene']=scene;output['scene_nets']=None if scope is None else sorted(set(scope))
+    return output
 
 
 def mesh_cell_budget(request):
@@ -52,6 +118,14 @@ def run_job(request, cancelled=None, timeout=300):
     if not math.isfinite(float(timeout)) or float(timeout)<=0:
         raise ValueError('Worker timeout must be finite and positive.')
     if cancelled and cancelled():raise InterruptedError('Quick PI cancelled before starting the worker.')
+    cache_started=time.monotonic();cache_key=_request_key(request)
+    cached=_RESULT_CACHE.get(cache_key)
+    if cached is not None:
+        result=json.loads(cached)
+        if cancelled and cancelled():raise InterruptedError('Quick PI cancelled. No board files were changed.')
+        if time.monotonic()-cache_started>timeout:raise TimeoutError('Quick PI exceeded its time budget.')
+        if _request_key(request)!=cache_key:raise ValueError('The board or project rules changed during cached analysis. Reload and run again.')
+        return result
     from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_QUICK_PI, child_environment
     requirements={name: spec for name, spec in REQUIREMENTS_QUICK_PI.items() if name != 'kipy'}
     if _requires_gmsh(request):
@@ -78,12 +152,16 @@ def run_job(request, cancelled=None, timeout=300):
             log.seek(0); details=log.read()[-4000:]
             if not target.is_file():raise RuntimeError('Quick PI worker did not produce a result. '+details)
             try:
-                result=json.loads(target.read_text(encoding='utf-8-sig'))
+                payload=target.read_bytes();result=json.loads(payload)
             except (ValueError,OSError) as exc:
                 raise RuntimeError('Quick PI worker returned an incomplete or invalid result. '+details) from exc
             if not isinstance(result,dict):raise RuntimeError('Quick PI worker returned an invalid result object. '+details)
             if result.get('error'):raise ValueError(result['error'])
             if process.returncode:raise RuntimeError('Quick PI worker failed: '+details)
+            if cache_key is not None:
+                if cancelled and cancelled():raise InterruptedError('Quick PI cancelled. No board files were changed.')
+                if _request_key(request)!=cache_key:raise ValueError('The board or project rules changed during analysis. Reload and run again.')
+                _RESULT_CACHE.put(cache_key,payload)
             return result
 
 
@@ -137,8 +215,9 @@ def execute(request):
                    for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0]
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:
             raise ValueError('The board changed during inspection. Reload and run again.')
-        return {'nets':nets,'terminals':terminals,'layers':[{'id':layer,'name':board.GetLayerName(layer)}
+        output={'nets':nets,'terminals':terminals,'layers':[{'id':layer,'name':board.GetLayerName(layer)}
                 for layer in board.GetEnabledLayers().CuStack()],'source_sha256':before}
+        return _display_output(output,request,board,path,before)
     if action=='return_path':
         from .return_path import collect_board_evidence,audit_return_path
         evidence=collect_board_evidence(board,request['signal_net'],request['return_nets'])
@@ -169,7 +248,7 @@ def execute(request):
         output=series_execute(board,path,request)
         output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
-        return output
+        return _display_output(output,request,board,path,before)
     geometry=extract(board,request['net'],source_path=path,stackup_override=request.get('stackup_override'))
     if full3d:
         output={'geometry':geometry,'request':request,
@@ -194,7 +273,7 @@ def execute(request):
                     sink_current=float(request.get('sink_current',1.)),options=request.get('options'))
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:
             raise ValueError('The board changed during analysis. Reload and run again.')
-        return output
+        return _display_output(output,request,board,path,before)
     output={'geometry':geometry,'request':request,'model':'2.5D DC copper conduction; layered sheets and plated barrels'}
     if sizing_mode(request)=='auto':
         from .mesh_sizing import recommend
@@ -220,7 +299,7 @@ def execute(request):
                 **_solver_mesh_budgets(request))
     output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
     if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
-    return output
+    return _display_output(output,request,board,path,before)
 
 
 def _operating_result(output,request,original_request,voltage_mode,sweep_mode):

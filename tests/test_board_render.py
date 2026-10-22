@@ -45,6 +45,22 @@ class NativeBoardRenderTests(unittest.TestCase):
         self.assertEqual(pads[0]['parent_uuid'],fp.m_Uuid.AsString())
         self.assertTrue(any('closed outline' in w for w in scene['warnings']))
 
+    def test_scoped_extraction_keeps_exact_native_net_geometry(self):
+        board=p.BOARD()
+        for index,name in enumerate(('VCC','VCC_AUX','GND'),1):
+            net=p.NETINFO_ITEM(board,name,index);board.Add(net)
+            track=p.PCB_TRACK(board);track.SetNet(net);track.SetLayer(p.F_Cu)
+            track.SetStart(p.VECTOR2I(p.FromMM(index),p.FromMM(1)))
+            track.SetEnd(p.VECTOR2I(p.FromMM(index),p.FromMM(5)))
+            track.SetWidth(p.FromMM(.3));board.Add(track)
+        complete=extract_board(board)
+        focused=extract_board(board,['VCC'])
+        expected=[row for row in complete['primitives'] if row.get('net')=='VCC']
+        self.assertEqual(focused['primitives'],expected)
+        self.assertEqual(focused['net_scope'],['VCC'])
+        self.assertEqual(len(list(board.GetTracks())),3)
+        self.assertEqual(extract_board(board)['primitives'],complete['primitives'])
+
     def test_saved_fill_voids_are_preserved_and_no_fill_is_invented(self):
         b=p.BOARD();poly=p.SHAPE_POLY_SET();poly.NewOutline()
         for x,y in ((0,0),(10,0),(10,10),(0,10)):poly.Append(p.FromMM(x),p.FromMM(y))
