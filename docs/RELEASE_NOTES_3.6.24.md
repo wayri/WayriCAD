@@ -50,7 +50,7 @@ Layer Counter 0.1.3.
 
 ## Validation
 
-Windows KiCad 10.0.6: 170 native Silkscreen tests passed. The shared source suite
+Windows KiCad 10.0.6: 171 native Silkscreen tests passed. The shared source suite
 passed 494 tests with 88 skipped and 227 subtests. Copied-board text-only testing
 accepted 674 of 720 references, retaining 46 unresolved; explicitly enabling the
 10 short-guide allowance accepted 677 and retained 43 unresolved. Independent
