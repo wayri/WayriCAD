@@ -1,2 +1,2 @@
 """WayriCAD Analytics Studio: offline BOM and assembly-variant workbench."""
-__version__ = "3.6.25"
+__version__ = "3.6.26"

@@ -15,7 +15,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.25](https://github.com/wayri/WayriCAD/releases/tag/v3.6.25) · [Release notes](docs/RELEASE_NOTES_3.6.25.md) |
+| Download or update | [Release 3.6.26](https://github.com/wayri/WayriCAD/releases/tag/v3.6.26) · [Release notes](docs/RELEASE_NOTES_3.6.26.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 23 plugins](#all-23-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
@@ -23,12 +23,15 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-## Latest release — 3.6.25
+## Latest release — 3.6.26
 
 Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
 
 | Improvement | Workflow |
 |---|---|
+| Faster Quick PI interaction | Reuse unchanged results, load selected-net display geometry in the worker, and retain plot artists during navigation. [Measurements](docs/audits/QUICK_TOOLS_PERFORMANCE.md). |
+| Better net selection and views | Search with wildcards or fuzzy suggestions without losing the selected net. Focus maps and PCB selection on the simulated nets; choose a combined-layer projection. |
+| Clear trace comparisons | Trace Refiner 0.3.1 fixes missing UUID-setter compatibility and provides amber/teal Overlay, Before, After and Side-by-side views. |
 | Pad/via endpoint centering | Run the separate Trace Refiner action for pad/via endpoint centering. [Trace Refiner guide](trace_refiner_plugin/README.md). |
 | Readable local silkscreen | Preserve acceptable references; try footprint-axis placement, bounded sizing and local repacking near the owning courtyard. Every eligible reference receives an outcome. [Silkscreen guide](silkscreen_label_plugin/README.md). |
 | Managed silkscreen guides | Leaders default off. Optional short straight guides have persistent ownership, detached-guide auditing and reversible cleanup. CLI HTML reports show both board faces. [Silkscreen guide](silkscreen_label_plugin/README.md). |
@@ -41,7 +44,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | CLI access across all 23 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.25.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.26.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -406,7 +409,7 @@ Clean small routing jogs or center existing pad/via track contacts with selected
 
 ![Native trace refinement preview](trace_refiner_plugin/help-workflow.png)
 
-Version 0.3.0 includes separate pad/via endpoint centering, metrics, focused review, proposal exclusion and resizable settings and review panels.
+Version 0.3.1 includes separate pad/via endpoint centering, metrics, focused review, proposal exclusion and resizable settings and review panels.
 
 ![Trace Refiner proposal review](trace_refiner_plugin/help-review.png)
 

@@ -3,3 +3,8 @@ include docs/RELEASE_NOTES_3.6.25.md
 include docs/audits/RELEASE_3.6.25.md
 include docs/audits/SILKSCREEN_DENSE_BOARD_0.3.3.md
 include docs/audits/SILKSCREEN_REFERENCE_BOARD_STUDY.md
+include docs/RELEASE_NOTES_3.6.26.md
+include docs/audits/RELEASE_3.6.26.md
+include docs/audits/QUICK_TOOLS_PERFORMANCE.md
+include docs/audits/QUICK_PI_BACKEND_PERFORMANCE_2026-10-22.md
+include docs/audits/NET_SELECTION_PERFORMANCE.md

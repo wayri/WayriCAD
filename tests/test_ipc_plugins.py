@@ -31,7 +31,7 @@ class WorkbenchPluginTests(unittest.TestCase):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
                 if metadata["versions"][0]["runtime"] == "swig":
                     expected = {"component_arranger_plugin": ("com.github.wayri.wayricad.component-arranger", "0.1.3"),
-                                "trace_refiner_plugin": ("com.github.wayri.wayricad.trace-refiner", "0.3.0"),
+                                "trace_refiner_plugin": ("com.github.wayri.wayricad.trace-refiner", "0.3.1"),
                                 "project_fusion_plugin": ("org.wayri.projectfusion", "0.9.11"),
                                 "variant_manager_plugin": ("org.wayri.variant-manager", "0.6.4"),
                                 "layer_counter_plugin": ("com.github.wayri.wayricad.layer-counter", "0.1.3"),
@@ -41,7 +41,7 @@ class WorkbenchPluginTests(unittest.TestCase):
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):
                         self.assertTrue((package / entry).is_file())
                     continue
-                expected_version = "3.6.25"
+                expected_version = "3.6.26"
                 self.assertEqual(expected_version, metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))
