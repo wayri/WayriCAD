@@ -38,7 +38,7 @@ A polished board with hidden references is not evidence that all references fit.
 The native regression suite covers courtyard, pad, board-edge and guide
 clearances; adaptive sizes; complete outcomes and retries; protected manual
 text; stale Apply/Undo; rollback; native controls; and glyph centring across
-rotation, justification and mirrored input. The final consolidated candidate passed **170 native tests**, with none
+rotation, justification and mirrored input. The final consolidated candidate passed **171 native tests**, with none
 skipped. Subsequent presentation-only checks passed **15 UI tests** and
 **5 report tests**. The focused search/readability suite passed **13 tests**. The shared suite passed **494 tests**,
 with **88 skipped** and **227 subtests passed**. Windows subprocess handle capture

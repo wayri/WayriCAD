@@ -13,7 +13,7 @@ import uuid
 
 from .placement import (GUIDE_PREFIX, NET_PREFIX, fingerprint, item_id, _texts,
                         _state, text_geometry, polygons, inside_polygon,
-                        point_segment_distance)
+                        point_segment_distance, courtyard_envelopes)
 
 MANIFEST_KEY = 'wayricad.silkscreen.generated.v1'
 MAX_RECORDS = 4096
@@ -164,12 +164,14 @@ def _point_polyset_gap(point, polyset):
 
 
 def _guide_attached(board, members, owner, footprint, settings, api):
-    """Check a manifest-owned straight guide against current native endpoints.
+    """Check a manifest-owned guide against the current 2D planner envelopes.
 
-    Distances use the current rendered glyph envelope and the actual courtyard
-    polygon, falling back to the footprint's 2D body hull. The small tolerance
-    is bounded by the recorded clearance and guide stroke plus a 0.02 mm native
-    coordinate floor; it does not grow with board size or label movement.
+    The planner places endpoints on inflated axis-aligned glyph and courtyard
+    envelopes, including their corners. Use the same rectangular margins here,
+    rather than Euclidean distance to a different polygon/body model. This is
+    envelope attachment, not physical package contact. The finite tolerance is
+    the recorded margin plus half the guide stroke and 0.02 mm; it does not
+    grow with board size or label movement.
     """
     if owner is None or footprint is None or not members:return False
     layer=owner.GetLayer()
@@ -198,20 +200,15 @@ def _guide_attached(board, members, owner, footprint, settings, api):
     floor=api.FromMM(.02)
     text_tolerance=api.FromMM(clearance)+width//2+floor
     body_tolerance=max(api.FromMM(clearance),api.FromMM(body_clearance))+width//2+floor
-    text_gaps=[_point_box_gap(point,glyph_box) for point in endpoints]
-
-    court_layer=api.B_CrtYd if layer==api.B_SilkS else api.F_CrtYd
-    courtyard=footprint.GetCourtyard(court_layer)
-    body=footprint.GetBoundingHull()
-    footprint_gaps=[math.inf,math.inf]
-    if courtyard.OutlineCount():
-        footprint_gaps=[_point_polyset_gap(point,courtyard) for point in endpoints]
-    if body.OutlineCount():
-        body_gaps=[_point_polyset_gap(point,body) for point in endpoints]
-        footprint_gaps=[min(a,b) for a,b in zip(footprint_gaps,body_gaps)]
-    if all(math.isinf(gap) for gap in footprint_gaps):
-        box=footprint.GetBoundingBox(False)
-        footprint_gaps=[_point_box_gap(point,box) for point in endpoints]
+    def envelope_gap(point,box):
+        return max(box.GetLeft()-point[0],0,point[0]-box.GetRight(),
+                   box.GetTop()-point[1],point[1]-box.GetBottom())
+    text_gaps=[envelope_gap(point,glyph_box) for point in endpoints]
+    envelopes=courtyard_envelopes(footprint,api)
+    owner_layer=api.B_SilkS if footprint.GetLayer()==api.B_Cu else api.F_SilkS
+    body=envelopes.get(layer,envelopes.get(owner_layer))
+    if body is None:return False
+    footprint_gaps=[envelope_gap(point,body) for point in endpoints]
     return ((text_gaps[0]<=text_tolerance and footprint_gaps[1]<=body_tolerance)
             or (text_gaps[1]<=text_tolerance and footprint_gaps[0]<=body_tolerance))
 
@@ -289,7 +286,7 @@ def audit(board,api):
                   and not _guide_attached(board,members,owner[0],fp,row['settings'],api))
         status=('uncertain' if issues else 'orphan' if orphan else 'detached' if detached
                 else 'duplicate' if len(bytext[row['text']])>1 else 'managed')
-        reason=issues+orphan+(['Guide endpoints no longer meet the current native text and owning courtyard/body-hull proxy.'] if detached else [])
+        reason=issues+orphan+(['Guide endpoints no longer meet the current rendered-text and 2D planner body envelopes.'] if detached else [])
         findings.append(dict(group=gid,kind='leaders',status=status,confidence='uncertain' if issues else 'manifest',cleanup_eligible=not issues,text=row['text'],footprint=row['footprint'],attachment='detached' if detached else 'attached' if owner is not None and fp is not None and not issues and not orphan else 'not_checked',reason=' '.join(reason)))
     for gid,group in groups.items():
         if group.GetName().startswith(GUIDE_PREFIX) and gid not in managed:

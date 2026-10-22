@@ -11,7 +11,7 @@ The results below distinguish native Windows validation from portable source
 checks. A version update alone is not validation. Exact-source CI and public
 asset verification are required before publication/feed promotion.
 
-- Native Silkscreen suite: **170 passed**, none skipped. Later focused checks:
+- Native Silkscreen suite: **171 passed**, none skipped. Later focused checks:
   **15 UI**, **5 report** and **13 readability/search** tests passed.
 - Default text-only whole-board: **720 attempted, 674 accepted, 46 unresolved**;
   **317 changed, 357 accepted unchanged**. No all-reference closure is claimed.
@@ -31,6 +31,10 @@ asset verification are required before publication/feed promotion.
   undo and 850px references-only UI checks; its read-only CLI preview/report left
   the saved fixture board hash unchanged.
 - Five unchanged native package archives retain their previously published bytes.
+- Saved-board guide attachment checks use the same bounded 2D envelopes as
+  placement. All 10 fresh guides remained attached after reload; uncertain
+  legacy artwork was retained. The 20 focused lifecycle tests cover rotated
+  courtyard corners, moved annotations, cleanup and rollback.
 - Native ownership/lifecycle and mocked MCP boundary tests passed. Real stdio
   testing with official MCP SDK 2.3.0 on Windows/Python 3.14 passed handshake,
   tool listing/settings, native six-part saved-board preview/audit and out-of-root

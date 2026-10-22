@@ -118,6 +118,53 @@ class LifecycleTests(unittest.TestCase):
                 cleanup=m.apply_cleanup(board,api,m.plan_cleanup(board,api,[group_id]))
                 cleanup.undo();self.assertEqual(m._fingerprint(board,api),moved_fp)
 
+    def test_corner_endpoint_margins_follow_planner_envelopes_after_save_reload(self):
+        from silkscreen_label_plugin import placement
+        import math
+        for rotation in (0,45):
+            with self.subTest(courtyard_rotation=rotation):
+                case=fixture.PlacementTests();case.setUp()
+                court=api.PCB_SHAPE(case.fp);court.SetShape(api.SHAPE_T_RECT)
+                court.SetLayer(api.F_CrtYd);court.SetStart(case.v(18.5,18.5))
+                court.SetEnd(case.v(21.5,21.5));case.fp.Add(court)
+                case.fp.SetOrientationDegrees(rotation)
+                case.text.SetPosition(case.v(14,14))
+                case.text.SetTextAngle(api.EDA_ANGLE(0,api.DEGREES_T))
+                _,glyph=placement.text_geometry(case.text,_state(case.text),api)
+                text_box=glyph.BBox()
+                body=placement.courtyard_envelopes(case.fp,api)[api.F_SilkS]
+                width=max(api.FromMM(.08),case.board.GetDesignSettings().m_MinSilkTextThickness)
+                gap=api.FromMM(.2)+width//2+1
+                first=(text_box.GetRight()+gap,text_box.GetBottom()+gap)
+                second=(body.GetLeft()-gap,body.GetTop()-gap)
+                line=api.PCB_SHAPE(case.board);line.SetShape(api.SHAPE_T_SEGMENT)
+                line.SetLayer(api.F_SilkS);line.SetWidth(width)
+                line.SetStart(api.VECTOR2I(*first));line.SetEnd(api.VECTOR2I(*second))
+                case.board.Add(line);group=api.PCB_GROUP(case.board)
+                group.SetName(GUIDE_PREFIX+item_id(case.text));group.AddItem(line);case.board.Add(group)
+                case.board.SetProperties(m.generation_properties(case.board,api,
+                    [(case.fp,case.text,group)],dict(clearance=.2,guide_thickness=.08)))
+                # A planner rectangle corner is farther away in Euclidean
+                # distance than one axis margin. Rotating the courtyard also
+                # changes polygon distance without changing its planner bounds.
+                tolerance=api.FromMM(.2)+width//2+api.FromMM(.02)
+                self.assertGreater(math.sqrt(2)*gap,tolerance)
+                native=case.fp.GetCourtyard(api.F_CrtYd)
+                self.assertGreater(m._point_polyset_gap(second,native),tolerance)
+                before=m._fingerprint(case.board,api)
+                finding=next(row for row in m.audit(case.board,api).findings if row.get('group')==item_id(group))
+                self.assertEqual((finding['status'],finding['attachment']),('managed','attached'))
+                self.assertEqual(before,m._fingerprint(case.board,api))
+                with tempfile.TemporaryDirectory() as directory:
+                    path=Path(directory)/'corner.kicad_pcb';api.SaveBoard(str(path),case.board)
+                    board=api.LoadBoard(str(path))
+                finding=next(row for row in m.audit(board,api).findings if row.get('group')==item_id(group))
+                self.assertEqual(finding['status'],'managed')
+                fp=next(iter(board.GetFootprints()));text=fp.Reference()
+                text.Move(api.VECTOR2I(api.FromMM(3),0))
+                finding=next(row for row in m.audit(board,api).findings if row.get('group')==item_id(group))
+                self.assertEqual(finding['status'],'detached')
+
     def test_metadata_persists_in_native_saved_board(self):
         group,line=self.group();self.stamp(group)
         with tempfile.TemporaryDirectory() as directory:
