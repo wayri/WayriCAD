@@ -46,3 +46,18 @@ the normalized 64-pixel repository icon. A fresh isolated native process passed
 12-part dense placement, actual glyph/pad/courtyard/board checks, exact undo/redo,
 manual-text preservation and the 850-pixel references-only/custom UI. It exited
 normally. This does not test live editor action registration or editor undo.
+
+## Published release
+
+- [WayriCAD 3.6.23](https://github.com/wayri/WayriCAD/releases/tag/v3.6.23)
+  is published and marked latest. The tag resolves to source commit
+  `b20626bf6a6d8573c9b100af9cf1eaaf6183591f`.
+- [All eight exact-source CI jobs passed](https://github.com/wayri/WayriCAD/actions/runs/39696897209):
+  Linux/Windows Python 3.10, 3.12 and 3.14, macOS Python 3.12 and the PI reference
+  benchmarks. No failed job was skipped or substituted.
+- All 30 uploaded asset sizes and GitHub SHA-256 digests matched local artifacts.
+  Every public asset was then downloaded and matched byte-for-byte, including
+  the wheel, source distribution, 23 PCM ZIPs, feed, icons and checksum manifest.
+- Public PCM metadata is promoted only after those downloads are verified.
+  Earlier releases and their assets remain unchanged. Unresolved silkscreen
+  originals remain explicit; publication does not change the placement limits.

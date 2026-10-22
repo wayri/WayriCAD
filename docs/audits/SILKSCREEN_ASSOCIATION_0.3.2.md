@@ -75,3 +75,9 @@ association, and its remaining findings are not passes. The planner remains a
 bounded conservative local search; it is not a globally optimal packing proof.
 Private boards, raw reports and local copies remain outside version control and
 release payloads.
+
+## Suite publication
+
+This validated candidate was subsequently included in WayriCAD 3.6.23. See the
+[published-release verification](RELEASE_3.6.23.md#published-release) for the exact
+source, CI and public-download checks. Its placement limits remain unchanged.
