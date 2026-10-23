@@ -14,17 +14,18 @@ class LiveCurrentControls:
     def _init_live_controls(self,page,layout,canvas):
         self._live_model=None;self._live_generation=0;self._live_pending=None
         self._live_timer=None;self._live_running=False;self._live_stamp=None
+        self._live_wheel_time=None;self._live_wheel_direction=0
         row=wx.WrapSizer(wx.HORIZONTAL)
-        self.live_scroll=wx.CheckBox(page,label='Scroll load');self.live_scroll.SetValue(True)
+        self.live_scroll=wx.CheckBox(page,label='Ctrl+scroll load');self.live_scroll.SetValue(True)
         self.live_current=wx.SpinCtrlDouble(page,min=1e-9,max=1e9,initial=1,inc=.1,size=(130,-1),style=wx.SP_ARROW_KEYS|wx.TE_PROCESS_ENTER);self.live_current.SetDigits(9)
         self.live_step=wx.SpinCtrlDouble(page,min=1e-6,max=1e6,initial=.1,inc=.1,size=(90,-1));self.live_step.SetDigits(6)
         self.live_note=wx.StaticText(page,label='Run a 2.5D current solve to enable live tuning.',style=wx.ST_ELLIPSIZE_END)
-        for item in (self.live_scroll,wx.StaticText(page,label='Total · A'),self.live_current,wx.StaticText(page,label='Step · A'),self.live_step):
+        for item in (self.live_scroll,wx.StaticText(page,label='Total · A'),self.live_current,wx.StaticText(page,label='Base step · A'),self.live_step):
             row.Add(item,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
         layout.Add(row,0,wx.EXPAND|wx.ALL,6)
         self.live_note.SetMinSize((1,-1));layout.Add(self.live_note,0,wx.EXPAND|wx.LEFT|wx.RIGHT,6)
         self.live_current.SetToolTip('Exact fixed-temperature linear update; all sink loads scale proportionally. No remesh or new FEM solve.')
-        self.live_step.SetToolTip('Amperes per wheel notch over solved copper. Shift uses one tenth of this step. Ctrl+wheel always zooms.')
+        self.live_step.SetToolTip('Base amperes per Ctrl+wheel notch over solved copper. Slow: ×0.1; normal: ×1; fast: ×5. Plain wheel zooms.')
         for event in (wx.EVT_SPINCTRLDOUBLE,wx.EVT_TEXT_ENTER):self.live_current.Bind(event,self._live_current_edited)
         canvas._wayricad_scroll_handler=self._live_wheel
         self._set_live_enabled(False,'Run a fixed-temperature 2.5D prescribed-current solve first.')
@@ -36,6 +37,7 @@ class LiveCurrentControls:
     def _reset_live(self):
         if not hasattr(self,'live_current'):return
         self._live_generation+=1;self._live_model=None;self._live_pending=None;self._live_stamp=None
+        self._live_wheel_time=None;self._live_wheel_direction=0
         if self._live_timer:self._live_timer.Stop();self._live_timer=None
         self._set_live_enabled(False,'Run again after changing the simulation inputs.')
 
@@ -67,7 +69,7 @@ class LiveCurrentControls:
             if error:self._set_live_enabled(False,error);return
             self._live_model=model;self._live_stamp=stamp
             self.live_current.SetValue(model.base_current_A)
-            self._set_live_enabled(not self._busy,'Wheel on copper adjusts load · Ctrl+wheel zooms · all sinks scale together')
+            self._set_live_enabled(not self._busy,'Ctrl+wheel on copper adjusts load · Wheel zooms · speed sets step')
         threading.Thread(target=worker,name='Quick PI current basis',daemon=True).start()
 
     def _live_current_edited(self,event=None):
@@ -82,7 +84,9 @@ class LiveCurrentControls:
                 or getattr(canvas,'_drag',None) is not None
                 or getattr(getattr(canvas,'toolbar',None),'mode','')):return False
         gui=getattr(event,'guiEvent',None)
-        if 'control' in key or 'ctrl' in key or gui is not None and gui.ControlDown():return False
+        if not ('control' in key or 'ctrl' in key or gui is not None and gui.ControlDown()):
+            self._live_wheel_time=None;self._live_wheel_direction=0
+            return False
         controller=self._probe_controllers.get(2)
         hit=None if not controller else controller['hit_test'](event.xdata,event.ydata)
         if hit is not None:
@@ -91,9 +95,17 @@ class LiveCurrentControls:
         elif getattr(self,'_live_hit_index',None):
             if self._live_hit_index.pick(event.xdata,event.ydata,self._live_hit_count) is None:return False
         else:return False
-        step=self.live_step.GetValue()
-        if 'shift' in key or gui is not None and gui.ShiftDown():step/=10
-        value=max(1e-9,min(1e9,self.live_current.GetValue()+event.step*step))
+        notches=float(event.step)
+        if not math.isfinite(notches) or notches==0:return False
+        now=time.monotonic();direction=1 if notches>0 else -1
+        elapsed=None if self._live_wheel_time is None else now-self._live_wheel_time
+        # Restart finely after a pause or reversal; rapid same-direction
+        # notches accelerate. Account for batched/high-resolution wheel events.
+        rate=0. if elapsed is None or elapsed<=0 or elapsed>.4 or direction!=self._live_wheel_direction else abs(notches)/elapsed
+        gain=.1 if rate<=5 else 1. if rate<=15 else 5.
+        self._live_wheel_time=now;self._live_wheel_direction=direction
+        step=self.live_step.GetValue()*gain
+        value=max(1e-9,min(1e9,self.live_current.GetValue()+notches*step))
         self.live_current.SetValue(value);self._queue_live_current(value)
         return True
 

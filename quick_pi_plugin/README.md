@@ -199,11 +199,12 @@ clears probes. Holes and unresolved cells remain gaps.
 ### Change load current with the wheel
 
 After a fixed-temperature **2.5D** current solve, open **Results** and leave
-**Scroll load** checked. Wheel over solved copper to change **Total · A**;
-**Step · A** sets amperes per notch. Hold **Shift** for a tenth-step, or
-**Ctrl** to zoom. Wheel outside solved copper still zooms. You can also enter
-the total directly and press Enter, or use its arrows. Disable **Scroll load**
-to keep ordinary wheel zoom everywhere.
+**Ctrl+scroll load** checked. Plain wheel scrolling zooms normally. Hold **Ctrl**
+and wheel over solved copper to change **Total · A**. **Base step · A** sets
+the normal increment: slow scrolling uses 0.1×, normal scrolling 1×, and fast
+scrolling 5×. A pause or direction reversal restarts with a fine step. You can
+also enter the total directly and press Enter, or use its arrows. Disable
+**Ctrl+scroll load** to keep wheel zoom for both gestures.
 
 All sink currents scale together, preserving their proportions and grouped pad
 assignments. Voltage drop and current density scale with current; copper loss

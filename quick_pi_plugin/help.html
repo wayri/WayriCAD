@@ -2,10 +2,12 @@
 <h1>Quick PI: inspect a DC current path</h1>
 <h2>Live 2.5D load current</h2>
 <p>After a fixed-temperature prescribed-current solve, open <b>Results</b>.
-With <b>Scroll load</b> checked, wheel over solved copper to change <b>Total · A</b>.
-<b>Step · A</b> sets amperes per notch; Shift uses a tenth-step. Ctrl+wheel or
-wheel outside copper zooms. Uncheck Scroll load for normal zoom everywhere.
-The total can also be entered directly (press Enter) or changed with its arrows.</p>
+Plain wheel scrolling zooms. With <b>Ctrl+scroll load</b> checked, hold Ctrl
+and wheel over solved copper to change <b>Total · A</b>. <b>Base step · A</b>
+sets the normal increment. Slow scrolling uses 0.1×, normal 1×, and fast 5×.
+A pause or direction reversal restarts finely. Uncheck Ctrl+scroll load to keep
+wheel zoom for both gestures. The total can also be entered directly (press
+Enter) or changed with its arrows.</p>
 <p>All sink currents change proportionally, including multi-pad units. Voltage
 drop and current density scale with current; copper loss scales with current
 squared. Limits, probes, summaries and reports follow the latest completed

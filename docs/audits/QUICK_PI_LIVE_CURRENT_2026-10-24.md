@@ -2,9 +2,12 @@
 
 ## Behaviour
 
-The native Results workspace can adjust the total prescribed current by wheel
-on solved 2.5D copper, or with the Total · A control. Shift uses a tenth-step;
-Ctrl retains zoom. All sinks scale proportionally. Bursts coalesce, newer input
+The native Results workspace can adjust the total prescribed current by
+Ctrl+wheel on solved 2.5D copper, or with the Total · A control. Plain wheel
+scrolling zooms. Slow scrolling uses 0.1× the base step (up to five notches/s),
+normal scrolling 1× (up to fifteen notches/s), and faster scrolling 5×. A pause
+over 0.4 seconds or a reversal restarts finely. Fractional/batched wheel deltas
+are respected. All sinks scale proportionally. Bursts coalesce, newer input
 supersedes older calculations, and numerical updates run outside the window
 thread. The board artists, zoom and selected PCB object identities remain in
 place. Hover and pinned values, limits, summaries and export data are refreshed.
@@ -87,10 +90,11 @@ pointwise comparisons. Mesh refinement and physical validation remain separate.
 - Quick PI source suite: 351 passed, 56 skipped, 399 subtests passed. Native
   VTK meshing tests are separate from the source suite, as in repository CI.
 - Shared repository suite: 596 passed, 123 skipped, 464 subtests passed.
-- Native wx/pcbnew controls: 17 tests passed, including five live-control tests
+- Native wx/pcbnew controls: 19 tests passed, including seven live-control tests
   and the inspector/canvas checks. Tests verify burst coalescing,
   latest-input publication, camera/artist retention, selection, normal zoom,
-  toolbar gestures, context reads and stale-board invalidation.
+  toolbar gestures, context reads, stale-board invalidation, Ctrl-only current
+  adjustment, speed-dependent steps, reversal reset and fractional wheel deltas.
 - Shared probe interaction and performance checks: ten passed.
 
 One captured-subprocess test initially failed before launching its worker

@@ -49,7 +49,7 @@ class LiveUITests(unittest.TestCase):
         self.assertTrue(condition(),str({'current':self.frame.bundle.get('result',{}).get('sink_current_A'),'control':self.frame.live_current.GetValue(),'pending':self.frame._live_pending,'running':self.frame._live_running,'note':self.frame.live_note.GetLabel(),'busy':self.frame._busy}))
 
     def event(self,**changes):
-        args=dict(inaxes=self.frame.views[2][0].axes[0],xdata=5.,ydata=.5,key=None,guiEvent=None,step=1.)
+        args=dict(inaxes=self.frame.views[2][0].axes[0],xdata=5.,ydata=.5,key='control',guiEvent=None,step=1.)
         args.update(changes);return SimpleNamespace(**args)
 
     def test_wheel_burst_coalesces_without_rebuilding_or_changing_zoom(self):
@@ -57,20 +57,44 @@ class LiveUITests(unittest.TestCase):
         axes=id(ax);artists=[id(x) for x in ax.collections];limits=(ax.get_xlim(),ax.get_ylim())
         update=frame._live_model.update
         with patch.object(frame._live_model,'update',wraps=update) as calls,patch.object(frame,'_draw',side_effect=AssertionError('Live update rebuilt the board')):
-            for _ in range(10):self.assertTrue(frame._live_wheel(self.event()))
-            self.until(lambda:abs(frame.bundle['result']['sink_current_A']-3)<1e-8 and not frame._live_running)
+            with patch('quick_pi_plugin.live_ui.time.monotonic',side_effect=[1+i*.02 for i in range(10)]):
+                for _ in range(10):self.assertTrue(frame._live_wheel(self.event()))
+            self.until(lambda:abs(frame.bundle['result']['sink_current_A']-6.51)<1e-8 and not frame._live_running)
             self.assertEqual(calls.call_count,1)
         self.assertEqual(id(figure.axes[0]),axes);self.assertEqual(artists,[id(x) for x in ax.collections])
         self.assertEqual((ax.get_xlim(),ax.get_ylim()),limits)
-        self.assertAlmostEqual(float(frame.current.GetValue()),3)
+        self.assertAlmostEqual(float(frame.current.GetValue()),6.51)
         self.assertTrue(frame.export.IsEnabled())
 
-    def test_empty_space_ctrl_zoom_and_disabled_scroll_do_not_change_load(self):
-        self.assertFalse(self.frame._live_wheel(self.event(key='control')))
+    def test_plain_wheel_zoom_empty_space_and_disabled_scroll_do_not_change_load(self):
+        self.assertFalse(self.frame._live_wheel(self.event(key=None)))
         self.assertFalse(self.frame._live_wheel(self.event(xdata=50,ydata=50)))
         self.frame.live_scroll.SetValue(False)
         self.assertFalse(self.frame._live_wheel(self.event()))
         self.assertEqual(self.frame.bundle['result']['sink_current_A'],2)
+        figure,_,navigation=self.frame.views[2];ax=figure.axes[0];limits=ax.get_xlim()
+        navigation.wheel(self.event(key=None))
+        self.assertNotEqual(ax.get_xlim(),limits)
+        self.assertEqual(self.frame.bundle['result']['sink_current_A'],2)
+
+    def test_speed_sets_fine_normal_coarse_and_reversal_resets(self):
+        frame=self.frame
+        with patch.object(frame,'_queue_live_current'),patch('quick_pi_plugin.live_ui.time.monotonic',side_effect=[1.,1.3,1.4,1.43,1.45,2.]):
+            observed=[]
+            for step in (1.,1.,1.,1.,-1.,-1.):
+                self.assertTrue(frame._live_wheel(self.event(step=step)))
+                observed.append(frame.live_current.GetValue())
+        for actual,expected in zip(observed,(2.01,2.02,2.12,2.62,2.61,2.60)):
+            self.assertAlmostEqual(actual,expected)
+
+    def test_native_ctrl_modifier_and_fractional_wheel_are_supported(self):
+        frame=self.frame
+        gui=SimpleNamespace(ControlDown=lambda:True)
+        with patch.object(frame,'_queue_live_current'),patch('quick_pi_plugin.live_ui.time.monotonic',side_effect=[1.,1.01]):
+            self.assertTrue(frame._live_wheel(self.event(key=None,guiEvent=gui,step=.25)))
+            self.assertAlmostEqual(frame.live_current.GetValue(),2.0025)
+            self.assertTrue(frame._live_wheel(self.event(key=None,guiEvent=gui,step=.25)))
+            self.assertAlmostEqual(frame.live_current.GetValue(),2.1275)
 
     def test_changed_saved_board_disables_live_basis(self):
         self.path.write_bytes(self.path.read_bytes()+b'\n')
