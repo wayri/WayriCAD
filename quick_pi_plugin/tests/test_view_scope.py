@@ -40,12 +40,17 @@ class ViewScopeTests(unittest.TestCase):
         axes=draw_view(figure,data,view='Net')
         self.assertGreater(axes.dataLim.xmax,29)
 
-    def test_plural_source_pads_are_labeled_as_sources(self):
+    def test_plural_source_pads_keep_roles_without_repeated_viewport_captions(self):
         data=bundle();data['request']['source_terminals']=[data['request'].pop('source_terminal')]
         axes=draw_view(Figure(),data,view='Net',board_view=True)
         labels=[artist.get_text() for artist in axes.texts]
-        self.assertEqual(labels.count('Source'),1)
-        self.assertEqual(labels.count('Sink'),1)
+        self.assertNotIn('Source',labels);self.assertNotIn('Sink',labels)
+        self.assertEqual(sum(artist.get_color()=='#13854c' for artist in axes.lines),1)
+        self.assertEqual(sum(artist.get_color()=='#b94535' for artist in axes.lines),1)
+        report=draw_view(Figure(),data,view='Net')
+        captions=[artist.get_text() for artist in report.texts]
+        self.assertEqual(sum(label.startswith('Source:') for label in captions),1)
+        self.assertEqual(sum(label.startswith('Sink:') for label in captions),1)
 
     def test_combined_projection_renders_each_layer_without_averaging(self):
         data=bundle();layers=data['geometry']['layers']

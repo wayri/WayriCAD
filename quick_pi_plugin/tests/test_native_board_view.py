@@ -119,6 +119,8 @@ class NativeBoardViewTests(unittest.TestCase):
         for copper,side,graphics in [(0,'front',(37,49,50)),(31,'back',(36,48,51))]:
             scene['primitives'].append({'kind':'text','role':'reference','layer':copper,
                                         'uuid':side+'-ref','text':side+'-R1','center':[5,.5]})
+            scene['primitives'].append({'kind':'polygon','role':'reference','layer':graphics[0],
+                                        'uuid':side+'-saved-ref','points':[[5,.2],[5.4,.2],[5.4,.4],[5,.4]]})
             scene['primitives'].append({'kind':'polygon','role':'drill','layer':copper,
                                         'uuid':side+'-hole','points':[[4,.3],[4.2,.3],[4.2,.5],[4,.5]]})
             for index,graphic in enumerate(graphics):
@@ -133,11 +135,12 @@ class NativeBoardViewTests(unittest.TestCase):
                 axes=draw_view(figure,data,layer=copper,board_view=True);canvas.draw()
                 field=next(item for item in axes.collections if isinstance(item,TriMesh))
                 contours=[item for item in axes.patches if str(item.get_gid()).startswith('board-context:')]
-                self.assertEqual(len(contours),5)  # Board, drill, silk, fab, courtyard.
+                self.assertEqual(len(contours),4)  # Board, drill, native silk and saved glyphs.
                 self.assertTrue(all(item.get_zorder()>field.get_zorder() for item in contours))
-                self.assertTrue(all(item.get_facecolor()[3]==0 for item in contours))
+                outline=next(item for item in contours if ':outline:' in item.get_gid())
+                self.assertEqual(outline.get_facecolor()[3],0)
                 labels=[item for item in axes.texts if str(item.get_gid()).startswith('board-context:')]
-                self.assertEqual([item.get_text() for item in labels],[side+'-R1'])
+                self.assertEqual(labels,[])  # Legacy synthetic centre labels never reappear.
                 self.assertEqual(probe_result(data,copper,5,.5)['kind'],'sheet')
                 axes=draw_view(figure,data,layer=copper,board_view=True,show_context=False)
                 self.assertFalse(any(str(item.get_gid()).startswith('board-context:') for item in axes.patches))
@@ -159,7 +162,7 @@ class NativeBoardViewTests(unittest.TestCase):
                 figure=Figure();canvas=FigureCanvasAgg(figure)
                 axes=draw_view(figure,data,layer=copper,board_view=True);canvas.draw()
                 identities=[item.get_gid() for item in axes.patches if str(item.get_gid()).startswith('board-context:')]
-                self.assertEqual(identities,['board-context:footprint:'+side+str(i) for i in range(3)])
+                self.assertEqual(identities,['board-context:footprint:'+side+'0'])
 
 
 if __name__=='__main__':unittest.main()

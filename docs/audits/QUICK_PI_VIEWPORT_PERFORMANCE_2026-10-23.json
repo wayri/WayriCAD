@@ -1,0 +1,208 @@
+{
+  "baseline_commit": "61d81309874952e9943b102ec8dc63c175ded417",
+  "scope": "Marble +3.3P with full-board context, F.Cu field, 1200x800 Agg pixels",
+  "source_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+  "board_unchanged": true,
+  "render": {
+    "before": {
+      "extraction_seconds": 10.013869600006728,
+      "primitives": 193453,
+      "trials": [
+        {
+          "prepare_seconds": 4.363158599997405,
+          "raster_seconds": 1.0064898999989964,
+          "full_redraw_seconds": 0.7633936500005802,
+          "artists": 11682,
+          "text_artists": 524
+        },
+        {
+          "prepare_seconds": 2.855268500003149,
+          "raster_seconds": 0.9873824999958742,
+          "full_redraw_seconds": 0.75991433749914,
+          "artists": 11682,
+          "text_artists": 524
+        },
+        {
+          "prepare_seconds": 2.9902812000073027,
+          "raster_seconds": 1.0222290999954566,
+          "full_redraw_seconds": 0.7872428249993391,
+          "artists": 11682,
+          "text_artists": 524
+        }
+      ]
+    },
+    "after": {
+      "extraction_seconds": 9.557256300002337,
+      "primitives": 193318,
+      "trials": [
+        {
+          "prepare_seconds": 0.643458799997461,
+          "raster_seconds": 0.06569759998819791,
+          "full_redraw_seconds": 0.05753883750003297,
+          "artists": 436,
+          "text_artists": 1
+        },
+        {
+          "prepare_seconds": 0.46589160000439733,
+          "raster_seconds": 0.06752559999586083,
+          "full_redraw_seconds": 0.058643024998673354,
+          "artists": 436,
+          "text_artists": 1
+        },
+        {
+          "prepare_seconds": 0.4704407999961404,
+          "raster_seconds": 0.06539879999763798,
+          "full_redraw_seconds": 0.05784282499917026,
+          "artists": 436,
+          "text_artists": 1
+        }
+      ]
+    }
+  },
+  "probe": {
+    "before": {
+      "trials": [
+        {
+          "setup_s": 0.010337300001992844,
+          "pick_200_s": 0.02688069999567233,
+          "hover_200_s": 0.027185700004338287,
+          "hover_calls": {
+            "draw_idle": 200,
+            "blit": 0
+          },
+          "real_hover_200_s": 1.7273860999994213,
+          "repeated_blank_100": {
+            "draw_idle": 100,
+            "blit": 0
+          },
+          "repeated_cell_100": {
+            "draw_idle": 100,
+            "blit": 0
+          }
+        },
+        {
+          "setup_s": 0.010371800002758391,
+          "pick_200_s": 0.02592829999048263,
+          "hover_200_s": 0.026499699990381487,
+          "hover_calls": {
+            "draw_idle": 200,
+            "blit": 0
+          },
+          "real_hover_200_s": 1.7549569999973755,
+          "repeated_blank_100": {
+            "draw_idle": 100,
+            "blit": 0
+          },
+          "repeated_cell_100": {
+            "draw_idle": 100,
+            "blit": 0
+          }
+        },
+        {
+          "setup_s": 0.01038239999616053,
+          "pick_200_s": 0.028238800005055964,
+          "hover_200_s": 0.027201499993680045,
+          "hover_calls": {
+            "draw_idle": 200,
+            "blit": 0
+          },
+          "real_hover_200_s": 1.8238085000048159,
+          "repeated_blank_100": {
+            "draw_idle": 100,
+            "blit": 0
+          },
+          "repeated_cell_100": {
+            "draw_idle": 100,
+            "blit": 0
+          }
+        }
+      ],
+      "median_setup_s": 0.010371800002758391,
+      "median_pick_200_s": 0.02688069999567233,
+      "median_hover_200_s": 0.027185700004338287,
+      "median_real_hover_200_s": 1.7549569999973755
+    },
+    "after": {
+      "trials": [
+        {
+          "setup_s": 0.007557599994470365,
+          "pick_200_s": 0.0010898000036831945,
+          "hover_200_s": 0.08103240000491496,
+          "hover_calls": {
+            "draw_idle": 0,
+            "blit": 101
+          },
+          "real_hover_200_s": 0.10056180000538006,
+          "repeated_blank_100": {
+            "draw_idle": 0,
+            "blit": 0
+          },
+          "repeated_cell_100": {
+            "draw_idle": 0,
+            "blit": 0
+          }
+        },
+        {
+          "setup_s": 0.007658300004550256,
+          "pick_200_s": 0.0012054999970132485,
+          "hover_200_s": 0.07415230000333395,
+          "hover_calls": {
+            "draw_idle": 0,
+            "blit": 101
+          },
+          "real_hover_200_s": 0.10965619998751208,
+          "repeated_blank_100": {
+            "draw_idle": 0,
+            "blit": 0
+          },
+          "repeated_cell_100": {
+            "draw_idle": 0,
+            "blit": 0
+          }
+        },
+        {
+          "setup_s": 0.007316299990634434,
+          "pick_200_s": 0.0009976000001188368,
+          "hover_200_s": 0.07726809999439865,
+          "hover_calls": {
+            "draw_idle": 0,
+            "blit": 101
+          },
+          "real_hover_200_s": 0.105716999998549,
+          "repeated_blank_100": {
+            "draw_idle": 0,
+            "blit": 0
+          },
+          "repeated_cell_100": {
+            "draw_idle": 0,
+            "blit": 0
+          }
+        }
+      ],
+      "median_setup_s": 0.007557599994470365,
+      "median_pick_200_s": 0.0010898000036831945,
+      "median_hover_200_s": 0.07726809999439865,
+      "median_real_hover_200_s": 0.105716999998549
+    },
+    "board": "Marble",
+    "net": "+3.3P",
+    "layer": "F.Cu",
+    "all_layer_cell_count": 79135,
+    "tested_cell_count": 4887,
+    "query_count": 200,
+    "query_description": "100 distributed exact cell centroids and 100 known empty points outside copper bounds",
+    "same_selected_rows_and_values": true,
+    "baseline_commit": "61d81309874952e9943b102ec8dc63c175ded417",
+    "limits": [
+      "Simple Agg axes; does not benchmark full-board rasterization, wx painting, model solve, or installed-editor interaction.",
+      "Separate real-hover timings include simple-axes redraw/blit. Spy hover timings omit scheduled redraw/blit calls but retain tooltip artist rendering and are not equivalent workloads.",
+      "Index setup is included separately. Exact polygon containment is retained; no interpolated values."
+    ]
+  },
+  "native_pan": {
+    "events": 30,
+    "seconds": 0.0030820999963907525,
+    "rasterizations_during_drag": 0,
+    "exact_release_rasterizations": 1
+  }
+}

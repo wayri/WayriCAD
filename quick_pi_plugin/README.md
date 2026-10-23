@@ -2,6 +2,25 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+## Board navigation and labels (development)
+
+The board view uses saved, visible silkscreen at its actual size, position and
+rotation. It no longer invents reference labels at footprint centres or adds
+repeated source/load captions. Source and load markers remain available, with
+pad details in the inspector; scientific report plots keep their captions.
+Fabrication and courtyard drawings are excluded from this default board view.
+
+Pan uses a cached image while dragging, then redraws the exact view on release.
+Redraw requests are coalesced, and hover probes search nearby geometry instead
+of scanning every cell. Unchanged hover values do not repaint the whole board.
+
+![Native Quick PI window on the public Marble board](help-native-viewport.png)
+
+On Marble, median full redraw time fell from **763 ms to 58 ms**. See the
+[viewport benchmark and screenshot provenance](../docs/audits/QUICK_PI_VIEWPORT_PERFORMANCE_2026-10-23.md)
+for scope, assumptions and native-window checks. These source changes are newer
+than the published v3.6.26 packages.
+
 ## First-run performance (development)
 
 Fresh solves load only the VTK geometry modules they need. A multi-net batch

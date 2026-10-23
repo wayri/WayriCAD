@@ -109,11 +109,11 @@ def extract_board(board, visible_nets=None):
     enabled = list(board.GetEnabledLayers().Seq())
     copper = set(board.GetEnabledLayers().CuStack())
     scene['layers'] = {int(layer): str(board.GetLayerName(layer)) for layer in enabled}
+    scene['canonical_layers'] = {int(layer): str(p.LayerName(layer)) for layer in enabled}
     def uid(item):
         return item.m_Uuid.AsString()
     def ring(chain):
-        return [[p.ToMM(chain.CPoint(i).x), p.ToMM(chain.CPoint(i).y)]
-                for i in range(chain.PointCount())]
+        return [[p.ToMM(point.x), p.ToMM(point.y)] for point in chain.CPoints()]
     def polygons(poly, meta):
         for i in range(poly.OutlineCount()):
             scene['primitives'].append(dict(meta, kind='polygon', points=ring(poly.COutline(i)),
@@ -154,13 +154,16 @@ def extract_board(board, visible_nets=None):
             for layer in copper:
                 if pad.IsOnLayer(layer):
                     shape(pad, layer, 'pad', reference=fp.GetReference(), parent_uuid=uid(fp))
-        for item in fp.GraphicalItems():
+        items=list(fp.GraphicalItems())+list(fp.GetFields())
+        seen=set()
+        reference=uid(fp.Reference())
+        for item in items:
+            identity=uid(item)
+            if identity in seen or not getattr(item,'IsVisible',lambda:True)():continue
+            seen.add(identity)
             if hasattr(item, 'TransformShapeToPolygon'):
-                shape(item, item.GetLayer(), 'footprint', reference=fp.GetReference(), parent_uuid=uid(fp))
-        pos = fp.GetPosition()
-        scene['primitives'].append(dict(kind='text', center=[p.ToMM(pos.x), p.ToMM(pos.y)],
-            text=fp.GetReference(), reference=fp.GetReference(), uuid=uid(fp), net='',
-            role='reference', layer=int(fp.GetLayer())))
+                shape(item, item.GetLayer(), 'reference' if identity==reference else 'footprint',
+                      reference=fp.GetReference(), parent_uuid=uid(fp))
     for zone in board.Zones():
         if zone.GetIsRuleArea() or excluded(zone):
             continue
@@ -244,7 +247,7 @@ def _rings(row):
     return [r if (area(r)>0)==(i==0) else list(reversed(r)) for i,r in enumerate(rings)]
 
 
-def draw_matplotlib(ax, scene, visible_layers=None, highlight_ids=(), alpha=.45, highlight_nets=(), visible_nets=None):
+def draw_matplotlib(ax, scene, visible_layers=None, highlight_ids=(), alpha=.45, highlight_nets=(), visible_nets=None,path_source=None):
     from matplotlib.path import Path
     from matplotlib.patches import PathPatch
     artists = []
@@ -255,7 +258,8 @@ def draw_matplotlib(ax, scene, visible_layers=None, highlight_ids=(), alpha=.45,
         color, opacity = _color(row, ids, nets)
         highlighted = row.get('uuid') in ids or row.get('net') in nets
         if row['kind'] == 'polygon':
-            if isinstance(scene, DisplayScene):path = scene.polygon_path(row)
+            provider=path_source if isinstance(path_source,DisplayScene) else scene
+            if isinstance(provider, DisplayScene):path = provider.polygon_path(row)
             else:
                 vertices, codes = [], []
                 for ring in _rings(row):
@@ -264,11 +268,12 @@ def draw_matplotlib(ax, scene, visible_layers=None, highlight_ids=(), alpha=.45,
                     codes.extend([Path.MOVETO]+[Path.LINETO]*(len(ring)-1)+[Path.CLOSEPOLY])
                 path = Path(vertices, codes) if vertices else None
             if path is None:continue
+            width=1.2 if highlighted else .4 if row['role']=='outline' else 0
             if batches is not None:
-                batches[color, opacity, highlighted, row['role']=='drill'].append(path)
+                batches[color, opacity, highlighted, row['role']=='drill',width].append(path)
                 continue
             patch = PathPatch(path, facecolor=color, edgecolor=color,
-                              linewidth=1.2 if highlighted else .4,
+                              linewidth=width,
                               alpha=opacity*alpha, zorder=6 if highlighted else 0)
             ax.add_patch(patch); artists.append(patch)
         elif row['kind'] == 'text':
@@ -276,9 +281,9 @@ def draw_matplotlib(ax, scene, visible_layers=None, highlight_ids=(), alpha=.45,
                                    alpha=alpha, clip_on=True, zorder=1))
     if batches is not None:
         from matplotlib.collections import PathCollection
-        for (color, opacity, highlighted, drill), paths in batches.items():
+        for (color, opacity, highlighted, drill,width), paths in batches.items():
             collection = PathCollection(paths, facecolors=[color], edgecolors=[color],
-                                        linewidths=1.2 if highlighted else .4, alpha=opacity*alpha,
+                                        linewidths=width, alpha=opacity*alpha,
                                         zorder=6 if highlighted else .1 if drill else 0,
                                         transform=ax.transData)
             ax.add_collection(collection);artists.append(collection)

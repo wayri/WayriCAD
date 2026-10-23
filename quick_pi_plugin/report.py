@@ -349,30 +349,42 @@ def _fit_board_view(ax):
 
 
 def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None):
-    """Saved non-copper contours stay readable over an opaque solved plane."""
-    from matplotlib import patheffects
-    names={str(key):name for key,name in scene.get('layers',{}).items()}
+    """Draw saved silkscreen at physical size; no invented centroid labels."""
+    from matplotlib.collections import PathCollection
+    from matplotlib.patches import PathPatch
+    from wayricad_runtime.board_render import prepare_scene
+    scene=prepare_scene(scene)
+    names={str(key):name for key,name in scene.get('canonical_layers',scene.get('layers',{})).items()}
     name=names.get(str(layer),layer_name)
-    side='B.' if name=='B.Cu' else 'F.' if name=='F.Cu' or layer is None else None
-    graphics={side+suffix for suffix in ('SilkS','Silkscreen','Fab','CrtYd','Courtyard')} if side else set()
+    sides=('F.','B.') if layer=='all' else ('B.',) if name=='B.Cu' else ('F.',) if name=='F.Cu' or layer is None else ()
+    graphics={side+suffix for side in sides for suffix in ('SilkS','Silkscreen')}
+    groups={}
     for row in scene.get('primitives',[]):
         role=row.get('role');on_layer=layer=='all' or str(row.get('layer'))==str(layer)
         if role=='drill' and visible_nets is not None and row.get('net') and row.get('net') not in visible_nets:continue
         visible=(role=='outline' or role=='drill' and on_layer or
-                 role=='reference' and (on_layer or layer is None and names.get(str(row.get('layer')))=='F.Cu') or
-                 role in ('drawing','footprint') and names.get(str(row.get('layer'))) in graphics)
-        if not visible:continue
-        if row.get('kind')=='polygon' and len(row.get('points',[]))>=3:
-            artist=_polygon_patch({'outer':row['points'],'holes':row.get('holes',[])})
-            artist.set_facecolor('none');artist.set_edgecolor('#34434d')
-            artist.set_linewidth(.9 if role=='outline' else .5)
-            ax.add_patch(artist)
-        elif row.get('kind')=='text':
-            artist=ax.text(*row['center'],row['text'],fontsize=6.5,color='#23333e',clip_on=True)
-        else:continue
-        artist.set_zorder(8);artist.set_alpha(.9)
-        artist.set_gid('board-context:'+role+':'+str(row.get('uuid','')))
-        artist.set_path_effects([patheffects.withStroke(linewidth=1.8,foreground='#f3f6f7')])
+                 role in ('drawing','footprint','reference') and names.get(str(row.get('layer'))) in graphics)
+        # Old reports may contain synthetic fixed-font centroid labels. They
+        # are not saved silkscreen and must not return as oversized annotations.
+        if not visible or row.get('kind')!='polygon' or len(row.get('points',[]))<3:continue
+        path=scene.polygon_path(row)
+        if path is None:continue
+        gid='board-context:'+str(role)+':'+str(row.get('uuid',''))
+        groups.setdefault(role,[]).append((path,gid))
+    for role,paths in groups.items():
+        fill='none' if role=='outline' else ax.get_facecolor() if role=='drill' else '#34434d'
+        edge='#34434d' if role=='outline' else 'none'
+        width=.6 if role=='outline' else 0
+        if len(paths)>128:
+            artist=PathCollection([path for path,_ in paths],facecolors=fill,edgecolors=edge,
+                                  linewidths=width,alpha=.9,zorder=8,transform=ax.transData)
+            artist.set_gid('board-context:'+role)
+            artist._wayricad_context_gids=[gid for _,gid in paths]
+            ax.add_collection(artist)
+        else:
+            for path,gid in paths:
+                artist=PathPatch(path,facecolor=fill,edgecolor=edge,linewidth=width,alpha=.9,zorder=8)
+                artist.set_gid(gid);ax.add_patch(artist)
 
 
 def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits=None,inspection=None,
@@ -425,10 +437,18 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
     if bundle.get('view_settings',{}).get('isolate_nets') is False:visible_nets=None
     if show_context and scene:
         from wayricad_runtime.board_render import draw_matplotlib
+        if board_view:
+            # Saved silk/holes/edges are drawn once above the field below.
+            # The selected copper already has exact union geometry in this view.
+            owned=set(geometry.get('nets') or ([geometry['net']] if geometry.get('net') else []))
+            scene_underlay=dict(scene,primitives=[row for row in scene.get('primitives',[])
+                if show_copper and row.get('role') in ('track','pad','via','zone') and row.get('net') not in owned])
+        else:scene_underlay=scene
         if not show_copper:
-            scene=dict(scene,primitives=[row for row in scene.get('primitives',[]) if row.get('role') not in ('track','pad','via','zone')])
-        draw_matplotlib(ax,scene,visible_layers=None if combined or layer is None else [layer],
-                        visible_nets=visible_nets,highlight_ids=(inspection or {}).get('source_ids',[]),alpha=.35)
+            scene_underlay=dict(scene_underlay,primitives=[row for row in scene_underlay.get('primitives',[]) if row.get('role') not in ('track','pad','via','zone')])
+        draw_matplotlib(ax,scene_underlay,visible_layers=None if combined or layer is None else [layer],
+                        visible_nets=visible_nets,highlight_ids=(inspection or {}).get('source_ids',[]),alpha=.35,
+                        path_source=scene if board_view else None)
     if not selected:
         if not board_view:ax.set_aspect('auto')
         ax.text(.5,.5,'Choose a net and preview its copper.',ha='center',va='center',transform=ax.transAxes)
@@ -551,8 +571,9 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         ax.plot(*center,marker='o' if is_source else 's',markersize=4.5 if board_view else 6,color='#13854c' if is_source else '#b94535',markeredgecolor='white')
         label=('Source' if is_source else 'Sink') if board_view else ('Source: ' if is_source else 'Sink: ')+terminal.get('label',terminal['id'])
         offset=7 if not board_view or center[0]<sum(ax.dataLim.intervalx)/2 else -7
-        ax.annotate(label,center,xytext=(offset,7),ha='left' if offset>0 else 'right',textcoords='offset points',fontsize=8,
-                    bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
+        if not board_view:
+            ax.annotate(label,center,xytext=(offset,7),ha='left' if offset>0 else 'right',textcoords='offset points',fontsize=8,
+                        bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
     if board_view and show_context and scene:_draw_board_context(ax,scene,layer,selected['name'],visible_nets)
     if inspection and inspection.get('source_ids') and bundle.get('board_scene'):
         from wayricad_runtime.board_render import draw_matplotlib

@@ -24,6 +24,23 @@ class DisplayGeometryTests(unittest.TestCase):
 
 @unittest.skipIf(p is None,'Requires KiCad native PCB geometry')
 class NativeBoardRenderTests(unittest.TestCase):
+    def test_reference_uses_saved_visible_glyph_geometry_not_centroid_text(self):
+        board=p.BOARD();fp=p.FOOTPRINT(board);board.Add(fp);fp.SetReference('R123')
+        fp.SetPosition(p.VECTOR2I(p.FromMM(5),p.FromMM(5)))
+        field=fp.Reference();field.SetVisible(True);field.SetLayer(p.F_SilkS)
+        field.SetPosition(p.VECTOR2I(p.FromMM(12),p.FromMM(8)))
+        field.SetTextSize(p.VECTOR2I(p.FromMM(.7),p.FromMM(.7)))
+        field.SetTextAngle(p.EDA_ANGLE(45,p.DEGREES_T));fp.Value().SetVisible(False)
+        scene=extract_board(board)
+        self.assertFalse(any(row['kind']=='text' for row in scene['primitives']))
+        rows=[row for row in scene['primitives'] if row['role']=='reference']
+        self.assertTrue(rows);self.assertTrue(all(row['layer']==p.F_SilkS for row in rows))
+        poly=p.SHAPE_POLY_SET();field.TransformShapeToPolygon(poly,p.F_SilkS,0,p.FromMM(.01),p.ERROR_INSIDE)
+        expected=[[[p.ToMM(pt.x),p.ToMM(pt.y)] for pt in poly.COutline(i).CPoints()] for i in range(poly.OutlineCount())]
+        self.assertEqual([row['points'] for row in rows],expected)
+        field.SetVisible(False)
+        self.assertFalse(any(row['role']=='reference' for row in extract_board(board)['primitives']))
+
     def test_saved_native_copper_width_drills_and_pad_ownership(self):
         board=p.BOARD()
         point=lambda x,y:p.VECTOR2I(p.FromMM(x),p.FromMM(y))
