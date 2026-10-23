@@ -2,6 +2,15 @@
 
 <img src="icon.png" width="64" height="64" alt="Silkscreen Label Placer icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#get-started) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run silkscreen-label-placer -- --help` |
+
+CLI scope: Read-only placement preview and reports; apply remains in the GUI. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 Place readable references beside their own components on both sides of a KiCad
 10 PCB. Preview first, review exceptions, then apply. Electrical values, BoM
 metadata, component positions and routing stay unchanged.

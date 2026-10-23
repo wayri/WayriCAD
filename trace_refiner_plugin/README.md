@@ -4,6 +4,35 @@
 
 Remove small routing jogs or center off-center track contacts on an open KiCad 10 PCB. Choose **Routing jogs** or the separate **Pad / via centering** tab, preview the changes, validate them with native KiCad connectivity and DRC, then apply. This tool adjusts existing tracks; it does not route missing connections or tune signals.
 
+| Start here | Reference |
+|---|---|
+| [Latest release](https://github.com/wayri/WayriCAD/releases/latest) | [Install](../docs/INSTALLATION.md) · [Suite CLI](../docs/TOOL_CLI_CATALOGUE.md) |
+| [Preview → Validate → Apply](#use) | [Command line](#command-line) |
+| [Compare old and new routing](#comparing-proposed-routes) | [Protected geometry](#what-is-protected) |
+| [Center pad/via contacts](#center-pad-and-via-contacts) | [Troubleshooting](#troubleshooting) · [Offline help](help.html) |
+
+## Native workflow: compare, validate and apply
+
+![Validated routing shown side by side](help-validated-comparison.png)
+
+Actual Windows / KiCad 10.0.6 window on a disposable two-pad fixture. Amber is
+the original route; teal is the proposed replacement. Five segments become one,
+with 0.1243 mm shortening, within the selected 0.20 mm displacement and 0.30 mm
+shortening limits. Native validation reported unchanged terminal connectivity
+and **zero new DRC findings**; two baseline findings remained in both reports.
+The saved source was unchanged during preview and validation.
+
+![Successful refinement with Undo available](help-applied-refinement.png)
+
+After explicit Apply, the proposal table is cleared and both comparison panes
+show the current, refined board context. The native status confirms Apply and
+offers Undo. This run retained the first source track UUID, checked native
+connectivity, and restored all five original tracks with Undo. These are source
+window checks on a synthetic fixture, not a claim that a user board or installed
+editor session was qualified. See [capture provenance and checks](../docs/audits/ROUTING_README_SCREENSHOTS_2026-10-23.md).
+
+### Earlier routing and review examples
+
 ![Native Trace Refiner preview](help-workflow.png)
 
 The screenshot uses a disposable routing fixture. Amber and teal show centreline changes; grey is surrounding routing. It is a native window capture, not a result from your board.
@@ -189,7 +218,7 @@ requires the matching KiCad CLI for validation.
 
 For source development, `python build_pcm.py --output-dir candidate` builds disposable independent installers in `candidate/`.
 
-Windows with KiCad 10.0.6 is the native validation target. Linux/macOS GUI and KiCad 11 are unverified. Trace Refiner's plugin version is independent of the suite release number; suite 3.6.19 includes plugin 0.1.1; source/candidate 0.2.0 is validated separately.
+Windows with KiCad 10.0.6 is the native validation target. Linux/macOS GUI and KiCad 11 are unverified. Trace Refiner's plugin version is independent of the suite release number; consult its PCM metadata and the suite release notes for the installed version. Historical validation documents below describe their named revisions.
 
 KiCad describes [routing and design-rule checking](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html). Review fabrication, tuning and stackup requirements for your board before accepting geometric changes.
 

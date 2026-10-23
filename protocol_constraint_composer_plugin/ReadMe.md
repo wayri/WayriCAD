@@ -2,6 +2,15 @@
 
 <img src="resources/icon-96.png" width="72" height="72" alt="Constraint Studio icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#getting-started) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run protocol-constraints -- --help` |
+
+CLI scope: JSON constraint composition; reviewed project apply remains separate. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 Create and review KiCad design rules in a saved-project workspace. Studio supports
 custom constraints, netclasses, clearance matrices and per-layer routing profiles.
 Edits stay staged until you export and apply a reviewed copy.

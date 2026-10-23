@@ -2,6 +2,15 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Manufacturing Readiness Manager icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#overview) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run manufacturing-readiness -- --help` |
+
+CLI scope: JSON manufacturing audit; native DRC remains a separate release gate. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 ## Capabilities
 
 - Audit saved track, via, pad-drill, slot and supported annular-ring geometry against a fabricator profile.

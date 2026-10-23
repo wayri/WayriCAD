@@ -2,6 +2,31 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+## Start here
+
+| Need | Open |
+|---|---|
+| Install or update | [Release 3.6.28](https://github.com/wayri/WayriCAD/releases/tag/v3.6.28) · [Installation](../docs/INSTALLATION.md) |
+| First power-path check | [Workflow](#workflow) · [Reading results](#reading-results) |
+| Multiple rails, returns and heating | [Multi-net studies](#multi-net-cases-return-copper-and-joule-feedback) |
+| Scripts and reports | [Command line](#command-line) · [Offline help](help.html) |
+| Equations and applicability | [Solver methods](#solver-methods) · [References](#references-and-research) |
+
+**3.6.28:** initial inspection no longer extracts a display scene only to discard
+and rebuild it. Inventory updates are batched, and shared dropdown/picking caches
+avoid repeated full-board work. Marble geometry-ready time improved from 33.09 s
+to 20.26 s; the first load remains substantial. [Measured phases and limits](../docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md).
+These startup changes do not change material values, mesh targets or solver equations.
+
+### Current Marble geometry preview
+
+![Quick PI selected +12V geometry on public Marble](help-marble-geometry-3.6.28.png)
+
+Actual 3.6.28 native window after loading public Marble. This shows extracted
+`+12V` copper and saved board context, not a completed mesh/voltage solve.
+The visible source/load defaults have not been reviewed as a power-path study.
+Set the actual ports and operating conditions before Run. [Capture provenance](../docs/audits/README_GALLERY.md#capture-provenance--23-october-2026).
+
 ## Board navigation and labels
 
 The board view uses saved, visible silkscreen at its actual size, position and

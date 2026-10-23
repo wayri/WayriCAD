@@ -2,6 +2,15 @@
 
 <img src="icon.png" width="64" height="64" alt="Component Arranger icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#quick-start) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run component-arranger -- --help` |
+
+CLI scope: Placement preview, validation and candidate output. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 Arrange a chosen set of **unrouted PCB footprints** around a fixed anchor. Choose a schematic sub-sheet, a PCB group, wire-connected schematic clusters, or check parts yourself. Review the allowed area, original/proposed courtyards, projected connections and measured improvement before applying.
 
 ![Native Component Arranger preview](help-workflow.png)
@@ -82,7 +91,7 @@ Omit area dimensions to size a suggested region from reserved envelopes and requ
 
 ## Installation and evidence
 
-Source/candidate **0.1.0**, independently packaged as `WayriCAD-component-arranger-0.1.0-PCM.zip`. Install with **KiCad Manager → Plugin and Content Manager → Install from File**, restart PCB Editor. No sibling plugin or IPC API is required. It is not in the published release/feed yet.
+Install the **Component Arranger PCM ZIP** from the latest WayriCAD release with **KiCad Manager → Plugin and Content Manager → Install from File**, then restart PCB Editor. The package is independently versioned; no sibling plugin or IPC API is required.
 
 See [offline help](help.html) and [validation evidence](https://github.com/wayri/WayriCAD/blob/develop/docs/audits/COMPONENT_ARRANGER.md). Windows/KiCad 10.0.6 is the native test target. Other platforms/versions require native verification.
 

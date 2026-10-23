@@ -2,6 +2,15 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Embed3D icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#getting-started) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run embed-3d -- --help` |
+
+CLI scope: Asset inventory, localization dry run and reviewed operations. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 ## Capabilities
 
 - Localizes symbols, footprints, and 3D models into a project-relative folder.
@@ -23,11 +32,17 @@
 
 The default window is a selective asset workspace. It scans saved PCB and schematic files, lists components, and lets you check the symbols, footprints and 3D model sets to process. The existing `embed-3d` package identifier is retained for upgrades.
 
-Install `WayriCAD-embed-3d-3.1.1-PCM.zip` using KiCad PCM **Install from File**. Enable the API in Preferences → Plugins. Local normalization and validation require KiCad 10 native Python; `WAYRICAD_KICAD_PYTHON` can select it. IPC is the forward integration path; KiCad 11 native acceptance remains unverified.
+Install the **Embed3D PCM ZIP from the latest release** using KiCad PCM **Install from File**. Enable the API in Preferences → Plugins. Local normalization and validation require KiCad 10 native Python; `WAYRICAD_KICAD_PYTHON` can select it. IPC is the forward integration path; KiCad 11 native acceptance remains unverified.
+
+## Getting started
 
 For the usual workflow, save the PCB and schematic, open Embed3D, and click **Scan**. Check the wanted component assets, then click **Preview embed + relink** and review the new-design output before **Apply preview**. This embeds checked assets and relinks the new saved design copy; source designs are unchanged. To take embedded assets back out as files, click **Preview unwind** and apply. The default destination is a unique folder under the project's `local/` directory. Unwind does not change the design; choose **Relink** under Options if a new externally linked design copy is also needed.
 
 **Options & library tools → Localize entire project with backup** retains the full-project workflow. It keeps symbols, footprints and 3D models together in **`local/`**, or another relative project folder, and updates the saved project with a backup after a separate preview. Save and close project editors before that in-place operation. Settings remember the folder, additional model roots and explicit `NAME=FOLDER` path variables.
+
+![Full-project localization preview with a generated example](help-project-library.png)
+
+Advanced **Localize entire project with backup** preview, also shown in offline help. This is a generated example; this operation updates project files after review and editor closure.
 
 Full-project localization output contains a `.pretty` footprint library, `symbols/WayriCAD_Project.kicad_sym`, `models/`, and a content manifest. Project tables use `${KIPRJMOD}` links. Placed schematic footprint assignments, symbol IDs/cache keys, PCB footprint IDs and model addresses are updated together. Native footprint normalization and model-transform checks preserve placement. Schematic-only designs also collect assigned footprints.
 

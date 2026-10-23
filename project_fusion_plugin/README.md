@@ -1,6 +1,17 @@
-# Wayri Project Fusion 0.9.8
+# WayriCAD Project Fusion
 
-**KiCad 10 · native wxPython plugin · testing release**
+<img src="resources/icon-96.png" width="96" height="96" alt="Project Fusion icon">
+
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#guided-import-and-variant-destination) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run project-fusion -- --help` |
+
+CLI scope: Saved-project analysis and reviewed merge operations. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
+**KiCad 10 · native wxPython plugin**
 
 Combine 1–100 saved KiCad project instances or extracted routed subsheet instances into a new project, a parent schematic and one PCB. Select a native assembly variant independently for each source, collect local dependencies, and reannotate the schematic and PCB together without reference-only relinking.
 
@@ -179,7 +190,7 @@ actually run and limits of the release qualification.
 
 ## Install or upgrade
 
-Use **`WayriCAD-project-fusion-0.9.5-PCM.zip`**, not the source ZIP. Open KiCad's Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
+Download the **Project Fusion PCM ZIP** from the latest WayriCAD release. Open KiCad's Plugin and Content Manager, choose **Install from File**, select the ZIP without extracting it, and apply the installation. Restart the PCB Editor. Launch **Wayri Project Fusion** from its toolbar button or **Tools → External Plugins**.
 
 This retains the package identifier `org.wayri.projectfusion`. Remove an old manually installed copy before installing through PCM, so two versions are not loaded. The PCM archive puts the Python package directly inside `plugins/`; it does not add an extra nested source folder.
 

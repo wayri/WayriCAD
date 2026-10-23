@@ -1,11 +1,11 @@
 # README catalogue and native screenshot recapture
 
-The default-branch README now presents the complete active package catalogue
-near the top, before the installation instructions and screenshot gallery.
-All 19 rows link their package guides and match the active `metadata.json`
-inventory. Feature descriptions include the recent BOM totals, PI transients,
-electrothermal studies, thermal playback and mechanical measurement workflows.
-Bundled tools are described within their owning package.
+The current default-branch README contains all 24 active plugin guides and a
+gallery grouped by the same plugin names. Installation, first-use instructions
+and the catalogue precede the full-size previews. The 10 October record below
+describes the 19-plugin inventory at that time; the 23 October section records
+the current documentation and new captures. Bundled tools remain under their
+owning package, and earlier screenshots are retained.
 
 ## Capture provenance — 10 October 2026
 
@@ -75,3 +75,50 @@ large PNG previews linked by plugin guides found no remaining transparency.
 GitHub's Markdown API rendered the catalogue heading and all full-width image
 links successfully. Native PI and both mechanical workspace checks passed;
 thermal input and board-view captures preserved the saved source hash.
+
+## 23 October 2026 refresh
+
+The root gallery now groups previews under all 24 plugin names. All 24 plugin
+guides link to installation, first-use guidance, offline help and the CLI.
+The refresh retains all 166 existing local image references across the root
+README and those guides. Older captures remain historical examples.
+
+Eight additional screenshots were captured from actual native windows on
+Windows, KiCad 10.0.6, Python 3.11.5 and wxPython 4.2.2. They are opaque RGB
+PNGs with empty image metadata. Headers, status bars and visible fields were
+inspected for personal paths and identifiers. Source revision was `bb1caf53`.
+These documentation changes do not replace published 3.6.28 binaries.
+
+| New capture | What the capture establishes |
+|---|---|
+| [Quick PI / Marble](../../quick_pi_plugin/help-marble-geometry-3.6.28.png) | Saved `+12V` geometry loads; no PI solve was performed. Editable source/load defaults are not validated power-path roles. |
+| [Thermal inputs](../../quick_therm_plugin/examples/quicktherm-input-3.6.28.png) | Four included parts with declared loads and limits; two mounting holes excluded. |
+| [Thermal 3D](../../quick_therm_plugin/examples/quicktherm-3d-3.6.28.png) | Interactive surface and footprint markers; STEP loading disabled. |
+| [Thermal paired views](../../quick_therm_plugin/examples/quicktherm-paired-3.6.28.png) | Top/back presentation of one approximate shared board-midplane field; this fixture has no bottom-side footprints. |
+| [Connector before](../../fanout_generator_plugin/help-connector-before.png) / [proposed](../../fanout_generator_plugin/help-connector-proposed.png) | Six-pin disposable PTH fixture; six accepted escapes. |
+| [Refiner validated](../../trace_refiner_plugin/help-validated-comparison.png) / [applied](../../trace_refiner_plugin/help-applied-refinement.png) | Five segments become one; native validation and Apply/Undo exercised on a disposable fixture. |
+
+Thermal assumptions were 1.05 W total declared dissipation, 20 °C ambient,
+35 W/(m·K) effective sheet conductivity, emissivity 0.8 and 10 m/s air. Automatic
+meshing produced 600 cells. The approximate board field was about 23.6–27.3 °C;
+declared junction-to-board resistances gave component junction estimates about
+26.31–32.39 °C. The heat-balance residual was 2.62e-14 W. These are assumed-input
+demonstrations, not physical qualification or resolved package gradients.
+Both saved source boards were unchanged. Public Marble's SHA-256 remained
+`482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0`.
+
+The [routing capture audit](ROUTING_README_SCREENSHOTS_2026-10-23.md) records
+the native fixture checks, UUID preservation and screenshot hashes. Existing
+model limitations remain in each plugin guide.
+
+| Additional capture | SHA-256 |
+|---|---|
+| `quick_pi_plugin/help-marble-geometry-3.6.28.png` | `83482d4e248054c2f33bc7781a7b431960e828105fedcf980f2e2b6f9ff7254e` |
+| `quick_therm_plugin/examples/quicktherm-input-3.6.28.png` | `bcf7e1e9a08202066d95a447e58b3cc744fb859d85be84bd451230492f283929` |
+| `quick_therm_plugin/examples/quicktherm-3d-3.6.28.png` | `20b798b227581b700edcfec6b041608f43ba3e249a6ee8246a5f3b4ddf6ba65d` |
+| `quick_therm_plugin/examples/quicktherm-paired-3.6.28.png` | `5afeb9f5ad99789f80d0733f784f340c97dc2e754dded02e8819283bba853f6d` |
+
+For this refresh, all 13 focused documentation regression tests passed, as did
+the source documentation validator, existing-image retention check and PNG
+metadata checks. The first-run native screenshots are evidence of the stated
+source workflows, not installed-package or cross-platform acceptance.

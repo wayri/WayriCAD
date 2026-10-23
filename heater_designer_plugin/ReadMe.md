@@ -2,6 +2,22 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD PCB / Foil Heater Designer icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#getting-started) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run heater-designer -- --help` |
+
+CLI scope: JSON heater analysis; PCB placement remains in the GUI. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
+## Getting started
+
+1. Save the PCB and open the Heater Designer PCM plugin. Choose a clear placement area and the intended copper layer and net.
+2. Choose a pattern, dimensions, spacing and material. Enter the electrical loading and actual material properties where required.
+3. Preview the conductor, then inspect the thermal estimate with its stated boundary assumptions. Changing inputs requires a fresh preview.
+4. Review placement before applying copper, or export foil SVG for an external process. Connect terminals afterward and run KiCad DRC; validate thermal behaviour on a prototype.
+
 ## Capabilities
 
 - Designs series-connected serpentine, zoned-raster, and concentric-spiral copper heaters.

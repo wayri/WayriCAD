@@ -10,8 +10,8 @@ linking, continuous integration, and KiCad jobset output pipelines.
 
 For plain-English coordination, use `wayricad-assistant --help` or
 `wayricad tools run assistant -- --help`. The [Assistant guide](../suite_assistant_plugin/README.md)
-explains command review, required inputs and visual results. This plugin is in
-development and is not part of release 3.6.27.
+explains command review, required inputs and visual results. Release 3.6.28
+includes Assistant as a testing package; interpreted commands still require review.
 
 ## 1. Installation and runtime selection
 

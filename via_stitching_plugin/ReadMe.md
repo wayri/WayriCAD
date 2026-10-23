@@ -2,6 +2,17 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Via Stitching icon">
 
+Place reviewed through-via grids in filled copper, or add ground/guard vias
+beside selected signal routes. Preview first; Apply remains a separate action.
+
+| Task | Start here |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| Fill an area with stitching vias | [Workflow](#workflow) · [Controls and checks](#controls-and-checks) |
+| Guard a signal route | [Signal-guard workflow](#guard-a-signal-route) |
+| Run without the window | [Command line](#command-line) |
+| Resize controls or resolve a limitation | [Workspace/help](#resize-the-workspace-and-find-help) · [Limitations](#limitations) |
+
 ## Capabilities
 
 - Preview square/staggered via grids on a chosen net with configurable spacing, diameter, drill and clearance.
@@ -23,7 +34,9 @@
 
 A fully local routing tool for PCB Editor. No hosted UI or remote preview assets are required.
 
-## Native interface
+## Native workflows
+
+### Grid placement
 
 ![Native WayriCAD Via Stitching window](help-workflow.png)
 
@@ -33,7 +46,12 @@ Synthetic GND-board preview illustrating candidate via placement. Preview candid
 
 ![Actual native guard-via preview](help-guard-preview.png)
 
-Synthetic two-layer board: the selected signal is dark teal; the 22 proposed GND through-vias are light cyan. Filled top and bottom GND planes and an existing plated ground connection provide the target copper. This is an actual plugin window, not a mockup; no private board or machine paths appear in the capture.
+Retained actual Windows / KiCad 10.0.6 native capture on a synthetic two-layer
+board: the selected signal is dark teal; the **22 proposed GND through-vias** are
+light cyan. Filled top and bottom GND planes and an existing plated ground
+connection provide the target copper. The status reads “22 prepared vias”;
+this image shows a preview, not a committed board or an RF qualification.
+No private board or machine paths appear. See [capture provenance](../docs/audits/ROUTING_README_SCREENSHOTS_2026-10-23.md).
 
 1. Select **Guard selected routes**. Keep **Via net** on the intended ground/guard net; it must differ from the signal nets.
 2. Check one or more exact **Signal nets**, or select tracks in PCB Editor and click **Use selected PCB tracks**. Checked nets and captured track IDs are combined. **Ctrl+F** opens the full-name wildcard/fuzzy search with multiple selection.

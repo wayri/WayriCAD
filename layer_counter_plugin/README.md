@@ -2,6 +2,15 @@
 
 <img src="icon.png" width="64" alt="Layer Counter icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#get-started) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run layer-counter -- --help` |
+
+CLI scope: Counter preview and separate candidate output. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 Add a movable copper-layer identification group to a KiCad PCB. Choose a pattern, select physical copper layers, preview the result, then add it to the board.
 
 | Setup | Options |
@@ -42,9 +51,8 @@ Review the separate output board before adopting it. Use KiCad 10's bundled Pyth
 
 ## Install and limits
 
-This is the 0.1.0 source/candidate plugin; the public PCM feed is unchanged until
-publication. Build candidates with `python build_pcm.py --output-dir candidate`
-and install `WayriCAD-layer-counter-0.1.0-PCM.zip` using KiCad Manager's
+Download the **Layer Counter PCM ZIP** from the latest WayriCAD release
+and install it using KiCad Manager's
 **Plugin and Content Manager → Install from File**, then restart PCB Editor.
 The plugin is independent and does not require another WayriCAD tool.
 

@@ -274,7 +274,36 @@ Current and earlier screenshots are grouped by tool. Click an image for its
 original resolution. Demonstration inputs are not predictions for your board;
 older captures retain generic-path redactions. [Capture provenance](docs/audits/README_GALLERY.md).
 
+| Explore | Previews |
+|---|---|
+| Run analyses | [Quick PI](#quick-pi) · [QuickTherm](#quicktherm) · [Quick SI](#quick-si) · [Trace RLC](#trace-rlc--impedance) |
+| Improve layout | [Fanout](#fanout-generator) · [Guard vias](#via-stitching) · [Trace Refiner](#trace-refiner) · [Silkscreen](#silkscreen-label-placer) |
+| Coordinate tools | [Assistant](#wayricad-assistant) · [All plugin guides](#all-24-plugins) |
+
+### [WayriCAD Assistant](suite_assistant_plugin/README.md)
+
+**Interpret a request and review its inputs**
+
+<a href="suite_assistant_plugin/help-plan.png"><img src="suite_assistant_plugin/help-plan.png" width="960" alt="Native Assistant interpretation and parameter review"></a>
+
+The testing package uses local fuzzy matching and registered CLI actions.
+This plan view is shown before execution; it does not claim a simulation result.
+
+**Select exact nets on the saved board**
+
+<a href="suite_assistant_plugin/help-board-selection.png"><img src="suite_assistant_plugin/help-board-selection.png" width="960" alt="Assistant highlighting the selected public Marble net while muting other copper"></a>
+
+Public Marble, read-only. Exact selected copper is highlighted; zone borders
+remain outlines. [Workflow and native-capture scope](suite_assistant_plugin/README.md).
+
 ### [Quick PI](quick_pi_plugin/README.md)
+
+**Current Marble geometry preview · 3.6.28**
+
+<a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="960" alt="Quick PI current native +12V geometry preview on public Marble"></a>
+
+Read-only extracted copper and board context. The editable terminal/operating
+defaults are not a reviewed power-path study, and no voltage field has been solved.
 
 **Board and results workspace**
 
@@ -304,6 +333,20 @@ Generated demonstration board with illustrative lead/solder properties. [Capture
 Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
 
 ### [QuickTherm](quick_therm_plugin/README.md)
+
+**Current paired top/bottom inspection · 3.6.28**
+
+<a href="quick_therm_plugin/examples/quicktherm-paired-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-paired-3.6.28.png" width="960" alt="QuickTherm current paired board field and component temperature table"></a>
+
+Generated saved-board example, 1.05 W total and explicit forced-air assumptions.
+Both faces display one approximate midplane field; the back is mirrored. No
+bottom-side footprints are present in this example.
+
+**Current 3D inspection**
+
+<a href="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png" width="960" alt="QuickTherm current native 3D board temperature overview"></a>
+
+STEP loading is off; component markers are illustrative. [Inputs and capture scope](quick_therm_plugin/README.md#current-native-previews).
 
 **STEP models and transient heating**
 
@@ -426,6 +469,21 @@ Mechanical Check has a hideable findings sidebar, clearer filters and detail car
 
 ### [Trace Refiner](trace_refiner_plugin/README.md)
 
+**Validated original/proposed comparison · 3.6.28**
+
+<a href="trace_refiner_plugin/help-validated-comparison.png"><img src="trace_refiner_plugin/help-validated-comparison.png" width="960" alt="Trace Refiner validated side-by-side original and proposed routing"></a>
+
+Disposable five-segment fixture: one proposed replacement, zero new native DRC
+findings. Existing baseline findings remain visible; validation is not a blanket
+DRC pass.
+
+**After explicit Apply**
+
+<a href="trace_refiner_plugin/help-applied-refinement.png"><img src="trace_refiner_plugin/help-applied-refinement.png" width="960" alt="Trace Refiner after an actual Apply with Undo available"></a>
+
+The first source UUID was retained; Undo restored the original track snapshot.
+[Fixture, validation and capture details](docs/audits/ROUTING_README_SCREENSHOTS_2026-10-23.md).
+
 Clean small routing jogs or center existing pad/via track contacts with selected-track, selected-net, net-filter, net-class and layer scopes. Centering only adjusts an endpoint already touching one unambiguous same-net terminal; actual gaps remain unchanged. Preview keeps routing untouched; native connectivity and before/after DRC must pass before Apply. Differential pairs and protected routing remain unchanged. Available as its own PCM package, with offline Help and a CLI for preview, validation and export to a new project.
 
 ![Native trace refinement preview](trace_refiner_plugin/help-workflow.png)
@@ -475,6 +533,23 @@ These options stay separate from the simple main workflow. Native fabrication mi
 
 ### [Fanout Generator](fanout_generator_plugin/ReadMe.md)
 
+**Connector before and proposed after · 3.6.28**
+
+<a href="fanout_generator_plugin/help-connector-before.png"><img src="fanout_generator_plugin/help-connector-before.png" width="960" alt="Fanout connector Before view with existing pads and no proposed copper displayed"></a>
+
+<a href="fanout_generator_plugin/help-connector-proposed.png"><img src="fanout_generator_plugin/help-connector-proposed.png" width="960" alt="Fanout connector After preview with six accepted exits and the selected-component thumbnail"></a>
+
+Actual native window on a six-pin generated connector. All six proposals were
+accepted; Apply created 12 tracks and Undo removed them. This fixture is separate
+from the full-board Marble trials and does not establish dense-BGA completion.
+
+**Guided review on Marble · 3.6.28**
+
+<a href="fanout_generator_plugin/help-guided-preview.png"><img src="fanout_generator_plugin/help-guided-preview.png" width="960" alt="Fanout guided workspace with actual Marble component thumbnail, accepted and rejected counts, and accessible action buttons"></a>
+
+Actual accepted candidates appear in teal; existing geometry provides context.
+This read-only preview is not a completed or DRC-qualified route.
+
 **Live style preview**
 
 Select components or pins, choose a style and inspect its actual fanouts in the
@@ -505,6 +580,21 @@ Review winding layouts, motor EMF/force and supported simulation models in the g
 | [Magnetics equation references](docs/MAGNETICS_VERIFICATION.md) | Filament and capacitance-matrix checks. |
 
 
+### [Project Fusion](project_fusion_plugin/README.md)
+
+**Guided import**
+
+<a href="project_fusion_plugin/help-guided-import.png"><img src="project_fusion_plugin/help-guided-import.png" width="960" alt="Project Fusion guided source and import review"></a>
+
+Inspect the detected source scope and proposed changes before applying an import
+or linked update. Existing layout and schematic update policies remain explicit.
+
+**Variant destination choices**
+
+<a href="project_fusion_plugin/help-variant-destination.png"><img src="project_fusion_plugin/help-variant-destination.png" width="960" alt="Project Fusion source variant and destination policy choices"></a>
+
+Review whether the source variant is merged into a working variant or retained separately.
+
 ### [Variant Manager](variant_manager_plugin/README.md)
 
 **Assembly comparison**
@@ -512,6 +602,59 @@ Review winding layouts, motor EMF/force and supported simulation models in the g
 <a href="variant_manager_plugin/help-workspace.png"><img src="variant_manager_plugin/help-workspace.png" width="960" alt="Variant Manager native assembly comparison"></a>
 
 Compare saved and staged assembly states, with bulk operations and reviewed recovery.
+
+### [Via Stitching](via_stitching_plugin/ReadMe.md)
+
+**Guard a selected signal · 3.6.28**
+
+<a href="via_stitching_plugin/help-guard-preview.png"><img src="via_stitching_plugin/help-guard-preview.png" width="960" alt="Native guard-stitching preview with separate signal and guard nets, side and offset controls, and 22 proposed through-vias"></a>
+
+Generated two-plane fixture with 22 proposed GND through-vias. Native DRC after
+refill added no findings. A one-plane negative fixture produced dangling-via
+warnings; geometric clearance alone does not establish a useful return path.
+[Workflow and limitations](via_stitching_plugin/ReadMe.md#guard-a-signal-route).
+
+### [Embed3D](embed_3d_plugin/README.md)
+
+<a href="embed_3d_plugin/help-project-library.png"><img src="embed_3d_plugin/help-project-library.png" width="960" alt="Embed3D full-project localization and library preview"></a>
+
+Review the proposed local libraries and models before exporting a portable project.
+
+### [Pin Extractor](extract_pins_plugin/ReadMe.md)
+
+<a href="extract_pins_plugin/help-workflow.png"><img src="extract_pins_plugin/help-workflow.png" width="960" alt="Pin Extractor selection, connectivity and export preview"></a>
+
+Choose exact scope and fields, inspect the pin map, then export tables or diagrams.
+
+### [Harness and Cable Workbench](harness_workbench_plugin/ReadMe.md)
+
+<a href="harness_workbench_plugin/help-workflow.png"><img src="harness_workbench_plugin/help-workflow.png" width="960" alt="Harness and Cable Workbench native connector mapping workspace"></a>
+
+Review explicit connector and wire mappings; a PCB net alone cannot infer an external cable.
+
+### [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md)
+
+<a href="bulk_label_editor_plugin/help-workflow.png"><img src="bulk_label_editor_plugin/help-workflow.png" width="960" alt="Bulk Label Editor native field and text review"></a>
+
+Select the text/field scope, review proposed changes and apply them explicitly.
+
+### [Copper Balancer](copper_balancer_plugin/README.md)
+
+<a href="copper_balancer_plugin/help-diagnostics.png"><img src="copper_balancer_plugin/help-diagnostics.png" width="960" alt="Copper Balancer synthetic board density diagnostics"></a>
+
+Synthetic density example. Inspect exclusions and generated copper before export and native DRC.
+
+### [PCB / Foil Heater Designer](heater_designer_plugin/ReadMe.md)
+
+<a href="heater_designer_plugin/help-workflow.png"><img src="heater_designer_plugin/help-workflow.png" width="960" alt="PCB and foil Heater Designer native geometry preview"></a>
+
+Review geometry, material assumptions and the selected thermal/electrical model.
+
+### [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md)
+
+<a href="manufacturing_readiness_plugin/help-workflow.png"><img src="manufacturing_readiness_plugin/help-workflow.png" width="960" alt="Manufacturing Readiness native findings and review workspace"></a>
+
+Review fabrication findings against your manufacturer's actual requirements.
 
 ## Help and upgrades
 
@@ -557,7 +700,7 @@ python tools/validate_packages.py --archive-dir .validation/candidate-pcm
 ```
 
 Each plugin also has its own tests. Skipped checks do not establish native GUI
-compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.17.md).
+compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.28.md).
 
 ## Acknowledgements and AI disclosure
 

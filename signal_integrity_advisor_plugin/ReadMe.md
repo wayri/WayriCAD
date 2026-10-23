@@ -1,5 +1,22 @@
 # WayriCAD Quick SI
 
+<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
+
+## Start here
+
+| Need | Open |
+|---|---|
+| Install or update | [Release 3.6.28](https://github.com/wayri/WayriCAD/releases/tag/v3.6.28) · [Installation](../docs/INSTALLATION.md) |
+| First source-to-receiver screen | [Normal workflow](#normal-workflow) |
+| Several nets and explicit returns | [Multi-net studies](#multi-net-studies-and-explicit-returns) |
+| Local coupling | [Directed crosstalk](#directed-local-crosstalk) |
+| Scripts and help | [CLI](#cli) · [Offline help](help.html) |
+| Equations and applicability | [Solver methods](#solver-methods) · [References](#references-and-research) |
+
+**3.6.28** defers the existing RLC numerical backend until the first calculation.
+Setup imports are faster; first-use initialization is deferred, not eliminated.
+The equations and unknown-result rules are unchanged. [Measurements](../docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md).
+
 Quick SI analyzes routed paths, filled-zone corridors and via transitions with
 its existing path and screening models. It does not consume a finite-element
 triangle mesh, so Gmsh meshing alone would not improve its impedance or timing
@@ -10,8 +27,6 @@ remain outside its scope.
 Drag the horizontal divider to share space between the route preview and its
 results table. Drag the input divider to widen settings, or use the preview's
 Fit control to inspect the whole route.
-
-<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
 ## Multi-net studies and explicit returns
 

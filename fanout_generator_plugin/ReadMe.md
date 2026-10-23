@@ -2,9 +2,17 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Fanout Generator icon">
 
-## Live preview and faster planning
+Generate reviewed escapes from selected pads, footprints or filtered nets.
+Start with a small scope, choose a style, inspect the proposal, then apply.
 
-### Choose → Style → Review
+| Start here | Reference |
+|---|---|
+| [Latest release](https://github.com/wayri/WayriCAD/releases/latest) | [Install](../docs/INSTALLATION.md) · [Suite CLI](../docs/TOOL_CLI_CATALOGUE.md) |
+| [Choose, style, review](#choose-style-review) | [Command line](#command-line) |
+| [Connector-edge breakout](#connector-edge-breakout) | [Per-pin/net rules](#different-rules-for-different-pins) |
+| [Adaptive escapes](#adaptive-escapes-around-existing-routing) | [Limitations](#limitations) · [Offline help](help.html) |
+
+## Choose, style, review
 
 1. Select footprints or pads, or enter a reference wildcard. Expand **Limit pins
    or nets** to restrict pin numbers and net names with comma-separated wildcards.
@@ -30,6 +38,24 @@ fanouts in a small preview; use its component list when several parts are
 selected. The main canvas keeps the complete plan. A blocked component still
 shows its pads with zero accepted escapes; rejection details remain available.
 
+### Connector comparison
+
+![Connector before adding the proposed escapes](help-connector-before.png)
+
+**Before:** the main canvas shows only the existing six plated pads and connector
+courtyard. The small style thumbnail continues to show the accepted proposal.
+
+![Connector with six accepted escapes](help-connector-proposed.png)
+
+**After:** the same disposable connector has six accepted teal escapes and zero
+rejections. These are actual Windows / KiCad 10.0.6 native windows, using a saved
+snapshot and explicit `J1` scope. The capture run applied 12 track segments to the
+in-memory fixture, then Undo restored its empty routing; the saved source file
+was unchanged. Example dimensions are not manufacturing recommendations.
+See [capture provenance and checks](../docs/audits/ROUTING_README_SCREENSHOTS_2026-10-23.md).
+
+### Perimeter package and board context
+
 ![Live fanout style preview on a selected QFP](help-live-preview.png)
 
 Actual native window on a disposable 32-pin QFP fixture: all 32 perimeter
@@ -50,6 +76,8 @@ connector style. Both preview panes support pan/zoom; hovering and dragging use
 cached pixels, followed by an exact redraw after a drag. Settings changes reuse
 display context only for the same snapshot mode, source path and saved file stamp;
 Apply always performs fresh geometry and rule checks.
+
+### Measured responsiveness and its limits
 
 Earlier 3.6.27 measurement: fresh fixed-style planning on Marble U35 fell from **21.94 s to 0.29 s**, with
 identical full plans and rejection reasons. The complete new native preview

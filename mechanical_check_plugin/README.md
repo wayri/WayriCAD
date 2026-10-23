@@ -2,6 +2,15 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Mechanical Check icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#review-findings-without-losing-the-board) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run mechanical-check -- --help` |
+
+CLI scope: Saved-board 2D screening and optional exact-solid checks. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 ## Capabilities
 
 - Run a quick saved-board 2D footprint-envelope overlap and XY-clearance screen without FreeCAD.
@@ -33,7 +42,7 @@ On Rules, enter the PnP **tip radius**, **head radius**, **head setback** above 
 
 ## Review findings without losing the board
 
-Release 3.6.21 includes a simpler review workspace. [Validation and screenshot provenance](../docs/audits/MECHANICAL_REVIEW_UI.md).
+The review workspace keeps board inspection and finding navigation together. [Validation and screenshot provenance](../docs/audits/MECHANICAL_REVIEW_UI.md).
 
 ![Mechanical Check findings and 3D inspection](help-review.png)
 

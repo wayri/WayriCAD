@@ -2,6 +2,15 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Extract Pins icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#usage) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run extract-pins -- --help` |
+
+CLI scope: Pin extraction, inspection, diagrams and reports. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 ## Capabilities
 
 - Extracts component, pin, and net data with reference, value, and connector-type filters.
@@ -27,8 +36,8 @@
 
 A comprehensive KiCAD plugin for extracting component/pin data and analyzing signal flow. Features both GUI and CLI interfaces.
 
-![Version](https://img.shields.io/badge/Version-3.4.0-blue)
-![KiCAD](https://img.shields.io/badge/KiCAD-10.0+-green)
+[![Latest release](https://img.shields.io/github/v/release/wayri/WayriCAD)](https://github.com/wayri/WayriCAD/releases/latest)
+[![KiCad 10 validated](https://img.shields.io/badge/KiCad-10_validated-green)](../docs/COMPATIBILITY.md)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
 ![Native Extract Pins selection and preview workspace](help-workflow.png)
@@ -126,9 +135,9 @@ the scope or filters invalidates the previous export until it is previewed again
 
 ## Installation
 
-1. Download `WayriCAD-extract-pins-3.1.1-PCM.zip` from the published WayriCAD release, or build it with the repository's `build_pcm.py`.
-2. In KiCad Manager, open **Plugin and Content Manager â†’ Install from File** and select the ZIP.
-3. Enable the API in **Preferences â†’ Plugins**, configure Python, and restart KiCad.
+1. Download the **Extract Pins PCM ZIP** from the published WayriCAD release, or build it with the repository's `build_pcm.py`.
+2. In KiCad Manager, open **Plugin and Content Manager → Install from File** and select the ZIP.
+3. Enable the API in **Preferences → Plugins**, configure Python, and restart KiCad.
 
 The ZIP includes the shared runtime. For a source installation, use the repository's `tools/install_suite.py` after building the packages; copying this source folder alone omits its runtime.
 

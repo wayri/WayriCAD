@@ -2,6 +2,15 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Analytics Studio icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#everyday-workflow) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run bom-studio -- --help` |
+
+CLI scope: Fields, BOM, analytics and pipelines. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 ## Capabilities
 
 - Edit component fields individually or in bulk, with grouping, reusable templates and a local desktop/browser interface.
@@ -25,9 +34,9 @@ Local BOM editing and exports for KiCad 10. The desktop window runs the bundled 
 
 ## Install
 
-In KiCad Manager, open Plugin and Content Manager â†’ Install from File and select the **WayriCAD Analytics Studio PCM ZIP**. Keep the ZIP intact. Restart KiCad and launch Analytics Studio from the plugin toolbar. IPC support must be enabled in KiCad preferences. The toolbar launcher selects a compatible installed KiCad Python runtime and provisions its lightweight dependencies in a private WayriCAD cache. It does not build wxPython inside KiCad's managed plugin environment. Windows needs WebView2; Linux needs the distribution's wxGTK/WebKit runtime. If the native browser cannot initialize, the same fully local interface opens in your installed browser with the reason displayed.
+In KiCad Manager, open Plugin and Content Manager → Install from File and select the **WayriCAD Analytics Studio PCM ZIP**. Keep the ZIP intact. Restart KiCad and launch Analytics Studio from the plugin toolbar. IPC support must be enabled in KiCad preferences. The toolbar launcher selects a compatible installed KiCad Python runtime and provisions its lightweight dependencies in a private WayriCAD cache. It does not build wxPython inside KiCad's managed plugin environment. Windows needs WebView2; Linux needs the distribution's wxGTK/WebKit runtime. If the native browser cannot initialize, the same fully local interface opens in your installed browser with the reason displayed.
 
-The UI is a separate local desktop window. Windows requires a working WebView2 runtime; Linux requires wxGTK WebKit support. If an embedded runtime is unavailable, the launcher opens the same authenticated local interface in your installed browser. Use the pageâ€™s Quit button to stop the local service. KiCad 11 compatibility is based on capability checks and an open-ended minimum version; live KiCad 11 acceptance has not been run.
+The UI is a separate local desktop window. Windows requires a working WebView2 runtime; Linux requires wxGTK WebKit support. If an embedded runtime is unavailable, the launcher opens the same authenticated local interface in your installed browser. Use the page's Quit button to stop the local service. KiCad 11 compatibility is based on capability checks and an open-ended minimum version; live KiCad 11 acceptance has not been run.
 
 In local browser mode, **Open project** uses KiCad's bundled wx file picker. You can also paste the absolute path to a saved `.kicad_pro` or root `.kicad_sch` file.
 

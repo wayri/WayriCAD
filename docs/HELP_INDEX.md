@@ -4,7 +4,7 @@ Each independently installed package includes `help.html` and its local illustra
 
 | Plugin | Offline workflow and troubleshooting | Source guide |
 |---|---|---|
-| WayriCAD Assistant (development) | [Open local help](../suite_assistant_plugin/help.html) | [Read guide](../suite_assistant_plugin/README.md) |
+| WayriCAD Assistant (testing) | [Open local help](../suite_assistant_plugin/help.html) | [Read guide](../suite_assistant_plugin/README.md) |
 | Wayri Project Fusion | [Open local help](../project_fusion_plugin/help.html) | [Read guide](../project_fusion_plugin/README.md) |
 | Analytics Studio | [Open local help](../bom_studio_plugin/help.html) | [Read guide](../bom_studio_plugin/README.md) |
 | Bulk Label Editor | [Open local help](../bulk_label_editor_plugin/help.html) | [Read guide](../bulk_label_editor_plugin/ReadMe.md) |

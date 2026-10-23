@@ -2,6 +2,22 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Planar Magnetics &amp; Actuator Workbench icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#getting-started) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run planar-magnetics -- --help` |
+
+CLI scope: JSON winding analysis; copper placement remains in the GUI. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
+## Getting started
+
+1. Save the PCB and open the Planar Magnetics PCM plugin. Choose a winding geometry, layer arrangement, net assignments and a clear placement area.
+2. Enter dimensions, conductor properties and the material/core information needed by the selected model. Leave unavailable quantities unknown.
+3. Use **Analyze** to inspect geometry and electrical estimates. Field, core, motor and coupled-motion workbenches have their own inputs and limits below.
+4. Review before applying a winding group. Connect its terminals and run KiCad DRC. Export model evidence separately; estimates do not establish physical performance.
+
 ## Capabilities
 
 - Generate rectangular/circular planar windings with multilayer transitions, primary/secondary nets and reviewed, recoverable PCB placement.

@@ -2,6 +2,13 @@
 
 <img src="icon.png" width="64" alt="WayriCAD Assistant icon">
 
+| Need | Open |
+|---|---|
+| Install or update | [Release 3.6.28](https://github.com/wayri/WayriCAD/releases/tag/v3.6.28) · [Installation](../docs/INSTALLATION.md) |
+| First request | [Get started](#get-started) |
+| Supported actions and limits | [What it can do](#what-it-can-do) · [Implementation evidence](../docs/audits/assistant-local-orchestration.md) |
+| Scripts and help | [CLI](#cli) · [Offline help](help.html) |
+
 Describe a check in plain English, review its interpretation and get results from existing WayriCAD tools. The Assistant uses a small, local fuzzy intent engine. It is not a general chatbot and does not download a language model or send your board to a cloud service.
 
 ![Native Assistant window](help-assistant.png)
@@ -31,6 +38,11 @@ These are actual native-window screenshots on Windows with KiCad 10.0.6. The pub
 ## What it can do
 
 The command catalogue exposes specific existing CLI actions, including electrical checks, mechanical review, board analytics and transmission-line calculations. Use the CLI `capabilities` command for the exact supported actions and required inputs in your installed version. Every plugin is not automatically controllable: actions must be explicitly registered with a parameter schema and an execution adapter.
+
+The 3.6.28 catalogue contains 56 actions. For guard stitching, selected signal
+nets may supply the route scope, but the guard net is a separate required input.
+For example: **“Guard signal net CLK with guard net GND, spacing 2 mm and offset
+1 mm.”** The result is a preview plan; apply reviewed copper in Via Stitching.
 
 | When this happens | What to do |
 |---|---|

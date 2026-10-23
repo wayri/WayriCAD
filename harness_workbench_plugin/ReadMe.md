@@ -2,6 +2,22 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Harness and Cable Workbench icon">
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#getting-started) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run harness-workbench -- --help` |
+
+CLI scope: JSON harness definition and reports. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
+## Getting started
+
+1. Install the Harness and Cable Workbench PCM package and open it from KiCad. Export board connector pins with [Extract Pins](../extract_pins_plugin/ReadMe.md) first.
+2. Import the board pin documents. Review project and connector names, then define connector pairs or import an explicit pin-map CSV.
+3. Build the harness and inspect the wire list and draft together. Select wires to check their exact routes; enter lengths, gauges and bundle properties explicitly.
+4. Export the reviewed CSV, SVG or interactive HTML report. Check mating orientation, ratings and intentional connections independently.
+
 ## Capabilities
 
 - Builds a harness definition from up to 50 board pin exports and harness-only loads.

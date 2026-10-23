@@ -24,7 +24,7 @@ requests do not become shell scripts. Review missing inputs and requested action
 before execution. See its [guide](../suite_assistant_plugin/README.md). The standalone
 Assistant PCM package carries the other tools' backends privately, so it does not
 require sibling PCM installations. Selected backends still need their normal native
-runtimes and dependencies. Assistant is in development and is not in release 3.6.27.
+runtimes and dependencies. Assistant is included in release 3.6.28 as a testing package.
 
 ```text
 wayricad-assistant capabilities
@@ -45,7 +45,7 @@ The commands below expose the existing headless workflows. They do **not** imply
 |---|---|---|
 | `bom-studio` | Analytics Studio: fields, BOM, variants, analytics and pipelines | `wayricad tools run bom-studio -- --help` |
 | `bulk-label-editor` | Headless JSON parameters: bulk-label.preview; GUI write operations are separate | `wayricad tools run bulk-label-editor -- --help` |
-| `assistant` | Local plain-English planning, reviewed execution and reports (development) | `wayricad tools run assistant -- --help` |
+| `assistant` | Local plain-English planning, reviewed execution and reports (testing) | `wayricad tools run assistant -- --help` |
 | `component-arranger` | Group, preview, validate and export placement | `wayricad tools run component-arranger -- --help` |
 | `copper-balancer` | Preview and export copper balance changes | `wayricad tools run copper-balancer -- --help` |
 | `embed-3d` | Project-local libraries and 3D models | `wayricad tools run embed-3d -- --help` |

@@ -30,7 +30,7 @@ stages and a visible activity indicator. Icons supplement the labels and tooltip
 they do not replace them. These shared controls are used by the quick tools and
 other native forms that use the common accessibility/workflow helpers.
 
-[WayriCAD Assistant](../suite_assistant_plugin/README.md) is a development plugin for
+[WayriCAD Assistant](../suite_assistant_plugin/README.md) is a testing package for
 local command planning and execution. Select the saved board, describe the task,
 review the interpreted action and supply requested engineering inputs before running.
 Results include text, generated artifacts and visual board context. Ambiguous requests
@@ -44,8 +44,8 @@ copper. **Show in PCB Editor** explicitly selects the matching net items in the
 originating editor and requests a zoom. It rejects a changed saved board or a
 different editor project, and reports when focusing is unavailable. This is
 selection/navigation, not a geometry edit or validation of unsaved changes.
-The existing tool CLI remains available for precise scripts. Assistant is not included
-in release 3.6.27.
+The existing tool CLI remains available for precise scripts. Assistant is included
+in release 3.6.28 as a testing package.
 
 ## Tool directory
 
@@ -53,10 +53,10 @@ Select the linked name for detailed instructions. “Review” below means that 
 
 | Icon | Tool and detailed guide | Start with | Result and write boundary |
 |---|---|---|---|
-| <img src="../suite_assistant_plugin/icon.png" width="28" height="28" alt="WayriCAD Assistant icon"> | [WayriCAD Assistant](../suite_assistant_plugin/README.md) | Saved board and a task in plain English | Review a fixed-tool plan, clarify missing inputs, execute supported analyses and inspect reports (development) |
+| <img src="../suite_assistant_plugin/icon.png" width="28" height="28" alt="WayriCAD Assistant icon"> | [WayriCAD Assistant](../suite_assistant_plugin/README.md) | Saved board and a task in plain English | Review a fixed-tool plan, clarify missing inputs, execute supported analyses and inspect reports (testing) |
 | <img src="../trace_refiner_plugin/icon.png" width="28" height="28" alt="Trace Refiner icon"> | [Trace Refiner](../trace_refiner_plugin/README.md) | Selected tracks/nets, net classes or layers | Preview minor jog cleanup, validate native connectivity/DRC, then apply with in-window undo |
-| <img src="../component_arranger_plugin/icon.png" width="28" height="28" alt="Component Arranger icon"> | [Component Arranger](../component_arranger_plugin/README.md) | Selected parts, sheets or confirmed schematic clusters | Preview anchored courtyard-aware group placement and measured crossings; native validation, backed-up Apply and in-window Undo; source/candidate |
-| <img src="../layer_counter_plugin/icon.png" width="28" height="28" alt="Layer Counter icon"> | [Layer Counter](../layer_counter_plugin/README.md) | Enabled copper layers and explicit core pairs | Preview and add grouped physical layer markers plus a zone-only keepout; source/candidate package |
+| <img src="../component_arranger_plugin/icon.png" width="28" height="28" alt="Component Arranger icon"> | [Component Arranger](../component_arranger_plugin/README.md) | Selected parts, sheets or confirmed schematic clusters | Preview anchored courtyard-aware group placement and measured crossings; native validation, backed-up Apply and in-window Undo |
+| <img src="../layer_counter_plugin/icon.png" width="28" height="28" alt="Layer Counter icon"> | [Layer Counter](../layer_counter_plugin/README.md) | Enabled copper layers and explicit core pairs | Preview and add grouped physical layer markers plus a zone-only keepout |
 | <img src="../silkscreen_label_plugin/icon.png" width="28" height="28" alt="Silkscreen Label Placer icon"> | [Silkscreen Label Placer](../silkscreen_label_plugin/README.md) | Selected parts or whole board | Preview safe silk labels and guide lines, then apply with undo/redo |
 | <img src="../project_fusion_plugin/icon.png" width="28" height="28" alt="Project Fusion icon"> | [Project Fusion](../project_fusion_plugin/README.md) | Saved projects or selected subsheets | Guided source/variant destination, visual merge, CLI workflows and backed-up offline apply |
 | <img src="../variant_manager_plugin/icon.png" width="28" height="28" alt="Variant Manager icon"> | [Variant Manager](../variant_manager_plugin/README.md) | Native KiCad 10 variant definitions | Assembly comparison, bulk operations, conflict-aware merge/swap, Default promotion and verified recovery |

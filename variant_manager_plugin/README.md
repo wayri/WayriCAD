@@ -1,5 +1,14 @@
 # <img src="icon.png" width="48" height="48" alt="Variant Manager icon"> WayriCAD Variant Manager
 
+| Start here | Link |
+|---|---|
+| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
+| First use | [Getting started](#compare-and-preview) |
+| Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Command line | `wayricad tools run variant-manager -- --help` |
+
+CLI scope: Variant inventory, comparison and reviewed batch changes. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+
 Variant Manager is an independently installable KiCad 10 plugin for native assembly variants. It has its own icon, PCB Editor action, native desktop window and CLI. Fusion imports designs; Variant Manager manages their assembly configurations.
 
 ![Native Variant Manager comparing Default and Production](help-workspace.png)

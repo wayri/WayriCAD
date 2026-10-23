@@ -1,5 +1,53 @@
 # <img src="resources/icon-96.png" width="48" height="48" alt="QuickTherm icon"> WayriCAD QuickTherm
 
+## Start here
+
+| Need | Open |
+|---|---|
+| Install or update | [Release 3.6.28](https://github.com/wayri/WayriCAD/releases/tag/v3.6.28) · [Installation](../docs/INSTALLATION.md) |
+| Choose component inputs | [Native workspace](#native-workspace-and-component-inputs) |
+| Run a known example | [Reproducible example](#reproducible-example) |
+| Top, bottom, 3D and probes | [Interactive views](#interactive-views-and-time-evolution) |
+| Automation and help | [CLI catalogue](../docs/TOOL_CLI_CATALOGUE.md) · [Offline help](help.html) |
+| Equations and applicability | [Solver methods](#solver-methods) · [References](#references-and-research) |
+
+1. Save the PCB, open QuickTherm and choose the component-input fields. Review
+   power, thermal resistance, temperature limits and included references.
+2. Select the thermal model and explicitly review materials, ambient and cooling
+   assumptions. Inspect the recommended mesh and its budget warnings.
+3. Run, then inspect top/bottom geometry, component temperatures and model
+   coverage. Add probes and export HTML/JSON. Unknown inputs remain unknown.
+
+**3.6.28** batches inventory updates and fixes selected/hovered component labels
+so they do not leave duplicate annotations. This changes interface behavior,
+not the thermal equations. [Measurements and remaining limits](../docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md).
+
+### Current native previews
+
+**Review saved inputs**
+
+![QuickTherm current component inputs](examples/quicktherm-input-3.6.28.png)
+
+Four sources are included; the two mounting footprints remain excluded.
+This input-table capture precedes the solve.
+
+**Inspect the 3D board field**
+
+![QuickTherm current 3D thin-sheet screen](examples/quicktherm-3d-3.6.28.png)
+
+**Compare both faces and component temperatures**
+
+![QuickTherm current paired top and bottom views](examples/quicktherm-paired-3.6.28.png)
+
+Actual native captures from `thermal-demo.kicad_pcb`: 1.05 W total, 20 °C ambient,
+assumed 35 W/(m·K) sheet conductivity, emissivity 0.8 and 10 m/s airflow.
+The automatic mesh used 600 cells. Both faces show the same approximate
+midplane field, with the back view mirrored; this example has no bottom-side
+footprints. Component junction estimates use the declared RθJB paths, not
+internal package gradients. STEP loading was off; the outlines/markers are not
+loaded component solids. These are illustrative model results, not measurements.
+[Capture provenance](../docs/audits/README_GALLERY.md#capture-provenance--23-october-2026).
+
 Large-board HTML exports keep three printable plots: top, bottom and component temperatures. The interactive board, every computed layer, 3D view, cursor/probes and complete JSON remain available. This bounds printing work on boards with hundreds of components or drills. Use `--extended-report-snapshots` to also render static 3D, contours and all layer snapshots; that export can take much longer. Numerical mesh resolution and results are unchanged.
 
 
