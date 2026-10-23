@@ -30,18 +30,18 @@ class WorkbenchPluginTests(unittest.TestCase):
             with self.subTest(folder=package.name):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
                 if metadata["versions"][0]["runtime"] == "swig":
-                    expected = {"component_arranger_plugin": ("com.github.wayri.wayricad.component-arranger", "0.1.5"),
-                                "trace_refiner_plugin": ("com.github.wayri.wayricad.trace-refiner", "0.3.3"),
-                                "project_fusion_plugin": ("org.wayri.projectfusion", "0.9.13"),
-                                "variant_manager_plugin": ("org.wayri.variant-manager", "0.6.6"),
-                                "layer_counter_plugin": ("com.github.wayri.wayricad.layer-counter", "0.1.5"),
-                                "silkscreen_label_plugin": ("com.github.wayri.wayricad.silkscreen-label-placer", "0.3.5")}
+                    expected = {"component_arranger_plugin": ("com.github.wayri.wayricad.component-arranger", "0.1.6"),
+                                "trace_refiner_plugin": ("com.github.wayri.wayricad.trace-refiner", "0.3.4"),
+                                "project_fusion_plugin": ("org.wayri.projectfusion", "0.9.14"),
+                                "variant_manager_plugin": ("org.wayri.variant-manager", "0.6.7"),
+                                "layer_counter_plugin": ("com.github.wayri.wayricad.layer-counter", "0.1.6"),
+                                "silkscreen_label_plugin": ("com.github.wayri.wayricad.silkscreen-label-placer", "0.3.6")}
                     self.assertEqual(expected[package.name], (metadata["identifier"], metadata["versions"][0]["version"]))
                     self.assertFalse((package / "plugin.json").exists())
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):
                         self.assertTrue((package / entry).is_file())
                     continue
-                expected_version = "3.6.30"
+                expected_version = "3.6.31"
                 self.assertEqual(expected_version, metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))

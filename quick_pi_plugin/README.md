@@ -6,7 +6,7 @@
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.30](https://github.com/wayri/WayriCAD/releases/tag/v3.6.30) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.31](https://github.com/wayri/WayriCAD/releases/tag/v3.6.31) · [Installation](../docs/INSTALLATION.md) |
 | First power-path check | [Workflow](#workflow) · [Reading results](#reading-results) |
 | Multiple rails, returns and heating | [Multi-net studies](#multi-net-cases-return-copper-and-joule-feedback) |
 | Scripts and reports | [Command line](#command-line) · [Offline help](help.html) |
