@@ -1,16 +1,16 @@
-# Constraint Studio 0.3.1 — complete help text
+# Constraint Studio source help: current workflow after release 3.6.28
 
-Open **HANDBOOK.html** for the searchable illustrated edition, **ILLUSTRATED_GUIDE.pdf** for printing, or the native **Help** tab / F1 inside the plugin.
+Use the native **Help** tab / F1 or the packaged offline HTML. Historical handbook and PDF assets may describe the earlier editable worksheet; this source guide describes the current source behavior, not a published 3.6.28 binary.
 
 Eight source-derived renders illustrate the code-defined UI. They are not native screenshots or proof of KiCad/Windows acceptance.
 
 ## Start here: install, open and make a safe first edit
 
-Install the PCM archive, open a saved project copy, stage one constraint, review and validate without overwriting the open PCB.
+Open a saved project, inspect its rules, and stage a protocol preset, matrix, set, BGA exception, or layer profile before export and native validation.
 
 **Open:** Help → Getting started
 
-Constraint Studio is a native-window, offline-first editor for KiCad custom design rules and selected project constraints. Version 0.3.1 adds a complete help centre and illustrated documentation to the 0.3 feature set. The deliverable is a development build. It is not a native-accepted replacement for KiCad or an Xpedition-equivalent product.
+Constraint Studio inspects saved rules and stages grouped rule generators for KiCad. General rule authoring belongs in KiCad 10 Tools > Design Rule Editor; netclasses and board-wide settings belong in Board Setup. This document describes current source behavior after the published 3.6.28 release, without claiming a new binary has been published.
 
 ### Install and open
 
@@ -22,7 +22,7 @@ Constraint Studio is a native-window, offline-first editor for KiCad custom desi
 
 - Choose Help → Help on this page, or press F1, whenever a workflow is unclear. Help opens in the plugin, not an external browser.
 
-- In Workspace choose New scoped rule. For a tutorial, enter an illustrative track-width constraint in Detailed rule, choose its scope visually, and press Stage this rule. Staging changes this workspace, not the open native PCB.
+- In Rule overview, inspect saved rules and scope. To author an individual rule, use KiCad PCB Editor Tools > Design Rule Editor, save, and reload Studio. For a staged tutorial use a protocol preset or a small clearance matrix; these change only the Studio workspace until reviewed apply.
 
 - Open Review & export. Read Local lint, File diff and Generated native rules. Export to an empty folder outside the source project. Validate that review board with native KiCad. Apply only after reviewing the result and closing every source-project editor.
 
@@ -40,7 +40,7 @@ State | Meaning | What changes it
 
 Saved source | Files on disk when the plugin loads the project. Fingerprints protect these inputs. | Saving in KiCad or another editor; reload explicitly after external edits.
 
-Staged workspace | In-memory rules, project settings, copied regions and metadata. | Worksheet edits, wizards, profiles and team actions.
+Staged workspace | In-memory generated rules, profiles, copied regions and metadata. | Protocol presets, matrices, sets, BGA regions, layer profiles and team actions.
 
 Exported review | A separate, self-contained review snapshot and manifest. | Export to a new empty directory; do not hand-edit an approved bundle.
 
@@ -58,156 +58,29 @@ No live hot-write of custom rules into the open KiCad 10 editor; no background c
 
 Important. A scope preview marked unknown is unresolved, not a non-match or a pass. A native report belongs to its recorded snapshot, not whichever board happens to be open later.
 
-## Workspace: scope tree, worksheet and context pane
+## Rule overview: read-only inspection
 
-Navigate declared scopes, edit typed rows and inspect possible matches without confusing the grid with native rule resolution.
+Inspect saved and generated rules without changing individual rule definitions here.
 
-**Open:** Workspace
+**Open:** Rule overview (native fallback: Workspace / Rule inspection)
 
-(asset:01_workspace.png)Source-derived UI render of Workspace; illustrative values, not a native KiCad screenshot.
+| Need | KiCad 10 | Constraint Studio |
+|---|---|---|
+| Individual rule and condition | Tools > Design Rule Editor; Custom Rules for full syntax | Read-only rule, scope and priority inspection |
+| Netclasses and board-wide floors | Board Setup | Read saved values when generating matrices, sets and exceptions |
+| Per-layer width, gap and reference layers | Board Setup > Tuning Profiles | Compose protocol/net instances with scoped via type, size and span rules |
 
-### Find the rules you want
+The table shows each rule's enabled state, dimensions, layer and priority. Search and filter by declared component, netclass, net, area or constraint family. Select a row to inspect its condition and local findings. Optional board preview and rule details show saved-object matches, unknowns and an offline priority trace; these are not native DRC results. The native fallback retains read-only row copy and CSV export.
 
-- Use the left DESIGN SCOPE tree to choose all rules, a component, netclass, net, area or domain. This filters declared references; it does not compute all inherited constraints for the selected object.
+**Edit rules in KiCad:** In PCB Editor choose **Tools > Design Rule Editor**. KiCad 10 provides graphical constraint values, conditions, layer selection and Show Matches. Use **Board Setup > Custom Rules** for syntax outside the graphical editor. Save the project and reload a clean Studio workspace to inspect the new rule. See the [KiCad 10 graphical design rule editor](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#graphical-design-rule-editor).
 
-- Type in the worksheet search field. Clear the search and return to All when a rule appears missing. Toggle Include disabled to show or hide disabled rows.
+Priority is not "strictest value wins": later applicable native rule blocks take precedence. Studio lists higher-priority definitions first, but its offline condition evaluator covers only a conservative subset. Unknown matches remain unknown. A board-wide manufacturing floor still applies even when a custom rule asks for a smaller value.
 
-- Select a row. The right pane shows its condition and available scope/priority tools. Use Edit selected rule or double-click its rule/constraint name for the detailed editor.
+### Scope, bounds and units reference
 
-- Edit available numeric bounds directly, or use Fill selected rows. Use Higher priority / Lower priority rather than assuming the smallest or largest value wins.
+A and B refer to the checked objects of a pair constraint. Whole-item enclosure, intersection and footprint-child membership have different effects; a crossing segment is not partly relaxed. Numeric fields may have minimum, preferred and maximum values; blank is unspecified, while zero is explicit. Keep dimensions (mm/mil/in), time (ps), angles, counts and ratios in their native domains. Generated rule previews preserve unfamiliar expressions where supported, but only KiCad's native syntax check and DRC establish acceptance.
 
-- Use Focus worksheet / restore for more horizontal space. Resize the splitters and scroll the grid to reach all columns.
-
-Column/control | Meaning
-
-On | Whether the rule is emitted as active. Disabled rules remain recoverable.
-
-Priority | Display order is highest first; native-file order is reversed. Use the priority commands.
-
-Rule / set | Human-readable rule identity; several rows can share a rule.
-
-Constraint | One bound/check type from the catalog. Not every type is a numeric three-field rule.
-
-Minimum / Preferred / Maximum | Only fields supported by the constraint are meaningful. Preferred is not a replacement for a minimum/maximum.
-
-Layer | Rule layer filter; Any leaves it unrestricted.
-
-Severity | Inherit, error, warning, ignore or exclusion as supported by the form. Ignore is not disable.
-
-Important. The offline inspector does not implement every native geometry, class, local-override or connectivity condition. A row in this worksheet is a rule definition, not a universal effective-value matrix.
-
-## Bulk edits, clipboard, CSV and session undo
-
-Apply consistent edits to selected rows and preserve the difference between a blank field and an explicit zero.
-
-### Selected-row operations
-
-- Select the intended grid rows before choosing Fill selected rows. Confirm which bound you are replacing; edits apply to the constraints on the selected rows.
-
-- Use Copy rows for a tabular snapshot. Paste min / opt / max is a three-column operation, not a full CSV rule importer: prepare three tab-separated fields per row, in that order.
-
-- Use Export CSV to share a worksheet view. For a pair matrix, use the matrix-specific CSV actions instead.
-
-- Check Local lint immediately after a bulk edit. A field that parses as text may still be invalid for its constraint or inconsistent with its other bounds.
-
-- Use Undo or Redo before continuing when an edit affected the wrong rows. Export/review or reload deliberately; the undo stack is not persistent project history.
-
-### Illustrative three-column paste
-
-```text
-0.15mm	0.20mm	0.35mm
-0.10mm	0.12mm	0.20mm
-```
-
-These are example track-width ranges only. Do not paste length bounds into a count field, or mix ps with mm in one length/skew constraint. A blank leaves a bound unspecified where supported. 0 is a deliberate value, not a request to inherit.
-
-Important. Changing generated rules by hand, including disabling them, can intentionally block later replacement by a matrix or reusable set. Use a new managed-set name, restore the managed version, or ungroup a reusable instance before taking manual ownership.
-
-## Detailed rule: identity, order, severity and constraints
-
-Create and maintain rule blocks with one scope and one or more constraints.
-
-**Open:** Detailed rule
-
-### Create or edit
-
-- Open Detailed rule. Use New, Copy or select an existing rule. Give it a stable descriptive name, such as “U1 escape / local copper” rather than “rule 7”.
-
-- Set Enabled, Severity and Layer. Use Build scope visually for conditions. Selected component describes component membership; it is not a spatial escape region.
-
-- Choose Add constraint. Pick the constraint type, read its help, and fill only the offered fields. Add several constraints only when they genuinely share the same scope and layer.
-
-- Record your rationale and source of limits in Notes. Notes are retained as native-file comments and help later reviewers understand exceptions.
-
-- Press Stage this rule and inspect it in Review. Use the priority arrows to resolve intended precedence deliberately.
-
-### Priority is not “strictest value wins”
-
-Later applicable native rule blocks take precedence. Constraint Studio displays the highest-priority rules first. Reordering a rule can therefore change behavior even if all numbers remain unchanged. A high-priority ignore rule remains active; disabling the rule removes its active emission instead.
-
-### Why BGA clearance and routing are separate
-
-Clearance compares two objects; a strict local pair exception must constrain both A and B. Track width or drill size applies to a single checked object. Putting these into one both-object condition can make the routing constraint inappropriate, so the BGA wizard generates separate blocks.
-
-### Unknown syntax
-
-Imported clauses and expressions outside the modeled subset are preserved where supported. The advanced text escape hatch is intentional. Do not rewrite an unfamiliar native extension into a simpler form merely to make it look editable; verify the emitted native file and syntax-check it in your KiCad build.
-
-## Units, bounds and special form controls
-
-Interpret min/opt/max, dimensions, time, counts, choices, assertions and argument-free checks.
-
-Control type | How to enter it | Common mistake
-
-Dimension | Use explicit mm, mil or in where supported. Example: 0.20mm. | Treating a bare scalar as a universally identical unit in every form.
-
-Length or delay | Length/skew support a length domain or a time domain such as ps. Keep one domain per constraint. | Combining min 1mm with max 200ps.
-
-Angle | Use the angle field, e.g. 45deg, for supported connected-track checks. | Interpreting connected-segment angle as absolute trace bearing.
-
-Count | A nonnegative whole count where required. | Entering 1.5 vias or appending mm to a count.
-
-Ratio | Use the native ratio value expected by the rule; no automatic percent conversion is promised. | Assuming “10” means 10% in solder-paste margin.
-
-Choice/checklist | Choose the offered connection style, spoke count or disallowed objects. | Entering a min/max into a direct-choice form.
-
-Assertion | Build the expression that must be true for already-matched objects. | Confusing the rule’s selection condition with its assertion.
-
-Argument-free check | No number is needed for via_dangling or bridged_mask. | Adding a meaningless numeric bound.
-
-### Blank, zero and negative
-
-Blank means unspecified/inherited where the form allows it. Zero is explicit and must not be used as a substitute for blank. Signed paste margins can intentionally shrink apertures; most routing/fabrication dimensions must be nonnegative. Preserve inequalities between supported bounds and read lint errors before export.
-
-### Variables and unresolved expressions
-
-Some native text can contain variables or values this local evaluator cannot resolve. Preservation does not prove validity. Parameterized set bindings are stricter and normally require explicit resolved values. Use native KiCad syntax/DRC to validate the final emitted expression.
-
-## Visual scope builder: A, B and nested logic
-
-Build explicit AND/OR/NOT conditions from properties and functions; retain advanced native expressions when needed.
-
-**Open:** Detailed rule → Build scope visually
-
-(asset:03_scope_builder.png)Source-derived render of the scope builder; the example uses whole-object containment for both objects.
-
-- Open Build scope visually from a rule. Add a condition using either a property comparison or a function.
-
-- Choose receiver A or B; use AB only for functions whose catalog requires it. Single-object constraints normally use A.
-
-- For a property comparison choose the property, comparison, value type and value. Strings are quoted automatically. Boolean tests use “is true” or “is false”.
-
-- For a function choose its arguments from saved-board suggestions or type the exact intended value. getField returns text and needs a comparison when testing a particular field value.
-
-- Build explicit AND/OR groups and negate the intended group rather than relying on implicit operator precedence. Inspect the expression preview.
-
-- Accept the scope, stage the rule and verify its native behavior on relevant objects. Use advanced/preserved mode for a form that cannot round-trip safely through the visual controls.
-
-### Two essential BGA distinctions
-
-memberOfFootprint selects a footprint’s children. It does not select surrounding PCB tracks. intersectsCourtyard matches an entire object when any part touches the courtyard; it does not restrict the effect to the part inside. Use a named rule area and enclosedByArea for the strict whole-object workflow.
-
-Important. Exact property names, class semantics and function availability depend on the host. The selector lists the packaged catalog; it does not imply every property exists for every object type. The local inspector evaluates only a conservative subset.
+The packaged constraint, function and property catalog later in this guide remains a **read-only reference** for existing and generated rules. Historical gallery images of the editable Detailed rule and scope builder are labelled as earlier-interface illustrations.
 
 ## BGA / IC tutorial: strict local clearance inside a courtyard
 
@@ -321,49 +194,11 @@ A saved matrix includes the generated-rule fingerprint. Manually changing or dis
 
 Important. This is a definition matrix, not a native effective-value table or a heatmap of measured clearance. Overlapping custom rules, floor limits and native class semantics can change the effective result. Use native inspection for selected objects.
 
-## Netclasses and wildcard assignment patterns
+## Native netclasses and board settings
 
-Edit named routing dimensions and project patterns without treating a netclass as a custom-rule override.
+Edit netclasses, wildcard assignments, and board-wide manufacturing floors in **KiCad Board Setup**. Save Board Setup before opening or reloading Studio. Native netclasses provide routing defaults; custom rules provide more specific checks, and board-wide minimums remain hard floors. Studio reads these saved settings to validate and scope its matrices, profiles and generated rules, while preserving unknown project fields. See the [KiCad 10 net classes](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#net-classes) and [constraints](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#constraints) documentation.
 
-**Open:** Netclasses
-
-- Open Netclasses. Inspect the existing classes and default dimensions before adding or changing a class. The table exposes the dimensions implemented by this plugin.
-
-- Edit the desired cell, using appropriate dimensional values. Blank/inherited entries are not the same as explicit zeros.
-
-- Use the add/remove controls deliberately. Preserve the default class and review any class still referenced by patterns or rules.
-
-- Edit wildcard assignment patterns in the accompanying table. Confirm the intended pattern and target class against actual net names.
-
-- Review the .kicad_pro diff and validate assignment semantics in KiCad. Native composite class membership and priority may exceed the local scope preview’s model.
-
-### Netclass dimensions and custom rules
-
-A netclass provides routing defaults and related constraints. A more specific custom rule and a global manufacturing minimum play different roles. Use the worksheet for spatial or object-specific exceptions instead of renaming nets merely to create a local region.
-
-Important. The netclass table is not a complete GUI for every nested KiCad project structure. Unmodeled project keys are retained; inspect the file diff to make sure only intended settings changed.
-
-## Board settings and manufacturing floors
-
-Inspect and stage supported scalar project settings; preserve the distinction between floors, defaults and local exceptions.
-
-**Open:** Board settings
-
-- Save Board Setup before opening the plugin. Open Board settings and search for the relevant saved scalar setting.
-
-- Read its path and current type/value. Change only settings you understand; the generic grid is not a fabrication-recommendation engine.
-
-- For a manufacturing-floor profile, enter approved values in Sets & timing and tick the separate opt-in before staging global-floor changes.
-
-- Review .kicad_pro changes alongside custom rules. Reopen the exported project in KiCad to confirm the resulting Board Setup.
-
-- Recheck locally relaxed BGA rules against the intended global minimum; a local rule cannot defeat a larger floor.
-
-### Floor, default and exception
-
-A floor is a board-wide manufacturing boundary. A default is a general value used where not replaced by an applicable more specific setting. An exception is deliberately scoped and ordered. Lowering a floor affects the entire board’s allowed envelope, even when the motivation was one IC.
-
-Important. This grid edits existing supported scalar paths, not arbitrary nested lists or every future KiCad setting. No accredited fabrication database or automatic standards qualification is supplied.
+Studio's layer protocol profiles compose native [tuning profiles](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#tuning-profiles) with selected nets or a netclass, plus scoped via size/type/span DRC rules. Review the saved stackup, reference continuity, dimensions and manufacturing floors before staging. KiCad does not automatically switch via type from a Studio recipe.
 
 ## Reusable constraint sets: bind, preview, stage and migrate
 
@@ -871,9 +706,9 @@ Know what is implemented, what is deliberately conservative and what remains una
 
 Area | Boundary
 
-Rule coverage | Forms exist for the packaged 34-constraint catalog; arbitrary/future native syntax may need preserved text.
+Rule coverage | The packaged 34-constraint catalog is a read-only reference for saved/generated rules; author individual rules in KiCad.
 
-Project settings | Supported scalar settings and dedicated netclass controls, not every nested project structure.
+Project settings | Edit netclasses and board-wide values in KiCad Board Setup; Studio reads saved settings for generated workflows.
 
 Effective constraints | Conservative offline candidates plus native menu handoff, not a complete embedded native resolver/matrix/heatmap.
 
@@ -929,9 +764,9 @@ Approval anchor | A separately protected expected review-head hash used to detec
 
 ## Constraint reference: all packaged forms
 
-All 34 constraint forms, their editable fields and native identifiers. Select a specific entry for details.
+Read-only reference for 34 packaged constraint forms, their fields and native identifiers. Use KiCad to author individual rules.
 
-This index is generated from the exact catalog used by the plugin controls. It documents the included forms; it does not assert native acceptance of every form. Individual topics list the available fields, unit domain and an illustrative rule fragment. Use the current KiCad 10 manual for authoritative host semantics.
+This index reflects the catalog used to inspect and generate rules. It documents the included forms; it does not assert native acceptance of every form. Individual topics list the available fields, unit domain and an illustrative rule fragment. Use the current KiCad 10 manual for authoritative host semantics.
 
 Important. Not every min/opt/max is offered for every type. Direct-choice, checklist, assertion and argument-free forms must use their actual controls. Single-object and pair scopes require different conditions.
 
@@ -1003,13 +838,13 @@ Pad-to-zone connection style (HANDBOOK.html#constraint-zone_connection) | zone_c
 
 Disallow object types (HANDBOOK.html#constraint-disallow) | disallow | Object-type checklist
 
-Property / expression assertion (HANDBOOK.html#constraint-assertion) | assertion | Expression / visual builder
+Property / expression assertion (HANDBOOK.html#constraint-assertion) | assertion | Expression / native custom rule
 
 ## Function reference: selectors, arguments and aliases
 
 All packaged condition functions, including explicitly marked legacy aliases.
 
-These entries are generated from the same function catalog used by the visual builder. Read the receiver (A/B or AB), argument count and limitations. Function availability in the builder is not a claim that the local match preview evaluates every function. Legacy aliases are exposed for compatibility, not as preferred new syntax.
+These entries reflect the packaged function catalog for inspecting saved and generated rules. Read the receiver (A/B or AB), argument count and limitations. Catalog presence does not mean the local match preview evaluates every function. Legacy aliases are exposed for compatibility, not as preferred new syntax.
 
 Function | Receiver | Arguments | Meaning
 
@@ -1071,7 +906,7 @@ memberOf() (HANDBOOK.html#function-memberOf) | A/B | 1 | Deprecated group-member
 
 Exact property spelling and local editor value types, generated from the packaged selector catalog.
 
-Choose properties appropriate to the object type being checked. Exact capitalization and underscores matter. The value type here controls input formatting in the visual editor; it is not a guarantee that the native property exists or is meaningful for every item. Unknown future names can be retained through advanced syntax. Boolean controls should use “is true/is false”.
+Choose properties appropriate to the object type being checked. Exact capitalization and underscores matter. The value type documents expected formatting; it is not a guarantee that the native property exists or is meaningful for every item. Unknown future names can be retained through advanced syntax. Boolean controls should use “is true/is false”.
 
 Exact selector | Editor type
 
@@ -1271,21 +1106,21 @@ Zone_Connection_Style | string
 
 ## UI gallery: labelled source-derived renders
 
-Visual guides to the implemented window structure and controls, not simulated native acceptance evidence.
+Historical source-derived illustrations from the earlier editable interface; not current UI or native acceptance evidence.
 
-Every image below is a source-derived UI render made from the packaged workflow/control structure with synthetic tutorial values. These are not captures of running wxPython or KiCad. Native fonts, spacing and platform behavior may differ. No native DRC, impedance, signature or approval result is invented in them.
+Every image below is a historical source-derived render made with synthetic tutorial values. These are not captures of running wxPython or KiCad. Native fonts, spacing and platform behavior may differ. No native DRC, impedance, signature or approval result is invented in them.
 
-### Workspace
+### Earlier workspace
 
- (asset:01_workspace.png)Worksheet, declared-scope navigation and conservative context inspection.
+ (asset:01_workspace.png)Historical editable worksheet, declared-scope navigation and conservative context inspection.
 
 ### Component exception
 
  (asset:02_bga_wizard.png)BGA wizard: strict footprint-owned area, approved-value inputs and acknowledgement.
 
-### Visual scope
+### Earlier visual scope builder
 
- (asset:03_scope_builder.png)Nested AND condition using both A and B enclosure.
+ (asset:03_scope_builder.png)Historical builder with nested AND condition using both A and B enclosure; author new conditions in KiCad.
 
 ### Pair matrix
 
@@ -1331,7 +1166,7 @@ References are external optional links; search and reading the packaged manual w
 
 Set different-net copper spacing for a scoped region or class pair.
 
-**Open:** Detailed rule → Add constraint → Copper clearance
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Copper clearance
 
 Set different-net copper spacing for a scoped region or class pair.
 
@@ -1341,7 +1176,7 @@ Native identifier | clearance
 
 Category | Electrical
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1349,7 +1184,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Copper clearance. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1365,7 +1200,7 @@ Different-net copper spacing. A local rule cannot lower the board manufacturing 
 
 Check physical spacing even when copper belongs to the same net.
 
-**Open:** Detailed rule → Add constraint → Physical clearance (including same net)
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Physical clearance (including same net)
 
 Check physical spacing even when copper belongs to the same net.
 
@@ -1375,7 +1210,7 @@ Native identifier | physical_clearance
 
 Category | Electrical
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1383,7 +1218,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Physical clearance (including same net). Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1399,7 +1234,7 @@ Same-layer physical spacing, including same-net objects. More expensive than ele
 
 Express a surface-path spacing requirement between conductors.
 
-**Open:** Detailed rule → Add constraint → Surface creepage
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Surface creepage
 
 Express a surface-path spacing requirement between conductors.
 
@@ -1409,7 +1244,7 @@ Native identifier | creepage
 
 Category | Electrical
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1417,7 +1252,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Surface creepage. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1433,7 +1268,7 @@ Surface path between conductors. This is not an automatic safety-standard qualif
 
 Constrain spacing to the relevant board-edge geometry.
 
-**Open:** Detailed rule → Add constraint → Copper / object to board edge
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Copper / object to board edge
 
 Constrain spacing to the relevant board-edge geometry.
 
@@ -1443,7 +1278,7 @@ Native identifier | edge_clearance
 
 Category | Electrical
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1451,7 +1286,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Copper / object to board edge. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1467,7 +1302,7 @@ Native validation is required for the chosen scope and host build.
 
 Specify different-net copper-to-hole spacing where the native check applies.
 
-**Open:** Detailed rule → Add constraint → Different-net copper to hole
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Different-net copper to hole
 
 Specify different-net copper-to-hole spacing where the native check applies.
 
@@ -1477,7 +1312,7 @@ Native identifier | hole_clearance
 
 Category | Electrical
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1485,7 +1320,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Different-net copper to hole. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1501,7 +1336,7 @@ Native validation is required for the chosen scope and host build.
 
 Use a physical copper/hole spacing rule independent of ordinary different-net selection.
 
-**Open:** Detailed rule → Add constraint → Physical hole clearance
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Physical hole clearance
 
 Use a physical copper/hole spacing rule independent of ordinary different-net selection.
 
@@ -1511,7 +1346,7 @@ Native identifier | physical_hole_clearance
 
 Category | Electrical
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1519,7 +1354,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Physical hole clearance. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1535,7 +1370,7 @@ Native validation is required for the chosen scope and host build.
 
 Set spacing between component courtyards for placement checks.
 
-**Open:** Detailed rule → Add constraint → Courtyard-to-courtyard spacing
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Courtyard-to-courtyard spacing
 
 Set spacing between component courtyards for placement checks.
 
@@ -1545,7 +1380,7 @@ Native identifier | courtyard_clearance
 
 Category | Placement
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1553,7 +1388,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Courtyard-to-courtyard spacing. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1569,7 +1404,7 @@ Spacing BETWEEN component courtyards; not copper clearance WITHIN a courtyard.
 
 Require a minimum connection width where a filled zone joins a pad.
 
-**Open:** Detailed rule → Add constraint → Pad-to-zone connection width
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Pad-to-zone connection width
 
 Require a minimum connection width where a filled zone joins a pad.
 
@@ -1579,7 +1414,7 @@ Native identifier | connection_width
 
 Category | Zones & thermals
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1587,7 +1422,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Pad-to-zone connection width. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1603,7 +1438,7 @@ Native validation is required for the chosen scope and host build.
 
 Set annular-ring width bounds for relevant pads/vias.
 
-**Open:** Detailed rule → Add constraint → Annular ring width
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Annular ring width
 
 Set annular-ring width bounds for relevant pads/vias.
 
@@ -1613,7 +1448,7 @@ Native identifier | annular_width
 
 Category | Manufacturing
 
-GUI controls | Minimum (min), Maximum (max)
+Catalog fields | Minimum (min), Maximum (max)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1621,7 +1456,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Annular ring width. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1637,7 +1472,7 @@ Native validation is required for the chosen scope and host build.
 
 Set allowed/preferred drill or hole dimensions for the selected objects.
 
-**Open:** Detailed rule → Add constraint → Drill / hole size
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Drill / hole size
 
 Set allowed/preferred drill or hole dimensions for the selected objects.
 
@@ -1647,7 +1482,7 @@ Native identifier | hole_size
 
 Category | Manufacturing
 
-GUI controls | Minimum (min), Preferred (opt), Maximum (max)
+Catalog fields | Minimum (min), Preferred (opt), Maximum (max)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1655,7 +1490,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Drill / hole size. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1671,7 +1506,7 @@ Native validation is required for the chosen scope and host build.
 
 Specify mechanical spacing between holes.
 
-**Open:** Detailed rule → Add constraint → Mechanical hole-to-hole spacing
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Mechanical hole-to-hole spacing
 
 Specify mechanical spacing between holes.
 
@@ -1681,7 +1516,7 @@ Native identifier | hole_to_hole
 
 Category | Manufacturing
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1689,7 +1524,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Mechanical hole-to-hole spacing. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1705,7 +1540,7 @@ Native validation is required for the chosen scope and host build.
 
 Set via copper-diameter bounds and a preferred size for applicable vias.
 
-**Open:** Detailed rule → Add constraint → Via copper diameter
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Via copper diameter
 
 Set via copper-diameter bounds and a preferred size for applicable vias.
 
@@ -1715,7 +1550,7 @@ Native identifier | via_diameter
 
 Category | Routing
 
-GUI controls | Minimum (min), Preferred (opt), Maximum (max)
+Catalog fields | Minimum (min), Preferred (opt), Maximum (max)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1723,7 +1558,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Via copper diameter. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1739,7 +1574,7 @@ Native validation is required for the chosen scope and host build.
 
 Set minimum/preferred/maximum width for scoped tracks.
 
-**Open:** Detailed rule → Add constraint → Track width
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Track width
 
 Set minimum/preferred/maximum width for scoped tracks.
 
@@ -1749,7 +1584,7 @@ Native identifier | track_width
 
 Category | Routing
 
-GUI controls | Minimum (min), Preferred (opt), Maximum (max)
+Catalog fields | Minimum (min), Preferred (opt), Maximum (max)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1757,7 +1592,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Track width. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1773,7 +1608,7 @@ Native validation is required for the chosen scope and host build.
 
 Check the angle between connected track segments.
 
-**Open:** Detailed rule → Add constraint → Connected track angle
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Connected track angle
 
 Check the angle between connected track segments.
 
@@ -1783,7 +1618,7 @@ Native identifier | track_angle
 
 Category | Routing
 
-GUI controls | Minimum (min), Maximum (max)
+Catalog fields | Minimum (min), Maximum (max)
 
 Value domain | Angle (deg)
 
@@ -1791,7 +1626,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Connected track angle. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1807,7 +1642,7 @@ Angle between connected segments, not absolute orientation.
 
 Bound the length of individual track/arc items.
 
-**Open:** Detailed rule → Add constraint → Individual track / arc length
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Individual track / arc length
 
 Bound the length of individual track/arc items.
 
@@ -1817,7 +1652,7 @@ Native identifier | track_segment_length
 
 Category | Routing
 
-GUI controls | Minimum (min), Maximum (max)
+Catalog fields | Minimum (min), Maximum (max)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1825,7 +1660,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Individual track / arc length. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1841,7 +1676,7 @@ Native validation is required for the chosen scope and host build.
 
 Constrain a selected native path by length or supported propagation delay.
 
-**Open:** Detailed rule → Add constraint → Path length / propagation delay
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Path length / propagation delay
 
 Constrain a selected native path by length or supported propagation delay.
 
@@ -1851,7 +1686,7 @@ Native identifier | length
 
 Category | High speed
 
-GUI controls | Minimum (min), Preferred (opt), Maximum (max)
+Catalog fields | Minimum (min), Preferred (opt), Maximum (max)
 
 Value domain | Length OR time (e.g. mm or ps); one domain
 
@@ -1859,7 +1694,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Path length / propagation delay. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1875,7 +1710,7 @@ Length (mm/mil/in) or native propagation delay (ps). Do not mix domains. Verify 
 
 Constrain mismatch for the selected group of paths or differential-pair members.
 
-**Open:** Detailed rule → Add constraint → Length mismatch / skew
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Length mismatch / skew
 
 Constrain mismatch for the selected group of paths or differential-pair members.
 
@@ -1885,7 +1720,7 @@ Native identifier | skew
 
 Category | High speed
 
-GUI controls | Minimum (min), Preferred (opt), Maximum (max); within_diff_pairs checkbox
+Catalog fields | Minimum (min), Preferred (opt), Maximum (max); within_diff_pairs checkbox
 
 Value domain | Length OR time (e.g. mm or ps); one domain
 
@@ -1893,7 +1728,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Length mismatch / skew. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1909,7 +1744,7 @@ Length mismatch or time skew in ps. Optional within_diff_pairs. Native timing re
 
 Set spacing of supported coupled sections of a differential pair.
 
-**Open:** Detailed rule → Add constraint → Differential-pair gap
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Differential-pair gap
 
 Set spacing of supported coupled sections of a differential pair.
 
@@ -1919,7 +1754,7 @@ Native identifier | diff_pair_gap
 
 Category | High speed
 
-GUI controls | Minimum (min), Preferred (opt), Maximum (max)
+Catalog fields | Minimum (min), Preferred (opt), Maximum (max)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1927,7 +1762,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Differential-pair gap. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1943,7 +1778,7 @@ Parallel coupled sections; opt informs the router.
 
 Set the maximum allowed uncoupled length for a differential pair.
 
-**Open:** Detailed rule → Add constraint → Differential-pair uncoupled length
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Differential-pair uncoupled length
 
 Set the maximum allowed uncoupled length for a differential pair.
 
@@ -1953,7 +1788,7 @@ Native identifier | diff_pair_uncoupled
 
 Category | High speed
 
-GUI controls | Maximum (max)
+Catalog fields | Maximum (max)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -1961,7 +1796,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Differential-pair uncoupled length. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -1977,7 +1812,7 @@ Native validation is required for the chosen scope and host build.
 
 Bound the number of vias on the applicable net/path according to native semantics.
 
-**Open:** Detailed rule → Add constraint → Vias per net
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Vias per net
 
 Bound the number of vias on the applicable net/path according to native semantics.
 
@@ -1987,7 +1822,7 @@ Native identifier | via_count
 
 Category | High speed
 
-GUI controls | Minimum (min), Maximum (max)
+Catalog fields | Minimum (min), Maximum (max)
 
 Value domain | Whole count
 
@@ -1995,7 +1830,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Vias per net. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2011,7 +1846,7 @@ Native validation is required for the chosen scope and host build.
 
 Enable a scoped dangling-via check with the chosen severity.
 
-**Open:** Detailed rule → Add constraint → Dangling-via check
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Dangling-via check
 
 Enable a scoped dangling-via check with the chosen severity.
 
@@ -2021,7 +1856,7 @@ Native identifier | via_dangling
 
 Category | Routing
 
-GUI controls | No arguments; use severity and scope
+Catalog fields | No arguments; use severity and scope
 
 Value domain | No numeric unit
 
@@ -2029,7 +1864,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Dangling-via check. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2045,7 +1880,7 @@ No numeric arguments. Severity controls reporting; Ignore still participates in 
 
 Bound relevant text height, commonly for fabrication/marking requirements.
 
-**Open:** Detailed rule → Add constraint → Text height
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Text height
 
 Bound relevant text height, commonly for fabrication/marking requirements.
 
@@ -2055,7 +1890,7 @@ Native identifier | text_height
 
 Category | Manufacturing
 
-GUI controls | Minimum (min), Maximum (max)
+Catalog fields | Minimum (min), Maximum (max)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -2063,7 +1898,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Text height. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2079,7 +1914,7 @@ Native validation is required for the chosen scope and host build.
 
 Bound relevant text stroke thickness.
 
-**Open:** Detailed rule → Add constraint → Text stroke thickness
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Text stroke thickness
 
 Bound relevant text stroke thickness.
 
@@ -2089,7 +1924,7 @@ Native identifier | text_thickness
 
 Category | Manufacturing
 
-GUI controls | Minimum (min), Maximum (max)
+Catalog fields | Minimum (min), Maximum (max)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -2097,7 +1932,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Text stroke thickness. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2113,7 +1948,7 @@ Native validation is required for the chosen scope and host build.
 
 Set spacing for silkscreen-related native checks.
 
-**Open:** Detailed rule → Add constraint → Silkscreen clearance
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Silkscreen clearance
 
 Set spacing for silkscreen-related native checks.
 
@@ -2123,7 +1958,7 @@ Native identifier | silk_clearance
 
 Category | Manufacturing
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -2131,7 +1966,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Silkscreen clearance. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2147,7 +1982,7 @@ Native validation is required for the chosen scope and host build.
 
 Apply the native solder-mask bridging check with a scoped severity.
 
-**Open:** Detailed rule → Add constraint → Solder-mask bridging check
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Solder-mask bridging check
 
 Apply the native solder-mask bridging check with a scoped severity.
 
@@ -2157,7 +1992,7 @@ Native identifier | bridged_mask
 
 Category | Mask & paste
 
-GUI controls | No arguments; use severity and scope
+Catalog fields | No arguments; use severity and scope
 
 Value domain | No numeric unit
 
@@ -2165,7 +2000,7 @@ Pair scope reminder | Two checked objects; scope both for a strict local pair ex
 
 ### How to use
 
-Detailed rule → Add constraint → Solder-mask bridging check. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2181,7 +2016,7 @@ No numeric arguments; combine with severity and scope.
 
 Specify the supported preferred mask expansion around selected pads.
 
-**Open:** Detailed rule → Add constraint → Solder-mask expansion
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Solder-mask expansion
 
 Specify the supported preferred mask expansion around selected pads.
 
@@ -2191,7 +2026,7 @@ Native identifier | solder_mask_expansion
 
 Category | Mask & paste
 
-GUI controls | Preferred (opt)
+Catalog fields | Preferred (opt)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -2199,7 +2034,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Solder-mask expansion. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2215,7 +2050,7 @@ Native validation is required for the chosen scope and host build.
 
 Add a dimensional solder-paste aperture margin.
 
-**Open:** Detailed rule → Add constraint → Absolute solder-paste margin
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Absolute solder-paste margin
 
 Add a dimensional solder-paste aperture margin.
 
@@ -2225,7 +2060,7 @@ Native identifier | solder_paste_abs_margin
 
 Category | Mask & paste
 
-GUI controls | Preferred (opt)
+Catalog fields | Preferred (opt)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -2233,7 +2068,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Absolute solder-paste margin. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2249,7 +2084,7 @@ Negative values inset the aperture. Adds to relative margin.
 
 Apply a relative solder-paste aperture margin using the native rule value.
 
-**Open:** Detailed rule → Add constraint → Relative solder-paste margin
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Relative solder-paste margin
 
 Apply a relative solder-paste aperture margin using the native rule value.
 
@@ -2259,7 +2094,7 @@ Native identifier | solder_paste_rel_margin
 
 Category | Mask & paste
 
-GUI controls | Preferred (opt)
+Catalog fields | Preferred (opt)
 
 Value domain | Native ratio; no automatic percent conversion
 
@@ -2267,7 +2102,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Relative solder-paste margin. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2283,7 +2118,7 @@ Enter the native KiCad rule value. No automatic percent conversion; verify the a
 
 Specify the supported thermal gap for scoped zone/pad connections.
 
-**Open:** Detailed rule → Add constraint → Thermal-relief gap
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Thermal-relief gap
 
 Specify the supported thermal gap for scoped zone/pad connections.
 
@@ -2293,7 +2128,7 @@ Native identifier | thermal_relief_gap
 
 Category | Zones & thermals
 
-GUI controls | Minimum (min)
+Catalog fields | Minimum (min)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -2301,7 +2136,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Thermal-relief gap. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2317,7 +2152,7 @@ Native validation is required for the chosen scope and host build.
 
 Set the preferred width of thermal-relief spokes.
 
-**Open:** Detailed rule → Add constraint → Thermal-spoke width
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Thermal-spoke width
 
 Set the preferred width of thermal-relief spokes.
 
@@ -2327,7 +2162,7 @@ Native identifier | thermal_spoke_width
 
 Category | Zones & thermals
 
-GUI controls | Preferred (opt)
+Catalog fields | Preferred (opt)
 
 Value domain | Dimension (mm / mil / in)
 
@@ -2335,7 +2170,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Thermal-spoke width. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2351,7 +2186,7 @@ Native validation is required for the chosen scope and host build.
 
 Choose the minimum number of resolved thermal spokes.
 
-**Open:** Detailed rule → Add constraint → Minimum resolved thermal spokes
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Minimum resolved thermal spokes
 
 Choose the minimum number of resolved thermal spokes.
 
@@ -2361,7 +2196,7 @@ Native identifier | min_resolved_spokes
 
 Category | Zones & thermals
 
-GUI controls | Choice: 0, 1, 2, 3, 4
+Catalog fields | Choice: 0, 1, 2, 3, 4
 
 Value domain | Whole count
 
@@ -2369,7 +2204,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Minimum resolved thermal spokes. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2385,7 +2220,7 @@ Native validation is required for the chosen scope and host build.
 
 Choose solid, thermal_reliefs or none for the selected pad/zone connection.
 
-**Open:** Detailed rule → Add constraint → Pad-to-zone connection style
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Pad-to-zone connection style
 
 Choose solid, thermal_reliefs or none for the selected pad/zone connection.
 
@@ -2395,7 +2230,7 @@ Native identifier | zone_connection
 
 Category | Zones & thermals
 
-GUI controls | Choice: solid, thermal_reliefs, none
+Catalog fields | Choice: solid, thermal_reliefs, none
 
 Value domain | No numeric unit
 
@@ -2403,7 +2238,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Pad-to-zone connection style. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2419,7 +2254,7 @@ Native validation is required for the chosen scope and host build.
 
 Forbid selected object types in the matched scope.
 
-**Open:** Detailed rule → Add constraint → Disallow object types
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Disallow object types
 
 Forbid selected object types in the matched scope.
 
@@ -2429,7 +2264,7 @@ Native identifier | disallow
 
 Category | Restrictions
 
-GUI controls | Object-type checklist
+Catalog fields | Object-type checklist
 
 Value domain | No numeric unit
 
@@ -2437,7 +2272,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Disallow object types. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2453,7 +2288,7 @@ Native validation is required for the chosen scope and host build.
 
 Require a property/function expression to be true for already-matched objects.
 
-**Open:** Detailed rule → Add constraint → Property / expression assertion
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor, or Board Setup > Custom Rules for unsupported forms. Form: Property / expression assertion
 
 Require a property/function expression to be true for already-matched objects.
 
@@ -2463,7 +2298,7 @@ Native identifier | assertion
 
 Category | Restrictions
 
-GUI controls | Expression / visual builder
+Catalog fields | Expression / native custom rule
 
 Value domain | No numeric unit
 
@@ -2471,7 +2306,7 @@ Pair scope reminder | Use the appropriate checked-object/path scope; do not blin
 
 ### How to use
 
-Detailed rule → Add constraint → Property / expression assertion. Enter the supported values, inspect the parent rule’s condition/layer/severity, then stage and review. Press F1 or Help in the form to return here.
+Author this constraint in KiCad, review its condition, layer and severity there, then save and run native syntax checks and DRC.
 
 ### Illustrative fragment only
 
@@ -2481,13 +2316,13 @@ Detailed rule → Add constraint → Property / expression assertion. Enter the 
 
 Important. The example demonstrates syntax shape only, not recommended values. Build the assertion separately from the selection condition. An unresolved local expression still needs native syntax and behavior checks.
 
-The expression must be true for matched objects. Use the visual condition builder to construct it.
+The expression must be true for matched objects. Author its condition in KiCad and verify native matches.
 
 ## enclosedByArea()
 
 The WHOLE item lies inside a named area. Conservative boundary scope.
 
-**Open:** Scope builder → Function → enclosedByArea
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: enclosedByArea
 
 The WHOLE item lies inside a named area. Conservative boundary scope.
 
@@ -2497,7 +2332,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2513,7 +2348,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 ANY part intersects a named rule area / filled copper region.
 
-**Open:** Scope builder → Function → intersectsArea
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: intersectsArea
 
 ANY part intersects a named rule area / filled copper region.
 
@@ -2523,7 +2358,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2539,7 +2374,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 ANY part intersects either courtyard. Not strict containment.
 
-**Open:** Scope builder → Function → intersectsCourtyard
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: intersectsCourtyard
 
 ANY part intersects either courtyard. Not strict containment.
 
@@ -2549,7 +2384,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2565,7 +2400,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 ANY part intersects the front courtyard.
 
-**Open:** Scope builder → Function → intersectsFrontCourtyard
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: intersectsFrontCourtyard
 
 ANY part intersects the front courtyard.
 
@@ -2575,7 +2410,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2591,7 +2426,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 ANY part intersects the back courtyard.
 
-**Open:** Scope builder → Function → intersectsBackCourtyard
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: intersectsBackCourtyard
 
 ANY part intersects the back courtyard.
 
@@ -2601,7 +2436,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2617,7 +2452,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Item exists on this layer, including multilayer items.
 
-**Open:** Scope builder → Function → existsOnLayer
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: existsOnLayer
 
 Item exists on this layer, including multilayer items.
 
@@ -2627,7 +2462,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2635,7 +2470,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.existsOnLayer('F.Cu')
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -2643,7 +2478,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Path between endpoint patterns, such as U1-A1 and U2-B1. Host-version syntax check required.
 
-**Open:** Scope builder → Function → fromTo
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: fromTo
 
 Path between endpoint patterns, such as U1-A1 and U2-B1. Host-version syntax check required.
 
@@ -2653,7 +2488,7 @@ Receiver | A/B
 
 Argument count | 2
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2669,7 +2504,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Footprint field value; compare the result with a string.
 
-**Open:** Scope builder → Function → getField
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: getField
 
 Footprint field value; compare the result with a string.
 
@@ -2679,7 +2514,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2687,7 +2522,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.getField('Manufacturer') == 'Example manufacturer'
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -2695,7 +2530,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Footprint or parent belongs to the component class.
 
-**Open:** Scope builder → Function → hasComponentClass
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: hasComponentClass
 
 Footprint or parent belongs to the component class.
 
@@ -2705,7 +2540,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2721,7 +2556,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Membership in a netclass, including composite classes.
 
-**Open:** Scope builder → Function → hasNetclass
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: hasNetclass
 
 Membership in a netclass, including composite classes.
 
@@ -2731,7 +2566,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2747,7 +2582,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Exact set of netclasses.
 
-**Open:** Scope builder → Function → hasExactNetclass
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: hasExactNetclass
 
 Exact set of netclasses.
 
@@ -2757,7 +2592,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2773,7 +2608,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Differential-pair base name, allowing wildcard patterns.
 
-**Open:** Scope builder → Function → inDiffPair
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: inDiffPair
 
 Differential-pair base name, allowing wildcard patterns.
 
@@ -2783,7 +2618,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2791,7 +2626,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.inDiffPair('USB*')
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -2799,7 +2634,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 The two items are opposite polarities of the same pair.
 
-**Open:** Scope builder → Function → isCoupledDiffPair
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: isCoupledDiffPair
 
 The two items are opposite polarities of the same pair.
 
@@ -2809,7 +2644,7 @@ Receiver | AB
 
 Argument count | 0
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2825,7 +2660,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Blind via.
 
-**Open:** Scope builder → Function → isBlindVia
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: isBlindVia
 
 Blind via.
 
@@ -2835,7 +2670,7 @@ Receiver | A/B
 
 Argument count | 0
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2843,7 +2678,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.isBlindVia()
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -2851,7 +2686,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Buried via.
 
-**Open:** Scope builder → Function → isBuriedVia
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: isBuriedVia
 
 Buried via.
 
@@ -2861,7 +2696,7 @@ Receiver | A/B
 
 Argument count | 0
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2869,7 +2704,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.isBuriedVia()
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -2877,7 +2712,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Blind or buried via.
 
-**Open:** Scope builder → Function → isBlindBuriedVia
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: isBlindBuriedVia
 
 Blind or buried via.
 
@@ -2887,7 +2722,7 @@ Receiver | A/B
 
 Argument count | 0
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2895,7 +2730,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.isBlindBuriedVia()
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -2903,7 +2738,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Microvia.
 
-**Open:** Scope builder → Function → isMicroVia
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: isMicroVia
 
 Microvia.
 
@@ -2913,7 +2748,7 @@ Receiver | A/B
 
 Argument count | 0
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2921,7 +2756,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.isMicroVia()
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -2929,7 +2764,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Plated pad/via hole.
 
-**Open:** Scope builder → Function → isPlated
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: isPlated
 
 Plated pad/via hole.
 
@@ -2939,7 +2774,7 @@ Receiver | A/B
 
 Argument count | 0
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2947,7 +2782,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.isPlated()
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -2955,7 +2790,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Named PCB group membership.
 
-**Open:** Scope builder → Function → memberOfGroup
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: memberOfGroup
 
 Named PCB group membership.
 
@@ -2965,7 +2800,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -2973,7 +2808,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.memberOfGroup('RF')
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -2981,7 +2816,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Child of a footprint reference/library/class pattern.
 
-**Open:** Scope builder → Function → memberOfFootprint
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: memberOfFootprint
 
 Child of a footprint reference/library/class pattern.
 
@@ -2991,7 +2826,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -3007,7 +2842,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Exact schematic-sheet pattern, excluding descendants.
 
-**Open:** Scope builder → Function → memberOfSheet
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: memberOfSheet
 
 Exact schematic-sheet pattern, excluding descendants.
 
@@ -3017,7 +2852,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -3025,7 +2860,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.memberOfSheet('/Interface')
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -3033,7 +2868,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Sheet or descendants.
 
-**Open:** Scope builder → Function → memberOfSheetOrChildren
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: memberOfSheetOrChildren
 
 Sheet or descendants.
 
@@ -3043,7 +2878,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -3051,7 +2886,7 @@ Open in | Visual scope builder → Add/edit condition → Function
 A.memberOfSheetOrChildren('/Interface')
 ```
 
-Important. Choose values and objects appropriate to this predicate. Availability in the builder does not imply the offline inspector implements it fully.
+Important. Choose values and objects appropriate to this predicate. Catalog presence does not imply the offline inspector implements it fully.
 
 The example’s names are placeholders. Replace them with actual project names/patterns and validate the complete emitted rule in native KiCad.
 
@@ -3059,7 +2894,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Deprecated intersection alias; not strict containment.
 
-**Open:** Scope builder → Function → insideArea
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: insideArea
 
 Deprecated intersection alias; not strict containment.
 
@@ -3069,7 +2904,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -3085,7 +2920,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Deprecated intersection alias; not strict containment.
 
-**Open:** Scope builder → Function → insideCourtyard
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: insideCourtyard
 
 Deprecated intersection alias; not strict containment.
 
@@ -3095,7 +2930,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -3111,7 +2946,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Deprecated front-courtyard intersection alias.
 
-**Open:** Scope builder → Function → insideFrontCourtyard
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: insideFrontCourtyard
 
 Deprecated front-courtyard intersection alias.
 
@@ -3121,7 +2956,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -3137,7 +2972,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Deprecated back-courtyard intersection alias.
 
-**Open:** Scope builder → Function → insideBackCourtyard
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: insideBackCourtyard
 
 Deprecated back-courtyard intersection alias.
 
@@ -3147,7 +2982,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 
@@ -3163,7 +2998,7 @@ The example’s names are placeholders. Replace them with actual project names/p
 
 Deprecated group-membership alias.
 
-**Open:** Scope builder → Function → memberOf
+**Author in KiCad:** PCB Editor > Tools > Design Rule Editor > Conditions. Function: memberOf
 
 Deprecated group-membership alias.
 
@@ -3173,7 +3008,7 @@ Receiver | A/B
 
 Argument count | 1
 
-Open in | Visual scope builder → Add/edit condition → Function
+Native editor | Design Rule Editor conditions or Custom Rules
 
 ### Illustrative expression
 

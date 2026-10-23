@@ -1,9 +1,24 @@
-# Constraint Studio UI simplification
+# Constraint Studio UI changes and validation
+
+## Current source behavior after release 3.6.28
+
+General rule authoring moved to KiCad 10 **Tools > Design Rule Editor**;
+netclasses and board-wide settings are edited in **Board Setup**. Studio's
+**Rule overview** and native **Rule inspection** show saved and generated rules
+read-only, with scope filters, board preview, local findings and priority
+traces. Protocol presets, matrices, reusable sets, BGA managed regions,
+scoped layer/via profiles and staged review/export/apply remain available.
+See the [native graphical rule editor](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#graphical-design-rule-editor),
+[net classes](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#net-classes), and
+[tuning profiles](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#tuning-profiles)
+in KiCad 10. This source change is not a published binary claim.
+
+## Historical 3.6.15 UI validation
 
 Validated on Windows, 12 October 2026. This is a source UI update; published
 3.6.15 binaries and PCM feed are unchanged.
 
-## Behavior
+### Behavior in the earlier editable worksheet
 
 - Full-width worksheet by default. Scope filters, board map and rule inspector
   start hidden and open independently. Their choices survive session rerenders.
@@ -19,7 +34,7 @@ Validated on Windows, 12 October 2026. This is a source UI update; published
   diagnostic warning summaries remain visible. Trace cards preserve the common
   width/gap scale, label dimensions and reject absent/invalid pair gaps.
 
-## Checks performed
+### Checks performed for the earlier interface
 
 - `python -m pytest protocol_constraint_composer_plugin/tests -q`: **372 passed**.
   Ran with a PTY because inherited pipe handles in this execution environment
@@ -37,7 +52,7 @@ Validated on Windows, 12 October 2026. This is a source UI update; published
   This is a disposable saved-project studio window, not a live routing test.
 - JavaScript syntax and documentation checks passed.
 
-## Screenshot provenance
+### Historical screenshot provenance
 
 `help-workflow.png` (1600x1100) and `help-rule-panels.png` are rendered directly
 from the shipped interface and public workflow_demo model snapshot. The first

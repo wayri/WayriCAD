@@ -120,8 +120,8 @@ class WorkspacePanel(wx.Panel):
         self.a=None;self.b=None
         root=wx.BoxSizer(wx.VERTICAL);self.SetSizer(root)
         bar=wx.WrapSizer();root.Add(bar,0,wx.EXPAND|wx.ALL,10)
-        for title,fn in [('New scoped rule',self.new_scoped),('BGA / component exception',frame.bga),('Edit selected rule',self.edit_selected),('Refresh',lambda e:self.refresh()),('Focus worksheet / restore',self.toggle_focus),('Undo',frame.undo),('Redo',frame.redo)]:bar.Add(btn(self,title,fn),0,wx.RIGHT|wx.BOTTOM,6)
-        self.summary=text(self,'Open a board to start a constraint worksheet.',True,11);root.Add(self.summary,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        for title,fn in [('BGA / component exception',frame.bga),('Inspect selected rule',self.edit_selected),('Edit rules in KiCad…',frame.native_rule_help),('Refresh',lambda e:self.refresh()),('Show / hide scope & details',self.toggle_focus),('Undo',frame.undo),('Redo',frame.redo)]:bar.Add(btn(self,title,fn),0,wx.RIGHT|wx.BOTTOM,6)
+        self.summary=text(self,'Open a board to inspect rules and compose protocol constraints.',True,11);root.Add(self.summary,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         outer=wx.SplitterWindow(self,style=wx.SP_LIVE_UPDATE);root.Add(outer,1,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         nav=wx.Panel(outer);nav.SetBackgroundColour(SURFACE);ns=wx.BoxSizer(wx.VERTICAL);nav.SetSizer(ns)
         ns.Add(text(nav,'DESIGN SCOPE',True,11),0,wx.ALL,12)
@@ -140,17 +140,17 @@ class WorkspacePanel(wx.Panel):
         ts.Add(self.grid,1,wx.EXPAND)
         ts.Add(text(tablepanel,'Blank = unspecified / inherited. Scope tree filters declared references, not effective inheritance. Preferred values are targets.',False,9),0,wx.ALL,8)
         tools=wx.WrapSizer();ts.Add(tools,0,wx.EXPAND|wx.ALL,8)
-        for title,fn in [('Fill selected rows',self.fill),('Copy rows',self.copy_rows),('Paste min / opt / max',self.paste_values),('Export CSV',self.export_csv),('Higher priority',lambda e:self.move(1)),('Lower priority',lambda e:self.move(-1))]:tools.Add(btn(tablepanel,title,fn),0,wx.RIGHT|wx.BOTTOM,5)
-        self.midbook.AddPage(tablepanel,'Constraint worksheet')
+        for title,fn in [('Copy rows',self.copy_rows),('Export CSV',self.export_csv)]:tools.Add(btn(tablepanel,title,fn),0,wx.RIGHT|wx.BOTTOM,5)
+        self.midbook.AddPage(tablepanel,'Rule overview')
         self.canvas=BoardPreview(self.midbook,self.pick_a);self.midbook.AddPage(self.canvas,'Layout scope preview')
-        self.grid.Bind(gridlib.EVT_GRID_CELL_CHANGED,self.cell_changed);self.grid.Bind(gridlib.EVT_GRID_SELECT_CELL,self.select_cell)
+        self.grid.EnableEditing(False);self.grid.Bind(gridlib.EVT_GRID_SELECT_CELL,self.select_cell)
         self.grid.Bind(gridlib.EVT_GRID_CELL_LEFT_DCLICK,lambda e:self.edit_selected(e) if e.GetCol() in (2,3) else e.Skip())
         rs=wx.BoxSizer(wx.VERTICAL);right.SetSizer(rs)
         rs.Add(text(right,'CONTEXT & EXPLANATION',True,11),0,wx.ALL,12)
         self.detail=text(right,'Select a worksheet row.');rs.Add(self.detail,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         self.scope_text=wx.TextCtrl(right,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,92));rs.Add(self.scope_text,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         scopebuttons=wx.WrapSizer();rs.Add(scopebuttons,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
-        for title,fn in [('Edit scope',self.edit_scope),('Find matches',self.preview_matches),('Cross-probe matches',self.probe_matches)]:scopebuttons.Add(btn(right,title,fn),0,wx.RIGHT|wx.BOTTOM,5)
+        for title,fn in [('Find matches',self.preview_matches),('Cross-probe matches',self.probe_matches)]:scopebuttons.Add(btn(right,title,fn),0,wx.RIGHT|wx.BOTTOM,5)
         self.match_summary=text(right,'Scope preview has not been evaluated.');rs.Add(self.match_summary,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         rs.Add(text(right,'RULE RESOLUTION — OFFLINE SUBSET',True,10),0,wx.ALL,12)
         self.a_choice=wx.ComboBox(right,style=wx.CB_READONLY);self.b_choice=wx.ComboBox(right,style=wx.CB_READONLY)
@@ -162,6 +162,7 @@ class WorkspacePanel(wx.Panel):
         self.trace.ChangeValue('Native DRC and KiCad’s own constraint resolution remain authoritative. Unsupported expressions stay unknown; they are not treated as non-matches.')
         body.SetMinimumPaneSize(300);body.SplitVertically(mid,right,850);body.SetSashGravity(.75)
         self.outer=outer;self.body=body;self.nav_panel=nav;self.mid_panel=mid;self.right_panel=right;self.focused=False;self.refresh()
+        self.toggle_focus(None)
     def toggle_focus(self,event):
         if not self.focused:
             self.body.Unsplit(self.right_panel);self.outer.Unsplit(self.nav_panel);self.focused=True
@@ -223,7 +224,7 @@ class WorkspacePanel(wx.Panel):
                 r=w.document.rules[ri];c=r.constraints[ci];spec=CATALOG.get(c.kind)
                 vals=['yes' if r.enabled else 'no',str(len(w.document.rules)-ri),r.name,spec.label if spec else c.kind,c.values.get('min',''),c.values.get('opt',''),c.values.get('max',''),r.layer or 'Any',r.severity or 'inherit']
                 for col,v in enumerate(vals):
-                    self.grid.SetCellValue(row,col,str(v));self.grid.SetReadOnly(row,col,col in (1,3) or (col in (4,5,6) and (not spec or ('min','opt','max')[col-4] not in spec.fields)))
+                    self.grid.SetCellValue(row,col,str(v));self.grid.SetReadOnly(row,col)
                     self.grid.SetCellBackgroundColour(row,col,wx.Colour('white' if row%2==0 else '#F6F8FC'))
                     self.grid.SetCellTextColour(row,col,wx.Colour(INK if r.enabled else MUTED))
                 self.grid.SetCellEditor(row,0,gridlib.GridCellChoiceEditor(['yes','no']))
@@ -242,26 +243,7 @@ class WorkspacePanel(wx.Panel):
         # Discard stale form copies so visiting the detail tab cannot overwrite
         # a worksheet edit with the previous rule model.
         f=self.frame;f.index=None;f.editing=None;f.refresh_rules();self.refresh_table();self.current_items=[];self.canvas.selected=set();self.canvas.Refresh();self.match_summary.SetLabel('Rules changed — evaluate matches again.')
-    def cell_changed(self,event):
-        if self.busy:return
-        row,col=event.GetRow(),event.GetCol()
-        if row>=len(self.rows):return
-        ri,ci=self.rows[row];trial=self.frame.w.clone();r=trial.document.rules[ri];c=r.constraints[ci];value=self.grid.GetCellValue(row,col).strip()
-        try:
-            if col==0:r.enabled=value=='yes'
-            elif col==2:
-                if not value:raise ValueError('Rule name cannot be blank')
-                r.name=value
-            elif col in (4,5,6):
-                key=('min','opt','max')[col-4]
-                if value:numeric(value,CATALOG[c.kind].unit);c.values[key]=value
-                else:c.values.pop(key,None)
-            elif col==7:r.layer='' if value=='Any' else value
-            elif col==8:r.severity='' if value=='inherit' else value
-            errors=[i.message for i in lint(RuleDocument(rules=[r])) if i.severity=='error']
-            if errors:raise ValueError('\n'.join(errors))
-            self.frame.checkpoint();self.frame.w=trial;self.after_change()
-        except Exception as e:fail(self,e);self.refresh_table()
+
     def select_cell(self,event):
         row=event.GetRow()
         if row<len(self.rows):
@@ -274,68 +256,14 @@ class WorkspacePanel(wx.Panel):
         row=self.selected_row()
         if not row:return
         self.frame.load_rule(row[0]);self.frame.refresh_rules(row[0]);self.frame.select_page(self.frame.rule_page)
-    def edit_scope(self,event):
-        row=self.selected_row()
-        if not row:return
-        self.frame.load_rule(row[0]);self.frame.build_scope(event);self.frame.collect();self.after_change()
-    def new_scoped(self,event):
-        from .expressions import property_test,function_test
-        kind,target=self.filter;r=Rule('New '+(target or 'board')+' rule',constraints=[Constraint('clearance',{'min':'0.2mm'})])
-        # A new rule starts disabled: 0.2 mm is an editable placeholder, not a
-        # proposed manufacturing value or an automatically active exception.
-        r.enabled=False;r.notes='Draft placeholder. Enter approved values before enabling.'
-        if kind=='component':r.condition=function_test('A','memberOfFootprint',[target]).emit()
-        elif kind=='netclass':r.condition=function_test('A','hasNetclass',[target]).emit()
-        elif kind=='net':r.condition=property_test('A','NetName','==',target).emit()
-        elif kind=='area':
-            from .expressions import both
-            r.condition=both('enclosedByArea',target).emit()
-        self.frame.collect();self.frame.checkpoint();self.frame.w.document.append(r);self.after_change()
-        self.frame.load_rule(len(self.frame.w.document.rules)-1);self.frame.select_page(self.frame.rule_page)
-    def move(self,delta):
-        row=self.selected_row()
-        if not row:return
-        self.frame.collect();self.frame.checkpoint();self.frame.w.document.move(row[0],delta);self.after_change()
-    def fill(self,event):
-        selected=self.selected_rows()
-        if not selected:return
-        with wx.SingleChoiceDialog(self,'Choose a column to fill for selected rows','Bulk fill',['Minimum','Preferred','Maximum']) as choose:
-            if choose.ShowModal()!=wx.ID_OK:return
-            key=('min','opt','max')[choose.GetSelection()]
-        with wx.TextEntryDialog(self,'Value with units. Blank removes this field.','Fill '+key) as d:
-            if d.ShowModal()!=wx.ID_OK:return
-            value=d.GetValue().strip()
-        try:
-            trial=self.frame.w.clone()
-            for row in selected:
-                ri,ci=self.rows[row];c=trial.document.rules[ri].constraints[ci];spec=CATALOG.get(c.kind)
-                if not spec or key not in spec.fields:raise ValueError(c.kind+' does not support '+key+'; no rows were changed')
-                if value:numeric(value,spec.unit);c.values[key]=value
-                else:c.values.pop(key,None)
-            errs=[i.message for i in lint(RuleDocument(rules=[trial.document.rules[i] for i in sorted(set(self.rows[r][0] for r in selected))])) if i.severity=='error']
-            if errs:raise ValueError('\n'.join(errs))
-            self.frame.checkpoint();self.frame.w=trial;self.after_change()
-        except Exception as e:fail(self,e)
+
+
+
+
     def copy_rows(self,event):
         try:clipboard_write('\n'.join('\t'.join(self.grid.GetCellValue(row,c) for c in range(self.grid.GetNumberCols())) for row in self.selected_rows()))
         except Exception as e:fail(self,e)
-    def paste_values(self,event):
-        try:
-            rows=list(csv.reader(io.StringIO(clipboard_read()),delimiter='\t'));start=self.grid.GetGridCursorRow()
-            if start<0 or start+len(rows)>len(self.rows):raise ValueError('Select a starting row with enough remaining worksheet rows')
-            trial=self.frame.w.clone();affected=set()
-            for i,values in enumerate(rows):
-                if len(values)!=3:raise ValueError('Paste exactly three columns: minimum, preferred, maximum')
-                ri,ci=self.rows[start+i];c=trial.document.rules[ri].constraints[ci];spec=CATALOG.get(c.kind);affected.add(ri)
-                for key,value in zip(('min','opt','max'),values):
-                    if value.strip():
-                        if not spec or key not in spec.fields:raise ValueError(c.kind+' has no '+key)
-                        numeric(value,spec.unit);c.values[key]=value.strip()
-                    else:c.values.pop(key,None)
-            errors=[x.message for x in lint(RuleDocument(rules=[trial.document.rules[i] for i in affected])) if x.severity=='error']
-            if errors:raise ValueError('\n'.join(errors))
-            self.frame.checkpoint();self.frame.w=trial;self.after_change()
-        except Exception as e:fail(self,e)
+
     def export_csv(self,event):
         with wx.FileDialog(self,'Export visible worksheet',wildcard='CSV (*.csv)|*.csv',defaultFile='constraints.csv',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:
             if d.ShowModal()!=wx.ID_OK:return
@@ -479,7 +407,7 @@ class ProfilesPanel(wx.Panel):
         try:
             self.frame.collect();trial=self.frame.w.clone();install_profile(trial,self.current,self.bindings(),self.instance.GetValue().strip(),self.apply_floors.GetValue(),self.migration.GetValue())
             if self.apply_floors.GetValue() and wx.MessageBox('Apply these staged board-wide manufacturing floor changes? Review fabrication approval independently.','Board floor change',wx.YES_NO|wx.NO_DEFAULT|wx.ICON_WARNING,self)!=wx.YES:return
-            self.frame.checkpoint();self.frame.w=trial;self.frame.index=None;self.frame.editing=None;self.frame.refresh_rules();self.frame.refresh_settings();self.frame.workbench.refresh();self.refresh_review()
+            self.frame.checkpoint();self.frame.w=trial;self.frame.index=None;self.frame.editing=None;self.frame.refresh_rules();self.frame.workbench.refresh();self.refresh_review()
             self.preview_text.ChangeValue('Set staged. Source files are unchanged. Export and validate the review bundle.')
         except Exception as e:fail(self,e)
     def load_instance(self,event):

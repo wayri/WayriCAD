@@ -11,6 +11,15 @@ pytest.importorskip('wx', reason='Native wxPython is supplied by KiCad')
 from protocol_constraint_composer_plugin import studio_ui, studio_webview
 
 
+@pytest.mark.parametrize('method', sorted(studio_webview.NATIVE_EDIT_OPERATIONS))
+def test_removed_editing_methods_reject_without_touching_workspace(method):
+    visual=object.__new__(studio_webview.VisualWorkspace)
+    visual.frame=SimpleNamespace(collect=Mock(side_effect=AssertionError('Workspace was touched')))
+    with pytest.raises(ValueError,match='KiCad'):
+        visual.dispatch(method,{'revision':'old snapshot'})
+    visual.frame.collect.assert_not_called()
+
+
 def test_webview_startup_watchdog_stops_with_window():
     frame = object()
     timer = Mock()

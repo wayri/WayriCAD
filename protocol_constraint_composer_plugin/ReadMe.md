@@ -11,15 +11,20 @@
 
 CLI scope: JSON constraint composition; reviewed project apply remains separate. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
 
-Create and review KiCad design rules in a saved-project workspace. Studio supports
-custom constraints, netclasses, clearance matrices and per-layer routing profiles.
-Edits stay staged until you export and apply a reviewed copy.
+Inspect saved KiCad rules and prepare grouped design intent in a saved-project
+workspace. Edit individual rules in KiCad 10's **Tools → Design Rule Editor**;
+edit netclasses and board-wide settings in **Board Setup**. Studio retains protocol
+presets, clearance matrices, reusable sets, BGA managed regions and scoped layer
+profiles with via rules. Studio changes stay staged until you export and apply a
+reviewed copy. These interface changes are newer than release 3.6.28 and are
+currently available in source.
 
 ## Getting started
 
 1. Save the PCB and Board Setup in KiCad, then open **WayriCAD Constraint Studio**.
-2. Select a rule in the worksheet. Edit its dimensions directly, use **Edit rule**,
-   or create one with **New rule**. **Protocol presets** helps prepare common buses.
+2. Select a rule in **Rule overview** to inspect its saved dimensions and scope.
+   Create or edit individual rules in KiCad, then save and reload Studio. Use
+   **Protocol presets** to prepare common buses in Studio.
 3. Open **Scope filters**, **Board preview** or **Rule details** when needed.
    The worksheet starts at full width, with these panels closed.
 4. Go to **Review & export**. Resolve local errors, inspect the changes, and export
@@ -34,23 +39,30 @@ lint help review your intent; they do not replace native DRC.
 
 | Where | What to do |
 |---|---|
-| Constraint worksheet | Edit minimum, preferred and maximum values; set scope and priority. |
+| Rule overview | Read minimum, preferred and maximum values, scope and priority. |
 | Scope filters | Narrow the table by component, net, netclass, area or constraint family. |
 | Board preview | Zoom, pan and select saved objects to inspect a rule's scope. |
 | Rule details | Read dimension illustrations, matching feedback and expanded expressions/priority traces. |
 | Layer routing profiles | Configure a named protocol/net group for each permitted routing layer. |
 | Review & export | Inspect findings, native rules and file differences before applying. |
-| More settings & tools | Open matrices, netclasses, reusable sets, BGA and other specialist editors. |
+| More settings & tools | Open matrices, reusable sets, BGA and other specialist workflows. |
 
 A **Clear filter** button remains visible when a scope filter is active, even if its
 panel is closed. Undo/redo works across staged edits. **Help / F1** opens the bundled
 reference inside the application.
 
-![Default worksheet with supporting panels closed](help-workflow.png)
+![Current native read-only overview](help-readonly-overview.png)
+
+Actual native fallback window on the public demonstration fixture. Source rules
+and generated protocol rules are inspected without editing their cells.
+[Overlap audit and validation](../docs/audits/CONSTRAINT_NATIVE_OVERLAP_2026-10-23.md).
+
+![Earlier worksheet with supporting panels closed](help-workflow.png)
 
 ![Board preview and illustrated rule details opened](help-rule-panels.png)
 
-These images render the shipped interface with the public demonstration snapshot.
+These images record the earlier editable worksheet with the public demonstration
+snapshot; they are historical and do not show the current read-only overview.
 [Capture and validation notes](docs/UI_SIMPLIFICATION.md).
 
 ## Set up layer routing
@@ -77,15 +89,16 @@ Studio reads saved geometry, not unsaved editor changes. A clean workspace refre
 when Studio regains focus; **Reload saved board** refreshes it explicitly. Export or
 undo staged changes before reloading.
 
-If the visual page stops responding, use **Open native worksheet · recover workspace**
-above it. The same staged work stays available in the native editor. Missing replies
+If the visual page stops responding, use **Open native overview · recover workspace**
+above it. The same staged work stays available in the native inspector. Missing replies
 time out without replaying edits. If WebView cannot start, Studio falls back to the
-native worksheet and displays the error.
+native inspector and displays the error.
 
 ## Supported scope and limits
 
-- All 34 custom-constraint forms can be authored; unfamiliar native expressions
-  may need advanced text entry.
+- The packaged 34-constraint catalog remains available as reference data and for
+  inspecting generated rules. Author general rules in KiCad's graphical or custom
+  rules editor.
 - Presets and width estimates need review against the actual stackup, devices and
   fabricator. A named reference layer alone does not prove plane continuity.
 - Condition matching is a conservative subset. Unknown matches stay unknown;

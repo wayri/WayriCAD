@@ -49,20 +49,24 @@ def main():
                 ready = script("String(!!document.querySelector('#board-map') && !!state && pending.size===0)")
                 if ready.strip('"') != 'true': wx.CallLater(200, check); return
                 result['initial_rules'] = len(frame.w.document.rules)
-                script("window.testErrors=[]; window.addEventListener('error',e=>testErrors.push(e.message)); window.addEventListener('unhandledrejection',e=>testErrors.push(String(e.reason))); window.testDone=false; setTimeout(async()=>{try { const input=document.querySelector('[data-value=\"min\"]'); window.testOriginal=input.value; input.value='0.11mm'; input.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){testErrors.push(String(e));}},0); void 0;")
+                assert script("String(!document.querySelector('[data-value]') && !document.querySelector('[data-action=\"new-rule\"]') && !document.querySelector('[data-view=\"netclasses\"]'))").strip('"') == 'true'
+                assert script("String(document.querySelectorAll('#nav [data-view=\"routing\"]').length===1)").strip('"') == 'true'
+                result['read_only_overview']='passed'
+                result['source_state']=frame.w.state()
+                script("window.testErrors=[]; window.addEventListener('error',e=>testErrors.push(e.message)); window.addEventListener('unhandledrejection',e=>testErrors.push(String(e.reason))); window.testDone=false; setTimeout(async()=>{try{await call('save_rule',{revision:state.revision});testErrors.push('Removed edit was accepted');}catch(e){if(!String(e).includes('KiCad'))testErrors.push(String(e));}finally{window.testDone=true;}},0);void 0;")
                 phase = 1
             elif phase == 1:
-                ready = script("String(pending.size===0 && !document.body.classList.contains('busy') && document.querySelector('[data-value=\"min\"]')?.value==='0.11mm')")
+                ready = script("String(window.testDone && pending.size===0)")
                 if ready.strip('"') != 'true': wx.CallLater(200, check); return
-                assert frame.w.document.rules[-1].constraints[0].values['min'] == '0.11mm'
-                result['worksheet_edit'] = 'passed'
-                script("setTimeout(async()=>{try{await action('undo');window.testDone=true;}catch(e){testErrors.push(String(e));}},0); void 0;")
+                assert frame.w.state()==result['source_state']
+                result['removed_edit_rejected_without_mutation']='passed'
+                script("window.testDone=false;setTimeout(async()=>{try { view='matrix';render();matrixDraft.cells=[{i:0,j:1,value:'0.3mm'}];await edit('matrix',matrixDraft);window.testDone=true;}catch(e){testErrors.push(String(e));}},0);void 0;")
                 phase = 2
             elif phase == 2:
                 if script('String(window.testDone && pending.size===0)').strip('"') != 'true': wx.CallLater(200, check); return
-                assert frame.w.document.rules[-1].constraints[0].values['min'] != '0.11mm'
-                result['undo'] = 'passed'
-                script("window.testDone=false;setTimeout(async()=>{try { view='matrix';render();matrixDraft.cells=[{i:0,j:1,value:'0.3mm'}];await edit('matrix',matrixDraft);view='sets';render();if(document.querySelectorAll('[data-profile]').length!==6)throw Error('Missing constraint sets');view='review';reviewTab='diff';render();await loadReview();view='workspace';render();await inspect();window.testDone=true;}catch(e){testErrors.push(String(e));}},0);void 0;")
+                assert any(r.name.startswith('Matrix Main') for r in frame.w.document.rules)
+                script("window.testDone=false;setTimeout(async()=>{try {await action('undo');if(state.dirty)throw Error('Undo did not restore source');await action('redo');view='routing';render();view='sets';render();if(document.querySelectorAll('[data-profile]').length!==6)throw Error('Missing constraint sets');view='review';reviewTab='diff';render();await loadReview();view='workspace';render();await inspect();window.testDone=true;}catch(e){testErrors.push(String(e));}},0);void 0;")
+                result['matrix_undo_redo']='passed'
                 phase = 3
             elif phase == 3:
                 if script('String(window.testDone && pending.size===0)').strip('"') != 'true': wx.CallLater(200, check); return

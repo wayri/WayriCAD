@@ -3,6 +3,7 @@
 Creates no source-project changes. Optional screenshot captures this test window.
 """
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -28,6 +29,8 @@ def main():
     wx.MessageBox = lambda message, *a, **kw: (result['errors'].append(str(message)), wx.ID_OK)[1]
     app = wx.App(False)
     fixture = ROOT / 'protocol_constraint_composer_plugin/examples/workflow_demo/workflow_demo.kicad_pcb'
+    sources=[p for p in (fixture,fixture.with_suffix('.kicad_pro'),fixture.with_suffix('.kicad_dru')) if p.is_file()]
+    original={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
     try:
         frame = ConstraintStudioFrame(board_path=str(fixture))
         frame.Show()
@@ -38,6 +41,20 @@ def main():
 
     def inspect():
         try:
+            pages=[frame.book.GetPageText(i) for i in range(frame.book.GetPageCount())]
+            assert not {'Detailed rule','Netclasses','Board settings'} & set(pages), pages
+            assert 'Rule inspection' in pages
+            assert not frame.workbench.grid.IsEditable()
+            assert not hasattr(frame,'new_rule') and not hasattr(frame,'settings_page')
+            from protocol_constraint_composer_plugin.studio_webview import VisualWorkspace, NATIVE_EDIT_OPERATIONS
+            bridge=object.__new__(VisualWorkspace);bridge.frame=frame
+            before=frame.w.state()
+            for method in NATIVE_EDIT_OPERATIONS:
+                try:bridge.dispatch(method,{'revision':before})
+                except ValueError as exc:assert 'KiCad' in str(exc)
+                else:raise AssertionError('Removed editing method was accepted: '+method)
+                assert frame.w.state()==before
+            result['native_rule_handoff']='passed'
             frame.stage_protocols(generate_rules([Assignment('USB2', 'USB_D+', 'user')]))
             assert frame.overview_panel.rules.GetItemCount() > 0
             frame.overview_panel.edit_rule(None)
@@ -57,10 +74,14 @@ def main():
                     assert report['status'] in ('report-produced', 'violations'), report
             result.update(rules=len(frame.w.document.rules), map_items=len(frame.overview_panel.canvas.rows),
                           wx_version=wx.version(), status='passed' if not result['errors'] else 'failed')
+            assert original=={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
+            result['source_files_unchanged']=True
             frame.overview_panel.refresh()
             frame.Layout(); frame.Refresh(); frame.Update()
             if args.screenshot:
-                size = frame.GetClientSize(); bitmap = wx.Bitmap(size.width, size.height)
+                if frame.visual:frame.visual.native('workbench')
+                frame.Raise();frame.Layout();frame.Refresh();frame.Update();wx.Yield()
+                size = frame.GetClientSize(); bitmap = wx.Bitmap(size.width, size.height, 24)
                 dc = wx.MemoryDC(bitmap)
                 dc.Blit(0, 0, size.width, size.height, wx.ClientDC(frame), 0, 0)
                 dc.SelectObject(wx.NullBitmap)

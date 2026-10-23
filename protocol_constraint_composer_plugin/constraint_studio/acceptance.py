@@ -174,7 +174,7 @@ def gui_checks(e,enabled):
     try:import wx
     except Exception as ex:e.run('Native wx GUI launch/forms/screenshots','native-gui',skip=str(ex));return
     def run():
-        from .ui import StudioFrame,ConstraintDialog,BGADialog
+        from .ui import StudioFrame,BGADialog
         app=wx.GetApp() or wx.App(False);b=make_board(e.out/'gui_fixture');frame=StudioFrame(board_path=str(b));frame.Show();wx.Yield()
         screens=e.out/'screenshots';screens.mkdir(exist_ok=True);saved=[]
         def capture(name):
@@ -184,11 +184,9 @@ def gui_checks(e,enabled):
             for size in ((1366,768),(1920,1080)):
                 frame.SetSize((min(size[0]-24,area.width-24),min(size[1]-64,area.height-40)));frame.Center();wx.Yield()
                 for i in range(frame.book.GetPageCount()):frame.book.SetSelection(i);wx.Yield();capture('window_'+str(size[0])+'_page_'+str(i))
-            for spec in SPECS:
-                d=ConstraintDialog(frame,sample_constraint(spec),frame.w.context,frame.w.netclasses);d.Show();wx.Yield();d.Destroy()
             d=BGADialog(frame,frame.w,'U1');d.Show();wx.Yield();d.Destroy()
             # Screenshots are actual desktop captures. Visual acceptance is NOT inferred.
-            return {'wx_version':wx.version(),'display_pixels':[area.width,area.height],'effective_DPI':list(frame.GetDPI()),'screenshots':saved,'all_forms_constructed':len(SPECS),'visual_review_required':True}
+            return {'wx_version':wx.version(),'display_pixels':[area.width,area.height],'effective_DPI':list(frame.GetDPI()),'screenshots':saved,'read_only_rule_overview':True,'bga_form_constructed':True,'visual_review_required':True}
         finally:frame.Destroy();wx.Yield()
     e.run('Native wx GUI launch/forms/screenshots','native-gui',run)
 

@@ -9,10 +9,10 @@ import wx
 import wx.html2
 from wayricad_runtime.local_webview import new_webview
 from . import studio_model
-from .constraint_studio.ui import ConditionDialog
 
-MUTATIONS = {'save_rule', 'set_value', 'toggle', 'duplicate', 'delete', 'move', 'matrix', 'profile', 'netclass', 'setting', 'routing_profile', 'routing_remove'}
-PAGES = {'workbench', 'rule_page', 'matrix_page', 'netclass_page', 'settings_page', 'profile_panel', 'reports_panel', 'advanced_panel', 'help_page', 'review_page'}
+MUTATIONS = {'matrix', 'profile', 'routing_profile', 'routing_remove'}
+NATIVE_EDIT_OPERATIONS = {'save_rule', 'set_value', 'toggle', 'duplicate', 'delete', 'move', 'netclass', 'setting', 'condition'}
+PAGES = {'workbench', 'rule_page', 'matrix_page', 'profile_panel', 'reports_panel', 'advanced_panel', 'help_page', 'review_page'}
 
 
 def launch_apply_helper(folder):
@@ -50,8 +50,8 @@ class VisualWorkspace:
             raise RuntimeError('This WebView does not support native messaging.')
         self.back = wx.Button(frame, label='← Back to visual workspace')
         self.back.Bind(wx.EVT_BUTTON, lambda event: self.show())
-        self.recover = wx.Button(frame, label='Open native worksheet · recover workspace')
-        self.recover.SetToolTip('Use the complete native editor if the visual workspace stops responding. Staged changes stay in this window.')
+        self.recover = wx.Button(frame, label='Open native overview · recover workspace')
+        self.recover.SetToolTip('Inspect the staged rules and use composition tools if the visual workspace stops responding.')
         self.recover.Bind(wx.EVT_BUTTON, lambda event: self.native('workbench'))
         frame.GetSizer().Insert(0, self.recover, 0, wx.ALL, 6)
         frame.GetSizer().Insert(0, self.back, 0, wx.ALL, 10)
@@ -135,10 +135,12 @@ class VisualWorkspace:
     def replace(self, trial):
         f = self.frame
         f.checkpoint(); f.w = trial; f.index = None; f.editing = None
-        f.refresh_rules(); f.refresh_netclasses(); f.refresh_settings()
+        f.refresh_rules()
         f.workbench.refresh(); f.profile_panel.refresh()
 
     def dispatch(self, method, args):
+        if method in NATIVE_EDIT_OPERATIONS:
+            raise ValueError('Edit ordinary rules in KiCad: Tools → Design Rule Editor; edit netclasses and board constraints in Board Setup. Save and reload the source in Studio afterward.')
         f = self.frame; f.collect()
         if method == 'snapshot':
             state = self.state()
@@ -169,9 +171,7 @@ class VisualWorkspace:
         if method == 'review': return {'diff': f.w.review(), 'rules': f.w.document.emit()}
         if method == 'matrix_preview': return '\n\n'.join(rule.emit() for rule in studio_model.compile_matrix(args))
         if method == 'native': self.native(args['page'])
-        elif method == 'condition':
-            with ConditionDialog(f, str(args.get('expression', '')), f.w.context, f.w.netclasses) as dialog:
-                return dialog.result if dialog.ShowModal() == wx.ID_OK else None
+        elif method == 'native_rule_help': f.native_rule_help()
         elif method == 'open': f.open_board(None)
         elif method == 'undo': f.undo(None)
         elif method == 'redo': f.redo(None)

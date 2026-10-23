@@ -1,4 +1,20 @@
-# 0.3.1 feature status — implementation is not host acceptance
+# Constraint Studio feature status
+
+Current source behavior after the published 3.6.28 release removes duplicate
+general rule authoring and netclass/board-setting editors. This is a source
+change, not a claim that a new binary is published. KiCad 10 owns individual
+rules in [Tools > Design Rule Editor](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#graphical-design-rule-editor),
+and netclasses and manufacturing floors in
+[Board Setup](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#net-classes).
+Studio keeps read-only rule and scope inspection, protocol presets, clearance
+matrix generation, reusable sets, BGA managed regions, scoped layer/via
+profiles, and staged review/export/apply. KiCad's native
+[tuning profiles](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#tuning-profiles)
+cover per-layer geometry; Studio's profile workflow additionally groups
+protocol instances and stages scoped via rules.
+
+The table below records the earlier 0.3.1 implementation and its acceptance
+limits. Its completed checks do not validate the current source change.
 
 | Requested area | Implemented in this delivery | Still not complete |
 |---|---|---|

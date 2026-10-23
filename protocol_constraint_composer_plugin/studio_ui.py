@@ -148,7 +148,7 @@ class OverviewPanel(wx.Panel):
             cards.Add(card, 1, wx.EXPAND | wx.RIGHT, 8); self.cards.append(value)
         root.Add(cards, 0, wx.EXPAND | wx.ALL, 12)
         bar = wx.WrapSizer(wx.HORIZONTAL)
-        for title, handler in [('Protocol presets…', studio.open_protocols), ('Edit selected rule', self.edit_rule),
+        for title, handler in [('Protocol presets…', studio.open_protocols), ('Inspect selected rule', self.edit_rule),
                                ('Review changes…', studio.show_review), ('Fit map', lambda event: self.canvas.fit()),
                                ('Refresh', lambda event: self.refresh())]:
             button = wx.Button(self, label=title); button.Bind(wx.EVT_BUTTON, handler); bar.Add(button, 0, wx.RIGHT | wx.BOTTOM, 6)

@@ -256,7 +256,7 @@ Select a plugin for its full guide and supported models.
 | <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal delay, reflections, termination and return-path screening. |
 | <img src="trace_impedance_plugin/icon.png" width="24" height="24" alt="Trace RLC / Impedance icon"> [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Route resistance, inductance, capacitance and supported impedance estimates. |
 | <img src="bom_studio_plugin/icon.png" width="24" height="24" alt="Analytics Studio icon"> [Analytics Studio](bom_studio_plugin/README.md) | BOM editing, purchasing tables and board/copper analytics. |
-| <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Design rules, netclasses and per-layer routing profiles. |
+| <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Protocol presets, clearance matrices, scoped layer profiles and reviewed export. |
 | <img src="project_fusion_plugin/icon.png" width="24" height="24" alt="Project Fusion icon"> [Project Fusion](project_fusion_plugin/README.md) | Combine projects or circuit blocks and review linked updates. |
 | <img src="variant_manager_plugin/icon.png" width="24" height="24" alt="Variant Manager icon"> [Variant Manager](variant_manager_plugin/README.md) | Compare, edit, merge and recover assembly variants. |
 | <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Collect libraries and 3D models for portable projects. |
@@ -468,11 +468,21 @@ The earlier BOM Studio view is retained here under its current name, Analytics S
 
 ### [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md)
 
-**Rule worksheet**
+**Read-only rule overview**
+
+<a href="protocol_constraint_composer_plugin/help-readonly-overview.png"><img src="protocol_constraint_composer_plugin/help-readonly-overview.png" width="960" alt="Constraint Studio native fallback with a read-only rule overview and KiCad editor handoff"></a>
+
+Current source leaves individual rule editing to KiCad's Design Rule Editor and
+netclass editing to Board Setup. Studio keeps protocol presets, matrices,
+reusable sets and reviewed project export. This native fallback capture uses the
+public demonstration fixture. [Changes and validation](docs/audits/CONSTRAINT_NATIVE_OVERLAP_2026-10-23.md).
+
+**Earlier worksheet preview**
 
 <a href="protocol_constraint_composer_plugin/help-workflow.png"><img src="protocol_constraint_composer_plugin/help-workflow.png" width="960" alt="Constraint Studio with optional panels closed"></a>
 
-Shipped UI rendered from a demonstration snapshot. Supporting panels open on demand; scope colours are condition matches, not native DRC results.
+Historical editable UI rendered from a demonstration snapshot. Scope colours are
+condition matches, not native DRC results.
 
 ### [Mechanical Check](mechanical_check_plugin/README.md)
 
