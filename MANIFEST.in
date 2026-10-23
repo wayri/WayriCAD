@@ -13,3 +13,6 @@ include docs/audits/NET_SELECTION_PERFORMANCE.md
 include tools/benchmark_quick_pi_cold.py
 include docs/audits/QUICK_PI_VIEWPORT_PERFORMANCE_2026-10-23.md
 include docs/audits/QUICK_PI_VIEWPORT_PERFORMANCE_2026-10-23.json
+include docs/audits/FANOUT_LIVE_PERFORMANCE_2026-10-23.md
+include docs/audits/FANOUT_LIVE_PERFORMANCE_2026-10-23.json
+include tools/benchmark_fanout_planning.py

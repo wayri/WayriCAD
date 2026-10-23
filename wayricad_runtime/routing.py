@@ -95,6 +95,55 @@ def copper_layer_names(board):
     return [board.GetLayerName(layer) for layer in board.GetEnabledLayers().CuStack()]
 
 
+class _ObstacleIndex:
+    """Conservative ordered broadphase; native clearance checks remain decisive."""
+
+    def __init__(self, items, cell_size=5_000_000):
+        self.items = list(items)
+        self.cell_size = cell_size
+        self.cells = {}
+        self.broad = []
+        for index, item in enumerate(self.items):
+            box = item.GetBoundingBox()
+            left, top, right, bottom = box.GetLeft(), box.GetTop(), box.GetRight(), box.GetBottom()
+            # The narrow phase tests a pad-aligned rectangle even for circles
+            # and ovals. Its corners can extend beyond the native shape AABB.
+            if hasattr(item, 'GetAttribute') and hasattr(item, 'GetSize'):
+                size, center = item.GetSize(), item.GetPosition()
+                offset = getattr(item, 'GetOffset', lambda: None)()
+                radius = math.hypot(size.x, size.y) / 2 + 1
+                if offset is not None:
+                    radius += math.hypot(offset.x, offset.y)
+                left, top = min(left, center.x-radius), min(top, center.y-radius)
+                right, bottom = max(right, center.x+radius), max(bottom, center.y+radius)
+            x0, y0 = math.floor(left/cell_size), math.floor(top/cell_size)
+            x1, y1 = math.floor(right/cell_size), math.floor(bottom/cell_size)
+            if (x1-x0+1)*(y1-y0+1) > 256:
+                self.broad.append(index)
+                continue
+            for x in range(x0, x1+1):
+                for y in range(y0, y1+1):
+                    self.cells.setdefault((x, y), []).append(index)
+
+    def query(self, points, radius):
+        if not points:
+            return []
+        radius += 2  # Include native-unit tangencies despite floating-point rounding.
+        left = min(point.x for point in points)-radius
+        top = min(point.y for point in points)-radius
+        right = max(point.x for point in points)+radius
+        bottom = max(point.y for point in points)+radius
+        x0, y0 = math.floor(left/self.cell_size), math.floor(top/self.cell_size)
+        x1, y1 = math.floor(right/self.cell_size), math.floor(bottom/self.cell_size)
+        if (x1-x0+1)*(y1-y0+1) > 4096:
+            return self.items
+        indices = set(self.broad)
+        for x in range(x0, x1+1):
+            for y in range(y0, y1+1):
+                indices.update(self.cells.get((x, y), ()))
+        return [self.items[index] for index in sorted(indices)]
+
+
 class FanoutPlanner:
     defaults = {'scope': 'All SMD pads', 'ref': '*', 'width': 0.2, 'length': 1.5, 'via_diameter': 0.6, 'via_drill': 0.3, 'pattern': 'Perimeter pitch expansion', 'angle_offset': 0, 'offset_x': 0, 'offset_y': 0, 'clearance': 0.2, 'add_vias': True, 'escape_layer': 'Pad layer', 'output_mode': 'Escape traces', 'netclass_filter': 'All netclasses', 'escape_angle': 45.0, 'angle_mode': 'Pattern', 'launch_length': 0.5, 'stagger_pitch': 0.5, 'spread_pitch': 0.0, 'routing_mode': 'Fixed', 'adaptive_radius': 3.0, 'adaptive_step': 0.25, 'signal_profile': 'Generic', 'net_filter': '*', 'pair_mode': 'Independent', 'pair_gap': 0.2, 'max_pair_skew': 0.1, 'use_netclass_rules': False, 'groups': [], 'unmatched': 'defaults', 'pad_filter': '*', 'connector_exit': 'Nearest edge', 'connector_edge_margin': 0.5, 'connector_clearance': ''}
     def __init__(self, board, api, settings):
@@ -401,12 +450,24 @@ class FanoutPlanner:
     def _blocked(self, plan, accepted, pads, tracks, zones, outline, margin):
         segments=self._segments(plan)
         vias=([plan.start] if plan.start_via else [])+([plan.end] if plan.add_via else [])
+        # Query envelopes enclose the existing rotated-pad narrow phase,
+        # including its square-expanded margins. Preserve original obstacle
+        # order so the first rejection reason does not change.
+        indices = getattr(self, '_obstacle_indices', None)
+        if indices is not None and indices[0] is pads and indices[1] is tracks and indices[2] is zones:
+            points = [point for segment in segments for point in segment]+vias
+            radius = math.sqrt(2)*max(plan.width/2+margin, plan.via_diameter/2+margin)
+            nearby = indices[3].query(points, radius)
+            nearby_vias = indices[4].query(vias, plan.via_diameter/2+margin)
+            nearby_zones = indices[5].query(points, radius)
+        else:
+            nearby, nearby_vias, nearby_zones = pads+tracks, tracks, zones
         # Drill overlap is unsafe even when the existing via has the same net.
-        for item in tracks:
+        for item in nearby_vias:
             if 'VIA' in str(getattr(item,'GetClass',lambda:'')()):
                 if any(segment_hits_box(v,v,item.GetBoundingBox(),plan.via_diameter/2+margin) for v in vias):
                     return 'existing via overlap'
-        obstacles=[item for item in pads+tracks if item.GetNetCode()!=plan.net_code]
+        obstacles=[item for item in nearby if item.GetNetCode()!=plan.net_code]
         for item in obstacles:
             box=item.GetBoundingBox()
             if any(segment_hits_pad(v,v,item,plan.via_diameter/2+margin,self.api) for v in vias):
@@ -417,7 +478,7 @@ class FanoutPlanner:
             return 'board edge/cutout'
         if any(not inside_native(v,plan.via_diameter/2+margin,outline) for v in vias):
             return 'via near board edge/cutout'
-        for zone in zones:
+        for zone in nearby_zones:
             rule=zone.GetIsRuleArea()
             blocked_via=zone.GetDoNotAllowVias() if rule else zone.GetNetCode()!=plan.net_code
             blocked_track=zone.GetDoNotAllowTracks() if rule else zone.GetNetCode()!=plan.net_code
@@ -462,6 +523,9 @@ class FanoutPlanner:
         self.plan_rejections=[]
         pads=[p for f in self.board.GetFootprints() for p in f.Pads()]
         tracks=list(self.board.GetTracks());zones=list(self.board.Zones())
+        self._obstacle_indices = (pads, tracks, zones, _ObstacleIndex(pads+tracks),
+                                  _ObstacleIndex([item for item in tracks if 'VIA' in str(getattr(item, 'GetClass', lambda: '')())]),
+                                  _ObstacleIndex(zones))
         margin=self.api.FromMM(float(values['clearance']))
         eligible=sorted(self._eligible_pads() if eligible_override is None else eligible_override,key=lambda row:(str(row[0].GetReference()),row[1].GetPosition().x,row[1].GetPosition().y,str(row[1].GetNumber())))
         result=[]

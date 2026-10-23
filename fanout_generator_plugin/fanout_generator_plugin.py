@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import hashlib
 import json
+import fnmatch
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, List, Tuple
@@ -73,6 +74,10 @@ class FanoutFrame(wx.Frame):
         self.undo_stack: List[Any] = []
         self.redo_stack: List[Tuple[str, List[Any]]] = []
         self.last_selection_signature: Tuple[Any, ...] = ()
+        self._live_call = None
+        self._preview_busy = False
+        self._closing = False
+        self._context_fingerprint = None
         self.selection_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_selection_timer, self.selection_timer)
         self._build_ui()
@@ -81,6 +86,7 @@ class FanoutFrame(wx.Frame):
         self._sync_selection(force=True)
         self.selection_timer.Start(500)
         self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self._on_destroy)
         self.Centre()
 
     def _build_ui(self):
@@ -127,14 +133,21 @@ class FanoutFrame(wx.Frame):
             raise ValueError('Board changed. Create a fresh preview.')
 
     def preview(self, _event: Any, silent: bool = False) -> None:
+        self._cancel_live_preview()
+        if self._preview_busy:return
+        self._preview_busy = True
         try:
             self.clear_preview(None)
             self.preview_settings=self._settings_snapshot()
             self.preview_rules_fingerprint=self._rules_fingerprint()
+            before = board_fingerprint(self.board)
             self.preview_plan = self._plan()
-            self.geometry_preview.set_board(self.board, pcbnew)
-            self.preview_fingerprint = board_fingerprint(self.board)
+            self.preview_fingerprint = before
+            if self._context_fingerprint != before:
+                self.geometry_preview.set_board(self.board, pcbnew)
+                self._context_fingerprint = before
             self._assert_preview_current()
+            self.preview_list.Freeze()
             lines = []
             points = []
             line_widths = []
@@ -177,6 +190,8 @@ class FanoutFrame(wx.Frame):
             for rejection in self.plan_rejections:
                 index=self.preview_list.InsertItem(self.preview_list.GetItemCount(), "Rejected")
                 self.preview_list.SetItem(index,4,rejection)
+            self.preview_list.Thaw()
+            self._update_style_preview()
             pair_count=len({p.pair_id for p in self.preview_plan if p.pair_id})
             self.status.SetLabel(f"Preview: {len(self.preview_plan)} escapes, {pair_count} pairs, {len(self.plan_rejections)} rejected. " + ('Local clearance: export a review project. ' if any(p.local_clearance for p in self.preview_plan) else '') + '; '.join(self.plan_rejections[:2]))
             if not self.preview_plan and not silent:
@@ -185,6 +200,9 @@ class FanoutFrame(wx.Frame):
             self.status.SetLabel(str(exc))
             if not silent:
                 wx.MessageBox(str(exc), "Fanout preview failed", wx.OK | wx.ICON_ERROR)
+        finally:
+            if self.preview_list.IsFrozen():self.preview_list.Thaw()
+            self._preview_busy = False
 
     def show_on_pcb(self, _event: Any) -> None:
         if not self.preview_plan:
@@ -207,15 +225,16 @@ class FanoutFrame(wx.Frame):
     def clear_pcb_preview(self) -> None:
         self.preview_items = []
         self.commit_button.Enable(False)
-        if hasattr(pcbnew, "Refresh"):
-            pcbnew.Refresh()
 
     def clear_preview(self, _event: Any) -> None:
+        self._cancel_live_preview()
         self.clear_pcb_preview()
         self.preview_plan = []
         self.export_button.Disable()
         self.preview_list.DeleteAllItems()
         self.geometry_preview.clear()
+        self.style_preview.clear()
+        self.style_summary.SetLabel('Choose a component and style to preview.')
         self.show_button.Enable(False)
         self.commit_button.Enable(False)
         if _event is not None:
@@ -324,7 +343,10 @@ class FanoutFrame(wx.Frame):
             wx.MessageBox(str(exc), 'Connector review export', wx.OK|wx.ICON_ERROR)
 
     def _update_controls(self) -> None:
+        wildcard = self.scope.GetValue() == 'Reference wildcard'
+        self.ref.Show(wildcard);self.ref_label.Show(wildcard)
         connector = self.pattern.GetValue() == 'Connector edge'
+        self.connector_exit.Show(connector);self.connector_exit_label.Show(connector)
         for control in (self.connector_exit,self.connector_edge_margin,self.connector_clearance):control.Enable(connector)
         via_in_pad = self.output_mode.GetValue() == "Via-in-pad"
         forced = self.pattern.GetValue().startswith("Dogbone") or via_in_pad
@@ -346,9 +368,11 @@ class FanoutFrame(wx.Frame):
         if forced: self.add_vias.SetValue(True)
 
     def on_config_changed(self, _event: Any) -> None:
+        if _event is not None and _event.GetEventObject() is self.pattern and self.pattern.GetValue()=='Connector edge':
+            self.add_vias.SetValue(False);self.routing_mode.SetValue('Fixed');self.pair_mode.SetValue('Independent')
         self._update_controls()
         self.clear_preview(None)
-        self.status.SetLabel("Settings changed; create a fresh preview before committing.")
+        self._schedule_live_preview()
 
     def _selection_signature(self) -> Tuple[Any, ...]:
         with read_snapshot(self.board):
@@ -364,7 +388,13 @@ class FanoutFrame(wx.Frame):
                         ref=str(parent.GetReference());refs.add(ref)
                         pads.add((ref,str(item.GetNumber())))
                 return tuple(sorted(refs)),tuple(sorted(pads))
-            return tuple(sorted(self._selected_footprint_refs())), tuple(sorted(self._selected_pad_keys()))
+            refs=set();pads=set()
+            for fp in self.board.GetFootprints():
+                ref=str(fp.GetReference())
+                if fp.IsSelected():refs.add(ref)
+                for pad in fp.Pads():
+                    if pad.IsSelected():refs.add(ref);pads.add((ref,str(pad.GetNumber())))
+            return tuple(sorted(refs)),tuple(sorted(pads))
 
     def _sync_selection(self, force: bool = False) -> None:
         signature = self._selection_signature()
@@ -375,8 +405,8 @@ class FanoutFrame(wx.Frame):
         self.selection_status.SetLabel(f"PCB selection: {len(refs)} footprints, {len(pads)} pads")
         if len(refs) == 1 and self.scope.GetValue() in ("Selected pads", "Selected footprints"):
             self.ref.ChangeValue(str(refs[0]))
-        if self.auto_refresh.GetValue() and not self.preview_items:
-            self.preview(None, silent=True)
+        self.clear_preview(None)
+        self._schedule_live_preview()
 
     def on_selection_timer(self, _event: Any) -> None:
         try:
@@ -392,7 +422,89 @@ class FanoutFrame(wx.Frame):
                 f"Selected {self.preview_plan[index].footprint.GetReference()}.{self.preview_plan[index].pad.GetNumber()} on PCB."
             )
 
+    def _cancel_live_preview(self):
+        if self._live_call is not None:
+            self._live_call.Stop();self._live_call=None
+
+    def _schedule_live_preview(self):
+        self._cancel_live_preview()
+        if self._closing:return
+        if not self.auto_refresh.GetValue():
+            self.status.SetLabel('Choose pads and a style, then Refresh preview. Apply stays separate.')
+            return
+        refs,pads=self.last_selection_signature or ((),())
+        if self.scope.GetValue() in ('Selected pads','Selected footprints') and not (pads if self.scope.GetValue()=='Selected pads' else refs):
+            self.status.SetLabel('Select footprints or pads in PCB Editor. The preview follows your selection.')
+            return
+        if self.scope.GetValue() in ('All SMD pads','All connector pads') or (self.scope.GetValue()=='Reference wildcard' and self.ref.GetValue().strip() in ('','*')):
+            self.status.SetLabel('Whole-board scope: click Refresh preview to run all pads. Live preview follows selected components.')
+            return
+        self.status.SetLabel('Updating preview… Apply will be available after checks complete.')
+        self._live_call=wx.CallLater(300,self._run_live_preview)
+
+    def _run_live_preview(self):
+        self._live_call=None
+        if self._closing or not self.auto_refresh.GetValue():return
+        self.preview(None,silent=True)
+
+    def on_live_preview_changed(self,event):
+        if self.auto_refresh.GetValue():self._schedule_live_preview()
+        else:self._cancel_live_preview()
+
+    def _update_style_preview(self,event=None):
+        refs,pads=self.last_selection_signature or ((),())
+        targets=set(refs)|{str(plan.footprint.GetReference()) for plan in self.preview_plan}
+        if self.scope.GetValue()=='Reference wildcard':
+            patterns=[part.strip().upper() for part in self.ref.GetValue().split(',') if part.strip()]
+            targets.update(str(fp.GetReference()) for fp in self.board.GetFootprints()
+                           if any(fnmatch.fnmatchcase(str(fp.GetReference()).upper(),pattern) for pattern in patterns))
+        choices=sorted(targets)
+        current=self.style_component.GetValue()
+        if choices != list(self.style_component.GetStrings()):
+            self.style_component.SetItems(choices)
+        chosen=current if current in choices else choices[0] if choices else ''
+        self.style_component.SetValue(chosen)
+        self.style_preview.set_board_context(self.geometry_preview)
+        plans=[plan for plan in self.preview_plan if str(plan.footprint.GetReference())==chosen]
+        lines=[];points=[];widths=[];diameters=[];drills=[];centres=[]
+        for plan in plans:
+            start=plan.start or plan.pad.GetPosition()
+            centres.append((pcbnew.ToMM(start.x),pcbnew.ToMM(start.y)))
+            if plan.add_track:
+                for a,b in zip(plan.path,plan.path[1:]):
+                    lines.append((pcbnew.ToMM(a.x),pcbnew.ToMM(a.y),pcbnew.ToMM(b.x),pcbnew.ToMM(b.y)))
+                    widths.append(pcbnew.ToMM(plan.width))
+            for pos in ([start] if plan.start_via else [])+([plan.end] if plan.add_via else []):
+                points.append((pcbnew.ToMM(pos.x),pcbnew.ToMM(pos.y)))
+                diameters.append(pcbnew.ToMM(plan.via_diameter));drills.append(pcbnew.ToMM(plan.via_drill))
+        focus=[]
+        for fp in self.board.GetFootprints():
+            if str(fp.GetReference())==chosen:
+                focus=[(pcbnew.ToMM(p.GetPosition().x),pcbnew.ToMM(p.GetPosition().y)) for p in fp.Pads()]
+                break
+        self.style_preview.focus_points=focus
+        self.style_preview.set_geometry(lines,points,pads=focus or centres,line_widths=widths,point_diameters=diameters,point_drills=drills)
+        self.style_preview.fit()
+        styles={plan.pattern for plan in plans}
+        label=('Via-in-pad' if self.output_mode.GetValue()=='Via-in-pad' else self.pattern.GetValue()) if len(styles)<=1 else f'{len(styles)} styles (group rules)'
+        self.style_summary.SetLabel(f'{chosen or "No component"} - {label}\n{len(plans)} accepted escapes. Teal = proposed; gold = pads.')
+        self.style_summary.SetToolTip('Actual clearance-checked candidates for this component. Rejected pins stay in Candidate details; no hypothetical copper is shown.')
+        self.style_summary.Wrap(max(180,self.style_summary.GetParent().GetClientSize().width-16))
+        self.style_summary.InvalidateBestSize()
+        self.settings_pane.GetSizer().Layout();self.settings_pane.FitInside()
+        self.Layout()
+
     def on_close(self, event: Any) -> None:
+        self._closing=True
         self.selection_timer.Stop()
         self.clear_preview(None)
         event.Skip()
+
+    def _on_destroy(self,event):
+        if event.GetEventObject() is self:
+            self._closing=True;self._cancel_live_preview();self.selection_timer.Stop()
+        event.Skip()
+
+    def Destroy(self):
+        self._closing=True;self._cancel_live_preview();self.selection_timer.Stop()
+        return super().Destroy()

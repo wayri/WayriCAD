@@ -454,6 +454,14 @@ These options stay separate from the simple main workflow. Native fabrication mi
 
 ### [Fanout Generator](fanout_generator_plugin/ReadMe.md)
 
+**Live style preview (development)**
+
+Select components or pins, choose a style and inspect its actual fanouts in the
+small component preview and main canvas. Apply remains separate.
+
+<a href="fanout_generator_plugin/help-live-preview.png"><img src="fanout_generator_plugin/help-live-preview.png" width="960" alt="Live selected-component fanout style preview"></a>
+
+
 **Adaptive fanout**
 
 <a href="fanout_generator_plugin/help-adaptive.png"><img src="fanout_generator_plugin/help-adaptive.png" width="960" alt="Adaptive fanout native window preview"></a>

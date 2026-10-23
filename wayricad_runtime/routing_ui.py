@@ -24,6 +24,7 @@ def _base(frame,title):
     frame.workspace_splitter=workspace
     left=wx.ScrolledWindow(workspace,style=wx.VSCROLL);left.SetScrollRate(0,12);left.SetMinSize((210,1))
     settings=wx.BoxSizer(wx.VERTICAL)
+    frame.settings_pane=left
     heading=wx.StaticText(left,label=title);heading.SetFont(heading.GetFont().Bold())
     settings.Add(heading,0,wx.BOTTOM,12)
     right=wx.Panel(workspace);preview=wx.BoxSizer(wx.VERTICAL)
@@ -37,7 +38,8 @@ def _base(frame,title):
     drawing_sizer.Add(bar,0,wx.EXPAND|wx.BOTTOM,8)
     frame.geometry_preview=GeometryPreview(drawing,'Choose pads or a net, then click Preview.')
     frame.geometry_preview.SetMinSize((160,100))
-    frame.geometry_preview.set_board(frame.board,frame._routing_api)
+    if not hasattr(frame,'on_live_preview_changed'):
+        frame.geometry_preview.set_board(frame.board,frame._routing_api)
     grid.Bind(wx.EVT_CHECKBOX,lambda event:(setattr(frame.geometry_preview,'show_grid',grid.GetValue()),frame.geometry_preview.Refresh()))
     fit.Bind(wx.EVT_BUTTON,frame.geometry_preview.fit)
     drawing_sizer.Add(frame.geometry_preview,1,wx.EXPAND);drawing.SetSizer(drawing_sizer)
@@ -93,7 +95,9 @@ def _footer(frame,panel,root,help_callback):
         export.Bind(wx.EVT_BUTTON,frame.export_connector_review)
         row.Add(export,0,wx.LEFT,8)
     row.AddStretchSpacer()
-    preview=wx.Button(panel,label='Preview',size=(100,-1));preview.Bind(wx.EVT_BUTTON,frame.preview);row.Add(preview,0,wx.RIGHT,8)
+    preview=wx.Button(panel,label='Refresh preview' if hasattr(frame,'on_live_preview_changed') else 'Preview',size=(128,-1))
+    frame.preview_button=preview;preview.Bind(wx.EVT_BUTTON,frame.preview);row.Add(preview,0,wx.RIGHT,8)
+    preview.SetToolTip('Recompute all candidates for the chosen scope. Preview does not change board copper.')
     frame.commit_button=wx.Button(panel,label='Apply to board',size=(128,-1));frame.commit_button.Disable()
     frame.commit_button.Bind(wx.EVT_BUTTON,frame.generate);frame.commit_button.SetDefault();row.Add(frame.commit_button,0)
     root.Add(row,0,wx.EXPAND|wx.ALL,16)
@@ -122,18 +126,33 @@ def build_fanout(frame,api,help_callback):
     load_profile.SetToolTip('Explicitly load suggested geometry, net-name filters and pairing. Selecting a family alone preserves all your settings.')
     frame.signal_profile.SetToolTip('A family label does not select nets. Load defaults for suggested net filters, then review them in advanced settings.')
     profile_row.Add(load_profile,0)
-    _row(left,settings,'Signal family',profile_row)
-    for label,control in (('Pads to fan out',frame.scope),('Netclass',frame.netclass_filter),('Output',frame.output_mode),('Fanout style',frame.pattern),('Routing',frame.routing_mode),('Angle (degrees)',frame.escape_angle),('Trace layer',frame.escape_layer)):
+    intro=wx.StaticText(left,label='1. Select parts or pins in PCB Editor\n2. Choose a style and inspect the preview\n3. Apply when the candidates look right')
+    intro.Wrap(270);settings.Add(intro,0,wx.EXPAND|wx.BOTTOM,10)
+    frame.ref=wx.TextCtrl(left,value='*')
+    for label,control in (('Pads to fan out',frame.scope),('Reference wildcard',frame.ref),('Output',frame.output_mode),('Fanout style',frame.pattern),('Routing',frame.routing_mode),('Angle (degrees)',frame.escape_angle),('Trace layer',frame.escape_layer)):
         text=_row(left,settings,label,control)
         if control is frame.escape_angle:frame.angle_label=text
+        if control is frame.ref:frame.ref_label=text
+        if control is frame.pattern:
+            style_box=wx.StaticBoxSizer(wx.VERTICAL,left,'Selected style on component')
+            style_parent=style_box.GetStaticBox()
+            frame.style_component=_combo(style_parent,[],'')
+            frame.style_component.SetToolTip('Choose which selected component to inspect. The main canvas keeps every candidate.')
+            style_box.Add(frame.style_component,0,wx.EXPAND|wx.ALL,4)
+            frame.style_preview=GeometryPreview(style_parent,'Select a footprint to see its fanout.',compact=True)
+            frame.style_preview.SetMinSize((180,160))
+            style_box.Add(frame.style_preview,0,wx.EXPAND|wx.LEFT|wx.RIGHT,4)
+            frame.style_summary=wx.StaticText(style_parent,label='Live preview follows the selected component.')
+            frame.style_summary.Wrap(250);style_box.Add(frame.style_summary,0,wx.EXPAND|wx.ALL,4)
+            settings.Add(style_box,0,wx.EXPAND|wx.BOTTOM,8)
+            frame.style_component.Bind(wx.EVT_COMBOBOX,frame._update_style_preview)
     frame.connector_exit=_combo(left,['Nearest edge','Top','Bottom','Left','Right'],'Nearest edge')
-    _row(left,settings,'Connector exit (footprint coordinates)',frame.connector_exit)
-    def connector_defaults(event):
-        if frame.pattern.GetValue()=='Connector edge':
-            frame.add_vias.SetValue(False);frame.routing_mode.SetValue('Fixed');frame.pair_mode.SetValue('Independent')
-        event.Skip()
-    frame.pattern.Bind(wx.EVT_COMBOBOX,connector_defaults)
+    frame.connector_exit_label=_row(left,settings,'Connector exit (footprint coordinates)',frame.connector_exit)
     frame.connector_exit.SetToolTip('Connector edge style: choose the nearest body edge or a specific side in footprint-local coordinates. Includes plated through-hole pins.')
+    frame.auto_refresh=wx.CheckBox(left,label='Live preview');frame.auto_refresh.SetValue(True)
+    frame.auto_refresh.SetToolTip('Update selected components after a short pause. Whole-board scopes use Refresh preview. Apply is always separate.')
+    frame.auto_refresh.Bind(wx.EVT_CHECKBOX,frame.on_live_preview_changed)
+    settings.Add(frame.auto_refresh,0,wx.BOTTOM,8)
     frame.selection_status=wx.StaticText(left,label='Select pads or footprints in PCB Editor.')
     frame.selection_status.Wrap(255);settings.Add(frame.selection_status,0,wx.TOP|wx.BOTTOM,8)
     frame.fanout_groups=[];frame.group_unmatched='defaults'
@@ -148,11 +167,15 @@ def build_fanout(frame,api,help_callback):
     group_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:(left.FitInside(),frame.Layout()))
     settings.Add(group_pane,0,wx.EXPAND|wx.BOTTOM,8)
     parent,advanced=_advanced(frame,left,settings)
+    frame.signal_profile.Reparent(parent);load_profile.Reparent(parent)
+    _row(parent,advanced,'Signal family',profile_row)
+    frame.netclass_filter.Reparent(parent)
+    _row(parent,advanced,'Netclass',frame.netclass_filter)
     frame.angle_mode=_combo(parent,list(ANGLE_MODES),'Pattern')
     frame.pair_mode=_combo(parent,list(PAIR_MODES),'Independent')
     _row(parent,advanced,'Direction reference',frame.angle_mode)
     _row(parent,advanced,'Pair handling',frame.pair_mode)
-    for name,label,value in (('pad_filter','Pin numbers (wildcards)','*'),('connector_edge_margin','Beyond connector body (mm)','0.50'),('connector_clearance','Local connector clearance (mm; blank = unchanged)',''),('net_filter','Net names (wildcards)','*'),('ref','Reference wildcard','*'),('launch_length','Straight launch (mm)','0.50'),('stagger_pitch','Row stagger (mm)','0.50'),('spread_pitch','Outer pitch (mm; 0 = auto)','0'),('adaptive_radius','Adaptive radius (mm)','3.0'),('adaptive_step','Adaptive search step (mm)','0.25'),('pair_gap','Pair edge gap (mm)','0.20'),('max_pair_skew','Maximum escape pair skew (mm)','0.10'),('width','Track width (mm)','0.20'),('length','Escape length (mm)','1.50'),('via_diameter','Via diameter (mm)','0.60'),('via_drill','Via drill (mm)','0.30'),('clearance','Copper clearance (mm)','0.20'),('angle_offset','Additional rotation (degrees)','0'),('offset_x','Endpoint X offset (mm)','0'),('offset_y','Endpoint Y offset (mm)','0')):
+    for name,label,value in (('pad_filter','Pin numbers (wildcards)','*'),('connector_edge_margin','Beyond connector body (mm)','0.50'),('connector_clearance','Local connector clearance (mm; blank = unchanged)',''),('net_filter','Net names (wildcards)','*'),('launch_length','Straight launch (mm)','0.50'),('stagger_pitch','Row stagger (mm)','0.50'),('spread_pitch','Outer pitch (mm; 0 = auto)','0'),('adaptive_radius','Adaptive radius (mm)','3.0'),('adaptive_step','Adaptive search step (mm)','0.25'),('pair_gap','Pair edge gap (mm)','0.20'),('max_pair_skew','Maximum escape pair skew (mm)','0.10'),('width','Track width (mm)','0.20'),('length','Escape length (mm)','1.50'),('via_diameter','Via diameter (mm)','0.60'),('via_drill','Via drill (mm)','0.30'),('clearance','Copper clearance (mm)','0.20'),('angle_offset','Additional rotation (degrees)','0'),('offset_x','Endpoint X offset (mm)','0'),('offset_y','Endpoint Y offset (mm)','0')):
         control=wx.TextCtrl(parent,value=value);setattr(frame,name,control);_row(parent,advanced,label,control)
     frame.escape_angle.SetToolTip('Custom-angle spread and straight + angled styles use this angle. Board and footprint direction modes use it as the absolute or relative direction.')
     frame.connector_clearance.SetToolTip('Optional scoped clearance in a separate exported review project. Live board Apply is disabled; source rules are preserved. Must respect fabrication minimums.')
@@ -167,7 +190,6 @@ def build_fanout(frame,api,help_callback):
     frame.add_vias=wx.CheckBox(parent,label='Add endpoint vias');frame.add_vias.SetValue(True);frame.add_vias.Disable()
     frame.add_vias.SetToolTip('Required by dogbone and via-in-pad. A source via connects traces placed on another layer.')
     advanced.Add(frame.add_vias,0,wx.TOP|wx.BOTTOM,8)
-    frame.auto_refresh=wx.CheckBox(parent,label='Refresh when PCB selection changes');frame.auto_refresh.SetValue(False);advanced.Add(frame.auto_refresh,0,wx.BOTTOM,8)
     note=wx.StaticText(parent,label='Families provide escape geometry aids, not protocol signoff. Check stackup, impedance and whole-route timing separately. Changing trace layer adds a source via; through vias span all copper layers.')
     note.Wrap(235);advanced.Add(note,0,wx.BOTTOM,8)
     for i,(label,width) in enumerate((('Footprint',80),('Pad',45),('Net',120),('Layer',70),('Result',220),('Length (mm)',95),('Pair',120),('Group',110))):frame.preview_list.InsertColumn(i,label,width=width)

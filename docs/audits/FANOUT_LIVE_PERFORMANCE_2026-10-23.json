@@ -1,0 +1,197 @@
+{
+  "baseline_commit": "1251228408f164e2c3d3cd548558e006f27c6244",
+  "fixed_u35": {
+    "settings": {
+      "scope": "Reference wildcard",
+      "ref": "U35",
+      "pattern": "Radial outward",
+      "add_vias": false,
+      "width": 0.15,
+      "clearance": 0.1
+    },
+    "trials": {
+      "baseline": [
+        {
+          "seconds": 21.945028800008004,
+          "accepted": 103,
+          "rejected": 258,
+          "result_sha256": "301fb51e51a31256f64b262ca421051dace05dfcff52a4cda97e8fd75d410fb8",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        },
+        {
+          "seconds": 21.936795400004485,
+          "accepted": 103,
+          "rejected": 258,
+          "result_sha256": "301fb51e51a31256f64b262ca421051dace05dfcff52a4cda97e8fd75d410fb8",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        },
+        {
+          "seconds": 21.196564099998795,
+          "accepted": 103,
+          "rejected": 258,
+          "result_sha256": "301fb51e51a31256f64b262ca421051dace05dfcff52a4cda97e8fd75d410fb8",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        }
+      ],
+      "candidate": [
+        {
+          "seconds": 0.30987729999469593,
+          "accepted": 103,
+          "rejected": 258,
+          "result_sha256": "301fb51e51a31256f64b262ca421051dace05dfcff52a4cda97e8fd75d410fb8",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        },
+        {
+          "seconds": 0.2883233000029577,
+          "accepted": 103,
+          "rejected": 258,
+          "result_sha256": "301fb51e51a31256f64b262ca421051dace05dfcff52a4cda97e8fd75d410fb8",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        },
+        {
+          "seconds": 0.29411469999467954,
+          "accepted": 103,
+          "rejected": 258,
+          "result_sha256": "301fb51e51a31256f64b262ca421051dace05dfcff52a4cda97e8fd75d410fb8",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        }
+      ]
+    },
+    "exact_equivalence": true,
+    "medians": {
+      "baseline": 21.936795400004485,
+      "candidate": 0.29411469999467954
+    },
+    "speedup": 74.58585171159862
+  },
+  "fixed_u54": {
+    "settings": {
+      "scope": "Reference wildcard",
+      "ref": "U54",
+      "pattern": "Perimeter pitch expansion",
+      "add_vias": false,
+      "width": 0.15,
+      "clearance": 0.1
+    },
+    "trials": {
+      "baseline": [
+        {
+          "seconds": 6.770975399995223,
+          "accepted": 0,
+          "rejected": 100,
+          "result_sha256": "11eab686e83bb12f818c4c87b37a7598130fd46b1f399e76a214133dd37b1c21",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        },
+        {
+          "seconds": 6.787755600002129,
+          "accepted": 0,
+          "rejected": 100,
+          "result_sha256": "11eab686e83bb12f818c4c87b37a7598130fd46b1f399e76a214133dd37b1c21",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        },
+        {
+          "seconds": 6.659919900004752,
+          "accepted": 0,
+          "rejected": 100,
+          "result_sha256": "11eab686e83bb12f818c4c87b37a7598130fd46b1f399e76a214133dd37b1c21",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        }
+      ],
+      "candidate": [
+        {
+          "seconds": 0.19645429999218322,
+          "accepted": 0,
+          "rejected": 100,
+          "result_sha256": "11eab686e83bb12f818c4c87b37a7598130fd46b1f399e76a214133dd37b1c21",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        },
+        {
+          "seconds": 0.1946384000038961,
+          "accepted": 0,
+          "rejected": 100,
+          "result_sha256": "11eab686e83bb12f818c4c87b37a7598130fd46b1f399e76a214133dd37b1c21",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        },
+        {
+          "seconds": 0.19364350000978447,
+          "accepted": 0,
+          "rejected": 100,
+          "result_sha256": "11eab686e83bb12f818c4c87b37a7598130fd46b1f399e76a214133dd37b1c21",
+          "board_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+          "source_unchanged": true,
+          "kicad": "10.0.6"
+        }
+      ]
+    },
+    "exact_equivalence": true,
+    "medians": {
+      "baseline": 6.770975399995223,
+      "candidate": 0.1946384000038961
+    },
+    "speedup": 34.78745920568443
+  },
+  "canvas": {
+    "before": {
+      "board_extract_s": 0.4109506999957375,
+      "first_paint_s": 0.3329883999977028,
+      "hover_paints": 30,
+      "hover_median_s": 0.3308658999958425,
+      "pan_paints": 10,
+      "pan_median_s": 0.32631455000228016,
+      "drag_paints": 30,
+      "drag_median_s": 0.32484055000531953,
+      "release_paint_s": 0.32807400000456255
+    },
+    "after": {
+      "board_extract_s": 0.4364477000053739,
+      "first_paint_s": 0.10469030000967905,
+      "hover_paints": 30,
+      "hover_median_s": 0.0017952000052900985,
+      "pan_paints": 10,
+      "pan_median_s": 0.09939950000261888,
+      "drag_paints": 30,
+      "drag_median_s": 0.0020376500106067397,
+      "release_paint_s": 0.10162480000872165,
+      "pads": 5272,
+      "tracks": 37380
+    }
+  },
+  "native_preview": {
+    "scope": "Marble U35 radial, native frame preview pipeline without painting or initial board loading",
+    "rows": [
+      {
+        "preview_seconds": 3.538342100000591,
+        "accepted": 103,
+        "rejected": 258
+      },
+      {
+        "preview_seconds": 2.8619940000062343,
+        "accepted": 103,
+        "rejected": 258
+      }
+    ],
+    "source_unchanged": true
+  }
+}

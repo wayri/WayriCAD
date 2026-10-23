@@ -2,6 +2,41 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Fanout Generator icon">
 
+## Live preview and faster planning (development)
+
+Select parts or pins in PCB Editor, then choose a **Fanout style**. **Live
+preview** is on by default: selection changes and edits update the candidates
+after a short pause. **Selected style on component** shows the actual accepted
+fanouts in a small preview; use its component list when several parts are
+selected. The main canvas keeps the complete plan. A blocked component still
+shows its pads with zero accepted escapes; rejection details remain available.
+
+![Live fanout style preview on a selected QFP](help-live-preview.png)
+
+Actual native window on a disposable 32-pin QFP fixture: all 32 perimeter
+escapes accepted. Dimensions are illustrative. Existing screenshots below are
+retained. This is a source-window check, not installed-editor qualification.
+
+| Action | Behaviour |
+|---|---|
+| Change selection or style | Immediately disables Apply, then refreshes after 300 ms without further edits. PCB selection is checked every 500 ms. |
+| Inspect another selected part | Choose it in the small preview's component list; no board copper changes. |
+| Work on the whole board | Choose the broad scope and click **Refresh preview**. Unrestricted reference wildcards also need explicit refresh. |
+| Turn off Live preview | Edit freely, then use **Refresh preview** when ready. |
+| Apply | Remains a separate action, with source/rule/settings checks and recoverable groups. |
+
+Detailed dimensions, signal-family defaults and netclass filters are under
+**Dimensions and advanced settings**. Connector exit controls appear for the
+connector style. Both preview panes support pan/zoom; hovering and dragging use
+cached pixels, followed by an exact redraw after a drag. Settings changes reuse
+extracted board context only after a matching source fingerprint.
+
+Fresh fixed-style planning on Marble U35 fell from **21.94 s to 0.29 s**, with
+identical full plans and rejection reasons. The complete new native preview
+pipeline took 3.54 s initially and 2.86 s on refresh; source checks remain a
+significant cost. See the [benchmark and limits](../docs/audits/FANOUT_LIVE_PERFORMANCE_2026-10-23.md).
+These development changes are newer than the published v3.6.26 packages.
+
 ## Capabilities
 
 - Generate perimeter pitch expansion, BGA/grid dogbones, 45-degree/custom-angle spreads, staggered escapes and via-in-pad placements.
@@ -59,8 +94,8 @@ Choose a BGA/grid style for array pads; center exposed pads need a separate via-
 
 ## Workflow
 
-1. Configure geometry and pad scope or target net.
-2. Click **Preview**. The canvas and result table show accepted candidates and rejection reasons. Preview creates no PCB copper.
+1. Select parts or pads and choose a style. The live preview follows selected components.
+2. Inspect the main canvas and small component preview; expand candidate details for rejection reasons. Use **Refresh preview** for broad scopes or after board geometry edits. Preview creates no PCB copper.
 3. Inspect the result, then **Apply to board**. A named WayriCAD group contains the committed geometry. Run KiCad DRC before saving or manufacturing.
 
 The optional **More → Review placement again** command rechecks the board snapshot and prepares the same geometry; it is not required before Apply. **More → Clear preview** discards unattached candidates. Settings changes invalidate the preview. Board changes require a new preview. Plugin Undo/Redo preserves a recoverable group; reopen the tool to find its existing named groups.
