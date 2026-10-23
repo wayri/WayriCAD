@@ -111,13 +111,12 @@ path displayed. This does not qualify an installed or connected-editor workflow.
 
 ## Limitations
 
-The [public Marble trials](../docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md)
-include full BGA scopes, connectors and deliberately partial-routing copies.
-They exposed important limits: no complete BGA or residual connector fanout
-was demonstrated, and the 400-pad FMC search timed out at 120 seconds.
-Read the accepted/rejected counts and preserved-rule conditions before using
-these styles on dense boards. Synthetic preview screenshots below do not
-establish real-board completion.
+The [initial Marble trials](../docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md)
+exposed false collision rejections and connector search delays. The
+[dense-board fixes and native checks](../docs/audits/FANOUT_DENSE_BOARD_FIXES_2026-10-23.md)
+now demonstrate working escapes on deliberately unrouted BGA and partly routed
+connector copies. These are fanout seeds; they do not finish the rest of a net.
+Read the measured scope, rejected pads and native checks before adopting a plan.
 
 - This generates fanout seeds, not complete autorouting or guaranteed impedance, timing or protocol compliance.
 - Adaptive routing searches a bounded candidate family; branches, loops, arcs, existing-via endpoints and same-net zone topology require manual review. Coupled pairs use fixed routing.
@@ -234,8 +233,9 @@ contacts. It reports the affected pad instead of duplicating its launch.
 This guard and support for nullable saved-project netclass assignments were
 included in release 3.6.29. Earlier 3.6.28 downloads do not contain them.
 Use Adaptive for a supported simple open-stub continuation. Via-in-pad keeps
-its separate fixed-location checks. Conservative pad/arc envelopes can require
-manual review; a rejected pad is not proof that its complete net is routed.
+its separate fixed-location checks. Native planning uses KiCad padstack, arc
+and track shapes instead of treating their whole bounding rectangles as copper.
+A rejected pad is not proof that its complete net is routed.
 
 ![Adaptive preview continuing an existing stub while avoiding nearby copper](help-adaptive.png)
 
@@ -243,7 +243,7 @@ Four selected signals on a disposable SOIC fixture. Muted copper already exists;
 
 Set **Routing → Adaptive**, choose a narrow pad/net scope and preview. This is a separate option from the fanout style. It searches nearby simple paths with up to two 45° bends, ranks shorter added copper before extra bends, and checks existing/generated copper and the board edge. Perimeter pads retain a straight outward launch before the search expands; BGA/grid styles can search all directions.
 
-A simple existing straight-track stub is continued from its open endpoint. Existing tracks are never moved, removed or rewritten. Already connected pads, branches, loops, arcs, existing via endpoints and same-net zone topology are reported for manual review rather than guessed. **Via-in-pad** remains a fixed placement; coupled differential pairs use Fixed routing.
+A simple existing straight-track stub is continued from its open endpoint, including a short launch wholly inside its pad. Existing tracks are never moved, removed or rewritten. Already connected pads, branches, loops, arcs, existing via endpoints and same-net zone topology are reported for manual review rather than guessed. **Via-in-pad** remains a fixed placement; coupled differential pairs use Fixed routing.
 
 **Adaptive radius** limits endpoint distance from the pad or continued stub, and **Adaptive search step** sets the candidate lattice. Defaults are 3 mm and 0.25 mm. Search is limited to 4,096 checked candidates and three seconds per pad, with a maximum 20 mm radius and radius/step ratio of 20. This is the shortest valid result in the examined candidate family, not proof of a globally optimal route. Narrow the scope when reviewing dense designs. Failed searches retain an explicit rejection reason.
 
@@ -255,3 +255,12 @@ CLI settings use `"routing_mode":"Adaptive"`, `"adaptive_radius":3`, `"adaptive_
 Drag the settings/board-preview divider to inspect source pads, escape controls or connector-edge settings at a readable width. Expanded settings scroll inside their own pane; preview and Apply remain separate actions.
 
 Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.
+
+## Dense-board geometry and pours
+
+Native previews use KiCad copper shapes and actual keepout polygons. Ordinary
+pours refill around added tracks and vias. After Apply or opening an exported
+CLI candidate, **refill zones (B), then run native DRC**. Existing copper is
+retained. Adaptive BGA search includes package-pitch centers even when they fall
+between the chosen search-grid points. See the [Marble validation](../docs/audits/FANOUT_DENSE_BOARD_FIXES_2026-10-23.md)
+for working cases, timing boundaries and remaining rejected pads.

@@ -1,6 +1,7 @@
 """Bounded, read-only search for simple 45-degree fanout escapes."""
 import math
 import time
+from functools import lru_cache
 from .geometry import segment_segment_distance, segment_hits_box
 
 MAX_CANDIDATES = 4096
@@ -38,9 +39,12 @@ def _anchor(planner, pad, pads, tracks, zones, layer):
         a,b = current.GetStart(),current.GetEnd()
         if not chain:
             ina,inb = bool(pad.HitTest(a)),bool(pad.HitTest(b))
-            if ina == inb:
+            if not ina and not inb:
                 raise ValueError('Adaptive routing cannot resolve the existing pad launch.')
-            entry, endpoint = (a,b) if ina else (b,a)
+            if ina and inb:
+                center=pad.GetPosition()
+                entry,endpoint=sorted((a,b),key=lambda point:math.hypot(point.x-center.x,point.y-center.y))
+            else:entry, endpoint = (a,b) if ina else (b,a)
         else:
             endpoint = b if _near(a,entry) else a
         chain.append(current)
@@ -69,6 +73,7 @@ def _anchor(planner, pad, pads, tracks, zones, layer):
         current,entry=touching[0],endpoint
     raise ValueError('Adaptive continuation exceeds the 256-track inspection budget.')
 
+@lru_cache(maxsize=8)
 def _paths(radius, step):
     """Finite lattice family: axis/diagonal legs with at most two bends."""
     count=int(radius//step)
@@ -92,6 +97,23 @@ def _paths(radius, step):
 
 def _search_paths(radius, step, fp, pad, values, pattern, chain, api):
     paths=_paths(radius,step)
+    if pattern.startswith(('BGA/LGA','Dogbone')) and not chain:
+        # A user search grid need not coincide with the package pitch. Include
+        # the interstitial centers so a 0.8 mm array can use 0.4 mm offsets
+        # even when the requested search step is 0.25 mm.
+        rotation=-math.radians(float(fp.GetOrientationDegrees()))
+        cosine,sine=math.cos(rotation),math.sin(rotation)
+        center=pad.GetPosition();xs=[];ys=[]
+        for other in fp.Pads():
+            pos=other.GetPosition();dx,dy=pos.x-center.x,pos.y-center.y
+            x,y=cosine*dx+sine*dy,-sine*dx+cosine*dy
+            if abs(y)<=2 and abs(x)>2:xs.append(abs(x))
+            if abs(x)<=2 and abs(y)>2:ys.append(abs(y))
+        if xs and ys:
+            x,y=min(xs)/2,min(ys)/2
+            extra=[((0,0),(round(cosine*sx*x-sine*sy*y),round(sine*sx*x+cosine*sy*y)))
+                   for sx in (-1,1) for sy in (-1,1) if math.hypot(x,y)<=radius]
+            paths=list(paths)+extra
     if pattern=='Perimeter pitch expansion' and not chain:
         from .perimeter_escape import _basis
         basis=_basis(fp,pad)
@@ -142,7 +164,7 @@ def adaptive_paths(planner, fp, pad, values, pattern, accepted, pads, tracks, zo
         anchor,chain=_anchor(planner,pad,pads,tracks,zones,layer)
         same_zones=[zone for zone in zones if not zone.GetIsRuleArea() and zone.GetNetCode()==pad.GetNetCode() and planner._on_layer(zone,layer)]
         for zone in same_zones:
-            if any(segment_hits_box(t.GetStart(),t.GetEnd(),zone.GetBoundingBox(),t.GetWidth()/2) for t in chain):
+            if any(planner._zone_hits(zone,layer,t.GetStart(),t.GetEnd(),t.GetWidth()/2) for t in chain):
                 raise ValueError('Existing stub intersects a same-net zone; adaptive routing cannot infer its topology.')
             if not zone.GetIsRuleArea() and zone.GetNetCode()==pad.GetNetCode() and planner._on_layer(zone,layer) and zone.HitTestFilledArea(layer,anchor):
                 raise ValueError('Adaptive routing cannot infer an open endpoint inside connected same-net zone copper.')
@@ -170,12 +192,12 @@ def adaptive_paths(planner, fp, pad, values, pattern, accepted, pads, tracks, zo
             endpoint_margin=(candidate.via_diameter if candidate.add_via else candidate.width)/2+margin
             if segment_hits_box(candidate.end,candidate.end,pad.GetBoundingBox(),endpoint_margin):
                 reason='endpoint still inside pad launch clearance';continue
-            if any(_identity(other)!=_identity(pad) and other.GetNetCode()==pad.GetNetCode() and planner._on_layer(other,layer) and any(segment_hits_box(a,b,other.GetBoundingBox(),candidate.width/2) for a,b in planner._segments(candidate)) for other in pads):
+            if any(_identity(other)!=_identity(pad) and other.GetNetCode()==pad.GetNetCode() and planner._on_layer(other,layer) and any(planner._copper_hits(other,layer,a,b,candidate.width/2) for a,b in planner._segments(candidate)) for other in pads):
                 reason='would connect another same-net pad';continue
             # Existing same-net copper is not an obstacle in the general planner,
             # but adaptive escapes must not introduce an accidental new branch.
             segments=planner._segments(candidate)
-            if any(segment_hits_box(a,b,zone.GetBoundingBox(),candidate.width/2+margin) for a,b in segments for zone in same_zones):
+            if any(planner._zone_hits(zone,layer,a,b,candidate.width/2+margin) for a,b in segments for zone in same_zones):
                 reason='same-net zone topology';continue
             if any(segment_hits_box(a,b,t.GetBoundingBox(),candidate.width/2+margin) for a,b in segments for t in same if t.GetClass()!='PCB_TRACK'):
                 reason='existing same-net via/arc';continue

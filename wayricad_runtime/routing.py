@@ -12,7 +12,8 @@ import re
 from .fanout_profiles import FANOUT_PATTERNS, SIGNAL_PROFILES, ANGLE_MODES, PAIR_MODES, profile_defaults
 from .ipc import read_snapshot
 from .geometry import (dimensions, positive, inside_native, segment_hits_box,
-                       segment_segment_distance, segment_inside_native, item_id, segment_hits_pad)
+                       segment_segment_distance, segment_inside_native, item_id, segment_hits_pad,
+                       segment_hits_native)
 
 
 def _coord(value): return float(value) / 1_000_000.0
@@ -449,6 +450,7 @@ class FanoutPlanner:
         return getter() == layer if getter else True
 
     def _blocked(self, plan, accepted, pads, tracks, zones, outline, margin):
+        if not hasattr(self,'_copper_layers'):self._copper_layers=set(self.board.GetEnabledLayers().CuStack())
         segments=self._segments(plan)
         vias=([plan.start] if plan.start_via else [])+([plan.end] if plan.add_via else [])
         # Query envelopes enclose the existing rotated-pad narrow phase,
@@ -466,14 +468,24 @@ class FanoutPlanner:
         # Drill overlap is unsafe even when the existing via has the same net.
         for item in nearby_vias:
             if 'VIA' in str(getattr(item,'GetClass',lambda:'')()):
-                if any(segment_hits_box(v,v,item.GetBoundingBox(),plan.via_diameter/2+margin) for v in vias):
+                if any(self._copper_hits(item,item.TopLayer(),v,v,plan.via_diameter/2+margin) for v in vias):
                     return 'existing via overlap'
         obstacles=[item for item in nearby if item.GetNetCode()!=plan.net_code]
         for item in obstacles:
-            box=item.GetBoundingBox()
-            if any(segment_hits_pad(v,v,item,plan.via_diameter/2+margin,self.api) for v in vias):
+            if hasattr(item,'GetAttribute') and item.GetAttribute()==self.api.PAD_ATTRIB_NPTH:
+                # A physical unplated hole obstructs every copper layer even
+                # when its pad's layer set contains only solder-mask layers.
+                hole_margin=max(margin,getattr(self.board.GetDesignSettings(),'m_HoleClearance',0))
+                if (any(self._copper_hits(item,plan.layer,v,v,plan.via_diameter/2+hole_margin) for v in vias)
+                        or any(self._copper_hits(item,plan.layer,a,b,plan.width/2+hole_margin) for a,b in segments)):
+                    return 'non-plated hole clearance'
+                continue
+            layers=item.GetLayerSet().Seq() if hasattr(item,'GetLayerSet') else [item.GetLayer()]
+            if vias and any(self._copper_hits(item,layer,v,v,plan.via_diameter/2+margin)
+                            for layer in layers if layer in self._copper_layers
+                            for v in vias):
                 return 'via clearance to other-net copper'
-            if self._on_layer(item,plan.layer) and any(segment_hits_pad(a,b,item,plan.width/2+margin,self.api) for a,b in segments):
+            if self._on_layer(item,plan.layer) and any(self._copper_hits(item,plan.layer,a,b,plan.width/2+margin) for a,b in segments):
                 return 'other-net copper'
         if any(not segment_inside_native(a,b,plan.width/2+margin,outline) for a,b in segments):
             return 'board edge/cutout'
@@ -481,11 +493,15 @@ class FanoutPlanner:
             return 'via near board edge/cutout'
         for zone in nearby_zones:
             rule=zone.GetIsRuleArea()
-            blocked_via=zone.GetDoNotAllowVias() if rule else zone.GetNetCode()!=plan.net_code
-            blocked_track=zone.GetDoNotAllowTracks() if rule else zone.GetNetCode()!=plan.net_code
-            box=zone.GetBoundingBox()
-            if blocked_via and any(segment_hits_box(v,v,box,plan.via_diameter/2+margin) for v in vias):return 'zone/keepout'
-            if blocked_track and self._on_layer(zone,plan.layer) and any(segment_hits_box(a,b,box,plan.width/2+margin) for a,b in segments):return 'zone/keepout'
+            # Pours are regenerated around new tracks and through vias by
+            # KiCad. Their old fill is not fixed copper or a routing keepout.
+            # Rule areas remain hard constraints; refill and DRC validate Apply.
+            if not rule:continue
+            blocked_via=zone.GetDoNotAllowVias()
+            blocked_track=zone.GetDoNotAllowTracks()
+            if blocked_via and any(self._zone_hits(zone,layer,v,v,plan.via_diameter/2+margin)
+                                   for layer in zone.GetLayerSet().Seq() for v in vias):return 'zone/keepout'
+            if blocked_track and self._on_layer(zone,plan.layer) and any(self._zone_hits(zone,plan.layer,a,b,plan.width/2+margin) for a,b in segments):return 'zone/keepout'
         def distance(a,b,c,d):return segment_segment_distance((a.x,a.y),(b.x,b.y),(c.x,c.y),(d.x,d.y))
         for other in accepted:
             pair_margin=max(margin, getattr(other, 'clearance', 0))
@@ -498,6 +514,21 @@ class FanoutPlanner:
             if any(distance(v,v,a,b)<(plan.via_diameter+other.width)/2+pair_margin-2 for v in vias for a,b in other_segments):return 'generated via/track collision'
             if any(distance(v,v,a,b)<(other.via_diameter+plan.width)/2+pair_margin-2 for v in other_vias for a,b in segments):return 'generated via/track collision'
         return ''
+
+    def _zone_hits(self, zone, layer, start, end, radius):
+        """Use rule-area boundaries or actual filled copper, never its envelope."""
+        if not self._on_layer(zone,layer):return False
+        shape=zone.Outline() if zone.GetIsRuleArea() else zone.GetFilledPolysList(layer)
+        return segment_hits_native(start,end,radius,shape,self.api)
+
+    def _copper_hits(self, item, layer, start, end, radius):
+        """Use native padstack, arc and track shapes; cache only for this planner."""
+        if hasattr(item,'GetEffectiveShape') and hasattr(self.api,'SEG'):
+            if not hasattr(self,'_copper_shapes'):self._copper_shapes={}
+            key=(item_id(item),layer)
+            if key not in self._copper_shapes:self._copper_shapes[key]=item.GetEffectiveShape(layer)
+            return bool(self._copper_shapes[key].Collide(self.api.SEG(start,end),int(math.ceil(radius))))
+        return segment_hits_pad(start,end,item,radius,self.api)
 
     def _has_pad_route(self, pad):
         """Conservatively detect existing same-net launches on the pad's copper layers."""
@@ -518,6 +549,8 @@ class FanoutPlanner:
         return False
 
     def _plan(self, eligible_override=None, accepted_seed=()) -> List[FanoutPlan]:
+        self._copper_shapes={}
+        self._copper_layers=set(self.board.GetEnabledLayers().CuStack())
         from .fanout_groups import validate_groups
         validate_groups(self.settings['groups'], self.settings['unmatched'], self.defaults)
         if self.settings['groups'] or self.settings['unmatched'] != 'defaults':
@@ -540,11 +573,16 @@ class FanoutPlanner:
         elif hasattr(self.board,'wayricad_outline'):outline=self.board.wayricad_outline()
         else:raise ValueError('This runtime cannot validate the board outline for fanout.')
         self.plan_rejections=[]
-        pads=[p for f in self.board.GetFootprints() for p in f.Pads()]
-        tracks=list(self.board.GetTracks());zones=list(self.board.Zones())
-        self._obstacle_indices = (pads, tracks, zones, _ObstacleIndex(pads+tracks),
-                                  _ObstacleIndex([item for item in tracks if 'VIA' in str(getattr(item, 'GetClass', lambda: '')())]),
-                                  _ObstacleIndex(zones))
+        shared=getattr(self,'_shared_obstacles',None)
+        if shared is None:
+            pads=[p for f in self.board.GetFootprints() for p in f.Pads()]
+            tracks=list(self.board.GetTracks());zones=list(self.board.Zones())
+            self._obstacle_indices = (pads, tracks, zones, _ObstacleIndex(pads+tracks),
+                                      _ObstacleIndex([item for item in tracks if 'VIA' in str(getattr(item, 'GetClass', lambda: '')())]),
+                                      _ObstacleIndex(zones))
+        else:
+            self._obstacle_indices=shared
+            pads,tracks,zones=shared[:3]
         margin=self.api.FromMM(float(values['clearance']))
         eligible=sorted(self._eligible_pads() if eligible_override is None else eligible_override,key=lambda row:(str(row[0].GetReference()),row[1].GetPosition().x,row[1].GetPosition().y,str(row[1].GetNumber())))
         result=[]
@@ -630,6 +668,7 @@ class FanoutPlanner:
             if len(indices)>1 and any(planners[i].settings['pair_mode']=='Auto differential pairs' for i in indices):
                 split.update(item_id(p) for p in pads)
         result=[]
+        shared_obstacles=None
         for index,entries in enumerate(buckets):
             name=rules[index]['name'] if index<len(rules) else 'Defaults'
             skipped=index==len(rules) and self.settings['unmatched']=='skip'
@@ -639,7 +678,9 @@ class FanoutPlanner:
                 reason='differential mates match different groups' if item_id(pad) in split else ('unmatched pad skipped' if skipped else '')
                 if reason:self.plan_rejections.append(f'{fp.GetReference()}.{pad.GetNumber()} [{name}]: '+reason)
                 else:usable.append((fp,pad))
+            if shared_obstacles is not None:planners[index]._shared_obstacles=shared_obstacles
             plans=planners[index]._plan(usable,result)
+            shared_obstacles=planners[index]._obstacle_indices
             for plan in plans:
                 plan.group_name=name;plan.group_index=index if index<len(rules) else -1
             self.plan_rejections.extend(f'[{name}] '+r for r in planners[index].plan_rejections)

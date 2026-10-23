@@ -45,7 +45,7 @@ class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-dark-24.png")
-        self.version = "3.6.29"
+        self.version = "3.6.30"
 
     def Run(self) -> None:
         try:
@@ -392,7 +392,7 @@ class FanoutFrame(wx.Frame):
             self.undo_button.Enable(True)
             self.redo_button.Enable(False)
             select_items(self.board, created)
-            self.status.SetLabel(f"Committed {len(created)} board items in a persistent WayriCAD group. Run DRC before saving.")
+            self.status.SetLabel(f"Committed {len(created)} board items. Refill zones (B), then run DRC before saving.")
         except Exception as exc:
             wx.MessageBox(str(exc), "WayriCAD Fanout Generator", wx.OK | wx.ICON_ERROR)
 
@@ -446,7 +446,7 @@ class FanoutFrame(wx.Frame):
                 from wayricad_runtime.connector_review import export_connector_review
             if destination.exists():raise ValueError('Choose a new project name; existing outputs are preserved.')
             result=export_connector_review(self.board, pcbnew, self.preview_plan, destination.with_suffix(''), name=destination.stem)
-            self.status.SetLabel('Exported review project. Open it in KiCad and run DRC before adopting the routes.')
+            self.status.SetLabel('Exported review project. Open it in KiCad, refill zones (B), then run DRC before adopting the routes.')
         except Exception as exc:
             wx.MessageBox(str(exc), 'Connector review export', wx.OK|wx.ICON_ERROR)
 

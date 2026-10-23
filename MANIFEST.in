@@ -29,3 +29,6 @@ include docs/audits/CONSTRAINT_NATIVE_OVERLAP_2026-10-23.md
 include docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md
 include docs/audits/README_GALLERY.md
 include docs/audits/ROUTING_README_SCREENSHOTS_2026-10-23.md
+include docs/RELEASE_NOTES_3.6.30.md
+include docs/audits/RELEASE_3.6.30.md
+include docs/audits/FANOUT_DENSE_BOARD_FIXES_2026-10-23.md

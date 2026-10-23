@@ -1,6 +1,6 @@
 # Start WayriCAD Analytics Studio
 
-[Download release 3.6.29](https://github.com/wayri/WayriCAD/releases/tag/v3.6.29) ·
+[Download release 3.6.30](https://github.com/wayri/WayriCAD/releases/tag/v3.6.30) ·
 [Full guide](README.md) · [Installation](../docs/INSTALLATION.md)
 
 Install the PCM ZIP directly with KiCad Manager → Plugin and Content Manager → Install from File. Restart KiCad, enable its IPC API in preferences, and launch Analytics Studio from the plugin toolbar.

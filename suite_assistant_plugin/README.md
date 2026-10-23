@@ -4,7 +4,7 @@
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.29](https://github.com/wayri/WayriCAD/releases/tag/v3.6.29) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.30](https://github.com/wayri/WayriCAD/releases/tag/v3.6.30) · [Installation](../docs/INSTALLATION.md) |
 | First request | [Get started](#get-started) |
 | Supported actions and limits | [What it can do](#what-it-can-do) · [Implementation evidence](../docs/audits/assistant-local-orchestration.md) |
 | Scripts and help | [CLI](#cli) · [Offline help](help.html) |

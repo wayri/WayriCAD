@@ -4,7 +4,7 @@ import math
 from unittest.mock import patch
 import test_advanced_fanout as fixture
 from wayricad_runtime.routing import FanoutPlanner, plan_fanout
-from wayricad_runtime.adaptive_fanout import adaptive_paths, MAX_CANDIDATES
+from wayricad_runtime.adaptive_fanout import adaptive_paths, MAX_CANDIDATES, _search_paths
 from wayricad_runtime.geometry import board_fingerprint
 p=fixture.pcbnew
 
@@ -35,6 +35,19 @@ class AdaptiveTests(unittest.TestCase):
   before=board_fingerprint(self.board);candidate,reason=self.search(pad);self.assertFalse(reason)
   self.assertEqual((candidate.start.x,candidate.start.y),(p.FromMM(24),p.FromMM(20)));self.assertFalse(candidate.start_via)
   self.assertEqual(before,board_fingerprint(self.board));self.assertEqual(len(list(self.board.GetTracks())),2)
+ def test_continues_short_stub_wholly_inside_pad(self):
+  pad=self.pad('SIGNAL',22,20);self.track(pad,(22,20),(22.1,20))
+  before=board_fingerprint(self.board);candidate,reason=self.search(pad)
+  self.assertFalse(reason);self.assertEqual((candidate.start.x,candidate.start.y),(p.FromMM(22.1),p.FromMM(20)))
+  self.assertEqual(before,board_fingerprint(self.board));self.assertEqual(len(list(self.board.GetTracks())),1)
+ def test_bga_search_includes_pitch_centers_between_user_grid_points(self):
+  pad=self.pad('SIGNAL',20,20);self.pad('X',20.8,20);self.pad('Y',20,20.8)
+  for rotation in (0,37,90):
+   self.fp.SetOrientationDegrees(rotation)
+   paths=_search_paths(p.FromMM(1),p.FromMM(.25),self.fp,pad,{},'BGA/LGA grid outward',[],p)
+   angle=-math.radians(rotation)
+   expected=(round(p.FromMM(.4)*(math.cos(angle)-math.sin(angle))),round(p.FromMM(.4)*(math.sin(angle)+math.cos(angle))))
+   self.assertTrue(any(len(path)==2 and math.hypot(path[1][0]-expected[0],path[1][1]-expected[1])<=2 for path in paths))
  def test_refuses_branch_and_other_pad_connection(self):
   pad=self.pad('SIGNAL',22,20);self.track(pad,(22,20),(23,20));self.track(pad,(23,20),(24,20));self.track(pad,(23,20),(23,21))
   candidate,reason=self.search(pad);self.assertIsNone(candidate);self.assertIn('branched',reason)

@@ -37,8 +37,8 @@ def escape(planner, fp, pad, values, accepted, pads, tracks, zones, outline, mar
     sx,sy=local(pad.GetPosition());step=planner.api.FromMM(float(values['adaptive_step']))
     if step<1:raise ValueError('Connector search step is below coordinate resolution.')
     if not left<sx<right or not top<sy<bottom:raise ValueError('Pad lies outside connector envelope; inspect courtyard/body geometry.')
-    if any(t.GetNetCode()==pad.GetNetCode() and planner._on_layer(t,layer) and (pad.HitTest(t.GetStart()) or pad.HitTest(t.GetEnd())) for t in tracks):
-        raise ValueError('Pad already has endpoint-connected copper; connector escape will not duplicate it.')
+    if planner._has_pad_route(pad):
+        raise ValueError('Pad already has connected copper; connector escape will not duplicate it.')
     side=values['connector_exit'];targets={'Left':left,'Right':right,'Top':top,'Bottom':bottom}
     def distance(x,y):
         return min(x-left,right-x,y-top,bottom-y) if side=='Nearest edge' else abs((x if side in ('Left','Right') else y)-targets[side])
@@ -49,13 +49,17 @@ def escape(planner, fp, pad, values, accepted, pads, tracks, zones, outline, mar
     if override!='':
         from .connector_review import validate_connector_clearance
         validate_connector_clearance(planner.board,planner.api,local_margin)
-    def enclosed(item):
-        b=item.GetBoundingBox()
-        return all(left<=x<=right and top<=y<=bottom for x,y in (local(planner.api.VECTOR2I(x,y)) for x,y in [(b.GetLeft(),b.GetTop()),(b.GetRight(),b.GetTop()),(b.GetRight(),b.GetBottom()),(b.GetLeft(),b.GetBottom())]))
-    inner=[p for p in pads if enclosed(p) and p.GetAttribute()!=planner.api.PAD_ATTRIB_NPTH]
-    outer=[p for p in pads if p not in inner]
-    inner_tracks=[t for t in tracks if enclosed(t)];outer_tracks=[t for t in tracks if t not in inner_tracks]
-    inner_zones=[z for z in zones if enclosed(z)];outer_zones=[z for z in zones if z not in inner_zones]
+    if override!='':
+        def enclosed(item):
+            b=item.GetBoundingBox()
+            return all(left<=x<=right and top<=y<=bottom for x,y in
+                       (local(planner.api.VECTOR2I(x,y)) for x,y in
+                        ((b.GetLeft(),b.GetTop()),(b.GetRight(),b.GetTop()),
+                         (b.GetRight(),b.GetBottom()),(b.GetLeft(),b.GetBottom()))))
+        inner=[p for p in pads if enclosed(p) and p.GetAttribute()!=planner.api.PAD_ATTRIB_NPTH]
+        outer=[p for p in pads if p not in inner]
+        inner_tracks=[t for t in tracks if enclosed(t)];outer_tracks=[t for t in tracks if t not in inner_tracks]
+        inner_zones=[z for z in zones if enclosed(z)];outer_zones=[z for z in zones if z not in inner_zones]
     def candidate(path):
         result=planner._candidate(fp,pad,path,values,'Connector edge')
         result.clearance=local_margin
@@ -63,11 +67,22 @@ def escape(planner, fp, pad, values, accepted, pads, tracks, zones, outline, mar
     def blocked(path,final=False):
         plan=candidate(path);plan.add_via=bool(values['add_vias']) if final else False
         if not final:plan.start_via=False
+        if override=='':
+            # Passing the original lists keeps the planner's ordered spatial
+            # index active for every grid edge on a dense board.
+            return planner._blocked(plan,accepted,pads,tracks,zones,outline,margin)
         # Rules cannot relax board edges, NPTH holes or objects outside the envelope.
         reason=planner._blocked(plan,accepted,inner,inner_tracks,inner_zones,outline,local_margin)
         if reason:return reason
         return planner._blocked(plan,[],outer,outer_tracks,outer_zones,outline,margin)
     if blocked([pad.GetPosition(),pad.GetPosition()]):raise ValueError('Pad launch cannot meet reviewed clearance.')
+    direct=[(left,sy),(right,sy),(sx,top),(sx,bottom)] if side=='Nearest edge' else \
+        [(targets[side],sy)] if side in ('Left','Right') else [(sx,targets[side])]
+    for gx,gy in sorted(direct,key=lambda point:math.hypot(point[0]-sx,point[1]-sy)):
+        path=[pad.GetPosition(),world(gx,gy)]
+        if not blocked(path,True):
+            plan=candidate(path);plan.connector_region=corners;plan.connector_boundary=source
+            plan.local_clearance=override!='';return plan
     queue=[(distance(sx,sy),0,(0,0))];cost={(0,0):0};parents={};visited=set();started=time.monotonic()
     moves=((0,-1),(0,1),(-1,0),(1,0),(-1,-1),(-1,1),(1,-1),(1,1))
     def pos(key):return sx+key[0]*step,sy+key[1]*step

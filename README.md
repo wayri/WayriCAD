@@ -9,10 +9,10 @@
 **PCB design, analysis and project review in KiCad.** Choose from 24 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
 
-**New in 3.6.29:** Constraint Studio leaves ordinary rule editing to KiCad and
-keeps protocol presets, matrices and reviewed project changes. Fanout fixes
-nullable project netclasses and avoids duplicate Fixed-mode pad launches.
-[Release notes](docs/RELEASE_NOTES_3.6.29.md) include the dense-board trial limits.
+**New in 3.6.30:** Fanout uses native copper geometry, respects actual keepout
+polygons and lets copper pours refill around new escapes. Marble copies now
+produce working BGA and partly routed connector escapes, checked with native
+refill and DRC. [Release notes](docs/RELEASE_NOTES_3.6.30.md).
 
 ## Start here
 
@@ -20,7 +20,7 @@ nullable project netclasses and avoids duplicate Fixed-mode pad launches.
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.29](https://github.com/wayri/WayriCAD/releases/tag/v3.6.29) · [Release notes](docs/RELEASE_NOTES_3.6.29.md) |
+| Download or update | [Release 3.6.30](https://github.com/wayri/WayriCAD/releases/tag/v3.6.30) · [Release notes](docs/RELEASE_NOTES_3.6.30.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -40,12 +40,13 @@ Click a screenshot for its full resolution. [More screenshots, grouped by plugin
 | <a href="trace_refiner_plugin/help-validated-comparison.png"><img src="trace_refiner_plugin/help-validated-comparison.png" width="460" alt="Trace Refiner comparing amber original tracks with teal proposed tracks"></a> | <a href="fanout_generator_plugin/help-connector-proposed.png"><img src="fanout_generator_plugin/help-connector-proposed.png" width="460" alt="Fanout Generator previewing six escapes on a synthetic connector fixture"></a> |
 | Synthetic fixture; native validation reported no new DRC findings. | Six-pin synthetic fixture; [dense Marble trial results](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
 
-## Latest release — 3.6.29
+## Latest release — 3.6.30
 
 Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
 
 | Improvement | Workflow |
 |---|---|
+| Dense-board Fanout | Native padstack/track/arc checks, real keepout polygons, faster connector exits and retained short-stub continuation. [Marble results](docs/audits/FANOUT_DENSE_BOARD_FIXES_2026-10-23.md). |
 | Simpler Constraint Studio | Ordinary rules and netclasses stay in KiCad; Studio retains a read-only overview, protocol presets, matrices, reusable sets and reviewed export. [Guide](protocol_constraint_composer_plugin/ReadMe.md). |
 | Fanout corrections | Accept nullable saved netclass assignments and reject duplicate Fixed-mode launches on connected pads. [Real-board trial results and remaining limits](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
 | Updated guides and showcase | Refreshed navigation for all 24 plugins, retained earlier previews and added current native screenshots. |
@@ -71,7 +72,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | CLI access across all 24 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.29.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.30.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -240,7 +241,7 @@ currencies stay explicit.
 
 ## All 24 plugins
 
-All 24 plugins are available in release **3.6.29**. Assistant is marked **testing**;
+All 24 plugins are available in release **3.6.30**. Assistant is marked **testing**;
 individual package versions and runtime requirements are in their guides.
 Select a plugin for its full guide and supported models.
 
@@ -730,7 +731,7 @@ python tools/validate_packages.py --archive-dir .validation/candidate-pcm
 ```
 
 Each plugin also has its own tests. Skipped checks do not establish native GUI
-compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.29.md).
+compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.30.md).
 
 ## Acknowledgements and AI disclosure
 

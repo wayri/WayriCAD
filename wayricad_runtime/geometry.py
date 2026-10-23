@@ -53,6 +53,17 @@ def inside_native(position,radius,native):
     return any(disk_inside(point,radius,outer,holes) for outer,holes in polygons(native))
 
 
+def segment_hits_native(start, end, radius, native, api=None):
+    """Test a swept disk against polygon material, respecting holes and islands."""
+    if api is not None and hasattr(native, 'Collide') and hasattr(api, 'SEG'):
+        return bool(native.Collide(api.SEG(start, end), int(math.ceil(radius))))
+    a,b=(start.x,start.y),(end.x,end.y)
+    return any(inside_polygon(a,outer,holes) or inside_polygon(b,outer,holes)
+               or any(segment_segment_distance(a,b,c,d)<=radius
+                      for ring in [outer,*holes] for c,d in edges(ring))
+               for outer,holes in polygons(native))
+
+
 def segment_hits_box(start,end,box,margin=0):
     """Liang-Barsky clipping, including endpoints and tangencies."""
     left,top,right,bottom=box.GetLeft()-margin,box.GetTop()-margin,box.GetRight()+margin,box.GetBottom()+margin
