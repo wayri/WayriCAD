@@ -18,3 +18,29 @@ CI, package schemas, isolated archive/wheel checks and public download/hash
 verification are release gates. Publication identifiers and verification are
 recorded after completion. Existing release tags and binaries remain unchanged;
 the public PCM feed is promoted only after asset verification.
+
+## Published verification
+
+- All eight [CI jobs](https://github.com/wayri/WayriCAD/actions/runs/40017847490)
+  passed for source commit `d5925fd0`; the release tag identifies that commit.
+- All 31 public release assets were downloaded and matched the validated local
+  SHA-256 hashes before feed promotion. The 24 independent PCM ZIPs passed
+  official schemas, payload syntax, icons, entrypoints and candidate feed hashes.
+  Full documentation and 26 release-contract tests / 24 subtests passed.
+- The rebuilt wheel passed isolated CLI/report/assets/local-server checks.
+  Inspection covered 26 archives / 5,777 files without validation caches or
+  known private paths. All 1,245 tracked source-archive members match source;
+  the live-current tests and analytical fixtures are included.
+- The extracted Quick PI ZIP passed 11 GUI/plot tests and three numerical/report
+  tests in separate fresh isolated processes, both exiting normally. Loaded
+  production files matched the ZIP bytes; unchanged source tests were copied
+  separately from installer contents. Source native controls passed 19 tests.
+  Synthetic temporary boards were used; installed live-editor IPC and native
+  Linux/macOS UI remain unverified.
+- A combined custom report/GUI harness completed all 14 functional checks but
+  timed out at native interpreter shutdown. Normal standalone GUI/report process
+  lifetimes passed without forced exit; this harness limitation remains recorded
+  rather than claimed as a successful combined-process check.
+
+PCM feed promotion follows asset publication and download verification as a
+separate maintainer commit. Existing tags and release binaries are unchanged.
