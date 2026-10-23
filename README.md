@@ -30,10 +30,22 @@ separate first-run costs from faster repeated interactions. These changes are in
 | Download or update | [Release 3.6.28](https://github.com/wayri/WayriCAD/releases/tag/v3.6.28) · [Release notes](docs/RELEASE_NOTES_3.6.28.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
-| See the interfaces | [Screenshots](#plugin-previews) |
+| See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
+
+## Showcase
+
+Click a screenshot for its full resolution. [More screenshots, grouped by plugin](#plugin-previews).
+
+| [Quick PI — Marble board preview](#quick-pi) | [QuickTherm — 3D temperature view](#quicktherm) |
+|---|---|
+| <a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="460" alt="Quick PI showing extracted copper on public Marble"></a> | <a href="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png" width="460" alt="QuickTherm native 3D temperature surface on the thermal demonstration board"></a> |
+| Geometry preview; no PI field solved. | Assumed-load demonstration; STEP models disabled. |
+| **[Trace Refiner — old/new comparison](#trace-refiner)** | **[Fanout — connector escape preview](#fanout-generator)** |
+| <a href="trace_refiner_plugin/help-validated-comparison.png"><img src="trace_refiner_plugin/help-validated-comparison.png" width="460" alt="Trace Refiner comparing amber original tracks with teal proposed tracks"></a> | <a href="fanout_generator_plugin/help-connector-proposed.png"><img src="fanout_generator_plugin/help-connector-proposed.png" width="460" alt="Fanout Generator previewing six escapes on a synthetic connector fixture"></a> |
+| Synthetic fixture; native validation reported no new DRC findings. | Six-pin synthetic fixture; [dense Marble trial results](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
 
 ## Latest release — 3.6.28
 
@@ -333,6 +345,13 @@ Generated demonstration board with illustrative lead/solder properties. [Capture
 Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
 
 ### [QuickTherm](quick_therm_plugin/README.md)
+
+**Current component inputs · 3.6.28**
+
+<a href="quick_therm_plugin/examples/quicktherm-input-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-input-3.6.28.png" width="960" alt="QuickTherm current component table for declared dissipation, thermal resistances and temperature limits"></a>
+
+Review the included parts, declared loads and limits before running the model.
+[Inputs and capture scope](quick_therm_plugin/README.md#current-native-previews).
 
 **Current paired top/bottom inspection · 3.6.28**
 
