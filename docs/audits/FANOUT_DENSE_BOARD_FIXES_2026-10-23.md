@@ -88,3 +88,34 @@ Mask-only non-plated holes block copper on every layer, and cached shapes are
 refreshed when a planner is reused after a board edit.
 An additional source-runtime matrix passes 18 tests with 14 native-only tests
 skipped and six subtests passed; skipped checks are not counted as passes.
+
+## Whole-component second pass
+
+After the release assets were frozen, the same extracted Fanout ZIP was tested
+on the accepted 290-escape copy. Select the whole U35 component, retain its
+saved per-netclass dimensions, choose Adaptive, radius 1.5 mm and step 0.2 mm.
+With no pin-number filter, this planned another 35 escapes in 28.203 s and
+reproduced the independently refilled/DRC-checked geometry exactly. The total
+is **325 escapes across two passes**, not 325 completed nets or a single-pass
+global route. The second preview reports previously escaped pads as retained
+connections rather than adding duplicate copper.
+
+The all-pad scope includes seven intentionally unconnected pad names. Separate
+the counts: the first pass adds 285 active-pin escapes plus five NC-pad escapes;
+the second adds 33 active-pin escapes plus two NC-pad escapes. Functional
+routing evidence therefore covers **318 active pins**, not 325. NC geometry is
+not counted as functional routing success; the two J9 and eight P1 successes
+also exclude NC pads.
+
+Native refill/DRC added four dangling-via warnings and zero new errors; reported
+unconnected items fell from 152 to 120 (341 before the first pass). All 40,447
+existing copper objects of the first-pass candidate and all footprints/pads and
+project bytes were retained. The 35 additional escapes add 68 track segments
+and 35 through vias. Pad connectivity partitions fell from 1,640 to 1,608,
+with zero existing partitions split.
+
+The 36 locations without a new second-pass escape remain explicit: 13 fail
+other-net copper clearance; nine encounter same-net vias/arcs; 11 already touch
+same-net zone copper; one would overlap a via; one would branch a generated
+same-net route; one has an existing interior pad/track connection. These are
+not waived or counted as newly routed. Original input hashes remain unchanged.

@@ -13,3 +13,23 @@ and isolated-distribution checks are recorded with publication verification.
 All 24 package versions are advanced so independently installed tools receive
 the updated shared runtime. Candidate PCM descriptors remain unpublished until
 the release assets pass verification. Previously published binaries are retained.
+
+## Published verification
+
+- All eight [CI jobs](https://github.com/wayri/WayriCAD/actions/runs/39965813396)
+  passed for source commit `d0f8b80b`. The release tag identifies that commit.
+- All 31 public assets were downloaded and matched locally validated SHA-256
+  hashes before public PCM feed promotion. All 24 ZIPs passed schemas, payload
+  syntax, icons, entrypoints and feed hashes. Full documentation validation
+  and 26 release-contract tests / 24 subtests passed.
+- The wheel passed isolated CLI, report/assets and local-server checks.
+  Inspection covered 26 archives / 5,756 files without validation caches or
+  known private paths; 1,235 tracked source-archive members match the checkout.
+- The extracted Fanout ZIP passed ten focused native checks and reproduced
+  the exact 290-escape Marble geometry already accepted by native refill/DRC,
+  without importing sibling/source packages. The full affected source native
+  matrix passed 96 tests. This does not claim installed live-editor interaction
+  or complete board routing.
+
+Existing release tags and binaries remain unchanged. PCM feed promotion follows
+publication and public-download verification as a separate maintainer commit.
