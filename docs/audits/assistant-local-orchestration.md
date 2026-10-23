@@ -6,7 +6,9 @@ WayriCAD Assistant 0.1.0 is a development addition after the published 3.6.27 re
 
 The standard-library matcher compares normalized tokens and character trigrams with a fixed action catalogue. It fills typed slots from explicit text, saved-project context and visual selections. Ambiguous interpretations and missing numerical inputs require clarification. This is bounded intent matching, not a general language model or a downloaded neural model.
 
-The catalogue contains 55 actions: a tool catalogue plus registered help and substantive CLI operations across the 23 existing plugins. It does not expose every operation of every plugin. Each adapter owns its argument construction, input schema, output paths and declared assumptions. Multiple tasks can be separated by “then”, “also” or a semicolon.
+The catalogue contains 56 actions: a tool catalogue plus registered help and substantive CLI operations across the 23 existing plugins. It does not expose every operation of every plugin. Each adapter owns its argument construction, input schema, output paths and declared assumptions. Multiple tasks can be separated by “then”, “also” or a semicolon.
+
+Guard-via requests have a separate preview action. Selected signal nets may fill the route scope, but the guard net must be supplied explicitly and must differ from those signals. For example, request guard vias along signal net CLK with guard net GND, spacing 2 mm and offset 1 mm. Review the resulting candidates in Via Stitching before applying them.
 
 Execution uses argument arrays and an isolated Python worker. It does not evaluate generated Python or shell commands. Placement and routing actions produce previews; applying changes remains in their originating tools. Existing solver applicability, estimates, unknowns and failure statuses remain visible.
 

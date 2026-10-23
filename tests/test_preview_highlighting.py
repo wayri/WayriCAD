@@ -1,5 +1,6 @@
 """Exact saved-item emphasis and camera behavior in the shared native preview."""
 import unittest
+from unittest.mock import patch
 
 try:
     import wx
@@ -79,6 +80,38 @@ class PreviewHighlightTests(unittest.TestCase):
         for i in range(20):
             self.view.cursor = (i, 20)
             self.assertIs(self.view._bitmap_for_view(), bitmap)
+
+    def test_switching_nets_reuses_muted_board_but_camera_and_edits_do_not(self):
+        with patch.object(self.view, '_render_scene', wraps=self.view._render_scene) as render:
+            for net in ['VCC', 'VCC_AUX', 'VCC']:
+                self.view.set_highlight(nets=[net])
+                self.view._bitmap_for_view()
+            self.assertEqual(render.call_count, 1)
+            self.view.pan[0] += 20
+            self.view._bitmap_for_view()
+            self.assertEqual(render.call_count, 2)
+            self.view.context_lines[0] = (0., 0., 4., 0., .2)
+            self.view.invalidate_scene()
+            self.view._bitmap_for_view()
+            self.assertEqual(render.call_count, 3)
+
+    def test_indexed_pick_matches_original_exact_screen_distance(self):
+        import math
+        from wayricad_runtime.picking import segment_distance
+        self.view.net_targets = [dict(net='VCC',start=(0.,0.),end=(5.,0.),radius=.1),
+                                 dict(net='VCC_AUX',start=(0.,3.),end=(5.,3.),radius=.1),
+                                 dict(net='VIA',start=(4.,1.),end=(4.,1.),radius=.5)]
+        for zoom in (.1, 1., 10.):
+            self.view.zoom = zoom; self.view._bitmap_for_view()
+            for world in [(0,0), (3,1), (4,1), (5,3), (20,20)]:
+                screen = self.view.project(world)
+                closest = None; distance = math.inf
+                for target in self.view.net_targets:
+                    a,b = self.view.project(target['start']),self.view.project(target['end'])
+                    radius = math.dist(a,self.view.project((target['start'][0]+target['radius'],target['start'][1])))
+                    gap = max(0,segment_distance(screen,a,b)-radius)
+                    if gap<=7 and gap<distance: closest=target;distance=gap
+                self.assertIs(self.view.pick_net(screen), closest)
 
 
 if __name__ == '__main__':

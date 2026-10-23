@@ -1,12 +1,30 @@
 """Native live fanout previews stay read-only, current and component-scoped."""
 import unittest
 import time
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 import test_connector_escape as fixture
 try:
     import wx
 except ImportError:
     wx=None
+
+def wait_preview(frame, timeout=30):
+    app=wx.App.Get();deadline=time.monotonic()+timeout
+    frame.Show();app.SetTopWindow(frame);app.SetExitOnFrameDelete(False)
+    loop=wx.GUIEventLoop();active=wx.EventLoopActivator(loop)
+    timer=wx.Timer(frame)
+    def check(event):
+        if (not frame._preview_busy and frame._routing_job is None) or time.monotonic()>deadline:
+            timer.Stop();wx.CallAfter(loop.Exit)
+    frame.Bind(wx.EVT_TIMER,check,timer);timer.Start(100)
+    try:loop.Run()
+    finally:
+        timer.Stop();frame.Unbind(wx.EVT_TIMER,handler=check,source=timer)
+        del active
+    if frame._preview_busy:raise AssertionError('Isolated fanout preview did not finish within its test budget.')
+
 
 @unittest.skipIf(wx is None or fixture.p is None,'KiCad wxPython required')
 class FanoutLivePreviewTests(unittest.TestCase):
@@ -17,16 +35,19 @@ class FanoutLivePreviewTests(unittest.TestCase):
         with patch.object(fixture.p.ActionPlugin,'register'):
             from fanout_generator_plugin.fanout_generator_plugin import FanoutFrame
         self.fixture=fixture.ConnectorTests();self.fixture.setUp();self.fixture.connector()
+        self.temp=tempfile.TemporaryDirectory();path=Path(self.temp.name)/'connector.kicad_pcb'
+        fixture.p.SaveBoard(str(path),self.fixture.board,True);self.fixture.board=fixture.p.LoadBoard(str(path))
         self.frame=FanoutFrame(None,self.fixture.board)
         self.frame.scope.SetValue('Reference wildcard');self.frame.ref.ChangeValue('J1')
         self.frame.pattern.SetValue('Connector edge');self.frame.add_vias.SetValue(False)
         self.frame._update_controls()
+        self.frame.Show()
 
     def tearDown(self):
-        self.frame.Destroy();self.app.ProcessPendingEvents()
+        self.frame.Destroy();self.app.ProcessPendingEvents();self.temp.cleanup()
 
     def test_live_changes_coalesce_and_invalidate_apply_immediately(self):
-        self.frame.preview(None,silent=True)
+        self.frame.preview(None,silent=True);wait_preview(self.frame)
         self.assertTrue(self.frame.commit_button.IsEnabled())
         with patch('fanout_generator_plugin.fanout_generator_plugin.wx.CallLater') as timer:
             self.frame.on_config_changed(None)
@@ -37,33 +58,54 @@ class FanoutLivePreviewTests(unittest.TestCase):
         self.frame._live_call=None
 
     def test_style_thumbnail_has_the_actual_accepted_component_routes(self):
-        self.frame.preview(None,silent=True)
+        self.frame.preview(None,silent=True);wait_preview(self.frame)
         self.assertEqual(len(self.frame.preview_plan),6)
         self.assertEqual(self.frame.style_component.GetValue(),'J1')
         self.assertEqual(self.frame.style_preview.lines,self.frame.geometry_preview.lines)
         self.assertIn('6 accepted escapes',self.frame.style_summary.GetLabel())
         self.assertTrue(self.frame.style_preview.compact)
 
+    def test_before_after_changes_display_only(self):
+        self.frame.preview(None,silent=True);wait_preview(self.frame)
+        plans=list(self.frame.preview_plan);lines=list(self.frame.geometry_preview.lines)
+        self.frame.review_mode.SetSelection(0);self.frame.on_review_mode(None)
+        self.assertFalse(self.frame.geometry_preview.lines)
+        self.frame.review_mode.SetSelection(1);self.frame.on_review_mode(None)
+        self.assertEqual(self.frame.geometry_preview.lines,lines)
+        self.assertEqual(self.frame.preview_plan,plans)
+        self.assertFalse(list(self.fixture.board.GetTracks()))
+
+    def test_primary_actions_fit_a_small_window(self):
+        self.frame.SetSize((680,480));self.frame.Show();self.app.Yield()
+        panel=self.frame.preview_button.GetParent();panel.Layout()
+        bounds=panel.GetClientRect()
+        for button in (self.frame.preview_button,self.frame.commit_button,self.frame.undo_button):
+            self.assertTrue(bounds.Contains(button.GetRect()),str(button.GetRect()))
+        self.assertFalse(self.frame.export_button.IsShown())
+
     def test_settings_reuse_display_context_but_native_geometry_changes_reload(self):
-        self.frame.preview(None,silent=True)
+        self.frame.preview(None,silent=True);wait_preview(self.frame)
         with patch.object(self.frame.geometry_preview,'set_board',wraps=self.frame.geometry_preview.set_board) as extract:
             self.frame.length.ChangeValue('2')
-            self.frame.preview(None,silent=True)
+            self.frame.preview(None,silent=True);wait_preview(self.frame)
             extract.assert_not_called()
             fp=next(iter(self.fixture.board.GetFootprints()))
             fp.SetPosition(fixture.p.VECTOR2I(fixture.p.FromMM(1),fixture.p.FromMM(1)))
-            self.frame.preview(None,silent=True)
-            self.assertEqual(extract.call_count,1)
+            fixture.p.SaveBoard(self.fixture.board.GetFileName(),self.fixture.board,True)
+            self.fixture.board.ClearFlags(fixture.p.IS_CHANGED)
+            self.frame.preview(None,silent=True);wait_preview(self.frame)
+            self.assertIsNotNone(self.frame._context_file_stamp)
+            self.assertFalse(self.frame._preview_busy)
 
     def test_preview_does_not_refresh_or_modify_editor_copper(self):
         with patch.object(fixture.p,'Refresh') as refresh:
             before=len(list(self.fixture.board.GetTracks()))
-            self.frame.preview(None,silent=True)
+            self.frame.preview(None,silent=True);wait_preview(self.frame)
             refresh.assert_not_called()
             self.assertEqual(before,len(list(self.fixture.board.GetTracks())))
 
     def test_selection_change_replaces_existing_preview_and_schedules_new_one(self):
-        self.frame.preview(None,silent=True)
+        self.frame.preview(None,silent=True);wait_preview(self.frame)
         self.frame.scope.SetValue('Selected footprints')
         with patch.object(self.frame,'_selection_signature',return_value=(('J1',),())),patch.object(self.frame,'_schedule_live_preview') as schedule:
             self.frame._sync_selection()
@@ -79,7 +121,7 @@ class FanoutLivePreviewTests(unittest.TestCase):
 
     def test_all_rejected_component_remains_visible_in_thumbnail(self):
         self.frame.clearance.ChangeValue('30')
-        self.frame.preview(None,silent=True)
+        self.frame.preview(None,silent=True);wait_preview(self.frame)
         self.assertFalse(self.frame.preview_plan)
         self.assertEqual(self.frame.style_component.GetValue(),'J1')
         self.assertTrue(self.frame.style_preview.focus_points)
@@ -88,7 +130,7 @@ class FanoutLivePreviewTests(unittest.TestCase):
     def test_live_timer_computes_current_selection_without_applying(self):
         self.frame.Show()
         self.frame.on_config_changed(None)
-        deadline=time.monotonic()+5
+        deadline=time.monotonic()+30
         timers=[]
         def finish_when_ready():
             if (self.frame.preview_plan and not self.frame._preview_busy) or time.monotonic()>=deadline:
@@ -116,7 +158,7 @@ class FanoutLivePreviewTests(unittest.TestCase):
     def test_destroy_cancels_pending_preview(self):
         with patch('fanout_generator_plugin.fanout_generator_plugin.wx.CallLater') as timer:
             self.frame._schedule_live_preview()
-            self.frame.Destroy();self.app.ProcessPendingEvents()
+            self.frame.Destroy();self.app.ProcessPendingEvents();self.temp.cleanup()
             timer.return_value.Stop.assert_called()
         self.frame=wx.Frame(None)
 

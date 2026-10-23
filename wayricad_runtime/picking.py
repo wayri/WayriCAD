@@ -2,6 +2,37 @@
 import math
 
 
+class SegmentIndex:
+    """Conservative millimetre-space candidate index; exact picking stays separate.
+
+    Long/wide objects use a bounded overflow list. Large query tolerances fall
+    back to all bounds rather than allocating an unbounded grid walk. Rows are
+    immutable display snapshots; rebuild after geometry changes.
+    """
+    def __init__(self, rows, cell=2.):
+        if not math.isfinite(cell) or cell<=0:raise ValueError('Pick index cell size must be positive and finite.')
+        self.cell=cell;self.boxes=[];self.cells={};self.broad=[]
+        for i,row in enumerate(rows):
+            a,b=row['start'],row['end'];r=max(0.,row.get('radius',0.))
+            box=(min(a[0],b[0])-r,min(a[1],b[1])-r,max(a[0],b[0])+r,max(a[1],b[1])+r)
+            self.boxes.append(box)
+            x0,y0,x1,y1=(math.floor(v/cell) for v in box)
+            if (x1-x0+1)*(y1-y0+1)>256:self.broad.append(i);continue
+            for x in range(x0,x1+1):
+                for y in range(y0,y1+1):self.cells.setdefault((x,y),[]).append(i)
+
+    def candidates(self, point, tolerance):
+        x,y=point;r=max(0.,tolerance)
+        x0,y0,x1,y1=(math.floor(v/self.cell) for v in (x-r,y-r,x+r,y+r))
+        if (x1-x0+1)*(y1-y0+1)>256:indices=range(len(self.boxes))
+        else:
+            indices=set(self.broad)
+            for a in range(x0,x1+1):
+                for b in range(y0,y1+1):indices.update(self.cells.get((a,b),()))
+        return sorted(i for i in indices if self.boxes[i][0]-r<=x<=self.boxes[i][2]+r
+                      and self.boxes[i][1]-r<=y<=self.boxes[i][3]+r)
+
+
 def segment_distance(point, start, end):
     """Return Euclidean point-to-segment distance in the input coordinate units."""
     delta=[b-a for a,b in zip(start,end)]

@@ -200,47 +200,52 @@ class QuickThermFrame(wx.Frame):
         self._invalidate_thermal()
 
         def loaded(inventory):
-            self.inventory = inventory
-            self._inventory_board_path = self.board_path
-            fields = ["", *inventory.get("field_names", [])]
-            from .quick_therm import restored_field_mapping
-            mapping = restored_field_mapping(fields[1:], previous)
-            for key, choice in controls.items():
-                choice.Set(fields)
-                choice.SetValue(mapping[key])
-            for choice, value in zip(other_controls, previous_other):
-                choice.Set(fields)
-                choice.SetValue(value if value in fields else '')
-            if not self.therm_model_jb.GetValue():
-                self.therm_model_jb.SetValue(mapping['theta_jb_k_per_w'])
-            from .component_inputs import restored_temperature_mapping
-            limit_mapping=restored_temperature_mapping(fields[1:],{
-                'minimum_c':previous_other[1],'maximum_c':previous_other[2]})
-            self.therm_limit_min.SetValue(limit_mapping['minimum_c'])
-            self.therm_limit_max.SetValue(limit_mapping['maximum_c'])
-            refs = inventory.get("component_references", [])
-            self.therm_refs.Set(refs)
-            for i, ref in enumerate(refs):
-                self.therm_refs.Check(i, ref in selected or (not same_board and len(refs) == 1))
-            self._therm_mount_candidates = inventory.get("mounting_holes", [])
-            self.therm_mounts.Set([
-                f"{row['reference']}.{row['pad_number'] or '?'} · {row['net'] or 'no net'} · "
-                f"{'PTH' if row['plated'] else 'NPTH'} · Ø{row['drill_mm']:.3g} mm"
-                for row in self._therm_mount_candidates
-            ])
-            self.virtual_heatsinks = {
-                ref: sink for ref, sink in self.virtual_heatsinks.items() if ref in refs
-            }
-            self.manual_values = {ref: values for ref, values in self.manual_values.items()
-                                  if same_board and ref in refs}
-            self.therm_inputs.load(inventory, mapping, self.manual_values,
-                [self.therm_refs.GetString(i) for i in range(self.therm_refs.GetCount())
-                 if self.therm_refs.IsChecked(i)], self._temperature_field_map())
-            self._update_thermal_scope()
-            self.therm_status.SetLabel(
-                f"{len(refs)} components. Review saved field mappings or enter manual values; "
-                "select the dissipating parts, then run."
-            )
+            # Batch field/list updates; Windows otherwise repaints every inserted item.
+            self.main_panel.Freeze()
+            try:
+                self.inventory = inventory
+                self._inventory_board_path = self.board_path
+                fields = ["", *inventory.get("field_names", [])]
+                from .quick_therm import restored_field_mapping
+                mapping = restored_field_mapping(fields[1:], previous)
+                for key, choice in controls.items():
+                    choice.Set(fields)
+                    choice.SetValue(mapping[key])
+                for choice, value in zip(other_controls, previous_other):
+                    choice.Set(fields)
+                    choice.SetValue(value if value in fields else '')
+                if not self.therm_model_jb.GetValue():
+                    self.therm_model_jb.SetValue(mapping['theta_jb_k_per_w'])
+                from .component_inputs import restored_temperature_mapping
+                limit_mapping=restored_temperature_mapping(fields[1:],{
+                    'minimum_c':previous_other[1],'maximum_c':previous_other[2]})
+                self.therm_limit_min.SetValue(limit_mapping['minimum_c'])
+                self.therm_limit_max.SetValue(limit_mapping['maximum_c'])
+                refs = inventory.get("component_references", [])
+                self.therm_refs.Set(refs)
+                for i, ref in enumerate(refs):
+                    self.therm_refs.Check(i, ref in selected or (not same_board and len(refs) == 1))
+                self._therm_mount_candidates = inventory.get("mounting_holes", [])
+                self.therm_mounts.Set([
+                    f"{row['reference']}.{row['pad_number'] or '?'} · {row['net'] or 'no net'} · "
+                    f"{'PTH' if row['plated'] else 'NPTH'} · Ø{row['drill_mm']:.3g} mm"
+                    for row in self._therm_mount_candidates
+                ])
+                self.virtual_heatsinks = {
+                    ref: sink for ref, sink in self.virtual_heatsinks.items() if ref in refs
+                }
+                self.manual_values = {ref: values for ref, values in self.manual_values.items()
+                                      if same_board and ref in refs}
+                self.therm_inputs.load(inventory, mapping, self.manual_values,
+                    [self.therm_refs.GetString(i) for i in range(self.therm_refs.GetCount())
+                     if self.therm_refs.IsChecked(i)], self._temperature_field_map())
+                self._update_thermal_scope()
+                self.therm_status.SetLabel(
+                    f"{len(refs)} components. Review saved field mappings or enter manual values; "
+                    "select the dissipating parts, then run."
+                )
+            finally:
+                self.main_panel.Thaw()
 
         self._job({"action": "inspect", "board_path": self.board_path}, loaded,
                   "Reading saved footprint fields and mounting holes…")

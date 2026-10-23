@@ -118,6 +118,7 @@ def _install_component_hover(ax, targets, selected_id, three_d=False):
     """Keep one reusable hover label; component markers and fields stay intact."""
     ax._thermal_targets=targets;ax._thermal_selected_id=selected_id
     ax._thermal_hover_id=None;ax._thermal_hover_3d=three_d
+    ax._thermal_hover_event=None
     if three_d:
         label=ax.text(0,0,0,'',fontsize=8,zorder=1e6,
                       bbox={'facecolor':'white','alpha':.95,'edgecolor':'none','pad':2})
@@ -129,7 +130,7 @@ def _install_component_hover(ax, targets, selected_id, three_d=False):
     ax._thermal_hover_label=label
 
 
-def update_component_hover(ax, event=None):
+def update_component_hover(ax, event=None, *, redraw=True):
     """Label only the footprint/marker under the pointer, without rebuilding maps.
 
     Marker proximity is measured in display pixels so it follows pan, zoom and
@@ -137,6 +138,7 @@ def update_component_hover(ax, event=None):
     """
     label=getattr(ax,'_thermal_hover_label',None)
     if label is None:return None
+    ax._thermal_hover_event=event if event is not None and event.inaxes is ax else None
     hit=component_at_event(ax,event)
     identifier=hit['id'] if hit and hit['id']!=ax._thermal_selected_id else None
     if identifier==ax._thermal_hover_id:return identifier
@@ -150,7 +152,7 @@ def update_component_hover(ax, event=None):
             label.set_position((-9 if right else 9,-9 if top else 9))
             label.set_horizontalalignment('right' if right else 'left')
             label.set_verticalalignment('top' if top else 'bottom')
-    ax.figure.canvas.draw_idle()
+    if redraw:ax.figure.canvas.draw_idle()
     return identifier
 
 
@@ -177,10 +179,11 @@ def update_component_selection(ax, identifiers):
             label = ax.annotate(targets[0]['label'], positions[0], xytext=(5,5),
                                 textcoords='offset points', fontsize=8, zorder=9,
                                 bbox={'facecolor':'white','alpha':.9,'edgecolor':'none','pad':2})
-        label.set_gid('quicktherm-selection-overlay');artists.append(label)
+        label.set_gid('quicktherm-component-selected');artists.append(label)
     ax._thermal_selection_artists = artists
     ax._thermal_selected_ids = chosen
     ax._thermal_selected_id = targets[0]['id'] if targets else None
+    update_component_hover(ax,getattr(ax,'_thermal_hover_event',None),redraw=False)
     ax.figure.canvas.draw_idle()
     return len(targets)
 

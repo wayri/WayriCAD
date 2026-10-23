@@ -78,6 +78,14 @@ class FanoutFrame(wx.Frame):
         self._preview_busy = False
         self._closing = False
         self._context_fingerprint = None
+        self._routing_job = None
+        self._queued_preview = False
+        self._preview_revision = 0
+        self._review_geometry = None
+        self._snapshot_cache = None
+        self._context_file_stamp = None
+        self.preview_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self._poll_preview, self.preview_timer)
         self.selection_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_selection_timer, self.selection_timer)
         self._build_ui()
@@ -87,6 +95,7 @@ class FanoutFrame(wx.Frame):
         self.selection_timer.Start(500)
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Bind(wx.EVT_WINDOW_DESTROY, self._on_destroy)
+        self.Bind(wx.EVT_ACTIVATE, self._activated)
         self.Centre()
 
     def _build_ui(self):
@@ -129,24 +138,106 @@ class FanoutFrame(wx.Frame):
             raise ValueError('Settings changed. Create a fresh preview.')
         if self._rules_fingerprint()!=self.preview_rules_fingerprint:
             raise ValueError('Project netclass rules changed. Create a fresh preview.')
-        if board_fingerprint(self.board,ignored)!=self.preview_fingerprint:
+        fingerprint=board_fingerprint(self.board,ignored)
+        if fingerprint!=self.preview_fingerprint:
             raise ValueError('Board changed. Create a fresh preview.')
+        if getattr(self,'_preview_identity',None):
+            from wayricad_runtime.routing_worker import assert_current
+            assert_current(self.board,pcbnew,self._preview_identity,current_fingerprint=fingerprint)
 
     def preview(self, _event: Any, silent: bool = False) -> None:
         self._cancel_live_preview()
-        if self._preview_busy:return
+        if self._preview_busy:
+            self._queued_preview = True
+            if self._routing_job:self._routing_job.cancel()
+            return
+        try:
+            from wayricad_runtime.routing_worker import start_job
+            self.clear_preview(None)
+            self.preview_settings = self._settings_snapshot()
+            self.preview_rules_fingerprint = self._rules_fingerprint()
+            self._job_revision = self._preview_revision
+            self._job_selection = self.last_selection_signature
+            mode = 'live' if self.snapshot_mode.GetValue().startswith('Live') else 'auto'
+            path=Path(self.board.GetFileName()) if self.board.GetFileName() else None
+            stat=path.stat() if path and path.is_file() else None
+            self._job_file_stamp=(mode,str(path.resolve()) if path else '',stat.st_mtime_ns,stat.st_size) if stat else (mode,'',None,None)
+            include_context=(self._context_fingerprint is None or self._job_file_stamp!=self._context_file_stamp
+                             or mode=='live' or hasattr(self.board,'raw'))
+            self.status.SetLabel('Capturing a live snapshot… this first capture can take several seconds.' if mode == 'live' else 'Planning from a private saved-board snapshot…')
+            self.status.Update()
+            self._routing_job = start_job(self.board, pcbnew, self.preview_settings, kind='fanout',
+                include_context=include_context, snapshot_mode=mode, timeout=60)
+            self._preview_busy = True
+            self.preview_progress.Pulse();self.preview_cancel.Enable()
+            self.preview_badge.SetLabel('PLANNING · board unchanged')
+            self.preview_counts.SetLabel('Checking the chosen pads…')
+            self.preview_timer.Start(80)
+        except Exception as exc:
+            self._preview_busy = False
+            self.status.SetLabel(str(exc));self.preview_badge.SetLabel('INPUT NEEDED')
+            if not silent:wx.MessageBox(str(exc), 'Fanout preview', wx.OK | wx.ICON_INFORMATION)
+
+    def _poll_preview(self, event=None):
+        job = self._routing_job
+        if job is None:return
+        if not job.done():
+            self.preview_progress.Pulse()
+            self.preview_counts.SetLabel(f'Planning · {job.elapsed:.1f} s · board unchanged')
+            return
+        self.preview_timer.Stop();self._routing_job = None;self._preview_busy = False
+        self.preview_cancel.Disable();self.preview_progress.SetValue(0)
+        try:
+            result = job.result()
+            if self._closing:return
+            if self._job_revision != self._preview_revision or self.preview_settings != self._settings_snapshot():
+                self.status.SetLabel('Settings changed; outdated preview discarded.')
+            elif self._job_selection != self.last_selection_signature:
+                self.status.SetLabel('Selection changed; outdated preview discarded.')
+            else:
+                if result.get('identity',{}).get('mode')=='saved' and bool(getattr(self.board,'IsModified',lambda:False)()):
+                    raise ValueError('The PCB has unsaved changes. Save them and refresh, or explicitly choose a live snapshot.')
+                self._preview_identity=result.get('identity')
+                self._render_preview(result)
+        except Exception as exc:
+            if not self._closing:
+                self.status.SetLabel(str(exc));self.preview_badge.SetLabel('CANCELLED' if 'cancel' in str(exc).lower() else 'NEEDS REVIEW')
+        finally:
+            job.close()
+        if self._queued_preview and not self._closing:
+            self._queued_preview = False
+            self._schedule_live_preview()
+
+    def cancel_preview(self, event=None):
+        self._queued_preview = False
+        if self._routing_job:self._routing_job.cancel()
+        self.preview_badge.SetLabel('CANCELLING')
+
+    def _render_preview(self, result):
         self._preview_busy = True
         try:
-            self.clear_preview(None)
-            self.preview_settings=self._settings_snapshot()
-            self.preview_rules_fingerprint=self._rules_fingerprint()
-            before = board_fingerprint(self.board)
-            self.preview_plan = self._plan()
-            self.preview_fingerprint = before
-            if self._context_fingerprint != before:
-                self.geometry_preview.set_board(self.board, pcbnew)
-                self._context_fingerprint = before
-            self._assert_preview_current()
+            from wayricad_runtime.geometry import item_id
+            pads = {item_id(pad): (fp, pad) for fp in self.board.GetFootprints() for pad in fp.Pads()}
+            layers={str(self.board.GetLayerName(layer)):int(layer) for layer in self.board.GetEnabledLayers().CuStack()}
+            self.preview_plan = []
+            for record in result.get('candidates', []):
+                values = dict(record);pad_id=values.pop('pad_uuid');fp_id=values.pop('footprint_uuid')
+                if pad_id not in pads:raise ValueError('A planned pad no longer exists; create a fresh preview.')
+                fp,pad=pads[pad_id]
+                if item_id(fp)!=fp_id:raise ValueError('A planned pad changed footprint; create a fresh preview.')
+                layer_name=values.pop('layer_name')
+                if layer_name not in layers:raise ValueError('The planned copper layer is no longer enabled; create a fresh preview.')
+                values['layer']=layers[layer_name]
+                values['net_code']=pad.GetNetCode()
+                for name in ('start','end'):values[name]=pcbnew.VECTOR2I(*values[name])
+                for name in ('path','connector_region'):values[name]=[pcbnew.VECTOR2I(*point) for point in values[name]]
+                self.preview_plan.append(FanoutPlan(footprint=fp,pad=pad,**values))
+            self.plan_rejections=result.get('rejected',[])
+            self.preview_fingerprint=result['source_fingerprint']
+            if result.get('context'):
+                for name,value in result['context'].items():setattr(self.geometry_preview,name,value)
+                self.geometry_preview.invalidate_scene();self._context_fingerprint=self.preview_fingerprint
+                self._context_file_stamp=self._job_file_stamp
             self.preview_list.Freeze()
             lines = []
             points = []
@@ -183,6 +274,10 @@ class FanoutFrame(wx.Frame):
                 point_drills=point_drills,
                 line_widths=line_widths,
                 pad_sizes=[(pcbnew.ToMM(plan.pad.GetSize().x),pcbnew.ToMM(plan.pad.GetSize().y),-float(plan.pad.GetOrientationDegrees())) for plan in self.preview_plan])
+            self._review_geometry = {name:list(getattr(self.geometry_preview,name)) for name in
+                ('lines','points','pads','outlines','point_diameters','point_drills','line_widths','pad_sizes')}
+            self._review_focus = [point for outline in outlines for point in (outline[:2],outline[2:])]
+            self.on_review_mode(None)
             self.preview_items = fanout_items(self.board, pcbnew, self.preview_plan)
             self.export_button.Enable(any(p.local_clearance for p in self.preview_plan))
             self.show_button.Enable(bool(self.preview_plan))
@@ -194,15 +289,21 @@ class FanoutFrame(wx.Frame):
             self._update_style_preview()
             pair_count=len({p.pair_id for p in self.preview_plan if p.pair_id})
             self.status.SetLabel(f"Preview: {len(self.preview_plan)} escapes, {pair_count} pairs, {len(self.plan_rejections)} rejected. " + ('Local clearance: export a review project. ' if any(p.local_clearance for p in self.preview_plan) else '') + '; '.join(self.plan_rejections[:2]))
-            if not self.preview_plan and not silent:
-                wx.MessageBox("No fanouts accepted. Inspect rejection reasons, pad scope, and dimensions.", "No fanout preview", wx.OK | wx.ICON_INFORMATION)
+            self.preview_counts.SetLabel(f'{len(self.preview_plan)} accepted · {len(self.plan_rejections)} rejected · {pair_count} pairs')
+            self.preview_badge.SetLabel('3 · REVIEW / APPLY' if self.preview_plan else '3 · REVIEW REJECTIONS')
         except Exception as exc:
             self.status.SetLabel(str(exc))
-            if not silent:
-                wx.MessageBox(str(exc), "Fanout preview failed", wx.OK | wx.ICON_ERROR)
+            self.commit_button.Disable();self.preview_badge.SetLabel('NEEDS REVIEW')
         finally:
             if self.preview_list.IsFrozen():self.preview_list.Thaw()
             self._preview_busy = False
+
+    def on_review_mode(self,event=None):
+        if self._review_geometry is None:return
+        geometry = self._review_geometry if self.review_mode.GetSelection() else {}
+        self.geometry_preview.focus_points=list(self._review_focus)
+        self.geometry_preview.set_geometry(**geometry)
+        self.geometry_preview.Refresh()
 
     def show_on_pcb(self, _event: Any) -> None:
         if not self.preview_plan:
@@ -227,6 +328,10 @@ class FanoutFrame(wx.Frame):
         self.commit_button.Enable(False)
 
     def clear_preview(self, _event: Any) -> None:
+        self._preview_revision += 1
+        if self._routing_job:
+            self._routing_job.cancel()
+            self._queued_preview = _event is None and not self._closing
         self._cancel_live_preview()
         self.clear_pcb_preview()
         self.preview_plan = []
@@ -235,6 +340,9 @@ class FanoutFrame(wx.Frame):
         self.geometry_preview.clear()
         self.style_preview.clear()
         self.style_summary.SetLabel('Choose a component and style to preview.')
+        self._review_geometry = None
+        self.preview_counts.SetLabel('No current candidates · choose scope and style')
+        self.preview_badge.SetLabel('1 · SELECT TARGETS')
         self.show_button.Enable(False)
         self.commit_button.Enable(False)
         if _event is not None:
@@ -343,6 +451,8 @@ class FanoutFrame(wx.Frame):
             wx.MessageBox(str(exc), 'Connector review export', wx.OK|wx.ICON_ERROR)
 
     def _update_controls(self) -> None:
+        if hasattr(self,'snapshot_mode'):
+            self.auto_refresh.Enable(hasattr(self.board,'raw') or not self.snapshot_mode.GetValue().startswith('Live'))
         wildcard = self.scope.GetValue() == 'Reference wildcard'
         self.ref.Show(wildcard);self.ref_label.Show(wildcard)
         connector = self.pattern.GetValue() == 'Connector edge'
@@ -409,10 +519,16 @@ class FanoutFrame(wx.Frame):
         self._schedule_live_preview()
 
     def on_selection_timer(self, _event: Any) -> None:
+        if self._preview_busy or not self.IsShownOnScreen() or not self.IsActive():return
         try:
             self._sync_selection()
         except Exception:
             pass
+
+    def _activated(self,event):
+        if event.GetActive() and not self._closing:
+            self._sync_selection()
+        event.Skip()
 
     def on_preview_row_activated(self, event: Any) -> None:
         index = event.GetIndex()
@@ -428,6 +544,9 @@ class FanoutFrame(wx.Frame):
 
     def _schedule_live_preview(self):
         self._cancel_live_preview()
+        if hasattr(self,'snapshot_mode') and self.snapshot_mode.GetValue().startswith('Live') and not hasattr(self.board,'raw'):
+            self.status.SetLabel('Live native capture is manual. Click Refresh preview; save the board for automatic fast previews.')
+            return
         if self._closing:return
         if not self.auto_refresh.GetValue():
             self.status.SetLabel('Choose pads and a style, then Refresh preview. Apply stays separate.')
@@ -498,6 +617,8 @@ class FanoutFrame(wx.Frame):
         self._closing=True
         self.selection_timer.Stop()
         self.clear_preview(None)
+        self.preview_timer.Stop()
+        if self._routing_job:self._routing_job.close()
         event.Skip()
 
     def _on_destroy(self,event):
@@ -507,4 +628,6 @@ class FanoutFrame(wx.Frame):
 
     def Destroy(self):
         self._closing=True;self._cancel_live_preview();self.selection_timer.Stop()
+        self.preview_timer.Stop()
+        if self._routing_job:self._routing_job.close()
         return super().Destroy()

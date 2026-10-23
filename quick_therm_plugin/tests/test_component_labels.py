@@ -7,7 +7,7 @@ from unittest.mock import patch
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
-from quick_therm_plugin.thermal_plot import draw_thermal_view,update_component_hover
+from quick_therm_plugin.thermal_plot import draw_thermal_view,update_component_hover,update_component_selection
 from quick_therm_plugin.tests.test_thermal_plot_report import VIEW
 
 
@@ -34,6 +34,44 @@ def pointer(ax,x,y):
 
 
 class ComponentLabelTests(unittest.TestCase):
+    def test_stationary_pointer_reconciles_selection_labels_without_rebuilding_fields(self):
+        from mpl_toolkits.mplot3d import proj3d
+        for mode in ('Top-side map','3D overview'):
+            with self.subTest(mode=mode):
+                figure=Figure(figsize=(6,4));canvas=FigureCanvasAgg(figure)
+                probe={'label':'Probe A','side':'top','x_mm':2,'y_mm':2,'temperature_c':32}
+                ax=draw_thermal_view(figure,dense_view(4),mode,probes=[probe]);canvas.draw()
+                limits=(ax.get_xlim(),ax.get_ylim(),ax.get_zlim3d() if mode=='3D overview' else None)
+                probe_texts=[text for text in ax.texts if text.get_text().startswith('Probe A')]
+                fields=tuple(ax.collections)
+                update_component_selection(ax,['0'])
+                self.assertEqual(len(component_labels(ax)),1)
+                old_label=component_labels(ax)[0]
+                target=ax._thermal_targets[1]
+                if mode=='3D overview':
+                    x,y,_=proj3d.proj_transform(*target['position'],ax.get_proj())
+                    px,py=ax.transData.transform((x,y))
+                    event=SimpleNamespace(inaxes=ax,x=px,y=py,xdata=x,ydata=y)
+                else:event=pointer(ax,*target['position'])
+                update_component_hover(ax,event)
+                self.assertEqual(len(component_labels(ax)),2)
+                with patch.object(canvas,'draw_idle') as redraw:
+                    update_component_selection(ax,['1'])
+                    redraw.assert_called_once()
+                self.assertEqual(len(component_labels(ax)),1)
+                self.assertIn('U2',component_labels(ax)[0].get_text())
+                self.assertNotIn(old_label,ax.texts)
+                self.assertFalse(ax._thermal_hover_label.get_visible())
+                update_component_selection(ax,['0'])
+                self.assertEqual(len(component_labels(ax)),2)
+                self.assertTrue(ax._thermal_hover_label.get_visible())
+                self.assertEqual(ax._thermal_hover_id,'1')
+                update_component_selection(ax,[]);update_component_hover(ax)
+                self.assertEqual(component_labels(ax),[])
+                self.assertEqual(tuple(ax.collections),fields)
+                self.assertTrue(all(text in ax.texts for text in probe_texts))
+                self.assertEqual((ax.get_xlim(),ax.get_ylim(),ax.get_zlim3d() if mode=='3D overview' else None),limits)
+
     def test_dense_board_keeps_one_selection_and_one_reusable_hover(self):
         figure=Figure(figsize=(8,6));canvas=FigureCanvasAgg(figure);view=dense_view()
         ax=draw_thermal_view(figure,view,selected_id='0');canvas.draw()

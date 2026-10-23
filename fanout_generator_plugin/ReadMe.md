@@ -4,6 +4,25 @@
 
 ## Live preview and faster planning
 
+### Choose → Style → Review
+
+1. Select footprints or pads, or enter a reference wildcard. Expand **Limit pins
+   or nets** to restrict pin numbers and net names with comma-separated wildcards.
+2. Choose a style. The small component preview shows its actual accepted routes.
+   Dimensions and routing options remain under advanced settings.
+3. Review the accepted/rejected counts and **Before / After** comparison, then
+   apply separately. **Cancel** stops an isolated preview; changing inputs
+   immediately disables Apply and discards outdated results.
+
+**Saved board · fast** plans in a separate native process from a private copy,
+leaving the window responsive during planning. Save editor changes first.
+**Live snapshot · slower** captures unsaved geometry explicitly; native capture
+can pause the window and therefore requires manual Refresh rather than automatic
+style refresh. Unsaved project rules must match the snapshot's effective
+netclass dimensions; mismatches are rejected. IPC previews use a fresh connection
+to the originating editor; uninspectable live netclass dimensions require explicit
+reviewed dimensions. Neither path bypasses Apply's source/rule checks or native DRC.
+
 Select parts or pins in PCB Editor, then choose a **Fanout style**. **Live
 preview** is on by default: selection changes and edits update the candidates
 after a short pause. **Selected style on component** shows the actual accepted
@@ -29,13 +48,30 @@ Detailed dimensions, signal-family defaults and netclass filters are under
 **Dimensions and advanced settings**. Connector exit controls appear for the
 connector style. Both preview panes support pan/zoom; hovering and dragging use
 cached pixels, followed by an exact redraw after a drag. Settings changes reuse
-extracted board context only after a matching source fingerprint.
+display context only for the same snapshot mode, source path and saved file stamp;
+Apply always performs fresh geometry and rule checks.
 
-Fresh fixed-style planning on Marble U35 fell from **21.94 s to 0.29 s**, with
+Earlier 3.6.27 measurement: fresh fixed-style planning on Marble U35 fell from **21.94 s to 0.29 s**, with
 identical full plans and rejection reasons. The complete new native preview
 pipeline took 3.54 s initially and 2.86 s on refresh; source checks remain a
 significant cost. See the [benchmark and limits](../docs/audits/FANOUT_LIVE_PERFORMANCE_2026-10-23.md).
-These changes are included in WayriCAD 3.6.27.
+That earlier measurement predates the richer source guards and isolated source workflow.
+
+Current source validation on public Marble U35 produced the same 103 accepted
+escapes and 258 rejections. Preview submission took 22–55 ms and the largest
+20 ms timer gap was 323–376 ms. Full completion was 13.72 s initially and
+9.17–10.11 s on refresh, versus 8.24–9.14 s for the old synchronous UI call.
+Isolation improves responsiveness and adds startup overhead; it is not an
+end-to-end solver speedup. These source changes are not yet a published release.
+An additional instrumented capture completed in 13.08 s with a 0.695 s largest
+timer gap. See the [current suite validation](../docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md)
+for source checks and remaining limits.
+
+![Guided native preview on public Marble U35](help-guided-preview.png)
+
+Actual Windows / KiCad 10.0.6 source window using the public Marble board;
+103 accepted escapes, 258 rejected. No source board was modified or private
+path displayed. This does not qualify an installed or connected-editor workflow.
 
 ## Capabilities
 

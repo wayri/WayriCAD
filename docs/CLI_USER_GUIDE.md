@@ -400,6 +400,27 @@ approved interface-control review.
 `wayricad-route` (or `python -m wayricad_runtime.cli`) provides fanout and stitching plan/apply commands. Use KiCad 10 Python for board-file operations. Plan writes JSON and optional SVG; apply rechecks the board and candidate geometry and requires a new output filename. See `docs/examples/fanout.json` and `docs/examples/via-in-pad.json` for configurations. Net-class and layer selections use the same planner as the GUI.
 
 `wayricad-route fanout settings` also lists ordered group rules and an example.
+
+Guard stitching uses the same plan/apply flow. Save this as `guard.json`, replacing
+the signal and guard names with exact board nets:
+
+```json
+{"mode":"Guard selected routes","net_choice":"GND","guard_nets":["CLK","DATA"],"guard_side":"Both","spacing":2.0,"guard_offset":1.0,"diameter":0.6,"drill":0.3,"clearance":0.2}
+```
+
+```text
+wayricad-route stitching plan --board board.kicad_pcb --settings guard.json --output guard-plan.json --svg guard-preview.svg
+wayricad-route stitching apply --board board.kicad_pcb --plan guard-plan.json --output guarded.kicad_pcb
+```
+
+Dimensions are millimetres. `guard_offset` is track-centre to via-centre;
+`guard_tracks` can additionally contain exact track UUIDs. The guard net must
+differ from every signal net. Arcs are rejected, not approximated into fences.
+Apply rechecks inputs and creates a new board with its project/custom-rule
+companions; existing output files are preserved. Refill zones and run native
+DRC on the copy. Filled guard copper on one layer does not establish a useful
+through-via connection on another layer. See the
+[guard workflow](../via_stitching_plugin/ReadMe.md#guard-a-signal-route).
 Groups match `net`, `netclass`, `ref` and `pad` inside the global scope; the first
 matching group supplies geometry overrides. Set `unmatched` to `defaults`,
 `skip` or `error`. Plan output retains `group_summary`, `unmatched_count` and

@@ -17,6 +17,11 @@ The current source also adds action icons, visible workflow stages and stronger
 selection feedback. Assistant has an expandable board view, exact net highlights,
 focus controls and an explicit **Show in PCB Editor** action.
 
+Current source also includes [guard via stitching](via_stitching_plugin/ReadMe.md#guard-a-signal-route),
+cancellable routing previews and shared viewport/startup improvements.
+[Measured performance and remaining limits](docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md)
+separate first-run costs from faster repeated interactions. These changes are not yet in release 3.6.27.
+
 ## Start here
 
 | What you need | Where to go |

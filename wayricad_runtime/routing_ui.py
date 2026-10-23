@@ -110,6 +110,7 @@ def _footer(frame,panel,root,help_callback):
 
 
 def build_fanout(frame,api,help_callback):
+    from .visual_feedback import decorate_button
     frame._routing_api=api
     panel,root,left,settings=_base(frame,'Fanout')
     frame.scope=_combo(left,['Selected pads','Selected footprints','Reference wildcard','All SMD pads','All connector pads'],'Selected footprints')
@@ -129,7 +130,7 @@ def build_fanout(frame,api,help_callback):
     intro=wx.StaticText(left,label='1. Select parts or pins in PCB Editor\n2. Choose a style and inspect the preview\n3. Apply when the candidates look right')
     intro.Wrap(270);settings.Add(intro,0,wx.EXPAND|wx.BOTTOM,10)
     frame.ref=wx.TextCtrl(left,value='*')
-    for label,control in (('Pads to fan out',frame.scope),('Reference wildcard',frame.ref),('Output',frame.output_mode),('Fanout style',frame.pattern),('Routing',frame.routing_mode),('Angle (degrees)',frame.escape_angle),('Trace layer',frame.escape_layer)):
+    for label,control in (('1 · Pads to fan out',frame.scope),('Reference / wildcard',frame.ref),('Output',frame.output_mode),('2 · Fanout style',frame.pattern)):
         text=_row(left,settings,label,control)
         if control is frame.escape_angle:frame.angle_label=text
         if control is frame.ref:frame.ref_label=text
@@ -153,6 +154,12 @@ def build_fanout(frame,api,help_callback):
     frame.auto_refresh.SetToolTip('Update selected components after a short pause. Whole-board scopes use Refresh preview. Apply is always separate.')
     frame.auto_refresh.Bind(wx.EVT_CHECKBOX,frame.on_live_preview_changed)
     settings.Add(frame.auto_refresh,0,wx.BOTTOM,8)
+    filename=frame.board.GetFileName()
+    frame.snapshot_mode=_combo(left,['Saved board · fast','Live snapshot · slower'],
+        'Saved board · fast' if filename else 'Live snapshot · slower')
+    _row(left,settings,'Preview source',frame.snapshot_mode)
+    frame.snapshot_mode.SetToolTip('Fast mode uses a private copy of the saved board; save PCB and project changes first. Live capture preserves unsaved native geometry but can pause while KiCad serializes it. Live native captures require explicit Refresh preview.')
+    frame.snapshot_mode.Bind(wx.EVT_COMBOBOX,frame.on_config_changed)
     frame.selection_status=wx.StaticText(left,label='Select pads or footprints in PCB Editor.')
     frame.selection_status.Wrap(255);settings.Add(frame.selection_status,0,wx.TOP|wx.BOTTOM,8)
     frame.fanout_groups=[];frame.group_unmatched='defaults'
@@ -166,16 +173,29 @@ def build_fanout(frame,api,help_callback):
     group_sizer.Add(edit_groups,0,wx.ALL,5);group_pane.GetPane().SetSizer(group_sizer)
     group_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:(left.FitInside(),frame.Layout()))
     settings.Add(group_pane,0,wx.EXPAND|wx.BOTTOM,8)
+    filters=wx.CollapsiblePane(left,label='Limit pins or nets (optional)')
+    target_parent=filters.GetPane();target_sizer=wx.BoxSizer(wx.VERTICAL);target_parent.SetSizer(target_sizer)
+    frame.pad_filter=wx.TextCtrl(target_parent,value='*')
+    frame.net_filter=wx.TextCtrl(target_parent,value='*')
+    _row(target_parent,target_sizer,'Pin numbers · e.g. 1,2,5,1?',frame.pad_filter)
+    _row(target_parent,target_sizer,'Net names · e.g. USB*,+3V3',frame.net_filter)
+    frame.target_filters=filters
+    filters.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:(left.FitInside(),frame.Layout()))
+    settings.Add(filters,0,wx.EXPAND|wx.BOTTOM,8)
     parent,advanced=_advanced(frame,left,settings)
     frame.signal_profile.Reparent(parent);load_profile.Reparent(parent)
     _row(parent,advanced,'Signal family',profile_row)
     frame.netclass_filter.Reparent(parent)
     _row(parent,advanced,'Netclass',frame.netclass_filter)
+    for name,label in (('routing_mode','Routing search'),('escape_layer','Trace layer'),('escape_angle','Spread angle (degrees)')):
+        control=getattr(frame,name);control.Reparent(parent);text=_row(parent,advanced,label,control)
+        if name=='escape_angle':frame.angle_label=text
     frame.angle_mode=_combo(parent,list(ANGLE_MODES),'Pattern')
     frame.pair_mode=_combo(parent,list(PAIR_MODES),'Independent')
     _row(parent,advanced,'Direction reference',frame.angle_mode)
     _row(parent,advanced,'Pair handling',frame.pair_mode)
     for name,label,value in (('pad_filter','Pin numbers (wildcards)','*'),('connector_edge_margin','Beyond connector body (mm)','0.50'),('connector_clearance','Local connector clearance (mm; blank = unchanged)',''),('net_filter','Net names (wildcards)','*'),('launch_length','Straight launch (mm)','0.50'),('stagger_pitch','Row stagger (mm)','0.50'),('spread_pitch','Outer pitch (mm; 0 = auto)','0'),('adaptive_radius','Adaptive radius (mm)','3.0'),('adaptive_step','Adaptive search step (mm)','0.25'),('pair_gap','Pair edge gap (mm)','0.20'),('max_pair_skew','Maximum escape pair skew (mm)','0.10'),('width','Track width (mm)','0.20'),('length','Escape length (mm)','1.50'),('via_diameter','Via diameter (mm)','0.60'),('via_drill','Via drill (mm)','0.30'),('clearance','Copper clearance (mm)','0.20'),('angle_offset','Additional rotation (degrees)','0'),('offset_x','Endpoint X offset (mm)','0'),('offset_y','Endpoint Y offset (mm)','0')):
+        if name in ('pad_filter','net_filter'):continue
         control=wx.TextCtrl(parent,value=value);setattr(frame,name,control);_row(parent,advanced,label,control)
     frame.escape_angle.SetToolTip('Custom-angle spread and straight + angled styles use this angle. Board and footprint direction modes use it as the absolute or relative direction.')
     frame.connector_clearance.SetToolTip('Optional scoped clearance in a separate exported review project. Live board Apply is disabled; source rules are preserved. Must respect fabrication minimums.')
@@ -210,21 +230,84 @@ def build_fanout(frame,api,help_callback):
         frame.status.SetLabel('Loaded suggestions. Review net filters, dimensions and pair handling, then preview.')
     load_profile.Bind(wx.EVT_BUTTON,load_defaults)
     frame.load_profile_button=load_profile
-    _footer(frame,panel,root,help_callback);frame._update_controls();left.FitInside()
+    drawing=frame.geometry_preview.GetParent();drawing_sizer=drawing.GetSizer()
+    review_row=wx.BoxSizer(wx.HORIZONTAL)
+    frame.review_mode=wx.Choice(drawing,choices=['Before · existing copper','After · proposed + existing'])
+    frame.review_mode.SetSelection(1);frame.review_mode.Bind(wx.EVT_CHOICE,frame.on_review_mode)
+    review_row.Add(frame.review_mode,0,wx.RIGHT,10)
+    for color,label in (('#758d86','Existing'),('#087f98','Proposed')):
+        swatch=wx.Panel(drawing,size=(12,12));swatch.SetBackgroundColour(color)
+        review_row.Add(swatch,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,4)
+        review_row.Add(wx.StaticText(drawing,label=label),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
+    drawing_sizer.Insert(1,review_row,0,wx.EXPAND|wx.BOTTOM,8)
+    feedback=wx.BoxSizer(wx.HORIZONTAL)
+    frame.preview_badge=wx.StaticText(panel,label='1 · SELECT TARGETS');frame.preview_badge.SetFont(frame.preview_badge.GetFont().Bold())
+    frame.preview_counts=wx.StaticText(panel,label='No current candidates · choose scope and style')
+    frame.preview_progress=wx.Gauge(panel,range=100,size=(100,12))
+    frame.preview_cancel=wx.Button(panel,label='Cancel preview');frame.preview_cancel.Disable()
+    frame.preview_cancel.Bind(wx.EVT_BUTTON,frame.cancel_preview)
+    feedback.Add(frame.preview_badge,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
+    feedback.Add(frame.preview_counts,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
+    feedback.Add(frame.preview_progress,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+    feedback.Add(frame.preview_cancel)
+    root.Add(feedback,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,16)
+    _footer(frame,panel,root,help_callback)
+    frame.preview_button.SetDefault()
+    for button in (frame.preview_button,frame.commit_button,frame.preview_cancel,load_profile):decorate_button(button)
+    frame._update_controls();left.FitInside()
+    # Bind the full panel to the frame after adding feedback and footer controls.
+    # A bare single-child auto-layout can retain the panel's earlier client size.
+    frame_sizer=wx.BoxSizer(wx.VERTICAL);frame_sizer.Add(panel,1,wx.EXPAND)
+    frame.SetSizer(frame_sizer);frame.Layout();panel.Layout()
+    export_menu=frame._more_menu.Append(wx.ID_ANY,'Export local-rule review…')
+    frame.Bind(wx.EVT_MENU,frame.export_connector_review,id=export_menu.GetId())
+    def fit_actions(event):
+        # The same export command remains in More on small displays.
+        frame.export_button.Show(panel.GetClientSize().width>=1000)
+        panel.Layout();event.Skip()
+    panel.Bind(wx.EVT_SIZE,fit_actions)
 
 
 def build_stitching(frame,api,help_callback):
+    from .readable_choice import SearchableCheckListBox
     frame._routing_api=api
     panel,root,left,settings=_base(frame,'Via stitching')
+    frame.mode=_combo(left,['Grid','Guard selected routes'],'Grid')
+    _row(left,settings,'Placement mode',frame.mode)
     frame.net_choice=_combo(left,[],'');frame.pattern=_combo(left,['Square grid','Staggered grid'],'Square grid')
     frame.spacing=wx.TextCtrl(left,value='2.50')
-    for label,control in (('Net',frame.net_choice),('Pattern',frame.pattern),('Spacing (mm)',frame.spacing)):_row(left,settings,label,control)
+    for label,control in (('Via net (ground / guard)',frame.net_choice),('Grid pattern',frame.pattern),('Via pitch (mm)',frame.spacing)):_row(left,settings,label,control)
+    frame.net_choice.SetToolTip('All generated vias use this net. In guard mode it must differ from every selected signal net.')
+    frame.guard_panel=wx.Panel(left);guard=wx.BoxSizer(wx.VERTICAL)
+    frame.guard_panel.SetSizer(guard);settings.Add(frame.guard_panel,0,wx.EXPAND)
+    class GuardNets(SearchableCheckListBox):
+        def GetValue(self):return list(self.GetCheckedStrings())
+    frame.guard_nets=GuardNets(frame.guard_panel,size=(-1,125))
+    frame.guard_nets.SetToolTip('Choose exact signal nets. Ctrl+F opens wildcard/fuzzy search and multiple selection; hidden checked names remain selected.')
+    _row(frame.guard_panel,guard,'Signal nets to guard (Ctrl+F to search)',frame.guard_nets)
+    selected=wx.Button(frame.guard_panel,label='Use selected PCB tracks')
+    selected.Bind(wx.EVT_BUTTON,frame.capture_guard_tracks);guard.Add(selected,0,wx.EXPAND|wx.BOTTOM,7)
+    frame.guard_selection=wx.StaticText(frame.guard_panel,label='No captured tracks. Check signal nets above, or capture selected tracks.')
+    frame.guard_selection.Wrap(260);guard.Add(frame.guard_selection,0,wx.EXPAND|wx.BOTTOM,7)
+    frame.guard_side=_combo(frame.guard_panel,['Both','Left','Right'],'Both')
+    frame.guard_offset=wx.TextCtrl(frame.guard_panel,value='1.00')
+    _row(frame.guard_panel,guard,'Guard side',frame.guard_side)
+    _row(frame.guard_panel,guard,'Track centre → via centre offset (mm)',frame.guard_offset)
+    class CapturedTracks:
+        def GetValue(self):return list(getattr(frame,'_guard_track_ids',()))
+    frame.guard_tracks=CapturedTracks()
     frame.require_target_zone=wx.CheckBox(left,label='Stay inside filled target copper');frame.require_target_zone.SetValue(True)
     settings.Add(frame.require_target_zone,0,wx.TOP|wx.BOTTOM,8)
-    frame.selection_status=wx.StaticText(left,label='Choose a net, then preview the grid.');frame.selection_status.Wrap(250);settings.Add(frame.selection_status,0,wx.TOP|wx.BOTTOM,8)
+    frame.selection_status=wx.StaticText(left,label='Grid: choose a via net. Guard: choose signal routes and a separate ground net.');frame.selection_status.Wrap(260);settings.Add(frame.selection_status,0,wx.TOP|wx.BOTTOM,8)
     parent,advanced=_advanced(frame,left,settings)
     for name,label,value in (('diameter','Via diameter (mm)','0.60'),('drill','Via drill (mm)','0.30'),('clearance','Copper clearance (mm)','0.20'),('edge','Edge inset (mm)','1.00')):
         control=wx.TextCtrl(parent,value=value);setattr(frame,name,control);_row(parent,advanced,label,control)
+    frame.guard_budget=wx.TextCtrl(parent,value='50000');_row(parent,advanced,'Guard candidate budget (max 50,000)',frame.guard_budget)
+    frame.guard_timeout=wx.TextCtrl(parent,value='15');_row(parent,advanced,'Guard planning time budget (seconds)',frame.guard_timeout)
+    frame.live_snapshot=wx.CheckBox(parent,label='Include unsaved PCB edits (slower snapshot)')
+    frame.live_snapshot.SetToolTip('Default previews use the saved board in an isolated process. Enable this explicitly to serialize unsaved editor geometry; Apply always rejects stale or mismatched geometry.')
+    advanced.Add(frame.live_snapshot,0,wx.EXPAND|wx.BOTTOM,8)
+    frame.live_snapshot.Bind(wx.EVT_CHECKBOX,frame.on_config_changed)
     frame.density=_combo(parent,['Uniform','Dense perimeter / sparse interior','Dense selected area'],'Uniform');_row(parent,advanced,'Density',frame.density)
     frame.universal=wx.CheckBox(parent,label='Use full board bounds');frame.universal.SetValue(True);advanced.Add(frame.universal,0,wx.TOP|wx.BOTTOM,8)
     for name,label,value in (('x_min','X min (mm)','0'),('y_min','Y min (mm)','0'),('x_max','X max (mm)','100'),('y_max','Y max (mm)','100'),('skip_refs','Exclude footprint references','')):
@@ -237,11 +320,19 @@ def build_stitching(frame,api,help_callback):
     for i,(label,width) in enumerate((('#',55),('Net',130),('X (mm)',95),('Y (mm)',95),('Result',300))):frame.preview_list.InsertColumn(i,label,width=width)
     frame._settings_names=tuple(StitchingPlanner.defaults)
     frame._load_nets()
+    frame.guard_nets.Set([name for name in frame.net_choice.GetStrings() if name!='<No net>'])
     if frame.net_choice.FindString('GND')!=wx.NOT_FOUND:frame.net_choice.SetValue('GND')
     for name in frame._settings_names:
-        control=getattr(frame,name);event=wx.EVT_COMBOBOX if isinstance(control,wx.ComboBox) else wx.EVT_CHECKBOX if isinstance(control,wx.CheckBox) else wx.EVT_TEXT
+        control=getattr(frame,name)
+        if not isinstance(control,wx.Window):continue
+        event=wx.EVT_COMBOBOX if isinstance(control,wx.ComboBox) else wx.EVT_CHECKLISTBOX if isinstance(control,wx.CheckListBox) else wx.EVT_CHECKBOX if isinstance(control,wx.CheckBox) else wx.EVT_TEXT
         control.Bind(event,frame.on_config_changed)
-    _footer(frame,panel,root,help_callback);left.FitInside()
+    _footer(frame,panel,root,help_callback)
+    frame.cancel_button=wx.Button(panel,label='Cancel planning');frame.cancel_button.Disable()
+    frame.cancel_button.Bind(wx.EVT_BUTTON,frame.cancel_planning)
+    row=root.GetItem(root.GetItemCount()-1).GetSizer()
+    row.Insert(row.GetItemCount()-2,frame.cancel_button,0,wx.RIGHT,8)
+    frame._update_guard_controls();left.FitInside()
 
 
 def choose_review_destination(frame):

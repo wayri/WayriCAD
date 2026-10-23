@@ -151,6 +151,8 @@ def _rank(query):
             r"\b(microstrip|stripline|coplanar|cpw)\b", query, re.I
         ):
             score += 0.25
+        if identifier=='via-stitching.preview' and re.search(r'\b(?:guard|guarding|fence)\b',query,re.I):
+            score-=.35
         if identifier == "trace-impedance.path" and re.search(
             r"\b(microstrip|stripline|coplanar|cpw)\b", query, re.I
         ):
@@ -201,6 +203,8 @@ def _slots(query):
         "height_mm": (r"\b(?:height|separation)\s*=?\s*(\d+(?:\.\d+)?)\s*mm\b", 1),
         "copper_mm": (r"\bcopper\s*=?\s*(\d+(?:\.\d+)?)\s*(?:um|microns?)\b", 0.001),
         "gap_mm": (r"\bgap\s*=?\s*(\d+(?:\.\d+)?)\s*mm\b", 1),
+        "spacing": (r"\b(?:pitch|spacing)\s*=?\s*(\d+(?:\.\d+)?)\s*mm\b", 1),
+        "offset": (r"\boffset\s*=?\s*(\d+(?:\.\d+)?)\s*mm\b", 1),
         "er": (r"\b(?:er|permittivity)\s*=?\s*(\d+(?:\.\d+)?)", 1),
         "source_ohm": (
             r"\b(?:driver|source)\s*(?:resistance)?\s*(\d+(?:\.\d+)?)\s*(?:ohms?|\u03a9)",
@@ -236,6 +240,11 @@ def _slots(query):
         )
         if match:
             values[key] = match.group(1)
+    for phrase,key in ((r'guard\s+net','guard_net'),(r'along\s+(?:signal\s+)?net','signal_nets')):
+        match=re.search(r'\b'+phrase+r'\s+(?:["\']([^"\']+)["\']|([^\s,;]+))',query,re.I)
+        if match:
+            value=(match.group(1) or match.group(2)).rstrip('.')
+            values[key]=[value] if key=='signal_nets' else value
     return values
 
 
@@ -489,6 +498,8 @@ def propose(query, context=None, answers=None):
             identifier = ranked[0]["action"]
         spec = _SPECS[identifier]
         slots = dict(all_slots, **_slots(clause))
+        if identifier=='via-stitching.guard' and context.get('selected_nets') and 'signal_nets' not in slots:
+            slots['signal_nets']=context['selected_nets']
         params = {}
         if (
             context.get("selected_nets")

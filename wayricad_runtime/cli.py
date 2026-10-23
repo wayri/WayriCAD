@@ -82,6 +82,40 @@ def load_api():
     return pcbnew
 
 
+def _source_files(source):
+    """Capture the saved board and optional project/rules without changing them."""
+    return {path: path.read_bytes() if path.exists() else None for path in
+            (source, source.with_suffix('.kicad_pro'), source.with_suffix('.kicad_dru'))}
+
+
+def _save_review_copy(board, api, source, destination, captured):
+    """Create a new board and matching rule files, rolling back partial output."""
+    outputs = [destination, destination.with_suffix('.kicad_pro'), destination.with_suffix('.kicad_dru')]
+    if any(path.exists() for path in outputs):
+        raise ValueError('Output board, project and rules paths must all be unused.')
+    if _source_files(source) != captured:
+        raise ValueError('Source board or project rules changed. Generate a new plan.')
+    created = []
+    try:
+        with destination.open('xb'):
+            created.append(destination)
+        if not api.SaveBoard(str(destination), board, True):
+            raise RuntimeError('KiCad could not save the output board.')
+        for suffix in ('.kicad_pro', '.kicad_dru'):
+            data = captured[source.with_suffix(suffix)]
+            if data is not None:
+                path = destination.with_suffix(suffix)
+                with path.open('xb') as stream:
+                    created.append(path)
+                    stream.write(data)
+        if _source_files(source) != captured:
+            raise ValueError('Source board or project rules changed during export. Generate a new plan.')
+    except Exception:
+        for path in reversed(created):
+            path.unlink(missing_ok=True)
+        raise
+
+
 def execute(args):
     if args.kind == 'verify':
         from .verification import verify_board
@@ -90,7 +124,9 @@ def execute(args):
     kind='stitching' if args.kind=='stitch' else args.kind
     if args.operation=='settings':
         defaults=dict(FanoutPlanner.defaults if kind=='fanout' else StitchingPlanner.defaults)
-        choices={'pattern': ['Square grid','Staggered grid']} if kind=='stitching' else {
+        choices={'pattern': ['Square grid','Staggered grid'],
+                 'mode':['Grid','Guard selected routes'],
+                 'guard_side':['Both','Left','Right']} if kind=='stitching' else {
             'connector_exit':['Nearest edge','Top','Bottom','Left','Right'], 'pattern':list(FANOUT_PATTERNS), 'signal_profile':list(SIGNAL_PROFILES),
             'angle_mode':list(ANGLE_MODES),'pair_mode':list(PAIR_MODES),
             'output_mode':['Escape traces','Via-in-pad'],'routing_mode':['Fixed','Adaptive'],
@@ -105,6 +141,8 @@ def execute(args):
             else:choices['net_choice']=[net.GetNetname() for net in board.GetNetsByName().values() if net.GetNetname()]
         result = {'defaults':defaults,'choices':choices,'units':'Dimensions in mm; angles in degrees.',
                   'note':'Pass --board to list actual enabled copper layers and project netclasses. Changing fanout layer adds a source via.'}
+        if kind=='stitching':
+            result['note']='Guard mode follows guard_nets (exact signal names) or guard_tracks (exact track UUIDs); net_choice is the distinct stitching/guard net. guard_offset is the centreline-to-via offset in mm. Plan before applying.'
         if kind=='fanout':
             from .fanout_groups import MATCH_FIELDS, GROUP_CONTROL_FIELDS
             result['group_rules'] = {
@@ -119,6 +157,7 @@ def execute(args):
         return result
     api=load_api();source=Path(args.board).resolve()
     if not source.is_file():raise ValueError('Board file does not exist: '+str(source))
+    captured = _source_files(source) if args.operation == 'apply' else None
     board=api.LoadBoard(str(source))
     kind='stitching' if args.kind=='stitch' else args.kind
     if args.operation=='plan':
@@ -147,7 +186,7 @@ def execute(args):
         return export_connector_review(board,api,plans,destination.with_suffix(''),name=destination.stem)
     items=fanout_items(board,api,plans) if kind=='fanout' else plans
     add_group(board,items,'WayriCAD '+kind.title()+' CLI',api.PCB_GROUP)
-    if not api.SaveBoard(str(destination),board):raise RuntimeError('KiCad could not save the output board.')
+    _save_review_copy(board,api,source,destination,captured)
     return {'board':str(destination),'created_items':len(items),'next_step':'Open the output board in KiCad and run DRC.'}
 
 

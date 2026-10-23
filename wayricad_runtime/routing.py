@@ -628,7 +628,9 @@ class FanoutPlanner:
 
 
 class StitchingPlanner:
-    defaults = {'spacing': 2.5, 'drill': 0.3, 'diameter': 0.6, 'edge': 1.0, 'clearance': 0.2, 'density': 'Uniform', 'net_choice': 'GND', 'universal': True, 'x_min': 0, 'y_min': 0, 'x_max': 100, 'y_max': 100, 'require_target_zone': True, 'pattern': 'Square grid', 'skip_refs': '', 'skip_parts': True, 'skip_tracks': True, 'skip_zones': True, 'skip_keepouts': True}
+    defaults = {'spacing': 2.5, 'drill': 0.3, 'diameter': 0.6, 'edge': 1.0, 'clearance': 0.2, 'density': 'Uniform', 'net_choice': 'GND', 'universal': True, 'x_min': 0, 'y_min': 0, 'x_max': 100, 'y_max': 100, 'require_target_zone': True, 'pattern': 'Square grid', 'skip_refs': '', 'skip_parts': True, 'skip_tracks': True, 'skip_zones': True, 'skip_keepouts': True,
+                'mode': 'Grid', 'guard_nets': [], 'guard_tracks': [], 'guard_side': 'Both',
+                'guard_offset': 1.0, 'guard_budget': 50000, 'guard_timeout': 15.0}
     def __init__(self, board, api, settings):
         unknown = set(settings) - set(self.defaults)
         if unknown: raise ValueError('Unknown routing settings: ' + ', '.join(sorted(unknown)))
@@ -670,12 +672,23 @@ class StitchingPlanner:
     def _inside_zone(self, zone: Any, position: Any) -> bool:
         # Require actual filled copper with room for the entire via; no HitTestFilledArea fallback to outlines.
         layers=list(zone.GetLayerSet().Seq())
+        if hasattr(self, '_zone_shapes'):
+            for layer in layers:
+                key = (item_id(zone), layer)
+                if key not in self._zone_shapes:
+                    self._zone_shapes[key] = self._guard_geometry(zone.GetFilledPolysList(layer))
+                if self._guard_inside(position, self._radius, self._zone_shapes[key]):
+                    return True
+            return False
         return any(inside_native(position,self._radius,zone.GetFilledPolysList(layer)) for layer in layers)
 
 
     def _blocked_reason(self, position: Any, net_code: int) -> str:
         excluded = self._excluded_refs()
-        for fp in self._obstacle_footprints:
+        guard = getattr(self, '_guard_mode', False)
+        indexed = getattr(self, '_spatial_indexes', False)
+        footprints = self._guard_footprint_index.query([position], self._margin) if indexed else self._obstacle_footprints
+        for fp in footprints:
             if self.settings["skip_parts"] or fp.GetReference().upper() in excluded:
                 if segment_hits_box(position,position,fp.GetBoundingBox(),self._margin):
                     return "footprint"
@@ -683,17 +696,243 @@ class StitchingPlanner:
                 if pad.GetNetCode()!=net_code and segment_hits_box(position,position,pad.GetBoundingBox(),self._margin):
                     return 'other-net pad'
         if True:  # Electrical clearance is always enforced.
-            tracks = self._obstacle_tracks
-            if any((self._net_code(track) != net_code or 'VIA' in track.GetClass() or self.settings["skip_tracks"]) and segment_hits_box(position,position,track.GetBoundingBox(),self._margin) for track in tracks):
-                return "other-net track/via"
+            tracks = self._guard_track_index.query([position], self._margin) if indexed else self._obstacle_tracks
+            for track in tracks:
+                if not (self._net_code(track) != net_code or 'VIA' in track.GetClass() or self.settings['skip_tracks']):
+                    continue
+                if guard and track.GetClass() == 'PCB_TRACK':
+                    from .geometry import point_segment_distance
+                    start, end = track.GetStart(), track.GetEnd()
+                    if point_segment_distance((position.x, position.y), (start.x, start.y), (end.x, end.y)) < self._margin + track.GetWidth()/2 + 2:
+                        return 'other-net track/via'
+                elif segment_hits_box(position,position,track.GetBoundingBox(),self._margin):
+                    return 'other-net track/via'
         if True:  # Other-net copper is always excluded.
-            zones = self._obstacle_zones
+            zones = self._guard_zone_index.query([position], self._margin) if indexed else self._obstacle_zones
             if any(not zone.GetIsRuleArea() and self._net_code(zone) != net_code and segment_hits_box(position,position,zone.GetBoundingBox(),self._margin) for zone in zones):
                 return "other-net zone"
         if True:  # Via keepouts cannot be disabled.
-            if any(zone.GetIsRuleArea() and zone.GetDoNotAllowVias() and segment_hits_box(position,position,zone.GetBoundingBox(),self._margin) for zone in self._obstacle_zones):
+            if any(zone.GetIsRuleArea() and zone.GetDoNotAllowVias() and segment_hits_box(position,position,zone.GetBoundingBox(),self._margin) for zone in zones):
                 return "keepout/drawing"
         return ""
+
+    def _guard_sources(self):
+        """Resolve exact nets and track UUIDs, never using the guard net as a signal."""
+        nets, identifiers = self.settings['guard_nets'], self.settings['guard_tracks']
+        for values, label in ((nets, 'Guard signal nets'), (identifiers, 'Guard track IDs')):
+            if not isinstance(values, (list, tuple)) or len(values) > 5000 or any(not isinstance(value, str) or not value.strip() for value in values):
+                raise ValueError(label + ' must be a bounded list of exact names or IDs.')
+        if not nets and not identifiers:
+            raise ValueError('Choose signal nets or capture selected straight tracks before previewing guard vias.')
+        if self.settings['net_choice'] in nets:
+            raise ValueError('The via guard net must differ from every selected signal net.')
+        net_names, wanted_ids = set(nets), set(identifiers)
+        tracks = list(self.board.GetTracks())
+        by_id = {item_id(track): track for track in tracks}
+        missing = wanted_ids - set(by_id)
+        if missing:
+            raise ValueError('Selected track IDs no longer exist: ' + ', '.join(sorted(missing)[:5]))
+        names = {str(track.GetNetname()) for track in tracks}
+        if net_names - names:
+            raise ValueError('Signal nets have no saved tracks: ' + ', '.join(sorted(net_names-names)[:5]))
+        selected = [track for track in tracks if item_id(track) in wanted_ids or str(track.GetNetname()) in net_names]
+        if len(selected) > 5000:
+            raise ValueError('Guard scope exceeds 5,000 source items. Select fewer nets or tracks.')
+        sources, rejected = [], {}
+        guard_code = self._selected_net()[1]
+        for track in selected:
+            if self._net_code(track) == guard_code:
+                raise ValueError('Guard vias cannot be assigned to a selected signal net.')
+            if track.GetClass() != 'PCB_TRACK':
+                reason = 'unsupported arc target' if 'ARC' in track.GetClass() else 'non-straight target'
+                rejected[reason] = rejected.get(reason, 0) + 1
+            elif not self._net_code(track):
+                rejected['unassigned signal net'] = rejected.get('unassigned signal net', 0) + 1
+            else:
+                sources.append(track)
+        if not sources:
+            raise ValueError('No supported straight signal tracks in the chosen scope; arc and via targets are not approximated.')
+        return sources, rejected
+
+    def _guard_check_budget(self):
+        import time
+        if getattr(self, '_cancel', None) and self._cancel():
+            raise ValueError('Guard planning cancelled; no partial plan can be applied.')
+        if time.monotonic() > getattr(self, '_guard_deadline', float('inf')):
+            raise ValueError('Guard planning exceeded its time budget. Narrow the scope or increase the explicit timeout.')
+
+    def _guard_geometry(self, native):
+        """Convert a native polygon once; vector iteration avoids repeated SWIG calls."""
+        def ring(chain):
+            points = chain.CPoints() if hasattr(chain, 'CPoints') else (chain.CPoint(i) for i in range(chain.PointCount()))
+            return [(point.x, point.y) for point in points]
+        shapes = []
+        for index in range(native.OutlineCount()):
+            self._guard_check_budget()
+            chain = native.COutline(index)
+            if hasattr(chain, 'PointInside') and hasattr(chain, 'SquaredDistance') and hasattr(chain, 'BBox'):
+                # SHAPE_POLY_SET's outline-only distance flag is unsupported in
+                # KiCad 10. Closed LINE_CHAIN distances are supported and retain
+                # holes, with the expensive edge loops performed in native code.
+                if not chain.PointCount():
+                    continue
+                box = chain.BBox()
+                holes = [native.CHole(index, hole) for hole in range(native.HoleCount(index))]
+                shapes.append((chain, holes, (box.GetLeft(),box.GetTop(),box.GetRight(),box.GetBottom())))
+                continue
+            outer = ring(native.COutline(index))
+            if not outer:
+                continue
+            holes = [ring(native.CHole(index, hole)) for hole in range(native.HoleCount(index))]
+            shapes.append((outer, holes, (min(x for x,y in outer), min(y for x,y in outer), max(x for x,y in outer), max(y for x,y in outer))))
+        return shapes
+
+    @staticmethod
+    def _guard_inside(position, radius, shapes):
+        from .geometry import disk_inside
+        point = (position.x, position.y)
+        for outer, holes, (left,top,right,bottom) in shapes:
+            if not (left+radius <= point[0] <= right-radius and top+radius <= point[1] <= bottom-radius):
+                continue
+            if hasattr(outer, 'PointInside'):
+                if (outer.PointInside(position) and not any(hole.PointInside(position) for hole in holes)
+                        and all(chain.SquaredDistance(position, True) >= radius*radius for chain in [outer,*holes])):
+                    return True
+            elif disk_inside(point, radius, outer, holes):
+                return True
+        return False
+
+    def _plan_guard(self):
+        """Place through guard vias beside exact straight tracks; never modify sources."""
+        import time
+        if self.settings['guard_side'] not in ('Both', 'Left', 'Right'):
+            raise ValueError('Choose Both, Left or Right guard sides.')
+        positive(self.settings['guard_offset'], 'Guard offset')
+        timeout = positive(self.settings['guard_timeout'], 'Guard timeout')
+        if timeout > 120:
+            raise ValueError('Guard timeout must be at most 120 seconds.')
+        budget_value = self.settings['guard_budget']
+        budget = int(positive(budget_value, 'Guard candidate budget'))
+        if isinstance(budget_value, bool) or float(budget_value) != budget or budget > 50000:
+            raise ValueError('Guard candidate budget must be an integer from 1 to 50,000.')
+        self._guard_deadline = time.monotonic() + timeout
+        self._guard_mode = True
+        sources, rejected = self._guard_sources()
+        self._guard_check_budget()
+        # Never weaken saved global/netclass fabrication floors. Conditional
+        # custom rules still require native DRC on the reviewed candidate.
+        classes = project_netclasses(self.board)
+        floors = [float(row.get('clearance', 0)) for row in classes.get('classes', [])]
+        design_rules = {}
+        filename = self.board.GetFileName()
+        if filename:
+            import json
+            from pathlib import Path
+            project = Path(filename).with_suffix('.kicad_pro')
+            if project.is_file():
+                document = json.loads(project.read_text(encoding='utf-8-sig'))
+                design_rules = document.get('board',{}).get('design_settings',{}).get('rules',{})
+                floors.append(float(design_rules.get('min_clearance',0)))
+        if floors and float(self.settings['clearance']) < max(floors):
+            raise ValueError(f'Guard clearance is below a saved board/netclass clearance ({max(floors):g} mm). Increase it before previewing.')
+        spacing = self.api.FromMM(positive(self.settings['spacing'], 'Guard pitch'))
+        diameter = self.api.FromMM(positive(self.settings['diameter'], 'Diameter'))
+        drill = self.api.FromMM(positive(self.settings['drill'], 'Drill'))
+        clearance = self.api.FromMM(positive(self.settings['clearance'], 'Clearance', True))
+        inset = self.api.FromMM(positive(self.settings['edge'], 'Edge inset', True))
+        offset = self.api.FromMM(float(self.settings['guard_offset']))
+        if min(spacing, diameter, drill, offset) <= 0:
+            raise ValueError('Guard pitch, offset, diameter and drill must remain positive at native coordinate resolution.')
+        for key, actual, label in (('min_via_diameter', diameter, 'Via diameter'),
+                                   ('min_through_hole_diameter', drill, 'Via drill'),
+                                   ('min_via_annular_width', (diameter-drill)/2, 'Via annular width')):
+            floor = self.api.FromMM(float(design_rules.get(key,0)))
+            if actual < floor:
+                raise ValueError(f'{label} is below the saved board manufacturing floor.')
+        if drill >= diameter:
+            raise ValueError('Drill must be smaller than via diameter.')
+        if spacing < diameter + clearance:
+            raise ValueError('Guard pitch is smaller than via diameter plus clearance.')
+        self._radius = diameter/2
+        self._margin = self._radius + clearance
+        _, net_code = self._selected_net()
+        if not net_code:
+            raise ValueError('Choose an existing, explicit guard-via net before previewing.')
+        target_zones = self._target_zones(net_code)
+        require_zone = self.settings['require_target_zone']
+        if require_zone and not target_zones:
+            raise ValueError('No copper zones match the selected guard net. Create and fill a target-net zone first.')
+        if require_zone and not any(zone.IsFilled() for zone in target_zones):
+            raise ValueError('Fill the target-net copper zones before generating guard vias.')
+        self._obstacle_footprints = list(self.board.GetFootprints())
+        self._obstacle_tracks = list(self.board.GetTracks())
+        self._obstacle_zones = list(self.board.Zones())
+        self._guard_footprint_index = _ObstacleIndex(self._obstacle_footprints)
+        self._guard_track_index = _ObstacleIndex(self._obstacle_tracks)
+        self._guard_zone_index = _ObstacleIndex(self._obstacle_zones)
+        self._spatial_indexes = True
+        outline = self.api.SHAPE_POLY_SET()
+        if not self.board.GetBoardPolygonOutlines(outline, False):
+            raise ValueError('A closed, valid Edge.Cuts outline is required.')
+        outline_shapes = self._guard_geometry(outline)
+        zone_shapes = []
+        if require_zone:
+            for zone in target_zones:
+                for layer in zone.GetLayerSet().Seq():
+                    zone_shapes.extend(self._guard_geometry(zone.GetFilledPolysList(layer)))
+        left, top, right, bottom = self._bounds()
+        left, right = sorted((left, right)); top, bottom = sorted((top, bottom))
+        # KiCad board coordinates have +Y downward. Left of a +X route is -Y.
+        signs = (-1, 1) if self.settings['guard_side'] == 'Both' else (-1,) if self.settings['guard_side'] == 'Left' else (1,)
+        estimated = sum((1 + math.ceil(math.hypot(t.GetEnd().x-t.GetStart().x, t.GetEnd().y-t.GetStart().y)/spacing))*len(signs) for t in sources)
+        if estimated > budget:
+            raise ValueError(f'{estimated:,} guard candidates exceed the {budget:,} budget. Increase pitch or narrow the scope.')
+        accepted, result = {}, []
+        cell = diameter + clearance
+        attempts = 0
+        for track in sources:
+            self._guard_check_budget()
+            start, end = track.GetStart(), track.GetEnd()
+            dx, dy = end.x-start.x, end.y-start.y
+            length = math.hypot(dx, dy)
+            if not length:
+                rejected['zero-length target'] = rejected.get('zero-length target', 0) + 1
+                continue
+            # Each segment includes both endpoints. Near bends, the accepted-via
+            # grid removes duplicate/too-close proposals without changing pitch.
+            distances = [min(length, index*spacing) for index in range(1+math.ceil(length/spacing))]
+            for distance in distances:
+                for sign in signs:
+                    attempts += 1
+                    if attempts % 32 == 0:
+                        self._guard_check_budget()
+                    x = round(start.x + dx*distance/length - sign*dy*offset/length)
+                    y = round(start.y + dy*distance/length + sign*dx*offset/length)
+                    position = self.api.VECTOR2I(x, y)
+                    if not (left <= x <= right and top <= y <= bottom):
+                        reason = 'outside selected bounds'
+                    elif not self._guard_inside(position, max(inset, self._margin), outline_shapes):
+                        reason = 'board edge/cutout'
+                    elif require_zone and not self._guard_inside(position, self._radius, zone_shapes):
+                        reason = 'outside target copper'
+                    else:
+                        reason = self._blocked_reason(position, net_code)
+                    key = (x//cell, y//cell)
+                    if not reason and any(math.hypot(x-px, y-py) < cell+2
+                                          for gx in range(key[0]-1,key[0]+2) for gy in range(key[1]-1,key[1]+2)
+                                          for px,py in accepted.get((gx,gy), ())):
+                        reason = 'near another proposed via'
+                    if reason:
+                        rejected[reason] = rejected.get(reason, 0) + 1
+                        continue
+                    via = self.api.PCB_VIA(self.board)
+                    via.SetPosition(position); via.SetViaType(self.api.VIATYPE_THROUGH)
+                    via.SetLayerPair(self.api.F_Cu, self.api.B_Cu)
+                    via.SetDrill(int(drill)); via.SetWidth(int(diameter)); via.SetNetCode(net_code)
+                    result.append(via); accepted.setdefault(key, []).append((x,y))
+        self._guard_check_budget()
+        self.plan_rejections = rejected
+        return result
 
 
     def _bounds(self) -> Tuple[int, int, int, int]:
@@ -704,6 +943,10 @@ class StitchingPlanner:
 
 
     def _plan(self) -> List[Any]:
+        if self.settings['mode'] == 'Guard selected routes':
+            return self._plan_guard()
+        if self.settings['mode'] != 'Grid':
+            raise ValueError('Choose Grid or Guard selected routes mode.')
         if self.settings['pattern'] not in ('Square grid','Staggered grid'):raise ValueError('Unknown stitching pattern.')
         if self.settings['density'] not in ('Uniform','Dense perimeter / sparse interior','Dense selected area'):raise ValueError('Unknown density profile.')
         for control,label in ((self.settings["spacing"],'Spacing'),(self.settings["drill"],'Drill'),(self.settings["diameter"],'Diameter')):positive(control,label)
@@ -714,6 +957,8 @@ class StitchingPlanner:
         inset = self.api.FromMM(float(self.settings["edge"]))
         drill = self.api.FromMM(float(self.settings["drill"]))
         diameter = self.api.FromMM(float(self.settings["diameter"]))
+        if min(diameter, drill) <= 0 or drill >= diameter:
+            raise ValueError('Diameter and drill must remain positive at native resolution, with drill smaller than diameter.')
         if spacing <= 0:
             raise ValueError("Grid spacing must be greater than zero.")
         step = max(1, spacing // 2) if self.settings["density"] == "Dense selected area" else spacing
@@ -735,6 +980,11 @@ class StitchingPlanner:
         self._obstacle_footprints=list(self.board.GetFootprints())
         self._obstacle_tracks=list(self.board.GetTracks())
         self._obstacle_zones=list(self.board.Zones())
+        self._guard_footprint_index = _ObstacleIndex(self._obstacle_footprints)
+        self._guard_track_index = _ObstacleIndex(self._obstacle_tracks)
+        self._guard_zone_index = _ObstacleIndex(self._obstacle_zones)
+        self._spatial_indexes = True
+        self._zone_shapes = {}
         self._board_outline=None
         if hasattr(self.api,'SHAPE_POLY_SET'):
             self._board_outline=self.api.SHAPE_POLY_SET()
@@ -743,6 +993,7 @@ class StitchingPlanner:
             self._board_outline=self.board.wayricad_outline()
         elif not require_zone:
             raise ValueError('This runtime needs a filled target-net zone to constrain stitching geometry.')
+        outline_shapes = self._guard_geometry(self._board_outline) if self._board_outline is not None else None
         candidate_count=(1+(right-left)//step)*(1+(bottom-top)//step)
         if candidate_count>50000:raise ValueError(f'{candidate_count:,} candidates exceed the 50,000 limit. Increase spacing or reduce the selected area.')
         rejected: Dict[str, int] = {}
@@ -753,12 +1004,14 @@ class StitchingPlanner:
             y = top + inset + (step//2 if self.settings["pattern"]=='Staggered grid' and x_index%2 else 0)
             y_index = 0
             while y <= bottom - inset:
+                if y_index % 32 == 0:
+                    self._guard_check_budget()
                 profile = self.settings["density"]
                 perimeter_distance = min(x - left, right - x, y - top, bottom - y)
                 if profile == "Dense perimeter / sparse interior" and perimeter_distance > 3 * spacing and (x_index % 2 or y_index % 2):
                     y += step; y_index += 1; continue
                 position = self.api.VECTOR2I(int(x), int(y))
-                if self._board_outline is not None and not inside_native(position,max(inset,self._margin),self._board_outline):
+                if outline_shapes is not None and not self._guard_inside(position,max(inset,self._margin),outline_shapes):
                     rejected['board edge/cutout']=rejected.get('board edge/cutout',0)+1
                     y+=step;y_index+=1;continue
                 if require_zone and not any(self._inside_zone(zone, position) for zone in target_zones):
@@ -794,9 +1047,10 @@ def plan_fanout(board, api, settings=None):
         return planner._plan(), planner.plan_rejections
 
 
-def plan_stitching(board, api, settings=None):
+def plan_stitching(board, api, settings=None, cancel=None):
     with read_snapshot(board):
         planner = StitchingPlanner(board, api, settings or {})
+        planner._cancel = cancel
         return planner._plan(), planner.plan_rejections
 
 

@@ -29,7 +29,8 @@ class ThermalLabelUITests(unittest.TestCase):
                 frame=QuickThermFrame(None,str(path))
                 try:
                     view=dense_view(256)
-                    frame.thermal_bundle={'board_thermal_view':view,'source_sha256':original}
+                    frame.thermal_bundle={'board_thermal_view':view,'source_sha256':original,
+                                          'quick_therm':{'rows':[]}}
                     frame._thermal_rows=[(item,{}) for item in view['components']]
                     frame._thermal_selected='0';frame.therm_mode.SetStringSelection('Top-side map')
                     frame._draw_thermal();frame.Show();app.Yield();canvas=frame.therm_canvas;canvas.draw()
@@ -43,7 +44,9 @@ class ThermalLabelUITests(unittest.TestCase):
                     leave=wx.MouseEvent(wx.wxEVT_LEAVE_WINDOW);canvas.GetEventHandler().ProcessEvent(leave);app.Yield()
                     self.assertEqual(len(component_labels(ax)),1);self.assertEqual((ax.get_xlim(),ax.get_ylim()),limits)
                     # Exercise the paired dialog's actual registered hover and leave callbacks.
+                    paired_calls=[]
                     def paired(dialog):
+                        paired_calls.append(dialog)
                         dialog.Show();app.Yield()
                         def children(window):
                             for child in window.GetChildren():
@@ -57,6 +60,7 @@ class ThermalLabelUITests(unittest.TestCase):
                         top.GetEventHandler().ProcessEvent(wx.MouseEvent(wx.wxEVT_LEAVE_WINDOW));app.Yield()
                         self.assertEqual(len(component_labels(axes)),1);dialog.Hide();return wx.ID_CLOSE
                     with patch.object(wx.Dialog,'ShowModal',paired):frame.on_expand_thermal()
+                    self.assertEqual(len(paired_calls),1)
                     self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),original)
                     capture=os.environ.get('WAYRICAD_THERM_LABEL_CAPTURE')
                     if capture:

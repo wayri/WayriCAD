@@ -1,8 +1,20 @@
 """Geometry hit tests used by board input selection and 3D cursor probes."""
 import unittest
-from wayricad_runtime.picking import segment_distance,triangle_hit,ray_box,pick_meshes
+from wayricad_runtime.picking import segment_distance,triangle_hit,ray_box,pick_meshes,SegmentIndex
 
 class PickingTests(unittest.TestCase):
+    def test_spatial_candidates_match_linear_bounds_including_broad_objects(self):
+        import random
+        random.seed(7)
+        rows=[dict(start=(random.uniform(-20,20),random.uniform(-20,20)),
+                   end=(random.uniform(-20,20),random.uniform(-20,20)),radius=random.random()) for _ in range(200)]
+        rows.append(dict(start=(-1000.,0.),end=(1000.,0.),radius=1.))
+        index=SegmentIndex(rows)
+        for tolerance in (0., .1, 2., 100.):
+            for point in [(-20.,0.), (0.,0.), (3.1,-1.2), (40.,40.)]:
+                x,y=point;r=tolerance
+                expected=[i for i,(a,b,c,d) in enumerate(index.boxes) if a-r<=x<=c+r and b-r<=y<=d+r]
+                self.assertEqual(index.candidates(point,tolerance),expected)
     def test_segment_endpoints_and_degenerate_point(self):
         self.assertEqual(segment_distance((2,1),(0,0),(1,0)),2**.5)
         self.assertEqual(segment_distance((1,.5),(0,0),(2,0)),.5)

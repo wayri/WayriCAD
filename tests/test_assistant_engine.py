@@ -49,6 +49,18 @@ class AssistantEngineTests(unittest.TestCase):
         self.assertEqual(values["current"], 0.25)
         self.assertEqual([q["key"] for q in plan["questions"]], ["0.board"])
 
+    def test_guard_net_is_explicit_and_never_inferred_from_selected_signal(self):
+        plan=engine.propose('guard via stitching',{'selected_nets':['CLK','DATA']})
+        self.assertEqual(plan['steps'][0]['action'],'via-stitching.guard')
+        self.assertEqual(plan['steps'][0]['params']['signal_nets'],['CLK','DATA'])
+        self.assertNotIn('guard_net',plan['steps'][0]['params'])
+        self.assertIn('0.guard_net',[q['key'] for q in plan['questions']])
+        plan=engine.propose('via fence along net CLK with guard net GND pitch 2 mm offset 1 mm')
+        self.assertEqual(plan['steps'][0]['params']['guard_net'],'GND')
+        self.assertEqual(plan['steps'][0]['params']['signal_nets'],['CLK'])
+        self.assertEqual(plan['steps'][0]['params']['spacing'],2.)
+        self.assertEqual(plan['steps'][0]['params']['offset'],1.)
+
     def test_answers_invalid_numeric_and_optional_boolean(self):
         plan = engine.propose(QUERY, answers={"width_mm": "not numeric"})
         self.assertEqual(plan["status"], "needs_input")

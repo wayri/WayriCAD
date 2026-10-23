@@ -47,3 +47,44 @@ def test_group_settings_example_is_valid():
     result = cli.execute(SimpleNamespace(kind='fanout', operation='settings', board=None))
     example = result['group_rules']['example']
     validate_groups(example['groups'], example['unmatched'], result['defaults'])
+
+
+def test_review_copy_retains_rules_and_never_overwrites(tmp_path):
+    source = tmp_path / 'source.kicad_pcb'
+    source.write_bytes(b'original')
+    source.with_suffix('.kicad_pro').write_bytes(b'project rules')
+    source.with_suffix('.kicad_dru').write_bytes(b'custom rules')
+    output = tmp_path / 'review.kicad_pcb'
+    def save(path, board, skip_settings):
+        assert skip_settings is True
+        from pathlib import Path
+        Path(path).write_bytes(b'review')
+        return True
+    api = SimpleNamespace(SaveBoard=save)
+    captured = cli._source_files(source)
+    cli._save_review_copy(object(), api, source, output, captured)
+    assert output.read_bytes() == b'review'
+    assert output.with_suffix('.kicad_pro').read_bytes() == b'project rules'
+    assert output.with_suffix('.kicad_dru').read_bytes() == b'custom rules'
+    assert cli._source_files(source) == captured
+    with pytest.raises(ValueError, match='unused'):
+        cli._save_review_copy(object(), api, source, output, captured)
+
+
+def test_review_copy_rejects_changed_rules_and_rolls_back_failure(tmp_path):
+    source = tmp_path / 'source.kicad_pcb'
+    source.write_bytes(b'original')
+    rules = source.with_suffix('.kicad_dru')
+    rules.write_bytes(b'old')
+    captured = cli._source_files(source)
+    output = tmp_path / 'review.kicad_pcb'
+    def save(path, board, skip_settings):
+        assert skip_settings is True
+        rules.write_bytes(b'changed')
+        return True
+    with pytest.raises(ValueError, match='during export'):
+        cli._save_review_copy(object(), SimpleNamespace(SaveBoard=save), source, output, captured)
+    assert not output.exists()
+    assert not output.with_suffix('.kicad_dru').exists()
+    with pytest.raises(ValueError, match='changed'):
+        cli._save_review_copy(object(), SimpleNamespace(SaveBoard=save), source, output, captured)

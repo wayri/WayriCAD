@@ -9,6 +9,9 @@ class GeometryPreview(wx.Panel):
         super().__init__(parent,style=wx.BORDER_SIMPLE)
         self.compact=bool(compact)
         self._scene_bitmap=None;self._scene_key=None;self._scene_revision=0
+        self._context_revision=0;self._muted_bitmap=None;self._muted_key=None
+        self._net_highlight_lookup=None;self._id_highlight_lookup=None;self._highlight_token=None
+        self._pick_index=None;self._pick_token=None
         self.empty_text=empty_text
         self.lines=[];self.points=[];self.pads=[];self.outlines=[]
         self.point_diameters=[];self.line_widths=[];self.pad_sizes=[];self.point_drills=[];self.rejected=[]
@@ -27,11 +30,15 @@ class GeometryPreview(wx.Panel):
         self.Bind(wx.EVT_SIZE,lambda event:(self.Refresh(),event.Skip()))
         self.Bind(wx.EVT_MOUSE_CAPTURE_LOST,self.capture_lost)
 
-    def invalidate_scene(self):
+    def invalidate_scene(self,keep_context=False):
         """Discard cached pixels after an in-place edit to preview geometry."""
         self._scene_revision+=1
         self._scene_bitmap=None
         self._scene_key=None
+        if not keep_context:
+            self._context_revision+=1;self._muted_bitmap=None;self._muted_key=None
+            self._net_highlight_lookup=None;self._id_highlight_lookup=None;self._highlight_token=None
+            self._pick_index=None;self._pick_token=None
 
     def _cache_key(self):
         names=('lines','points','pads','outlines','point_diameters','line_widths',
@@ -152,9 +159,24 @@ class GeometryPreview(wx.Panel):
         """
         self._highlight_nets=frozenset(str(n) for n in nets if n)
         self._highlight_ids=frozenset(str(i).casefold() for i in identifiers if i)
-        self._highlight_indices={kind:{i for i,row in enumerate(rows)
-                                     if row[0] in self._highlight_nets or any(uid in self._highlight_ids for uid in row[1:] if uid)}
-                                 for kind,rows in self._context_identity.items()}
+        token=(id(self._context_identity),tuple((kind,len(rows)) for kind,rows in self._context_identity.items()))
+        if token!=self._highlight_token:
+            self._net_highlight_lookup=None;self._id_highlight_lookup=None;self._highlight_token=token
+        indices={kind:set() for kind in self._context_identity}
+        for wanted,attribute,columns in ((self._highlight_nets,'_net_highlight_lookup',slice(0,1)),
+                                         (self._highlight_ids,'_id_highlight_lookup',slice(1,None))):
+            if not wanted:continue
+            lookup=getattr(self,attribute)
+            if lookup is None:
+                lookup={}
+                for kind,rows in self._context_identity.items():
+                    for i,row in enumerate(rows):
+                        for value in row[columns]:
+                            if value:lookup.setdefault(value,{}).setdefault(kind,[]).append(i)
+                setattr(self,attribute,lookup)
+            for value in wanted:
+                for kind,items in lookup.get(value,{}).items():indices[kind].update(items)
+        self._highlight_indices=indices
         bounds=[]
         for kind,indices in self._highlight_indices.items():
             for i in indices:
@@ -169,7 +191,7 @@ class GeometryPreview(wx.Panel):
                     x,y,d,_=row;bounds.extend(((x-d/2,y-d/2),(x+d/2,y+d/2)))
                 else:bounds.extend(row[0])
         self._highlight_bounds=bounds
-        self.invalidate_scene();self.Refresh()
+        self.invalidate_scene(keep_context=True);self.Refresh()
         return sum(len(indices) for indices in self._highlight_indices.values())
 
     def focus_highlight(self):
@@ -233,9 +255,15 @@ class GeometryPreview(wx.Panel):
 
     def pick_net(self, screen):
         """Pick only visible copper/pads within a screen-space tolerance."""
-        from .picking import segment_distance
+        from .picking import segment_distance,SegmentIndex
         closest=None;distance=math.inf
-        for target in self.net_targets:
+        world=self.unproject(screen)
+        if world is None:return None
+        token=(id(self.net_targets),len(self.net_targets))
+        if self._pick_index is None or token!=self._pick_token:
+            self._pick_index=SegmentIndex(self.net_targets);self._pick_token=token
+        for index in self._pick_index.candidates(world,9/max(.01,self._view_scale)):
+            target=self.net_targets[index]
             a,b=self.project(target['start']),self.project(target['end'])
             gap=segment_distance(screen,a,b)
             radius=math.dist(a,self.project((target['start'][0]+target['radius'],target['start'][1])))
@@ -275,10 +303,70 @@ class GeometryPreview(wx.Panel):
             width,height=self.GetClientSize()
             bitmap=wx.Bitmap(max(1,width),max(1,height))
             scene_dc=wx.MemoryDC(bitmap)
-            try:self._render_scene(scene_dc)
+            try:
+                if self._highlight_bounds and not any((self.lines,self.points,self.pads,self.outlines,self.rejected)):
+                    # Selection changes must not re-rasterize the entire saved PCB.
+                    base_key=key[:1]+(self._context_revision,)+key[2:9]+key[11:]
+                    if self._muted_bitmap is None or base_key!=self._muted_key:
+                        muted=wx.Bitmap(max(1,width),max(1,height));muted_dc=wx.MemoryDC(muted)
+                        selected=self._highlight_indices
+                        try:
+                            self._highlight_indices={}
+                            self._render_scene(muted_dc)
+                        finally:
+                            self._highlight_indices=selected;muted_dc.SelectObject(wx.NullBitmap)
+                        self._muted_bitmap=muted;self._muted_key=base_key
+                    scene_dc.DrawBitmap(self._muted_bitmap,0,0)
+                    self._draw_highlight(scene_dc)
+                else:self._render_scene(scene_dc)
             finally:scene_dc.SelectObject(wx.NullBitmap)
             self._scene_bitmap=bitmap;self._scene_key=key
         return self._scene_bitmap
+
+    def _draw_highlight(self,dc):
+        """Paint only selected saved items over the camera's cached muted board."""
+        project=self.project;scale=self._view_scale
+        width,height=self.GetClientSize();view_height=max(1,height-(0 if self.compact else 48))
+        dc.SetClippingRegion(0,0,width,view_height)
+        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+        dc.SetPen(wx.Pen('#007f89',3))
+        for i in sorted(self._highlight_indices.get('context_rings',())):
+            ring,_=self.context_rings[i]
+            if ring:dc.DrawPolygon([wx.Point(*project(p)) for p in ring])
+        for i in sorted(self._highlight_indices.get('context_lines',())):
+            x1,y1,x2,y2,stroke=self.context_lines[i]
+            dc.SetPen(wx.Pen('#007f89',max(3,round(stroke*scale))))
+            dc.DrawLine(*project((x1,y1)),*project((x2,y2)))
+        gc=wx.GraphicsContext.Create(dc)
+        for i in sorted(self._highlight_indices.get('context_pads',())):
+            pad=self.context_pads[i];x,y=project(pad['center']);w,h=[v*scale for v in pad['size']]
+            gc.SetPen(wx.Pen('#00575e',2));gc.SetBrush(wx.Brush('#4fd9d4'))
+            if pad['rings']:
+                for ring in pad['rings']:
+                    if not ring:continue
+                    path=gc.CreatePath();path.MoveToPoint(*project(ring[0]))
+                    for point in ring[1:]:path.AddLineToPoint(*project(point))
+                    path.CloseSubpath();gc.DrawPath(path)
+            else:
+                gc.PushState();gc.Translate(x,y);gc.Rotate(math.radians(pad['angle']))
+                if pad['shape']=='circle':gc.DrawEllipse(-w/2,-h/2,w,h)
+                elif pad['shape'] in ('oval','roundrect'):gc.DrawRoundedRectangle(-w/2,-h/2,w,h,min(w,h)/2 if pad['shape']=='oval' else pad['radius']*scale)
+                else:gc.DrawRectangle(-w/2,-h/2,w,h)
+                gc.PopState()
+            dx,dy=pad['drill']
+            if dx>0 and dy>0:
+                gc.SetBrush(wx.Brush('#fbfcfd'));gc.SetPen(wx.Pen('#8d8e8f',1));gc.DrawEllipse(x-dx*scale/2,y-dy*scale/2,dx*scale,dy*scale)
+        gc.Flush()
+        for i in sorted(self._highlight_indices.get('context_vias',())):
+            x,y,d,drill=self.context_vias[i];x,y=project((x,y))
+            dc.SetPen(wx.Pen('#00575e',2));dc.SetBrush(wx.Brush('#4fd9d4'));dc.DrawCircle(x,y,max(3,round(d*scale/2)))
+            dc.SetPen(wx.Pen('#596877',1));dc.SetBrush(wx.Brush('#fbfcfd'));dc.DrawCircle(x,y,max(1,round(drill*scale/2)))
+        dc.SetTextForeground('#56411e')
+        for i in sorted(self._highlight_indices.get('context_pads',())):
+            pad=self.context_pads[i];w,h=[v*scale for v in pad['size']]
+            if min(w,h)>12:
+                x,y=project(pad['center']);tw,th=dc.GetTextExtent(pad['number']);dc.DrawText(pad['number'],x-round(w/2)-tw-4,y-th//2)
+        dc.DestroyClippingRegion()
 
     def _draw_inspection(self,dc):
         """Draw transient cursor/probe overlays without traversing board geometry."""
@@ -314,6 +402,7 @@ class GeometryPreview(wx.Panel):
         miny=min(p[1] for p in coordinates)-padding;maxy=max(p[1] for p in coordinates)+padding
         inset=20 if self.compact else 60
         scale=max(.01,min((width-inset)/max(maxx-minx,1),(view_height-inset)/max(maxy-miny,1)))*self.zoom
+        self._view_scale=scale
         cx,cy=(minx+maxx)/2,(miny+maxy)/2
         def project(p):return (round(width/2+self.pan[0]+(p[0]-cx)*scale),round(view_height/2+self.pan[1]+(p[1]-cy)*scale))
         self.project=project
@@ -341,13 +430,18 @@ class GeometryPreview(wx.Panel):
             selected=self._highlighted('context_rings',ri)
             dc.SetPen(wx.Pen('#007f89' if selected else '#687582' if kind=='edge' else '#c3cbd2',3 if selected else 2 if kind=='edge' else 1,wx.PENSTYLE_SOLID if kind=='edge' or selected else wx.PENSTYLE_SHORT_DASH))
             dc.DrawPolygon([wx.Point(*project(p)) for p in ring])
+        track_batches={}
         for ti,(x1,y1,x2,y2,stroke) in enumerate(self.context_lines):
             if not visible(x1,y1,x2,y2,stroke/2):continue
             selected=self._highlighted('context_lines',ti)
-            dc.SetPen(wx.Pen('#007f89' if selected else '#d1d7dc' if highlighting else '#b47c6f',max(3 if selected else 1,round(stroke*scale))));dc.DrawLine(*project((x1,y1)),*project((x2,y2)))
+            color='#007f89' if selected else '#d1d7dc' if highlighting else '#b47c6f'
+            key=color,max(3 if selected else 1,round(stroke*scale))
+            track_batches.setdefault(key,[]).append((*project((x1,y1)),*project((x2,y2))))
+        for (color,stroke),lines in track_batches.items():
+            dc.SetPen(wx.Pen(color,stroke));dc.DrawLineList(lines)
         dc.SetPen(wx.Pen('#596877',max(1,min(3,round(.12*scale)))))
-        for line in self.footprint_lines:
-            if visible(*line[:4]):dc.DrawLine(*project(line[:2]),*project(line[2:4]))
+        footprint_lines=[(*project(line[:2]),*project(line[2:4])) for line in self.footprint_lines if visible(*line[:4])]
+        if footprint_lines:dc.DrawLineList(footprint_lines)
         gc=wx.GraphicsContext.Create(dc)
         for pi,pad in enumerate(self.context_pads):
             if not pad_visible(pad):continue

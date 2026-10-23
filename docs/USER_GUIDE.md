@@ -92,6 +92,12 @@ Per-pin/net groups let one footprint use different styles, widths, angles, layer
 
 Via Stitching follows the same preview-first flow with grid pattern, net, layer span, spacing, outline and exclusions. Conservative checks may reject usable locations. Run native KiCad DRC after applying; a clear preview is not a substitute for DRC. The [routing CLI](CLI_USER_GUIDE.md) provides JSON/SVG plans, writes a new board on apply, and can compare native DRC reports before and after.
 
+For a via fence, choose **Guard selected routes**, then select exact signal nets
+or capture selected PCB tracks. Choose a distinct guard net, pitch and
+centre-to-centre offset. Check **Before/After**, accepted counts and rejection
+reasons before Apply. Planning is cancellable and uses a private snapshot;
+save changes before fast preview. See [guard workflow and limits](../via_stitching_plugin/ReadMe.md#guard-a-signal-route).
+
 ## Electrical analysis
 
 In Quick PI, select the actual power net and source/sink pads. Set source voltage and sink current. Preview extracted copper, inspect layer coverage, then run the mesh solve. Check the **Net**, **Mesh** and **Results** views before interpreting voltage drop, current density or loss.

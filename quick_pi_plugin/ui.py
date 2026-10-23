@@ -710,20 +710,29 @@ class QuickPIFrame(wx.Frame):
         self.return_figure.clear();self.return_canvas.draw_idle()
         def finished(result):
             from wayricad_runtime.board_render import prepare_scene
-            self.decoupling.board=None
-            self._board_scene=prepare_scene(result.pop('board_scene',{'primitives':[]}))
-            self._board_scene_hash=result.get('source_sha256')
-            self.decoupling.invalidate()
-            self.decoupling.summary.SetLabel('Saved board reloaded; run a fresh placement check.')
-            self.inventory=result;names=result.get('nets',[]);self.net.Set(names)
-            self.return_signal.Set(names);self.return_nets.Set(names)
-            self._return_nets_changed()
-            if names:self.return_signal.SetSelection(0)
-            if names:
-                choice=next((n for n in names if n.startswith(('+','VCC','VDD'))),names[0]);self.net.SetValue(choice)
-            self._set_terminals();self.status.SetLabel(f'{len(names)} saved nets. Choose source and sink terminals.')
+            # Win32 native controls otherwise repaint for each inserted net/pad.
+            # Keep the exact complete inventory and selections, but publish one
+            # coherent update instead of thousands of intermediate layouts.
+            self.main_panel.Freeze()
+            try:
+                self.decoupling.board=None
+                self._board_scene=prepare_scene(result.pop('board_scene',{'primitives':[]}))
+                self._board_scene_hash=result.get('source_sha256')
+                self.decoupling.invalidate()
+                self.decoupling.summary.SetLabel('Saved board reloaded; run a fresh placement check.')
+                self.inventory=result;names=result.get('nets',[]);self.net.Set(names)
+                self.return_signal.Set(names);self.return_nets.Set(names)
+                self._return_nets_changed()
+                if names:self.return_signal.SetSelection(0)
+                if names:
+                    choice=next((n for n in names if n.startswith(('+','VCC','VDD'))),names[0]);self.net.SetValue(choice)
+                self._set_terminals();self.status.SetLabel(f'{len(names)} saved nets. Choose source and sink terminals.')
+            finally:
+                self.main_panel.Thaw()
             if names:wx.CallAfter(self.preview_geometry)
-        self._job({'action':'inspect','board_path':self.board_path,'include_display_scene':True,'display_nets':'default'},finished,'Reading saved net names and pad terminals…')
+        # The queued geometry request supplies the displayed scene. Extracting
+        # polygons here would immediately discard and rebuild the same scene.
+        self._job({'action':'inspect','board_path':self.board_path},finished,'Reading saved net names and pad terminals…')
 
     def _set_terminals(self):
         net=self.net.GetValue();self._terminals=[t for t in self.inventory.get('terminals',[]) if t.get('net')==net]

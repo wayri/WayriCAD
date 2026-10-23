@@ -7,7 +7,27 @@ other wx ports keep their native popup sizing and still get full-value tips.
 from __future__ import annotations
 
 import sys
+from collections import OrderedDict
 import wx
+
+
+# Different controls commonly display the same full net inventory. Cache exact
+# native-font measurements, rather than rescan the Windows item container on
+# every resize. The small bound also releases obsolete project inventories.
+_TEXT_WIDTHS = OrderedDict()
+_TEXT_WIDTH_CACHE_LIMIT = 16
+
+
+def _replace_items(control, operation, items, args, kwargs):
+    """Populate native items with one repaint, preserving an outer freeze."""
+    frozen_here = not control.IsFrozen()
+    if frozen_here:
+        control.Freeze()
+    try:
+        return operation(items, *args, **kwargs)
+    finally:
+        if frozen_here and control and not control.IsBeingDeleted():
+            control.Thaw()
 
 
 def popup_width(text_widths, control_width, available_width, padding=36):
@@ -27,10 +47,15 @@ class _ReadableItems:
         self._choice_help = ''
         self._popup_dirty = True
         self._items_revision = 0
+        self._popup_items = None
+        self._popup_measurement = None
+        self._last_tip = None
         for event in (wx.EVT_CHOICE, wx.EVT_COMBOBOX, wx.EVT_ENTER_WINDOW,
                       wx.EVT_SET_FOCUS, wx.EVT_TEXT):
             self.Bind(event, self._readable_event)
         self.Bind(wx.EVT_SIZE, self._readable_size)
+        if hasattr(wx, 'EVT_DPI_CHANGED'):
+            self.Bind(wx.EVT_DPI_CHANGED, self._readable_metrics_changed)
         self.Bind(wx.EVT_CHAR_HOOK, self._search_key)
         self.Bind(wx.EVT_CONTEXT_MENU, self._search_context)
         self._refresh_tip()
@@ -95,10 +120,15 @@ class _ReadableItems:
         text = selected
         if self._choice_help and self._choice_help != selected:
             text = '\n\n'.join(value for value in (selected, self._choice_help) if value)
-        super().SetToolTip(text)
+        if text != self._last_tip:
+            super().SetToolTip(text)
+            self._last_tip = text
 
     def _readable_event(self, event):
         self._refresh_tip()
+        # The display work area or native theme may have changed while closed.
+        # Reapplying the width is cheap; font measurements remain cached.
+        self._popup_dirty = True
         self._update_popup()
         event.Skip()
 
@@ -107,11 +137,47 @@ class _ReadableItems:
         self._update_popup()
         event.Skip()
 
-    def _items_changed(self):
+    def _readable_metrics_changed(self, event):
+        self._popup_measurement = None
+        self._popup_dirty = True
+        # Native DPI handling completes after this event propagates.
+        wx.CallAfter(self._refresh_popup_metrics)
+        event.Skip()
+
+    def _refresh_popup_metrics(self):
+        if self._readable_alive():
+            self._popup_measurement = None
+            self._popup_dirty = True
+            self._update_popup()
+
+    def _items_changed(self, items=None):
         self._items_revision = getattr(self, '_items_revision', 0) + 1
+        self._popup_items = tuple(items) if items is not None else None
+        self._popup_measurement = None
         self._popup_dirty = True
         self._refresh_tip()
         self._update_popup()
+
+    def _maximum_text_width(self):
+        """Measure every full label once per item/font/DPI combination."""
+        font = self.GetFont().GetNativeFontInfoDesc()
+        dpi = self.GetDPI()
+        metrics = (font, dpi.x, dpi.y, self.GetDPIScaleFactor())
+        cached = self._popup_measurement
+        if cached is not None and cached[0] == metrics:
+            return cached[1]
+        if self._popup_items is None:
+            self._popup_items = tuple(self.GetStrings())
+        key = (metrics, self._popup_items)
+        if key in _TEXT_WIDTHS:
+            width = _TEXT_WIDTHS.pop(key)
+        else:
+            width = max((self.GetTextExtent(item).width for item in self._popup_items), default=0)
+        _TEXT_WIDTHS[key] = width
+        while len(_TEXT_WIDTHS) > _TEXT_WIDTH_CACHE_LIMIT:
+            _TEXT_WIDTHS.popitem(last=False)
+        self._popup_measurement = (metrics, width)
+        return width
 
     def _update_popup(self):
         if not self._readable_alive() or not getattr(self, '_popup_dirty', False) or not self.GetHandle():
@@ -122,7 +188,7 @@ class _ReadableItems:
         from ctypes import wintypes
         display = wx.Display.GetFromWindow(self)
         available = wx.Display(display if display != wx.NOT_FOUND else 0).GetClientArea().width
-        width = popup_width((self.GetTextExtent(item).width for item in self.GetStrings()),
+        width = popup_width((self._maximum_text_width(),),
                             self.GetSize().width, available - self.FromDIP(24), self.FromDIP(36))
         send = ctypes.windll.user32.SendMessageW
         send.argtypes = (wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
@@ -131,13 +197,13 @@ class _ReadableItems:
         self._popup_dirty = False
 
     def Set(self, items, *args, **kwargs):
-        result = super().Set(items, *args, **kwargs)
-        self._items_changed()
+        result = _replace_items(self, super().Set, items, args, kwargs)
+        self._items_changed(items)
         return result
 
     def SetItems(self, items, *args, **kwargs):
-        result = super().SetItems(items, *args, **kwargs)
-        self._items_changed()
+        result = _replace_items(self, super().SetItems, items, args, kwargs)
+        self._items_changed(items)
         return result
 
     def Append(self, *args, **kwargs):
@@ -147,12 +213,30 @@ class _ReadableItems:
 
     def Clear(self):
         result = super().Clear()
-        self._items_changed()
+        self._items_changed(())
         return result
 
     def SetString(self, *args, **kwargs):
         result = super().SetString(*args, **kwargs)
         self._items_changed()
+        return result
+
+    def Delete(self, *args, **kwargs):
+        result = super().Delete(*args, **kwargs)
+        self._items_changed()
+        return result
+
+    def Insert(self, *args, **kwargs):
+        result = super().Insert(*args, **kwargs)
+        self._items_changed()
+        return result
+
+    def SetFont(self, font):
+        result = super().SetFont(font)
+        if hasattr(self, '_popup_dirty'):
+            self._popup_measurement = None
+            self._popup_dirty = True
+            self._update_popup()
         return result
 
     def SetSelection(self, index):
@@ -192,13 +276,13 @@ class SearchableCheckListBox(wx.CheckListBox):
         self._items_revision = 0
         self.Bind(wx.EVT_CHAR_HOOK, self._search_key)
 
-    def Set(self, *args, **kwargs):
+    def Set(self, items, *args, **kwargs):
         self._items_revision += 1
-        return super().Set(*args, **kwargs)
+        return _replace_items(self, super().Set, items, args, kwargs)
 
-    def SetItems(self, *args, **kwargs):
+    def SetItems(self, items, *args, **kwargs):
         self._items_revision += 1
-        return super().SetItems(*args, **kwargs)
+        return _replace_items(self, super().SetItems, items, args, kwargs)
 
     def Append(self, *args, **kwargs):
         self._items_revision += 1

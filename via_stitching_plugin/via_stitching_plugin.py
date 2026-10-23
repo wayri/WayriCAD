@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import hashlib
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Set, Tuple
 
 import pcbnew
@@ -70,6 +72,15 @@ class ViaFrame(wx.Frame):
         self.redo_stack: List[Tuple[str, List[Any]]] = []
         self.last_selection_signature: Tuple[Any, ...] = ()
         self.plan_rejections: Dict[str, int] = {}
+        self._routing_job = None
+        self._guard_track_ids = []
+        self._context_ready = False
+        self._context_token = None
+        self.preview_settings = None
+        self.preview_rules_fingerprint = None
+        self.preview_identity = None
+        self.preview_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self._poll_preview, self.preview_timer)
         self.selection_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_selection_timer, self.selection_timer)
         self._build_ui()
@@ -78,6 +89,7 @@ class ViaFrame(wx.Frame):
         self.selection_timer.Start(500)
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Centre()
+        wx.CallAfter(self._load_context)
 
     def _build_ui(self):
         build_stitching(self, pcbnew, lambda: open_help(self))
@@ -89,10 +101,48 @@ class ViaFrame(wx.Frame):
                 name = pad.GetNetname() if hasattr(pad, "GetNetname") else ""
                 if name:
                     names.add(name)
-        self.net_choice.Append("<No net>")
-        for name in sorted(names):
-            self.net_choice.Append(name)
+        if hasattr(self.board, 'GetNetsByName'):
+            names.update(str(name) for name in self.board.GetNetsByName() if str(name))
+        names.update(str(track.GetNetname()) for track in self.board.GetTracks() if track.GetNetname())
+        self.net_choice.Set(['<No net>', *sorted(names)])
         self.net_choice.SetSelection(0)
+
+    def on_live_preview_changed(self):
+        """Board context is extracted by the owned worker, never during layout."""
+
+    def _update_guard_controls(self):
+        guard = self.mode.GetValue() == 'Guard selected routes'
+        self.guard_panel.Show(guard)
+        self.pattern.Enable(not guard); self.density.Enable(not guard)
+        self.guard_budget.Enable(guard); self.guard_timeout.Enable(guard)
+        self.settings_pane.FitInside(); self.Layout()
+
+    def capture_guard_tracks(self, _event=None):
+        self.clear_preview(None)
+        try:
+            try:
+                from .wayricad_runtime.geometry import item_id
+            except ImportError:
+                from wayricad_runtime.geometry import item_id
+            selected = [track for track in self._selected_items() if track.GetClass() in ('PCB_TRACK','PCB_ARC')]
+            self._guard_track_ids = [item_id(track) for track in selected]
+            if not selected:
+                raise ValueError('Select signal tracks in PCB Editor, then capture them here. Or choose exact signal nets from the list.')
+            self.guard_selection.SetLabel(f'{len(selected)} captured track/arc IDs; checked signal nets are included too.')
+            self.guard_selection.Wrap(260)
+            self._show_guard_targets()
+        except Exception as exc:
+            self.status.SetLabel(str(exc))
+
+    def _show_guard_targets(self):
+        if self.mode.GetValue() == 'Guard selected routes':
+            self.geometry_preview.set_highlight(nets=self.guard_nets.GetValue(), identifiers=self._guard_track_ids)
+            self.geometry_preview.focus_highlight()
+        else:
+            self.geometry_preview.set_highlight()
+
+    def _settings_snapshot(self):
+        return {name: getattr(self, name).GetValue() for name in self._settings_names}
 
     def _selected_net(self) -> tuple[str, int]:
         name = self.net_choice.GetValue()
@@ -146,22 +196,102 @@ class ViaFrame(wx.Frame):
         return tuple(int(pcbnew.FromMM(float(value.GetValue()))) for value in (self.x_min, self.y_min, self.x_max, self.y_max))
 
     def _plan(self):
-        settings = {name: getattr(self, name).GetValue() for name in self._settings_names}
+        settings = self._settings_snapshot()
         plans, self.plan_rejections = plan_stitching(self.board, pcbnew, settings)
         return plans
 
     def preview(self, _event: Any, silent: bool = False) -> None:
+        """Start a cancellable worker against a private saved-board snapshot."""
         try:
             self.clear_preview(None)
-            self.preview_plan = self._plan()
-            self.geometry_preview.set_board(self.board, pcbnew)
-            self.preview_fingerprint=board_fingerprint(self.board)
+            self.preview_settings = self._settings_snapshot()
+            self._start_preview_job(self.preview_settings, plan=True)
+        except Exception as exc:
+            self.status.SetLabel(str(exc))
+            if not silent:
+                wx.MessageBox(str(exc), 'Via preview failed', wx.OK | wx.ICON_ERROR)
+
+    def _load_context(self):
+        if self and not self.IsBeingDeleted() and not self._context_ready and self._routing_job is None:
+            try:
+                self._start_preview_job(self._settings_snapshot(), plan=False)
+            except Exception as exc:
+                self.status.SetLabel(str(exc))
+
+    def _start_preview_job(self, settings, plan=True):
+        try:
+            from .wayricad_runtime.routing_worker import start_job
+        except ImportError:
+            from wayricad_runtime.routing_worker import start_job
+        self._job_is_plan = plan
+        self._routing_job = start_job(self.board, pcbnew, settings,
+            kind='stitching' if plan else 'identity',
+            include_context=True,
+            selection={'footprints': [], 'pads': []},
+            snapshot_mode='live' if self.live_snapshot.GetValue() else 'saved',
+            timeout=max(30, min(120, float(settings['guard_timeout'])+20)))
+        self.cancel_button.Enable(); self.preview_button.Disable()
+        self.status.SetLabel('Planning in a separate process… Cancel remains available. The PCB is unchanged.')
+        self.preview_timer.Start(100)
+
+    def cancel_planning(self, _event=None):
+        job = self._routing_job
+        self._routing_job = None
+        self.preview_timer.Stop()
+        if job is not None:
+            job.cancel(); job.close()
+        if hasattr(self, 'cancel_button'):
+            self.cancel_button.Disable(); self.preview_button.Enable()
+        self.status.SetLabel('Planning cancelled. No partial placement was accepted.')
+
+    def _poll_preview(self, _event):
+        job = self._routing_job
+        if job is None:
+            self.preview_timer.Stop(); return
+        if not job.done():
+            self.status.SetLabel(f'Planning… {job.elapsed:.1f} s. Cancel is available; the PCB is unchanged.')
+            return
+        self._routing_job = None; self.preview_timer.Stop()
+        self.cancel_button.Disable(); self.preview_button.Enable()
+        try:
+            result = job.result()
+            token = result.get('snapshot_sha256')
+            if 'context' in result:
+                from types import SimpleNamespace
+                self.geometry_preview.set_board_context(SimpleNamespace(**result['context']))
+                self._context_ready = True; self._context_token = token
+            self._show_guard_targets()
+            if not self._job_is_plan:
+                self.status.SetLabel('Choose grid or signal-guard mode, inspect the selected routes, then Preview.')
+                return
+            if self.preview_settings != self._settings_snapshot():
+                raise ValueError('Settings changed during planning. Create a new preview.')
+            self.preview_fingerprint = result['source_fingerprint']
+            self.preview_identity = result['identity']
+            self.preview_rules_fingerprint = result['identity']['companions']
+            if self.preview_rules_fingerprint != self._rules_signature():
+                raise ValueError('Saved project rules changed during planning. Create a new preview.')
+            self.plan_rejections = result['rejected']
+            self.preview_plan = []
+            for row in result['candidates']:
+                net = self.board.FindNet(row['net'])
+                if net is None:
+                    raise ValueError('The generated guard net no longer exists in the working board.')
+                via = pcbnew.PCB_VIA(self.board); via.SetPosition(pcbnew.VECTOR2I(row['x'],row['y']))
+                via.SetWidth(row['diameter']); via.SetDrill(row['drill'])
+                via.SetViaType(pcbnew.VIATYPE_THROUGH); via.SetLayerPair(pcbnew.F_Cu,pcbnew.B_Cu)
+                via.SetNetCode(net.GetNetCode()); self.preview_plan.append(via)
             net_name, _net_code = self._selected_net()
             points = []
+            self._preview_row_candidates = {}
+            self.preview_list.Freeze()
             for number, via in enumerate(self.preview_plan, 1):
                 position = via.GetPosition()
                 points.append((pcbnew.ToMM(position.x), pcbnew.ToMM(position.y)))
+                if number > 1000:
+                    continue
                 index = self.preview_list.InsertItem(self.preview_list.GetItemCount(), str(number))
+                self._preview_row_candidates[index] = number-1
                 values = (net_name or "<No net>", f"{pcbnew.ToMM(position.x):.3f}", f"{pcbnew.ToMM(position.y):.3f}", "Accepted")
                 for column, value in enumerate(values, 1):
                     self.preview_list.SetItem(index, column, value)
@@ -175,15 +305,49 @@ class ViaFrame(wx.Frame):
             if self.plan_rejections:
                 detail = ", ".join(f"{count} {reason}" for reason, count in sorted(self.plan_rejections.items()))
                 self.status.SetLabel(f"Window preview: {len(self.preview_plan)} accepted; rejected {detail}.")
+            if len(self.preview_plan)>1000:
+                self.status.SetLabel(self.status.GetLabel()+' Table shows the first 1,000; all candidates remain in the board view and reviewed plan.')
             for reason,count in sorted(self.plan_rejections.items()):
                 index=self.preview_list.InsertItem(self.preview_list.GetItemCount(),str(count))
                 self.preview_list.SetItem(index,4,"Rejected: "+reason)
-            if not self.preview_plan and not silent:
-                wx.MessageBox("No via candidates survived the selected bounds and exclusions.", "No stitching preview", wx.OK | wx.ICON_INFORMATION)
+            self._show_guard_targets()
         except Exception as exc:
+            self.preview_plan = []; self.preview_items = []
+            self.commit_button.Disable(); self.show_button.Enable(False)
             self.status.SetLabel(str(exc))
-            if not silent:
-                wx.MessageBox(str(exc), "Via preview failed", wx.OK | wx.ICON_ERROR)
+        finally:
+            if self.preview_list.IsFrozen():self.preview_list.Thaw()
+            job.close()
+
+    def _assert_preview_current(self, ignored=()):
+        try:
+            from .wayricad_runtime.routing_worker import assert_current
+        except ImportError:
+            from wayricad_runtime.routing_worker import assert_current
+        if self.preview_settings != self._settings_snapshot():
+            raise ValueError('Settings changed. Create a fresh preview before applying.')
+        if self._rules_signature() != self.preview_rules_fingerprint:
+            raise ValueError('Saved project rules changed. Create a fresh preview before applying.')
+        if self.preview_identity is None:
+            raise ValueError('Create a fresh source-bound preview before applying.')
+        assert_current(self.board, pcbnew, self.preview_identity)
+        if not ignored and self.preview_identity.get('mode') == 'saved':
+            # assert_current just compared the complete working-board fingerprint.
+            # The two receipts must agree; do not traverse filled polygons twice.
+            if self.preview_identity.get('source_fingerprint') != self.preview_fingerprint:
+                raise ValueError('Preview source identities differ. Create a new preview.')
+            return
+        if board_fingerprint(self.board, ignored) != self.preview_fingerprint:
+            raise ValueError('The working PCB differs from the preview snapshot. Save the board or include unsaved edits, then preview again.')
+
+    def _rules_signature(self):
+        filename = self.board.GetFileName()
+        if not filename:
+            return {}
+        source = Path(filename)
+        return {suffix: hashlib.sha256(source.with_suffix(suffix).read_bytes()).hexdigest()
+                if source.with_suffix(suffix).is_file() else None
+                for suffix in ('.kicad_pro','.kicad_dru')}
 
     def show_on_pcb(self, _event: Any) -> None:
         if not self.preview_plan:
@@ -191,7 +355,7 @@ class ViaFrame(wx.Frame):
             return
         try:
             self.clear_pcb_preview()
-            if board_fingerprint(self.board)!=self.preview_fingerprint:raise ValueError('Board changed. Create a fresh preview.')
+            self._assert_preview_current()
             for via in self.preview_plan:
                 self.preview_items.append(via)
             self.status.SetLabel("Reviewed candidates are ready to commit.")
@@ -211,6 +375,8 @@ class ViaFrame(wx.Frame):
             pcbnew.Refresh()
 
     def clear_preview(self, _event: Any) -> None:
+        if self._routing_job is not None:
+            self.cancel_planning()
         self.clear_pcb_preview()
         self.preview_plan = []
         self.preview_list.DeleteAllItems()
@@ -251,7 +417,8 @@ class ViaFrame(wx.Frame):
                 wx.MessageBox("Create and inspect a preview before committing.", "Preview required", wx.OK | wx.ICON_INFORMATION)
                 return
             committed = list(self.preview_items)
-            if board_fingerprint(self.board,self.preview_items)!=self.preview_fingerprint:raise ValueError('Board changed. Clear and regenerate the preview before committing.')
+            # Candidates remain unattached until add_group commits them.
+            self._assert_preview_current()
             group = self._new_commit_group(committed)
             self.preview_items = []
             self.preview_plan = []
@@ -306,6 +473,8 @@ class ViaFrame(wx.Frame):
 
     def on_config_changed(self, _event: Any) -> None:
         self.clear_preview(None)
+        self._update_guard_controls()
+        self._show_guard_targets()
         self.status.SetLabel("Settings changed; create a fresh preview before committing.")
 
     def _selected_items(self) -> List[Any]:
@@ -333,6 +502,10 @@ class ViaFrame(wx.Frame):
         return tuple(sorted(signature))
 
     def on_selection_timer(self, _event: Any) -> None:
+        # Scanning every board item twice a second can monopolize the UI on
+        # dense boards. Selection polling is explicitly opt-in.
+        if not self.auto_refresh.GetValue() or self._routing_job is not None:
+            return
         try:
             signature = self._selection_signature()
             if signature == self.last_selection_signature:
@@ -340,7 +513,7 @@ class ViaFrame(wx.Frame):
             self.last_selection_signature = signature
             selected = self._selected_items()
             selected_net = next((str(getattr(item, "GetNetname", lambda: "")()) for item in selected if str(getattr(item, "GetNetname", lambda: "")())), "")
-            if selected_net and self.net_choice.FindString(selected_net) != wx.NOT_FOUND:
+            if self.mode.GetValue() == 'Grid' and selected_net and self.net_choice.FindString(selected_net) != wx.NOT_FOUND:
                 self.net_choice.SetValue(selected_net)
             if selected and not self.universal.GetValue():
                 self.use_selection_bounds(None, silent=True)
@@ -350,7 +523,7 @@ class ViaFrame(wx.Frame):
             pass
 
     def on_preview_row_activated(self, event: Any) -> None:
-        index=event.GetIndex()
+        index=getattr(self, '_preview_row_candidates', {}).get(event.GetIndex(), -1)
         if 0 <= index < len(self.geometry_preview.points):
             self.geometry_preview.pick=index
             self.geometry_preview.Refresh()
@@ -359,5 +532,7 @@ class ViaFrame(wx.Frame):
 
     def on_close(self, event: Any) -> None:
         self.selection_timer.Stop()
+        if self._routing_job is not None:self.cancel_planning()
+        self.preview_timer.Stop()
         self.clear_preview(None)
         event.Skip()

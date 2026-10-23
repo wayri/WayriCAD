@@ -8,19 +8,56 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-try:
-    from . import rlc_model as _rlc
-except ImportError:  # Direct-file execution (tests/automation) has no package parent.
-    import importlib.util as _ilu
+class _DeferredRLC:
+    """Load the unchanged numerical backend only when a calculation needs it."""
+    def __init__(self):
+        import threading
+        self._lock = threading.RLock()
+        self._module = None
 
-    _spec = _ilu.spec_from_file_location("_wayricad_rlc_model", os.path.join(os.path.dirname(os.path.abspath(__file__)), "rlc_model.py"))
-    _rlc = _ilu.module_from_spec(_spec)
-    _spec.loader.exec_module(_rlc)
+    def _load(self):
+        with self._lock:
+            if self._module is None:
+                import importlib
+                try:
+                    if not __package__:
+                        raise ImportError('Direct-file measurement loader')
+                    module = importlib.import_module('.rlc_model', __package__)
+                except ImportError:
+                    # Direct-file loaders used by tests/automation have no package.
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location(
+                        '_wayricad_rlc_model', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rlc_model.py'))
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                self._module = module
+            return self._module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value):
+        if name.startswith('_'):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._load(), name, value)
+
+    def __delattr__(self, name):
+        delattr(self._load(), name)
 
 
-EPS0 = _rlc.EPS0
-MU0 = _rlc.MU0
-COPPER_RESISTIVITY = _rlc.COPPER_RESISTIVITY
+_rlc = _DeferredRLC()
+_CONSTANTS = ('EPS0', 'MU0', 'COPPER_RESISTIVITY')
+
+
+def __getattr__(name):
+    if name in _CONSTANTS:
+        return getattr(_rlc, name)
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+
+
+def __dir__():
+    return sorted(set(globals()) | set(_CONSTANTS))
 
 
 def mm(value: Any) -> float:
@@ -615,8 +652,8 @@ class TraceMeasurementEngine:
                             if overlap_key in overlap_seen:area=0.
                             overlap_seen.add(overlap_key)
                         result.overlap_area_mm2 += area
-                        section.update(inductance_nh=MU0*(height/1000)*(length/width)*1e9,
-                                       capacitance_pf=EPS0*er*(area/1e6)/(height/1000)*1e12,
+                        section.update(inductance_nh=_rlc.MU0*(height/1000)*(length/width)*1e9,
+                                       capacitance_pf=_rlc.EPS0*er*(area/1e6)/(height/1000)*1e12,
                                        model="Terminal corridor R/L; parallel-plate overlap C", overlap_area_mm2=area)
                         result.status = "partial"
                         self._block(result, "ZONE_DISTRIBUTED_MODEL_UNAVAILABLE", "A filled-zone corridor is not a uniform transmission line.",
@@ -709,3 +746,7 @@ class TraceMeasurementEngine:
     def _natural_key(text: str) -> List[Any]:
         import re
         return [int(item) if item.isdigit() else item.lower() for item in re.split(r"(\d+)", str(text))]
+
+
+# Retain the previous wildcard-import surface, including lazy public constants.
+__all__ = [name for name in globals() if not name.startswith("_")] + list(_CONSTANTS)

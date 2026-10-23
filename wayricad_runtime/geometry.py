@@ -91,6 +91,84 @@ def segment_hits_pad(start, end, pad, margin, api):
     return segment_hits_box(local(start),local(end),box,margin)
 
 
+def _native_point(point):
+    return (point.x, point.y)
+
+
+def _native_polygons(poly):
+    """Keep exact vertices AND arc geometry; endpoints alone lose curved cuts."""
+    def chain(value):
+        return ([(p.x, p.y) for p in value.CPoints()],
+                [(_native_point(a.GetStart()), _native_point(a.GetArcMid()),
+                  _native_point(a.GetEnd())) for a in
+                 (value.Arc(i) for i in range(value.ArcCount()))])
+    return [(chain(poly.COutline(i)),
+             [chain(poly.CHole(i, h)) for h in range(poly.HoleCount(i))])
+            for i in range(poly.OutlineCount())]
+
+
+def _native_fields(item, names):
+    """Missing optional version APIs are allowed; failed getters fail closed."""
+    result = []
+    for name in names:
+        getter = getattr(item, name, None)
+        if getter is not None:
+            value = getter()
+            if hasattr(value, 'x') and hasattr(value, 'y'):
+                value = _native_point(value)
+            elif value is not None and not isinstance(value, (str, int, float, bool)):
+                value = int(value)
+            result.append((name, value))
+    return result
+
+
+def _native_pad(pad):
+    layers = list(pad.GetLayerSet().Seq())
+    stack = getattr(pad, 'Padstack', lambda: None)()
+    shape_layers = list(stack.UniqueLayers()) if stack is not None else layers
+    shapes = []
+    for layer in shape_layers:
+        # KiCad 10 padstacks can override each layer independently.
+        params = []
+        for name in ('GetShape', 'GetSize', 'GetOffset', 'GetDelta',
+                     'GetRoundRectRadiusRatio', 'GetChamferPositions',
+                     'GetChamferRectRatio', 'GetAnchorPadShape'):
+            getter = getattr(pad, name, None)
+            if getter is None:
+                continue
+            value = getter(layer)
+            params.append((name, _native_point(value) if hasattr(value, 'x') else float(value)))
+        # Polygon primitives include custom-pad holes and arcs. For ordinary pads
+        # the parameters above fully describe the shape without tessellation cost.
+        import pcbnew
+        if pad.GetShape(layer) == pcbnew.PAD_SHAPE_CUSTOM:
+            # The legacy Python GetCustomShapeAsPolygon(layer) wrapper ignores
+            # its argument and always merges F.Cu in KiCad 10.
+            poly = pcbnew.SHAPE_POLY_SET()
+            pad.MergePrimitivesAsPolygon(layer, poly)
+            params.append(('custom', _native_polygons(poly)))
+        shapes.append((int(layer), params))
+    return [item_id(pad), _native_point(pad.GetPosition()), pad.GetNetname(),
+            float(pad.GetOrientationDegrees()), int(pad.GetAttribute()), layers, shapes,
+            _native_fields(pad, ('GetDrillShape', 'GetDrillSize', 'GetLocalClearance',
+                'GetPrimaryDrillStartLayer', 'GetPrimaryDrillEndLayer',
+                'GetPrimaryDrillShape', 'GetPrimaryDrillSize',
+                'GetSecondaryDrillStartLayer', 'GetSecondaryDrillEndLayer',
+                'GetSecondaryDrillShape', 'GetSecondaryDrillSize',
+                'GetTertiaryDrillStartLayer', 'GetTertiaryDrillEndLayer',
+                'GetTertiaryDrillShape', 'GetTertiaryDrillSize',
+                'GetTopBackdrillLayer', 'GetTopBackdrillSize',
+                'GetBottomBackdrillLayer', 'GetBottomBackdrillSize',
+                'GetBackdrillMode', 'GetCustomShapeInZoneOpt'))]
+
+
+def _native_cut(shape):
+    return [item_id(shape), int(shape.GetShape()),
+            _native_fields(shape, ('GetStart', 'GetEnd', 'GetArcMid',
+                                   'GetBezierC1', 'GetBezierC2', 'GetWidth')),
+            _native_polygons(shape.GetPolyShape())]
+
+
 def board_fingerprint(board,ignore=()):
     """Snapshot relevant geometry; ignore only objects owned by this preview."""
     # The IPC transport can return complete item protobufs in six bulk reads.
@@ -98,9 +176,17 @@ def board_fingerprint(board,ignore=()):
     # tens of thousands of synchronous editor round trips on a large board.
     from .ipc import Board
     if isinstance(board,Board):return board.fingerprint(ignore)
-    import hashlib,json
+    import hashlib,json,pcbnew
     ignored={item_id(x) for x in ignore}
-    data=[]
+    settings=board.GetDesignSettings()
+    # Native project settings can change in memory without changing board bytes
+    # or the saved .kicad_pro companion. Bind manufacturing floors at Apply too.
+    floors=('m_MinClearance', 'm_TrackMinWidth', 'm_ViasMinSize',
+            'm_ViasMinAnnularWidth', 'm_MinThroughDrill', 'm_HoleToHoleMin',
+            'm_MicroViasMinSize', 'm_MicroViasMinDrill', 'm_CopperEdgeClearance',
+            'm_HoleClearance')
+    data=[['board-design-floors', [(name, int(getattr(settings,name)))
+                                 for name in floors if hasattr(settings,name)]]]
     for getter in ('GetFootprints','GetTracks','GetDrawings','Zones'):
         for item in getattr(board,getter,lambda:[])():
             if item_id(item) in ignored:continue
@@ -111,19 +197,31 @@ def board_fingerprint(board,ignore=()):
                 if fn:
                     try:row.append((name,str(fn(item.TopLayer()) if name=='GetWidth' and hasattr(item,'TopLayer') else fn())))
                     except (AttributeError,TypeError):pass
-            for name in ('GetStart','GetEnd'):
+            for name in ('GetStart','GetEnd','GetMid','GetArcMid','GetBezierC1','GetBezierC2'):
                 fn=getattr(item,name,None)
                 if fn:
                     try:
                         point=fn();row.append((name,point.x,point.y))
                     except (AttributeError,TypeError):pass
             if getter=='GetFootprints':
-                row.append([(item_id(p),p.GetPosition().x,p.GetPosition().y,p.GetNetname(),
-                             p.GetSize().x,p.GetSize().y,float(p.GetOrientationDegrees()),
-                             int(p.GetAttribute()),str(p.GetShape()),list(p.GetLayerSet().Seq())) for p in item.Pads()])
+                row.append(sorted((_native_pad(p) for p in item.Pads()), key=lambda record: record[0]))
+                row.append(sorted((_native_cut(shape) for shape in item.GraphicalItems()
+                            if shape.GetLayer() == pcbnew.Edge_Cuts), key=lambda record: record[0]))
+            row.append(_native_fields(item, ('GetLocalClearance',)))
+            if hasattr(item, 'TopLayer'):
+                row.append(_native_fields(item, ('GetViaType', 'TopLayer', 'BottomLayer', 'GetDrill')))
+            if getter=='GetDrawings' and hasattr(item, 'GetPolyShape'):
+                shape = item.GetShape()
+                row.append(('shape', int(shape)))
+                if shape == pcbnew.SHAPE_T_POLY:
+                    row.append(_native_polygons(item.GetPolyShape()))
             if getter=='Zones':
-                row.append(polygons(item.Outline()))
-                row.append([(layer,polygons(item.GetFilledPolysList(layer))) for layer in item.GetLayerSet().Seq()])
+                row.append(_native_fields(item, ('GetIsRuleArea', 'GetDoNotAllowFootprints',
+                    'GetDoNotAllowPads', 'GetDoNotAllowTracks', 'GetDoNotAllowVias',
+                    'GetDoNotAllowZoneFills')))
+                row.append(('layers', list(item.GetLayerSet().Seq())))
+                row.append(_native_polygons(item.Outline()))
+                row.append([(layer,_native_polygons(item.GetFilledPolysList(layer))) for layer in item.GetLayerSet().Seq()])
             data.append(row)
     return hashlib.sha256(json.dumps(sorted(data,key=lambda x:x[0]),sort_keys=True).encode()).hexdigest()
 

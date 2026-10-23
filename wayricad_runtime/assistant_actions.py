@@ -108,6 +108,14 @@ _add('fanout-generator.preview', 'fanout-generator', 'Preview component fanout',
 _add('via-stitching.preview', 'via-stitching', 'Preview via stitching',
      ('stitching', 'stitch ground vias'), ('board', 'net'),
      dict(board=BOARD, net=NET, spacing=number('Via pitch', 'mm', **POSITIVE)), effect='preview')
+_add('via-stitching.guard', 'via-stitching', 'Preview guard vias along signal nets',
+     ('guard selected routes', 'guard via stitching', 'via fence', 'guard selected nets'),
+     ('board','guard_net','signal_nets','spacing','offset'),
+     dict(board=BOARD,guard_net=field('Guard/stitching net, distinct from signal nets'),
+          signal_nets=field('Exact signal nets to follow','list'),
+          spacing=number('Via pitch','mm',**POSITIVE),offset=number('Trace centreline to via offset','mm',**POSITIVE),
+          side=field('Guard side','choice',choices=['Both','Left','Right'])),effect='preview',
+     summary='Read-only via fence on an explicit guard net; existing filled-copper, edge and clearance checks remain required.')
 _add('silkscreen-label-placer.preview', 'silkscreen-label-placer', 'Preview reference placement',
      ('silkscreen', 'place references', 'fix reference labels'), ('board',),
      dict(board=BOARD, refs=field('Exact references; omit for board', 'list')),
@@ -301,11 +309,16 @@ def compile_action(action_id, params, context, output_dir):
         for key in values: option(key)
         output()
         if 'copper_mm' not in values: result['assumptions'].append('Zero-thickness copper approximation.')
-    elif action_id in ('fanout-generator.preview', 'via-stitching.preview'):
+    elif action_id in ('fanout-generator.preview', 'via-stitching.preview', 'via-stitching.guard'):
         args.extend(['plan', '--board', values['board'], '--settings', str(root / 'settings.json')])
         if action_id.startswith('fanout'):
             settings = {key: value for key, value in values.items() if key not in ('board', 'refs')}
             settings.update(scope='Reference wildcard', ref=values['refs'], use_netclass_rules=True)
+        elif action_id=='via-stitching.guard':
+            if values['guard_net'] in values['signal_nets']:
+                raise ValueError('The guard net must be distinct from the signal nets.')
+            settings=dict(mode='Guard selected routes',net_choice=values['guard_net'],guard_nets=values['signal_nets'],
+                          spacing=values['spacing'],guard_offset=values['offset'],guard_side=values.get('side','Both'))
         else:
             settings = {key: value for key, value in values.items() if key not in ('board', 'net')}
             settings['net_choice'] = values['net']
