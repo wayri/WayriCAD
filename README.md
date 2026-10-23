@@ -9,9 +9,8 @@
 **PCB design, analysis and project review in KiCad.** Choose from 24 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
 
-**In development:** [WayriCAD Assistant](suite_assistant_plugin/README.md) adds local plain-English
-planning, visual interaction and reviewed CLI execution. Release **3.6.27** contains the
-previous 23 plugins; Assistant is not yet in published downloads.
+**New in 3.6.28:** [WayriCAD Assistant](suite_assistant_plugin/README.md) adds local plain-English
+planning, visual interaction and reviewed CLI execution. Its package is marked **testing**.
 
 The current source also adds action icons, visible workflow stages and stronger
 selection feedback. Assistant has an expandable board view, exact net highlights,
@@ -20,7 +19,7 @@ focus controls and an explicit **Show in PCB Editor** action.
 Current source also includes [guard via stitching](via_stitching_plugin/ReadMe.md#guard-a-signal-route),
 cancellable routing previews and shared viewport/startup improvements.
 [Measured performance and remaining limits](docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md)
-separate first-run costs from faster repeated interactions. These changes are not yet in release 3.6.27.
+separate first-run costs from faster repeated interactions. These changes are included in release 3.6.28.
 
 ## Start here
 
@@ -28,7 +27,7 @@ separate first-run costs from faster repeated interactions. These changes are no
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.27](https://github.com/wayri/WayriCAD/releases/tag/v3.6.27) · [Release notes](docs/RELEASE_NOTES_3.6.27.md) |
+| Download or update | [Release 3.6.28](https://github.com/wayri/WayriCAD/releases/tag/v3.6.28) · [Release notes](docs/RELEASE_NOTES_3.6.28.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
@@ -36,12 +35,16 @@ separate first-run costs from faster repeated interactions. These changes are no
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-## Latest release — 3.6.27
+## Latest release — 3.6.28
 
 Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
 
 | Improvement | Workflow |
 |---|---|
+| Guard via stitching | Fence selected signal nets/traces on a distinct guard net; review pitch, offset, clearances and rejections. [Guide](via_stitching_plugin/ReadMe.md). |
+| Guided, cancellable Fanout | Actual component thumbnails, Before/After and small-window actions. [Guide](fanout_generator_plugin/ReadMe.md). |
+| Shared responsiveness | Faster dropdowns and exact picking; Quick PI geometry-ready time 33.09 s to 20.26 s. [Measurements and limits](docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md). |
+| Assistant — testing | Local fuzzy command planning, clarification and reports across registered CLI actions. [Guide](suite_assistant_plugin/README.md). |
 | Faster fresh PI solves | Reuse one native PCB across a multi-net batch and reduce geometry/matrix overhead. Marble cold median 43.24 s to 31.71 s. [Measurements](docs/audits/QUICK_PI_COLD_PERFORMANCE_2026-10-22.md). |
 | Responsive native board view | Saved silkscreen retains its physical size and placement. Marble full viewport redraw 763 ms to 58 ms; cached drag and indexed probes reduce interaction work. [Measurements](docs/audits/QUICK_PI_VIEWPORT_PERFORMANCE_2026-10-23.md). |
 | Live, faster fanout preview | Selection and style changes update the main canvas and a component thumbnail. Fixed Marble U35 planning 21.94 s to 0.29 s with identical plans. [Fanout guide](fanout_generator_plugin/ReadMe.md). |
@@ -57,10 +60,10 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | PI Joule heating checkbox | Enable temperature feedback, then supply reviewed material and cooling inputs. Plain DC already reports copper losses. |
 | Quick SI local crosstalk | Configure directed aggressor/victim pairs and review supported straight-section coupling, modeled coverage and omitted geometry. [SI guide](signal_integrity_advisor_plugin/ReadMe.md). |
 | PI / SI / Therm reports | Read status, coverage and provenance; search/sort tables, navigate sections and print. Interactive plots and probes remain available. |
-| CLI access across all 23 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
+| CLI access across all 24 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.27.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.28.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -229,13 +232,13 @@ currencies stay explicit.
 
 ## All 24 plugins
 
-Assistant **0.1.0** is in development. The other plugins are available in release
-**3.6.27**; individual package versions and runtime requirements are in their guides.
+All 24 plugins are available in release **3.6.28**. Assistant is marked **testing**;
+individual package versions and runtime requirements are in their guides.
 Select a plugin for its full guide and supported models.
 
 | Plugin | Use it for |
 |---|---|
-| <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Plain-English tool selection, visual context and reviewed command execution (development). |
+| <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Plain-English tool selection, visual context and reviewed command execution (testing). |
 | <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. |
 | <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Board and component temperatures, heating playback and thermal reports. |
 | <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal delay, reflections, termination and return-path screening. |

@@ -41,7 +41,7 @@ class WorkbenchPluginTests(unittest.TestCase):
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):
                         self.assertTrue((package / entry).is_file())
                     continue
-                expected_version = "0.1.0" if package.name == "suite_assistant_plugin" else "3.6.27"
+                expected_version = "3.6.28"
                 self.assertEqual(expected_version, metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))

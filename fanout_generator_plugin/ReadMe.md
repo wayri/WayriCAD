@@ -62,7 +62,7 @@ escapes and 258 rejections. Preview submission took 22–55 ms and the largest
 20 ms timer gap was 323–376 ms. Full completion was 13.72 s initially and
 9.17–10.11 s on refresh, versus 8.24–9.14 s for the old synchronous UI call.
 Isolation improves responsiveness and adds startup overhead; it is not an
-end-to-end solver speedup. These source changes are not yet a published release.
+end-to-end solver speedup. These changes are included in release 3.6.28.
 An additional instrumented capture completed in 13.08 s with a 0.695 s largest
 timer gap. See the [current suite validation](../docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md)
 for source checks and remaining limits.

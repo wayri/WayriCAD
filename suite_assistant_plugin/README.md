@@ -6,6 +6,8 @@ Describe a check in plain English, review its interpretation and get results fro
 
 ![Native Assistant window](help-assistant.png)
 
+**Release 3.6.28 includes this package as testing.** Review interpreted commands and tool limitations before using their results.
+
 ## Get started
 
 1. Save your PCB, then open **WayriCAD Assistant** from the PCB Editor toolbar. You can also choose another saved PCB in the window.

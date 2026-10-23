@@ -1,6 +1,6 @@
 # Local Assistant implementation and validation
 
-WayriCAD Assistant 0.1.0 is a development addition after the published 3.6.27 release. The existing public package feed is unchanged.
+WayriCAD Assistant is first distributed in release 3.6.28 as a testing package. The supported action catalogue and applicability limits below still apply.
 
 ## Implemented contract
 
