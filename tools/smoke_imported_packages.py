@@ -39,7 +39,7 @@ def main():
                     'Wheel contains inactive plugin files: ' + ', '.join(sorted(stale_plugins))
                 )
             archive.extractall(root)
-        modules = ('wayricad_runtime.tool_cli', 'silkscreen_label_plugin.cli', 'wayricad_runtime.jobs', 'wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
+        modules = ('wayricad_runtime.assistant', 'suite_assistant_plugin.__main__', 'wayricad_runtime.tool_cli', 'silkscreen_label_plugin.cli', 'wayricad_runtime.jobs', 'wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
                    'embed_3d_plugin.__main__', 'quick_pi_plugin.cli', 'quick_therm_plugin.cli', 'signal_integrity_advisor_plugin.cli', 'project_fusion_plugin.__main__', 'variant_manager_plugin.wayri_variants.cli', 'trace_refiner_plugin.cli', 'layer_counter_plugin.cli', 'component_arranger_plugin.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'
@@ -55,7 +55,7 @@ from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from argparse import Namespace
 from wayricad_runtime.tool_cli import catalogue
-assert len(catalogue()['tools'])==23
+assert len(catalogue()['tools'])==24
 from wayricad_runtime.control_cli import main as control_main
 params=Path(sys.argv[1])/'tool-params.json'
 params.write_text('{"pattern":"R*","replacement":"X*","values":["R1"]}',encoding='utf-8')

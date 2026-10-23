@@ -25,7 +25,7 @@ class WorkbenchPluginTests(unittest.TestCase):
     def test_active_pcm_packages_have_visible_ipc_actions(self) -> None:
         from build_pcm import discover_plugins
         packages = discover_plugins(ROOT)
-        self.assertEqual(23, len(packages))
+        self.assertEqual(24, len(packages))
         for package in packages:
             with self.subTest(folder=package.name):
                 metadata = json.loads((package / "metadata.json").read_text(encoding="utf-8"))
@@ -41,7 +41,7 @@ class WorkbenchPluginTests(unittest.TestCase):
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):
                         self.assertTrue((package / entry).is_file())
                     continue
-                expected_version = "3.6.27"
+                expected_version = "0.1.0" if package.name == "suite_assistant_plugin" else "3.6.27"
                 self.assertEqual(expected_version, metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))

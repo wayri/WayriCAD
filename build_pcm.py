@@ -75,6 +75,41 @@ def discover_plugins(base_path):
     )
 
 
+def plugin_files(plugin_path):
+    """Yield distributable production files in deterministic order."""
+    excluded = {"__pycache__", ".git", ".vscode", ".pytest_cache", "tests",
+                "tools", "scripts", "docs", "examples", "node_modules"}
+    if plugin_path.name in {"protocol_constraint_composer_plugin", "quick_therm_plugin"}:
+        excluded -= {"docs", "examples"}
+    for root, dirs, files in os.walk(plugin_path):
+        dirs[:] = sorted(d for d in dirs if d not in excluded and not d.startswith("."))
+        for name in sorted(files):
+            if name.startswith(".") or name.endswith((".pyc", ".pyo", ".log")):
+                continue
+            source = Path(root) / name
+            if source.relative_to(plugin_path).as_posix() == "__init__.py":
+                continue
+            yield source
+
+
+def bundle_assistant_backends(archive, base_path):
+    """Carry isolated backend packages without registering sibling menu actions."""
+    for backend in discover_plugins(base_path):
+        if backend.name == "suite_assistant_plugin":
+            continue
+        prefix = "plugins/_suite/" + backend.name + "/"
+        for source in plugin_files(backend):
+            archive.writestr(zip_entry(prefix + source.relative_to(backend).as_posix(),
+                                       compress_type=zipfile.ZIP_DEFLATED), source.read_bytes())
+        version = load_json(backend / "metadata.json")["versions"][0]["version"]
+        initializer = ('"""Backend package; editor actions are not registered here."""\n'
+                       + "__version__ = " + repr(version) + "\n")
+        archive.writestr(zip_entry(prefix + "__init__.py", compress_type=zipfile.ZIP_DEFLATED),
+                         initializer)
+        if not (backend / "LICENSE").is_file():
+            archive.writestr(zip_entry(prefix + "LICENSE"), (base_path / "LICENSE").read_bytes())
+
+
 def normalize_runtime(version_info):
     """Normalize old runtime names to KiCad PCM v1 runtime values."""
     normalized = dict(version_info)
@@ -472,56 +507,15 @@ def create_plugin_zip(
         # Plugin files
         #
 
-        for root, dirs, files in os.walk(plugin_path):
+        for file_path in plugin_files(plugin_path):
+            if file_path.name == "metadata.json":
+                continue
+            archive_name = (Path("plugins") / file_path.relative_to(plugin_path)).as_posix()
+            zipf.writestr(zip_entry(archive_name, compress_type=zipfile.ZIP_DEFLATED),
+                          file_path.read_bytes())
 
-            dirs[:] = sorted([
-                d
-                for d in dirs
-                if d
-                not in {
-                    "__pycache__",
-                    ".git",
-                    ".vscode",
-                    ".pytest_cache", "tests", "tools", "scripts", "docs",
-                    "examples", "node_modules",
-                } - ({"docs", "examples"} if plugin_path.name in {"protocol_constraint_composer_plugin", "quick_therm_plugin"} else set())
-            ])
-
-            for file in sorted(files):
-
-                if file.endswith((".pyc", ".log")):
-                    continue
-
-                # The ZIP gets a lightweight generated initializer below.
-                # Source initializers may import whole tools during KiCad's
-                # legacy ActionPlugin scan and fail before the UI is ready.
-                if file == "__init__.py" and Path(root) == plugin_path:
-                    continue
-
-                if file == "metadata.json":
-                    continue
-
-                file_path = (
-                    Path(root) / file
-                )
-
-                rel_path = (
-                    file_path.relative_to(
-                        plugin_path
-                    )
-                )
-
-                archive_name = (
-                    Path("plugins") / rel_path
-                ).as_posix()
-
-                zipf.writestr(
-                    zip_entry(
-                        archive_name,
-                        compress_type=zipfile.ZIP_DEFLATED,
-                    ),
-                    file_path.read_bytes(),
-                )
+        if plugin_path.name == "suite_assistant_plugin":
+            bundle_assistant_backends(zipf, plugin_path.parent)
 
         if metadata.get("versions", [{}])[0].get("runtime") == "swig":
             # Native action plugins own registration; do not route through IPC discovery.

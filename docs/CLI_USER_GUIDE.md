@@ -1,12 +1,17 @@
 # WayriCAD CLI User Guide
 
-Start with the [all-tools command catalogue](TOOL_CLI_CATALOGUE.md) for unified discovery, interpreter checks, multi-net analysis studies and the supported command surface of all 23 plugins. Use `wayricad tools list` or `wayricad tools run TOOL -- --help`.
+Start with the [all-tools command catalogue](TOOL_CLI_CATALOGUE.md) for unified discovery, interpreter checks, multi-net analysis studies and the supported command surface of all 24 source-catalogue plugins. Use `wayricad tools list` or `wayricad tools run TOOL -- --help`.
 
 Advanced fanout exposes style/angle choices, family presets, paired breakout settings and selected-netclass dimensions through `python -m wayricad_runtime.cli fanout settings`. Plans include every bend (`path_mm`), actual generated length (`length_mm`) and pair identity (`pair_id`). See [advanced fanout examples and semantics](ADVANCED_FANOUT.md).
 
 The WayriCAD CLI extracts electrical interface data without opening the plugin
 windows. Use it for repeatable ICD generation, design validation, cross-board
 linking, continuous integration, and KiCad jobset output pipelines.
+
+For plain-English coordination, use `wayricad-assistant --help` or
+`wayricad tools run assistant -- --help`. The [Assistant guide](../suite_assistant_plugin/README.md)
+explains command review, required inputs and visual results. This plugin is in
+development and is not part of release 3.6.27.
 
 ## 1. Installation and runtime selection
 

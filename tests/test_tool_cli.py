@@ -13,9 +13,11 @@ class ToolCLITests(unittest.TestCase):
     def test_catalogue_covers_every_registered_plugin(self):
         from extract_pins_plugin.automation import PLUGIN_CAPABILITIES
         self.assertEqual(set(tool_cli.COMMANDS),{row[0] for row in PLUGIN_CAPABILITIES})
-        self.assertEqual(len(tool_cli.catalogue()['tools']),23)
+        self.assertEqual(len(tool_cli.catalogue()['tools']),24)
 
     def test_alias_and_fixed_module_dispatch_preserve_literal_arguments(self):
+        self.assertEqual(tool_cli.command('coordinator', ['--help']),
+                         [str(tool_cli.sys.executable), '-m', 'wayricad_runtime.assistant', '--help'])
         arguments=['screen','a board.kicad_pcb','--net','V;$(ignored)']
         cmd=tool_cli.command('quick-si',arguments,'a python.exe')
         self.assertEqual(cmd,['a python.exe','-m','signal_integrity_advisor_plugin.cli',*arguments])

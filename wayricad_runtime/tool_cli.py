@@ -14,6 +14,7 @@ CONTROL_METHODS={
 }
 # Modules are fixed application code, never supplied by a request document.
 COMMANDS={
+    'assistant':('wayricad_runtime.assistant',(), 'Local plain-English command planning, reviewed execution and reports'),
     'bom-studio':('bom_studio_plugin.bomstudio.cli',(), 'Analytics Studio: fields, BOM, variants, analytics and pipelines'),
     'component-arranger':('component_arranger_plugin.cli',(), 'Group, preview, validate and export placement'),
     'copper-balancer':('copper_balancer_plugin.cli',(), 'Preview and export copper balance changes'),
@@ -34,7 +35,7 @@ COMMANDS={
 }
 for _name in CONTROL_METHODS:
     COMMANDS[_name]=('wayricad_runtime.control_cli',(_name,), 'Headless JSON parameters: '+CONTROL_METHODS[_name]+'; GUI write operations are separate')
-ALIASES={'analytics':'bom-studio','quick-si':'signal-integrity','rlc':'trace-impedance','silkscreen':'silkscreen-label-placer','constraint-studio':'protocol-constraints','fusion':'project-fusion'}
+ALIASES={'coordinator':'assistant','analytics':'bom-studio','quick-si':'signal-integrity','rlc':'trace-impedance','silkscreen':'silkscreen-label-placer','constraint-studio':'protocol-constraints','fusion':'project-fusion'}
 
 
 def tool_id(value):
@@ -68,7 +69,7 @@ def runtime_check(python):
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     subs=parser.add_subparsers(dest='operation',required=True)
-    subs.add_parser('list',help='List all 23 tools and their real headless command surfaces.')
+    subs.add_parser('list',help='List all 24 tools and their real headless command surfaces.')
     show=subs.add_parser('show',help='Describe one tool and how to obtain command help.');show.add_argument('tool')
     doctor=subs.add_parser('doctor',help='Check an interpreter without importing a GUI or loading a board.')
     doctor.add_argument('--python',type=Path,default=Path(sys.executable))

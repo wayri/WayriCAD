@@ -3,11 +3,15 @@
 [![Release](https://img.shields.io/github/v/release/wayri/WayriCAD?color=168b78)](https://github.com/wayri/WayriCAD/releases/latest)
 [![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
 [![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
-[![Tools](https://img.shields.io/badge/Tools-23-168b78)](#all-23-plugins)
+[![Tools](https://img.shields.io/badge/Tools-24-168b78)](#all-24-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
-**PCB design, analysis and project review in KiCad.** Choose from 23 independently
-installable plugins. Processing runs locally after setup. KiCad 10 is the validated target.
+**PCB design, analysis and project review in KiCad.** Choose from 24 independently
+installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
+
+**In development:** [WayriCAD Assistant](suite_assistant_plugin/README.md) adds local plain-English
+planning, visual interaction and reviewed CLI execution. Release **3.6.27** contains the
+previous 23 plugins; Assistant is not yet in published downloads.
 
 ## Start here
 
@@ -17,7 +21,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Run your first analysis | [Getting started](#getting-started) |
 | Download or update | [Release 3.6.27](https://github.com/wayri/WayriCAD/releases/tag/v3.6.27) · [Release notes](docs/RELEASE_NOTES_3.6.27.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
-| Choose a tool | [All 23 plugins](#all-23-plugins) |
+| Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
@@ -214,13 +218,15 @@ currencies stay explicit.
 
 <a id="all-21-plugins"></a>
 
-## All 23 plugins
+## All 24 plugins
 
-The IPC packages are **3.6.17**; Fusion is **0.9.8**, and Variant Manager is **0.6.1**.
+Assistant **0.1.0** is in development. The other plugins are available in release
+**3.6.27**; individual package versions and runtime requirements are in their guides.
 Select a plugin for its full guide and supported models.
 
 | Plugin | Use it for |
 |---|---|
+| <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Plain-English tool selection, visual context and reviewed command execution (development). |
 | <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. |
 | <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Board and component temperatures, heating playback and thermal reports. |
 | <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal delay, reflections, termination and return-path screening. |
@@ -499,7 +505,7 @@ Compare saved and staged assembly states, with bulk operations and reviewed reco
 
 | Topic | Guide |
 |---|---|
-| Instructions for a specific plugin | [All 23 offline guides](docs/HELP_INDEX.md) |
+| Instructions for a specific plugin | [All 24 offline guides](docs/HELP_INDEX.md) |
 | Small panels, clipped tables or hidden options | [Resize, scroll and read complete values](docs/UI_ACCESSIBILITY.md) |
 | Missing actions, runtimes or installation paths | [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | Dependencies and offline use | [Runtime setup](wayricad_runtime/RUNTIME_SETUP.md) |
@@ -523,7 +529,7 @@ Hardware planning details are in [System requirements](docs/SYSTEM_REQUIREMENTS.
 
 Use `wayricad jobs` for repeatable analysis/report sequences and KiCad jobsets.
 
-Use `wayricad tools list` to discover all 23 command interfaces, `wayricad tools doctor` to check an interpreter, and `wayricad tools run TOOL -- --help` for detailed options. The [all-tools CLI catalogue](docs/TOOL_CLI_CATALOGUE.md) includes multi-net PI/SI studies, thermal reports and repeatable jobsets.
+Use `wayricad tools list` to discover all 24 command interfaces, `wayricad tools doctor` to check an interpreter, and `wayricad tools run TOOL -- --help` for detailed options. The [all-tools CLI catalogue](docs/TOOL_CLI_CATALOGUE.md) includes multi-net PI/SI studies, thermal reports and repeatable jobsets.
 
 | Developer topic | Reference |
 |---|---|

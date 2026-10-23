@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 PLUGIN_CAPABILITIES = (
+    ("assistant", "WayriCAD Assistant", ("capabilities", "plan", "run"), False, "saved-board"),
     ("project-fusion", "Wayri Project Fusion", ("analyse", "merge", "gui"), True, "saved-project"),
     ("variant-manager", "WayriCAD Variant Manager", ("list", "job", "set-default", "delete", "restore-variants", "gui"), True, "saved-project"),
     ("copper-balancer", "WayriCAD Copper Balancer", ("preview", "apply", "export"), True, "saved-board"),
@@ -57,6 +58,7 @@ def capabilities() -> dict[str, Any]:
         "native_gui_only": [],
         "tool_cli": "wayricad tools list / show TOOL / run TOOL -- --help",
         "additional_cli": {
+            "assistant": "wayricad-assistant --help (local plain-English planning and reviewed execution)",
             "silkscreen-label-placer": "wayricad-silkscreen --help (read-only settings/placement preview; apply stays in PCB Editor)",
             "signal-integrity": "wayricad-si --help (route, return-path and explicit multi-net studies)",
             "component-arranger": "wayricad-arrange --help (KiCad 10 Python; group, preview, validate, export a new project)",

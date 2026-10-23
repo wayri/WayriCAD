@@ -18,6 +18,23 @@ For native board operations, select a prepared interpreter explicitly **before**
 wayricad tools run --python 'C:/Program Files/KiCad/10.0/bin/python.exe' silkscreen -- preview board.kicad_pcb --refs U1 R1 --output labels-preview.json
 ```
 
+Assistant also has the direct `wayricad-assistant` entrypoint and the tool alias
+`coordinator`. It uses a bounded local inference engine and fixed command registry;
+requests do not become shell scripts. Review missing inputs and requested actions
+before execution. See its [guide](../suite_assistant_plugin/README.md). The standalone
+Assistant PCM package carries the other tools' backends privately, so it does not
+require sibling PCM installations. Selected backends still need their normal native
+runtimes and dependencies. Assistant is in development and is not in release 3.6.27.
+
+```text
+wayricad-assistant capabilities
+wayricad-assistant plan "show board analytics" --board C:/Projects/Example/board.kicad_pcb
+wayricad tools run coordinator -- plan "calculate microstrip impedance"
+```
+
+A plan can ask for missing values; it is not a completed calculation. Use `run --help`
+for the explicit execution and results-directory options.
+
 The runtime needs the dependencies of the selected operation. `doctor --python PATH` checks Python plus the availability of pcbnew, wxPython, NumPy and SciPy without loading a PCB or opening a GUI. It does not qualify an entire solver installation. Individual tool help states its additional runtime requirements.
 
 ## Available headless interfaces
@@ -28,6 +45,7 @@ The commands below expose the existing headless workflows. They do **not** imply
 |---|---|---|
 | `bom-studio` | Analytics Studio: fields, BOM, variants, analytics and pipelines | `wayricad tools run bom-studio -- --help` |
 | `bulk-label-editor` | Headless JSON parameters: bulk-label.preview; GUI write operations are separate | `wayricad tools run bulk-label-editor -- --help` |
+| `assistant` | Local plain-English planning, reviewed execution and reports (development) | `wayricad tools run assistant -- --help` |
 | `component-arranger` | Group, preview, validate and export placement | `wayricad tools run component-arranger -- --help` |
 | `copper-balancer` | Preview and export copper balance changes | `wayricad tools run copper-balancer -- --help` |
 | `embed-3d` | Project-local libraries and 3D models | `wayricad tools run embed-3d -- --help` |

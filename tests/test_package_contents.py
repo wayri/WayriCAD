@@ -33,3 +33,40 @@ class PackageContentsTests(unittest.TestCase):
             with zipfile.ZipFile(path) as archive:
                 self.assertIn('plugins/core/test_point_extractor.py',archive.namelist())
                 self.assertNotIn('plugins/tests/test_case.py',archive.namelist())
+
+
+class AssistantBackendBundleTests(unittest.TestCase):
+    def test_backend_payload_is_inert_complete_and_excludes_private_test_files(self):
+        from build_pcm import bundle_assistant_backends
+        import json
+        import runpy
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'LICENSE').write_text('Suite license', encoding='utf-8')
+            plugin = root / 'sample_backend_plugin'
+            plugin.mkdir()
+            (plugin / 'metadata.json').write_text(json.dumps({'versions': [{'version': '1.2.3'}]}))
+            (plugin / '__init__.py').write_text('raise RuntimeError("must not register actions")')
+            for name in ('cli.py', 'help.html', 'LICENSE.thirdparty', 'test_points/fixture.py',
+                         'tests/test_hidden.py', '.private/token.txt', '__pycache__/cached.pyc',
+                         '.env', 'build.log'):
+                source = plugin / name
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text('production' if name.endswith('.html') else '# fixture')
+            assistant = root / 'suite_assistant_plugin'
+            assistant.mkdir()
+            (assistant / 'metadata.json').write_text('{}')
+            target = root / 'assistant.zip'
+            with zipfile.ZipFile(target, 'w') as archive:
+                bundle_assistant_backends(archive, root)
+            prefix = 'plugins/_suite/sample_backend_plugin/'
+            with zipfile.ZipFile(target) as archive:
+                names = archive.namelist()
+                for name in ('cli.py', 'help.html', 'LICENSE', 'LICENSE.thirdparty', 'test_points/fixture.py'):
+                    self.assertIn(prefix + name, names)
+                self.assertFalse(any('/tests/' in name or '/.private/' in name or
+                                     name.endswith(('.pyc', '.env', '.log')) for name in names))
+                self.assertFalse(any('/suite_assistant_plugin/' in name for name in names))
+                archive.extractall(root / 'installed')
+            initializer = root / 'installed' / prefix / '__init__.py'
+            self.assertEqual(runpy.run_path(str(initializer))['__version__'], '1.2.3')

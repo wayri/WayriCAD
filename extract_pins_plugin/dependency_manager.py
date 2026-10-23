@@ -36,6 +36,7 @@ DEPENDENCIES: tuple[DependencySpec, ...] = (
 )
 
 SUITE_PACKAGES: tuple[tuple[str, str], ...] = (
+    ('suite_assistant_plugin', 'WayriCAD Assistant'),
     ('bom_studio_plugin', 'BOM Studio'),
     ('bulk_label_editor_plugin', 'Bulk Label Editor'),
     ('copper_balancer_plugin', 'Copper Balancer'),

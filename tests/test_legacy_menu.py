@@ -197,3 +197,30 @@ def test_quick_therm_action_opens_its_tab_on_explicit_board(tmp_path):
     active.assert_not_called()
     assert relaunch.call_args.args[1] == "desktop_entrypoint.py"
     assert spawn.call_args.args[0][-3:] == ["--board", str(board.resolve()), "--ui"]
+
+
+def test_assistant_menu_launches_saved_board_in_standalone_desktop(tmp_path):
+    _manifest(tmp_path, "WayriCAD Assistant", "assistant")
+    board = tmp_path / "demo.kicad_pcb"
+    board.write_text("board", encoding="utf-8")
+    actions = []
+
+    class FakeActionPlugin:
+        def register(self):
+            self.defaults()
+            actions.append(self)
+
+    wx = SimpleNamespace(GetApp=lambda: object(), MessageBox=Mock(), OK=1, ICON_ERROR=2)
+    pcbnew = SimpleNamespace(ActionPlugin=FakeActionPlugin,
+                             GetBoard=lambda: SimpleNamespace(GetFileName=lambda: str(board)))
+    with patch.dict(sys.modules, {"pcbnew": pcbnew, "wx": wx}), patch(
+            "wayricad_runtime.runtime_setup.native_python", return_value=Path("python")), patch(
+            "wayricad_runtime.runtime_setup.child_environment", return_value={}), patch.object(
+            legacy_menu.subprocess, "Popen") as spawn, patch.object(
+            legacy_menu.importlib, "import_module") as importer:
+        legacy_menu.register("installed_assistant", tmp_path)
+        actions[-1].Run()
+    importer.assert_not_called()
+    assert spawn.call_args.args[0][-2:] == ["--board", str(board.resolve())]
+    assert str(tmp_path / "desktop_entrypoint.py") in spawn.call_args.args[0]
+    wx.MessageBox.assert_not_called()

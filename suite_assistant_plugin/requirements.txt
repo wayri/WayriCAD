@@ -1,0 +1,2 @@
+# KiCad 10 supplies pcbnew and wxPython through the managed native runtime.
+# The local planner uses the standard library; invoked tools declare their own dependencies.
