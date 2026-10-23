@@ -111,6 +111,14 @@ path displayed. This does not qualify an installed or connected-editor workflow.
 
 ## Limitations
 
+The [public Marble trials](../docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md)
+include full BGA scopes, connectors and deliberately partial-routing copies.
+They exposed important limits: no complete BGA or residual connector fanout
+was demonstrated, and the 400-pad FMC search timed out at 120 seconds.
+Read the accepted/rejected counts and preserved-rule conditions before using
+these styles on dense boards. Synthetic preview screenshots below do not
+establish real-board completion.
+
 - This generates fanout seeds, not complete autorouting or guaranteed impedance, timing or protocol compliance.
 - Adaptive routing searches a bounded candidate family; branches, loops, arcs, existing-via endpoints and same-net zone topology require manual review. Coupled pairs use fixed routing.
 - Via-in-pad needs fabricator review; through vias span F.Cu to B.Cu. Plated through-hole pins are supported by Connector edge; other styles exclude them. Non-plated holes and pads without nets are excluded.

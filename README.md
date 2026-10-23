@@ -533,6 +533,11 @@ These options stay separate from the simple main workflow. Native fabrication mi
 
 ### [Fanout Generator](fanout_generator_plugin/ReadMe.md)
 
+[Marble BGA, connector and partial-routing trials](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md)
+record current failures as well as the two reproduced bugs fixed in source.
+Complete dense-board fanout remains unvalidated; the fixture previews below
+show narrower workflows.
+
 **Connector before and proposed after · 3.6.28**
 
 <a href="fanout_generator_plugin/help-connector-before.png"><img src="fanout_generator_plugin/help-connector-before.png" width="960" alt="Fanout connector Before view with existing pads and no proposed copper displayed"></a>
