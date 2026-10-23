@@ -14,11 +14,17 @@ Describe a check in plain English, review its interpretation and get results fro
 4. Ready read-only checks run automatically. Uncheck **Run ready read-only checks automatically** to review each plan first.
 5. Open **Results & reports** to read the outcome and open generated reports. Results persist in your Documents folder under `WayriCAD/Assistant/results`. Use **Results folder…** to choose another location and **Open results folder** to find the actual files. Boolean questions accept `true` or `false`.
 
-Use **Board selection → Load board preview** to select a net visually. Enable **Add clicked nets to selection** for several nets. The selected copper is highlighted; a request can use this selection when it does not name its own net. The preview is loaded once per chosen board, with wheel zoom and drag pan. It represents the saved file; save editor changes and reopen the board context to refresh it.
+Native icons identify primary actions and tabs. **Plan & inputs** shows a compact check/target/state table; the status badge and pulsing gauge distinguish waiting, running and attention states without inventing a completion percentage. Results show completed tasks, unresolved tasks and generated-file counts.
+
+![Actual interpreted plan before running](help-plan.png)
+
+Use **Board selection → Load board preview** to select a net visually. Enable **Add clicked nets to selection** for several nets. Exact matching saved pads, traces, vias and zone borders are highlighted while unrelated copper is dimmed. Zone borders remain borders, not an invented filled copper result. A request can use this selection when it does not name its own net. **Focus selected** fits the selection; **Fit board** restores the complete saved board extent. **Expand board** makes the viewport larger, and switching to another tab restores the query controls. The color legend and net/item counts explain the highlight. The preview is loaded once per chosen board, with wheel zoom and drag pan. It represents the saved file; save editor changes and reopen the board context to refresh it.
 
 ![Public Marble board with +3.3P selected](help-board-selection.png)
 
 These are actual native-window screenshots on Windows with KiCad 10.0.6. The public Marble PCB was loaded read-only; its source hash was unchanged. The board selector is a simplified copper/pad/outline view, not a fabrication viewer. The first image shows a request before execution; it does not imply a simulation has run. No personal paths or private project data are visible, and no image redaction was needed.
+
+**Show in PCB Editor** is an explicit navigation action. It selects the chosen nets only in the originating editor, checks the saved board hash and confirms the complete selection. A stale file or unavailable editor is reported. The status distinguishes a requested camera focus from unavailable focus. Matching the saved file does not validate unsaved live geometry. Selection does not edit the design. This IPC navigation was exercised through native UI mocks and the shared context/staleness/rollback tests; an installed live-toolbar session was not available for this validation.
 
 ## What it can do
 
@@ -66,4 +72,4 @@ Use KiCad 10’s native Python or the managed WayriCAD runtime for board geometr
 python -m unittest discover -s suite_assistant_plugin/tests -v
 ```
 
-Sixteen focused window tests passed with KiCad 10.0.6 native Python on Windows. An actual GUI → planner → existing CLI run completed for the microstrip example and the tool catalogue. Window tests require native wxPython; an ordinary Python environment skips them. These standalone native checks do not imply an installed IPC-toolbar workflow has been tested.
+Twenty-one focused window tests passed with KiCad 10.0.6 native Python on Windows. An actual GUI → planner → existing CLI run completed for the microstrip example and the tool catalogue. Window tests require native wxPython; an ordinary Python environment skips them. These standalone native checks do not imply an installed IPC-toolbar workflow has been tested.

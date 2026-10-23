@@ -13,6 +13,10 @@ installable plugins in the source catalogue. Processing runs locally after setup
 planning, visual interaction and reviewed CLI execution. Release **3.6.27** contains the
 previous 23 plugins; Assistant is not yet in published downloads.
 
+The current source also adds action icons, visible workflow stages and stronger
+selection feedback. Assistant has an expandable board view, exact net highlights,
+focus controls and an explicit **Show in PCB Editor** action.
+
 ## Start here
 
 | What you need | Where to go |

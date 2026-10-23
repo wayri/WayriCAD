@@ -208,7 +208,10 @@ def install_accessibility(frame, help_path=None):
             return
         from wx import grid
         from wx import dataview as dv
+        from .visual_feedback import decorate_button
         def walk(window):
+            if isinstance(window, wx.Button):
+                decorate_button(window)
             if isinstance(window, (wx.ListCtrl, grid.Grid)):
                 _attach_table(window)
             elif isinstance(window, dv.DataViewCtrl):

@@ -28,6 +28,20 @@ class LayoutAccessTests(unittest.TestCase):
         table.Select(0)
         return table
 
+    def test_shared_form_install_adds_action_icons_without_changing_commands(self):
+        from wayricad_runtime.layout import install_accessibility
+        button = wx.Button(self.frame, label='Preview selected nets')
+        button.SetToolTip('Preview only the exact selected nets')
+        invoked = []
+        button.Bind(wx.EVT_BUTTON, lambda event: invoked.append('preview'))
+        install_accessibility(self.frame)
+        self.app.Yield()
+        self.assertTrue(button.GetBitmap().IsOk())
+        self.assertEqual(button.GetLabel(), 'Preview selected nets')
+        self.assertEqual(button.GetToolTipText(), 'Preview only the exact selected nets')
+        button.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.EVT_BUTTON.typeId, button.GetId()))
+        self.assertEqual(invoked, ['preview'])
+
     def test_table_snapshot_retains_unclipped_values_and_selection(self):
         from wayricad_runtime.layout import table_data
         table = self.table()

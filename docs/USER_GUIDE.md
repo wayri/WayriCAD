@@ -25,11 +25,25 @@ Help is also shipped inside each package as `help.html`, with local images. Use 
 
 ## Plain-English coordination
 
+The current source UI uses action icons alongside text labels, numbered workflow
+stages and a visible activity indicator. Icons supplement the labels and tooltips;
+they do not replace them. These shared controls are used by the quick tools and
+other native forms that use the common accessibility/workflow helpers.
+
 [WayriCAD Assistant](../suite_assistant_plugin/README.md) is a development plugin for
 local command planning and execution. Select the saved board, describe the task,
 review the interpreted action and supply requested engineering inputs before running.
 Results include text, generated artifacts and visual board context. Ambiguous requests
 need clarification; unsupported commands are reported rather than invented.
+
+In the Assistant board view, selected nets have bright copper highlights while
+other copper is muted. **Focus selected** frames that selection; **Fit board**
+restores the complete board view. Pad shapes and via holes are retained. Zone
+borders and conservative arc envelopes remain outlines, not simulated filled
+copper. **Show in PCB Editor** explicitly selects the matching net items in the
+originating editor and requests a zoom. It rejects a changed saved board or a
+different editor project, and reports when focusing is unavailable. This is
+selection/navigation, not a geometry edit or validation of unsaved changes.
 The existing tool CLI remains available for precise scripts. Assistant is not included
 in release 3.6.27.
 

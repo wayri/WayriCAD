@@ -4,6 +4,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 try:
     import wx
@@ -86,9 +87,12 @@ class AssistantWindowTests(unittest.TestCase):
         self.frame.run.Enable()
         self.frame.preview.net_targets = [{'net': 'GND', 'start': (0, 0), 'end': (2, 1), 'radius': .1},
                                           {'net': '+3V3', 'start': (3, 0), 'end': (5, 1), 'radius': .1}]
+        self.frame.preview.context_lines = [(0, 0, 2, 1, .2), (3, 0, 5, 1, .2)]
+        self.frame.preview._context_identity = {'context_lines': [('GND', 'a'), ('+3V3', 'b')]}
         self.frame._select_net('GND', (1, 1))
         self.assertEqual(self.frame.context['selected_nets'], ['GND'])
-        self.assertEqual(self.frame.preview.lines, [(0, 0, 2, 1)])
+        self.assertEqual(self.frame.preview.lines, [])
+        self.assertEqual(self.frame.preview._highlight_indices['context_lines'], {0})
         self.frame.tabs.SetSelection(2)
         self.frame.preview.Refresh(); self.frame.preview.Update(); wx.Yield()
         self.assertFalse(self.frame.run.IsEnabled())
@@ -210,6 +214,74 @@ class AssistantWindowTests(unittest.TestCase):
         self.assertFalse(self.frame.run_thread.is_alive())
         self.assertEqual(recorded.read_text(encoding='utf-8'), 'cancelled')
         wx.Yield()  # No result callback may touch the destroyed window.
+
+    def test_visual_task_summary_progress_and_result_counts(self):
+        self.frame.auto.SetValue(False)
+        self.frame._show_plan({'status': 'ready', 'query': 'Checks', 'steps': [
+            {'action': 'first', 'title': 'Rail check', 'params': {'net': 'VCC'}},
+            {'action': 'second', 'title': 'Geometry check', 'params': {'topology': 'microstrip'}}]})
+        self.assertEqual(self.frame.plan_tasks.GetItemCount(), 2)
+        self.assertEqual(self.frame.plan_tasks.GetItemText(0, 1), 'VCC')
+        self.assertGreaterEqual(self.frame.plan_tasks.GetItem(0).GetImage(), 0)
+        self.assertIn('2 checks', self.frame.plan_summary.GetLabel())
+        self.frame._set_busy(True, 'Checking')
+        self.assertTrue(self.frame.progress_timer.IsRunning())
+        self.assertIn('WORKING', self.frame.status_badge.GetLabel())
+        self.frame._show_result({'status': 'completed_with_errors', 'steps': [
+            {'status': 'completed'}, {'status': 'failed'}], 'artifacts': []})
+        self.assertFalse(self.frame.progress_timer.IsRunning())
+        self.assertIn('1 completed', self.frame.result_summary.GetLabel())
+        self.assertIn('1 unresolved', self.frame.result_summary.GetLabel())
+
+    def test_focus_and_clear_use_real_highlight_without_changing_copper(self):
+        preview = self.frame.preview
+        preview.context_lines = [(0, 0, 2, 1, .2), (10, 0, 20, 1, .2)]
+        preview._context_identity = {'context_lines': [('GND', 'a'), ('VCC', 'b')]}
+        preview.net_targets = [{'net': 'GND', 'start': (0, 0), 'end': (2, 1)}]
+        preview.zoom = 2.; preview.pan = [3., 4.]
+        self.frame._select_net('GND', (0, 0))
+        self.assertEqual(preview.zoom, 2.)
+        self.assertEqual(preview.pan, [3., 4.])
+        self.assertTrue(self.frame.focus_selected.IsEnabled())
+        self.frame._focus_selected()
+        self.assertEqual(preview._view_bounds, [(0, 0), (2, 1)])
+        self.frame._fit_board()
+        self.assertIn((20, 1), preview._view_bounds)
+        self.frame._clear_nets()
+        self.assertFalse(preview._highlight_nets)
+        self.assertFalse(self.frame.focus_selected.IsEnabled())
+        self.assertEqual(preview.context_lines, [(0, 0, 2, 1, .2), (10, 0, 20, 1, .2)])
+
+    def test_editor_navigation_is_explicit_verified_and_truthful(self):
+        self.frame.context = {'board': str(self.root / 'board.kicad_pcb'), 'selected_nets': ['GND']}
+        self.frame.board_sha256 = 'saved-hash'
+        with patch('wayricad_runtime.analysis_selection.select_origin',
+                   return_value={'count': 3, 'focus': 'requested'}) as select:
+            self.assertEqual(select.call_count, 0)
+            self.frame._show_in_editor(); self.settle()
+            select.assert_called_once_with(str(self.root / 'board.kicad_pcb'), nets=['GND'],
+                                           expected_sha256='saved-hash', focus=True, return_details=True)
+        self.assertIn('3 items selected', self.frame.status.GetLabel())
+        self.assertIn('unsaved live geometry was not validated', self.frame.results.GetValue())
+        with patch('wayricad_runtime.analysis_selection.select_origin', side_effect=ValueError('The saved PCB changed.')):
+            self.frame._show_in_editor(); self.settle()
+        self.assertIn('saved PCB changed', self.frame.results.GetValue())
+        self.assertIn('NEEDS ATTENTION', self.frame.status_badge.GetLabel())
+
+    def test_tabs_and_primary_actions_have_native_icons(self):
+        self.assertEqual(self.frame.tabs.GetImageList().GetImageCount(), 3)
+        for button in (self.frame.ask, self.frame.run, self.frame.choose, self.frame.show_in_editor):
+            self.assertTrue(button.GetBitmap().IsOk())
+
+    def test_board_expansion_restores_query_on_other_tabs(self):
+        self.frame.tabs.SetSelection(2); wx.Yield()
+        before = self.frame.preview.GetClientSize().height
+        self.frame.expand_view.SetValue(True); self.frame._expand_board(); wx.Yield()
+        self.assertFalse(self.frame.query.IsShown())
+        self.assertGreater(self.frame.preview.GetClientSize().height, before)
+        self.frame.tabs.SetSelection(0); wx.Yield()
+        self.assertTrue(self.frame.query.IsShown())
+        self.assertFalse(self.frame.expand_view.GetValue())
 
     def test_small_window_keeps_resizable_work_area(self):
         self.frame.SetSize((760, 600)); self.frame.Layout(); wx.Yield()

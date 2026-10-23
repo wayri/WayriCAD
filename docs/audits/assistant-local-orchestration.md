@@ -25,3 +25,11 @@ Validation was performed on Windows with Python 3.14 for portable tests and KiCa
 - Native window tests cover clarification, automatic execution, results, selection highlights, stale callbacks, resize behavior, persistent output folders and report confinement. Screenshots in the plugin README show actual native windows and actual calculations.
 
 The native window was tested standalone. These checks do not establish a running-editor IPC toolbar workflow on all operating systems. Scientific/native dependencies of the executed tools are still required; the coordinator does not replace those runtimes or validate a complete engineering study merely by launching it.
+
+## Visual feedback follow-up
+
+Native action icons are shared through the common form/workflow helpers. They retain text, tooltips, existing artwork and command handlers. The icon cache follows native DPI/system colours. Workflow headers show numbered stages and status; an error takes precedence over a completed stage.
+
+Assistant adds task states, result counts, an activity indicator and an expandable board viewport. Exact selected nets accent pads, tracks, vias and zone borders while unrelated copper is muted. Focus selection and fit board are explicit camera actions. Shared snapshot selection does not replace proposed geometry, and hover/probe overlays retain cached pixels. Conservative arc envelopes and zone outlines remain approximate display context.
+
+The native checks passed: 21 Assistant window tests, 5 highlight tests, 9 preview-cache tests, 8 layout/accessibility tests and 6 icon/workflow tests. The actual public Marble capture highlights 563 saved copper items on +3.3P without changing its source. Live editor handoff uses the existing verified selection/context helper, but the new button's IPC calls were tested with mocks, not a running PCB Editor. No claim of live-host validation is made.
