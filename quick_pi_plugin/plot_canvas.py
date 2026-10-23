@@ -182,6 +182,14 @@ except (ImportError,ModuleNotFoundError):
             event.Skip()
 
         def _wheel(self,event):
+            handler=getattr(self,'_wayricad_scroll_handler',None)
+            if handler:
+                from matplotlib.backend_bases import MouseEvent
+                step=event.GetWheelRotation()/max(1,event.GetWheelDelta())
+                mouse=MouseEvent('scroll_event',self,event.GetX(),self.GetClientSize().height-event.GetY(),
+                                 button='up' if step>0 else 'down',step=step,guiEvent=event,
+                                 key='control' if event.ControlDown() else None)
+                if handler(mouse):return
             axes=self._axes()
             if axes is not None and hasattr(axes,'get_proj'):
                 step=event.GetWheelRotation()/max(1,event.GetWheelDelta())

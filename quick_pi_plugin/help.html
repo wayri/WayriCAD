@@ -1,5 +1,22 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WayriCAD Quick PI help</title><style>body{font:15px/1.55 system-ui,sans-serif;color:#243335;max-width:1000px;margin:24px auto;padding:0 20px}img{max-width:100%;height:auto}code,pre{background:#eef2f1;padding:5px}pre{white-space:pre-wrap}th,td{text-align:left;padding:8px;border-bottom:1px solid #ddd}h1{font-size:27px}a{color:#246b88}</style></head><body>
 <h1>Quick PI: inspect a DC current path</h1>
+<h2>Live 2.5D load current</h2>
+<p>After a fixed-temperature prescribed-current solve, open <b>Results</b>.
+With <b>Scroll load</b> checked, wheel over solved copper to change <b>Total · A</b>.
+<b>Step · A</b> sets amperes per notch; Shift uses a tenth-step. Ctrl+wheel or
+wheel outside copper zooms. Uncheck Scroll load for normal zoom everywhere.
+The total can also be entered directly (press Enter) or changed with its arrows.</p>
+<p>All sink currents change proportionally, including multi-pad units. Voltage
+drop and current density scale with current; copper loss scales with current
+squared. Limits, probes, summaries and reports follow the latest completed
+update. Zoom and selection stay in place. No remeshing or new factorization is
+needed; calculation time excludes drawing and input scheduling. Exports wait
+for pending updates.</p>
+<p>Source voltage, temperature, conductivity, topology and electrodes remain fixed.
+Changed simulation inputs or saved board bytes require another solve. Resistive
+loads, series/package paths, coupled returns, 3D and Joule-temperature feedback
+are not supported by live tuning. Use their normal Run workflow.</p>
+
 <p><b>First-run performance:</b> fresh solves import only the needed VTK geometry filters. Multi-net batches reuse one owned board within the job, with saved-source checks for every case. Contour queries, edge bookkeeping, matrix assembly and result summaries use less Python overhead. These changes do not coarsen the mesh or loosen solver tolerances. Previous-result caching is separate. Installing missing dependencies is still an additional first-setup step.</p>
 <p><a href="#workflow">Run a path</a> · <a href="#views">Previews</a> · <a href="#details">Layer details</a> · <a href="#series-editor">Series editor</a> · <a href="#board-screens">Board screens</a> · <a href="#transient">Transient</a> · <a href="#electrothermal">Electrothermal</a> · <a href="#console">Console</a> · <a href="#cli">CLI</a> · <a href="#troubleshooting">Troubleshooting</a></p>
 <p>Quick PI estimates voltage drop and current flow through saved traces, filled zones, pads and plated via barrels. The default <b>2.5D · layered copper</b> model solves DC conduction locally and leaves the PCB unchanged. To solve copper volume, choose one net, two distinct pads and a specified sink current; select <b>3D · copper volume</b> under Copper model, then click <b>Run 3D</b>. The first run prepares Gmsh in the private runtime if necessary. Use Mesh &amp; material to set mesh edge, assumed via plating, fixed copper temperature and the tetrahedron budget. The result window has board top and 3D views, layer/via filtering, current density, voltage and loss density. Plotted cells are sampled for speed; exported JSON includes the complete mesh and field. CLI <code>--model-dimension 3d</code> runs the same model. These copper modes do not solve AC fields, transient inductive behavior or thermal feedback. Separate studies provide explicit lumped R/L/C transients and electrothermal coupling. Regular layer maps remain 2.5D; the 3D export provides a separate interactive HTML view and complete JSON.</p>

@@ -196,6 +196,32 @@ the selection clears; choose a result explicitly before running an analysis.
 Hover over solved Results cells and click to pin exact cell values; Ctrl-right-click
 clears probes. Holes and unresolved cells remain gaps.
 
+### Change load current with the wheel
+
+After a fixed-temperature **2.5D** current solve, open **Results** and leave
+**Scroll load** checked. Wheel over solved copper to change **Total · A**;
+**Step · A** sets amperes per notch. Hold **Shift** for a tenth-step, or
+**Ctrl** to zoom. Wheel outside solved copper still zooms. You can also enter
+the total directly and press Enter, or use its arrows. Disable **Scroll load**
+to keep ordinary wheel zoom everywhere.
+
+All sink currents scale together, preserving their proportions and grouped pad
+assignments. Voltage drop and current density scale with current; copper loss
+scales with current squared. Source voltage, conductivity, temperature, mesh and
+terminal locations remain fixed. Limits, probes, summaries and exported results
+update with the new current. Zoom and selected-object highlights stay in place.
+
+Updates reuse the solved linear field, without remeshing or another matrix
+factorization. Wheel bursts combine into the latest requested current, numerical
+work runs away from the window thread, and exports wait for that update to
+finish. The displayed calculation time excludes drawing and input scheduling.
+Changing simulation inputs or the saved PCB requires a new solve. Resistive
+loads, series/package paths, coupled returns, 3D and Joule-temperature feedback
+use their normal solve workflows; they do not enable this control.
+
+See [Marble timing and numerical checks](../docs/audits/QUICK_PI_LIVE_CURRENT_2026-10-24.md)
+for measured response and mesh limitations.
+
 The native 3D copper view supports orbit, pan, wheel zoom and sampled-cell probes.
 **Export 3D report** saves an offline interactive viewport plus the complete JSON.
 HTML 3D views use drag to orbit, Shift-drag to pan and the wheel to zoom. Planar

@@ -73,6 +73,7 @@ def attach_probes(canvas, axes, rows, unit='', polygons=None, on_select=None):
     from mpl_toolkits.mplot3d import proj3d
     state = {'rows': rows, 'probes': [], 'ids': [], 'press': None}
     cells = _CellIndex(polygons) if polygons is not None else None
+    state['hit_test'] = lambda x,y: cells.pick(x,y,len(rows)) if cells is not None else None
     can_blit = bool(getattr(canvas, 'supports_blit', False))
     background = None
     tip = axes.annotate('', xy=(0, 0), xycoords='axes fraction', xytext=(.02, .98),
@@ -155,6 +156,7 @@ def attach_probes(canvas, axes, rows, unit='', polygons=None, on_select=None):
         if state['press'] is not None or getattr(getattr(canvas, 'toolbar', None), 'mode', ''):
             return
         row = pick(event)
+        state['hover_row'] = row
         visible = row is not None
         label = text(row) if visible else ''
         if tip.get_visible() == visible and (not visible or tip.get_text() == label):
@@ -206,6 +208,7 @@ def attach_probes(canvas, axes, rows, unit='', polygons=None, on_select=None):
             artist = axes.annotate(f'P{index}: '+text(row), row[:2], xytext=(8, 8), textcoords='offset points',
                                    fontsize=8, bbox={'facecolor': 'white', 'alpha': .85})
         state['probes'].append(artist)
+        artist._wayricad_probe_row = row
         canvas.draw_idle()
 
     def scroll(event):
@@ -232,4 +235,15 @@ def attach_probes(canvas, axes, rows, unit='', polygons=None, on_select=None):
         background = None
 
     state['disconnect'] = disconnect
+    def refresh_values(keep_background=False):
+        """Refresh annotations after callers change values in the existing rows."""
+        nonlocal background
+        if keep_background and not state['probes']:
+            row=state.get('hover_row')
+            if row is not None and tip.get_visible():tip.set_text(text(row));paint_tip()
+            return
+        tip.set_visible(False);background=None
+        for index,artist in enumerate(state['probes'],1):
+            artist.set_text(f'P{index}: '+text(artist._wayricad_probe_row))
+    state['refresh_values'] = refresh_values
     return state

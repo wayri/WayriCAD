@@ -413,6 +413,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         figure.set_facecolor('white');ax=figure.add_subplot(111);ax.set_facecolor('#ffffff')
         ax.set_aspect('equal',adjustable='box');ax.set_xlabel('X (mm)');ax.set_ylabel('Y (mm)')
     ax._wayricad_color_scale=None;ax._wayricad_color_mappable=None
+    ax._wayricad_live_colors=[]
     ax.grid(False)
     # Keep exact patch paths/colors but avoid thousands of independent Axes
     # artists on dense boards. Separate z orders preserve drill/annulus layering.
@@ -427,6 +428,8 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
             collection.set_gid('pi-geometry-'+str(zorder))
             collection._wayricad_patch_gids=[patch.get_gid() for patch in patches]
             ax.add_collection(collection)
+            live=[(index,patch._wayricad_live_marker) for index,patch in enumerate(patches) if hasattr(patch,'_wayricad_live_marker')]
+            if live:ax._wayricad_live_colors.append((collection,live))
         pending.clear()
     scene=bundle.get('board_scene',{})
     if visible_nets is None:
@@ -543,6 +546,10 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
             hole=Polygon(drill_contour(marker,circumscribed=True),facecolor=ax.get_facecolor(),edgecolor=color,linewidth=.6,zorder=6)
         patch.set_gid('via-barrel:'+','.join(marker['segments']));add_geometry_patch(patch)
         hole.set_gid('via-drill:'+','.join(marker['segments']));add_geometry_patch(hole)
+        patch._wayricad_live_marker=(marker['value'],False)
+        hole._wayricad_live_marker=(marker['value'],True)
+        if not batch_patches:
+            ax._wayricad_live_colors.extend([(patch,[(0,patch._wayricad_live_marker)]),(hole,[(0,hole._wayricad_live_marker)])])
     flush_geometry_patches()
     request=bundle.get('request',{})
     if mesh and request.get('series'):
@@ -612,6 +619,11 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         ax._wayricad_color_scale={'metric':metric,'label':metric_name(bundle,metric),
                                  'unit':METRICS[metric][1],'cmap':image.cmap.name,
                                  'limits':image.get_clim(),'note':field_note(metric,field_style)}
+        if board_view and view=='Results' and result.get('sink_current_A',0)>0:
+            array=image.get_array()
+            ax._wayricad_live_base={'current':result['sink_current_A'],'voltage':result['source_voltage_V'],
+                                   'metric':metric,'array':None if array is None else array.copy(),
+                                   'limits':image.get_clim(),'layer':None if combined else layer}
     if board_view:
         _fit_board_view(ax)
     else:
@@ -620,6 +632,52 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         ax.set_anchor('C')
         figure.subplots_adjust(left=.08,right=.90,bottom=.12,top=.94)
     return ax
+
+
+def update_current_view(ax,bundle,manual_limits=None):
+    """Update fixed-topology proportional-current colours without rebuilding artists.
+
+    Return whether the normalized colours are unchanged, so the existing board
+    raster can remain on screen while the external legend and probes update.
+    """
+    import numpy as np
+    base=getattr(ax,'_wayricad_live_base',None)
+    image=getattr(ax,'_wayricad_color_mappable',None)
+    if not base or image is None:return None
+    metric=base['metric'];ratio=bundle['result']['sink_current_A']/base['current']
+    factor=ratio**2 if metric in ('loss','risk') else 1. if metric=='resistance' else ratio
+    offset=base['voltage']*(1-ratio) if metric=='voltage' else 0.
+    def scale(value):return np.asarray(value)*factor+offset
+    previous=image.get_clim()
+    limits=manual_limits or (result_scale(bundle,metric,base['layer']) if metric=='risk' else tuple(scale(base['limits'])))
+    if limits is None:return None
+    limits=validate_scale(*limits)
+    array=base['array']
+    if array is not None:image.set_array(scale(array))
+    image.set_clim(*limits)
+    # Compare the affine map against the last displayed limits, not only the
+    # initial draw. Fixed manual ranges and capped risk scales need a redraw.
+    last=getattr(ax,'_wayricad_live_last',1.)
+    old_factor=last**2 if metric in ('loss','risk') else 1. if metric=='resistance' else last
+    old_offset=base['voltage']*(1-last) if metric=='voltage' else 0.
+    expected=(np.asarray(previous)-old_offset)*factor/old_factor+offset
+    ax._wayricad_live_last=ratio
+    same=bool(np.allclose(limits,expected,rtol=1e-11,atol=1e-15))
+    if not same:
+        for artist,entries in ax._wayricad_live_colors:
+            colors=image.cmap(image.norm(scale([entry[1][0] for entry in entries])))
+            if hasattr(artist,'get_facecolors'):
+                faces=artist.get_facecolors().copy();edges=artist.get_edgecolors().copy()
+                for (index,(_,hole)),color in zip(entries,colors):
+                    if not hole:faces[index]=color
+                    edges[index]=color
+                artist.set_facecolors(faces);artist.set_edgecolors(edges)
+            else:
+                hole=entries[0][1][1];color=colors[0]
+                if not hole:artist.set_facecolor(color)
+                artist.set_edgecolor(color)
+    ax._wayricad_color_scale=dict(ax._wayricad_color_scale,limits=tuple(limits))
+    return same
 
 
 def _number(value,unit='',scale=1.):

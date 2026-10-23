@@ -110,6 +110,8 @@ class BoardNavigation:
     def up(self,event):self.drag=None
 
     def wheel(self,event):
+        handler=getattr(self.canvas,'_wayricad_scroll_handler',None)
+        if handler and handler(event):return
         if event.inaxes is self.axes():
             center=(event.xdata,event.ydata) if event.xdata is not None else None
             self.zoom(math.exp(-event.step*.15),center)

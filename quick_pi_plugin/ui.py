@@ -8,6 +8,7 @@ from wayricad_runtime.readable_choice import ReadableChoice, ReadableComboBox
 from matplotlib.figure import Figure
 from .plot_canvas import FigureCanvasWxAgg,NavigationToolbar2WxAgg
 from .workspace_controls import BoardNavigation,ColorLegend,SidebarText,StatusText,icon_button
+from .live_ui import LiveCurrentControls
 
 from .report import (METRICS,draw_view,layer_rows,write_report,via_markers,
                      inspection_record,probe_result,result_scale,validate_scale,
@@ -29,7 +30,7 @@ def load_values(terminal,current,minimum='',maximum=''):
     return row
 
 
-class QuickPIFrame(wx.Frame):
+class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def __init__(self,parent,board_path):
         super().__init__(parent,title='WayriCAD Quick PI',size=(1320,860))
         icon_prefix='icon-'
@@ -160,6 +161,7 @@ class QuickPIFrame(wx.Frame):
             page=wx.Panel(self.book);layout=wx.BoxSizer(wx.VERTICAL)
             figure=Figure(figsize=(9,7),dpi=100,facecolor='#f3f5f6');canvas=FigureCanvasWxAgg(page,wx.ID_ANY,figure);canvas.SetMinSize((1,1))
             navigation=BoardNavigation(canvas)
+            if name=='Results':self._init_live_controls(page,layout,canvas)
             canvas.Bind(wx.EVT_LEFT_DOWN,lambda event,index=len(self.views):self._probe_down(event,index))
             canvas.Bind(wx.EVT_LEFT_UP,lambda event,index=len(self.views):self._probe_up(event,index))
             layout.Add(canvas,1,wx.EXPAND);page.SetSizer(layout)
@@ -302,6 +304,10 @@ class QuickPIFrame(wx.Frame):
         if event:event.Skip()
 
     def _buttons(self):
+        if hasattr(self,'live_current'):
+            for control in (self.live_scroll,self.live_current,self.live_step):control.Enable(not self._busy and self._live_model is not None)
+            if not self._busy and self._live_model and self._live_pending is not None and not self._live_running and self._live_timer is None:
+                self._live_timer=wx.CallLater(16,self._start_live_current)
         placement=self.book.GetSelection()>=len(self.views)
         self._sync_workspace()
         for control in self._controls:control.Enable(not self._busy)
@@ -317,6 +323,7 @@ class QuickPIFrame(wx.Frame):
         self.export.SetLabel('Export')
         self.export.Enable(not self._busy and bool(self.volume_bundle.get('result') if volume else self.bundle.get('result')) and self._saved_source_current)
         self.power_flow.Enable(self.export.IsEnabled())
+        if getattr(self,'_live_running',False) or getattr(self,'_live_pending',None) is not None:self.export.Disable();self.power_flow.Disable()
         self.cancel.Enable(self._busy);self.cancel.Show(not placement);self.gauge.Show(self._busy and not placement)
         self.more.SetLabel('Reload' if placement else 'More')
         self.more.SetToolTip('Reload the saved board' if placement else 'Transient PI, electrothermal, series studies and diagnostics')
@@ -435,9 +442,10 @@ class QuickPIFrame(wx.Frame):
         if event.GetActive() and not self._busy and not self._closed:self._draw(preserve=True)
         event.Skip()
 
-    def _update_inspector(self,refresh_rows=False):
+    def _update_inspector(self,refresh_rows=False,check_source=True):
         geometry=self.bundle.get('geometry') or self.bundle.get('mesh',{}).get('geometry',{})
-        result=self.bundle.get('result',{});self._saved_source_current=self._snapshot_current()
+        result=self.bundle.get('result',{})
+        if check_source:self._saved_source_current=self._snapshot_current()
         sha=geometry.get('source_sha256','')
         state='Saved file changed: reload and rerun.' if not self._saved_source_current else 'Saved snapshot '+(sha[:12] if sha else '(not yet extracted)')
         basis='Explicit stackup override' if geometry.get('stackup_source')=='explicit_override' else 'Saved board stackup'
@@ -478,7 +486,7 @@ class QuickPIFrame(wx.Frame):
             text+='\nExact saved object available.' if row.get('source_ids') else '\nMesh cell only; no exact PCB object identity.'
             self.inspection_text.SetValue(text)
         else:self.inspection_text.SetValue('Select a ranked hotspot or click solved copper. Empty space and drill holes have no copper result.\nHotspot heating is W/mm³; the loss map is W/mm².\nPulse risk is adiabatic and does not predict fusing.')
-        self.inspector.Layout();self.inspector.FitInside();self._buttons()
+        if check_source:self.inspector.Layout();self.inspector.FitInside();self._buttons()
 
     def _scale_limits(self,metric):
         mode=self.scale_mode.GetSelection()
@@ -690,6 +698,7 @@ class QuickPIFrame(wx.Frame):
 
     def _job(self,request,finished,message):
         if self._closed or self._closing:return
+        if request.get('action')!='inspect' and hasattr(self,'_reset_live'):self._reset_live()
         from .service import run_job
         if request.get('action') in ('geometry','mesh','solve'):
             self._inspection=None
@@ -705,6 +714,7 @@ class QuickPIFrame(wx.Frame):
 
     def _inspect(self):
         if self._closed or self._closing:return
+        self._reset_live()
         self._series_request=None;self._extra_sinks=[];self.loads_button.SetLabel('Additional sinks (0)…');self.bundle={};self.volume_bundle={};self.return_bundle={}
         self.sweep_bundle={};self.return_table.DeleteAllItems();self.return_details.Clear()
         self.return_figure.clear();self.return_canvas.draw_idle()
@@ -773,6 +783,7 @@ class QuickPIFrame(wx.Frame):
         if self.net.GetValue()!=current:self._net_changed()
 
     def _net_changed(self,event=None):
+        self._reset_live()
         self._input_revision=getattr(self,'_input_revision',0)+1
         if self._busy:self._cancel.set()
         self._inspection=None
@@ -781,6 +792,7 @@ class QuickPIFrame(wx.Frame):
         self.status.SetLabel('Preview this net or run the analysis.')
 
     def _invalidate(self,event=None):
+        if hasattr(self,'_reset_live'):self._reset_live()
         self._input_revision=getattr(self,'_input_revision',0)+1
         if self._busy:self._cancel.set()
         if event and event.GetEventObject() is self.load_mode:
@@ -954,6 +966,7 @@ class QuickPIFrame(wx.Frame):
         self._job(request,finished,{'geometry':'Reading actual copper geometry…','mesh':'Building and validating the copper mesh…','solve':'Meshing copper and solving DC current flow…'}[action])
 
     def _accept_result(self,result,request,action):
+        self._reset_live()
         self._inspection=None
         self.bundle=result;self.bundle.setdefault('request',request)
         geometry=result.get('geometry') or result.get('mesh',{}).get('geometry',{})
@@ -1015,6 +1028,7 @@ class QuickPIFrame(wx.Frame):
         if result.get('convergence'):
             self.auto_mesh.SetValue(False);self.edge.Enable(not self._busy)
         self._update_inspector(True);self._draw()
+        self._prepare_live()
 
 
     def _console_write(self,text):
@@ -1134,7 +1148,8 @@ class QuickPIFrame(wx.Frame):
                                   f"{row['name']}: {thickness_label(row)} copper | {row['area_mm2']:.4g} mm² | Layer loss {row['planar_power_W']:.4g} W · More → Layer details")
             self.summary.GetParent().Layout()
         if limits:ax.set_xlim(*limits[0]);ax.set_ylim(*limits[1])
-        if index in self._probe_controllers:self._probe_controllers[index]['disconnect']()
+        controller=self._probe_controllers.pop(index,None)
+        if controller:controller['disconnect']()
         if index==2 and layer!='all' and self.bundle.get('result') and self.bundle.get('mesh'):
             import numpy as np
             from .report import cell_values
@@ -1143,6 +1158,7 @@ class QuickPIFrame(wx.Frame):
             polygons=points[np.asarray(mesh['triangles'],dtype=int)[indices],:2];centers=polygons.mean(axis=1);values=cell_values(mesh,self.bundle['result'],metric)
             samples=[[float(x),float(y),float(values[i]),'Cell '+str(i)] for (x,y),i in zip(centers,indices)]
             self._probe_controllers[index]=attach_probes(canvas,ax,samples,METRICS[metric][1],polygons=polygons)
+        self._live_scene_ready(index,ax)
         figure._wayricad_render_key=render_key
         self._plot_keys[index]=key;toolbar.update();canvas.draw_idle()
 
@@ -1604,6 +1620,8 @@ class QuickPIFrame(wx.Frame):
         except Exception as exc:self.status.SetLabel('Power flow: '+str(exc))
 
     def on_export(self,event=None):
+        if getattr(self,'_live_running',False) or getattr(self,'_live_pending',None) is not None:
+            self.status.SetLabel('Wait for the latest live-current update before exporting.');return
         if self.model_dimension.GetSelection()==1:
             self._export_3d(self,self.volume_bundle)
             return
@@ -1633,6 +1651,7 @@ class QuickPIFrame(wx.Frame):
         self._end()
 
     def _end(self):
+        self._reset_live()
         self._closed=True;self.timer.Stop();self.Destroy()
 
 
