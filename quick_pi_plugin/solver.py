@@ -220,7 +220,10 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     _, pre_groups=np.unique([union.find(i) for i in range(n)],return_inverse=True)
     for _,a,b,resistance,_ in branches:
         if resistance==0:union.merge([a,b])
-    _, groups = np.unique([union.find(i) for i in range(n)], return_inverse=True)
+    if any(resistance == 0 for _, _, _, resistance, _ in branches):
+        _, groups = np.unique([union.find(i) for i in range(n)], return_inverse=True)
+    else:
+        groups = pre_groups
     source = int(groups[source_nodes[0]])
     sink_groups = [int(groups[spec['nodes'][0]]) for spec in sink_specs]
     if source in sink_groups: raise SolverError('Source and sink electrodes overlap or share an ideal contact; choose separate terminals.')
@@ -234,26 +237,34 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     # ground. An all-equipotential cell contributes exactly zero; a two-node
     # cell contributes one positive conductance from the isolated shape basis.
     ordinary=grouped_triangles[distinct]
-    rows = np.repeat(ordinary, 3, axis=1).ravel().tolist()
-    cols = np.tile(ordinary, (1, 3)).ravel().tolist()
-    values = stiffness[distinct].ravel().tolist()
+    # Keep triangle stamps in contiguous arrays: expanding nine entries per
+    # cell to Python objects costs memory and time before SciPy copies them back.
+    rows = [np.repeat(ordinary, 3, axis=1).ravel()]
+    cols = [np.tile(ordinary, (1, 3)).ravel()]
+    values = [stiffness[distinct].ravel()]
     for local in range(3):
         other1=(local+1)%3;other2=(local+2)%3
         paired=(grouped_triangles[:,other1]==grouped_triangles[:,other2]) & (grouped_triangles[:,local]!=grouped_triangles[:,other1])
-        for index in np.flatnonzero(paired):
-            a,b=map(int,(grouped_triangles[index,local],grouped_triangles[index,other1]))
-            conductance=float(stiffness[index,local,local])
-            rows.extend((a,a,b,b));cols.extend((a,b,a,b));values.extend((conductance,-conductance,-conductance,conductance))
+        a = grouped_triangles[paired, local]
+        b = grouped_triangles[paired, other1]
+        conductance = stiffness[paired, local, local]
+        rows.append(np.column_stack((a, a, b, b)).ravel())
+        cols.append(np.column_stack((a, b, a, b)).ravel())
+        values.append(np.column_stack((conductance, -conductance, -conductance, conductance)).ravel())
+    branch_rows, branch_cols, branch_values = [], [], []
     for _, a, b, resistance, _, _ in via_segments:
         a, b = int(groups[a]), int(groups[b]); conductance = 1 / resistance
-        rows.extend((a, a, b, b)); cols.extend((a, b, a, b))
-        values.extend((conductance, -conductance, -conductance, conductance))
+        branch_rows.extend((a, a, b, b)); branch_cols.extend((a, b, a, b))
+        branch_values.extend((conductance, -conductance, -conductance, conductance))
     for _,a,b,resistance,_ in branches:
         if resistance==0:continue
         a,b=int(groups[a]),int(groups[b]);conductance=1/resistance
-        rows.extend((a,a,b,b));cols.extend((a,b,a,b))
-        values.extend((conductance,-conductance,-conductance,conductance))
-    matrix = coo_matrix((values, (rows, cols)), shape=(g, g)).tocsr()
+        branch_rows.extend((a,a,b,b));branch_cols.extend((a,b,a,b))
+        branch_values.extend((conductance,-conductance,-conductance,conductance))
+    rows.append(np.asarray(branch_rows, dtype=np.int64))
+    cols.append(np.asarray(branch_cols, dtype=np.int64))
+    values.append(np.asarray(branch_values, dtype=float))
+    matrix = coo_matrix((np.concatenate(values), (np.concatenate(rows), np.concatenate(cols))), shape=(g, g)).tocsr()
     matrix.sum_duplicates(); matrix.eliminate_zeros()
     _, components = connected_components(matrix, directed=False)
     active = components == components[source]
@@ -452,11 +463,21 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     for via in via_results: via['thermal'] = thermal(via['power_W'], via['volume_mm3'])
     valid_j = np.linalg.norm(current_density[cell_active], axis=1)
     potential = source_voltage + voltage_offset
+    # Convert complete arrays once; per-cell ndarray.tolist calls dominate
+    # otherwise when producing full-field JSON for large solved copper meshes.
+    potential_values = potential.tolist()
+    density_values = current_density.tolist()
+    sheet_values = sheet_current.tolist()
+    power_values = cell_power.tolist()
+    for i in np.flatnonzero(~node_active):
+        potential_values[i] = None
+    for i in np.flatnonzero(~cell_active):
+        density_values[i] = sheet_values[i] = power_values[i] = None
     result = {'model': '2.5D linear triangular DC conductivity FEM', 'frequency_dependent': False,
-            'potential_V': [float(v) if a else None for v, a in zip(potential, node_active)],
-            'cell_J_A_mm2': [j.tolist() if a else None for j, a in zip(current_density, cell_active)],
-            'cell_sheet_current_A_mm': [j.tolist() if a else None for j, a in zip(sheet_current, cell_active)],
-            'cell_power_W': [float(p) if a else None for p, a in zip(cell_power, cell_active)],
+            'potential_V': potential_values,
+            'cell_J_A_mm2': density_values,
+            'cell_sheet_current_A_mm': sheet_values,
+            'cell_power_W': power_values,
             'cell_centroid_mm': (points[triangles].mean(axis=1)).tolist(),
             'cell_layer': list(layers), 'cell_thermal': cell_thermal, 'vias': via_results,
             'components':component_results,

@@ -1,11 +1,31 @@
 """Layer thickness, physical loss allocation and local-screen regressions."""
 import unittest
 from quick_pi_plugin.solver import solve
-from quick_pi_plugin.analytics import details_text
+from quick_pi_plugin.analytics import details_text, summarize
 from quick_pi_plugin.tests.test_solver import strip,combine
 
 
 class AnalyticsTests(unittest.TestCase):
+    def test_hotspot_ranking_keeps_first_equal_candidates_after_discarded_cells(self):
+        # Lower-valued cells between the first candidates and later peaks must
+        # not disturb either heap's deterministic equal-value ordering.
+        densities = [10.] * 12 + [1.] * 20 + [20.] * 20
+        mesh = {'points_mm': [[0., 0., 0.], [2., 0., 0.], [0., 1., 0.]],
+                'triangles': [[0, 1, 2]] * len(densities),
+                'triangle_thickness_mm': [1.] * len(densities)}
+        result = {'cell_layer': [0] * len(densities),
+                  'cell_power_W': densities,
+                  'cell_J_A_mm2': [[value, 0.] for value in densities],
+                  'cell_centroid_mm': [[2./3, 1./3, 0.]] * len(densities),
+                  'cell_thermal': [{} for _ in densities],
+                  'total_power_W': sum(densities)}
+        analysis = summarize(mesh, result)
+        for field in ('hotspots_by_current_density', 'hotspots_by_heating_density'):
+            self.assertEqual([row['id'] for row in analysis[field]], list(range(43, 31, -1)))
+            self.assertEqual([row['rank'] for row in analysis[field]], list(range(1, 13)))
+        self.assertEqual(analysis['layers'][0]['planar_power_W'], sum(densities))
+        self.assertEqual(analysis['layers'][0]['peak_location_mm'], result['cell_centroid_mm'][32])
+
     def test_doubled_actual_copper_thickness_halves_r_loss_and_j(self):
         outputs=[]
         for thickness in (.035,.070):

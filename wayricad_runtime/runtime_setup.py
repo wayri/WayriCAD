@@ -51,7 +51,12 @@ REQUIREMENTS_EXTRACT = {'networkx': 'networkx>=2.8,<4'}
 REQUIREMENTS_BOM = {'zstandard': 'zstandard>=0.25,<1', 'shapely': 'shapely>=2,<3'}
 REQUIREMENTS_QUICK_PI = {
     'numpy': 'numpy>=1.24,<3', 'scipy': 'scipy>=1.10,<2',
-    'matplotlib': 'matplotlib>=3.7,<4', 'vtk': 'vtk>=9.3,<10',
+    'matplotlib': 'matplotlib>=3.7,<4',
+    # Probe the same native geometry modules used by the mesher. Importing
+    # vtk eagerly loads unrelated renderers/readers before starting the worker.
+    'vtkmodules.vtkFiltersCore': 'vtk>=9.3,<10',
+    'vtkmodules.vtkFiltersGeneral': 'vtk>=9.3,<10',
+    'vtkmodules.vtkFiltersModeling': 'vtk>=9.3,<10',
     'kipy': 'kicad-python>=0.8.0,<0.9',
 }
 REQUIREMENTS_QUICK_THERM = {
@@ -194,9 +199,11 @@ def ensure_runtime(requirements=(), *, cache_dir=None, timeout=300):
     """
     requirements = dict(requirements)
     native = native_python()
-    identity = _probe(native)
     if _probe(native, requirements):
         return native
+    # A cache identity is needed only when provisioning a private environment.
+    # Do not start another native Python merely to discard its identity.
+    identity = _probe(native)
     root = Path(cache_dir) if cache_dir is not None else cache_root()
     root.mkdir(parents=True, exist_ok=True)
     key = hashlib.sha256(json.dumps([str(native), identity, sorted(requirements.items())]).encode()).hexdigest()[:20]

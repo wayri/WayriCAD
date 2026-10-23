@@ -96,7 +96,7 @@ def stackup(board,api,source_text=None,override=None):
 
 def _polygons(poly,api):
     def ring(chain):
-        points=[[api.ToMM(chain.CPoint(i).x),api.ToMM(chain.CPoint(i).y)] for i in range(chain.PointCount())]
+        points=[[api.ToMM(point.x),api.ToMM(point.y)] for point in chain.CPoints()]
         if points and points[0]==points[-1]:points.pop()
         return points
     return [{'outer':ring(poly.COutline(i)),
@@ -245,6 +245,9 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
         if progress and index%250==0 and progress('Reading copper',index,len(all_items)) is False:
             raise ValueError('Geometry extraction cancelled; the board was not changed.')
         via=isinstance(item,api.PCB_VIA);pad=isinstance(item,api.PAD)
+        # Unrelated ordinary tracks have neither selected copper nor drill
+        # voids. Drilled pads/vias must still be processed on every net.
+        if not pad and not via and item.GetNetname()!=net:continue
         span=[layer for layer in enabled if item.IsOnLayer(layer)]
         if via:
             # Backdrills have different holes on different spans. A cylinder is

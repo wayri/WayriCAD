@@ -11,6 +11,45 @@ def rectangle(x0,y0,x1,y1):
 
 
 class MeshTests(unittest.TestCase):
+    def test_dense_edge_queries_fall_back_to_one_result_list(self):
+        from scipy.spatial import cKDTree
+        from quick_pi_plugin.mesh import _edge_neighbours
+        tree=cKDTree(np.zeros((1000,2)))
+        calls=[]
+        class Tracked:
+            def query_ball_point(self,points,radii,**kwargs):
+                calls.append((np.ndim(points),kwargs.get('return_length',False)))
+                return tree.query_ball_point(points,radii,**kwargs)
+        centers=np.zeros((70,2));radii=np.ones(70)
+        actual=list(_edge_neighbours(Tracked(),centers,radii))
+        expected=[tree.query_ball_point(p,r,return_sorted=False) for p,r in zip(centers,radii)]
+        self.assertEqual(actual,expected)
+        self.assertFalse(any(dim==2 and not count for dim,count in calls))
+
+    def test_packed_edge_identity_counts_inverse_and_overflow_fallback(self):
+        from quick_pi_plugin.mesh import _unique_edges
+        for dtype in (np.int32,np.int64):
+            edges=np.array([[100000,100001],[0,1],[100000,100001],[2,4],[0,1]],dtype=dtype)
+            expected=np.unique(edges,axis=0,return_inverse=True,return_counts=True)
+            actual=_unique_edges(edges,return_inverse=True,return_counts=True)
+            for a,b in zip(actual,expected):np.testing.assert_array_equal(a,b)
+        for edges in (np.empty((0,2),dtype=np.int64),np.array([[4000000000,4000000001]],dtype=np.int64)):
+            np.testing.assert_array_equal(_unique_edges(edges),np.unique(edges,axis=0))
+
+    def test_fresh_mesher_does_not_import_unrelated_vtk_renderers(self):
+        import subprocess
+        import sys
+        from pathlib import Path
+        root=Path(__file__).resolve().parents[2]
+        code=(f'import sys; sys.path.insert(0,{str(root)!r}); '
+              'from quick_pi_plugin.mesh import triangulate; '
+              'p,t,r=triangulate([{"outer":[[0,0],[1,0],[1,1],[0,1]],"holes":[]}],.5); '
+              'assert abs(r["area_mm2"]-1)<1e-10; '
+              'assert "vtk" not in sys.modules; '
+              'assert "vtkmodules.vtkRenderingOpenGL2" not in sys.modules')
+        run=subprocess.run([sys.executable,'-I','-c',code],capture_output=True,text=True,timeout=60)
+        self.assertEqual(run.returncode,0,run.stdout+run.stderr)
+
     def test_gmsh_strip_matches_analytic_dc_resistance(self):
         try:
             import gmsh  # noqa: F401
@@ -49,8 +88,9 @@ class MeshTests(unittest.TestCase):
             build_mesh(geometry,backend='unknown')
 
     def test_rotated_delaunay_recovers_primary_failure_without_moving_contours(self):
+        from vtkmodules import vtkFiltersCore, vtkFiltersGeneral
         import vtk
-        factory=vtk.vtkDelaunay2D
+        factory=vtkFiltersCore.vtkDelaunay2D
         calls=[]
         class EmptyPrimary:
             def __getattr__(self,name):
@@ -61,7 +101,7 @@ class MeshTests(unittest.TestCase):
             return EmptyPrimary() if len(calls)==1 else factory()
         polygon=rectangle(100,100,102,102)
         polygon['holes']=[[[100.5,100.5],[100.5,101.5],[101.5,101.5],[101.5,100.5]]]
-        with patch.object(vtk,'vtkDelaunay2D',side_effect=injected), patch.object(vtk,'vtkContourTriangulator',side_effect=AssertionError('Delaunay fallback should recover')):
+        with patch.object(vtkFiltersCore,'vtkDelaunay2D',side_effect=injected), patch.object(vtkFiltersGeneral,'vtkContourTriangulator',side_effect=AssertionError('Delaunay fallback should recover')):
             p,t,report=triangulate([polygon],.5)
         self.assertGreaterEqual(len(calls),2)
         self.assertAlmostEqual(report['area_mm2'],3.,places=8)

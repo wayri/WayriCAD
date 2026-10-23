@@ -1,0 +1,79 @@
+{
+  "source_sha256": "482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0",
+  "source_unchanged": true,
+  "trials": [
+    {
+      "variant": "baseline",
+      "trial": 1,
+      "seconds": 53.96725950000109,
+      "process_seconds": 56.21072300001106,
+      "electrical_sha256": "0c5e7e82ebddcab1807ec4beb42aca7629fedf26e56f33e82c372265c1a0cb75"
+    },
+    {
+      "variant": "candidate",
+      "trial": 1,
+      "seconds": 31.71445820000372,
+      "process_seconds": 34.09458389999054,
+      "electrical_sha256": "0c5e7e82ebddcab1807ec4beb42aca7629fedf26e56f33e82c372265c1a0cb75"
+    },
+    {
+      "variant": "baseline",
+      "trial": 2,
+      "seconds": 43.239340800006175,
+      "process_seconds": 46.160443700006,
+      "electrical_sha256": "0c5e7e82ebddcab1807ec4beb42aca7629fedf26e56f33e82c372265c1a0cb75"
+    },
+    {
+      "variant": "candidate",
+      "trial": 2,
+      "seconds": 33.27677670000412,
+      "process_seconds": 35.66333840000152,
+      "electrical_sha256": "0c5e7e82ebddcab1807ec4beb42aca7629fedf26e56f33e82c372265c1a0cb75"
+    },
+    {
+      "variant": "baseline",
+      "trial": 3,
+      "seconds": 41.907491199992364,
+      "process_seconds": 44.35138920000463,
+      "electrical_sha256": "0c5e7e82ebddcab1807ec4beb42aca7629fedf26e56f33e82c372265c1a0cb75"
+    },
+    {
+      "variant": "candidate",
+      "trial": 3,
+      "seconds": 31.34004760000971,
+      "process_seconds": 33.31255919999967,
+      "electrical_sha256": "0c5e7e82ebddcab1807ec4beb42aca7629fedf26e56f33e82c372265c1a0cb75"
+    }
+  ],
+  "median_seconds": {
+    "baseline": 43.239340800006175,
+    "candidate": 31.71445820000372
+  },
+  "speedup": 1.3633952226874588,
+  "exact_electrical_comparison": true,
+  "scope": "Fresh processes and workers, existing dependencies; operating-system file cache is not flushed.",
+  "baseline_commit": "d3b1d70f9076516412c71001f04b428a6d6a9044",
+  "workload": "Marble +3.3P and +3V3_USB, independent 2.5D rails; manual 2 mm VTK mesh",
+  "kicad": "10.0.6",
+  "python": "3.11.5",
+  "numpy": "2.4.2",
+  "scipy": "1.17.1",
+  "vtk": "9.6.1",
+  "validation": {
+    "native_backend": {
+      "passed": 323,
+      "subtests_passed": 332,
+      "skipped": 0
+    },
+    "focused_native": {
+      "passed": 49
+    },
+    "root_suite": {
+      "passed": 503,
+      "subtests_passed": 227,
+      "skipped": 89
+    },
+    "source_docs": true,
+    "independent_source_review": "No remaining actionable findings after bounded-query correction"
+  }
+}

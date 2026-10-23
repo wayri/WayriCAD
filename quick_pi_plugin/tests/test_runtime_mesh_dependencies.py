@@ -10,6 +10,11 @@ from wayricad_runtime.runtime_setup import REQUIREMENTS_QUICK_PI
 
 
 class RuntimeMeshDependenciesTests(unittest.TestCase):
+    def test_pi_probes_native_geometry_modules_without_loading_all_vtk(self):
+        self.assertNotIn('vtk',REQUIREMENTS_QUICK_PI)
+        for name in ('vtkmodules.vtkFiltersCore','vtkmodules.vtkFiltersGeneral','vtkmodules.vtkFiltersModeling'):
+            self.assertEqual(REQUIREMENTS_QUICK_PI[name],'vtk>=9.3,<10')
+
     def assert_worker_requirements(self,request,gmsh):
         before=copy.deepcopy(request);runtime_before=dict(REQUIREMENTS_QUICK_PI)
         def completed(command,**kwargs):

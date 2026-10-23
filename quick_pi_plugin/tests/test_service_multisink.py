@@ -111,6 +111,22 @@ class SavedBoardMultisinkTests(unittest.TestCase):
         self.assertLess(supplied['result']['energy_relative_error'],1e-6)
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),self.before)
 
+    def test_batch_owns_one_board_and_next_request_loads_a_fresh_board(self):
+        import pcbnew
+        electrical={k:v for k,v in self.request.items() if k not in ('action','board_path')}
+        request={'action':'batch','board_path':str(self.path),
+                 'study':{'schema':'wayricad.pi-batch/v1','cases':[
+                     {'name':'first','electrical':electrical},
+                     {'name':'second','electrical':{**electrical,'source_voltage':5.}}]}}
+        with patch.object(pcbnew,'LoadBoard',wraps=pcbnew.LoadBoard) as load:
+            batch=execute(request)['batch']
+            self.assertEqual(load.call_count,1)
+            self.assertEqual(batch['status'],'COMPLETED')
+            standalone=execute(self.request)
+            self.assertEqual(load.call_count,2)
+        self.assertEqual(batch['cases'][0]['electrical']['result'],standalone['result'])
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),self.before)
+
     def test_legacy_source_current_limit_and_voltage_window_are_preserved(self):
         request = {k:v for k,v in self.request.items() if k!='sinks'}
         result = execute({**request, 'sink_terminal':'U2.1', 'sink_current':2,

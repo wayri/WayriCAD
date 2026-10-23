@@ -2,6 +2,20 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+## First-run performance (development)
+
+Fresh solves load only the VTK geometry modules they need. A multi-net batch
+owns one native PCB instead of loading it again for every rail or return case;
+each case still checks the saved source before and after analysis. Contour
+queries, edge bookkeeping, matrix assembly and full-field result summaries also
+avoid unnecessary Python work. Mesh targets, copper boundaries, material
+values and solver tolerances are unchanged.
+
+See the [uncached Marble comparison](../docs/audits/QUICK_PI_COLD_PERFORMANCE_2026-10-22.md)
+for first-run timings, exact-field comparisons and limits. Existing result reuse
+is separate; these improvements do not depend on a previous solved request.
+The published v3.6.26 packages predate these first-run changes.
+
 ## Automatic mesh sizing
 
 **Automatic mesh** is enabled in the 2.5D window. Preview the saved copper to

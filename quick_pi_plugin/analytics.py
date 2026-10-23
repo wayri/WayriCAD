@@ -26,10 +26,13 @@ def summarize(mesh, result):
         area=abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))/2
         volume=area*thickness;power=result['cell_power_W'][i];vector=result['cell_J_A_mm2'][i]
         key=str(layer)
-        row=layers.setdefault(key,{'layer':layer,'name':names.get(key,key),'area_mm2':0.,'volume_mm3':0.,
-            'connected_area_mm2':0.,'connected_volume_mm3':0.,'planar_power_W':0.,
-            'thickness_min_mm':float(thickness),'thickness_max_mm':float(thickness),
-            'peak_current_density_A_mm2':None,'peak_location_mm':None,'triangle_count':0,'floating_triangles':0})
+        row=layers.get(key)
+        if row is None:
+            row={'layer':layer,'name':names.get(key,key),'area_mm2':0.,'volume_mm3':0.,
+                'connected_area_mm2':0.,'connected_volume_mm3':0.,'planar_power_W':0.,
+                'thickness_min_mm':float(thickness),'thickness_max_mm':float(thickness),
+                'peak_current_density_A_mm2':None,'peak_location_mm':None,'triangle_count':0,'floating_triangles':0}
+            layers[key]=row
         row['area_mm2']+=area;row['volume_mm3']+=volume;row['triangle_count']+=1
         row['thickness_min_mm']=min(row['thickness_min_mm'],float(thickness))
         row['thickness_max_mm']=max(row['thickness_max_mm'],float(thickness))
@@ -39,9 +42,16 @@ def summarize(mesh, result):
         density=math.sqrt(sum(value*value for value in vector));location=result['cell_centroid_mm'][i]
         if row['peak_current_density_A_mm2'] is None or density>row['peak_current_density_A_mm2']:
             row['peak_current_density_A_mm2']=density;row['peak_location_mm']=location
-        hotspot({'kind':'sheet','id':i,'layer':layer,'layer_name':row['name'],'location_mm':location,
-                 'thickness_mm':float(thickness),'current_density_A_mm2':density,'power_W':power,
-                 'power_density_W_mm3':power/volume,'thermal':result['cell_thermal'][i]})
+        heating=power/volume
+        # Only the twelve highest entries survive each heap. Most cells cannot
+        # enter either list; avoid allocating their discarded report dictionaries.
+        if (len(density_heap)<12 or density>density_heap[0][0] or
+                len(heating_heap)<12 or heating>heating_heap[0][0]):
+            hotspot({'kind':'sheet','id':i,'layer':layer,'layer_name':row['name'],'location_mm':location,
+                     'thickness_mm':float(thickness),'current_density_A_mm2':density,'power_W':power,
+                     'power_density_W_mm3':heating,'thermal':result['cell_thermal'][i]})
+        else:
+            serial+=1
     via_metadata={str(v['id']):v for v in mesh.get('vias',[])}
     for via in result.get('vias',[]):
         if via.get('power_W') is None:continue

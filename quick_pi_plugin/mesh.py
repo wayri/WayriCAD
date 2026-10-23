@@ -52,6 +52,19 @@ def contains(points, polygons):
     return result
 
 
+def _edge_neighbours(tree,centers,radii):
+    """Batch native queries while bounding retained Python neighbour indices."""
+    for start in range(0,len(centers),128):
+        stop=start+128
+        counts=tree.query_ball_point(centers[start:stop],radii[start:stop],return_length=True)
+        if int(np.sum(counts))<=65536:
+            yield from tree.query_ball_point(centers[start:stop],radii[start:stop],return_sorted=False)
+        else:
+            # Dense/long-edge contours keep only one result list at a time.
+            for center,radius in zip(centers[start:stop],radii[start:stop]):
+                yield tree.query_ball_point(center,radius,return_sorted=False)
+
+
 def _conforming_contours(polygons, cancelled=None, maximum_edge=None):
     """Split shared edges at every contact-region vertex before triangulation.
 
@@ -81,8 +94,13 @@ def _conforming_contours(polygons, cancelled=None, maximum_edge=None):
         split_rings=[]
         for ring in rings:
             out=[]
-            for a,b in zip(ring,np.roll(ring,-1,axis=0)):
-                direction=b-a; length=float(np.linalg.norm(direction))
+            ends=np.roll(ring,-1,axis=0)
+            directions=ends-ring
+            lengths=np.asarray([float(np.linalg.norm(d)) for d in directions])
+            # Query a whole ring in native code. Keep the scalar query's
+            # unsorted ordering and exact radii; contact tests below are unchanged.
+            neighbours=_edge_neighbours(tree,(ring+ends)/2,lengths/2+tolerance)
+            for a,b,direction,length,near in zip(ring,ends,directions,lengths,neighbours):
                 if length<=tolerance:continue
                 out.append(a.tolist())
                 # The query includes the edge's own corners, which can never
@@ -90,8 +108,7 @@ def _conforming_contours(polygons, cancelled=None, maximum_edge=None):
                 # Remove only exact cloud identities before allocating the
                 # projection/distance arrays; tolerance tests stay unchanged.
                 endpoints=(vertex_ids[tuple(a)],vertex_ids[tuple(b)])
-                candidates=[i for i in tree.query_ball_point((a+b)/2,length/2+tolerance)
-                            if i not in endpoints]
+                candidates=[i for i in near if i not in endpoints]
                 if not candidates:continue
                 nearby=cloud[candidates]
                 fraction=((nearby-a)@direction)/(length*length)
@@ -121,10 +138,23 @@ def _conforming_contours(polygons, cancelled=None, maximum_edge=None):
     return result
 
 
+def _unique_edges(edges,**kwargs):
+    """Lexicographically unique integer edges without a structured row sort."""
+    if not len(edges):return np.unique(edges,axis=0,**kwargs)
+    base=int(edges.max())+1
+    if base>3037000499 or np.any(edges<0):
+        return np.unique(edges,axis=0,**kwargs)
+    codes=edges[:,0].astype(np.int64,copy=False)*base+edges[:,1]
+    result=np.unique(codes,**kwargs)
+    def decode(values):return np.column_stack((values//base,values%base)).astype(edges.dtype,copy=False)
+    if isinstance(result,tuple):return (decode(result[0]),*result[1:])
+    return decode(result)
+
+
 def _split_point_contacts(points, triangles):
     """A shared vertex alone has zero conducting width; split separate fans."""
     edges=np.sort(np.concatenate((triangles[:,[0,1]],triangles[:,[1,2]],triangles[:,[2,0]])),axis=1)
-    unique,counts=np.unique(edges,axis=0,return_counts=True)
+    unique,counts=_unique_edges(edges,return_counts=True)
     if np.any(counts>2):raise ValueError('Copper triangulation has overlapping or non-manifold edges.')
     boundary=unique[counts==1]
     vertices,degree=np.unique(boundary.ravel(),return_counts=True)
@@ -196,8 +226,17 @@ def _improve_angles(points, triangles, regions, passes=32, cancelled=None):
 
 
 def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
-    import vtk
-    from vtk.util.numpy_support import vtk_to_numpy,numpy_to_vtkIdTypeArray
+    from types import SimpleNamespace
+    from vtkmodules import vtkCommonCore, vtkCommonDataModel, vtkFiltersCore, vtkFiltersGeneral, vtkFiltersModeling
+    from vtkmodules.util.numpy_support import vtk_to_numpy,numpy_to_vtkIdTypeArray
+    # Loading vtk imports every available rendering/IO module. The solver only
+    # needs these geometry filters; their implementations and settings are identical.
+    vtk=SimpleNamespace(**{name:getattr(module,name) for module,names in (
+        (vtkCommonCore,('vtkPoints','vtkIntArray')),
+        (vtkCommonDataModel,('vtkCellArray','vtkPolyData')),
+        (vtkFiltersCore,('vtkAppendPolyData','vtkDelaunay2D','vtkCleanPolyData','vtkTriangleFilter')),
+        (vtkFiltersGeneral,('vtkContourTriangulator',)),
+        (vtkFiltersModeling,('vtkAdaptiveSubdivisionFilter',))) for name in names})
     edge_mm = float(edge_mm)
     if not math.isfinite(edge_mm) or edge_mm <= 0:
         raise ValueError('Mesh edge length must be positive and finite.')
@@ -289,7 +328,7 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
             second=seeded_original[tris[:,2],:2]-seeded_original[tris[:,0],:2]
             nondegenerate=not np.any(abs(first[:,0]*second[:,1]-first[:,1]*second[:,0])<1e-16)
             edges=np.sort(np.concatenate((tris[:,[0,1]],tris[:,[1,2]],tris[:,[2,0]])),axis=1)
-            unique,counts=np.unique(edges,axis=0,return_counts=True)
+            unique,counts=_unique_edges(edges,return_counts=True)
             if nondegenerate and contains(seeded_original[tris].mean(axis=1),[polygon]).all() and {tuple(map(int,e)) for e in unique[counts==1]}==required and not np.any(counts>2):
                 accepted=vtk.vtkPolyData();accepted.DeepCopy(output);accepted.SetPoints(trial_points);break
         for angle in (0.,.1,.7,1.3):
@@ -314,7 +353,7 @@ def triangulate(polygons, edge_mm, max_cells=400_000, cancelled=None):
             if np.any(abs(first[:,0]*second[:,1]-first[:,1]*second[:,0])<1e-16):continue
             if not contains(original[tris].mean(axis=1),[polygon]).all():continue
             edges=np.sort(np.concatenate((tris[:,[0,1]],tris[:,[1,2]],tris[:,[2,0]])),axis=1)
-            unique,counts=np.unique(edges,axis=0,return_counts=True)
+            unique,counts=_unique_edges(edges,return_counts=True)
             boundary={tuple(map(int,e)) for e in unique[counts==1]}
             if boundary!=required or np.any(counts>2):continue
             accepted=vtk.vtkPolyData();accepted.DeepCopy(output);accepted.SetPoints(points);break
@@ -387,7 +426,7 @@ def _refine_long_edges(points,triangles,edge_mm,max_cells,cancelled=None,max_pas
     for step in range(max_passes+1):
         if cancelled and cancelled():raise InterruptedError('Meshing cancelled.')
         edges=np.sort(t[:,[[0,1],[1,2],[2,0]]].reshape(-1,2),axis=1)
-        unique,inverse=np.unique(edges,axis=0,return_inverse=True)
+        unique,inverse=_unique_edges(edges,return_inverse=True)
         lengths=np.linalg.norm(p[unique[:,1]]-p[unique[:,0]],axis=1)
         if not np.isfinite(lengths).all():raise ValueError('Non-finite copper mesh edge.')
         targets=(target_function((p[unique[:,1]]+p[unique[:,0]])/2) if target_function else np.full(len(lengths),edge_mm))

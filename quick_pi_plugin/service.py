@@ -165,12 +165,15 @@ def run_job(request, cancelled=None, timeout=300):
             return result
 
 
-def execute(request):
+def execute(request,*,_boards=None):
     from .mesh_sizing import mode as sizing_mode
     sizing_mode(request)
     if request.get('action')=='batch':
         from .batch import execute as execute_batch
-        return execute_batch(request,execute)
+        # One owned native board per batch, never shared across workers or jobs.
+        # Each case still checks the saved bytes before and after its analysis.
+        boards={}
+        return execute_batch(request,lambda case:execute(case,_boards=boards))
     max_cells=mesh_cell_budget(request)
     from .package_contacts import guard_request
     guard_request(request)
@@ -203,7 +206,12 @@ def execute(request):
     path=Path(request['board_path']).resolve()
     if not path.is_file() or path.suffix.lower()!='.kicad_pcb':raise ValueError('Choose a saved KiCad PCB.')
     before=hashlib.sha256(path.read_bytes()).hexdigest()
-    board=pcbnew.LoadBoard(str(path))
+    identity=(str(path),before)
+    board=_boards.get(identity) if _boards is not None else None
+    if board is None:
+        board=pcbnew.LoadBoard(str(path))
+        if board is not None and _boards is not None:
+            _boards.clear();_boards[identity]=board
     if board is None:raise ValueError('KiCad could not load this PCB.')
     action=request.get('action','inspect')
     if action=='inspect':

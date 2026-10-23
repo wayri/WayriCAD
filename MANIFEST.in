@@ -7,4 +7,7 @@ include docs/RELEASE_NOTES_3.6.26.md
 include docs/audits/RELEASE_3.6.26.md
 include docs/audits/QUICK_TOOLS_PERFORMANCE.md
 include docs/audits/QUICK_PI_BACKEND_PERFORMANCE_2026-10-22.md
+include docs/audits/QUICK_PI_COLD_PERFORMANCE_2026-10-22.md
+include docs/audits/QUICK_PI_COLD_PERFORMANCE_2026-10-22.json
 include docs/audits/NET_SELECTION_PERFORMANCE.md
+include tools/benchmark_quick_pi_cold.py
