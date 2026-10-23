@@ -81,9 +81,10 @@ def pad_in_netclass(pad,choice,settings):
     getter=getattr(pad,'GetNetClassName',None)
     if getter:names.add(str(getter()))
     net=pad.GetNetname()
-    assigned=settings.get('netclass_assignments',{}).get(net,[])
+    # KiCad projects may serialize unused assignment collections as JSON null.
+    assigned=(settings.get('netclass_assignments') or {}).get(net,[]) or []
     names.update([assigned] if isinstance(assigned,str) else assigned)
-    for row in settings.get('netclass_patterns',[]):
+    for row in settings.get('netclass_patterns') or []:
         if fnmatch.fnmatchcase(net,row.get('pattern','')):names.add(row.get('netclass','Default'))
     for row in settings.get('classes',[]):
         if net in row.get('nets',[]):names.add(row['name'])
@@ -498,6 +499,24 @@ class FanoutPlanner:
             if any(distance(v,v,a,b)<(other.via_diameter+plan.width)/2+pair_margin-2 for v in other_vias for a,b in segments):return 'generated via/track collision'
         return ''
 
+    def _has_pad_route(self, pad):
+        """Conservatively detect existing same-net launches on the pad's copper layers."""
+        size=pad.GetSize();offset=getattr(pad,'GetOffset',lambda:None)()
+        radius=math.hypot(size.x,size.y)/2
+        if offset is not None:radius+=math.hypot(offset.x,offset.y)
+        for item in self._obstacle_indices[3].query([pad.GetPosition()],radius):
+            kind=str(item.GetClass())
+            if kind not in ('PCB_TRACK','PCB_ARC','PCB_VIA') or item.GetNetCode()!=pad.GetNetCode():continue
+            layers=[layer for layer in self.board.GetEnabledLayers().CuStack()
+                    if self._on_layer(pad,layer) and self._on_layer(item,layer)]
+            if not layers:continue
+            if kind=='PCB_ARC':
+                if segment_hits_box(pad.GetPosition(),pad.GetPosition(),item.GetBoundingBox(),radius):return True
+            else:
+                width=item.GetWidth(layers[0]) if kind=='PCB_VIA' else item.GetWidth()
+                if segment_hits_pad(item.GetStart(),item.GetEnd(),pad,width/2,self.api):return True
+        return False
+
     def _plan(self, eligible_override=None, accepted_seed=()) -> List[FanoutPlan]:
         from .fanout_groups import validate_groups
         validate_groups(self.settings['groups'], self.settings['unmatched'], self.defaults)
@@ -548,6 +567,8 @@ class FanoutPlanner:
                             list(accepted_seed)+result,pads,tracks,zones,outline,margin)
                         candidates=[candidate] if candidate is not None else []
                     else:
+                        if pattern!='Via-in-pad' and any(self._has_pad_route(pad) for _,pad in group):
+                            raise ValueError('Pad already has connected copper; Fixed escape will not duplicate it. Use Adaptive for an open stub.')
                         paths=self._paths(group,pair_id,values,pattern,index)
                         candidates=[self._candidate(fp,pad,path,values,pattern,pair_id) for (fp,pad),path in zip(group,paths)]
                 except ValueError as exc:reason=str(exc)

@@ -58,6 +58,27 @@ class AdvancedFanoutTests(unittest.TestCase):
     def plan(self,**settings):
         return plan_fanout(self.board,pcbnew,dict({'add_vias':False,'pattern':'Radial outward'},**settings))
 
+    def test_fixed_escape_rejects_existing_endpoint_and_interior_contact(self):
+        pad=self.pad('SIGNAL',22,20)
+        for start,end in (((22,20),(23,20)),((21,20),(23,20))):
+            track=pcbnew.PCB_TRACK(self.board);track.SetStart(self.pos(*start));track.SetEnd(self.pos(*end))
+            track.SetWidth(pcbnew.FromMM(.15));track.SetLayer(pcbnew.F_Cu);track.SetNetCode(pad.GetNetCode());self.board.Add(track)
+            plans,rejected=self.plan()
+            self.assertFalse(plans);self.assertIn('will not duplicate',rejected[0])
+            self.assertEqual(len(list(self.board.GetTracks())),1)
+            self.board.Remove(track)
+        self.assertEqual(len(self.plan()[0]),1)
+
+    def test_fixed_escape_distinguishes_unconnected_layer_and_through_pad(self):
+        pad=self.pad('SIGNAL',22,20)
+        track=pcbnew.PCB_TRACK(self.board);track.SetStart(self.pos(22,20));track.SetEnd(self.pos(23,20))
+        track.SetWidth(pcbnew.FromMM(.15));track.SetLayer(pcbnew.B_Cu);track.SetNetCode(pad.GetNetCode());self.board.Add(track)
+        self.assertEqual(len(self.plan()[0]),1)
+        planner=FanoutPlanner(self.board,pcbnew,dict(pattern='Radial outward',add_vias=False))
+        planner._plan()
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_PTH);pad.SetLayerSet(pcbnew.LSET.AllCuMask())
+        self.assertTrue(planner._has_pad_route(pad))
+
     def test_45_and_custom_angles_on_rotated_footprint(self):
         pad=self.pad('SIGNAL',22,20)
         for rotation in (0,30,90,180):

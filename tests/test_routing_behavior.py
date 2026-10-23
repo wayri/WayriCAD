@@ -10,6 +10,18 @@ except ImportError:
 
 
 class GeometryTests(unittest.TestCase):
+    def test_nullable_project_netclass_assignments(self):
+        from types import SimpleNamespace
+        from wayricad_runtime.routing import pad_in_netclass
+        pad=SimpleNamespace(GetNetname=lambda:'SIGNAL')
+        settings={'netclass_assignments':None,'netclass_patterns':None}
+        self.assertTrue(pad_in_netclass(pad,'Default',settings))
+        self.assertFalse(pad_in_netclass(pad,'Power',settings))
+        settings={'netclass_assignments':{'SIGNAL':None},
+                  'netclass_patterns':[{'pattern':'SIG*','netclass':'Logic'}]}
+        self.assertTrue(pad_in_netclass(pad,'Logic',settings))
+        self.assertFalse(pad_in_netclass(pad,'Default',settings))
+
     def test_reject_nonfinite_dimensions(self):
         for value in (-1, 0, float('nan'), float('inf')):
             with self.assertRaises(ValueError): positive(value, 'Dimension')

@@ -220,6 +220,15 @@ The example separates via-in-pad and two escape angles. Each group can also sele
 
 ## Adaptive escapes around existing routing
 
+Current source rejects Fixed escape proposals from pads already touching
+same-net tracks or vias on their copper layers, including interior track
+contacts. It reports the affected pad instead of duplicating its launch.
+This guard and support for nullable saved-project netclass assignments were
+added after the 3.6.28 release; published 3.6.28 downloads do not contain them.
+Use Adaptive for a supported simple open-stub continuation. Via-in-pad keeps
+its separate fixed-location checks. Conservative pad/arc envelopes can require
+manual review; a rejected pad is not proof that its complete net is routed.
+
 ![Adaptive preview continuing an existing stub while avoiding nearby copper](help-adaptive.png)
 
 Four selected signals on a disposable SOIC fixture. Muted copper already exists; teal is the proposed addition. The right-hand upper escape continues the existing two-segment stub.
