@@ -16,3 +16,5 @@ include docs/audits/QUICK_PI_VIEWPORT_PERFORMANCE_2026-10-23.json
 include docs/audits/FANOUT_LIVE_PERFORMANCE_2026-10-23.md
 include docs/audits/FANOUT_LIVE_PERFORMANCE_2026-10-23.json
 include tools/benchmark_fanout_planning.py
+include docs/RELEASE_NOTES_3.6.27.md
+include docs/audits/RELEASE_3.6.27.md

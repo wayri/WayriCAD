@@ -2,7 +2,7 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Fanout Generator icon">
 
-## Live preview and faster planning (development)
+## Live preview and faster planning
 
 Select parts or pins in PCB Editor, then choose a **Fanout style**. **Live
 preview** is on by default: selection changes and edits update the candidates
@@ -35,7 +35,7 @@ Fresh fixed-style planning on Marble U35 fell from **21.94 s to 0.29 s**, with
 identical full plans and rejection reasons. The complete new native preview
 pipeline took 3.54 s initially and 2.86 s on refresh; source checks remain a
 significant cost. See the [benchmark and limits](../docs/audits/FANOUT_LIVE_PERFORMANCE_2026-10-23.md).
-These development changes are newer than the published v3.6.26 packages.
+These changes are included in WayriCAD 3.6.27.
 
 ## Capabilities
 

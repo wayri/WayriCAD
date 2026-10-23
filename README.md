@@ -15,7 +15,7 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.26](https://github.com/wayri/WayriCAD/releases/tag/v3.6.26) · [Release notes](docs/RELEASE_NOTES_3.6.26.md) |
+| Download or update | [Release 3.6.27](https://github.com/wayri/WayriCAD/releases/tag/v3.6.27) · [Release notes](docs/RELEASE_NOTES_3.6.27.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 23 plugins](#all-23-plugins) |
 | See the interfaces | [Screenshots](#plugin-previews) |
@@ -23,12 +23,15 @@ installable plugins. Processing runs locally after setup. KiCad 10 is the valida
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-## Latest release — 3.6.26
+## Latest release — 3.6.27
 
 Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
 
 | Improvement | Workflow |
 |---|---|
+| Faster fresh PI solves | Reuse one native PCB across a multi-net batch and reduce geometry/matrix overhead. Marble cold median 43.24 s to 31.71 s. [Measurements](docs/audits/QUICK_PI_COLD_PERFORMANCE_2026-10-22.md). |
+| Responsive native board view | Saved silkscreen retains its physical size and placement. Marble full viewport redraw 763 ms to 58 ms; cached drag and indexed probes reduce interaction work. [Measurements](docs/audits/QUICK_PI_VIEWPORT_PERFORMANCE_2026-10-23.md). |
+| Live, faster fanout preview | Selection and style changes update the main canvas and a component thumbnail. Fixed Marble U35 planning 21.94 s to 0.29 s with identical plans. [Fanout guide](fanout_generator_plugin/ReadMe.md). |
 | Faster Quick PI interaction | Reuse unchanged results, load selected-net display geometry in the worker, and retain plot artists during navigation. [Measurements](docs/audits/QUICK_TOOLS_PERFORMANCE.md). |
 | Better net selection and views | Search with wildcards or fuzzy suggestions without losing the selected net. Focus maps and PCB selection on the simulated nets; choose a combined-layer projection. |
 | Clear trace comparisons | Trace Refiner 0.3.1 fixes missing UUID-setter compatibility and provides amber/teal Overlay, Before, After and Side-by-side views. |
@@ -44,7 +47,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | CLI access across all 23 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.26.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.27.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -454,7 +457,7 @@ These options stay separate from the simple main workflow. Native fabrication mi
 
 ### [Fanout Generator](fanout_generator_plugin/ReadMe.md)
 
-**Live style preview (development)**
+**Live style preview**
 
 Select components or pins, choose a style and inspect its actual fanouts in the
 small component preview and main canvas. Apply remains separate.

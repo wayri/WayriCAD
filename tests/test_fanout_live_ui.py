@@ -1,5 +1,6 @@
 """Native live fanout previews stay read-only, current and component-scoped."""
 import unittest
+import time
 from unittest.mock import patch
 import test_connector_escape as fixture
 try:
@@ -85,9 +86,20 @@ class FanoutLivePreviewTests(unittest.TestCase):
         self.assertIn('0 accepted escapes',self.frame.style_summary.GetLabel())
 
     def test_live_timer_computes_current_selection_without_applying(self):
+        self.frame.Show()
         self.frame.on_config_changed(None)
-        wx.CallLater(600,self.app.ExitMainLoop)
-        self.app.MainLoop()
+        deadline=time.monotonic()+5
+        timers=[]
+        def finish_when_ready():
+            if (self.frame.preview_plan and not self.frame._preview_busy) or time.monotonic()>=deadline:
+                # Exit after the current callback/idle work has unwound, rather
+                # than assuming a fixed wall-clock delay means preview is done.
+                wx.CallAfter(self.app.ExitMainLoop)
+            else:timers.append(wx.CallLater(50,finish_when_ready))
+        timers.append(wx.CallLater(50,finish_when_ready))
+        try:self.app.MainLoop()
+        finally:
+            for timer in timers:timer.Stop()
         self.assertEqual(len(self.frame.preview_plan),6)
         self.assertTrue(self.frame.commit_button.IsEnabled())
         self.assertFalse(list(self.fixture.board.GetTracks()))
