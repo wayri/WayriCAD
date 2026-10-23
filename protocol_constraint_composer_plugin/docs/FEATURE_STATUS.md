@@ -1,8 +1,7 @@
 # Constraint Studio feature status
 
-Current source behavior after the published 3.6.28 release removes duplicate
-general rule authoring and netclass/board-setting editors. This is a source
-change, not a claim that a new binary is published. KiCad 10 owns individual
+Release 3.6.29 removes duplicate general rule authoring and
+netclass/board-setting editors. KiCad 10 owns individual
 rules in [Tools > Design Rule Editor](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#graphical-design-rule-editor),
 and netclasses and manufacturing floors in
 [Board Setup](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#net-classes).

@@ -1,6 +1,6 @@
 # Constraint Studio UI changes and validation
 
-## Current source behavior after release 3.6.28
+## Current workflow in release 3.6.29
 
 General rule authoring moved to KiCad 10 **Tools > Design Rule Editor**;
 netclasses and board-wide settings are edited in **Board Setup**. Studio's
@@ -11,7 +11,7 @@ scoped layer/via profiles and staged review/export/apply remain available.
 See the [native graphical rule editor](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#graphical-design-rule-editor),
 [net classes](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#net-classes), and
 [tuning profiles](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#tuning-profiles)
-in KiCad 10. This source change is not a published binary claim.
+in KiCad 10. These changes are included in release 3.6.29.
 
 ## Historical 3.6.15 UI validation
 

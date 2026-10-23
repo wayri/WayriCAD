@@ -1,6 +1,6 @@
-# Constraint Studio source help: current workflow after release 3.6.28
+# Constraint Studio 3.6.29 help
 
-Use the native **Help** tab / F1 or the packaged offline HTML. Historical handbook and PDF assets may describe the earlier editable worksheet; this source guide describes the current source behavior, not a published 3.6.28 binary.
+Use the native **Help** tab / F1 or the packaged offline HTML. Historical handbook and PDF assets may describe the earlier editable worksheet; this guide describes the 3.6.29 workflow.
 
 Eight source-derived renders illustrate the code-defined UI. They are not native screenshots or proof of KiCad/Windows acceptance.
 

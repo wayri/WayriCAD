@@ -16,8 +16,7 @@ workspace. Edit individual rules in KiCad 10's **Tools → Design Rule Editor**;
 edit netclasses and board-wide settings in **Board Setup**. Studio retains protocol
 presets, clearance matrices, reusable sets, BGA managed regions and scoped layer
 profiles with via rules. Studio changes stay staged until you export and apply a
-reviewed copy. These interface changes are newer than release 3.6.28 and are
-currently available in source.
+reviewed copy. These interface changes are included in release 3.6.29.
 
 ## Getting started
 

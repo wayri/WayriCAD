@@ -4,7 +4,7 @@
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.28](https://github.com/wayri/WayriCAD/releases/tag/v3.6.28) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.29](https://github.com/wayri/WayriCAD/releases/tag/v3.6.29) · [Installation](../docs/INSTALLATION.md) |
 | Choose component inputs | [Native workspace](#native-workspace-and-component-inputs) |
 | Run a known example | [Reproducible example](#reproducible-example) |
 | Top, bottom, 3D and probes | [Interactive views](#interactive-views-and-time-evolution) |

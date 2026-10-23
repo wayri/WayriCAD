@@ -232,7 +232,7 @@ Current source rejects Fixed escape proposals from pads already touching
 same-net tracks or vias on their copper layers, including interior track
 contacts. It reports the affected pad instead of duplicating its launch.
 This guard and support for nullable saved-project netclass assignments were
-added after the 3.6.28 release; published 3.6.28 downloads do not contain them.
+included in release 3.6.29. Earlier 3.6.28 downloads do not contain them.
 Use Adaptive for a supported simple open-stub continuation. Via-in-pad keeps
 its separate fixed-location checks. Conservative pad/arc envelopes can require
 manual review; a rejected pad is not proof that its complete net is routed.
