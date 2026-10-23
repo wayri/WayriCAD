@@ -27,3 +27,24 @@ source changes retain their existing versions and must match published bytes.
 Assistant is included as a testing package. It coordinates supported local
 CLI operations; it does not establish numerical or manufacturing qualification.
 Connected-editor IPC and weaker-hardware performance remain unverified.
+
+## Published asset checks
+
+- All eight jobs passed for source commit `f08609a4` in
+  [release CI](https://github.com/wayri/WayriCAD/actions/runs/39944660962).
+- The release tag resolves to that exact source commit. All 31 uploaded assets
+  have matching server digests; every public download was retrieved and its
+  SHA-256 matched the validated local payload.
+- All 24 candidate PCM ZIPs passed schemas, syntax, icons, entrypoints and
+  download hashes. The six native ZIPs retain their published bytes and versions.
+- The release wheel passed isolated CLI/report/assets smoke checks. The source
+  archive contains 1,215 tracked files that match the release checkout exactly.
+  An inspection of 26 archives found no validation caches or known private paths.
+- Both final routing ZIP workers reproduced the 22 guard-via positions and
+  board context without modifying their copied source. Release inventory and
+  package checks passed seven tests / 24 subtests; CLI adapter checks passed
+  11 tests / 216 subtests in their independent import context.
+
+The public PCM descriptors are promoted separately from the tested release
+source, after publication and download verification. Published binaries and
+earlier tags are not replaced.
