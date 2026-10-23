@@ -35,3 +35,8 @@ include docs/audits/FANOUT_DENSE_BOARD_FIXES_2026-10-23.md
 include docs/RELEASE_NOTES_3.6.31.md
 include docs/audits/RELEASE_3.6.31.md
 include docs/audits/QUICK_PI_LIVE_CURRENT_2026-10-24.md
+include quick_pi_plugin/tests/test_live_current.py
+include quick_pi_plugin/tests/test_live_ui.py
+include quick_pi_plugin/tests/test_live_view.py
+include quick_pi_plugin/tests/test_report.py
+include quick_pi_plugin/tests/test_solver.py
