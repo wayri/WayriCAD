@@ -53,3 +53,25 @@ from `/var` to `/private/var`. The test now compares canonical paths, matching
 the implementation's existing config-relative resolution contract. This changes
 only the test expectation; model path resolution is unchanged. A new exact-source
 CI run is required before publication.
+
+## Published release and methods documentation
+
+The release tag identifies `af3190600decd74a9771dcc7ced7650c1f27fc02`, which
+includes the methods/research documentation for all 24 tools and the portable
+IBIS test fix. All eight [exact-source CI jobs](https://github.com/wayri/WayriCAD/actions/runs/40294777932)
+passed. PR #27 was merged before publication.
+
+Desktop uploads of the three large assets repeatedly returned HTTP 408. The
+[hosted Windows build](https://github.com/wayri/WayriCAD/actions/runs/40297417305)
+therefore rebuilt that exact tested source, validated all 24 PCM packages and
+documentation, and passed isolated wheel CLI/report/API smoke checks. It verified
+the 31 uploaded draft digests before publication. The public release downloads
+were then streamed and SHA-256 checked against that hosted build's checksum
+manifest: all 31 matched. The promoted feed is the hosted build's matching pair
+of `pkgs.json` and `repo.json`; all 24 package URLs/hashes and the repository
+digest passed the checked-in official schema and source-inventory checks.
+
+The earlier native tests above apply to their recorded source/local artifacts.
+The hosted rebuild and public-download hash checks establish packaging and byte
+integrity; they do not, by themselves, rerun native GUI tests or establish
+physical validation. Hosted archive hashes can differ from desktop builds.
