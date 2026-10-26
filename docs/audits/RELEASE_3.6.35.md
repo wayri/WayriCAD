@@ -52,3 +52,22 @@ local paths, numerical edits or pixel alterations are included.
 
 Earlier release binaries and tags are preserved. Candidate package metadata is
 held back until its release downloads are published and verified.
+
+## Publication
+
+Published [3.6.35](https://github.com/wayri/WayriCAD/releases/tag/v3.6.35)
+from `a3b680c1b3de2f19a7b12b645cf38a8c6fb0ab23`. All eight
+[exact-source CI jobs](https://github.com/wayri/WayriCAD/actions/runs/40404900667)
+passed on Linux, Windows and macOS portable checks plus the PI references.
+
+All 24 PCM ZIPs pass schemas, runtime/actions, syntax, icons and hash checks.
+The final independently extracted PI and SI installers passed guided-return
+setup with their own bundled runtime. The clean wheel passed isolated CLI and
+report/mechanical smoke checks and excludes tests and bytecode. The source
+archive's 1,338 tracked members match the tested checkout bytes. Seven root
+version/helper tests with 24 subtests and 32 Analytics packaging tests passed.
+
+All 31 assets were downloaded and matched the local SHA-256 manifest before
+publication. Public PI/SI installer and feed downloads were verified afterward;
+the PCM feed is promoted from those exact release metadata bytes. Earlier
+release binaries and tags are unchanged. No local plugin installation was made.
