@@ -184,6 +184,26 @@ is checked. Unresolved labels retain their original styles.
 ![Native formatting controls](help-formatting.png)
 ![Placement workflow](workflow.svg)
 
+## Implemented methods and research basis
+
+The placement/search implementation is [placement.py](placement.py); optional
+multi-bend guide candidates are in [guide_routing.py](guide_routing.py), and
+generated-object custody is in [lifecycle.py](lifecycle.py).
+
+| Method | Implementation | Assumptions and limits | Validation evidence |
+|---|---|---|---|
+| Native text envelope and obstacles | Candidate style/height/width/angle is materialized on a detached native text item. Filled glyph polygons, stroke and knockout background define its envelope. Courtyards, fabrication/body hulls, mask openings, exposed holes, other text/guides and the board outline/cutouts become same-face native obstacles indexed in 4 mm cells; exact polygon/segment tests remain the narrow phase. | Hulls and courtyards are 2D component proxies, not body models. Conservative envelopes can reject inter-glyph opportunities. Missing native courtyard distance stays unknown. | [test_clearance.py](tests/test_clearance.py), [test_typography.py](tests/test_typography.py) and native-envelope rollback cases |
+| Candidate generation and ranking | Edge corridors follow the footprint's rotated local axes. The search enumerates bounded edge slots, staggered positions, allowed angles and per-label size/width variants, then farther rings. Lexicographic ranking prefers readable local, projected-edge-aligned, unambiguous placements before displacement and coordinates; difficult/long labels are attempted first. | This is deterministic finite enumeration, not a global label-placement solver. Search exhaustion means unresolved, not impossible. Distances are native units internally and reported in mm. | dense, far-slot, long-label and cancellation cases in [test_placement.py](tests/test_placement.py); axis/readability policy in [test_readability_policy.py](tests/test_readability_policy.py) |
+| Association and guide routing | Every accepted text box reserves a straight line of sight to its owning footprint. When printed leaders are authorized, the straight route is tried first; optional visibility-graph nodes come from expanded obstacle corners and bounded local offsets. Dijkstra's non-negative shortest-path algorithm ranks clear segments with bend penalties, based on [Dijkstra (1959)](https://doi.org/10.1007/BF01386390). The full native stroke/outline checker accepts or rejects the returned candidate. | Leaders are bounded by count, length, node and edge-check budgets. A graph path is a candidate, not proof of visual clarity. The default remains no printed leader. | [test_guide_routing.py](tests/test_guide_routing.py) and association/ownership cases in [test_label_ownership.py](tests/test_label_ownership.py) |
+| Bounded local repacking | If a target remains unresolved, up to the configured nearby-label count is removed from the spatial index, candidate combinations are retried within each neighbour's displacement bound, and the cluster is accepted only if every affected label is legal and association-safe. Preserved/problem-only labels remain fixed. | This is local backtracking with explicit caps, not global optimal packing; dense preserved originals may legitimately block all repairs. | cluster displacement, starvation and failed-target cases in [test_readability_policy.py](tests/test_readability_policy.py) |
+| Readability and formatting | Native fabrication minima cap requested stroke/text sizes. Automatic sizing samples at most 16 heights and preserves condensed proportions subject to minimum width and width/height ratio. Allowed board-face reading direction is converted to native angle/mirroring; formatting rules are ordered first-match wildcard predicates. | Readability is a configurable geometric policy, not OCR, font-process qualification or a guarantee after fabrication. | all angles/directions, sizing, style order and knockout cases in [test_typography.py](tests/test_typography.py) |
+| Net annotation and lifecycle | Test-point annotation requires exactly one distinct connected net. Managed metadata binds footprint/text/guide UUIDs plus settings; audit distinguishes verified, orphaned, duplicate and uncertain records. Apply/Cleanup/Undo use stale-state guards and rollback journals; unverified legacy artwork is never adopted or deleted. | Hierarchical net names are copied literally; no wrapping or multi-net connector synthesis is attempted. Window Undo is not editor-global Undo. | [test_net_annotations.py](tests/test_net_annotations.py), [test_lifecycle.py](tests/test_lifecycle.py), [test_guide_transactions.py](tests/test_guide_transactions.py) |
+
+The shortest-path citation applies only to visibility-graph routing. Edge-slot
+ordering, readability ranking and neighbourhood repacking are project-specific
+heuristics. The reference-board study below is empirical background, not an
+algorithm dependency or proof of universal silkscreen legibility.
+
 ## Command line and reports
 
 The CLI is read-only. It uses a native KiCad worker and checks saved PCB, project

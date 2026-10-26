@@ -91,3 +91,26 @@ large rename.
   edited KiCad object and editor state.
 
 See help.html for the current window and integrated walkthrough.
+
+## Implemented methods and evidence
+
+The implementation is deliberately a reviewed text transformation, not a netlist
+or schematic refactoring engine.
+
+| Method | Inputs and result | Implementation and applicability |
+|---|---|---|
+| Editable-object inventory | The saved/open PCB's footprint references, values, supported footprint fields and board text become typed `EditableItem` rows. | [`refresh_items`, `_add_fields` and `_add_board_text`](bulk_label_editor_plugin.py) use the PCB API exposed by the originating editor. Shapes that merely expose a text-like method but cannot return text are skipped. |
+| Wildcard matching | A whole-field pattern with `*` and `?` produces one candidate replacement; matching is case-insensitive unless requested. | [`wildcard_replace`](bulk_label_editor_plugin.py) escapes literal characters, turns wildcards into capture groups and substitutes captured `*` groups from left to right. It is not shell glob expansion and `?` captures are not available in the replacement. |
+| Regular-expression matching | Python regular-expression search/replacement, including capture-group replacements, produces candidate values. | [`_replace`](bulk_label_editor_plugin.py) delegates to `re.sub`; invalid expressions stop preview. Regex behavior is the Python language behavior, not KiCad rule-expression syntax. |
+| Reviewed write set | Preview stores `(object, old value, new value)` rows; Apply writes only that set. | [`on_preview` and `_apply_operation`](bulk_label_editor_plugin.py) re-resolve object identities against a fresh board read before writing. A removed object stops Apply. Changes made to a still-present field after preview are protected by the shared [`apply_fields`](../wayricad_runtime/fields.py) stale-value checks. |
+| Session undo/redo and cross-navigation | Successful batches are retained as reversible old/new tuples; a preview row can select its PCB object. | [`on_undo`, `on_redo`](bulk_label_editor_plugin.py) and [`selection_utils.py`](selection_utils.py) operate only in the current window/editor session. This history is not a persistent project transaction log. |
+
+There is currently no plugin-local automated test directory. The implementation
+is exercised through the suite's shared field-application and runtime tests, but
+that does not substitute for an installed-editor rename/undo check on the target
+KiCad version.
+
+### Technical background
+
+- [KiCad IPC API for add-on developers](https://dev-docs.kicad.org/en/apis-and-binding/ipc-api/for-addon-developers/) describes the editor-scoped API boundary used by installed plugins. It is a dependency/interface reference, not evidence that a particular rename is correct.
+- [Python regular-expression syntax](https://docs.python.org/3/library/re.html#regular-expression-syntax) defines regex mode. Wildcard mode is the project-specific transformation documented above.

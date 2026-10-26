@@ -124,3 +124,23 @@ ampacity and derating, insulation, creepage, shielding, bend radius, connector
 ratings, assembly process, applicable standards, and test coverage.
 
 Native operational validation inventories the real Marble board (371 connector pins) without inventing external mates. A clearly separate two-board fixture exercises saved-board reload, reviewed pin-map CSV roundtrip, bundles/splices, procurement BOM and CSV/SVG/offline HTML exports. Reproduce with `python tools/validate_marble_operations.py --kinds harness` from the suite root.
+
+## Implemented methods and evidence
+
+| Method | Inputs and result | Implementation and limits |
+|---|---|---|
+| Normalized pin intake | CSV headings are case-folded and common aliases map to project/connector/pin/net records; duplicates use the exact `(project, connector, pin, net)` key and output is naturally sorted. | [`load_pin_csv` and `load_pin_documents`](analysis.py). Only rows with connector and pin survive; a repeated exact identity is last-row-wins, so review import counts. |
+| Connector correspondence | Reviewed connector rules map exact pins, numeric offsets or explicit source:destination pairs through a connector/pin index. | [`connector_correspondence`](analysis.py). Missing destinations become `unmatched`; default pin-number equality is a convenience, not evidence of mating orientation. |
+| Explicit pin-map resolution | Spreadsheet rows resolve exact project/connector/pin identities and retain unresolved endpoints and per-wire metadata. | [`links_from_pin_map`, `validate_pin_map`](analysis.py). This is the preferred method for arbitrary or fanned-out mappings. |
+| Automatic net linking | Wildcard or regex patterns extract captures, index destination candidates and retain ambiguity rather than silently choosing one. | [`auto_link` and `auto_link_multi`](analysis.py). Net-name similarity establishes a naming correspondence only; it does not prove polarity, voltage or protocol compatibility. |
+| End-to-end path join | Audited board endpoint paths are joined to harness links on exact project, connector and pin keys; Cartesian source/destination candidates remain separate routes. | [`build_system_signal_paths`](analysis.py). Status/confidence is propagated, protocol labels are name-token heuristics, and missing board paths may be emitted as explicit low-confidence partial routes. |
+| Validation and procurement roll-up | Duplicate wire IDs, unmatched endpoints and suspicious power-name joins become findings; connector/contact counts, wire lengths, bundles and splices become a harness BOM. | [`validate_links` and `harness_bom`](analysis.py). The roll-up uses entered data and does not calculate ampacity, voltage drop, derating or compliance. |
+| Reports and diagrams | Deterministically sorted rows feed CSV, schematic SVG and escaped self-contained HTML. | [`report.py`](report.py) and [`universal_harness_svg`](analysis.py). Diagram positions are for connectivity review, not physical cable geometry. Summary regressions are in [`test_overview.py`](tests/test_overview.py); native operational evidence is described above. |
+
+### Technical background
+
+The workbench's matching and layout are project workflows rather than published
+electrical algorithms. Imported board semantics ultimately follow KiCad's official
+[board file format](https://dev-docs.kicad.org/en/file-formats/sexpr-pcb/) and the
+[IPC add-on boundary](https://dev-docs.kicad.org/en/apis-and-binding/ipc-api/for-addon-developers/).
+Those references define inputs and integration; they do not validate a harness.

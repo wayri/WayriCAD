@@ -39,6 +39,41 @@ The counter includes one multilayer zone-only keepout spanning the whole counter
 
 This is a layout aid, with no certified-standard compliance claim. It does not infer real core/prepreg materials or change the stackup.
 
+## Implemented methods and research basis
+
+The complete planner and transaction are in [core.py](core.py), with native UI
+coverage in [test_ui.py](tests/test_ui.py) and geometry/transaction coverage in
+[test_core.py](tests/test_core.py).
+
+- **Physical layer enumeration.** `board.GetEnabledLayers().CuStack()` is
+  enumerated front-to-back starting at L1, so sparse native layer IDs do not
+  change printed physical numbers. Core-pair strings must name adjacent
+  physical layers, front side first, and cover each selected layer exactly
+  once. This is validation of user input, not inference of dielectric cores.
+- **Deterministic style geometry.** Row and column are constant-pitch layouts;
+  staircase uses `0.6 × pitch` vertical steps and zigzag alternates
+  `0.65 × pitch`. Core-pair styles offset the two faces by half a pitch.
+  Circle/rectangle/polygon/bar frames are constructed from native copper
+  segments or filled polygon shapes. Pitch is a lower bound and is increased
+  from text size/stroke so labels through L32 fit. All coordinates and sizes
+  are millimetres converted once to KiCad internal units.
+- **Measured envelope and zone exclusion.** Native glyph and shape bounding
+  boxes, rather than estimated character widths, are unioned and expanded by
+  the requested margin. One multilayer rule area sets zone keepout only across
+  the selected layer set. It does not exclude tracks or pads.
+- **Reviewed mutation.** Planning builds detached text, shapes and rule area;
+  source/item fingerprints reject stale commits. Add, Undo and Redo use one
+  guarded group transaction with rollback on partial native failures.
+
+These layout patterns are project-specific fabrication aids, not a published
+registration-coupon algorithm. The [KiCad 10 PCB Editor
+manual](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html) is the normative
+background for copper text, enabled stackup layers, groups and zone-only rule
+areas; it is not validation of a counter's manufacturability. Tests cover
+sparse physical numbering, every style, core-pair rejection, native glyph
+bounds, stale state, rollback and exact Undo/Redo in
+[test_core.py](tests/test_core.py).
+
 ## Command line
 
 ```text

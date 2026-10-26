@@ -62,6 +62,24 @@ Each preview explains rejected sites by region boundary, per-tile density ceilin
 
 Settings reject booleans disguised as dimensions, nonfinite coordinates and noninteger shape limits/seeds. Impossible geometry-adapter areas fail the preview instead of producing misleading density. Tiny polygon-rounding deviations are clamped within a numerical tolerance. These diagnostics quantify copper coverage, not electroplating or thermal performance.
 
+## Implemented methods and research basis
+
+Planning is implemented in [engine.py](copper_balancer/engine.py); the KiCad
+polygon adapter and guarded mutation are in
+[kicad_backend.py](copper_balancer/kicad_backend.py).
+
+| Method | Implementation | Assumptions and unsupported cases | Validation evidence |
+|---|---|---|---|
+| Shape construction and lattice | Size is an outer diameter except square-derived shapes (side length) and bars (`size × size/3`). Circles and rounded/organic shapes are deterministic polygonal approximations. Candidate centres use a square grid or alternate-row hexagonal lattice with `pitch = 2r + gap + 0.002 mm`; the extra 2 µm guards native-unit rounding. A seeded shuffle distributes a truncated plan reproducibly. | The circumradius spacing is conservative for noncircular shapes. “Organic” is a fixed trigonometric template, not an optimization or manufacturing model. | every-shape, both-lattice, deterministic-gap and limit/cancellation cases in [test_engine.py](tests/test_engine.py) |
+| Per-tile density accounting | Each tile measures `density = 100(existing area + accepted added area) / board area`. Candidate area is apportioned to every crossed tile by sequential half-plane clipping against the tile rectangle, the Sutherland–Hodgman method described in [Sutherland and Hodgman (1974)](https://doi.org/10.1145/360767.360802). Local-balance mode rejects a shape if any crossed tile would exceed the requested ceiling. | The target is a local ceiling, not a guaranteed minimum or a plating/thermal prediction. Existing over-target tiles cannot be repaired by adding copper. At most 10,000 tiles and 500,000 candidate sites are examined. | cross-tile, dense-tile, rectangle-clipping and diagnostic-accounting cases in [test_engine.py](tests/test_engine.py) and [test_diagnostics.py](tests/test_diagnostics.py) |
+| Native allowed region | KiCad `SHAPE_POLY_SET` booleans form the closed board outline minus holes, edge inset, rule/keepout zones and clearance-inflated pads, vias, tracks, graphics and zone boundaries. Filled zone polygons measure existing copper; unfilled zones are still reserved and warned. Broad bounding boxes only cull remote objects; acceptance remains a native polygon containment test. | Density uses current filled-zone geometry, so stale/unfilled zones reduce evidence quality. Composite custom clearance rules not exposed by KiCad 10 SWIG fall back conservatively and still require DRC. | holes, slots, keepouts, edge bands, scoped/full equivalence and invalid-outline cases in [test_kicad.py](tests/test_kicad.py) |
+| Modes and rejection order | Uniform mode accepts every geometrically legal site; local balance also enforces each crossed tile's ceiling; edge-band mode subtracts the inset board interior. Rejections are counted as region boundary, density ceiling, or combined native geometry/clearance. | A combined geometry reason is intentionally not presented as a diagnosis of one obstacle. No global objective redistributes copper between tiles. | edge-band, rejection and density-budget cases in [test_engine.py](tests/test_engine.py) and [test_kicad.py](tests/test_kicad.py) |
+| Ownership and save transaction | Every accepted polygon receives a distinct floating layer-labelled net and a managed group; mask openings are not added. Replacement recognizes only explicit current/legacy ownership. Mutation is journalled and rolled back on failures; saved-copy export rechecks the source hash and exclusively creates a new destination. | Generated isolated copper may still produce native DRC warnings and has no guaranteed electrical or thermal function. | idempotence, ownership, net-collision, rollback and exclusive-output races in [test_kicad.py](tests/test_kicad.py) and [test_workflow.py](tests/test_workflow.py) |
+
+Only the rectangular clipping primitive has a cited published algorithm. The
+pattern templates, seeded ordering and density-ceiling workflow are
+project-specific heuristics and do not claim a research-derived plating model.
+
 ## Command line
 
 The suite console command discovers KiCad's native interpreter automatically. `--help` needs no KiCad installation.

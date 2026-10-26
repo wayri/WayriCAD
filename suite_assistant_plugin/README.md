@@ -87,3 +87,19 @@ python -m unittest discover -s suite_assistant_plugin/tests -v
 ```
 
 Twenty-one focused window tests passed with KiCad 10.0.6 native Python on Windows. An actual GUI → planner → existing CLI run completed for the microstrip example and the tool catalogue. Window tests require native wxPython; an ordinary Python environment skips them. These standalone native checks do not imply an installed IPC-toolbar workflow has been tested.
+
+## Implemented methods, execution boundary and evidence
+
+| Method | Inputs and result | Implementation and limits |
+|---|---|---|
+| Local intent ranking | A request is tokenized into words and character n-grams, then compared with registered action phrases to produce a ranked typed action. | [`_words`, `_grams`, `_similarity`, `_rank`](../wayricad_runtime/assistant.py). This fuzzy matcher is deterministic local string scoring, not an LLM, semantic proof or unrestricted agent. Ambiguous top choices are returned for user selection. |
+| Slot extraction and clarification | Explicit numeric/unit phrases, selected nets and safe saved-board context populate an action schema; missing or invalid required fields become questions. | [`_slots`, `_safe_context`, `propose`](../wayricad_runtime/assistant.py). Only declared schema fields are accepted; domain defaults and limitations come from the selected tool adapter. |
+| Typed compilation and plan sealing | Each step compiles through an allowlisted action adapter into an argument array; canonical JSON is SHA-256 sealed. | [`_compile`, `_seal`, `validate_plan`](../wayricad_runtime/assistant.py). The seal detects plan modification between review and execution; it is not a digital signature or authorization credential. Arbitrary code/shell strings are not generated. |
+| Source freshness | Relevant board/project/hierarchy inputs are discovered and hashed before execution; the worker revalidates the plan and sources. | [`_source_paths`, `_input_hashes`, `run_plan`](../wayricad_runtime/assistant.py). Unsaved editor state is outside this evidence boundary. |
+| Isolated execution and report provenance | A non-daemon worker process executes registered tool CLIs, supports cancellation, captures bounded logs and records step/artifact hashes in a run report. | [`run_plan`](../wayricad_runtime/assistant.py). Scientific meaning and validation remain those of each invoked tool; orchestration does not upgrade an estimate to proof. |
+| Safe result/UI boundary | Only supported report extensions inside the returned output root are opened; board selection invalidates old plans and editor navigation rechecks the saved-board hash. | [`report_path`, `_show_result`, `_show_in_editor`](gui.py) and [`analysis_selection.py`](../wayricad_runtime/analysis_selection.py). These contracts are covered by [`test_assistant_ui.py`](tests/test_assistant_ui.py); wx/native tests may skip outside KiCad. |
+
+### Technical background
+
+- The [KiCad IPC add-on documentation](https://dev-docs.kicad.org/en/apis-and-binding/ipc-api/for-addon-developers/) defines the running-editor integration used for navigation and selection. It does not validate tool results.
+- Python's [`hashlib`](https://docs.python.org/3/library/hashlib.html) documents the SHA-256 primitive used for plan/source/artifact freshness. Intent ranking and clarification are project algorithms documented from source, not claims attributed to external AI research.

@@ -148,7 +148,30 @@ retain section results and unresolved terms. The
 [open-board checks](../docs/audits/RLC_OPEN_BOARD_VALIDATION.md) record what was
 tested separately from the literature's broader formula coverage.
 
+### Equation and verification map
+
+[rlc_model.py](rlc_model.py) evaluates `Rdc = ρℓ/(wt)` with default copper
+resistivity `1.724 × 10⁻⁸ Ω·m`. For a supported uniform line,
+`v = c/√εeff`, `L′ = Z0/v`, `C′ = 1/(Z0 v)` and `delay = ℓ/v`;
+section totals retain their separate geometry and assumptions. Skin depth is
+`δ = √[ρ/(πfμ0)]`; the slab correction assumes explicitly selected one- or
+two-face excitation rather than solving return/proximity fields. Via R uses
+the annular plating area and via partial L uses
+`μ0ℓ/(2π)[ln(4ℓ/d) + 1]` only in its supported aspect range. A partial
+inductance is not a closed-loop inductance, and missing via C remains unknown.
+
+[Scalar-model regressions](../tests/test_rlc_emerge_models.py) check the supported
+cross sections and units; [CLI regressions](../tests/test_rlc_cli.py) check route
+and report contracts. The [capability matrix](../docs/audits/RLC_EMERGE_CAPABILITY_MATRIX.md)
+and [open-board evidence](../docs/audits/RLC_OPEN_BOARD_VALIDATION.md) describe
+recorded coverage separately from these formulas. Neither a literature accuracy
+bound nor a successful fixture is automatically transferred to an arbitrary PCB.
+
 ## References and research
+
+### Implemented methods and research basis
+
+The read-only route engine is implemented in [copper_path.py](copper_path.py), [rlc_model.py](rlc_model.py), [emerge_lines.py](emerge_lines.py), and [frequency_ui.py](frequency_ui.py). It measures saved KiCad geometry in mm; reports R in ohm, L in nH, C in pF and Z0 in ohm; uses copper cross-section/resistivity for DC R, supported EMerge quasi-static microstrip/centered-stripline sections, and a slab skin-depth AC approximation. [Scalar-model tests](../tests/test_rlc_emerge_models.py), [CLI tests](../tests/test_rlc_cli.py) and the recorded open-board checks cover supported equations, geometry and blockers, not measured-board accuracy. Roughness, proximity, arbitrary return current, via antipads and full-wave fields remain unsupported. Manual coupled-stripline formulas have the restrictions listed above; they do not supply automatic board differential-pair extraction. The references below are theoretical background, not evidence that every cited model is implemented.
 
 | Source | How it relates to Trace RLC / Impedance |
 |---|---|
