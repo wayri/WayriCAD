@@ -75,3 +75,29 @@ The earlier native tests above apply to their recorded source/local artifacts.
 The hosted rebuild and public-download hash checks establish packaging and byte
 integrity; they do not, by themselves, rerun native GUI tests or establish
 physical validation. Hosted archive hashes can differ from desktop builds.
+
+## Final published ZIP native checks
+
+The final public Quick SI ZIP has SHA-256
+`d4a59191fe34006a27a3e1d04409c85f474d25f7624b64b27e37c0991198d47a`.
+In isolated KiCad 10.0.6 / Python 3.11.5 processes it passed 38 core tests and
+five native wx GUI tests, with zero skips, failures or errors and normal exits.
+Six checked production modules matched the ZIP/extracted/imported bytes exactly;
+plugin/runtime imports originated only in the extracted payload. An initial
+reference-checkout comparison flagged LF versus CRLF differences introduced by
+the hosted Windows checkout. All six files matched after EOL normalization;
+only the expected reference bytes were converted to CRLF. Strict ZIP/extracted
+byte checks were retained.
+
+The final public QuickTherm ZIP has SHA-256
+`42f03e31d2bf19bda5e55050aadc66f8ff1884149708bfe8ac34c4ccde069047`.
+It passed 31 fresh numerical tests with zero skips, failures or errors and a
+normal exit. Native Previous/Next, slider and playback controls were exercised
+over 101 stored frames with the 0.1 s default. All 23 loaded production/runtime
+modules matched exact ZIP bytes, no checkout imports supplied implementation,
+and original/staged demo hashes remained unchanged. The board playback result
+was precomputed; these checks do not claim a new complete-board thermal solve.
+
+These final-artifact tests supplement the earlier source/local checks above.
+Interactive Schematic Editor Ctrl+V and an installed live IPC workflow remain
+unobserved. No new physical measurements or hardware qualification are claimed.
