@@ -41,6 +41,20 @@ class NativeBoardRenderTests(unittest.TestCase):
         field.SetVisible(False)
         self.assertFalse(any(row['role']=='reference' for row in extract_board(board)['primitives']))
 
+    def test_optional_fabrication_filter_keeps_copper_and_saved_silkscreen(self):
+        board=p.BOARD();fp=p.FOOTPRINT(board);board.Add(fp);fp.SetReference('R1')
+        fp.Reference().SetLayer(p.F_SilkS);fp.Reference().SetVisible(True)
+        fp.Value().SetLayer(p.F_Fab);fp.Value().SetText('10k');fp.Value().SetVisible(True)
+        track=p.PCB_TRACK(board);track.SetStart(p.VECTOR2I(0,0));track.SetEnd(p.VECTOR2I(p.FromMM(5),0))
+        track.SetWidth(p.FromMM(.2));track.SetLayer(p.F_Cu);board.Add(track)
+        full=extract_board(board);preview=extract_board(board,include_fabrication=False)
+        self.assertTrue(any(row['layer']==p.F_Fab for row in full['primitives']))
+        self.assertFalse(any(row['layer'] in (p.F_Fab,p.B_Fab,p.F_CrtYd,p.B_CrtYd) for row in preview['primitives']))
+        visible=[row for row in full['primitives'] if row['layer'] not in (p.F_Fab,p.B_Fab,p.F_CrtYd,p.B_CrtYd)]
+        self.assertEqual(preview['primitives'],visible)
+        self.assertTrue(any(row['role']=='track' for row in preview['primitives']))
+        self.assertTrue(any(row['role']=='reference' for row in preview['primitives']))
+
     def test_saved_native_copper_width_drills_and_pad_ownership(self):
         board=p.BOARD()
         point=lambda x,y:p.VECTOR2I(p.FromMM(x),p.FromMM(y))

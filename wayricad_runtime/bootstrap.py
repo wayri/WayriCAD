@@ -12,7 +12,7 @@ def relaunch(root, entrypoint, *, profile='ipc', loading=None):
     from .runtime_setup import (ensure_runtime, child_environment, REQUIREMENTS_IPC,
                                 REQUIREMENTS_EXTRACT, REQUIREMENTS_BOM,
                                 REQUIREMENTS_QUICK_PI, REQUIREMENTS_QUICK_THERM,
-                                REQUIREMENTS_MAGNETICS)
+                                REQUIREMENTS_MAGNETICS, REQUIREMENTS_MECHANICAL)
     requirements = {} if profile in {'quick-pi-board', 'quick-therm-board'} else dict(REQUIREMENTS_IPC)
     if profile == 'extract':
         requirements.update(REQUIREMENTS_EXTRACT)
@@ -27,7 +27,7 @@ def relaunch(root, entrypoint, *, profile='ipc', loading=None):
     if profile == 'magnetics':
         requirements.update(REQUIREMENTS_MAGNETICS)
     if profile == 'mechanical':
-        requirements['OpenGL'] = 'PyOpenGL>=3.1,<4'
+        requirements.update(REQUIREMENTS_MECHANICAL)
     if loading is not None and loading.window is not None:
         # Dependency preparation can take minutes. Keep the splash painting
         # while pip runs without moving any wx calls off the GUI thread.

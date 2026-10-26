@@ -68,6 +68,11 @@ REQUIREMENTS_MAGNETICS = {
     'numpy': 'numpy>=1.26,<3', 'scipy': 'scipy>=1.11,<2',
     'matplotlib': 'matplotlib>=3.8,<4',
 }
+REQUIREMENTS_MECHANICAL = {
+    # Probe the native viewer's imports, not only PyOpenGL's lightweight root.
+    'OpenGL.GL': 'PyOpenGL>=3.1,<4',
+    'OpenGL.GLU': 'PyOpenGL>=3.1,<4',
+}
 
 
 def child_environment():

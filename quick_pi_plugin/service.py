@@ -68,7 +68,7 @@ def _display_output(output,request,board,path,source_hash):
         scope=[next((name for name in names if name.startswith(('+','VCC','VDD'))),names[0])] if names else []
     if scope is not None and (not isinstance(scope,(list,tuple)) or any(not isinstance(n,str) for n in scope)):
         raise ValueError('display_nets must be a list of net names, default, or null for all board copper.')
-    scene=extract_board(board,visible_nets=scope)
+    scene=extract_board(board,visible_nets=scope,include_fabrication=False)
     if hashlib.sha256(path.read_bytes()).hexdigest()!=source_hash:
         raise ValueError('The board changed during display extraction. Reload and run again.')
     scene['source_sha256']=source_hash

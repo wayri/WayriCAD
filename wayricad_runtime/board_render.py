@@ -98,7 +98,7 @@ class _PickIndex:
                 and self.boxes[i][1]-tolerance <= y <= self.boxes[i][3]+tolerance]
 
 
-def extract_board(board, visible_nets=None):
+def extract_board(board, visible_nets=None, *, include_fabrication=True):
     import pcbnew as p
     nets=None if visible_nets is None else set(visible_nets)
     scene = DisplayScene(layers={}, primitives=[], bounds=None, warnings=[], tessellation_mm=.01)
@@ -119,6 +119,7 @@ def extract_board(board, visible_nets=None):
             scene['primitives'].append(dict(meta, kind='polygon', points=ring(poly.COutline(i)),
                 holes=[ring(poly.CHole(i, h)) for h in range(poly.HoleCount(i))]))
     def shape(item, layer, role, **extra):
+        if not include_fabrication and layer in (p.F_Fab,p.B_Fab,p.F_CrtYd,p.B_CrtYd):return
         meta = dict(layer=int(layer), role=role, uuid=uid(item),
                     net=str(item.GetNetname()) if hasattr(item, 'GetNetname') else '', **extra)
         try:

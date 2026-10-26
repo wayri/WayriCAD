@@ -101,7 +101,7 @@ class DisplayContractTests(unittest.TestCase):
                           ({'geometry':{'net':'VCC'}},{'display_nets':None},None)]
                 for output,settings,scope in examples:
                     result=service._display_output(output,{'include_display_scene':True,**settings},board,path,digest)
-                    extract.assert_called_with(board,visible_nets=scope)
+                    extract.assert_called_with(board,visible_nets=scope,include_fabrication=False)
                     self.assertEqual(result['board_scene']['source_sha256'],digest)
                     self.assertEqual(result['scene_nets'],scope)
                 def mutate(*args,**kwargs):path.write_bytes(b'changed');return {}

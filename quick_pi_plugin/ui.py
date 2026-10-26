@@ -608,7 +608,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                   'Loading matching saved-board context…')
 
     def _scope_changed(self,event=None):
-        if self.isolate_nets.GetValue() or 'net_scope' not in self._board_scene:
+        if self.isolate_nets.GetValue() or self._board_scene.get('net_scope') is None:
             self._draw(preserve=True);return
         expected=self._board_scene_hash
         def finished(result):
@@ -736,13 +736,24 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                 if names:self.return_signal.SetSelection(0)
                 if names:
                     choice=next((n for n in names if n.startswith(('+','VCC','VDD'))),names[0]);self.net.SetValue(choice)
-                self._set_terminals();self.status.SetLabel(f'{len(names)} saved nets. Choose source and sink terminals.')
+                self._set_terminals()
+                self.bundle={'board_scene':self._board_scene}
+                self._layers=list(result.get('layers',[]))
+                if len(self._layers)>1:self._layers.append({'id':'all','name':'All copper layers (projected)'})
+                self.layer.Set([row['name'] for row in self._layers])
+                if self._layers:self.layer.SetSelection(0)
+                self._select_preview_layer()
+                self._plot_keys.clear();self.book.SetSelection(0);self._draw()
+                self.summary.SetLabel('Saved copper preview. No mesh or electrical result has been calculated.')
+                self.status.SetLabel(f'{len(names)} saved nets. Copper loaded; choose source and sink, then Preview or Run.')
             finally:
                 self.main_panel.Thaw()
-            if names:wx.CallAfter(self.preview_geometry)
-        # The queued geometry request supplies the displayed scene. Extracting
-        # polygons here would immediately discard and rebuild the same scene.
-        self._job({'action':'inspect','board_path':self.board_path},finished,'Reading saved net names and pad terminals…')
+        # Display copper independently of solver stackup/terminal requirements.
+        # One worker load supplies inventory and all display copper, so changing
+        # the net can filter the cached scene without another extraction.
+        self._job({'action':'inspect','board_path':self.board_path,
+                   'include_display_scene':True,'display_nets':None},finished,
+                  'Reading saved copper, net names and pad terminals…')
 
     def _set_terminals(self):
         net=self.net.GetValue();self._terminals=[t for t in self.inventory.get('terminals',[]) if t.get('net')==net]
@@ -750,6 +761,15 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         for control in (self.source,self.sink):control.Set(labels)
         if labels:self.source.SetSelection(0);self.sink.SetSelection(min(1,len(labels)-1))
         self._buttons()
+
+    def _select_preview_layer(self):
+        """Keep the current layer, or show an occupied layer for the chosen net."""
+        occupied={row.get('layer') for row in self._board_scene.get('primitives',[])
+                  if row.get('role') in ('track','pad','via','zone') and row.get('net')==self.net.GetValue()}
+        current=self.layer.GetSelection()
+        if 0<=current<len(self._layers) and (self._layers[current]['id']=='all' or self._layers[current]['id'] in occupied):return
+        choice=next((i for i,row in enumerate(self._layers) if row['id'] in occupied),None)
+        if choice is not None:self.layer.SetSelection(choice)
 
     def select_board_net(self,event=None):
         import pcbnew
@@ -788,7 +808,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if self._busy:self._cancel.set()
         self._inspection=None
         self._series_request=None;self._extra_sinks=[];self.loads_button.SetLabel('Additional sinks (0)…');self.operation_note.SetLabel('Source voltage → sink current')
-        self.bundle={'board_scene':self._board_scene};self.volume_bundle={};self._set_terminals();self._plot_keys.clear();self._draw()
+        self.bundle={'board_scene':self._board_scene};self.volume_bundle={};self._set_terminals();self._select_preview_layer();self._plot_keys.clear();self._draw()
         self.status.SetLabel('Preview this net or run the analysis.')
 
     def _invalidate(self,event=None):

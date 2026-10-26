@@ -47,3 +47,7 @@ include docs/audits/IBIS_CIRCUIT_EXPORT_2026-10-26.md
 include signal_integrity_advisor_plugin/ibis-assignments.example.json
 recursive-include signal_integrity_advisor_plugin/tests *.py
 include quick_therm_plugin/tests/test_thermal_playback.py
+include docs/audits/QUICK_PI_COPPER_AUTOLOAD_2026-10-26.md
+include quick_pi_plugin/tests/test_ui_startup.py
+include docs/audits/MECHANICAL_OPENGL_STARTUP_2026-10-26.md
+include mechanical_check_plugin/tests/test_integration.py

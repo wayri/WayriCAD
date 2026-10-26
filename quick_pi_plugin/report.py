@@ -438,7 +438,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         visible_nets=geometry.get('nets') or [geometry.get('net') or bundle.get('request',{}).get('net')]
         visible_nets=[net for net in visible_nets if net] or None
     if bundle.get('view_settings',{}).get('isolate_nets') is False:visible_nets=None
-    if show_context and scene:
+    if scene and (show_context or board_view and show_copper):
         from wayricad_runtime.board_render import draw_matplotlib
         if board_view:
             # Saved silk/holes/edges are drawn once above the field below.
@@ -450,11 +450,13 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         if not show_copper:
             scene_underlay=dict(scene_underlay,primitives=[row for row in scene_underlay.get('primitives',[]) if row.get('role') not in ('track','pad','via','zone')])
         draw_matplotlib(ax,scene_underlay,visible_layers=None if combined or layer is None else [layer],
-                        visible_nets=visible_nets,highlight_ids=(inspection or {}).get('source_ids',[]),alpha=.35,
+                        visible_nets=visible_nets,highlight_ids=(inspection or {}).get('source_ids',[]),
+                        alpha=1.0 if board_view and not rows else .35,
                         path_source=scene if board_view else None)
     if not selected:
         if not board_view:ax.set_aspect('auto')
-        ax.text(.5,.5,'Choose a net and preview its copper.',ha='center',va='center',transform=ax.transAxes)
+        if not board_view or not scene.get('primitives'):
+            ax.text(.5,.5,'Choose a net and preview its copper.',ha='center',va='center',transform=ax.transAxes)
         if board_view:
             if show_context and scene:_draw_board_context(ax,scene,layer,visible_nets=visible_nets)
             ax.autoscale_view();ax.invert_yaxis();_fit_board_view(ax)

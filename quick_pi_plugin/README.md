@@ -27,6 +27,23 @@ Actual 3.6.28 native window after loading public Marble. This shows extracted
 The visible source/load defaults have not been reviewed as a power-path study.
 Set the actual ports and operating conditions before Run. [Capture provenance](../docs/audits/README_GALLERY.md#capture-provenance--23-october-2026).
 
+## First-open copper preview
+
+This fix is in development source; published 3.6.32 packages predate it.
+[Validation and remaining startup latency](../docs/audits/QUICK_PI_COPPER_AUTOLOAD_2026-10-26.md).
+
+The saved board's copper loads automatically in the background with the net and
+pad inventory. The selected net appears on a layer containing its copper;
+changing nets filters the cached board without another extraction. Uncheck
+**Only simulated nets** to show surrounding copper, or choose **All copper
+layers (projected)** to inspect the combined view. **Board** controls silkscreen,
+edges and holes independently of **Copper**.
+
+This first view requires no solver stackup, source/sink pair or mesh. **Preview**
+prepares physical simulation geometry and **Run** solves it; their normal stackup
+and electrical-input checks still apply. A saved copper display is not a solved
+PI result.
+
 ## Board navigation and labels
 
 The board view uses saved, visible silkscreen at its actual size, position and

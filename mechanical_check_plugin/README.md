@@ -99,6 +99,16 @@ The pictured synthetic fixture uses a 20 mm proximity warning threshold to demon
 - KiCad 10 Python with `pcbnew`, `wxPython` and `PyOpenGL` for extraction/native UI, plus `kicad-cli` STEP export.
 - **Exact 3D mode only:** FreeCAD Python with `FreeCAD`, `Part` and `Import` for Open CASCADE solid checks.
 
+The following launcher correction is in development source; published 3.6.32
+packages predate it. [Validation](../docs/audits/MECHANICAL_OPENGL_STARTUP_2026-10-26.md).
+
+The IPC launcher, standalone `--gui`/`--review` commands and optional native action
+prepare PyOpenGL in a private dependency environment when needed, then open the
+viewer in a separate process. KiCad's Python installation is not modified. Setup
+checks both `OpenGL.GL` and `OpenGL.GLU`; a setup failure reports its log path.
+See [runtime setup](../wayricad_runtime/RUNTIME_SETUP.md) for offline wheels and
+proxy configuration. Saved-board command-line analysis does not require OpenGL.
+
 `python launch.py --doctor` prints executable discovery. Set `WAYRICAD_MECHANICAL_KICAD_CLI`, `WAYRICAD_MECHANICAL_KICAD_PYTHON`, or `WAYRICAD_MECHANICAL_FREECAD_PYTHON` to override paths. The Windows auto-discovery intentionally selects KiCad 10 because the extraction worker uses SWIG. KiCad 11 live integration and extraction are unverified; installation metadata does not claim runtime certification.
 
 ## CLI
