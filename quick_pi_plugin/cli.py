@@ -34,6 +34,7 @@ def main(argv=None):
     parser.add_argument('--batch',type=Path,help='Multi-net DC study JSON (wayricad.pi-batch/v1), pad units, shared-return groups and optional independent return review/thermal feedback.')
     parser.add_argument('--transient',type=Path,help='Explicit R/L/C load-step JSON; optional board supplies saved-file provenance. Returns 4 for limit violations.')
     parser.add_argument('--electrothermal',type=Path,help='Explicit steady/transient electrothermal study JSON. Returns 3 for nonconvergence, 4 for operating-limit violations.')
+    parser.add_argument('--ac',type=Path,help='Explicit straight-conductor/return AC cross-section JSON (wayricad.pi-ac/v1): skin/proximity effects and DC plus harmonic Joule losses. No converter or HV insulation simulation.')
     parser.add_argument('--verify',action='store_true',help='Run analytical/reference benchmarks in the prepared PI runtime; no board required.')
     parser.add_argument('--net');parser.add_argument('--source');parser.add_argument('--sink')
     parser.add_argument('--voltage',type=float,default=1.);parser.add_argument('--current',type=float)
@@ -68,6 +69,14 @@ def main(argv=None):
     parser.add_argument('--package-conduction',type=Path,help='JSON list of explicit lead/solder/BGA paths; 2.5D constant-current DC only.')
     parser.add_argument('--command',help='Console command, including a series-component path; quote the entire command.')
     args=parser.parse_args(argv)
+    if args.ac:
+        try:
+            from .ac_cli import main as ac_cli
+            from .service import run_job
+            options={word.split('=')[0] for word in (argv if argv is not None else sys.argv[1:]) if word.startswith('--')}
+            return ac_cli(args,run_job,forbidden=bool(options-{'--ac','--output','--html','--timeout'}))
+        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            print(json.dumps({'error':str(exc)}));return 2
     if args.batch:
         try:
             from .batch import cli_main

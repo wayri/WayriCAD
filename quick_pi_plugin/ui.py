@@ -1338,6 +1338,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.Bind(wx.EVT_MENU,self.on_transient,transient);transient.Enable(not self._busy)
         electrothermal=menu.Append(wx.ID_ANY,'Electrothermal study…')
         self.Bind(wx.EVT_MENU,self.on_electrothermal,electrothermal);electrothermal.Enable(not self._busy)
+        ac=menu.Append(wx.ID_ANY,'AC / SMPS copper study…')
+        self.Bind(wx.EVT_MENU,self.on_ac,ac);ac.Enable(not self._busy)
         details=menu.Append(wx.ID_ANY,'Layer thickness, losses and hotspots…');details.Enable(bool(self.bundle.get('result',{}).get('analytics')))
         self.Bind(wx.EVT_MENU,self.on_details,details)
         focus=menu.Append(wx.ID_ANY,'Zoom to circuit terminals');self.Bind(wx.EVT_MENU,self._focus_terminals,focus)
@@ -1566,6 +1568,20 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
             dialog=BatchStudyDialog(self,initial_study(selected),self.inventory,
                 lambda payload,cancel:run_job(payload,cancelled=cancel,timeout=1800),self.board_path,sha)
+            try:dialog.ShowModal()
+            finally:dialog.Destroy()
+        except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
+
+    def on_ac(self,event=None):
+        if self._busy:return
+        if not self._snapshot_current():self.status.SetLabel('Saved PCB changed. Reload before opening an AC study.');return
+        try:
+            import hashlib
+            from .ac_ui import ACStudyDialog
+            from .service import run_job
+            sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
+            dialog=ACStudyDialog(self,lambda payload,cancel:run_job(payload,cancelled=cancel,timeout=600),
+                (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha)
             try:dialog.ShowModal()
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))

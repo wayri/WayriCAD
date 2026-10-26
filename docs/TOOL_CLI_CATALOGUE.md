@@ -94,10 +94,16 @@ SI `crosstalk` entries select aggressor/victim routes and a reference model. `sa
 
 ```text
 wayricad-pi board.kicad_pcb --batch pi-study.json --output pi.json --html pi.html
+wayricad-pi --ac ac-smps.json --output ac.json --html ac.html
 wayricad-si study board.kicad_pcb --config si-study.json --output si.json --html si.html
 ```
 
 Use the plugin guides for study schemas and examples: [PI](../quick_pi_plugin/README.md), [SI](../signal_integrity_advisor_plugin/ReadMe.md) and [Therm](../quick_therm_plugin/README.md).
+
+The [AC / SMPS copper study](../quick_pi_plugin/AC_ANALYSIS.md), available in source
+after 3.6.33, uses explicit straight conductor/return geometry and RMS harmonics.
+It solves skin/proximity effects and copper Joule loss with convergence checks;
+it does not infer a complete converter or qualify HV insulation.
 
 To run all three as a project-local report sequence, supply reviewed study/configuration files:
 

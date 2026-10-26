@@ -64,3 +64,6 @@ include quick_pi_plugin/tests/test_sink_current.py
 include quick_pi_plugin/tests/test_sink_wheel.py
 include quick_pi_plugin/tests/test_current_preview.py
 include quick_pi_plugin/tests/test_inspector_tables.py
+include quick_pi_plugin/tests/test_ac_analysis.py
+include quick_pi_plugin/tests/test_ac_workflow.py
+include docs/audits/QUICK_PI_AC_2026-10-27.md

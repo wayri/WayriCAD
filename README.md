@@ -339,6 +339,7 @@ Generated demonstration board with illustrative lead/solder properties. [Capture
 | [MIT conduction chapter](https://ocw.mit.edu/courses/res-6-002-electromagnetic-field-theory-a-problem-solving-approach-spring-2008/2cccce322d387cccbc78c3ed65843f49_MITRES_6_002S08_chp03_text.pdf) | Analytical resistance checks. |
 | [Elmer beam fixture](https://github.com/ElmerCSC/elmerfem/tree/b461e4be77d0ca13bada61f04819fccb20a524ab/fem/tests/ConstantUnknownPotStatCurrent) | Published numerical benchmark inputs. |
 | [Full references](quick_pi_plugin/README.md#references-and-research) | Meshing paper, verification guidance and model limits. |
+| [AC / SMPS copper methods](quick_pi_plugin/AC_ANALYSIS.md) | Harmonic skin/proximity and Joule-loss model, explicit returns and HV/LV applicability. Available in source after 3.6.33. |
 
 
 **Report preview**

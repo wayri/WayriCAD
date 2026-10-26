@@ -4,11 +4,22 @@
 
 ## Start here
 
+**AC / SMPS copper studies are available in source after 3.6.33.** See the
+[AC guide](AC_ANALYSIS.md) for explicit return geometry, skin/proximity effects,
+SMPS waveform helpers and Joule-loss interpretation.
+
+![Native AC copper study with current-density map and harmonic tables](help-ac-study.png)
+
+Actual computed synthetic loop, captured on Windows with KiCad 10.0.6. The
+cross-section is entered explicitly; no PCB geometry or converter model is
+inferred. The screenshot contains no private design or local paths.
+
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.32](https://github.com/wayri/WayriCAD/releases/tag/v3.6.32) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.33](https://github.com/wayri/WayriCAD/releases/tag/v3.6.33) · [Installation](../docs/INSTALLATION.md) |
 | First power-path check | [Workflow](#workflow) · [Reading results](#reading-results) |
 | Multiple rails, returns and heating | [Multi-net studies](#multi-net-cases-return-copper-and-joule-feedback) |
+| SMPS ripple, skin effect and proximity losses | [AC copper analysis](AC_ANALYSIS.md) |
 | Scripts and reports | [Command line](#command-line) · [Offline help](help.html) |
 | Equations and applicability | [Solver methods](#solver-methods) · [References](#references-and-research) |
 
@@ -129,6 +140,22 @@ Infeasible requested-current diagnostics stay labelled as such. Return-only
 ground-reference plots direct you to the coupled study. Steady electrothermal
 reports show separate cold and hot DC budgets with acceptance status; transient storage is not
 represented by a DC Sankey.
+
+## SMPS ripple and AC copper losses
+
+Open **More → AC / SMPS copper study…** for a declared straight copper section
+and its return conductors. Enter the mean DC current and the **RMS current of
+each ripple/switching harmonic**. The separate cross-section model calculates
+frequency-dependent copper current redistribution, impedance and Joule loss;
+it does not reinterpret the board's DC field as an AC field.
+
+Use [AC analysis](AC_ANALYSIS.md) for the geometry, units, equations, input JSON,
+CLI and limits. Both low- and high-voltage rails can be described: rail voltage
+is an operating context, not an insulation or dielectric qualification. High
+current is accepted as a prescribed input; a fixed-temperature loss result does
+not establish a safe operating temperature or ampacity. The existing
+**Include Joule heating / temperature feedback** checkbox remains the
+saved-board DC electrothermal workflow described below.
 
 ## Multi-net cases, return copper and Joule feedback
 
@@ -795,6 +822,7 @@ HTML reports put three primary Matplotlib plots first: voltage drop, current den
 | Workflow | Method used | References and limits |
 |---|---|---|
 | Layered DC copper | Linear triangular finite-element method (FEM) for scalar conductivity, with copper thickness in each sheet and axial plated-barrel resistors between layers. The assembled sparse system uses SciPy's SuperLU factorization. | [Implementation](solver.py), [SciPy sparse LU](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.splu.html), [analytical conductor benchmarks](../docs/PI_REFERENCE_BENCHMARKS.md). This is 2.5D DC conduction; it does not solve AC return currents, skin effect or electromagnetic waves. |
+| AC straight-section copper | Two-dimensional magnetoquasistatic cross-section model with prescribed conductor currents and explicit returns; harmonic RMS copper losses are added to mean-current DC loss. | [Inputs, equations and limits](AC_ANALYSIS.md). Skin/proximity redistribution is confined to the declared straight parallel conductors; no complete converter, arbitrary routed-board AC field or dielectric insulation model is inferred. |
 | Volumetric DC copper | Linear tetrahedral conductivity FEM on supported Gmsh volumes. | [Implementation](full3d.py), [Gmsh paper](https://doi.org/10.1002/nme.2579). Gmsh generates the mesh; Quick PI solves the electrical system. Unsupported volume/contact geometry remains blocked. |
 | Multi-pad sources and sinks | Ideal equipotential electrodes with a prescribed total current per unit; the conduction solution determines individual pad currents. | [Terminal model](terminals.py), [contact model and assumptions](../docs/PACKAGE_CONDUCTION.md). An electrode does not supply missing package-internal impedance or justify equal current per pad. |
 | Shared return across rails | One linear DC solve on the common return conductor with all declared load currents; the resulting return potentials reduce the delivered supply voltages. Shared-return loss is counted once. | [Implementation](shared_return.py), [Marble study and limitations](../docs/audits/MARBLE_COUPLED_ANALYSIS.md). Fixed-temperature, prescribed-current model; shared electrothermal feedback and regulator dynamics are not solved. |

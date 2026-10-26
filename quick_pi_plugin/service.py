@@ -128,6 +128,9 @@ def run_job(request, cancelled=None, timeout=300):
         return result
     from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_QUICK_PI, child_environment
     requirements={name: spec for name, spec in REQUIREMENTS_QUICK_PI.items() if name != 'kipy'}
+    if request.get('action')=='ac':
+        # Explicit cross-sections need no native board IO, VTK or mesher imports.
+        requirements={name:spec for name,spec in requirements.items() if name in ('numpy','scipy')}
     if _requires_gmsh(request):
         requirements['gmsh']='gmsh>=4.11,<5'
     python=ensure_runtime(requirements)
@@ -168,6 +171,33 @@ def run_job(request, cancelled=None, timeout=300):
 def execute(request,*,_boards=None):
     from .mesh_sizing import mode as sizing_mode
     sizing_mode(request)
+    if request.get('action')=='ac':
+        from .ac_analysis import run_study
+        study=request.get('study')
+        source=Path(request['board_path']).resolve() if request.get('board_path') else None
+        study_source=Path(request['study_input_path']).resolve() if request.get('study_input_path') else None
+        study_before=None
+        if study_source:
+            study_before=hashlib.sha256(study_source.read_bytes()).hexdigest()
+            if request.get('study_file_sha256') and request['study_file_sha256']!=study_before:
+                raise ValueError('AC input file changed. Reload before running.')
+        before=None
+        if source:
+            if source.suffix.lower()!='.kicad_pcb' or not source.is_file():
+                raise ValueError('Choose a saved KiCad PCB for AC provenance.')
+            before=hashlib.sha256(source.read_bytes()).hexdigest()
+            if request.get('source_sha256') and request['source_sha256']!=before:
+                raise ValueError('Saved board changed. Reload before the AC study.')
+        result=run_study(study)
+        if source and hashlib.sha256(source.read_bytes()).hexdigest()!=before:
+            raise ValueError('Saved board changed during the AC study; discard the result.')
+        if study_source and hashlib.sha256(study_source.read_bytes()).hexdigest()!=study_before:
+            raise ValueError('AC input file changed during analysis; discard the result.')
+        return {'ac':result,'study':study,'study_sha256':hashlib.sha256(
+                    json.dumps(study,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest(),
+                'board_path':str(source) if source else None,'source_sha256':before,
+                'board_binding':'provenance_only','study_input_path':str(study_source) if study_source else None,
+                'study_file_sha256':study_before}
     if request.get('action')=='batch':
         from .batch import execute as execute_batch
         # One owned native board per batch, never shared across workers or jobs.

@@ -40,6 +40,8 @@ def main(argv=None):
                     importlib.import_module('.report',name).write_batch_report(payload['html_output'],result)
                 elif payload.get('action')=='electrothermal':
                     importlib.import_module('.electrothermal_report',name).write_report(payload['html_output'],result)
+                elif payload.get('action')=='ac':
+                    importlib.import_module('.ac_report',name).write_report(payload['html_output'],result)
                 elif payload.get('action')=='transient':
                     from wayricad_runtime.transient_study import write_study_report
                     write_study_report(payload['html_output'],result)
