@@ -1,4 +1,5 @@
 include README.md
+include docs/METHODS_AND_RESEARCH.md
 include docs/RELEASE_NOTES_3.6.25.md
 include docs/audits/RELEASE_3.6.25.md
 include docs/audits/SILKSCREEN_DENSE_BOARD_0.3.3.md
