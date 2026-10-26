@@ -81,3 +81,21 @@ See [offline help](help.html) and [validation evidence](VALIDATION.md). The pars
 Drag the dividers between variants, board preview, component table and file review to enlarge the information you are checking. The comparison and staging workflow remains unchanged.
 
 Open [offline help](help.html) for the workflow and troubleshooting. See [readable windows, panels and tables](../docs/UI_ACCESSIBILITY.md) for resizing, complete-row reading and keyboard controls.
+
+## Implemented methods, identity and transaction evidence
+
+| Method | Inputs and result | Implementation and limits |
+|---|---|---|
+| Strict native parsing | Saved project JSON and schematic S-expressions become base symbol/sheet states, named overrides and hierarchy instances. | [`parse_schematic`, `discover_hierarchy`](wayri_variants/engine.py). Unknown variant structures that cannot round-trip safely are refused. This parser implements the supported KiCad 10 representation; it is not a general future-format migrator. |
+| Stable object identity | Objects are keyed by project-relative sheet file, kind, native UUID, project name and hierarchy instance path rather than reference alone. | [`object_key`, `snapshot`](wayri_variants/service.py). This survives reannotation and separates reused-sheet occurrences; duplicate identities stop the snapshot. |
+| Effective-state comparison | Base state is overlaid with the selected instance's named variant flags/fields, then exact states are compared per identity. | [`_effective_state`, `compare_variants`](wayri_variants/engine.py) and [`_rows`](wayri_variants/service.py). Parent-sheet exclusion is reported separately; comparison does not update PCB geometry. |
+| Reviewed transformation planning | Create, duplicate, rename, delete, merge, swap, promote, cleanup, restore and bulk edit operate on an in-memory source map and produce exact candidate bytes plus a diff. | [`preview`](wayri_variants/service.py) and the planning functions in [`engine.py`](wayri_variants/engine.py). Conflicting promotion of reused serialized objects, identity edits and unsafe shared-project rewrites are refused. |
+| Targeted text rewrite | Token spans are replaced/inserted while preserving unrelated text and line endings; project metadata is rendered from validated JSON. | [`_apply_edits`, `_desired_base_edits`, `_render_variant`](wayri_variants/engine.py). It is a structural rewrite of supported tokens, not format-wide pretty-printing. Backend regressions are in [`test_backend.py`](tests/test_backend.py). |
+| Verified semantic/source backup | A `.wvariants.zip` contains source bytes, a semantic snapshot and a manifest with root UUID, sizes and SHA-256 hashes; validation occurs without extraction. | [`_write_backup`, `read_backup`](wayri_variants/service.py). ZIP/path/duplicate/symlink/size checks protect restore intake. SHA-256 provides integrity, not a trusted signature. |
+| Guarded multi-file apply | The reviewed candidate is sealed, source hashes and editor-closure acknowledgement are checked, a recovery backup is made, and each file is atomically replaced and verified. | [`apply`](wayri_variants/service.py). Failures attempt conservative rollback without overwriting a concurrently changed file. The batch is not power-failure atomic. Native/UI coverage and remaining host limitations are recorded in [`VALIDATION.md`](VALIDATION.md), [`test_native.py`](tests/test_native.py) and [`test_ui.py`](tests/test_ui.py). |
+| Variant-only restore | Backup identities/topology and field schema must match the current project before selected definitions are restored; full-source restore is a separate destructive recovery plan. | [`plan_restore_variants`, `plan_restore_sources`](wayri_variants/service.py). Variant-only restore deliberately does not restore drawing geometry or silently add/remove properties. |
+
+### Technical background
+
+- KiCad's official [schematic file format](https://dev-docs.kicad.org/en/file-formats/sexpr-schematic/) defines UUID-based hierarchy instance paths used in identity and reused-sheet handling.
+- Python's [`zipfile`](https://docs.python.org/3/library/zipfile.html) and [`hashlib`](https://docs.python.org/3/library/hashlib.html) document the archive and SHA-256 primitives. The transaction, semantic snapshot and refusal policies are project methods described above.

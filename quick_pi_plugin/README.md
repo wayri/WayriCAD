@@ -789,6 +789,57 @@ of a result. None alone establishes physical accuracy; see the
 [benchmark evidence](../docs/PI_REFERENCE_BENCHMARKS.md) and
 [Marble coupled study](../docs/audits/MARBLE_COUPLED_ANALYSIS.md).
 
+### Geometry, equations and supporting algorithms
+
+These methods describe the v3.6.32 implementation. Coordinates enter in mm;
+the electrical assembly uses SI units (m, A, V, Ω, W). Material values and
+temperatures are explicit study inputs, not inferred properties of a board name.
+
+| Stage | Implemented method and source | Assumptions and interpretation |
+|---|---|---|
+| Saved copper and contacts | [Board extraction](board_geometry.py), [package contacts](package_contacts.py), [mesh construction](mesh.py) build conducting regions from the saved board, filled copper, holes and declared terminals. Supported plated slots retain their geometry. | Refill and save before solving. An outline, pad or same-net label alone does not prove a continuous conducting path. Unsupported or disconnected contacts require review. |
+| Planar mesh | Conforming first-order triangles, with the supported VTK/Gmsh paths and boundary/contact checks in [mesh.py](mesh.py). [Automatic sizing](mesh_sizing.py) uses geometry widths and contact sizes. | Geometry-based sizing is a resolution heuristic, not an error estimator. Arbitrary narrow zone necks and peak-current singularities need separate inspection. |
+| Sheet assembly | [solver.py](solver.py) assembles `K_e = σ t A BᵀB` for each linear triangle, solves terminal constraints, then recovers `J = −σ∇V` and Joule loss `σ|∇V|² × volume`. Copper resistivity follows the supplied linear temperature coefficient. | Scalar, isotropic DC conductivity and constant gradient within each triangle. Via barrels contribute axial `R = ρℓ/A` through declared plating and length; no skin/proximity effect or spreading model is inferred from that resistor. |
+| Declared series paths and operating point | [Series components](series_models.py) and [operating_point.py](operating_point.py) combine supported resistance and explicit forward-drop models; a positive resistive-load current is found by bounded bisection of source voltage minus path and load drops. | A DC inductor has zero resistive drop in its ideal model. Source-current and load-voltage limits assess feasibility; a failed prescribed-current case does not establish a regulator's current-limited operating point. |
+| Explicit supply/return loop | [power_loop.py](power_loop.py) combines separately declared supply and return copper solves at the same prescribed current and checks their balances before reporting delivered voltage. | Supported linear 2.5D single-load scope differs from the multi-load shared-return mode. Neither calculation supplies switching-loop inductance. |
+| Fast current adjustment | [live_current.py](live_current.py) applies exact linear scaling only after eligibility checks: for common positive factor `a`, `Vnew = Vs + a(Vold − Vs)`, `Jnew = a Jold`, `Pnew = a² Pold`. | Fixed geometry, temperature, conductivity and relative sink currents. Package/series/nonlinear, coupled and other unsupported studies are excluded; this is not a fresh factorization or a nonlinear extrapolation. |
+| Decoupling review | [decoupling/analysis.py](decoupling/analysis.py) matches reviewed net/reference patterns, checks capacitor rail/ground pad membership and measures nearest rail-pad distance. Regulator value keywords provide candidates. | Distance thresholds and keyword matches are heuristics. They do not compute capacitor ESL, PDN impedance, resonances or effective high-frequency decoupling. |
+| Pulse temperature-limit screen | [solver.py](solver.py) uses declared density, heat capacity, temperature limit and pulse duration for an adiabatic energy screen. | Neglects cooling and material phase changes; a temperature-limit warning is not a qualified fuse-opening current or safety rating. |
+
+### Time-domain methods
+
+[transient.py](transient.py) solves a **declared lumped circuit**, rather than
+deriving a broadband model from the DC mesh. For branch currents `i`, capacitor
+voltages `v` and prescribed load currents `d`, its equations are
+`L di/dt + R i + v = Vs·1 + ESR·d` and `C dv/dt = i − d`.
+Common source R/L contributes shared matrix terms. Backward Euler handles
+finite-L states and zero-L algebraic limits; event handling preserves stored
+energy while resolving algebraic/ESR voltage changes. Reports distinguish
+resistor heat, reactive storage and numerical damping. Step refinement is an
+accuracy check; damping is not additional physical heating.
+
+[electrothermal_transient.py](electrothermal_transient.py) couples that circuit
+to explicitly supplied lumped thermal R/C paths. Each exchange iterates a
+midpoint temperature for `R(T) = Rref[1 + α(T − Tref)]`, integrates electrical
+resistor energy over substeps, and advances the thermal RC analytically using
+[thermal_rc.py](../wayricad_runtime/thermal_rc.py). Trial exchanges restart from
+the accepted state; only converged trials are accepted. Thermal input excludes
+reactive storage and numerical damping. This bounded model does not add spatial
+temperature gradients, switching-device physics or missing package properties.
+
+### Verification evidence and research scope
+
+The following are existing regression/benchmark sources, not a claim that they
+were rerun for this documentation edit or that a physical PCB was measured.
+
+| Evidence | What it checks |
+|---|---|
+| [Solver](tests/test_solver.py), [multi-sink](tests/test_multisink_solver.py), [verification](tests/test_verification.py) | Analytical conductor behavior, terminal/current accounting and energy consistency. |
+| [Mesh](tests/test_mesh.py), [contact partition](tests/test_contact_partition.py), [plated slots](tests/test_plated_slots.py), [volume](tests/test_full3d.py) | Supported geometry, topology and mesh/volume assembly contracts. |
+| [Refinement](convergence.py), [refinement tests](tests/test_convergence.py) | Distinct refined meshes, terminal/result stability and conservation gates. Nominal edge size alone does not establish asymptotic Richardson convergence or GCI; local peak J can remain unresolved. |
+| [Operating point](tests/test_operating_point.py), [live scaling](tests/test_live_current.py), [shared return](tests/test_shared_return.py), [explicit loop](tests/test_power_loop.py) | Supported circuit assumptions, scaling eligibility and return-current/loss accounting. |
+| [Steady coupling](tests/test_electrothermal.py), [lumped transient](tests/test_transient.py), [transient coupling](tests/test_electrothermal_transient.py) | Declared model convergence, events, time refinement and separate energy ledgers. |
+
 ## References and research
 
 | Source | How it relates to Quick PI |

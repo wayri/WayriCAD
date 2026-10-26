@@ -566,6 +566,33 @@ before interpreting local crosstalk as a whole-route result.
 
 ## References and research
 
+### Implemented extraction, termination and eye methods
+
+Saved-route extraction uses [measurement.py](measurement.py),
+[copper_path.py](copper_path.py) and [rlc_model.py](rlc_model.py); aggregate
+screening and multi-net custody use [quick_si.py](quick_si.py) and
+[study.py](study.py). Geometry is in mm; impedance/resistance in Ω, inductance
+in nH, capacitance in pF and propagation delay in ns. Section coverage and
+unknowns remain explicit rather than silently assigning a uniform line to
+branches, discontinuities or missing reference copper.
+
+| Method | Implementation and applicability | Existing verification evidence |
+|---|---|---|
+| Delay and edge-length screening | [quick_si.py](quick_si.py) prefers an explicit whole-path effective-permittivity assumption when supplied, otherwise complete modeled section delay, then a separately labelled ideal-stackup screening estimate. It reports one-way delay, twice that value for round trip, electrical length `360 f_MHz delay_ns / 1000`, and `delay/rise_time`. The `1/6` ratio threshold requests transmission-line review; it is a heuristic, not a protocol limit or proof that a shorter route is safe. Missing route or reference evidence stays unresolved. | [Timing and input-precedence cases](tests/test_quick_si.py). |
+| Endpoint termination screen | Transmission-line reflection coefficients `ΓS = (RS − Z0)/(RS + Z0)` and `ΓL = (RL − Z0)/(RL + Z0)` use declared resistive endpoints; an open load uses `ΓL = 1`. First-arrival and source/load matching guidance applies to the supported endpoint model, not intervening bends, vias, packages or a nonlinear receiver. | [Quick SI cases](tests/test_quick_si.py), [study cases](tests/test_study.py). |
+| Illustrative eye and step | [eye_model.py](eye_model.py) superposes a bounded lossless reflection series: the first receiver coefficient is `Z0/(RS + Z0) × (1 + ΓL)` and each later round trip multiplies it by `ΓS ΓL`, arriving at odd multiples of one-way delay. The source is periodic PRBS7 with a linear ramp whose full duration is `rise_10–90 / 0.8`. All cyclic histories are included, avoiding artificial zero-start eye traces. | [Analytical eye and step checks](tests/test_eye_model.py), [integration](tests/test_eye_integration.py). |
+| Sampling and convergence limits | Eye traces use 64 samples/UI over two UI for all 127 PRBS7 contexts. The reflection-tail bound and finite work/echo budgets reject inadequately damped cases; `|ΓS ΓL| ≥ 1` is rejected. Step plots retain echo/ramp corners. Eye opening is a sampled model statistic, not BER, statistical jitter, an IBIS receiver or a protocol mask test. | [Eye-model edge cases](tests/test_eye_model.py), [probe UI](tests/test_eye_probe_ui.py). |
+| Directed local crosstalk | [crosstalk.py](crosstalk.py) extracts supported straight parallel equal-width overlaps, solves finite rectangular conductor contours with the declared reference-plane Green function, then superposes lossless even/odd modes. Refinement gates assess supported local sections; mixed dielectric velocities and whole-route cascading are absent. | [Crosstalk analytical/refinement cases](tests/test_crosstalk.py). |
+| Protocol and report workflows | [Protocol profiles](protocol_profiles.py) provide representative inputs/checks, while [report_plots.py](report_plots.py) displays the computed evidence. Reports retain per-study hashes, coverage, blockers and explicit return declarations. Protocol names do not select a separate compliance solver. | [Study report review](tests/test_study_report_review.py), [native study fixtures](tests/test_study_native.py). |
+| IBIS metadata and assignment | [ibis_models.py](ibis_models.py) reads bounded component/pin/model/selector metadata and checks source/receiver compatibility and selected parameter corners against the saved model SHA-256. It does not interpret electrical I/V tables. [ibis_workflow.py](ibis_workflow.py) binds assignments to completed saved-board reports and rechecks source identity. | [Metadata cases](tests/test_ibis_models.py), [assignment and freshness cases](tests/test_ibis_workflow.py), [UI mapping cases](tests/test_ibis_ui.py). |
+| Complete circuit scope | [circuit_scope.py](circuit_scope.py) compares whole-net routing inventory and native item lengths with the ordered path. Exactly two signal terminals and complete coverage are required; zones, branches, stubs, loops and unresolved copper are rejected. This is a topology/coverage gate, not an electromagnetic solve. | [Routing-inventory cases](tests/test_circuit_scope.py). |
+| Native IBIS circuit construction | [si_circuit.py](si_circuit.py) exports independent single-ended cases as lossless distributed line sections plus extracted lumped series DC resistance. Vias require explicit reviewed complete-loop L/C; missing copper thickness requires a declared assumption. Native IBIS endpoints replace screening resistors; package parasitics are left to KiCad rather than counted twice. Models are copied under content-hashed names into a guarded new bundle. KiCad performs the separate native simulation; export does not produce an IBIS eye in Quick SI. | [Circuit construction cases](../tests/test_si_circuit.py), [recorded native circuit evidence](../docs/audits/IBIS_CIRCUIT_EXPORT_2026-10-26.md). The ideal common reference omits return impedance, inter-net coupling, skin/dielectric loss and dispersion. |
+
+The tests above are existing numerical and workflow checks, not a statement
+that they were rerun for this README edit or that measured-board correlation
+exists. Vendor documents below supply profile context; optional Nubis tooling
+has its separately documented interoperability scope.
+
 | Source | How it relates to Quick SI |
 |---|---|
 | [Pinned EMerge calculator](https://github.com/wayri/EMerge/blob/50283a2/src/emerge/_emerge/geo/pcb_tools/calculator.py) and [Qucs CPW equations](https://qucs.github.io/tech/node86.html) | Shared supported quasi-static cross-section estimates. The whole upstream calculator is not automatically available in board mode. |

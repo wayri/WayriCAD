@@ -10,6 +10,7 @@ native KiCad simulation circuits.
 | Quick SI | Load `.ibs` files, select component/pin/model/corner for each endpoint, reuse the source file for the receiver, and retain assignments while switching study cases. |
 | KiCad circuit export | Export all checked complete paths in one bundle, or create the bundle and copy a flat native circuit ready for Schematic Editor. Vendor model copies, simulation properties, timing and provenance are included. |
 | CLI | `wayricad-si ibis-catalog` lists reviewed choices and file SHA-256; `wayricad-si circuit` exports explicit route/study assignments with repeatable `--case`. |
+| Methods documentation | All 24 tool READMEs connect implemented algorithms and equations to source code, research/background references, assumptions, limits and verification evidence. Start with the [methods and research index](METHODS_AND_RESEARCH.md). |
 
 Keep the exported model bundle after pasting: clipboard model links point to it.
 Separate exports receive unique signal-net names; pasting the same fragment twice

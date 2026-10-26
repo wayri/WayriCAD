@@ -53,3 +53,20 @@ Native operation validation now also covers Marble: its full DRC returned 464 fi
 Native release-gate workspace before an audit. Empty findings do not mean the board passed DRC or fabrication checks.
 
 The installed package includes [offline help](help.html) with its workflow and limitations.
+
+## Implemented methods, release evidence and limits
+
+| Method | Inputs and result | Implementation and evidence boundary |
+|---|---|---|
+| Saved geometry extraction | Saved `.kicad_pcb` and `.kicad_pro` bytes yield minimum routed width, project clearance, drilled-pad/via dimensions, annular-ring bounds, via aspect ratio and copper-layer count. | [`saved_metrics`](analysis.py) parses bounded S-expressions. Exact ordinary via/pad results and conservative custom-pad lower bounds remain distinguished; malformed or ambiguous geometry is rejected. Drill/slot cases are covered by [`test_pad_drills.py`](tests/test_pad_drills.py). |
+| Routed copper-to-edge distance | Straight segment capsules and ordinary via circles are measured against one closed, non-self-intersecting straight-line/rectangle outline. | [`_routed_edge_metric`](analysis.py) computes point/segment and crossing relationships. Arcs, padstacks, multiple outlines and other unsupported geometry set `UNKNOWN`; [`test_routed_edge.py`](tests/test_routed_edge.py) covers supported and rejected cases. |
+| Profile gate | Each extracted metric is compared with an explicit fabricator minimum/maximum, producing `PASS`, `FAIL`, `UNKNOWN` or `N/A`. | [`audit_metrics`](analysis.py). The configured profile is user/vendor evidence, not a built-in manufacturing standard, and the focused comparisons are not process qualification. |
+| Saved/live equivalence and immutable snapshot | Project source bytes, profile, jobset and normalized live-board tokens form a SHA-256 gate key; a private captured copy is the command input. | [`comparable_board_tokens`, `gate_key`](analysis.py) and [`capture_inputs`](verification.py). Only known transient footprint serialization headers are ignored; source bytes remain hashed separately. IPC serialization coverage is in [`test_ipc_serialization.py`](tests/test_ipc_serialization.py). |
+| Native DRC/jobset evidence | KiCad JSON DRC structure, finding counts/types and process exit code are evaluated together; a selected jobset must pass after the most recent DRC. | [`drc_evidence` and `VerificationSnapshot`](verification.py), with failure-contract tests in [`test_drc_evidence.py`](tests/test_drc_evidence.py). A clean result proves only those commands on that snapshot, not general manufacturability. |
+| Reproducible release archive | Verified snapshot files and generated artifacts are written in stable order with fixed ZIP metadata and a manifest of sizes/SHA-256 hashes. | [`build_release`](analysis.py) rechecks the bytes against expected hashes. Hashes provide integrity/freshness, not identity signatures, certification or long-term archival authenticity. |
+
+### Technical references
+
+- KiCad's [board file format](https://dev-docs.kicad.org/en/file-formats/sexpr-pcb/) defines the tracks, vias, pads, layers and outline records inspected here.
+- The official [KiCad command-line interface](https://docs.kicad.org/10.0/en/cli/cli.html) defines `pcb drc` and `jobset run`; those native commands are validation backends, not research invented by this project.
+- Python's [`hashlib`](https://docs.python.org/3/library/hashlib.html) and [`zipfile`](https://docs.python.org/3/library/zipfile.html) document the integrity and archive primitives. Neither turns a release ZIP into a signed certification package.

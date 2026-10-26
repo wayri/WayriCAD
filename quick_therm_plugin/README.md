@@ -267,6 +267,54 @@ does not recompute electrical current. See the
 [Marble mesh, balance and unresolved-contact results](../docs/audits/MARBLE_COUPLED_ANALYSIS.md)
 for the distinction between a completed solve and an accepted thermal estimate.
 
+### Equations, inputs and discretization
+
+These methods describe the v3.6.32 implementation. Thermal conductance is in
+W/K, thermal resistance in K/W, capacity in J/K, power in W and time in s.
+Board coordinates in mm are converted to metres for physical assembly.
+Temperature differences may use °C; radiation uses absolute kelvin.
+
+The independent component estimate is `Tj = Ta + P RθJA` only when the supplied
+RθJA applies to that cooling arrangement. It is not silently reused as RθJB or
+RθJC. Explicit board/case/sink paths retain their separate quantities and
+unknowns; see [package conduction](../docs/PACKAGE_CONDUCTION.md).
+
+The board networks balance each node's supplied heat against neighboring
+conduction and boundary loss. A representative node equation is
+`Σ Gij(Ti − Tj) + hA(Ti − Ta) + εσA(Ti,K⁴ − Ta,K⁴) = Pi`, with
+`G = kApath/ℓ`. The thin sheet uses lateral `k × thickness × face length /
+cell spacing`. Its exposed-area term includes both faces. Newton linearization
+uses the radiation derivative `4εσA T³`; the implementation checks finite,
+physical temperatures and convergence. These are gray-body exchange-to-ambient
+approximations without enclosure view factors or an airflow solution.
+
+| Supporting method | Source and interpretation |
+|---|---|
+| Heat-source placement | [thermal_network.py](thermal_network.py) distributes footprint-bounding-box overlap weights conservatively across active cells, with a recorded point fallback when bounds are absent. A footprint box is a contact proxy, not measured die/pad heat spreading. |
+| Cooling coefficients | [thermal_network.py](thermal_network.py) accepts explicit convection coefficients. Its fallback air correlations are `hboard = 5 + 4v` and `hsink = 5 + 5v` in W/(m²·K), with speed `v` in m/s; vacuum requires zero convection and airflow. These simple screening correlations are not geometry-resolved or experimentally calibrated CFD. |
+| Layers and contacts | [thermal_multilayer.py](thermal_multilayer.py) uses saved copper coverage and explicit vertical/package/mount/sink conductances. Finite-contact and spreading approximations require declared geometry/material inputs. Missing or unresolved contacts remain reported rather than acquiring an invented thermal path. |
+| Mesh sizing | [mesh_sizing.py](mesh_sizing.py) recommends/refines rectilinear cells from source, contact and via dimensions under bounded work limits. Feature coverage warnings and refinement checks matter independently of a successful sparse solve; this is not an a posteriori thermal error estimate. |
+| Spatial dynamics | [thermal_spatial_transient.py](thermal_spatial_transient.py) adds declared node capacities: `C(Tnew − Told)/Δt + heat_loss(Tnew) = Pnew`, including conduction and Newton-linearized radiation. Heat/energy balance and time refinement remain necessary even with an implicit method. |
+| Independent component dynamics | [transient.py](transient.py) uses `T(t) = Ta + PRθ + [T(0) − Ta − PRθ] exp[−t/(RθC)]` over each constant-power interval. Capacity and resistance are supplied; one scalar temperature cannot resolve internal package gradients. |
+| Thermal playback frames | [thermal_spatial_transient.py](thermal_spatial_transient.py) retains solved states on a bounded timeline that includes requested output times and power-schedule knots. A requested frame interval can therefore add integration points; frames are not fabricated interpolated temperature fields. Storage/node budgets bound output. [Playback tests](tests/test_thermal_playback.py) check retention and UI controls; finer playback does not by itself establish time-step convergence. |
+| Imported electrical losses | [PI coupling documentation](../quick_pi_plugin/README.md#solver-methods) and [package conduction](../docs/PACKAGE_CONDUCTION.md) describe conservative heat transfer and board/source identity checks. Imported power remains fixed in a thermal-only solve; electrical feedback belongs to the explicitly coupled PI workflow. |
+| Geometry and displayed fields | [component_models.py](component_models.py) can supply native component geometry for supported views, but STEP geometry does not determine material properties. Junction interpolation, a solved board field and the illustrative offline 3D overview are distinct outputs. Blank unsupported regions are unknown, not ambient. |
+| External 3D bridge | [thermal_calculix.py](thermal_calculix.py) writes supported mesh/boundary inputs and [thermal_calculix_result.py](thermal_calculix_result.py) imports results. Gmsh is the mesher and CalculiX is the external solver; neither runs in the internal finite-volume path. |
+
+### Verification evidence and research scope
+
+Existing checks below verify declared numerical and data contracts. They are
+not measurement correlation or a claim of physical qualification; no solver
+test rerun is implied by this documentation update.
+
+| Evidence | Scope |
+|---|---|
+| [Thin sheet](tests/test_thermal_network.py), [multilayer](tests/test_thermal_multilayer.py), [package conduction](tests/test_package_conduction.py) | Known network behavior, heat accounting and explicit contact assumptions. |
+| [Bounds](tests/test_thermal_bounds.py), [slots](tests/test_thermal_slots.py), [mesh sizing](tests/test_mesh_sizing.py) | Supported geometry/feature coverage and resolution guards. |
+| [Spatial transient](tests/test_spatial_transient.py), [independent RC](tests/test_transient.py) | Time-domain response, energy accounting and declared-capacity requirements. |
+| [CalculiX](tests/test_thermal_calculix.py), [3D](tests/test_thermal_3d.py) | Bridge input/output and unsupported-boundary contracts; a fixture/import test alone does not prove an external executable was run on a user board. |
+| [Field support](tests/test_thermal_field_boundary.py), [plot/report](tests/test_thermal_plot_report.py) | Known-domain rendering and report consistency, separately from numerical accuracy. |
+
 ## References and research
 
 | Source | How it relates to QuickTherm |

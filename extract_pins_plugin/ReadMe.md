@@ -326,6 +326,26 @@ Self-contained vector diagrams with:
 - Connection paths with labels
 - Legend and summary
 
+## Implemented methods and evidence
+
+| Method | Inputs and result | Implementation and limits |
+|---|---|---|
+| PCB pin extraction | PCB footprints and pads become rows containing reference, value, footprint ID, pad number, net and available pin/function metadata. | [`DataExtractor.extract_footprint_data`](core/data_extractor.py) uses editor/saved-board objects, natural sorting and explicit reference/connector filters. A PCB exposes physical pad connectivity but not every schematic label or symbol-pin semantic. |
+| Net classification | Configurable anchored wildcard/regular-expression sets classify power, ground and signal nets. | [`configure_net_patterns`, `classify_net`](core/data_extractor.py). The result is a naming heuristic; voltage/function must not be inferred from classification alone. |
+| Connectivity graph | Component, pin and net nodes are assembled from available schematic documents and board connectivity; configured passive components add pass-through edges. | [`SchematicGraphParser.build`](core/schematic_graph.py). Native UUID/sheet information is retained where available. Same-name nets and configured pass-throughs are explicit graph rules, not analogue/electrical simulation. |
+| Bounded path tracing | Graph traversal searches from a component pin or matching net with hop limits and records ordered nodes, intermediates and ambiguity. | [`trace_from_pin`, `trace_matching_nets`](core/schematic_graph.py) and [`SignalFlowAnalyzer.find_signal_path`](core/signal_flow.py). Multiple paths remain review findings; path existence does not establish signal direction or integrity. |
+| Controller-to-connector map | Endpoint patterns start a traversal; passive crossings are followed, while active crossings require an explicit pin-pair rule or supported component fields. | [`ControllerConnectorMapper.trace`](core/controller_connector_mapper.py). Conditional paths keep rule/status notes rather than being promoted to certain connectivity. Connector report regressions are in [`test_connector_report.py`](tests/test_connector_report.py). |
+| Cross-project endpoint matching | CSV/Markdown rows normalize to endpoint records; exact/indexed wildcard or regex captures pair endpoints under explicit project/rule scope. | [`PinDocumentImporter` and `CrossProjectLinker`](core/cross_linker.py). Duplicate/ambiguous candidates and unmatched endpoints stay visible; matching names do not prove compatible voltage, direction or connector orientation. |
+| Interface and differential-pair grouping | Structured label tokens group buses/interfaces and attach recognized positive/negative members. | [`parse_interface_label`, `group_interfaces`, `_attach_diff_pairs`](core/schematic_graph.py). This is label parsing, not differential routing verification. |
+| Power-tree screening | Named voltage/ground nets and explicit component pin roles produce directed candidate edges, voltage-order findings and cycle detection. | [`PowerTreeAnalyzer`](core/power_tree.py). Direction and voltage are metadata/name based; the result is not a power-flow, startup or stability simulation. |
+| Bring-up and diagram generation | Selected pin rows become Markdown, CSV and C headers; deterministic sorted records become escaped SVG block/signal diagrams. | [`bringup_packager.py`](core/bringup_packager.py) and [`diagram_generator.py`](core/diagram_generator.py). Generated macros need firmware review, and diagram placement is illustrative. Saved-board CLI inventory is covered by [`test_cli_board_list.py`](tests/test_cli_board_list.py). |
+
+### Technical background
+
+- KiCad's [schematic format](https://dev-docs.kicad.org/en/file-formats/sexpr-schematic/) documents hierarchical UUID paths, symbols, labels and sheets used by the graph parser.
+- KiCad's [board format](https://dev-docs.kicad.org/en/file-formats/sexpr-pcb/) documents footprints, pads and nets used by PCB extraction.
+- The graph construction, naming rules and bounded traversals are project heuristics. They are documented from the implementation above and are not presented as published circuit-analysis research.
+
 ---
 
 ## License

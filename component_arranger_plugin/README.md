@@ -76,6 +76,27 @@ Parts already touching tracks, vias, zones or other footprints are held fixed. T
 
 Saved schematic groups are available from PCB Editor. Live selections in a separate Schematic Editor window are not exposed by this native action; use a sub-sheet, saved wire cluster or explicit references instead. Unsupported hierarchical port/bus/power semantics are reported, not guessed.
 
+## Implemented methods and research basis
+
+The implementation is a bounded deterministic heuristic, not a general PCB
+placement optimizer. The authoritative method is in [engine.py](engine.py),
+with saved-schematic grouping in [grouping.py](grouping.py) and native
+materialization/validation in [native.py](native.py).
+
+| Method | Implemented geometry and objective | Assumptions and limits | Validation evidence |
+|---|---|---|---|
+| Pose transform and legality screen | Footprint-local courtyard vertices are mirrored in local X for bottom-side placement, rotated, then translated in millimetres. Segment intersection, ray-crossing point-in-polygon and point-to-segment distance reject overlap, containment, edge contact and inadequate routing margin against the requested rectangle, board outline/cutouts, keepouts and fixed footprints. | Courtyards and 2D routing reservations are proxies; no 3D collision, pin-escape or field solution is performed. Multipart/concave polygons are supported, but malformed or self-intersecting input is rejected. | [geometry and transform tests](tests/test_engine.py), including rotated polygons, concave boundaries, holes and both sides |
+| Electrical proxy | For each net, transformed pad centres plus retained external endpoints form a complete Euclidean graph. A deterministic O(pads²) Prim minimum spanning tree supplies total straight-edge length; intersections between different-net tree edges supply the projected-crossing count. This is the algorithm described by [Prim (1957)](https://doi.org/10.1002/j.1538-7305.1957.tb01515.x). | It is an XY ratsnest proxy across both sides, not routed length, short detection or proof of routability. | [`test_mst_known_length_and_crossings`](tests/test_engine.py) and external-endpoint/crossing-priority cases in the same file |
+| Bounded placement search | Movable parts are ordered by package/courtyard difficulty. Each pass evaluates legal side/angle/grid poses, retaining deterministic target-adjacent and original poses. Large regions coarsen the grid so allocations stay within `max_candidates`; lexicographic scoring minimizes capacitor-order violations, crossings, density error beyond ±5 percentage points, then MST plus capacitor distance. | This is project-specific greedy coordinate search with finite passes, not simulated annealing, analytical placement or a global optimum. Failure preserves every original pose. Density is courtyard area divided by each side's occupied bounding rectangle. | deterministic, infeasible, density, crossing-priority and resource-limit cases in [test_engine.py](tests/test_engine.py) |
+| Capacitor policy | Explicit F/mF/µF/uF/nF/pF and embedded forms such as `4n7` are normalized to farads; three-digit EIA codes are accepted only from an explicitly identified code/marking field. Each capacitor is associated with an explicit or shared power-like anchor pad and scored by nearest same-net pad distance; smaller known values must not be farther away within the same anchor-pin group. | This is an explicit placement policy and pad-distance proxy, not a loop-inductance or PDN calculation. Ambiguous, contradictory and unitless ordinary values remain unknown. | capacitance parsing, target override and ordering cases in [test_engine.py](tests/test_engine.py) |
+| Schematic grouping | Saved wire segments are split at endpoints, explicit junctions, pins and labels. Dijkstra shortest paths along drawn wire length form thresholded edges; union-find produces stable connected clusters. The shortest-path basis is [Dijkstra (1959)](https://doi.org/10.1007/BF01386390); label joins remain separate opt-ins. | Crossings without a junction do not connect. Bus members, implicit power connectivity and parent/child hierarchical pin mapping are deliberately not inferred. Optional symbol-origin proximity is marked non-electrical. | [test_grouping.py](tests/test_grouping.py), including T-junctions, non-junction crossings, hierarchy, mirroring and label opt-in |
+| Native acceptance and custody | Preview is detached. Candidate copies undergo native connectivity and before/after DRC checks using matching saved project/rule inputs; source/rules/settings fingerprints reject stale Apply. Apply/Undo restore full footprint state with rollback and a backup. KiCad documents DRC as the board-rules and connectivity checker in the [PCB Editor manual](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#design_rules_checking). | Passing the comparison establishes only the checks run; final refill, DRC, assembly and routing review remain required. | [test_native.py](tests/test_native.py), including real DRC, stale rules, exact restore and injected mutation failures |
+
+The cited graph algorithms explain only the MST and shortest-path primitives.
+The pose enumeration, scoring order, capacitor policy and geometric screening are
+WayriCAD-specific heuristics; no published placement pedigree is claimed for
+them.
+
 ## Command line
 
 Use the matching KiCad native Python with `pcbnew`, or `wayricad-arrange` in an equivalent configured environment. Reports and output projects must use new filenames.
