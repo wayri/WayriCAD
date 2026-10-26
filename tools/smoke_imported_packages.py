@@ -27,6 +27,9 @@ def main():
     with tempfile.TemporaryDirectory(prefix='wayricad-wheel-') as temporary:
         root = Path(temporary)
         with zipfile.ZipFile(wheel) as archive:
+            if any('tests' in Path(name).parts or '__pycache__' in Path(name).parts
+                   or name.endswith(('.pyc', '.pyo')) for name in archive.namelist()):
+                raise RuntimeError('Wheel contains development tests or bytecode caches.')
             if any(name.startswith(('build/', 'dist/', '.validation/')) for name in archive.namelist()):
                 raise RuntimeError('Wheel contains generated build or private validation directories.')
             stale_plugins = {

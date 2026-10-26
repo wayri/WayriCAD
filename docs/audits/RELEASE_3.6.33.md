@@ -113,3 +113,8 @@ production modules and the owned analysis workers come from each extracted ZIP.
 The auxiliary BOM package descriptor now matches 3.6.33; its 32 focused
 packaging/version tests pass. Scientific reference URLs remain in offline report
 provenance; tests reject active remote resources rather than deleting citations.
+
+The final wheel excludes development tests and bytecode caches; source-archive
+tests remain available. An explicit artifact check found zero test members, and
+the cleaned wheel passed all CLI/report-asset/mechanical-rule smoke workflows.
+No production solver or GUI code changed for this packaging correction.

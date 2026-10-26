@@ -77,5 +77,8 @@ embed_3d_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 protocol_constraint_composer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "docs/*.md", "examples/*", "examples/profiles/*.json", "examples/workflow_demo/*", "web/*.html", "web/*.css", "web/*.js"]
 "protocol_constraint_composer_plugin.constraint_studio" = ["*.html", "*.png", "LICENSE*", "help/*.json", "help/images/*"]
 
+[tool.setuptools.exclude-package-data]
+"*" = ["tests/*", "tests/**/*", "__pycache__/*", "*.pyc"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
