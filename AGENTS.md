@@ -4,6 +4,13 @@ This guide provides project context for contributors and coding assistants.
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for contribution requirements and the
 affected plugin's README for its workflow, supported inputs and limitations.
 
+## Public naming and attribution
+
+Use descriptive, task-based branch names. Do not include coding-assistant
+product names in branch names, commit messages, pull-request text, release notes
+or other public project content. When AI-assistance disclosure is required,
+use generic, accurate wording and retain the actual validation scope.
+
 ## Project structure
 
 WayriCAD is a suite of independently installable KiCad plugins. The default
