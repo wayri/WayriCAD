@@ -168,8 +168,20 @@ class ReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             b=bundle();paths=write_report(Path(directory)/'report.html',b,0)
             html=Path(paths['html']).read_text(encoding='utf-8')
-            self.assertEqual(html.count('data:image/png;base64,'),7)
-            self.assertNotIn('https://',html)
+            self.assertEqual(html.count('data:image/png;base64,'),8)
+            # Scientific reference URLs are text, not online dependencies.
+            # Reject active external resources while preserving provenance.
+            from html.parser import HTMLParser
+            from urllib.parse import urlsplit
+            external=[]
+            class Resources(HTMLParser):
+                def handle_starttag(self,tag,attrs):
+                    if tag not in ('img','script','iframe','link','video','audio','source','object','embed'):return
+                    external.extend(value for key,value in attrs if key in ('src','href','data') and value
+                                    and (urlsplit(value).scheme in ('http','https') or value.startswith('//')))
+            Resources().feed(html)
+            self.assertEqual(external,[])
+            self.assertIn('janaf.nist.gov',html)
             self.assertIn('Three primary result plots',html)
             self.assertIn('Source-to-sink DC power (W)',html)
             self.assertIn('Total modeled loss',html)

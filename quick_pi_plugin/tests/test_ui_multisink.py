@@ -20,6 +20,7 @@ def frame():
         source=control('A',0),sink=control('B',1),voltage=control('3.3'),current=control('.8'),
         source_current_limit=control('2'),sink_min_voltage=control('3.1'),sink_max_voltage=control('3.4'),
         temperature=control('20'),ambient=control('20'),limit=control('105'),pulse=control('1'),
+        melting=control('1084.62'),latent=control('206750'),
         load_mode=control('',0),model_dimension=control('',0),
         _terminals=[{'id':'A'},{'id':'B'},{'id':'C'}],_series_request=None,
         _extra_sinks=[{'terminal':'C','current_A':.6,'min_voltage_V':3}])

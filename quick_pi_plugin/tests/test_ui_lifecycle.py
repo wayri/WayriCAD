@@ -26,7 +26,8 @@ def test_analysis_request_accepts_finite_inputs_and_rejects_nan():
         net=control('VCC'), edge=control('0.5'), plating=control('0.025'),
         source=selection, sink=sink, voltage=control('12'), current=control('1'),
         temperature=control('20'), ambient=control('20'), limit=control('150'),
-        pulse=control('1'), load_mode=selection, model_dimension=selection,
+        pulse=control('1'), melting=control('1084.62'),latent=control('206750'),
+        load_mode=selection, model_dimension=selection,
         source_current_limit=control(''),sink_min_voltage=control(''),sink_max_voltage=control(''),
         _series_request=None,_extra_sinks=[],
         _terminals=[{'id': 'R1.1'}, {'id': 'J1.1'}],
@@ -34,6 +35,8 @@ def test_analysis_request_accepts_finite_inputs_and_rejects_nan():
     request = QuickPIFrame._request(frame, 'solve')
     assert request['sinks'] == [{'terminal':'J1.1','current_A':1}]
     assert request['source_terminal'] == 'R1.1'
+    assert request['options']['melting_temperature_c'] == 1084.62
+    assert request['options']['latent_heat_J_kg'] == 206750
     frame.current = control('nan')
     with pytest.raises(ValueError, match='finite'):
         QuickPIFrame._request(frame, 'solve')

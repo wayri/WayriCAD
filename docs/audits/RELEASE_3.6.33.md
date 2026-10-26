@@ -96,3 +96,20 @@ A final native SI capture used the ordinary application MainLoop and exited
 normally (exit 0), including real worker calculation, paint, selection and
 source custody; no os._exit was used. This supersedes the earlier forced-exit
 capture as the release screenshot evidence.
+
+## Final local portable and isolation checks
+
+Complete portable PI suite: 369 passed, 64 skipped and 410 subtests passed.
+Source-only documentation and packaged-image links pass. The isolated wheel
+passes CLI/report-asset/mechanical-rule smoke checks. The source archive's
+1,310 tracked members match the checkout bytes; private validation directories,
+caches and user boards are excluded.
+
+Independent PCM production imports were verified against archive bytes, with
+external test helpers staged separately. PI: 15 core tests plus four native
+sink/cursor/table/inspector tests, zero skips, normal process exit. SI: 11 new
+geometry/native/CLI cases, zero skips. Aliases replace only action registration;
+production modules and the owned analysis workers come from each extracted ZIP.
+The auxiliary BOM package descriptor now matches 3.6.33; its 32 focused
+packaging/version tests pass. Scientific reference URLs remain in offline report
+provenance; tests reject active remote resources rather than deleting citations.
