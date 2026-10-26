@@ -57,6 +57,7 @@ class QuickSIPanel(wx.Panel):
         def row(name,label,value='',choices=None,parent=left,sizer=form):
             sizer.Add(wx.StaticText(parent,label=label),0,wx.TOP,7)
             control=ReadableComboBox(parent,choices=choices,value=value,style=wx.CB_READONLY) if choices is not None else wx.TextCtrl(parent,value=value)
+            control.SetMinSize((1,-1))
             sizer.Add(control,0,wx.EXPAND|wx.TOP,3);self.fields[name]=control
             return control
         with read_snapshot(board):
@@ -66,6 +67,19 @@ class QuickSIPanel(wx.Panel):
         self.net_search=wx.SearchCtrl(left);self.net_search.SetHint('Search net names');form.Add(self.net_search,0,wx.EXPAND|wx.TOP,5);self.net_search.Bind(wx.EVT_TEXT,self.filter_nets)
         pick=wx.Button(left,label='Select net on board');form.Add(pick,0,wx.EXPAND|wx.TOP,5);pick.Bind(wx.EVT_BUTTON,self.select_board_net)
         row('start','Source pad',choices=[]);row('end','Receiver pad',choices=[])
+        with read_snapshot(board):
+            layers=self.engine.available_layers()
+            return_terminals=[{'label':str(fp.GetReference())+'.'+str(pad.GetNumber()),
+                'net':str(pad.GetNetname()),'reference':str(fp.GetReference()),
+                'id':str(pad.m_Uuid.AsString())}
+                for fp in board.GetFootprints() for pad in fp.Pads() if pad.GetNetname()]
+        from .return_setup_ui import ReturnSetupPanel
+        self.return_setup=ReturnSetupPanel(left,nets,return_terminals,layers,
+            lambda:self.changed(None),lambda:(left.FitInside(),self.Layout()))
+        self.return_nets=self.return_setup.nets;self.return_source=self.return_setup.source;self.return_sink=self.return_setup.sink
+        self.fields['reference']=self.return_setup.reference
+        form.Add(self.return_setup,0,wx.EXPAND|wx.TOP,5)
+
         ibis_pane=wx.CollapsiblePane(left,label='IBIS models for KiCad circuit export',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         from .ibis_ui import IbisPane
         self.ibis=IbisPane(ibis_pane.GetPane(),self._circuit_inputs_changed)
@@ -75,21 +89,9 @@ class QuickSIPanel(wx.Panel):
         row('rise_ns','Driver rise time (ns)','1');row('source_ohm','Driver resistance (ohm)','20')
         pane=wx.CollapsiblePane(left,style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE,label='Line and load assumptions');details=wx.BoxSizer(wx.VERTICAL);host=pane.GetPane()
         for name,label,value in [('frequency_mhz','Frequency (MHz)','100'),('load_ohm','Load resistance (ohm; blank = open)',''),('z0_ohm','Assumed uniform Z0 (ohm; blank = geometry)',''),('epsilon_eff','Assumed effective Er (blank = stackup)','')]:row(name,label,value,parent=host,sizer=details)
-        with read_snapshot(board):layers=self.engine.available_layers()
-        row('reference','Reference layer','Auto',['Auto']+layers,host,details)
         host.SetSizer(details);form.Add(pane,0,wx.EXPAND|wx.TOP,10);pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.FitInside(),self.Layout()))
-        returns_pane=wx.CollapsiblePane(left,style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE,label='Explicit return-path review (optional)');returns_layout=wx.BoxSizer(wx.VERTICAL);returns_host=returns_pane.GetPane()
-        returns_note=wx.StaticText(returns_host,label='Choose actual return nets; no return net or current loop is inferred. Review covers the whole signal net.');returns_note.Wrap(285);returns_layout.Add(returns_note,0,wx.EXPAND|wx.BOTTOM,5)
         from wayricad_runtime.readable_choice import SearchableCheckListBox
         from wayricad_runtime.searchable_selection import searchable_row
-        self.return_nets=SearchableCheckListBox(returns_host,choices=nets,size=(-1,105));returns_layout.Add(searchable_row(self.return_nets),0,wx.EXPAND)
-        self.return_source=ReadableComboBox(returns_host,choices=['Not specified'],value='Not specified',style=wx.CB_READONLY)
-        self.return_sink=ReadableComboBox(returns_host,choices=['Not specified'],value='Not specified',style=wx.CB_READONLY)
-        for label,control in [('Source return pad (optional)',self.return_source),('Receiver return pad (optional)',self.return_sink)]:
-            returns_layout.Add(wx.StaticText(returns_host,label=label),0,wx.TOP,5);returns_layout.Add(control,0,wx.EXPAND);control.Bind(wx.EVT_COMBOBOX,self.changed)
-        returns_host.SetSizer(returns_layout);form.Add(returns_pane,0,wx.EXPAND|wx.TOP,10)
-        returns_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.FitInside(),self.Layout()))
-        self.return_nets.Bind(wx.EVT_CHECKLISTBOX,self.return_nets_changed)
         study_pane=wx.CollapsiblePane(left,label='Multi-net study',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         study_host=study_pane.GetPane();study_form=wx.BoxSizer(wx.VERTICAL)
         study_note=wx.StaticText(study_host,label='Choose nets, edit source/receiver assignments, then optionally configure directed local crosstalk pairs.');study_note.Wrap(295)
@@ -97,10 +99,12 @@ class QuickSIPanel(wx.Panel):
         self.study_nets=SearchableCheckListBox(study_host,choices=nets,size=(-1,130));study_form.Add(searchable_row(self.study_nets),0,wx.EXPAND)
         self.study_add=wx.Button(study_host,label='Add checked nets to study')
         self.study_edit=wx.Button(study_host,label='Edit study cases…')
+        self.study_returns=wx.Button(study_host,label='Use this return setup for study cases')
+        self.study_returns.SetToolTip('Apply selected return nets to every case. Optional per-case return pins are cleared so unrelated endpoint assumptions are not copied.')
         self.crosstalk_edit=wx.Button(study_host,label='Configure crosstalk pairs (optional)…')
         self.crosstalk_results=wx.Button(study_host,label='Review crosstalk results…');self.crosstalk_results.Disable()
         self.study_run=wx.Button(study_host,label='Run multi-net study')
-        for control,handler in [(self.study_add,self._add_study_cases),(self.study_edit,self._edit_study_cases),(self.crosstalk_edit,self._edit_crosstalk),(self.study_run,self.run_study),(self.crosstalk_results,self._show_crosstalk)]:
+        for control,handler in [(self.study_add,self._add_study_cases),(self.study_returns,self._apply_study_returns),(self.study_edit,self._edit_study_cases),(self.crosstalk_edit,self._edit_crosstalk),(self.study_run,self.run_study),(self.crosstalk_results,self._show_crosstalk)]:
             control.Bind(wx.EVT_BUTTON,handler);study_form.Add(control,0,wx.EXPAND|wx.TOP,5)
         study_host.SetSizer(study_form);form.Add(study_pane,0,wx.EXPAND|wx.TOP,10)
         study_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.Layout(),left.FitInside(),self.Layout()))
@@ -189,6 +193,17 @@ class QuickSIPanel(wx.Panel):
             self.changed(None);self.study_edit.SetLabel('Edit study cases ('+str(len(self.study_cases))+')…')
             self.status.SetLabel('Study prepared. Edit all source/receiver pads; no direction is inferred for newly added nets.')
         except Exception as error:self.status.SetLabel(str(error))
+
+    def _apply_study_returns(self,event=None):
+        if not self.study_cases:
+            self.status.SetLabel('Add the selected study nets first, then apply their return setup.');return
+        try:
+            from .return_case_setup import apply_return_nets
+            self.study_cases=apply_return_nets(self.study_cases,self.return_setup.selected_nets())
+            self.changed(None)
+            self.status.SetLabel('Return settings applied to '+str(len(self.study_cases))+
+                ' cases. Optional return pins cleared; edit only cases that need a different return.')
+        except ValueError as error:self.status.SetLabel(str(error))
 
     def _edit_study_cases(self,event=None):
         if not self.study_cases:self._add_study_cases()
@@ -362,12 +377,7 @@ class QuickSIPanel(wx.Panel):
         self._update_circuit_buttons()
 
     def return_nets_changed(self,event=None):
-        selected={self.return_nets.GetString(i) for i in range(self.return_nets.GetCount()) if self.return_nets.IsChecked(i)}
-        with read_snapshot(self.board):
-            choices=['Not specified']+[str(fp.GetReference())+'.'+str(pad.GetNumber()) for fp in self.board.GetFootprints() for pad in fp.Pads() if str(pad.GetNetname()) in selected]
-        for control in (self.return_source,self.return_sink):
-            old=control.GetValue();control.Set(choices);control.SetValue(old if old in choices else 'Not specified')
-        self.changed(event)
+        self.return_setup._nets_changed(event)
 
     def select_board_net(self,event=None):
         import pcbnew
@@ -401,6 +411,8 @@ class QuickSIPanel(wx.Panel):
         self._update_circuit_buttons()
         if hasattr(self,'ibis'):
             self.ibis.set_context(self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue())
+        if hasattr(self,'return_setup'):
+            self.return_setup.set_context(self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue())
         self.status.SetLabel('Inputs changed; run a fresh screen before exporting.')
         self._navigation_buttons()
         if event:event.Skip()
@@ -539,8 +551,10 @@ class QuickSIPanel(wx.Panel):
         selected_returns=[self.return_nets.GetString(i) for i in range(self.return_nets.GetCount()) if self.return_nets.IsChecked(i)]
         if selected_returns:
             values['return_nets']=selected_returns
-            values['return_terminal_ids']=[c.GetValue() for c in (self.return_source,self.return_sink) if c.GetValue()!='Not specified']
-            values['return_terminal_roles']={role:c.GetValue() for role,c in [('source',self.return_source),('load',self.return_sink)] if c.GetValue()!='Not specified'}
+            roles={role:(self.return_setup.terminal_value(c) if hasattr(self,'return_setup') else c.GetValue())
+                   for role,c in [('source',self.return_source),('load',self.return_sink)] if c.GetValue()!='Not specified'}
+            values['return_terminal_ids']=list(roles.values())
+            values['return_terminal_roles']=roles
         if self.eye_enabled.GetValue() and values['eye_bitrate_mbps'] is None:raise ValueError('Enter a positive eye bit rate.')
         return values
 

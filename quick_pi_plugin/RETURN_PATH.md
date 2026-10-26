@@ -1,5 +1,33 @@
 # Return-path screen for Quick PI
 
+## In the window
+
+1. Open **Return path**. It starts with the net selected in PI Setup; use
+   **Use Setup net** to restore that choice after selecting a different signal.
+2. Choose its actual **Return net**, or explicitly confirm **Use GND** when the
+   suggested domain is correct. **Find…** searches full net names. Suggestions
+   use names only and are not selected automatically.
+3. Click **Review return path**. Review the map, findings and report.
+
+**More return options** contains multiple return nets, optional source/load
+return pads, sampling pitch and via-search radius. The usual geometric review
+does not require pad assignments. Duplicate pad labels retain distinct IDs;
+changing the signal clears old optional endpoint assignments and results.
+**Detailed evidence and model limits** expands the textual findings.
+
+![Native guided return review](help-return-setup.png)
+
+This is a computed review of a synthetic saved PCB with eight straight tracks
+and a filled opposite-side return zone. It is a sampled geometry check, not a
+solved return-current loop or measured board validation.
+
+For **DC ground voltage drop**, use **Rails / ground returns… → Set up ground / return…**
+instead. Its single form shows the return net, supply-ground pad unit and each
+load-ground mapping. Multiple pads remain one explicit equipotential unit.
+See the [multi-net guide](README.md#multi-net-cases-return-copper-and-joule-feedback).
+
+## Geometry model and scripting
+
 Quick PI can screen the **saved board's** signal routing against a return net that
 the user names explicitly. The screen reads native filled copper-zone polygons,
 the selected signal tracks, and signal/return vias. It reports locations where

@@ -19,24 +19,39 @@ class BatchStudyDialog(wx.Dialog):
         self.board_path=str(board_path);self.sha=source_sha256;self.result=None
         self._busy=False;self._closed=False;self._closing=False;self._cancel=threading.Event()
         root=wx.BoxSizer(wx.VERTICAL)
-        note=wx.StaticText(self,label='Select source and load pad units on each rail, then map loads into a shared return group to solve common ground copper once. '
-            'Pad units are ideal equipotential contacts; total current divides according to copper conductance.')
+        note=wx.StaticText(self,label='1 Add the power rails.  2 Set up ground / return copper.  3 Run and review voltage drop and losses. '
+            'A return setup can serve one rail or several rails sharing the same ground.')
         note.Wrap(930);root.Add(note,0,wx.EXPAND|wx.ALL,10)
         row=wx.WrapSizer(wx.HORIZONTAL)
         self.add=wx.Button(self,label='Add net case…');self.load=wx.Button(self,label='Load JSON…');self.save=wx.Button(self,label='Save study JSON…')
-        self.units=wx.Button(self,label='Edit source / load pad units…');self.returns=wx.Button(self,label='Add shared return group…')
+        self.units=wx.Button(self,label='Edit source / load pads…');self.returns=wx.Button(self,label='Set up ground / return…')
         for control in (self.add,self.units,self.returns,self.load,self.save):row.Add(control,0,wx.RIGHT|wx.BOTTOM,6)
         root.Add(row,0,wx.LEFT|wx.RIGHT,10)
         self.book=wx.Notebook(self)
-        self.setup=wx.TextCtrl(self.book,value=json.dumps(initial,indent=2,allow_nan=False),style=wx.TE_MULTILINE|wx.TE_DONTWRAP)
-        self.book.AddPage(self.setup,'Cases and explicit settings')
+        guided=wx.Panel(self.book);guided_layout=wx.BoxSizer(wx.VERTICAL)
+        guided_layout.Add(wx.StaticText(guided,label='Power rails'),0,wx.ALL,8)
+        self.case_table=wx.ListCtrl(guided,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        for i,(label,width) in enumerate([('Case / rail',220),('Net',180),('Loads',90),('Ground / return',310)]):self.case_table.InsertColumn(i,label,width=width)
+        guided_layout.Add(self.case_table,1,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
+        guided_layout.Add(wx.StaticText(guided,label='Ground / return setups'),0,wx.ALL,8)
+        self.return_table=wx.ListCtrl(guided,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        for i,(label,width) in enumerate([('Setup',210),('Return net',160),('Power rail(s)',260),('Pad mapping',250)]):self.return_table.InsertColumn(i,label,width=width)
+        guided_layout.Add(self.return_table,1,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
+        return_actions=wx.BoxSizer(wx.HORIZONTAL)
+        self.edit_return=wx.Button(guided,label='Edit selected return…');self.remove_return=wx.Button(guided,label='Remove selected return')
+        for control in (self.edit_return,self.remove_return):return_actions.Add(control,0,wx.RIGHT,8)
+        guided_layout.Add(return_actions,0,wx.ALL,8)
+        self.setup_note=wx.StaticText(guided);self.setup_note.Wrap(900);guided_layout.Add(self.setup_note,0,wx.EXPAND|wx.ALL,8)
+        guided.SetSizer(guided_layout);self.book.AddPage(guided,'1 · Rails and returns')
         self.details=wx.TextCtrl(self.book,style=wx.TE_MULTILINE|wx.TE_READONLY)
-        self.book.AddPage(self.details,'Results and failures')
+        self.book.AddPage(self.details,'2 · Results')
+        self.setup=wx.TextCtrl(self.book,value=json.dumps(initial,indent=2,allow_nan=False),style=wx.TE_MULTILINE|wx.TE_DONTWRAP)
+        self.book.AddPage(self.setup,'Advanced JSON')
         catalog=wx.TextCtrl(self.book,value='\n'.join(t.get('net','')+' · '+t.get('label',t['id']) for t in inventory.get('terminals',[])),
                             style=wx.TE_MULTILINE|wx.TE_READONLY)
         self.book.AddPage(catalog,'Saved-board pad catalogue')
         root.Add(self.book,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
-        self.status=wx.StaticText(self,label='Add cases with explicit terminals and currents. Advanced return/thermal settings stay visible in JSON.')
+        self.status=wx.StaticText(self,label='Select a rail and Set up ground / return. Advanced numerical and thermal settings remain in the JSON tab.')
         self.status.Wrap(930);root.Add(self.status,0,wx.EXPAND|wx.ALL,10)
         actions=wx.BoxSizer(wx.HORIZONTAL)
         self.run=wx.Button(self,label='Run all cases');self.stop=wx.Button(self,label='Cancel');self.export=wx.Button(self,label='Export HTML / JSON…');close=wx.Button(self,wx.ID_CLOSE,'Close')
@@ -46,14 +61,17 @@ class BatchStudyDialog(wx.Dialog):
         root.Add(actions,0,wx.ALIGN_RIGHT|wx.ALL,10);self.SetSizer(root)
         self.setup.Bind(wx.EVT_TEXT,self.changed);self.add.Bind(wx.EVT_BUTTON,self.add_case)
         self.units.Bind(wx.EVT_BUTTON,self.edit_units);self.returns.Bind(wx.EVT_BUTTON,self.add_shared_return)
+        self.edit_return.Bind(wx.EVT_BUTTON,self.edit_selected_return);self.remove_return.Bind(wx.EVT_BUTTON,self.remove_selected_return)
+        self.return_table.Bind(wx.EVT_LIST_ITEM_ACTIVATED,self.edit_selected_return)
         self.load.Bind(wx.EVT_BUTTON,self.load_study);self.save.Bind(wx.EVT_BUTTON,self.save_study)
         self.run.Bind(wx.EVT_BUTTON,self.run_cases);self.stop.Bind(wx.EVT_BUTTON,lambda e:self._cancel.set())
         self.export.Bind(wx.EVT_BUTTON,self.export_report);close.Bind(wx.EVT_BUTTON,self.close);self.Bind(wx.EVT_CLOSE,self.close)
         self.power_flow.Bind(wx.EVT_BUTTON,self.show_power_flow)
-        self.stop.Disable();self.export.Disable();fit_to_display(self);install_accessibility(self,Path(__file__).with_name('help.html'))
+        self.stop.Disable();self.export.Disable();self.refresh_summary();fit_to_display(self);install_accessibility(self,Path(__file__).with_name('help.html'))
 
     def changed(self,event=None):
         self.result=None;self.export.Disable();self.details.Clear()
+        self.refresh_summary()
         self.status.SetLabel('Study changed. Rerun every case before exporting.')
         if event:event.Skip()
 
@@ -67,16 +85,46 @@ class BatchStudyDialog(wx.Dialog):
 
     def study(self):return parse_study(self.setup.GetValue().encode('utf-8'))
 
+    def refresh_summary(self):
+        """Present saved case identities and return mappings without requiring JSON."""
+        from .service import sink_requests
+        self.case_table.DeleteAllItems();self.return_table.DeleteAllItems();self._return_rows=[]
+        try:study=self.study()
+        except ValueError as exc:self.setup_note.SetLabel('Advanced JSON needs correction: '+str(exc));return
+        returns={}
+        for i,group in enumerate(study.get('shared_returns',[])):
+            members=sorted({m['case'] for m in group['loads']})
+            for name in members:returns[name]=group['net']+' · shared' if len(members)>1 else group['net']
+            row=self.return_table.InsertItem(self.return_table.GetItemCount(),group['name'])
+            self.return_table.SetItem(row,1,group['net']);self.return_table.SetItem(row,2,', '.join(members))
+            self.return_table.SetItem(row,3,str(len(group['loads']))+' load unit(s)');self._return_rows.append(('shared',i))
+        missing=0
+        for case in study['cases']:
+            if 'return_conduction' in case:
+                definition=case['return_conduction'];returns[case['name']]=definition['net']+' · independent loop'
+                row=self.return_table.InsertItem(self.return_table.GetItemCount(),case['name']+' ground')
+                self.return_table.SetItem(row,1,definition.get('net','Unknown'));self.return_table.SetItem(row,2,case['name'])
+                self.return_table.SetItem(row,3,'Existing independent loop');self._return_rows.append(('independent',case['name']))
+            row=self.case_table.InsertItem(self.case_table.GetItemCount(),case['name'])
+            self.case_table.SetItem(row,1,case['electrical']['net'])
+            try:load_count=str(len(sink_requests(case['electrical'])))
+            except ValueError:load_count='Review loads'
+            self.case_table.SetItem(row,2,load_count)
+            self.case_table.SetItem(row,3,returns.get(case['name'],'Not configured'))
+            missing+=case['name'] not in returns
+        if self.case_table.GetItemCount():self.case_table.Select(0)
+        if self.return_table.GetItemCount():self.return_table.Select(0)
+        self.edit_return.Enable(bool(self._return_rows));self.remove_return.Enable(bool(self._return_rows))
+        self.setup_note.SetLabel((str(missing)+' rail(s) have no DC return solve. ' if missing else 'All rails have a return setup. ')+
+            'A geometric return-path review is separate from this DC return-current calculation.')
+
+    def apply_study(self,study):
+        validate_study(study);self.setup.SetValue(json.dumps(study,indent=2,allow_nan=False));self.refresh_summary()
+
     def choose_pads(self,net,title,selected=()):
-        pads=[t for t in self.inventory.get('terminals',[]) if t.get('net')==net]
-        if not pads:raise ValueError('No saved-board pads on '+net)
-        with wx.MultiChoiceDialog(self,title+'\nSelected pads form one ideal equipotential unit.',net,
-                                  [t['label'] for t in pads]) as dialog:
-            dialog.SetSelections([i for i,t in enumerate(pads) if t['id'] in selected or t['label'] in selected])
-            if dialog.ShowModal()!=wx.ID_OK:return None
-            choices=[pads[i]['id'] for i in dialog.GetSelections()]
-        if not choices:raise ValueError('Select at least one pad.')
-        return choices
+        from .pi_return_setup import choose_pad_unit
+        self.status.SetLabel(title+' · choose the physical pads; their combined current belongs to one unit.')
+        return choose_pad_unit(self,self.inventory,net,selected)
 
     def edit_units(self,event=None):
         """Discoverable grouped-pad editor; raw JSON remains the exact saved contract."""
@@ -115,36 +163,45 @@ class BatchStudyDialog(wx.Dialog):
         except (ValueError,TypeError) as exc:wx.MessageBox(str(exc),'Pad units',wx.OK|wx.ICON_WARNING,self)
 
     def add_shared_return(self,event=None):
+        if self._busy:return
         try:
-            study=self.study()
-            with wx.MultiChoiceDialog(self,'Select rails whose complete load currents share one return mesh.','Shared DC return',
-                                      [c['name'] for c in study['cases']]) as dialog:
-                if dialog.ShowModal()!=wx.ID_OK:return
-                selected=[study['cases'][i] for i in dialog.GetSelections()]
-            if not selected:raise ValueError('Select at least one rail case.')
-            with wx.TextEntryDialog(self,'Unique name for the shared return group','Shared DC return','Common ground') as dialog:
-                if dialog.ShowModal()!=wx.ID_OK:return
-                name=dialog.GetValue().strip()
-            nets=self.inventory.get('nets',[])
-            with wx.SingleChoiceDialog(self,'Select the explicit return copper net','Shared DC return',nets) as dialog:
-                if dialog.ShowModal()!=wx.ID_OK:return
-                net=nets[dialog.GetSelection()]
-            source=self.choose_pads(net,'Source-ground pads (zero reference)')
-            if source is None:return
-            group={'name':name,'net':net,'source_terminals':source,'loads':[]}
-            from .service import sink_requests
-            for case in selected:
-                electrical=case['electrical'];sinks=sink_requests(electrical)
-                for i,sink in enumerate(sinks):
-                    sink.setdefault('id','load-'+str(i+1))
-                    pads=self.choose_pads(net,case['name']+' · '+sink['id']+' · load-ground pads')
-                    if pads is None:return
-                    group['loads'].append({'case':case['name'],'sink':sink['id'],'terminals':pads})
-                for key in ('sink_terminal','sink_current','sink_min_voltage','sink_max_voltage'):electrical.pop(key,None)
-                electrical['sinks']=sinks
-            study.setdefault('shared_returns',[]).append(group)
-            validate_study(study);self.setup.SetValue(json.dumps(study,indent=2,allow_nan=False))
-        except (ValueError,TypeError) as exc:wx.MessageBox(str(exc),'Shared DC return',wx.OK|wx.ICON_WARNING,self)
+            study=self.study();selection=self.case_table.GetFirstSelected()
+            case=study['cases'][selection] if 0<=selection<len(study['cases']) else None
+            if case and 'return_conduction' in case:
+                self.configure_return(study,independent_case=case['name']);return
+            for index,group in enumerate(study.get('shared_returns',[])):
+                if case and any(m['case']==case['name'] for m in group['loads']):
+                    self.configure_return(study,group_index=index);return
+            self.configure_return(study,case_names=[case['name']] if case else None)
+        except (ValueError,TypeError) as exc:self.status.SetLabel(str(exc))
+
+    def configure_return(self,study,**options):
+        from .pi_return_setup import ReturnSetupDialog
+        dialog=ReturnSetupDialog(self,study,self.inventory,**options)
+        try:
+            if dialog.ShowModal()==wx.ID_OK:self.apply_study(dialog.updated)
+        finally:dialog.Destroy()
+
+    def edit_selected_return(self,event=None):
+        if self._busy:return
+        index=self.return_table.GetFirstSelected()
+        if not 0<=index<len(self._return_rows):return
+        kind,identity=self._return_rows[index]
+        try:self.configure_return(self.study(),**({'group_index':identity} if kind=='shared' else {'independent_case':identity}))
+        except (ValueError,TypeError) as exc:self.status.SetLabel(str(exc))
+
+    def remove_selected_return(self,event=None):
+        if self._busy:return
+        index=self.return_table.GetFirstSelected()
+        if not 0<=index<len(self._return_rows):return
+        if wx.MessageBox('Remove this staged return setup? The power rails and PCB stay unchanged.',
+                         'Remove return setup',wx.YES_NO|wx.NO_DEFAULT|wx.ICON_QUESTION,self)!=wx.YES:return
+        try:
+            study=self.study();kind,identity=self._return_rows[index]
+            if kind=='shared':study['shared_returns'].pop(identity)
+            else:next(c for c in study['cases'] if c['name']==identity).pop('return_conduction')
+            self.apply_study(study)
+        except (ValueError,TypeError) as exc:self.status.SetLabel(str(exc))
 
     def add_case(self,event=None):
         if self._busy:return
@@ -156,21 +213,10 @@ class BatchStudyDialog(wx.Dialog):
         voltage=wx.TextCtrl(form);current=wx.TextCtrl(form)
         for label,control in [('Case name',name),('Net',net),('Source pad',source),('Load pad',sink),('Source voltage (V)',voltage),('Load demand (A)',current)]:
             fields.Add(wx.StaticText(form,label=label),0,wx.ALIGN_CENTER_VERTICAL);fields.Add(control,1,wx.EXPAND)
-        return_enabled=wx.CheckBox(form,label='Solve explicit DC return copper')
-        return_net=ReadableComboBox(form,choices=self.inventory.get('nets',[]),style=wx.CB_READONLY)
-        load_ground=ReadableChoice(form);source_ground=ReadableChoice(form)
+        return_enabled=wx.CheckBox(form,label='Set up ground / return after this rail')
         fields.Add(return_enabled,0,wx.EXPAND);fields.AddSpacer(1)
-        for label,control in [('Return net',return_net),('Load-ground pad (current enters)',load_ground),('Source-ground pad (current leaves)',source_ground)]:
-            fields.Add(wx.StaticText(form,label=label),0,wx.ALIGN_CENTER_VERTICAL);fields.Add(control,1,wx.EXPAND);control.Disable()
-        def return_changed(event):
-            pads=[t for t in self.inventory.get('terminals',[]) if t.get('net')==return_net.GetValue()]
-            for control in (load_ground,source_ground):control.SetItems([t['label'] for t in pads])
-        return_net.Bind(wx.EVT_COMBOBOX,return_changed)
-        def toggle_return(event):
-            for control in (return_net,load_ground,source_ground):control.Enable(return_enabled.GetValue())
-        return_enabled.Bind(wx.EVT_CHECKBOX,toggle_return)
         form.SetSizer(fields);box.Add(form,1,wx.EXPAND|wx.ALL,12)
-        box.Add(wx.StaticText(dialog,label='More sinks and optional return/thermal settings can be edited in the case JSON.'),0,wx.ALL,12)
+        box.Add(wx.StaticText(dialog,label='The return setup shows the ground net and all return-pad mappings together. Advanced numerical settings remain in JSON.'),0,wx.ALL,12)
         box.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,12);dialog.SetSizer(box)
         def changed(e):
             pads=[t for t in self.inventory.get('terminals',[]) if t.get('net')==net.GetValue()]
@@ -191,13 +237,22 @@ class BatchStudyDialog(wx.Dialog):
                     study['cases'].append({'name':name.GetValue().strip(),'electrical':{
                         'net':net.GetValue(),'source_terminal':source.GetStringSelection(),'source_voltage':value,'sinks':[load]}})
                     if return_enabled.GetValue():
-                        if not return_net.GetValue() or min(load_ground.GetSelection(),source_ground.GetSelection())<0:
-                            raise ValueError('Select explicit return net and both ground pads.')
-                        from .power_loop import return_request
-                        definition={'net':return_net.GetValue(),'source_terminal':load_ground.GetStringSelection(),'sink_terminal':source_ground.GetStringSelection()}
-                        return_request(study['cases'][-1]['electrical'],definition)
-                        study['cases'][-1]['return_conduction']=definition
-                    validate_study(study);self.setup.SetValue(json.dumps(study,indent=2,allow_nan=False));return
+                        from .pi_return_setup import ReturnSetupDialog
+                        groups=study.get('shared_returns',[]);group_index=None
+                        if len(groups)==1:group_index=0
+                        elif groups:
+                            choices=[g['name']+' · '+g['net'] for g in groups]+['Create a different return domain']
+                            with wx.SingleChoiceDialog(dialog,'Which return setup should include this rail?','Ground / return',choices) as picker:
+                                if picker.ShowModal()!=wx.ID_OK:continue
+                                group_index=picker.GetSelection() if picker.GetSelection()<len(groups) else None
+                        members={m['case'] for m in groups[group_index]['loads']} if group_index is not None else set()
+                        members.add(study['cases'][-1]['name'])
+                        editor=ReturnSetupDialog(dialog,study,self.inventory,group_index=group_index,case_names=members)
+                        try:
+                            if editor.ShowModal()!=wx.ID_OK:continue
+                            study=editor.updated
+                        finally:editor.Destroy()
+                    self.apply_study(study);return
                 except (ValueError,TypeError) as exc:wx.MessageBox(str(exc),'Case settings',wx.OK|wx.ICON_WARNING,dialog)
         finally:dialog.Destroy()
 
@@ -227,7 +282,7 @@ class BatchStudyDialog(wx.Dialog):
             if hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()!=self.sha:raise ValueError('Saved PCB changed; close the study and reload.')
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc));return
         self.changed();self._busy=True;self._cancel.clear();self.run.Disable();self.stop.Enable()
-        for control in (self.setup,self.add,self.units,self.returns,self.load,self.save):control.Disable()
+        for control in (self.setup,self.add,self.units,self.returns,self.edit_return,self.remove_return,self.load,self.save):control.Disable()
         self.status.SetLabel('Running rails and simultaneous shared-return groups. Cancel discards the batch.')
         request={'action':'batch','study':study,'board_path':self.board_path,'source_sha256':self.sha}
         def work():
@@ -242,7 +297,8 @@ class BatchStudyDialog(wx.Dialog):
         if self._closed:return
         if self._closing:self.finish_close();return
         self.run.Enable();self.stop.Disable()
-        for control in (self.setup,self.add,self.units,self.returns,self.load,self.save):control.Enable()
+        for control in (self.setup,self.add,self.units,self.returns,self.edit_return,self.remove_return,self.load,self.save):control.Enable()
+        self.refresh_summary()
         if self._cancel.is_set():error='Cancelled; no partial batch accepted.'
         if not error and (not isinstance(result,dict) or 'batch' not in result):error='Worker returned no batch evidence.'
         if error:self.status.SetLabel(error);return

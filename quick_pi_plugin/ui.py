@@ -118,8 +118,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.joule_feedback.SetToolTip('DC always calculates copper I²R losses. Check this to configure explicit materials, cooling boundaries and steady temperature-to-resistance feedback. Supported for 2.5D prescribed-current loads only.')
         controls.Add(self.joule_feedback,0,wx.EXPAND|wx.BOTTOM,6)
         self.joule_feedback.Bind(wx.EVT_CHECKBOX,self._invalidate)
-        self.batch_button=wx.Button(self.inputs,label='Multi-net cases…')
-        self.batch_button.SetToolTip('Configure multiple rail cases, equipotential source/load pad units, and simultaneous shared-return DC coupling.')
+        self.batch_button=wx.Button(self.inputs,label='Rails / ground returns…')
+        self.batch_button.SetToolTip('Set up the ground return for this rail, or add multiple rails with shared return copper. The guided tables show all pad mappings together.')
         controls.Add(self.batch_button,0,wx.EXPAND|wx.BOTTOM,6);self.batch_button.Bind(wx.EVT_BUTTON,self.on_batch)
         self.operation_note=SidebarText(self.inputs,'Source voltage → sink current')
         controls.Add(self.operation_note,0,wx.EXPAND|wx.BOTTOM,6)
@@ -249,53 +249,136 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
 
     def _build_return_page(self):
         page=wx.Panel(self.book);layout=wx.BoxSizer(wx.VERTICAL)
-        note=wx.StaticText(page,label='Return-path screen · choose the routed signal and its actual return net(s). The map checks saved filled zones and nearby return vias; it cannot prove current loops or impedance.')
+        note=wx.StaticText(page,label='1 · Choose a signal or rail   2 · Confirm its return net   3 · Review the board. This checks saved return-plane coverage and stitching; it does not solve return current.')
         note.Wrap(1050);layout.Add(note,0,wx.EXPAND|wx.ALL,10)
-        settings=wx.BoxSizer(wx.HORIZONTAL)
+        from wayricad_runtime.searchable_selection import searchable_row
+        settings=wx.WrapSizer(wx.HORIZONTAL,flags=wx.REMOVE_LEADING_SPACES)
         self.return_signal=ReadableChoice(page)
-        self.return_pitch=wx.TextCtrl(page,value='0.25',size=(75,-1))
-        self.return_radius=wx.TextCtrl(page,value='2',size=(75,-1))
-        for label,ctrl in [('Signal net',self.return_signal),('Sample pitch mm',self.return_pitch),('Return via radius mm',self.return_radius)]:
-            settings.Add(wx.StaticText(page,label=label),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
-            settings.Add(ctrl,1 if ctrl is self.return_signal else 0,wx.RIGHT,12)
+        self.return_signal.SetMinSize((210,-1))
+        settings.Add(wx.StaticText(page,label='Signal / rail'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
+        settings.Add(searchable_row(self.return_signal),0,wx.RIGHT|wx.BOTTOM,8)
+        self.return_current=wx.Button(page,label='Use Setup net')
+        self.return_current.SetToolTip('Use the net currently selected in the main PI setup.')
+        self.return_current.Bind(wx.EVT_BUTTON,self._return_use_current)
+        settings.Add(self.return_current,0,wx.RIGHT|wx.BOTTOM,12)
+        self.return_primary=ReadableChoice(page,choices=['Choose return net…'])
+        self.return_primary.SetSelection(0);self.return_primary.SetMinSize((210,-1))
+        settings.Add(wx.StaticText(page,label='Return net'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
+        settings.Add(searchable_row(self.return_primary),0,wx.RIGHT|wx.BOTTOM,8)
+        self.return_suggest=wx.Button(page,label='Use suggested return')
+        self.return_suggest.Bind(wx.EVT_BUTTON,self._return_use_suggestion)
+        settings.Add(self.return_suggest,0,wx.RIGHT|wx.BOTTOM,12)
         self.return_run=wx.Button(page,label='Review return path');self.return_run.Bind(wx.EVT_BUTTON,self.on_return_path)
         self.return_export=wx.Button(page,label='Export report…');self.return_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('return_path'))
         settings.Add(self.return_run,0,wx.RIGHT,7);settings.Add(self.return_export,0);layout.Add(settings,0,wx.EXPAND|wx.ALL,10)
-        body=wx.BoxSizer(wx.HORIZONTAL)
-        side=wx.BoxSizer(wx.VERTICAL);side.Add(wx.StaticText(page,label='Return nets'),0,wx.BOTTOM,5)
+        self.return_hint=wx.StaticText(page,label='Choose the actual return; suggestions are names only.')
+        layout.Add(self.return_hint,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        self.return_options=wx.CollapsiblePane(page,label='More return options · multiple nets, optional pads and sampling')
+        options=self.return_options.GetPane();side=wx.BoxSizer(wx.HORIZONTAL)
+        nets=wx.BoxSizer(wx.VERTICAL);nets.Add(wx.StaticText(options,label='Check additional return nets only if needed'),0,wx.BOTTOM,5)
         from wayricad_runtime.readable_choice import SearchableCheckListBox
-        from wayricad_runtime.searchable_selection import searchable_row
-        self.return_nets=SearchableCheckListBox(page,size=(180,-1));side.Add(searchable_row(self.return_nets),1,wx.EXPAND)
-        self.return_source=ReadableChoice(page,choices=['Not specified']);self.return_source.SetSelection(0)
-        self.return_sink=ReadableChoice(page,choices=['Not specified']);self.return_sink.SetSelection(0)
+        self.return_nets=SearchableCheckListBox(options,size=(240,110));nets.Add(searchable_row(self.return_nets),1,wx.EXPAND)
+        side.Add(nets,1,wx.EXPAND|wx.RIGHT,12)
+        pads=wx.BoxSizer(wx.VERTICAL)
+        self.return_source=ReadableChoice(options,choices=['Not specified']);self.return_source.SetSelection(0)
+        self.return_sink=ReadableChoice(options,choices=['Not specified']);self.return_sink.SetSelection(0)
         for label,control in [('Source return pad (optional)',self.return_source),('Load return pad (optional)',self.return_sink)]:
-            side.Add(wx.StaticText(page,label=label),0,wx.TOP,5);side.Add(control,0,wx.EXPAND|wx.TOP,3)
+            pads.Add(wx.StaticText(options,label=label),0,wx.TOP,5);pads.Add(searchable_row(control),0,wx.EXPAND|wx.TOP,3)
             control.Bind(wx.EVT_CHOICE,self._invalidate_return)
-        body.Add(side,0,wx.EXPAND|wx.RIGHT,10)
+        sampling=wx.BoxSizer(wx.HORIZONTAL)
+        self.return_pitch=wx.TextCtrl(options,value='0.25',size=(65,-1))
+        self.return_radius=wx.TextCtrl(options,value='2',size=(65,-1))
+        for label,control in [('Sample mm',self.return_pitch),('Via radius mm',self.return_radius)]:
+            sampling.Add(wx.StaticText(options,label=label),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
+            sampling.Add(control,0,wx.RIGHT,8)
+        pads.Add(sampling,0,wx.TOP,8);side.Add(pads,2,wx.EXPAND);options.SetSizer(side)
+        layout.Add(self.return_options,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        self.return_options.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:page.Layout())
         self.return_figure=Figure(figsize=(8,4),dpi=100);self.return_canvas=FigureCanvasWxAgg(page,wx.ID_ANY,self.return_figure)
-        body.Add(self.return_canvas,1,wx.EXPAND);layout.Add(body,1,wx.EXPAND|wx.ALL,10)
+        layout.Add(self.return_canvas,1,wx.EXPAND|wx.ALL,10)
         self.return_table=wx.ListCtrl(page,style=wx.LC_REPORT,size=(-1,145))
         for i,(name,width) in enumerate([('Level',90),('Finding',210),('Layer',100),('Position mm',120),('Detail',510)]):
             self.return_table.InsertColumn(i,name,width=width)
         layout.Add(self.return_table,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
-        self.return_details=wx.TextCtrl(page,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,100));layout.Add(self.return_details,0,wx.EXPAND|wx.ALL,10)
-        self.return_status=wx.StaticText(page,label='Choose explicit return net(s), then run the saved-board review.')
+        details=wx.CollapsiblePane(page,label='Detailed evidence and model limits')
+        detail_layout=wx.BoxSizer(wx.VERTICAL)
+        self.return_details=wx.TextCtrl(details.GetPane(),style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,100))
+        detail_layout.Add(self.return_details,1,wx.EXPAND);details.GetPane().SetSizer(detail_layout)
+        layout.Add(details,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
+        details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:page.Layout())
+        self.return_status=wx.StaticText(page,label='Choose a signal and confirm its return. Optional pad assignments are not required for this geometry review.')
         layout.Add(self.return_status,0,wx.EXPAND|wx.ALL,10)
-        self.return_signal.Bind(wx.EVT_CHOICE,self._invalidate_return)
+        self.return_signal.Bind(wx.EVT_CHOICE,self._return_signal_changed)
+        self.return_primary.Bind(wx.EVT_CHOICE,self._return_primary_changed)
         for ctrl in (self.return_pitch,self.return_radius):ctrl.Bind(wx.EVT_TEXT,self._invalidate_return)
         self.return_nets.Bind(wx.EVT_CHECKLISTBOX,self._return_nets_changed)
         page.SetSizer(layout);self.book.AddPage(page,'Return path')
+        self._return_page=page;self._return_follow_current=True;self._return_pad_ids={}
 
 
 
 
 
+
+    def _return_selected_nets(self):
+        return [self.return_nets.GetString(i) for i in self.return_nets.GetCheckedItems()]
+
+    def _return_refresh_hint(self):
+        from wayricad_runtime.return_setup import suggest_return_nets
+        names=list(self.inventory.get('nets',[]));signal=self.return_signal.GetStringSelection()
+        candidates=suggest_return_nets(names,signal)
+        self._return_suggestion=candidates[0]['name'] if candidates else None
+        self.return_suggest.SetLabel(('Use '+self._return_suggestion if len(self._return_suggestion)<36 else 'Use suggested return') if self._return_suggestion else 'No name suggestion')
+        self.return_suggest.SetToolTip((self._return_suggestion+' — name suggestion only; confirm the actual return.') if self._return_suggestion else 'Choose the actual return net manually.')
+        self.return_suggest.Enable(not self._busy and bool(self._return_suggestion))
+        selected=self._return_selected_nets()
+        choices=['Choose return net…']+names
+        if len(selected)>1:choices.append('Multiple selected · see More options')
+        self.return_primary.Set(choices)
+        self.return_primary.SetStringSelection(selected[0] if len(selected)==1 else choices[-1] if selected else choices[0])
+        text=('Using: '+', '.join(n if len(n)<65 else n[:62]+'…' for n in selected[:3])+(' · +'+str(len(selected)-3)+' more' if len(selected)>3 else '')) if selected else 'Choose the actual return net. A ground-like name is a suggestion, not electrical proof.'
+        self.return_hint.SetToolTip('\n'.join(selected))
+        self.return_hint.SetLabel(text);self.return_hint.Wrap(max(400,self._return_page.GetClientSize().width-25))
+
+    def _return_primary_changed(self,event=None):
+        name=self.return_primary.GetStringSelection()
+        if name not in self.inventory.get('nets',[]):return
+        for i in range(self.return_nets.GetCount()):self.return_nets.Check(i,self.return_nets.GetString(i)==name)
+        self._return_nets_changed()
+
+    def _return_use_suggestion(self,event=None):
+        if not getattr(self,'_return_suggestion',None):return
+        self.return_primary.SetStringSelection(self._return_suggestion);self._return_primary_changed()
+
+    def _return_use_current(self,event=None):
+        name=self.net.GetValue()
+        if name in self.return_signal.GetStrings():self.return_signal.SetStringSelection(name)
+        self._return_follow_current=True;self._return_signal_changed()
+
+    def _return_signal_changed(self,event=None):
+        if event:self._return_follow_current=False
+        signal=self.return_signal.GetStringSelection()
+        for i in self.return_nets.GetCheckedItems():
+            if self.return_nets.GetString(i)==signal:self.return_nets.Check(i,False)
+        # An endpoint belongs to the previous signal context, even if the
+        # newly chosen signal happens to use the same ground domain.
+        self.return_source.SetSelection(0);self.return_sink.SetSelection(0)
+        self._return_nets_changed(event)
 
     def _return_nets_changed(self,event=None):
-        selected={self.return_nets.GetString(i) for i in range(self.return_nets.GetCount()) if self.return_nets.IsChecked(i)}
-        choices=['Not specified']+[row['label'] for row in self.inventory.get('terminals',[]) if row.get('net') in selected]
+        from wayricad_runtime.return_setup import return_pad_candidates
+        selected=set(self._return_selected_nets())
+        rows=return_pad_candidates(self.inventory.get('terminals',[]),selected)
+        counts={}
+        for row in rows:counts[row['label']]=counts.get(row['label'],0)+1
+        self._return_pad_ids={}
+        for row in rows:
+            label=row['label'] if counts[row['label']]==1 else row['label']+' ['+row['id']+']'
+            self._return_pad_ids[label]=row['id']
+        choices=['Not specified']+list(self._return_pad_ids)
         for control in (self.return_source,self.return_sink):
             old=control.GetStringSelection();control.Set(choices);control.SetStringSelection(old if old in choices else 'Not specified')
+        self._return_refresh_hint()
         self._invalidate_return(event)
 
     def _invalidate_return(self,event=None):
@@ -316,7 +399,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         for control in self._controls:control.Enable(not self._busy)
         for control in (self.return_signal,self.return_pitch,self.return_radius,self.return_nets,self.return_source,self.return_sink):
             control.Enable(not self._busy)
-        self.return_run.Enable(not self._busy)
+        selected_returns=self._return_selected_nets();signal=self.return_signal.GetStringSelection()
+        self.return_run.Enable(not self._busy and bool(signal and selected_returns) and signal not in selected_returns)
+        self.return_primary.Enable(not self._busy);self.return_current.Enable(not self._busy)
+        self.return_suggest.Enable(not self._busy and bool(getattr(self,'_return_suggestion',None)))
         self.return_export.Enable(not self._busy and bool(self.return_bundle.get('return_path')))
         self.preview.Enable(not self._busy and bool(self.net.GetValue()))
         volume=self.model_dimension.GetSelection()==1
@@ -798,10 +884,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                 self.decoupling.summary.SetLabel('Saved board reloaded; run a fresh placement check.')
                 self.inventory=result;names=result.get('nets',[]);self.net.Set(names)
                 self.return_signal.Set(names);self.return_nets.Set(names)
-                self._return_nets_changed()
-                if names:self.return_signal.SetSelection(0)
                 if names:
                     choice=next((n for n in names if n.startswith(('+','VCC','VDD'))),names[0]);self.net.SetValue(choice)
+                    self.return_signal.SetStringSelection(choice)
+                self._return_follow_current=True;self._return_nets_changed()
                 self._set_terminals()
                 self.bundle={'board_scene':self._board_scene}
                 self._layers=list(result.get('layers',[]))
@@ -826,6 +912,9 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         labels=[t.get('label',t['id']) for t in self._terminals]
         for control in (self.source,self.sink):control.Set(labels)
         if labels:self.source.SetSelection(0);self.sink.SetSelection(min(1,len(labels)-1))
+        if (getattr(self,'_return_follow_current',False) and net in self.return_signal.GetStrings() and
+                self.return_signal.GetStringSelection()!=net):
+            self.return_signal.SetStringSelection(net);self._return_signal_changed()
         self._buttons()
 
     def _select_preview_layer(self):
@@ -1269,7 +1358,9 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         try:
             request={'action':'return_path','board_path':self.board_path,'signal_net':signal,'return_nets':returns,
                      'sample_pitch_mm':float(self.return_pitch.GetValue()),
-                     'return_via_radius_mm':float(self.return_radius.GetValue()),'return_terminal_ids':[c.GetStringSelection() for c in (self.return_source,self.return_sink) if c.GetSelection()>0], 'return_terminal_roles':{role:c.GetStringSelection() for role,c in [('source',self.return_source),('load',self.return_sink)] if c.GetSelection()>0}}
+                     'return_via_radius_mm':float(self.return_radius.GetValue()),
+                     'return_terminal_ids':[self._return_pad_ids[c.GetStringSelection()] for c in (self.return_source,self.return_sink) if c.GetSelection()>0],
+                     'return_terminal_roles':{role:self._return_pad_ids[c.GetStringSelection()] for role,c in [('source',self.return_source),('load',self.return_sink)] if c.GetSelection()>0}}
         except ValueError as exc:self.return_status.SetLabel(str(exc));return
         self.return_bundle={};self.return_table.DeleteAllItems();self.return_status.SetLabel('Checking saved filled return copper and transitions…')
         self._job(request,self._accept_return,'Screening the saved-board return path…')
@@ -1299,7 +1390,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if row['position_mm']:
                 ax.plot(*row['position_mm'],marker='x' if row['level']=='warning' else 'o',
                         color='#b63b32' if row['level']=='warning' else '#bd8b30',markersize=8)
-        ax.set_aspect('equal',adjustable='datalim');ax.invert_yaxis();ax.set_xlabel('X mm');ax.set_ylabel('Y mm')
+        ax.autoscale_view();ax.set_aspect('equal',adjustable='box');ax.invert_yaxis();ax.set_xlabel('X mm');ax.set_ylabel('Y mm')
         ax.set_title(signal if (signal:=result.get('signal_net')) else 'Signal return path')
         self.return_figure.tight_layout();self.return_canvas.draw_idle()
         self.return_status.SetLabel(f"{result['checked_segment_count']} straight tracks; {result['warning_count']} warnings, {result['unknown_count']} unknowns. Sampled geometry only; review the actual return path.")

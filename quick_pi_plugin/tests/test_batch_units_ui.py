@@ -30,22 +30,17 @@ class BatchUnitEditorTests(unittest.TestCase):
                 self.assertTrue(dialog.units.IsEnabled());self.assertTrue(dialog.returns.IsEnabled())
                 def select_first(choice):
                     choice.SetSelection(0);return wx.ID_OK
-                def source_pads(choice):
-                    choice.SetSelections([0,1]);choice.accepted=[0,1];return wx.ID_OK
-                # The native multi-choice dialog commits its result only in
-                # its OK handler; provide that accepted selection with the
-                # modal result while keeping real dialog/control construction.
-                with patch.object(wx.SingleChoiceDialog,'ShowModal',select_first),patch.object(wx.MultiChoiceDialog,'ShowModal',source_pads),patch.object(wx.MultiChoiceDialog,'GetSelections',lambda c:c.accepted):
+                with patch.object(wx.SingleChoiceDialog,'ShowModal',select_first),patch.object(BatchStudyDialog,'choose_pads',return_value=['S1','S2']):
                     dialog.edit_units()
                 edited=dialog.study()['cases'][0]['electrical']
                 self.assertEqual(edited['source_terminals'],['S1','S2'])
                 self.assertNotIn('source_terminal',edited)
-                selections=iter([[0],[0,1],[2]])
-                def choose_many(choice):
-                    choice.accepted=next(selections);choice.SetSelections(choice.accepted);return wx.ID_OK
-                def return_net(choice):
-                    choice.SetSelection(1);return wx.ID_OK
-                with patch.object(wx.MultiChoiceDialog,'ShowModal',choose_many),patch.object(wx.MultiChoiceDialog,'GetSelections',lambda c:c.accepted),patch.object(wx.SingleChoiceDialog,'ShowModal',return_net),patch.object(wx.TextEntryDialog,'ShowModal',return_value=wx.ID_OK):
+                from quick_pi_plugin.pi_return_setup import ReturnSetupDialog
+                def configure_return(editor):
+                    editor.net.SetStringSelection('GND');editor._net_changed()
+                    editor.source_pads=['G0','G1'];editor.mappings[('Rail','load-1')]=['G2']
+                    editor.updated=editor.build_study();return wx.ID_OK
+                with patch.object(ReturnSetupDialog,'ShowModal',configure_return):
                     dialog.add_shared_return()
                 result=dialog.study()
                 self.assertEqual(result['shared_returns'][0]['source_terminals'],['G0','G1'])

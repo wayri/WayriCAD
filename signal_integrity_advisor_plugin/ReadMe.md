@@ -662,11 +662,34 @@ protocol, device or complete channel.
 
 ## Explicit return-path evidence
 
-Choose the signal and its actual return net(s); **Find…** searches the multi-select
-return list without clearing hidden selections. Optional source/load return pads
-record the declared terminals. No ground or return current is inferred from a net
-name. Quick SI exposes these controls under **Explicit return-path review**;
-Quick PI uses its **Return path** tab.
+1. Choose the signal, source and receiver in Quick SI.
+2. In **Return path (optional)**, choose its actual return net. A ground-like
+   name appears as a suggestion; **Use GND** (or **Use suggested return**) is
+   an explicit confirmation, not inferred connectivity. **No return-path check**
+   leaves the review off.
+3. Run **Screen selected path**. The same run includes the return-copper review;
+   no extra setup window or source/receiver return pins are required.
+
+**More return options** stays collapsed for the normal single-return case. Open
+it for several return nets, optional endpoint pins or the impedance-reference
+layer override. **Find… / Ctrl+F** searches full names without losing checked
+items. Return-pin lists put pads on the chosen source/receiver footprint first,
+but do not assign them automatically. Duplicate pad numbers use exact saved
+pad identities. The impedance-reference layer remains **Auto** by default; it
+controls line estimation separately from the net used for geometric coverage.
+
+For a multi-net study, choose the common return once and press **Use this return
+setup for study cases**. Optional per-case return pins are cleared, because each
+route can have different endpoints. Edit only exceptions in **Edit study cases**.
+The action rejects a case whose signal would also be its return, without partly
+updating other cases.
+
+![Guided Quick SI return setup](help-return-setup.png)
+
+Actual native synthetic route with declared 50 Ω / effective-Er assumptions.
+The fixture has no filled return zone, so geometric return coverage remains
+unresolved. No private design, local path or edited numerical value is shown.
+Quick PI exposes its corresponding review in the **Return path** tab.
 
 The result includes per-layer sampled reference coverage and each signal-via
 transition's observed routing layers, local reference nets/layers and nearby

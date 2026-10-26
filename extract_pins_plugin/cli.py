@@ -31,7 +31,7 @@ from .core.controller_connector_mapper import (
     parse_traversal_rules,
 )
 
-VERSION = "3.6.34"
+VERSION = "3.6.35"
 EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_VALIDATION = 3

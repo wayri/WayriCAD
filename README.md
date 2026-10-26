@@ -9,9 +9,9 @@
 **PCB design, analysis and project review in KiCad.** Choose from 24 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
 
-**New in 3.6.34:** Quick PI adds AC/SMPS copper studies with skin and proximity
-effects, harmonic Joule losses, waveform helpers and interactive reports.
-[Release notes](docs/RELEASE_NOTES_3.6.34.md).
+**New in 3.6.35:** Quick PI and Quick SI have simpler return setup. Choose the
+actual return net in the main form, keep advanced details collapsed, and map
+DC ground-pad units together in a guided table. [Release notes](docs/RELEASE_NOTES_3.6.35.md).
 
 ## Start here
 
@@ -19,7 +19,7 @@ effects, harmonic Joule losses, waveform helpers and interactive reports.
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.34](https://github.com/wayri/WayriCAD/releases/tag/v3.6.34) · [Release notes](docs/RELEASE_NOTES_3.6.34.md) |
+| Download or update | [Release 3.6.35](https://github.com/wayri/WayriCAD/releases/tag/v3.6.35) · [Release notes](docs/RELEASE_NOTES_3.6.35.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -77,7 +77,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | CLI access across all 24 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.34.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.35.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -312,6 +312,14 @@ remain outlines. [Workflow and native-capture scope](suite_assistant_plugin/READ
 
 ### [Quick PI](quick_pi_plugin/README.md)
 
+**Ground and return setup:** choose **Rails / ground returns…** for DC ground
+drop, or **Return path** for a geometric plane/stitching review. The common
+controls stay visible and optional settings stay collapsed.
+
+<a href="quick_pi_plugin/help-return-ground.png"><img src="quick_pi_plugin/help-return-ground.png" width="960" alt="Guided Quick PI return setup with all load mappings together"></a>
+
+Native synthetic staged inputs; this setup image is not a solved power result.
+
 **Current Marble geometry preview · 3.6.28**
 
 <a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="960" alt="Quick PI current native +12V geometry preview on public Marble"></a>
@@ -404,6 +412,15 @@ The illustrative 1 s frame includes imported copper and contact losses. [Capture
 Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
 
 ### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
+
+**Return path:** select the actual return below Source/Receiver, or explicitly
+confirm the suggested domain. Extra nets, pins and reference overrides are in
+**More return options**.
+
+<a href="signal_integrity_advisor_plugin/help-return-setup.png"><img src="signal_integrity_advisor_plugin/help-return-setup.png" width="960" alt="Quick SI simplified return selector and route preview"></a>
+
+Native synthetic route with explicit line assumptions; missing filled return
+coverage remains unknown.
 
 **Routed signal analysis**
 

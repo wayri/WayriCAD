@@ -16,7 +16,7 @@ inferred. The screenshot contains no private design or local paths.
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.34](https://github.com/wayri/WayriCAD/releases/tag/v3.6.34) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.35](https://github.com/wayri/WayriCAD/releases/tag/v3.6.35) · [Installation](../docs/INSTALLATION.md) |
 | First power-path check | [Workflow](#workflow) · [Reading results](#reading-results) |
 | Multiple rails, returns and heating | [Multi-net studies](#multi-net-cases-return-copper-and-joule-feedback) |
 | SMPS ripple, skin effect and proximity losses | [AC copper analysis](AC_ANALYSIS.md) |
@@ -161,10 +161,10 @@ saved-board DC electrothermal workflow described below.
 
 | Goal | In the window | Command line |
 |---|---|---|
-| Several rails | Choose a rail's source/load, then **Multi-net cases…**. Use **Add net case…** for each additional rail; enter its voltage, current and pads. | `wayricad-pi board.kicad_pcb --batch cases.json --output raw-cases.json --html cases.html` |
-| Include ground-return voltage drop | In **Add net case…**, enable **Solve explicit DC return copper** and select the return net, load-ground pad and source-ground pad. | Add `return_conduction` to that case, as in the [example study](studies/batch-rails.example.json). |
-| Shared ground and multi-pad units | In **Multi-net cases…**, use **Edit source / load pad units…**, then **Add shared return group…**. Select each unit’s pads and total current. | Add top-level `shared_returns`, as in [the shared-return example](studies/shared-return.example.json). |
-| Review reference planes and return vias | Open **Return path**, or add a case's `return_path` settings with explicit `return_nets`. | Existing `--return-path --return-nets GND`, or the batch example. |
+| Several rails | Choose a rail's source/load, then **Rails / ground returns…**. Use **Add net case…** for each additional rail; enter its voltage, current and pads. | `wayricad-pi board.kicad_pcb --batch cases.json --output raw-cases.json --html cases.html` |
+| Include ground-return voltage drop | In **Rails / ground returns…**, select a rail and **Set up ground / return…**. One form shows the return net, supply-ground pads and every load-ground pad unit. | Existing `return_conduction` studies remain supported and editable; new groups use `shared_returns`. |
+| Shared ground and multi-pad units | Check the rails in the return setup, choose their ground net and pad units, then **Apply return setup**. **Suggest matching footprint pads** proposes candidates for explicit review. | Add top-level `shared_returns`, as in [the shared-return example](studies/shared-return.example.json). |
+| Review reference planes and return vias | Open **Return path**, choose the return net and **Review return path**. Advanced sampling, multiple returns and optional pins stay collapsed. | Existing `--return-path --return-nets GND`, or the batch example. |
 | Solve temperature feedback | Check **Include Joule heating / temperature feedback**, then **Run**. Fill the explicit thermal/material settings before running the steady study. | Existing `--electrothermal study.json`; batch cases may include explicit `electrothermal` settings. |
 
 Ordinary DC **always computes copper I²R loss**. The checkbox adds a steady
@@ -174,6 +174,23 @@ material temperature range, temperature cap, resistivity and its temperature
 coefficient unset until reviewed. Missing values prevent the run. Delivered
 load power is not automatically counted as board heat. See
 [the coupling model and inputs](ELECTROTHERMAL.md).
+
+### Easier return setup
+
+**Rails and returns** is the default multi-net view. Select, edit or remove a
+staged return mapping in its table; raw settings remain under **Advanced JSON**.
+Searchable pad pickers support multiple physical contacts and full pad names.
+Source/load pad suggestions use the owning footprints; they do not infer the
+actual electrical loop. Apply explicitly confirms the visible mappings.
+
+![Native rail and return overview](help-return-rails.png)
+
+![Native one-screen ground return mapping](help-return-ground.png)
+
+These native captures show synthetic staged inputs, including two rails and
+multi-pad return units. They are setup previews, not solved board results.
+The separate [Return path review](RETURN_PATH.md) checks saved reference-plane
+coverage without requiring source/load return pins.
 
 Batch studies contain **1–32 cases bound to one saved PCB hash**. They retain
 failures per case; source/study changes invalidate the entire batch. Cases are

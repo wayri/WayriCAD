@@ -69,3 +69,9 @@ include quick_pi_plugin/tests/test_ac_workflow.py
 include docs/audits/QUICK_PI_AC_2026-10-27.md
 include docs/RELEASE_NOTES_3.6.34.md
 include docs/audits/RELEASE_3.6.34.md
+include quick_pi_plugin/tests/test_return_review_ui.py
+include quick_pi_plugin/tests/test_return_setup_ui.py
+include quick_pi_plugin/tests/test_batch_units_ui.py
+include tests/test_return_setup.py
+include docs/RELEASE_NOTES_3.6.35.md
+include docs/audits/RELEASE_3.6.35.md
