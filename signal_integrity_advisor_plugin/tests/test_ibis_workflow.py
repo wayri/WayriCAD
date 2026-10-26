@@ -66,7 +66,7 @@ class IBISWorkflowTests(unittest.TestCase):
     def test_paths_relative_to_config_and_json_size_finiteness(self):
         self.assignments['cases']['route']['source']['path']='models.ibs'
         resolved=relative_model_paths(self.assignments,self.root/'assignments.json')
-        self.assertEqual(resolved['cases']['route']['source']['path'],str(self.model))
+        self.assertEqual(resolved['cases']['route']['source']['path'],str(self.model.resolve()))
         self.assertEqual(self.assignments['cases']['route']['source']['path'],'models.ibs')
         file=self.root/'input.json';file.write_text('{"a":NaN}')
         with self.assertRaisesRegex(ValueError,'Non-finite'):read_json(file)
