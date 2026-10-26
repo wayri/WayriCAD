@@ -4,7 +4,7 @@
 
 ## Start here
 
-**AC / SMPS copper studies are available in source after 3.6.33.** See the
+**AC / SMPS copper studies are included in 3.6.34.** See the
 [AC guide](AC_ANALYSIS.md) for explicit return geometry, skin/proximity effects,
 SMPS waveform helpers and Joule-loss interpretation.
 
@@ -16,7 +16,7 @@ inferred. The screenshot contains no private design or local paths.
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.33](https://github.com/wayri/WayriCAD/releases/tag/v3.6.33) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.34](https://github.com/wayri/WayriCAD/releases/tag/v3.6.34) · [Installation](../docs/INSTALLATION.md) |
 | First power-path check | [Workflow](#workflow) · [Reading results](#reading-results) |
 | Multiple rails, returns and heating | [Multi-net studies](#multi-net-cases-return-copper-and-joule-feedback) |
 | SMPS ripple, skin effect and proximity losses | [AC copper analysis](AC_ANALYSIS.md) |

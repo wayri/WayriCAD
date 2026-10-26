@@ -1,5 +1,5 @@
 """Independent native KiCad variant management."""
-__version__ = '0.6.9'
+__version__ = '0.6.10'
 
 try:
     import pcbnew

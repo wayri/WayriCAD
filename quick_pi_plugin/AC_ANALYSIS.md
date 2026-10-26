@@ -1,7 +1,7 @@
 # AC copper analysis for SMPS paths
 
-Available in source after release 3.6.33; the published 3.6.33 installers do not
-contain this AC workflow.
+Included in release 3.6.34. The earlier 3.6.33 installers do not contain this
+AC workflow.
 
 [Native, analytical and package validation](../docs/audits/QUICK_PI_AC_2026-10-27.md).
 

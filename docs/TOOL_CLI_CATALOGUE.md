@@ -100,8 +100,8 @@ wayricad-si study board.kicad_pcb --config si-study.json --output si.json --html
 
 Use the plugin guides for study schemas and examples: [PI](../quick_pi_plugin/README.md), [SI](../signal_integrity_advisor_plugin/ReadMe.md) and [Therm](../quick_therm_plugin/README.md).
 
-The [AC / SMPS copper study](../quick_pi_plugin/AC_ANALYSIS.md), available in source
-after 3.6.33, uses explicit straight conductor/return geometry and RMS harmonics.
+The [AC / SMPS copper study](../quick_pi_plugin/AC_ANALYSIS.md), included in release
+3.6.34, uses explicit straight conductor/return geometry and RMS harmonics.
 It solves skin/proximity effects and copper Joule loss with convergence checks;
 it does not infer a complete converter or qualify HV insulation.
 

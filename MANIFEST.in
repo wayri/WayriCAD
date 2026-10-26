@@ -67,3 +67,5 @@ include quick_pi_plugin/tests/test_inspector_tables.py
 include quick_pi_plugin/tests/test_ac_analysis.py
 include quick_pi_plugin/tests/test_ac_workflow.py
 include docs/audits/QUICK_PI_AC_2026-10-27.md
+include docs/RELEASE_NOTES_3.6.34.md
+include docs/audits/RELEASE_3.6.34.md

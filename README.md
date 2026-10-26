@@ -9,10 +9,9 @@
 **PCB design, analysis and project review in KiCad.** Choose from 24 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
 
-**New in 3.6.33:** Quick PI adds copper melting screens, bottleneck highlights
-and independent sink-current wheel control. Quick SI adds searchable neighbour
-heat maps. Analytics Studio analyzes saved copper by layer and net without a
-schematic. [Release notes](docs/RELEASE_NOTES_3.6.33.md).
+**New in 3.6.34:** Quick PI adds AC/SMPS copper studies with skin and proximity
+effects, harmonic Joule losses, waveform helpers and interactive reports.
+[Release notes](docs/RELEASE_NOTES_3.6.34.md).
 
 ## Start here
 
@@ -20,7 +19,7 @@ schematic. [Release notes](docs/RELEASE_NOTES_3.6.33.md).
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.33](https://github.com/wayri/WayriCAD/releases/tag/v3.6.33) · [Release notes](docs/RELEASE_NOTES_3.6.33.md) |
+| Download or update | [Release 3.6.34](https://github.com/wayri/WayriCAD/releases/tag/v3.6.34) · [Release notes](docs/RELEASE_NOTES_3.6.34.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -78,7 +77,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | CLI access across all 24 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.33.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.34.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -339,7 +338,7 @@ Generated demonstration board with illustrative lead/solder properties. [Capture
 | [MIT conduction chapter](https://ocw.mit.edu/courses/res-6-002-electromagnetic-field-theory-a-problem-solving-approach-spring-2008/2cccce322d387cccbc78c3ed65843f49_MITRES_6_002S08_chp03_text.pdf) | Analytical resistance checks. |
 | [Elmer beam fixture](https://github.com/ElmerCSC/elmerfem/tree/b461e4be77d0ca13bada61f04819fccb20a524ab/fem/tests/ConstantUnknownPotStatCurrent) | Published numerical benchmark inputs. |
 | [Full references](quick_pi_plugin/README.md#references-and-research) | Meshing paper, verification guidance and model limits. |
-| [AC / SMPS copper methods](quick_pi_plugin/AC_ANALYSIS.md) | Harmonic skin/proximity and Joule-loss model, explicit returns and HV/LV applicability. Available in source after 3.6.33. |
+| [AC / SMPS copper methods](quick_pi_plugin/AC_ANALYSIS.md) | Harmonic skin/proximity and Joule-loss model, explicit returns and HV/LV applicability. Included in 3.6.34. |
 
 
 **Report preview**
