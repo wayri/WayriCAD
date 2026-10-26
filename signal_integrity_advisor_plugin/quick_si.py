@@ -134,6 +134,8 @@ def _analyze(board,net,start,end,reference='Auto',**inputs):
         if missing:raise ValueError('Return nets are absent from this saved board: '+', '.join(sorted(missing)))
     path=engine.measure(net,start,end,float(inputs.get('frequency_mhz',100.)),reference)
     report=screen(path,terminal_count=len(pads),**inputs)
+    from .circuit_scope import circuit_topology
+    report['circuit_topology']=circuit_topology(board,path,len(pads))
     if return_nets:
         from wayricad_runtime.return_path import collect_board_evidence,audit_return_path
         evidence=collect_board_evidence(board,net,return_nets)
@@ -145,7 +147,7 @@ def _analyze(board,net,start,end,reference='Auto',**inputs):
 def html_report(report):
     escape=lambda value:html.escape(str(value))
     rows=''.join('<tr><th>'+escape(key.replace('_',' '))+'</th><td>'+escape('Unknown' if value is None else value)+'</td></tr>'
-                 for key,value in report.items() if key not in ('path','inputs','notes','blockers','schema','eye','route_summary','endpoint_screen','return_path'))
+                 for key,value in report.items() if key not in ('path','inputs','notes','blockers','schema','eye','route_summary','endpoint_screen','return_path','circuit_topology'))
     summary=report.get('route_summary',{})
     overview='<h2>Route results</h2><table>'+''.join('<tr><th>'+escape(k.replace('_',' '))+'</th><td>'+escape('Unknown' if v is None else v)+'</td></tr>' for k,v in summary.items())+'</table>'
     if report.get('endpoint_screen'):

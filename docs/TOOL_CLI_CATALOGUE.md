@@ -118,3 +118,12 @@ wayricad-silkscreen preview board.kicad_pcb --refs U1 J1 TP1 --settings silk.jso
 ```
 
 Silkscreen CLI planning is read only, keeps source hashes, reports proposed positions, sizes, rotations and guide paths, and retains unresolved labels. It uses a bounded native subprocess and supports a timeout. Applying labels remains in PCB Editor, where active project rules and native DRC must be checked. A command completing successfully is not a guarantee that all labels fit.
+
+### Quick SI IBIS commands
+
+| Command | Output |
+|---|---|
+| `wayricad-si ibis-catalog vendor.ibs --output catalog.json` | Bounded model/pin catalogue and reviewed SHA-256. |
+| `wayricad-si circuit study.json --assignments assignments.json --case channelA --output new-circuit` | Native KiCad circuit and retained vendor-model bundle; repeat `--case` to select more routes. |
+
+[Assignment format, assumptions and unsupported topology](../signal_integrity_advisor_plugin/ReadMe.md).

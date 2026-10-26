@@ -2,12 +2,25 @@
 from pathlib import Path
 from types import SimpleNamespace
 import threading
+import copy
+from datetime import datetime
+from uuid import uuid4
 from wayricad_runtime.ipc import read_snapshot
 import wx
 from wayricad_runtime.readable_choice import ReadableComboBox
 from .measurement import TraceMeasurementEngine
 from .quick_si import analyze,html_report
 from .cli import write_report
+
+
+def _model_source_stamps(paths):
+    """Cheap callback freshness check; the exporter validates full file hashes."""
+    stamps={}
+    for raw in set(paths):
+        path=Path(raw).resolve(strict=True)
+        info=path.stat()
+        stamps[str(path)]=(info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns)
+    return stamps
 
 
 def reverse_selection_plan(current_net,net_pads,source,receiver):
@@ -30,6 +43,7 @@ class QuickSIPanel(wx.Panel):
         self._closed=False;self._busy=False;self._generation=0;self._job_serial=0;self._cancel=threading.Event();self._result_fingerprints=None
         self._navigation_busy=False;self._navigation_serial=0
         self._source_fingerprints=None;self.study_cases=[];self.study_report=None;self.crosstalk_pairs=[]
+        self._circuit_generation=0;self._circuit_busy=False
         if saved_board:
             from .service import source_fingerprints
             self._source_fingerprints=source_fingerprints(board.GetFileName())
@@ -52,6 +66,12 @@ class QuickSIPanel(wx.Panel):
         self.net_search=wx.SearchCtrl(left);self.net_search.SetHint('Search net names');form.Add(self.net_search,0,wx.EXPAND|wx.TOP,5);self.net_search.Bind(wx.EVT_TEXT,self.filter_nets)
         pick=wx.Button(left,label='Select net on board');form.Add(pick,0,wx.EXPAND|wx.TOP,5);pick.Bind(wx.EVT_BUTTON,self.select_board_net)
         row('start','Source pad',choices=[]);row('end','Receiver pad',choices=[])
+        ibis_pane=wx.CollapsiblePane(left,label='IBIS models for KiCad circuit export',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        from .ibis_ui import IbisPane
+        self.ibis=IbisPane(ibis_pane.GetPane(),self._circuit_inputs_changed)
+        ibis_layout=wx.BoxSizer(wx.VERTICAL);ibis_layout.Add(self.ibis,1,wx.EXPAND)
+        ibis_pane.GetPane().SetSizer(ibis_layout);form.Add(ibis_pane,0,wx.EXPAND|wx.TOP,10)
+        ibis_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.FitInside(),self.Layout()))
         row('rise_ns','Driver rise time (ns)','1');row('source_ohm','Driver resistance (ohm)','20')
         pane=wx.CollapsiblePane(left,style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE,label='Line and load assumptions');details=wx.BoxSizer(wx.VERTICAL);host=pane.GetPane()
         for name,label,value in [('frequency_mhz','Frequency (MHz)','100'),('load_ohm','Load resistance (ohm; blank = open)',''),('z0_ohm','Assumed uniform Z0 (ohm; blank = geometry)',''),('epsilon_eff','Assumed effective Er (blank = stackup)','')]:row(name,label,value,parent=host,sizer=details)
@@ -93,10 +113,15 @@ class QuickSIPanel(wx.Panel):
         eye_host.SetSizer(eye_form);form.Add(eye_pane,0,wx.EXPAND|wx.TOP,10)
         eye_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:(left.FitInside(),self.Layout()))
         self.eye_enabled.Bind(wx.EVT_CHECKBOX,self.changed)
-        note=wx.StaticText(left,label='Inputs are assumptions. The optional eye uses a uniform lossless line, ideal clock and resistive endpoints. No IBIS, coupling or protocol signoff.');note.Wrap(300);form.Add(note,0,wx.EXPAND|wx.TOP,10)
+        note=wx.StaticText(left,label='Inputs are assumptions. The optional eye uses a uniform lossless line, ideal clock and resistive endpoints. It does not use IBIS export models or establish coupling or protocol signoff.');note.Wrap(300);form.Add(note,0,wx.EXPAND|wx.TOP,10)
         self.run_button=wx.Button(left,label='Screen selected path');self.run_button.Bind(wx.EVT_BUTTON,self.run);form.Add(self.run_button,0,wx.EXPAND|wx.TOP,12)
         self.cancel_button=wx.Button(left,label='Cancel analysis');self.cancel_button.Disable();self.cancel_button.Bind(wx.EVT_BUTTON,self.cancel_run);form.Add(self.cancel_button,0,wx.EXPAND|wx.TOP,5)
         self.export=wx.Button(left,label='Export local HTML report');self.export.Disable();self.export.Bind(wx.EVT_BUTTON,self.export_report);form.Add(self.export,0,wx.EXPAND|wx.TOP,6)
+        self.export_circuit_button=wx.Button(left,label='Export KiCad circuit…');self.export_circuit_button.Disable()
+        self.export_circuit_button.Bind(wx.EVT_BUTTON,lambda event:self._start_circuit_export(False));form.Add(self.export_circuit_button,0,wx.EXPAND|wx.TOP,6)
+        self.copy_circuit_button=wx.Button(left,label='Copy circuit…');self.copy_circuit_button.Disable()
+        self.copy_circuit_button.SetToolTip('Create a model bundle, then copy KiCad schematic clipboard text.')
+        self.copy_circuit_button.Bind(wx.EVT_BUTTON,lambda event:self._start_circuit_export(True));form.Add(self.copy_circuit_button,0,wx.EXPAND|wx.TOP,6)
         self.select_route_button=wx.Button(left,label='Select route in PCB');self.select_route_button.Disable()
         self.select_returns_button=wx.Button(left,label='Select return nets in PCB');self.select_returns_button.Disable()
         self.read_selection_button=wx.Button(left,label='Use PCB selection')
@@ -322,7 +347,9 @@ class QuickSIPanel(wx.Panel):
 
     def _select_study_case(self,event=None):
         if not self.study_report or self.study_choice.GetSelection()==wx.NOT_FOUND:return
+        self._circuit_generation+=1
         case=self.study_report['cases'][self.study_choice.GetSelection()]
+        self.ibis.set_context(case.get('net',''),case.get('start',''),case.get('end',''))
         self.results.DeleteAllItems();self.report=None;self.path=None;self.eye_preview.show_result(None)
         self.preview.show_result(SimpleNamespace(primary=None,mate=None))
         if 'report' in case:
@@ -332,6 +359,7 @@ class QuickSIPanel(wx.Panel):
             row=self.results.InsertItem(0,case['id']+' · ERROR');self.results.SetItem(row,1,case.get('error','Unresolved case'))
             self.status.SetLabel('Case failed; other case results are retained. '+case.get('error',''));self._navigation_buttons()
         self.export.Enable()
+        self._update_circuit_buttons()
 
     def return_nets_changed(self,event=None):
         selected={self.return_nets.GetString(i) for i in range(self.return_nets.GetCount()) if self.return_nets.IsChecked(i)}
@@ -364,11 +392,15 @@ class QuickSIPanel(wx.Panel):
 
     def changed(self,event):
         self._generation+=1;self._cancel.set();self._result_fingerprints=None
+        self._circuit_generation+=1
         self.study_report=None
         if hasattr(self,'crosstalk_results'):self.crosstalk_results.Disable()
         if hasattr(self,'study_choice'):self.study_choice.Clear();self.study_choice.Hide()
         self.report=None;self.path=None;self.export.Disable();self.results.DeleteAllItems();self.preview.show_result(SimpleNamespace(primary=None,mate=None))
         self.eye_preview.show_result(None)
+        self._update_circuit_buttons()
+        if hasattr(self,'ibis'):
+            self.ibis.set_context(self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue())
         self.status.SetLabel('Inputs changed; run a fresh screen before exporting.')
         self._navigation_buttons()
         if event:event.Skip()
@@ -496,7 +528,7 @@ class QuickSIPanel(wx.Panel):
 
     def _destroyed(self,event):
         if event.GetEventObject() is self:
-            self._closed=True;self._cancel.set()
+            self._closed=True;self._cancel.set();self._circuit_generation+=1
         event.Skip()
 
     def cancel_run(self,event=None):
@@ -585,7 +617,7 @@ class QuickSIPanel(wx.Panel):
                 rows += [('Eye center opening',f"{eye['center_opening_v']:.5g} V (sampled, ideal clock)"),('Eye sampled voltage range',f"{eye['min_v']:.5g} to {eye['max_v']:.5g} V")]
                 rows += [('Eye model',note) for note in eye['limitations']]
         for label,value in rows:index=self.results.InsertItem(self.results.GetItemCount(),label);self.results.SetItem(index,1,value)
-        self.status.SetLabel(report['status']+' — '+report['edge_screen']);self.export.Enable();self._navigation_buttons()
+        self.status.SetLabel(report['status']+' — '+report['edge_screen']);self.export.Enable();self._navigation_buttons();self._update_circuit_buttons()
 
     def export_report(self,event):
         if self.report is None and self.study_report is None:return
@@ -603,3 +635,121 @@ class QuickSIPanel(wx.Panel):
                 else:payload=html_report(self.report)
                 write_report(dialog.GetPath(),payload,source,'.html')
             except Exception as exc:wx.MessageBox(str(exc),'Report export failed',wx.OK|wx.ICON_ERROR,self)
+
+    def _circuit_inputs_changed(self):
+        # IBIS changes invalidate pending circuit output, but not PCB geometry.
+        self._circuit_generation+=1
+        if self.report is not None or self.study_report is not None:
+            self.status.SetLabel('IBIS selection changed. Quick SI route results are retained; circuit export will use the reviewed models.')
+
+    def _update_circuit_buttons(self):
+        if not hasattr(self,'export_circuit_button'):return
+        ready=not (self._closed or self._busy or self._circuit_busy) and (
+            self.report is not None or bool(self.study_report and any('report' in case for case in self.study_report['cases'])))
+        self.export_circuit_button.Enable(ready);self.copy_circuit_button.Enable(ready)
+
+    def _circuit_cases(self):
+        if not self.study_report:
+            if self.report is None:return []
+            path=self.report['path']
+            return [{'id':path['net_name'],'net':path['net_name'],'start':path['start_pad'],
+                     'end':path['end_pad'],'report':self.report}]
+        completed=[case for case in self.study_report['cases'] if 'report' in case]
+        if not completed:return []
+        choices=[f"{case['id']} · {case['net']} · {case['start']} → {case['end']} · {case['status']}" for case in completed]
+        failed=len(self.study_report['cases'])-len(completed)
+        message='Check completed cases to include. Assign source and receiver IBIS models by selecting each case in the result dropdown first.'
+        if failed:message+=f' {failed} failed case(s) have no completed report and cannot be exported.'
+        dialog=wx.MultiChoiceDialog(self,message,'Choose KiCad circuit cases',choices)
+        current=self.study_choice.GetSelection()
+        if current!=wx.NOT_FOUND:
+            chosen=self.study_report['cases'][current]
+            if chosen in completed:dialog.SetSelections([completed.index(chosen)])
+        try:
+            if dialog.ShowModal()!=wx.ID_OK:return []
+            return [completed[index] for index in dialog.GetSelections()]
+        finally:dialog.Destroy()
+
+    def _start_circuit_export(self,copy_to_clipboard):
+        if self._closed or self._busy or self._circuit_busy:return
+        try:
+            if not self.saved_board:
+                raise ValueError('Save the PCB and reopen Quick SI before circuit export; unsaved live geometry cannot be proven current.')
+            from .service import source_fingerprints
+            board_path=self.board.GetFileName()
+            fingerprints=source_fingerprints(board_path)
+            if self._result_fingerprints is None or fingerprints!=self._result_fingerprints or fingerprints!=self._source_fingerprints:
+                raise ValueError('Saved PCB or rules changed since the route result. Reopen Quick SI and rerun before circuit export.')
+            cases=self._circuit_cases()
+            if not cases:return
+            records=[];missing=[]
+            for case in cases:
+                source=self.ibis.assignment(case['net'],'source',case['start'])
+                sink=self.ibis.assignment(case['net'],'sink',case['end'])
+                if not source or not sink:
+                    missing.append(case['id']+': '+', '.join(name for name,assignment in
+                                   (('source',source),('receiver',sink)) if not assignment))
+                else:records.append({'id':case['id'],'report':copy.deepcopy(case['report']),
+                                     'source':source,'sink':sink})
+            if missing:
+                raise ValueError('Assign exact source and receiver IBIS pins for every checked case. Select each case in the result dropdown: '+ '; '.join(missing))
+            from .ibis_ui import circuit_options_dialog
+            options=circuit_options_dialog(self)
+            if options is None:return
+            with wx.DirDialog(self,'Choose parent folder for a new SI circuit bundle',
+                              defaultPath=str(Path(board_path).parent),style=wx.DD_DEFAULT_STYLE|wx.DD_DIR_MUST_EXIST) as dialog:
+                if dialog.ShowModal()!=wx.ID_OK:return
+                parent=Path(dialog.GetPath())
+            destination=parent/('SI-circuit-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid4().hex[:8])
+            if source_fingerprints(board_path)!=fingerprints:
+                raise ValueError('Saved PCB or rules changed while configuring export. Reopen Quick SI and rerun.')
+            model_stamps=_model_source_stamps(record[role]['path'] for record in records for role in ('source','sink'))
+            generation=self._circuit_generation
+            self._circuit_busy=True;self._update_circuit_buttons()
+            self.status.SetLabel('Building KiCad circuit and copying reviewed IBIS files in a worker…')
+
+            def work():
+                result=error=None
+                try:
+                    from .si_circuit import export_circuit
+                    def guard():
+                        if self._closed or generation!=self._circuit_generation:
+                            raise ValueError('Circuit inputs changed during export.')
+                        if source_fingerprints(board_path)!=fingerprints:
+                            raise ValueError('Saved PCB or rules changed during circuit export.')
+                    guard()
+                    result=export_circuit(records,destination,options,guard=guard)
+                    guard()
+                except Exception as caught:error=caught
+                if not self._closed:
+                    try:wx.CallAfter(self._circuit_finished,generation,fingerprints,model_stamps,destination,copy_to_clipboard,result,error)
+                    except RuntimeError:pass
+
+            threading.Thread(target=work,daemon=True,name='Quick SI circuit export').start()
+        except Exception as error:
+            self.status.SetLabel(str(error))
+
+    def _circuit_finished(self,generation,fingerprints,model_stamps,destination,copy_to_clipboard,result,error):
+        if self._closed:return
+        self._circuit_busy=False;self._update_circuit_buttons()
+        if generation!=self._circuit_generation:
+            self.status.SetLabel('Inputs changed during circuit export. Any generated bundle needs review; clipboard was not changed.')
+            return
+        if error:
+            self.status.SetLabel('Circuit export failed: '+str(error));return
+        try:
+            from .service import source_fingerprints
+            if source_fingerprints(self.board.GetFileName())!=fingerprints or self._result_fingerprints!=fingerprints:
+                raise ValueError('Saved PCB or rules changed after circuit export; clipboard was not changed.')
+            if _model_source_stamps(model_stamps)!=model_stamps:
+                raise ValueError('IBIS model file changed after circuit export; clipboard was not changed. Reload the model and export again.')
+            if copy_to_clipboard:
+                if not wx.TheClipboard.Open():raise ValueError('Clipboard is busy; the circuit bundle was created but could not be copied.')
+                try:
+                    if not wx.TheClipboard.SetData(wx.TextDataObject(result['clipboard_text'])):
+                        raise ValueError('Clipboard rejected the circuit text.')
+                    wx.TheClipboard.Flush()
+                finally:wx.TheClipboard.Close()
+                self.status.SetLabel('KiCad circuit copied. Model bundle: '+str(destination))
+            else:self.status.SetLabel('KiCad circuit bundle exported: '+str(result['schematic']))
+        except Exception as caught:self.status.SetLabel(str(caught))

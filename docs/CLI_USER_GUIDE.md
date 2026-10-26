@@ -499,3 +499,18 @@ to write a new board with grouped copper labels and a zone-only keepout. Existin
 destinations are rejected and source project/rule companions are preserved. The
 installed wheel also exposes `wayricad-layer-counter`. See [Layer Counter](../layer_counter_plugin/README.md)
 for core-pair mapping, styles and fabrication limitations.
+
+## IBIS circuit export
+
+`wayricad-si ibis-catalog vendor.ibs --output catalog.json` lists components,
+pins, selectors, compatible source/receiver models and the reviewed file SHA-256.
+Bind those exact choices in an assignment document, then use
+`wayricad-si circuit study.json --assignments assignments.json --case channelA --output new-circuit`.
+Repeat `--case` for multiple selected paths. The output directory must be new.
+The bundle includes native schematic sheets, project simulation settings,
+unchanged vendor model copies, a provenance manifest and `clipboard.txt` for
+KiCad. The GUI's **Copy circuit** writes that same flat clipboard format.
+See the [SI guide and example](../signal_integrity_advisor_plugin/ReadMe.md)
+for model hashes, timing, complete-topology checks and explicit via/copper assumptions.
+This exports a circuit for KiCad's simulator; it does not replace Quick SI's
+ideal eye model with a native internal IBIS solver.

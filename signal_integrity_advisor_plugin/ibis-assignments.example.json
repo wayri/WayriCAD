@@ -1,0 +1,24 @@
+{
+  "schema": "wayricad.quick-si-ibis/v1",
+  "description": "Generic single-route example. Replace both zero SHA-256 values with each actual value from wayricad-si ibis-catalog; choose real component, pin, and model names.",
+  "cases": {
+    "route": {
+      "source": {
+        "path": "models/driver.ibs",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "component": "DriverDevice",
+        "pin": "4",
+        "model": "OutputModel",
+        "corner": "typ"
+      },
+      "sink": {
+        "path": "models/receiver.ibs",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "component": "ReceiverDevice",
+        "pin": "8",
+        "model": "InputModel",
+        "corner": "typ"
+      }
+    }
+  }
+}

@@ -43,8 +43,11 @@ class EyeProbeTests(unittest.TestCase):
         try:
             combo.SetValue('DATA')
             filter_combo(combo, ['CAN_P', 'DATA'], 'can')
-            self.assertEqual(combo.GetValue(), '')
-            self.assertEqual(combo.GetSelection(), wx.NOT_FOUND)
+            # An existing exact net stays pinned; searching must not choose
+            # the first matching net or silently change its IBIS assignment.
+            self.assertEqual(combo.GetValue(), 'DATA')
+            self.assertNotEqual(combo.GetValue(), 'CAN_P')
+            self.assertNotEqual(combo.GetSelection(), wx.NOT_FOUND)
             combo.SetValue('CAN_P')
             filter_combo(combo, ['CAN_P', 'DATA'], ' CAN ')
             self.assertEqual(combo.GetValue(), 'CAN_P')

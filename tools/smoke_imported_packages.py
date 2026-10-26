@@ -112,7 +112,7 @@ try:
     assert mime.startswith('text/html') and b'/help.css' in help_html
     assert get_bom('/help.css')[0].startswith('text/css')
     assert get_bom('/SHARED_PARTS.md')[0].startswith('text/plain')
-    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.31'
+    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.32'
     assert (Path(sys.argv[1])/'bom_studio_plugin/help.html').is_file()
     example=Path(sys.argv[1])/'bom_studio_plugin/examples/BOM_Demo.kicad_pro'
     assert example.is_file()

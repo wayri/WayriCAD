@@ -9,10 +9,10 @@
 **PCB design, analysis and project review in KiCad.** Choose from 24 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
 
-**New in 3.6.31:** Quick PI changes load current live with **Ctrl+scroll** over
-solved 2.5D copper. Slow scrolling gives fine steps; faster scrolling gives
-coarse steps. Plain scrolling zooms. Plots, probes and limits update without
-remeshing. [Release notes](docs/RELEASE_NOTES_3.6.31.md).
+**New in 3.6.32:** QuickTherm has finer, controllable transient playback.
+Quick SI loads source and receiver IBIS models and exports complete selected
+routes as native KiCad circuits, with a **Copy circuit** action for Schematic
+Editor. [Release notes](docs/RELEASE_NOTES_3.6.32.md).
 
 ## Start here
 
@@ -20,7 +20,7 @@ remeshing. [Release notes](docs/RELEASE_NOTES_3.6.31.md).
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.31](https://github.com/wayri/WayriCAD/releases/tag/v3.6.31) · [Release notes](docs/RELEASE_NOTES_3.6.31.md) |
+| Download or update | [Release 3.6.32](https://github.com/wayri/WayriCAD/releases/tag/v3.6.32) · [Release notes](docs/RELEASE_NOTES_3.6.32.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -40,12 +40,14 @@ Click a screenshot for its full resolution. [More screenshots, grouped by plugin
 | <a href="trace_refiner_plugin/help-validated-comparison.png"><img src="trace_refiner_plugin/help-validated-comparison.png" width="460" alt="Trace Refiner comparing amber original tracks with teal proposed tracks"></a> | <a href="fanout_generator_plugin/help-connector-proposed.png"><img src="fanout_generator_plugin/help-connector-proposed.png" width="460" alt="Fanout Generator previewing six escapes on a synthetic connector fixture"></a> |
 | Synthetic fixture; native validation reported no new DRC findings. | Six-pin synthetic fixture; [dense Marble trial results](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
 
-## Latest release — 3.6.31
+## Latest release — 3.6.32
 
 Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
 
 | Improvement | Workflow |
 |---|---|
+| Computed thermal playback | Default 0.1 s frames, separate solver/output intervals, Previous/Next and playback speed controls. [QuickTherm guide](quick_therm_plugin/README.md). |
+| Reviewed IBIS circuits | Load exact source/receiver models, export selected complete routes and copy a native KiCad circuit. [SI workflow and limits](signal_integrity_advisor_plugin/ReadMe.md#reviewed-ibis-circuit-export). |
 | Live Quick PI current | Ctrl+scroll over solved copper changes load with speed-dependent steps; plain scroll zooms. Reuses the fixed-temperature linear field and retains zoom, selection and probes. [Timing and limits](docs/audits/QUICK_PI_LIVE_CURRENT_2026-10-24.md). |
 | Dense-board Fanout | Native padstack/track/arc checks, real keepout polygons, faster connector exits and retained short-stub continuation. [Marble results](docs/audits/FANOUT_DENSE_BOARD_FIXES_2026-10-23.md). |
 | Simpler Constraint Studio | Ordinary rules and netclasses stay in KiCad; Studio retains a read-only overview, protocol presets, matrices, reusable sets and reviewed export. [Guide](protocol_constraint_composer_plugin/ReadMe.md). |
@@ -73,7 +75,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | CLI access across all 24 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.31.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.32.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -242,7 +244,7 @@ currencies stay explicit.
 
 ## All 24 plugins
 
-All 24 plugins are available in release **3.6.31**. Assistant is marked **testing**;
+All 24 plugins are available in release **3.6.32**. Assistant is marked **testing**;
 individual package versions and runtime requirements are in their guides.
 Select a plugin for its full guide and supported models.
 
@@ -732,7 +734,7 @@ python tools/validate_packages.py --archive-dir .validation/candidate-pcm
 ```
 
 Each plugin also has its own tests. Skipped checks do not establish native GUI
-compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.31.md).
+compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.32.md).
 
 ## Acknowledgements and AI disclosure
 

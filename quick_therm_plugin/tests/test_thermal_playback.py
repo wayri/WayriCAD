@@ -5,6 +5,29 @@ from quick_therm_plugin.thermal_review import transient_frame_network
 
 
 class PlaybackTests(unittest.TestCase):
+    def test_requested_playback_times_are_computed_and_not_decimated(self):
+        from quick_therm_plugin.thermal_spatial_transient import evolve
+        from scipy.sparse import csr_matrix
+        import numpy as np
+        result=evolve(csr_matrix((1,1)),[1],{'U1':np.array([1])},[0],[0],[0],20,[0],[0],{},
+            {'duration_s':.5,'timestep_s':.2,'frame_interval_s':.1,
+             'power_schedules':{'U1':[[0,1],[.25,0]]},'schedule_interpolation':'step'})
+        times=[frame['time_s'] for frame in result['frames']]
+        for expected in (0,.1,.2,.25,.3,.4,.5):
+            self.assertTrue(any(abs(actual-expected)<1e-12 for actual in times), (expected,times))
+        self.assertEqual(result['frame_interval_s'],.1)
+        for frame in result['frames']:
+            self.assertAlmostEqual(frame['temperatures_c'][0],20+sum(
+                row['input_energy_j'] for row in result['energy_balance'] if row['time_s'] <= frame['time_s']))
+
+    def test_playback_density_limit_is_explicit(self):
+        from quick_therm_plugin.thermal_spatial_transient import evolve
+        from scipy.sparse import csr_matrix
+        import numpy as np
+        with self.assertRaisesRegex(ValueError,'above the 1000-frame limit'):
+            evolve(csr_matrix((1,1)),[1],{'U1':np.array([1])},[0],[0],[0],20,[0],[0],{},
+                   {'duration_s':200,'timestep_s':.2,'frame_interval_s':.1})
+
     def test_decimated_frames_retain_switch_events(self):
         from quick_therm_plugin.thermal_spatial_transient import evolve
         from scipy.sparse import csr_matrix

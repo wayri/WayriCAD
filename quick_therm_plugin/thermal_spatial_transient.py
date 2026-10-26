@@ -1,5 +1,6 @@
 """Backward-Euler spatial thermal evolution over an assembled conductance graph."""
 import math
+import bisect
 from collections.abc import Mapping
 
 import numpy as np
@@ -111,6 +112,15 @@ def evolve(laplacian, capacity, source_vectors, surface_area, h, emissivity,
         normalized[ref] = rows
         events.update(row[0] for row in rows if 0 < row[0] < duration)
     schedules = normalized
+    frame_interval = settings.get("frame_interval_s")
+    if frame_interval is not None:
+        frame_interval = _finite(frame_interval, "frame_interval_s", positive=True)
+        if duration/frame_interval > 999:
+            raise ValueError(f'Playback interval requests at least {math.ceil(duration/frame_interval)+1} stored frames, '+
+                             f'above the 1000-frame limit; increase frame_interval_s above {duration/999:.3g} s '+
+                             'or shorten duration_s.')
+        if "frame_stride" in settings:
+            raise ValueError("Choose frame_interval_s or frame_stride, not both.")
     timeline = {0., duration, *events}
     for step in range(1, math.ceil(ratio)):
         value = step*dt
@@ -123,19 +133,44 @@ def evolve(laplacian, capacity, source_vectors, surface_area, h, emissivity,
         if nearest in timeline and nearest not in events and nearest not in (0., duration):
             if abs(nearest-event) <= 8*max(math.ulp(nearest), math.ulp(event)):
                 timeline.remove(nearest)
+    output_times = {0., duration}
+    if frame_interval is not None:
+        # Requested playback times are solve endpoints, never interpolated display values.
+        ordered = sorted(timeline)
+        for index in range(1, math.ceil(duration/frame_interval)):
+            requested = index*frame_interval
+            if requested >= duration:
+                break
+            position = bisect.bisect_left(ordered, requested)
+            neighbors = ordered[max(0, position-1):position+1]
+            equivalent = next((value for value in neighbors if abs(value-requested) <=
+                               8*max(math.ulp(value), math.ulp(requested))), None)
+            output_times.add(equivalent if equivalent is not None else requested)
+            if equivalent is None:
+                bisect.insort(ordered, requested)
+        timeline = set(ordered)
     timeline = sorted(timeline)
     steps = len(timeline)-1
     if steps > 10000:
         raise ValueError("Transient including schedule events exceeds 10000 steps; simplify schedules or increase timestep_s.")
-    stride = settings.get("frame_stride", max(1, math.ceil(steps/100)))
-    if isinstance(stride, bool) or not isinstance(stride, int) or stride < 1 or math.ceil(steps/stride)+1 > 200:
-        raise ValueError("frame_stride must limit stored frames, including the initial frame, to 200.")
+    stride = settings.get("frame_stride", max(1, math.ceil(steps/100))) if frame_interval is None else None
+    if stride is not None and (isinstance(stride, bool) or not isinstance(stride, int) or stride < 1):
+        raise ValueError("frame_stride must be a positive integer.")
     stored_steps={index for index, endpoint in enumerate(timeline[1:],1)
-                  if index % stride == 0 or index == steps or endpoint in events}
-    if len(stored_steps)+1 > 200:
-        raise ValueError('Stored frames including schedule events exceed 200; simplify schedules or increase frame_stride.')
+                  if (endpoint in output_times if frame_interval is not None else index % stride == 0)
+                  or index == steps or endpoint in events}
+    if len(stored_steps)+1 > (1000 if frame_interval is not None else 200):
+        raise ValueError(f'{len(stored_steps)+1} stored frames exceed the '+
+                         ('1000' if frame_interval is not None else '200')+
+                         '-frame limit; increase frame_interval_s or frame_stride, simplify schedules, or shorten duration_s.')
     if (len(stored_steps)+1)*n > 5000000:
-        raise ValueError("Transient exceeds five million stored node values; increase frame_stride.")
+        allowed=max(1,5000000//n)
+        if allowed < 2:
+            raise ValueError(f'{n} nodes exceed five million stored values even for initial and final frames; reduce the mesh.')
+        recommended=duration/max(1,allowed-2)
+        raise ValueError(f'{len(stored_steps)+1} stored frames × {n} nodes exceed five million values; '+
+                         f'increase frame_interval_s to about {recommended*1.1:.3g} s or more '+
+                         '(allow more for schedule events), or reduce the mesh.')
     ids = np.array(sorted(fixed), dtype=int)
     free = np.array([i for i in range(n) if i not in fixed], dtype=int)
     if initial_temperatures_c is None:
@@ -217,7 +252,8 @@ def evolve(laplacian, capacity, source_vectors, surface_area, h, emissivity,
     return {"model": "backward-Euler spatial thermal transient", "status": "completed",
             "frames": frames, "power_schedules": schedules, "schedule_interpolation": interpolation,
             "energy_balance": energy, "max_energy_residual_w": max(abs(r["residual_w"]) for r in energy),
-            "steps": steps, "timestep_s": dt, "final_temperatures_c": temp.tolist(),
+            "steps": steps, "timestep_s": dt, "frame_interval_s": frame_interval,
+            "final_temperatures_c": temp.tolist(),
             "assumptions": [
                 "Heat capacities are supplied explicitly by the owning thermal model; the integrator infers no package, barrel, coating or circuit electrothermal properties. Spatial and lumped nodes retain their declared temperature meanings.",
                 "Scheduled multipliers use declared " + interpolation + " interpolation and held endpoint values; integration lands on schedule knots and preserves their interval input energy. No operating losses are inferred.",

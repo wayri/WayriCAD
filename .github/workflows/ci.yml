@@ -76,6 +76,7 @@ jobs:
           python -m unittest discover -s quick_pi_plugin/tests -p test_service_guards.py -v
           python -m unittest discover -s quick_pi_plugin/tests -p test_convergence.py -v
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p test_quick_si.py -v
+          python -m pytest signal_integrity_advisor_plugin/tests/test_ibis_models.py signal_integrity_advisor_plugin/tests/test_ibis_workflow.py signal_integrity_advisor_plugin/tests/test_ibis_ui.py signal_integrity_advisor_plugin/tests/test_circuit_scope.py -q
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p test_testpoint_labels.py -v
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p "test_eye*.py" -v
           python -m unittest discover -s manufacturing_readiness_plugin/tests -v

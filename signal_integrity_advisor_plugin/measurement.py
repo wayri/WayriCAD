@@ -599,6 +599,7 @@ class TraceMeasurementEngine:
                 section['end_mm']=[v/1e6 for v in edge['b']]
             copper = (rows[layer].thickness_mm if layer in rows else 0.) or .035
             section['copper_thickness_mm']=copper
+            section['copper_thickness_source']=('saved_stackup' if layer in rows and rows[layer].kind!='routed' and rows[layer].thickness_mm>0 else 'assumed_35um')
             result.copper_thickness_mm = copper
             section.update(self._screening_section(kind, layer, length, edge.get("width_mm", 0.0),
                            rows[layer].thickness_mm if layer in rows else 0.0,

@@ -16,6 +16,22 @@ def protocol_budgets(command):
 def parser():
     root=argparse.ArgumentParser(description=__doc__)
     subs=root.add_subparsers(dest='command',required=True)
+    catalog=subs.add_parser('ibis-catalog',help='List bounded IBIS components, pins, selectors and model roles.')
+    catalog.add_argument('source',type=Path)
+    catalog.add_argument('--output',type=Path)
+    circuit=subs.add_parser('circuit',help='Export selected complete route reports as a native KiCad IBIS simulation circuit.')
+    circuit.add_argument('source',type=Path,help='Saved Quick SI route or study JSON report.')
+    circuit.add_argument('--assignments',type=Path,required=True,help='Explicit source/sink IBIS assignments by case ID.')
+    circuit.add_argument('--case',action='append',help='Study case ID; repeat to choose multiple paths. Default: every case.')
+    circuit.add_argument('--output',type=Path,required=True,help='New simulation bundle directory; must not exist.')
+    circuit.add_argument('--duration-ns',type=float,default=100.)
+    circuit.add_argument('--timestep-ns',type=float,default=.1)
+    circuit.add_argument('--frequency-mhz',type=float,default=100.)
+    circuit.add_argument('--duty-percent',type=float,default=50.)
+    circuit.add_argument('--allow-approximations',action='store_true',help='Review and permit supported lumped via/zone approximations.')
+    circuit.add_argument('--via-capacitance-pf',type=float,help='Explicit via capacitance assumption for supported lumped via sections.')
+    circuit.add_argument('--via-inductance-nh',type=float,help='Explicit complete via-loop inductance assumption, not isolated partial L.')
+    circuit.add_argument('--copper-thickness-um',type=float,help='Explicit copper thickness assumption when absent from the saved stackup.')
     desktop=subs.add_parser('desktop',help='Run the complete optional upstream SignalIntegrity desktop; waits until it closes.')
     desktop.add_argument('project',type=Path,nargs='?',help='Optional trusted upstream .si project.')
     desktop.add_argument('--python',type=Path,help='Python executable with SignalIntegrity and Tk; defaults to this interpreter.')
@@ -89,6 +105,25 @@ def write_report(destination,payload,source,extension):
 
 
 def execute(args):
+    if args.command=='ibis-catalog':
+        from .ibis_models import load_ibis
+        result=load_ibis(args.source)
+        if args.output:write_report(args.output,json.dumps(result,indent=2,allow_nan=False)+'\n',args.source,'.json')
+        return result
+    if args.command=='circuit':
+        from .ibis_workflow import read_json,circuit_cases,require_case_sources,relative_model_paths
+        from .si_circuit import export_circuit
+        report,report_hash=read_json(args.source)
+        assignments,config_hash=read_json(args.assignments,1024*1024)
+        cases=circuit_cases(report,relative_model_paths(assignments,args.assignments),args.case)
+        options={key:getattr(args,key) for key in ('duration_ns','timestep_ns','frequency_mhz','duty_percent',
+                                                  'allow_approximations','via_capacitance_pf','via_inductance_nh','copper_thickness_um')}
+        def guard():
+            require_case_sources(cases)
+            if read_json(args.source)[1]!=report_hash or read_json(args.assignments,1024*1024)[1]!=config_hash:
+                raise ValueError('Report or IBIS assignments changed during export; no circuit was published.')
+        result=export_circuit(cases,args.output,options,guard=guard)
+        return {key:value for key,value in result.items() if key!='clipboard_text'}
     if args.command=='desktop':
         from .signalintegrity_backend import run_desktop
         return run_desktop(python=args.python,project=args.project,check=args.check)

@@ -40,3 +40,9 @@ include quick_pi_plugin/tests/test_live_ui.py
 include quick_pi_plugin/tests/test_live_view.py
 include quick_pi_plugin/tests/test_report.py
 include quick_pi_plugin/tests/test_solver.py
+include docs/RELEASE_NOTES_3.6.32.md
+include docs/audits/RELEASE_3.6.32.md
+include docs/audits/IBIS_CIRCUIT_EXPORT_2026-10-26.md
+include signal_integrity_advisor_plugin/ibis-assignments.example.json
+recursive-include signal_integrity_advisor_plugin/tests *.py
+include quick_therm_plugin/tests/test_thermal_playback.py

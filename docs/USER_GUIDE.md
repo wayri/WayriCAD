@@ -120,6 +120,18 @@ It can illustrate ringing and sampled eye closure, but does not simulate IBIS
 drivers, coupled crosstalk or protocol compliance. See the
 [model assumptions and CLI examples](../signal_integrity_advisor_plugin/ReadMe.md#illustrative-eye-and-step-response).
 
+Quick SI can also assign vendor IBIS models to exact source and receiver pins
+and export complete selected routes as native KiCad simulation circuits.
+**Copy circuit** creates a retained model bundle and copies a flat circuit for
+pasting into Schematic Editor. The native KiCad simulator runs the IBIS models;
+the Eye / step preview above keeps its separate ideal model. See
+[IBIS assignment, circuit export and limits](../signal_integrity_advisor_plugin/ReadMe.md#reviewed-ibis-circuit-export).
+
+QuickTherm spatial transients default to 0.1 s computed playback frames over a
+10 s study. Set the solver maximum step and playback interval separately; use
+Previous/Next for individual frames or adjust playback speed. Large studies
+report storage limits rather than silently coarsening the requested interval.
+
 ![Trace RLC analyzer showing a Marble connected-path result](../trace_impedance_plugin/help-marble-path.png)
 
 Quick SI’s **Return path** tab retains transition/reference checks. Its **Test points** workflow exports test-point information and supports previewed net-name values and a silkscreen table. Review the selected set and proposed labels before writing; do not silently rename every footprint. Existing connector pin documentation remains in Pin Extractor.

@@ -6,9 +6,10 @@
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.31](https://github.com/wayri/WayriCAD/releases/tag/v3.6.31) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.32](https://github.com/wayri/WayriCAD/releases/tag/v3.6.32) · [Installation](../docs/INSTALLATION.md) |
 | First source-to-receiver screen | [Normal workflow](#normal-workflow) |
 | Several nets and explicit returns | [Multi-net studies](#multi-net-studies-and-explicit-returns) |
+| Reviewed IBIS circuit | [KiCad circuit export](#reviewed-ibis-circuit-export) |
 | Local coupling | [Directed crosstalk](#directed-local-crosstalk) |
 | Scripts and help | [CLI](#cli) · [Offline help](help.html) |
 | Equations and applicability | [Solver methods](#solver-methods) · [References](#references-and-research) |
@@ -81,6 +82,95 @@ Repeat `--return-net` for multiple return nets. No ground name or source/receive
 return pad is inferred. Ambiguous pad labels and absent return nets produce an
 explicit error. Omitting returns preserves the route screen and makes no return
 closure claim.
+
+## Reviewed IBIS circuit export
+
+Quick SI can export a **separate, editable KiCad simulation project** for a
+completed point-to-point route. The existing Quick SI eye and step plots remain
+illustrative ideal-line calculations; loading IBIS does not change those plots.
+Open the exported project in KiCad Schematic Editor and run its native simulator
+to calculate the IBIS response. The exporter creates a circuit and records its
+assumptions; it does not run or validate the native transient for you.
+
+1. Save the PCB, then run **Screen selected path** or a multi-net study. A live
+   unsaved-board result cannot be exported as a circuit. Reopen and rerun if the
+   PCB, project or custom rules change.
+2. Open **IBIS models for KiCad circuit export**. Use **Load IBIS…** separately
+   for **Source / driver** and **Receiver / load**, or **Use source file for
+   receiver**. Choose the exact IBIS **Component**, **Pin** and compatible
+   **Model**. A sole component and sole compatible model may be selected
+   automatically; the pin is suggested only when its number matches the PCB
+   pad. Select a different IBIS pin explicitly when the package mapping calls
+   for it. The pane shows `PCB Reference.Pad → IBIS Component.Pin`; check this
+   mapping against the device documentation. Choose one `typ`, `min` or `max`
+   corner for VCC and pin R/L/C parameters. The file tooltip shows its full path.
+3. For a study, choose each completed case above the route preview and assign
+   both endpoints. **Export KiCad circuit…** and **Copy circuit…** let you check
+   which completed cases to include. Every checked case needs both assignments;
+   failed or unassigned cases are reported rather than silently omitted.
+4. Review duration, maximum timestep, stimulus frequency and duty cycle. They
+   start at 100 ns, 0.1 ns, 100 MHz and 50%. Copper thickness is blank unless
+   you enter an explicit assumption. Via approximation is off unless you check
+   it and enter both via capacitance (pF) and complete loop inductance (nH).
+   Choose a parent folder; a new `SI-circuit-…` bundle is created there.
+
+The bundle contains `circuit.kicad_pro`, `circuit.kicad_sch`, channel sheets,
+`quicksi.kicad_sym`, a symbol library table, `manifest.json`, `clipboard.txt`
+and copied SHA-256-named `.ibs` files under `models/`. Keep the bundle: the
+**Copy circuit…** action first creates it, then copies a KiCad schematic fragment
+whose IBIS references point to those bundled model files. Moving or deleting
+the bundle can break a pasted circuit's model links. Inspect the manifest and
+the schematic in KiCad before simulation.
+Each fresh export uses its own non-ground signal net names. Pasting the **same**
+clipboard fragment more than once reuses its global signal names and connects
+those copies electrically; re-export to obtain an isolated second copy. Ground
+is intentionally common in this ideal-reference circuit.
+
+Circuit export requires exactly two signal pads and positive evidence that the
+selected route accounts for all routing on the signal net. Zones, branches,
+stubs, loops, disconnected sections and unresolved copper are rejected; a
+selected endpoint path alone is insufficient. A via needs explicit consent and
+reviewed manual L/C values. Where copper thickness is absent from the saved
+stackup, enter **Assumed copper thickness µm** and screen the route with
+explicit assumed `--z0-ohm` and `--epsilon-eff` (or the corresponding UI fields)
+before exporting. The exporter rescales its section DC resistance to the
+entered thickness; the assumed uniform Z0 and effective permittivity remain
+declared approximations. Independent cases have an ideal common reference and
+no inter-net coupling or simultaneous switching. Neither the exported project
+nor Quick SI's screening result establishes compliance or convergence.
+
+### CLI catalog and circuit
+
+`ibis-catalog` reads bounded component, pin, model and selector metadata and
+prints the file's SHA-256. It does not validate the file's electrical tables or
+guarantee simulator compatibility. Obtain the actual manufacturer `.ibs` file,
+review the catalog and replace every placeholder SHA-256 in
+[ibis-assignments.example.json](ibis-assignments.example.json). Model paths in
+the assignment file are resolved relative to that file. A single-route report
+uses case ID `route`; a study uses its declared case IDs. By default `circuit`
+requests every study case, so use repeatable `--case` to select a subset.
+
+```text
+wayricad-si ibis-catalog C:/Projects/Example/models/driver.ibs --output driver-catalog.json
+wayricad-si ibis-catalog C:/Projects/Example/models/receiver.ibs --output receiver-catalog.json
+wayricad-si screen C:/Projects/Example/board.kicad_pcb --net DATA --start U1.1 --end J1.1 --z0-ohm 50 --epsilon-eff 3.2 --output route.json
+wayricad-si circuit route.json --assignments ibis-assignments.json --output C:/Projects/Example/SI-circuit-review
+```
+
+The `--output` directory must not already exist. For a study, pass its saved
+study JSON and repeat `--case data --case clock` as needed. The CLI rechecks
+the saved board/rules report fingerprints, assignment document, report JSON,
+and reviewed model SHA-256 before publication. Use `--allow-approximations`,
+`--via-capacitance-pf` and `--via-inductance-nh` only with reviewed via values;
+the latter represents the **complete via loop**. Use
+`--copper-thickness-um` only with a reviewed thickness when the stackup
+lacks one, after rescreening with explicit Z0 and effective permittivity.
+
+KiCad's [Schematic Editor simulator and IBIS model guide](https://docs.kicad.org/10.0/en/eeschema/eeschema.html#ibis-models)
+describes native IBIS component, pin, model and parameter selection, including
+explicit symbol-to-model pin mapping. The [IBIS Open Forum 7.1 specification](https://ibis.org/ver7.1/)
+defines the file format. Quick SI reads only the supported metadata needed for
+assignment; KiCad owns the actual model interpretation and transient run.
 
 ### Directed local crosstalk
 
@@ -215,7 +305,7 @@ User-entered Z0/Er overrides retain their explicit assumption labels.
 
 ## Limitations
 
-- Screening is not IBIS simulation, whole-route coupled-circuit analysis, BER measurement or protocol compliance certification.
+- Quick SI's screen and illustrative eye do not run IBIS models; the separate exported circuit requires a KiCad native simulator run. Neither path is BER measurement or protocol compliance certification.
 - The illustrative eye omits loss, jitter/noise, branches and via discontinuities; unresolved parameters, zone routes and extra terminals can disable it.
 - Path endpoints must be on the same net; the tool does not silently bridge series components or disconnected copper.
 - Saved-board geometry and explicit source/load/stackup assumptions determine coverage. Unknown results are not passes; test-point edits require separate review.
@@ -359,9 +449,11 @@ length skew. Two independent single-ended impedances are not summed into a
 claimed coupled differential Z0. **I2C pull-ups** retains the permitted resistor
 range from bus capacitance, rise time and sink-current limits.
 
-Quick SI does not provide full-wave simulation, IBIS driver/receiver behavior,
-receiver capacitance, coupled differential modes, crosstalk, IBIS-derived eyes or
-frequency-dependent discontinuity simulation. Zone paths are finite-width
+Quick SI's screen does not solve full-wave behavior, IBIS driver/receiver
+behavior, receiver capacitance, coupled differential modes, IBIS-derived eyes or
+frequency-dependent discontinuities. Its separate IBIS circuit export must be
+opened and run in KiCad; independent cases do not add inter-net coupling.
+Zone paths are finite-width
 corridors, not full plane field solutions. Effective Er is not automatically the
 laminate's bulk Er. Use a suitable solver and measurements for signoff.
 

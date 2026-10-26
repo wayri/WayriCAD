@@ -368,19 +368,22 @@ class QuickThermFrame(wx.Frame):
         self.therm_transient_pane=wx.CollapsiblePane(page,label='Transient setup',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         transient_host=self.therm_transient_pane.GetPane();transient_box=wx.BoxSizer(wx.VERTICAL)
         transient_form=wx.FlexGridSizer(0,2,6,8);transient_form.AddGrowableCol(1)
-        self.therm_time_duration=wx.TextCtrl(transient_host,value='60')
-        self.therm_time_step=wx.TextCtrl(transient_host,value='1')
+        self.therm_time_duration=wx.TextCtrl(transient_host,value='10')
+        self.therm_time_step=wx.TextCtrl(transient_host,value='0.1')
+        self.therm_frame_interval=wx.TextCtrl(transient_host,value='0.1')
         self.therm_time_initial=wx.TextCtrl(transient_host,value='20')
         self.therm_copper_capacity=wx.TextCtrl(transient_host,value='3450000')
         self.therm_dielectric_capacity=wx.TextCtrl(transient_host,value='1800000')
         self.therm_schedule_interpolation=ReadableChoice(transient_host,choices=['Linear ramps','Power steps'])
         self.therm_schedule_interpolation.SetSelection(0)
         self.therm_schedule_interpolation.Bind(wx.EVT_CHOICE,self._invalidate_thermal)
-        for label,ctrl in [('Duration s',self.therm_time_duration),('Max time step s',self.therm_time_step),('Initial °C',self.therm_time_initial),('Copper capacity J/m³K',self.therm_copper_capacity),('Dielectric capacity J/m³K',self.therm_dielectric_capacity),('Schedule',self.therm_schedule_interpolation)]:
+        for label,ctrl in [('Duration s',self.therm_time_duration),('Max solver step s',self.therm_time_step),('Stored frame interval s',self.therm_frame_interval),('Initial °C',self.therm_time_initial),('Copper capacity J/m³K',self.therm_copper_capacity),('Dielectric capacity J/m³K',self.therm_dielectric_capacity),('Schedule',self.therm_schedule_interpolation)]:
             caption=wx.StaticText(transient_host,label=label);caption.Wrap(130)
             transient_form.Add(caption,0,wx.ALIGN_CENTER_VERTICAL);transient_form.Add(ctrl,1,wx.EXPAND)
             if isinstance(ctrl,wx.TextCtrl):ctrl.Bind(wx.EVT_TEXT,self._invalidate_thermal)
         transient_box.Add(transient_form,0,wx.EXPAND|wx.ALL,6)
+        self.therm_time_step.SetToolTip('Maximum integration step. Smaller values improve time resolution but need more solve work.')
+        self.therm_frame_interval.SetToolTip('Compute and store a real solution at each playback interval. Increase this if the frame or memory limit is reached.')
         steps=wx.Button(transient_host,label='Power steps…');steps.Bind(wx.EVT_BUTTON,self._edit_power_steps)
         self.therm_power_steps=steps
         transient_box.Add(steps,0,wx.EXPAND|wx.ALL,6)
@@ -585,10 +588,16 @@ class QuickThermFrame(wx.Frame):
         timeline=wx.BoxSizer(wx.HORIZONTAL)
         self.therm_play=wx.Button(visual_host,label='▶ Play',size=(70,-1))
         self.therm_play.Bind(wx.EVT_BUTTON,self._toggle_thermal_playback);timeline.Add(self.therm_play,0,wx.RIGHT,5)
+        self.therm_previous=wx.Button(visual_host,label='◀',size=(32,-1))
+        self.therm_previous.SetToolTip('Previous computed frame')
+        self.therm_previous.Bind(wx.EVT_BUTTON,lambda e:self._step_thermal_frame(-1));timeline.Add(self.therm_previous,0,wx.RIGHT,3)
+        self.therm_next=wx.Button(visual_host,label='▶',size=(32,-1))
+        self.therm_next.SetToolTip('Next computed frame')
+        self.therm_next.Bind(wx.EVT_BUTTON,lambda e:self._step_thermal_frame(1));timeline.Add(self.therm_next,0,wx.RIGHT,5)
         self.therm_time_slider=wx.Slider(visual_host,minValue=0,maxValue=1,value=0)
         self.therm_time_slider.Bind(wx.EVT_SLIDER,self._scrub_thermal_time);timeline.Add(self.therm_time_slider,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
         self.therm_time_label=wx.StaticText(visual_host,label='Run a transient study');timeline.Add(self.therm_time_label,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
-        self.therm_play_speed=ReadableChoice(visual_host,choices=['1×','5×','20×']);self.therm_play_speed.SetSelection(1)
+        self.therm_play_speed=ReadableChoice(visual_host,choices=['0.25×','1×','5×','20×']);self.therm_play_speed.SetSelection(1)
         self.therm_play_speed.Bind(wx.EVT_CHOICE,self._thermal_speed_changed);timeline.Add(self.therm_play_speed,0)
         visual.Add(timeline,0,wx.EXPAND|wx.BOTTOM,3)
         self.therm_figure=Figure(figsize=(8,6),dpi=100);self.therm_canvas=FigureCanvasWxAgg(visual_host,wx.ID_ANY,self.therm_figure)
@@ -683,7 +692,7 @@ class QuickThermFrame(wx.Frame):
         selected=self.therm_model_kind.GetSelection() if self.therm_model_enabled.GetValue() else -1
         for ctrl in (self.therm_time_enabled,self.therm_env,self.therm_ambient,self.therm_input_mode,
                      self.therm_model_enabled,self.therm_model_kind):ctrl.Enable(not self._busy)
-        for ctrl in (self.therm_time_duration,self.therm_time_step,self.therm_time_initial,
+        for ctrl in (self.therm_time_duration,self.therm_time_step,self.therm_frame_interval,self.therm_time_initial,
                      self.therm_copper_capacity,self.therm_dielectric_capacity,self.therm_power_schedule,
                      self.therm_sink_capacity,self.therm_schedule_interpolation,self.therm_power_steps):
             ctrl.Enable(self.therm_time_enabled.GetValue() and not self._busy)
@@ -1097,7 +1106,7 @@ class QuickThermFrame(wx.Frame):
                 if environment=='potting':
                     settings.update(potting_k_w_mk=float(self.therm_potting_k.GetValue()),potting_thickness_mm=float(self.therm_potting_thickness.GetValue()),potting_outer_h_w_m2k=float(self.therm_potting_outer_h.GetValue()))
                 if self.therm_time_enabled.GetValue():
-                    request['transient_settings']={'duration_s':float(self.therm_time_duration.GetValue()),'timestep_s':float(self.therm_time_step.GetValue()),'initial_c':float(self.therm_time_initial.GetValue()),'copper_volumetric_capacity_j_m3k':float(self.therm_copper_capacity.GetValue()),'dielectric_volumetric_capacity_j_m3k':float(self.therm_dielectric_capacity.GetValue()),'power_schedules':json.loads(self.therm_power_schedule.GetValue()),'sink_capacity_j_k':json.loads(self.therm_sink_capacity.GetValue()),'schedule_interpolation':('linear','step')[self.therm_schedule_interpolation.GetSelection()]}
+                    request['transient_settings']={'duration_s':float(self.therm_time_duration.GetValue()),'timestep_s':float(self.therm_time_step.GetValue()),'frame_interval_s':float(self.therm_frame_interval.GetValue()),'initial_c':float(self.therm_time_initial.GetValue()),'copper_volumetric_capacity_j_m3k':float(self.therm_copper_capacity.GetValue()),'dielectric_volumetric_capacity_j_m3k':float(self.therm_dielectric_capacity.GetValue()),'power_schedules':json.loads(self.therm_power_schedule.GetValue()),'sink_capacity_j_k':json.loads(self.therm_sink_capacity.GetValue()),'schedule_interpolation':('linear','step')[self.therm_schedule_interpolation.GetSelection()]}
                 if sinks:
                     settings['sink_exposed_area_mm2']=_parse_sink_areas(self.therm_sink_area.GetValue(),sinks)
                 if model_index==1:
@@ -1280,7 +1289,7 @@ class QuickThermFrame(wx.Frame):
     def _update_thermal_timeline(self):
         if not hasattr(self,'therm_play'):return
         frames=self._thermal_frames();enabled=bool(frames) and not self._busy
-        for ctrl in (self.therm_play,self.therm_time_slider,self.therm_play_speed):ctrl.Enable(enabled)
+        for ctrl in (self.therm_play,self.therm_previous,self.therm_next,self.therm_time_slider,self.therm_play_speed):ctrl.Enable(enabled)
         self.therm_result_time.Enable(bool(self.thermal_bundle) and not self._busy)
         self.therm_time_slider.SetRange(0,max(1,len(frames)-1))
         index=self.therm_result_time.GetSelection()-1
@@ -1303,7 +1312,7 @@ class QuickThermFrame(wx.Frame):
             index=0;self.therm_result_time.SetSelection(1);self._thermal_time_changed(stop=False)
         self._thermal_play_start=time.monotonic()
         self._thermal_play_time=frames[index]['time_s']
-        self._thermal_playing=True;self.therm_play.SetLabel('Ⅱ Pause');self._thermal_timer.Start(100)
+        self._thermal_playing=True;self.therm_play.SetLabel('Ⅱ Pause');self._thermal_timer.Start(50)
 
     def _thermal_speed_changed(self,event=None):
         if self._thermal_playing:
@@ -1314,7 +1323,7 @@ class QuickThermFrame(wx.Frame):
         from .thermal_playback import frame_at_time
         frames=self._thermal_frames()
         if not frames:self._stop_thermal_playback();return
-        simulated=self._thermal_play_time+(time.monotonic()-self._thermal_play_start)*(1,5,20)[self.therm_play_speed.GetSelection()]
+        simulated=self._thermal_play_time+(time.monotonic()-self._thermal_play_start)*(.25,1,5,20)[self.therm_play_speed.GetSelection()]
         index=frame_at_time(frames,simulated)
         if self.therm_result_time.GetSelection()!=index+1:
             self.therm_result_time.SetSelection(index+1);self._thermal_time_changed(stop=False)
@@ -1322,6 +1331,13 @@ class QuickThermFrame(wx.Frame):
 
     def _scrub_thermal_time(self,event=None):
         self.therm_result_time.SetSelection(self.therm_time_slider.GetValue()+1)
+        self._thermal_time_changed()
+
+    def _step_thermal_frame(self,direction):
+        frames=self._thermal_frames()
+        if not frames or self._busy:return
+        index=max(0,min(len(frames)-1,self.therm_result_time.GetSelection()-1+direction))
+        self.therm_result_time.SetSelection(index+1)
         self._thermal_time_changed()
 
     def _thermal_time_changed(self,stop=True):

@@ -4,7 +4,7 @@
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.31](https://github.com/wayri/WayriCAD/releases/tag/v3.6.31) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.32](https://github.com/wayri/WayriCAD/releases/tag/v3.6.32) · [Installation](../docs/INSTALLATION.md) |
 | Choose component inputs | [Native workspace](#native-workspace-and-component-inputs) |
 | Run a known example | [Reproducible example](#reproducible-example) |
 | Top, bottom, 3D and probes | [Interactive views](#interactive-views-and-time-evolution) |
@@ -144,11 +144,11 @@ The offline HTML report includes interactive board views, component temperature 
 
 Air, vacuum, forced air, potting and sealed-enclosure modes are available. For **forced air**, enter the effective board/sink convection coefficients. **Vacuum** requires zero convection and an explicit radiation or fixture path. **Potting** needs conductivity, thickness and outer convection, and models their series thermal resistance. **Sealed** needs a fixed enclosure temperature and effective heat-transfer coefficient. Potting heat capacity and lateral spreading, enclosure heating and airflow fields are not solved.
 
-Enable **Transient · watch board heating** on the board tab. This selects the multilayer board model and opens **Transient setup**. Review the saved stackup, copper/dielectric conductivity, plating, emissivity and boundaries in **Board heat model**. Enter copper and dielectric volumetric heat capacities, initial temperature, duration and maximum time step; the displayed capacity defaults are illustrative assumptions. Heatsinks additionally need explicit heat capacities.
+Enable **Transient · watch board heating** on the board tab. This selects the multilayer board model and opens **Transient setup**. Review the saved stackup, copper/dielectric conductivity, plating, emissivity and boundaries in **Board heat model**. Enter copper and dielectric volumetric heat capacities, initial temperature, duration, maximum solver step and stored frame interval; the displayed capacity defaults are illustrative assumptions. Heatsinks additionally need explicit heat capacities. The native default is a 10 s study with 0.1 s solver steps and 0.1 s stored frames. The solver lands on stored-frame times and schedule events, so a frame interval shorter than the maximum solver step also makes integration steps shorter. Neither interval changes the spatial mesh or establishes numerical convergence.
 
 **Power steps…** opens a table of included parts and entered power. Set an initial multiplier, optional switch time and final multiplier: `1` means the entered dissipation, `0` switches it off. **Advanced schedules + sinks** accepts several `[time_s, multiplier]` points per reference and optional sink capacities. Choose **Power steps** to hold each value until the next event, or **Linear ramps** for interpolated power with held endpoints. Integration lands on every schedule event and preserves interval input energy, including pulses shorter than the maximum time step.
 
-After running, the board starts at the computed initial frame. **Play/Pause**, the time slider and **1× / 5× / 20×** speed show heating and cooling in top, bottom and interactive 3D views, and in the offline HTML report. Playback holds stored computed frames; it does not invent intermediate temperatures. The fixed board-temperature scale spans the entire study, and the camera, selected component, probes, power and junction-limit checks remain synchronized. Select **Steady state** to compare the separate steady solution. Changing inputs stops playback and disables stale exports; closing the window stops its timer.
+After running, the board starts at the computed initial frame. **Play/Pause**, **Previous/Next**, the time slider and **0.25× / 1× / 5× / 20×** speed show heating and cooling in top, bottom and interactive 3D views, and in the offline HTML report. Playback holds stored computed frames; it does not invent intermediate temperatures. Fast playback or a slow redraw may skip visible frames; use Previous/Next to inspect each stored solve. The fixed board-temperature scale spans the entire study, and the camera, selected component, probes, power and junction-limit checks remain synchronized. Select **Steady state** to compare the separate steady solution. Changing inputs stops playback and disables stale exports; closing the window stops its timer. At most 1000 frames and five million node values can be stored with `frame_interval_s`; a rejected study reports the required interval or mesh reduction instead of silently thinning output. Smaller intervals increase solve, memory and report size.
 
 ![Native vacuum transient playback at 10 seconds](examples/quicktherm-transient-workspace.png)
 
@@ -165,6 +165,7 @@ A CLI JSON config accepts this top-level section together with the existing mult
   "transient_settings": {
     "duration_s": 60,
     "timestep_s": 1,
+    "frame_interval_s": 0.5,
     "initial_c": 25,
     "copper_volumetric_capacity_j_m3k": 3450000,
     "dielectric_volumetric_capacity_j_m3k": 1800000,
