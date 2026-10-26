@@ -118,3 +118,17 @@ The final wheel excludes development tests and bytecode caches; source-archive
 tests remain available. An explicit artifact check found zero test members, and
 the cleaned wheel passed all CLI/report-asset/mechanical-rule smoke workflows.
 No production solver or GUI code changed for this packaging correction.
+
+## Publication
+
+Published [3.6.33](https://github.com/wayri/WayriCAD/releases/tag/v3.6.33)
+from commit `053a188be7a50992821fa654cd4e4a9c5d79372a`. All eight
+[CI jobs](https://github.com/wayri/WayriCAD/actions/runs/40389057116) passed,
+covering Linux, Windows and macOS portable checks plus PI known-answer tests.
+Native GUI evidence above was collected on Windows with KiCad 10.0.6.
+
+All 31 release assets were downloaded and matched against their local SHA-256
+manifest before publication. Public, unauthenticated downloads of the PI/SI
+installers and both feed metadata files were checked again after publication.
+The 24-package PCM feed is promoted from those verified release metadata bytes.
+No binaries were replaced under an existing release version.
