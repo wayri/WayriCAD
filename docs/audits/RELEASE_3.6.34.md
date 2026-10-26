@@ -22,3 +22,22 @@ metadata, without changing the tested AC numerical equations or UI behaviour.
 All active packages receive a new version so PCM can update their shared runtime
 catalogue as well. Candidate feed metadata stays unpublished until all referenced
 assets are uploaded and verified.
+
+## Publication
+
+Published [3.6.34](https://github.com/wayri/WayriCAD/releases/tag/v3.6.34)
+from `ceda5afd2b0ac848cbbac54097d613f265a6e970`. All eight
+[exact-source CI jobs](https://github.com/wayri/WayriCAD/actions/runs/40398264525)
+passed, covering Linux, Windows and macOS portable checks and PI references.
+
+All 24 final PCM archives pass schema, syntax, icon, runtime/action and hash
+validation. The final isolated PI installer ran the AC example and exported its
+report. The clean wheel passed isolated CLI/report/mechanical smoke checks;
+its AC production modules match source and contain no tests or bytecode.
+The source archive's 1,322 tracked members match checkout bytes. Nine root
+version/CLI checks with 24 subtests and 32 Analytics packaging checks passed.
+
+All 31 uploaded assets were downloaded and matched the local SHA-256 manifest
+before publication. Public PI/SI installer and feed downloads were checked again
+after publication. The PCM feed is promoted from those verified release bytes.
+Earlier release assets were preserved. No local plugin installation was made.
