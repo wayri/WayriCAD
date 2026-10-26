@@ -36,13 +36,13 @@ class ReportCapacityTests(unittest.TestCase):
     def test_metric_budget_style_and_explicit_extended_request(self):
         bundle=strip_bundle()
         metrics,style,large=report._static_report_plan(bundle)
-        self.assertEqual(len(metrics),7);self.assertEqual(style,'smooth');self.assertFalse(large)
+        self.assertEqual(len(metrics),8);self.assertEqual(style,'smooth');self.assertFalse(large)
         class LargeTriangles:
             def __len__(self):return 100001
         bundle['mesh']['triangles']=LargeTriangles()
         self.assertEqual(report._static_report_plan(bundle),(('drop','density','loss'),'cells',True))
         bundle['report_options']={'extended_snapshots':True}
-        self.assertEqual(len(report._static_report_plan(bundle)[0]),7)
+        self.assertEqual(len(report._static_report_plan(bundle)[0]),8)
         self.assertEqual(report._static_report_plan(bundle)[1],'cells')
         for options in ({'extended_snapshots':1},{'extended_snapshots':'yes'},{'unknown':True},[]):
             bundle['report_options']=options
@@ -131,7 +131,7 @@ class ReportCapacityTests(unittest.TestCase):
                 self.assertIn('child JSON is not a standalone numerical result',html)
             self.assertEqual(descriptor['evidence_reference']['sign_transforms']['/result/potential_V'],-1)
             self.assertEqual(descriptor['evidence_reference']['sign_transforms']['/result/vias/*/current_A'],-1)
-            self.assertEqual(snapshot.call_count,14)
+            self.assertEqual(snapshot.call_count,16)  # Eight metrics for each child, including melting.
         self.assertEqual(bundle,before)
 
     def test_referenced_publication_preserves_custody_and_refuses_changed_source(self):

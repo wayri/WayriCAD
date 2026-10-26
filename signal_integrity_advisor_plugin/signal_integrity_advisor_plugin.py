@@ -119,7 +119,7 @@ class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.32"
+        self.version = "3.6.33"
 
     def Run(self) -> None:
         board = pcbnew.GetBoard()
@@ -148,6 +148,9 @@ class SignalIntegrityFrame(wx.Frame):
         from .quick_ui import QuickSIPanel
         self.quick_si=QuickSIPanel(self.tabs,self.board,RoutePreview,self.saved_board)
         self.tabs.AddPage(self.quick_si,"Quick SI")
+        from .neighbour_ui import NeighbourPanel
+        self.neighbours=NeighbourPanel(self.tabs,self.board,self.saved_board,self.quick_si)
+        self.tabs.AddPage(self.neighbours,"Neighbour traces")
         self.tabs.AddPage(self._impedance_page(self.tabs),"Impedance & pairs")
         self.tabs.AddPage(self._i2c_page(self.tabs),"I2C pull-ups")
         from .return_path.return_path_auditor_plugin import ReturnPathFrame

@@ -59,9 +59,9 @@ The commands below expose the existing headless workflows. They do **not** imply
 | `planar-magnetics` | Headless JSON parameters: magnetics.analyze; GUI write operations are separate | `wayricad tools run planar-magnetics -- --help` |
 | `project-fusion` | Analyze and merge saved projects | `wayricad tools run project-fusion -- --help` |
 | `protocol-constraints` | Headless JSON parameters: protocol-constraints.compose; GUI write operations are separate | `wayricad tools run protocol-constraints -- --help` |
-| `quick-pi` | DC copper, grouped pads and shared-return rail studies | `wayricad tools run quick-pi -- --help` |
+| `quick-pi` | DC copper, grouped pads, shared returns and melting/bottleneck screens | `wayricad tools run quick-pi -- --help` |
 | `quick-therm` | Board/component temperature screening and thermal reports | `wayricad tools run quick-therm -- --help` |
-| `signal-integrity` | Route and return-path screening with local coupled-line crosstalk | `wayricad tools run signal-integrity -- --help` |
+| `signal-integrity` | Route, return-path and neighbour-exposure maps with local coupled-line crosstalk | `wayricad tools run signal-integrity -- --help` |
 | `silkscreen-label-placer` | Read-only placement preview and settings; apply remains in the GUI | `wayricad tools run silkscreen-label-placer -- --help` |
 | `trace-impedance` | Trace, differential-pair and filled-zone RLC estimates | `wayricad tools run trace-impedance -- --help` |
 | `trace-refiner` | Preview, validate and export refined traces | `wayricad tools run trace-refiner -- --help` |

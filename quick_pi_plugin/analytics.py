@@ -101,4 +101,7 @@ def details_text(result):
                      f"J {row['current_density_A_mm2']:.5g} A/mm² | {row['power_density_W_mm3']:.5g} W/mm³ | "
                      +(f"pulse energy/limit {ratio:.5g}" if ratio is not None else 'pulse duration required for thermal screening'))
     lines.extend(['',analysis['thickness_basis'],analysis['notice'],result.get('thermal_assumptions',{}).get('notice','')])
+    if result.get('fusing'):
+        from .fusing import details_text as fusing_text
+        lines.extend(['',fusing_text(result['fusing'])])
     return '\n'.join(lines)

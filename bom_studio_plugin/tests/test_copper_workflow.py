@@ -24,7 +24,7 @@ class CopperWorkflowTests(unittest.TestCase):
    time.sleep(.05)
   self.fail('Copper fixture exceeded test budget')
  def test_board_only_job_exports_and_stale_source(self):
-  self.assertIsNone(self.app.workspace);self.assertEqual(self.app.state()['board_path'],str(self.board))
+  self.assertIsNone(self.app.workspace);self.assertTrue(Path(self.app.state()['board_path']).samefile(self.board))
   code,raw=self.post('copper/start',{});self.assertEqual(code,200);identifier=json.loads(raw)['id'];task=self.wait(identifier);self.assertEqual(task['state'],'ready',task)
   report=task['result'];self.assertGreater(report['layers'][0]['copper_area_mm2'],0);self.assertEqual(report['source']['sha256'],hashlib.sha256(self.before).hexdigest())
   for format in ('json','csv','tsv','html'):

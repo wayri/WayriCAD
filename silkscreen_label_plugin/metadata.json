@@ -1,39 +1,39 @@
 {
-  "$schema": "https://go.kicad.org/pcm/schemas/v2",
-  "name": "WayriCAD Silkscreen Label Placer",
-  "description": "Arrange PCB silkscreen labels with checked spacing and guide lines.",
-  "description_full": "Preview and place visible reference labels, optional values and existing board text on their existing front or back silkscreen layer. Conservative native geometry checks preserve pads, holes, board edges, existing labels and component bodies. Displaced component labels use checked guide lines. Locked/hidden items and unresolved placements remain explicit. Native KiCad 10 workflow, with stale-preview protection and in-window undo/redo.",
-  "identifier": "com.github.wayri.wayricad.silkscreen-label-placer",
-  "type": "plugin",
-  "author": {
-    "name": "Wayri (Yawar)",
-    "contact": {
-      "github": "https://github.com/wayri"
-    }
-  },
-  "maintainer": {
-    "name": "Wayri (Yawar)",
-    "contact": {
-      "github": "https://github.com/wayri"
-    }
-  },
-  "license": "GPL-3.0-only",
-  "resources": {
-    "homepage": "https://github.com/wayri/WayriCAD",
-    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/silkscreen_label_plugin/icon.png"
-  },
-  "versions": [
-    {
-      "version": "0.3.7",
-      "status": "testing",
-      "kicad_version": "10.0",
-      "kicad_version_max": "10.0",
-      "runtime": "swig",
-      "platforms": [
-        "windows",
-        "linux",
-        "macos"
-      ]
-    }
-  ]
+    "$schema": "https://go.kicad.org/pcm/schemas/v2",
+    "name": "WayriCAD Silkscreen Label Placer",
+    "description": "Arrange PCB silkscreen labels with checked spacing and guide lines.",
+    "description_full": "Preview and place visible reference labels, optional values and existing board text on their existing front or back silkscreen layer. Conservative native geometry checks preserve pads, holes, board edges, existing labels and component bodies. Displaced component labels use checked guide lines. Locked/hidden items and unresolved placements remain explicit. Native KiCad 10 workflow, with stale-preview protection and in-window undo/redo.",
+    "identifier": "com.github.wayri.wayricad.silkscreen-label-placer",
+    "type": "plugin",
+    "author": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
+    "maintainer": {
+        "name": "Wayri (Yawar)",
+        "contact": {
+            "github": "https://github.com/wayri"
+        }
+    },
+    "license": "GPL-3.0-only",
+    "resources": {
+        "homepage": "https://github.com/wayri/WayriCAD",
+        "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/silkscreen_label_plugin/icon.png"
+    },
+    "versions": [
+        {
+            "version": "0.3.8",
+            "status": "testing",
+            "kicad_version": "10.0",
+            "kicad_version_max": "10.0",
+            "runtime": "swig",
+            "platforms": [
+                "windows",
+                "linux",
+                "macos"
+            ]
+        }
+    ]
 }

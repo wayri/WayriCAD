@@ -11,6 +11,7 @@
 | Several nets and explicit returns | [Multi-net studies](#multi-net-studies-and-explicit-returns) |
 | Reviewed IBIS circuit | [KiCad circuit export](#reviewed-ibis-circuit-export) |
 | Local coupling | [Directed crosstalk](#directed-local-crosstalk) |
+| Nearby traces and locations | [Neighbour exposure map](#neighbour-trace-exposure-map) |
 | Scripts and help | [CLI](#cli) · [Offline help](help.html) |
 | Equations and applicability | [Solver methods](#solver-methods) · [References](#references-and-research) |
 
@@ -28,6 +29,54 @@ remain outside its scope.
 Drag the horizontal divider to share space between the route preview and its
 results table. Drag the input divider to widen settings, or use the preview's
 Fit control to inspect the whole route.
+
+## Neighbour trace exposure map
+
+Open **Neighbour traces**, choose/type an exact target net (blank searches all
+connected nets), select a copper layer and set the search radius in mm.
+**Map neighbours** runs a cancellable worker on the saved board. Search the
+results, hover/click coloured traces, or select a table row for shortest edge
+gap, parallel overlap and closest board location. Wheel zooms, drag pans and
+**Fit map** restores the overview.
+
+Colours represent **geometric edge-gap closeness**, red at contact, amber at
+half the search radius and teal at the radius. They never represent field
+intensity, interference voltage or compliance. Crossings retain geometric gap;
+only exactly parallel straight same-layer segments have overlap length. Arcs,
+vias, pads, zones and other-layer/broadside coupling are not solved. An empty
+map is not evidence of zero crosstalk.
+
+**Local NEXT mV** defaults to UNKNOWN. Optional explicit reference layer,
+center-to-plane height, Er, copper thickness, 10–90% rise time and open-circuit
+source swing reuse the existing converged equal-width homogeneous-plane,
+matched-end local model. Actual reference continuity, terminal direction and
+whole-route loading remain unresolved. Unsupported geometry retains unknown
+reasons. Section peaks are never added. **Link current study sections** retains
+existing directed study NEXT by matching saved-source hashes and item UUIDs.
+Those sections can exceed a mapped track's extent; their own length, reference
+status and pair ID remain in the selected evidence.
+
+**Export HTML + JSON** retains a searchable/selectable SVG, units, source
+fingerprints, assumptions, unknowns and coverage. Input changes clear stale
+results; changed saved PCB/project/rules require reopening. The normal saved
+sidecar supplies background execution; unsaved legacy/live geometry is not
+silently replaced by saved data.
+
+```text
+python -m signal_integrity_advisor_plugin.cli neighbours C:/Projects/Example/board.kicad_pcb --net DATA --radius-mm 1 --html neighbours.html --output neighbours.json
+```
+
+Optional `--model model.json` accepts exactly `reference_layer`, `height_mm`,
+`epsilon_r`, `copper_mm`, `rise_ns` and `swing_v`. `--study-report study.json`
+links earlier explicit pair sections. The grid index avoids whole-board pair
+joins. Budgets are 200,000 tracks, 500,000 index references, 200,000 comparisons,
+800,000 candidate visits, 2,000 pairs, 32 local models and 15 seconds. Radius
+is at most 20 mm; `--seconds` permits at most 60 seconds. Narrow nets/layers/radius
+when coverage is INCOMPLETE. REVIEW (CLI exit 3) means evidence requires review.
+
+Spacing alone cannot establish crosstalk: reference height, edge time and
+parallel length also matter ([TI primary guidance](https://www.ti.com/document-viewer/lit/html/SSZT935/GUID-0FCA647D-9DF5-4B70-AFC8-2E976F7A12D6)).
+Geometric colour and conditional local NEXT therefore remain separate.
 
 ## Multi-net studies and explicit returns
 
@@ -686,3 +735,9 @@ this view. Selecting or focusing items does not edit PCB geometry.
 ## Resizing the workspace
 
 In Quick SI, drag the vertical divider to widen the input form, or the horizontal divider to enlarge the results table. Expanded assumptions, return-path and eye sections scroll inside the input pane. The Help button opens the packaged workflow and model limitations.
+
+![Native neighbour map and selected pair](help-neighbours.png)
+
+Actual three-trace synthetic native worker result, not an electromagnetic field
+plot. No numbers or pixels were altered. The map, gap/overlap readouts and
+search/selection use the same result exported to HTML/JSON.

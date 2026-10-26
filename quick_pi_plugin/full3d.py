@@ -341,6 +341,8 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
         raise VolumeModelError('3D electrical power balance failed; refine the mesh.')
     valid_j = np.linalg.norm(j[active_cell], axis=1)
     return {'model': '3D linear tetrahedral DC conductivity FEM', 'frequency_dependent': False,
+            'fusing': {'status':'unavailable','reason':'Copper melting/bottleneck screening is implemented for the 2.5D sheet/barrel model only.',
+                       'notice':'No 3D melting or fuse-opening calculation is performed.','bottlenecks':[]},
             'potential_V': [float(v) if a else None for v, a in zip(voltage+offset[groups], active[groups])],
             'cell_J_A_mm2': [vector.tolist() if a else None for vector, a in zip(j, active_cell)],
             'cell_power_W': [float(value) if a else None for value, a in zip(cell_power, active_cell)],

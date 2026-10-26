@@ -16,6 +16,17 @@ def protocol_budgets(command):
 def parser():
     root=argparse.ArgumentParser(description=__doc__)
     subs=root.add_subparsers(dest='command',required=True)
+    neighbours=subs.add_parser('neighbours',help='Bounded same-layer geometric exposure heat map; no voltage inferred from colour.')
+    neighbours.add_argument('board',type=Path)
+    neighbours.add_argument('--net',action='append',default=[],help='Exact target net; repeat. Omit to search every connected net.')
+    neighbours.add_argument('--layer',action='append',default=[],help='Copper layer name; repeat. Default every enabled layer.')
+    neighbours.add_argument('--radius-mm',type=float,default=1.)
+    neighbours.add_argument('--max-pairs',type=int,default=2000)
+    neighbours.add_argument('--seconds',type=float,default=15.)
+    neighbours.add_argument('--model',type=Path,help='Explicit hypothetical homogeneous-plane inputs JSON; never inferred.')
+    neighbours.add_argument('--study-report',type=Path,help='Link existing explicit study section NEXT by source hashes and item UUIDs.')
+    neighbours.add_argument('--output',type=Path)
+    neighbours.add_argument('--html',type=Path)
     catalog=subs.add_parser('ibis-catalog',help='List bounded IBIS components, pins, selectors and model roles.')
     catalog.add_argument('source',type=Path)
     catalog.add_argument('--output',type=Path)
@@ -105,6 +116,28 @@ def write_report(destination,payload,source,extension):
 
 
 def execute(args):
+    if args.command=='neighbours':
+        from .service import source_fingerprints,execute as execute_saved
+        from .neighbour_report import html_report as neighbour_html
+        from .neighbours import attach_study
+        source=args.board.resolve();protected={p.resolve() for p in (source,source.with_suffix('.kicad_pro'),source.with_suffix('.kicad_dru'))}
+        inputs={}
+        for path in (args.model,args.study_report):
+            if path:
+                if path.stat().st_size>16*1024*1024:raise ValueError('Neighbour input exceeds 16 MiB.')
+                inputs[path.resolve()]=path.read_bytes();protected.add(path.resolve())
+        if any(path and path.resolve() in protected for path in (args.output,args.html)):
+            raise ValueError('Reports must not overwrite source design, rules or model/study inputs.')
+        settings=dict(radius_mm=args.radius_mm,nets=args.net,layers=args.layer,max_pairs=args.max_pairs,seconds=args.seconds)
+        if args.model:settings['model']=json.loads(inputs[args.model.resolve()].decode('utf-8-sig'))
+        request=dict(mode='neighbours',board_path=str(source),source_fingerprints=source_fingerprints(source),settings=settings)
+        report=execute_saved(request)['neighbours']
+        if args.study_report:attach_study(report,json.loads(inputs[args.study_report.resolve()].decode('utf-8-sig')))
+        if any(path.read_bytes()!=raw for path,raw in inputs.items()):raise ValueError('Model or study input changed during the map run.')
+        if source_fingerprints(source)!=request['source_fingerprints']:raise ValueError('Saved source changed before export.')
+        if args.output:write_report(args.output,json.dumps(report,indent=2,allow_nan=False)+'\n',source,'.json')
+        if args.html:write_report(args.html,neighbour_html(report),source,'.html')
+        return report
     if args.command=='ibis-catalog':
         from .ibis_models import load_ibis
         result=load_ibis(args.source)
@@ -226,7 +259,7 @@ def execute(args):
 def main(argv=None):
     args=parser().parse_args(argv)
     try:
-        if args.command in ('inspect','screen','study'):
+        if args.command in ('inspect','screen','study','neighbours'):
             try:import pcbnew
             except ImportError:
                 from wayricad_runtime.native_analysis import run_cli

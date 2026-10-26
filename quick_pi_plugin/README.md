@@ -29,7 +29,7 @@ Set the actual ports and operating conditions before Run. [Capture provenance](.
 
 ## First-open copper preview
 
-This fix is in development source; published 3.6.32 packages predate it.
+Included in 3.6.33; published 3.6.32 packages predate this fix.
 [Validation and remaining startup latency](../docs/audits/QUICK_PI_COPPER_AUTOLOAD_2026-10-26.md).
 
 The saved board's copper loads automatically in the background with the net and
@@ -933,3 +933,116 @@ scope, cold/warm timing and limitations.
 ## Resizing the workspace
 
 Drag the divider beside Setup to widen input fields. Drag the divider beside Inspect to widen result details. Setup and Inspect can be hidden and reopened without losing the study. Expanded Mesh & material and Console sections scroll inside Setup.
+
+## Copper melting and bottleneck screening
+
+After a 2.5D solve, choose **Copper melting bottlenecks** in Inspect, or the
+**Pulse / adiabatic melting action** result map. Selecting a row focuses its
+actual solved sheet cell or barrel segment and highlights the matching saved
+PCB object when an exact identity is available. **Select** navigates to that
+object in the originating editor. Blue B1–B6 markers on density/melting maps
+locate the first six ranked regions; these markers and the complete bottleneck
+table are included in HTML reports. Small-board reports include the melting
+map; large-board reports retain three primary maps and provide the melting
+map with `report_options.extended_snapshots=true`. Numerical JSON and the CLI
+summary retain `result.fusing` regardless of rendering mode.
+
+**Mesh & material** contains **Copper melt · °C** (1084.62 default),
+**Latent heat · J/kg** (206750 default) and **Pulse · s**. Initial copper
+temperature uses **Initial / ambient · °C**, independently of the fixed
+temperature used for the DC conductivity solve. The existing **Limit · °C**
+temperature-limit energy screen remains a separate quantity. CLI equivalents:
+
+```text
+wayricad-pi C:/Projects/Example/board.kicad_pcb --net +3V3 --source J1.1 --sink U1.1 --current 2 --pulse 0.01 --ambient 25 --melting-temperature 1084.62 --latent-heat 206750 --output melt.json --html melt.html
+```
+
+The model integrates `J²t = density × ∫[Cp(T)/rho(T)] dT`, with `J` in A/mm²
+and the SI integral multiplied by `1e-12`. Resistivity is the declared
+`rho20 × [1 + alpha × (T − 20 °C)]`; this is an explicit high-temperature
+approximation. Heat capacity is piecewise-linear interpolation of
+[NIST-JANAF Cu(cr), 250–1358 K](https://janaf.nist.gov/tables/Cu-002.html),
+converted using 0.063546 kg/mol. Eight-point Gaussian integration is applied
+separately within each Cp interval; an interval resistivity ratio above four
+is unsupported rather than silently under-integrated. Initial or melting
+temperatures outside the Cp table leave the screen unknown while retaining
+the DC solution. Density is constant. Full melting additionally requires
+`density × latent_heat / rho(Tm)`. The nominal latent input rounds the
+[JANAF solid/liquid enthalpy difference at 1358 K](https://janaf.nist.gov/tables/Cu-004.html),
+`(42.798 − 29.660) kJ/mol / 0.063546 kg/mol = 206748 J/kg`.
+The temperature-dependent adiabatic energy balance is consistent with the
+method described by [Guillet and Delamarre](https://arxiv.org/abs/1503.01279);
+the implemented interpolation and linear resistivity approximation are stated
+here, rather than claiming their complete material model.
+
+For constant local J, onset/full-melting time is its respective action divided
+by J². The pulse map is `J² × pulse_duration / full_melting_action`; it is not a
+fraction of physical damage. Barrel I²t is action times the **actual solved axial
+metal area squared**, including obround barrels. An unambiguous straight-track
+match uses native width times local solved thickness for a **nominal** section
+and I²t; the local field is not an integrated track current, and adjacent zone
+copper can provide another path. Arc-only, plane-only and ambiguous cells keep
+track cross-section/I²t unknown.
+
+Ranking selects up to twelve spatially separated sheet regions and twelve
+barrels by local J and predicted time. Spatial suppression (twice the larger
+of 0.05 mm and board XY extent / 64, per layer) prevents adjacent triangles from
+crowding the list. This is **local current-density bottleneck screening**, not
+geometric minimum-cut or guaranteed neck detection. Contact/corner singularities,
+nearby regions merged by suppression, mesh resolution and parallel paths require
+review. A remote second neck remains a separate candidate when sufficiently
+separated. Live proportional-current updates rescale times by `1/I²` and
+pulse/action by `I²`, preserving material and I²t budgets.
+
+The DC current distribution is frozen throughout this screening calculation.
+There is no cooling, laminate heat transfer, thermal expansion, changing
+current sharing, liquid-metal geometry, arcing or circuit interruption model.
+Long predicted times are especially sensitive to omitted cooling. **Melting is
+not fuse opening, clearing I²t, safe ampacity or protection coordination.**
+Infeasible imposed loads remain diagnostic. Full 3D explicitly reports this
+screen unavailable; transient/electrothermal studies do not turn it into a
+coupled fault-clearing prediction. No board geometry is modified.
+
+## Individual sink current wheel control
+
+In the solved 2.5D viewer, ordinary scroll zooms. Hold Ctrl and scroll over a
+sink pad to change only that sink's specified current. Every pad in an explicitly
+grouped sink controls the same load. An orange ring identifies the selected sink.
+Slow scrolling makes fine adjustments; faster scrolling uses larger steps.
+
+Ctrl+scroll elsewhere on solved copper and the Total current control scale all
+loads proportionally. After an individual change, total tuning retains the new
+load proportions. Independent changes reuse the mesh and re-solve shared copper
+currents, voltage drops, I²R losses and melting screens in a background thread.
+Rapid inputs are coalesced; superseded results are discarded. Probes and view
+limits are retained. Fixed-temperature prescribed-current 2.5D cases are
+supported; electrothermal, package, series, resistive-load and 3D cases retain
+their separate solve workflows. The first independent update can take longer
+than a proportional update; it performs a new electrical solve, without meshing.
+
+Enable **Cursor preview** beside the current controls to see the old current,
+new current and signed parameter change next to the pointer. Choose **Selected
+metric** for a compact readout, or **All metrics** for local fields plus total
+model loss. Orange/blue values distinguish increases/decreases; these colours
+are change indicators, not pass/fail. Pending fields show a computing marker.
+Projected all-layer views retain known sink voltages but leave ambiguous local
+field samples unknown; select a layer for those values.
+
+![Native current-change cursor readout](help-current-preview.png)
+
+Actual native readout from the synthetic two-sink regression: changing one sink
+from 1 A to 1.01 A leaves the other demand unchanged. Fields are computed by the
+real fixed-mesh solver; no numerical values or pixels were altered.
+
+### Losses and Probe tables
+
+![Native cross-selectable Probe table](help-inspector-tables.png)
+
+![Native layer-loss table](help-loss-tables.png)
+
+Actual synthetic native regression windows. Select a table row to focus the
+corresponding layer peak, copper cell or barrel; Probe metric rows also switch
+the map quantity. Column headers sort numerically, unknowns stay last, and
+column widths can be dragged. Narrow panes scroll horizontally to retain readable
+numbers and units. Full values are also available in row tooltips. These captures
+use computed synthetic data and contain no private board or local folder paths.

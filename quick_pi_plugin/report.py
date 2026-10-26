@@ -16,6 +16,7 @@ METRICS={
     'flow':('Current flow','A/mm','viridis'),
     'loss':('Copper loss density','W/mm²','inferno'),
     'risk':('Adiabatic pulse energy / limit','ratio','YlOrRd'),
+    'melt':('Pulse / adiabatic melting action','ratio','YlOrRd'),
 }
 FIELD_STYLES={'smooth':'Smooth gradient','cells':'Solver cells'}
 
@@ -89,6 +90,11 @@ def cell_values(mesh,result,metric):
         return power/area
     if metric=='risk':
         return np.asarray([float('nan') if row.get('energy_ratio') is None else row['energy_ratio'] for row in result['cell_thermal']])
+    if metric=='melt':
+        model=result.get('fusing',{})
+        if model.get('status')!='available' or model.get('pulse_duration_s') is None:return np.full(len(triangles),np.nan)
+        vectors=np.asarray([v if v is not None else [np.nan,np.nan] for v in result['cell_J_A_mm2']])
+        return np.sum(vectors*vectors,axis=1)*model['pulse_duration_s']/model['melt_action_A2s_mm4']
     raise ValueError('Unknown result metric: '+str(metric))
 
 
@@ -146,7 +152,7 @@ def field_note(metric,style):
 
 def via_markers(mesh,result,geometry,layer,metric):
     """Worst solved barrel segment at each XY, restricted to its actual span."""
-    if metric not in ('density','risk'):return []
+    if metric not in ('density','risk','melt'):return []
     layers=geometry.get('layers',[])
     order={str(row['id']):float(row.get('z_mm',index)) for index,row in enumerate(layers)}
     records={row['id']:row for row in result.get('vias',[])}
@@ -157,6 +163,9 @@ def via_markers(mesh,result,geometry,layer,metric):
         solved=records.get(barrel['id'])
         if solved is None or 'x_mm' not in barrel or 'y_mm' not in barrel:continue
         value=solved.get('current_density_A_mm2') if metric=='density' else solved.get('thermal',{}).get('energy_ratio')
+        if metric=='melt':
+            from .fusing import local_screen
+            value=local_screen(result.get('fusing',{}),solved.get('current_density_A_mm2'))['pulse_melt_ratio']
         if value is None or not math.isfinite(float(value)):continue
         from .barrel import drill_dimensions
         dimensions=drill_dimensions(barrel)
@@ -191,7 +200,7 @@ def result_scale(bundle, metric, layer=None):
             finite.extend(marker['value'] for marker in via_markers(mesh,result,geometry,row['id'],metric))
     if not finite:return None
     low,high=min(finite),max(finite)
-    if metric=='risk':low,high=0.,max(1.,high)
+    if metric in ('risk','melt'):low,high=0.,max(1.,high)
     if low==high:
         margin=max(abs(low)*.01,1e-12);low-=margin;high+=margin
     return float(low),float(high)
@@ -216,12 +225,14 @@ def inspection_record(bundle, kind, identifier, metric='density'):
         value=float(cell_values(mesh,result,metric)[index])
         vector=result['cell_J_A_mm2'][index]
         power=result['cell_power_W'][index]
+        from .fusing import local_screen
         return {'kind':kind,'id':index,'layer':mesh['triangle_layer'][index],
                 'layer_name':names.get(str(mesh['triangle_layer'][index]),str(mesh['triangle_layer'][index])),
                 'location_mm':result['cell_centroid_mm'][index], 'metric':metric,
                 'value':value if math.isfinite(value) else None,'unit':METRICS[metric][1],
                 'current_density_A_mm2':math.hypot(*vector) if vector is not None else None,
-                'power_W':power,'thermal':result['cell_thermal'][index], 'source_ids':[]}
+                'power_W':power,'thermal':result['cell_thermal'][index], 'source_ids':[],
+                'fusing':local_screen(result.get('fusing',{}),math.hypot(*vector) if vector is not None else None)}
     if kind!='via':return None
     solved=next((row for row in result.get('vias',[]) if str(row['id'])==str(identifier)),None)
     barrel=next((row for row in mesh.get('vias',[]) if str(row['id'])==str(identifier)),None)
@@ -230,13 +241,17 @@ def inspection_record(bundle, kind, identifier, metric='density'):
     # against the extracted saved object identity rather than splitting text.
     sources=[str(row['id']) for row in geometry.get('vias',[])
              if str(identifier)==str(row['id']) or str(identifier).startswith(str(row['id'])+':')]
-    quantity='risk' if metric=='risk' else 'density'
+    quantity=metric if metric in ('risk','melt') else 'density'
     value=solved.get('thermal',{}).get('energy_ratio') if quantity=='risk' else solved.get('current_density_A_mm2')
+    from .fusing import local_screen
+    screen=local_screen(result.get('fusing',{}),solved.get('current_density_A_mm2'),
+                        solved['volume_mm3']/barrel['length_mm'] if barrel.get('length_mm',0)>0 else None)
+    if quantity=='melt':value=screen['pulse_melt_ratio']
     span=[barrel.get('top_layer'),barrel.get('bottom_layer')]
     return {'kind':'via','id':identifier,'layer':span,
             'layer_name':' → '.join(names.get(str(value),str(value)) for value in span),
             'location_mm':[barrel['x_mm'],barrel['y_mm']], 'metric':quantity,'value':value,
-            'unit':METRICS[quantity][1], 'source_ids':sources,
+            'unit':METRICS[quantity][1], 'source_ids':sources,'fusing':screen,
             **{key:solved.get(key) for key in ('current_density_A_mm2','current_A','resistance_ohm','power_W','thermal')}}
 
 
@@ -503,14 +518,14 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
                         ax.quiver(centers[indices,0],centers[indices,1],vectors[indices,0]/norms,vectors[indices,1]/norms,
                                   color='#163831',angles='xy',scale=30,width=.0025)
                 elif not via_values:
-                    message='Set a pulse duration to compute the adiabatic screen.' if metric=='risk' else 'No connected solution on this layer.'
+                    message='Set a pulse duration and supported copper material inputs to compute the adiabatic screen.' if metric in ('risk','melt') else 'No connected solution on this layer.'
                     ax.text(.02,.98,message,va='top',transform=ax.transAxes,bbox={'facecolor':'white','edgecolor':'none'})
                 title+=' · '+metric_name(bundle,metric)+'\n'+field_note(metric,field_style)
             else:ax.text(.02,.98,'Run the analysis to see electrical results.',va='top',transform=ax.transAxes)
     if image is None and via_values:
         from matplotlib.cm import ScalarMappable
         from matplotlib.colors import Normalize
-        image=ScalarMappable(norm=Normalize(0,max(1.,max(via_values))) if metric=='risk' else Normalize(min(via_values),max(via_values)),cmap=METRICS[metric][2])
+        image=ScalarMappable(norm=Normalize(0,max(1.,max(via_values))) if metric in ('risk','melt') else Normalize(min(via_values),max(via_values)),cmap=METRICS[metric][2])
         if color_limits is not None:image.set_clim(*validate_scale(*color_limits))
         if not board_view:figure.colorbar(image,ax=ax,pad=.025,label=f'{metric_name(bundle,metric)} ({METRICS[metric][1]})')
     elif view=='Results' and result and image is None:
@@ -591,6 +606,13 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         for artist in draw_matplotlib(ax,selected_scene,visible_layers=None if combined else [layer],highlight_ids=wanted,alpha=1.):
             artist.set_zorder(9)
             if hasattr(artist,'set_facecolor'):artist.set_facecolor('none');artist.set_linewidth(1.8)
+    if view=='Results' and metric in ('density','melt'):
+        for row in result.get('fusing',{}).get('bottlenecks',[])[:6]:
+            span=row['layer'] if isinstance(row['layer'],list) else [row['layer']]
+            if row.get('location_mm') and row.get('time_to_melt_s') is not None and (combined or any(str(l)==str(layer) for l in span)):
+                x,y=row['location_mm'][:2]
+                ax.scatter([x],[y],s=75,facecolors='none',edgecolors='#159ee8',linewidths=1.3,zorder=8)
+                ax.annotate('B'+str(row['rank']),(x,y),xytext=(5,5),textcoords='offset points',fontsize=7,color='#0871af',zorder=9)
     if inspection and inspection.get('location_mm'):
         span=inspection.get('layer');span=span if isinstance(span,list) else [span]
         if combined or any(str(value)==str(layer) for value in span):
@@ -647,11 +669,11 @@ def update_current_view(ax,bundle,manual_limits=None):
     image=getattr(ax,'_wayricad_color_mappable',None)
     if not base or image is None:return None
     metric=base['metric'];ratio=bundle['result']['sink_current_A']/base['current']
-    factor=ratio**2 if metric in ('loss','risk') else 1. if metric=='resistance' else ratio
+    factor=ratio**2 if metric in ('loss','risk','melt') else 1. if metric=='resistance' else ratio
     offset=base['voltage']*(1-ratio) if metric=='voltage' else 0.
     def scale(value):return np.asarray(value)*factor+offset
     previous=image.get_clim()
-    limits=manual_limits or (result_scale(bundle,metric,base['layer']) if metric=='risk' else tuple(scale(base['limits'])))
+    limits=manual_limits or (result_scale(bundle,metric,base['layer']) if metric in ('risk','melt') else tuple(scale(base['limits'])))
     if limits is None:return None
     limits=validate_scale(*limits)
     array=base['array']
@@ -660,7 +682,7 @@ def update_current_view(ax,bundle,manual_limits=None):
     # Compare the affine map against the last displayed limits, not only the
     # initial draw. Fixed manual ranges and capped risk scales need a redraw.
     last=getattr(ax,'_wayricad_live_last',1.)
-    old_factor=last**2 if metric in ('loss','risk') else 1. if metric=='resistance' else last
+    old_factor=last**2 if metric in ('loss','risk','melt') else 1. if metric=='resistance' else last
     old_offset=base['voltage']*(1-last) if metric=='voltage' else 0.
     expected=(np.asarray(previous)-old_offset)*factor/old_factor+offset
     ax._wayricad_live_last=ratio
@@ -801,7 +823,7 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
     else:
         html+='All layer mesh and numerical data are in <a href="'+escape(json_path.name)+'">the paired JSON report</a>.</p>'
     if large:
-        html+='<p>Large-board static rendering uses every solved cell on this layer (Solver cells style), with all copper and drill contours retained. No cells are sampled. Three primary static maps are generated by default; set report_options.extended_snapshots=true in the result bundle to render all seven. Complete numerical JSON and the three interactive fields are retained.</p>'
+        html+='<p>Large-board static rendering uses every solved cell on this layer (Solver cells style), with all copper and drill contours retained. No cells are sampled. Three primary static maps are generated by default; set report_options.extended_snapshots=true in the result bundle to render all eight. Complete numerical JSON and the three interactive fields are retained.</p>'
     auxiliary=bundle.get('auxiliary_reversed_current_result_reference')
     if auxiliary:
         html+='<p>Original reversed-current solver evidence: <a href="'+escape(auxiliary['json'],quote=True)+'">complete parent batch JSON</a>, JSON pointer <code>'+escape(auxiliary['json_pointer'])+'</code>.</p>'
@@ -844,6 +866,18 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
     if result.get('analytics'):
         from .analytics import details_text
         html+='<h2>Copper thickness, layer losses and hotspots</h2><pre>'+escape(details_text(result))+'</pre>'
+    if result.get('fusing'):
+        model=result['fusing']
+        html+='<h2>Copper melting and bottleneck screening</h2><p>'+escape(model['notice'])+'</p>'
+        html+='<p>'+escape(model.get('ranking_basis',''))+' Blue B1–B6 markers on current-density/melting maps locate ranked regions. Select a layer for unambiguous locations.</p>'
+        if model.get('reason'):html+='<p>'+escape(model['reason'])+'</p>'
+        html+='<table><tr><th>Rank / copper</th><th>Layer / XYZ mm</th><th>Section mm²</th><th>Onset s</th><th>Full melt s</th><th>Melting I²t A²s</th><th>Pulse / melting action</th></tr>'
+        for row in model.get('bottlenecks',[]):
+            values=[f"B{row['rank']} {row['kind']} {row['id']}",row['layer_name']+' / '+str(row['location_mm']),
+                    *[_number(row.get(k)) for k in ('cross_section_mm2','time_to_onset_s','time_to_melt_s','i2t_to_melt_A2s','pulse_melt_ratio')]]
+            html+='<tr>'+''.join('<td>'+escape(str(v))+'</td>' for v in values)+'</tr>'
+        html+='</table><p>Nominal track sections use saved straight-track width × solved local thickness. Their I²t uses local J, not integrated branch current; parallel zone copper can change the physical path. Missing or ambiguous track identity keeps section and I²t unknown. Via sections use solved barrel metal area.</p>'
+        html+='<details><summary>Melting material inputs and sources</summary><pre>'+escape(json.dumps({k:v for k,v in model.items() if k!='bottlenecks'},indent=2))+'</pre></details>'
     if result.get('package_contacts'):
         from .package_contacts import details_text as package_text
         html+='<h2>Explicit package contacts</h2><pre>'+escape(package_text(result))+'</pre>'

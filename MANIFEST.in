@@ -56,3 +56,11 @@ include docs/audits/SUITE_WORKFLOW_RELIABILITY_2026-10-26.md
 include docs/audits/ANALYTICS_COPPER_WORKFLOW_2026-10-26.md
 include bom_studio_plugin/tests/test_copper_workflow.py
 include bom_studio_plugin/tests/browser_copper.cjs
+
+include docs/RELEASE_NOTES_3.6.33.md
+include docs/audits/RELEASE_3.6.33.md
+include quick_pi_plugin/tests/test_fusing.py
+include quick_pi_plugin/tests/test_sink_current.py
+include quick_pi_plugin/tests/test_sink_wheel.py
+include quick_pi_plugin/tests/test_current_preview.py
+include quick_pi_plugin/tests/test_inspector_tables.py

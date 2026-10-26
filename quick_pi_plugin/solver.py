@@ -74,7 +74,8 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     unknown = set(options)-{'resistivity_ohm_m','temperature_c','temperature_coefficient',
                            'ambient_c','temperature_limit_c','pulse_duration_s',
                            'density_kg_m3','specific_heat_J_kgK', 'triangle_temperature_c',
-                           'via_temperature_c', 'material_temperature_range_c'}
+                           'via_temperature_c', 'material_temperature_range_c',
+                           'melting_temperature_c','latent_heat_J_kg'}
     if unknown: raise SolverError('Unknown solver option: '+', '.join(sorted(unknown)))
     def number(value, name, *, positive=False, nonnegative=False):
         if isinstance(value, bool): raise SolverError(name + ' must be a finite number.')
@@ -511,6 +512,8 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     ledger(mesh,result)
     from .analytics import summarize
     result['analytics'] = summarize(mesh,result)
+    from .fusing import summarize as fusing_summary
+    result['fusing'] = fusing_summary(mesh,result,options)
     result['planar_power_W'] = result['analytics']['losses']['planar_W']
     result['via_power_W'] = result['analytics']['losses']['via_W']
     return result

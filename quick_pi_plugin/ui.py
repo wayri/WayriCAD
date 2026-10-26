@@ -132,7 +132,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.auto_mesh.Bind(wx.EVT_CHECKBOX,self._invalidate)
         self.temperature=wx.TextCtrl(pane,value='20');self.ambient=wx.TextCtrl(pane,value='20')
         self.pulse=wx.TextCtrl(pane,value='1');self.limit=wx.TextCtrl(pane,value='150');self.max_tetrahedra=wx.TextCtrl(pane,value='250000')
-        for label,control in [('Mesh · mm',self.edge),('Via plating · mm',self.plating),('Copper · °C',self.temperature),('Ambient · °C',self.ambient),('Pulse · s',self.pulse),('Limit · °C',self.limit),('3D cell budget',self.max_tetrahedra)]:
+        self.melting=wx.TextCtrl(pane,value='1084.62');self.latent=wx.TextCtrl(pane,value='206750')
+        self.melting.SetToolTip('Adiabatic copper melting threshold; initial temperature uses Ambient. Frozen DC current pattern and linear rho(T); melting does not imply fuse opening. NIST Cp range 250–1358 K.')
+        self.latent.SetToolTip('Copper heat of fusion, J/kg. Editable nominal pure-copper input; no cooling, arcing or clearing-time prediction.')
+        for label,control in [('Mesh · mm',self.edge),('Via plating · mm',self.plating),('Copper · °C',self.temperature),('Initial / ambient · °C',self.ambient),('Pulse · s',self.pulse),('Limit · °C',self.limit),('Copper melt · °C',self.melting),('Latent heat · J/kg',self.latent),('3D cell budget',self.max_tetrahedra)]:
             grid.Add(wx.StaticText(pane,label=label),0,wx.ALIGN_CENTER_VERTICAL);control.SetMinSize((1,-1));grid.Add(control,0,wx.EXPAND)
         pane.SetSizer(grid);controls.Add(self.options,0,wx.EXPAND|wx.TOP|wx.BOTTOM,6)
         self.console=wx.CollapsiblePane(self.inputs,label='Console',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE);self.console.Collapse(True)
@@ -178,10 +181,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.gauge=wx.Gauge(panel,range=100,size=(100,-1));footer.Add(self.gauge,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
         self.cancel=icon_button(panel,'Cancel',wx.ART_CROSS_MARK,'Cancel the running study');footer.Add(self.cancel,0)
         root.Add(footer,0,wx.EXPAND|wx.ALL,6);panel.SetSizer(root)
-        self._controls=[self.joule_feedback,self.batch_button,self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.package_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
+        self._controls=[self.joule_feedback,self.batch_button,self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.package_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.melting,self.latent,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
         self.net.Bind(wx.EVT_COMBOBOX,self._net_changed);self.net_search.Bind(wx.EVT_TEXT,self._schedule_net_filter)
         for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._invalidate)
-        for control in (self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
+        for control in (self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.melting,self.latent,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
         self.load_mode.Bind(wx.EVT_CHOICE,self._invalidate);self.model_dimension.Bind(wx.EVT_CHOICE,self._model_changed)
         self.loads_button.Bind(wx.EVT_BUTTON,self.on_loads)
         self.options.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,self._layout_inputs);self.console.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,self._layout_inputs)
@@ -340,7 +343,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if self._series_request:
             self.source.Disable();self.sink.Disable();self.loads_button.Disable()
             self.preview.Enable(not self._busy and bool(self.bundle.get('geometry')))
-        for control in (self.ambient,self.pulse,self.limit):control.Enable(not self._busy and not volume)
+        for control in (self.ambient,self.pulse,self.limit,self.melting,self.latent):control.Enable(not self._busy and not volume)
         self.max_tetrahedra.Enable(not self._busy and volume)
         if self.book.GetSelection()>=len(self.views):
             for control in (self.net,self.source,self.sink,self.voltage,self.current,self.layer,self.metric,self.preview,self.run,self.export,self.power_flow):control.Disable()
@@ -391,18 +394,39 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.inspector_views=wx.Notebook(self.inspector)
         self.inspector_views.SetMinSize((1,220))
         findings_page=wx.Panel(self.inspector_views);findings_layout=wx.BoxSizer(wx.VERTICAL)
-        self.finding_order=ReadableChoice(findings_page,choices=['Highest current density','Highest volumetric heating'])
+        self.finding_order=ReadableChoice(findings_page,choices=['Highest current density','Highest volumetric heating','Copper melting bottlenecks'])
         self.finding_order.SetSelection(0);self.finding_order.SetMinSize((1,-1));findings_layout.Add(self.finding_order,0,wx.EXPAND|wx.BOTTOM,5)
         self.findings=wx.ListCtrl(findings_page,style=wx.LC_REPORT|wx.LC_SINGLE_SEL,size=(-1,140))
         for index,(name,width) in enumerate([('Rank / copper',90),('Layer',85),('J A/mm²',90),('Heat W/mm³',95)]):
             self.findings.InsertColumn(index,name,width=width)
         findings_layout.Add(self.findings,1,wx.EXPAND);findings_page.SetSizer(findings_layout)
         self.inspector_views.AddPage(findings_page,'Hotspots')
-        self.accounting_text=wx.TextCtrl(self.inspector_views,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,140))
-        self.inspector_views.AddPage(self.accounting_text,'Losses')
+        from .inspector_tables import InspectorTable
+        losses_page=wx.Panel(self.inspector_views);losses_layout=wx.BoxSizer(wx.VERTICAL)
+        self.losses_book=wx.Notebook(losses_page)
+        layer_page=wx.Panel(self.losses_book);layer_layout=wx.BoxSizer(wx.VERTICAL)
+        self.loss_table=InspectorTable(layer_page,[('Layer / loss',125),('Loss · W',90),('Area · mm²',90),('Peak · A/mm²',105),('Cu · µm',85)],self._inspector_table_selected)
+        layer_layout.Add(self.loss_table,1,wx.EXPAND);layer_page.SetSizer(layer_layout);self.losses_book.AddPage(layer_page,'By layer')
+        heating_page=wx.Panel(self.losses_book);heating_layout=wx.BoxSizer(wx.VERTICAL)
+        self.heating_table=InspectorTable(heating_page,[('Copper',130),('Layer',85),('J · A/mm²',95),('Heat · W/mm³',110)],self._inspector_table_selected)
+        heating_layout.Add(self.heating_table,1,wx.EXPAND);heating_page.SetSizer(heating_layout);self.losses_book.AddPage(heating_page,'Heating')
+        losses_layout.Add(self.losses_book,1,wx.EXPAND)
+        losses_details=wx.CollapsiblePane(losses_page,label='Full accounting details',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        self.accounting_text=wx.TextCtrl(losses_details.GetPane(),style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,120))
+        details_layout=wx.BoxSizer(wx.VERTICAL);details_layout.Add(self.accounting_text,1,wx.EXPAND);losses_details.GetPane().SetSizer(details_layout)
+        losses_details.Collapse(True);losses_layout.Add(losses_details,0,wx.EXPAND|wx.TOP,4)
+        losses_details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:losses_page.Layout())
+        losses_page.SetSizer(losses_layout);self.inspector_views.AddPage(losses_page,'Losses')
         layout.Add(self.inspector_views,1,wx.EXPAND|wx.ALL,8)
-        self.inspection_text=wx.TextCtrl(self.inspector_views,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,140))
-        self.inspector_views.AddPage(self.inspection_text,'Probe')
+        probe_page=wx.Panel(self.inspector_views);probe_layout=wx.BoxSizer(wx.VERTICAL)
+        self.probe_table=InspectorTable(probe_page,[('Parameter',125),('Value',100),('Unit',45)],self._inspector_table_selected,fit_columns=True)
+        probe_layout.Add(self.probe_table,1,wx.EXPAND)
+        probe_details=wx.CollapsiblePane(probe_page,label='Model and selection notes',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        self.inspection_text=wx.TextCtrl(probe_details.GetPane(),style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,120))
+        details_layout=wx.BoxSizer(wx.VERTICAL);details_layout.Add(self.inspection_text,1,wx.EXPAND);probe_details.GetPane().SetSizer(details_layout)
+        probe_details.Collapse(True);probe_layout.Add(probe_details,0,wx.EXPAND|wx.TOP,4)
+        probe_details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:probe_page.Layout())
+        probe_page.SetSizer(probe_layout);self.inspector_views.AddPage(probe_page,'Probe')
         actions=wx.BoxSizer(wx.HORIZONTAL)
         self.inspector_select=icon_button(self.inspector,'Select',wx.ART_GO_FORWARD,'Select the inspected object in the PCB editor')
         self.inspector_read=icon_button(self.inspector,'Read',wx.ART_FIND,'Read the current PCB editor selection')
@@ -466,12 +490,18 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if refresh_rows or not result or not self._saved_source_current:
             from .analytics import details_text
             self.accounting_text.SetValue('\n\n'.join(value for value in (feasibility_text(result),sink_results_text(result),details_text(result)) if value))
+            from .inspector_tables import loss_rows,heating_rows
+            shown=result if self._saved_source_current else {}
+            self.loss_table.set_rows(loss_rows(shown));self.heating_table.set_rows(heating_rows(shown))
             self.findings.DeleteAllItems()
             key='hotspots_by_heating_density' if self.finding_order.GetSelection()==1 else 'hotspots_by_current_density'
-            self._finding_rows=list(result.get('analytics',{}).get(key,[])) if self._saved_source_current else []
+            melting=self.finding_order.GetSelection()==2
+            self._finding_rows=list(result.get('fusing',{}).get('bottlenecks',[]) if melting else result.get('analytics',{}).get(key,[])) if self._saved_source_current else []
+            column=self.findings.GetColumn(3);column.SetText('Melt · s' if melting else 'Heat W/mm³');self.findings.SetColumn(3,column)
             for row in self._finding_rows:
                 index=self.findings.InsertItem(self.findings.GetItemCount(),f"{row['rank']}. {row['kind']}")
-                for column,value in enumerate([row['layer_name'],f"{row['current_density_A_mm2']:.5g}",f"{row['power_density_W_mm3']:.5g}"],1):
+                last=('Unknown' if row.get('time_to_melt_s') is None else f"{row['time_to_melt_s']:.5g}") if melting else f"{row['power_density_W_mm3']:.5g}"
+                for column,value in enumerate([row['layer_name'],f"{row['current_density_A_mm2']:.5g}",last],1):
                     self.findings.SetItem(index,column,value)
         if not geometry or not self._saved_source_current:self._inspection=None
         row=self._inspection
@@ -482,10 +512,18 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             text+=metric_name(self.bundle,row['metric'])+': '+number(row.get('value'),row['unit'])+'\n'
             text+='Current density: '+number(row.get('current_density_A_mm2'),'A/mm²')+'\nLoss: '+number(row.get('power_W'),'W')
             if row['kind']=='via':text+='\nBarrel current: '+number(row.get('current_A'),'A')
+            if row.get('fusing'):
+                screen=row['fusing']
+                text+='\nMelting onset: '+number(screen.get('time_to_onset_s'),'s')+'\nFull melting: '+number(screen.get('time_to_melt_s'),'s')
+                text+='\nMelting I²t: '+number(screen.get('i2t_to_melt_A2s'),'A²s')
+                text+='\nFrozen current pattern; no cooling. Melting is not fuse opening.'
+                if screen.get('section_basis'):text+='\n'+screen['section_basis']
             if row['kind']=='object':text+='\nSaved object navigation only; no containing solved cell.'
             text+='\nExact saved object available.' if row.get('source_ids') else '\nMesh cell only; no exact PCB object identity.'
             self.inspection_text.SetValue(text)
         else:self.inspection_text.SetValue('Select a ranked hotspot or click solved copper. Empty space and drill holes have no copper result.\nHotspot heating is W/mm³; the loss map is W/mm².\nPulse risk is adiabatic and does not predict fusing.')
+        from .inspector_tables import probe_rows
+        self.probe_table.set_rows(probe_rows(self.bundle,row))
         if check_source:self.inspector.Layout();self.inspector.FitInside();self._buttons()
 
     def _scale_limits(self,metric):
@@ -515,7 +553,35 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if not 0<=index<len(self._finding_rows):return
         row=self._finding_rows[index]
         metric='density' if self.finding_order.GetSelection()==0 else 'loss'
-        self._choose_inspection(inspection_record(self.bundle,row['kind'],row['id'],metric),focus=True)
+        if self.finding_order.GetSelection()==2:
+            metric='melt';self.metric.SetSelection(list(METRICS).index(metric))
+        record=inspection_record(self.bundle,row['kind'],row['id'],metric)
+        if record is not None and self.finding_order.GetSelection()==2:
+            record['fusing']=row
+            if row.get('source_ids'):record['source_ids']=row['source_ids']
+        self._choose_inspection(record,focus=True)
+
+    def _inspector_table_selected(self,row):
+        if self._busy or not self._snapshot_current():
+            self.status.SetLabel('Reload and rerun after saved PCB changes before navigating table results.');return
+        target=row.get('target');metric=row.get('metric')
+        if metric in METRICS:self.metric.SetSelection(list(METRICS).index(metric))
+        if target is None:
+            if row.get('layer') is not None:
+                index=next((i for i,item in enumerate(self._layers) if str(item['id'])==str(row['layer'])),None)
+                if index is not None:self.layer.SetSelection(index)
+                self._inspection=None;self.book.SetSelection(2);self._draw(preserve=False)
+            else:self.status.SetLabel('Aggregate loss has no unique PCB object. Select a layer or a ranked copper row to inspect.')
+            return
+        selected_metric=metric if metric in METRICS else target.get('metric',list(METRICS)[max(0,self.metric.GetSelection())])
+        if target['kind']=='point':
+            record=probe_result(self.bundle,target['layer'],*target['location_mm'][:2],selected_metric)
+        else:record=inspection_record(self.bundle,target['kind'],target['id'],selected_metric)
+        if record is None and target.get('kind')=='object':record=dict(target)
+        if record is not None:
+            if target.get('source_ids'):record['source_ids']=list(target['source_ids'])
+            if target.get('fusing'):record['fusing']=target['fusing']
+            self._choose_inspection(record,focus=True)
 
     def _choose_inspection(self,row,focus=False,switch_view=True):
         if row is None:return
@@ -868,6 +934,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                 options.update(ambient_c=number(self.ambient,'Ambient temperature'),
                                temperature_limit_c=number(self.limit,'Temperature limit'),
                                pulse_duration_s=number(self.pulse,'Pulse duration',True))
+                options.update(melting_temperature_c=number(self.melting,'Copper melting temperature'),
+                               latent_heat_J_kg=number(self.latent,'Latent heat',True))
             request.update(source_voltage=number(self.voltage,'Source voltage'),options=options)
             if self.load_mode.GetSelection()==1:request['load_resistance_ohm']=number(self.current,'Load resistance',True)
             else:request['sink_current']=number(self.current,'Sink current',True)
@@ -1594,7 +1662,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
 
     def on_details(self,event=None):
         self.book.SetSelection(2);self._update_inspector(True)
-        self.inspector_views.SetSelection(1);self.accounting_text.SetFocus();self.inspector.Scroll(0,0)
+        self.inspector_views.SetSelection(1);self.losses_book.SetSelection(0);self.loss_table.SetFocus();self.inspector.Scroll(0,0)
 
     def _focus_terminals(self,event=None):
         request=self.bundle.get('request',{});mesh=self.bundle.get('mesh',{})

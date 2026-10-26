@@ -29,7 +29,9 @@ class LiveViewTests(unittest.TestCase):
                         np.testing.assert_allclose(ax._wayricad_color_mappable.get_clim(),expected._wayricad_color_mappable.get_clim(),rtol=1e-9,atol=1e-10)
                         self.assertEqual(identities,[id(item) for item in ax.collections])
                         self.assertEqual(ax.get_xlim(),(2,7));self.assertEqual(ax.get_ylim(),(1.1,-.1))
-                        if metric!='risk':self.assertTrue(unchanged)
+                        # Pulse-limit and melting maps retain their capped
+                        # 0..1 scale, so current changes can require recolouring.
+                        if metric not in ('risk','melt'):self.assertTrue(unchanged)
 
     def test_manual_scale_recolors_and_keeps_limits(self):
         base=bundle();base['request'].update(action='solve',sink_current=2,source_voltage=1)

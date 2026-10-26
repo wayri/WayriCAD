@@ -58,6 +58,8 @@ def main(argv=None):
     parser.add_argument('--max-tetrahedra',type=int,default=250000,
                         help='Full 3D tetrahedron budget (default 250000).')
     parser.add_argument('--pulse',type=float);parser.add_argument('--temperature',type=float,default=20.)
+    parser.add_argument('--melting-temperature',type=float,help='Copper melting threshold in °C (default 1084.62); 2.5D adiabatic screen, not fuse opening.')
+    parser.add_argument('--latent-heat',type=float,help='Heat of fusion in J/kg (default 206750); 2.5D copper melting screen.')
     parser.add_argument('--ambient',type=float,default=20.);parser.add_argument('--temperature-limit',type=float,default=105.)
     parser.add_argument('--mesh-only',action='store_true');parser.add_argument('--output',type=Path)
     parser.add_argument('--html',type=Path);parser.add_argument('--timeout',type=float,default=300.)
@@ -113,6 +115,8 @@ def main(argv=None):
     if args.auto_mesh:request['mesh_sizing']='auto'
     if args.model_dimension=='3d':request['options']={'temperature_c':args.temperature}
     if args.pulse is not None:request['options']['pulse_duration_s']=args.pulse
+    if args.melting_temperature is not None:request['options']['melting_temperature_c']=args.melting_temperature
+    if args.latent_heat is not None:request['options']['latent_heat_J_kg']=args.latent_heat
     try:
         if args.auto_mesh and args.mesh_edge is not None:raise ValueError('Choose --auto-mesh or a manual --mesh-edge, not both.')
         from .mesh_sizing import mode as sizing_mode
@@ -125,7 +129,7 @@ def main(argv=None):
             request['package_conduction']=json.loads(args.package_conduction.read_text(encoding='utf-8-sig'))
             from .package_contacts import guard_request
             guard_request(request)
-        if args.model_dimension=='3d' and (args.html or args.command or args.load or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None or args.load_ohms is not None or args.sweep or args.converge_levels or args.return_path or args.pulse is not None or args.mesh_backend=='vtk'):
+        if args.model_dimension=='3d' and (args.html or args.command or args.load or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None or args.load_ohms is not None or args.sweep or args.converge_levels or args.return_path or args.pulse is not None or args.melting_temperature is not None or args.latent_heat is not None or args.mesh_backend=='vtk'):
             raise ValueError('Full 3D supports a selected net with prescribed current and JSON output; HTML, series commands, load/sweep, pulse screening, return-path and VTK modes remain 2.5D.')
         if sum(bool(value) for value in (args.return_path,args.load_ohms is not None,args.sweep))>1:
             raise ValueError('Choose one of return-path, load-resistance or current-sweep mode.')
@@ -187,7 +191,7 @@ def main(argv=None):
             args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(result,indent=2,allow_nan=False),encoding='utf-8')
         summary={k:v for k,v in result.items() if k not in ('mesh','geometry')}
         if 'result' in summary:
-            summary['result']={k:v for k,v in summary['result'].items() if not isinstance(v,(list,dict)) or k in ('sinks','feasibility','package_contacts','package_port_voltages_V')}
+            summary['result']={k:v for k,v in summary['result'].items() if not isinstance(v,(list,dict)) or k in ('sinks','feasibility','package_contacts','package_port_voltages_V','fusing')}
         print(json.dumps(summary,indent=2,allow_nan=False))
         if result.get('result',{}).get('feasibility',{}).get('feasible') is False:return 4
         return 3 if result.get('convergence',{}).get('status','STABLE_WITHIN_TOLERANCE')!='STABLE_WITHIN_TOLERANCE' else 0

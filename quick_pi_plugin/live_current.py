@@ -296,6 +296,9 @@ class LiveCurrentModel:
             losses[key] = base['analytics']['losses'][key] * square
         losses['total_W'] = math.fsum(losses[key] for key in ('planar_W', 'via_W', 'component_W', 'package_W'))
         losses['accounting_error_W'] = abs(losses['total_W'] - result['total_power_W'])
+        if base.get('fusing'):
+            from .fusing import rescale
+            result['fusing']=rescale(base['fusing'],factor)
         result['live_current'] = {'base_current_A': self.base_current_A,
                                   'scale': factor,
                                   'basis': 'proportional fixed-temperature 2.5D prescribed-current field',
