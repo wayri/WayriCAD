@@ -51,6 +51,10 @@ loaded component solids. These are illustrative model results, not measurements.
 Large-board HTML exports keep three printable plots: top, bottom and component temperatures. The interactive board, every computed layer, 3D view, cursor/probes and complete JSON remain available. This bounds printing work on boards with hundreds of components or drills. Use `--extended-report-snapshots` to also render static 3D, contours and all layer snapshots; that export can take much longer. Numerical mesh resolution and results are unchanged.
 
 
+Component-only results also export HTML/JSON when no board heat model was run.
+The report retains the component estimates and marks board-field and mesh
+acceptance evidence as unavailable.
+
 QuickTherm is an independently installable KiCad PCB Editor plugin for read-only thermal screening with steady-state and scheduled spatial transient models. It has its own PCM package, toolbar action, native window, icon, command-line interface and HTML/JSON export. It does not require Quick PI to be installed.
 
 The separate `wayricad-therm-transient` command runs an explicitly parameterized, four-board lumped RC transient screen. It uses saved-board source hashes and KiCad reference checks, a declared fan P–Q/system operating point or prescribed-flow sensitivity case, explicit serial or parallel-passage airflow topology, optional package/body and isolated-sink paths, and ohmic R(T) loss feedback. The parallel model warms air from high X to low X within each board and retains a user-entered passage flow split; it is not CFD. See the [transient model guide](TRANSIENT_MODEL.md) for the input contract and limitations. This lumped workflow remains separate from the spatial board transient described below.

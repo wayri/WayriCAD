@@ -48,7 +48,12 @@ def _pip_source_options(python):
 
 REQUIREMENTS_IPC = {'kipy': 'kicad-python>=0.8.0,<0.9'}
 REQUIREMENTS_EXTRACT = {'networkx': 'networkx>=2.8,<4'}
-REQUIREMENTS_BOM = {'zstandard': 'zstandard>=0.25,<1', 'shapely': 'shapely>=2,<3'}
+REQUIREMENTS_BOM = {
+    'zstandard': 'zstandard>=0.25,<1',
+    # Loading geometry also loads GEOS; the lightweight root alone can pass
+    # even when board copper analysis cannot load its native dependency.
+    'shapely.geometry': 'shapely>=2,<3',
+}
 REQUIREMENTS_QUICK_PI = {
     'numpy': 'numpy>=1.24,<3', 'scipy': 'scipy>=1.10,<2',
     'matplotlib': 'matplotlib>=3.7,<4',

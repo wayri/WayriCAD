@@ -270,13 +270,13 @@ def _metric(q):
     return {'value':q.value, 'status':q.status, 'input_unit':q.input_unit, 'assumed_unit':q.assumed_unit, 'reason':q.reason}
 
 
-def run(ws, variant=BASE, config=None):
+def run(ws, variant=BASE, config=None, *, include_board=True):
     with localcontext() as ctx:
         ctx.prec=40
-        return _run(ws,variant,config)
+        return _run(ws,variant,config,include_board=include_board)
 
 
-def _run(ws, variant, config):
+def _run(ws, variant, config, *, include_board=True):
     ws.variant_chain(variant); ws.project.check_unchanged()
     c=validate_config(ws.state.get('analytics_settings',{}) if config is None else config)
     boards=c['boards'] if c['boards'] is not None else _integer(ws.state['settings']['boards'],'Build quantity')
@@ -472,7 +472,8 @@ def _run(ws, variant, config):
     report['component_analysis'] = summarize(parts, geometry)
     report['component_analysis']['geometry_source'] = geometry_source
     from .board_analytics import board_analysis
-    report['board_analysis'] = board_analysis(ws)
+    if not isinstance(include_board,bool):raise ValueError('include_board must be true or false.')
+    report['board_analysis'] = board_analysis(ws) if include_board else {'status':'not_requested','source':{'sha256':None,'status':'not_requested','notes':['Use Copper & routing for independent cancellable saved-PCB analysis.']},'summary':{},'layers':[],'nets':[],'net_layers':[],'zones':[],'components':[],'warnings':[]}
     for warning in report['pcb']['warnings']:
         issue('warning','PCB_CURRENCY_MISMATCH',warning)
     report['summary']=dict(Counter(i['severity'] for i in issues))

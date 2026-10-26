@@ -51,3 +51,8 @@ include docs/audits/QUICK_PI_COPPER_AUTOLOAD_2026-10-26.md
 include quick_pi_plugin/tests/test_ui_startup.py
 include docs/audits/MECHANICAL_OPENGL_STARTUP_2026-10-26.md
 include mechanical_check_plugin/tests/test_integration.py
+
+include docs/audits/SUITE_WORKFLOW_RELIABILITY_2026-10-26.md
+include docs/audits/ANALYTICS_COPPER_WORKFLOW_2026-10-26.md
+include bom_studio_plugin/tests/test_copper_workflow.py
+include bom_studio_plugin/tests/browser_copper.cjs

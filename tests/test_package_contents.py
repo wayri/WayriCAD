@@ -8,6 +8,22 @@ import sys
 from build_pcm import create_plugin_zip
 
 class PackageContentsTests(unittest.TestCase):
+    def test_analytics_samples_are_available_in_independent_package(self):
+        plugin=Path(__file__).resolve().parents[1]/'bom_studio_plugin'
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            path,_=create_plugin_zip(plugin,'3.6.32',root/'out',{})
+            with zipfile.ZipFile(path) as archive:
+                archive.extractall(root/'installed')
+            code=("import sys;sys.path.insert(0,"+repr(str(root/'installed'/'plugins'))+");"
+                  "from bomstudio.server import Application;"
+                  "a=Application(demo=True);assert a.workspace;"
+                  "a=Application(analytics_demo=True);assert a.workspace;"
+                  "a=Application(engineering_demo=True);assert a.workspace")
+            result=subprocess.run([sys.executable,'-I','-c',code],cwd=root,
+                                  stdin=subprocess.DEVNULL,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+
     def test_installed_automation_return_audit_has_its_dependencies(self):
         plugin=Path(__file__).resolve().parents[1]/'extract_pins_plugin'
         with tempfile.TemporaryDirectory() as temporary:

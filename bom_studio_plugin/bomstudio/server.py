@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import traceback
 from .native import Project, BASE
 from . import __version__
@@ -29,7 +30,7 @@ from .runtime_info import runtime_info
 class Application:
     def __init__(self,project=None,demo=False,auto_link=False,analytics_demo=False,engineering_demo=False):
         self.token=secrets.token_urlsafe(32);self.lock=threading.RLock();self.workspace=None
-        self.demo_directory=None;self.compat=None;self.startup_note=None;self.ui_mode='none';self.desktop_host=None
+        self.board_path=None;self.demo_directory=None;self.compat=None;self.startup_note=None;self.ui_mode='none';self.desktop_host=None
         from .bridge import SelectionService
         self.link=SelectionService()
         if engineering_demo:
@@ -37,25 +38,36 @@ class Application:
             from .engineering_demo import prepare
             prepare(self)
         elif demo or analytics_demo:self.open_demo(analytics_demo)
-        elif project:self.workspace=Workspace(Project(project))
-        if auto_link and not (demo or analytics_demo or engineering_demo) and os.environ.get('KICAD_API_SOCKET'):
+        elif project:self.open_project(project)
+        if auto_link and not (self.board_path and self.workspace is None) and not (demo or analytics_demo or engineering_demo) and os.environ.get('KICAD_API_SOCKET'):
             try:
-                if self.workspace is None:self.workspace=Workspace(Project(self.link.call('discover')['project']))
-                self.link.call('connect',self.workspace.project)
-                self.startup_note='Saved PCB project discovered/linked from KiCad launch context. Schematic relay and focus remain host-unverified.'
+                if self.workspace is None:self.open_project(self.link.call('discover')['project'])
+                if self.workspace is not None:
+                    self.link.call('connect',self.workspace.project)
+                    self.startup_note='Saved PCB project discovered/linked from KiCad launch context. Schematic relay and focus remain host-unverified.'
             except Exception as exc:self.startup_note='Automatic live link unavailable: '+str(exc)
+    def open_project(self,path):
+        selected=Path(path).expanduser().resolve()
+        board=selected if selected.suffix.lower()=='.kicad_pcb' else selected.with_suffix('.kicad_pcb')
+        if selected.suffix.lower() in ('.kicad_pcb','.kicad_pro') and board.is_file() and not selected.with_suffix('.kicad_sch').is_file():
+            self.workspace=None;self.board_path=str(board)
+            self.startup_note='Saved PCB opened for copper analysis. No schematic/BOM workspace is available.'
+            return
+        workspace=Workspace(Project(selected))
+        self.workspace=workspace;self.board_path=str(board) if board.is_file() else None;self.startup_note=None
+
     def open_demo(self,analytics_demo=False):
         directory=Path(tempfile.mkdtemp(prefix='wayricad-bom-demo-')).resolve()
         shutil.copytree(ROOT/'examples'/('analytics' if analytics_demo else ''),directory,dirs_exist_ok=True)
-        self.demo_directory=directory;self.workspace=Workspace(Project(directory/'BOM_Demo.kicad_pro'))
+        self.demo_directory=directory;self.workspace=Workspace(Project(directory/'BOM_Demo.kicad_pro'));self.board_path=None
         if analytics_demo:
             analytics.configure(self.workspace,automation.load_json(directory/'analytics-config.json'));self.workspace.save()
     def current(self):
         if self.workspace is None:raise ValueError('Open a KiCad project first.')
         return self.workspace
     def state(self,variant=BASE):
-        if not self.workspace:return {'project':None,'version':__version__,'ui_mode':self.ui_mode,'startup_note':self.startup_note,'runtime':runtime_info(self)}
-        result=self.workspace.public(variant);result['runtime']=runtime_info(self);result['ui_mode']=self.ui_mode;result['startup_note']=self.startup_note;result['demo']=bool(self.demo_directory and self.workspace.project.root.parent==self.demo_directory)
+        if not self.workspace:return {'project':None,'version':__version__,'ui_mode':self.ui_mode,'startup_note':self.startup_note,'board_path':self.board_path,'copper_available':getattr(self,'copper_available',True),'runtime':runtime_info(self)}
+        result=self.workspace.public(variant);result['board_path']=self.board_path;result['copper_available']=getattr(self,'copper_available',True);result['runtime']=runtime_info(self);result['ui_mode']=self.ui_mode;result['startup_note']=self.startup_note;result['demo']=bool(self.demo_directory and self.workspace.project.root.parent==self.demo_directory)
         return result
 
 class Server(ThreadingHTTPServer):
@@ -73,10 +85,19 @@ class Server(ThreadingHTTPServer):
         try:
             self.app.link.close()
             if hasattr(self.app,'engineering_tasks'):self.app.engineering_tasks.stop()
+            if hasattr(self.app,'copper_tasks'):
+                tasks=self.app.copper_tasks;tasks.stop()
+                # Let the task terminate/reap its owned process before the
+                # desktop exits and abandons daemon threads.
+                deadline=time.monotonic()+5
+                while time.monotonic()<deadline:
+                    with tasks.lock:
+                        if not any(t['state']=='running' for t in tasks.items.values()):break
+                    time.sleep(.05)
         finally:super().server_close()
     def __init__(self,app,port=0):
         from .board_analytics import prepare_geometry
-        prepare_geometry()
+        app.copper_available=prepare_geometry()
         self.app=app
         super().__init__(('127.0.0.1',port),Handler)
         self.origin=f'http://127.0.0.1:{self.server_port}'
@@ -213,6 +234,24 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):self.respond({'error':'Cross-origin API use is not permitted.'},403)
     def dispatch(self,path,b):
         app=self.server.app;variant=b.get('variant',BASE)
+        if path.startswith('/api/copper/'):
+            from .engineering import Tasks
+            from . import copper_jobs,copper_exports
+            if not hasattr(app,'copper_tasks'):app.copper_tasks=Tasks()
+            if path=='/api/copper/start':
+                if getattr(app,'copper_available',True) is False:raise ValueError('Copper geometry requires Shapely. Relaunch with private runtime setup or install the standalone requirements.')
+                with app.copper_tasks.lock:
+                    if any(item['state']=='running' for item in app.copper_tasks.items.values()):raise ValueError('Copper analysis is already running; wait or cancel it first.')
+                source=copper_jobs.source_path(app,b.get('path'))
+                return app.copper_tasks.start(lambda progress,cancel:copper_jobs.run(source,progress,cancel))
+            if path=='/api/copper/status':return app.copper_tasks.get(b['id'],b.get('include_result') is True)
+            if path=='/api/copper/cancel':return app.copper_tasks.cancel(b['id'])
+            if path=='/api/copper/export':
+                task=app.copper_tasks.get(b['id'],True)
+                if task['state']!='ready':raise ValueError('Finish a fresh copper analysis before exporting.')
+                report=task['result'];copper_jobs.check_source(report)
+                return copper_exports.render(report,b.get('format','json'),b.get('table','layers'))
+            raise ValueError('Unknown copper analysis action.')
         if path=='/api/browse':
             if app.desktop_host:return {'path':app.desktop_host.pick_project()}
             command=[sys.executable,str(ROOT/'entrypoint.py'),'--pick']
@@ -223,7 +262,7 @@ class Handler(BaseHTTPRequestHandler):
             if app.workspace and app.workspace.dirty and b.get('discard') is not True:raise ValueError('Save your workspace first, or confirm discarding pending changes.')
             app.link.call('close')
             if b.get('demo'):app.open_demo()
-            else:app.workspace=Workspace(Project(b['path']))
+            else:app.open_project(b['path'])
             return app.state()
         if path=='/api/upgrade-copy':
             ws=app.current()
@@ -315,9 +354,9 @@ class Handler(BaseHTTPRequestHandler):
             return {'text':result['data'][:200000].decode('utf-8-sig',errors='replace'),'truncated':len(result['data'])>200000,'command':result['command'],'notice':result['notice']}
         if path=='/api/analytics/validate':return {'config':analytics.validate_config(b['config'])}
         if path=='/api/analytics/settings':return analytics.configure(ws,b['settings'])
-        if path=='/api/analytics/run':return analytics.run(ws,variant,b.get('config'))
-        if path=='/api/analytics/save-project':return analytics_exports.save_project_report(ws,analytics.run(ws,variant,b.get('config')))
-        if path=='/api/analytics/export':return analytics_exports.render(analytics.run(ws,variant,b.get('config')),b.get('format','json'),b.get('table','summary'))
+        if path=='/api/analytics/run':return analytics.run(ws,variant,b.get('config'),include_board=b.get('include_board',True))
+        if path=='/api/analytics/save-project':return analytics_exports.save_project_report(ws,analytics.run(ws,variant,b.get('config'),include_board=b.get('include_board',True)))
+        if path=='/api/analytics/export':return analytics_exports.render(analytics.run(ws,variant,b.get('config'),include_board=b.get('include_board',True)),b.get('format','json'),b.get('table','summary'))
         if path=='/api/threshold':return analytics.threshold(ws,variant,b['field'],b['condition'],b.get('unit'),b.get('query',''),b.get('rows') is True)
         if path=='/api/query':return search.run(ws,variant,b.get('query',''),b.get('case_sensitive') is True)
         if path=='/api/filter/save':return search.save_filter(ws,b['name'],b.get('record'),b.get('remove') is True)

@@ -69,7 +69,7 @@
 #nativeColumnEditor input:not([type=checkbox]) {min-width:100px;width:100%;}
 
 /* Geometry tables size to their evidence, with horizontal scrolling on narrow windows. */
-.table-wrap.board-copper-table{min-height:0;max-height:520px;margin-bottom:20px}
+.table-wrap.board-copper-table{height:auto;min-height:0;max-height:520px;margin-bottom:20px}
 
 /* Keep controls reachable at desktop display scaling and allow larger review panes. */
 .sidebar{min-height:0;overflow-y:auto;overscroll-behavior:contain}

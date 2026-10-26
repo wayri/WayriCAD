@@ -10,6 +10,28 @@ from wayricad_runtime import runtime_setup as runtime
 
 
 class RuntimeSetupTests(unittest.TestCase):
+    def test_bom_probe_rejects_root_only_shapely(self):
+        # Model a damaged/native-library-incomplete install: importing the
+        # package root works while its first real geometry operation cannot.
+        import contextlib
+        import io
+        from types import SimpleNamespace
+        def import_module(name):
+            if name == 'shapely.geometry':
+                raise ImportError('GEOS unavailable')
+            return SimpleNamespace(Version=lambda: '10.0', LoadBoard=object())
+        def run_probe(command):
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    exec(command[-1], {})
+            except ImportError as exc:
+                return subprocess.CompletedProcess(command, 1, str(exc))
+            return subprocess.CompletedProcess(command, 0, 'native identity')
+        with patch('importlib.import_module', side_effect=import_module), \
+             patch.object(runtime, '_run', side_effect=run_probe):
+            self.assertIsNotNone(runtime._probe(Path('native-python'), {'shapely': 'shapely>=2,<3'}))
+            self.assertIsNone(runtime._probe(Path('native-python'), runtime.REQUIREMENTS_BOM))
+
     def test_native_python_never_probes_kicad_gui_host(self):
         with tempfile.TemporaryDirectory() as directory:
             python = Path(directory) / 'KiCad' / '10.0' / 'bin' / 'python.exe'

@@ -22,7 +22,7 @@ def _pick_with_wx(wx):
     """Use KiCad's bundled wx runtime for the browser fallback file picker."""
     app = wx.App.Get() or wx.App(False)
     with wx.FileDialog(None, 'Open KiCad project — WayriCAD Analytics Studio',
-                       wildcard='KiCad project or root schematic (*.kicad_pro;*.kicad_sch)|*.kicad_pro;*.kicad_sch|All files (*.*)|*.*',
+                       wildcard='KiCad project, root schematic or PCB (*.kicad_pro;*.kicad_sch;*.kicad_pcb)|*.kicad_pro;*.kicad_sch;*.kicad_pcb|All files (*.*)|*.*',
                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
         return dialog.GetPath() if dialog.ShowModal() == wx.ID_OK else ''
 

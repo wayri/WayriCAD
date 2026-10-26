@@ -1,6 +1,6 @@
 'use strict';
 // Keep everyday work visible while retaining every advanced workflow.
-const essentials = new Set(['bom','analytics','exports','review']);
+const essentials = new Set(['bom','copper','analytics','exports','review']);
 const moreTools = document.createElement('details');
 moreTools.className = 'more-tools';
 const moreSummary = document.createElement('summary');

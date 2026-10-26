@@ -76,9 +76,10 @@ def analyze_tree(tree):
     try:
         from shapely.geometry import Point, Polygon, LineString, box
         from shapely.affinity import rotate, translate
-        from shapely.ops import unary_union, polygonize
+        from shapely.ops import unary_union, polygonize, clip_by_rect
         from shapely.strtree import STRtree
         from shapely.validation import explain_validity
+        from shapely import prepare, covers, intersection, area as geometry_areas, get_num_coordinates
     except ImportError:
         result.update(status='unavailable', warnings=['Copper area analytics require Shapely; rerun runtime setup.'])
         return result
@@ -88,6 +89,7 @@ def analyze_tree(tree):
     net_pad_counts=defaultdict(int); net_zone_counts=defaultdict(int)
     layer_holes = defaultdict(list)
     hole_count = 0
+    unknown_holes = False
 
     def net_name(node):
         net = node.one('net')
@@ -188,25 +190,27 @@ def analyze_tree(tree):
             net_pad_counts[net] += bool(on)
             for layer in on:
                 counts[layer,net]['pad_count'] += 1
+            drill_known = False
             try:
                 hole = drill_shape(pad)
                 if hole is not None:
                     placed_hole=apply_pad(hole,pad,fp)
                     holes.append(placed_hole); hole_count += 1
                     for layer in layers: layer_holes[layer].append(placed_hole)
+                drill_known = True
                 if not on:
                     continue
                 if pad.one('padstack') or pad.one('remove_unused_layers'):
                     raise ValueError('Layer-specific or unused-layer pad stack requires native copper evaluation')
                 p = pad_shape(pad)
-                if hole is not None:
-                    p = p.difference(hole)
-                area = p.area
+                area = p.difference(hole).area if hole is not None else p.area
                 for layer in on:
                     pad_sums[layer] += area
                     counts[layer,net]['pad_area_mm2'] += area
                     shapes[layer,net].append(apply_pad(p,pad,fp))
             except (ValueError,TypeError,AttributeError) as exc:
+                if pad.one('drill') is not None and not drill_known:
+                    unknown_holes = True
                 rec['issues'].append(str(exc)); warnings.add('Unsupported pad geometry; affected copper and pad areas are unknown.')
                 invalid_layers.update(on); bad.update((layer,net) for layer in on)
                 bad_pad.update((layer,net) for layer in on)
@@ -252,13 +256,17 @@ def analyze_tree(tree):
             hole=Point(x,y).buffer(drill/2,quad_segs=32); hole_count += 1
             if len(on)==len(layers): holes.append(hole)
             for layer in on: layer_holes[layer].append(hole)
-            p=Point(x,y).buffer(size/2,quad_segs=32).difference(hole)
+            # Global drill subtraction follows the copper union. Keeping these
+            # discs solid avoids feeding thousands of annular interior rings
+            # into every layer/net Boolean union, with identical final area.
+            p=Point(x,y).buffer(size/2,quad_segs=32)
             for layer in on:
                 counts[layer,net]['via_count']+=1; shapes[layer,net].append(p)
             if via.one('padstack') or via.one('remove_unused_layers'):
                 bad.update((l,net) for l in on)
                 warnings.add('Layer-specific via annuli require native copper evaluation.')
         except (ValueError,TypeError,AttributeError) as exc:
+            unknown_holes = True
             bad.update((l,net) for l in layers); warnings.add(str(exc))
 
     zone_count=0; zone_work=[]
@@ -328,39 +336,129 @@ def analyze_tree(tree):
             edge_bad=True; warnings.add('Open Edge.Cuts; board area is unknown.')
         # polygonize includes holes in enclosing faces; use unique exterior rings.
         edge_polys.extend(Polygon(p.exterior) for p in loops)
+    if unknown_holes:
+        edge_bad=True
+        warnings.add('Unsupported drill geometry; board area and affected copper areas are unknown.')
     if edge_polys and not edge_bad:
         board=edge_polys[0]
         for p in edge_polys[1:]: board=board.symmetric_difference(p)
-        if holes: board=board.difference(unary_union(holes))
     else:
         warnings.add('Closed supported Edge.Cuts required for board area and copper coverage.')
-    hole_indexes={l:STRtree(layer_holes[l]) for l in layers}
-    for rec,polys,invalid in zone_work:
-        p=unary_union(polys) if polys else Polygon()
-        hits=hole_indexes[rec['layer']].query(p,predicate='intersects') if not p.is_empty else []
-        if len(hits): p=p.difference(unary_union([layer_holes[rec['layer']][i] for i in hits]))
-        rec['filled_zone_area_mm2']=None if invalid else float(p.area)
-        rec['status']='unknown fill' if invalid else 'saved fill'
-        result['zones'].append(rec)
-
+    # Drills are shared across layer faces. Union them once (including overlaps),
+    # then subtract intersection areas instead of carving thousands of 128-point
+    # holes into every net and re-unioning those enlarged polygons for each table.
+    hole_cache={}
+    def drill_index(objects):
+        key=tuple(id(p) for p in objects)
+        if key not in hole_cache:
+            p=unary_union(objects) if objects else Polygon()
+            parts=list(p.geoms) if p.geom_type=='MultiPolygon' else [p] if not p.is_empty else []
+            hole_cache[key]=(parts,STRtree(parts))
+        return hole_cache[key]
+    hole_indexes={layer:drill_index(layer_holes[layer]) for layer in layers}
+    face_cache={}; face_indexes={}; face_tiles={}
+    def crossing_area(p,crossing):
+        if get_num_coordinates(p)<4096:
+            return float(sum(geometry_areas(intersection(p,crossing))))
+        # Large filled planes contain thousands of clearance rings. A drill only
+        # meets nearby boundaries: cache exact 10 mm rectangular clips so GEOS
+        # never repeatedly intersects that drill with the entire plane boundary.
+        tiles=defaultdict(list); direct=[]
+        for hole in crossing:
+            x0,y0,x1,y1=hole.bounds
+            a,b,c,d=(math.floor(v/10) for v in (x0,y0,x1,y1))
+            if (c-a+1)*(d-b+1)>64:
+                direct.append(hole); continue
+            for x in range(a,c+1):
+                for y in range(b,d+1): tiles[x,y].append(hole)
+        value=float(sum(geometry_areas(intersection(p,direct)))) if direct else 0.
+        for (x,y),objects in tiles.items():
+            key=id(p),x,y
+            if key not in face_tiles:
+                tile=clip_by_rect(p,x*10,y*10,(x+1)*10,(y+1)*10)
+                # Fast rectangular clipping can produce invalid topology at
+                # coincident edges. Keep the full robust Boolean fallback.
+                if not tile.is_valid: tile=p.intersection(box(x*10,y*10,(x+1)*10,(y+1)*10))
+                face_tiles[key]=tile
+            tile=face_tiles[key]
+            if not tile.is_empty:
+                value+=float(sum(geometry_areas(intersection(tile,objects))))
+        return value
+    def face_area(p,drills=None):
+        cache_key=id(p),id(drills)
+        if cache_key in face_cache: return face_cache[cache_key][2]
+        value=float(p.area)
+        if drills is None or p.is_empty: return value
+        parts,index=drills
+        hits=index.query(p,predicate='intersects')
+        if not len(hits): return value
+        candidates=[parts[i] for i in hits]
+        prepare(p)
+        contained=covers(p,candidates)
+        value-=sum(h.area for h,inside in zip(candidates,contained) if inside)
+        crossing=[h for h,inside in zip(candidates,contained) if not inside]
+        if crossing:
+            # A route net often has many disconnected polygon islands. Restrict
+            # boundary intersections to nearby islands rather than making GEOS
+            # traverse the whole board-sized MultiPolygon for each tiny drill.
+            if p.geom_type=='MultiPolygon':
+                if id(p) not in face_indexes:
+                    pieces=list(p.geoms); face_indexes[id(p)]=(pieces,STRtree(pieces))
+                pieces,nearby=face_indexes[id(p)]
+                pairs=nearby.query(crossing,predicate='intersects')
+                if len(pairs[0]):
+                    by_piece=defaultdict(list)
+                    for hi,pi in zip(*pairs): by_piece[pi].append(crossing[hi])
+                    value-=sum(crossing_area(pieces[i],objects) for i,objects in by_piece.items())
+            else:
+                value-=crossing_area(p,crossing)
+        value=max(0.,value)
+        # Retain objects with identity-based keys so temporary clipped polygons
+        # cannot be collected and have their ids reused by another measurement.
+        face_cache[cache_key]=(p,drills,value)
+        return value
+    board_area=face_area(board,drill_index(holes)) if board is not None else None
     unions = {}
+    for rec,polys,invalid in zone_work:
+        p=polys[0] if len(polys)==1 else unary_union(polys) if polys else Polygon()
+        rec['filled_zone_area_mm2']=None if invalid or unknown_holes else face_area(p,hole_indexes[rec['layer']])
+        rec['status']='unknown fill' if invalid or unknown_holes else 'saved fill'
+        result['zones'].append(rec)
+        key=rec['layer'],rec['net']
+        # A single zone often supplies an entire plane. Its raw polygon union
+        # is already available for the individual-zone report; reuse it
+        # for layer/net inventories rather than repeating the large operation.
+        if not invalid and len(polys)==len(fills[key]) and all(a is b for a,b in zip(polys,fills[key])):
+            unions[id(fills),key]=p
 
-    def area(groups, keys, invalid, remove_holes=False):
+    combined={}; measured={}
+    def area(groups, keys, invalid, remove_holes=False, clip_to_board=False):
         if any(key in invalid for key in keys): return None
+        measure_key=id(groups),tuple(keys),remove_holes,clip_to_board
+        if measure_key in measured: return measured[measure_key]
         objects=[]
         for key in keys:
-            cache_key=id(groups),key,remove_holes
+            cache_key=id(groups),key
             if cache_key not in unions:
-                p=unary_union(groups[key]) if groups[key] else Polygon()
-                if remove_holes and not p.is_empty:
-                    hits=hole_indexes[key[0]].query(p,predicate='intersects')
-                    if len(hits): p=p.difference(unary_union([layer_holes[key[0]][i] for i in hits]))
+                polys=groups[key]
+                p=polys[0] if len(polys)==1 else unary_union(polys) if polys else Polygon()
                 unions[cache_key]=p
-            objects.append(unions[cache_key])
-        p=unary_union(objects) if objects else Polygon()
-        return float(p.area)
+            if not unions[cache_key].is_empty: objects.append(unions[cache_key])
+        # Net-layer rows repeatedly request a single cached union. Re-unioning
+        # that potentially huge zone tessellation adds no geometric information.
+        union_key=id(groups),tuple(keys)
+        if union_key not in combined:
+            combined[union_key]=objects[0] if len(objects)==1 else unary_union(objects) if objects else Polygon()
+        p=combined[union_key]
+        if clip_to_board: p=p.intersection(board)
+        value=face_area(p,hole_indexes[keys[0][0]] if remove_holes and keys else None)
+        measured[measure_key]=value
+        return value
 
-    all_keys=set(counts)|set(shapes)|set(fills)
+    all_keys=set(counts)|set(shapes)|set(fills)|bad|bad_fill|bad_boundary
+    if unknown_holes:
+        all_keys.update((layer,'(unknown drill)') for layer in layers)
+        bad.update(all_keys); bad_fill.update(all_keys)
     for layer in layers:
         keys=[k for k in all_keys if k[0]==layer]
         rec={'layer':layer}
@@ -371,7 +469,7 @@ def analyze_tree(tree):
         rec['filled_zone_area_mm2']=area(fills,keys,bad_fill,True)
         rec['zone_boundary_area_mm2']=area(boundaries,keys,bad_boundary)
         rec['copper_area_mm2']=area(shapes,keys,bad,True)
-        rec['coverage_percent']=100*rec['copper_area_mm2']/board.area if board is not None and board.area>0 and rec['copper_area_mm2'] is not None else None
+        rec['coverage_percent']=100*area(shapes,keys,bad,True,True)/board_area if board_area is not None and board_area>0 and rec['copper_area_mm2'] is not None else None
         result['layers'].append(rec)
     for net in sorted({k[1] for k in all_keys}|set(vias)):
         keys=[k for k in all_keys if k[1]==net]; rec={'net':net,'layers':[l for l in layers if (l,net) in keys]}
@@ -393,10 +491,11 @@ def analyze_tree(tree):
             if key in bad_pad: row['pad_area_mm2']=None
             if key in bad_length: row['track_length_mm']=None
             row['filled_zone_area_mm2']=area(fills,[key],bad_fill,True)
+            row['zone_boundary_area_mm2']=area(boundaries,[key],bad_boundary)
             row['copper_area_mm2']=area(shapes,[key],bad,True)
-            row['coverage_percent']=100*row['copper_area_mm2']/board.area if board is not None and board.area>0 and row['copper_area_mm2'] is not None else None
+            row['coverage_percent']=100*area(shapes,[key],bad,True,True)/board_area if board_area is not None and board_area>0 and row['copper_area_mm2'] is not None else None
             result['net_layers'].append(row)
-    summary={'board_area_mm2':float(board.area) if board is not None else None,'layer_count':len(layers),
+    summary={'board_area_mm2':board_area,'layer_count':len(layers),
              'footprint_count':len(result['components']),'pad_count':sum(r['pad_count'] for r in result['components']),
              'via_count':len(vias),'transition_count':len(vias),'hole_count':hole_count,'zone_count':zone_count,
              'track_length_mm':None if bad_length else sum(r['track_length_mm'] for r in result['layers'])}
@@ -411,19 +510,27 @@ def analyze_tree(tree):
     return result
 
 
-def board_analysis(workspace):
-    """Read the configured saved board and retain its hash as report provenance."""
-    path=Path(workspace.state.get('health_settings',{}).get('board_path') or workspace.project.pro_path.with_suffix('.kicad_pcb')).expanduser()
+def board_analysis(workspace, *, board_path=None):
+    """Read an explicit or configured board without changing workspace settings."""
+    path=Path(board_path or workspace.state.get('health_settings',{}).get('board_path') or workspace.project.pro_path.with_suffix('.kicad_pcb')).expanduser()
     if not path.is_absolute(): path=workspace.project.pro_path.parent/path
-    source={'sha256':None,'status':'unavailable','notes':[
+    return analyze_saved_board(path)
+
+
+def analyze_saved_board(path):
+    """Analyze a standalone saved PCB; no schematic or workspace is required."""
+    path=Path(path).expanduser().resolve()
+    source={'path':str(path),'sha256':None,'status':'unavailable','notes':[
         'Saved PCB only; unsaved editor changes are not included.',
         'Areas are tessellated geometric estimates; circles use 128 segments.',
         'Copper and fill totals across layers sum separate layer faces, not projected board area.',
+        'Coverage clips copper to the board outline and cutouts; copper inventory also includes geometry outside that outline.',
         'Transitions count physical vias, not inferred route changes or connectivity.',
         'Pad contact area is the placement-side land sum minus drill openings, not measured solder contact.',
         'Zone boundary area includes intended outlines; fill area uses only saved filled polygons.',
         'The saved fill is not regenerated or certified current by this read-only analysis.']}
     try:
+        if path.suffix.lower()!='.kicad_pcb': raise ValueError('Select a .kicad_pcb saved board')
         if path.stat().st_size>64*1024*1024: raise ValueError('PCB exceeds 64 MiB read limit')
         raw=path.read_bytes(); digest=hashlib.sha256(raw).hexdigest()
         with _CACHE_LOCK:

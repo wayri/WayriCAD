@@ -325,6 +325,9 @@ class GeometryPreview(wx.Panel):
 
     def _draw_highlight(self,dc):
         """Paint only selected saved items over the camera's cached muted board."""
+        # A selection can arrive before the board snapshot establishes a
+        # camera. Keep the empty preview until a valid transform is rendered.
+        if self.unproject((0,0)) is None:return
         project=self.project;scale=self._view_scale
         width,height=self.GetClientSize();view_height=max(1,height-(0 if self.compact else 48))
         dc.SetClippingRegion(0,0,width,view_height)

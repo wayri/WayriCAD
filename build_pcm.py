@@ -81,6 +81,8 @@ def plugin_files(plugin_path):
                 "tools", "scripts", "docs", "examples", "node_modules"}
     if plugin_path.name in {"protocol_constraint_composer_plugin", "quick_therm_plugin"}:
         excluded -= {"docs", "examples"}
+    if plugin_path.name == "bom_studio_plugin":
+        excluded.discard("examples")
     for root, dirs, files in os.walk(plugin_path):
         dirs[:] = sorted(d for d in dirs if d not in excluded and not d.startswith("."))
         for name in sorted(files):

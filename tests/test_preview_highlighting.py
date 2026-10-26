@@ -81,6 +81,17 @@ class PreviewHighlightTests(unittest.TestCase):
             self.view.cursor = (i, 20)
             self.assertIs(self.view._bitmap_for_view(), bitmap)
 
+    def test_selection_before_camera_is_ready_keeps_empty_preview(self):
+        self.view.focus_points = []
+        self.view.set_highlight(nets=['VCC'])
+        self.assertTrue(self.view._bitmap_for_view().IsOk())
+        self.assertIsNone(self.view.unproject((0, 0)))
+        self.view.focus_points = [(0., 0.), (20., 10.)]
+        self.view.invalidate_scene()
+        self.assertTrue(self.view._bitmap_for_view().IsOk())
+        self.assertIsNotNone(self.view.unproject((0, 0)))
+        self.assertEqual(self.view._highlight_indices['context_lines'], {0})
+
     def test_switching_nets_reuses_muted_board_but_camera_and_edits_do_not(self):
         with patch.object(self.view, '_render_scene', wraps=self.view._render_scene) as render:
             for net in ['VCC', 'VCC_AUX', 'VCC']:

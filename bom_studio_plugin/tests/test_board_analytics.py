@@ -102,6 +102,93 @@ class BoardAnalyticsTests(unittest.TestCase):
         self.assertIsNone(r['layers'][0]['copper_area_mm2'])
         self.assertEqual(r['layers'][1]['copper_area_mm2'],0)
 
+    def test_invalid_via_is_unknown_even_without_other_copper(self):
+        r=self.run_board('(via (at 3 3) (size 1) (drill 2) (layers "F.Cu" "B.Cu") (net 1))')
+        self.assertIsNone(r['summary']['copper_area_mm2'])
+        self.assertIsNone(r['summary']['board_area_mm2'])
+        self.assertEqual(r['summary']['via_count'],1)
+        self.assertTrue(all(row['copper_area_mm2'] is None for row in r['net_layers']))
+
+    def test_invalid_npth_drill_invalidates_area_after_valid_pad(self):
+        r=self.run_board('(footprint "X" (at 5 5) (layer "F.Cu")'
+                         '(pad "1" thru_hole circle (at 0 0) (size 2 2) (drill 1) (layers "*.Cu") (net 1))'
+                         '(pad "" np_thru_hole circle (at 1 1) (size 2 2) (drill -1) (layers "*.Cu")))'+self.zone(0,4))
+        self.assertIsNone(r['summary']['board_area_mm2'])
+        self.assertIsNone(r['summary']['copper_area_mm2'])
+        self.assertIsNone(r['zones'][0]['filled_zone_area_mm2'])
+
+    def test_invalid_npth_only_is_not_a_known_zero_board(self):
+        r=self.run_board('(footprint "X" (at 5 5) (layer "F.Cu")'
+                         '(pad "" np_thru_hole circle (at 0 0) (size 2 2) (drill -1) (layers "*.Cu")))')
+        self.assertEqual(r['summary']['unknown_copper_layers'],3)
+        self.assertIsNone(r['summary']['board_area_mm2'])
+
+    def test_cached_drill_area_matches_explicit_boolean_reference(self):
+        from shapely.geometry import Point, box
+        from shapely.ops import unary_union
+        # Overlapping drills must be subtracted once. The edge drill is only
+        # partially in the board/fill; a separate island exercises multi-polygons.
+        centres=[(1,1),(1.3,1),(0,0),(9,9)]
+        holes=unary_union([Point(x,y).buffer(.5,quad_segs=32) for x,y in centres])
+        pads=''.join(f'(pad "" np_thru_hole circle (at {x} {y}) (size 1 1) (drill 1) (layers "*.Cu"))' for x,y in centres)
+        r=self.run_board(self.zone(0,4)+self.zone(2,6,2)+
+                         '(footprint "Holes" (at 0 0) (layer "F.Cu")'+pads+')')
+        expected=box(0,0,6,4).difference(holes)
+        self.assertAlmostEqual(r['layers'][0]['copper_area_mm2'],expected.area,places=9)
+        self.assertAlmostEqual(r['summary']['board_area_mm2'],box(0,0,10,10).difference(holes).area,places=9)
+        self.assertAlmostEqual(r['layers'][0]['coverage_percent'],100*expected.area/box(0,0,10,10).difference(holes).area,places=9)
+        for row in r['net_layers']:
+            original=box(0,0,4,4) if row['net']=='GND' else box(2,0,6,4)
+            self.assertAlmostEqual(row['copper_area_mm2'],original.difference(holes).area,places=9)
+        for row,original in zip(r['zones'],[box(0,0,4,4),box(2,0,6,4)]):
+            self.assertAlmostEqual(row['filled_zone_area_mm2'],original.difference(holes).area,places=9)
+
+    def test_complex_plane_local_clips_match_full_boolean_reference(self):
+        from shapely.geometry import Point, box
+        from shapely.ops import unary_union
+        from shapely import segmentize
+        centres=[(.25+x,0) for x in range(40)]
+        original=segmentize(box(0,0,40,40),.02)
+        # A densely sampled native contour crosses drill openings and clip-grid
+        # boundaries; compare local clipping with a complete Boolean difference.
+        points=list(original.exterior.coords)
+        for ring in original.interiors:
+            points+=list(ring.coords)+[points[0]]
+        pts='(pts '+''.join(f'(xy {x} {y})' for x,y in points)+')'
+        zone='(zone (net 1) (layer "F.Cu") (polygon (pts (xy 0 0) (xy 40 0) (xy 40 40) (xy 0 40))) (filled_polygon (layer "F.Cu") '+pts+'))'
+        pads=''.join(f'(pad "" np_thru_hole circle (at {x} {y}) (size 1 1) (drill 1) (layers "*.Cu"))' for x,y in centres)
+        r=self.run_board(zone+'(footprint "Holes" (at 0 0) (layer "F.Cu")'+pads+')')
+        drills=unary_union([Point(x,y).buffer(.5,quad_segs=32) for x,y in centres])
+        expected=original.difference(drills)
+        self.assertAlmostEqual(r['layers'][0]['copper_area_mm2'],expected.area,places=8)
+        self.assertAlmostEqual(r['zones'][0]['filled_zone_area_mm2'],expected.area,places=8)
+        self.assertAlmostEqual(r['layers'][0]['coverage_percent'],100*expected.intersection(box(0,0,10,10)).area/box(0,0,10,10).difference(drills).area,places=8)
+
+    def test_coverage_clips_to_outline_without_losing_copper_inventory(self):
+        r=self.run_board(self.zone(-2,2))
+        self.assertEqual(r['layers'][0]['copper_area_mm2'],16)
+        self.assertEqual(r['layers'][0]['coverage_percent'],8)
+        self.assertEqual(r['net_layers'][0]['coverage_percent'],8)
+        self.assertEqual(r['net_layers'][0]['zone_boundary_area_mm2'],16)
+
+    def test_standalone_saved_board_requires_no_workspace_and_preserves_source(self):
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+        from bomstudio.board_analytics import analyze_saved_board, board_analysis
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'board.kicad_pcb'
+            raw=b'(kicad_pcb (gr_rect (start 0 0) (end 2 3) (layer "Edge.Cuts")))'
+            path.write_bytes(raw)
+            report=analyze_saved_board(path)
+            self.assertEqual(report['summary']['board_area_mm2'],6)
+            self.assertEqual(report['source']['path'],str(path.resolve()))
+            ws=SimpleNamespace(state={},project=SimpleNamespace(pro_path=Path(folder)/'other.kicad_pro'))
+            self.assertEqual(board_analysis(ws,board_path='board.kicad_pcb'),report)
+            self.assertEqual(ws.state,{})
+            self.assertEqual(path.read_bytes(),raw)
+            self.assertEqual(analyze_saved_board(Path(folder)/'board.txt')['status'],'unavailable')
+
     def test_snapshot_cache_clones_and_invalidates_on_content(self):
         import tempfile
         from pathlib import Path

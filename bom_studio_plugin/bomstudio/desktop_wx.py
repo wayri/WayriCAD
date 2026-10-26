@@ -137,7 +137,7 @@ def run(server, on_ready=None):
         def create_file_dialog(self, kind, save_filename='', **kwargs):
             def choose():
                 style = wx.FD_SAVE if kind == 'save' else wx.FD_OPEN | wx.FD_FILE_MUST_EXIST
-                wildcard = 'All files (*.*)|*.*' if kind == 'save' else 'KiCad project (*.kicad_pro;*.kicad_sch)|*.kicad_pro;*.kicad_sch'
+                wildcard = 'All files (*.*)|*.*' if kind == 'save' else 'KiCad project (*.kicad_pro;*.kicad_sch;*.kicad_pcb)|*.kicad_pro;*.kicad_sch;*.kicad_pcb'
                 with wx.FileDialog(self, 'Save export' if kind == 'save' else 'Open project',
                                    defaultFile=save_filename, wildcard=wildcard, style=style) as dialog:
                     return [dialog.GetPath()] if dialog.ShowModal() == wx.ID_OK else []

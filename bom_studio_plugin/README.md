@@ -161,20 +161,48 @@ Report publication retries brief Windows file locks. Persistent locks, changed s
 
 ## Board and copper analytics
 
-![Analytics Studio Board & copper view](help-board-copper.png)
+Open **Copper & routing** in the main sidebar. Choose a saved `.kicad_pcb`, then
+**Analyze copper**. A schematic, component-field mappings and a BOM are not
+required. PCB-only projects open directly in this view. Component cost, mass and
+power remain in **Component analytics** and do not start a full copper analysis.
 
-Current interface with a synthetic saved 20 × 15 mm PCB: two overlapping filled GND polygons, two pads, one track and one through via. All displayed values were calculated by the real saved-board backend. Only the local header path was replaced with `C:/Projects/AnalyticsDemo/AnalyticsDemo.kicad_pro` before capture; the image crops to the report panel. [Screenshot provenance and numerical checks](docs/SCREENSHOT_BOARD_COPPER.md).
+| View | Measurements |
+|---|---|
+| Layers | Combined copper union, saved zone fill, board coverage, tracks and vias |
+| Nets / net × layer | Copper and fill areas, routing length, pad area and via count |
+| Individual zones | Outline area, last saved fill area and polygon count |
+| Pad contact | Sum of nominal pad copper for each component, including placement-side contact |
 
-Analytics Studio is the new name for BOM Studio. Existing installations keep the `bom-studio` package identifier, CLI/module paths and `.wayricad-bom.json` workspace files, so upgrades retain your settings.
+Search the net and component tables to narrow the display. JSON and HTML contain
+all tables; CSV and TSV export the selected table. Reports retain the source hash.
+If the saved PCB changes, analyze it again before exporting. The cancellable worker
+keeps the interface responsive; cancellation and timeout discard partial results.
+The desktop budget is five minutes. Complex or invalid geometry can still prevent
+a complete report; warnings and unknown measurements must be reviewed.
 
-1. Save your PCB in KiCad, then open Analytics Studio for that project.
-2. Open **Board, copper & components** in the sidebar and choose **Run analytics**.
-3. Open **Board & copper**. Summary cards show laminate area, copper summed across layers, saved filled zones, routing length, parts, pads and vias.
-4. Compare the layer table for combined copper union area and board coverage. Review **Individual zones** for each zone’s outline area, saved fill area and polygon count. The net table lists copper/fill area, track length, pad area and vias for each net; use **Find net** to narrow the rows.
-5. Use **Find component** to review IC or connector pad contact. Contact sum includes pad copper across layers; placement-side contact includes the footprint side only.
-6. Download JSON/HTML or the complete report formats to retain all rows and geometry coverage notes. Choose `board`, `copper_layers`, `copper_nets`, `copper_net_layers`, `copper_zones` or `pad_contacts` for an individual export table.
+```text
+python cli.py copper C:/Projects/Example/board.kicad_pcb --format html --output C:/Projects/Example/copper.html
+python cli.py copper C:/Projects/Example/board.kicad_pcb --format csv --table net_layers --output C:/Projects/Example/copper.csv
+```
 
-Copper union areas merge overlaps on each layer. Board and net totals sum areas across layers, so they can exceed the board's physical face area. Filled-zone area is the last saved fill; refill and save in KiCad before comparing a changed zone. Via transitions count vias rather than tracing an inferred signal route. Nominal pad contact subtracts supported drill holes and does not predict solder wetting or thermal resistance. Unsupported shapes and missing geometry remain **Unknown**; expand source and geometry coverage to see the reasons. Analytics reads the saved board independently of the active component variant and never edits copper.
+The standalone CLI requires the plugin's dependencies, including Shapely. The
+PCM launcher prepares these in a private runtime. Use `--timeout` for a bounded
+1–600 second CLI budget. Output files must be new; the PCB is never edited.
+
+Copper unions remove same-layer overlaps and subtract supported drill holes.
+Coverage clips copper to the board outline. Totals across layers can exceed the
+physical face area. Refill zones and save in KiCad first: analytics reads the last
+saved fill and does not regenerate it. Via transitions count vias rather than
+inferring a signal route. Pad contact is nominal copper area, not solder wetting
+or thermal resistance. Unsupported geometry stays **Unknown**.
+
+![Copper & routing on a synthetic PCB](help-copper.png)
+
+This board-only example uses real geometry calculations. Local paths were replaced
+with generic example paths for capture; numerical results are unchanged. The
+[workflow audit](../docs/audits/ANALYTICS_COPPER_WORKFLOW_2026-10-26.md) records
+validation and limitations. Analytics Studio retains the `bom-studio` package
+identifier, module paths and existing `.wayricad-bom.json` workspace files.
 
 ## Implemented methods, provenance and validation
 

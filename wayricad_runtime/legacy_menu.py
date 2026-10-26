@@ -96,11 +96,7 @@ def _launch_desktop(root, identifier, pcbnew, title):
         project = board.with_suffix(".kicad_pro")
         schematic = board.with_suffix(".kicad_sch")
         source = project if project.is_file() else schematic
-        if not source.is_file():
-            import wx
-            wx.MessageBox("Save the KiCad project or root schematic first.", title,
-                          wx.OK | wx.ICON_INFORMATION)
-            return
+        if not source.is_file():source=board
         args.append(str(source))
     elif identifier in {"quick-pi", "quick-therm", "assistant"}:
         args.extend(("--board", str(board)))
