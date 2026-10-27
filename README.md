@@ -17,6 +17,11 @@ exact-sample probes. [Release notes](docs/RELEASE_NOTES_3.6.39.md).
 simulate finite-rise PI load steps and include endpoint caps in SI transient
 circuit exports. [Workflow and limits](quick_pi_plugin/README.md#individual-shunt-capacitors-in-transient-studies).
 
+The same development batch adds [cleaner HTML and direct PDF reports](wayricad_runtime/REPORTS.md),
+optional raw-data disclosures, and [SI pair delay, skew and phase comparison](signal_integrity_advisor_plugin/ReadMe.md).
+[PI differential voltage probes](quick_pi_plugin/README.md#differential-voltage-probes)
+compare two points in one solved 2.5D DC result.
+
 ## Start here
 
 | What you need | Where to go |

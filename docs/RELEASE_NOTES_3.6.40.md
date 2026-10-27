@@ -2,6 +2,19 @@
 
 Individual shunt capacitors can participate in transient studies.
 
+Reports gain a consistent HTML layout and a direct optional PDF exporter. Saved
+JSON results from any tool can be rendered as HTML/PDF tables; existing analysis
+HTML retains its embedded raster figures in PDF. Interactive-only views are
+explicitly identified. Quick SI adds P/N delay, skew and explicit-frequency phase
+matching, plus inter-pair mean-delay comparison in the UI, CLI and reports.
+Quick PI adds two-point DC voltage probes on solved 2.5D copper, with A/B markers,
+saved report readings and read-only CLI probing. Unrelated cases and unsolved
+regions are rejected; full-volume and AC/transient waveform probing remain outside
+this feature.
+
+[Report workflow and static-PDF limits](../wayricad_runtime/REPORTS.md).
+[Validation and model boundaries](audits/REPORTS_AND_DIFFERENTIAL_PROBES_2026-10-27.md).
+
 | Tool | Capability |
 |---|---|
 | Quick PI | Per-load banks retain each C, ESR and ESL. Banks replace aggregate C/ESR, with no double counting. |

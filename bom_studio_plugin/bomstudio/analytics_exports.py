@@ -208,7 +208,15 @@ def html_bytes(report, all_tables):
         for row in t['rows']:out.append('<tr>'+''.join('<td'+(' class="num"' if i in t['numeric'] else '')+'>'+esc(v)+'</td>' for i,v in enumerate(row))+'</tr>')
         out.append('</tbody></table></div>')
     out.append('<h2>Calculation provenance</h2><p>Workspace SHA-256: '+esc(report['workspace_sha256'])+'</p><details><summary>Source fields, units, budgets and assumptions</summary><pre>'+esc(json.dumps(report['config'],indent=2,ensure_ascii=False))+'</pre></details></body></html>')
-    return ''.join(out).encode('utf-8')
+    try:
+        from wayricad_runtime.report_ui import enhance_report
+    except ModuleNotFoundError as error:
+        # Standalone bomstudio source use predates the suite runtime. Installed
+        # PCM packages vendor it; retain the existing printable layout without it.
+        if error.name not in ('wayricad_runtime','wayricad_runtime.report_ui'):raise
+        return ''.join(out).encode('utf-8')
+    document=enhance_report(''.join(out),status=STATUS,summary=[('Matched components',report['scope']['matched_components'])],notice='Known subtotals and declared geometry evidence only. Missing inputs remain unknown.')
+    return document.encode('utf-8')
 
 
 def workbook_bytes(report, all_tables):

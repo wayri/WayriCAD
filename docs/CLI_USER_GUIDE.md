@@ -1,5 +1,10 @@
 # WayriCAD CLI User Guide
 
+[HTML and PDF reporting](../wayricad_runtime/REPORTS.md) covers
+`python -m wayricad_runtime.tool_cli report result.json --html review.html --pdf review.pdf`
+and `report-pdf review.html --output review.pdf`. Raw JSON stays optional; use
+`--include-raw-evidence` with `report-pdf` only when you want a printed appendix.
+
 Start with the [all-tools command catalogue](TOOL_CLI_CATALOGUE.md) for unified discovery, interpreter checks, multi-net analysis studies and the supported command surface of all 24 source-catalogue plugins. Use `wayricad tools list` or `wayricad tools run TOOL -- --help`.
 
 Advanced fanout exposes style/angle choices, family presets, paired breakout settings and selected-netclass dimensions through `python -m wayricad_runtime.cli fanout settings`. Plans include every bend (`path_mm`), actual generated length (`length_mm`) and pair identity (`pair_id`). See [advanced fanout examples and semantics](ADVANCED_FANOUT.md).

@@ -601,6 +601,11 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
             ax.annotate(label,center,xytext=(offset,7),ha='left' if offset>0 else 'right',textcoords='offset points',fontsize=8,
                         bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
     if board_view and show_context and scene:_draw_board_context(ax,scene,layer,selected['name'],visible_nets)
+    for key,point in bundle.get('differential_probes',{}).items():
+        if key not in ('a','b') or not (combined or str(point.get('layer'))==str(layer)):continue
+        x,y=point['x_mm'],point['y_mm'];color='#b44d11' if key=='a' else '#1765b2'
+        ax.plot(x,y,marker='o',markersize=10,markerfacecolor='none',markeredgecolor=color,markeredgewidth=2,zorder=12)
+        ax.annotate(key.upper(),(x,y),xytext=(9,-9),textcoords='offset points',color=color,fontsize=10,fontweight='bold',zorder=13)
     if inspection and inspection.get('source_ids') and bundle.get('board_scene'):
         from wayricad_runtime.board_render import draw_matplotlib
         scene=bundle['board_scene'];wanted=set(inspection['source_ids'])
@@ -865,6 +870,8 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
         resistance_note=scope+' resistance uses the solved voltage drop divided by load current.'
     if result.get('contains_forward_drop'):
         resistance_note=scope+' ΔV/I is an apparent operating-point ratio at the specified load current, not resistance.'
+    from .differential_probe import report_html as differential_html
+    html+=differential_html(bundle,layer)
     html+= '<h2>Interactive field probes</h2>'+interactive_fields(bundle,layer)
     html+='<table>'+table+'</table><p>'+resistance_note+' Source V/I is the operating point, not copper resistance. Gray copper has no connected result. Dashed component links represent explicit lumped branches, not physical copper.</p><h2>Three primary result plots</h2><section>'+''.join(images[:3])+'</section>'
     if images[3:]:

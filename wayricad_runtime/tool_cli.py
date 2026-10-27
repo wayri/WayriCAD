@@ -74,11 +74,24 @@ def main(argv=None):
     show=subs.add_parser('show',help='Describe one tool and how to obtain command help.');show.add_argument('tool')
     doctor=subs.add_parser('doctor',help='Check an interpreter without importing a GUI or loading a board.')
     doctor.add_argument('--python',type=Path,default=Path(sys.executable))
+    report=subs.add_parser('report',help='Export any saved tool JSON as consistent HTML and/or PDF.')
+    report.add_argument('source',type=Path);report.add_argument('--html',type=Path);report.add_argument('--pdf',type=Path)
+    report.add_argument('--title',default='WayriCAD analysis report')
+    pdf=subs.add_parser('report-pdf',help='Convert a saved HTML report to a static PDF, without running JavaScript.')
+    pdf.add_argument('source',type=Path);pdf.add_argument('--output',type=Path,required=True)
+    pdf.add_argument('--evidence',type=Path,help='Optional paired JSON for source fingerprint checks.')
+    pdf.add_argument('--include-raw-evidence',action='store_true',help='Include full JSON blocks in the PDF appendix.')
     run=subs.add_parser('run',help='Dispatch a tool; arguments after TOOL (optionally --) go unchanged to its CLI.')
     run.add_argument('--python',type=Path,help='Explicit prepared interpreter, e.g. KiCad 10 Python for native board commands.')
     run.add_argument('tool');run.add_argument('arguments',nargs=argparse.REMAINDER)
     args=parser.parse_args(argv)
     try:
+        if args.operation=='report':
+            from .report_export import export
+            print(json.dumps(export(args.source,html=args.html,pdf=args.pdf,title=args.title),indent=2));return 0
+        if args.operation=='report-pdf':
+            from .pdf_report import export_pdf
+            print(json.dumps(export_pdf(args.source,args.output,evidence=args.evidence,include_raw_evidence=args.include_raw_evidence),indent=2));return 0
         if args.operation=='list':print(json.dumps(catalogue(),indent=2));return 0
         if args.operation=='show':
             name=tool_id(args.tool);print(json.dumps(next(t for t in catalogue()['tools'] if t['id']==name),indent=2));return 0

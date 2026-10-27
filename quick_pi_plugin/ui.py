@@ -515,6 +515,16 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         losses_page.SetSizer(losses_layout);self.inspector_views.AddPage(losses_page,'Losses')
         layout.Add(self.inspector_views,1,wx.EXPAND|wx.ALL,8)
         probe_page=wx.Panel(self.inspector_views);probe_layout=wx.BoxSizer(wx.VERTICAL)
+        differential_controls=wx.BoxSizer(wx.HORIZONTAL)
+        self.differential_target=wx.Choice(probe_page,choices=['Single point','Set probe A','Set probe B'])
+        self.differential_target.SetSelection(0)
+        self.differential_target.SetToolTip('Choose A or B, then click solved sheet copper. The readout is V(A) - V(B) within this one solved reference.')
+        differential_clear=wx.Button(probe_page,label='Clear A/B')
+        differential_clear.Bind(wx.EVT_BUTTON,self._clear_differential)
+        differential_controls.Add(self.differential_target,1,wx.EXPAND|wx.RIGHT,4);differential_controls.Add(differential_clear,0)
+        probe_layout.Add(differential_controls,0,wx.EXPAND|wx.BOTTOM,4)
+        self.differential_readout=wx.StaticText(probe_page,label='Differential: choose A and B on solved copper.')
+        probe_layout.Add(self.differential_readout,0,wx.EXPAND|wx.BOTTOM,6)
         self.probe_table=InspectorTable(probe_page,[('Parameter',125),('Value',100),('Unit',45)],self._inspector_table_selected,fit_columns=True)
         probe_layout.Add(self.probe_table,1,wx.EXPAND)
         probe_details=wx.CollapsiblePane(probe_page,label='Model and selection notes',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
@@ -620,7 +630,40 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         else:self.inspection_text.SetValue('Select a ranked hotspot or click solved copper. Empty space and drill holes have no copper result.\nHotspot heating is W/mm³; the loss map is W/mm².\nPulse risk is adiabatic and does not predict fusing.')
         from .inspector_tables import probe_rows
         self.probe_table.set_rows(probe_rows(self.bundle,row))
+        self._update_differential()
         if check_source:self.inspector.Layout();self.inspector.FitInside();self._buttons()
+
+    def _clear_differential(self,event=None):
+        self.bundle.pop('differential_probes',None);self.differential_target.SetSelection(0)
+        self._draw(preserve=True)
+
+    def _update_differential(self):
+        from .differential_probe import saved_probe
+        if not hasattr(self,'_differential_locations'):self._differential_locations={}
+        if not self._saved_source_current:
+            self.differential_readout.SetLabel('Differential unavailable: saved board changed.');return
+        result=self.bundle.get('result',{})
+        cache_key=(id(result),id(result.get('potential_V')),result.get('sink_current_A'),repr(self.bundle.get('differential_probes')))
+        try:
+            cached=getattr(self,'_differential_cache',None)
+            reading=cached[1] if cached and cached[0]==cache_key else saved_probe(self.bundle,check_source=False,location_cache=self._differential_locations)
+            self._differential_cache=(cache_key,reading)
+        except (ValueError,OSError) as error:
+            self.differential_readout.SetLabel('Differential unavailable: '+str(error));return
+        points=self.bundle.get('differential_probes',{})
+        if reading:
+            value=reading['voltage_a_minus_b_V']
+            label='V(A) - V(B): '+('Unknown' if value is None else f'{value:.8g} V ({value*1000:.8g} mV)')
+            rows=[]
+            for key in ('a','b'):
+                point=reading[key];target={'kind':'point','layer':point['layer'],'location_mm':[point['x_mm'],point['y_mm']]}
+                rows.append({'cells':(key.upper()+' potential',point['potential_V'],'V'),'target':target,'metric':'voltage'})
+                rows.append({'cells':(key.upper()+' X / Y',f"{point['x_mm']:.6g} / {point['y_mm']:.6g}",'mm'),'target':target})
+            rows.append({'cells':('A - B',value,'V'),'target':None})
+            self.probe_table.set_rows(rows)
+        else:label='Differential: '+('A selected; choose B.' if 'a' in points else 'B selected; choose A.' if 'b' in points else 'choose A and B on solved copper.')
+        self.differential_readout.SetLabel(label)
+        self.differential_readout.Wrap(max(240,self.inspector.GetClientSize().width-28))
 
     def _scale_limits(self,metric):
         mode=self.scale_mode.GetSelection()
@@ -715,6 +758,23 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if selected<0:return
         metric=list(METRICS)[max(0,self.metric.GetSelection())]
         layer=self._layers[selected]['id']
+        target=self.differential_target.GetSelection()
+        if target:
+            if not self._snapshot_current():self.status.SetLabel('Saved PCB changed. Reload and rerun before differential probing.');return
+            if layer=='all':
+                choices=[item for item in self._layers if item['id']!='all']
+                with wx.SingleChoiceDialog(self,'Choose the physical layer for this differential point.','Differential layer',[str(item.get('name',item['id'])) for item in choices]) as dialog:
+                    if dialog.ShowModal()!=wx.ID_OK:return
+                    layer=choices[dialog.GetSelection()]['id']
+            from .differential_probe import sample_point
+            try:sample=sample_point(self.bundle,layer,x,y,check_source=False)
+            except (ValueError,OSError) as error:self.status.SetLabel(str(error));return
+            if sample['status']!='SAMPLED':self.status.SetLabel(sample['notice']);return
+            key='a' if target==1 else 'b'
+            self.bundle.setdefault('differential_probes',{})[key]={'layer':layer,'x_mm':float(x),'y_mm':float(y)}
+            self.differential_target.SetSelection(2 if key=='a' else 1)
+            self.inspector_views.SetSelection(2);self._draw(preserve=True)
+            self.status.SetLabel('Probe '+key.upper()+' selected. V(A) - V(B) uses the same solved potential reference.');return
         if layer=='all':
             hits=[probe_result(self.bundle,item['id'],x,y,metric) for item in self._layers if item['id']!='all']
             hits=[item for item in hits if item]
@@ -1403,7 +1463,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self._update_inspector()
         render_key=(id(self.bundle),id(self.bundle.get('result')),id(self.bundle.get('mesh')),
                     id(self.bundle.get('geometry')),id(self.bundle.get('board_scene')),key,metric,
-                    repr(self.bundle['view_settings']),repr(self._inspection),self._saved_source_current,
+                    repr(self.bundle['view_settings']),repr(self._inspection),repr(self.bundle.get('differential_probes')),self._saved_source_current,
                     self.show_context.GetValue(),self.show_copper.GetValue(),self.show_overlay.GetValue(),
                     tuple(self._visible_nets()),repr(self._scale_limits(metric)))
         if getattr(figure,'_wayricad_render_key',None)==render_key and figure.axes:

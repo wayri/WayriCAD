@@ -36,6 +36,9 @@ def _loads(loads, limits, powers=None):
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('board',type=Path,nargs='?')
+    parser.add_argument('--probe-result',type=Path,help='Saved single-case PI JSON for read-only differential voltage probing; no new solve.')
+    parser.add_argument('--probe-a',nargs=3,metavar=('LAYER','X_MM','Y_MM'),help='Differential point A on solved 2.5D sheet copper.')
+    parser.add_argument('--probe-b',nargs=3,metavar=('LAYER','X_MM','Y_MM'),help='Differential point B; reports V(A)-V(B) in the same saved potential reference.')
     parser.add_argument('--batch',type=Path,help='Multi-net DC study JSON (wayricad.pi-batch/v1), pad units, shared-return groups and optional independent return review/thermal feedback.')
     parser.add_argument('--transient',type=Path,help='Explicit R/L/C load-step JSON; optional board supplies saved-file provenance. Returns 4 for limit violations.')
     parser.add_argument('--electrothermal',type=Path,help='Explicit steady/transient electrothermal study JSON. Returns 3 for nonconvergence, 4 for operating-limit violations.')
@@ -77,6 +80,33 @@ def main(argv=None):
     parser.add_argument('--command',help='Console command, including a series-component path; quote the entire command.')
     parser.add_argument('--series-file',type=Path,help='Reviewed series-editor JSON, including explicitly selected parallel R/L parts.')
     args=parser.parse_args(argv)
+    if args.probe_result:
+        try:
+            from .differential_probe import differential_probe
+            from wayricad_runtime.report_ui import checked_sources,publish_documents
+            options={word.split('=')[0] for word in (argv if argv is not None else sys.argv[1:]) if word.startswith('--')}
+            if args.board or options-{'--probe-result','--probe-a','--probe-b','--output'}:
+                raise ValueError('Saved differential probing accepts only --probe-result, --probe-a, --probe-b and optional --output.')
+            if not args.probe_a or not args.probe_b:raise ValueError('Provide both --probe-a and --probe-b as LAYER X_MM Y_MM.')
+            if args.probe_result.stat().st_size>128*1024*1024:raise ValueError('Saved PI result exceeds 128 MiB.')
+            def invalid_constant(value):raise ValueError('Non-finite saved JSON value: '+value)
+            raw=args.probe_result.read_bytes();bundle=json.loads(raw,parse_constant=invalid_constant)
+            if not isinstance(bundle,dict):raise ValueError('Saved PI result must be a single-case JSON object.')
+            point=lambda row:dict(layer=row[0],x_mm=float(row[1]),y_mm=float(row[2]))
+            reading=differential_probe(bundle,point(args.probe_a),point(args.probe_b))
+            import hashlib
+            reading['result_sha256']=hashlib.sha256(raw).hexdigest()
+            payload=json.dumps(reading,indent=2,allow_nan=False)+'\n'
+            if args.probe_result.read_bytes()!=raw:raise ValueError('Saved PI result changed during probing.')
+            if args.output:
+                if args.output.suffix.lower()!='.json':raise ValueError('Choose a separate .json differential result output.')
+                publish_documents({args.output:payload},sources=[args.probe_result,*checked_sources(bundle)])
+            else:print(payload,end='')
+            return 0 if reading['status']=='SAMPLED' else 3
+        except (ValueError,RuntimeError,OSError,TypeError,RecursionError) as error:
+            print(json.dumps({'status':'ERROR','error':str(error)}));return 2
+    if args.probe_a or args.probe_b:
+        print(json.dumps({'status':'ERROR','error':'--probe-a and --probe-b require --probe-result.'}));return 2
     if args.ac:
         try:
             from .ac_cli import main as ac_cli

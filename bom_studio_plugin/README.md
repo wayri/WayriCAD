@@ -229,3 +229,7 @@ constitutes component qualification, supplier authorization or manufacturing sig
 - KiCad's official [schematic](https://dev-docs.kicad.org/en/file-formats/sexpr-schematic/) and [board](https://dev-docs.kicad.org/en/file-formats/sexpr-pcb/) format documentation defines the saved records and hierarchy paths consumed by the extractors.
 - The [KiCad CLI documentation](https://docs.kicad.org/10.0/en/cli/cli.html) defines the native export/check backend. Its successful execution is backend evidence, not proof of BOM sourcing accuracy.
 - Python's [`decimal`](https://docs.python.org/3/library/decimal.html) supplies base-10 arithmetic for quantities and money. The business rules, coverage accounting and PCB assumptions are project methods documented above rather than claims from an external paper.
+
+## HTML and PDF reports
+
+Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.

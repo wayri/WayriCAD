@@ -13,7 +13,7 @@ def _number(value):
         return False
 
 
-def screen_suite(profile_id, paths, *, budgets=None):
+def screen_suite(profile_id, paths, *, budgets=None, timing_frequency_hz=None, timing_reference_group=None):
     """Compare reviewed routes with explicit user budgets; never certify a protocol.
 
     Each route may declare suite_role (P/N or clock/data) and suite_group.
@@ -146,9 +146,11 @@ def screen_suite(profile_id, paths, *, budgets=None):
             measured = max(abs(m[2] - clocks[0][2]) * 1000 for m in data) if all(m[2] is not None for m in members) else None
             compare('group.' + group + '.skew', measured, 'max_skew_ps', 'ps',
                     'Maximum route propagation-delay difference to P/clock. Excludes transmitter, receiver, clock insertion, setup/hold and package delays.')
+    from .pair_timing import pair_timing
+    timing = pair_timing(paths, frequency_hz=timing_frequency_hz, reference_group=timing_reference_group)
     states = {c['status'] for c in checks}
     status = ('BLOCKED' if 'BLOCKED' in states else 'REVIEW' if 'REVIEW' in states
               else 'INCOMPLETE' if 'UNKNOWN' in states else 'WITHIN_BUDGET')
     return dict(schema='wayricad.protocol-suite/v1', profile=profile, status=status,
-                checks=checks, budgets=deepcopy(budgets), route_count=len(paths),
+                checks=checks, budgets=deepcopy(budgets), route_count=len(paths), pair_timing=timing,
                 limitations=profile['limitations'] + ['WITHIN_BUDGET describes only evaluated route budgets, never standards compliance. Protocol rate/Nyquist is informational, not simulated channel bandwidth.'])

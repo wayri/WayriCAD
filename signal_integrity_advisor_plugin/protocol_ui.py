@@ -35,6 +35,14 @@ class ProtocolPanel(wx.Panel):
             control=wx.TextCtrl(pane);form.Add(wx.StaticText(pane,label=label),0,wx.ALIGN_CENTER_VERTICAL);form.Add(control,1,wx.EXPAND);self.budgets[key]=control;control.Bind(wx.EVT_TEXT,self.invalidate)
         form.AddGrowableCol(1);form.AddGrowableCol(3);pane.SetSizer(form);root.Add(options,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
         options.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda e:self.Layout())
+        timing_box=wx.BoxSizer(wx.HORIZONTAL)
+        timing_box.Add(wx.StaticText(self,label='Pair phase frequency (MHz, optional)'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
+        self.timing_frequency=wx.TextCtrl(self,size=self.FromDIP((100,-1)));self.timing_frequency.SetToolTip('Explicit sinusoidal phase comparison frequency. Blank leaves phase unknown; delay/skew still available.')
+        timing_box.Add(self.timing_frequency,0,wx.RIGHT,12)
+        timing_box.Add(wx.StaticText(self,label='Reference pair group (optional)'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
+        self.timing_reference=wx.TextCtrl(self);self.timing_reference.SetToolTip('Blank uses the first valid pair alphabetically for lane mean-delay comparisons.')
+        timing_box.Add(self.timing_reference,1);root.Add(timing_box,0,wx.EXPAND|wx.ALL,10)
+        self.timing_frequency.Bind(wx.EVT_TEXT,self.invalidate);self.timing_reference.Bind(wx.EVT_TEXT,self.invalidate)
         self.routes=wx.grid.Grid(self);self.routes.CreateGrid(0,5)
         for i,(label,width) in enumerate([('Reviewed route',390),('Role',90),('Group',110),('Length mm',110),('Delay ns',110)]):self.routes.SetColLabelValue(i,label);self.routes.SetColSize(i,self.FromDIP(width))
         self.routes.SetRowLabelSize(self.FromDIP(35))
@@ -50,6 +58,14 @@ class ProtocolPanel(wx.Panel):
         check_box.Add(self.check_detail,0,wx.EXPAND|wx.TOP,6);check_page.SetSizer(check_box)
         self.checks.Bind(wx.EVT_LIST_ITEM_SELECTED,self.select_check)
         self.book.AddPage(check_page,'Check results')
+        pair_page=wx.Panel(self.book);pair_box=wx.BoxSizer(wx.VERTICAL)
+        self.pair_results=wx.ListCtrl(pair_page,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        for i,(label,width) in enumerate([('Pair',110),('Evidence',110),('P ns',95),('N ns',95),('N - P ps',110),('Phase deg',110),('Lane skew ps',120),('Lane phase deg',120)]):self.pair_results.InsertColumn(i,label,width=self.FromDIP(width))
+        self.pair_results.Bind(wx.EVT_LIST_ITEM_SELECTED,self.select_pair)
+        pair_box.Add(self.pair_results,1,wx.EXPAND)
+        self.pair_detail=wx.TextCtrl(pair_page,style=wx.TE_MULTILINE|wx.TE_READONLY,size=self.FromDIP((-1,90)))
+        pair_box.Add(self.pair_detail,0,wx.EXPAND|wx.TOP,6);pair_page.SetSizer(pair_box)
+        self.book.AddPage(pair_page,'Pair delay / phase')
         preview_page=wx.Panel(self.book);box=wx.BoxSizer(wx.VERTICAL);self.preview=preview_class(preview_page);box.Add(self.preview,1,wx.EXPAND)
         from .preview_kit import add_zoom_toolbar
         add_zoom_toolbar(preview_page,self.preview,box);preview_page.SetSizer(box);self.book.AddPage(preview_page,'Selected route')
@@ -72,7 +88,9 @@ class ProtocolPanel(wx.Panel):
         if self.digest!=self._digest():raise ValueError('The saved board changed. Reopen Quick SI and screen fresh paths before running or exporting this suite.')
 
     def invalidate(self,event=None):
-        self.result=None;self.export.Disable();self.checks.DeleteAllItems();self.check_detail.SetValue('Select a check to read its full evidence.')
+        self.result=None;self.export.Disable();self.checks.DeleteAllItems();
+        if hasattr(self,'pair_results'):self.pair_results.DeleteAllItems();self.pair_detail.SetValue('Assign P/N roles and groups, then run the suite. Phase needs an explicit frequency.')
+        self.check_detail.SetValue('Select a check to read its full evidence.')
         if hasattr(self,'status'):self.status.SetLabel('Selection or budgets changed. Run the suite again; stored routes remain reviewed snapshots.')
         if event:event.Skip()
 
@@ -119,6 +137,13 @@ class ProtocolPanel(wx.Panel):
         if len(key)>2 and key[0]=='route' and key[1].isdigit():
             row=int(key[1]);self.routes.SetGridCursor(row,0);self.routes.SelectRow(row);self.show_route(row)
 
+    def select_pair(self,event):
+        if self.result is None:return
+        pair=self.result['pair_timing']['pairs'][event.GetIndex()]
+        self.pair_detail.SetValue('; '.join(pair['evidence'])+'\n'+self.result['pair_timing']['conventions']+'\n'+self.result['pair_timing']['limitations'][0])
+        indices=pair['route_indices']
+        if indices:self.show_route(indices[0])
+
     def remove(self,event):
         row=self.routes.GetGridCursorRow()
         if not 0<=row<len(self.snapshots):return
@@ -134,9 +159,15 @@ class ProtocolPanel(wx.Panel):
             for row,snapshot in enumerate(self.snapshots):
                 report=copy.deepcopy(snapshot['report']);report.update(suite_role=self.routes.GetCellValue(row,1).strip(),suite_group=self.routes.GetCellValue(row,2).strip());paths.append(report)
             budgets={key:float(control.GetValue()) for key,control in self.budgets.items() if control.GetValue().strip()}
-            result=screen_suite(self.profiles[self.profile.GetSelection()]['id'],paths,budgets=budgets)
+            frequency=self.timing_frequency.GetValue().strip()
+            result=screen_suite(self.profiles[self.profile.GetSelection()]['id'],paths,budgets=budgets,
+                                timing_frequency_hz=float(frequency)*1e6 if frequency else None,
+                                timing_reference_group=self.timing_reference.GetValue().strip() or None)
             result.update(paths=paths,board=str(self.source) if self.source else None,board_sha256=self.digest)
             self.result=result
+            for pair in result['pair_timing']['pairs']:
+                index=self.pair_results.InsertItem(self.pair_results.GetItemCount(),pair['group'])
+                for col,key in enumerate(('status','p_delay_ns','n_delay_ns','signed_skew_ps','phase_mismatch_deg','lane_skew_ps','lane_phase_deg'),1):self.pair_results.SetItem(index,col,text(pair[key]))
             for check in result['checks']:
                 key=check.get('id','');parts=key.split('.')
                 label=('Path '+str(int(parts[1])+1)+' · '+parts[2].replace('_',' ') if len(parts)==3 and parts[0]=='route' and parts[1].isdigit() else key.replace('_',' ').replace('.',' · '))

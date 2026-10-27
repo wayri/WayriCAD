@@ -28,6 +28,13 @@ def export(report, output):
     payload = json.dumps(report, ensure_ascii=True).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
     template = Path(__file__).with_name('report_template.html').read_text(encoding='utf-8')
     scene = Path(__file__).with_name('report_scene.js').read_text(encoding='utf-8')
-    replacements={'TITLE':html.escape(report['project_name']),'REPORT_DATA':payload,'SCENE_SCRIPT':scene}
-    html_path.write_text(re.sub(r'__(TITLE|REPORT_DATA|SCENE_SCRIPT)__',lambda m:replacements[m[1]],template), encoding='utf-8')
+    rows=[]
+    for finding in report['findings']:
+        measured='' if finding.get('measured') is None else str(finding['measured'])+' '+str(finding.get('unit',''))
+        values=(', '.join(finding['refs'])+' / '+finding['rule'],
+                finding['summary']+' ('+str(finding.get('evidence',''))+') '+measured,
+                str(finding.get('action',''))+(' WAIVED: '+str(finding['waiver']) if finding.get('waiver') else ''))
+        rows.append('<tr>'+''.join('<td>'+html.escape(str(value))+'</td>' for value in values)+'</tr>')
+    replacements={'TITLE':html.escape(report['project_name']),'REPORT_DATA':payload,'SCENE_SCRIPT':scene,'FINDING_ROWS':''.join(rows)}
+    html_path.write_text(re.sub(r'__(TITLE|REPORT_DATA|SCENE_SCRIPT|FINDING_ROWS)__',lambda m:replacements[m[1]],template), encoding='utf-8')
     return dict(html=str(html_path.resolve()), json=str(json_path.resolve()), csv=str(csv_path.resolve()))

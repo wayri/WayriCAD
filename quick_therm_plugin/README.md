@@ -391,3 +391,7 @@ Use Ctrl/Shift in the component table to select several parts. Plot highlights u
 ## Resizing the workspace
 
 Drag the divider beside Setup or Details to resize that sidebar. Both sidebars can be hidden from the board toolbar and reopened; the board fills the released space. Setup sections scroll independently, and the Results and Probes tables retain horizontal scrolling for all columns.
+
+## HTML and PDF reports
+
+Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.

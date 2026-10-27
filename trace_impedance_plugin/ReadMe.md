@@ -218,3 +218,7 @@ Use **Find…** beside net, start/end terminal, saved filled-island, reference-l
 ## Resizing the workspace
 
 Drag the horizontal divider under the path settings to give reference/pair options more room or enlarge the analysis views. The settings scroll independently when expanded. Help is available beside the workflow header.
+
+## HTML and PDF reports
+
+Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.

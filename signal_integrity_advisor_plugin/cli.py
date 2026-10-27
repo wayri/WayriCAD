@@ -68,6 +68,8 @@ def parser():
     suite.add_argument('--reports',nargs='+',type=Path,required=True,help='Quick SI report files; set suite_role and suite_group for pairs/buses.')
     suite.add_argument('--output',type=Path)
     suite.add_argument('--html',type=Path)
+    suite.add_argument('--timing-frequency-mhz',type=float,help='Explicit phase comparison frequency in MHz; never inferred from the protocol rate.')
+    suite.add_argument('--timing-reference-group',help='Explicit reference pair group for mean-delay lane matching; default first valid group alphabetically.')
     protocol_budgets(suite)
     study=subs.add_parser('study',help='Run explicit multi-net route screens and optional directed local crosstalk pairs.')
     study.add_argument('board',type=Path)
@@ -209,7 +211,9 @@ def execute(args):
             if not isinstance(report,dict):raise ValueError('Each input must be one Quick SI JSON report object.')
             paths.append(report)
         budgets={key:getattr(args,key) for key in ('max_delay_ns','max_skew_ps','max_impedance_error_percent','max_delay_to_rise_ratio') if getattr(args,key) is not None}
-        report=screen_suite(args.profile,paths,budgets=budgets)
+        report=screen_suite(args.profile,paths,budgets=budgets,
+                            timing_frequency_hz=None if args.timing_frequency_mhz is None else args.timing_frequency_mhz*1e6,
+                            timing_reference_group=args.timing_reference_group)
         report['paths']=paths
         if args.output:write_report(args.output,json.dumps(report,indent=2,allow_nan=False)+'\n',__file__,'.json')
         if args.html:write_report(args.html,html_report(report),__file__,'.html')

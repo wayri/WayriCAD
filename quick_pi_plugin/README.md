@@ -1224,3 +1224,41 @@ the map quantity. Column headers sort numerically, unknowns stay last, and
 column widths can be dragged. Narrow panes scroll horizontally to retain readable
 numbers and units. Full values are also available in row tooltips. These captures
 use computed synthetic data and contain no private board or local folder paths.
+
+## HTML and PDF reports
+
+Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.
+
+## Differential voltage probes
+
+In **Inspect → Probe**, choose **Set probe A**, then click solved sheet copper.
+The next click sets B; A is orange and B is blue. The readout is signed
+**V(A) - V(B)** in volts and millivolts. **Clear A/B** returns to single-point
+inspection. In an all-layer projection, choose each point's physical layer.
+
+![Native differential probe inspector](help-differential-probe.png)
+
+This native capture uses the analytical 10 × 1 mm, 35 µm copper strip at 1 V / 2 A.
+It demonstrates the interface, not a measured PCB. The two screen-click locations
+are sampled in the solved strip; small coordinate rounding follows native pixels.
+
+Probes evaluate the P1 finite-element nodal potential with barycentric weights
+inside the containing triangle. They do not use the smoothed display or a nearest
+cell average. Empty space, drill holes, unknown nodes and unsupported full-volume
+or barrel-interior points stay unknown. A and B must belong to one solved case's
+common potential reference; independent net/case gauges cannot be subtracted.
+Locations are cached for fast current updates; their voltages are re-evaluated.
+
+The HTML report includes the saved A/B coordinates, potentials and signed difference.
+Up to 20,000 triangles it also has a click-to-pick A/B map with layer selection.
+Larger reports keep the native and CLI probes, saved numerical table and existing
+field maps without duplicating another large interactive mesh payload.
+
+```text
+python -m quick_pi_plugin.cli --probe-result result.json --probe-a 0 2 0.5 --probe-b 0 8 0.5 --output differential.json
+```
+
+Layer identifiers are the saved mesh layer IDs, not layer positions. The CLI checks
+saved source fingerprints and the result-file hash; no new simulation or board write
+occurs. An unresolved probe returns status UNKNOWN and exit code 3. This is a DC
+potential difference, not a transient/AC differential waveform.

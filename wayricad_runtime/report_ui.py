@@ -15,13 +15,50 @@ REPORT_CSS = '''
 .report-summary{display:block!important;padding:18px;border:1px solid #bacdd5;border-left:5px solid #267c86;background:#f2f8fa;border-radius:8px;margin:18px 0}.report-summary dl{display:grid;grid-template-columns:minmax(110px,1fr) minmax(180px,3fr);gap:7px 18px}.report-summary dt{font-weight:600}.report-summary dd{margin:0;overflow-wrap:anywhere}.report-nav{display:flex;flex-wrap:wrap;gap:8px;padding:12px;border:1px solid #cbd8df;margin:16px 0}.report-nav a{padding:4px 8px;color:#155c85}.report-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}.report-tools input{font:inherit;padding:8px;min-width:200px;flex:1;max-width:500px}.report-tools button,.report-sort{font:inherit;cursor:pointer;border:1px solid #b9cbd4;background:#fff;padding:6px 10px;border-radius:4px;color:#203744}.report-sort{border:0;background:transparent;font-weight:600;padding:0;text-align:left}.report-table{max-width:100%;overflow:auto;border:1px solid #d4e0e5;border-radius:6px;margin:10px 0 22px}.report-table table{width:100%;border-collapse:collapse}.report-table th,.report-table td{padding:9px 11px;border-bottom:1px solid #d4e0e5;text-align:left;vertical-align:top;overflow-wrap:anywhere}.report-table th{background:#eef4f7;position:sticky;top:0}.report-table td{max-width:40rem}.report-print{font:inherit;padding:8px 13px;cursor:pointer}.report-note{color:#536976}.report-evidence pre{max-height:26rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}body{box-sizing:border-box;width:auto;max-width:1500px;margin:30px auto;padding:0 20px;font:15px/1.6 system-ui,sans-serif;color:#203744;background:#fff}body>section{min-width:0}img,svg{max-width:100%}h2,h3{scroll-margin-top:15px}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #42aab5;outline-offset:2px}@media(max-width:650px){.report-summary dl{grid-template-columns:1fr}.report-summary dd{margin-bottom:10px}body>section{grid-template-columns:minmax(0,1fr)!important}}@media print{body{max-width:none;margin:0;padding:0;color:#000}.report-tools,.report-nav,.report-print{display:none!important}.report-table,.report-evidence pre{overflow:visible;max-height:none;border:0}.report-table tr[hidden]{display:table-row!important}.report-table th{position:static}details>*{display:block!important}details>summary{font-weight:bold}figure,.report-summary,tr{break-inside:avoid}.report-sort{padding:0;border:0}a{color:#000}img{max-height:230mm;object-fit:contain}}
 '''
 
+# Shared document layout. Viewer-specific canvas styles remain local.
+REPORT_CSS += """
+:root{--report-ink:#203744;--report-accent:#156b76;--report-line:#d9e3e8}
+body{max-width:1320px;padding:24px 32px;margin:0 auto;line-height:1.55}
+h1{font-size:clamp(25px,3vw,36px);line-height:1.2;letter-spacing:-.025em;margin:18px 0 24px}
+h2{font-size:22px;line-height:1.3;margin:32px 0 14px;padding-bottom:9px;border-bottom:1px solid var(--report-line)}
+h3{font-size:18px;margin:24px 0 10px}p,li{max-width:100ch}
+.report-summary h2{margin:0 0 10px;border:0;font-size:19px;padding:0}
+.report-summary{padding:22px 26px;background:#f4f9fa;box-shadow:none}
+.report-summary dl{margin-bottom:0}.report-summary p{margin:8px 0}
+.report-nav{border:0;border-bottom:1px solid var(--report-line);padding:12px 0 18px;gap:6px 12px}
+.report-nav a{font-size:13px;text-decoration:none;border-radius:4px;background:#eff5f7}
+.report-nav a:hover{text-decoration:underline;background:#e0edf0}
+.report-table tbody tr:nth-child(even){background:#f7fafb}
+.report-table tbody tr:hover{background:#eaf5f5}
+.report-table th{font-size:13px;font-weight:650}.report-table td{font-variant-numeric:tabular-nums}
+.report-tools{font-size:13px}.report-tools label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.report-tools input{min-width:160px;max-width:360px;padding:6px 9px}
+.report-print{background:#156b76;color:white;border:0;border-radius:5px;padding:9px 16px}
+.report-evidence{border:1px solid var(--report-line);border-radius:6px;padding:10px 14px;margin:16px 0}
+.report-evidence summary{cursor:pointer;font-size:13px;font-weight:600}
+pre{font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+figure{margin:20px 0}figcaption{font-size:13px;color:#536976;margin:8px 0}
+@media(max-width:700px){body{padding:16px}.report-summary{padding:16px}.report-tools input{width:100%}}
+@page{size:A4;margin:16mm 14mm}
+@media print{
+ body{font:10pt/1.45 sans-serif;padding:0}h1{font-size:23pt}h2{font-size:15pt;break-after:avoid}
+ h3,thead{break-after:avoid}thead{display:table-header-group}tfoot{display:table-footer-group}
+ .report-summary{box-shadow:none;border:1px solid #aaa;padding:12px}
+ .report-table table{font-size:8pt;table-layout:auto}.report-table th,.report-table td{padding:5px}
+ .report-table td{max-width:none}a{text-decoration:none}canvas{max-width:100%;break-inside:avoid}
+ .report-raw-evidence pre{display:none!important}.report-download{display:none!important}
+}
+"""
+
+
 REPORT_JS = r'''
 (()=>{
- const headings=[...document.querySelectorAll('h2')];
- const nav=document.querySelector('.report-nav');
- headings.forEach((heading,index)=>{if(!heading.id)heading.id='report-section-'+index;if(nav){const link=document.createElement('a');link.href='#'+heading.id;link.textContent=heading.textContent;link.addEventListener('click',()=>{let parent=heading.parentElement;while(parent){if(parent.tagName==='DETAILS')parent.open=true;parent=parent.parentElement;}});nav.append(link);}});
+ document.querySelectorAll('.report-nav a').forEach(link=>link.addEventListener('click',()=>{
+   let parent=document.getElementById(decodeURIComponent(link.hash.slice(1)));
+   while(parent){if(parent.tagName==='DETAILS')parent.open=true;parent=parent.parentElement;}
+ }));
  document.querySelector('.report-print')?.addEventListener('click',()=>window.print());
- let printedDetails=[];window.addEventListener('beforeprint',()=>{printedDetails=[...document.querySelectorAll('details:not([open])')];printedDetails.forEach(item=>item.open=true);});window.addEventListener('afterprint',()=>{printedDetails.forEach(item=>item.open=false);printedDetails=[];});
+ let printedDetails=[];window.addEventListener('beforeprint',()=>{printedDetails=[...document.querySelectorAll('details:not([open]):not(.report-raw-evidence)')];printedDetails.forEach(item=>item.open=true);});window.addEventListener('afterprint',()=>{printedDetails.forEach(item=>item.open=false);printedDetails=[];});
  document.querySelectorAll('table').forEach((table,index)=>{
    // Interactive board tables keep their own cross-selection, sorting and filters.
    if(table.closest('#thermal-context,.thermal-interactive,.interactive-plot,.interactive-analysis')||table.dataset.reportReview==='skip')return;
@@ -45,16 +82,51 @@ REPORT_JS = r'''
 
 def enhance_report(document, *, status='UNKNOWN', summary=(), notice='', provenance=None):
     """Add offline review controls without replacing existing plot/probe scripts."""
+    if 'data-wayricad-report="2"' in document:
+        return document
+    # Raw arrays and request objects are optional evidence, never the default
+    # presentation. Keep their exact text accessible in a closed disclosure.
+    from html import unescape
+    def raw_evidence(match):
+        content=unescape(re.sub(r'<[^>]+>','',match[1])).strip()
+        if not content.startswith(('{','[')):return match[0]
+        try:json.loads(content)
+        except (ValueError,RecursionError):return match[0]
+        return ('<details class="report-evidence report-raw-evidence"><summary>Structured evidence (JSON)</summary>'
+                '<p>Optional detailed inputs and arrays. Use the exported JSON for complete numerical evidence.</p>'+match[0]+'</details>')
+    chunks=re.split(r'(<script\b[^>]*>.*?</script\s*>|<style\b[^>]*>.*?</style\s*>)',document,flags=re.I|re.S)
+    document=''.join(chunk if index%2 else re.sub(r'<pre\b[^>]*>(.*?)</pre\s*>',raw_evidence,chunk,flags=re.I|re.S) for index,chunk in enumerate(chunks))
     rows=''.join('<dt>'+escape(str(label))+'</dt><dd>'+escape(str(value if value is not None else 'Unknown'))+'</dd>' for label,value in summary)
-    panel=('<section class="report-summary" aria-label="Analysis summary"><h2>Analysis summary</h2>'
+    panel=('<section class="report-summary" data-wayricad-report="2" aria-label="Analysis summary"><h2>Analysis summary</h2>'
            '<p><strong>Status: '+escape(str(status))+'</strong></p><p>'+escape(notice)+'</p><dl>'+rows+'</dl></section>'
            '<button class="report-print" type="button">Print / save as PDF</button>'
-           '<nav class="report-nav" aria-label="Report sections"></nav>')
+           '<nav class="report-nav" aria-label="Report sections">__REPORT_CONTENTS__</nav>')
     if provenance:
-        panel+='<details class="report-evidence"><summary>Source fingerprints and model provenance</summary><pre>'+escape(json.dumps(provenance,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details>'
+        panel+='<details class="report-evidence report-raw-evidence"><summary>Source fingerprints and model provenance</summary><pre>'+escape(json.dumps(provenance,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details>'
     marker=re.search(r'</h1\s*>',document,re.I)
     if marker:document=document[:marker.end()]+panel+document[marker.end():]
     else:document=panel+document
+    # Contents and section anchors exist without JavaScript, including in PDFs.
+    from html.parser import HTMLParser
+    class HeadingText(HTMLParser):
+        def __init__(self):super().__init__();self.parts=[]
+        def handle_data(self,data):self.parts.append(data)
+    contents=[]
+    used=set(re.findall(r'\bid=["\x27]([^"\x27]+)',document,re.I))
+    def anchor(match):
+        attributes,body=match.group(1),match.group(2)
+        existing=re.search(r'\bid=["\x27]([^"\x27]+)',attributes,re.I)
+        if existing:identifier=existing[1]
+        else:
+            identifier='report-section-'+str(len(contents))
+            while identifier in used:identifier+='-section'
+            used.add(identifier);attributes+=' id="'+identifier+'"'
+        text=HeadingText();text.feed(body)
+        contents.append('<a href="#'+escape(identifier,quote=True)+'">'+escape(''.join(text.parts))+'</a>')
+        return '<h2'+attributes+'>'+body+'</h2>'
+    chunks=re.split(r'(<script\b[^>]*>.*?</script\s*>|<style\b[^>]*>.*?</style\s*>)',document,flags=re.I|re.S)
+    document=''.join(chunk if index%2 else re.sub(r'<h2\b([^>]*)>(.*?)</h2\s*>',anchor,chunk,flags=re.I|re.S) for index,chunk in enumerate(chunks))
+    document=document.replace('__REPORT_CONTENTS__',''.join(contents),1)
     style='<style>'+REPORT_CSS+'</style>'
     if '<meta name="viewport"' not in document:style='<meta name="viewport" content="width=device-width,initial-scale=1">'+style
     marker=re.search(r'</head\s*>',document,re.I)
@@ -132,6 +204,9 @@ def publish_report(path, document, bundle):
     output,evidence=report_paths(path)
     payload=json.dumps(bundle,indent=2,ensure_ascii=False,allow_nan=False)+'\n'
     sources=checked_sources(bundle)
+    link='<p class="report-download"><a href="'+escape(evidence.name,quote=True)+'">Download complete JSON evidence</a></p>'
+    marker=re.search(r'</h1\s*>',document,re.I)
+    if marker:document=document[:marker.end()]+link+document[marker.end():]
     publish_documents({evidence:payload,output:document},sources=sources)
     return {'html':str(output),'json':str(evidence)}
 
@@ -140,9 +215,15 @@ def checked_sources(bundle):
     """Check declared source hashes and return files protected from publication."""
     sources=[]
     for scope in (bundle,bundle.get('request',{})):
-        sources.extend(scope[key] for key in ('board_path','source_path','study_input_path') if scope.get(key))
-        for key,digest in (('board_path','source_sha256'),('study_input_path','study_file_sha256')):
-            expected=scope.get(digest) or bundle.get(digest)
-            if scope.get(key) and expected:
-                if hashlib.sha256(Path(scope[key]).read_bytes()).hexdigest()!=expected:raise ValueError('Source or input study changed; rerun before exporting.')
+        if not isinstance(scope,dict):continue
+        for key,digests in (('board_path',('source_sha256','board_sha256')),
+                            ('board',('board_sha256',)),
+                            ('source_path',('source_sha256',)),
+                            ('study_input_path',('study_file_sha256',))):
+            path=scope.get(key)
+            if not isinstance(path,(str,os.PathLike)) or not path:continue
+            sources.append(path)
+            expected=next((scope.get(digest) or bundle.get(digest) for digest in digests if scope.get(digest) or bundle.get(digest)),None)
+            if expected and hashlib.sha256(Path(path).read_bytes()).hexdigest()!=expected:
+                raise ValueError('Source or input study changed; rerun before exporting.')
     return sources

@@ -188,3 +188,7 @@ Violating parts appear red with an excess label such as `J1 top +0.8 mm`. Select
 The collision broad phase adapts its sweep axis to the assembly. Nearest-part search uses a bounds tree and cached surface distances; full collision screening still examines every potentially colliding pair. Native and offline picking use triangle indices, and viewers reuse GPU buffers. These optimizations preserve exact geometry checks rather than substituting bounding-box gaps for solid distances.
 
 An 80-solid FreeCAD fixture produced the same nearest distances as an all-pairs reference, using 64 exact queries instead of 3,160 on the spaced arrangement. This is a nearest-search benchmark, not a whole-board runtime guarantee; dense collision analysis and expensive imported geometry can still take longer. See [inspection validation](../docs/audits/MECHANICAL_INSPECTION.md) for analytical, native and package checks.
+
+## HTML and PDF reports
+
+Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.

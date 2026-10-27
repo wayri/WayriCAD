@@ -708,6 +708,42 @@ board runs can preview but cannot write to an unrelated editor.
 Editing PCB footprint values does not update schematic values; a later
 Update PCB from Schematic can overwrite them. Use a reviewed project convention.
 
+## Differential pair delay and phase matching
+
+In **Protocol suites**, add independently screened P and N paths, assign the
+same **Group**, and run the suite. The **Pair delay / phase** tab shows both leg
+delays, signed N-minus-P skew and lane mean-delay differences. Select a pair to
+inspect its evidence and navigate to its first route in **Selected route**.
+
+Enter **Pair phase frequency (MHz)** for phase comparisons; leave it blank for
+delay/skew only. Frequency is not inferred from a protocol data rate. Optionally
+enter a reference group for lane matching; the default is the first valid pair
+alphabetically. Exported HTML includes a printable static table and all evidence.
+
+```text
+wayricad-si suite --profile lvds --reports lane0-p.json lane0-n.json lane1-p.json lane1-n.json --timing-frequency-mhz 100 --timing-reference-group lane0 --html pair-timing.html --output pair-timing.json
+```
+
+Reports need explicit `suite_role` (`P`/`N`) and `suite_group`, distinct routed
+nets, resolved delays with provenance and matching saved board fingerprints.
+Missing or incompatible evidence stays unknown. The CLI compares recorded
+revisions without reopening boards. Review transmitter-to-receiver direction.
+
+The calculations are `skew = tN - tP`, `phase = -360 f (tN - tP)` and
+`mean delay = (tP + tN)/2`, using seconds and Hz for phase. Positive skew means N
+arrives later. Phase excludes the intended 180-degree differential inversion;
+both unwrapped degrees and the wrapped interval [-180, 180) are reported. Lane
+skew compares mean leg delays to the reference pair, not receiver crossing time.
+For example, 125 ps N-minus-P skew gives -45 degrees at 1 GHz.
+
+These are independent route propagation estimates, including declared effective
+permittivity assumptions when used. They are not coupled/dispersive phase or
+mixed-mode simulations. Package and device delay, launch/via discontinuities,
+common-mode conversion and protocol compliance are not inferred. Use explicit
+skew budgets and corroborate with a coupled channel model or measurements where
+needed. The phase relation follows the pure delay transfer function
+`H(f) = exp(-j 2 pi f t)`; it does not establish actual channel bandwidth.
+
 ## Protocol suites
 
 The **Protocol suites** tab offers 33 interface profiles: I2C, SPI, UART, CAN, I2S/TDM, GPIO, SDIO, USB, LVDS, SerDes, PCI/PCIe, DDR, Ethernet and M.2 PCIe/SATA. Screen paths in Quick SI, add their snapshots, assign P/N or clock/data roles with explicit groups, then review timing, impedance and reference evidence against your budgets. Missing coupled impedance and via-transition models stay unknown. Optional eye-rate checks do not establish compliance.
@@ -918,3 +954,7 @@ In Quick SI, drag the vertical divider to widen the input form, or the horizonta
 Actual three-trace synthetic native worker result, not an electromagnetic field
 plot. No numbers or pixels were altered. The map, gap/overlap readouts and
 search/selection use the same result exported to HTML/JSON.
+
+## HTML and PDF reports
+
+Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.

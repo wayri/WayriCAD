@@ -21,6 +21,9 @@ This guide covers the current 24-plugin source catalogue. Released packages and 
 
 Help is also shipped inside each package as `help.html`, with local images. Use the tool's Help action where available, or open that file from the installed package folder. These pages do not need a documentation website or CDN. CLI help is available through each command's `--help`.
 
+[HTML and PDF reports](../wayricad_runtime/REPORTS.md) explains browser print,
+direct PDF export, and common HTML/PDF reports from any tool's saved JSON results.
+
 **Runtime boundary:** KiCad 10 is the primary target. Some geometry and saved-file engines need KiCad 10 native Python even though the toolbar action uses IPC. KiCad 11-only operation remains unsupported. Exact mechanical solids additionally need FreeCAD. Read [runtime setup](../wayricad_runtime/RUNTIME_SETUP.md) and [compatibility](COMPATIBILITY.md) before deploying to another workstation.
 
 ## Plain-English coordination
