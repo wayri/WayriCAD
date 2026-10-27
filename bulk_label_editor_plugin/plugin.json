@@ -2,7 +2,7 @@
   "$schema": "https://go.kicad.org/api/schemas/v1",
   "identifier": "com.github.wayri.wayricad.bulk-label-editor",
   "name": "WayriCAD Bulk Label Editor",
-  "description": "Bulk edit labels, PCB text, footprint references, values, and fields with wildcard or regex rules.",
+  "description": "Browse PCB nets and connections; preview bulk text, reference and field edits.",
   "runtime": {
     "type": "python",
     "min_version": "3.10.0"
@@ -11,7 +11,7 @@
     {
       "identifier": "open",
       "name": "WayriCAD Bulk Label Editor",
-      "description": "Bulk edit labels, PCB text, footprint references, values, and fields with wildcard or regex rules.",
+      "description": "Browse PCB nets and connections; preview bulk text, reference and field edits.",
       "show-button": true,
       "scopes": [
         "pcb"

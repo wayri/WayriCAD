@@ -181,7 +181,14 @@ class SuiteUxTests(unittest.TestCase):
                 launcher = (ROOT / package / launcher_module).read_text(encoding="utf-8")
                 frame = (ROOT / package / frame_module).read_text(encoding="utf-8")
                 self.assertIn(f"class {dialog_name}(wx.Frame)", frame)
-                self.assertNotIn("ShowModal()", launcher)
+                # The tool must remain modeless; file/export pickers may be modal.
+                import ast
+                run_methods = [node for node in ast.walk(ast.parse(launcher))
+                               if isinstance(node, ast.FunctionDef) and node.name == "Run"]
+                self.assertTrue(run_methods)
+                for method in run_methods:
+                    self.assertFalse(any(isinstance(node, ast.Attribute) and node.attr == "ShowModal"
+                                         for node in ast.walk(method)))
 
     def test_pin_extractor_preserves_selection_filters_and_visual_preview(self) -> None:
         source = (ROOT / "extract_pins_plugin" / "plugin_dialog_v2.py").read_text(encoding="utf-8")

@@ -78,3 +78,7 @@ include docs/audits/RELEASE_3.6.35.md
 recursive-include layer_counter_plugin/tests *.py
 include docs/RELEASE_NOTES_3.6.36.md
 include docs/audits/RELEASE_3.6.36.md
+
+recursive-include bulk_label_editor_plugin/tests *.py
+include docs/RELEASE_NOTES_3.6.37.md
+include docs/audits/RELEASE_3.6.37.md

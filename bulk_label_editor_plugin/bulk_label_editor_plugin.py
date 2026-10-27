@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import fnmatch
+import csv
 import os
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Callable, List
 
@@ -15,6 +16,53 @@ from .help_utils import open_help
 from .selection_utils import select_items
 from .guided_ui import add_workflow
 from wayricad_runtime.ui import more_button
+from wayricad_runtime.ipc import read_snapshot, selected_footprints
+from wayricad_runtime.net_filter import SearchIndex
+from .rules import compile_rule, validate_changes, apply_reviewed
+from .inventory import collect_nets
+from wayricad_runtime.geometry import item_id
+
+
+class ResultTable(wx.ListCtrl):
+    """Virtual rows keep large net lists responsive without thousands of inserts."""
+
+    def __init__(self, parent, columns):
+        super().__init__(parent, style=wx.LC_REPORT | wx.LC_VIRTUAL)
+        self.rows = []
+        for index, (label, width) in enumerate(columns):
+            self.InsertColumn(index, label, width=width)
+        self.Bind(wx.EVT_LIST_COL_CLICK, self.on_sort)
+        self.sort_column = None
+        self.descending = False
+
+    def OnGetItemText(self, item, column):
+        return str(self.rows[item][column]) if item < len(self.rows) else ""
+
+    def set_rows(self, rows):
+        self.ClearSelection()
+        self.rows = list(rows)
+        self.SetItemCount(len(self.rows))
+        if self.sort_column is not None:
+            self.rows.sort(key=lambda row: row[self.sort_column], reverse=self.descending)
+        self.Refresh()
+
+    def ClearSelection(self):
+        for index in self.selected_indices():
+            self.SetItemState(index, 0, wx.LIST_STATE_SELECTED)
+
+    def selected_indices(self):
+        result = []
+        index = self.GetFirstSelected()
+        while index >= 0:
+            result.append(index)
+            index = self.GetNextSelected(index)
+        return result
+
+    def on_sort(self, event):
+        column = event.GetColumn()
+        self.descending = column == self.sort_column and not self.descending
+        self.sort_column = column
+        self.set_rows(self.rows)
 
 
 @dataclass
@@ -25,6 +73,15 @@ class EditableItem:
     setter: Callable[[str], None]
     board_item: Any = None
     getter: Any = None
+    owner_id: str = ""
+
+
+class EditOperation(list):
+    """Retain the original duplicate counts so Undo can restore unannotated parts."""
+
+    def __init__(self, changes, items):
+        super().__init__(changes)
+        self.original_references = Counter(item.current.casefold() for item in items if item.kind == "Reference")
 
 
 class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
@@ -37,7 +94,7 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.36"
+        self.version = "3.6.37"
 
     def Run(self) -> None:
         try:
@@ -68,6 +125,9 @@ class BulkLabelEditorFrame(wx.Frame):
         self.reviewed_changes = []
         self.undo_stack: List[List[tuple[EditableItem, str, str]]] = []
         self.redo_stack: List[List[tuple[EditableItem, str, str]]] = []
+        self.net_rows = []
+        self.net_error = ""
+        self._preview_timer = None
         self._build_ui()
         self.refresh_items()
         self.Centre()
@@ -88,9 +148,9 @@ class BulkLabelEditorFrame(wx.Frame):
         options.Add(options_heading, 0, wx.LEFT | wx.RIGHT | wx.TOP, 4)
         row1 = wx.BoxSizer(wx.HORIZONTAL)
         self.match_text = wx.TextCtrl(panel)
-        self.match_text.SetValue("CH*_MAIN")
+        self.match_text.SetHint("Find text; * and ? wildcards, or enable Regex")
         self.replacement_text = wx.TextCtrl(panel)
-        self.replacement_text.SetValue("CH*_REDUNDANT")
+        self.replacement_text.SetHint("Replacement; wildcard captures or regex groups")
         row1.Add(wx.StaticText(panel, label="Find:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         row1.Add(self.match_text, 1, wx.EXPAND | wx.ALL, 4)
         row1.Add(wx.StaticText(panel, label="Replace:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
@@ -104,9 +164,13 @@ class BulkLabelEditorFrame(wx.Frame):
         self.edit_values = wx.CheckBox(panel, label="Values")
         self.edit_fields = wx.CheckBox(panel, label="Fields")
         self.edit_text = wx.CheckBox(panel, label="PCB text")
-        for cb in (self.edit_refs, self.edit_values, self.edit_fields, self.edit_text):
+        for cb in (self.edit_refs, self.edit_text):
             cb.SetValue(True)
-        for control in (self.use_regex, self.case_sensitive, self.edit_refs, self.edit_values, self.edit_fields, self.edit_text):
+        self.edit_refs.SetToolTip("PCB references only; does not reannotate the schematic.")
+        self.edit_fields.SetToolTip("Custom footprint fields; built-in reference/value fields are separate.")
+        self.edit_text.SetToolTip("Board and footprint graphical text, excluding pads and shapes.")
+        self.only_selected = wx.CheckBox(panel, label="Selected footprints only")
+        for control in (self.use_regex, self.case_sensitive, self.edit_refs, self.edit_values, self.edit_fields, self.edit_text, self.only_selected):
             control.Bind(wx.EVT_CHECKBOX, self.on_preview)
             row2.Add(control, 0, wx.ALL, 4)
         options.Add(row2, 0, wx.EXPAND)
@@ -115,8 +179,12 @@ class BulkLabelEditorFrame(wx.Frame):
         preview_btn = wx.Button(panel, label="Preview")
         preview_btn.Bind(wx.EVT_BUTTON, self.on_preview)
         preview_btn.SetDefault()
-        apply_btn = wx.Button(panel, label="Apply")
+        apply_btn = self.apply_button = wx.Button(panel, label="Apply all changes")
         apply_btn.Bind(wx.EVT_BUTTON, self.on_apply)
+        apply_btn.Enable(False)
+        selected_btn = self.apply_selected_button = wx.Button(panel, label="Apply selected rows")
+        selected_btn.Bind(wx.EVT_BUTTON, lambda event: self.on_apply(event, selected_only=True))
+        selected_btn.Enable(False)
         self.undo_button = wx.Button(panel, label="Undo")
         self.undo_button.Bind(wx.EVT_BUTTON, self.on_undo)
         self.undo_button.Enable(False)
@@ -125,32 +193,90 @@ class BulkLabelEditorFrame(wx.Frame):
         self.redo_button.Bind(wx.EVT_BUTTON, self.on_redo)
         self.redo_button.Enable(False)
         self.redo_button.SetToolTip("Reapply every field restored by Undo Last Apply.")
-        more = more_button(panel, [("Refresh from PCB", self.on_refresh), ("Select row on PCB", self.on_select_preview)])
-        for btn in (preview_btn, apply_btn, self.undo_button, self.redo_button, more):
+        more = more_button(panel, [("Refresh from PCB", self.on_refresh), ("Select rows on PCB", self.on_select_preview), ("Export visible table as CSV", self.on_export)])
+        for btn in (preview_btn, apply_btn, selected_btn, self.undo_button, self.redo_button, more):
             row3.Add(btn, 0, wx.ALL, 4)
         root.Add(options, 0, wx.EXPAND | wx.ALL, 6)
 
-        self.preview = wx.ListCtrl(panel, style=wx.LC_REPORT)
+        self.notebook = wx.Notebook(panel)
+        self.preview = ResultTable(self.notebook, [("Kind", 120), ("Owner", 140), ("Current", 290), ("New (blank = unchanged)", 290)])
         self.preview.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_select_preview)
-        for idx, (label, width) in enumerate([("Kind", 120), ("Owner", 120), ("Current", 260), ("New", 260)]):
-            self.preview.InsertColumn(idx, label, width=width)
-        root.Add(self.preview, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
+        self.preview.Bind(wx.EVT_LIST_ITEM_SELECTED, lambda _e: self.apply_selected_button.Enable(bool(self.reviewed_changes)))
+        self.notebook.AddPage(self.preview, "Text and rename preview")
+        net_panel = wx.Panel(self.notebook)
+        net_layout = wx.BoxSizer(wx.VERTICAL)
+        self.net_search = wx.SearchCtrl(net_panel)
+        self.net_search.SetDescriptiveText("Search nets: substring, * wildcard, ? character, ~fuzzy")
+        self.net_search.SetToolTip("Bus brackets are literal. Select multiple rows with Ctrl/Shift; double-click to locate copper.")
+        self.net_search.Bind(wx.EVT_TEXT, self.on_net_search)
+        net_layout.Add(self.net_search, 0, wx.EXPAND | wx.ALL, 6)
+        self.net_table = ResultTable(net_panel, [("Net", 340), ("Pads", 65), ("Tracks", 70), ("Vias", 65), ("Zones", 65), ("Connections (ref.pad)", 380)])
+        self.net_table.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_select_nets)
+        net_layout.Add(self.net_table, 1, wx.EXPAND | wx.ALL, 6)
+        net_buttons = wx.WrapSizer(wx.HORIZONTAL)
+        for title, handler in (("Reload PCB and nets", self.on_refresh), ("Select nets on PCB", self.on_select_nets), ("Copy net names", self.on_copy_nets), ("Export CSV", self.on_export)):
+            button = wx.Button(net_panel, label=title)
+            button.Bind(wx.EVT_BUTTON, handler)
+            net_buttons.Add(button, 0, wx.ALL, 4)
+        net_layout.Add(net_buttons, 0, wx.EXPAND)
+        self.net_status = wx.StaticText(net_panel, label="Loading nets…")
+        net_layout.Add(self.net_status, 0, wx.EXPAND | wx.ALL, 6)
+        note = wx.StaticText(net_panel, label="Nets are electrical connectivity, not PCB text. Rename labels in Schematic Editor, then Update PCB from Schematic.")
+        note.Wrap(900)
+        net_layout.Add(note, 0, wx.EXPAND | wx.ALL, 6)
+        net_panel.SetSizer(net_layout)
+        self.notebook.AddPage(net_panel, "Nets and connections")
+        root.Add(self.notebook, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
 
         root.Add(row3, 0, wx.ALIGN_RIGHT | wx.ALL, 6)
         self.status = wx.StaticText(panel, label="Ready.")
         root.Add(self.status, 0, wx.EXPAND | wx.ALL, 6)
         panel.SetSizer(root)
-        self.match_text.Bind(wx.EVT_TEXT, self.on_preview)
-        self.replacement_text.Bind(wx.EVT_TEXT, self.on_preview)
+        self._panel, self._root = panel, root
+        self._options, self._actions = options, row3
+        self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page)
+        self.match_text.Bind(wx.EVT_TEXT, self.schedule_preview)
+        self.replacement_text.Bind(wx.EVT_TEXT, self.schedule_preview)
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+
+    def on_page(self, event):
+        editing = self.notebook.GetSelection() == 0
+        self._root.Show(self._options, editing)
+        self._root.Show(self._actions, editing)
+        self._panel.Layout()
+        event.Skip()
+
+    def on_close(self, event):
+        if self._preview_timer is not None:
+            self._preview_timer.Stop()
+        event.Skip()
+
+    def schedule_preview(self, _event):
+        self.reviewed_changes = []
+        self.apply_button.Enable(False)
+        self.apply_selected_button.Enable(False)
+        if self._preview_timer is not None:
+            self._preview_timer.Stop()
+        self._preview_timer = wx.CallLater(180, self.on_preview, None)
 
     def refresh_items(self) -> None:
         self.items = []
-        for fp in self.board.GetFootprints():
-            ref = fp.GetReference()
-            self.items.append(EditableItem("Reference", ref, ref, fp.SetReference, fp, fp.GetReference))
-            self.items.append(EditableItem("Value", ref, fp.GetValue(), fp.SetValue, fp, fp.GetValue))
-            self._add_fields(fp, ref)
-        self._add_board_text()
+        with read_snapshot(self.board):
+            for fp in self.board.GetFootprints():
+                ref = fp.GetReference()
+                self.items.append(EditableItem("Reference", ref, ref, fp.SetReference, fp, fp.GetReference, item_id(fp)))
+                self.items.append(EditableItem("Value", ref, fp.GetValue(), fp.SetValue, fp, fp.GetValue, item_id(fp)))
+                self._add_fields(fp, ref)
+                self._add_footprint_text(fp, ref)
+            self._add_board_text()
+            try:
+                self.net_rows = collect_nets(self.board)
+                self.net_error = ""
+            except Exception as exc:
+                self.net_rows = []
+                self.net_error = "Net loading failed: " + str(exc)
+        self.net_index = SearchIndex([row.name for row in self.net_rows])
+        self.on_net_search(None)
         self.on_preview(None)
 
     def _add_fields(self, fp: Any, owner: str) -> None:
@@ -163,14 +289,38 @@ class BulkLabelEditorFrame(wx.Frame):
             return
         for field in fields:
             name = field.GetName()
+            if name.casefold() in {"reference", "value"}:
+                continue
             self.items.append(
                 EditableItem(
                     f"Field:{name}",
                     owner,
                     field.GetText(),
-                    field.SetText, fp, field.GetText,
+                    field.SetText, fp, field.GetText, item_id(fp),
                 )
             )
+
+    def _add_footprint_text(self, fp, owner):
+        for item in getattr(fp, "GraphicalItems", lambda: ())():
+            self._append_text(item, owner, item_id(fp))
+        raw = getattr(fp, "raw", None)
+        if raw is not None:
+            # IPC keeps instance text separate from definition graphics. Fields
+            # have their own scope and must not appear a second time as text.
+            for text in getattr(raw, "texts_and_fields", ()):
+                if not isinstance(text, fp.board.types.Field):
+                    self._append_text(fp.board.wrap(text, fp), owner, item_id(fp))
+
+    def _append_text(self, drawing, owner, owner_id=""):
+        get_text = getattr(drawing, "GetText", None)
+        set_text = getattr(drawing, "SetText", None)
+        if callable(get_text) and callable(set_text):
+            try:
+                text = get_text()
+            except (AttributeError, TypeError):
+                return
+            if isinstance(text, str):
+                self.items.append(EditableItem("PCB text", owner, text, set_text, drawing, get_text, owner_id))
 
     def _add_board_text(self) -> None:
         drawings = getattr(self.board, "GetDrawings", lambda: [])()
@@ -184,42 +334,60 @@ class BulkLabelEditorFrame(wx.Frame):
                     text = get_text()
                 except (AttributeError, TypeError):
                     continue
-                self.items.append(EditableItem(type(drawing).__name__, "Board", text, set_text, drawing, get_text))
+                if isinstance(text, str):
+                    self.items.append(EditableItem("PCB text", "Board", text, set_text, drawing, get_text))
 
     def on_refresh(self, _event: Any) -> None:
         self.refresh_items()
 
     def on_preview(self, _event: Any) -> None:
-        self.preview.DeleteAllItems()
         self.matches = []
         self.reviewed_changes = []
+        rows = []
+        self.apply_button.Enable(False)
+        self.apply_selected_button.Enable(False)
         try:
+            pattern = self.match_text.GetValue()
+            replace = compile_rule(pattern, self.replacement_text.GetValue(),
+                                   regex=self.use_regex.GetValue(),
+                                   case_sensitive=self.case_sensitive.GetValue()) if pattern else None
             for item in self._filtered_items():
-                new_value = self._replace(item.current)
-                if new_value == item.current:
+                new_value = replace(item.current) if replace else item.current
+                if replace and new_value == item.current:
                     continue
                 self.matches.append(item)
-                self.reviewed_changes.append((item, item.current, new_value))
-                idx = self.preview.InsertItem(self.preview.GetItemCount(), item.kind)
-                self.preview.SetItem(idx, 1, item.owner)
-                self.preview.SetItem(idx, 2, item.current)
-                self.preview.SetItem(idx, 3, new_value)
-        except re.error as exc:
+                if new_value != item.current:
+                    self.reviewed_changes.append((item, item.current, new_value))
+                rows.append((item.kind, item.owner, item.current,
+                             new_value if new_value != item.current else "", len(self.matches) - 1))
+            validate_changes(self.items, self.reviewed_changes)
+        except (re.error, ValueError) as exc:
             self.matches = []
             self.reviewed_changes = []
-            self.status.SetLabel(f"Regex error: {exc}")
+            self.preview.set_rows([])
+            self.status.SetLabel(f"Rule needs attention: {exc}")
             return
-        self.status.SetLabel(f"{len(self.matches)} matching editable items.")
-        if self.matches:
+        self.preview.set_rows(rows)
+        self.apply_button.Enable(bool(self.reviewed_changes))
+        self.status.SetLabel(f"{len(self.items)} text fields loaded; {len(self.matches)} visible; {len(self.reviewed_changes)} changes. "
+                             + ("Enter a find rule to rename; nets are in the next tab." if not pattern else "Review before applying."))
+        if self.reviewed_changes:
             self.workflow.set_step(2, "Inspect the rows, double-click uncertain items to locate them, then Apply.")
         else:
-            self.workflow.set_step(0, "Adjust the find rule or enabled object scopes until Preview finds the intended rows.")
+            self.workflow.set_step(0, "Browse loaded text and nets, then choose a scope and enter your rename rule.")
 
-    def on_apply(self, _event: Any) -> None:
-        if not self.matches:
+    def on_apply(self, _event: Any, selected_only=False) -> None:
+        if not self.reviewed_changes:
             wx.MessageBox("No matching items to apply.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
         operation = list(self.reviewed_changes)
+        if selected_only:
+            selected = {id(self.matches[self.preview.rows[index][-1]]) for index in self.preview.selected_indices()}
+            operation = [row for row in operation if id(row[0]) in selected]
+            if not operation:
+                self.status.SetLabel("Select changed preview rows first (Ctrl/Shift for multiple rows).")
+                return
+        operation = EditOperation(operation, self.items)
         if not self._apply_operation(operation):
             return
         count = len(operation)
@@ -235,13 +403,64 @@ class BulkLabelEditorFrame(wx.Frame):
         self.workflow.set_step(3, "Save the PCB and review the result; Undo remains available in this window.")
 
     def on_select_preview(self, event: Any) -> None:
-        index = event.GetIndex() if hasattr(event, "GetIndex") else self.preview.GetFirstSelected()
-        if index < 0 or index >= len(self.matches):
+        indices = self.preview.selected_indices()
+        if not indices:
             wx.MessageBox("Select a preview row first.", "WayriCAD", wx.OK | wx.ICON_INFORMATION)
             return
-        item = self.matches[index]
-        select_items(self.board, [item.board_item])
-        self.status.SetLabel(f"Selected {item.owner} on the PCB.")
+        items = [self.matches[self.preview.rows[index][-1]] for index in indices]
+        try:
+            select_items(self.board, [item.board_item for item in items])
+            self.status.SetLabel(f"Selected {len(items)} text owners on the PCB.")
+        except Exception as exc:
+            self.status.SetLabel("Selection failed: " + str(exc))
+
+    def on_net_search(self, _event):
+        indices = self.net_index.match(self.net_search.GetValue())
+        self.net_table.set_rows([(row.name, row.pads, row.tracks, row.vias, row.zones,
+                                  ", ".join(row.terminals)) for row in (self.net_rows[index] for index in indices)])
+        self.net_status.SetLabel(self.net_error or f"{len(self.net_rows)} named nets loaded; {len(indices)} shown. Nets are read-only.")
+
+    def on_select_nets(self, _event):
+        names = [self.net_table.rows[index][0] for index in self.net_table.selected_indices()]
+        if not names:
+            self.net_status.SetLabel("Select one or more net rows first (Ctrl/Shift).")
+            return
+        try:
+            from .inventory import select_nets
+            count = select_nets(self.board, names)
+            self.net_status.SetLabel(f"Selected {count} copper items on {len(names)} nets; other items deselected.")
+        except Exception as exc:
+            self.net_status.SetLabel("Selection failed: " + str(exc))
+
+    def on_copy_nets(self, _event):
+        names = [self.net_table.rows[index][0] for index in self.net_table.selected_indices()]
+        if names and wx.TheClipboard.Open():
+            try:
+                wx.TheClipboard.SetData(wx.TextDataObject("\n".join(names)))
+            finally:
+                wx.TheClipboard.Close()
+
+    def on_export(self, _event):
+        nets = self.notebook.GetSelection() == 1
+        table = self.net_table if nets else self.preview
+        columns = ("Net", "Pads", "Tracks", "Vias", "Zones", "Connections") if nets else ("Kind", "Owner", "Current", "New")
+        with wx.FileDialog(self, "Export visible table", wildcard="CSV files (*.csv)|*.csv", style=wx.FD_SAVE) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            try:
+                # Do not overwrite a project or an earlier report.
+                if not dialog.GetPath().lower().endswith(".csv"):
+                    raise ValueError("Choose a new .csv file.")
+                with open(dialog.GetPath(), "x", newline="", encoding="utf-8-sig") as stream:
+                    writer = csv.writer(stream)
+                    writer.writerow(columns)
+                    for row in table.rows:
+                        # Neutralize spreadsheet formulas without changing source data.
+                        writer.writerow([("'" + str(value)) if str(value).startswith(("=", "+", "-", "@")) else value
+                                         for value in row[:len(columns)]])
+                self.status.SetLabel(f"Exported {len(table.rows)} rows.")
+            except (OSError, ValueError) as exc:
+                self.status.SetLabel("Export failed: " + str(exc))
 
     def on_undo(self, _event: Any) -> None:
         if not self.undo_stack:
@@ -275,10 +494,8 @@ class BulkLabelEditorFrame(wx.Frame):
 
     def _apply_operation(self, operation, reverse=False):
         try:
-            from .wayricad_runtime.fields import apply_fields
             from .wayricad_runtime.geometry import item_id
         except ImportError:
-            from wayricad_runtime.fields import apply_fields
             from wayricad_runtime.geometry import item_id
         try:
             # Resolve against a fresh board read, including IPC wrappers. Deleted or externally
@@ -289,11 +506,23 @@ class BulkLabelEditorFrame(wx.Frame):
             if any((identifier,kind) not in current for identifier,kind,_,_ in requested):
                 raise ValueError("A reviewed object was removed. Refresh and review again.")
             operation[:] = [(current[identifier,kind],old,new) for identifier,kind,old,new in requested]
-            apply_fields(operation, reverse=reverse)
+            validate_changes(self.items, [(item, new, old) if reverse else (item, old, new)
+                                          for item, old, new in operation],
+                             allowed_reference_counts=getattr(operation, "original_references", None) if reverse else None)
+            apply_reviewed(operation, reverse=reverse, verify=self._verify_results)
         except Exception as exc:
             wx.MessageBox(str(exc), "Edit stopped", wx.OK | wx.ICON_ERROR)
             return False
         return True
+
+    def _verify_results(self, expected):
+        # Refresh issues new editor reads after setters, rather than checking
+        # only the local IPC protos that a setter has just mutated.
+        wanted = [(item_id(item.board_item), item.kind, value) for item, value in expected]
+        self.refresh_items()
+        current = {(item_id(item.board_item), item.kind): item.current for item in self.items}
+        if any(current.get((identifier, kind)) != value for identifier, kind, value in wanted):
+            raise RuntimeError("KiCad readback differs from the reviewed text. Batch rolled back where possible.")
 
     def _filtered_items(self) -> List[EditableItem]:
         enabled = []
@@ -304,34 +533,18 @@ class BulkLabelEditorFrame(wx.Frame):
         if self.edit_fields.GetValue():
             enabled.append("Field:")
         if self.edit_text.GetValue():
-            enabled.extend(["PCB_TEXT", "PCB_FIELD", "PCB_SHAPE", "TEXTE_PCB"])
-        return [item for item in self.items if any(item.kind.startswith(prefix) for prefix in enabled)]
+            enabled.append("PCB text")
+        selected = {item_id(fp) for fp in selected_footprints(self.board)} if self.only_selected.GetValue() else None
+        return [item for item in self.items if any(item.kind.startswith(prefix) for prefix in enabled)
+                and (selected is None or item.owner_id in selected)]
 
     def _replace(self, text: str) -> str:
         pattern = self.match_text.GetValue()
         replacement = self.replacement_text.GetValue()
-        flags = 0 if self.case_sensitive.GetValue() else re.IGNORECASE
-        if self.use_regex.GetValue():
-            return re.sub(pattern, replacement, text, flags=flags)
-        return wildcard_replace(text, pattern, replacement, case_sensitive=self.case_sensitive.GetValue())
+        return compile_rule(pattern, replacement, regex=self.use_regex.GetValue(),
+                            case_sensitive=self.case_sensitive.GetValue())(text)
 
 
 def wildcard_replace(text: str, pattern: str, replacement: str, case_sensitive: bool = False) -> str:
     """Replace wildcard matches while expanding '*' captures in replacement."""
-    regex = "^" + "".join("(.*)" if ch == "*" else "(.{1})" if ch == "?" else re.escape(ch) for ch in pattern) + "$"
-    flags = 0 if case_sensitive else re.IGNORECASE
-    match = re.match(regex, text, flags=flags)
-    if not match:
-        return text
-    star_values = []
-    group_idx = 1
-    for ch in pattern:
-        if ch == "*":
-            star_values.append(match.group(group_idx))
-            group_idx += 1
-        elif ch == "?":
-            group_idx += 1
-    result = replacement
-    for value in star_values:
-        result = result.replace("*", value, 1)
-    return result
+    return compile_rule(pattern, replacement, case_sensitive=case_sensitive)(text)

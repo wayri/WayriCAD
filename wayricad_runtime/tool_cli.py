@@ -35,6 +35,7 @@ COMMANDS={
 }
 for _name in CONTROL_METHODS:
     COMMANDS[_name]=('wayricad_runtime.control_cli',(_name,), 'Headless JSON parameters: '+CONTROL_METHODS[_name]+'; GUI write operations are separate')
+COMMANDS['bulk-label-editor']=('bulk_label_editor_plugin.cli',(), 'Saved-board net inventory/search and data-only rename preview; GUI writes are separate')
 ALIASES={'coordinator':'assistant','analytics':'bom-studio','quick-si':'signal-integrity','rlc':'trace-impedance','silkscreen':'silkscreen-label-placer','constraint-studio':'protocol-constraints','fusion':'project-fusion'}
 
 

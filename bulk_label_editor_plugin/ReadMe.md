@@ -1,116 +1,111 @@
 # WayriCAD Bulk Label Editor
 
-<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Bulk Label Editor icon">
+<img src="resources/icon-96.png" width="96" height="96" alt="Bulk Label Editor icon">
+
+Browse PCB text and nets, preview bulk text changes, and apply the rows you reviewed.
 
 | Start here | Link |
 |---|---|
-| Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
-| First use | [Getting started](#workflow) |
+| Install or update | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation](../docs/INSTALLATION.md) |
+| First use | [Workflow](#workflow) |
 | Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
-| Command line | `wayricad tools run bulk-label-editor -- --help` |
+| CLI | [Saved-board inventory and rename preview](#command-line) |
 
-CLI scope: Data-only rename preview; reviewed writes remain in the GUI. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
+## Interface
 
-## Capabilities
+![Earlier native text-review window](help-workflow.png)
 
-- Renames PCB text, footprint references, values, and supported fields in bulk.
-- Matches names with wildcard `*` and `?` patterns or regular expressions.
-- Uses regex capture groups for structured replacements.
-- Builds a sortable, reviewed preview before any write.
-- Records old and new values in operation history and supports KiCad undo where available.
+Earlier native text-review capture, retained for reference. Version 3.6.37 adds
+the net browser and the revised controls described below.
 
-## Limitations
+## What it can do
 
-- Operates on PCB-exposed data and does not write schematic labels.
-- Renames do not update firmware, external documentation, test scripts, or manufacturing systems.
-- Changing a rule or object scope invalidates the preview and requires regeneration.
-- Cross-session undo depends on the edited KiCad object and editor state.
+| Workspace | Features |
+|---|---|
+| Text and rename preview | References, values, custom footprint fields, board text and footprint graphical text; wildcard or regex replacement; selected-footprint scope; apply all changes or selected rows; session Undo/Redo. |
+| Nets and connections | Fresh PCB net names, pad/track/via/zone counts and `reference.pad` connections; substring, wildcard or fuzzy search; multiple-net selection on the PCB; copy names and export CSV. |
+| Review tables | Sort columns, select multiple rows with Ctrl/Shift, locate objects by double-click, and export the visible table. Virtual rows keep large inventories inexpensive to display. |
 
-## Overview
-
-Bulk Label Editor performs reviewed, pattern-based renaming of supported KiCad
-objects. It is intended for channel, interface, rail, connector, and repeated
-hierarchy naming changes where manual editing would be slow or inconsistent.
-
-## Native interface
-
-![Native WayriCAD Bulk Label Editor window](help-workflow.png)
-
-Native rename preview workspace before applying a rule. Review every proposed change before Apply.
-
-The installed package includes [offline help](help.html) with its workflow and limitations.
+**Electrical nets are read-only.** A PCB drawing string and an electrical net name
+are different objects. Rename electrical labels in Schematic Editor, then use
+**Update PCB from Schematic**. This release does not add a schematic-editor action
+or silently reassign copper to other nets. PCB reference/value edits also do not
+update the schematic automatically.
 
 ## Workflow
 
-1. Save the board before beginning.
-2. Select the object scopes to inspect.
-3. Enter a wildcard or regular-expression find rule and replacement.
-4. Build the preview and sort or inspect every proposed change.
-5. Apply exactly the reviewed preview.
-6. Use the operation history or KiCad undo if the result is not intended.
+1. Open the intended PCB and launch Bulk Label Editor. The initial blank find
+   rule shows loaded references and PCB text; no rename is armed.
+2. Use **Nets and connections** to find a net and see its pads and copper counts.
+   Search `clock`, `BUS[*]`, or `~clok` for literal, wildcard or fuzzy matching.
+   Select several rows and choose **Select nets on PCB** to replace the previous
+   selection with only those nets' pads, tracks, vias and zones. Unused named
+   nets remain listed even when they have no selectable copper.
+3. For text changes, open **Text and rename preview**. Enable only the intended
+   scopes. Values and custom fields start disabled. **Selected footprints only**
+   excludes free board text and unselected footprints, using UUID ownership even
+   if two footprints currently have the same reference.
+4. Enter the find/replacement rule. Inspect old/new text. Blank **New** cells in
+   the initial inventory mean unchanged. Changing the rule disables Apply until
+   its new preview is ready.
+5. Choose **Apply all changes**, or Ctrl/Shift-select changed rows and choose
+   **Apply selected rows**. Use this window's **Undo** or **Redo** for the batch.
+   Check the PCB, then save in KiCad. Closing the window discards session history.
 
-The plugin can work with PCB text, footprint references, footprint values, and
-supported fields. Wildcards support "*" for any sequence and "?" for one
-character. Regex mode supports capture groups for structured replacements.
+| Mode | Find | Replace | Example |
+|---|---|---|---|
+| Wildcard, whole field | `CH*_MAIN` | `PORT*_MAIN` | `CH12_MAIN` → `PORT12_MAIN` |
+| Wildcard character | `CH?_MAIN` | `CH?_REDUNDANT` | `CH2_MAIN` → `CH2_REDUNDANT` |
+| Regex | `^R(\d+)$` | `X\1` | `R12` → `X12` |
 
-Example:
+Wildcard bus brackets are literal. Replacement `*` and `?` tokens consume
+captures of the same kind, in order. Captured text is inserted once rather than
+being reinterpreted as another wildcard. Regex uses Python replacement syntax.
 
-~~~text
-Find:    CH*_MAIN
-Replace: CH*_REDUNDANT
-~~~
+## Safeguards and troubleshooting
 
-The preview table is the authoritative write set. Changing the rule or object
-scope invalidates the previous preview and requires regeneration.
+- Refresh reads the originating PCB again, including nets created after launch.
+  Failed net reads show an error rather than a misleading zero-net result.
+- Preview never writes. Apply resolves identities afresh, checks old text and
+  rejects deleted objects, blank text and new duplicate references.
+- Writes are checked with fresh reads. A failure triggers recovery; incomplete
+  recovery is reported explicitly. This window's batch history is separate from
+  persistent editor/project history.
+- Shapes are excluded from the text inventory. Built-in reference/value fields
+  are not duplicated under the custom-fields scope.
+- If a table is empty, inspect the scope, search and status count; clear Find to
+  browse text, or clear the net search to browse every named net. Use **Reload
+  PCB and nets** after editing in KiCad.
+- CSV export creates a new file and neutralizes spreadsheet formula prefixes.
+  Neither table export nor the CLI changes the source PCB.
 
-## Safeguards
+## Command line
 
-- No write occurs while building a preview.
-- Apply operates only on rows present in the current preview.
-- Empty rules and invalid regular expressions are rejected.
-- Operation history records the old and new values.
-- The plugin does not silently rename schematic labels through the PCB API.
+Use KiCad's Python for saved-board reading, or select that interpreter through
+`wayricad tools run --python`. The suite CLI requires the wheel installation;
+an independently installed PCM package also supports its own `cli.py` module.
 
-## Detailed limitations
+```text
+wayricad tools run bulk-label-editor -- nets C:/Projects/Example/board.kicad_pcb --search "BUS[*]" --output nets.json
+wayricad tools run bulk-label-editor -- preview CH1_MAIN CH2_MAIN --find "CH*_MAIN" --replace "PORT*_MAIN"
+```
 
-Renaming PCB references, values, or text does not automatically update firmware,
-external documentation, test scripts, schematic source data, or manufacturing
-systems. Re-run ERC/DRC and project-specific consistency checks after applying a
-large rename.
+`nets` returns JSON counts, terminals, member UUIDs and the saved source hash.
+`preview` needs no KiCad bindings. Existing `--request params.json --output
+result.json` data-only automation remains supported. GUI write operations are
+not implied by CLI preview. Existing output files are preserved.
 
-## Troubleshooting
+## Methods, references and validation
 
-- **No matches:** confirm the enabled object scopes and whether wildcard or
-  regex mode is active.
-- **Unexpected preview:** narrow the rule before applying; use anchors in regex
-  mode when matching the entire value.
-- **PCB and schematic differ:** perform the source-of-truth rename in the
-  schematic and update the PCB where appropriate.
-- **Undo unavailable after restart:** restore from KiCad/project backups or the
-  recorded operation details; persistent cross-session undo depends on the
-  edited KiCad object and editor state.
-
-See help.html for the current window and integrated walkthrough.
-
-## Implemented methods and evidence
-
-The implementation is deliberately a reviewed text transformation, not a netlist
-or schematic refactoring engine.
-
-| Method | Inputs and result | Implementation and applicability |
-|---|---|---|
-| Editable-object inventory | The saved/open PCB's footprint references, values, supported footprint fields and board text become typed `EditableItem` rows. | [`refresh_items`, `_add_fields` and `_add_board_text`](bulk_label_editor_plugin.py) use the PCB API exposed by the originating editor. Shapes that merely expose a text-like method but cannot return text are skipped. |
-| Wildcard matching | A whole-field pattern with `*` and `?` produces one candidate replacement; matching is case-insensitive unless requested. | [`wildcard_replace`](bulk_label_editor_plugin.py) escapes literal characters, turns wildcards into capture groups and substitutes captured `*` groups from left to right. It is not shell glob expansion and `?` captures are not available in the replacement. |
-| Regular-expression matching | Python regular-expression search/replacement, including capture-group replacements, produces candidate values. | [`_replace`](bulk_label_editor_plugin.py) delegates to `re.sub`; invalid expressions stop preview. Regex behavior is the Python language behavior, not KiCad rule-expression syntax. |
-| Reviewed write set | Preview stores `(object, old value, new value)` rows; Apply writes only that set. | [`on_preview` and `_apply_operation`](bulk_label_editor_plugin.py) re-resolve object identities against a fresh board read before writing. A removed object stops Apply. Changes made to a still-present field after preview are protected by the shared [`apply_fields`](../wayricad_runtime/fields.py) stale-value checks. |
-| Session undo/redo and cross-navigation | Successful batches are retained as reversible old/new tuples; a preview row can select its PCB object. | [`on_undo`, `on_redo`](bulk_label_editor_plugin.py) and [`selection_utils.py`](selection_utils.py) operate only in the current window/editor session. This history is not a persistent project transaction log. |
-
-There is currently no plugin-local automated test directory. The implementation
-is exercised through the suite's shared field-application and runtime tests, but
-that does not substitute for an installed-editor rename/undo check on the target
-KiCad version.
-
-### Technical background
-
-- [KiCad IPC API for add-on developers](https://dev-docs.kicad.org/en/apis-and-binding/ipc-api/for-addon-developers/) describes the editor-scoped API boundary used by installed plugins. It is a dependency/interface reference, not evidence that a particular rename is correct.
-- [Python regular-expression syntax](https://docs.python.org/3/library/re.html#regular-expression-syntax) defines regex mode. Wildcard mode is the project-specific transformation documented above.
+- [Net inventory](inventory.py) uses the originating PCB API and a bounded IPC
+  read scope; net names are queried afresh instead of trusting the startup cache.
+- [Rules and batch checks](rules.py) compile once per preview, validate the final
+  reference set, check stale values and recover failed batches. The UI rereads
+  edited fields from the board after writes and recovery.
+- [KiCad IPC API](https://dev-docs.kicad.org/en/apis-and-binding/ipc-api/for-addon-developers/)
+  defines the editor interface; [Python regex syntax](https://docs.python.org/3/library/re.html#regular-expression-syntax)
+  defines regex mode. These are interface references, not proof of live acceptance.
+- Portable tests cover inventory, refresh, read failures and rule/recovery cases.
+  Native tests in `tests/` exercise synthetic KiCad 10 boards and wx windows.
+  [Release validation](../docs/audits/RELEASE_3.6.37.md) distinguishes native saved-board,
+  controlled IPC-facade and packaged checks from connected editor transactions.

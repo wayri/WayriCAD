@@ -44,7 +44,7 @@ The commands below expose the existing headless workflows. They do **not** imply
 | Tool ID | Headless workflow | Detailed command help |
 |---|---|---|
 | `bom-studio` | Analytics Studio: fields, BOM, variants, analytics and pipelines | `wayricad tools run bom-studio -- --help` |
-| `bulk-label-editor` | Headless JSON parameters: bulk-label.preview; GUI write operations are separate | `wayricad tools run bulk-label-editor -- --help` |
+| `bulk-label-editor` | Saved-board net inventory/search and data-only rename preview; GUI writes are separate | `wayricad tools run bulk-label-editor -- --help` |
 | `assistant` | Local plain-English planning, reviewed execution and reports (testing) | `wayricad tools run assistant -- --help` |
 | `component-arranger` | Group, preview, validate and export placement | `wayricad tools run component-arranger -- --help` |
 | `copper-balancer` | Preview and export copper balance changes | `wayricad tools run copper-balancer -- --help` |

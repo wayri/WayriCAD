@@ -82,6 +82,7 @@ jobs:
           python -m unittest discover -s manufacturing_readiness_plugin/tests -v
       - name: Development-folder plugin regressions
         run: |
+          python -m unittest discover -s bulk_label_editor_plugin/tests -v
           python -m unittest discover -s copper_balancer_plugin/tests -v
           python -m unittest discover -s mechanical_check_plugin/tests -v
           python -m unittest discover -s silkscreen_label_plugin/tests -v
