@@ -53,3 +53,26 @@ and possible track/pad crossings still require designer/fabricator review.
 
 Earlier published versions remain unchanged. Candidate feed metadata is held
 until the release assets have been published and their hashes verified.
+
+## Publication
+
+Published [3.6.36](https://github.com/wayri/WayriCAD/releases/tag/v3.6.36)
+from `b01ec674ae4230dcd70a0e073e209a7bb13d556b`. All eight
+[exact-source CI jobs](https://github.com/wayri/WayriCAD/actions/runs/40455320912)
+passed, including Linux, Windows and macOS portable checks and PI references.
+
+All 24 PCM ZIPs pass schema, runtime/action, syntax, icon and hash validation.
+The independently extracted Layer Counter passed all 24 style plans, native
+GUI default orientation and CLI candidate save/reopen with L3/L4 mirrored. GUI
+and CLI were exercised in fresh processes; mixed application-lifetime harness
+attempts were not counted as successful installer acceptance.
+
+The wheel passed isolated CLI/report/mechanical smoke checks and excludes tests
+and bytecode. Its layer-counter modules match source. The source archive has
+1,344 tracked members matching the tested checkout. Three root version checks
+with 24 subtests and 32 Analytics packaging checks passed.
+
+All 31 assets were downloaded and compared to the local SHA-256 manifest before
+publication. Public Layer Counter and feed downloads were checked afterward;
+the PCM feed is promoted from those exact release metadata bytes. Existing
+release assets and tags were preserved. No local plugin installation was made.
