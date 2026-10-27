@@ -9,14 +9,9 @@
 **PCB design, analysis and project review in KiCad.** Choose from 24 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
 
-**New in 3.6.38:** Quick PI recommends same-net connector/IC pin groups,
-solves constant-power loads, and reviews parallel components in series paths.
-Transient, AC and PDN setup is easier, with fresh native screenshots and help.
-[Release notes](docs/RELEASE_NOTES_3.6.38.md).
-
-**In development — guided SI and thermal studies:** configure endpoint roles and
-line assumptions together, review heating in watts, and inspect exact transient
-samples. [Changes and validation](docs/RELEASE_NOTES_3.6.39.md).
+**New in 3.6.39:** guided SI path/response setup, easier thermal heating studies
+and power schedules in watts. Transient reports add selectable summaries and
+exact-sample probes. [Release notes](docs/RELEASE_NOTES_3.6.39.md).
 
 ## Start here
 
@@ -24,7 +19,7 @@ samples. [Changes and validation](docs/RELEASE_NOTES_3.6.39.md).
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.38](https://github.com/wayri/WayriCAD/releases/tag/v3.6.38) · [Release notes](docs/RELEASE_NOTES_3.6.38.md) |
+| Download or update | [Release 3.6.39](https://github.com/wayri/WayriCAD/releases/tag/v3.6.39) · [Release notes](docs/RELEASE_NOTES_3.6.39.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -394,7 +389,7 @@ Rendered synthetic example with explicit model/coverage status; not a passed boa
 
 ### [QuickTherm](quick_therm_plugin/README.md)
 
-**Guided heating study · development**
+**Guided heating study · 3.6.39**
 
 <a href="quick_therm_plugin/examples/quicktherm-heating-study.png"><img src="quick_therm_plugin/examples/quicktherm-heating-study.png" width="834" alt="QuickTherm source watts, cooling and transient timing review"></a>
 
@@ -470,7 +465,7 @@ Rendered synthetic example with explicit model/coverage status; not a passed boa
 
 ### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
 
-**Guided path and response · development**
+**Guided path and response · 3.6.39**
 
 <a href="signal_integrity_advisor_plugin/help-guided-setup.png"><img src="signal_integrity_advisor_plugin/help-guided-setup.png" width="794" alt="Quick SI guided source and receiver, explicit line assumptions and optional time response"></a>
 

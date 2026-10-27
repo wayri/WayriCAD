@@ -61,3 +61,7 @@ mechanical export smoke checks. New guided modules, report helpers and native
 images match source bytes. The wheel excludes tests and bytecode. Both promoted
 screenshots are opaque RGB with no embedded metadata. Final source documentation
 and all 24 candidate archive checks passed. No local installation was performed.
+
+Release preparation increments all packages carrying the updated shared runtime.
+This preserves package-version immutability for the rebuilt archives. The source
+commit used for publication must pass a fresh complete CI run after alignment.

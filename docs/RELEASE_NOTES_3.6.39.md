@@ -1,4 +1,4 @@
-# WayriCAD 3.6.39 — in development
+# WayriCAD 3.6.39
 
 Quick SI and QuickTherm gain guided studies similar to Quick PI.
 
