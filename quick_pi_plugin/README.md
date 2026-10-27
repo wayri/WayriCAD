@@ -54,7 +54,7 @@ control and converter dynamics remain outside this model.
 | Load consumes fixed power | Choose **Constant power · W**, or choose the power kind for an additional sink. | Solves P = Vload × I at the high-voltage DC operating point. Mixed current/power endpoints are supported in fixed-temperature 2.5D copper. Collapse/limits are reported; no converter control or source foldback is invented. [Math and limits](CONSTANT_POWER.md). |
 | Parts are parallel across one series stage | Open **Series path editor**, add the primary stage, then **Parallel parts**. | Finds two-pad parts across the exact saved net pair, including reversed pin order. Review each R/L model before checking it. Bare resistor values can be suggested from PCB values; unknown DCR and diode/capacitor behavior are not guessed. Highlight detected footprints on the originating PCB or see included branches in the result. |
 | Set up a load-step transient | **More → Transient load-step study**. | Engineering-unit source/path R/L and effective load C/ESR; advanced SI grid retained. Import/export JSON and recommend a timestep. [Transient guide](transient_setup_help.html). |
-| Run AC copper/ripple losses | **More → AC / SMPS copper study**; select a balanced loop preset and **Apply quick loop and run**. | Explicit straight cross-section/return geometry, DC and RMS ripple. Review skin/proximity, conservation and refinement. No automatic whole-PCB or converter model. [AC setup](ac_setup_help.html). |
+| Run AC copper/ripple losses | **More → AC / SMPS copper study**; select a balanced loop preset and click **Run AC / ripple losses**. Run uses the visible quick recipe. | Explicit straight cross-section/return geometry, DC and RMS ripple. Review skin/proximity, conservation and refinement. No automatic whole-PCB or converter model. [AC setup](ac_setup_help.html). |
 | Check a decoupling bank | **Decoupling → Lumped impedance screen**. | Explicit source R/L + capacitor-bank C/ESR/ESL, target impedance, resonance/antiresonance sampling, hover/click probes and CSV. Separate from the placement-proximity planner. [PDN model](decoupling/help.html). |
 
 The grouping recommendations are opt-in and are available for supported 2.5D
@@ -126,14 +126,35 @@ from saved-board decoupling placement and is not a complete board impedance proo
 
 ### AC loop setup and result
 
-![Native AC setup and explicit conductor table](help-ac-setup-3.6.38.png)
-![Computed AC loop current density and losses](help-ac-results-3.6.38.png)
+The pending 3.6.40 interface starts with a quick loop and a live outgoing/return
+preview. Enter dimensions, DC current and RMS ripple, then use the main **Run**
+button. Custom conductors, SMPS spectra and mesh settings start folded below.
+Switch to **Custom loop** to run those tables without replacing them with a recipe.
 
-The quick recipe is staged until Apply. The detailed conductor/harmonic table is
-the model used by the displayed solve. Geometry and RMS ripple are explicit;
-there is no automatically inferred whole-board/converter model.
+![Simple AC loop setup and live return preview](help-ac-setup-3.6.40.png)
 
+Results open with four headline quantities and a large harmonic-heating plot. Use **Inspect**
+to switch between copper/return, resistance/reactance and harmonic heating. Tables
+use kHz, mΩ and mW; drag the divider to give either the plot or table more space.
+One supplied frequency is shown as a discrete comparison, not a continuous sweep.
+
+![Computed AC harmonic heating and summary cards](help-ac-results-3.6.40.png)
+![Computed AC impedance at the supplied 100 kHz harmonic](help-ac-impedance-3.6.40.png)
+
+Genuine native captures of the unchanged illustrative 20 mm loop: two 2 mm ×
+0.07 mm copper sections, 0.73 mm surface gap, 5 A DC plus 1 A RMS at 100 kHz,
+20 °C. Total copper heating is 128.1256 mW; the ripple contribution is 4.97555 mW.
+Geometry is explicit; no PCB or converter was simulated automatically.
+
+<details><summary>Earlier 3.6.38 AC interface and capture provenance</summary>
+
+![Earlier AC setup and explicit conductor table](help-ac-setup-3.6.38.png)
+![Earlier computed AC current density and losses](help-ac-results-3.6.38.png)
+
+These earlier captures used a staged Apply workflow.
 [Capture provenance and assumptions](../docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
+
+</details>
 
 ## Start here
 

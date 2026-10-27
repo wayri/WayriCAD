@@ -188,6 +188,7 @@ class ACNativeWorkflowTests(unittest.TestCase):
         dialog = self.dialog(lambda request,cancel:execute(request));dialog.Show();dialog.Layout();dialog._run()
         self.wait_for(lambda:not dialog._busy)
         self.assertIsNotNone(dialog.result,dialog.status.GetLabel())
+        dialog.plot_view.SetSelection(0);dialog._chart_changed()
         self.assertGreater(len(dialog.figure.axes[0].collections),0)
         cell = dialog.result['ac']['cells'][0]
         dialog._hover(Namespace(inaxes=dialog.figure.axes[0],xdata=cell['x_mm'],ydata=cell['y_mm']))

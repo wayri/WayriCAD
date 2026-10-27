@@ -13,7 +13,7 @@ import wx.grid
 from matplotlib.figure import Figure
 
 from .ac_cli import load_study, parse_study, protect_outputs
-from .ac_report import draw, summary, write_report
+from .ac_report import draw, summary, write_report, engineering
 
 
 def initial_study():
@@ -42,80 +42,90 @@ class ACStudyDialog(wx.Dialog):
         self._cancel = threading.Event(); self._geometry_artists = []; self._focus = None
         self._cell_lookup = {};self._cell_left = [];self._cell_bottom = []
         root = wx.BoxSizer(wx.VERTICAL)
-        note = wx.StaticText(self, label='1  Define straight conductors and explicit returns.  '
-            '2  Enter DC and RMS ripple harmonics.  3  Run and review convergence.\n'
-            'Skin/proximity and Joule losses are solved at a fixed copper temperature. '
-            'This is an explicit cross-section model; saved-board geometry is not imported automatically.')
+        self._quick_dirty=False; self._preview_timer=None
+        Canvas, Toolbar = canvas_types; self._canvas_type=Canvas
+        note = wx.StaticText(self, label='Set the copper loop → add DC and ripple current → review copper heating and voltage drop.\n'
+            'Explicit straight-conductor cross-section; PCB routes are not imported. Copper temperature is fixed.')
         note.Wrap(1080); root.Add(note, 0, wx.EXPAND | wx.ALL, 10)
         self.book = wx.Notebook(self); setup = wx.ScrolledWindow(self.book)
         setup.SetScrollRate(10, 10); settings = wx.BoxSizer(wx.VERTICAL)
-        fields = wx.FlexGridSizer(cols=4, hgap=8, vgap=8)
-        fields.AddGrowableCol(1);fields.AddGrowableCol(3)
-        self.fields = {}
-        definitions = [('length_mm','Length (mm)'),('reference_voltage_v','DC rail voltage (V)'),
-                       ('dc_current_a','DC current (A)'),('temperature_c','Copper temperature (°C)'),
-                       ('mesh_step_mm','Maximum mesh step (mm)'),('air_padding_mm','Air padding (mm)'),
-                       ('max_cells','Cell budget'),('convergence_tolerance','Convergence tolerance (fraction)'),
-                       ('relative_permittivity','Permittivity for length check')]
-        for key, label in definitions:
-            fields.Add(wx.StaticText(setup, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
-            control = wx.TextCtrl(setup, value=str(self.model[key]), size=(110, -1))
-            control.SetToolTip(label+'. Values are explicit model inputs, not board measurements.')
-            self.fields[key] = control; fields.Add(control, 0, wx.EXPAND)
-            control.Bind(wx.EVT_TEXT, self._changed)
-        settings.Add(fields, 0, wx.EXPAND | wx.ALL, 10)
-        self.conductors = self._grid(setup, ['Conductor / return', 'Centre x (mm)', 'Centre y (mm)',
+        self.fields={}; self.input_buttons=[]
+        self.setup_mode=wx.Choice(setup,choices=['Quick loop · simple geometry and one ripple frequency','Custom loop · conductor table or SMPS spectrum'])
+        self.setup_mode.SetSelection(0);self.setup_mode.Bind(wx.EVT_CHOICE,self._mode_changed)
+        mode_row=wx.BoxSizer(wx.HORIZONTAL);mode_row.Add(self.setup_mode,1,wx.RIGHT,8);self.input_buttons.append(self.setup_mode)
+        for label,handler in [('Load study…',self._load),('Save inputs…',self._save)]:
+            button=wx.Button(setup,label=label);button.Bind(wx.EVT_BUTTON,handler);mode_row.Add(button,0,wx.RIGHT,6);self.input_buttons.append(button)
+        settings.Add(mode_row,0,wx.EXPAND|wx.ALL,10)
+        self._fields_grid(setup,settings,[('length_mm','Shared conductor length (mm)'),('reference_voltage_v','DC rail voltage (V)'),
+                         ('dc_current_a','DC load current (A)'),('temperature_c','Copper temperature (°C)')])
+        self._quick_controls(setup,settings)
+        self.advanced=wx.CollapsiblePane(setup,label='Custom conductors, SMPS waveform and solver settings',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+        self.advanced.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:(setup.Layout(),setup.FitInside()))
+        advanced=self.advanced.GetPane();details=wx.BoxSizer(wx.VERTICAL)
+        self.conductors = self._grid(advanced, ['Conductor / return', 'Centre x (mm)', 'Centre y (mm)',
                                              'Width (mm)', 'Thickness (mm)', 'Current ×'])
-        settings.Add(wx.StaticText(setup, label='Conductors: signed current multipliers must sum to zero. '
-                     'Use zero for an unpowered shield. Coordinates are cross-section centres.'),
-                     0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
-        settings.Add(self.conductors, 0, wx.EXPAND | wx.ALL, 10)
-        self.harmonics = self._grid(setup, ['Frequency (Hz)', 'Loop current RMS (A)'])
-        settings.Add(wx.StaticText(setup, label='Distinct harmonic frequencies: enter RMS current, '
-                     'not peak or peak-to-peak ripple. The same signed conductor multipliers apply to every harmonic.'),
-                     0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
-        settings.Add(self.harmonics, 0, wx.EXPAND | wx.ALL, 10)
-        actions = wx.WrapSizer(wx.HORIZONTAL)
-        self.input_buttons = []
-        for label, handler in [('Add conductor',lambda e:self._add(self.conductors)),
-                               ('Remove conductor',lambda e:self._remove(self.conductors)),
-                               ('Add harmonic',lambda e:self._add(self.harmonics)),
-                               ('Remove harmonic',lambda e:self._remove(self.harmonics)),
-                               ('Build SMPS waveform…',self._waveform),
-                               ('Load JSON…',self._load),('Save inputs…',self._save)]:
-            button = wx.Button(setup, label=label); button.Bind(wx.EVT_BUTTON, handler)
-            actions.Add(button, 0, wx.RIGHT, 6); self.input_buttons.append(button)
-        settings.Add(actions, 0, wx.ALL, 10)
-        self._quick_controls(setup, settings)
-        applicability = wx.StaticText(setup, label='HV/LV and high-current studies use the supplied voltage/current. '
-            'Results do not establish creepage, clearance, dielectric stress, switching-device loss, EMI, '
-            'converter regulation, magnetic-component loss or thermal equilibrium. '
-            'The mesh and outer boundary must pass convergence checks; failed checks remain explicit.')
-        applicability.Wrap(1030); settings.Add(applicability, 0, wx.EXPAND | wx.ALL, 10)
-        setup.SetSizer(settings); self.book.AddPage(setup, '1 · Define AC loop')
+        details.Add(wx.StaticText(advanced,label='Custom copper and return paths · signed current multipliers must sum to zero.'),0,wx.EXPAND|wx.ALL,8)
+        details.Add(self.conductors,0,wx.EXPAND|wx.ALL,8)
+        self.harmonics=self._grid(advanced,['Frequency (Hz)','Loop ripple RMS (A)'])
+        details.Add(wx.StaticText(advanced,label='Distinct RMS harmonics, not peak or peak-to-peak current.'),0,wx.EXPAND|wx.ALL,8)
+        details.Add(self.harmonics,0,wx.EXPAND|wx.ALL,8)
+        actions=wx.WrapSizer(wx.HORIZONTAL)
+        for label,handler in [('Add conductor',lambda e:self._add(self.conductors)),('Remove conductor',lambda e:self._remove(self.conductors)),
+                              ('Add harmonic',lambda e:self._add(self.harmonics)),('Remove harmonic',lambda e:self._remove(self.harmonics)),
+                              ('Build SMPS waveform…',self._waveform)]:
+            button=wx.Button(advanced,label=label);button.Bind(wx.EVT_BUTTON,handler);actions.Add(button,0,wx.RIGHT|wx.BOTTOM,6);self.input_buttons.append(button)
+        details.Add(actions,0,wx.ALL,8)
+        self._fields_grid(advanced,details,[('mesh_step_mm','Maximum mesh step (mm)'),('air_padding_mm','Air boundary padding (mm)'),
+                         ('max_cells','Maximum cells'),('convergence_tolerance','Convergence tolerance (fraction)'),
+                         ('relative_permittivity','Permittivity for length check')])
+        advanced.SetSizer(details);settings.Add(self.advanced,0,wx.EXPAND|wx.ALL,10)
+        applicability=wx.StaticText(setup,label='Copper loss is included. Converter regulation, switching-device losses, insulation safety and thermal equilibrium are outside this model. Review the solver checks after running.')
+        self.applicability=applicability;self._applicability_text=applicability.GetLabel()
+        applicability.Wrap(1030);settings.Add(applicability,0,wx.EXPAND|wx.ALL,10)
+        setup.SetSizer(settings);self.book.AddPage(setup,'1 · Set up loop')
+        self._quick_stacked=None;setup.Bind(wx.EVT_SIZE,self._setup_layout)
         results = wx.Panel(self.book); result_layout = wx.BoxSizer(wx.VERTICAL)
+        self.summary_values={};self.summary_notes={};cards=wx.WrapSizer(wx.HORIZONTAL)
+        for key,title in [('total_loss_w','Total copper heat'),('ac_loss_w','Ripple heating'),('ripple_voltage_rms_v','AC loop drop'),('total_current_rms_a','DC + ripple RMS')]:
+            panel=wx.Panel(results);panel.SetBackgroundColour('#eef5f7');box=wx.BoxSizer(wx.VERTICAL)
+            box.Add(wx.StaticText(panel,label=title),0,wx.ALL,8)
+            value=wx.StaticText(panel,label='—');font=value.GetFont().Bold();font.SetPointSize(max(14,font.GetPointSize()+4));value.SetFont(font);box.Add(value,0,wx.LEFT|wx.RIGHT,8)
+            hint=wx.StaticText(panel,label='Run a study');box.Add(hint,0,wx.ALL,8)
+            panel.SetMinSize((220,-1));panel.SetSizer(box);cards.Add(panel,0,wx.RIGHT|wx.BOTTOM,8)
+            self.summary_values[key]=value;self.summary_notes[key]=hint
+        result_layout.Add(cards,0,wx.EXPAND|wx.ALL,8)
         self.result_summary = wx.StaticText(results,label='No AC result yet.')
         result_layout.Add(self.result_summary,0,wx.EXPAND|wx.ALL,8)
+        chart_row=wx.BoxSizer(wx.HORIZONTAL)
+        chart_row.Add(wx.StaticText(results,label='Inspect'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        self.plot_view=wx.Choice(results,choices=['Copper and return path','Resistance and reactance','Heating by harmonic'])
+        self.plot_view.SetSelection(2);self.plot_view.Bind(wx.EVT_CHOICE,self._chart_changed)
+        chart_row.Add(self.plot_view,0,wx.RIGHT,12)
+        chart_row.Add(wx.StaticText(results,label='One large plot · select table rows or click the plot to inspect.'),0,wx.ALIGN_CENTER_VERTICAL)
+        result_layout.Add(chart_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        self.result_split=wx.SplitterWindow(results,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
+        plots=wx.Panel(self.result_split);plot_layout=wx.BoxSizer(wx.VERTICAL)
         self.figure = Figure(figsize=(11, 5)); Canvas, Toolbar = canvas_types
-        self.canvas = Canvas(results, wx.ID_ANY, self.figure); toolbar = Toolbar(self.canvas); toolbar.Realize()
-        result_layout.Add(self.canvas, 1, wx.EXPAND); result_layout.Add(toolbar, 0, wx.EXPAND)
-        self.result_tables = wx.Notebook(results)
+        self.canvas = Canvas(plots, wx.ID_ANY, self.figure); toolbar = Toolbar(self.canvas); toolbar.Realize()
+        plot_layout.Add(self.canvas, 1, wx.EXPAND); plot_layout.Add(toolbar, 0, wx.EXPAND);plots.SetSizer(plot_layout)
+        self.result_tables = wx.Notebook(self.result_split)
         self.table = wx.ListCtrl(self.result_tables, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        for index, (label, width) in enumerate([('Frequency (Hz)',150),('R (Ω)',130),('X (Ω)',130),('RMS current (A)',150),('Loss (W)',140)]):
+        for index, (label, width) in enumerate([('Frequency (kHz)',150),('Resistance (mΩ)',155),('Reactance (mΩ)',155),('Ripple RMS (A)',150),('Copper heat (mW)',170)]):
             self.table.InsertColumn(index, label, width=width)
         self.table.SetMinSize((-1, 150)); self.table.SetToolTip('Select a harmonic to highlight its plot point. Columns are resizable.')
         self.table.Bind(wx.EVT_LIST_ITEM_SELECTED, self._table_selected)
         self.result_tables.AddPage(self.table,'Harmonics')
         self.conductor_table = wx.ListCtrl(self.result_tables,style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        for index,(label,width) in enumerate([('Conductor',220),('DC loss (W)',150),('AC loss (W)',150),('Total loss (W)',150)]):
+        for index,(label,width) in enumerate([('Conductor / return',230),('DC heat (mW)',150),('Ripple heat (mW)',155),('Total heat (mW)',155)]):
             self.conductor_table.InsertColumn(index,label,width=width)
         self.conductor_table.Bind(wx.EVT_LIST_ITEM_SELECTED,self._conductor_selected)
         self.result_tables.AddPage(self.conductor_table,'Conductors')
         self.result_tables.SetMinSize((-1,170))
-        result_layout.Add(self.result_tables, 0, wx.EXPAND | wx.ALL, 8); results.SetSizer(result_layout)
-        self.book.AddPage(results, '2 · AC results')
+        self.result_split.SplitHorizontally(plots,self.result_tables,-175);self.result_split.SetMinimumPaneSize(120);self.result_split.SetSashGravity(.8)
+        result_layout.Add(self.result_split, 1, wx.EXPAND | wx.ALL, 8); results.SetSizer(result_layout)
+        self.book.AddPage(results, '2 · Heating & drop')
         self.details = wx.TextCtrl(self.book, style=wx.TE_MULTILINE | wx.TE_READONLY)
-        self.book.AddPage(self.details, '3 · Checks / applicability')
+        self.book.AddPage(self.details, '3 · Solver checks')
         root.Add(self.book, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         self.status = wx.StaticText(self, label='Illustrative loop shown. Enter your actual copper geometry, '
                                   'return path and operating currents before running.')
@@ -126,42 +136,126 @@ class ACStudyDialog(wx.Dialog):
         for control in (self.run, self.stop, self.export, close): footer.Add(control, 0, wx.RIGHT, 8)
         root.Add(footer, 0, wx.ALIGN_RIGHT | wx.ALL, 10); self.SetSizer(root)
         self.run.Bind(wx.EVT_BUTTON, self._run); self.stop.Bind(wx.EVT_BUTTON, lambda e:self._cancel.set())
+        self.run.SetDefault()
         self.export.Bind(wx.EVT_BUTTON, self._export); close.Bind(wx.EVT_BUTTON, self._close)
         self.Bind(wx.EVT_CLOSE, self._close); self.stop.Disable(); self.export.Disable()
         self.canvas.mpl_connect('motion_notify_event', self._hover)
         self.canvas.mpl_connect('button_press_event', self._plot_selected)
         self._load_controls(self.model)
+        self._preview_timer.Stop();self._preview_loop()
+
+    def _fields_grid(self,parent,layout,definitions):
+        grid=wx.FlexGridSizer(cols=4,hgap=8,vgap=8);grid.AddGrowableCol(1);grid.AddGrowableCol(3)
+        for key,label in definitions:
+            grid.Add(wx.StaticText(parent,label=label),0,wx.ALIGN_CENTER_VERTICAL)
+            control=wx.TextCtrl(parent,value=str(self.model[key]),size=(110,-1))
+            control.SetToolTip(label+'. Explicit model input, not a board measurement.')
+            if key=='convergence_tolerance':control.SetToolTip('Allowed refinement change as a fraction: 0.05 means 5%.')
+            self.fields[key]=control;grid.Add(control,0,wx.EXPAND);control.Bind(wx.EVT_TEXT,self._changed)
+        layout.Add(grid,0,wx.EXPAND|wx.ALL,10)
+
+    def _setup_layout(self,event=None):
+        setup=self.book.GetPage(0);width=max(400,setup.GetClientSize().width)
+        stacked=width<1000
+        if stacked!=self._quick_stacked:
+            self._quick_stacked=stacked
+            self.quick_body.SetOrientation(wx.VERTICAL if stacked else wx.HORIZONTAL)
+            for control,text in ((self.quick_note,self._quick_note_text),(self.applicability,self._applicability_text)):
+                control.SetLabel(text);control.Wrap(max(350,width-70))
+            setup.Layout();setup.FitInside()
+        if event:event.Skip()
+
+    def _mode_changed(self,event=None):
+        if self._loading:return
+        custom=self.setup_mode.GetSelection()==1
+        self._quick_dirty=not custom
+        if not custom:self.input_path=None;self.input_sha=None
+        if custom:self.advanced.Collapse(False)
+        self._invalidate();self._schedule_preview()
+        self.status.SetLabel('Custom tables are used by Run.' if custom else 'Run applies the visible quick-loop dimensions and ripple current.')
+        self.book.GetPage(0).Layout();self.book.GetPage(0).FitInside()
+
+    def _quick_changed(self,event=None):
+        if not self._loading:
+            self.setup_mode.SetSelection(0);self._quick_dirty=True;self._invalidate();self._schedule_preview()
+            self.input_path=None;self.input_sha=None
+            self.status.SetLabel('Quick inputs changed. Run applies this loop and updates the results.')
+        if event:event.Skip()
+
+    def _schedule_preview(self):
+        if self._preview_timer:self._preview_timer.Stop()
+        self._preview_timer=wx.CallLater(140,self._preview_loop)
+
+    def _preview_loop(self):
+        if self._closed:return
+        from matplotlib.patches import Rectangle
+        self.preview_figure.clear();axis=self.preview_figure.add_subplot(111)
+        try:
+            if self.setup_mode.GetSelection()==0:
+                from .ac_setup import quick_loop
+                rows=quick_loop(self.model,self.quick_preset.GetStringSelection(),**{key:control.GetValue() for key,control in self.quick_fields.items()})['conductors']
+            else:
+                rows=[dict(name=self.conductors.GetCellValue(i,0),**{key:float(self.conductors.GetCellValue(i,j)) for j,key in enumerate(('x_mm','y_mm','width_mm','thickness_mm','current_scale'),1)}) for i in range(self.conductors.GetNumberRows())]
+            if (not rows or any(not math.isfinite(row[key]) for row in rows for key in ('x_mm','y_mm','width_mm','thickness_mm','current_scale')) or
+                any(row[key]<=0 for row in rows for key in ('width_mm','thickness_mm'))):raise ValueError('Enter finite, positive dimensions.')
+            for row in rows:
+                color='#d27826' if row['current_scale']>0 else '#176aa0' if row['current_scale']<0 else '#70818a'
+                axis.add_patch(Rectangle((row['x_mm']-row['width_mm']/2,row['y_mm']-row['thickness_mm']/2),row['width_mm'],row['thickness_mm'],facecolor=color,edgecolor='#253d49'))
+                axis.annotate(row['name']+' · current ×'+format(row['current_scale'],'.3g'),(row['x_mm'],row['y_mm']+row['thickness_mm']/2),xytext=(0,7),textcoords='offset points',ha='center',fontsize=9)
+            axis.autoscale_view();axis.margins(.2,.3);axis.set_aspect('equal',adjustable='box')
+            axis.set_xlabel('Cross-section x (mm)',fontsize=9);axis.set_ylabel('y (mm)',fontsize=9);axis.tick_params(labelsize=8)
+            axis.set_title('Loop preview · colour indicates current direction',fontsize=10)
+        except (ValueError,TypeError,KeyError,OverflowError):
+            axis.text(.5,.5,'Enter valid loop dimensions to preview.',ha='center',va='center',transform=axis.transAxes);axis.set_axis_off()
+        self.preview_figure.tight_layout();self.preview_canvas.draw_idle()
 
     def _quick_controls(self, parent, layout):
         from .ac_setup import PRESETS
         group=wx.StaticBoxSizer(wx.VERTICAL,parent,'Quick loop · explicit dimensions and RMS ripple')
         parent=group.GetStaticBox()
         self.quick_preset=wx.Choice(parent,choices=list(PRESETS));self.quick_preset.SetSelection(0)
+        self.quick_preset.Bind(wx.EVT_CHOICE,self._quick_changed)
         group.Add(self.quick_preset,0,wx.EXPAND|wx.ALL,6)
-        fields=wx.FlexGridSizer(cols=4,hgap=7,vgap=7);fields.AddGrowableCol(1);fields.AddGrowableCol(3)
+        body=wx.BoxSizer(wx.HORIZONTAL);self.quick_body=body
+        fields=wx.FlexGridSizer(cols=2,hgap=7,vgap=7);fields.AddGrowableCol(1)
         self.quick_fields={}
         for key,label,value in [('width_mm','Copper width mm','2'),('thickness_mm','Copper thickness mm','.07'),
-                                ('gap_mm','Surface gap to return mm','.3'),('frequency_khz','Ripple frequency kHz','100'),
+                                ('gap_mm','Surface gap to return mm','.73'),('frequency_khz','Ripple frequency kHz','100'),
                                 ('ripple_rms_a','Ripple RMS A','1')]:
             fields.Add(wx.StaticText(parent,label=label),0,wx.ALIGN_CENTER_VERTICAL)
             control=wx.TextCtrl(parent,value=value);self.quick_fields[key]=control;fields.Add(control,1,wx.EXPAND)
+            control.SetToolTip({'width_mm':'Copper width in the cross-section, not the conductor length.',
+                'thickness_mm':'Actual copper thickness: 0.035 mm is 35 µm. This is not the PCB thickness.',
+                'gap_mm':'Copper surface-to-surface gap, not centre spacing.',
+                'frequency_khz':'One supplied ripple frequency. Use Custom loop for an SMPS harmonic spectrum.',
+                'ripple_rms_a':'AC ripple RMS current only. For peak-to-peak triangular ripple, use the custom waveform builder.'}[key])
             self.input_buttons.append(control)
-        group.Add(fields,0,wx.EXPAND|wx.ALL,6)
-        note=wx.StaticText(parent,label='Uses the length, DC current and rail voltage in the detailed settings. This recipe replaces conductor/harmonic tables; '
+            control.Bind(wx.EVT_TEXT,self._quick_changed)
+        body.Add(fields,1,wx.EXPAND|wx.ALL,6)
+        self.preview_figure=Figure(figsize=(7,2.2),dpi=90)
+        self.preview_canvas=self._canvas_type(parent,wx.ID_ANY,self.preview_figure);self.preview_canvas.SetMinSize((-1,205))
+        body.Add(self.preview_canvas,1,wx.EXPAND|wx.ALL,6)
+        group.Add(body,0,wx.EXPAND)
+        note=wx.StaticText(parent,label='Uses the length, DC current and rail voltage above. Run applies the visible quick recipe; '
                            'it does not extract a PCB return or converter waveform. Split returns explicitly carry half the return current each.')
+        self.quick_note=note;self._quick_note_text=note.GetLabel()
         note.Wrap(980);group.Add(note,0,wx.EXPAND|wx.ALL,6)
         buttons=wx.WrapSizer(wx.HORIZONTAL)
-        for label,run in [('Apply quick loop',False),('Apply quick loop and run',True)]:
-            button=wx.Button(parent,label=label);button.Bind(wx.EVT_BUTTON,lambda event,run=run:self._apply_quick(run))
-            buttons.Add(button,0,wx.RIGHT,7);self.input_buttons.append(button)
+        button=wx.Button(parent,label='Review recipe in custom table')
+        button.Bind(wx.EVT_BUTTON,self._review_quick);buttons.Add(button,0,wx.RIGHT,7);self.input_buttons.append(button)
         help_button=wx.Button(parent,label='AC model help');help_button.Bind(wx.EVT_BUTTON,self._quick_help)
         buttons.Add(help_button,0,wx.RIGHT,7);self.input_buttons.append(help_button)
         self.input_buttons.append(self.quick_preset)
-        group.Add(buttons,0,wx.ALL,6);layout.Insert(0,group,0,wx.EXPAND|wx.ALL,10)
+        group.Add(buttons,0,wx.ALL,6);layout.Add(group,0,wx.EXPAND|wx.ALL,10)
 
     def _quick_help(self,event=None):
         from wayricad_runtime.help import open_help
         open_help(self,Path(__file__).with_name('ac_setup_help.html'))
+
+    def _review_quick(self,event=None):
+        if self._apply_quick():
+            self.setup_mode.SetSelection(1);self.advanced.Collapse(False)
+            self.book.GetPage(0).Layout();self.book.GetPage(0).FitInside()
 
     def _apply_quick(self, run=False):
         if self._busy:return
@@ -169,10 +263,12 @@ class ACStudyDialog(wx.Dialog):
             from .ac_setup import quick_loop
             study=quick_loop(self._study(),self.quick_preset.GetStringSelection(),
                             **{key:control.GetValue() for key,control in self.quick_fields.items()})
-            self._load_controls(study);self._changed()
+            self._load_controls(study);self.setup_mode.SetSelection(0);self._quick_dirty=False;self._invalidate();self._schedule_preview()
+            self.input_path=None;self.input_sha=None
             self.status.SetLabel('Explicit loop prepared. Check outgoing/return geometry and RMS ripple; no board extraction was assumed.')
             if run:self._run()
-        except (ValueError,TypeError,KeyError) as exc:self.status.SetLabel(str(exc))
+            return True
+        except (ValueError,TypeError,KeyError) as exc:self.status.SetLabel(str(exc));return False
 
     def _grid(self, parent, headings):
         grid = wx.grid.Grid(parent); grid.CreateGrid(0, len(headings)); grid.SetRowLabelSize(35)
@@ -202,6 +298,8 @@ class ACStudyDialog(wx.Dialog):
                 for index, row in enumerate(rows):
                     for column, value in enumerate(row): grid.SetCellValue(index, column, value)
         finally: self._loading = False
+        self._quick_dirty=False
+        self._schedule_preview()
 
     def _study(self):
         for grid in (self.conductors,self.harmonics):
@@ -229,12 +327,17 @@ class ACStudyDialog(wx.Dialog):
         self.result = None; self.export.Disable(); self.table.DeleteAllItems(); self.conductor_table.DeleteAllItems()
         self.figure.clear(); self.canvas.draw_idle(); self.details.ChangeValue(''); self._focus = None
         self.result_summary.SetLabel('No current AC result.');self._cell_lookup = {};self._cell_left = [];self._cell_bottom = []
+        for value in self.summary_values.values():value.SetLabel('—')
+        for value in self.summary_notes.values():value.SetLabel('Run a study')
 
     def _changed(self, event=None):
         if not self._loading:
             if not event or event.GetEventObject() in (self.harmonics,self.fields['dc_current_a']):
                 self.model.pop('waveform',None)
             self.input_path = None; self.input_sha = None; self._invalidate()
+            if not event or event.GetEventObject() in (self.conductors,self.harmonics):
+                self.setup_mode.SetSelection(1);self._quick_dirty=False
+            self._schedule_preview()
             self.status.SetLabel('Inputs changed. Run again to update the AC results.')
         if event: event.Skip()
 
@@ -288,10 +391,13 @@ class ACStudyDialog(wx.Dialog):
             path = dialog.GetPath()
         try:
             study,digest = load_study(path); self._load_controls(study); self._invalidate()
-            self.input_path = path; self.input_sha = digest; self.status.SetLabel('Loaded explicit model. Review geometry and RMS currents before running.')
+            self.setup_mode.SetSelection(1);self.advanced.Collapse(False);self._schedule_preview()
+            self.book.GetPage(0).Layout();self.book.GetPage(0).FitInside()
+            self.input_path = path; self.input_sha = digest; self.status.SetLabel('Loaded custom model. Review geometry and RMS currents before running.')
         except (ValueError,OSError,KeyError,TypeError) as exc: self.status.SetLabel(str(exc))
 
     def _save(self, event=None):
+        if self._quick_dirty and not self._apply_quick():return
         try: study = self._study()
         except (ValueError,OSError) as exc: self.status.SetLabel(str(exc)); return
         with wx.FileDialog(self, 'Save AC inputs', defaultFile='ac-copper-study.json', wildcard='JSON (*.json)|*.json', style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
@@ -305,6 +411,7 @@ class ACStudyDialog(wx.Dialog):
 
     def _run(self, event=None):
         if self._busy: return
+        if self.setup_mode.GetSelection()==0 and self._quick_dirty and not self._apply_quick():return
         try: request = {'action':'ac','study':self._study()}
         except (ValueError,OSError) as exc: self.status.SetLabel(str(exc)); return
         if self.board_path: request.update(board_path=self.board_path,source_sha256=self.sha)
@@ -328,29 +435,48 @@ class ACStudyDialog(wx.Dialog):
         if self._cancel.is_set(): error = 'AC study cancelled. No partial result accepted.'
         if not error and (not isinstance(result,dict) or 'ac' not in result): error = 'Worker returned no AC result.'
         if error: self.status.SetLabel(error); return
-        self.result = result; draw(self.figure,result); self.canvas.draw_idle()
-        self.result_summary.SetLabel('Total copper Joule loss: '+self._value(result['ac'].get('total_loss_w'))+
-            ' W · Copper-loop AC drop RMS: '+self._value(result['ac'].get('ripple_voltage_rms_v'))+
-            ' V · Reference waveform RMS: '+self._value(result['ac'].get('total_current_rms_a'))+' A')
+        self.result = result; self._draw_result()
+        ac=result['ac'];units={'total_loss_w':'W','ac_loss_w':'W','ripple_voltage_rms_v':'V','total_current_rms_a':'A'}
+        for key,value in self.summary_values.items():value.SetLabel(engineering(ac.get(key),units[key]))
+        count=len(ac.get('harmonics',[]))
+        notes={'total_loss_w':'DC '+engineering(ac.get('dc_loss_w'),'W')+' + ripple',
+               'ac_loss_w':str(count)+' supplied '+('frequency' if count==1 else 'frequencies'),
+               'ripple_voltage_rms_v':'Copper-loop RMS voltage',
+               'total_current_rms_a':'DC and supplied ripple combined'}
+        for key,value in self.summary_notes.items():value.SetLabel(notes[key])
+        self.result_summary.SetLabel(str(ac.get('status','UNKNOWN'))+' · Copper model only. Select a harmonic or conductor for details.')
+        self.result_summary.SetForegroundColour('#203744' if ac.get('status')=='CONVERGED' else '#9b3d24')
+        self.result_summary.Wrap(max(600,self.GetClientSize().width-40));self.book.GetPage(1).Layout()
         self._cell_lookup = {(cell['x_mm']-cell['width_mm']/2,cell['y_mm']-cell['height_mm']/2):cell for cell in result['ac'].get('cells',[])}
         self._cell_left = sorted({key[0] for key in self._cell_lookup});self._cell_bottom = sorted({key[1] for key in self._cell_lookup})
         self.details.ChangeValue(summary(result)); self.export.Enable(); self.book.SetSelection(1)
         for index,row in enumerate(result['ac'].get('harmonics',[])):
-            values = [row.get(key) for key in ('frequency_hz','resistance_ohm','reactance_ohm','current_rms_a','loss_w')]
+            values = [None if row.get(key) is None else row[key]*scale for key,scale in [('frequency_hz',.001),('resistance_ohm',1000),('reactance_ohm',1000),('current_rms_a',1),('loss_w',1000)]]
             self.table.InsertItem(index,self._value(values[0]))
             for column,value in enumerate(values[1:],1): self.table.SetItem(index,column,self._value(value))
             self.table.SetItemData(index,index)
         for index,row in enumerate(result['ac'].get('conductors',[])):
             self.conductor_table.InsertItem(index,row['name'])
             for column,key in enumerate(('dc_loss_w','ac_loss_w','total_loss_w'),1):
-                self.conductor_table.SetItem(index,column,self._value(row.get(key)))
+                self.conductor_table.SetItem(index,column,self._value(None if row.get(key) is None else row[key]*1000))
         self.status.SetLabel(str(result['ac'].get('status','Unknown'))+' · Review the mesh, boundary and applicability checks. Hover / click plots for details.')
 
     @staticmethod
-    def _value(value): return 'Unknown' if value is None else format(value,'.7g') if isinstance(value,(int,float)) else str(value)
+    def _value(value): return 'Unknown' if value is None else format(value,'.5g') if isinstance(value,(int,float)) else str(value)
+
+    def _draw_result(self):
+        if not self.result:return
+        self._focus=None
+        draw(self.figure,self.result,view=('geometry','impedance','losses')[max(0,self.plot_view.GetSelection())])
+        self.canvas.draw_idle()
+
+    def _chart_changed(self,event=None):
+        self._draw_result()
+        selected=self.table.GetFirstSelected()
+        if self.plot_view.GetSelection()!=0 and selected>=0:self._select_harmonic(selected)
 
     def _harmonic_at(self,event):
-        if not self.result or event.xdata is None or event.inaxes not in self.figure.axes[1:]: return None
+        if not self.result or event.xdata is None or event.inaxes not in self.figure.axes[1:3]: return None
         if event.xdata <= 0: return None
         rows = self.result['ac'].get('harmonics',[])
         return min(range(len(rows)), key=lambda i:abs(math.log(rows[i]['frequency_hz']/event.xdata))) if rows else None
@@ -369,23 +495,26 @@ class ACStudyDialog(wx.Dialog):
         index = self._harmonic_at(event)
         if index is None: return
         row = self.result['ac']['harmonics'][index]
-        self.status.SetLabel(' · '.join(label+': '+self._value(row.get(key)) for key,label in
-                             [('frequency_hz','Hz'),('current_rms_a','RMS A'),('resistance_ohm','R Ω'),('reactance_ohm','X Ω'),('loss_w','Loss W')]))
+        self.status.SetLabel(' · '.join(label+engineering(row.get(key),unit) for key,label,unit in
+                             [('frequency_hz','Ripple ','Hz'),('current_rms_a','RMS ','A'),('resistance_ohm','R ','Ω'),('reactance_ohm','X ','Ω'),('loss_w','Heat ','W')]))
 
     def _select_harmonic(self,index):
         if not self.result: return
         row = self.result['ac']['harmonics'][index]
         if self._focus:
             for artist in self._focus: artist.remove()
-        self._focus = [axis.axvline(row['frequency_hz'],color='#d85e20',linestyle='--',alpha=.8) for axis in self.figure.axes[1:]]
+        self._focus = [axis.axvline(row['frequency_hz'],color='#d85e20',linestyle='--',alpha=.8) for axis in self.figure.axes[1:3]]
         self.canvas.draw_idle()
         if not self.table.IsSelected(index): self.table.Select(index)
         self.table.EnsureVisible(index)
 
-    def _table_selected(self,event): self._select_harmonic(event.GetIndex())
+    def _table_selected(self,event):
+        if self.plot_view.GetSelection()==0:self.plot_view.SetSelection(1);self._draw_result()
+        self._select_harmonic(event.GetIndex())
 
     def _select_conductor(self,index):
         if not self.result:return
+        if self.plot_view.GetSelection()!=0:self.plot_view.SetSelection(0);self._draw_result()
         row = self.result['study']['conductors'][index]; axis = self.figure.axes[0]
         for patch in axis.patches:
             selected = patch.get_label() == row['name']
@@ -423,5 +552,6 @@ class ACStudyDialog(wx.Dialog):
 
     def _finish_close(self):
         self._closed = True
+        if self._preview_timer:self._preview_timer.Stop()
         if self.IsModal(): self.EndModal(wx.ID_CLOSE)
         else: self.Destroy()

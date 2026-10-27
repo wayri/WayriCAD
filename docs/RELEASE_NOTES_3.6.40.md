@@ -18,6 +18,13 @@ V1/V2 labels across probes and reports; mesh cells use C1/C2 labels. Original
 selection IDs remain in the evidence. Analytics exports retain their script-free
 HTML contract while using the shared report styling and static navigation.
 
+AC setup now starts with a live quick-loop preview and one Run action. Custom
+conductors, SMPS spectra and solver controls stay in an expandable section. Results
+open on harmonic heating with four summary cards and selectable full-size charts;
+kHz/mΩ/mW replace long SI decimals. Custom imports retain their tables, and the
+numerical solver is unchanged. Updated native captures and the AC help explain the
+new flow and the distinction between total and ripple heating.
+
 [Report workflow and static-PDF limits](../wayricad_runtime/REPORTS.md).
 [Validation and model boundaries](audits/REPORTS_AND_DIFFERENTIAL_PROBES_2026-10-27.md).
 
