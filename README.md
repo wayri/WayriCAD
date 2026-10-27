@@ -9,14 +9,14 @@
 **PCB design, analysis and project review in KiCad.** Choose from 24 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
 
-**New in 3.6.39:** guided SI path/response setup, easier thermal heating studies
-and power schedules in watts. Transient reports add selectable summaries and
-exact-sample probes. [Release notes](docs/RELEASE_NOTES_3.6.39.md).
+**New in 3.6.40:** clearer AC setup and charts, copper-first PI views, readable
+via IDs, differential voltage probes, SI pair timing, individual shunt capacitor
+studies and cleaner HTML/PDF reports. [Release notes](docs/RELEASE_NOTES_3.6.40.md).
 
-## In development — 3.6.40
+## New in 3.6.40
 
-These updates are on `develop`; the published download remains **3.6.39**.
-[Development release notes](docs/RELEASE_NOTES_3.6.40.md).
+Download the published release or refresh the WayriCAD package repository in KiCad.
+[Release notes](docs/RELEASE_NOTES_3.6.40.md).
 
 | Improvement | What changes |
 |---|---|
@@ -33,7 +33,7 @@ These updates are on `develop`; the published download remains **3.6.39**.
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.39](https://github.com/wayri/WayriCAD/releases/tag/v3.6.39) · [Release notes](docs/RELEASE_NOTES_3.6.39.md) |
+| Download or update | [Release 3.6.40](https://github.com/wayri/WayriCAD/releases/tag/v3.6.40) · [Release notes](docs/RELEASE_NOTES_3.6.40.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -50,7 +50,7 @@ Click a screenshot for its full resolution. [More screenshots, grouped by plugin
 |---|---|
 | <a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="460" alt="Quick PI showing extracted copper on public Marble"></a> | <a href="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png" width="460" alt="QuickTherm native 3D temperature surface on the thermal demonstration board"></a> |
 | Geometry preview; no PI field solved. | Assumed-load demonstration; STEP models disabled. |
-| **[Quick PI — AC setup · development](#quick-pi)** | **[Quick PI — AC heating · development](#quick-pi)** |
+| **[Quick PI — AC setup · 3.6.40](#quick-pi)** | **[Quick PI — AC heating · 3.6.40](#quick-pi)** |
 | <a href="quick_pi_plugin/help-ac-setup-3.6.40.png"><img src="quick_pi_plugin/help-ac-setup-3.6.40.png" width="460" alt="Simplified AC loop setup with outgoing and return preview"></a> | <a href="quick_pi_plugin/help-ac-results-3.6.40.png"><img src="quick_pi_plugin/help-ac-results-3.6.40.png" width="460" alt="AC heating results with summary cards, one large plot and engineering units"></a> |
 | Live explicit-geometry preview before solving. | Computed illustrative loop; 128.1 mW total copper heat. |
 | **[Trace Refiner — old/new comparison](#trace-refiner)** | **[Fanout — connector escape preview](#fanout-generator)** |
@@ -171,7 +171,7 @@ an input or model is missing; they are not a pass.
 For your first run, use the default layered DC model. Review copper thickness,
 via plating and mesh refinement before relying on local peaks.
 
-**For AC / SMPS copper losses (development):** open **More → AC / SMPS copper
+**For AC / SMPS copper losses:** open **More → AC / SMPS copper
 study**, choose a quick loop, enter dimensions and RMS ripple, then click **Run**.
 Results open on heating; use **Inspect** to switch to impedance or the copper/return
 field. Choose **Custom loop** for conductor tables or an SMPS harmonic spectrum.
@@ -339,7 +339,7 @@ remain outlines. [Workflow and native-capture scope](suite_assistant_plugin/READ
 
 ### [Quick PI](quick_pi_plugin/README.md)
 
-**Simpler AC setup and results · development 3.6.40**
+**Simpler AC setup and results · 3.6.40**
 
 <a href="quick_pi_plugin/help-ac-setup-3.6.40.png"><img src="quick_pi_plugin/help-ac-setup-3.6.40.png" width="960" alt="Quick PI AC setup with basic inputs, a live return-path preview and collapsed advanced settings"></a>
 
@@ -360,7 +360,7 @@ frequency is a discrete result. [Workflow](quick_pi_plugin/ac_setup_help.html) �
 [Capture inputs and checks](docs/audits/QUICK_PI_AC_READABILITY_2026-10-28.md).
 
 
-**Individual shunt capacitor response · development**
+**Individual shunt capacitor response · 3.6.40**
 
 <a href="quick_pi_plugin/help-shunt-response.png"><img src="quick_pi_plugin/help-shunt-response.png" width="960" alt="PI individual capacitor table with selected internal voltage and branch-current transient plots"></a>
 

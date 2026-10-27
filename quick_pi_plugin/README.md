@@ -126,7 +126,7 @@ from saved-board decoupling placement and is not a complete board impedance proo
 
 ### AC loop setup and result
 
-The pending 3.6.40 interface starts with a quick loop and a live outgoing/return
+The 3.6.40 interface starts with a quick loop and a live outgoing/return
 preview. Enter dimensions, DC current and RMS ripple, then use the main **Run**
 button. Custom conductors, SMPS spectra and mesh settings start folded below.
 Switch to **Custom loop** to run those tables without replacing them with a recipe.
@@ -195,7 +195,7 @@ Set the actual ports and operating conditions before Run. [Capture provenance](.
 ## First-open copper preview
 
 Copper autoload shipped earlier; the all-layer default and separate Silk toggle
-are part of the pending 3.6.40 update.
+are included in 3.6.40.
 [Validation and remaining startup latency](../docs/audits/QUICK_PI_COPPER_AUTOLOAD_2026-10-26.md).
 
 The saved board's copper loads automatically in the background with the net and
