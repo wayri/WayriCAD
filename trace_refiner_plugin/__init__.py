@@ -1,5 +1,5 @@
 """Independent native KiCad Trace Refiner plugin."""
-__version__='0.3.8'
+__version__='0.3.9'
 try:
     import pcbnew
     import wx

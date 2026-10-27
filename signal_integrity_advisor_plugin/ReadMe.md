@@ -6,7 +6,7 @@
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.35](https://github.com/wayri/WayriCAD/releases/tag/v3.6.35) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.36](https://github.com/wayri/WayriCAD/releases/tag/v3.6.36) · [Installation](../docs/INSTALLATION.md) |
 | First source-to-receiver screen | [Normal workflow](#normal-workflow) |
 | Several nets and explicit returns | [Multi-net studies](#multi-net-studies-and-explicit-returns) |
 | Reviewed IBIS circuit | [KiCad circuit export](#reviewed-ibis-circuit-export) |

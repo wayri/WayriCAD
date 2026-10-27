@@ -16,7 +16,7 @@ inferred. The screenshot contains no private design or local paths.
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.35](https://github.com/wayri/WayriCAD/releases/tag/v3.6.35) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.36](https://github.com/wayri/WayriCAD/releases/tag/v3.6.36) · [Installation](../docs/INSTALLATION.md) |
 | First power-path check | [Workflow](#workflow) · [Reading results](#reading-results) |
 | Multiple rails, returns and heating | [Multi-net studies](#multi-net-cases-return-copper-and-joule-feedback) |
 | SMPS ripple, skin effect and proximity losses | [AC copper analysis](AC_ANALYSIS.md) |

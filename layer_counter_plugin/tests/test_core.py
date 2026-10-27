@@ -46,13 +46,67 @@ class CounterTests(unittest.TestCase):
 
     def test_explicit_core_pairs_mirror_or_overlap(self):
         b=board(6);layers=[row[0] for row in core.copper_layers(b,api)[:4]]
-        mirrored=core.plan(b,api,dict(style='core-mirrored',layers=layers,core_pairs='L1/L2,L3/L4'))
+        mirrored=core.plan(b,api,dict(style='core-mirrored',layers=layers,core_pairs='L1/L2,L3/L4',mirror_mode='core-faces'))
         self.assertEqual([r['mirror'] for r in mirrored.labels],[False,True,False,True])
         self.assertAlmostEqual(mirrored.labels[0]['x']+mirrored.labels[1]['x'],20)
         overlapped=core.plan(b,api,dict(style='core-overlap',layers=layers,core_pairs='L1/L2,L3/L4'))
         self.assertEqual(overlapped.labels[0]['x'],overlapped.labels[1]['x'])
         self.assertEqual(overlapped.labels[2]['x'],overlapped.labels[3]['x'])
         self.assertNotEqual(overlapped.labels[0]['x'],overlapped.labels[2]['x'])
+
+    def test_midline_uses_full_physical_stack_in_every_style(self):
+        for count in (2,4,6,8,32):
+            b=board(count);before=core.fingerprint(b,api)
+            expected=[n>(count+1)//2 for n in range(1,count+1)]
+            for style in core.STYLES:
+                with self.subTest(count=count,style=style):
+                    review=core.plan(b,api,dict(style=style))
+                    self.assertEqual([r['mirror'] for r in review.labels],expected)
+                    native=[item for item in review.items if isinstance(item,api.PCB_TEXT)]
+                    self.assertEqual([item.IsMirrored() for item in native],expected)
+                    self.assertEqual(before,core.fingerprint(b,api))
+        b=board(8);rows=core.copper_layers(b,api)
+        review=core.plan(b,api,dict(layers=[rows[2][0],rows[4][0],rows[6][0]]))
+        self.assertEqual([r['text'] for r in review.labels],['L3','L5','L7'])
+        self.assertEqual([r['mirror'] for r in review.labels],[False,True,True])
+
+    def test_modes_legacy_settings_and_inner_copper_round_trip(self):
+        b=board(4)
+        for settings,expected in [({},[False,False,True,True]),
+                                  ({'mirror_mode':'bottom-only'},[False,False,False,True]),
+                                  ({'mirror_mode':'none'},[False]*4),
+                                  ({'mirror_bottom':True},[False,False,False,True]),
+                                  ({'mirror_bottom':False},[False]*4),
+                                  ({'mirror_mode':'core-faces'},[False,True,False,True])]:
+            with self.subTest(settings=settings):
+                preview=core.plan(b,api,settings)
+                self.assertEqual([r['mirror'] for r in preview.labels],expected)
+        for value in ('invalid',None,[],True):
+            with self.assertRaises(ValueError):core.plan(b,api,{'mirror_mode':value})
+        with self.assertRaisesRegex(ValueError,'Conflicting'):
+            core.plan(b,api,{'mirror_mode':'lower-half','mirror_bottom':False})
+        core.apply(b,api,core.plan(b,api))
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'counter.kicad_pcb';api.SaveBoard(str(path),b)
+            loaded=api.LoadBoard(str(path))
+            labels={item.GetText():item.IsMirrored() for item in loaded.GetDrawings() if isinstance(item,api.PCB_TEXT)}
+            self.assertEqual(labels,{'L1':False,'L2':False,'L3':True,'L4':True})
+
+    def test_new_layout_positions_and_native_frames_are_distinct(self):
+        b=board(8);signatures={}
+        for style in ('two-row','serpentine','radial'):
+            review=core.plan(b,api,dict(style=style))
+            points=tuple((round(r['x'],5),round(r['y'],5)) for r in review.labels)
+            self.assertEqual(len(set(points)),8);signatures[style]=points
+        self.assertEqual(len(set(signatures.values())),3)
+        counts={'triangle':3,'pentagon':5,'hexagon':6,'chevron':6,'capsule':34,
+                'double-circle':2,'brackets':8,'crosshair':4,'ruler':6}
+        for style,count in counts.items():
+            with self.subTest(style=style):
+                preview=core.plan(b,api,dict(style=style))
+                self.assertEqual(len(preview.shapes),count*8)
+                zone=preview.items[-1]
+                self.assertTrue(all(zone.GetBoundingBox().Contains(item.GetBoundingBox()) for item in preview.items[:-1]))
 
     def test_zone_only_keepout_covers_all_native_graphic_bounds(self):
         for style in core.STYLES:

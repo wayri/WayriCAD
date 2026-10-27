@@ -35,6 +35,7 @@ class UITests(unittest.TestCase):
         self.assertNotEqual(before,split.GetWindow1().GetSize())
         self.assertGreater(self.frame.canvas.GetClientSize().width,280)
         split.GetWindow1().FitInside();split.GetWindow1().Scroll(0,200);wx.Yield()
+        self.frame.style.SetSelection(self.frame.styles.index('core-mirrored'));self.frame.mode_changed()
         self.frame.pairs.SetFocus();self.assertIs(wx.Window.FindFocus(),self.frame.pairs)
 
     def test_preview_insert_undo_redo_and_settings_invalidation(self):
@@ -78,6 +79,10 @@ class UITests(unittest.TestCase):
         self.frame.style.SetSelection(self.frame.styles.index('core-mirrored'))
         self.frame.make_preview();wx.Yield()
         self.assertFalse(self.messages)
+        self.assertEqual([r['mirror'] for r in self.frame.preview.labels],[False,False,True,True])
+        self.frame.mirror.SetSelection(self.frame.mirror_modes.index('core-faces'));self.frame.mode_changed()
+        self.assertIsNone(self.frame.preview)
+        self.frame.make_preview();wx.Yield()
         self.assertEqual([r['mirror'] for r in self.frame.preview.labels],[False,True,False,True])
         self.frame.view_layer.SetSelection(4)
         event=wx.CommandEvent(wx.EVT_CHOICE.typeId,self.frame.view_layer.GetId())
@@ -85,6 +90,44 @@ class UITests(unittest.TestCase):
         self.assertEqual(self.frame.canvas.layer,api.B_Cu)
         self.frame.canvas.Refresh();self.frame.canvas.Update();wx.Yield()
         self.assertTrue(self.frame.canvas.glyphs)
+
+    def test_default_midline_uses_full_stack_even_for_subset(self):
+        self.assertEqual(self.frame.mirror_modes[self.frame.mirror.GetSelection()],'lower-half')
+        self.assertFalse(self.frame.pairs.IsEnabled())
+        self.frame.make_preview()
+        self.assertEqual([r['mirror'] for r in self.frame.preview.labels],[False,False,True,True])
+        self.assertIn('L3, L4',self.frame.status.GetLabel())
+        for index in range(4):self.frame.layer_list.Check(index,index in (0,1))
+        self.frame.invalidate();self.frame.make_preview()
+        self.assertEqual([(r['text'],r['mirror']) for r in self.frame.preview.labels],[('L1',False),('L2',False)])
+        for index in range(4):self.frame.layer_list.Check(index,index==2)
+        self.frame.invalidate();self.frame.make_preview()
+        self.assertEqual([(r['text'],r['mirror']) for r in self.frame.preview.labels],[('L3',True)])
+
+    def test_legacy_and_no_mirroring_are_explicit_choices(self):
+        for mode,expected in [('bottom-only',[False,False,False,True]),('none',[False]*4)]:
+            self.frame.mirror.SetSelection(self.frame.mirror_modes.index(mode));self.frame.mode_changed()
+            self.frame.make_preview();self.assertFalse(self.messages)
+            self.assertEqual([r['mirror'] for r in self.frame.preview.labels],expected)
+
+    def test_all_added_styles_are_available_through_native_preview(self):
+        added=['two-row','serpentine','radial','triangle','pentagon','hexagon','chevron',
+               'capsule','double-circle','brackets','crosshair','ruler']
+        for style in added:
+            with self.subTest(style=style):
+                self.frame.style.SetSelection(self.frame.styles.index(style));self.frame.mode_changed()
+                self.frame.make_preview()
+                self.assertFalse(self.messages);self.assertEqual(len(self.frame.canvas.glyphs),4)
+                self.assertEqual([r['mirror'] for r in self.frame.preview.labels],[False,False,True,True])
+
+    def test_native_canvas_renderer_outputs_all_layer_colours(self):
+        self.frame.make_preview()
+        bitmap=wx.Bitmap(900,300,24);dc=wx.MemoryDC(bitmap)
+        self.frame.canvas.draw(dc,900,300);dc.SelectObject(wx.NullBitmap)
+        image=bitmap.ConvertToImage();pixels=bytes(image.GetData())
+        for colour in [(0,126,131),(177,107,33),(108,80,160),(30,124,73)]:
+            self.assertGreater(pixels.count(bytes(colour)),20)
+        self.assertFalse(image.HasAlpha())
 
 
 if __name__=='__main__':unittest.main()

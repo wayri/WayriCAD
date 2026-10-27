@@ -12,7 +12,7 @@ class CounterPreview(wx.Panel):
         self.SetMinSize((280,180));self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.Bind(wx.EVT_PAINT,self.paint)
         self.Bind(wx.EVT_SIZE,lambda event:(self.Refresh(),event.Skip()))
-        self.SetToolTip('All selected copper layers are overlaid in this diagram. The dashed rectangle is the zone-only keepout. Native copper text is mirrored on bottom when enabled.')
+        self.SetToolTip('All selected copper layers are overlaid in top-board view. The dashed rectangle is the zone-only keepout. Mirroring follows the selected physical-stack policy, including inner layers.')
 
     def set_preview(self,preview):
         """Capture detached native glyph polygons once, retaining mirror and rotation."""
@@ -32,12 +32,16 @@ class CounterPreview(wx.Panel):
         self.glyphs=glyphs;self.preview=preview;self.Refresh()
 
     def paint(self,event):
-        dc=wx.AutoBufferedPaintDC(self);dc.SetBackground(wx.Brush('#f2f6f8'));dc.Clear()
+        dc=wx.AutoBufferedPaintDC(self)
+        self.draw(dc,*self.GetClientSize())
+
+    def draw(self,dc,width,height):
+        """Render the same native geometry to the live canvas or a preview file."""
+        dc.SetBackground(wx.Brush('#f2f6f8'));dc.Clear()
         preview=self.preview
         if preview is None:
             dc.SetTextForeground('#455c69');dc.DrawText('Choose settings, then click Preview.',18,18);return
         left,top,right,bottom=preview.bounds
-        width,height=self.GetClientSize()
         scale=min(max(1,width-70)/max(.01,right-left),max(1,height-70)/max(.01,bottom-top))
         def point(x,y):return round(width/2+(x-(left+right)/2)*scale),round(height/2+(y-(top+bottom)/2)*scale)
         palette=('#007e83','#b16b21','#6c50a0','#1e7c49','#b04358','#476b9d')
@@ -104,8 +108,15 @@ class LayerCounterFrame(wx.Frame):
             field.SetToolTip(f'{label}. Changes require a fresh preview before Add.')
             field.Bind(wx.EVT_TEXT,self.invalidate)
         form.Add(grid,0,wx.EXPAND|wx.ALL,8)
-        self.mirror=wx.CheckBox(controls,label='Mirror bottom copper text');self.mirror.SetValue(settings['mirror_bottom'])
-        form.Add(self.mirror,0,wx.ALL,8)
+        form.Add(wx.StaticText(controls,label='Text mirroring'),0,wx.LEFT|wx.TOP,8)
+        self.mirror_modes=list(core.MIRROR_MODES)
+        self.mirror=wx.Choice(controls,choices=[core.MIRROR_MODES[key] for key in self.mirror_modes])
+        self.mirror.SetSelection(self.mirror_modes.index(settings['mirror_mode']))
+        self.mirror.SetToolTip('Lower half uses the full physical stack, not just the checked layers. Choose core faces only after checking explicit fabrication pairs.')
+        form.Add(self.mirror,0,wx.EXPAND|wx.ALL,8)
+        count=len(self.layers);first=(count+1)//2+1
+        hint=wx.StaticText(controls,label=f'Default top view: L{first}–L{count} are mirrored.\nThe full stack determines the midline, even for a subset.')
+        hint.Wrap(300);form.Add(hint,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
         form.Add(wx.StaticText(controls,label='Core pairs (physical layers)'),0,wx.LEFT,8)
         self.pairs=wx.TextCtrl(controls,value=settings['core_pairs']);form.Add(self.pairs,0,wx.EXPAND|wx.ALL,8)
         self.pairs.SetToolTip('Example: L1/L2,L3/L4. These are explicit pairs, not inferred core/prepreg material boundaries.')
@@ -130,12 +141,12 @@ class LayerCounterFrame(wx.Frame):
         help_button=wx.Button(panel,label='Help');close=wx.Button(panel,label='Close')
         for button in (self.preview_button,self.add_button,self.undo_button,self.redo_button,help_button,close):buttons.Add(button,0,wx.ALL,5)
         outer.Add(buttons,0,wx.ALIGN_RIGHT|wx.RIGHT|wx.BOTTOM,8);panel.SetSizer(outer)
-        self.style.Bind(wx.EVT_CHOICE,self.invalidate);self.layer_list.Bind(wx.EVT_CHECKLISTBOX,self.invalidate)
-        self.mirror.Bind(wx.EVT_CHECKBOX,self.invalidate);self.pairs.Bind(wx.EVT_TEXT,self.invalidate)
+        self.style.Bind(wx.EVT_CHOICE,self.mode_changed);self.layer_list.Bind(wx.EVT_CHECKLISTBOX,self.invalidate)
+        self.mirror.Bind(wx.EVT_CHOICE,self.mode_changed);self.pairs.Bind(wx.EVT_TEXT,self.invalidate)
         self.preview_button.Bind(wx.EVT_BUTTON,self.make_preview);self.add_button.Bind(wx.EVT_BUTTON,self.add)
         self.undo_button.Bind(wx.EVT_BUTTON,lambda event:self.history(False));self.redo_button.Bind(wx.EVT_BUTTON,lambda event:self.history(True))
         help_button.Bind(wx.EVT_BUTTON,self.help);close.Bind(wx.EVT_BUTTON,lambda event:self.Close())
-        self.SetMinSize((850,620));self.update_buttons()
+        self.SetMinSize((850,620));self.update_buttons();self.sync_mode_controls()
         self.Bind(wx.EVT_HELP,self.help)
         area=wx.Display(self).GetClientArea()
         self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
@@ -143,6 +154,14 @@ class LayerCounterFrame(wx.Frame):
 
     def update_buttons(self):
         self.add_button.Enable(self.preview is not None);self.undo_button.Enable(bool(self.undo_stack));self.redo_button.Enable(bool(self.redo_stack))
+
+    def sync_mode_controls(self):
+        """Expose explicit material pairs only when the chosen mode needs them."""
+        self.pairs.Enable(self.styles[self.style.GetSelection()].startswith('core-') or
+                          self.mirror_modes[self.mirror.GetSelection()]=='core-faces')
+
+    def mode_changed(self,event=None):
+        self.sync_mode_controls();self.invalidate(event)
 
     def invalidate(self,event=None):
         self.preview=None;self.canvas.set_preview(None);self.status.SetLabel('Settings changed. Preview again before Add.');self.update_buttons()
@@ -153,7 +172,8 @@ class LayerCounterFrame(wx.Frame):
 
     def settings(self):
         values={key:float(field.GetValue()) for key,field in self.fields.items()}
-        values.update(style=self.styles[self.style.GetSelection()],layers=[layer for index,(layer,_,_) in enumerate(self.layers) if self.layer_list.IsChecked(index)],mirror_bottom=self.mirror.GetValue(),core_pairs=self.pairs.GetValue().strip())
+        mode=self.mirror_modes[self.mirror.GetSelection()]
+        values.update(style=self.styles[self.style.GetSelection()],layers=[layer for index,(layer,_,_) in enumerate(self.layers) if self.layer_list.IsChecked(index)],mirror_mode=mode,mirror_bottom=mode!='none',core_pairs=self.pairs.GetValue().strip())
         return values
 
     def error(self,exc):wx.MessageBox(str(exc),'Layer Counter',wx.OK|wx.ICON_ERROR,parent=self)
@@ -161,7 +181,10 @@ class LayerCounterFrame(wx.Frame):
     def make_preview(self,event=None):
         try:
             self.guard();self.preview=core.plan(self.board,pcbnew,self.settings());self.canvas.set_preview(self.preview)
-            self.status.SetLabel(f'{len(self.preview.labels)} copper labels ready. Board unchanged.');self.update_buttons()
+            mirrored=[row['text'] for row in self.preview.labels if row['mirror']]
+            summary=', '.join(mirrored[:6])+('…' if len(mirrored)>6 else '') if mirrored else 'none'
+            self.status.SetLabel(f'{len(self.preview.labels)} copper labels ready. Mirrored: {summary}. Board unchanged.')
+            self.status.SetToolTip('Mirrored physical labels: '+', '.join(mirrored));self.update_buttons()
         except Exception as exc:self.invalidate();self.error(exc)
 
     def add(self,event=None):

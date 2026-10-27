@@ -1,5 +1,5 @@
 """Independent native KiCad Component Arranger plugin."""
-__version__ = '0.1.10'
+__version__ = '0.1.11'
 try:
     import pcbnew
     import wx

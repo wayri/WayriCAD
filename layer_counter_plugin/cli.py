@@ -10,14 +10,17 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('board',type=Path)
     parser.add_argument('--output',type=Path,help='New candidate board; omit for read-only JSON preview')
-    from .core import STYLES
+    from .core import STYLES,MIRROR_MODES
     parser.add_argument('--style',choices=list(STYLES),default='row')
     parser.add_argument('--layers',help='Physical numbers, e.g. L1,L2,L4; default all enabled copper layers')
     parser.add_argument('--core-pairs',help='Explicit adjacent physical pairs, e.g. L1/L2,L3/L4')
     for key,value in [('x',10.),('y',10.),('size',1.),('stroke',.2),('pitch',4.),('margin',.5)]:
         parser.add_argument('--'+key,type=float,default=value,help='Millimetres')
-    parser.add_argument('--no-mirror-bottom',action='store_true')
+    parser.add_argument('--mirror-mode',choices=list(MIRROR_MODES),help='Default lower-half mirrors every physical layer below the full stack midline; subset selection does not move the midline.')
+    parser.add_argument('--no-mirror-bottom','--no-mirror',dest='no_mirror_bottom',action='store_true',help='Legacy alias for --mirror-mode none')
     args=parser.parse_args(argv)
+    if args.no_mirror_bottom and args.mirror_mode not in (None,'none'):
+        parser.error('--no-mirror-bottom/--no-mirror conflicts with the selected --mirror-mode.')
     try:
         import pcbnew as api
         from .core import defaults,copper_layers,plan,apply
@@ -28,7 +31,8 @@ def main(argv=None):
         if board is None:raise ValueError('KiCad could not load the source PCB.')
         settings=defaults(board,api)
         settings.update({key:getattr(args,key) for key in ('style','x','y','size','stroke','pitch','margin')})
-        settings['mirror_bottom']=not args.no_mirror_bottom
+        mode='none' if args.no_mirror_bottom else args.mirror_mode or 'lower-half'
+        settings.update(mirror_mode=mode,mirror_bottom=mode!='none')
         if args.core_pairs is not None:settings['core_pairs']=args.core_pairs
         if args.layers is not None:
             numbers=[int(value.strip().upper().removeprefix('L')) for value in args.layers.split(',')]
@@ -36,7 +40,7 @@ def main(argv=None):
             if len(set(numbers))!=len(numbers) or set(numbers)-set(mapping):raise ValueError('Choose distinct physical layer numbers from the source stack.')
             settings['layers']=[mapping[n] for n in numbers]
         preview=plan(board,api,settings)
-        report=dict(style=preview.settings['style'],labels=preview.labels,bounds=preview.bounds,
+        report=dict(style=preview.settings['style'],mirror_mode=preview.settings['mirror_mode'],labels=preview.labels,bounds=preview.bounds,
                     zone_keepout_layers=preview.settings['layers'],source_sha256=source_hash,
                     applied=False)
         if args.output:
