@@ -13,14 +13,19 @@ installable plugins in the source catalogue. Processing runs locally after setup
 and power schedules in watts. Transient reports add selectable summaries and
 exact-sample probes. [Release notes](docs/RELEASE_NOTES_3.6.39.md).
 
-**In development — shunt capacitors:** edit individual C/ESR/ESL branches,
-simulate finite-rise PI load steps and include endpoint caps in SI transient
-circuit exports. [Workflow and limits](quick_pi_plugin/README.md#individual-shunt-capacitors-in-transient-studies).
+## In development — 3.6.40
 
-The same development batch adds [cleaner HTML and direct PDF reports](wayricad_runtime/REPORTS.md),
-optional raw-data disclosures, and [SI pair delay, skew and phase comparison](signal_integrity_advisor_plugin/ReadMe.md).
-[PI differential voltage probes](quick_pi_plugin/README.md#differential-voltage-probes)
-compare two points in one solved 2.5D DC result.
+These updates are on `develop`; the published download remains **3.6.39**.
+[Development release notes](docs/RELEASE_NOTES_3.6.40.md).
+
+| Improvement | What changes |
+|---|---|
+| Simpler AC / SMPS workflow | Live outgoing/return preview, one Run action, folded custom settings and large selectable charts with kHz, mΩ and mW. [Quick PI previews](#quick-pi) · [AC guide](quick_pi_plugin/ac_setup_help.html) |
+| Copper-first PI view | All copper layers open together; Silk has its own toggle, off by default. Vias use V1/V2 labels consistently in probes and reports. [Workflow](quick_pi_plugin/README.md#first-open-copper-preview) |
+| Differential PI probes | Pick A and B in one solved 2.5D DC field and inspect their signed voltage difference. [Guide](quick_pi_plugin/README.md#differential-voltage-probes) |
+| SI pair timing | Compare leg delays, skew and explicit-frequency propagation phase, plus mean delay between pairs. [Guide and model limits](signal_integrity_advisor_plugin/ReadMe.md#differential-pair-delay-and-phase-matching) |
+| Shunt capacitor studies | Edit individual C/ESR/ESL branches for PI transients and include endpoint caps in SI circuit exports. [Inputs and limits](quick_pi_plugin/README.md#individual-shunt-capacitors-in-transient-studies) |
+| Cleaner HTML and PDF reports | Readable summaries and tables, optional raw JSON and direct PDF export. [Reporting guide](wayricad_runtime/REPORTS.md) |
 
 ## Start here
 
@@ -45,11 +50,14 @@ Click a screenshot for its full resolution. [More screenshots, grouped by plugin
 |---|---|
 | <a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="460" alt="Quick PI showing extracted copper on public Marble"></a> | <a href="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png" width="460" alt="QuickTherm native 3D temperature surface on the thermal demonstration board"></a> |
 | Geometry preview; no PI field solved. | Assumed-load demonstration; STEP models disabled. |
+| **[Quick PI — AC setup · development](#quick-pi)** | **[Quick PI — AC heating · development](#quick-pi)** |
+| <a href="quick_pi_plugin/help-ac-setup-3.6.40.png"><img src="quick_pi_plugin/help-ac-setup-3.6.40.png" width="460" alt="Simplified AC loop setup with outgoing and return preview"></a> | <a href="quick_pi_plugin/help-ac-results-3.6.40.png"><img src="quick_pi_plugin/help-ac-results-3.6.40.png" width="460" alt="AC heating results with summary cards, one large plot and engineering units"></a> |
+| Live explicit-geometry preview before solving. | Computed illustrative loop; 128.1 mW total copper heat. |
 | **[Trace Refiner — old/new comparison](#trace-refiner)** | **[Fanout — connector escape preview](#fanout-generator)** |
 | <a href="trace_refiner_plugin/help-validated-comparison.png"><img src="trace_refiner_plugin/help-validated-comparison.png" width="460" alt="Trace Refiner comparing amber original tracks with teal proposed tracks"></a> | <a href="fanout_generator_plugin/help-connector-proposed.png"><img src="fanout_generator_plugin/help-connector-proposed.png" width="460" alt="Fanout Generator previewing six escapes on a synthetic connector fixture"></a> |
 | Synthetic fixture; native validation reported no new DRC findings. | Six-pin synthetic fixture; [dense Marble trial results](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
 
-## Latest release — 3.6.33
+## Released workflow highlights
 
 Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
 
@@ -92,7 +100,7 @@ See [screenshots grouped by plugin](#plugin-previews), [offline help for all too
 
 ### Analysis evidence
 
-This release includes jointly solved shared-return copper for multi-net PI,
+Released tools include jointly solved shared-return copper for multi-net PI,
 multiple source/load pads per PI unit, and local coupled-line crosstalk analysis
 for SI. Read the
 [Marble validation results and model limits](docs/audits/MARBLE_COUPLED_ANALYSIS.md),
@@ -162,6 +170,12 @@ an input or model is missing; they are not a pass.
 
 For your first run, use the default layered DC model. Review copper thickness,
 via plating and mesh refinement before relying on local peaks.
+
+**For AC / SMPS copper losses (development):** open **More → AC / SMPS copper
+study**, choose a quick loop, enter dimensions and RMS ripple, then click **Run**.
+Results open on heating; use **Inspect** to switch to impedance or the copper/return
+field. Choose **Custom loop** for conductor tables or an SMPS harmonic spectrum.
+[AC walkthrough](quick_pi_plugin/ac_setup_help.html).
 
 
 <a id="start-quicktherm"></a>
@@ -325,6 +339,27 @@ remain outlines. [Workflow and native-capture scope](suite_assistant_plugin/READ
 
 ### [Quick PI](quick_pi_plugin/README.md)
 
+**Simpler AC setup and results · development 3.6.40**
+
+<a href="quick_pi_plugin/help-ac-setup-3.6.40.png"><img src="quick_pi_plugin/help-ac-setup-3.6.40.png" width="960" alt="Quick PI AC setup with basic inputs, a live return-path preview and collapsed advanced settings"></a>
+
+Choose a loop and enter its dimensions, DC current and RMS ripple. The main Run
+button uses the visible recipe. Custom conductor, waveform and mesh controls stay
+in an expandable section.
+
+<a href="quick_pi_plugin/help-ac-results-3.6.40.png"><img src="quick_pi_plugin/help-ac-results-3.6.40.png" width="960" alt="Quick PI AC total heating, ripple heating, loop voltage drop and RMS current with a large harmonic-heating chart"></a>
+
+Four summary cards distinguish total heat, ripple heat, AC voltage drop and RMS
+current. Select one large chart and drag the divider to resize the plot or table.
+
+<a href="quick_pi_plugin/help-ac-impedance-3.6.40.png"><img src="quick_pi_plugin/help-ac-impedance-3.6.40.png" width="960" alt="Quick PI resistance and reactance at one supplied 100 kHz frequency, displayed in milliohms"></a>
+
+Actual explicit 20 mm copper-loop solve at 20 °C: 5 A DC plus 1 A RMS at 100 kHz,
+128.1 mW total copper heating and 4.976 mW ripple heating. A single supplied
+frequency is a discrete result. [Workflow](quick_pi_plugin/ac_setup_help.html) ·
+[Capture inputs and checks](docs/audits/QUICK_PI_AC_READABILITY_2026-10-28.md).
+
+
 **Individual shunt capacitor response · development**
 
 <a href="quick_pi_plugin/help-shunt-response.png"><img src="quick_pi_plugin/help-shunt-response.png" width="960" alt="PI individual capacitor table with selected internal voltage and branch-current transient plots"></a>
@@ -352,7 +387,7 @@ This is a network demonstration, with declared inductance and capacitance.
 [PDN capacitor-bank setup](quick_pi_plugin/help-pdn-setup-3.6.38.png) ·
 [Impedance results](quick_pi_plugin/help-pdn-results-3.6.38.png).
 
-**AC copper and return losses · 3.6.38**
+**Earlier AC copper and return losses · 3.6.38**
 
 <a href="quick_pi_plugin/help-ac-results-3.6.38.png"><img src="quick_pi_plugin/help-ac-results-3.6.38.png" width="960" height="606" alt="Quick PI actual explicit cross-section AC field, impedance and Joule-loss results"></a>
 
