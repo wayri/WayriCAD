@@ -97,7 +97,7 @@ def details_text(result):
     for row in analysis['hotspots_by_heating_density']:
         location=', '.join(f'{x:.5g}' for x in row['location_mm']) if row['location_mm'] else 'unavailable'
         thermal=row['thermal'];ratio=thermal.get('energy_ratio')
-        lines.append(f"{row['rank']}. {row['kind']} {row['id']} | {row['layer_name']} | ({location}) mm | "
+        lines.append(f"{row['rank']}. {row.get('display_id') or str(row['kind'])+' '+str(row['id'])} | {row['layer_name']} | ({location}) mm | "
                      f"J {row['current_density_A_mm2']:.5g} A/mm² | {row['power_density_W_mm3']:.5g} W/mm³ | "
                      +(f"pulse energy/limit {ratio:.5g}" if ratio is not None else 'pulse duration required for thermal screening'))
     lines.extend(['',analysis['thickness_basis'],analysis['notice'],result.get('thermal_assumptions',{}).get('notice','')])

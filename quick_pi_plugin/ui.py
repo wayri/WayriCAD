@@ -460,8 +460,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         layout.Add(selection,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
         visibility=wx.BoxSizer(wx.HORIZONTAL)
         self.show_context=wx.CheckBox(self.inspector,label='Board');self.show_copper=wx.CheckBox(self.inspector,label='Copper');self.show_overlay=wx.CheckBox(self.inspector,label='Field')
-        for control in (self.show_context,self.show_copper,self.show_overlay):
-            control.SetValue(True);visibility.Add(control,0,wx.RIGHT,7);control.Bind(wx.EVT_CHECKBOX,lambda event:self._draw(preserve=True))
+        self.show_silkscreen=wx.CheckBox(self.inspector,label='Silk')
+        self.show_silkscreen.SetToolTip('Optional saved silkscreen. Board outline and holes remain visible with Board enabled.')
+        for control in (self.show_context,self.show_copper,self.show_overlay,self.show_silkscreen):
+            control.SetValue(control is not self.show_silkscreen);visibility.Add(control,0,wx.RIGHT,7);control.Bind(wx.EVT_CHECKBOX,lambda event:self._draw(preserve=True))
         layout.Add(visibility,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
         self.isolate_nets=wx.CheckBox(self.inspector,label='Only simulated nets')
         self.isolate_nets.SetValue(True)
@@ -595,17 +597,19 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         for control in (self.scale_min,self.scale_max,self.scale_apply):control.Enable(manual)
         if refresh_rows or not result or not self._saved_source_current:
             from .analytics import details_text
-            self.accounting_text.SetValue('\n\n'.join(value for value in (feasibility_text(result),sink_results_text(result),details_text(result)) if value))
+            from .display_ids import display_result
+            presented=display_result(self.bundle)
+            self.accounting_text.SetValue('\n\n'.join(value for value in (feasibility_text(result),sink_results_text(result),details_text(presented)) if value))
             from .inspector_tables import loss_rows,heating_rows
-            shown=result if self._saved_source_current else {}
+            shown=presented if self._saved_source_current else {}
             self.loss_table.set_rows(loss_rows(shown));self.heating_table.set_rows(heating_rows(shown))
             self.findings.DeleteAllItems()
             key='hotspots_by_heating_density' if self.finding_order.GetSelection()==1 else 'hotspots_by_current_density'
             melting=self.finding_order.GetSelection()==2
-            self._finding_rows=list(result.get('fusing',{}).get('bottlenecks',[]) if melting else result.get('analytics',{}).get(key,[])) if self._saved_source_current else []
+            self._finding_rows=list(presented.get('fusing',{}).get('bottlenecks',[]) if melting else presented.get('analytics',{}).get(key,[])) if self._saved_source_current else []
             column=self.findings.GetColumn(3);column.SetText('Melt · s' if melting else 'Heat W/mm³');self.findings.SetColumn(3,column)
             for row in self._finding_rows:
-                index=self.findings.InsertItem(self.findings.GetItemCount(),f"{row['rank']}. {row['kind']}")
+                index=self.findings.InsertItem(self.findings.GetItemCount(),f"{row['rank']}. {row.get('display_id') or row['kind']}")
                 last=('Unknown' if row.get('time_to_melt_s') is None else f"{row['time_to_melt_s']:.5g}") if melting else f"{row['power_density_W_mm3']:.5g}"
                 for column,value in enumerate([row['layer_name'],f"{row['current_density_A_mm2']:.5g}",last],1):
                     self.findings.SetItem(index,column,value)
@@ -613,7 +617,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         row=self._inspection
         if row:
             number=lambda value,unit:'Unknown' if value is None else f'{value:.6g} {unit}'
-            text=f"{row['kind']} {row['id']} · {row['layer_name']}\n"
+            text=f"{row.get('display_id') or row['id']} · {row['layer_name']}\n"
             text+='XYZ: '+', '.join(f'{value:.6g}' for value in row['location_mm'])+' mm\n'
             text+=metric_name(self.bundle,row['metric'])+': '+number(row.get('value'),row['unit'])+'\n'
             text+='Current density: '+number(row.get('current_density_A_mm2'),'A/mm²')+'\nLoss: '+number(row.get('power_W'),'W')
@@ -960,10 +964,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                 self._return_follow_current=True;self._return_nets_changed()
                 self._set_terminals()
                 self.bundle={'board_scene':self._board_scene}
-                self._layers=list(result.get('layers',[]))
-                if len(self._layers)>1:self._layers.append({'id':'all','name':'All copper layers (projected)'})
-                self.layer.Set([row['name'] for row in self._layers])
-                if self._layers:self.layer.SetSelection(0)
+                self._set_layer_choices(result.get('layers',[]))
                 self._select_preview_layer()
                 self._plot_keys.clear();self.book.SetSelection(0);self._draw()
                 self.summary.SetLabel('Saved copper preview. No mesh or electrical result has been calculated.')
@@ -1045,6 +1046,18 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         elif 'sink_terminal' in request and len(sink_ids)>1:
             request.pop('sink_terminal',None);request['sinks']=[unit({'terminal':sink_ids[0]},sink_ids[1:])]
         return request
+
+    def _set_layer_choices(self,rows):
+        """Default to all copper; retain an explicit physical-layer selection."""
+        current=self.layer.GetSelection()
+        previous=self._layers[current]['id'] if 0<=current<len(self._layers) else None
+        self._layers=[row for row in rows if row['id']!='all']
+        if len(self._layers)>1:self._layers.append({'id':'all','name':'All copper layers (projected)'})
+        self.layer.Set([row['name'] for row in self._layers])
+        if self._layers:
+            fallback=len(self._layers)-1 if len(self._layers)>1 else 0
+            selected=next((i for i,row in enumerate(self._layers) if str(row['id'])==str(previous)),fallback)
+            self.layer.SetSelection(selected)
 
     def _select_preview_layer(self):
         """Keep the current layer, or show an occupied layer for the chosen net."""
@@ -1310,6 +1323,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self._reset_live()
         self._inspection=None
         self.bundle=result;self.bundle.setdefault('request',request)
+        from .display_ids import prepare_display_ids
+        prepare_display_ids(self.bundle)
         geometry=result.get('geometry') or result.get('mesh',{}).get('geometry',{})
         expected=geometry.get('source_sha256')
         if result.get('board_scene'):
@@ -1321,13 +1336,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             self._board_scene={};self._board_scene_hash=None
             wx.CallAfter(self._load_result_scene,result,expected,sorted(net for net in required if net))
         self.bundle['board_scene']=self._board_scene
-        self._layers=list(layer_rows(result))
-        if len(self._layers)>1:self._layers.append({'id':'all','name':'All copper layers (projected)'})
-        self.layer.Set([row['name'] for row in self._layers])
-        if self._layers:
-            initial=next((index for index,row in enumerate(self._layers) if row.get('polygons') or
-                          via_markers(result.get('mesh',{}),result.get('result',{}),result.get('geometry',{}),row['id'],'density')),0)
-            self.layer.SetSelection(initial)
+        self._set_layer_choices(layer_rows(result))
         mesh=result.get('mesh',{});self.mesh_count.SetLabel(f"{len(mesh.get('points_mm',[])):,} nodes · {len(mesh.get('triangles',[])):,} triangles" if mesh else '')
         for warning in result.get('geometry',{}).get('warnings',[]):self._console_write('Geometry: '+str(warning))
         self._plot_keys.clear();self.book.SetSelection(2 if action=='solve' else 1 if action=='mesh' else 0)
@@ -1465,6 +1474,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                     id(self.bundle.get('geometry')),id(self.bundle.get('board_scene')),key,metric,
                     repr(self.bundle['view_settings']),repr(self._inspection),repr(self.bundle.get('differential_probes')),self._saved_source_current,
                     self.show_context.GetValue(),self.show_copper.GetValue(),self.show_overlay.GetValue(),
+                    self.show_silkscreen.GetValue(),
                     tuple(self._visible_nets()),repr(self._scale_limits(metric)))
         if getattr(figure,'_wayricad_render_key',None)==render_key and figure.axes:
             self.color_legend.set_scale(getattr(figure.axes[0],'_wayricad_color_scale',None))
@@ -1476,7 +1486,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             ax.text(.5,.5,'Saved PCB changed. Reload and rerun before viewing results.',ha='center',va='center',transform=ax.transAxes)
             ax.set_axis_off();toolbar.update();canvas.draw_idle();return
         ax=draw_view(figure,self.bundle,('Net','Mesh','Results')[index],layer,metric,self._scale_limits(metric),self._inspection,
-                     show_context=self.show_context.GetValue(),show_copper=self.show_copper.GetValue(),show_overlay=self.show_overlay.GetValue(),board_view=True,visible_nets=self._visible_nets())
+                     show_context=self.show_context.GetValue(),show_copper=self.show_copper.GetValue(),show_overlay=self.show_overlay.GetValue(),show_silkscreen=self.show_silkscreen.GetValue(),board_view=True,visible_nets=self._visible_nets())
         self.color_legend.set_scale(getattr(ax,'_wayricad_color_scale',None))
         result=self.bundle.get('result',{});analysis=result.get('analytics',{})
         row=next((item for item in analysis.get('layers',[]) if str(item['layer'])==str(layer)),None)
@@ -1497,7 +1507,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             from wayricad_runtime.plot_probe import attach_probes
             mesh=self.bundle['mesh'];points=np.asarray(mesh['points_mm']);indices=[i for i,v in enumerate(mesh['triangle_layer']) if str(v)==str(layer)]
             polygons=points[np.asarray(mesh['triangles'],dtype=int)[indices],:2];centers=polygons.mean(axis=1);values=cell_values(mesh,self.bundle['result'],metric)
-            samples=[[float(x),float(y),float(values[i]),'Cell '+str(i)] for (x,y),i in zip(centers,indices)]
+            samples=[[float(x),float(y),float(values[i]),'C'+str(i+1)] for (x,y),i in zip(centers,indices)]
             self._probe_controllers[index]=attach_probes(canvas,ax,samples,METRICS[metric][1],polygons=polygons)
         self._live_scene_ready(index,ax)
         figure._wayricad_render_key=render_key

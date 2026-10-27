@@ -12,6 +12,12 @@ saved report readings and read-only CLI probing. Unrelated cases and unsolved
 regions are rejected; full-volume and AC/transient waveform probing remain outside
 this feature.
 
+Quick PI now opens on **All copper layers (projected)** with a separate **Silk**
+toggle off by default. Explicit layer choices survive new results. Vias use short
+V1/V2 labels across probes and reports; mesh cells use C1/C2 labels. Original
+selection IDs remain in the evidence. Analytics exports retain their script-free
+HTML contract while using the shared report styling and static navigation.
+
 [Report workflow and static-PDF limits](../wayricad_runtime/REPORTS.md).
 [Validation and model boundaries](audits/REPORTS_AND_DIFFERENTIAL_PROBES_2026-10-27.md).
 

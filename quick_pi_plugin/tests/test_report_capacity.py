@@ -89,7 +89,10 @@ class ReportCapacityTests(unittest.TestCase):
             html=Path(paths['html']).read_text(encoding='utf-8')
             self.assertIn('Solver cells style',html)
             self.assertNotIn('Additional potential, resistance, flow',html)
-            self.assertEqual(json.loads(Path(paths['json']).read_text(encoding='utf-8')),bundle)
+            exported=json.loads(Path(paths['json']).read_text(encoding='utf-8'))
+            labels=exported.pop('display_identifiers')
+            self.assertEqual(labels['scheme'],'wayricad.pi-display-ids/v1')
+            self.assertEqual(exported,bundle)
         self.assertEqual(bundle,before)
 
     def test_snapshot_releases_figure_cycles(self):

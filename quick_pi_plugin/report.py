@@ -7,6 +7,7 @@ import json
 import math
 from pathlib import Path
 from wayricad_runtime.report_ui import enhance_report, provenance, publish_report, report_paths
+from .display_ids import display_label, DisplayIDs
 
 METRICS={
     'voltage':('Potential','V','viridis'),
@@ -220,6 +221,7 @@ def inspection_record(bundle, kind, identifier, metric='density'):
     if not result:return None
     geometry=bundle.get('geometry') or mesh.get('geometry',{})
     names={str(row['id']):row.get('name',str(row['id'])) for row in geometry.get('layers',[])}
+    from .display_ids import display_label
     if kind=='sheet':
         index=int(identifier)
         if not 0<=index<len(mesh.get('triangles',[])):return None
@@ -227,7 +229,7 @@ def inspection_record(bundle, kind, identifier, metric='density'):
         vector=result['cell_J_A_mm2'][index]
         power=result['cell_power_W'][index]
         from .fusing import local_screen
-        return {'kind':kind,'id':index,'layer':mesh['triangle_layer'][index],
+        return {'kind':kind,'id':index,'display_id':display_label(bundle,kind,index),'layer':mesh['triangle_layer'][index],
                 'layer_name':names.get(str(mesh['triangle_layer'][index]),str(mesh['triangle_layer'][index])),
                 'location_mm':result['cell_centroid_mm'][index], 'metric':metric,
                 'value':value if math.isfinite(value) else None,'unit':METRICS[metric][1],
@@ -249,7 +251,7 @@ def inspection_record(bundle, kind, identifier, metric='density'):
                         solved['volume_mm3']/barrel['length_mm'] if barrel.get('length_mm',0)>0 else None)
     if quantity=='melt':value=screen['pulse_melt_ratio']
     span=[barrel.get('top_layer'),barrel.get('bottom_layer')]
-    return {'kind':'via','id':identifier,'layer':span,
+    return {'kind':'via','id':identifier,'display_id':display_label(bundle,'via',identifier),'layer':span,
             'layer_name':' → '.join(names.get(str(value),str(value)) for value in span),
             'location_mm':[barrel['x_mm'],barrel['y_mm']], 'metric':quantity,'value':value,
             'unit':METRICS[quantity][1], 'source_ids':sources,'fusing':screen,
@@ -364,7 +366,7 @@ def _fit_board_view(ax):
     ax._wayricad_scale_bar=(line,label)
 
 
-def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None):
+def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None,include_silk=True):
     """Draw saved silkscreen at physical size; no invented centroid labels."""
     from matplotlib.collections import PathCollection
     from matplotlib.patches import PathPatch
@@ -379,7 +381,7 @@ def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None):
         role=row.get('role');on_layer=layer=='all' or str(row.get('layer'))==str(layer)
         if role=='drill' and visible_nets is not None and row.get('net') and row.get('net') not in visible_nets:continue
         visible=(role=='outline' or role=='drill' and on_layer or
-                 role in ('drawing','footprint','reference') and names.get(str(row.get('layer'))) in graphics)
+                 include_silk and role in ('drawing','footprint','reference') and names.get(str(row.get('layer'))) in graphics)
         # Old reports may contain synthetic fixed-font centroid labels. They
         # are not saved silkscreen and must not return as oversized annotations.
         if not visible or row.get('kind')!='polygon' or len(row.get('points',[]))<3:continue
@@ -405,7 +407,7 @@ def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None):
 
 def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits=None,inspection=None,
               show_context=True,show_copper=True,show_overlay=True,field_style=None,board_view=False,
-              visible_nets=None):
+              visible_nets=None,show_silkscreen=True):
     """Draw actual geometry; board_view uses a native viewport without chart chrome.
 
     Native color meaning is available in ``ax._wayricad_color_scale`` for an
@@ -474,7 +476,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         if not board_view or not scene.get('primitives'):
             ax.text(.5,.5,'Choose a net and preview its copper.',ha='center',va='center',transform=ax.transAxes)
         if board_view:
-            if show_context and scene:_draw_board_context(ax,scene,layer,visible_nets=visible_nets)
+            if show_context and scene:_draw_board_context(ax,scene,layer,visible_nets=visible_nets,include_silk=show_silkscreen)
             ax.autoscale_view();ax.invert_yaxis();_fit_board_view(ax)
         else:figure.tight_layout()
         return ax
@@ -600,7 +602,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         if not board_view:
             ax.annotate(label,center,xytext=(offset,7),ha='left' if offset>0 else 'right',textcoords='offset points',fontsize=8,
                         bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
-    if board_view and show_context and scene:_draw_board_context(ax,scene,layer,selected['name'],visible_nets)
+    if board_view and show_context and scene:_draw_board_context(ax,scene,layer,selected['name'],visible_nets,include_silk=show_silkscreen)
     for key,point in bundle.get('differential_probes',{}).items():
         if key not in ('a','b') or not (combined or str(point.get('layer'))==str(layer)):continue
         x,y=point['x_mm'],point['y_mm'];color='#b44d11' if key=='a' else '#1765b2'
@@ -625,7 +627,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         if combined or any(str(value)==str(layer) for value in span):
             x,y=inspection['location_mm'][:2]
             ax.plot(x,y,marker='+',markersize=15,markeredgewidth=2,color='#06a7a0',zorder=10)
-            ax.annotate(f"{inspection['kind']} {str(inspection['id'])[:16]}",(x,y),xytext=(8,-14),textcoords='offset points',fontsize=8,
+            ax.annotate(str(inspection.get('display_id') or inspection['kind']),(x,y),xytext=(8,-14),textcoords='offset points',fontsize=8,
                         bbox={'facecolor':'white','edgecolor':'#06a7a0','alpha':.9,'pad':2})
     if combined:title+='\nProjected layer fields overlap; values are not summed. Choose a layer for unambiguous inspection.'
     if view=='Results' and result and result.get('feasibility',{}).get('source_current_limit_exceeded'):
@@ -797,6 +799,8 @@ def _linked_evidence(bundle,reference):
 
 def write_report(path,bundle,layer=None,*,evidence_reference=None):
     """Export current-layer maps plus all numeric mesh/results as paired JSON."""
+    display_ids=DisplayIDs(bundle)
+    published_bundle=dict(bundle,display_identifiers=display_ids.metadata())
     path,json_path=report_paths(path)
     result=bundle.get('result')
     if not result:raise ValueError('Run the analysis before exporting results.')
@@ -880,7 +884,8 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
         html+='<p><strong>Operating-point warning:</strong> The requested current makes sink voltage negative; check source voltage and load. The imposed-current path may be infeasible.</p>'
     if result.get('analytics'):
         from .analytics import details_text
-        html+='<h2>Copper thickness, layer losses and hotspots</h2><pre>'+escape(details_text(result))+'</pre>'
+        from .display_ids import display_result
+        html+='<h2>Copper thickness, layer losses and hotspots</h2><pre>'+escape(details_text(display_result(bundle)))+'</pre>'
     if result.get('fusing'):
         model=result['fusing']
         html+='<h2>Copper melting and bottleneck screening</h2><p>'+escape(model['notice'])+'</p>'
@@ -888,7 +893,7 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
         if model.get('reason'):html+='<p>'+escape(model['reason'])+'</p>'
         html+='<table><tr><th>Rank / copper</th><th>Layer / XYZ mm</th><th>Section mm²</th><th>Onset s</th><th>Full melt s</th><th>Melting I²t A²s</th><th>Pulse / melting action</th></tr>'
         for row in model.get('bottlenecks',[]):
-            values=[f"B{row['rank']} {row['kind']} {row['id']}",row['layer_name']+' / '+str(row['location_mm']),
+            values=[f"B{row['rank']} {display_ids.label(row['kind'],row['id'])}",row['layer_name']+' / '+str(row['location_mm']),
                     *[_number(row.get(k)) for k in ('cross_section_mm2','time_to_onset_s','time_to_melt_s','i2t_to_melt_A2s','pulse_melt_ratio')]]
             html+='<tr>'+''.join('<td>'+escape(str(v))+'</td>' for v in values)+'</tr>'
         html+='</table><p>Nominal track sections use saved straight-track width × solved local thickness. Their I²t uses local J, not integrated branch current; parallel zone copper can change the physical path. Missing or ambiguous track identity keeps section and I²t unknown. Via sections use solved barrel metal area.</p>'
@@ -911,21 +916,27 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
             html+='<tr>'+''.join('<td>'+escape(value)+'</td>' for value in values)+'</tr>'
         html+='</table><pre>'+escape(json.dumps(result['components'],indent=2))+'</pre>'
     if result.get('vias'):
-        html+='<h2>Via barrels</h2><p>Positive current follows the recorded top-to-bottom barrel direction. The current-density and pulse-risk maps also color via annuli.</p><table><tr><th>Barrel</th><th>Current A</th><th>R mΩ</th><th>J A/mm²</th><th>Loss W</th><th>Pulse energy / limit</th></tr>'
+        metadata={str(row['id']):row for row in bundle.get('mesh',{}).get('vias',[])}
+        layer_names={str(row['id']):row.get('name',str(row['id'])) for row in rows}
+        html+='<h2>Via barrels</h2><p>V numbers identify physical vias in top-view reading order (Y, then X). Segments of one via share its V number; the layer span below identifies each segment. Original identities remain in the complete JSON. Positive current follows the recorded top-to-bottom direction. The current-density and pulse-risk maps also color via annuli.</p><table><tr><th>Barrel</th><th>Current A</th><th>R mΩ</th><th>J A/mm²</th><th>Loss W</th><th>Pulse energy / limit</th></tr>'
         for via in result['vias']:
-            values=[via['id'],_number(via.get('current_A')),_number(via.get('resistance_ohm'),scale=1000),
+            meta=metadata.get(str(via['id']),{})
+            span=' → '.join(layer_names.get(str(meta.get(key)),str(meta.get(key,'Unknown'))) for key in ('top_layer','bottom_layer'))
+            label=display_ids.label('via',via['id'])+' · '+span+' · ('+_number(meta.get('x_mm'))+', '+_number(meta.get('y_mm'))+') mm'
+            values=[label,_number(via.get('current_A')),_number(via.get('resistance_ohm'),scale=1000),
                     _number(via.get('current_density_A_mm2')),_number(via.get('power_W')),_number(via.get('thermal',{}).get('energy_ratio'))]
             html+='<tr>'+''.join('<td>'+escape(value)+'</td>' for value in values)+'</tr>'
         html+='</table>'
     html+='<h2>Assumptions and inputs</h2><p>'+escape(assumptions.get('notice','DC conduction approximation; not an AC or thermal field solve.'))+'</p><pre>'+escape(json.dumps({'request':bundle.get('request',{}),'material':result.get('material',{}),'thermal':assumptions,'geometry_warnings':bundle.get('geometry',{}).get('warnings',[]),'mesh_report':bundle.get('mesh',{}).get('mesh_report',[])},indent=2))+'</pre></html>'
     document=_review_html(html,bundle)
     if linked:
+        linked=dict(linked,display_identifiers=display_ids.metadata())
         from wayricad_runtime.report_ui import checked_sources,publish_documents
         sources=checked_sources(bundle)  # Validate full original custody, not the descriptor.
         publish_documents({json_path:json.dumps(linked,indent=2,ensure_ascii=False,allow_nan=False)+'\n',
                            path:document},sources=sources)
         return {'html':str(path),'json':str(json_path)}
-    return publish_report(path,document,bundle)
+    return publish_report(path,document,published_bundle)
 
 
 def write_sweep_report(path,bundle):
@@ -1000,7 +1011,7 @@ def interactive_fields(bundle,layer):
     html=''
     for metric in ('drop','density','loss'):
         values=cell_values(mesh,result,metric)
-        rows=[[float(x),float(y),float(values[i]),'Layer '+str(mesh['triangle_layer'][i])+' · Cell '+str(i)] for (x,y),i in zip(centers,indices)]
+        rows=[[float(x),float(y),float(values[i]),'Layer '+str(mesh['triangle_layer'][i])+' · C'+str(i+1)] for (x,y),i in zip(centers,indices)]
         html+=interactive_plot(metric_name(bundle,metric),rows,METRICS[metric][1],polygons=polygons)
     return html
 

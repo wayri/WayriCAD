@@ -67,7 +67,7 @@ class InventoryStartupTests(unittest.TestCase):
         self.assertEqual(len(self.frame._board_scene['primitives']),1)
         self.assertNotIn('geometry',self.frame.bundle)
         self.assertNotIn('result',self.frame.bundle)
-        self.assertEqual(self.frame.layer.GetStringSelection(),'F.Cu')
+        self.assertEqual(self.frame.layer.GetStringSelection(),'All copper layers (projected)')
         self.assertEqual(self.frame._layers[-1]['id'],'all')
         self.assertTrue(self.frame.views[0][0].axes[0].patches)
         self.assertGreaterEqual(self.frame.views[0][0].axes[0].patches[0].get_alpha(),.8)
@@ -79,10 +79,10 @@ class InventoryStartupTests(unittest.TestCase):
         self.assertEqual(request['sinks'], [{'terminal': 'pad-2'}])
         self.assertEqual(self.frame._request('solve')['sinks'], [{'terminal': 'pad-2', 'current_A': 1.0}])
 
-    def test_first_layer_with_selected_net_copper_is_used(self):
+    def test_all_layer_projection_includes_bottom_only_net_on_open(self):
         inventory=self.inventory();inventory['board_scene']['primitives'][0]['layer']=31
         self.callback()(inventory)
-        self.assertEqual(self.frame.layer.GetStringSelection(),'B.Cu')
+        self.assertEqual(self.frame.layer.GetStringSelection(),'All copper layers (projected)')
         self.assertTrue(self.frame.views[0][0].axes[0].patches)
 
     def test_cached_copper_switches_nets_and_layers_without_another_job(self):
@@ -92,7 +92,7 @@ class InventoryStartupTests(unittest.TestCase):
         self.callback()(inventory)
         with patch.object(self.frame,'_job') as job:
             self.frame.net.SetValue('VCC_0001');self.frame._net_changed()
-            self.assertEqual(self.frame.layer.GetStringSelection(),'B.Cu')
+            self.assertEqual(self.frame.layer.GetStringSelection(),'All copper layers (projected)')
             axes=self.frame.views[0][0].axes[0]
             self.assertTrue(any(p.get_path().vertices[:,0].max()==40 for p in axes.patches))
             self.frame.isolate_nets.SetValue(False);self.frame._scope_changed()
@@ -112,6 +112,31 @@ class InventoryStartupTests(unittest.TestCase):
         self.frame.show_context.SetValue(False);self.frame._draw()
         self.assertTrue(self.frame.views[0][0].axes[0].patches)
         self.assertEqual(self.path.read_bytes(),before)
+
+    def test_copper_projection_default_excludes_silk_but_retains_edges(self):
+        inventory=self.inventory();scene=inventory['board_scene']
+        scene['layers']={0:'F.Cu',31:'B.Cu',37:'F.SilkS'}
+        scene['primitives'].extend([
+            {'kind':'polygon','role':'track','layer':31,'net':'VCC_0000','points':[[30,10],[40,10],[40,11],[30,11]],'holes':[]},
+            {'kind':'polygon','role':'outline','layer':44,'uuid':'edge','points':[[0,0],[50,0],[50,20],[0,20]],'holes':[]},
+            {'kind':'polygon','role':'reference','layer':37,'uuid':'silk','points':[[12,12],[14,12],[14,13],[12,13]],'holes':[]}])
+        self.callback()(inventory);wx.Yield()
+        self.assertFalse(self.frame.show_silkscreen.GetValue())
+        axes=self.frame.views[0][0].axes[0]
+        self.assertTrue(any(p.get_path().vertices[:,0].max()==40 for p in axes.patches))
+        self.assertTrue(any(':outline:' in str(p.get_gid()) for p in axes.patches))
+        self.assertFalse(any(':reference:' in str(p.get_gid()) for p in axes.patches))
+        self.frame.show_silkscreen.SetValue(True);self.frame._draw();wx.Yield()
+        self.assertTrue(any(':reference:' in str(p.get_gid()) for p in self.frame.views[0][0].axes[0].patches))
+
+    def test_explicit_layer_selection_survives_inventory_and_result_choices(self):
+        self.callback()(self.inventory())
+        self.frame.layer.SetSelection(next(i for i,row in enumerate(self.frame._layers) if row['id']==31))
+        self.frame._set_layer_choices([{'id':0,'name':'F.Cu'},{'id':31,'name':'B.Cu'}])
+        self.assertEqual(self.frame.layer.GetStringSelection(),'B.Cu')
+        self.frame.layer.SetSelection(next(i for i,row in enumerate(self.frame._layers) if row['id']=='all'))
+        self.frame._set_layer_choices([{'id':0,'name':'F.Cu'},{'id':31,'name':'B.Cu'}])
+        self.assertEqual(self.frame.layer.GetStringSelection(),'All copper layers (projected)')
 
     def test_failed_inventory_update_always_thaws_window(self):
         callback = self.callback()

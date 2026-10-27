@@ -170,7 +170,7 @@ def details_text(model):
     lines=['COPPER MELTING / BOTTLENECK SCREEN',model['notice']]
     if model.get('reason'):lines.append(model['reason'])
     for row in model.get('bottlenecks',[]):
-        text=f"{row['rank']}. {row['kind']} {row['id']} | {row['layer_name']} | J {row['current_density_A_mm2']:.5g} A/mm²"
+        text=f"{row['rank']}. {row.get('display_id') or str(row['kind'])+' '+str(row['id'])} | {row['layer_name']} | J {row['current_density_A_mm2']:.5g} A/mm²"
         for key,label,unit in [('time_to_onset_s','onset','s'),('time_to_melt_s','full melt','s'),('i2t_to_melt_A2s','nominal melting I²t','A²s'),('pulse_melt_ratio','pulse/melting action','')]:
             text+=' | '+label+' '+('Unknown' if row.get(key) is None else f'{row[key]:.6g} {unit}')
         lines.extend([text,row['section_basis']])

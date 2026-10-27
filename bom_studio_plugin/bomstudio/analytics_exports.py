@@ -215,7 +215,7 @@ def html_bytes(report, all_tables):
         # PCM packages vendor it; retain the existing printable layout without it.
         if error.name not in ('wayricad_runtime','wayricad_runtime.report_ui'):raise
         return ''.join(out).encode('utf-8')
-    document=enhance_report(''.join(out),status=STATUS,summary=[('Matched components',report['scope']['matched_components'])],notice='Known subtotals and declared geometry evidence only. Missing inputs remain unknown.')
+    document=enhance_report(''.join(out),status=STATUS,summary=[('Matched components',report['scope']['matched_components'])],notice='Known subtotals and declared geometry evidence only. Missing inputs remain unknown.',interactive=False)
     return document.encode('utf-8')
 
 

@@ -105,7 +105,7 @@ def loss_rows(result):
 
 
 def heating_rows(result):
-    return [{'cells':(f"{row['rank']}. {row['kind']} {row['id']}",row['layer_name'],row['current_density_A_mm2'],row['power_density_W_mm3']),
+    return [{'cells':(f"{row['rank']}. {row.get('display_id') or str(row['kind'])+' '+str(row['id'])}",row['layer_name'],row['current_density_A_mm2'],row['power_density_W_mm3']),
              'target':row,'metric':'loss'} for row in result.get('analytics',{}).get('hotspots_by_heating_density',[])]
 
 
@@ -114,7 +114,7 @@ def probe_rows(bundle,record):
     rows=[]
     def add(label,value,unit='',metric=None):
         rows.append({'cells':(label,value,unit),'target':record,'metric':metric})
-    add('Copper',record.get('kind'));add('Cell / barrel ID',record.get('id'));add('Layer',record.get('layer_name'))
+    add('Copper',record.get('kind'));add('Display ID',record.get('display_id') or record.get('id'));add('Layer',record.get('layer_name'))
     for axis,value in zip('XYZ',record.get('location_mm') or []):add(axis,value,'mm')
     add('Displayed result',record.get('value'),record.get('unit',''),record.get('metric'))
     add('Current density',record.get('current_density_A_mm2'),'A/mm²','density')

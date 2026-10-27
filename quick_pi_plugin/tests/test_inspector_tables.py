@@ -37,7 +37,7 @@ class TableDataTests(unittest.TestCase):
         self.assertEqual(heating[0]['target']['id'],r['analytics']['hotspots_by_heating_density'][0]['id'])
         record=inspection_record(b,'sheet',3,'density');record['source_ids']=['native-track']
         values={row['cells'][0]:row for row in probe_rows(b,record)}
-        self.assertEqual(values['Cell / barrel ID']['cells'][1],3)
+        self.assertEqual(values['Display ID']['cells'][1],'C4')
         self.assertEqual(values['Current density']['cells'][2],'A/mm²')
         self.assertEqual(values['Current density']['metric'],'density')
         self.assertEqual(values['Cell voltage drop']['metric'],'drop')
@@ -101,8 +101,9 @@ class NativeInspectorTableTests(unittest.TestCase):
                 with patch.object(frame,'_select_ids') as select:
                     frame._select_inspected();select.assert_called_once_with([track.m_Uuid.AsString()])
                 frame._choose_inspection(inspection_record(b,'sheet',5,'drop'),focus=True);self.app.Yield()
-                identity=next(row for row in frame.probe_table.rows if row['cells'][0]=='Cell / barrel ID')
-                self.assertEqual(identity['cells'][1],5)
+                identity=next(row for row in frame.probe_table.rows if row['cells'][0]=='Display ID')
+                self.assertEqual(identity['cells'][1],'C6')
+                self.assertEqual(identity['target']['id'],5)
                 frame.probe_table._column_clicked(SimpleNamespace(GetColumn=lambda:0))
                 self.assertEqual(frame.probe_table.rows[0]['cells'][0],'Adiabatic pulse temperature')
                 for width in (960,1320):

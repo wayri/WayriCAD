@@ -35,6 +35,13 @@ class ReportExportTests(unittest.TestCase):
         self.assertIn('<pre>Drop: 3.2 mV</pre>',html)
         self.assertNotIn('<details open',html)
 
+    def test_static_consumers_keep_navigation_without_scripts_or_dead_buttons(self):
+        html=enhance_report('<h1>Analytics</h1><h2>Results</h2>',interactive=False)
+        self.assertIn('href="#report-section-',html)
+        self.assertNotIn('<script>',html)
+        self.assertNotIn('<button',html)
+        self.assertIn('browser Print command',html)
+
     def test_input_protection_and_atomic_export(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);source=root/'input.json';source.write_text('{"load_A":1.5}')

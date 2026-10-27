@@ -173,15 +173,23 @@ Set the actual ports and operating conditions before Run. [Capture provenance](.
 
 ## First-open copper preview
 
-Included in 3.6.33; published 3.6.32 packages predate this fix.
+Copper autoload shipped earlier; the all-layer default and separate Silk toggle
+are part of the pending 3.6.40 update.
 [Validation and remaining startup latency](../docs/audits/QUICK_PI_COPPER_AUTOLOAD_2026-10-26.md).
 
 The saved board's copper loads automatically in the background with the net and
-pad inventory. The selected net appears on a layer containing its copper;
-changing nets filters the cached board without another extraction. Uncheck
-**Only simulated nets** to show surrounding copper, or choose **All copper
-layers (projected)** to inspect the combined view. **Board** controls silkscreen,
-edges and holes independently of **Copper**.
+pad inventory. The selected net opens with **All copper layers (projected)** selected and
+**Silk** off. Changing nets filters the cached board without another extraction. Uncheck
+**Only simulated nets** to show surrounding copper. **Board** controls edges and
+holes; **Silk** independently enables saved silkscreen. **Copper** and **Field**
+control copper geometry and the solved overlay. An explicit physical-layer choice
+is retained when a new mesh or result arrives.
+
+![Native first-open copper projection on Marble](help-first-copper.png)
+
+Actual saved +12 V copper from public Marble, across its copper layers, with
+Silk off. This is a geometry preview; no mesh or electrical solve was run.
+The source board was read only and its SHA-256 stayed unchanged.
 
 This first view requires no solver stackup, source/sink pair or mesh. **Preview**
 prepares physical simulation geometry and **Run** solves it; their normal stackup
@@ -1262,3 +1270,7 @@ Layer identifiers are the saved mesh layer IDs, not layer positions. The CLI che
 saved source fingerprints and the result-file hash; no new simulation or board write
 occurs. An unresolved probe returns status UNKNOWN and exit code 3. This is a DC
 potential difference, not a transient/AC differential waveform.
+
+## Readable copper identifiers
+
+Probe markers, inspector tables and reports use **V1, V2, …** for physical vias, ordered from top to bottom and then left to right in board coordinates. Axial segments of the same extracted via share its V number; the layer span distinguishes their results. Coincident but distinct saved vias remain distinct. **C1, C2, …** identify mesh cells (one-based), not PCB vias or component references. Cell numbers may change when remeshing; V numbers are scoped to the extracted model and may change when the via inventory changes. Full original solver and saved-object identities remain in JSON, with a `display_identifiers` mapping for the short via labels. Selection and cross-probing continue to use the originals.

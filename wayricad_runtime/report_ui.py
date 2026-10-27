@@ -80,7 +80,7 @@ REPORT_JS = r'''
 '''
 
 
-def enhance_report(document, *, status='UNKNOWN', summary=(), notice='', provenance=None):
+def enhance_report(document, *, status='UNKNOWN', summary=(), notice='', provenance=None, interactive=True):
     """Add offline review controls without replacing existing plot/probe scripts."""
     if 'data-wayricad-report="2"' in document:
         return document
@@ -103,6 +103,9 @@ def enhance_report(document, *, status='UNKNOWN', summary=(), notice='', provena
            '<nav class="report-nav" aria-label="Report sections">__REPORT_CONTENTS__</nav>')
     if provenance:
         panel+='<details class="report-evidence report-raw-evidence"><summary>Source fingerprints and model provenance</summary><pre>'+escape(json.dumps(provenance,indent=2,ensure_ascii=False,allow_nan=False))+'</pre></details>'
+    if not interactive:
+        panel=panel.replace('<button class="report-print" type="button">Print / save as PDF</button>',
+                            '<p class="report-note">Use your browser Print command to save a PDF.</p>')
     marker=re.search(r'</h1\s*>',document,re.I)
     if marker:document=document[:marker.end()]+panel+document[marker.end():]
     else:document=panel+document
@@ -134,6 +137,7 @@ def enhance_report(document, *, status='UNKNOWN', summary=(), notice='', provena
     else:
         marker=re.search(r'<h1\b',document,re.I)
         document=document[:marker.start()]+style+document[marker.start():] if marker else style+document
+    if not interactive:return document
     script='<script>'+REPORT_JS+'</script>'
     marker=re.search(r'</(?:body|html)\s*>',document,re.I)
     return document[:marker.start()]+script+document[marker.start():] if marker else document+script
