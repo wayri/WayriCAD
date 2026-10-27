@@ -22,7 +22,49 @@
 so they do not leave duplicate annotations. This changes interface behavior,
 not the thermal equations. [Measurements and remaining limits](../docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md).
 
-### Current native previews — 3.6.38
+### Guided heating study
+
+After reviewing **Component inputs**, open **Heating study…** on Board + results.
+The guide lists included source watts and unknown sources, retains the selected
+cooling environment, and offers **Steady state** or **Time-varying board heating**.
+It does not infer heat paths or change material/cooling values. **Apply setup**
+retains the choices; **Apply and run** follows the normal validation and worker.
+
+Time inputs accept seconds, `100 ms`, `2 min` or `1 h`. Review volumetric heat
+capacities and initial temperature; existing capacities are illustrative. The
+live advice bounds stored frames, integration intervals and nodes per frame
+under the five-million-value budget. Schedule events can add computed states;
+the solver checks the exact mesh/timeline limits. **Use 100 playback intervals**
+is an explicit convenience choice, not a convergence claim. Refine space and
+time separately. Narrow dialogs scroll vertically and retain readable fields.
+
+![Native heating-study guide](examples/quicktherm-heating-study.png)
+
+This actual native KiCad 10.0.6 / wxPython 4.2.2 dialog reads the unchanged public
+`thermal-demo.kicad_pcb` (SHA-256
+`1cfc57ddd9bb546f22ad6984c961ce0745ec1c0f7b9203f749574ade49c9c3ee`). Four included
+sources total 1.05 W. The example requests 10 s, 0.1 s maximum step and 0.1 s
+stored frames; C2 switches off at 4 s. The shown capacities/cooling are declared
+illustrative inputs. This is a setup capture, not a solved temperature result.
+The image is an opaque native client-area capture, with no private path or
+identifier redaction needed.
+
+**Power steps…** now accepts actual **Initially W** and **After W**, rather than
+requiring mental multiplier arithmetic. Leave switch time blank for constant
+power. Watts convert to the existing source multipliers without changing base
+component powers. A zero/unknown base cannot supply positive scheduled power;
+enter it in Component inputs first. Applying this editor chooses held steps.
+Existing multi-event profiles are retained and directed to **Advanced schedules
++ sinks**, where linear ramps and multiple events remain available. Imported PI
+losses stay fixed unless explicitly scheduled by source ID.
+
+The separate independent-component RC transient report now provides per-unit
+peak/final temperatures and explicit limit status, a sortable/searchable summary,
+exact stored-time selection, row-to-trace selection and pinned sample probes.
+Missing limits say **NOT EVALUATED**. This lumped RC screen is distinct from the
+native spatial board transient; its report does not add copper-field physics.
+
+## Current native previews — 3.6.38
 
 **Review saved inputs**
 

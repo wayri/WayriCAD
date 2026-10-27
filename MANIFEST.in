@@ -87,3 +87,8 @@ recursive-include quick_pi_plugin/tests *.py
 include docs/RELEASE_NOTES_3.6.38.md
 include docs/audits/RELEASE_3.6.38.md
 include docs/audits/QUICK_TOOL_VISUALS_3.6.38.md
+
+recursive-include quick_therm_plugin/tests *.py
+include tests/test_transient_review.py
+include docs/RELEASE_NOTES_3.6.39.md
+include docs/audits/SI_THERM_WORKFLOWS_2026-10-27.md

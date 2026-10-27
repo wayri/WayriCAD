@@ -262,7 +262,7 @@ class IbisPane(wx.Panel):
         self._changed()
 
 
-def circuit_options_dialog(parent):
+def circuit_options_dialog(parent, reports=()):
     """Collect explicit simulation settings; None means the user cancelled."""
     dialog = wx.Dialog(parent, title='KiCad circuit export settings',
                        style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -287,6 +287,21 @@ def circuit_options_dialog(parent):
         grid.Add(control, 1, wx.EXPAND)
         entries[key] = control
     layout.Add(grid, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+    from .setup_guide import circuit_timing_suggestion
+    suggestion = wx.Button(dialog, label='Suggest timing from selected routes')
+    timing_note = wx.StaticText(dialog, label='Timing remains editable. Check convergence in KiCad/ngspice; IBIS edge bandwidth is not inferred.')
+    timing_note.Wrap(460)
+    def suggest_timing(event):
+        try:
+            advice = circuit_timing_suggestion(reports)
+            for key in ('duration_ns', 'timestep_ns', 'frequency_mhz'):
+                entries[key].SetValue(f'{advice[key]:.9g}')
+            timing_note.SetLabel(f"Duration / maximum-step ratio: {advice['estimated_points']:,}. Adaptive internal steps can be smaller. Review against the actual IBIS models.")
+        except ValueError as error:timing_note.SetLabel(str(error))
+        timing_note.Wrap(460); dialog.Layout()
+    suggestion.Enable(bool(reports)); suggestion.Bind(wx.EVT_BUTTON, suggest_timing)
+    layout.Add(suggestion, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+    layout.Add(timing_note, 0, wx.EXPAND | wx.ALL, 10)
     allow = wx.CheckBox(dialog, label='Allow explicit manual via approximation')
     layout.Add(allow, 0, wx.EXPAND | wx.ALL, 10)
     for key in ('via_capacitance_pf', 'via_inductance_nh'):

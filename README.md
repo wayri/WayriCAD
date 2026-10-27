@@ -14,6 +14,10 @@ solves constant-power loads, and reviews parallel components in series paths.
 Transient, AC and PDN setup is easier, with fresh native screenshots and help.
 [Release notes](docs/RELEASE_NOTES_3.6.38.md).
 
+**In development — guided SI and thermal studies:** configure endpoint roles and
+line assumptions together, review heating in watts, and inspect exact transient
+samples. [Changes and validation](docs/RELEASE_NOTES_3.6.39.md).
+
 ## Start here
 
 | What you need | Where to go |
@@ -168,7 +172,9 @@ via plating and mesh refinement before relying on local peaks.
    and environment. Use **Automatic mesh** for supported board models, then start
    with a steady-state study and click **Run thermal**.
 4. Use **Top**, **Bottom** or **3D**, probe the board and select parts in the temperature
-   table. Export the report. Add transient power steps after reviewing the steady result.
+   table. Export the report. For time-varying heating, open **Heating study…** to
+   review duration, solver/frame intervals and storage advice, then edit power
+   steps directly in watts.
 
 QuickTherm installs separately from Quick PI. Air, vacuum and other environments
 need explicit heat-rejection paths; airflow fields are not solved.
@@ -185,8 +191,10 @@ available, including for backends without automatic sizing.
 ### Quick SI — screen a routed signal
 
 1. Open **WayriCAD Quick SI**. Search for a net or use **Select net on board**.
-2. Choose source and receiver pads. Review the saved physical stackup and the
-   driver/load assumptions, including rise time and resistance.
+2. Open **Set up path and response…** to choose source and receiver pads and
+   review rise time, impedance, dielectric and driver/load assumptions together.
+   Confirm the actual return in the main workspace; other same-part pads are
+   shown for review and are not shorted into an SI endpoint.
 3. Click **Screen selected path**. Inspect delay, routed sections, impedance coverage
    and reflection estimates; unresolved sections remain visible.
 4. Inspect the route and waveform plots, then export HTML/JSON for review.
@@ -386,6 +394,14 @@ Rendered synthetic example with explicit model/coverage status; not a passed boa
 
 ### [QuickTherm](quick_therm_plugin/README.md)
 
+**Guided heating study · development**
+
+<a href="quick_therm_plugin/examples/quicktherm-heating-study.png"><img src="quick_therm_plugin/examples/quicktherm-heating-study.png" width="834" alt="QuickTherm source watts, cooling and transient timing review"></a>
+
+Review power, boundary assumptions and frame costs before applying or running.
+[Inputs and capture scope](quick_therm_plugin/README.md).
+
+
 **Current component inputs · 3.6.38**
 
 <a href="quick_therm_plugin/examples/quicktherm-input-3.6.38.png"><img src="quick_therm_plugin/examples/quicktherm-input-3.6.38.png" width="960" alt="QuickTherm current component table for declared dissipation, thermal resistances and temperature limits"></a>
@@ -453,6 +469,15 @@ The illustrative 1 s frame includes imported copper and contact losses. [Capture
 Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
 
 ### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
+
+**Guided path and response · development**
+
+<a href="signal_integrity_advisor_plugin/help-guided-setup.png"><img src="signal_integrity_advisor_plugin/help-guided-setup.png" width="794" alt="Quick SI guided source and receiver, explicit line assumptions and optional time response"></a>
+
+Choose the physical path and review explicit assumptions in one form. This is
+setup on the public Marble board, not a new solved or measured channel.
+[Inputs and capture scope](signal_integrity_advisor_plugin/ReadMe.md).
+
 
 **Current Marble route and return selection · 3.6.38**
 

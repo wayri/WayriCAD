@@ -1,6 +1,7 @@
 """Engineering-unit Quick PI setup above the retained advanced SI editor."""
 from pathlib import Path
 import json
+import hashlib
 
 import wx
 import wx.grid
@@ -13,7 +14,7 @@ class PITransientStudyDialog(TransientStudyDialog):
     def __init__(self,parent,kind,initial,runner,canvas_types,board_path=None,source_sha256=None):
         if kind!='pi':raise ValueError('Use the generic transient editor for thermal studies.')
         super().__init__(parent,kind,initial,runner,canvas_types,board_path,source_sha256)
-        self._input_path=None
+        self._input_path=None;self._input_sha=None
         setup=self.rows.GetParent();form=setup.GetSizer();self._setup_form=form
         self._advanced_objects=[item.GetWindow() if item.IsWindow() else item.GetSizer() for item in form.GetChildren()]
         self.quick_panel=wx.Panel(setup);layout=wx.BoxSizer(wx.VERTICAL)
@@ -98,7 +99,9 @@ class PITransientStudyDialog(TransientStudyDialog):
         else:
             request={'action':'transient','study':self._quick_study()}
             if self.board_path:request.update(board_path=str(self.board_path),source_sha256=self.source_sha256)
-        if self._input_path:request['study_input_path']=self._input_path
+        if self._input_path:
+            request['study_input_path']=self._input_path
+            if self._input_sha:request['study_file_sha256']=self._input_sha
         return request
 
     def _quick_add(self,event=None):
@@ -133,11 +136,13 @@ class PITransientStudyDialog(TransientStudyDialog):
                     if key in result:raise ValueError('Repeated transient field: '+key)
                     result[key]=value
                 return result
-            study=json.loads(path.read_text(encoding='utf-8-sig'),object_pairs_hook=pairs)
+            content=path.read_bytes()
+            study=json.loads(content.decode('utf-8-sig'),object_pairs_hook=pairs)
             from .transient import _request
             study=_request(study)
             if self.advanced.GetValue():self._write_advanced(study)
-            self._populate_quick(study);self._input_path=str(path.resolve());self._changed()
+            self._populate_quick(study);self._input_path=str(path.resolve())
+            self._input_sha=hashlib.sha256(content).hexdigest();self._changed()
             self.status.SetLabel('Loaded explicit R/L/C inputs. Review units and model assumptions before Run.')
         except (ValueError,OSError,TypeError,RecursionError) as exc:self.status.SetLabel(str(exc))
 

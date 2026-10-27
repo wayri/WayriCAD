@@ -30,6 +30,61 @@ Drag the horizontal divider to share space between the route preview and its
 results table. Drag the input divider to widen settings, or use the preview's
 Fit control to inspect the whole route.
 
+## Guided path and response setup
+
+Open **Set up path and response…** to review the common SI inputs together.
+
+| Step | Review |
+|---|---|
+| Physical path | Search the net (`*` wildcard, `~` fuzzy), choose distinct source/receiver pads, or explicitly swap their roles. |
+| Other pins | The guide lists other pads on the same physical footprint and net. They remain separate SI terminals; no ideal short or point-to-point channel is invented. |
+| Edge and line | Enter rise time, evaluation frequency and driver/load resistance. Blank load means open. Blank Z0/Er retain the existing geometry/stackup evidence; entered values remain assumptions. |
+| Time response | Enable the existing illustrative NRZ eye/step screen when appropriate. Its ideal uniform lossless line is separate from IBIS circuit simulation. |
+| Apply | **Apply setup** invalidates old results/exports; **Apply and screen** also runs the existing path analysis. Cancel retains the current workspace. |
+
+![Quick SI guided path and response setup](help-guided-setup.png)
+
+This native KiCad 10.0.6 setup capture uses public Marble's `/ETH_PHY/MII_MDC`,
+`U6.8` → `U54.16`, with explicit 50 Ω, effective Er 3.2, 1 ns rise time,
+20 Ω driver, 50 Ω receiver and 100 MHz. GND was already selected in the main
+workspace; the guide retains that return review. It is a setup screen, not a new
+solver result. The board SHA-256 remained
+`482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0`.
+The RGB24 image is a direct native client-area capture, with no redaction or
+composited controls.
+Native results now include the structured **Needs review** reasons and concrete
+next actions, plus the whole-net routing-coverage review used by circuit export.
+A source-to-receiver route does not automatically account for extra loads,
+branches, stubs or filled planes. These limits remain visible beside the numbers.
+
+For IBIS circuit export, **Suggest timing from selected routes** proposes a
+reviewable transient duration and timestep from every selected route's declared
+rise time, frequency and resolved delay. The step is the smallest of rise/20,
+delay/20 and period/100; duration covers ten slowest periods, eight longest
+one-way delays and ten slowest rise times. Suggestions with a duration/step ratio above two million
+are rejected rather than silently coarsened; adaptive internal steps may be smaller
+and more numerous. This is numerical setup advice:
+actual IBIS edge bandwidth and ngspice timestep convergence still need review.
+The exported schematic and clipboard both use
+`.tran TSTEP TSTOP 0 TMAX`, with TSTEP and TMAX equal to the reviewed timestep.
+TMAX explicitly bounds ngspice's adaptive internal step; it does not guarantee
+uniform output samples or establish convergence. This follows the
+[official ngspice .TRAN definition](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf).
+Copper thickness and via L/C stay explicit; this button does not enable manual
+approximations or execute a simulation.
+
+The same advice is available without native GUI dependencies:
+
+```text
+wayricad tools run quick-si -- timing-advice route.json --output timing.json
+wayricad tools run quick-si -- timing-advice study.json --case clock --case data --output timing.json
+```
+
+The command reads a Quick SI report and writes a new advice file, recording its
+SHA-256 and chosen cases. It does not load a board, modify a report, infer IBIS
+models or claim a simulated result. Use its reviewed values with the existing
+`circuit --duration-ns … --timestep-ns … --frequency-mhz …` export options.
+
 ## Current native workspace — 3.6.38
 
 ![Quick SI current Marble source-to-receiver screen](help-quick-si-3.6.38.png)

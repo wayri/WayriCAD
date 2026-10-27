@@ -63,16 +63,22 @@ class QuickSIPanel(wx.Panel):
         with read_snapshot(board):
             self.engine=TraceMeasurementEngine(board)
             nets=self.engine.net_names()
+        self.setup_button=wx.Button(left,label='Set up path and response…')
+        self.setup_button.SetToolTip('Review source/receiver, same-part pads, line assumptions and illustrative eye together. No board changes.')
+        self.setup_button.Bind(wx.EVT_BUTTON,self.setup_path);form.Add(self.setup_button,0,wx.EXPAND|wx.TOP,5)
         row('net','Net',choices=nets);self._net_names=nets
-        self.net_search=wx.SearchCtrl(left);self.net_search.SetHint('Search net names');form.Add(self.net_search,0,wx.EXPAND|wx.TOP,5);self.net_search.Bind(wx.EVT_TEXT,self.filter_nets)
+        self.net_search=wx.SearchCtrl(left);self.net_search.SetHint('Find net · * wildcard, ~ fuzzy');form.Add(self.net_search,0,wx.EXPAND|wx.TOP,5);self.net_search.Bind(wx.EVT_TEXT,self.filter_nets)
         pick=wx.Button(left,label='Select net on board');form.Add(pick,0,wx.EXPAND|wx.TOP,5);pick.Bind(wx.EVT_BUTTON,self.select_board_net)
         row('start','Source pad',choices=[]);row('end','Receiver pad',choices=[])
         with read_snapshot(board):
             layers=self.engine.available_layers()
             return_terminals=[{'label':str(fp.GetReference())+'.'+str(pad.GetNumber()),
                 'net':str(pad.GetNetname()),'reference':str(fp.GetReference()),
-                'id':str(pad.m_Uuid.AsString())}
+                'id':str(pad.m_Uuid.AsString()),'footprint_uuid':str(fp.m_Uuid.AsString())}
                 for fp in board.GetFootprints() for pad in fp.Pads() if pad.GetNetname()]
+        self._setup_terminals=return_terminals
+        self._setup_pads={}
+        for terminal in return_terminals:self._setup_pads.setdefault(terminal['net'],[]).append(terminal['label'])
         from .return_setup_ui import ReturnSetupPanel
         self.return_setup=ReturnSetupPanel(left,nets,return_terminals,layers,
             lambda:self.changed(None),lambda:(left.FitInside(),self.Layout()))
@@ -170,6 +176,22 @@ class QuickSIPanel(wx.Panel):
         self.fields['net'].SetValue(selected[0][0] if selected else selected_tracks[0] if selected_tracks else candidate);self.net_changed(None)
         if selected:self.set_launch_selection({'net':selected[0][0],'pads':[label for net,label in selected if net==selected[0][0]]})
         left.FitInside()
+
+    def setup_path(self,event=None):
+        if self._closed:return
+        from .setup_guide import setup_dialog
+        selection=setup_dialog(self,self._setup_pads,self._setup_terminals,
+            {key:self.fields[key].GetValue() for key in ('net','start','end')},
+            {key:control.GetValue() for key,control in self.fields.items() if key not in ('net','start','end','reference')},
+            self.eye_enabled.GetValue(),self.return_setup.selected_nets())
+        if selection is None:return
+        self.net_search.ChangeValue('');self.fields['net'].Set(self._net_names)
+        self.fields['net'].SetValue(selection['net']);self.net_changed(None)
+        for key in ('start','end'):self.fields[key].SetValue(selection[key])
+        for key,value in selection['values'].items():self.fields[key].ChangeValue(value)
+        self.eye_enabled.SetValue(selection['eye_enabled']);self.changed(None)
+        self.status.SetLabel('Setup applied. Review return/IBIS inputs as needed, then screen the path.')
+        if selection['run']:self.run()
 
     def _review_return_nets(self):
         if self.study_report and self.study_choice.GetSelection()!=wx.NOT_FOUND:
@@ -613,6 +635,8 @@ class QuickSIPanel(wx.Panel):
                 self.preview.tracks.append((*section['start_mm'],*section['end_mm'],section['layer'],0,None))
         self.preview.fit();self.preview.Refresh()
         rows=[('Line model','User assumptions' if values.get('z0_ohm') is not None or values.get('epsilon_eff') is not None else 'Board geometry / unresolved terms retained'),('Route',f'{path.net_name}: {path.start_pad} → {path.end_pad}'),('Length / geometry',f'{path.length_mm:.3f} mm; {path.track_count} tracks, {path.via_count} vias, {path.zone_count} zones')]
+        from .setup_guide import readiness_rows
+        rows += readiness_rows(report)
         for key,label,unit in [('delay_ns','One-way delay',' ns'),('electrical_length_deg','Electrical length',' deg'),('delay_to_rise_ratio','Delay / rise time',''),('z0_ohm','Uniform Z0',' ohm'),('source_reflection','Source reflection Γ',''),('load_reflection','Load reflection Γ',''),('first_load_step_per_source_step','First load step / source step',''),('series_match_candidate_ohm','Series-match candidate',' ohm')]:
             value=report[key];rows.append((label,'Unknown / not applicable' if value is None else f'{value:.5g}'+unit))
         for endpoint,detail in report.get('endpoint_screen',{}).items():
@@ -708,7 +732,7 @@ class QuickSIPanel(wx.Panel):
             if missing:
                 raise ValueError('Assign exact source and receiver IBIS pins for every checked case. Select each case in the result dropdown: '+ '; '.join(missing))
             from .ibis_ui import circuit_options_dialog
-            options=circuit_options_dialog(self)
+            options=circuit_options_dialog(self,[record['report'] for record in records])
             if options is None:return
             with wx.DirDialog(self,'Choose parent folder for a new SI circuit bundle',
                               defaultPath=str(Path(board_path).parent),style=wx.DD_DEFAULT_STYLE|wx.DD_DIR_MUST_EXIST) as dialog:

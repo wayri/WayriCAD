@@ -83,6 +83,16 @@ class CircuitTests(unittest.TestCase):
         self.assertTrue(Path(properties(clip.nodes("symbol")[0])["Sim.Library"][0]).is_absolute())
         self.assertEqual(properties(clip.nodes("symbol")[0])["Sim.Ibis.Pin"][0], "1")
 
+    def test_reviewed_step_is_explicit_tmax_in_schematic_and_clipboard(self):
+        output = self.export(options={"duration_ns": 100., "timestep_ns": .025})
+        directive = ".tran 0.025n 100n 0 0.025n"
+        self.assertIn(directive, Path(output["schematic"]).read_text(encoding="utf8"))
+        self.assertIn(directive, output["clipboard_text"])
+        manifest = json.loads(Path(output["manifest"]).read_text(encoding="utf8"))
+        self.assertEqual(manifest["transient_control"]["directive"], directive)
+        self.assertEqual(manifest["transient_control"]["maximum_step_ns"], .025)
+        self.assertIn("Adaptive", manifest["transient_control"]["sampling"])
+
     def test_requires_whole_net_evidence_and_two_terminals(self):
         for change in ({"terminal_count": 3}, {"circuit_topology": {}},
                        {"circuit_topology": {"complete": True, "branch_count": 0, "stub_count": 1, "unmodeled_item_uuids": []}}):

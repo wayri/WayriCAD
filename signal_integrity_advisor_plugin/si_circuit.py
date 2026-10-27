@@ -476,7 +476,10 @@ def export_circuit(cases, destination, options=None, *, guard=None):
                         f'(property "Sheetname" "Channels {page-1}" (at {sx} {sy} 0) {_effects(.8)})'
                         f'(property "Sheetfile" "{child_name}" (at {sx} {sy+7} 0) {_effects(.8)})'
                         f'(instances (project "circuit" (path "/{root_id}" (page "{page}")))))')
-    directive = f'.tran {_fmt(opts["timestep_ns"])}n {_fmt(opts["duration_ns"])}n'
+    # TSTEP alone is an output/suggested increment. Spell out TSTART/TMAX so
+    # the reviewed maximum step is explicit in both schematic and clipboard.
+    directive = (f'.tran {_fmt(opts["timestep_ns"])}n {_fmt(opts["duration_ns"])}n '
+                 f'0 {_fmt(opts["timestep_ns"])}n')
     root_objects = [_text("Quick SI — Native IBIS Simulation Circuit", 180, 15, 2),
                     _text("Open channel sheets; inspect manifest before simulation. Ideal common ground; uncoupled cases.", 190, 25),
                     _text(directive, 100, 38)] + children
@@ -484,7 +487,10 @@ def export_circuit(cases, destination, options=None, *, guard=None):
     clip_text = _libraries() + ''.join(clipboard) + _text(directive, 100, 15) + '\n'
     manifest = {"schema": "wayricad.quick-si-circuit/v1", "options": opts, "limits": LIMITS,
                 "signal_net_namespace": namespace,
-                "native_simulator_validation": "Not run by exporter", "cases": records,
+                "native_simulator_validation": "Not run by exporter",
+                "transient_control": {"directive": directive, "maximum_step_ns": opts["timestep_ns"],
+                                      "sampling": "Adaptive ngspice internal steps may be smaller; not a fixed output sample count"},
+                "cases": records,
                 "model_files": [{"source": source, "sha256": sha, "bundled": relative[sha]} for sha, source in models.items()],
                 "blocks": blocks, "pages": [name for name, _ in pages],
                 "merging": "No sections merged; every original section and UUID is retained"}

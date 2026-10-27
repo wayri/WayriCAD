@@ -30,6 +30,10 @@ def parser():
     catalog=subs.add_parser('ibis-catalog',help='List bounded IBIS components, pins, selectors and model roles.')
     catalog.add_argument('source',type=Path)
     catalog.add_argument('--output',type=Path)
+    timing=subs.add_parser('timing-advice',help='Suggest a bounded transient export grid from declared edges and resolved route delay; no simulation.')
+    timing.add_argument('source',type=Path,help='Quick SI route/study JSON report.')
+    timing.add_argument('--case',action='append',help='Exact study case ID; repeat. Default every case.')
+    timing.add_argument('--output',type=Path)
     circuit=subs.add_parser('circuit',help='Export selected complete route reports as a native KiCad IBIS simulation circuit.')
     circuit.add_argument('source',type=Path,help='Saved Quick SI route or study JSON report.')
     circuit.add_argument('--assignments',type=Path,required=True,help='Explicit source/sink IBIS assignments by case ID.')
@@ -141,6 +145,16 @@ def execute(args):
     if args.command=='ibis-catalog':
         from .ibis_models import load_ibis
         result=load_ibis(args.source)
+        if args.output:write_report(args.output,json.dumps(result,indent=2,allow_nan=False)+'\n',args.source,'.json')
+        return result
+    if args.command=='timing-advice':
+        from .ibis_workflow import read_json
+        from .setup_guide import timing_report_cases,circuit_timing_suggestion
+        report,digest=read_json(args.source)
+        identifiers,reports=timing_report_cases(report,args.case)
+        result={'schema':'wayricad.si-timing-advice/v1','status':'ADVICE','cases':identifiers,
+                'report_sha256':digest,**circuit_timing_suggestion(reports),
+                'limits':'Declared edges/periods and resolved one-way delays only. Review actual IBIS bandwidth and timestep convergence; no simulation performed.'}
         if args.output:write_report(args.output,json.dumps(result,indent=2,allow_nan=False)+'\n',args.source,'.json')
         return result
     if args.command=='circuit':

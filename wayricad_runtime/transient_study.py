@@ -13,6 +13,15 @@ def execute_study(request, solver):
     """Run explicit model inputs, retaining and checking any saved PCB context."""
     study=request.get('study')
     if not isinstance(study,dict):raise ValueError('Transient study must be an object.')
+    study_path=Path(request['study_input_path']).resolve() if request.get('study_input_path') else None
+    study_hash=None
+    if study_path:
+        if not study_path.is_file() or study_path.stat().st_size>1024*1024:
+            raise ValueError('Transient input must be a JSON file no larger than 1 MiB.')
+        content=study_path.read_bytes()
+        study_hash=hashlib.sha256(content).hexdigest()
+        if request.get('study_file_sha256') and study_hash!=request['study_file_sha256']:
+            raise ValueError('Transient input study changed. Reload before running.')
     source=Path(request['board_path']).resolve() if request.get('board_path') else None
     before=None
     if source:
@@ -23,8 +32,11 @@ def execute_study(request, solver):
     result=solver(study)
     if source and hashlib.sha256(source.read_bytes()).hexdigest()!=before:
         raise ValueError('Saved board changed during the transient study; discard this result.')
+    if study_path and hashlib.sha256(study_path.read_bytes()).hexdigest()!=study_hash:
+        raise ValueError('Input study changed during the transient study; discard this result.')
     return {'transient':result,'study':study,'source_sha256':before,
-            'board_path':str(source) if source else None,'study_input_path':request.get('study_input_path')}
+            'board_path':str(source) if source else None,'study_input_path':str(study_path) if study_path else None,
+            'study_file_sha256':study_hash}
 
 
 def limits_violated(result):
@@ -75,7 +87,9 @@ def study_summary(bundle):
 
 def write_study_report(path,bundle):
     """Export paired HTML/JSON without replacing a board or input study file."""
-    path=Path(path).resolve().with_suffix('.html');json_path=path.with_suffix('.json')
+    from .report_ui import report_paths, publish_report, enhance_report, provenance
+    from .transient_review import review_html, review_rows
+    path,json_path=report_paths(Path(path).absolute())
     protected={Path(bundle[key]).resolve() for key in ('board_path','study_input_path') if bundle.get(key)}
     if any(target in protected for target in (path,json_path)):
         raise ValueError('Transient report must not overwrite the source PCB or study input.')
@@ -93,11 +107,15 @@ def write_study_report(path,bundle):
     html+='<h1>'+escape(study_title(result))+'</h1><p>'+escape(result.get('notice',''))+'</p>'
     html+='<p><a href="'+escape(json_path.name)+'">All raw time samples and explicit inputs (JSON)</a></p>'
     html+='<img alt="Transient time traces" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'">'
+    html+=review_html(bundle)
     html+='<h2>Checks and limits</h2><pre>'+escape(study_summary(bundle))+'</pre><h2>Explicit model inputs</h2><pre>'+escape(json.dumps(bundle['study'],indent=2,allow_nan=False))+'</pre></html>'
-    payload=json.dumps(bundle,indent=2,allow_nan=False)
-    path.parent.mkdir(parents=True,exist_ok=True)
-    json_path.write_text(payload+'\n',encoding='utf-8');path.write_text(html,encoding='utf-8')
-    return {'html':str(path),'json':str(json_path)}
+    rows=review_rows(result)
+    status='LIMIT VIOLATION' if limits_violated(result) else 'MODEL SCREEN COMPLETE'
+    html=enhance_report(html,status=status,summary=[('Model',result.get('model')),
+        ('Simulated units',len(rows)),('Computed samples per unit',len(result['times_s'])),
+        ('Units without specified limits',sum(row['status']=='NOT EVALUATED' for row in rows))],
+        notice=result.get('notice',''),provenance=provenance(bundle))
+    return publish_report(path,html,bundle)
 
 
 def transient_cli(args,run_job,forbidden=False):
@@ -105,7 +123,8 @@ def transient_cli(args,run_job,forbidden=False):
     if forbidden:raise ValueError('--transient cannot combine with steady-state analysis options.')
     source=args.transient.resolve()
     if not source.is_file() or source.stat().st_size>262144:raise ValueError('Transient input must be a JSON file no larger than 256 KiB.')
-    study=json.loads(source.read_text(encoding='utf-8-sig'))
+    content=source.read_bytes()
+    study=json.loads(content.decode('utf-8-sig'))
     if not isinstance(study,dict):raise ValueError('Transient input must contain an object.')
     protected={source}
     if args.board:protected.add(args.board.resolve())
@@ -115,7 +134,8 @@ def transient_cli(args,run_job,forbidden=False):
         raise ValueError('Report JSON must not overwrite the study input.')
     if args.html and args.output and args.output.resolve()==args.html.resolve().with_suffix('.html'):
         raise ValueError('JSON output and HTML report must use different files.')
-    request={'action':'transient','study':study,'study_input_path':str(source)}
+    request={'action':'transient','study':study,'study_input_path':str(source),
+             'study_file_sha256':hashlib.sha256(content).hexdigest()}
     if args.board:request['board_path']=str(args.board.resolve())
     if args.html:request['html_output']=str(args.html.resolve())
     result=run_job(request,timeout=args.timeout)

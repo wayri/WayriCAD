@@ -282,19 +282,8 @@ class QuickThermFrame(wx.Frame):
             wx.MessageBox(str(error), 'Could not open thermal Sankey', wx.OK | wx.ICON_ERROR, self)
 
     def on_help(self, event=None):
-        import wx.html
-
-        dialog = wx.Dialog(self, title="QuickTherm · Help", size=(960, 740),
-                           style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
-        browser = wx.html.HtmlWindow(dialog)
-        browser.LoadPage(str(Path(__file__).with_name("QUICK_THERM_USER_GUIDE.html")))
-        layout = wx.BoxSizer(wx.VERTICAL)
-        layout.Add(browser, 1, wx.EXPAND | wx.ALL, 10)
-        layout.Add(dialog.CreateButtonSizer(wx.CLOSE), 0, wx.ALIGN_RIGHT | wx.ALL, 10)
-        dialog.SetSizer(layout)
-        dialog.Bind(wx.EVT_BUTTON, lambda evt: dialog.EndModal(wx.ID_CLOSE), id=wx.ID_CLOSE)
-        dialog.ShowModal()
-        dialog.Destroy()
+        from wayricad_runtime.help import open_help
+        open_help(self, Path(__file__).with_name("help.html"), "QuickTherm · Help")
 
     def on_cancel(self, event=None):
         self._cancel.set()
@@ -321,6 +310,10 @@ class QuickThermFrame(wx.Frame):
         self._therm_input_page=page
         note=wx.StaticText(page,label='Review component inputs, choose the heat model, then run.')
         note.Wrap(270);layout.Add(note,0,wx.EXPAND|wx.ALL,8)
+        self.therm_study_setup=wx.Button(page,label='Heating study…')
+        self.therm_study_setup.SetToolTip('Review source power, cooling assumptions, steady/transient mode and playback work before running.')
+        self.therm_study_setup.Bind(wx.EVT_BUTTON,self.on_heating_study)
+        layout.Add(self.therm_study_setup,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         setup=wx.FlexGridSizer(0,2,6,8);setup.AddGrowableCol(1)
         self.therm_input_mode=ReadableChoice(page,choices=['Scanned values + edits','Saved fields only'])
         self.therm_input_mode.SetSelection(0)
@@ -691,7 +684,7 @@ class QuickThermFrame(wx.Frame):
         vacuum=self.therm_env.GetSelection()==1
         selected=self.therm_model_kind.GetSelection() if self.therm_model_enabled.GetValue() else -1
         for ctrl in (self.therm_time_enabled,self.therm_env,self.therm_ambient,self.therm_input_mode,
-                     self.therm_model_enabled,self.therm_model_kind):ctrl.Enable(not self._busy)
+                     self.therm_model_enabled,self.therm_model_kind,self.therm_study_setup):ctrl.Enable(not self._busy)
         for ctrl in (self.therm_time_duration,self.therm_time_step,self.therm_frame_interval,self.therm_time_initial,
                      self.therm_copper_capacity,self.therm_dielectric_capacity,self.therm_power_schedule,
                      self.therm_sink_capacity,self.therm_schedule_interpolation,self.therm_power_steps):
@@ -747,29 +740,57 @@ class QuickThermFrame(wx.Frame):
         self._invalidate_thermal(event)
         self._therm_input_page.Layout();self._therm_input_page.FitInside()
 
+    def on_heating_study(self,event=None):
+        """Guide configuration without bypassing the normal worker validation."""
+        if self._busy:return
+        from .heating_setup_ui import HeatingStudyDialog
+        try:
+            self.therm_inputs.commit_pending_edits()
+            values=self.therm_inputs.effective_values(include_limits=False)
+            sources=[(ref,values.get(ref,{}).get('power_w')) for ref in self.therm_inputs.selected_references()]
+            schedules=json.loads(self.therm_power_schedule.GetValue())
+            if not isinstance(schedules,dict):raise ValueError('Power schedules must be a reference mapping.')
+        except ValueError as error:
+            self.therm_status.SetLabel(str(error));return
+        controls={'duration_s':self.therm_time_duration,'timestep_s':self.therm_time_step,
+                  'frame_interval_s':self.therm_frame_interval,'initial_c':self.therm_time_initial,
+                  'copper_volumetric_capacity_j_m3k':self.therm_copper_capacity,
+                  'dielectric_volumetric_capacity_j_m3k':self.therm_dielectric_capacity}
+        dialog=HeatingStudyDialog(self,{key:control.GetValue() for key,control in controls.items()},
+            sources,self.therm_environment_note.GetLabel(),self.therm_time_enabled.GetValue(),schedules)
+        run=False
+        try:
+            if dialog.ShowModal()==wx.ID_OK:
+                self.therm_time_enabled.SetValue(dialog.settings is not None)
+                if dialog.settings:
+                    for key,value in dialog.settings.items():controls[key].ChangeValue(f'{value:.12g}')
+                self._transient_setup_changed()
+                run=dialog.run_after_apply
+                self.therm_status.SetLabel('Heating setup applied. Review material and cooling boundaries; power schedules are retained.')
+        finally:dialog.Destroy()
+        if run:self.on_quick_therm()
+
     def _edit_power_steps(self,event=None):
         import wx.grid
-        from .thermal_playback import step_schedules
+        from .heating_setup import watt_step_schedules, watt_step_rows
         references=self.therm_inputs.selected_references()
         if not references:
             self.status.SetLabel('Include heat sources in Component inputs before editing power steps.');return
         self.therm_inputs.commit_pending_edits()
-        dialog=wx.Dialog(self,title='Transient power steps',size=(660,420))
+        dialog=wx.Dialog(self,title='Transient power steps · watts',size=(760,460),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        dialog.SetMinSize(self.FromDIP((560,360)))
         layout=wx.BoxSizer(wx.VERTICAL)
-        note=wx.StaticText(dialog,label='Multiplier × entered power. Leave switch time blank for constant power.\nFor several steps or ramps use Advanced schedules + sinks.')
+        note=wx.StaticText(dialog,label='Enter actual dissipated watts. Leave switch time blank for constant power.\nApplying uses held power steps. For several events or linear ramps retain Advanced schedules + sinks.')
         layout.Add(note,0,wx.ALL,10)
         grid=wx.grid.Grid(dialog);grid.CreateGrid(len(references),5)
-        for column,label in enumerate(('Part','Base W','Initial ×','Switch s','After ×')):grid.SetColLabelValue(column,label)
-        try:previous=json.loads(self.therm_power_schedule.GetValue())
-        except ValueError:previous={}
-        if not isinstance(previous,dict) or any(not isinstance(points,list) or not points or len(points)>2 or
-                any(not isinstance(point,list) or len(point)!=2 for point in points) for points in previous.values()):
-            dialog.Destroy();self.status.SetLabel('Existing multi-step profiles: edit Advanced schedules + sinks to retain every event.');return
-        values=self.therm_inputs.effective_values(include_limits=False)
-        for row,ref in enumerate(references):
-            points=previous.get(ref,[[0,1]])
-            cells=[ref,str(values.get(ref,{}).get('power_w','Unknown')),str(points[0][1]),
-                   str(points[1][0]) if len(points)==2 else '',str(points[1][1]) if len(points)==2 else '']
+        for column,label in enumerate(('Part','Base W','Initially W','Switch s','After W')):grid.SetColLabelValue(column,label)
+        try:
+            previous=json.loads(self.therm_power_schedule.GetValue())
+            values=self.therm_inputs.effective_values(include_limits=False)
+            rows=watt_step_rows(references,{ref:values.get(ref,{}).get('power_w') for ref in references},previous)
+        except ValueError as error:
+            dialog.Destroy();self.status.SetLabel(str(error));return
+        for row,cells in enumerate(rows):
             for column,value in enumerate(cells):grid.SetCellValue(row,column,value)
             grid.SetReadOnly(row,0);grid.SetReadOnly(row,1)
         grid.AutoSizeColumns();layout.Add(grid,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
@@ -778,13 +799,20 @@ class QuickThermFrame(wx.Frame):
         def apply(event):
             grid.SaveEditControlValue();grid.HideCellEditControl()
             try:
-                schedules=step_schedules([(ref,grid.GetCellValue(row,2),grid.GetCellValue(row,3),grid.GetCellValue(row,4))
-                    for row,ref in enumerate(references)],float(self.therm_time_duration.GetValue()))
-            except ValueError as exc:error.SetLabel(str(exc));return
+                schedules=watt_step_schedules([(ref,grid.GetCellValue(row,2),grid.GetCellValue(row,3),grid.GetCellValue(row,4))
+                    for row,ref in enumerate(references)],{ref:values.get(ref,{}).get('power_w') for ref in references},
+                    float(self.therm_time_duration.GetValue()))
+            except ValueError as exc:
+                error.SetLabel(str(exc));error.Wrap(max(200,dialog.GetClientSize().width-30));dialog.Layout();return
             self.therm_power_schedule.ChangeValue(json.dumps(schedules))
             self.therm_schedule_interpolation.SetSelection(1)
             self._invalidate_thermal();dialog.EndModal(wx.ID_OK)
-        dialog.Bind(wx.EVT_BUTTON,apply,id=wx.ID_OK);dialog.SetSizer(layout)
+        def resize(event=None):
+            label='Enter actual dissipated watts. Leave switch time blank for constant power.\nApplying uses held power steps. For several events or linear ramps retain Advanced schedules + sinks.'
+            note.SetMinSize((1,-1));note.SetLabel(label);note.Wrap(max(200,dialog.GetClientSize().width-30))
+            if event:event.Skip()
+        dialog.Bind(wx.EVT_SIZE,resize)
+        dialog.Bind(wx.EVT_BUTTON,apply,id=wx.ID_OK);dialog.SetSizer(layout);resize()
         dialog.ShowModal();dialog.Destroy()
 
     def _edit_component_storage(self,event=None):

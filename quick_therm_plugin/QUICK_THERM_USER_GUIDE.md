@@ -1,5 +1,49 @@
 # QuickTherm: step-by-step user guide
 
+
+## Guided heating study
+
+After reviewing **Component inputs**, open **Heating study…** on Board + results.
+The guide lists included source watts and unknown sources, retains the selected
+cooling environment, and offers **Steady state** or **Time-varying board heating**.
+It does not infer heat paths or change material/cooling values. **Apply setup**
+retains the choices; **Apply and run** follows the normal validation and worker.
+
+Time inputs accept seconds, `100 ms`, `2 min` or `1 h`. Review volumetric heat
+capacities and initial temperature; existing capacities are illustrative. The
+live advice bounds stored frames, integration intervals and nodes per frame
+under the five-million-value budget. Schedule events can add computed states;
+the solver checks the exact mesh/timeline limits. **Use 100 playback intervals**
+is an explicit convenience choice, not a convergence claim. Refine space and
+time separately. Narrow dialogs scroll vertically and retain readable fields.
+
+![Native heating-study guide](examples/quicktherm-heating-study.png)
+
+This actual native KiCad 10.0.6 / wxPython 4.2.2 dialog reads the unchanged public
+`thermal-demo.kicad_pcb` (SHA-256
+`1cfc57ddd9bb546f22ad6984c961ce0745ec1c0f7b9203f749574ade49c9c3ee`). Four included
+sources total 1.05 W. The example requests 10 s, 0.1 s maximum step and 0.1 s
+stored frames; C2 switches off at 4 s. The shown capacities/cooling are declared
+illustrative inputs. This is a setup capture, not a solved temperature result.
+The image is an opaque native client-area capture, with no private path or
+identifier redaction needed.
+
+**Power steps…** now accepts actual **Initially W** and **After W**, rather than
+requiring mental multiplier arithmetic. Leave switch time blank for constant
+power. Watts convert to the existing source multipliers without changing base
+component powers. A zero/unknown base cannot supply positive scheduled power;
+enter it in Component inputs first. Applying this editor chooses held steps.
+Existing multi-event profiles are retained and directed to **Advanced schedules
++ sinks**, where linear ramps and multiple events remain available. Imported PI
+losses stay fixed unless explicitly scheduled by source ID.
+
+The separate independent-component RC transient report now provides per-unit
+peak/final temperatures and explicit limit status, a sortable/searchable summary,
+exact stored-time selection, row-to-trace selection and pinned sample probes.
+Missing limits say **NOT EVALUATED**. This lumped RC screen is distinct from the
+native spatial board transient; its report does not add copper-field physics.
+
+
 ## Automatic and manual mesh
 
 In **Board model**, leave **Automatic mesh** checked to size the supported board
@@ -464,9 +508,9 @@ The offline HTML report opens with an interactive full-board viewport. **Top** a
 
 # <img src="resources/icon-96.png" width="48" height="48" alt="QuickTherm icon"> WayriCAD QuickTherm
 
-QuickTherm is an independently installable KiCad PCB Editor plugin for read-only, steady-state thermal screening. It has its own PCM package, toolbar action, native window, icon, command-line interface and HTML/JSON export. It does not require Quick PI to be installed.
+QuickTherm is an independently installable KiCad PCB Editor plugin for read-only steady-state and scheduled spatial transient thermal screening. It has its own PCM package, toolbar action, native window, icon, command-line interface and HTML/JSON export. It does not require Quick PI to be installed.
 
-The separate `wayricad-therm-transient` command runs an explicitly parameterized, four-board lumped RC transient screen. It uses saved-board source hashes and KiCad reference checks, a declared fan P–Q/system operating point or prescribed-flow sensitivity case, explicit serial or parallel-passage airflow topology, optional package/body and isolated-sink paths, and ohmic R(T) loss feedback. The parallel model warms air from high X to low X within each board and retains a user-entered passage flow split; it is not CFD. See the [transient model guide](TRANSIENT_MODEL.md) for the input contract and limitations. This does not make the native board viewport a transient copper-field solver.
+The separate `wayricad-therm-transient` command runs an explicitly parameterized, four-board lumped RC transient screen. It uses saved-board source hashes and KiCad reference checks, a declared fan P–Q/system operating point or prescribed-flow sensitivity case, explicit serial or parallel-passage airflow topology, optional package/body and isolated-sink paths, and ohmic R(T) loss feedback. The parallel model warms air from high X to low X within each board and retains a user-entered passage flow split; it is not CFD. See the [transient model guide](TRANSIENT_MODEL.md) for the input contract and limitations. This separate four-board screen does not replace the native spatial board transient described above.
 
 For the separate steady multilayer model, set `"source_refinement_factor": 2` inside `thermal_network_settings` to subdivide rectilinear cells near mapped footprint sources. A CLI JSON config can also include `"mesh_acceptance": {"grid_cells_long_axis": [24, 48, 80], "maximum_change_c": 0.1, "minimum_source_cells": 4}`. The solver repeats the same saved geometry on increasing grids and reports PASS/FAIL from the two finest component, source-peak, layer-peak and spatial-field temperatures, numerical balance and effective source-contact coverage. An optional phase-shifted solve exposes grid sensitivity. A failed or absent mesh gate must not be read as a converged local hotspot result. Source-aligned refinement is a rectilinear screening mesh; it does not resolve package-to-copper contact geometry or qualify physical hotspots.
 

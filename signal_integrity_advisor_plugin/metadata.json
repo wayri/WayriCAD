@@ -2,7 +2,7 @@
     "$schema": "https://go.kicad.org/pcm/schemas/v2",
     "name": "WayriCAD Quick SI",
     "description": "Screen routed signal delay, electrical length and resistive terminations; retain impedance and I2C checks.",
-    "description_full": "Read-only Quick SI screening from actual routed endpoints: propagation delay, electrical length, lossless resistive reflections and series-termination candidates with explicit stackup assumptions. Native route preview, local HTML reports and CLI. Retains impedance, differential skew, reference-layer and I2C checks. This is engineering screening, not full-wave or eye simulation.",
+    "description_full": "Read-only Quick SI screening from actual routed endpoints: propagation delay, electrical length, lossless resistive reflections and series-termination candidates with explicit stackup assumptions. Native route preview, local HTML reports and CLI. Retains impedance, differential skew, reference-layer and I2C checks. This is engineering screening, not full-wave or eye simulation. Guided path/response setup reviews physical endpoint roles and explicit model inputs, with bounded circuit-export timing advice and visible channel blockers.",
     "identifier": "com.github.wayri.wayricad.signal-integrity-advisor",
     "type": "plugin",
     "author": {
@@ -18,7 +18,7 @@
     },
     "versions": [
         {
-            "version": "3.6.38",
+            "version": "3.6.39",
             "status": "testing",
             "kicad_version": "10.0",
             "runtime": "ipc"
