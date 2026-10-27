@@ -10,6 +10,7 @@
 | First source-to-receiver screen | [Normal workflow](#normal-workflow) |
 | Several nets and explicit returns | [Multi-net studies](#multi-net-studies-and-explicit-returns) |
 | Reviewed IBIS circuit | [KiCad circuit export](#reviewed-ibis-circuit-export) |
+| Bypass / filtering capacitors | [Endpoint shunt capacitors](#endpoint-shunt-capacitors-for-transient-circuits) |
 | Local coupling | [Directed crosstalk](#directed-local-crosstalk) |
 | Nearby traces and locations | [Neighbour exposure map](#neighbour-trace-exposure-map) |
 | Scripts and help | [CLI](#cli) · [Offline help](help.html) |
@@ -425,6 +426,76 @@ impedance/reflection estimates. Section values remain separate from a uniform
 route Z0. Vias, varying line impedance and missing reference coverage can prevent
 one uniform impedance from being reported even when timing is available.
 User-entered Z0/Er overrides retain their explicit assumption labels.
+
+## Endpoint shunt capacitors for transient circuits
+
+In **Export KiCad circuit** or **Copy circuit**, open **Shunt capacitors…** in the
+export settings. Add a capacitor ID, exported case, source/receiver attachment,
+and its actual capacitance, ESR and ESL. The editor uses **nF, mΩ and nH**; the
+CLI assignment JSON uses **F, Ω and H**. Omitted/blank ESR or ESL means ideal zero, not an extracted estimate. Enter the actual values to include their effects. Zero ESR/ESL deliberately omits that
+parasitic. Blank capacitance is an error. Each branch remains separate, so unlike
+capacitors are not collapsed into one ideal summed capacitor.
+
+![Native shunt capacitor editor](help-shunt-capacitors.png)
+
+Actual RGB24 native editor capture, with manually entered demonstration values:
+receiver C_FILTER = 100 pF, 50 mΩ, 1 nH; source C_BYPASS = 1 nF, 20 mΩ, 0.8 nH.
+No board was opened or edited for this capture. These are entered model inputs,
+not extracted component values or a solved waveform.
+
+After exporting, open the generated schematic in KiCad, review the manifest and
+run the native simulator's transient analysis. The circuit contains an editable
+**signal → ESR → ESL → C → ideal reference** branch for every selected capacitor.
+Schematic, clipboard and manifest keep the same connections and values. The
+reviewed maximum integration step remains explicit in the `.tran` directive.
+Inspect capacitor/internal nodes as well as receiver voltage and refine the
+maximum step before relying on peaks. The route timing suggestion uses declared
+edges/delays/frequency only; it does not include the entered capacitor/ESL
+timescales, and the export dialog warns when shunts are present.
+
+For one branch, `Z(s) = ESR + s·ESL + 1/(s·C)`. Parallel branches add admittance,
+`Ytotal(s) = Σ 1/Zk(s)`; ESR and ESL generally cannot be replaced by the values of
+one arbitrary capacitor. A single ideal capacitor driven through resistance has
+`τ = R·C`; with nonzero inductance the response can ring. The installed ngspice
+reference tests use exported branch values: 50 Ω and 100 pF give a 5 ns RC time
+constant, and a separate 1 nH / 100 pF / 50 mΩ branch reproduces the analytical
+series-RLC step peak within 3 mV under its explicit 1 Ω test drive. Native KiCad
+netlist checks also verify every shunt signal/return connection.
+
+**Scope:** these capacitors affect the **exported KiCad/ngspice transient
+circuit**, not Quick SI's resistive endpoint summary or illustrative lossless-line
+eye. Nothing is automatically added to that eye. Only source and receiver nodes
+are supported here. PCB capacitor-pad fanouts, arbitrary along-route shunt
+positions, the capacitor's actual return loop, bias-dependent capacitance,
+package fields and board-wide coupling are not inferred. Existing whole-net
+branch/additional-terminal guards remain in force; entering a manual shunt does
+not declare extra PCB branches modeled or waive those guards.
+
+For CLI, add this optional field beside `source` and `sink` in each assignment
+case. The complete [assignment example](ibis-assignments.example.json) shows the
+same field with generic IBIS placeholders that must be replaced:
+
+```json
+{
+"shunt_capacitors": [
+  {
+    "id": "C_FILTER",
+    "at": "receiver",
+    "capacitance_F": 1e-10,
+    "esr_ohm": 0.05,
+    "esl_H": 1e-9
+  }
+]
+}
+```
+
+The bounds are 64 capacitors per case and 256 per export; the existing total
+circuit-block budget still applies. Unknown/negative/non-finite values and
+ambiguous IDs are rejected. Source PCB, IBIS and assignment fingerprints are
+still checked before publication. The [ngspice manual](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf)
+documents passive device models, `.tran` controls and the shared-library API used
+by the optional installed-simulator reference test. A passive reference test does
+not qualify a full IBIS channel or a physical board.
 
 ## Capabilities
 

@@ -1,6 +1,6 @@
 {
   "schema": "wayricad.quick-si-ibis/v1",
-  "description": "Generic single-route example. Replace both zero SHA-256 values with each actual value from wayricad-si ibis-catalog; choose real component, pin, and model names.",
+  "description": "Generic single-route example. Replace both zero SHA-256 values with each actual value from wayricad-si ibis-catalog; choose real component, pin, and model names. Includes an illustrative endpoint shunt capacitor; replace its values or remove the bank.",
   "cases": {
     "route": {
       "source": {
@@ -18,7 +18,16 @@
         "pin": "8",
         "model": "InputModel",
         "corner": "typ"
-      }
+      },
+      "shunt_capacitors": [
+        {
+          "id": "C_FILTER",
+          "at": "receiver",
+          "capacitance_F": 1e-10,
+          "esr_ohm": 0.05,
+          "esl_H": 1e-09
+        }
+      ]
     }
   }
 }

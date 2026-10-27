@@ -115,7 +115,7 @@ try:
     assert mime.startswith('text/html') and b'/help.css' in help_html
     assert get_bom('/help.css')[0].startswith('text/css')
     assert get_bom('/SHARED_PARTS.md')[0].startswith('text/plain')
-    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.39'
+    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.40'
     assert (Path(sys.argv[1])/'bom_studio_plugin/help.html').is_file()
     example=Path(sys.argv[1])/'bom_studio_plugin/examples/BOM_Demo.kicad_pro'
     assert example.is_file()
@@ -168,6 +168,15 @@ for folder,example in (('quick_pi_plugin','transient-load-step.json'),('quick_th
     result=importlib.import_module(folder+'.transient').solve_transient(study)
     assert len(result['times_s']) > 1
 from wayricad_runtime.transient_study import draw_study
+from wayricad_runtime.transient_study import execute_study,write_study_report
+from quick_pi_plugin.transient import solve_transient
+bank_input=Path(sys.argv[1])/'quick_pi_plugin/studies/transient-shunt-bank.json'
+bank=execute_study({'study':json.loads(bank_input.read_text(encoding='utf-8'))},solve_transient)
+assert len(bank['transient']['loads'][0]['shunt_capacitors'])==2
+assert bank['transient']['checks']['balance_status']=='PASSED'
+paths=write_study_report(Path(sys.argv[1])/'shunt-check.html',bank)
+assert 'transient-caps' in Path(paths['html']).read_text(encoding='utf-8')
+assert 'Capacitor current' in Path(paths['html']).read_text(encoding='utf-8')
 from quick_pi_plugin.electrothermal_service import execute as execute_coupled
 from quick_pi_plugin.electrothermal_report import write_report as write_coupled_report
 for mode in ('steady','transient'):

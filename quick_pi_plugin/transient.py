@@ -28,6 +28,8 @@ class TransientError(SolverError):
 
 
 MAX_LOADS = 64
+MAX_SHUNTS_PER_LOAD = 128
+MAX_SHUNT_BRANCHES = 128
 MAX_COARSE_INTERVALS = 10000
 MAX_TRACE_VALUES = 750000
 SCHEMA = 'wayricad.pi-transient/v1'
@@ -67,9 +69,10 @@ def _request(request):
         raise TransientError(f'Define 1 to {MAX_LOADS} explicit transient loads.')
     loads = []
     identifiers = set()
+    all_capacitor_ids = set()
     load_keys = {'id', 'label', 'terminal', 'initial_current_A', 'step_current_A',
                  'step_time_s', 'path_resistance_ohm', 'path_inductance_H',
-                 'capacitance_F', 'esr_ohm', 'min_voltage_V', 'max_voltage_V'}
+                 'capacitance_F', 'esr_ohm', 'min_voltage_V', 'max_voltage_V', 'shunt_capacitors', 'rise_time_s'}
     for index, row in enumerate(rows):
         if not isinstance(row, dict) or set(row) - load_keys:
             raise TransientError('Each load needs only the documented explicit R/L/C and step fields.')
@@ -88,13 +91,46 @@ def _request(request):
                 raise TransientError('Load terminal must be a string of at most 256 characters.')
             load['terminal'] = row['terminal']
         for key in ('initial_current_A', 'step_current_A', 'step_time_s',
-                    'path_resistance_ohm', 'path_inductance_H', 'esr_ohm'):
+                    'path_resistance_ohm', 'path_inductance_H'):
             # R/L/ESR are explicit inputs, including explicit zero values.
             load[key] = _number(row.get(key), identifier + ': ' + key, nonnegative=True)
-        load['capacitance_F'] = _number(row.get('capacitance_F'),
-                                        identifier + ': capacitance_F', positive=True)
+        if 'shunt_capacitors' in row:
+            bank = row['shunt_capacitors']
+            if not isinstance(bank, list) or not 1 <= len(bank) <= MAX_SHUNTS_PER_LOAD:
+                raise TransientError(f'{identifier}: define 1 to {MAX_SHUNTS_PER_LOAD} shunt capacitor branches.')
+            normalized_bank = []
+            for branch in bank:
+                if not isinstance(branch, dict) or set(branch) != {'id', 'capacitance_F', 'esr_ohm', 'esl_H'}:
+                    raise TransientError(identifier + ': each shunt needs exactly id, capacitance_F, esr_ohm and esl_H.')
+                branch_id = branch['id']
+                if not isinstance(branch_id, str) or not branch_id.strip() or len(branch_id)>128 or branch_id in all_capacitor_ids:
+                    raise TransientError(identifier + ': shunt ids must be globally unique nonempty strings of at most 128 characters; do not count one capacitor at multiple loads.')
+                all_capacitor_ids.add(branch_id)
+                normalized_bank.append(dict(id=branch_id,
+                    capacitance_F=_number(branch['capacitance_F'], identifier+': '+branch_id+' capacitance_F', positive=True),
+                    esr_ohm=_number(branch['esr_ohm'], identifier+': '+branch_id+' esr_ohm', nonnegative=True),
+                    esl_H=_number(branch['esl_H'], identifier+': '+branch_id+' esl_H', nonnegative=True)))
+            load['shunt_capacitors'] = normalized_bank
+            # Explicit bank replaces (never adds to) the compatibility aggregate.
+            for key in ('capacitance_F', 'esr_ohm'):
+                if key in row:
+                    _number(row[key], identifier+': '+key, positive=key=='capacitance_F', nonnegative=key=='esr_ohm')
+        else:
+            load['capacitance_F'] = _number(row.get('capacitance_F'), identifier + ': capacitance_F', positive=True)
+            load['esr_ohm'] = _number(row.get('esr_ohm'), identifier + ': esr_ohm', nonnegative=True)
         if load['step_time_s'] > normalized['duration_s']:
             raise TransientError(identifier + ': step_time_s must lie inside the simulation duration.')
+        rise = _number(row.get('rise_time_s',0), identifier+': rise_time_s', nonnegative=True)
+        if 'rise_time_s' in row:
+            load['rise_time_s'] = rise
+        if rise:
+            if 'shunt_capacitors' not in load:
+                raise TransientError(identifier + ': finite rise_time_s requires an explicit shunt_capacitors bank.')
+            end = load['step_time_s']+rise
+            if not math.isfinite(end) or end>normalized['duration_s'] or end<=load['step_time_s']:
+                raise TransientError(identifier + ': ramp end must be distinguishable from its start and inside the simulation duration.')
+            if not math.isfinite((load['step_current_A']-load['initial_current_A'])/rise):
+                raise TransientError(identifier + ': rise_time_s gives a nonfinite current slope.')
         for key in ('min_voltage_V', 'max_voltage_V'):
             load[key] = None if row.get(key) is None else _number(row[key], identifier + ': ' + key)
         if load['min_voltage_V'] is not None and load['max_voltage_V'] is not None:
@@ -102,6 +138,8 @@ def _request(request):
                 raise TransientError(identifier + ': maximum voltage must be at least its minimum.')
         loads.append(load)
     normalized['loads'] = loads
+    if sum(len(row.get('shunt_capacitors', [None])) for row in loads) > MAX_SHUNT_BRANCHES:
+        raise TransientError(f'Define at most {MAX_SHUNT_BRANCHES} total shunt/aggregate branches.')
     ratio = normalized['duration_s'] / normalized['step_s']
     if normalized['step_s'] / 2 == 0:
         raise TransientError('step_s is too small for the required half-step comparison.')
@@ -164,6 +202,9 @@ def _solve(np, cho_solve, factor, right):
 
 
 def _model(parameters, np, cho_factor, cho_solve):
+    if any('shunt_capacitors' in row for row in parameters['loads']):
+        from .transient_shunts import build
+        return build(parameters, np, cho_factor, cho_solve)
     loads = parameters['loads']
     count = len(loads)
     path_r = np.array([row['path_resistance_ohm'] for row in loads])
@@ -206,8 +247,11 @@ def _model(parameters, np, cho_factor, cho_solve):
                 charge_projection=charge_projection)
 
 
-def _event_current(parameters, model, current, capacitor, demand, np, cho_solve):
+def _event_current(parameters, model, current, capacitor, demand, np, cho_solve, previous_demand=None):
     """Change only algebraic currents; preserve capacitor and magnetic state."""
+    if model.get('bank'):
+        from .transient_shunts import event_current
+        return event_current(parameters, model, current, capacitor, demand, previous_demand, np, cho_solve)
     null_l = model['null_l']
     if not null_l.shape[1]:
         return current.copy()
@@ -227,6 +271,9 @@ def _event_current(parameters, model, current, capacitor, demand, np, cho_solve)
 
 
 def _quantities(parameters, model, current, capacitor, demand, np):
+    if model.get('bank'):
+        from .transient_shunts import quantities
+        return quantities(parameters, model, current, capacitor, demand, np)
     source_current = float(np.sum(current))
     voltage = capacitor + model['esr'] * (current - demand)
     source_voltage = parameters['source_voltage_V'] - parameters['source_resistance_ohm'] * source_current
@@ -259,6 +306,9 @@ def _quantities(parameters, model, current, capacitor, demand, np):
 def _advance_state(parameters, model, current, capacitor, demand, step, cache,
                    np, cho_factor, cho_solve):
     """One BE state update and its physical/numerical energy ledger."""
+    if model.get('bank'):
+        from .transient_shunts import advance
+        return advance(parameters, model, current, capacitor, demand, step, cache, np, cho_factor, cho_solve)
     with np.errstate(over='ignore', divide='ignore', invalid='ignore'):
         if step not in cache:
             matrix = model['inductance'] / step + model['resistance'] + np.diag(step * model['inverse_c'])
@@ -308,6 +358,8 @@ class RailStateStepper:
 
     def __init__(self, request, resistances=None):
         self.parameters = _request(request)
+        if any('shunt_capacitors' in row for row in self.parameters['loads']):
+            raise TransientError('Individual shunt capacitor banks are supported by standalone rail transients only; coupled electrothermal stepping is not supported.')
         try:
             import numpy as np
             from scipy.linalg import cho_factor, cho_solve
@@ -392,6 +444,9 @@ class RailStateStepper:
 
 
 def _integrate(parameters, model, timeline, events, cancel, np, cho_factor, cho_solve):
+    if model.get('bank'):
+        from .transient_shunts import integrate
+        return integrate(parameters, model, timeline, events, cancel, np, cho_factor, cho_solve)
     demand = np.array([row['initial_current_A'] for row in parameters['loads']])
     current = demand.copy()
     capacitor = (parameters['source_voltage_V'] - parameters['source_resistance_ohm'] * demand.sum()
@@ -415,9 +470,10 @@ def _integrate(parameters, model, timeline, events, cancel, np, cho_factor, cho_
 
     def event(time):
         nonlocal demand, current
+        previous_demand = demand.copy()
         for index in events[time]:
             demand[index] = parameters['loads'][index]['step_current_A']
-        current = _event_current(parameters, model, current, capacitor, demand, np, cho_solve)
+        current = _event_current(parameters, model, current, capacitor, demand, np, cho_solve, previous_demand)
         record(time, 'step_after')
 
     cancelled();record(0., 'initial')
@@ -487,12 +543,15 @@ def solve_transient(request, cancel=None):
     events = {}
     for index, row in enumerate(parameters['loads']):
         events.setdefault(row['step_time_s'], []).append(index)
+        if row.get('rise_time_s',0)>0:
+            events.setdefault(row['step_time_s']+row['rise_time_s'], []).append(index)
     coarse = _timeline(parameters['duration_s'], parameters['step_s'], set(events))
     fine = _timeline(parameters['duration_s'], parameters['step_s'] / 2, set(events))
     samples_bound = len(coarse) + len(events)
-    if samples_bound * (9 * len(parameters['loads']) + 8) > MAX_TRACE_VALUES:
+    bank_count = sum(len(row.get('shunt_capacitors', [None])) for row in parameters['loads']) if any('shunt_capacitors' in row for row in parameters['loads']) else 0
+    if samples_bound * (9 * len(parameters['loads']) + 8 + 4 * bank_count) > MAX_TRACE_VALUES:
         raise TransientError(f'Transient output exceeds {MAX_TRACE_VALUES:,} scalar trace values; reduce duration/load count or increase step.')
-    if len(coarse)-1 > MAX_COARSE_INTERVALS + MAX_LOADS or len(fine)-1 > 2 * MAX_COARSE_INTERVALS + MAX_LOADS:
+    if len(coarse)-1 > MAX_COARSE_INTERVALS + 2*MAX_LOADS or len(fine)-1 > 2 * MAX_COARSE_INTERVALS + 2*MAX_LOADS:
         raise TransientError('Transient timeline exceeds its bounded interval count.')
     model = _model(parameters, np, cho_factor, cho_solve)
     times, phases, samples, checks = _integrate(parameters, model, coarse, events, cancel, np, cho_factor, cho_solve)
@@ -514,6 +573,12 @@ def solve_transient(request, cancel=None):
                       notice='One step halving is evidence of time-step sensitivity, not an error bound or convergence certification. Resolve load edges and ringing with further smaller steps.')
     checks.update(method='backward_euler', time_refinement=refinement,
                   energy_notice='Backward Euler adds the reported nonnegative numerical dissipation; it is not physical copper/ESR heat.')
+    if model.get('bank'):
+        refinement['per_shunt_capacitor'] = [dict(load_id=parameters['loads'][owner]['id'], id=branch['id'],
+            max_voltage_difference_V=max(abs(float(a['branch_capacitor'][k]-b['branch_capacitor'][k])) for a,b in pairs),
+            max_current_difference_A=max(abs(float(a['branch_current'][k]-b['branch_current'][k])) for a,b in pairs))
+            for k,(owner,branch) in enumerate(zip(model['owners'],model['branches']))]
+        refinement['max_capacitor_voltage_difference_V'] = max(row['max_voltage_difference_V'] for row in refinement['per_shunt_capacitor'])
     loads = []
     all_violations = []
     for index, row in enumerate(parameters['loads']):
@@ -532,6 +597,14 @@ def solve_transient(request, cancel=None):
                           limits={key:row[key] for key in ('min_voltage_V','max_voltage_V')},
                           within_voltage_limits=not violations, violations=violations))
         all_violations.extend(dict(load_id=row['id'], **item) for item in violations)
+        if model.get('bank'):
+            loads[-1]['capacitor_voltage_semantics'] = 'capacitance_weighted_mean_of_individual_branch_voltages'
+            loads[-1]['shunt_capacitors'] = [dict(**branch,
+                capacitor_voltage_V=[float(sample['branch_capacitor'][k]) for sample in samples],
+                current_A=[float(sample['branch_current'][k]) for sample in samples],
+                esr_loss_W=[float(sample['branch_loss'][k]) for sample in samples],
+                stored_energy_J=[float(sample['branch_stored'][k]) for sample in samples])
+                for k,(owner,branch) in enumerate(zip(model['owners'],model['branches'])) if owner==index]
     source_current = [sample['source_current'] for sample in samples]
     source_voltage = [sample['source_voltage'] for sample in samples]
     limit = parameters['source_current_limit_A']
@@ -554,12 +627,14 @@ def solve_transient(request, cancel=None):
     if limit is not None and initial['source_current'] > limit + current_tolerance:
         initial_valid = False
     feasible = not all_violations
-    notice = ('Explicit lumped R/L/C rail model with pre-step DC initialization. Constant-current demands continue below zero voltage; there is no UVLO, converter control or spatial transient copper field. '
+    notice = ('Explicit lumped R/L/C rail model with pre-step DC initialization. Prescribed-current demands continue below zero voltage; there is no UVLO, converter control or spatial transient copper field. '
               'Source current limits are diagnostic budgets only: currents are not capped and CV/CC regulation is not simulated. '
               'The ideal voltage source can absorb reverse current; real-source sink capability must be checked. '
               'Backward Euler damps ringing; review the half-step evidence and refine before relying on peaks.')
     if not initial_valid:
         notice += ' The pre-step DC state already violates voltage/current constraints and is a requested-load diagnostic, not a feasible initialized rail.'
+    if model.get('bank'):
+        notice += ' Individual shunt R/ESL/C branches replace each explicit bank\'s aggregate capacitor. The load capacitor-voltage trace is their capacitance-weighted mean; inspect individual branch traces for ringing. A positive rise_time_s prescribes a linear current ramp; both slope boundaries are sampled. Instantaneous load steps incompatible with inductor continuity are rejected.'
     return dict(schema=SCHEMA, model='lumped_multisink_rlc', notice=notice, parameters=parameters,
                 source_set_voltage_V=parameters['source_voltage_V'], times_s=times, sample_phase=phases,
                 source_current_A=source_current, source_voltage_V=source_voltage,

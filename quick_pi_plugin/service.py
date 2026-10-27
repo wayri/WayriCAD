@@ -248,8 +248,10 @@ def execute(request,*,_boards=None):
     action=request.get('action','inspect')
     if action=='inspect':
         nets=sorted({str(p.GetNetname()) for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0})
+        pad_counts={fp.m_Uuid.AsString():len(list(fp.Pads())) for fp in board.GetFootprints()}
         terminals=[{'id':p.m_Uuid.AsString(),'pad_uuid':p.m_Uuid.AsString(),
                     'footprint_uuid':fp.m_Uuid.AsString(),'component_value':str(fp.GetValue()),
+                    'footprint_pad_count':pad_counts[fp.m_Uuid.AsString()],
                     'reference':str(fp.GetReference()),'pad_number':str(p.GetNumber()),
                     'layer_ids':[int(l) for l in board.GetEnabledLayers().CuStack() if p.IsOnLayer(l)],
                     'label':f'{fp.GetReference()}.{p.GetNumber()}', 'net':str(p.GetNetname())}

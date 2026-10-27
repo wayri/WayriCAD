@@ -23,6 +23,24 @@ def thermal_bundle():
 
 
 class TransientReviewTests(unittest.TestCase):
+    def test_capacitor_branch_units_and_trace_selection_are_explicit(self):
+        from wayricad_runtime.transient_review import capacitor_rows
+        branch=dict(id='C1',capacitance_F=1e-7,esr_ohm=.01,esl_H=1e-9,
+                    current_A=[-.2,.1],capacitor_voltage_V=[3.2,3.3],
+                    esr_loss_W=[.0004,.0001],stored_energy_J=[1e-6,2e-6])
+        result=dict(times_s=[0.,1.],loads=[dict(id='U1',voltage_V=[3.3,3.1],
+                    requested_current_A=[0.,1.],limits={},shunt_capacitors=[branch])],
+                    checks=dict(time_refinement=dict(per_shunt_capacitor=[dict(load_id='U1',id='C1',max_voltage_difference_V=.01)])))
+        row=capacitor_rows(result)[0]
+        self.assertEqual(row['peak_current_A'],.2)
+        self.assertEqual(row['half_step_difference_V'],.01)
+        text=review_html({'transient':result})
+        self.assertIn('<td>0.1</td><td>10</td><td>1</td>',text)
+        self.assertIn('U1 / C1 · internal C voltage',text)
+        self.assertIn('Capacitor current · A',text)
+        self.assertIn('id="transient-caps"',text)
+        self.assertIn('value="1"',text)
+
     def test_unspecified_limits_are_not_a_pass_and_statistics_are_exact(self):
         result = thermal_bundle()['transient']; original = copy.deepcopy(result)
         result['components'][0]['limit_c'] = None

@@ -27,6 +27,7 @@ LIMITS = [
     "Ideal common reference; return-path impedance, pad spreading, radiation, skin/dielectric loss and dispersion are not solved.",
     "Each track uses a lossless distributed line plus its extracted lumped series DC resistance.",
     "Native IBIS package parasitics are included by KiCad; no separate package RLC is added.",
+    "Reviewed shunt capacitors are explicit endpoint series ESR/ESL/C branches to ideal common ground; no capacitor placement, bias derating or return-path parasitics are inferred. They are not included in the illustrative eye screen.",
     "IBIS source/load replace the route screen's linear source/load resistances; those screening assumptions are not extra physical terminations.",
     "Export is a reviewable circuit model, not proof of native transient convergence or board qualification.",
     "Separate exports have distinct signal-net namespaces. Repeatedly pasting the same clipboard text shares its global net names; re-export for an isolated copy. Ground remains common by design.",
@@ -346,6 +347,7 @@ def _circuit(case, index, sections, options, counters, namespace):
         blocks.append(block)
         if section is not None:
             section["references"].append(block["reference"])
+        return block
     def ibis(role, net):
         assignment = case[role]
         params = ' '.join(f"{key}={value}" for key, value in assignment["corners"].items())
@@ -357,8 +359,30 @@ def _circuit(case, index, sections, options, counters, namespace):
                   "Sim.Name": assignment["component"], "Sim.Ibis.Pin": assignment["pin"],
                   "Sim.Ibis.Model": assignment["model"], "Sim.Pins": "1=GND 2=IN/OUT", "Sim.Params": params}
         add("SOURCE" if role == "source" else "SINK", assignment["model"], ["0", net], fields, model=assignment)
+    def shunts(position, signal):
+        for branch in case.get('shunt_capacitors', []):
+            if branch['at'] != position:
+                continue
+            current = signal; references = []
+            for kind, key in [('R', 'esr_ohm'), ('L', 'esl_H')]:
+                if branch[key] == 0:
+                    continue
+                after = node()
+                block = add(kind, _fmt(branch[key]), [current, after],
+                            {'Sim.Device':kind, 'Sim.Pins':'1=1 2=2',
+                             'Shunt capacitor ID':branch['id'], 'Shunt attachment':position})
+                block.update(shunt_capacitor_id=branch['id'], attachment=position)
+                references.append(block['reference']); current = after
+            block = add('C', _fmt(branch['capacitance_F']), [current, '0'],
+                        {'Sim.Device':'C', 'Sim.Pins':'1=1 2=2',
+                         'Shunt capacitor ID':branch['id'], 'Shunt attachment':position})
+            block.update(shunt_capacitor_id=branch['id'], attachment=position)
+            references.append(block['reference'])
+            branch.update(signal_node=signal, reference_node='0', references=references,
+                          model='entered series ESR/ESL/C to ideal reference')
     current = node()
     ibis("source", current)
+    shunts('source', current)
     for section in sections:
         section["input_net"] = current
         resistance = section["resistance_ohm"]
@@ -378,6 +402,7 @@ def _circuit(case, index, sections, options, counters, namespace):
             add("C", _fmt(section["capacitance_pf"] / 2) + "p", [after, "0"], {"Sim.Device": "C", "Sim.Pins": "1=1 2=2"}, section)
         current = after
         section["output_net"] = current
+    shunts('receiver', current)
     ibis("sink", current)
     return blocks
 
@@ -427,12 +452,21 @@ def export_circuit(cases, destination, options=None, *, guard=None):
     if not target.parent.is_dir():
         raise CircuitExportError("Destination parent directory does not exist")
     counters, blocks, records, models, ids, catalogs = {}, [], [], {}, set(), {}
+    capacitor_count = 0
     namespace = "SI" + uuid.uuid4().hex[:16]
     for index, case in enumerate(snapshot, 1):
         ident = case.get("id")
         if not isinstance(ident, str) or not ident.strip() or len(ident) > 128 or ident in ids:
             raise CircuitExportError("Case IDs must be unique nonempty strings up to 128 characters")
         ids.add(ident)
+        from .shunt_caps import capacitor_branches, MAX_TOTAL_CAPACITORS
+        try:
+            case['shunt_capacitors'] = capacitor_branches(case.get('shunt_capacitors', []))
+        except ValueError as error:
+            raise CircuitExportError(f'Case {ident}: {error}') from error
+        capacitor_count += len(case['shunt_capacitors'])
+        if capacitor_count > MAX_TOTAL_CAPACITORS:
+            raise CircuitExportError(f'Export supports at most {MAX_TOTAL_CAPACITORS} explicit shunt capacitors.')
         try:
             report = case["report"]
             sections = _sections(report, opts)
@@ -444,7 +478,8 @@ def export_circuit(cases, destination, options=None, *, guard=None):
             raise CircuitExportError(f"Case {ident}: malformed report or assignment ({exc})") from exc
         records.append({"id": ident, "source": case["source"], "sink": case["sink"],
                         "report_sha256": hashlib.sha256(_json_bytes(report)).hexdigest(),
-                        "report": report, "sections": sections})
+                        "report": report, "sections": sections,
+                        "shunt_capacitors":case['shunt_capacitors']})
     if len(blocks) > 9216:
         raise CircuitExportError("Circuit exceeds 9216 model blocks; export smaller groups")
     relative = {sha: f"models/{sha}.ibs" for sha in models}
@@ -464,6 +499,8 @@ def export_circuit(cases, destination, options=None, *, guard=None):
             # KiCad interprets schematic text starting with '.' as SPICE commands.
             # User case IDs are captions, never multiline simulator directives.
             caption = "Case: " + " ".join(block["case_id"].split())[:32]
+            if block.get('shunt_capacitor_id'):
+                caption += ' · shunt '+ ' '.join(block['shunt_capacitor_id'].split())[:24]+' @ '+block['attachment']
             objects.append(_text(caption, x, y + 13, .9))
             # Spread clipboard pages vertically; no hierarchy is needed when pasted.
             clipboard.append(_symbol(block, x, y + (page-2) * 254, "/", "circuit", absolute))
@@ -533,5 +570,6 @@ def export_circuit(cases, destination, options=None, *, guard=None):
         raise
     return {"schematic": str(target / "circuit.kicad_sch"), "project": str(target / "circuit.kicad_pro"),
             "manifest": str(target / "manifest.json"), "clipboard_text": clip_text,
+            "shunt_capacitor_count": capacitor_count,
             "clipboard_file": str(target / "clipboard.txt"), "model_files": [str(target / path) for path in relative.values()],
             "sheets": [str(target / name) for name, _ in pages]}

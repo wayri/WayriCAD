@@ -262,7 +262,7 @@ class IbisPane(wx.Panel):
         self._changed()
 
 
-def circuit_options_dialog(parent, reports=()):
+def circuit_options_dialog(parent, reports=(), case_ids=()):
     """Collect explicit simulation settings; None means the user cancelled."""
     dialog = wx.Dialog(parent, title='KiCad circuit export settings',
                        style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -291,17 +291,36 @@ def circuit_options_dialog(parent, reports=()):
     suggestion = wx.Button(dialog, label='Suggest timing from selected routes')
     timing_note = wx.StaticText(dialog, label='Timing remains editable. Check convergence in KiCad/ngspice; IBIS edge bandwidth is not inferred.')
     timing_note.Wrap(460)
+    shunt_banks = {}
+    cap_warning = ' Shunt C/ESL timescales are not included in the route timing suggestion; refine the native transient against those dynamics.'
     def suggest_timing(event):
         try:
             advice = circuit_timing_suggestion(reports)
             for key in ('duration_ns', 'timestep_ns', 'frequency_mhz'):
                 entries[key].SetValue(f'{advice[key]:.9g}')
-            timing_note.SetLabel(f"Duration / maximum-step ratio: {advice['estimated_points']:,}. Adaptive internal steps can be smaller. Review against the actual IBIS models.")
+            message=f"Duration / maximum-step ratio: {advice['estimated_points']:,}. Adaptive internal steps can be smaller. Review against the actual IBIS models."
+            if any(shunt_banks.values()):message+=cap_warning
+            timing_note.SetLabel(message)
         except ValueError as error:timing_note.SetLabel(str(error))
         timing_note.Wrap(460); dialog.Layout()
     suggestion.Enable(bool(reports)); suggestion.Bind(wx.EVT_BUTTON, suggest_timing)
     layout.Add(suggestion, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
     layout.Add(timing_note, 0, wx.EXPAND | wx.ALL, 10)
+    shunt = wx.Button(dialog, label='Shunt capacitors · none…')
+    shunt.SetToolTip('Add explicit C/ESR/ESL at selected source or receiver nodes in the exported transient circuit. The illustrative eye is unchanged.')
+    shunt.Enable(bool(case_ids))
+    def edit_shunts(event):
+        nonlocal shunt_banks
+        from .shunt_caps_ui import shunt_capacitor_dialog
+        result = shunt_capacitor_dialog(dialog, list(case_ids), shunt_banks)
+        if result is not None:
+            shunt_banks = result
+            shunt.SetLabel('Shunt capacitors · '+str(sum(map(len,result.values())))+'…')
+            if any(result.values()):
+                timing_note.SetLabel(cap_warning.strip());timing_note.Wrap(460)
+            dialog.Layout()
+    shunt.Bind(wx.EVT_BUTTON, edit_shunts)
+    layout.Add(shunt, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
     allow = wx.CheckBox(dialog, label='Allow explicit manual via approximation')
     layout.Add(allow, 0, wx.EXPAND | wx.ALL, 10)
     for key in ('via_capacitance_pf', 'via_inductance_nh'):
@@ -329,6 +348,7 @@ def circuit_options_dialog(parent, reports=()):
                     raise ValueError('Manual via L/C values must be nonnegative.')
                 if options['copper_thickness_um'] is not None and options['copper_thickness_um'] <= 0:
                     raise ValueError('Assumed copper thickness must be positive.')
+                if any(shunt_banks.values()):options['shunt_capacitors_by_case']=shunt_banks
                 return options
             except ValueError as error:
                 wx.MessageBox(str(error), 'Invalid circuit settings', wx.OK | wx.ICON_ERROR, dialog)

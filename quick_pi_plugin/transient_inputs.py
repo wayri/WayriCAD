@@ -1,5 +1,6 @@
 """Explicit transient setup from selected loads; never infer PCB L or C."""
 import math
+import copy
 
 PARAMETERS = [('source_voltage_V','Source V',1.),('source_resistance_ohm','Shared / total path R mΩ',1e-3),
               ('source_inductance_H','Shared source L nH',1e-9),('source_current_limit_A','Source budget A (optional)',1.),
@@ -18,7 +19,7 @@ def engineering_from_study(study):
             [[text(row.get(key),scale) for key,_label,scale in LOAD_COLUMNS] for row in study.get('loads',[])])
 
 
-def engineering_to_study(parameters,rows,*,validate=True):
+def engineering_to_study(parameters,rows,*,validate=True,banks=None,rise_times=None):
     """Convert reviewed mΩ/nH/µF/µs controls into the existing SI solver model."""
     def number(key,label,value,scale):
         if not str(value).strip():
@@ -37,11 +38,16 @@ def engineering_to_study(parameters,rows,*,validate=True):
     for index,values in enumerate(rows,1):
         if len(values)!=len(LOAD_COLUMNS):raise ValueError('Each transient load needs all displayed columns.')
         row={}
+        bank=(banks or {}).get(index-1)
         for (key,label,scale),value in zip(LOAD_COLUMNS,values):
             if key=='id':row[key]=str(value).strip()
+            elif bank and key in ('capacitance_F','esr_ohm'):continue
             else:
                 parsed=number(key,f'Row {index} '+label,value,scale)
                 if parsed is not None:row[key]=parsed
+        if bank:
+            row['shunt_capacitors']=copy.deepcopy(bank)
+            row['rise_time_s']=(rise_times or {}).get(index-1,0.)
         output['loads'].append(row)
     if validate:
         from .transient import _request
@@ -112,6 +118,9 @@ def recommend_step(study):
     at least 1,000 intervals per window are starting points, not convergence
     proof. The existing half-step comparison must still be reviewed.
     """
+    if any(row.get('shunt_capacitors') for row in study.get('loads',[])):
+        from .transient_shunts import recommend_step as bank_step
+        return bank_step(study)
     from .transient import _request,MAX_COARSE_INTERVALS
     import numpy as np
     from scipy.linalg import eigvals

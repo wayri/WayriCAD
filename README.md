@@ -13,6 +13,10 @@ installable plugins in the source catalogue. Processing runs locally after setup
 and power schedules in watts. Transient reports add selectable summaries and
 exact-sample probes. [Release notes](docs/RELEASE_NOTES_3.6.39.md).
 
+**In development — shunt capacitors:** edit individual C/ESR/ESL branches,
+simulate finite-rise PI load steps and include endpoint caps in SI transient
+circuit exports. [Workflow and limits](quick_pi_plugin/README.md#individual-shunt-capacitors-in-transient-studies).
+
 ## Start here
 
 | What you need | Where to go |
@@ -316,6 +320,14 @@ remain outlines. [Workflow and native-capture scope](suite_assistant_plugin/READ
 
 ### [Quick PI](quick_pi_plugin/README.md)
 
+**Individual shunt capacitor response · development**
+
+<a href="quick_pi_plugin/help-shunt-response.png"><img src="quick_pi_plugin/help-shunt-response.png" width="960" alt="PI individual capacitor table with selected internal voltage and branch-current transient plots"></a>
+
+Explicit C/ESR/ESL branches with a finite prescribed load rise; this is a lumped
+model, not extracted board parasitics. [Inputs and numerical checks](quick_pi_plugin/README.md#individual-shunt-capacitors-in-transient-studies).
+
+
 
 **Current mixed loads and grouped pins · 3.6.38**
 
@@ -464,6 +476,14 @@ The illustrative 1 s frame includes imported copper and contact losses. [Capture
 Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
 
 ### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
+
+**Shunt capacitors in native transient circuits · development**
+
+<a href="signal_integrity_advisor_plugin/help-shunt-capacitors.png"><img src="signal_integrity_advisor_plugin/help-shunt-capacitors.png" width="854" alt="SI source and receiver capacitor branches with editable C ESR ESL"></a>
+
+Manual source/receiver additions to the exported KiCad/ngspice circuit. The
+built-in illustrative eye does not use these parts. [Workflow and limits](signal_integrity_advisor_plugin/ReadMe.md).
+
 
 **Guided path and response · 3.6.39**
 

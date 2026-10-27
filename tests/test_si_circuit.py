@@ -3,6 +3,11 @@ import copy
 import json
 from pathlib import Path
 import tempfile
+import os
+import math
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
 import unittest
 from unittest import mock
 
@@ -92,6 +97,92 @@ class CircuitTests(unittest.TestCase):
         self.assertEqual(manifest["transient_control"]["directive"], directive)
         self.assertEqual(manifest["transient_control"]["maximum_step_ns"], .025)
         self.assertIn("Adaptive", manifest["transient_control"]["sampling"])
+
+    def test_individual_shunt_branches_preserve_topology_values_and_native_symbols(self):
+        self.case['shunt_capacitors'] = [
+            dict(id='C_SRC', at='source', capacitance_F=1e-10, esr_ohm=.05, esl_H=1e-9),
+            dict(id='C_RX', at='receiver', capacitance_F=1e-9)]
+        original = copy.deepcopy(self.case)
+        output = self.export()
+        self.assertEqual(output['shunt_capacitor_count'],2)
+        self.assertEqual(self.case, original)
+        manifest = json.loads(Path(output['manifest']).read_text())
+        branches = manifest['cases'][0]['shunt_capacitors']
+        self.assertEqual([row['id'] for row in branches], ['C_SRC','C_RX'])
+        self.assertEqual([len(row['references']) for row in branches], [3,1])
+        source = next(row for row in manifest['blocks'] if row['kind']=='SOURCE')['nets'][1]
+        receiver = next(row for row in manifest['blocks'] if row['kind']=='SINK')['nets'][1]
+        for branch, node in zip(branches, [source, receiver]):
+            blocks = [b for b in manifest['blocks'] if b.get('shunt_capacitor_id')==branch['id']]
+            self.assertEqual(blocks[0]['nets'][0], node)
+            self.assertEqual(blocks[-1]['nets'][1], '0')
+            for left, right in zip(blocks, blocks[1:]):self.assertEqual(left['nets'][1], right['nets'][0])
+        shunts = [row for row in manifest['blocks'] if row.get('shunt_capacitor_id')=='C_SRC']
+        self.assertEqual([row['kind'] for row in shunts], ['R','L','C'])
+        self.assertEqual([float(row['value']) for row in shunts], [.05,1e-9,1e-10])
+        clip = parse('(selection '+output['clipboard_text']+')')
+        self.assertEqual(len(clip.nodes('symbol')), 10)
+        for symbol in clip.nodes('symbol'):
+            props = properties(symbol)
+            if props['Reference'][0] in branches[0]['references']:
+                self.assertIn(props['Sim.Device'][0], ('R','L','C'))
+                self.assertEqual(props['Sim.Pins'][0], '1=1 2=2')
+                self.assertEqual(props['Shunt capacitor ID'][0], 'C_SRC')
+
+    def test_invalid_or_singular_shunt_inputs_are_rejected_before_publication(self):
+        for branch in [dict(id='C',at='middle',capacitance_F=1e-9),
+                       dict(id='C',at='source',capacitance_F=0),
+                       dict(id='C',at='receiver',capacitance_F=float('nan')),
+                       dict(id='C',at='source',capacitance_F=1e-9,esl_H=-1e-9),
+                       dict(id='C',at='source',capacitance_F=1e-9,unknown=1)]:
+            case = copy.deepcopy(self.case);case['shunt_capacitors']=[branch]
+            with self.subTest(branch=branch),self.assertRaises(circuit.CircuitExportError):self.export([case])
+        case = copy.deepcopy(self.case);case['shunt_capacitors']=[dict(id='C',at='source',capacitance_F=1e-9)]*2
+        with self.assertRaisesRegex(circuit.CircuitExportError,'unique'):self.export([case])
+        self.assertFalse((self.root/'bundle').exists())
+
+    def test_exported_shunts_have_expected_rc_and_esl_transients_in_native_ngspice(self):
+        dll = Path(os.environ.get('WAYRICAD_NGSPICE_DLL',
+                    str(Path(os.environ.get('PROGRAMFILES','C:/Program Files'))/'KiCad/10.0/bin/ngspice.dll')))
+        if not dll.is_file():self.skipTest('Installed ngspice shared library required')
+        scenarios = []
+        for index, (drive, esr, esl) in enumerate([(50.,0.,0.), (1.,.05,1e-9)]):
+            case = copy.deepcopy(self.case)
+            case['shunt_capacitors']=[dict(id='C1',at='receiver',capacitance_F=1e-10,esr_ohm=esr,esl_H=esl)]
+            output = circuit.export_circuit([case],self.root/('native-'+str(index)),guard=lambda:None)
+            model = json.loads(Path(output['manifest']).read_text())
+            branch = model['cases'][0]['shunt_capacitors'][0]
+            scenarios.append(dict(signal_node=branch['signal_node'],drive_ohm=drive,
+                                  blocks=[b for b in model['blocks'] if b.get('shunt_capacitor_id')=='C1']))
+        spec = self.root/'passive-check.json';spec.write_text(json.dumps(scenarios))
+        helper = Path(__file__).resolve().parents[1]/'signal_integrity_advisor_plugin/tests/ngspice_shunt_check.py'
+        run = subprocess.run([sys.executable,str(helper),str(dll),str(spec)],capture_output=True,text=True,timeout=40)
+        self.assertEqual(run.returncode,0,run.stdout+'\n'+run.stderr)
+        data = json.loads(run.stdout.strip().splitlines()[-1])
+        expected = 1-math.exp(-(data[0]['sample_time_s']-1.0005e-9)/5e-9)
+        self.assertAlmostEqual(data[0]['at_6ns_V'],expected,delta=2e-4)
+        damping=1.05/(2*math.sqrt(1e-9/1e-10))
+        peak=1+math.exp(-damping*math.pi/math.sqrt(1-damping*damping))
+        self.assertAlmostEqual(data[1]['peak_V'],peak,delta=.003)
+        self.assertAlmostEqual(data[1]['final_V'],1.,delta=.001)
+
+    def test_native_kicad_netlist_preserves_each_shunt_element_and_return(self):
+        executable=Path(os.environ.get('WAYRICAD_KICAD_CLI',
+                        str(Path(os.environ.get('PROGRAMFILES','C:/Program Files'))/'KiCad/10.0/bin/kicad-cli.exe')))
+        if not executable.is_file():self.skipTest('Installed KiCad CLI required')
+        self.case['shunt_capacitors']=[dict(id='C_FILTER',at='receiver',capacitance_F=1e-10,esr_ohm=.05,esl_H=1e-9)]
+        output=self.export();target=self.root/'native.xml'
+        run=subprocess.run([str(executable),'sch','export','netlist','--format','kicadxml',
+                            '--output',str(target),output['schematic']],capture_output=True,text=True,timeout=30)
+        self.assertEqual(run.returncode,0,run.stdout+'\n'+run.stderr)
+        pins={}
+        for net in ET.parse(target).getroot().findall('./nets/net'):
+            for node in net.findall('node'):pins[node.attrib['ref'],node.attrib['pin']]=net.attrib['name']
+        model=json.loads(Path(output['manifest']).read_text())
+        branches=[row for row in model['blocks'] if row.get('shunt_capacitor_id')=='C_FILTER']
+        for row in branches:
+            self.assertEqual(pins[row['reference'],'1'],row['nets'][0])
+            self.assertEqual(pins[row['reference'],'2'],row['nets'][1])
 
     def test_requires_whole_net_evidence_and_two_terminals(self):
         for change in ({"terminal_count": 3}, {"circuit_topology": {}},

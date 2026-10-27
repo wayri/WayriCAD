@@ -732,8 +732,11 @@ class QuickSIPanel(wx.Panel):
             if missing:
                 raise ValueError('Assign exact source and receiver IBIS pins for every checked case. Select each case in the result dropdown: '+ '; '.join(missing))
             from .ibis_ui import circuit_options_dialog
-            options=circuit_options_dialog(self,[record['report'] for record in records])
+            options=circuit_options_dialog(self,[record['report'] for record in records],
+                                           [record['id'] for record in records])
             if options is None:return
+            shunts=options.pop('shunt_capacitors_by_case',{})
+            for record in records:record['shunt_capacitors']=shunts.get(record['id'],[])
             with wx.DirDialog(self,'Choose parent folder for a new SI circuit bundle',
                               defaultPath=str(Path(board_path).parent),style=wx.DD_DEFAULT_STYLE|wx.DD_DIR_MUST_EXIST) as dialog:
                 if dialog.ShowModal()!=wx.ID_OK:return
@@ -788,6 +791,9 @@ class QuickSIPanel(wx.Panel):
                         raise ValueError('Clipboard rejected the circuit text.')
                     wx.TheClipboard.Flush()
                 finally:wx.TheClipboard.Close()
-                self.status.SetLabel('KiCad circuit copied. Model bundle: '+str(destination))
-            else:self.status.SetLabel('KiCad circuit bundle exported: '+str(result['schematic']))
+                message='KiCad circuit copied. Model bundle: '+str(destination)
+            else:message='KiCad circuit bundle exported: '+str(result['schematic'])
+            if result.get('shunt_capacitor_count'):
+                message+=' · '+str(result['shunt_capacitor_count'])+' shunt capacitors; run the transient in KiCad.'
+            self.status.SetLabel(message)
         except Exception as caught:self.status.SetLabel(str(caught))

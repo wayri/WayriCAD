@@ -36,7 +36,7 @@ def parser():
     timing.add_argument('--output',type=Path)
     circuit=subs.add_parser('circuit',help='Export selected complete route reports as a native KiCad IBIS simulation circuit.')
     circuit.add_argument('source',type=Path,help='Saved Quick SI route or study JSON report.')
-    circuit.add_argument('--assignments',type=Path,required=True,help='Explicit source/sink IBIS assignments by case ID.')
+    circuit.add_argument('--assignments',type=Path,required=True,help='Explicit source/sink IBIS assignments and optional endpoint shunt_capacitors by case ID.')
     circuit.add_argument('--case',action='append',help='Study case ID; repeat to choose multiple paths. Default: every case.')
     circuit.add_argument('--output',type=Path,required=True,help='New simulation bundle directory; must not exist.')
     circuit.add_argument('--duration-ns',type=float,default=100.)

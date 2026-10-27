@@ -39,6 +39,15 @@ class IBISWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'reviewed IBIS sha256'):
             circuit_cases(self.report,self.assignments)
 
+    def test_cli_assignment_cases_retain_reviewed_shunt_branches(self):
+        self.assignments['cases']['route']['shunt_capacitors']=[
+            dict(id='C_FILTER',at='receiver',capacitance_F=100e-12,esr_ohm=.05,esl_H=1e-9)]
+        cases=circuit_cases(self.report,self.assignments)
+        self.assertEqual(cases[0]['shunt_capacitors'][0]['capacitance_F'],100e-12)
+        self.assertEqual(cases[0]['shunt_capacitors'][0]['esl_H'],1e-9)
+        self.assignments['cases']['route']['shunt_capacitors'][0]['capacitance_F']=None
+        with self.assertRaisesRegex(ValueError,'capacitance_F'):circuit_cases(self.report,self.assignments)
+
     def test_source_changes_and_missing_endpoints_do_not_export(self):
         self.board.write_text('changed')
         with self.assertRaisesRegex(ValueError,'changed'):circuit_cases(self.report,self.assignments)

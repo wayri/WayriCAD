@@ -76,7 +76,8 @@ def circuit_cases(report, assignments, selected=None):
         row=available[ids.index(identifier)]
         if not isinstance(row.get('report'),dict):raise ValueError(identifier+': no completed route report.')
         endpoints=configured.get(identifier)
-        if not isinstance(endpoints,dict) or set(endpoints)!={'source','sink'}:
+        if (not isinstance(endpoints,dict) or not {'source','sink'}<=set(endpoints)
+                or set(endpoints)-{'source','sink','shunt_capacitors'}):
             raise ValueError(identifier+': assign both source and sink IBIS models.')
         bound=dict(row['report'])
         bound['source_fingerprints']=report.get('source_fingerprints') or bound.get('source_fingerprints')
@@ -96,7 +97,9 @@ def circuit_cases(report, assignments, selected=None):
                 raise ValueError(identifier+': IBIS file changed since assignment review.')
             pair[role]=assignment_from_catalog(catalog,value['component'],value['pin'],
                 value['model'],role,value.get('corners',value.get('corner','typ')))
-        result.append(dict(id=identifier,report=bound,**pair))
+        from .shunt_caps import capacitor_branches
+        result.append(dict(id=identifier,report=bound,**pair,
+                           shunt_capacitors=capacitor_branches(endpoints.get('shunt_capacitors',[]))))
     require_case_sources(result)
     return result
 

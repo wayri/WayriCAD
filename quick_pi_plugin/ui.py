@@ -1817,7 +1817,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
             dialog=PITransientStudyDialog(self,'pi',initial_study(request,self._terminals,bundle=self.bundle),
                 lambda payload,cancel:run_job(payload,cancelled=cancel),
-                (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha)
+                (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha,
+                terminals=self._terminals,signal_net=request.get('net',''),return_nets=self._return_selected_nets())
             try:dialog.ShowModal()
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))

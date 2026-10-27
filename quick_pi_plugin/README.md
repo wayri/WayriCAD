@@ -2,6 +2,50 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+## Individual shunt capacitors in transient studies
+
+Open **More → Transient load-step study**, select a load row, then
+**Shunt capacitors for selected load…**. Add individual bypass/filter capacitors
+and edit effective C, ESR and total part + connection ESL. The bank **replaces**
+that row’s aggregate C/ESR; the marked cells say **Bank**. Nothing is double-counted.
+
+| Control | Meaning |
+|---|---|
+| C | Enter µF or an explicit value such as `100nF`, `4n7`, `1uF`. Use effective capacitance at operating bias. |
+| ESR / total ESL | Explicit mΩ and nH. Enter zero only when deliberately omitting that effect. |
+| Load-current rise | A prescribed linear rise in µs; zero means an ideal current step. Finite rise is needed for an all-inductive feed/shunt cutset. |
+| Bulk parasitics | Select capacitor rows, then **Set selected ESR / ESL…**. Both values are validated before the selected rows change. C values are retained. |
+| Board candidates | Choose the actual return net and select two-pad C-reference footprints on that exact net pair. Unit-bearing saved values may prefill; ambiguous codes remain unknown. Inclusion is opt-in. |
+| Capacitor response | Select a part for internal capacitor voltage, branch current and peak ESR heat. Reports retain each branch and its half-step difference. |
+
+![Individual capacitor bank editor](help-shunt-capacitors.png)
+
+![Solved load-step response](help-shunt-transient.png)
+
+![Selected capacitor voltage and current](help-shunt-response.png)
+
+These are genuine native captures of [the explicit example](studies/transient-shunt-bank.json):
+3.3 V, shared R 50 mΩ / L 1 µH, branch R 20 mΩ / L 100 nH, 0.1→1 A starting 1 µs
+with 0.5 µs rise; C1=10 µF/30 mΩ/2 nH and C2=1 µF/10 mΩ/1 nH.
+The 5 µs window uses 1 ns steps (5,003 event-aware samples). Its minimum load
+voltage is 3.038876 V; the maximum load-voltage half-step difference is 29.60 µV.
+This short illustrative window does not establish settling or measured board behavior.
+No board was opened for these screenshots. [Validation and model limits](../docs/audits/SHUNT_CAPACITORS_2026-10-27.md).
+
+CLI uses the same model:
+
+```text
+wayricad-pi --transient transient-shunt-bank.json --html shunt-report.html
+```
+
+Each load may contain `shunt_capacitors: [{id, capacitance_F, esr_ohm, esl_H}]`
+and optional `rise_time_s`. Values are F/Ω/H/s in JSON. IDs must be globally
+unique. At most 128 total shunt/aggregate branches and the existing time/trace
+budgets bound work. Unknown routing, mounting, package and return parasitics are
+not extracted. Individual banks currently run only in standalone lumped rail
+transients; coupled electrothermal stepping rejects them explicitly. Constant-power
+control and converter dynamics remain outside this model.
+
 ## New endpoint and study workflows (3.6.38)
 
 | Task | Start here | Model and limits |
@@ -69,7 +113,7 @@ example, not a measured board or a converter transient.
 ![Engineering-unit transient setup](help-transient-setup-3.6.38.png)
 ![Computed R/L/C transient result](help-transient-results-3.6.38.png)
 
-Explicit passive R/L/C and ideal current steps; no board parasitics or regulator
+Explicit passive R/L/C, ideal steps or bank-only linear current ramps; no inferred board parasitics or regulator
 dynamics are inferred. Inspect the inputs and refinement/error diagnostics.
 
 ### PDN capacitor-bank screen

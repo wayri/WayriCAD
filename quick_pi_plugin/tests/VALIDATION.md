@@ -61,6 +61,67 @@ triangulation is accepted only after every boundary edge is preserved. Difficult
 regions use a constrained Delaunay fallback. No copper boundary is snapped to
 another boundary to manufacture connectivity.
 
+## Individual shunt capacitors in lumped transients
+
+Validation date: 2026-10-27. The 16 legacy transient tests and 14 individual-bank
+tests passed on Windows using KiCad 10's Python 3.11.5 / NumPy 2.4.2 /
+SciPy 1.17.1 and portable Python 3.14.2 / NumPy 2.4.2 / SciPy 1.17.0.
+These are source-level numerical checks; they do not establish installed GUI
+behavior, measured hardware accuracy or transient copper-field accuracy.
+
+`test_transient_shunts.py` checks individually retained series ESR/ESL/C branches
+connected from each modeled load node to the common ideal return. Capacitance
+is in farads, ESR in ohms and ESL in henries. Each explicit bank replaces that
+load's compatibility aggregate capacitor; it never adds a second copy. IDs are
+globally unique, with at most 128 branches per load and 128 total branches.
+Returned trace storage is also bounded, including four traces per branch.
+The load-level capacitor voltage is a capacitance-weighted mean for display;
+the individual branch states, currents, losses and energies are retained.
+
+For branch currents `j`, individual capacitor voltages `v`, load currents `d`
+and branch-to-load incidence matrix `A`, the feed currents are `i = A j + d`.
+The common source and path matrices are `P = diag(path_L) + source_L * 11'`
+and `Q = diag(path_R) + source_R * 11'`. Between load events the equations are:
+
+```text
+M = diag(ESL) + A' P A
+R = diag(ESR) + A' Q A
+M dj/dt + R j + v = A' (Vs * 1 - Q d - P dd/dt)
+C dv/dt = j
+```
+
+Backward Euler solves these passive equations without merging unlike branches.
+At an event, capacitor voltages and each physical inductor current remain
+continuous. Algebraic currents may jump. Topology-derived nullspaces handle
+ideal capacitors and zero inductances; incompatible ideal current steps are
+rejected rather than given an invented voltage impulse. For example, a feed
+inductor and a bank containing only positive ESL branches cannot supply an
+instantaneous increase in load current while preserving all inductor currents.
+Set a positive `rise_time_s` to prescribe a linear ramp from the initial to the
+final demand, starting at `step_time_s` and ending inside the simulation window.
+Both boundaries have one-sided samples. Current and stored energy remain
+continuous; inductive node voltage can jump when the ramp slope changes.
+The default zero rise retains ideal steps. Finite ramps require explicit banks;
+legacy aggregate loads continue to support ideal steps only. DC initialization uses zero
+capacitor currents and the pre-step resistive rail voltages. Individual banks
+are explicitly rejected by the coupled electrothermal stepper.
+
+The tests compare single branches with the legacy solver, ideal parallel
+capacitors with summed capacitance and proportional current sharing, unlike RC
+and RLC banks with independent matrix exponentials, and mixed banks with
+inductor/capacitor continuity at exact events. They check shared-source
+coupling, branch charge and whole-circuit energy balance, separate numerical
+dissipation, decreasing step sensitivity, DC roundoff, invalid input, duplicate
+identity, impulse rejection and trace budgets. Half-step evidence includes each
+branch's voltage and current differences. One refinement is not a peak-error
+bound or proof that the fastest resonance was resolved; the modal step helper
+uses individual branch modes and may recommend a step outside the run budget.
+Algebraic constraints are removed before eigenvalue analysis, so splitting an
+ideal capacitor does not create spurious fast finite modes. Linear ramps with
+positive feed and shunt inductances are compared with an independently assembled
+augmented matrix exponential, including both slope-boundary voltage jumps,
+current continuity, energy balance and decreasing discretization error.
+
 ## Electrothermal coupling
 
 Validation date: 2026-10-09. Windows, KiCad 10.0.6 and its native Python 3.11.5,
@@ -123,3 +184,9 @@ acceptance criteria.
 These results validate a 2.5D DC conductivity model. The thermal screen omits
 cooling, heat spreading, temperature feedback, melting and fuse opening. It is
 not an AC, transient electromagnetic, electrothermal or certified fusing model.
+
+The GUI/discovery integration additionally checks a dense 45-branch symmetric
+bank against its exact single-branch equivalent (C sums; identical parallel
+ESR/ESL divide by45). This analytical equivalence is used only as a test; unlike
+parts are never reduced that way in the actual bank solver. The 129th branch
+is rejected, and the scalar trace budget remains active at lower branch counts.
