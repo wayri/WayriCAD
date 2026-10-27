@@ -32,7 +32,7 @@ class HelpImageTests(unittest.TestCase):
             self.assertEqual(icon['width'],'24');self.assertEqual(icon['height'],'24')
             self.assertNotIn('<pre>',rendered)
             self.assertIn('<a name="tail"></a>',rendered)
-            self.assertIn(self.root.as_uri(),first['src'])
+            self.assertEqual((self.root / "wide.png").resolve().as_uri(), first["src"])
         self.assertEqual(responsive_html(self.canonical,self.root,432),responsive_html(self.canonical,self.root,432))
         self.assertIn('width="1280" height="900"',self.canonical)
 

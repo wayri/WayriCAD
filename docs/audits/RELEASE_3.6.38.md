@@ -86,3 +86,9 @@ The independently extracted Quick PI installer passed all 53 native UI/solver
 regressions with no skips. Its implementation modules and bundled shared runtime
 matched current source bytes; its generated menu initializer is intentionally
 provided by the PCM builder. Tests were staged externally, not shipped in the ZIP.
+
+The first CI run exposed a Windows 8.3 temporary-path assertion in the new help
+image test: the implementation correctly resolved the long pathname, while the
+test expected its short alias. The assertion now compares the canonical image
+URI. This changes the test only; final publication requires a fresh complete CI
+run on the corrected source commit.
