@@ -96,5 +96,8 @@ include docs/audits/SI_THERM_WORKFLOWS_2026-10-27.md
 include docs/RELEASE_NOTES_3.6.40.md
 include docs/audits/SHUNT_CAPACITORS_2026-10-27.md
 
-include docs/RELEASE_NOTES_3.6.40.md
-include docs/audits/SHUNT_CAPACITORS_2026-10-27.md
+include docs/audits/REPORTS_AND_DIFFERENTIAL_PROBES_2026-10-27.md
+include docs/audits/QUICK_PI_COPPER_LABELS_2026-10-27.md
+include docs/audits/QUICK_PI_AC_READABILITY_2026-10-28.md
+include tests/test_pdf_report.py
+include tests/test_report_export.py

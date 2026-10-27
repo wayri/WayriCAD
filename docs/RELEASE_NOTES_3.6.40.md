@@ -1,4 +1,4 @@
-# WayriCAD 3.6.40 — in development
+# WayriCAD 3.6.40
 
 Individual shunt capacitors can participate in transient studies.
 
