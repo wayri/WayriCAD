@@ -92,3 +92,18 @@ image test: the implementation correctly resolved the long pathname, while the
 test expected its short alias. The assertion now compares the canonical image
 URI. This changes the test only; final publication requires a fresh complete CI
 run on the corrected source commit.
+
+## Publication
+
+Published [3.6.38](https://github.com/wayri/WayriCAD/releases/tag/v3.6.38)
+from `ddc26325a2a5894106a37c4eb48a0ea04b6251a2`. All eight
+[exact-source CI jobs](https://github.com/wayri/WayriCAD/actions/runs/40522422400)
+passed across the configured Linux, Windows and macOS matrix and PI references.
+
+The wheel passed isolated CLI/report/mechanical smoke checks, contains no tests
+or bytecode, and its implementation modules match source. The source archive
+has 1,451 tracked members matching the tested checkout, including the native
+regressions. All 31 uploaded assets were downloaded and compared to local
+SHA-256 hashes. Public Quick PI and feed URLs were checked afterward;
+the PCM feed uses those exact released metadata bytes. Existing release assets
+and tags were preserved. No local plugin installation was made.
