@@ -53,8 +53,8 @@ step. The [ngspice manual](https://ngspice.sourceforge.io/docs/ngspice-manual.pd
 distinguishes output increment from the optional maximum integration step.
 This does not establish waveform convergence or run an IBIS simulation.
 
-The public PCM feed remains on the existing stable release. These changes are
-source/candidate updates; no published assets were replaced.
+During source validation the public PCM feed remained on the existing stable
+release. No published assets were replaced.
 
 The candidate wheel passed isolated CLI, report assets, Analytics Studio and
 mechanical export smoke checks. New guided modules, report helpers and native
@@ -65,3 +65,19 @@ and all 24 candidate archive checks passed. No local installation was performed.
 Release preparation increments all packages carrying the updated shared runtime.
 This preserves package-version immutability for the rebuilt archives. The source
 commit used for publication must pass a fresh complete CI run after alignment.
+
+## Publication
+
+Published [3.6.39](https://github.com/wayri/WayriCAD/releases/tag/v3.6.39)
+from `f190de8a9d3dffb654235ac03928b342afb3d80a`. All eight
+[exact-source CI jobs](https://github.com/wayri/WayriCAD/actions/runs/40530370068)
+passed across the configured Windows, Linux and macOS matrix and PI reference
+benchmarks. The release plugin payloads match the independently tested installers.
+
+All 31 uploaded assets were downloaded and matched against local SHA-256 hashes.
+Public SI, QuickTherm, Quick PI and feed URLs were checked after publication.
+The wheel contains 1,172 source members matching the tested checkout and excludes
+tests/bytecode; 1,503 tracked source-archive members match the checkout. The
+release notes download has its final heading and portable reference links.
+The PCM feed uses the exact released metadata bytes. Existing release tags and
+assets were preserved. No local plugin installation was made.
