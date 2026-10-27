@@ -38,6 +38,9 @@ def live_current_eligibility(bundle):
         return False, 'Live current requires a solved fixed-temperature 2.5D case.'
     if result.get('model') != '2.5D linear triangular DC conductivity FEM':
         return False, 'Live current requires the 2.5D linear copper solver result.'
+    from .constant_power import requested as power_requested
+    if power_requested(request) or result.get('operating_mode') == 'constant_power_loads':
+        return False, 'Constant-power loads require a new nonlinear operating-point solve.'
     if request.get('load_resistance_ohm') is not None or request.get('sweep') or bundle.get('sweep'):
         return False, 'Resistive operating points and current sweeps require their own solve workflow.'
     if request.get('series') or mesh.get('lumped_branches') or result.get('components'):

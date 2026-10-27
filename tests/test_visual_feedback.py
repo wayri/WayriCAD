@@ -126,5 +126,13 @@ class NativeVisualFeedbackTests(unittest.TestCase):
         guide.set_step(3,'Blocked: fix the missing source')
         self.assertEqual(guide._status_role,'error')
 
+    def test_late_icons_remeasure_label_without_clipping(self):
+        button=wx.Button(self.panel,label='Apply selected rows')
+        layout=wx.BoxSizer(wx.HORIZONTAL);layout.Add(button,0)
+        self.panel.SetSizer(layout);self.frame.Show();self.panel.Layout()
+        feedback.decorate_button(button,'apply');self.panel.Layout();self.app.Yield()
+        self.assertGreaterEqual(button.GetSize().width,button.GetBestSize().width)
+        self.assertGreaterEqual(button.GetMinSize().height,button.GetBestSize().height)
+
 
 if __name__=='__main__':unittest.main()

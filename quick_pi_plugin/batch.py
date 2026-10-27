@@ -11,7 +11,7 @@ MAX_CASES = 32
 _ELECTRICAL = {'net','source_terminal','source_terminals','source_voltage','sinks','sink_terminal','sink_current',
     'source_current_limit','sink_min_voltage','sink_max_voltage','edge_mm','plating_mm',
     'mesh_backend','mesh_sizing','max_cells','model_dimension','max_tetrahedra','options','stackup_override',
-    'package_conduction','load_resistance_ohm'}
+    'package_conduction','load_resistance_ohm','load_power_W'}
 _RETURN = {'return_nets','sample_pitch_mm','return_via_radius_mm','return_terminal_ids','return_terminal_roles'}
 
 
@@ -41,7 +41,12 @@ def validate_study(study):
         source_names(electrical)
         if not isinstance(electrical['net'],str) or not electrical['net'].strip():
             raise ValueError('Case net must be a nonempty string.')
-        if 'sinks' not in electrical and not all(key in electrical for key in ('sink_terminal','sink_current')):
+        from .constant_power import requested,guard
+        if requested(electrical):
+            guard(dict(electrical,action='solve'))
+            if study.get('shared_returns') or 'return_conduction' in case or 'electrothermal' in case:
+                raise ValueError('Constant-power batch cases currently require independent fixed-temperature copper; coupled returns/electrothermal power regulation are unsupported.')
+        if 'sinks' not in electrical and not ('sink_terminal' in electrical and ('sink_current' in electrical or 'load_power_W' in electrical)):
             raise ValueError('Every case needs explicit sinks/current_A or sink_terminal and sink_current.')
         if 'return_path' in case:
             returns=case['return_path']

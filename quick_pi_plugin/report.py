@@ -58,6 +58,7 @@ def sink_results_text(result):
         for key,label in [('min_voltage_V','min'),('max_voltage_V','max')]:
             if row.get(key) is not None:limits.append(label+' '+_number(row[key],'V'))
         lines.append(str(row.get('label') or row.get('id','Sink'))+': '+_number(row.get('current_A'),'A')+
+                     (' · constant power '+_number(row['power_W'],'W') if 'power_W' in row else '')+
                      ' · '+_number(row.get('voltage_V'),'V')+' · drop '+_number(row.get('voltage_drop_V'),'mV',1000)+
                      (' · '+', '.join(limits) if limits else ' · no voltage bounds')+
                      (' · LIMIT VIOLATION' if row.get('within_voltage_limits') is False else ''))
@@ -590,9 +591,10 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         if terminal.get('id') not in chosen and terminal.get('label') not in chosen:continue
         polygons=([polygon for values in terminal.get('polygons',{}).values() for polygon in values] if combined else terminal.get('polygons',{}).get(str(layer),terminal.get('polygons',{}).get(layer,[])))
         if not polygons:continue
-        ring=np.asarray(polygons[0]['outer'])[:,:2];center=ring.mean(axis=0)
+        from .endpoint_targets import pad_center,marker_style
+        ring=np.asarray(polygons[0]['outer'])[:,:2];center=pad_center(ring)
         is_source=terminal['id'] in sources or terminal.get('label') in sources
-        ax.plot(*center,marker='o' if is_source else 's',markersize=4.5 if board_view else 6,color='#13854c' if is_source else '#b94535',markeredgecolor='white')
+        ax.plot(*center,**marker_style(is_source,board_view))
         label=('Source' if is_source else 'Sink') if board_view else ('Source: ' if is_source else 'Sink: ')+terminal.get('label',terminal['id'])
         offset=7 if not board_view or center[0]<sum(ax.dataLim.intervalx)/2 else -7
         if not board_view:
@@ -807,13 +809,17 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
             ('Total loss',_number(result.get('total_power_W'),'W')),
             ('Peak copper-sheet current density',_number(result.get('max_current_density_A_mm2'),'A/mm²')),
             ('Source voltage',_number(result.get('source_voltage_V'),'V')),
-            ('Total requested sink current' if multisink else 'Sink current',_number(result.get('total_sink_current_A',result.get('sink_current_A')),'A')),
+            ('Solved load current' if result.get('operating_mode')=='constant_power_loads' else 'Total requested sink current' if multisink else 'Sink current',_number(result.get('total_sink_current_A',result.get('sink_current_A')),'A')),
             ('Requested-load source V/I',_number(result.get('V_over_I_ohm'),'Ω')),
             ('Current balance error',_number(result.get('current_balance_error_A'),'A')),
             ('Energy relative error',_number(result.get('energy_relative_error'))),
             ('Floating triangles',str(result.get('floating_triangles',0)))]
     for key,label in [('planar_power_W','Copper sheet loss'),('via_power_W','Via barrel loss'),('conductor_power_W','Conductor loss'),('component_power_W','Component loss'),('package_power_W','Package contact loss')]:
         if key in result:values.append((label,_number(result[key],'W')))
+    if result.get('operating_mode')=='constant_power_loads':
+        values.extend([('Declared constant-power demand',_number(result.get('requested_constant_power_W'),'W')),
+                       ('Delivered load power (all sinks)',_number(result.get('load_power_W'),'W')),
+                       ('Source power',_number(result.get('source_power_W'),'W'))])
     table=''.join('<tr><th>'+escape(name)+'</th><td>'+escape(value)+'</td></tr>' for name,value in values)
     assumptions=result.get('thermal_assumptions',{})
     html='''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WayriCAD Quick PI</title><style>body{font:15px system-ui,sans-serif;margin:32px auto;max-width:1080px;padding:0 20px;color:#172a2b;background:#fff}h1{font-size:26px}p{line-height:1.5}table{border-collapse:collapse}th,td{text-align:left;padding:7px 20px 7px 0;border-bottom:1px solid #e0e6e5}section{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:18px}figure{margin:0;border:1px solid #e0e6e5;border-radius:5px;padding:12px}figcaption{font-weight:600}img{width:100%;height:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f6;padding:14px}</style><h1>WayriCAD Quick PI</h1>'''
@@ -836,14 +842,16 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
     if bundle.get('terminal_units'):
         html+='<h2>Ideal equipotential pad units</h2><pre>'+escape(json.dumps(bundle['terminal_units'],indent=2,ensure_ascii=False))+'</pre>'
     if result.get('sinks'):
-        html+='<h2>Constant-current sinks</h2><table><tr><th>Sink</th><th>Demand A</th><th>Voltage V</th><th>Drop mV</th><th>Min V</th><th>Max V</th><th>Voltage limits</th></tr>'
+        html+='<h2>'+('Current and constant-power sinks' if result.get('operating_mode')=='constant_power_loads' else 'Constant-current sinks')+'</h2><table><tr><th>Sink</th><th>Solved current A</th><th>Declared power W</th><th>Voltage V</th><th>Drop mV</th><th>Min V</th><th>Max V</th><th>Voltage limits</th></tr>'
         for sink in result['sinks']:
-            cells=[str(sink.get('label') or sink.get('id','Sink')),_number(sink.get('current_A')),_number(sink.get('voltage_V')),
+            cells=[str(sink.get('label') or sink.get('id','Sink')),_number(sink.get('current_A')),_number(sink['power_W']) if 'power_W' in sink else 'Current load',_number(sink.get('voltage_V')),
                    _number(sink.get('voltage_drop_V'),scale=1000),_number(sink.get('min_voltage_V')) if sink.get('min_voltage_V') is not None else 'Unbounded',
                    _number(sink.get('max_voltage_V')) if sink.get('max_voltage_V') is not None else 'Unbounded',
                    'Violation' if sink.get('within_voltage_limits') is False else 'Within limits']
             html+='<tr>'+''.join('<td>'+escape(cell)+'</td>' for cell in cells)+'</tr>'
         html+='</table>'
+    if result.get('nonlinear_operating_point'):
+        html+='<h2>Constant-power operating point</h2><pre>'+escape(json.dumps(result['nonlinear_operating_point'],indent=2))+'</pre>'
     if bundle.get('convergence'):
         from .convergence import html_section
         html+=html_section(bundle['convergence'])

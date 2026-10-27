@@ -2,6 +2,95 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+## New endpoint and study workflows (3.6.38)
+
+| Task | Start here | Model and limits |
+|---|---|---|
+| Several connector/IC pins carry one supply | Select one source/sink pad; check the suggested **Include other same-net pins** box if it appears. Additional sinks have the same option. | Exact footprint UUID + net matching. One ideal equipotential endpoint; A or W is the total across the group. Pins reserved by other endpoints are excluded. |
+| Load consumes fixed power | Choose **Constant power · W**, or choose the power kind for an additional sink. | Solves P = Vload × I at the high-voltage DC operating point. Mixed current/power endpoints are supported in fixed-temperature 2.5D copper. Collapse/limits are reported; no converter control or source foldback is invented. [Math and limits](CONSTANT_POWER.md). |
+| Parts are parallel across one series stage | Open **Series path editor**, add the primary stage, then **Parallel parts**. | Finds two-pad parts across the exact saved net pair, including reversed pin order. Review each R/L model before checking it. Bare resistor values can be suggested from PCB values; unknown DCR and diode/capacitor behavior are not guessed. Highlight detected footprints on the originating PCB or see included branches in the result. |
+| Set up a load-step transient | **More → Transient load-step study**. | Engineering-unit source/path R/L and effective load C/ESR; advanced SI grid retained. Import/export JSON and recommend a timestep. [Transient guide](transient_setup_help.html). |
+| Run AC copper/ripple losses | **More → AC / SMPS copper study**; select a balanced loop preset and **Apply quick loop and run**. | Explicit straight cross-section/return geometry, DC and RMS ripple. Review skin/proximity, conservation and refinement. No automatic whole-PCB or converter model. [AC setup](ac_setup_help.html). |
+| Check a decoupling bank | **Decoupling → Lumped impedance screen**. | Explicit source R/L + capacitor-bank C/ESR/ESL, target impedance, resonance/antiresonance sampling, hover/click probes and CSV. Separate from the placement-proximity planner. [PDN model](decoupling/help.html). |
+
+The grouping recommendations are opt-in and are available for supported 2.5D
+current/power endpoints. They do not combine different components merely because
+references look alike. 3D, resistive, package-contact and console/series modes
+retain their documented restrictions. Constant-power mode also rejects automatic
+current-based mesh-convergence checks, sweeps and transient/electrothermal
+regulation; refine independent operating points explicitly instead. The result
+report shows declared watts, solved amperes, delivered power and operating-point
+evidence.
+
+Plain wheel scrolling zooms. In eligible fixed-temperature current results,
+**Ctrl+scroll** near a sink marker or its actual pad edge changes only that sink
+unit. Near a source marker it scales the total. Markers have modest translucent
+fills; the pick radius is screen-sized and follows pan/zoom/DPI. Close ambiguous
+endpoints consume the gesture without changing any current: move closer, zoom,
+or select the specific layer. Power-load live current scaling is disabled so a
+constant-power endpoint cannot silently become a constant-current endpoint.
+
+Transient path inductance and capacitance are active circuit terms, not decoration.
+Enter effective capacitance (including known decoupling/path capacitance), ESR
+and source/branch inductance explicitly. Only one matching feasible DC copper
+path may seed total R from its solved drop/current; do not count that resistance
+again as branch R. Missing L/C are not inferred from a DC mesh or filled with
+invented board values. Ideal current steps, timestep-refinement and energy/error
+checks do not establish finite-rise switching or regulator-loop stability.
+
+PDN plots use a declared lumped network. Resonance-aware samples and a refined
+frequency grid help expose narrow peaks, but a sampled target pass is not proof
+of board-level impedance, capacitor bias behavior or SI/EMI compliance.
+
+```text
+wayricad-pi board.kicad_pcb --net VCC --source J2.1 --sink U1.1 --voltage 3.3 --load-power 1.65
+wayricad-pi board.kicad_pcb --net VCC --source J2.1 --voltage 3.3 --power-load U1.1 1.65 --load U2.1 0.25
+wayricad-pi board.kicad_pcb --series-file reviewed-path.json --voltage 3.3 --current 2
+```
+
+`--series-file` reads the editor's schema-1 saved path, including explicitly
+selected parallel components, and revalidates it against the current PCB.
+Current/power CLI flags preserve endpoint voltage windows and source budgets.
+The service/batch JSON interface supports grouped pad UUIDs; current/power batch
+cases are independent, without shared-return or electrothermal power regulation.
+
+## Current interface examples
+
+### Current and power endpoints
+
+![Native mixed current/power solve with same-net pin groups](help-mixed-loads-3.6.38.png)
+
+Computed synthetic copper fixture: 3.3 V, a 1.65 W grouped load and a 0.25 A
+current load. Source 0.750252 A, copper loss 1.3862 mW. This is a declared
+example, not a measured board or a converter transient.
+
+### Transient load-step setup and result
+
+![Engineering-unit transient setup](help-transient-setup-3.6.38.png)
+![Computed R/L/C transient result](help-transient-results-3.6.38.png)
+
+Explicit passive R/L/C and ideal current steps; no board parasitics or regulator
+dynamics are inferred. Inspect the inputs and refinement/error diagnostics.
+
+### PDN capacitor-bank screen
+
+![Native lumped capacitor-bank setup](help-pdn-setup-3.6.38.png)
+![Computed sampled PDN impedance and target](help-pdn-results-3.6.38.png)
+
+Declared lumped source/capacitor model. The sampled target comparison is separate
+from saved-board decoupling placement and is not a complete board impedance proof.
+
+### AC loop setup and result
+
+![Native AC setup and explicit conductor table](help-ac-setup-3.6.38.png)
+![Computed AC loop current density and losses](help-ac-results-3.6.38.png)
+
+The quick recipe is staged until Apply. The detailed conductor/harmonic table is
+the model used by the displayed solve. Geometry and RMS ripple are explicit;
+there is no automatically inferred whole-board/converter model.
+
+[Capture provenance and assumptions](../docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
+
 ## Start here
 
 **AC / SMPS copper studies are included in 3.6.34.** See the
@@ -16,7 +105,7 @@ inferred. The screenshot contains no private design or local paths.
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.36](https://github.com/wayri/WayriCAD/releases/tag/v3.6.36) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Release 3.6.38](https://github.com/wayri/WayriCAD/releases/tag/v3.6.38) · [Installation](../docs/INSTALLATION.md) |
 | First power-path check | [Workflow](#workflow) · [Reading results](#reading-results) |
 | Multiple rails, returns and heating | [Multi-net studies](#multi-net-cases-return-copper-and-joule-feedback) |
 | SMPS ripple, skin effect and proximity losses | [AC copper analysis](AC_ANALYSIS.md) |
@@ -1081,9 +1170,9 @@ real fixed-mesh solver; no numerical values or pixels were altered.
 
 ### Losses and Probe tables
 
-![Native cross-selectable Probe table](help-inspector-tables.png)
+![Native cross-selectable Probe table](help-inspector-tables-3.6.38.png)
 
-![Native layer-loss table](help-loss-tables.png)
+![Native layer-loss table](help-loss-tables-3.6.38.png)
 
 Actual synthetic native regression windows. Select a table row to focus the
 corresponding layer peak, copper cell or barrel; Probe metric rows also switch

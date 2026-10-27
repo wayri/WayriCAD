@@ -1,5 +1,5 @@
 """Independent native KiCad copper layer counter action."""
-__version__ = '0.1.12'
+__version__ = '0.1.13'
 try:
     import pcbnew
     import wx

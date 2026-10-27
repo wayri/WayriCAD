@@ -125,9 +125,9 @@ class MultisinkInputTests(unittest.TestCase):
                     button=next(item for item in children if isinstance(item,wx.Button) and item.GetLabel()==label)
                     button.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.EVT_BUTTON.typeId,button.GetId()))
                 pad.SetSelection(2);current.ChangeValue('.6');minimum.ChangeValue('3');maximum.ChangeValue('3.4');click('Add sink')
-                self.assertEqual(table.GetItemCount(),1);self.assertEqual(table.GetItemText(0,1),'0.6')
+                self.assertEqual(table.GetItemCount(),1);self.assertEqual(table.GetItemText(0,1),'0.6 A')
                 table.Select(0);current.ChangeValue('.4');click('Update selected')
-                self.assertEqual(table.GetItemText(0,1),'0.4')
+                self.assertEqual(table.GetItemText(0,1),'0.4 A')
                 table.Select(0);click('Remove selected');self.assertEqual(table.GetItemCount(),0)
                 click('Add sink');self.assertEqual(table.GetItemCount(),1)
                 return wx.ID_OK

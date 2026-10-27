@@ -16,15 +16,16 @@ from .report import (METRICS,draw_view,layer_rows,write_report,via_markers,
 import json
 
 
-def load_values(terminal,current,minimum='',maximum=''):
+def load_values(terminal,current,minimum='',maximum='',*,power=False):
     """Validate editable sink fields; a blank voltage field is unbounded."""
     row={'terminal':terminal}
-    for key,text in [('current_A',current),('min_voltage_V',minimum),('max_voltage_V',maximum)]:
-        if key!='current_A' and not str(text).strip():continue
+    demand='power_W' if power else 'current_A'
+    for key,text in [(demand,current),('min_voltage_V',minimum),('max_voltage_V',maximum)]:
+        if key!=demand and not str(text).strip():continue
         try:value=float(text)
-        except (ValueError,TypeError):raise ValueError('Sink current and voltage limits must be numbers.')
-        if not math.isfinite(value) or (value<=0 if key=='current_A' else value<0):
-            raise ValueError('Sink current must be positive; voltage limits must be nonnegative and finite.')
+        except (ValueError,TypeError):raise ValueError('Load demand and voltage limits must be numbers.')
+        if not math.isfinite(value) or (value<=0 if key==demand else value<0):
+            raise ValueError('Sink current/power must be positive; voltage limits must be nonnegative and finite.')
         row[key]=value
     if row.get('max_voltage_V',math.inf)<row.get('min_voltage_V',0):raise ValueError('Maximum sink voltage must be at least the minimum.')
     return row
@@ -47,6 +48,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self._package_conduction=[]
         self._cancel=threading.Event();self._terminals=[];self._layers=[];self._plot_keys={};self._probe_controllers={}
         self._extra_sinks=[];self._inspection=None;self._finding_rows=[];self._saved_source_current=True
+        self._pin_peer_ids={'source':[],'sink':[]}
         self._board_scene={};self._board_scene_hash=None
         self._history=[];self._history_index=0;self._completions=[];self._completion_prefix=None;self._completion_index=0
         panel=wx.Panel(self);self.main_panel=panel;root=wx.BoxSizer(wx.VERTICAL)
@@ -88,14 +90,21 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         pick=icon_button(self.inputs,'Pick net',wx.ART_FIND,'Pick a saved pad, track or via on the board to choose its net')
         controls.Add(pick,0,wx.EXPAND|wx.BOTTOM,6);pick.Bind(wx.EVT_BUTTON,self.select_board_net)
         self.source=ReadableChoice(self.inputs);self.sink=ReadableChoice(self.inputs)
-        field('Source pad',self.source);field('Sink pad',self.sink)
+        field('Source pad',self.source)
+        self.source_pins=wx.CheckBox(self.inputs,label='Include other same-net pins');self.source_pins.Hide()
+        controls.Add(self.source_pins,0,wx.EXPAND|wx.BOTTOM,5)
+        field('Sink pad',self.sink)
+        self.sink_pins=wx.CheckBox(self.inputs,label='Include other same-net pins');self.sink_pins.Hide()
+        controls.Add(self.sink_pins,0,wx.EXPAND|wx.BOTTOM,5)
+        for control in (self.source_pins,self.sink_pins):control.Bind(wx.EVT_CHECKBOX,self._invalidate)
         self.voltage=wx.TextCtrl(self.inputs,value='1');self.current=wx.TextCtrl(self.inputs,value='1')
         values=wx.FlexGridSizer(2,2,4,8);values.AddGrowableCol(0);values.AddGrowableCol(1)
         self.current_label=wx.StaticText(self.inputs,label='Load · A')
         values.Add(wx.StaticText(self.inputs,label='Source · V'));values.Add(self.current_label)
         for control in (self.voltage,self.current):control.SetMinSize((1,-1));values.Add(control,0,wx.EXPAND)
         controls.Add(values,0,wx.EXPAND|wx.TOP|wx.BOTTOM,5)
-        self.load_mode=ReadableChoice(self.inputs,choices=['Sink current · A','Resistive load · Ω']);self.load_mode.SetSelection(0)
+        self.load_mode=ReadableChoice(self.inputs,choices=['Sink current · A','Resistive load · Ω','Constant power · W']);self.load_mode.SetSelection(0)
+        self.load_mode.SetToolTip('Constant power solves P = Vload × I on the stable high-voltage DC branch. Infeasible/collapsed loads are reported; this is not a converter transient model.')
         self.load_mode.SetMinSize((1,-1));controls.Add(self.load_mode,0,wx.EXPAND|wx.BOTTOM,6)
         limits=wx.FlexGridSizer(2,3,4,5)
         self.source_current_limit=wx.TextCtrl(self.inputs);self.source_current_limit.SetHint('No limit')
@@ -183,7 +192,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         root.Add(footer,0,wx.EXPAND|wx.ALL,6);panel.SetSizer(root)
         self._controls=[self.joule_feedback,self.batch_button,self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.package_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.melting,self.latent,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
         self.net.Bind(wx.EVT_COMBOBOX,self._net_changed);self.net_search.Bind(wx.EVT_TEXT,self._schedule_net_filter)
-        for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._invalidate)
+        self._controls.extend([self.source_pins,self.sink_pins])
+        for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._endpoint_changed)
         for control in (self.voltage,self.current,self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.melting,self.latent,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
         self.load_mode.Bind(wx.EVT_CHOICE,self._invalidate);self.model_dimension.Bind(wx.EVT_CHOICE,self._model_changed)
         self.loads_button.Bind(wx.EVT_BUTTON,self.on_loads)
@@ -911,11 +921,70 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         net=self.net.GetValue();self._terminals=[t for t in self.inventory.get('terminals',[]) if t.get('net')==net]
         labels=[t.get('label',t['id']) for t in self._terminals]
         for control in (self.source,self.sink):control.Set(labels)
-        if labels:self.source.SetSelection(0);self.sink.SetSelection(min(1,len(labels)-1))
+        if labels:
+            self.source.SetSelection(0)
+            owner=self._terminals[0].get('footprint_uuid')
+            different=next((i for i,row in enumerate(self._terminals) if owner and row.get('footprint_uuid') and row['footprint_uuid']!=owner),None)
+            self.sink.SetSelection(different if different is not None else min(1,len(labels)-1))
+        self.source_pins.SetValue(False);self.sink_pins.SetValue(False)
+        self._pin_peer_ids={'source':[],'sink':[]};self._sync_pin_recommendations()
         if (getattr(self,'_return_follow_current',False) and net in self.return_signal.GetStrings() and
                 self.return_signal.GetStringSelection()!=net):
             self.return_signal.SetStringSelection(net);self._return_signal_changed()
         self._buttons()
+
+    def _endpoint_changed(self,event):
+        role='source' if event.GetEventObject() is self.source else 'sink'
+        getattr(self,role+'_pins').SetValue(False)
+        self._invalidate(event)
+
+    def _unit_ids(self,role):
+        control=getattr(self,role);index=control.GetSelection()
+        if not 0<=index<len(self._terminals):return []
+        ids=[self._terminals[index]['id']]
+        checkbox=getattr(self,role+'_pins',None)
+        if checkbox is not None and checkbox.GetValue():
+            ids.extend(getattr(self,'_pin_peer_ids',{}).get(role,[]))
+        return list(dict.fromkeys(ids))
+
+    def _sync_pin_recommendations(self):
+        from .pin_units import peers
+        from .terminals import pad_names
+        supported=(not self._series_request and self.model_dimension.GetSelection()==0
+                   and self.load_mode.GetSelection() in (0,2) and not self._package_conduction)
+        anchors={role:self._terminals[control.GetSelection()]['id']
+                 for role,control in (('source',self.source),('sink',self.sink))
+                 if 0<=control.GetSelection()<len(self._terminals)}
+        reserved={identifier for spec in self._extra_sinks for identifier in pad_names(spec)}
+        changed=False
+        for role,other in (('source','sink'),('sink','source')):
+            checkbox=getattr(self,role+'_pins')
+            blocked=reserved|set(QuickPIFrame._unit_ids(self,other))
+            rows=peers(self._terminals,anchors.get(role),blocked) if supported else []
+            self._pin_peer_ids[role]=[row['id'] for row in rows]
+            visible=bool(rows)
+            label=f'Include {len(rows)} other same-net pin'+('s' if len(rows)!=1 else '')
+            if checkbox.IsShown()!=visible or checkbox.GetLabel()!=label:changed=True
+            checkbox.SetLabel(label);checkbox.Show(visible)
+            if not visible:checkbox.SetValue(False)
+            checkbox.SetToolTip('Also include '+', '.join(row.get('label',row['id']) for row in rows)+
+                               '. One ideal equipotential endpoint; the specified current is the TOTAL for these pins. '
+                               'Pins already assigned to another endpoint are excluded.')
+        if changed:self.inputs.Layout();self.inputs.FitInside()
+
+    def _apply_pin_units(self,request):
+        """Translate the optional checkboxes to existing grouped solver inputs."""
+        from .pin_units import unit,validate_units
+        source_ids=QuickPIFrame._unit_ids(self,'source');sink_ids=QuickPIFrame._unit_ids(self,'sink')
+        if not source_ids or not sink_ids:return request
+        if len(source_ids)>1:
+            request.pop('source_terminal',None);request['source_terminals']=source_ids
+        if request.get('sinks'):
+            request['sinks'][0]=unit(request['sinks'][0],sink_ids[1:])
+            validate_units(source_ids,request['sinks'])
+        elif 'sink_terminal' in request and len(sink_ids)>1:
+            request.pop('sink_terminal',None);request['sinks']=[unit({'terminal':sink_ids[0]},sink_ids[1:])]
+        return request
 
     def _select_preview_layer(self):
         """Keep the current layer, or show an occupied layer for the chosen net."""
@@ -969,20 +1038,23 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def _invalidate(self,event=None):
         if hasattr(self,'_reset_live'):self._reset_live()
         self._input_revision=getattr(self,'_input_revision',0)+1
+        if hasattr(self,'source_pins'):self._sync_pin_recommendations()
         if self._busy:self._cancel.set()
         if event and event.GetEventObject() is self.load_mode:
-            self.current_label.SetLabel('Load · Ω' if self.load_mode.GetSelection()==1 else 'Load · A')
-            self.operation_note.SetLabel('Source voltage → resistive load to 0 V' if self.load_mode.GetSelection()==1 else 'Source voltage → specified sink current')
+            self.current_label.SetLabel(('Load · A','Load · Ω','Load · W')[self.load_mode.GetSelection()])
+            self.operation_note.SetLabel(('Source voltage → specified sink current','Source voltage → resistive load to 0 V','Source voltage → constant-power operating point')[self.load_mode.GetSelection()])
         self._inspection=None
         self.bundle.pop('convergence',None)
         self.bundle.pop('result',None);self.volume_bundle={};self._buttons();self.summary.SetLabel('Inputs changed. Run again to update the electrical results.')
         if self.model_dimension.GetSelection()==1 and self.load_mode.GetSelection()!=0:
             self.status.SetLabel('3D copper supports a specified sink current. Set Mode to Specified sink current (A).')
         request=self.bundle.setdefault('request',{})
+        for key in ('source_terminal','source_terminals','sink_terminal','sinks'):request.pop(key,None)
         for control,key in ((self.source,'source_terminal'),(self.sink,'sink_terminal')):
             if control.GetSelection()>=0:request[key]=self._terminals[control.GetSelection()]['id']
         if not self._series_request:
             request['sinks']=([{'terminal':request['sink_terminal']}] if request.get('sink_terminal') else [])+list(self._extra_sinks)
+            QuickPIFrame._apply_pin_units(self,request)
         metric_index=max(0,self.metric.GetSelection())
         self.metric.Set([metric_name(self.bundle,key) for key in METRICS]);self.metric.SetSelection(metric_index)
         self._draw(preserve=True)
@@ -1027,18 +1099,18 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                                latent_heat_J_kg=number(self.latent,'Latent heat',True))
             request.update(source_voltage=number(self.voltage,'Source voltage'),options=options)
             if self.load_mode.GetSelection()==1:request['load_resistance_ohm']=number(self.current,'Load resistance',True)
+            elif self.load_mode.GetSelection()==2:request['load_power_W']=number(self.current,'Load power',True)
             else:request['sink_current']=number(self.current,'Sink current',True)
             if self.source_current_limit.GetValue().strip():
                 limit=number(self.source_current_limit,'Source current limit')
                 if limit<0:raise ValueError('Source current limit must be nonnegative.')
                 request['source_current_limit']=limit
-            primary=load_values(request.get('sink_terminal'),1 if self.load_mode.GetSelection()==1 else self.current.GetValue(),self.sink_min_voltage.GetValue(),self.sink_max_voltage.GetValue())
-            if require_terminals and not self._series_request and self.load_mode.GetSelection()==0 and self.model_dimension.GetSelection()==0:
+            primary=load_values(request.get('sink_terminal'),1 if self.load_mode.GetSelection()==1 else self.current.GetValue(),self.sink_min_voltage.GetValue(),self.sink_max_voltage.GetValue(),power=self.load_mode.GetSelection()==2)
+            if require_terminals and not self._series_request and self.load_mode.GetSelection() in (0,2) and self.model_dimension.GetSelection()==0:
                 sinks=[primary,*[dict(row) for row in self._extra_sinks]]
-                identifiers=[row['terminal'] for row in sinks]
-                if len(set(identifiers))!=len(identifiers):raise ValueError('Each sink pad may be used only once.')
-                if request.get('source_terminal') in identifiers:raise ValueError('The source pad cannot also be a sink.')
-                request.pop('sink_terminal',None);request.pop('sink_current',None);request['sinks']=sinks
+                from .pin_units import validate_units
+                validate_units([request['source_terminal']],sinks)
+                request.pop('sink_terminal',None);request.pop('sink_current',None);request.pop('load_power_W',None);request['sinks']=sinks
             else:
                 if self._extra_sinks:raise ValueError('Additional sinks require 2.5D constant-current mode without a console/series path.')
                 for source,target in [('min_voltage_V','sink_min_voltage'),('max_voltage_V','sink_max_voltage')]:
@@ -1051,6 +1123,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             request['sinks']=([{'terminal':request['sink_terminal']}] if request.get('sink_terminal') else [])+list(self._extra_sinks)
         if require_terminals and self._series_request and action=='solve':
             for key in ('series','net','source_terminal','sink_terminal'):request[key]=self._series_request[key]
+        if require_terminals and not self._series_request:QuickPIFrame._apply_pin_units(self,request)
         if getattr(self,'_package_conduction',[]):
             request['package_conduction']=self._package_conduction
             from .package_contacts import guard_request
@@ -1063,6 +1136,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if self._series_request or self.load_mode.GetSelection()!=0 or self.model_dimension.GetSelection()!=0:
                 raise ValueError('Package contacts require a 2.5D constant-current net solve.')
             request=self._request('solve')
+            if any('power_W' in row for row in request.get('sinks',[])) or 'load_power_W' in request:
+                raise ValueError('Package contacts currently require current loads, not constant-power operating points.')
+            if 'source_terminals' in request or any('terminals' in spec for spec in request.get('sinks',[])):
+                raise ValueError('Package contacts currently require single-pad endpoints. Uncheck the extra-pin options first.')
             from wayricad_runtime.package_contact_editor import edit_package_contacts
             sink_ids=[row['terminal'] for row in request.get('sinks',[])]
             if request.get('sink_terminal'):sink_ids.append(request['sink_terminal'])
@@ -1079,20 +1156,43 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def on_loads(self,event=None):
         """Edit additional constant-current sinks on the currently selected net."""
         if self._busy or self._series_request:return
-        dialog=wx.Dialog(self,title='Quick PI · Additional sinks',size=(720,460),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        from .pin_units import anchor,peers,unit,validate_units
+        from .terminals import pad_names
+        dialog=wx.Dialog(self,title='Quick PI · Additional sinks',size=(820,490),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         rows=[dict(row) for row in self._extra_sinks];labels={row['id']:row.get('label',row['id']) for row in self._terminals}
         layout=wx.BoxSizer(wx.VERTICAL)
         layout.Add(wx.StaticText(dialog,label='The primary sink remains in the main window. All demands run together at the source voltage.'),0,wx.EXPAND|wx.ALL,10)
         table=wx.ListCtrl(dialog,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
-        for index,(name,width) in enumerate([('Pad',210),('Demand A',110),('Min V',110),('Max V',110)]):table.InsertColumn(index,name,width=width)
+        for index,(name,width) in enumerate([('Pad',210),('Demand A / W',130),('Min V',110),('Max V',110)]):table.InsertColumn(index,name,width=width)
         layout.Add(table,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
-        grid=wx.FlexGridSizer(2,4,6,10)
-        for name in ('Sink pad','Current A','Minimum V (blank = 0)','Maximum V (blank = none)'):grid.Add(wx.StaticText(dialog,label=name))
+        grid=wx.FlexGridSizer(2,5,6,10)
+        for name in ('Sink pad','Load kind','Demand A / W','Minimum V (blank = 0)','Maximum V (blank = none)'):grid.Add(wx.StaticText(dialog,label=name))
         pad=ReadableChoice(dialog,choices=[labels[row['id']] for row in self._terminals]);current=wx.TextCtrl(dialog,value='1')
+        kind=ReadableChoice(dialog,choices=['Current · A','Constant power · W']);kind.SetSelection(0)
         minimum=wx.TextCtrl(dialog);minimum.SetHint('0 V');maximum=wx.TextCtrl(dialog);maximum.SetHint('Unbounded')
-        for control in (pad,current,minimum,maximum):grid.Add(control,1,wx.EXPAND)
-        for column in range(4):grid.AddGrowableCol(column)
+        for control in (pad,kind,current,minimum,maximum):grid.Add(control,1,wx.EXPAND)
+        for column in range(5):grid.AddGrowableCol(column)
         layout.Add(grid,0,wx.EXPAND|wx.ALL,10)
+        include=wx.CheckBox(dialog,label='Include other same-net pins');include.Hide()
+        layout.Add(include,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        peer_ids=[]
+        main_ids=set(QuickPIFrame._unit_ids(self,'source')+QuickPIFrame._unit_ids(self,'sink'))
+        def recommend():
+            index=table.GetFirstSelected();choice=pad.GetSelection()
+            blocked=main_ids|{identifier for i,spec in enumerate(rows) if i!=index for identifier in pad_names(spec)}
+            supported=(hasattr(self,'model_dimension') and self.model_dimension.GetSelection()==0
+                       and self.load_mode.GetSelection() in (0,2) and not getattr(self,'_package_conduction',[]))
+            available=peers(self._terminals,self._terminals[choice]['id'],blocked) if choice>=0 and supported else []
+            peer_ids[:]=[row['id'] for row in available]
+            include.SetLabel(f'Include {len(available)} other same-net pin'+('s' if len(available)!=1 else ''))
+            include.Show(bool(available))
+            if not available:include.SetValue(False)
+            include.SetToolTip('Also include '+', '.join(row.get('label',row['id']) for row in available)+
+                               '. The entered current is the TOTAL across these ideal equipotential pins.')
+            dialog.Layout()
+        def pad_changed(event):
+            include.SetValue(False);recommend()
+        pad.Bind(wx.EVT_CHOICE,pad_changed)
         message=wx.StaticText(dialog,label='Select a row to edit it, or choose a pad and add a new sink.');layout.Add(message,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
         buttons=wx.BoxSizer(wx.HORIZONTAL)
         add=wx.Button(dialog,label='Add sink');update=wx.Button(dialog,label='Update selected');remove=wx.Button(dialog,label='Remove selected')
@@ -1101,29 +1201,33 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         def refresh():
             table.DeleteAllItems()
             for row in rows:
-                index=table.InsertItem(table.GetItemCount(),labels.get(row['terminal'],row['terminal']))
-                for column,key in enumerate(('current_A','min_voltage_V','max_voltage_V'),1):
+                identifier=anchor(row);count=len(pad_names(row))
+                label=labels.get(identifier,identifier)+(f' (+{count-1} pins)' if count>1 else '')
+                index=table.InsertItem(table.GetItemCount(),label)
+                demand='power_W' if 'power_W' in row else 'current_A'
+                table.SetItem(index,1,str(row[demand])+(' W' if demand=='power_W' else ' A'))
+                for column,key in enumerate(('min_voltage_V','max_voltage_V'),2):
                     table.SetItem(index,column,str(row.get(key,0 if key=='min_voltage_V' else 'Unbounded')))
         def selected(event):
-            row=rows[event.GetIndex()];index=next((i for i,item in enumerate(self._terminals) if item['id']==row['terminal']),-1)
-            pad.SetSelection(index);current.ChangeValue(str(row['current_A']));minimum.ChangeValue(str(row.get('min_voltage_V','')));maximum.ChangeValue(str(row.get('max_voltage_V','')))
+            row=rows[event.GetIndex()];index=next((i for i,item in enumerate(self._terminals) if item['id']==anchor(row)),-1)
+            pad.SetSelection(index);kind.SetSelection(1 if 'power_W' in row else 0);current.ChangeValue(str(row.get('power_W',row.get('current_A'))));minimum.ChangeValue(str(row.get('min_voltage_V','')));maximum.ChangeValue(str(row.get('max_voltage_V','')))
+            recommend();include.SetValue(len(pad_names(row))>1 and bool(peer_ids))
         def save(edit=False):
             try:
                 choice=pad.GetSelection();index=table.GetFirstSelected() if edit else -1
                 if choice<0:raise ValueError('Choose a sink pad.')
                 if edit and index<0:raise ValueError('Select a row to update.')
                 identifier=self._terminals[choice]['id']
-                excluded=[self._terminals[control.GetSelection()]['id'] for control in (self.source,self.sink) if control.GetSelection()>=0]
-                if identifier in excluded:raise ValueError('Choose a pad different from the source and primary sink.')
-                if any(row['terminal']==identifier for i,row in enumerate(rows) if i!=index):raise ValueError('This pad is already an additional sink.')
-                row=load_values(identifier,current.GetValue(),minimum.GetValue(),maximum.GetValue())
+                if identifier in main_ids:raise ValueError('Choose a pad outside the source and primary sink units.')
+                row=unit(load_values(identifier,current.GetValue(),minimum.GetValue(),maximum.GetValue(),power=kind.GetSelection()==1),peer_ids if include.GetValue() else [])
+                validate_units(list(main_ids),[spec for i,spec in enumerate(rows) if i!=index]+[row])
                 if edit:rows[index]=row
                 else:rows.append(row)
-                refresh();message.SetLabel('Sink demand updated. Apply with OK.');dialog.Layout()
+                refresh();include.SetValue(False);recommend();message.SetLabel('Sink demand updated. Apply with OK.');dialog.Layout()
             except ValueError as exc:message.SetLabel(str(exc));dialog.Layout()
         def delete(event):
             index=table.GetFirstSelected()
-            if index>=0:rows.pop(index);refresh()
+            if index>=0:rows.pop(index);refresh();include.SetValue(False);recommend()
         add.Bind(wx.EVT_BUTTON,lambda event:save());update.Bind(wx.EVT_BUTTON,lambda event:save(True));remove.Bind(wx.EVT_BUTTON,delete)
         table.Bind(wx.EVT_LIST_ITEM_SELECTED,selected);refresh()
         if dialog.ShowModal()==wx.ID_OK:
@@ -1410,14 +1514,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             'Writing local HTML and JSON evidence…')
 
     def on_help(self,event=None):
-        import wx.html
-        dialog=wx.Dialog(self,title='Quick PI · Help',size=(960,740),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
-        html=wx.html.HtmlWindow(dialog)
-        html.LoadPage(str(Path(__file__).with_name('help.html')))
-        layout=wx.BoxSizer(wx.VERTICAL);layout.Add(html,1,wx.EXPAND|wx.ALL,10)
-        layout.Add(dialog.CreateButtonSizer(wx.CLOSE),0,wx.ALIGN_RIGHT|wx.ALL,10)
-        dialog.SetSizer(layout);dialog.Bind(wx.EVT_BUTTON,lambda e:dialog.EndModal(wx.ID_CLOSE),id=wx.ID_CLOSE)
-        dialog.ShowModal();dialog.Destroy()
+        from wayricad_runtime.help import open_help
+        open_help(self,Path(__file__).with_name('help.html'),'Quick PI · Help')
 
     def on_more(self,event):
         if self.book.GetSelection()>=len(self.views):self._inspect();return
@@ -1437,7 +1535,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         refine=menu.Append(wx.ID_ANY,'Refine mesh and rerun (half edge length)')
         self.Bind(wx.EVT_MENU,self._refine,refine)
         study=menu.Append(wx.ID_ANY,'Check mesh convergence…');self.Bind(wx.EVT_MENU,self.on_convergence,study)
-        study.Enable(len(self._terminals)>1 and self.model_dimension.GetSelection()==0)
+        study.Enable(len(self._terminals)>1 and self.model_dimension.GetSelection()==0
+                     and self.load_mode.GetSelection()!=2 and not any('power_W' in row for row in self._extra_sinks))
         ladder=menu.Append(wx.ID_ANY,'Series voltage ladder…');ladder.Enable(bool(self.bundle.get('result',{}).get('components')))
         self.Bind(wx.EVT_MENU,self.on_series_details,ladder)
         sweep=menu.Append(wx.ID_ANY,'DC current sweep…');sweep.Enable(len(self._terminals)>1)
@@ -1611,6 +1710,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if dialog.ShowModal()!=wx.ID_OK:return
             request=self._request('solve')
             request.pop('load_resistance_ohm',None)
+            if 'load_power_W' in request or any('power_W' in row for row in request.get('sinks',[])):
+                raise ValueError('A current sweep cannot reinterpret a constant-power load. Select current mode first.')
+            if 'source_terminals' in request or any('terminals' in row for row in request.get('sinks',[])):
+                raise ValueError('Current sweeps currently require single-pad endpoints. Uncheck extra-pin options first.')
             if self._extra_sinks:
                 raise ValueError('Current sweeps require a single sink. Remove additional sinks first.')
             if 'sinks' in request:
@@ -1688,6 +1791,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             from .service import run_job
             request=self._request('solve')
             if request.get('package_conduction'):raise ValueError('Package contacts are unsupported in electrothermal coupling.')
+            if 'load_power_W' in request or any('power_W' in row for row in request.get('sinks',[])):
+                raise ValueError('Electrothermal studies currently require current profiles; constant-power regulation dynamics are not modeled.')
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
             dialog=ElectrothermalStudyDialog(self,(feedback_studies if feedback else initial_studies)(request,self._terminals),
                 lambda payload,cancel:run_job(payload,cancelled=cancel),
@@ -1705,12 +1810,12 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             import hashlib
             from .transient_inputs import initial_study
             from .service import run_job
-            from wayricad_runtime.transient_study_ui import TransientStudyDialog
+            from .transient_setup import PITransientStudyDialog
             request=self._request('solve')
             if request.get('package_conduction'):raise ValueError('Package contacts are unsupported in rail transient studies.')
             if request.get('series'):raise ValueError('Select a net source and sinks for the transient setup; enter the explicit path R/L in the study.')
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
-            dialog=TransientStudyDialog(self,'pi',initial_study(request,self._terminals),
+            dialog=PITransientStudyDialog(self,'pi',initial_study(request,self._terminals,bundle=self.bundle),
                 lambda payload,cancel:run_job(payload,cancelled=cancel),
                 (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha)
             try:dialog.ShowModal()
@@ -1719,7 +1824,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
 
     def on_convergence(self,event=None):
         if self._busy:return
-        try:request=self._request('solve')
+        try:
+            request=self._request('solve')
+            from .constant_power import requested
+            if requested(request):raise ValueError('Automatic convergence currently compares fixed-current cases. Constant-power points need separately reviewed mesh refinement.')
         except (ValueError,KeyError) as exc:self.status.SetLabel(str(exc));return
         dialog=wx.Dialog(self,title='Check mesh convergence',size=self.FromDIP((510,280)),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         box=wx.BoxSizer(wx.VERTICAL)

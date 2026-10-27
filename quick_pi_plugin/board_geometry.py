@@ -268,6 +268,7 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
                 'start_mm':[api.ToMM(item.GetStart().x),api.ToMM(item.GetStart().y)],
                 'end_mm':[api.ToMM(item.GetEnd().x),api.ToMM(item.GetEnd().y)]})
         terminal={'id':_uid(item),'pad_uuid':_uid(item),'reference':str(item.GetParentFootprint().GetReference()),
+                  'footprint_uuid':_uid(item.GetParentFootprint()),
                   'pad_number':str(item.GetNumber()),'net':str(item.GetNetname()),
                   'label':item.GetParentFootprint().GetReference()+'.'+item.GetNumber(),'polygons':{}} if pad else None
         layer_diameters={};contact_polygons={}
@@ -349,6 +350,7 @@ def extract(board,net,*,source_path=None,stackup_override=None,curve_tolerance_m
         row['mesh_regions']=_partition(api,cu,clean_contacts,progress) if cu.OutlineCount() else []
     if total_area<=0:raise ValueError('The selected net has no extractable copper.')
     pad_catalog=[{'id':_uid(p),'pad_uuid':_uid(p),'reference':str(p.GetParentFootprint().GetReference()),
+                  'footprint_uuid':_uid(p.GetParentFootprint()),
                   'pad_number':str(p.GetNumber()),'net':str(p.GetNetname()),
                   'layer_ids':[int(layer) for layer in enabled if p.IsOnLayer(layer)]} for p in pads]
     result={'pad_catalog':pad_catalog,'schema_version':1,'net':net,'layers':layers,'terminals':terminals,'vias':barrels,'mesh_features':mesh_features,

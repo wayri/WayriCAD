@@ -171,6 +171,8 @@ def run_job(request, cancelled=None, timeout=300):
 def execute(request,*,_boards=None):
     from .mesh_sizing import mode as sizing_mode
     sizing_mode(request)
+    from .constant_power import guard as guard_power
+    guard_power(request)
     if request.get('action')=='ac':
         from .ac_analysis import run_study
         study=request.get('study')
@@ -247,6 +249,7 @@ def execute(request,*,_boards=None):
     if action=='inspect':
         nets=sorted({str(p.GetNetname()) for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0})
         terminals=[{'id':p.m_Uuid.AsString(),'pad_uuid':p.m_Uuid.AsString(),
+                    'footprint_uuid':fp.m_Uuid.AsString(),'component_value':str(fp.GetValue()),
                     'reference':str(fp.GetReference()),'pad_number':str(p.GetNumber()),
                     'layer_ids':[int(l) for l in board.GetEnabledLayers().CuStack() if p.IsOnLayer(l)],
                     'label':f'{fp.GetReference()}.{p.GetNumber()}', 'net':str(p.GetNetname())}
@@ -272,7 +275,7 @@ def execute(request,*,_boards=None):
         grouped='source_terminals' in request or any('terminals' in spec for spec in specs)
         if grouped and (request.get('model_dimension','2.5d')!='2.5d' or request.get('series') or
                         request.get('package_conduction') or voltage_mode or sweep_mode):
-            raise ValueError('Grouped pad units support fixed-current 2.5D copper only; package, series, 3D and resistive/sweep modes are unsupported.')
+            raise ValueError('Grouped pad units support current/power 2.5D copper loads only; package, series, 3D and resistive/sweep modes are unsupported.')
     from .board_geometry import extract
     full3d=request.get('model_dimension','2.5d')=='3d'
     if request.get('model_dimension','2.5d') not in ('2.5d','3d'):
@@ -324,17 +327,26 @@ def execute(request,*,_boards=None):
         if action=='solve':
             from .solver import solve
             from .terminals import resolve_units
-            source_rows,source_nodes,sink_specs,units=resolve_units(request,geometry,mesh,sink_requests(request))
+            from .constant_power import requested as power_requested, seed_specs, solve_power
+            power_mode=power_requested(request)
+            specs=sink_requests(request)
+            source_rows,source_nodes,sink_specs,units=resolve_units(request,geometry,mesh,
+                seed_specs(specs,request.get('source_voltage',1.)) if power_mode else specs)
             source_row=source_rows[0]
             output['terminal_units']=units
             if request.get('package_conduction'):
                 from .package_contacts import attach
                 mesh,source_nodes,sink_specs=attach(mesh,geometry,request['package_conduction'],source_row['id'],sink_specs)
                 output['mesh']=mesh
-            output['result']=solve(mesh,source_nodes,
+            output['result']=(solve_power if power_mode else solve)(mesh,source_nodes,
                 source_voltage=request.get('source_voltage',1.),sinks=sink_specs,
                 source_current_limit=request.get('source_current_limit'),options=request.get('options'),
                 **_solver_mesh_budgets(request))
+            if power_mode:
+                for unit,spec,row in zip(units['loads'],specs,output['result']['sinks']):
+                    unit['current_A']=row['current_A']
+                    unit['load_mode']=row['load_mode']
+                    if 'power_W' in spec:unit['power_W']=spec['power_W']
     output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
     if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
     return _display_output(output,request,board,path,before)
@@ -395,22 +407,27 @@ def sink_requests(request):
     if request.get('source_current_limit') is not None:
         number(request['source_current_limit'],'Source current limit')
     if 'sinks' in request:
-        if any(request.get(key) is not None for key in ('sink_terminal','sink_current','sink_min_voltage','sink_max_voltage')):
+        if any(request.get(key) is not None for key in ('sink_terminal','sink_current','sink_min_voltage','sink_max_voltage','load_power_W')):
             raise ValueError('Choose sinks or the legacy sink_terminal/sink_current fields, not both.')
         if request.get('series'):
             raise ValueError('Multisink requests cannot be combined with a series-component path.')
         specs=request['sinks']
     else:
+        if request.get('load_power_W') is not None and request.get('sink_current') is not None:
+            raise ValueError('Choose load_power_W or sink_current, not both.')
         specs=[{'terminal':request.get('sink_terminal'),'current_A':request.get('sink_current',1.),
                 'min_voltage_V':request.get('sink_min_voltage',0.)}]
+        if request.get('load_power_W') is not None:
+            specs[0].pop('current_A')
+            specs[0]['power_W']=request['load_power_W']
         if request.get('sink_max_voltage') is not None: specs[0]['max_voltage_V']=request['sink_max_voltage']
     if not isinstance(specs,(list,tuple)) or not 1<=len(specs)<=1024:
         raise ValueError('Specify 1 to 1,024 sinks.')
     from .terminals import pad_names
     result=[];seen=set();identifiers=set()
     for spec in specs:
-        if not isinstance(spec,dict): raise ValueError('Each sink needs a terminal and current_A.')
-        unknown=set(spec)-{'terminal','terminals','id','label','current_A','min_voltage_V','max_voltage_V'}
+        if not isinstance(spec,dict): raise ValueError('Each sink needs a terminal and current_A or power_W.')
+        unknown=set(spec)-{'terminal','terminals','id','label','current_A','power_W','min_voltage_V','max_voltage_V'}
         if unknown: raise ValueError('Unknown sink parameter: '+', '.join(sorted(unknown)))
         chosen=pad_names(spec)
         if seen.intersection(chosen):raise ValueError('Repeated sink terminal: '+', '.join(chosen))
@@ -419,14 +436,17 @@ def sink_requests(request):
             if not isinstance(spec['id'],str) or not spec['id'].strip() or spec['id'] in identifiers:
                 raise ValueError('Load unit IDs must be unique nonempty strings.')
             identifiers.add(spec['id'])
-        current=number(spec.get('current_A'),'Sink current',True)
+        if ('current_A' in spec)==('power_W' in spec):
+            raise ValueError('Each sink requires exactly one of current_A or power_W.')
+        load_key='power_W' if 'power_W' in spec else 'current_A'
+        demand=number(spec[load_key],'Sink power' if load_key=='power_W' else 'Sink current',True)
         minimum=number(spec.get('min_voltage_V',0),'Sink minimum voltage')
         maximum=spec.get('max_voltage_V')
         if maximum is not None:
             maximum=number(maximum,'Sink maximum voltage')
             if maximum<minimum: raise ValueError('Sink maximum voltage must be at least its minimum voltage.')
-        result.append({**spec,'current_A':current,'min_voltage_V':minimum,'max_voltage_V':maximum})
-    try: total=math.fsum(row['current_A'] for row in result)
+        result.append({**spec,load_key:demand,'min_voltage_V':minimum,'max_voltage_V':maximum})
+    try: total=math.fsum(row.get('current_A',0.) for row in result)
     except OverflowError as exc: raise ValueError('Total sink current must be finite.') from exc
     if not math.isfinite(total):
         raise ValueError('Total sink current must be finite.')
@@ -460,15 +480,29 @@ def series_execute(board,path,request):
             raise ValueError('Repeated series endpoint. Each component pad must occur once in the requested path.')
         seen.update((a['id'],b['id']))
         if previous['net']!=a['net']:raise ValueError(f"Copper path changes net without a component: {previous['label']} → {a['label']}")
-        validate_model(branch)
-        resistance=float(branch.get('resistance_ohm',0.));inductance=float(branch.get('inductance_h',0.))
-        if not all(math.isfinite(v) and v>=0 for v in (resistance,inductance)):
-            raise ValueError('Series R and L must be finite and nonnegative.')
-        if not (resistance or inductance or 'fixed_drop_v' in branch or 'diode' in branch):
-            raise ValueError('A series component needs resistance, inductance or a forward-drop model.')
-        branches.append({**branch,'id':str(branch.get('id',a['label'].split('.')[0]))+f':{index}',
-                         'from_terminal':a['id'],'to_terminal':b['id'],'resistance_ohm':resistance,'inductance_h':inductance,
-                         'from_domain':index,'to_domain':index+1})
+        parallel=branch.get('parallel',[])
+        if not isinstance(parallel,list) or len(parallel)>64:raise ValueError('Define at most 64 explicit parallel components per stage.')
+        for parallel_index,element in enumerate([branch,*parallel]):
+            left,right=(a,b) if parallel_index==0 else (terminal(element['from_pad']),terminal(element['to_pad']))
+            if parallel_index:
+                if left['id']==right['id'] or left['footprint']!=right['footprint']:
+                    raise ValueError('A parallel branch must join distinct pads of one component.')
+                if (left['net'],right['net'])!=(a['net'],b['net']):
+                    raise ValueError('Parallel components must span exactly the same oriented net pair as their stage.')
+                if left['id'] in seen or right['id'] in seen:raise ValueError('A parallel component pad was already assigned.')
+                seen.update((left['id'],right['id']))
+            validate_model(element)
+            if parallel and ('fixed_drop_v' in element or 'diode' in element):
+                raise ValueError('Parallel stages support linear R/L components only; forward-drop branch sharing is unsupported.')
+            resistance=float(element.get('resistance_ohm',0.));inductance=float(element.get('inductance_h',0.))
+            if not all(math.isfinite(v) and v>=0 for v in (resistance,inductance)):
+                raise ValueError('Series R and L must be finite and nonnegative.')
+            if not (resistance or inductance or 'fixed_drop_v' in element or 'diode' in element):
+                raise ValueError('A series component needs resistance, inductance or a forward-drop model.')
+            identity=str(element.get('id',left['label'].split('.')[0]))+f':{index}'+(f':parallel{parallel_index}' if parallel_index else '')
+            branches.append({**{key:value for key,value in element.items() if key!='parallel'},'id':identity,
+                             'from_terminal':left['id'],'to_terminal':right['id'],'resistance_ohm':resistance,'inductance_h':inductance,
+                             'from_domain':index,'to_domain':index+1})
         previous=b;nets.append(b['net'])
     if previous['net']!=end['net']:raise ValueError('The last component and ending pad do not share a net.')
     has_drop=any('fixed_drop_v' in branch or 'diode' in branch for branch in branches)

@@ -33,6 +33,29 @@ CLI scope: Read-only path, via and filled-zone estimates. The unified command re
 
 Inspect an existing connected route or a filled zone between two terminals. The local preview shows actual pads, copper, vias and filled islands. The section table records each layer transition, reference layer/net and model.
 
+## Current native workspace — 3.6.38
+
+![Current RLC routed-path and section view](help-path-3.6.38.png)
+
+![Current RLC numerical evidence](help-results-3.6.38.png)
+
+Actual native analysis of public Marble `/ETH_PHY/MII_MDC`, `U6.8` to `U54.16`,
+without changing the board: **253.670 mm**, three vias and three layer changes.
+The DC resistance estimate is **0.978676 Ω**. This is a **PARTIAL** result:
+unresolved reference coverage and via antipad capacitance remain visible, and
+the mixed route has no single uniform Z0. The displayed L/C totals contain
+modeled sections only; they are not a complete return-loop equivalent circuit.
+The analysis frequency is 100 MHz and default via plating is an assumed 25 µm.
+[Capture provenance](../docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
+
+Use **Copper sections** for geometry and linked rows, **Results** for totals and
+unknowns, **Board Stackup** for saved material evidence, and **Engineering Notes**
+for model blockers. **Line cross section** is a separate manually entered
+calculator; **AC loss sweep** is a conductor-loss estimate. Neither tab silently
+fills missing board geometry. Drag the horizontal divider to give the active
+view more room; expanded **Reference and pair options** scroll within settings.
+Earlier Marble and AC captures below remain available as historical examples.
+
 ## Native analysis views
 
 ![Trace RLC path inspection on Berkeley Marble](help-marble-path.png)

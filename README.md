@@ -9,10 +9,10 @@
 **PCB design, analysis and project review in KiCad.** Choose from 24 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
 
-**New in 3.6.37:** Bulk Label Editor now loads PCB nets and their connections,
-finds IPC board text correctly, and starts with a visible text inventory.
-Search nets with wildcards or fuzzy matching, select multiple nets on the PCB,
-and export tables. [Release notes](docs/RELEASE_NOTES_3.6.37.md).
+**New in 3.6.38:** Quick PI recommends same-net connector/IC pin groups,
+solves constant-power loads, and reviews parallel components in series paths.
+Transient, AC and PDN setup is easier, with fresh native screenshots and help.
+[Release notes](docs/RELEASE_NOTES_3.6.38.md).
 
 ## Start here
 
@@ -20,7 +20,7 @@ and export tables. [Release notes](docs/RELEASE_NOTES_3.6.37.md).
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.37](https://github.com/wayri/WayriCAD/releases/tag/v3.6.37) · [Release notes](docs/RELEASE_NOTES_3.6.37.md) |
+| Download or update | [Release 3.6.38](https://github.com/wayri/WayriCAD/releases/tag/v3.6.38) · [Release notes](docs/RELEASE_NOTES_3.6.38.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -35,7 +35,7 @@ Click a screenshot for its full resolution. [More screenshots, grouped by plugin
 
 | [Quick PI — Marble board preview](#quick-pi) | [QuickTherm — 3D temperature view](#quicktherm) |
 |---|---|
-| <a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="460" alt="Quick PI showing extracted copper on public Marble"></a> | <a href="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png" width="460" alt="QuickTherm native 3D temperature surface on the thermal demonstration board"></a> |
+| <a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="460" alt="Quick PI showing extracted copper on public Marble"></a> | <a href="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png" width="460" alt="QuickTherm native 3D temperature surface on the thermal demonstration board"></a> |
 | Geometry preview; no PI field solved. | Assumed-load demonstration; STEP models disabled. |
 | **[Trace Refiner — old/new comparison](#trace-refiner)** | **[Fanout — connector escape preview](#fanout-generator)** |
 | <a href="trace_refiner_plugin/help-validated-comparison.png"><img src="trace_refiner_plugin/help-validated-comparison.png" width="460" alt="Trace Refiner comparing amber original tracks with teal proposed tracks"></a> | <a href="fanout_generator_plugin/help-connector-proposed.png"><img src="fanout_generator_plugin/help-connector-proposed.png" width="460" alt="Fanout Generator previewing six escapes on a synthetic connector fixture"></a> |
@@ -78,7 +78,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | CLI access across all 24 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.37.md).
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.38.md).
 
 See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
 
@@ -287,7 +287,7 @@ Select a plugin for its full guide and supported models.
 
 Current and earlier screenshots are grouped by tool. Click an image for its
 original resolution. Demonstration inputs are not predictions for your board;
-older captures retain generic-path redactions. [Capture provenance](docs/audits/README_GALLERY.md).
+older captures retain generic-path redactions. [Current captures and inputs](docs/audits/QUICK_TOOL_VISUALS_3.6.38.md) · [Earlier capture provenance](docs/audits/README_GALLERY.md).
 
 | Explore | Previews |
 |---|---|
@@ -313,6 +313,34 @@ remain outlines. [Workflow and native-capture scope](suite_assistant_plugin/READ
 
 ### [Quick PI](quick_pi_plugin/README.md)
 
+
+**Current mixed loads and grouped pins · 3.6.38**
+
+<a href="quick_pi_plugin/help-mixed-loads-3.6.38.png"><img src="quick_pi_plugin/help-mixed-loads-3.6.38.png" width="960" height="541" alt="Quick PI native constant-power and current loads with same-net source and sink pin groups"></a>
+
+Disposable strip, 3.3 V source, 1.65 W grouped IC load and a separate 0.25 A
+sink. Actual extracted-copper solve: 0.750252 A total and 1.3862 mW loss.
+No mesh-convergence claim. [Inputs and limitations](docs/audits/QUICK_TOOL_VISUALS_3.6.38.md#quick-pi-current-examples).
+
+**PDN and transient setup · 3.6.38**
+
+<a href="quick_pi_plugin/help-transient-results-3.6.38.png"><img src="quick_pi_plugin/help-transient-results-3.6.38.png" width="960" height="606" alt="Quick PI explicit RLC load-step voltage and source-current plots"></a>
+
+Explicit lumped source/path R/L and local C/ESR; 0.1→1 A current step.
+This is a network demonstration, with declared inductance and capacitance.
+[Setup window](quick_pi_plugin/help-transient-setup-3.6.38.png) ·
+[PDN capacitor-bank setup](quick_pi_plugin/help-pdn-setup-3.6.38.png) ·
+[Impedance results](quick_pi_plugin/help-pdn-results-3.6.38.png).
+
+**AC copper and return losses · 3.6.38**
+
+<a href="quick_pi_plugin/help-ac-results-3.6.38.png"><img src="quick_pi_plugin/help-ac-results-3.6.38.png" width="960" height="606" alt="Quick PI actual explicit cross-section AC field, impedance and Joule-loss results"></a>
+
+Balanced two-strip cross-section, 5 A DC plus 1 A RMS at 100 kHz; fixed 20 °C
+copper. The explicit field solve gives 0.128126 W copper loss. Saved-board return
+geometry is not extracted automatically. [Setup](quick_pi_plugin/help-ac-setup-3.6.38.png).
+
+
 **Ground and return setup:** choose **Rails / ground returns…** for DC ground
 drop, or **Return path** for a geometric plane/stitching review. The common
 controls stay visible and optional settings stay collapsed.
@@ -321,7 +349,7 @@ controls stay visible and optional settings stay collapsed.
 
 Native synthetic staged inputs; this setup image is not a solved power result.
 
-**Current Marble geometry preview · 3.6.28**
+**Earlier Marble geometry preview · 3.6.28**
 
 <a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="960" alt="Quick PI current native +12V geometry preview on public Marble"></a>
 
@@ -358,16 +386,16 @@ Rendered synthetic example with explicit model/coverage status; not a passed boa
 
 ### [QuickTherm](quick_therm_plugin/README.md)
 
-**Current component inputs · 3.6.28**
+**Current component inputs · 3.6.38**
 
-<a href="quick_therm_plugin/examples/quicktherm-input-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-input-3.6.28.png" width="960" alt="QuickTherm current component table for declared dissipation, thermal resistances and temperature limits"></a>
+<a href="quick_therm_plugin/examples/quicktherm-input-3.6.38.png"><img src="quick_therm_plugin/examples/quicktherm-input-3.6.38.png" width="960" alt="QuickTherm current component table for declared dissipation, thermal resistances and temperature limits"></a>
 
 Review the included parts, declared loads and limits before running the model.
 [Inputs and capture scope](quick_therm_plugin/README.md#current-native-previews).
 
-**Current paired top/bottom inspection · 3.6.28**
+**Current paired top/bottom inspection · 3.6.38**
 
-<a href="quick_therm_plugin/examples/quicktherm-paired-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-paired-3.6.28.png" width="960" alt="QuickTherm current paired board field and component temperature table"></a>
+<a href="quick_therm_plugin/examples/quicktherm-paired-3.6.38.png"><img src="quick_therm_plugin/examples/quicktherm-paired-3.6.38.png" width="960" alt="QuickTherm current paired board field and component temperature table"></a>
 
 Generated saved-board example, 1.05 W total and explicit forced-air assumptions.
 Both faces display one approximate midplane field; the back is mirrored. No
@@ -375,9 +403,21 @@ bottom-side footprints are present in this example.
 
 **Current 3D inspection**
 
-<a href="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png" width="960" alt="QuickTherm current native 3D board temperature overview"></a>
+<a href="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png" width="960" alt="QuickTherm current native 3D board temperature overview"></a>
 
 STEP loading is off; component markers are illustrative. [Inputs and capture scope](quick_therm_plugin/README.md#current-native-previews).
+
+
+<details>
+<summary>Earlier large QuickTherm captures · 3.6.28</summary>
+
+<a href="quick_therm_plugin/examples/quicktherm-input-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-input-3.6.28.png" width="960" height="533" alt="Earlier QuickTherm input workspace"></a>
+
+<a href="quick_therm_plugin/examples/quicktherm-paired-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-paired-3.6.28.png" width="960" height="533" alt="Earlier QuickTherm paired workspace"></a>
+
+<a href="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.28.png" width="960" height="533" alt="Earlier QuickTherm 3d workspace"></a>
+
+</details>
 
 **STEP models and transient heating**
 
@@ -413,6 +453,19 @@ The illustrative 1 s frame includes imported copper and contact losses. [Capture
 Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
 
 ### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
+
+**Current Marble route and return selection · 3.6.38**
+
+<a href="signal_integrity_advisor_plugin/help-quick-si-3.6.38.png"><img src="signal_integrity_advisor_plugin/help-quick-si-3.6.38.png" width="960" height="541" alt="Quick SI current native Marble route, declared line inputs and return chooser"></a>
+
+U6.8→U54.16, 253.670 mm and three vias. The 1.513645 ns delay uses declared
+50 Ω/effective permittivity 3.2, not extracted channel impedance. Native neighbour
+inspection also shows local geometry and unknown coupling explicitly.
+[Neighbour view](signal_integrity_advisor_plugin/help-neighbours-3.6.38.png) ·
+[Inputs and capture scope](docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
+
+Earlier route and protocol captures follow.
+
 
 **Return path:** select the actual return below Source/Receiver, or explicitly
 confirm the suggested domain. Extra nets, pins and reference overrides are in
@@ -451,6 +504,18 @@ Missing models and reference coverage remain visible.
 Rendered synthetic example with explicit model/coverage status; not a passed board qualification.
 
 ### [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md)
+
+**Current Marble electrical coverage · 3.6.38**
+
+<a href="trace_impedance_plugin/help-results-3.6.38.png"><img src="trace_impedance_plugin/help-results-3.6.38.png" width="960" height="541" alt="Trace RLC current Marble results with partial coverage reported"></a>
+
+253.670 mm route, three vias, DC resistance 0.978676 Ω. Partial reference coverage
+and unknown antipad capacitance remain visible; these are modelled section totals.
+[Route window](trace_impedance_plugin/help-path-3.6.38.png) ·
+[Capture scope](docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
+
+Earlier route and AC examples follow.
+
 
 **Saved-board route analysis**
 
@@ -694,6 +759,17 @@ Review explicit connector and wire mappings; a PCB net alone cannot infer an ext
 
 ### [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md)
 
+**Current net inventory and text preview · 3.6.38**
+
+<a href="bulk_label_editor_plugin/help-nets-3.6.38.png"><img src="bulk_label_editor_plugin/help-nets-3.6.38.png" width="960" height="550" alt="Bulk Label Editor current public Marble net browser with connection counts"></a>
+
+Marble: 1,374 named nets and 35,765 text fields. The MDC net has two pads,
+31 tracks and three vias. Electrical net names are read-only.
+[Reference replacement preview](bulk_label_editor_plugin/help-preview-3.6.38.png).
+
+**Earlier text-review window**
+
+
 <a href="bulk_label_editor_plugin/help-workflow.png"><img src="bulk_label_editor_plugin/help-workflow.png" width="960" alt="Bulk Label Editor native field and text review"></a>
 
 Select the text/field scope, review proposed changes and apply them explicitly.
@@ -706,7 +782,16 @@ Synthetic density example. Inspect exclusions and generated copper before export
 
 ### [PCB / Foil Heater Designer](heater_designer_plugin/ReadMe.md)
 
-<a href="heater_designer_plugin/help-workflow.png"><img src="heater_designer_plugin/help-workflow.png" width="960" alt="PCB and foil Heater Designer native geometry preview"></a>
+<a href="heater_designer_plugin/help-workflow-3.6.38.png"><img src="heater_designer_plugin/help-workflow-3.6.38.png" width="960" height="564" alt="Heater Designer current native serpentine geometry preview"></a>
+
+Current 3.6.38 native preview: 80 × 50 mm serpentine, 35 µm copper, 12 V;
+3.940 Ω and 36.55 W illustrative electrical loading. No thermal solve or apply.
+<details>
+<summary>Earlier large native Heater Designer preview</summary>
+
+<a href="heater_designer_plugin/help-workflow.png"><img src="heater_designer_plugin/help-workflow.png" width="960" alt="Earlier Heater Designer native geometry preview"></a>
+
+</details>
 
 Review geometry, material assumptions and the selected thermal/electrical model.
 

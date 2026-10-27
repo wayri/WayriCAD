@@ -75,9 +75,11 @@ class SuiteUxTests(unittest.TestCase):
         for package in GUIDED_PACKAGES:
             with self.subTest(package=package):
                 help_text = (ROOT / package / "help.html").read_text(encoding="utf-8")
-                self.assertIn('src="help-workflow.png"', help_text)
+                capture = ("help-nets-3.6.38.png" if package == "bulk_label_editor_plugin"
+                           else "help-workflow.png")
+                self.assertIn(f'src="{capture}"', help_text)
                 self.assertIn("<h1", help_text)
-                with Image.open(ROOT / package / "help-workflow.png") as image:
+                with Image.open(ROOT / package / capture) as image:
                     self.assertGreaterEqual(image.width, 900)
                     self.assertGreaterEqual(image.height, 500)
                     self.assertEqual("PNG", image.format)

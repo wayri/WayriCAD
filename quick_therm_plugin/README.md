@@ -4,7 +4,7 @@
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.32](https://github.com/wayri/WayriCAD/releases/tag/v3.6.32) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation](../docs/INSTALLATION.md) |
 | Choose component inputs | [Native workspace](#native-workspace-and-component-inputs) |
 | Run a known example | [Reproducible example](#reproducible-example) |
 | Top, bottom, 3D and probes | [Interactive views](#interactive-views-and-time-evolution) |
@@ -22,22 +22,22 @@
 so they do not leave duplicate annotations. This changes interface behavior,
 not the thermal equations. [Measurements and remaining limits](../docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md).
 
-### Current native previews
+### Current native previews — 3.6.38
 
 **Review saved inputs**
 
-![QuickTherm current component inputs](examples/quicktherm-input-3.6.28.png)
+![QuickTherm current component inputs](examples/quicktherm-input-3.6.38.png)
 
 Four sources are included; the two mounting footprints remain excluded.
 This input-table capture precedes the solve.
 
 **Inspect the 3D board field**
 
-![QuickTherm current 3D thin-sheet screen](examples/quicktherm-3d-3.6.28.png)
+![QuickTherm current 3D thin-sheet screen](examples/quicktherm-3d-3.6.38.png)
 
 **Compare both faces and component temperatures**
 
-![QuickTherm current paired top and bottom views](examples/quicktherm-paired-3.6.28.png)
+![QuickTherm current paired top and bottom views](examples/quicktherm-paired-3.6.38.png)
 
 Actual native captures from `thermal-demo.kicad_pcb`: 1.05 W total, 20 °C ambient,
 assumed 35 W/(m·K) sheet conductivity, emissivity 0.8 and 10 m/s airflow.
@@ -46,7 +46,9 @@ midplane field, with the back view mirrored; this example has no bottom-side
 footprints. Component junction estimates use the declared RθJB paths, not
 internal package gradients. STEP loading was off; the outlines/markers are not
 loaded component solids. These are illustrative model results, not measurements.
-[Capture provenance](../docs/audits/README_GALLERY.md#capture-provenance--23-october-2026).
+[Current capture provenance](../docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
+
+Earlier [input](examples/quicktherm-input-3.6.28.png), [3D](examples/quicktherm-3d-3.6.28.png) and [paired](examples/quicktherm-paired-3.6.28.png) captures remain available with their [original provenance](../docs/audits/README_GALLERY.md#23-october-2026-refresh).
 
 Large-board HTML exports keep three printable plots: top, bottom and component temperatures. The interactive board, every computed layer, 3D view, cursor/probes and complete JSON remain available. This bounds printing work on boards with hundreds of components or drills. Use `--extended-report-snapshots` to also render static 3D, contours and all layer snapshots; that export can take much longer. Numerical mesh resolution and results are unchanged.
 
@@ -123,8 +125,8 @@ STEP supplies geometry, not material properties. Each enabled RC part has one co
 
 This native capture uses the public demo, two validation STEP boxes and real library capacitor/connector models. The assumed component RC values and board stackup demonstrate heating playback; gray parts have no declared temperature. The [component heating audit](../docs/audits/QUICKTHERM_COMPONENT_HEATING.md) records the inputs and verification.
 
-![Editable scanned component inputs](examples/quicktherm-input-workspace.png)
-![Interactive 3D thermal workspace](examples/quicktherm-3d-workspace.png)
+![Editable scanned component inputs](examples/quicktherm-input-3.6.38.png)
+![Interactive 3D thermal workspace](examples/quicktherm-3d-3.6.38.png)
 
 These native Windows/KiCad 10.0.6 captures use the public thermal demo with four invented power sources. The 3D field is a thin-sheet result using assumed 35 W/(m·K) conductivity, 0.8 emissivity and 10 m/s airflow. It demonstrates the workflow, not measured temperatures or a qualified hardware model. The screenshots contain no user project data or private paths.
 
@@ -208,7 +210,7 @@ Physical finite-volume colors cover known mesh cells through their declared edge
 
 Reloading the same board retains entered values, valid explicit field mappings and checked references. A unique recognized saved-field alias may be suggested; ambiguous aliases stay blank for review. A board with one component initially selects that reference, without inventing its power or thermal resistance. Reload still clears the previous result and export.
 
-Open a saved board in KiCad PCB Editor and launch **WayriCAD QuickTherm**. Choose only the dissipating components, review the ambient temperature, then use **Enter component inputs…** to supply power and the applicable thermal resistance for each selected part. No saved `Power_W` or `RthetaJA` fields are required for this path, and the PCB is not modified. If your board has complete thermal properties, switch to **Use saved footprint fields** and map them. Both paths show top and bottom views, contours, a 3D overview, a component temperature table, and cross-selection back to PCB Editor. Optional virtual heatsinks and board models include thin-sheet and layer-resolved copper/vertical-path approximations. The report records input provenance, assumptions, coverage and heat balance where applicable. The multilayer viewport also supports explicitly parameterized spatial time evolution. The separate four-board transient CLI remains a lumped RC screen; neither model is CFD.
+Open a saved board in KiCad PCB Editor and launch **WayriCAD QuickTherm**. Choose only the dissipating components, review the ambient temperature, then use **Component inputs** to supply power and the applicable thermal resistance for each selected part. No saved `Power_W` or `RthetaJA` fields are required for this path, and the PCB is not modified. If your board has complete thermal properties, switch to **Saved fields only** and map them. Both paths show top and bottom views, contours, a 3D overview, a component temperature table, and cross-selection back to PCB Editor. Optional virtual heatsinks and board models include thin-sheet and layer-resolved copper/vertical-path approximations. The report records input provenance, assumptions, coverage and heat balance where applicable. The multilayer viewport also supports explicitly parameterized spatial time evolution. The separate four-board transient CLI remains a lumped RC screen; neither model is CFD.
 
 For automation, install the source wheel and use `wayricad-therm`:
 

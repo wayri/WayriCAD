@@ -11,6 +11,15 @@
 
 CLI scope: JSON heater analysis; PCB placement remains in the GUI. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
 
+## Current native preview · 3.6.38
+
+![Native serpentine preview with readable controls](help-workflow-3.6.38.png)
+
+Illustrative 80 × 50 mm serpentine, 0.5 mm trace and gap, 35 µm copper,
+12 V supply: 99 proposed segments, 3.940 Ω, 3.05 A and 36.55 W.
+Preview only; no copper applied and no thermal simulation performed.
+[Capture scope](../docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
+
 ## Getting started
 
 1. Save the PCB and open the Heater Designer PCM plugin. Choose a clear placement area and the intended copper layer and net.

@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-def _loads(loads, limits):
+def _loads(loads, limits, powers=None):
     """Parse explicit constant-current loads without silently discarding limits."""
     rows=[];by_terminal={}
     for terminal,current in loads or []:
@@ -14,9 +14,14 @@ def _loads(loads, limits):
         if not math.isfinite(value) or value<=0:raise ValueError('Load current must be finite and positive.')
         if terminal in by_terminal:raise ValueError('Duplicate load terminal: '+terminal)
         row={'terminal':terminal,'current_A':value};rows.append(row);by_terminal[terminal]=row
+    for terminal,power in powers or []:
+        value=float(power)
+        if not math.isfinite(value) or value<=0:raise ValueError('Load power must be finite and positive.')
+        if terminal in by_terminal:raise ValueError('Duplicate load terminal: '+terminal)
+        row={'terminal':terminal,'power_W':value};rows.append(row);by_terminal[terminal]=row
     bounded=set()
     for terminal,minimum,maximum in limits or []:
-        if terminal not in by_terminal:raise ValueError('Voltage limits require a matching --load: '+terminal)
+        if terminal not in by_terminal:raise ValueError('Voltage limits require a matching --load or --power-load: '+terminal)
         if terminal in bounded:raise ValueError('Duplicate load voltage limits: '+terminal)
         bounded.add(terminal);row=by_terminal[terminal]
         for key,text in [('min_voltage_V',minimum),('max_voltage_V',maximum)]:
@@ -39,6 +44,8 @@ def main(argv=None):
     parser.add_argument('--net');parser.add_argument('--source');parser.add_argument('--sink')
     parser.add_argument('--voltage',type=float,default=1.);parser.add_argument('--current',type=float)
     parser.add_argument('--load',nargs=2,action='append',metavar=('PAD','CURRENT_A'),help='Repeat for each constant-current sink; cannot combine with --sink, --current or --command.')
+    parser.add_argument('--power-load',nargs=2,action='append',metavar=('PAD','POWER_W'),help='Repeat for constant-power sinks; can mix with --load. Fixed-temperature 2.5D only.')
+    parser.add_argument('--load-power',type=float,help='Constant-power watts at a single --sink; cannot combine with --current or --load-ohms.')
     parser.add_argument('--load-voltage-limits',nargs=3,action='append',metavar=('PAD','MIN_V','MAX_V'),help='Limits for a matching --load; use - for either omitted bound.')
     parser.add_argument('--sink-min-voltage',type=float,help='Minimum voltage for a legacy single sink or --command path; default 0 V.')
     parser.add_argument('--sink-max-voltage',type=float,help='Maximum voltage for a legacy single sink or --command path; omitted means unbounded.')
@@ -68,6 +75,7 @@ def main(argv=None):
     parser.add_argument('--convergence-tolerance-percent',type=float,default=1.,help='Maximum change in each of the final two refinements; default 1%%. Does not certify local peaks.')
     parser.add_argument('--package-conduction',type=Path,help='JSON list of explicit lead/solder/BGA paths; 2.5D constant-current DC only.')
     parser.add_argument('--command',help='Console command, including a series-component path; quote the entire command.')
+    parser.add_argument('--series-file',type=Path,help='Reviewed series-editor JSON, including explicitly selected parallel R/L parts.')
     args=parser.parse_args(argv)
     if args.ac:
         try:
@@ -127,6 +135,8 @@ def main(argv=None):
     if args.melting_temperature is not None:request['options']['melting_temperature_c']=args.melting_temperature
     if args.latent_heat is not None:request['options']['latent_heat_J_kg']=args.latent_heat
     try:
+        if args.series_file and (args.command or args.load or args.power_load or args.load_power is not None or args.return_path or args.model_dimension=='3d'):
+            raise ValueError('--series-file cannot combine with a console command, multiple loads, power loads, return review or 3D.')
         if args.auto_mesh and args.mesh_edge is not None:raise ValueError('Choose --auto-mesh or a manual --mesh-edge, not both.')
         from .mesh_sizing import mode as sizing_mode
         sizing_mode(request)
@@ -138,14 +148,19 @@ def main(argv=None):
             request['package_conduction']=json.loads(args.package_conduction.read_text(encoding='utf-8-sig'))
             from .package_contacts import guard_request
             guard_request(request)
-        if args.model_dimension=='3d' and (args.html or args.command or args.load or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None or args.load_ohms is not None or args.sweep or args.converge_levels or args.return_path or args.pulse is not None or args.melting_temperature is not None or args.latent_heat is not None or args.mesh_backend=='vtk'):
+        if args.model_dimension=='3d' and (args.html or args.command or args.load or args.power_load or args.load_power is not None or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None or args.load_ohms is not None or args.sweep or args.converge_levels or args.return_path or args.pulse is not None or args.melting_temperature is not None or args.latent_heat is not None or args.mesh_backend=='vtk'):
             raise ValueError('Full 3D supports a selected net with prescribed current and JSON output; HTML, series commands, load/sweep, pulse screening, return-path and VTK modes remain 2.5D.')
         if sum(bool(value) for value in (args.return_path,args.load_ohms is not None,args.sweep))>1:
             raise ValueError('Choose one of return-path, load-resistance or current-sweep mode.')
         if args.load_ohms is not None and args.sweep:raise ValueError('Choose either --load-ohms or --sweep.')
-        if args.load and (args.sink or args.current is not None or args.command or args.load_ohms is not None or args.sweep or args.return_path):
+        if (args.load or args.power_load) and (args.sink or args.current is not None or args.command or args.load_ohms is not None or args.load_power is not None or args.sweep or args.return_path):
             raise ValueError('--load cannot combine with --sink, --current or --command. Multisink series paths are not supported.')
-        loads=_loads(args.load,args.load_voltage_limits)
+        loads=_loads(args.load,args.load_voltage_limits,args.power_load)
+        if args.load_power is not None:
+            if (args.current is not None or args.load_ohms is not None or args.command or args.sweep or args.return_path or args.converge_levels):
+                raise ValueError('--load-power requires a single --sink and cannot combine with other operating modes.')
+            if not math.isfinite(args.load_power) or args.load_power<=0:raise ValueError('Load power must be finite and positive.')
+            request.pop('sink_current',None);request['load_power_W']=args.load_power;request['action']='solve'
         if loads:
             if not args.net:raise ValueError('--load requires --net and --source.')
             request.pop('sink_terminal',None);request.pop('sink_current',None);request['sinks']=loads
@@ -164,10 +179,17 @@ def main(argv=None):
         if args.html:
             request['html_output']=str(args.html.resolve())
         from .service import run_job
-        if args.command:
+        if args.command or args.series_file:
             from .console import parse_command
             inventory=run_job({'action':'inspect','board_path':str(args.board.resolve())},timeout=args.timeout)
-            parsed=parse_command(args.command,inventory)
+            if args.series_file:
+                from .series_editor import build_command
+                from .parallel_parts import with_parallel
+                from wayricad_runtime.jobs import load_json
+                data=load_json(args.series_file)
+                if data.get('schema')!=1 or not isinstance(data.get('branches'),list):raise ValueError('Unsupported series-editor JSON.')
+                parsed=with_parallel(parse_command(build_command(data['source'],data['sink'],data['branches']),inventory),data['branches'],inventory)
+            else:parsed=parse_command(args.command,inventory)
             if 'console_output' in parsed:print(parsed['console_output']);return 0
             request.update(parsed)
         if args.return_path:

@@ -86,6 +86,7 @@ class ACStudyDialog(wx.Dialog):
             button = wx.Button(setup, label=label); button.Bind(wx.EVT_BUTTON, handler)
             actions.Add(button, 0, wx.RIGHT, 6); self.input_buttons.append(button)
         settings.Add(actions, 0, wx.ALL, 10)
+        self._quick_controls(setup, settings)
         applicability = wx.StaticText(setup, label='HV/LV and high-current studies use the supplied voltage/current. '
             'Results do not establish creepage, clearance, dielectric stress, switching-device loss, EMI, '
             'converter regulation, magnetic-component loss or thermal equilibrium. '
@@ -130,6 +131,48 @@ class ACStudyDialog(wx.Dialog):
         self.canvas.mpl_connect('motion_notify_event', self._hover)
         self.canvas.mpl_connect('button_press_event', self._plot_selected)
         self._load_controls(self.model)
+
+    def _quick_controls(self, parent, layout):
+        from .ac_setup import PRESETS
+        group=wx.StaticBoxSizer(wx.VERTICAL,parent,'Quick loop · explicit dimensions and RMS ripple')
+        parent=group.GetStaticBox()
+        self.quick_preset=wx.Choice(parent,choices=list(PRESETS));self.quick_preset.SetSelection(0)
+        group.Add(self.quick_preset,0,wx.EXPAND|wx.ALL,6)
+        fields=wx.FlexGridSizer(cols=4,hgap=7,vgap=7);fields.AddGrowableCol(1);fields.AddGrowableCol(3)
+        self.quick_fields={}
+        for key,label,value in [('width_mm','Copper width mm','2'),('thickness_mm','Copper thickness mm','.07'),
+                                ('gap_mm','Surface gap to return mm','.3'),('frequency_khz','Ripple frequency kHz','100'),
+                                ('ripple_rms_a','Ripple RMS A','1')]:
+            fields.Add(wx.StaticText(parent,label=label),0,wx.ALIGN_CENTER_VERTICAL)
+            control=wx.TextCtrl(parent,value=value);self.quick_fields[key]=control;fields.Add(control,1,wx.EXPAND)
+            self.input_buttons.append(control)
+        group.Add(fields,0,wx.EXPAND|wx.ALL,6)
+        note=wx.StaticText(parent,label='Uses the length, DC current and rail voltage in the detailed settings. This recipe replaces conductor/harmonic tables; '
+                           'it does not extract a PCB return or converter waveform. Split returns explicitly carry half the return current each.')
+        note.Wrap(980);group.Add(note,0,wx.EXPAND|wx.ALL,6)
+        buttons=wx.WrapSizer(wx.HORIZONTAL)
+        for label,run in [('Apply quick loop',False),('Apply quick loop and run',True)]:
+            button=wx.Button(parent,label=label);button.Bind(wx.EVT_BUTTON,lambda event,run=run:self._apply_quick(run))
+            buttons.Add(button,0,wx.RIGHT,7);self.input_buttons.append(button)
+        help_button=wx.Button(parent,label='AC model help');help_button.Bind(wx.EVT_BUTTON,self._quick_help)
+        buttons.Add(help_button,0,wx.RIGHT,7);self.input_buttons.append(help_button)
+        self.input_buttons.append(self.quick_preset)
+        group.Add(buttons,0,wx.ALL,6);layout.Insert(0,group,0,wx.EXPAND|wx.ALL,10)
+
+    def _quick_help(self,event=None):
+        from wayricad_runtime.help import open_help
+        open_help(self,Path(__file__).with_name('ac_setup_help.html'))
+
+    def _apply_quick(self, run=False):
+        if self._busy:return
+        try:
+            from .ac_setup import quick_loop
+            study=quick_loop(self._study(),self.quick_preset.GetStringSelection(),
+                            **{key:control.GetValue() for key,control in self.quick_fields.items()})
+            self._load_controls(study);self._changed()
+            self.status.SetLabel('Explicit loop prepared. Check outgoing/return geometry and RMS ripple; no board extraction was assumed.')
+            if run:self._run()
+        except (ValueError,TypeError,KeyError) as exc:self.status.SetLabel(str(exc))
 
     def _grid(self, parent, headings):
         grid = wx.grid.Grid(parent); grid.CreateGrid(0, len(headings)); grid.SetRowLabelSize(35)

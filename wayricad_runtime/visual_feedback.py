@@ -121,6 +121,8 @@ def decorate_button(button, role=None):
         if hasattr(button, 'GetBitmap') and button.GetBitmap().IsOk():
             return button
         state = {'role': chosen}
+        if all(callable(getattr(button,name,None)) for name in ('ToDIP','GetMinSize')):
+            state['minimum_dip']=button.ToDIP(button.GetMinSize())
         button._wayricad_visual_feedback = state
 
         def refresh(event=None):
@@ -131,6 +133,14 @@ def decorate_button(button, role=None):
                     button.SetBitmapPosition(wx.LEFT)
                 if hasattr(button, 'SetBitmapMargins'):
                     button.SetBitmapMargins(button.FromDIP((4, 0)))
+                # Icons are installed after most sizers were constructed. Drop
+                # the cached text-only best size before measuring the new label.
+                if all(callable(getattr(button,name,None)) for name in
+                       ('InvalidateBestSize','GetBestSize','GetMinSize','SetMinSize')):
+                    button.InvalidateBestSize()
+                    minimum=button.FromDIP(state['minimum_dip']) if 'minimum_dip' in state else button.GetMinSize()
+                    best=button.GetBestSize()
+                    button.SetMinSize((max(best.width,minimum.width),max(best.height,minimum.height)))
             if event is not None:
                 parent = button.GetParent()
                 if parent is not None:

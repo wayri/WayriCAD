@@ -82,3 +82,8 @@ include docs/audits/RELEASE_3.6.36.md
 recursive-include bulk_label_editor_plugin/tests *.py
 include docs/RELEASE_NOTES_3.6.37.md
 include docs/audits/RELEASE_3.6.37.md
+
+recursive-include quick_pi_plugin/tests *.py
+include docs/RELEASE_NOTES_3.6.38.md
+include docs/audits/RELEASE_3.6.38.md
+include docs/audits/QUICK_TOOL_VISUALS_3.6.38.md

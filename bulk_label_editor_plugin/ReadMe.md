@@ -13,10 +13,16 @@ Browse PCB text and nets, preview bulk text changes, and apply the rows you revi
 
 ## Interface
 
-![Earlier native text-review window](help-workflow.png)
+![Current native text-review window](help-preview-3.6.38.png)
 
-Earlier native text-review capture, retained for reference. Version 3.6.37 adds
-the net browser and the revised controls described below.
+![Current native net browser](help-nets-3.6.38.png)
+
+Native KiCad 10.0.6 windows on the public Marble board. The text view previews
+10 reference replacements without applying them. The net view finds the MDC
+connection with two pads, 31 tracks and three vias. Scope checkboxes and the
+Apply controls are visible; electrical net names remain read-only.
+[Capture details](../docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
+[Earlier native text-review window](help-workflow.png) is retained.
 
 ## What it can do
 

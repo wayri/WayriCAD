@@ -7,7 +7,7 @@ from .analysis import PadNode,analyze_decoupling,infer_regulators
 from .guided_ui import add_workflow, mark_primary, section
 from .preview_kit import PanZoomCanvas, add_zoom_toolbar, severity_colour, pcb_select_items, pcb_highlight_net
 
-STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","FAIL":"#e34a43","INFO":"#3399cc"}
+STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","WARNING":"#d4a62a","FAIL":"#e34a43","ERROR":"#e34a43","INFO":"#3399cc"}
 ROLE_COLOURS={"rail":"#3fa56b","ground":"#e34a43","load":"#d4a62a","capacitor":"#3399cc","other":"#8fa5b8"}
 
 def make_sortable(table):
@@ -33,7 +33,7 @@ class PdnMapPreview(PanZoomCanvas):
             elif matches(net,grounds):role="ground"
             elif matches(net,rails):role="rail"
             self.nodes.append((role,(p.x_mm,p.y_mm),f"{p.reference}.{p.pad}",p.net))
-        self.flagged={item.load for item in findings if getattr(item,"severity","").upper()=="FAIL" and getattr(item,"load","")}
+        self.flagged={item.load for item in findings if getattr(item,"severity","").upper() in ("FAIL","ERROR") and getattr(item,"load","")}
         self.set_legend([(ROLE_COLOURS[name],name) for name in ("rail","ground","load","capacitor")]+[(STATUS_COLOURS["FAIL"],"failed pin")])
         self.set_picks([{"x":node[1][0],"y":node[1][1],"r":0.8,"data":(node[2],node[3])} for node in self.nodes])
         self.Refresh();self.fit()
@@ -71,6 +71,9 @@ class PdnFrame(wx.Panel):
     def _build(self):
         p=wx.Panel(self);r=wx.BoxSizer(wx.VERTICAL)
         self.guide=add_workflow(p,r,"PDN and Decoupling Planner","Qualify rail-to-ground capacitors, check load proximity, and review regulator candidates without changing placement.",("Classify","Analyze","Review","Export"),lambda e:open_native_help(self,Path(__file__).with_name("help.html")))
+        impedance=wx.Button(p,label='PDN target impedance / capacitor bank…')
+        impedance.SetToolTip('Separate explicit source R/L and capacitor C/ESR/ESL screen; does not infer real-board parasitics from placement.')
+        impedance.Bind(wx.EVT_BUTTON,self.impedance);r.Add(impedance,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,10)
         settings_box=section(p,"Rail Classification and Placement Limits")
         settings_parent=settings_box.GetStaticBox()
         g=wx.FlexGridSizer(2,6,7,8);g.AddGrowableCol(1,1);g.AddGrowableCol(3,1);self.rails=wx.TextCtrl(settings_parent,value="VCC*,VDD*,VBAT*,*VOUT*,+*V,3V*,5V*,12V*");self.ground=wx.TextCtrl(settings_parent,value="GND*,AGND*,DGND*,PGND*,VSS*");self.distance=wx.TextCtrl(settings_parent,value="3.0");self.loads=wx.TextCtrl(settings_parent,value="U*")
@@ -82,6 +85,11 @@ class PdnFrame(wx.Panel):
         split.SplitVertically(left,right,560);r.Add(split,1,wx.EXPAND|wx.ALL,8);ex=wx.Button(p,label="Export CSV");self.export_button=ex;ex.Disable();ex.Bind(wx.EVT_BUTTON,self.export);r.Add(ex,0,wx.ALIGN_RIGHT|wx.ALL,8);p.SetSizer(r); host=wx.BoxSizer(wx.VERTICAL);host.Add(p,1,wx.EXPAND);self.SetSizer(host)
         make_sortable(self.table)
         for control in (self.rails,self.ground,self.distance,self.loads):control.Bind(wx.EVT_TEXT,self.invalidate)
+    def impedance(self,event=None):
+        from .impedance_ui import PdnImpedanceDialog
+        dialog=PdnImpedanceDialog(self)
+        try:dialog.ShowModal()
+        finally:dialog.Destroy()
     def pads(self):
         rows=[]
         for fp in self.get_board().GetFootprints():

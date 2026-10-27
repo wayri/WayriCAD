@@ -20,7 +20,7 @@ from .patterns import PATTERNS, circular_envelope, split_circular_envelope
 from .foil_export import export_svg
 
 
-VERSION = "3.6.37"
+VERSION = "3.6.38"
 PALETTE = ("#157f74", "#d1495b", "#edae49", "#5267a5", "#8f5aa6", "#3c91a3")
 ORGANIC_DEFAULT_TEXT = "\n".join(f"{x:g},{y:g}" for x,y in ORGANIC_DEFAULT_POINTS)
 
@@ -347,6 +347,7 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         self.draw_path_button.Bind(wx.EVT_TOGGLEBUTTON,self.toggle_path_drawing)
         organic_actions.Add(self.draw_path_button,1,wx.RIGHT,5)
         clear_path=wx.Button(organic_parent,label="Clear points")
+        clear_path.SetMinSize(self.FromDIP((135,30)))
         clear_path.Bind(wx.EVT_BUTTON,self.clear_path_points)
         organic_actions.Add(clear_path,0)
         organic_layout.Add(organic_actions,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,6)
@@ -386,6 +387,7 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         actions.Add(self.status, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         for label, handler in (("Preview",self.generate),("Simulate / tune",self.simulate),("Apply to PCB",self.commit)):
             button = wx.Button(panel, label=label)
+            button.SetMinSize(self.FromDIP((150 if label=='Simulate / tune' else 140,32)))
             button.Bind(wx.EVT_BUTTON,handler)
             if label == "Preview":button.SetDefault()
             actions.Add(button,0,wx.LEFT,6)

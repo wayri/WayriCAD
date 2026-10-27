@@ -60,6 +60,9 @@ class LiveCurrentControls:
     def _prepare_live(self):
         from .live_current import LiveCurrentModel,live_current_eligibility
         self._reset_live();base=self.bundle;generation=self._live_generation
+        solved=base.get('result',{}).get('total_sink_current_A',base.get('result',{}).get('sink_current_A'))
+        if isinstance(solved,(int,float)) and math.isfinite(solved) and solved>0:
+            self.live_current.SetRange(1e-9,max(1e9,solved));self.live_current.SetValue(solved)
         supported,reason=live_current_eligibility(base)
         if self.joule_feedback.GetValue():supported=False;reason='Temperature feedback requires a new electrothermal solve; live tuning is fixed-temperature only.'
         if not supported:self._set_live_enabled(False,reason);return
@@ -100,10 +103,17 @@ class LiveCurrentControls:
         if not ('control' in key or 'ctrl' in key or gui is not None and gui.ControlDown()):
             self._live_wheel_time=None;self._live_wheel_direction=0
             return False
-        sink=self._live_sink_hit(event)
+        if event.inaxes is not self.views[2][0].axes[0]:return False
+        endpoint=self._live_endpoint_hit(event)
+        if endpoint is not None and endpoint.ambiguous:
+            self._live_wheel_time=None;self._live_wheel_direction=0;self._live_wheel_target=None
+            self._hide_current_preview()
+            self.status.SetLabel('Nearby endpoints are ambiguous ('+endpoint.label+'). Move closer to one pad or select its layer; currents unchanged.')
+            return True
+        sink=(endpoint.index,endpoint.label) if endpoint is not None and endpoint.role=='sink' else None
         controller=self._probe_controllers.get(2)
         hit=None if not controller else controller['hit_test'](event.xdata,event.ydata)
-        if sink is not None:pass
+        if endpoint is not None:pass
         elif hit is not None:
             value=controller['rows'][hit][2]
             if value is None or not math.isfinite(value):return False
@@ -169,17 +179,20 @@ class LiveCurrentControls:
             self._live_preview.present(position,comparison(before,bundle,metric,identity,sink,all_fields))
 
     def _live_sink_hit(self,event):
-        """Pick only saved sink pads on the displayed layer, in screen pixels."""
+        """Compatibility accessor for one unambiguous displayed sink unit."""
+        hit=self._live_endpoint_hit(event)
+        return (hit.index,hit.label) if hit is not None and hit.role=='sink' and not hit.ambiguous else None
+
+    def _live_endpoint_hit(self,event):
         if event.ydata is None:return None
-        from matplotlib.path import Path as PlotPath
-        ax=event.inaxes;mouse=ax.transData.transform((event.xdata,event.ydata));hits=[]
-        for index,label,x,y,outline in getattr(self,'_live_sink_anchors',[]):
-            point=ax.transData.transform((x,y));distance=math.hypot(*(point-mouse))
-            if outline and PlotPath(outline).contains_point((event.xdata,event.ydata)):distance=0.
-            if distance<=9:hits.append((distance,index,label))
-        if not hits:return None
-        _,index,label=min(hits)
-        return index,label
+        from .endpoint_targets import pick_endpoint,project_anchors
+        ratio=max(1.,float(getattr(self.views[2][1],'device_pixel_ratio',1.)))
+        transform=event.inaxes.transData;key=tuple(transform.get_matrix().ravel())
+        if key!=getattr(self,'_live_endpoint_screen_key',None):
+            self._live_endpoint_screen=project_anchors(getattr(self,'_live_endpoint_anchors',[]),transform.transform)
+            self._live_endpoint_screen_key=key
+        return pick_endpoint(transform.transform((event.xdata,event.ydata)),self._live_endpoint_screen,None,
+                             proximity_px=14.*ratio,ambiguity_px=2.*ratio)
 
     def _queue_live_current(self,value,targets=None):
         if self._closed or self._busy or not self._live_model:return
@@ -309,6 +322,8 @@ class LiveCurrentControls:
     def _live_scene_ready(self,index,ax):
         if index!=2:return
         self._live_sink_anchors=[]
+        self._live_endpoint_anchors=[]
+        self._live_endpoint_screen_key=None
         bundle=self.bundle;geometry=bundle.get('geometry') or bundle.get('mesh',{}).get('geometry',{})
         terminals={key:row for row in geometry.get('terminals',[]) for key in (row['id'],row.get('label',row['id']))}
         layer=self._layers[self.layer.GetSelection()]['id'] if self.layer.GetSelection()>=0 else None
@@ -327,11 +342,26 @@ class LiveCurrentControls:
                     for polygon in polygons:
                         outline=polygon.get('outer',[])
                         if not outline:continue
-                        x=(min(p[0] for p in outline)+max(p[0] for p in outline))/2
-                        y=(min(p[1] for p in outline)+max(p[1] for p in outline))/2
+                        from .endpoint_targets import pad_center
+                        x,y=pad_center(outline)
                         self._live_sink_anchors.append((number,label,x,y,outline))
+                        self._live_endpoint_anchors.append(dict(role='sink',index=number,label=label,center=(x,y),outline=outline))
                         if number==self._live_active_sink:
                             ax.scatter([x],[y],s=130,facecolors='none',edgecolors='#ff7f00',linewidths=2,zorder=30)
+        request=bundle.get('request',{})
+        sources=set(bundle.get('terminal_units',{}).get('source_terminals',[]))
+        sources.update(request.get('source_terminals',[]))
+        source=request.get('source_terminal',request.get('source'))
+        if source is not None:sources.add(source)
+        for identifier in sources:
+            terminal=terminals.get(identifier,{})
+            for side,polygons in terminal.get('polygons',{}).items():
+                if layer not in (None,'all') and str(layer)!=str(side):continue
+                for polygon in polygons:
+                    outline=polygon.get('outer',[])
+                    if not outline:continue
+                    from .endpoint_targets import pad_center
+                    self._live_endpoint_anchors.append(dict(role='source',index=None,label='Source · total load',center=pad_center(outline),outline=outline))
         self._live_hit_index=None
         if self.layer.GetSelection()>=0 and self._layers[self.layer.GetSelection()]['id']=='all' and self.bundle.get('mesh'):
             import numpy as np

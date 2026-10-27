@@ -94,7 +94,7 @@ class BulkLabelEditorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.37"
+        self.version = "3.6.38"
 
     def Run(self) -> None:
         try:
@@ -157,7 +157,7 @@ class BulkLabelEditorFrame(wx.Frame):
         row1.Add(self.replacement_text, 1, wx.EXPAND | wx.ALL, 4)
         options.Add(row1, 0, wx.EXPAND)
 
-        row2 = wx.WrapSizer(wx.HORIZONTAL)
+        row2 = wx.FlexGridSizer(cols=4, vgap=4, hgap=12)
         self.use_regex = wx.CheckBox(panel, label="Regex")
         self.case_sensitive = wx.CheckBox(panel, label="Case sensitive")
         self.edit_refs = wx.CheckBox(panel, label="References")
@@ -175,7 +175,7 @@ class BulkLabelEditorFrame(wx.Frame):
             row2.Add(control, 0, wx.ALL, 4)
         options.Add(row2, 0, wx.EXPAND)
 
-        row3 = wx.WrapSizer(wx.HORIZONTAL)
+        row3 = wx.BoxSizer(wx.HORIZONTAL)
         preview_btn = wx.Button(panel, label="Preview")
         preview_btn.Bind(wx.EVT_BUTTON, self.on_preview)
         preview_btn.SetDefault()
@@ -195,6 +195,9 @@ class BulkLabelEditorFrame(wx.Frame):
         self.redo_button.SetToolTip("Reapply every field restored by Undo Last Apply.")
         more = more_button(panel, [("Refresh from PCB", self.on_refresh), ("Select rows on PCB", self.on_select_preview), ("Export visible table as CSV", self.on_export)])
         for btn in (preview_btn, apply_btn, selected_btn, self.undo_button, self.redo_button, more):
+            best=btn.GetBestSize()
+            width=180 if btn is selected_btn else 150 if btn is apply_btn else 90
+            btn.SetMinSize((max(self.FromDIP(width),best.width),max(self.FromDIP(28),best.height)))
             row3.Add(btn, 0, wx.ALL, 4)
         root.Add(options, 0, wx.EXPAND | wx.ALL, 6)
 

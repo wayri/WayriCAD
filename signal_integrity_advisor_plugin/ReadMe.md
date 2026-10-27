@@ -6,7 +6,7 @@
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.36](https://github.com/wayri/WayriCAD/releases/tag/v3.6.36) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation](../docs/INSTALLATION.md) |
 | First source-to-receiver screen | [Normal workflow](#normal-workflow) |
 | Several nets and explicit returns | [Multi-net studies](#multi-net-studies-and-explicit-returns) |
 | Reviewed IBIS circuit | [KiCad circuit export](#reviewed-ibis-circuit-export) |
@@ -30,7 +30,35 @@ Drag the horizontal divider to share space between the route preview and its
 results table. Drag the input divider to widen settings, or use the preview's
 Fit control to inspect the whole route.
 
+## Current native workspace — 3.6.38
+
+![Quick SI current Marble source-to-receiver screen](help-quick-si-3.6.38.png)
+
+This actual saved-board run follows `/ETH_PHY/MII_MDC` from `U6.8` to `U54.16`
+on public Marble: 253.670 mm, 31 tracks and three vias. The example deliberately
+uses a uniform **50 Ω** line and **effective Er 3.2**, 1 ns driver rise time,
+20 Ω driver, 50 Ω load and 100 MHz. Its 1.5136 ns delay comes from the declared
+permittivity, not a complete extracted channel. The table says **User assumptions**;
+SCREENED does not establish protocol compliance. GND is explicitly selected for
+the geometric return review. The PCB is unchanged.
+
+Choose the net and distinct source/receiver first. The visible **Return path
+(optional)** control can retain **No return-path check**, or use a return you
+confirm. Keep **More return options** closed unless multiple return nets, optional
+pins or a reference-layer override are needed. **IBIS models for KiCad circuit
+export**, **Line and load assumptions**, **Multi-net study** and **Illustrative
+eye** are independent expandable sections; opening one does not establish its
+inputs automatically. Drag the settings/route and route/results dividers to
+make the active evidence readable. [Capture provenance](../docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
+
 ## Neighbour trace exposure map
+
+![Current native neighbour exposure map](help-neighbours-3.6.38.png)
+
+This disposable three-trace example reports three geometric pairs. The selected
+DATA/CLOCK pair has 0.3 mm edge gap and 30 mm parallel overlap; coupling stays
+UNKNOWN because no reference/material/edge model is supplied. The older
+[neighbour capture](help-neighbours.png) remains available.
 
 Open **Neighbour traces**, choose/type an exact target net (blank searches all
 connected nets), select a copper layer and set the search radius in mm.

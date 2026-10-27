@@ -86,6 +86,10 @@ class SeriesPathDialog:
         for title,handler in (('Remove',self._remove),('Move up',self._up),('Move down',self._down)):
             button=wx.Button(self.dialog,label=title);button.Bind(wx.EVT_BUTTON,handler);actions.Add(button,0,wx.RIGHT,5)
         left.Add(actions,0,wx.TOP,7);main.Add(left,1,wx.EXPAND|wx.RIGHT,14)
+        self.parallel_button=wx.Button(self.dialog,label='Parallel parts…')
+        self.parallel_button.Bind(wx.EVT_BUTTON,self._parallel)
+        left.Add(self.parallel_button,0,wx.EXPAND|wx.TOP,7)
+        self.list.Bind(wx.EVT_LISTBOX,self._parallel_note)
         right=wx.BoxSizer(wx.VERTICAL)
         right.Add(wx.StaticText(self.dialog,label='Add next component'),0,wx.BOTTOM,5)
         self.component=ReadableChoice(self.dialog);right.Add(self.component,0,wx.EXPAND|wx.BOTTOM,10)
@@ -122,6 +126,67 @@ class SeriesPathDialog:
         self.kind.Bind(wx.EVT_CHOICE,self._changed)
         self._changed()
 
+    def _parallel_candidates(self,index):
+        from .parallel_parts import stage_pads,candidates
+        start,end=stage_pads(self.inventory,self._chosen(self.source),self.branches,index)
+        excluded={part['footprint_uuid'] for i,branch in enumerate(self.branches) if i!=index
+                  for part in branch.get('parallel',[])}
+        primary_refs={branch['reference'] for branch in self.branches}
+        excluded.update(row['footprint_uuid'] for row in self.inventory.get('terminals',[])
+                        if row.get('footprint_uuid') and row.get('reference',row.get('label','').rsplit('.',1)[0]) in primary_refs)
+        return candidates(self.inventory,start,end,excluded)
+
+    def _parallel_note(self,event=None):
+        try:count=len(self._parallel_candidates(self.list.GetSelection()))
+        except (ValueError,KeyError):count=0
+        self.parallel_button.SetLabel(f'Parallel parts ({count})…');self.parallel_button.Enable(count>0)
+        if event:event.Skip()
+
+    def _parsed(self):
+        from .console import parse_command
+        from .parallel_parts import with_parallel
+        return with_parallel(parse_command(build_command(self._chosen(self.source),self._chosen(self.sink),self.branches),self.inventory),self.branches,self.inventory)
+
+    def _parallel(self,event):
+        from .parallel_parts import suggested_resistance
+        from .console import _model
+        wx=self.wx;index=self.list.GetSelection()
+        try:parts=self._parallel_candidates(index)
+        except (ValueError,KeyError) as exc:self.preview.SetValue(str(exc));return
+        dialog=wx.Dialog(self.dialog,title='Review parallel components',size=(680,440),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        layout=wx.BoxSizer(wx.VERTICAL)
+        note=wx.StaticText(dialog,label='These two-pad parts span exactly the same saved net pair. Check parts to include and review each R/L model. Capacitor, diode and unknown DCR models are not guessed.')
+        note.Wrap(630);layout.Add(note,0,wx.EXPAND|wx.ALL,10)
+        area=wx.ScrolledWindow(dialog,style=wx.VSCROLL);area.SetScrollRate(0,12);grid=wx.FlexGridSizer(0,2,8,12);grid.AddGrowableCol(1)
+        selected={row['footprint_uuid']:row for row in self.branches[index].get('parallel',[])}
+        controls=[]
+        for part in parts:
+            old=selected.get(part['footprint_uuid'],{})
+            check=wx.CheckBox(area,label=part['id']+' · '+str(part['component_value']))
+            check.SetValue(bool(old));text=wx.TextCtrl(area,value=old.get('model',suggested_resistance(part)))
+            text.SetHint('Explicit model, e.g. 100m or 10mH+30m')
+            grid.Add(check,0,wx.ALIGN_CENTER_VERTICAL);grid.Add(text,1,wx.EXPAND);controls.append((part,check,text))
+        area.SetSizer(grid);layout.Add(area,1,wx.EXPAND|wx.ALL,10)
+        highlight=wx.Button(dialog,label='Highlight detected parts on PCB')
+        def locate(_event):
+            try:
+                from .origin_selection import select_origin
+                select_origin(self.board_path,[part['footprint_uuid'] for part in parts])
+            except Exception as exc:note.SetLabel('Highlight unavailable: '+str(exc));note.Wrap(630);dialog.Layout()
+        highlight.Bind(wx.EVT_BUTTON,locate);layout.Add(highlight,0,wx.ALL,10)
+        layout.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,10);dialog.SetSizer(layout)
+        try:
+            if dialog.ShowModal()!=wx.ID_OK:return
+            reviewed=[]
+            for part,check,text in controls:
+                if not check.GetValue():continue
+                model=text.GetValue().strip();parsed=_model(model)
+                if 'diode' in parsed or 'fixed_drop_v' in parsed:raise ValueError('Parallel DC stages require R/L models.')
+                reviewed.append({'footprint_uuid':part['footprint_uuid'],'model':model})
+            self.branches[index]['parallel']=reviewed;self._changed();self.list.SetSelection(index);self._parallel_note()
+        except ValueError as exc:wx.MessageBox(str(exc),'Review parallel models',wx.OK|wx.ICON_WARNING)
+        finally:dialog.Destroy()
+
     def _chosen(self,control):
         return control.GetStringSelection() if control.GetSelection()>=0 else ''
 
@@ -148,12 +213,15 @@ class SeriesPathDialog:
         self.candidates=compatible_components(self.inventory,net,used) if net else []
         self.component.Set([ref+' · '+net+' → '+next_net for ref,next_net in self.candidates])
         if self.candidates:self.component.SetSelection(0)
-        self.list.Set([row['reference']+'  ·  '+row['model'] for row in self.branches])
+        self.list.Set([row['reference']+'  ·  '+row['model']+(f" (+{len(row['parallel'])} parallel)" if row.get('parallel') else '') for row in self.branches])
+        if self.branches:self.list.SetSelection(len(self.branches)-1)
+        self._parallel_note()
         try:
             command=build_command(self._chosen(self.source),self._chosen(self.sink),self.branches)
-            from .console import parse_command
-            parsed=parse_command(command,self.inventory)
-            self.preview.SetValue(command+'\n\nValid saved-net path · '+str(len(parsed['series']))+' series component(s).')
+            parsed=self._parsed()
+            found=[part['id'] for i in range(len(self.branches)) for part in self._parallel_candidates(i)]
+            self.preview.SetValue(command+'\n\nValid saved-net path · '+str(len(parsed['series']))+' series stage(s).'+
+                                  ('\nDetected parallel parts: '+', '.join(found)+' · review with Parallel parts.' if found else ''))
         except Exception as exc:
             self.preview.SetValue((command if 'command' in locals() else '')+'\n\nReview: '+str(exc))
         if event:event.Skip()
@@ -234,8 +302,7 @@ class SeriesPathDialog:
 
     def _run(self,event):
         try:
-            from .console import parse_command
-            self.request=parse_command(build_command(self._chosen(self.source),self._chosen(self.sink),self.branches),self.inventory)
+            self.request=self._parsed()
             self.dialog.EndModal(self.wx.ID_OK)
         except ValueError as exc:self.wx.MessageBox(str(exc),'Review the series path',self.wx.OK|self.wx.ICON_WARNING)
 
