@@ -73,3 +73,18 @@ The tool remains modeless; native file/export pickers may be modal. The shared
 modeless-window test now checks launcher Run methods rather than forbidding
 file-dialog calls anywhere in a source file. The window stays interactive during
 normal table search. No local plugin installation was performed.
+
+## Publication
+
+Published [3.6.37](https://github.com/wayri/WayriCAD/releases/tag/v3.6.37)
+from `48bc0cfb197e6b46d0c2e1d24ddfde5d16807e04`. All eight
+[exact-source CI jobs](https://github.com/wayri/WayriCAD/actions/runs/40467686045)
+passed across the configured Linux, Windows and macOS matrix and PI references.
+
+The wheel passed isolated CLI/report/mechanical smoke checks, contains no tests
+or bytecode, and its Bulk Label Editor modules match source. The source archive
+has 1,352 tracked members matching the tested checkout, including the native
+regressions. All 31 uploaded assets were downloaded and compared to local
+SHA-256 hashes. Public Bulk Label Editor and feed URLs were checked afterward;
+the PCM feed uses those exact released metadata bytes. Existing release assets
+and tags were preserved. No local plugin installation was made.
