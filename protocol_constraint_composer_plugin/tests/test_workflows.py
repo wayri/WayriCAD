@@ -14,7 +14,11 @@ def test_courtyard_exact():assert courtyard_polygon(BoardContext.load(BOARD),'U1
 
 def test_courtyard_rotation():
     c=BoardContext.load(BOARD.replace('(at 100 100 0)','(at 100 100 90)'))
-    assert courtyard_polygon(c,'U1')==pytest.approx([(98,102),(98,98),(102,98),(102,102)])
+    actual=courtyard_polygon(c,'U1')
+    expected=[(98,102),(98,98),(102,98),(102,102)]
+    assert len(actual)==len(expected)
+    for point,wanted in zip(actual,expected):
+        assert point==pytest.approx(wanted)
 
 def test_back_courtyard_refused():
     c=BoardContext.load(BOARD.replace('(layer "F.Cu")\n    (uuid','(layer "B.Cu")\n    (uuid',1))
