@@ -15,7 +15,7 @@ class RuntimeMeshDependenciesTests(unittest.TestCase):
         for name in ('vtkmodules.vtkFiltersCore','vtkmodules.vtkFiltersGeneral','vtkmodules.vtkFiltersModeling'):
             self.assertEqual(REQUIREMENTS_QUICK_PI[name],'vtk>=9.3,<10')
 
-    def assert_worker_requirements(self,request,gmsh):
+    def assert_worker_requirements(self,request,gmsh,*,vtk=True,inspection=False):
         before=copy.deepcopy(request);runtime_before=dict(REQUIREMENTS_QUICK_PI)
         def completed(command,**kwargs):
             self.assertEqual(command[1],'-I')
@@ -28,15 +28,22 @@ class RuntimeMeshDependenciesTests(unittest.TestCase):
              patch.object(service.subprocess,'Popen',side_effect=completed):
             self.assertEqual(service.run_job(request),{'dependency_fixture':True})
         expected={name:spec for name,spec in REQUIREMENTS_QUICK_PI.items() if name!='kipy'}
+        if not vtk:expected={name:spec for name,spec in expected.items() if not name.startswith('vtk')}
+        if inspection:expected={}
         if gmsh:expected['gmsh']='gmsh>=4.11,<5'
         ensure.assert_called_once_with(expected)
         self.assertEqual(request,before)
         self.assertEqual(REQUIREMENTS_QUICK_PI,runtime_before)
 
     def test_top_level_explicit_gmsh_and_full3d(self):
-        for request in ({'action':'solve','mesh_backend':'gmsh'},
-                        {'action':'mesh','model_dimension':'3d'}):
-            with self.subTest(request=request):self.assert_worker_requirements(request,True)
+        self.assert_worker_requirements({'action':'solve','mesh_backend':'gmsh'},True)
+        self.assert_worker_requirements({'action':'mesh','model_dimension':'3d'},True,vtk=False)
+
+    def test_inspection_and_display_geometry_do_not_provision_solvers(self):
+        for request in ({},{'action':'geometry'},
+                        {'action':'inspect','study':{'cases':[{'electrical':{'mesh_backend':'gmsh'}}]}}):
+            with self.subTest(request=request):
+                self.assert_worker_requirements(request,False,inspection=True)
 
     def test_batch_supply_case_full3d_and_independent_return(self):
         for case in ({'electrical':{'mesh_backend':'gmsh'}},
@@ -58,13 +65,12 @@ class RuntimeMeshDependenciesTests(unittest.TestCase):
         self.assert_worker_requirements(request,True)
 
     def test_default_auto_vtk_and_unrelated_nested_data_do_not_add_gmsh(self):
-        for request in ({},{'action':'solve','mesh_backend':'auto'},
+        for request in ({'action':'solve','mesh_backend':'auto'},
                         {'action':'solve','mesh_backend':'vtk'},
                         {'action':'batch','study':{'cases':[{'electrical':{'mesh_backend':'auto'},
                             'metadata':{'mesh_backend':'gmsh'}}],
                             'shared_returns':[{'mesh_backend':'vtk'}],
-                            'unrelated':{'model_dimension':'3d'}}},
-                        {'action':'inspect','study':{'cases':[{'electrical':{'mesh_backend':'gmsh'}}]}}):
+                            'unrelated':{'model_dimension':'3d'}}}):
             with self.subTest(request=request):self.assert_worker_requirements(request,False)
 
     def test_malformed_study_shapes_are_left_to_worker_validation(self):
