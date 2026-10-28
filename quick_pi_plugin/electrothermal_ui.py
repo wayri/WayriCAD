@@ -2,11 +2,45 @@
 from __future__ import annotations
 import copy
 import json
+import math
 from pathlib import Path
 import threading
 import wx
 from matplotlib.figure import Figure
 from .electrothermal_report import draw, summary, valid_operating_point, write_report
+
+
+FEEDBACK_FIELDS = (
+    ('Ambient temperature · °C', ('thermal_settings','ambient_c')),
+    ('Dielectric conductivity · W/(m·K)', ('thermal_settings','dielectric_k_w_mk')),
+    ('Copper thermal conductivity · W/(m·K)', ('thermal_settings','copper_k_w_mk')),
+    ('Via plating · mm', ('thermal_settings','via_plating_mm')),
+    ('Board convection coefficient · W/(m²·K)', ('thermal_settings','board_h_w_m2k')),
+    ('Board emissivity · 0–1', ('thermal_settings','board_emissivity')),
+    ('Copper resistivity at 20 °C · Ω·m', ('electrical','options','resistivity_ohm_m')),
+    ('Copper resistance coefficient · 1/K', ('electrical','options','temperature_coefficient')),
+    ('Material valid from · °C', ('coupling','material_temperature_range_c',0)),
+    ('Material valid to · °C', ('coupling','material_temperature_range_c',1)),
+    ('Stop above temperature · °C', ('coupling','temperature_cap_c')),
+)
+
+
+def feedback_value(study, path):
+    """Read one guided input without supplying a physical default."""
+    try:
+        for key in path:study=study[key]
+        return study
+    except (KeyError,IndexError,TypeError):return None
+
+
+def set_feedback_value(study, path, value):
+    """Update the canonical study used by both guided and advanced editors."""
+    target=study
+    for index,key in enumerate(path[:-1]):
+        if key not in target:
+            target[key]=[None,None] if isinstance(path[index+1],int) else {}
+        target=target[key]
+    target[path[-1]]=value
 
 
 def initial_studies(electrical, terminals=()):
@@ -63,7 +97,33 @@ class ElectrothermalStudyDialog(wx.Dialog):
         root.Add(choices,0,wx.ALL,10)
         self.book=wx.Notebook(self)
         self.setup=wx.TextCtrl(self.book,style=wx.TE_MULTILINE|wx.TE_DONTWRAP)
-        self.setup.ChangeValue(json.dumps(initial['steady'],indent=2,allow_nan=False)); self.book.AddPage(self.setup,'Explicit model inputs')
+        self.setup.ChangeValue(json.dumps(initial['steady'],indent=2,allow_nan=False))
+        self.feedback_controls={}
+        if steady_only:
+            self.guided=wx.ScrolledWindow(self.book,style=wx.VSCROLL); self.guided.SetScrollRate(0,14)
+            guided_layout=wx.BoxSizer(wx.VERTICAL)
+            heading=wx.StaticText(self.guided,label='1 · Review materials and cooling   2 · Run coupled PI   3 · Check convergence')
+            guided_layout.Add(heading,0,wx.EXPAND|wx.ALL,12)
+            message=wx.StaticText(self.guided,label='The selected net, source and loads are carried over. Fill the physical inputs below; blank means unknown. DC copper loss is already I²R. This study additionally updates resistance from the calculated temperature.')
+            message.Wrap(940);guided_layout.Add(message,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+            electrical=initial['steady'].get('electrical',{})
+            source=electrical.get('source_terminals') or [electrical.get('source_terminal','Not selected')]
+            load_count=len(electrical.get('sinks') or [electrical.get('sink_terminal')])
+            selected=wx.StaticText(self.guided,label='Net: '+str(electrical.get('net','Not selected'))+
+                '   ·   Source: '+', '.join(map(str,source))+'   ·   Load units: '+str(load_count))
+            selected.Wrap(940);guided_layout.Add(selected,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+            grid=wx.FlexGridSizer(cols=2,hgap=12,vgap=8);grid.AddGrowableCol(1)
+            for label,path in FEEDBACK_FIELDS:
+                grid.Add(wx.StaticText(self.guided,label=label),0,wx.ALIGN_CENTER_VERTICAL)
+                control=wx.TextCtrl(self.guided);control.SetMinSize((210,-1));control.SetToolTip(label+'; enter a reviewed finite value. No value is inferred from the PCB.')
+                self.feedback_controls[path]=control;control.Bind(wx.EVT_TEXT,self._guided_changed)
+                grid.Add(control,1,wx.EXPAND)
+            guided_layout.Add(grid,0,wx.EXPAND|wx.ALL,12)
+            more=wx.StaticText(self.guided,label='Mesh resolution, relaxation and stopping tolerances remain available under Advanced model inputs. Refine both meshes before accepting local peaks.')
+            more.Wrap(940);guided_layout.Add(more,0,wx.EXPAND|wx.ALL,12)
+            self.guided.SetSizer(guided_layout);self.book.AddPage(self.guided,'Materials + cooling')
+            self._load_guided()
+        self.book.AddPage(self.setup,'Advanced model inputs' if steady_only else 'Explicit model inputs')
         panel=wx.Panel(self.book); layout=wx.BoxSizer(wx.VERTICAL); self.figure=Figure(figsize=(10,6))
         Canvas,Toolbar=canvas_types; self.canvas=Canvas(panel,wx.ID_ANY,self.figure); toolbar=Toolbar(self.canvas); toolbar.Realize()
         layout.Add(self.canvas,1,wx.EXPAND); layout.Add(toolbar,0,wx.EXPAND); panel.SetSizer(layout); self.book.AddPage(panel,'Coupled results')
@@ -88,8 +148,34 @@ class ElectrothermalStudyDialog(wx.Dialog):
         self.result=None; self.export.Disable(); self.figure.clear(); self.canvas.draw_idle(); self.details.ChangeValue('')
 
     def _changed(self,event=None):
+        if self.feedback_controls and not getattr(self,'_editing_guided',False):self._load_guided()
         self.input_path=None; self.input_sha=None; self._invalidate(); self.status.SetLabel('Inputs changed. Rerun electrothermal coupling.')
         if event: event.Skip()
+
+    def _load_guided(self):
+        try:study=json.loads(self.setup.GetValue())
+        except (ValueError,TypeError):return
+        for path,control in self.feedback_controls.items():
+            value=feedback_value(study,path)
+            control.ChangeValue('' if value is None else str(value))
+
+    def _guided_changed(self,event=None):
+        try:
+            study=json.loads(self.setup.GetValue())
+            for path,control in self.feedback_controls.items():
+                text=control.GetValue().strip()
+                try:value=float(text) if text else None
+                except ValueError:value=None
+                if value is not None and not math.isfinite(value):value=None
+                set_feedback_value(study,path,value)
+            self.setup.ChangeValue(json.dumps(study,indent=2,allow_nan=False))
+        except (ValueError,TypeError,KeyError,IndexError):
+            self.status.SetLabel('Correct Advanced model inputs before editing the guided fields.');return
+        self._editing_guided=True
+        try:self._changed()
+        finally:self._editing_guided=False
+        self.status.SetLabel('Materials or cooling changed. Review the inputs, then Run coupled study.')
+        if event:event.Skip()
 
     def _reset(self,event=None):
         self.setup.ChangeValue(json.dumps(self.initial[self._kind()],indent=2,allow_nan=False)); self._changed()
@@ -125,6 +211,7 @@ class ElectrothermalStudyDialog(wx.Dialog):
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc));return
         self._invalidate(); self._busy=True; self._cancel.clear(); self.run.Disable(); self.stop.Enable()
         for control in (self.mode,self.setup,self.load,self.reset): control.Disable()
+        if self.feedback_controls:self.guided.Disable()
         self.status.SetLabel('Running coupled models. Cancellation discards partial results.')
         def work():
             result=None; error=None
@@ -138,12 +225,13 @@ class ElectrothermalStudyDialog(wx.Dialog):
         if self._closed:return
         self.run.Enable(); self.stop.Disable()
         for control in (self.mode,self.setup,self.load,self.reset):control.Enable()
+        if self.feedback_controls:self.guided.Enable()
         if self._closing:self._finish_close();return
         if self._cancel.is_set():error='Coupled study cancelled. No partial result accepted.'
         if not error and (not isinstance(result,dict) or 'electrothermal' not in result):error='Worker returned no coupled result.'
         if error:self.status.SetLabel(error);return
         self.result=result; draw(self.figure,result); self.canvas.draw_idle(); self.details.ChangeValue(summary(result))
-        self.book.SetSelection(1); self.export.Enable()
+        self.book.SetSelection(2 if self.feedback_controls else 1); self.export.Enable()
         self.status.SetLabel(('Operating checks accepted. ' if valid_operating_point(result) else 'Checks failed or limits violated. ')+
                              str(result['electrothermal']['status'])+' · review Checks and solve actions.')
 

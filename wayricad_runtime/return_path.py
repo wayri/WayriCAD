@@ -148,24 +148,52 @@ def audit_return_path(evidence: dict, *, sample_pitch_mm: float = 0.25,
     # for sampled points outside their bounding boxes on large boards.
     bounds={id(region):(min(p[0] for p in region['outer']),max(p[0] for p in region['outer']),min(p[1] for p in region['outer']),max(p[1] for p in region['outer'])) for region in regions if region.get('outer')}
     ray_cache={}
-    for region in regions:
-        for ring in [region['outer'],*region.get('holes',[])]:
-            if not ring:continue
+    hole_indices={}
+    def prepare_ring(ring):
+        cached=ray_cache.get(id(ring))
+        if cached is None:
             low=min(p[1] for p in ring);step=max(.25,(max(p[1] for p in ring)-low)/64)
             bins={}
             for a,b in zip(ring,ring[1:]+ring[:1]):
                 for band in range(math.floor((min(a[1],b[1])-low)/step),math.floor((max(a[1],b[1])-low)/step)+1):bins.setdefault(band,[]).append((a,b))
-            ray_cache[id(ring)]=(low,step,bins)
+            cached=(low,step,bins)
+            ray_cache[id(ring)]=cached
+        return cached
     def in_ring(point,ring):
         if not ring:return False
-        low,step,bins=ray_cache[id(ring)];inside=False
+        low,step,bins=prepare_ring(ring);inside=False
         for a,b in bins.get(math.floor((point[1]-low)/step),()):
             if _on_segment(point,a,b):return True
             if (a[1]>point[1])!=(b[1]>point[1]) and point[0]<a[0]+(point[1]-a[1])*(b[0]-a[0])/(b[1]-a[1]):inside=not inside
         return inside
     def contains(point,region):
         b=bounds.get(id(region))
-        return bool(b and b[0]<=point[0]<=b[1] and b[2]<=point[1]<=b[3] and in_ring(point,region['outer']) and not any(in_ring(point,hole) for hole in region.get('holes',[])))
+        if not (b and b[0]<=point[0]<=b[1] and b[2]<=point[1]<=b[3] and in_ring(point,region['outer'])):
+            return False
+        # A selected route usually visits a tiny fraction of a filled plane's
+        # thousands of holes. Prepare only rings that can contain a queried
+        # point. Keep the existing boundary tolerance and ray test unchanged.
+        index=hole_indices.get(id(region))
+        if index is None:
+            holes=[((min(p[0] for p in ring)-1e-9,max(p[0] for p in ring)+1e-9,
+                     min(p[1] for p in ring)-1e-9,max(p[1] for p in ring)+1e-9),ring)
+                   for ring in region.get('holes',[]) if ring]
+            step=max(.25,math.sqrt(max((b[1]-b[0])*(b[3]-b[2]),.0625)/max(1,len(holes))))
+            bins={};broad=[]
+            for hole in holes:
+                box=hole[0]
+                x0,x1,y0,y1=(math.floor(value/step) for value in box)
+                if (x1-x0+1)*(y1-y0+1)>256:
+                    broad.append(hole)
+                    continue
+                for x in range(x0,x1+1):
+                    for y in range(y0,y1+1):bins.setdefault((x,y),[]).append(hole)
+            index=(step,bins,broad)
+            hole_indices[id(region)]=index
+        step,bins,broad=index
+        holes=(*bins.get((math.floor(point[0]/step),math.floor(point[1]/step)),()),*broad)
+        return not any(b[0]<=point[0]<=b[1] and b[2]<=point[1]<=b[3] and in_ring(point,ring)
+                       for b,ring in holes)
     terminals=list(evidence.get('terminals',[]))
     if len(set(return_terminal_ids or []))!=len(return_terminal_ids or []):raise ValueError("Choose distinct return terminals.")
     declared_roles=dict(return_terminal_roles or {})

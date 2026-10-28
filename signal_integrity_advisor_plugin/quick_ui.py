@@ -62,7 +62,17 @@ class QuickSIPanel(wx.Panel):
             return control
         with read_snapshot(board):
             self.engine=TraceMeasurementEngine(board)
-            nets=self.engine.net_names()
+            return_terminals=[];selected=[]
+            for footprint in board.GetFootprints():
+                reference=str(footprint.GetReference());owner=str(footprint.m_Uuid.AsString())
+                for pad in footprint.Pads():
+                    net=str(pad.GetNetname())
+                    if not net:continue
+                    label=reference+'.'+str(pad.GetNumber())
+                    return_terminals.append({'label':label,'net':net,'reference':reference,
+                        'id':str(pad.m_Uuid.AsString()),'footprint_uuid':owner})
+                    if pad.IsSelected():selected.append((net,label))
+            nets=sorted({terminal['net'] for terminal in return_terminals},key=self.engine._natural_key)
         self.setup_button=wx.Button(left,label='Set up path and response…')
         self.setup_button.SetToolTip('Review source/receiver, same-part pads, line assumptions and illustrative eye together. No board changes.')
         self.setup_button.Bind(wx.EVT_BUTTON,self.setup_path);form.Add(self.setup_button,0,wx.EXPAND|wx.TOP,5)
@@ -72,13 +82,10 @@ class QuickSIPanel(wx.Panel):
         row('start','Source pad',choices=[]);row('end','Receiver pad',choices=[])
         with read_snapshot(board):
             layers=self.engine.available_layers()
-            return_terminals=[{'label':str(fp.GetReference())+'.'+str(pad.GetNumber()),
-                'net':str(pad.GetNetname()),'reference':str(fp.GetReference()),
-                'id':str(pad.m_Uuid.AsString()),'footprint_uuid':str(fp.m_Uuid.AsString())}
-                for fp in board.GetFootprints() for pad in fp.Pads() if pad.GetNetname()]
         self._setup_terminals=return_terminals
         self._setup_pads={}
         for terminal in return_terminals:self._setup_pads.setdefault(terminal['net'],[]).append(terminal['label'])
+        for pads in self._setup_pads.values():pads.sort(key=self.engine._natural_key)
         from .return_setup_ui import ReturnSetupPanel
         self.return_setup=ReturnSetupPanel(left,nets,return_terminals,layers,
             lambda:self.changed(None),lambda:(left.FitInside(),self.Layout()))
@@ -168,12 +175,9 @@ class QuickSIPanel(wx.Panel):
         for name,control in self.fields.items():
             control.Bind(wx.EVT_COMBOBOX if isinstance(control,wx.ComboBox) else wx.EVT_TEXT,self.changed)
         self.fields['net'].Bind(wx.EVT_COMBOBOX,self.net_changed)
+        counts={}
+        for terminal in return_terminals:counts[terminal['net']]=counts.get(terminal['net'],0)+1
         with read_snapshot(board):
-            selected=[];counts={}
-            for fp in board.GetFootprints():
-                for pad in fp.Pads():
-                    net=pad.GetNetname();counts[net]=counts.get(net,0)+1
-                    if pad.IsSelected():selected.append((net,fp.GetReference()+'.'+pad.GetNumber()))
             selected_tracks=[track.GetNetname() for track in board.GetTracks() if track.IsSelected() and track.GetNetname()]
         candidate=next((name for name in nets if counts.get(name)==2),next((name for name in nets if counts.get(name,0)>=2),nets[0] if nets else ''))
         self.fields['net'].SetValue(selected[0][0] if selected else selected_tracks[0] if selected_tracks else candidate);self.net_changed(None)
@@ -443,7 +447,9 @@ class QuickSIPanel(wx.Panel):
         if event:event.Skip()
 
     def net_changed(self,event):
-        with read_snapshot(self.board):pads=self.engine.pads_for_net(self.fields['net'].GetValue())
+        if self.saved_board:pads=self._setup_pads.get(self.fields['net'].GetValue(),[])
+        else:
+            with read_snapshot(self.board):pads=self.engine.pads_for_net(self.fields['net'].GetValue())
         for name in ('start','end'):self.fields[name].Clear();self.fields[name].AppendItems(pads)
         if pads:self.fields['start'].SetValue(pads[0]);self.fields['end'].SetValue(pads[-1])
         self.changed(None)

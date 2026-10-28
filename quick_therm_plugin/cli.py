@@ -68,10 +68,18 @@ def main(argv=None):
             allowed = {"environment", "ambient_c", "field_map", "references", "heatsinks",
                        "vacuum_board_to_environment_k_per_w", "thermal_network_settings",
                        "thermal_network_component_field", "thermal_model_kind", "mesh_acceptance",
-                       "limit_fields", "probes", "calculix_settings", "transient_settings"}
+                       "limit_fields", "probes", "calculix_settings", "transient_settings",
+                       "input_mode", "manual_values", "manual_temperature_limits", "board_power_only"}
             if not isinstance(settings, dict) or set(settings) - allowed:
                 raise ValueError("QuickTherm config has unsupported settings.")
-            if not isinstance(settings.get("field_map"), dict) or not settings["field_map"].get("power_w"):
+            if settings.get('input_mode', 'fields') not in ('fields', 'manual'):
+                raise ValueError('QuickTherm config input_mode must be fields or manual.')
+            if settings.get('input_mode') == 'manual':
+                if not isinstance(settings.get('manual_values'), dict) or not settings['manual_values']:
+                    raise ValueError('Manual QuickTherm config needs nonempty manual_values keyed by reference.')
+                if not isinstance(settings.get('references'), list) or not settings['references']:
+                    raise ValueError('Manual QuickTherm config needs an explicit nonempty references list.')
+            elif not isinstance(settings.get("field_map"), dict) or not settings["field_map"].get("power_w"):
                 raise ValueError("QuickTherm config must map a power_w footprint field.")
             request = {"action": "quick_therm", "board_path": str(board), **settings}
             request.setdefault("environment", "air")

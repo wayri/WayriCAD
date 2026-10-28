@@ -100,7 +100,7 @@ def extract_mapped_components(board, field_map: Mapping[str, str], *, references
     seen = set()
     for footprint in board.GetFootprints():
         reference = str(footprint.GetReference())
-        if "*" in reference:
+        if not reference.strip() or "*" in reference:
             continue
         if wanted is not None and reference not in wanted:
             continue

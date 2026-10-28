@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="690" viewBox="0 0 1040 690" role="img" aria-labelledby="title description">
+<title id="title">Choose a Quick-tool study</title>
+<desc id="description">A workflow diagram separating saved-board DC, explicit AC and PDN circuits, signal screening, and steady or transient thermal studies.</desc>
+<rect width="1040" height="690" rx="18" fill="#f3f7fa"/>
+<g font-family="Arial,sans-serif" fill="#173047">
+<text x="32" y="44" font-size="25" font-weight="bold">Start with the question, then choose the model</text>
+<text x="32" y="74" font-size="16">Marble and White Rabbit supply geometry. Operating conditions still need review.</text>
+<g stroke="#cad7df" stroke-width="1.3" fill="#fff">
+<rect x="28" y="104" width="316" height="240" rx="12"/>
+<rect x="362" y="104" width="316" height="240" rx="12"/>
+<rect x="696" y="104" width="316" height="240" rx="12"/>
+<rect x="28" y="364" width="316" height="240" rx="12"/>
+<rect x="362" y="364" width="316" height="240" rx="12"/>
+<rect x="696" y="364" width="316" height="240" rx="12"/>
+</g>
+<g font-size="19" font-weight="bold" fill="#087d77">
+<text x="48" y="138">Power drop and sharing</text>
+<text x="382" y="138">AC / SMPS copper losses</text>
+<text x="716" y="138">Signal delay and coupling</text>
+<text x="48" y="398">Capacitors and a load step</text>
+<text x="382" y="398">Steady board temperatures</text>
+<text x="716" y="398">Heating and cooling over time</text>
+</g>
+<g font-size="16">
+<text x="48" y="174" font-weight="bold">Quick PI · DC / 3D copper</text>
+<text x="48" y="206">Saved copper + source/sink pads</text>
+<text x="48" y="231">Voltage + current or supported power</text>
+<text x="48" y="270">Review mesh, conservation and limits</text>
+<text x="48" y="295">Joule feedback also needs a thermal</text>
+<text x="48" y="318">model and reviewed cooling inputs.</text>
+<text x="382" y="174" font-weight="bold">Quick PI · AC / SMPS study</text>
+<text x="382" y="206">Explicit outgoing and return sections</text>
+<text x="382" y="231">RMS harmonics + copper dimensions</text>
+<text x="382" y="270">Inspect skin/proximity loss and Z</text>
+<text x="382" y="295">This is not an automatic whole-board</text>
+<text x="382" y="318">AC extraction or converter simulation.</text>
+<text x="716" y="174" font-weight="bold">Quick SI · routed signal screen</text>
+<text x="716" y="206">Path + references + driver/load inputs</text>
+<text x="716" y="231">Review unknown sections and returns</text>
+<text x="716" y="270">IBIS circuits are a separate export</text>
+<text x="716" y="295">A local coupling estimate does not</text>
+<text x="716" y="318">qualify an entire protocol channel.</text>
+<text x="48" y="434" font-weight="bold">Quick PI · PDN / transient study</text>
+<text x="48" y="466">Explicit source/path R and L</text>
+<text x="48" y="491">Capacitor C / ESR / ESL + demand</text>
+<text x="48" y="530">PDN: impedance versus frequency</text>
+<text x="48" y="555">Transient: response versus time</text>
+<text x="48" y="578">Refine time; inspect shunt branches.</text>
+<text x="382" y="434" font-weight="bold">QuickTherm · steady state</text>
+<text x="382" y="466">Watts + materials + thermal paths</text>
+<text x="382" y="491">Ambient + environment + boundaries</text>
+<text x="382" y="530">Choose component, sheet or layers</text>
+<text x="382" y="555">Review fields and junction estimates</text>
+<text x="382" y="578">Optional PI loss import is explicit.</text>
+<text x="716" y="434" font-weight="bold">QuickTherm · spatial transient</text>
+<text x="716" y="466">Also enter capacities and schedules</text>
+<text x="716" y="491">Set duration, solver step and frames</text>
+<text x="716" y="530">Run, then play/probe computed states</text>
+<text x="716" y="555">Lumped RC is a separate model</text>
+<text x="716" y="578">Playback speed is not a solver step.</text>
+</g>
+<text x="32" y="642" font-size="17" font-weight="bold">For every study: save inputs → inspect geometry → run → review checks → refine → export</text>
+<text x="32" y="671" font-size="15">Unknown is not a pass. Reports and Blender visualize the evidence; they do not add missing physics.</text>
+</g>
+</svg>

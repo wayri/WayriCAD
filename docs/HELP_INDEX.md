@@ -35,6 +35,8 @@ For complete analysis walkthroughs, use the [Quick PI user guide](../quick_pi_pl
 [Quick SI user guide](../signal_integrity_advisor_plugin/USER_GUIDE.md) and
 [QuickTherm user guide](../quick_therm_plugin/QUICK_THERM_USER_GUIDE.md).
 Each also has an offline HTML version linked from the tool's help and README.
+The [Marble and White Rabbit tutorials](QUICK_TOOL_EXAMPLE_BOARDS.md) include
+source revisions, preparation steps and links to each tool's control reference.
 
 1. Confirm the originating project and saved/live source used by that tool. Saved-copy tools omit unsaved editor changes.
 2. Start with a narrow selection or small scope, then expand after inspecting the preview. Review units, layers, side and exact net/reference names.

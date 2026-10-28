@@ -1,8 +1,7 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quick PI user guide</title><style>body{font:16px/1.6 system-ui,Arial,sans-serif;max-width:1080px;margin:28px auto;padding:0 20px;color:#203333;background:#fff}a{color:#126c80}h1,h2,h3{line-height:1.25}h2{margin-top:2em;border-bottom:1px solid #cfdad8;padding-bottom:.3em}img{max-width:100%;height:auto;border:1px solid #dde4e2}table{border-collapse:collapse;width:100%;display:block;overflow-x:auto;margin:1em 0}th,td{border:1px solid #cad8d4;text-align:left;vertical-align:top;padding:9px}th{background:#edf5f2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f3;padding:14px}code{font-family:Consolas,monospace;font-size:.9em}li{margin:.35em 0}@media print{body{max-width:none;font-size:10pt}h2{break-after:avoid}img{max-height:19cm;object-fit:contain}pre,tr{break-inside:avoid}a{color:inherit}}</style></head><body>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quick PI complete user guide</title><style>body{font:16px/1.6 system-ui,Arial,sans-serif;max-width:1120px;margin:28px auto;padding:0 20px;color:#203333;background:#fff}a{color:#126c80}h1,h2,h3{line-height:1.25}h2{margin-top:2em;border-bottom:1px solid #cfdad8;padding-bottom:.3em}img{max-width:100%;height:auto;border:1px solid #dde4e2}.table-scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;margin:1em 0}th,td{border:1px solid #cad8d4;text-align:left;vertical-align:top;padding:9px}th{background:#edf5f2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f3;padding:14px}code{font-family:Consolas,monospace;font-size:.9em}li{margin:.35em 0}@media print{body{max-width:none;font-size:10pt}h2{break-after:avoid}img{max-height:19cm;object-fit:contain}pre,tr{break-inside:avoid}a{color:inherit}}</style></head><body>
 <h1 id="quick-pi-user-guide">Quick PI user guide</h1>
-<p>Steps and illustrations are available offline. Links to shared repository documentation and research need an internet connection.</p>
-<p>Use this guide to choose, configure and review Quick PI studies. It describes the 3.6.40 interface. <a href="README.md">README and screenshot provenance</a> · <a href="USER_GUIDE.html">Offline HTML edition</a> · <a href="help.html">Compact help</a>.</p>
+<p>Use this guide to choose, configure and review Quick PI studies. It describes the published 3.6.41 workflows and explicitly marked source updates. <a href="README.md">README and screenshot provenance</a> · <a href="USER_GUIDE.html">Offline HTML edition</a> · <a href="help.html">Compact help</a>.</p>
 <h2 id="contents">Contents</h2>
 <ul>
 <li><a href="#choose-a-study">Choose a study</a></li>
@@ -22,10 +21,14 @@
 <li><a href="#reports-and-automation">Reports and automation</a></li>
 <li><a href="#troubleshooting-and-acceptance">Troubleshooting and acceptance</a></li>
 <li><a href="#methods-and-references">Methods and references</a></li>
+<li><a href="#control-reference">Control reference</a></li>
+<li><a href="#marble-worked-example">Marble worked example</a></li>
+<li><a href="#white-rabbit-worked-example">White Rabbit worked example</a></li>
 </ul>
 <h2 id="choose-a-study">Choose a study</h2>
 <p>Choose the physical question before entering numbers. These workflows are separate models; selecting a more detailed-looking plot does not change the physics.</p>
-<table><thead><tr><th>Question</th><th>Start here</th><th>Essential inputs and limits</th></tr></thead><tbody>
+<div class="table-scroll"><table>
+<tr><th>Question</th><th>Start here</th><th>Essential inputs and limits</th></tr>
 <tr><td>Board DC voltage drop, current sharing and copper loss</td><td>Main window, 2.5D layered copper</td><td>Saved copper, stackup, source and loads. Fixed temperature unless explicit feedback is enabled.</td></tr>
 <tr><td>Shared ground rise between rails</td><td>Rails / ground returns</td><td>Explicit ground source and load contacts. Fixed-current 2.5D shared-return groups.</td></tr>
 <tr><td>Reference-plane coverage and nearby return vias</td><td>Return path tab</td><td>Explicit return nets. Geometric audit, not electrical loop impedance.</td></tr>
@@ -36,7 +39,7 @@
 <tr><td>Lumped PDN impedance</td><td>Decoupling → Lumped impedance screen</td><td>Source R/L, effective capacitor C/ESR/ESL and target; no distributed board extraction.</td></tr>
 <tr><td>Voltage response to a load step</td><td>More → Transient load-step study</td><td>Explicit source/path R/L, load demand, C/ESR/ESL and time settings.</td></tr>
 <tr><td>Melting or concentrated current risk</td><td>Inspect → Copper melting bottlenecks</td><td>Solved 2.5D current, pulse and material assumptions; not fuse-clearing or ampacity certification.</td></tr>
-</tbody></table>
+</table></div>
 <h2 id="prepare-the-board-and-runtime">Prepare the board and runtime</h2>
 <ol>
 <li>Install Quick PI through KiCad Plugin and Content Manager, then restart PCB Editor. QuickTherm and Quick SI are separate plugins; Quick PI bundles the shared kernels it requires and does not require those sibling installations.</li>
@@ -56,20 +59,21 @@
 <li>In Mesh, inspect narrow necks, pad contacts and via lands. In Results, inspect voltage/drop, current density and loss. Read feasibility and conservation findings before interpreting a coloured map.</li>
 <li>Refine the mesh and compare terminal drop and local peaks separately. Export the reviewed result, not an earlier view invalidated by later input changes.</li>
 </ol>
-<p><img src="help-first-copper.png" alt="First-open copper preview on public Marble"></p>
+<p><img src="help-first-copper.png" alt="First-open copper preview on public Marble" width="800" height="451"></p>
 <p>This genuine native Marble preview demonstrates geometry and copper-first display; it is not itself a new solved or measured board result.</p>
 <p>An illustrative CLI run is:</p>
 <pre><code>wayricad-pi C:/Projects/Example/board.kicad_pcb --net VCC --source J1.1 --sink U1.1 --voltage 3.3 --current 1 --auto-mesh --output pi.json --html pi.html</code></pre>
 <p>Replace every sample net and pad with exact names from your board. Run the command with just the PCB path to list saved nets, pads and layers first.</p>
 <h2 id="sources-loads-and-multiple-pins">Sources, loads and multiple pins</h2>
 <h3 id="choose-a-demand-model">Choose a demand model</h3>
-<table><thead><tr><th>Demand</th><th>Meaning</th><th>How to use it</th></tr></thead><tbody>
+<div class="table-scroll"><table>
+<tr><th>Demand</th><th>Meaning</th><th>How to use it</th></tr>
 <tr><td>Constant current</td><td>Prescribed load A; voltage depends on copper drop</td><td>Main Load control or Additional sinks. Best starting point for a rail budget.</td></tr>
 <tr><td>Constant power</td><td>Prescribed load W; current depends on solved load voltage</td><td>Choose Constant power · W. Use actual delivered load power, not source input power.</td></tr>
 <tr><td>Resistive load</td><td>Prescribed Ω; solve positive DC current from source and path</td><td>Choose Resistive load. Separate single-path workflow.</td></tr>
 <tr><td>Current sweep</td><td>Several independent DC operating points</td><td>More → DC current sweep; 2–200 positive current points. This is not a time waveform.</td></tr>
-</tbody></table>
-<p>Additional sinks can mix fixed A and W in the supported fixed-temperature 2.5D workflow. Each demand is a total for its load unit. A source budget is a diagnostic: it does not simulate regulator foldback, current limiting or converter control. INFEASIBLE means the entered current budget or voltage window is not met. The requested-load field can remain useful diagnostically but must not be described as the source's achievable operating point.</p>
+</table></div>
+<p>Additional sinks can mix fixed A and W in the supported fixed-temperature 2.5D workflow. Each demand is a total for its load unit. A source budget is a diagnostic: it does not simulate regulator foldback, current limiting or converter control. INFEASIBLE means the entered current budget or voltage window is not met. The requested-load field can remain useful diagnostically but must not be described as the source&#x27;s achievable operating point.</p>
 <p>Constant-power mode solves a nonlinear high-voltage DC operating point and reports collapse or failed acceptance. It does not enable transient constant-power regulation. Shared-return power coupling, automatic current-based convergence, sweeps, series/package and 3D power combinations retain their stated restrictions. See <a href="CONSTANT_POWER.md">constant-power details</a>.</p>
 <h3 id="include-the-other-pins-deliberately">Include the other pins deliberately</h3>
 <ol>
@@ -93,8 +97,8 @@
 <p>Slow scrolling gives fine increments; faster scrolling gives coarser increments. Base step · A sets the normal step. A pause or reversal restarts fine adjustment. Enable Cursor preview and choose Selected metric or All metrics to compare the old/new current and signed field change near the pointer. Increase/decrease colours are not pass/fail indicators. Wait for pending work before export.</p>
 <p>Proportional updates reuse the linear field: drop and J scale with I, loss with I². An independent sink change needs a new fixed-mesh electrical solve, so its first update can take longer. This control is unavailable for power loads, resistive loads, series/package paths, 3D and temperature-feedback studies.</p>
 <h3 id="differential-voltage-probes">Differential voltage probes</h3>
-<p>In Inspect → Probe select Set probe A, click solved sheet copper and click B. Orange A and blue B markers show the positions. Read signed V(A) − V(B); Clear A/B returns to single-point inspection. Both points must share one solved case's potential reference. Independent case voltages cannot be subtracted merely because their plots look alike.</p>
-<p><img src="help-differential-probe.png" alt="Native differential probe inspector on an analytical strip"></p>
+<p>In Inspect → Probe select Set probe A, click solved sheet copper and click B. Orange A and blue B markers show the positions. Read signed V(A) − V(B); Clear A/B returns to single-point inspection. Both points must share one solved case&#x27;s potential reference. Independent case voltages cannot be subtracted merely because their plots look alike.</p>
+<p><img src="help-differential-probe.png" alt="Native differential probe inspector on an analytical strip" width="800" height="462"></p>
 <p>The image is a computed analytical strip fixture, not a measured board. Sampling uses finite-element nodal potential within the containing triangle. Holes, missing nodes, unsupported full-volume points and barrel interiors remain unknown. In all-layer projection select the physical layers explicitly.</p>
 <pre><code>python -m quick_pi_plugin.cli --probe-result pi.json --probe-a 0 2 0.5 --probe-b 0 8 0.5 --output differential.json</code></pre>
 <p>Use actual saved mesh layer IDs and solved coordinates. This reads a saved result without a new solve. The HTML report retains saved probe values; reports up to 20,000 triangles also provide a separate click-to-pick A/B map.</p>
@@ -126,7 +130,7 @@
 <li>Review every mapping and Apply return setup. All loads of each participating case need exactly one mapping.</li>
 <li>Run. Review physical ground rise, delivered load voltage, shared loss and source/load/copper conservation.</li>
 </ol>
-<p>One shared-return group solves its return copper once with every mapped current. Changing one rail can change another rail's ground rise. Multiple groups cannot reuse a case. Return loss is counted once, not once per rail. Shared groups do not support constant-power regulation, series/package branches, 3D loops or combined loop temperature feedback. The legacy single-load return_conduction schema remains available; new grouped studies should use shared_returns.</p>
+<p>One shared-return group solves its return copper once with every mapped current. Changing one rail can change another rail&#x27;s ground rise. Multiple groups cannot reuse a case. Return loss is counted once, not once per rail. Shared groups do not support constant-power regulation, series/package branches, 3D loops or combined loop temperature feedback. The legacy single-load return_conduction schema remains available; new grouped studies should use shared_returns.</p>
 <pre><code>wayricad-pi C:/Projects/Example/board.kicad_pcb --batch reviewed-rails.json --output rails.json --html rails.html</code></pre>
 <h3 id="reference-plane-and-via-audit">Reference-plane and via audit</h3>
 <p>The Return path tab answers a different question. Choose signal and return nets, then Review return path. More return options contains multi-return selection, optional pads and sampling. Refill and save first. Inspect adjacent filled-plane coverage, gaps and return vias near evidenced transitions. A clear sampled route does not prove electrical closure, loop inductance or controlled impedance.</p>
@@ -167,14 +171,14 @@
 <ol>
 <li>Open More → AC / SMPS copper study.</li>
 <li>Enter section length, DC current, copper temperature and optional rail voltage. Rail voltage supplies context, not insulation qualification.</li>
-<li>Choose a balanced quick-loop preset and enter outgoing/return dimensions and spacing. Inspect the live cross-section. <strong>Run uses the visible quick recipe</strong>; no separate Apply action is required in 3.6.40.</li>
+<li>Choose a balanced quick-loop preset and enter outgoing/return dimensions and spacing. Inspect the live cross-section. <strong>Run uses the visible quick recipe</strong>; no separate Apply action is required in 3.6.41.</li>
 <li>Enter ripple frequency and RMS current. Peak and peak-to-peak current are not RMS; use Build SMPS waveform for the supported triangular or pulse helper, or enter a reviewed harmonic table in Custom mode.</li>
 <li>Expand Custom tables for multiple conductors/harmonics. Use +1/−1 current scales for a simple outgoing/return pair. A split return is a user assumption, not automatic current sharing between arbitrary board paths.</li>
 <li>Run AC / ripple losses. Inspect total copper heat, ripple heat, loop RMS drop and combined RMS current. Use Inspect to choose harmonic heating, impedance or cross-section. Select table rows or hover/click plots for exact values.</li>
 <li>Read Checks / applicability, mesh and boundary refinement before exporting.</li>
 </ol>
-<p><img src="help-ac-setup-3.6.40.png" alt="Current AC loop setup"></p>
-<p><img src="help-ac-results-3.6.40.png" alt="Current AC heating results"></p>
+<p><img src="help-ac-setup-3.6.40.png" alt="Current AC loop setup" width="800" height="475"></p>
+<p><img src="help-ac-results-3.6.40.png" alt="Current AC heating results" width="800" height="475"></p>
 <p>These genuine native captures use an explicit illustrative copper pair, not automatically extracted PCB geometry. <a href="https://github.com/wayri/WayriCAD/blob/develop/docs/audits/QUICK_PI_AC_READABILITY_2026-10-28.md">Capture inputs and checks</a>.</p>
 <p>AC inputs use mm, Hz, A, V and °C; tables display engineering units. JSON geometry uses cross-section centre x/y, width along x and thickness along y. Include every modeled return. Skin/proximity redistribution is solved in the straight uniform section; changing its length is not equivalent to importing a routed board.</p>
 <p>Mesh and magnetic-domain refinement compare impedance independently. UNCONVERGED values are provisional. Local J peaks can remain sensitive even when port values settle. Supported temperature, harmonic count, budget and electrically-short limits are checked. No converter control, dielectric field, HV spacing or whole-board AC/thermal qualification is implied. Fixed-temperature harmonic losses are not automatically injected into the saved-board DC temperature iteration.</p>
@@ -198,13 +202,13 @@
 <li>Open More → Transient load-step study. Review imported sink names, final demands and voltage bounds; they are starting inputs, not an extracted transient model.</li>
 <li>Enter shared source R/L, each branch R/L, effective load C and ESR, before/after current and event time. Use a finite load-current rise where physically needed. Quick fields use displayed engineering units; Advanced SI editor uses Ω/H/F/s.</li>
 <li>If a matching single feasible copper path seeds total R, inspect that mapping and do not count it again in branch resistance. L and C are explicit; a DC mesh does not supply them automatically.</li>
-<li>For separate bypass/filter parts, select the load and Shunt capacitors for selected load. Enter each effective C, ESR and total part + connection ESL. The bank replaces that load's aggregate C/ESR, preventing double counting.</li>
+<li>For separate bypass/filter parts, select the load and Shunt capacitors for selected load. Enter each effective C, ESR and total part + connection ESL. The bank replaces that load&#x27;s aggregate C/ESR, preventing double counting.</li>
 <li>To review saved-board candidates, choose the actual return net. Only exact two-pad rail/return C-reference candidates qualify. Unit-bearing values may prefill; ambiguous codes and unknown parasitics are not guessed. Include each part deliberately. Bulk ESR/ESL edits apply to checked capacitor rows.</li>
 <li>Set duration, time step and bounds. Recommend time step gives advice, not a convergence certificate. Run transient, then inspect voltage, source current, checks and individual Capacitor response traces.</li>
 <li>Refine the time step and compare waveform and half-step evidence. Save explicit inputs and export HTML/JSON together.</li>
 </ol>
-<p><img src="help-shunt-capacitors.png" alt="Individual capacitor-bank editor"></p>
-<p><img src="help-shunt-response.png" alt="Computed branch responses"></p>
+<p><img src="help-shunt-capacitors.png" alt="Individual capacitor-bank editor" width="800" height="652"></p>
+<p><img src="help-shunt-response.png" alt="Computed branch responses" width="800" height="526"></p>
 <p>These are genuine captures of <a href="studies/transient-shunt-bank.json">the explicit shunt example</a>. The illustrative 3.3 V network is not a measured PCB or regulator model.</p>
 <p>The model begins at pre-step DC equilibrium and advances an explicit lumped rail network. Source current budget violations are diagnostics, not simulated current limiting. Finite-rise events are prescribed, not switching-device dynamics. An ideal step requiring an impulse in an all-inductive cutset is rejected; use a physically supported rise time. Review charge, energy and half-step checks. The bank supports at most 128 total aggregate/shunt branches within bounded time/trace budgets; oversized work is rejected rather than silently truncated.</p>
 <pre><code>wayricad-pi --transient reviewed-transient.json --output transient-result.json --html transient-report.html</code></pre>
@@ -220,16 +224,18 @@ python -m wayricad_runtime.tool_cli report transient-result.json --html review.h
 <p>Direct PDF retains text, tables and embedded PNG/JPEG figures. Unsupported interactive-only views are listed. Raw JSON is a closed evidence disclosure in HTML and summarized in PDF by default. <code>--include-raw-evidence</code> requests raw evidence in PDF when needed. Generic saved-JSON export creates readable tables; it does not rerun the original study or reconstruct missing fields. <a href="https://github.com/wayri/WayriCAD/blob/develop/wayricad_runtime/REPORTS.md">Shared report guide</a>.</p>
 <h3 id="cli-and-jobsets">CLI and jobsets</h3>
 <p>Use <code>wayricad-pi --help</code> for the actual installed parser. Named JSON modes use their own schema and restricted flag combinations; do not append ordinary DC flags expecting them to override a different study. <code>--timeout</code> bounds worker time. <code>--verify</code> runs the analytical reference suite, not your board.</p>
-<table><thead><tr><th>Exit</th><th>Meaning</th></tr></thead><tbody>
+<div class="table-scroll"><table>
+<tr><th>Exit</th><th>Meaning</th></tr>
 <tr><td>0</td><td>Completed accepted calculation for the selected workflow; not general physical qualification.</td></tr>
 <tr><td>2</td><td>Invalid inputs, unsupported combination, execution or publication error.</td></tr>
 <tr><td>3</td><td>Incomplete/review-needed or unstable/nonconverged study, depending on mode.</td></tr>
 <tr><td>4</td><td>Entered load/source or operating limits violated; not an automatically corrected design.</td></tr>
-</tbody></table>
+</table></div>
 <p>Saved differential probing returns 3 when not sampled and 2 for invalid input. Batch results retain per-case failure status; inspect those rows even when some rails succeeded. Preserve input JSON, full output, logs and report together.</p>
 <p>Use the shared report runner and native KiCad jobset integration for ordered PI/SI/Therm steps, logs and a report index. It calls the same CLI, so required inputs, rejection rules and solver limits still apply. <a href="https://github.com/wayri/WayriCAD/blob/develop/wayricad_runtime/JOBSETS.md">Jobset setup and examples</a>.</p>
 <h2 id="troubleshooting-and-acceptance">Troubleshooting and acceptance</h2>
-<table><thead><tr><th>Symptom</th><th>Action</th></tr></thead><tbody>
+<div class="table-scroll"><table>
+<tr><th>Symptom</th><th>Action</th></tr>
 <tr><td>Copper missing or wrong board</td><td>Confirm originating editor, refill/save, then More → Reload saved board. Unsaved changes are not the saved snapshot.</td></tr>
 <tr><td>Only silk or clutter visible</td><td>Update/restart, select All copper layers, turn Copper on and Silk off. Check Only simulated nets and physical-layer filtering.</td></tr>
 <tr><td>No matching terminal or disconnected copper</td><td>Inspect exact net/pad names, actual connectivity and filled zones. A name match alone is not a connected copper path.</td></tr>
@@ -242,7 +248,7 @@ python -m wayricad_runtime.tool_cli report transient-result.json --html review.h
 <tr><td>AC UNCONVERGED or transient large half-step change</td><td>Refine numerical settings within applicability/budgets and inspect inputs. A coloured plot is not acceptance evidence.</td></tr>
 <tr><td>Current-density peak keeps increasing</td><td>Examine contact/corner singularity and mesh sensitivity separately from terminal drop; retain unresolved status.</td></tr>
 <tr><td>Sankey unavailable</td><td>Read missing/inconsistent power evidence. Do not force balance by hiding losses or counting delivered watts as copper heat.</td></tr>
-</tbody></table>
+</table></div>
 <p>Before accepting a study, confirm source revision, geometry, units, demand and return assumptions; read all unknown/incomplete cases; inspect conservation; perform relevant mesh/time refinement; and compare against measured or independent reference evidence where required. Successful execution and attractive plots establish neither hardware safety nor manufacturing acceptance.</p>
 <h2 id="methods-and-references">Methods and references</h2>
 <p>The layered model solves conductivity with finite-element potentials and axial barrel paths; 3D uses tetrahedral conductivity FEM. AC uses its explicit local A–V cross-section formulation. Transients use explicit lumped circuit equations and numerical time/conservation checks. These are different models and should not be described as one full-board electromagnetic simulation.</p>
@@ -255,5 +261,70 @@ python -m wayricad_runtime.tool_cli report transient-result.json --html review.h
 <li><a href="RETURN_PATH.md">Return-path evidence</a></li>
 <li><a href="https://github.com/wayri/WayriCAD/blob/develop/docs/METHODS_AND_RESEARCH.md">Suite methods and research by tool</a></li>
 </ul>
-<p>All screenshots above retain their documented synthetic/public-board context. Older screenshots elsewhere in the README remain useful examples but their capture version is not evidence that every window has been recaptured for 3.6.40.</p>
-<h2 id="blender-visualization">Blender visualization</h2><p>This feature is in the updated source; existing 3.6.40 installers do not contain it.</p><p>After a supported completed study, choose <b>Blender…</b> in the main result workspace. Choose a new output folder and optionally open an installed Blender. The export includes geometry, available field data and supported computed frames. Export saved transient or other supported results through the shared CLI when they are not the main workspace result. Review <a href="https://github.com/wayri/WayriCAD/blob/develop/wayricad_runtime/BLENDER.md">the Blender walkthrough</a> for commands, units, playback, result coverage and limits. This is visualization, not an additional numerical solve.</p></body></html>
+<p>All screenshots above retain their documented synthetic/public-board context. Older screenshots elsewhere in the README remain useful examples but their capture version is not evidence that every window has been recaptured for 3.6.41.</p>
+<h2 id="control-reference">Control reference</h2>
+<p>Use the <a href="CONTROL_REFERENCE.html">complete control reference</a> or its <a href="CONTROL_REFERENCE.html">offline HTML edition</a> alongside these walkthroughs. It follows workspace/source/load controls, mesh/material inputs, field/probe inspection, return paths, rail studies, every More-menu action, the full-3D window, AC/SMPS setup, PDN/placement, transient/shunt setup and visuals, guided/advanced Joule coupling, series/package editors and all CLI flag groups. Each entry explains units, preconditions and result meaning. Unknown physical inputs must still be supplied; exhaustive instructions cannot create missing fabrication data or an unimplemented placement optimizer.</p>
+<h2 id="marble-worked-example">Marble worked example</h2>
+<p>Prepare the board using <a href="https://github.com/wayri/WayriCAD/blob/develop/docs/QUICK_TOOL_EXAMPLE_BOARDS.md">the common example-board guide</a>. These runs use the native saved Marble SHA-256 <code>482850dbaaef9157e2e98af765a3c0d4d9c9f800daae224a54bf10e0621f52b0</code>. The operating inputs below are illustrative tests, not measurements or a claim about the board&#x27;s normal power consumption.</p>
+<h3 id="preview-and-full-volume-solve">Preview and full-volume solve</h3>
+<ol>
+<li>Open the saved board and Quick PI. Search for <code>Net-(C143-Pad1)</code> and confirm the full name. Select <strong>U36.1</strong> as source and <strong>TP4.1</strong> as sink. Do not silently include every other U36 pin.</li>
+<li>Preview the selected copper. Leave <strong>Only simulated nets</strong> on, <strong>Board</strong> and <strong>Copper</strong> visible, <strong>Silk</strong> off. Inspect the contacts and via paths.</li>
+<li>Select <strong>3D copper volume</strong>, <strong>Sink current</strong>, source <strong>1.2 V</strong>, demand <strong>0.2 A</strong>. Turn Automatic mesh off; enter <strong>0.8 mm</strong>, <strong>0.025 mm plating</strong> and a <strong>100000-tetrahedron budget</strong>. Review the saved physical stackup first.</li>
+<li>Run. This native verification produced <strong>33,238 tetrahedra / 12,226 vertices</strong>, <strong>57.6207292 mΩ</strong>, <strong>11.5241458 mV drop</strong> and <strong>2.30482917 mW copper loss</strong>. These are numerical results for the imposed test current, not measured hardware.</li>
+<li>Inspect conservation and volume checks. Switch <strong>Board top view / 3D copper</strong>, <strong>Layer</strong> and <strong>Field</strong>; hover/pin supported display probes. Only 5,000 cells are plotted, while the paired JSON retains all tetrahedra.</li>
+<li>Refine the mesh before relying on local peaks. Export from the 3D result window; the flat 3D CLI does not accept a normal <code>--html</code> switch.</li>
+</ol>
+<pre><code>wayricad-pi Marble.kicad_pcb --net &quot;Net-(C143-Pad1)&quot; --source U36.1 --sink TP4.1 --voltage 1.2 --current 0.2 --model-dimension 3d --mesh-backend gmsh --mesh-edge 0.8 --plating 0.025 --max-tetrahedra 100000 --output marble-3d.json</code></pre>
+<p><img src="help-marble-3d-volume.png" alt="Actual native Marble 3D result" width="800" height="573"></p>
+<p>This is a genuine native result window from that bounded saved-net calculation. It is not a package-solid rendering or a larger board simulation. <a href="https://github.com/wayri/WayriCAD/blob/develop/docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md">Numerical equivalence, timing and capture evidence</a>.</p>
+<h3 id="joule-feedback-without-editing-json-first">Joule feedback without editing JSON first</h3>
+<ol>
+<li>Return to <strong>2.5D / Sink current</strong> and retain the intended net/source/loads.</li>
+<li>Check <strong>Include Joule heating / temperature feedback</strong>, then Run. The updated source opens <strong>Materials + cooling</strong>, with the selected net/source and unit count shown. The complete model remains in <strong>Advanced model inputs</strong>.</li>
+<li>Enter reviewed materials, convection/radiation boundaries and valid material range. Blank inputs remain unknown. The screenshot uses explicitly assumed values, not material/cooling data recovered from Marble.</li>
+<li>Click <strong>Run electrothermal</strong>. Review cold/hot electrical results, thermal temperatures and convergence. Temperature-cap/material-range/iteration stops are not valid operating points. Refine electrical and thermal meshes separately.</li>
+<li>Changing current or cooling requires another coupled solve; fast fixed- temperature Ctrl+scroll reuse is not applied to this nonlinear study.</li>
+</ol>
+<p><img src="help-joule-guided.png" alt="Guided Joule physical-input setup" width="800" height="580"></p>
+<p><strong>Marble is currently blocked for this coupled workflow.</strong> The retained <a href="studies/marble-joule.example.json">Marble Joule input</a> is a complete, schema-valid configuration for reproducing the diagnostic below; it is not a successful temperature-solve example. Running it against the unchanged reference board:</p>
+<pre><code>wayricad-pi Marble.kicad_pcb --electrothermal quick_pi_plugin/studies/marble-joule.example.json --output marble-joule.json --html marble-joule.html</code></pre>
+<p>The recipe uses 25 °C, dielectric k=0.3 W/(m·K), copper k=385 W/(m·K), h=10 W/(m²·K), emissivity 0.8, ρ20=<code>1.724e-8 Ω·m</code>, α=<code>0.00393/K</code>, material range −40…150 °C and stop bound 105 °C. <strong>These are assumptions for the tutorial, not validated Marble thermal properties.</strong> Only modeled copper loss is injected; delivered IC power is not automatically added as board heat. The actual native run stops with <strong>Plated or mounting slots require a noncircular thermal-contact model</strong>. PI coupling currently uses a separate thermal backend from QuickTherm; its plated-slot and nonplated-hole support is not equivalent. Do not delete holes, bypass the guard or substitute a different geometry to obtain a Marble temperature.</p>
+<p>For a complete successful coupling demonstration, run the bundled <a href="studies/electrothermal-steady.json">explicit steady-coupling example</a>:</p>
+<pre><code>wayricad-pi --electrothermal quick_pi_plugin/studies/electrothermal-steady.json --output explicit-joule.json --html explicit-joule.html</code></pre>
+<p>This is an explicitly defined test model, not extracted Marble geometry. Review <code>converged</code>, iteration history, energy balance and the final hot/cold values. Geometry support and reviewed material inputs are independent gates.</p>
+<h3 id="complete-ac-pdn-and-transient-recipes">Complete AC, PDN and transient recipes</h3>
+<p>These studies are intentionally separate from board-extracted DC conductivity. You can open them while using Marble or White Rabbit for context, but their parameters must come from reviewed operating/circuit evidence.</p>
+<div class="table-scroll"><table>
+<tr><th>Study</th><th>Complete input</th><th>Setup, run and review</th></tr>
+<tr><td>AC / SMPS</td><td><a href="studies/ac-smps-example.json">AC recipe</a></td><td>More → AC / SMPS → Load study. Review 20 mm outgoing/return copper, temperature, current scales and RMS harmonics. Run; inspect heat, R/X, refinement and applicability.</td></tr>
+<tr><td>Lumped PDN</td><td><a href="studies/pdn-bank.example.json">PDN bank recipe</a></td><td>Decoupling → Lumped impedance screen → Load model JSON. Source 20 mΩ/5 nH, target 50 mV/1 A=50 mΩ, one effective 100 µF/10 mΩ/1 nH part, 10 Hz–100 MHz and 201 coarse samples. Calculate and inspect sampled target/antiresonance status rather than assuming PASS.</td></tr>
+<tr><td>Aggregate transient</td><td><a href="studies/transient-load-step.json">Load-step recipe</a></td><td>More → Transient → Load inputs JSON. Review the source/path R/L, demand event, aggregate C/ESR, duration and time step. Run and inspect V/I plus half-step and conservation checks.</td></tr>
+<tr><td>Individual shunt transient</td><td><a href="studies/transient-shunt-bank.json">Full shunt recipe</a></td><td>Load inputs JSON; select U1, open its two-branch bank and review effective C/ESR/ESL and rise. Run and choose each Capacitor response. The bank replaces aggregate C/ESR.</td></tr>
+<tr><td>Explicit electrothermal transient</td><td><a href="studies/electrothermal-transient.json">R/L/C plus thermal R/C recipe</a></td><td>More → Electrothermal → transient model → Load study JSON. Review declared thermal nodes/mappings and exchange step; run and inspect all coupled checks. This is not a distributed PCB transient.</td></tr>
+</table></div>
+<p>Run circuit recipes from the repository root, or substitute their installed absolute paths. Full commands are:</p>
+<pre><code>wayricad-pi --ac quick_pi_plugin/studies/ac-smps-example.json --output ac.json --html ac.html
+wayricad-pi --transient quick_pi_plugin/studies/transient-load-step.json --output step.json --html step.html
+wayricad-pi --transient quick_pi_plugin/studies/transient-shunt-bank.json --output shunts.json --html shunts.html
+wayricad-pi --electrothermal quick_pi_plugin/studies/electrothermal-transient.json --output coupled-step.json --html coupled-step.html</code></pre>
+<p>Do not add a PCB path expecting the explicit circuit to be extracted from it: where supported, that binds source provenance only. Finite rise, capacitor-bank replacement, current-budget diagnostics, numerical limits and unsupported constant-power/shunt electrothermal combinations still apply. See the control reference for every field and the earlier chapters for interpreting the plots.</p>
+<h2 id="white-rabbit-worked-example">White Rabbit worked example</h2>
+<p>Use the native imported Switch v3 SCB in the <a href="https://github.com/wayri/WayriCAD/blob/develop/docs/QUICK_TOOL_EXAMPLE_BOARDS.md">example-board source guide</a>. Imported SHA-256: <code>44b1f5d7da960c3e474ba1010413b9b5b90a7096610effb15dd55d3d3fda54a1</code>. It has 774 footprints and 12 named copper layers, but <strong>no explicit saved physical stackup</strong>. Do not reinterpret the import&#x27;s appearance/defaults as recovered fabrication data.</p>
+<ol>
+<li>Open it for inspection; do not save over the imported reference. Quick PI&#x27;s initial copper/net inventory does not need a conductivity mesh.</li>
+<li>Select <strong>DDR_A10</strong>, <strong>IC50.M2 → RP17.15</strong>. Native inventory found 17 tracks, 14.69009154 mm total length and zero vias. These are geometry observations.</li>
+<li>A second real path, <strong>ETH_100MHZ.TX_P</strong>, <strong>CN1.1 → Tr1.16</strong>, has 14 tracks, 14.60869950 mm and one via. Review its actual reference environment separately.</li>
+<li>Preview/run diagnostics must be read before interpreting a result. Supply a reviewed stackup/plating from fabrication evidence in a separate working copy; do not fill missing materials merely to make the tutorial succeed.</li>
+<li>Refill/save that working copy, record its new hash and repeat preview/mesh checks. AC/PDN/transient operating values remain separately explicit.</li>
+</ol>
+<p><img src="help-white-rabbit-input-review.png" alt="White Rabbit saved copper and input review" width="800" height="451"></p>
+<p>This native capture shows the imported board and its actual source diagnostics, not a validated operating-point solution. The original imported bytes are unchanged.</p>
+<pre><code>wayricad-pi WhiteRabbit.kicad_pcb --output white-rabbit-inventory.json</code></pre>
+<p>For a <strong>reviewed</strong> working copy with actual stackup entered, a deliberately hypothetical conductor test is:</p>
+<pre><code>wayricad-pi WhiteRabbit-reviewed.kicad_pcb --net DDR_A10 --source IC50.M2 --sink RP17.15 --voltage 1 --current 0.001 --auto-mesh --output white-rabbit-conductor.json --html white-rabbit-conductor.html</code></pre>
+<p>The imposed 1 mA is a conditioning test, not the DDR operating load or a power- rail model. No expected R or temperature is asserted while fabrication inputs are missing. Successful inventory, blocked extraction and accepted numerical solve are different outcomes. Do not silently accept default layers or invented values to turn an unresolved imported board into PASS.</p>
+<h2 id="blender-visualization">Blender visualization</h2>
+<p>This feature is in the updated source; existing 3.6.41 installers do not contain it.</p>
+<p>After a supported completed study, choose <strong>Blender…</strong> in the main result workspace. Choose a new output folder and optionally open an installed Blender. The export includes geometry, available field data and supported computed frames. Export saved transient or other supported results through the shared CLI when they are not the main workspace result. Review <a href="https://github.com/wayri/WayriCAD/blob/develop/wayricad_runtime/BLENDER.md">the Blender walkthrough</a> for commands, units, playback, result coverage and limits. This is visualization, not an additional numerical solve.</p>
+</body></html>

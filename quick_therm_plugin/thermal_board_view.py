@@ -239,7 +239,7 @@ def build_board_thermal_view(board, result, *, grid_size=80):
         ref = str(fp.GetReference())
         # KiCad's unannotated graphic footprints (for example two G***) are
         # not addressable thermal components and may share a placeholder ref.
-        if "*" in ref:
+        if not ref.strip() or "*" in ref:
             continue
         if ref in seen:
             raise ValueError(f"Duplicate footprint reference: {ref}")

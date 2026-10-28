@@ -7,6 +7,9 @@
 | Need | Open |
 |---|---|
 | Detailed instructions for every workflow | [Complete user guide](QUICK_THERM_USER_GUIDE.md) · [Offline HTML edition](QUICK_THERM_USER_GUIDE.html) |
+| Find an individual control | [Control-by-control reference](QUICK_THERM_USER_GUIDE.md#control-reference) |
+| Follow public-board tutorials | [Marble steady and transient](QUICK_THERM_USER_GUIDE.md#marble-worked-example) · [White Rabbit thin sheet](QUICK_THERM_USER_GUIDE.md#white-rabbit-worked-example) |
+| Reproduce a complete setup | [Marble transient JSON](studies/marble-transient.json) · [White Rabbit JSON](studies/white-rabbit-thin-sheet.json) |
 | Install or update | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation](../docs/INSTALLATION.md) |
 | Choose component inputs | [Native workspace](#native-workspace-and-component-inputs) |
 | Run a known example | [Reproducible example](#reproducible-example) |

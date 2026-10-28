@@ -7,15 +7,17 @@ package/fixture contact model. Only explicitly selected mounts are sinks.
 from __future__ import annotations
 
 import math
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 import time
 from collections.abc import Mapping
+from contextvars import ContextVar
 
 from .thermal_board_view import _inside
 from .thermal_drills import drill_dimensions, drill_wall_distance, barrel_area_mm2
 
 
 SIGMA = 5.670374419e-8
+_RING_INDICES = ContextVar('quicktherm_ring_indices', default=None)
 
 
 def _num(value, name, *, low=None, high=None):
@@ -214,14 +216,124 @@ def _polygon_ring_bounds(polygon):
     return bounds
 
 
+def _ring_index(polygon):
+    """Build run-local broad phases; exact ring/edge predicates remain authoritative."""
+    cache = _RING_INDICES.get()
+    saved = cache.get(id(polygon)) if cache is not None else None
+    if saved is not None and saved[0] is polygon:
+        return saved[1]
+    rings = [polygon['outer'], *polygon.get('holes', [])]
+    bounds = _polygon_ring_bounds(polygon)
+    scans = []
+    for ring, bound in zip(rings, bounds):
+        count = min(128, max(1, int(math.sqrt(len(ring))))) if len(ring) >= 32 else 1
+        height = bound[3]-bound[1]
+        if count == 1 or height <= 0 or not math.isfinite(height):
+            scans.append(None)
+            continue
+        bins = [[] for _ in range(count)]
+        for edge, (a, b) in enumerate(zip(ring, ring[1:]+ring[:1])):
+            lo = max(0, min(count-1, int((min(a[1], b[1])-bound[1])/height*count)))
+            hi = max(0, min(count-1, int((max(a[1], b[1])-bound[1])/height*count)))
+            for row in range(lo, hi+1):bins[row].append(edge)
+        scans.append({'minimum': bound[1], 'height': height, 'count': count, 'bins': bins})
+    holes = None
+    if len(rings) >= 33:
+        outer = bounds[0]
+        width, height = outer[2]-outer[0], outer[3]-outer[1]
+        if width > 0 and height > 0 and math.isfinite(width) and math.isfinite(height):
+            count = min(64, max(4, int(math.sqrt(len(rings)-1))))
+            bins, wide = [[] for _ in range(count*count)], []
+            for ring_index, bound in enumerate(bounds[1:], 1):
+                ix0 = max(0, min(count-1, int((bound[0]-outer[0])/width*count)))
+                ix1 = max(0, min(count-1, int((bound[2]-outer[0])/width*count)))
+                iy0 = max(0, min(count-1, int((bound[1]-outer[1])/height*count)))
+                iy1 = max(0, min(count-1, int((bound[3]-outer[1])/height*count)))
+                if (ix1-ix0+1)*(iy1-iy0+1) > 256:
+                    wide.append(ring_index)
+                    continue
+                for iy in range(iy0, iy1+1):
+                    for ix in range(ix0, ix1+1):bins[iy*count+ix].append(ring_index)
+            holes = {'bounds': outer, 'count': count, 'bins': bins, 'wide': wide}
+    index = {'scans': scans, 'holes': holes}
+    if cache is not None:cache[id(polygon)] = (polygon, index)
+    return index
+
+
+def _candidate_rings(polygon, box):
+    """Yield possible intersecting rings in their original deterministic order."""
+    bounds = _polygon_ring_bounds(polygon)
+    grid = _ring_index(polygon)['holes']
+    if grid is None:
+        candidates = range(len(bounds))
+    else:
+        outer, count = grid['bounds'], grid['count']
+        width, height = outer[2]-outer[0], outer[3]-outer[1]
+        ix0 = max(0, min(count-1, int((box[0]-outer[0])/width*count)))
+        ix1 = max(0, min(count-1, int((box[2]-outer[0])/width*count)))
+        iy0 = max(0, min(count-1, int((box[1]-outer[1])/height*count)))
+        iy1 = max(0, min(count-1, int((box[3]-outer[1])/height*count)))
+        if (ix1-ix0+1)*(iy1-iy0+1) > 256:
+            candidates = range(len(bounds))
+        else:
+            found = {0, *grid['wide']}
+            for iy in range(iy0, iy1+1):
+                for ix in range(ix0, ix1+1):found.update(grid['bins'][iy*count+ix])
+            candidates = sorted(found)
+    return [index for index in candidates if bounds[index][2] >= box[0] and bounds[index][0] <= box[2]
+            and bounds[index][3] >= box[1] and bounds[index][1] <= box[3]]
+
+
+def _indexed_inside(point, ring, scan):
+    """Evaluate the existing boundary/even-odd test on only eligible Y edges."""
+    if scan is None:
+        return _inside(point, ring)
+    x, y = point
+    row = max(0, min(scan['count']-1, int((y-scan['minimum'])/scan['height']*scan['count'])))
+    inside = False
+    for edge in scan['bins'][row]:
+        a, b = ring[edge], ring[(edge+1) % len(ring)]
+        cross = (b[0]-a[0])*(y-a[1])-(b[1]-a[1])*(x-a[0])
+        if abs(cross) < 1e-9 and min(a[0], b[0]) <= x <= max(a[0], b[0]) and min(a[1], b[1]) <= y <= max(a[1], b[1]):
+            return True
+        if (a[1] > y) != (b[1] > y) and x < (b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]:
+            inside = not inside
+    return inside
+
+
+def _cell_polygon_candidates(bounds, x_edges, y_edges, by_cell, ncell):
+    """Invert polygon bounds onto active cells without changing exact tests.
+
+    The bounded accelerator falls back to the original scan when broad polygons
+    would require excessive index storage; it never drops candidate geometry.
+    """
+    rows = [[] for _ in range(ncell)]
+    nx, ny = len(x_edges)-1, len(y_edges)-1
+    assigned = 0
+    for poly_index, (x0,y0,x1,y1) in enumerate(bounds):
+        ix0 = max(0,bisect_left(x_edges,x0-1e-9)-1)
+        ix1 = min(nx-1,bisect_right(x_edges,x1+1e-9)-1)
+        iy0 = max(0,bisect_left(y_edges,y0-1e-9)-1)
+        iy1 = min(ny-1,bisect_right(y_edges,y1+1e-9)-1)
+        assigned += max(0,ix1-ix0+1)*max(0,iy1-iy0+1)
+        if assigned > 2_000_000:
+            return None
+        for iy in range(iy0,iy1+1):
+            for ix in range(ix0,ix1+1):
+                ci = by_cell.get((ix,iy))
+                if ci is not None:rows[ci].append(poly_index)
+    return rows
+
+
 def _polygon_contains(point, polygon):
     bounds = _polygon_ring_bounds(polygon)
     x, y = point
     def candidate(bound):
         return bound[0]-1e-9 <= x <= bound[2]+1e-9 and bound[1]-1e-9 <= y <= bound[3]+1e-9
-    return (candidate(bounds[0]) and _inside(point, polygon["outer"]) and
-            not any(candidate(bound) and _inside(point, hole)
-                    for hole, bound in zip(polygon.get("holes", []), bounds[1:])))
+    index = _ring_index(polygon)
+    return (candidate(bounds[0]) and _indexed_inside(point, polygon["outer"], index['scans'][0]) and
+            not any(candidate(bounds[i]) and _indexed_inside(point, polygon['holes'][i-1], index['scans'][i])
+                    for i in _candidate_rings(polygon, (x-1e-9, y-1e-9, x+1e-9, y+1e-9)) if i))
 
 
 def _segments_cross(a, b, c, d):
@@ -250,6 +362,9 @@ def _polygon_intersects_cell(polygon, x0, y0, x1, y1):
     if any(x0 <= x <= x1 and y0 <= y <= y1 for x, y in ring):
         return True
     for a, b in zip(ring, ring[1:]+ring[:1]):
+        if (max(a[0], b[0]) < x0-1e-12 or min(a[0], b[0]) > x1+1e-12 or
+                max(a[1], b[1]) < y0-1e-12 or min(a[1], b[1]) > y1+1e-12):
+            continue
         if any(_segments_cross(a, b, c, d)
                for c, d in zip(corners, corners[1:]+corners[:1])):
             return True
@@ -287,9 +402,8 @@ def _ring_area(ring):
 def _polygon_cell_fraction(polygon, x0, y0, x1, y1):
     """Area fraction of filled copper, subtracting clipped polygon holes."""
     outer = _ring_area(_clip_ring_to_cell(polygon["outer"], x0, y0, x1, y1))
-    holes = math.fsum(_ring_area(_clip_ring_to_cell(hole, x0, y0, x1, y1))
-                      for hole, bound in zip(polygon.get("holes", []), _polygon_ring_bounds(polygon)[1:])
-                      if bound[2] >= x0 and bound[0] <= x1 and bound[3] >= y0 and bound[1] <= y1)
+    holes = math.fsum(_ring_area(_clip_ring_to_cell(polygon['holes'][i-1], x0, y0, x1, y1))
+                      for i in _candidate_rings(polygon, (x0, y0, x1, y1)) if i)
     return max(0.0, min(1.0, (outer-holes)/((x1-x0)*(y1-y0))))
 
 
@@ -312,10 +426,9 @@ def _face_copper_fraction(start, end, polygon, normal, offset):
     margin = max(1e-9, 1e-12*max(1.0,length_sq)/math.sqrt(length_sq))
     face_bounds = (min(start[0],end[0])-margin, min(start[1],end[1])-margin,
                    max(start[0],end[0])+margin, max(start[1],end[1])+margin)
-    for ring, bound in zip([polygon["outer"], *polygon.get("holes", [])], _polygon_ring_bounds(polygon)):
-        if (bound[2] < face_bounds[0] or bound[0] > face_bounds[2] or
-                bound[3] < face_bounds[1] or bound[1] > face_bounds[3]):
-            continue
+    rings = [polygon['outer'], *polygon.get('holes', [])]
+    for ring_index in _candidate_rings(polygon, face_bounds):
+        ring = rings[ring_index]
         for a, b in zip(ring, ring[1:]+ring[:1]):
             if (max(a[0],b[0]) < face_bounds[0] or min(a[0],b[0]) > face_bounds[2] or
                     max(a[1],b[1]) < face_bounds[1] or min(a[1],b[1]) > face_bounds[3]):
@@ -427,6 +540,16 @@ def _source_weights(component, cells, xs, ys, x_edges, y_edges,
 
 
 def solve_multilayer_thermal(geometry, view, result, settings, progress=None, *, _grid_override=None):
+    """Solve with a thread-local spatial broad phase discarded on success/error."""
+    token = _RING_INDICES.set({})
+    try:
+        return _solve_multilayer_thermal(geometry, view, result, settings, progress,
+                                         _grid_override=_grid_override)
+    finally:
+        _RING_INDICES.reset(token)
+
+
+def _solve_multilayer_thermal(geometry, view, result, settings, progress=None, *, _grid_override=None):
     """Solve layer temperatures, explicit mount fluxes and a heat balance.
 
     ``geometry`` is from ``collect_thermal_geometry``; ``view`` and ``result``
@@ -586,8 +709,9 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None, *,
             outer = polygon["outer"]
             bounds.append((min(p[0] for p in outer), min(p[1] for p in outer),
                            max(p[0] for p in outer), max(p[1] for p in outer)))
+        candidates = _cell_polygon_candidates(bounds,x_edges,y_edges,by_cell,ncell)
         layer_members = []
-        for i, j in cells:
+        for cell_index, (i, j) in enumerate(cells):
             dx_mm = x_edges[i+1]-x_edges[i]
             dy_mm = y_edges[j+1]-y_edges[j]
             if copper_mode == "area_face":
@@ -602,7 +726,8 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None, *,
             else:
                 probes = [(xs[i], ys[j])]
             weights = {}
-            for poly_index, polygon in enumerate(polygons):
+            for poly_index in (candidates[cell_index] if candidates is not None else range(len(polygons))):
+                polygon = polygons[poly_index]
                 x0, y0, x1, y1 = bounds[poly_index]
                 if (x1 < xs[i]-dx_mm/2 or x0 > xs[i]+dx_mm/2 or
                         y1 < ys[j]-dy_mm/2 or y0 > ys[j]+dy_mm/2):
@@ -681,6 +806,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None, *,
         raise ValueError("barrel_contact_mode must be annulus_stencil or nearest_cell.")
     barrel_started = time.monotonic()
     barrels = geometry.get("barrels", [])
+    cell_reaches = [math.hypot(x_widths[ix], y_widths[iy])*500 for ix, iy in cells]
     for barrel_index, via in enumerate(barrels):
         if progress and barrel_index % max(1, len(barrels)//100) == 0:
             elapsed = time.monotonic()-barrel_started
@@ -699,6 +825,8 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None, *,
         if (abs(xs[cells[ci][0]]-x)>x_widths[cells[ci][0]]*1000 or
                 abs(ys[cells[ci][1]]-y)>y_widths[cells[ci][1]]*1000):
             continue
+        circular_stencils = {}
+        circular_distances = None
         for a, b in zip(span, span[1:]):
             unresolved_before = unresolved_barrel_stencils
             if b != a+1:
@@ -742,25 +870,27 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None, *,
                 diam_a = float(diameters.get(str(layers[a]["id"]), drill+2*plating))
                 diam_b = float(diameters.get(str(layers[b]["id"]), drill+2*plating))
                 outer_radius = max(drill/2, min(diam_a, diam_b)/2)
-                candidates = []
-                for candidate, (ix, iy) in enumerate(cells):
-                    distance = math.hypot(xs[ix]-x, ys[iy]-y)
-                    cell_reach = math.hypot(x_widths[ix], y_widths[iy])*500
-                    if drill/2 < distance <= outer_radius+cell_reach:
-                        candidates.append((candidate, distance))
-                if not candidates:
-                    candidates = [(candidate, math.hypot(xs[ix]-x, ys[iy]-y))
-                                  for candidate, (ix, iy) in enumerate(cells)
-                                  if math.hypot(xs[ix]-x, ys[iy]-y) > drill/2]
-                    if not candidates:
-                        raise ValueError(f"{via['id']}: no board cell center outside the drill.")
-                    unresolved_barrel_stencils += 1
-                candidates.sort(key=lambda entry: entry[1])
-                candidates = candidates[:8]
-                raw = [1/max(distance, drill/2) for _, distance in candidates]
-                total = math.fsum(raw)
-                stencil = [(candidate, weight/total)
-                           for (candidate, _), weight in zip(candidates, raw)]
+                if outer_radius not in circular_stencils:
+                    if circular_distances is None:
+                        circular_distances = [math.hypot(xs[ix]-x, ys[iy]-y) for ix, iy in cells]
+                    candidates = [(candidate, distance) for candidate, (distance, reach) in
+                                  enumerate(zip(circular_distances, cell_reaches))
+                                  if drill/2 < distance <= outer_radius+reach]
+                    unresolved = not candidates
+                    if unresolved:
+                        candidates = [(candidate, distance) for candidate, distance in enumerate(circular_distances)
+                                      if distance > drill/2]
+                        if not candidates:
+                            raise ValueError(f"{via['id']}: no board cell center outside the drill.")
+                    candidates.sort(key=lambda entry: entry[1])
+                    candidates = candidates[:8]
+                    raw = [1/max(distance, drill/2) for _, distance in candidates]
+                    total = math.fsum(raw)
+                    stencil = [(candidate, weight/total)
+                               for (candidate, _), weight in zip(candidates, raw)]
+                    circular_stencils[outer_radius] = (stencil, unresolved)
+                stencil, unresolved = circular_stencils[outer_radius]
+                unresolved_barrel_stencils += int(unresolved)
             lands = via.get("land_polygons_mm", {})
             pair_lands = [lands.get(str(layers[index]["id"]), []) for index in (a,b)]
             verified = (barrel_mode == "annulus_stencil" and unresolved_before == unresolved_barrel_stencils
@@ -1057,6 +1187,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None, *,
     if progress:
         progress("thermal solve", 0, 1, 0.0, None)
     solve_started = time.monotonic()
+    linear_boundary = not np.any(surface_e)
     if len(free):
         for iteration in range(40):
             kelvin = temp + 273.15
@@ -1071,7 +1202,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, progress=None, *,
                 raise ValueError("Thermal solve diverged; check power and boundary inputs.")
             change = float(np.max(np.abs(candidate-temp[free])))
             temp[free] = candidate
-            if change <= 1e-7:
+            if linear_boundary or change <= 1e-7:
                 break
         else:
             raise ValueError("Layer-resolved thermal solve did not converge.")

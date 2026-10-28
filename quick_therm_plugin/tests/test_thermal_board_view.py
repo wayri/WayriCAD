@@ -37,6 +37,17 @@ class PureGeometryTests(unittest.TestCase):
 
 
 class NativeBoardViewTests(unittest.TestCase):
+    def test_anonymous_import_containers_are_not_thermal_components(self):
+        import pcbnew
+        board=pcbnew.LoadBoard(str(FIXTURE))
+        for reference in ('', '', '***'):
+            item=pcbnew.FOOTPRINT(board);item.SetReference(reference);board.Add(item)
+        view=build_board_thermal_view(board,result(),grid_size=12)
+        self.assertTrue(all(row['reference'].strip() and '*' not in row['reference'] for row in view['components']))
+        duplicate=pcbnew.FOOTPRINT(board);duplicate.SetReference('C1');board.Add(duplicate)
+        with self.assertRaisesRegex(ValueError,'Duplicate footprint reference'):
+            build_board_thermal_view(board,result(),grid_size=12)
+
     @classmethod
     def setUpClass(cls):
         try:

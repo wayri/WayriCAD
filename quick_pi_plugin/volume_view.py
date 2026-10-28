@@ -53,14 +53,20 @@ def sampled_cells(bundle, layer='All copper', quantity='current_density', limit=
             raise ValueError('Unknown copper layer.')
         selected = belonging == names.index(layer)
     if quantity == 'current_density':
-        vectors = result['cell_J_A_mm2']
-        values = np.asarray([np.linalg.norm(row) if row is not None else np.nan
-                             for row in vectors], dtype=float)
+        vectors = np.asarray([row if row is not None else (np.nan,np.nan,np.nan)
+                              for row in result['cell_J_A_mm2']], dtype=float)
+        if vectors.shape != centers.shape:
+            raise ValueError('3D current-density vectors and cell coordinates disagree.')
+        values = np.linalg.norm(vectors, axis=1)
     elif quantity == 'loss_density':
         power = result['cell_power_W']
         volume = result['cell_volume_mm3']
-        values = np.asarray([float(p) / float(v) if p is not None and v > 0 else np.nan
-                             for p, v in zip(power, volume)], dtype=float)
+        power = np.asarray(power,dtype=float)
+        volume = np.asarray(volume,dtype=float)
+        if power.shape != volume.shape:
+            raise ValueError('3D cell power and volume counts disagree.')
+        values = np.full(power.shape,np.nan)
+        np.divide(power,volume,out=values,where=np.isfinite(power)&(volume>0))
     else:
         potentials = np.asarray([np.nan if v is None else v
                                  for v in result['potential_V']], dtype=float)

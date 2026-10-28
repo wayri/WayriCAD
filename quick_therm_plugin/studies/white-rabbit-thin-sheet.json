@@ -1,0 +1,34 @@
+{
+  "environment": "air",
+  "ambient_c": 25,
+  "input_mode": "manual",
+  "references": [
+    "IC1",
+    "IC2",
+    "U1"
+  ],
+  "manual_values": {
+    "IC1": {
+      "power_w": 0.5,
+      "theta_jb_k_per_w": 10
+    },
+    "IC2": {
+      "power_w": 0.25,
+      "theta_jb_k_per_w": 10
+    },
+    "U1": {
+      "power_w": 0.15,
+      "theta_jb_k_per_w": 10
+    }
+  },
+  "thermal_model_kind": "thin_sheet",
+  "board_power_only": true,
+  "thermal_network_settings": {
+    "board_k_w_mk": 20,
+    "board_emissivity": 0.8,
+    "board_airflow_m_s": 0,
+    "sink_airflow_m_s": 0,
+    "grid_cells_long_axis": 40,
+    "mesh_mode": "manual"
+  }
+}

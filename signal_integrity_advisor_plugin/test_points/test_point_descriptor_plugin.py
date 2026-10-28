@@ -97,18 +97,31 @@ def _pin_function(pad: Any) -> str:
 
 def _is_pass_through(footprint: Any) -> bool:
     reference = str(footprint.GetReference()).upper()
+    if reference.startswith(("R", "C", "L", "FB", "F", "JP", "JMP")):
+        return True
     fields = _fields(footprint)
-    return reference.startswith(("R", "C", "L", "FB", "F", "JP", "JMP")) or bool(str(fields.get("NetTie_Path", "")).strip())
+    return bool(str(fields.get("NetTie_Path", "")).strip())
 
 
-def resolve_connected_ics(board: Any, start_net: str, max_hops: int = 8) -> List[Dict[str, str]]:
-    """Trace a TP net through series parts to terminal IC pins."""
+def _connection_index(board: Any) -> dict:
+    """Index one current extraction snapshot; never retain it across edits."""
     net_map: Dict[str, List[Any]] = {}
     for footprint in board.GetFootprints():
         for pad in footprint.Pads():
             net_name = str(getattr(pad, "GetNetname", lambda: "")())
             if net_name:
                 net_map.setdefault(net_name, []).append((footprint, pad))
+    return {'nets': net_map, 'pass_through': {}}
+
+
+def resolve_connected_ics(board: Any, start_net: str, max_hops: int = 8, *, _index=None) -> List[Dict[str, str]]:
+    """Trace a TP net through series parts to terminal IC pins.
+
+    A caller processing several test points may share its operation-local index.
+    No cached native objects or classifications survive the extraction call.
+    """
+    index = _connection_index(board) if _index is None else _index
+    net_map = index['nets']; pass_through = index['pass_through']
     queue = [(start_net, [], [f"[{start_net}]"])]
     seen_nets = {start_net}
     endpoints: Dict[tuple[str, str], Dict[str, str]] = {}
@@ -131,7 +144,9 @@ def resolve_connected_ics(board: Any, start_net: str, max_hops: int = 8) -> List
                     "Path": " -> ".join(path + [f"{reference}.{pin}"]),
                 })
                 continue
-            if not _is_pass_through(footprint) or reference in intermediates:
+            identity=id(footprint)
+            if identity not in pass_through:pass_through[identity]=_is_pass_through(footprint)
+            if not pass_through[identity] or reference in intermediates:
                 continue
             for other_pad in footprint.Pads():
                 other_net = str(getattr(other_pad, "GetNetname", lambda: "")())
@@ -148,6 +163,7 @@ def resolve_connected_ics(board: Any, start_net: str, max_hops: int = 8) -> List
 
 def extract_test_points(board: Any, descriptor_field: str = "TP_Descriptor", board_order: Sequence[str] = ()) -> List[Dict[str, str]]:
     rows: List[Dict[str, str]] = []
+    connection_index = None
     for footprint in board.GetFootprints():
         reference = str(footprint.GetReference())
         value = str(footprint.GetValue())
@@ -160,7 +176,8 @@ def extract_test_points(board: Any, descriptor_field: str = "TP_Descriptor", boa
         for pad in footprint.Pads():
             net = str(pad.GetNetname()) if hasattr(pad, "GetNetname") else ""
             parsed = parse_net_descriptor(net, board_order)
-            endpoints = resolve_connected_ics(board, net)
+            if connection_index is None:connection_index=_connection_index(board)
+            endpoints = resolve_connected_ics(board, net, _index=connection_index)
             rows.append({
                 "TP Reference": reference,
                 "Value": value,
@@ -193,7 +210,7 @@ class TestPointDescriptorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.40"
+        self.version = "3.6.41"
 
     def Run(self) -> None:
         try:

@@ -6,6 +6,13 @@
 
 **[Detailed user guide](USER_GUIDE.md)** · [Offline HTML guide](USER_GUIDE.html) · [Compact help](help.html)
 
+[Every control and CLI option](CONTROL_REFERENCE.md) · [Marble walkthrough](USER_GUIDE.md#marble-worked-example) · [White Rabbit input review](USER_GUIDE.md#white-rabbit-worked-example)
+
+The updated source adds a guided **Materials + cooling** page for the Joule
+checkbox, faster first board loading, lower-overhead full-3D assembly and faster
+3D field preparation. Physical assumptions and convergence checks are unchanged.
+[Measured scope and validation](../docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md).
+
 Start with [Choose a study](USER_GUIDE.md#choose-a-study), then follow the inputs,
 inspection, reports and troubleshooting steps for your selected workflow.
 

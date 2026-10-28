@@ -1,0 +1,18 @@
+{
+  "source_resistance_ohm": 0.02,
+  "source_inductance_H": 5e-9,
+  "allowed_ripple_V": 0.05,
+  "current_step_A": 1.0,
+  "start_Hz": 10.0,
+  "stop_Hz": 100000000.0,
+  "points": 201,
+  "capacitors": [
+    {
+      "name": "Illustrative effective capacitor",
+      "capacitance_F": 0.0001,
+      "esr_ohm": 0.01,
+      "esl_H": 1e-9,
+      "quantity": 1
+    }
+  ]
+}

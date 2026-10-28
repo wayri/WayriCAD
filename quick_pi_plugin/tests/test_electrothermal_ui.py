@@ -115,6 +115,30 @@ class ElectrothermalDialogTests(unittest.TestCase):
         release.set(); self.wait_for(lambda: dialog._closed)
         self.assertIsNone(dialog.result)
 
+    def test_joule_guided_inputs_share_advanced_model_without_physical_defaults(self):
+        from quick_pi_plugin.electrothermal_ui import feedback_studies, FEEDBACK_FIELDS
+        initial=feedback_studies({'net':'RAIL','source_terminal':'J1.1','sink_terminal':'J2.1',
+                                 'source_voltage':3.3,'sink_current':1.})
+        dialog=ElectrothermalStudyDialog(None,initial,lambda *args:None,
+            (FigureCanvasWxAgg,NavigationToolbar2WxAgg),steady_only=True)
+        self.dialogs.append(dialog)
+        self.assertEqual(dialog.book.GetPageText(0),'Materials + cooling')
+        self.assertEqual(dialog.feedback_controls[('thermal_settings','ambient_c')].GetValue(),'')
+        values=[25,.3,385,.025,10,.8,1.724e-8,.00393,-40,150,105]
+        for (label,path),value in zip(FEEDBACK_FIELDS,values):
+            dialog.feedback_controls[path].ChangeValue(str(value))
+        dialog._guided_changed()
+        request=dialog._request()
+        self.assertTrue(request['require_explicit_thermal'])
+        self.assertEqual(request['study']['thermal_settings']['ambient_c'],25)
+        self.assertEqual(request['study']['electrical']['options']['resistivity_ohm_m'],1.724e-8)
+        # An advanced edit is reflected in the guided page, with no hidden override.
+        model=json.loads(dialog.setup.GetValue());model['thermal_settings']['ambient_c']=31
+        dialog.setup.ChangeValue(json.dumps(model));dialog._changed()
+        self.assertEqual(float(dialog.feedback_controls[('thermal_settings','ambient_c')].GetValue()),31)
+        dialog.feedback_controls[('thermal_settings','ambient_c')].ChangeValue('nan');dialog._guided_changed()
+        with self.assertRaisesRegex(ValueError,'ambient_c'):dialog._request()
+
 
 if __name__ == '__main__':
     unittest.main()

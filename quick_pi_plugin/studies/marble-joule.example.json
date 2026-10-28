@@ -1,0 +1,36 @@
+{
+  "mode": "steady",
+  "study": {
+    "electrical": {
+      "net": "Net-(C143-Pad1)",
+      "source_terminal": "U36.1",
+      "sink_terminal": "TP4.1",
+      "source_voltage": 1.2,
+      "sink_current": 0.2,
+      "edge_mm": 0.8,
+      "plating_mm": 0.025,
+      "mesh_backend": "vtk",
+      "options": {
+        "resistivity_ohm_m": 1.724e-8,
+        "temperature_coefficient": 0.00393
+      }
+    },
+    "thermal_settings": {
+      "ambient_c": 25,
+      "dielectric_k_w_mk": 0.3,
+      "copper_k_w_mk": 385,
+      "via_plating_mm": 0.025,
+      "grid_cells_long_axis": 24,
+      "board_h_w_m2k": 10,
+      "board_emissivity": 0.8
+    },
+    "coupling": {
+      "material_temperature_range_c": [-40, 150],
+      "temperature_cap_c": 105,
+      "max_iterations": 60,
+      "relaxation": 0.5,
+      "temperature_tolerance_c": 0.01,
+      "loss_relative_tolerance": 1e-5
+    }
+  }
+}

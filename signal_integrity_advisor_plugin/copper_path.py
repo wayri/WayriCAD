@@ -79,6 +79,8 @@ class CopperGeometry:
         self._navigation_cache = {}
         self._routing_prepared = set()
         self._lateral_drawings = {}
+        self._fit_cache = {}
+        self._reference_tiles = {}
         for shape in self.board.GetDrawings():
             layer = shape.GetLayer()
             if layer in self.layers and hasattr(shape, 'TransformShapeToPolygon'):
@@ -123,11 +125,36 @@ class CopperGeometry:
 
     def fits(self, island, a, b, width_mm, routing=False):
         poly = island.get('routing_poly',island['poly']) if routing else island['poly']
+        key = (id(poly), tuple(a), tuple(b), float(width_mm))
+        if key in self._fit_cache:
+            return self._fit_cache[key]
         if not poly.Contains(self.pcb.VECTOR2I(*a)) or not poly.Contains(self.pcb.VECTOR2I(*b)):
+            if len(self._fit_cache) < 8192:self._fit_cache[key] = False
             return False
         missing = self.corridor(a, b, width_mm)
-        missing.BooleanSubtract(poly)
-        return missing.Area() <= 4  # four square internal units, rounding only
+        # The complete corridor lies inside this integer-aligned rectangle.
+        # Subtracting (plane intersect rectangle) is therefore the same set
+        # operation within the corridor, without revisiting remote plane holes.
+        # Cache only this measure's native geometry; measure() creates a new
+        # CopperGeometry after board edits. Bound retained clipped polygons.
+        box = missing.BBox()
+        pitch = 25 * IU
+        bounds = (math.floor(box.GetLeft()/pitch)*pitch-1000,
+                  math.floor(box.GetTop()/pitch)*pitch-1000,
+                  math.ceil(box.GetRight()/pitch)*pitch+1000,
+                  math.ceil(box.GetBottom()/pitch)*pitch+1000)
+        tile_key = (id(poly), bounds)
+        local = self._reference_tiles.get(tile_key)
+        if local is None and len(self._reference_tiles) < 128:
+            left, top, right, bottom = bounds
+            region = self.polygon([(left,top),(right,top),(right,bottom),(left,bottom)])
+            local = self.pcb.SHAPE_POLY_SET(poly)
+            local.BooleanIntersection(region)
+            self._reference_tiles[tile_key] = local
+        missing.BooleanSubtract(poly if local is None else local)
+        answer = missing.Area() <= 4  # four square internal units, rounding only
+        if len(self._fit_cache) < 8192:self._fit_cache[key] = answer
+        return answer
 
     def prepare_routing(self,net):
         """Union actual pad copper into touching fill, preserving thermal voids.

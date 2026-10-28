@@ -55,6 +55,23 @@ class TetrahedralSolverTests(unittest.TestCase):
         with self.assertRaisesRegex(VolumeModelError,'overlap'):
             solve_volume(mesh,[0],[0])
 
+    def test_repeated_vertices_rejected_before_stiffness_assembly(self):
+        mesh={'points_mm':[[0,0,0],[1,0,0],[0,1,0],[0,0,1]],'tetrahedra':[[0,1,2,2]]}
+        with self.assertRaisesRegex(VolumeModelError,'invalid tetrahedron'):
+            solve_volume(mesh,[0],[1])
+
+    def test_multiple_electrode_nodes_and_floating_island_remain_exact(self):
+        mesh={'points_mm':[[0,0,0],[1,0,0],[0,1,0],[0,0,1],
+                           [3,0,0],[4,0,0],[3,1,0],[3,0,1]],
+              'tetrahedra':[[0,1,2,3],[4,5,6,7]]}
+        result=solve_volume(mesh,[0,2],[1,3])
+        self.assertEqual(result['potential_V'][0],result['potential_V'][2])
+        self.assertEqual(result['potential_V'][1],result['potential_V'][3])
+        self.assertEqual(result['potential_V'][4:],[None]*4)
+        self.assertIsNone(result['cell_J_A_mm2'][1]);self.assertIsNone(result['cell_power_W'][1])
+        self.assertEqual(result['floating_tetrahedra'],1)
+        self.assertLess(result['energy_relative_error'],1e-10)
+
 
 class NativeGmshTests(unittest.TestCase):
     @classmethod

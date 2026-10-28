@@ -180,17 +180,28 @@ def build_volume_mesh(geometry, edge_mm=.25, plating_mm=.025, max_tetrahedra=250
         gmsh.model.mesh.generate(3)
         node_tags, coordinates, _ = gmsh.model.mesh.getNodes()
         points = np.asarray(coordinates, dtype=float).reshape(-1, 3)
-        tags = {int(tag): index for index, tag in enumerate(node_tags)}
-        tetra = []
+        if len(points) > 300_000:
+            raise VolumeModelError('3D mesh exceeds its vertex budget; increase the mesh edge or reduce the selected net.')
+        node_tags=np.asarray(node_tags,dtype=np.int64)
+        order=np.argsort(node_tags);ordered_tags=node_tags[order]
+        tetra_chunks=[];tetra_count=0
         for _, tag in volumes:
             types, _, connectivity = gmsh.model.mesh.getElements(3, tag)
             for element_type, nodes in zip(types, connectivity):
                 if int(element_type) != 4:
                     raise VolumeModelError('Only first-order Gmsh tetrahedra are supported.')
-                tetra.extend([tags[int(node)] for node in cell] for cell in np.asarray(nodes).reshape(-1, 4))
-        if not tetra or len(tetra) > max_tetrahedra or len(points) > 300_000:
+                nodes=np.asarray(nodes,dtype=np.int64)
+                if nodes.size%4:raise VolumeModelError('Gmsh returned incomplete tetrahedral connectivity.')
+                tetra_count+=nodes.size//4
+                if tetra_count>max_tetrahedra:
+                    raise VolumeModelError('3D mesh exceeds its tetrahedron budget; increase the mesh edge or reduce the selected net.')
+                locations=np.searchsorted(ordered_tags,nodes)
+                if np.any(locations>=len(ordered_tags)) or not np.array_equal(ordered_tags[locations],nodes):
+                    raise VolumeModelError('Gmsh tetrahedron references an unknown mesh node.')
+                tetra_chunks.append(order[locations].reshape(-1,4).astype(np.int32,copy=False))
+        if not tetra_count:
             raise VolumeModelError('3D mesh is empty or exceeds its budget; increase the mesh edge or reduce the selected net.')
-        tetra = np.asarray(tetra, dtype=np.int64)
+        tetra = np.concatenate(tetra_chunks)
         local = points[tetra]
         volumes_mm3 = np.abs(np.linalg.det(local[:, 1:] - local[:, :1])) / 6
         if np.any(volumes_mm3 < 1e-15):
@@ -198,7 +209,7 @@ def build_volume_mesh(geometry, edge_mm=.25, plating_mm=.025, max_tetrahedra=250
         relative = abs(float(volumes_mm3.sum()) - expected_volume) / expected_volume
         if relative > 1e-4:
             raise VolumeModelError(f'Extracted copper and tetrahedron volume disagree by {relative:.4%} (geometry {expected_volume:.6g}, mesh {volumes_mm3.sum():.6g} mm^3).')
-        contacts = {}
+        contacts = {};layer_nodes={}
         for terminal in geometry['terminals']:
             selected = set()
             for key, polygons in terminal.get('polygons', {}).items():
@@ -207,7 +218,9 @@ def build_volume_mesh(geometry, edge_mm=.25, plating_mm=.025, max_tetrahedra=250
                     continue
                 z0 = float(row['z_mm']) - float(row['thickness_mm']) / 2
                 z1 = z0 + float(row['thickness_mm'])
-                near = np.flatnonzero((points[:, 2] >= z0-1e-6) & (points[:, 2] <= z1+1e-6))
+                if int(key) not in layer_nodes:
+                    layer_nodes[int(key)]=np.flatnonzero((points[:, 2] >= z0-1e-6) & (points[:, 2] <= z1+1e-6))
+                near=layer_nodes[int(key)]
                 hits = contains(points[near, :2], polygons)
                 selected.update(map(int, near[hits]))
             if selected:
@@ -251,7 +264,12 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
         raise VolumeModelError('3D mesh requires integer linear tetrahedra.')
     if not len(cells) or len(cells) > 1_000_000 or len(points) > 300_000:
         raise VolumeModelError('3D mesh exceeds the validated size budget.')
-    if np.any(cells < 0) or np.any(cells >= len(points)) or np.any([len(set(cell)) < 4 for cell in cells]):
+    # Six vector comparisons replace one Python set allocation per tetrahedron.
+    repeated = np.zeros(len(cells), dtype=bool)
+    for a in range(4):
+        for b in range(a + 1, 4):
+            repeated |= cells[:, a] == cells[:, b]
+    if np.any(cells < 0) or np.any(cells >= len(points)) or np.any(repeated):
         raise VolumeModelError('3D mesh has invalid tetrahedron vertices.')
     current = _positive(sink_current, 'Sink current')
     voltage = float(source_voltage)
@@ -284,26 +302,26 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
     gradients[:, 1:, :] = inverse.transpose(0, 2, 1)
     gradients[:, 0, :] = -gradients[:, 1:, :].sum(axis=1)
     stiffness = sigma * volumes[:, None, None] * np.einsum('mik,mjk->mij', gradients, gradients)
-    parent = np.arange(len(points))
-    def find(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
+    # There are exactly two already validated, disjoint ideal electrodes. Their
+    # node sets can be contracted directly; scanning every vertex through a
+    # Python union-find adds no further connectivity information.
+    parent = np.arange(len(points), dtype=np.int32)
     for contact in (source, sink):
-        for node in contact[1:]:
-            parent[find(node)] = find(contact[0])
-    _, groups = np.unique([find(i) for i in range(len(points))], return_inverse=True)
+        parent[contact] = contact[0]
+    _, groups = np.unique(parent, return_inverse=True)
     src, dst = int(groups[source[0]]), int(groups[sink[0]])
     if src == dst:
         raise VolumeModelError('Source and sink electrodes share one copper contact.')
-    mapped = groups[cells]
+    mapped = groups[cells].astype(np.int32, copy=False)
     matrix = coo_matrix((stiffness.ravel(), (np.repeat(mapped, 4, axis=1).ravel(),
                          np.tile(mapped, (1, 4)).ravel())), shape=(groups.max()+1,)*2).tocsr()
     matrix.sum_duplicates()
-    graph = coo_matrix((np.ones(len(cells)*12),
-                        (np.concatenate([mapped[:, a] for a in range(4) for b in range(4) if a != b]),
-                         np.concatenate([mapped[:, b] for a in range(4) for b in range(4) if a != b]))),
+    # connected_components(directed=False) needs each undirected edge only once.
+    # Six edges retain the same topology with half the graph assembly storage.
+    edges = [(a, b) for a in range(4) for b in range(a + 1, 4)]
+    graph = coo_matrix((np.ones(len(cells)*6, dtype=bool),
+                        (np.concatenate([mapped[:, a] for a,b in edges]),
+                         np.concatenate([mapped[:, b] for a,b in edges]))),
                        shape=matrix.shape).tocsr()
     _, components = connected_components(graph, directed=False)
     active = components == components[src]
@@ -340,13 +358,20 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
     if drop <= 0 or balance > 1e-6:
         raise VolumeModelError('3D electrical power balance failed; refine the mesh.')
     valid_j = np.linalg.norm(j[active_cell], axis=1)
+    potentials = (voltage+offset[groups]).tolist()
+    currents = j.tolist()
+    powers = cell_power.tolist()
+    for index in np.flatnonzero(~active[groups]):potentials[int(index)] = None
+    for index in np.flatnonzero(~active_cell):
+        currents[int(index)] = None
+        powers[int(index)] = None
     return {'model': '3D linear tetrahedral DC conductivity FEM', 'frequency_dependent': False,
             'fusing': {'status':'unavailable','reason':'Copper melting/bottleneck screening is implemented for the 2.5D sheet/barrel model only.',
                        'notice':'No 3D melting or fuse-opening calculation is performed.','bottlenecks':[]},
-            'potential_V': [float(v) if a else None for v, a in zip(voltage+offset[groups], active[groups])],
-            'cell_J_A_mm2': [vector.tolist() if a else None for vector, a in zip(j, active_cell)],
-            'cell_power_W': [float(value) if a else None for value, a in zip(cell_power, active_cell)],
-            'cell_centroid_mm': points[cells].mean(axis=1).tolist(),
+            'potential_V': potentials,
+            'cell_J_A_mm2': currents,
+            'cell_power_W': powers,
+            'cell_centroid_mm': (xyz.mean(axis=1)*1e3).tolist(),
             'cell_volume_mm3': (volumes * 1e9).tolist(),
             'source_voltage_V': voltage, 'sink_voltage_V': voltage-drop,
             'source_current_A': float(reaction[src]), 'sink_current_A': current,

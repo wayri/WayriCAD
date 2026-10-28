@@ -11,6 +11,30 @@ from quick_therm_plugin.cli import main
 
 
 class QuickThermCLITests(TestCase):
+    def test_manual_config_keeps_explicit_values_without_saved_field_mutation(self):
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as temporary:
+            config=Path(temporary)/'manual.json'
+            values={'U1':{'power_w':.5,'theta_ja_air_k_per_w':40}}
+            config.write_text(json.dumps({'input_mode':'manual','manual_values':values,
+                                         'references':['U1'],'environment':'air'}))
+            with patch('quick_therm_plugin.service.run_job',return_value={'temperature_limits':{}}) as job, \
+                    contextlib.redirect_stdout(StringIO()):
+                self.assertEqual(main(['C:/Projects/Example/board.kicad_pcb','--config',str(config)]),0)
+            self.assertEqual(job.call_args.args[0]['manual_values'],values)
+            self.assertNotIn('field_map',job.call_args.args[0])
+
+    def test_manual_config_requires_explicit_scope_and_values_before_worker(self):
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as temporary:
+            config=Path(temporary)/'manual.json'
+            for spec in ({'input_mode':'invalid'}, {'input_mode':'manual','manual_values':{}},
+                         {'input_mode':'manual','manual_values':{'U1':{'power_w':1}}}):
+                config.write_text(json.dumps(spec))
+                with patch('quick_therm_plugin.service.run_job') as job, contextlib.redirect_stdout(StringIO()):
+                    self.assertEqual(main(['C:/Projects/Example/board.kicad_pcb','--config',str(config)]),2)
+                    job.assert_not_called()
+
     def test_auto_mesh_cli_and_manual_override_keep_request_parity(self):
         from tempfile import TemporaryDirectory
         with TemporaryDirectory() as temporary:

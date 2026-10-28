@@ -9,6 +9,21 @@ from quick_pi_plugin import cli,service
 
 
 class ServiceGuards(unittest.TestCase):
+    def test_native_inventory_and_geometry_do_not_probe_scientific_meshers(self):
+        for action in ('inspect','geometry'):
+            with self.subTest(action=action),patch('wayricad_runtime.runtime_setup.ensure_runtime',side_effect=RuntimeError('probe stop')) as probe:
+                with self.assertRaisesRegex(RuntimeError,'probe stop'):
+                    service.run_job({'action':action})
+                self.assertEqual(probe.call_args.args[0],{})
+
+    def test_full_volume_runtime_does_not_require_planar_vtk(self):
+        with patch('wayricad_runtime.runtime_setup.ensure_runtime',side_effect=RuntimeError('probe stop')) as probe:
+            with self.assertRaisesRegex(RuntimeError,'probe stop'):
+                service.run_job({'action':'solve','model_dimension':'3d'})
+            required=probe.call_args.args[0]
+            self.assertIn('gmsh',required);self.assertIn('scipy',required)
+            self.assertFalse(any(key.startswith('vtk') for key in required))
+
     def test_cli_output_cannot_replace_source_board(self):
         with tempfile.TemporaryDirectory() as directory:
             source=Path(directory)/'board.kicad_pcb';source.write_bytes(b'original PCB')

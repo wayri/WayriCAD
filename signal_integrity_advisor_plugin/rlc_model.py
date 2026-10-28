@@ -29,12 +29,11 @@ except ImportError:  # Standalone source-test loader without package context.
     _emerge = _importlib_util.module_from_spec(_emerge_spec)
     _emerge_spec.loader.exec_module(_emerge)
 
-try:  # CODATA values via SciPy when available.
-    from scipy.constants import epsilon_0 as EPS0  # type: ignore
-    from scipy.constants import mu_0 as MU0  # type: ignore
-except ImportError:  # pragma: no cover - SciPy is optional
-    EPS0 = 8.8541878128e-12
-    MU0 = 1.25663706212e-6
+# CODATA 2022 values (F/m and H/m), matching SciPy 1.17's scalar constants.
+# Importing an entire scientific runtime for two numbers delays the first
+# routed-path screen and makes results depend on optional SciPy availability.
+EPS0 = 8.8541878188e-12
+MU0 = 1.25663706127e-6
 
 C_LIGHT = 299792458.0
 COPPER_RESISTIVITY = 1.724e-8

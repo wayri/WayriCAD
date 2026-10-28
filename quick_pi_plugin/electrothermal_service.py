@@ -52,23 +52,23 @@ def prepare_saved_study(path, study):
         raise ValueError('Saved-board coupling requires 2.5D prescribed-current loads; 3D, voltage-driven loads and sweeps are separate models.')
     if electrical.get('package_conduction'):
         raise ValueError('Explicit package contacts are unsupported in electrothermal coupling.')
+    if electrical.get('series'):
+        raise ValueError('Saved-board coupling supports one net; series branches require an explicit prepared heat-contact model.')
+    specs=sink_requests(electrical)
+    if electrical.get('load_power_W') is not None or any('power_W' in spec for spec in specs):
+        raise ValueError('Saved-board Joule feedback requires prescribed-current loads; constant-power coupling is unsupported.')
     electrical.update(board_path=str(path), action='mesh')
-    bundle = execute(electrical)
+    # Electrical extraction already owns this exact saved native board. Reuse
+    # it for thermal extraction rather than parsing a dense board twice.
+    boards = {}
+    bundle = execute(electrical,_boards=boards)
     mesh, geometry = bundle['mesh'], bundle['geometry']
-    board = pcbnew.LoadBoard(str(path))
+    board = next(iter(boards.values())) if boards else pcbnew.LoadBoard(str(path))
     thermal = collect_thermal_geometry(board, path, geometry_helpers=board_geometry)
 
-    def terminal(value):
-        matches = [t for t in geometry['terminals'] if value in (t['id'], t['label'])]
-        if len(matches) != 1:
-            raise ValueError('Choose one unambiguous saved pad: ' + str(value))
-        row = matches[0]
-        return row, mesh['terminal_nodes'][row['id']]
-
-    sinks = []
-    for spec in sink_requests(electrical):
-        row, nodes = terminal(spec['terminal'])
-        sinks.append({**spec, 'nodes': nodes, 'id': row['id'], 'label': row['label']})
+    from .terminals import resolve_units
+    _, source_nodes, sinks, terminal_units = resolve_units(
+        electrical, geometry, mesh, specs)
     sha = hashlib.sha256(path.read_bytes()).hexdigest()
     if geometry.get('source_sha256') != sha or thermal.get('source_sha256') != sha:
         raise ValueError('Saved PCB changed between electrical and thermal extraction. Reload and retry.')
@@ -91,12 +91,13 @@ def prepare_saved_study(path, study):
                         pcbnew.ToMM(bounds.GetY()+bounds.GetHeight())],
             'side': 'bottom' if fp.IsFlipped() else 'top'})
     prepared = {k: copy.deepcopy(v) for k, v in study.items() if k != 'electrical'}
-    prepared.update(schema_version=1, mesh=mesh, source_nodes=terminal(electrical['source_terminal'])[1],
+    prepared.update(schema_version=1, mesh=mesh, source_nodes=source_nodes,
         sinks=sinks, source_voltage_V=electrical.get('source_voltage', 1.),
         source_current_limit_A=electrical.get('source_current_limit'),
         electrical_options=electrical.get('options', {}), thermal_geometry=thermal,
         thermal_view={'components': view_components}, via_heat_mappings=via_maps,
         source_sha256=sha, stackup_sha256=stackup_sha)
+    prepared['terminal_units']=terminal_units
     return prepared
 
 

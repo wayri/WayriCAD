@@ -103,6 +103,10 @@ save changes before fast preview. See [guard workflow and limits](../via_stitchi
 
 ## Electrical analysis
 
+Use the [Marble and White Rabbit tutorials](QUICK_TOOL_EXAMPLE_BOARDS.md) for
+board preparation and complete examples, and the control-reference appendix in
+each tool guide when you need a particular setting or mode.
+
 | Detailed walkthrough | Coverage |
 |---|---|
 | [Quick PI user guide](../quick_pi_plugin/USER_GUIDE.md) | DC and return paths, AC losses, PDN and transient studies, inspection and reports |

@@ -1,0 +1,48 @@
+{
+  "environment": "air",
+  "ambient_c": 25.0,
+  "input_mode": "manual",
+  "references": [
+    "U1",
+    "U35",
+    "U23",
+    "U54"
+  ],
+  "manual_values": {
+    "U1": {
+      "power_w": 5.0,
+      "theta_jb_k_per_w": 5.0
+    },
+    "U35": {
+      "power_w": 2.0,
+      "theta_jb_k_per_w": 8.0
+    },
+    "U23": {
+      "power_w": 0.5,
+      "theta_jb_k_per_w": 10.0
+    },
+    "U54": {
+      "power_w": 0.8,
+      "theta_jb_k_per_w": 10.0
+    }
+  },
+  "thermal_model_kind": "multilayer",
+  "thermal_network_settings": {
+    "dielectric_k_w_mk": 0.3,
+    "copper_k_w_mk": 385.0,
+    "via_plating_mm": 0.025,
+    "board_emissivity": 0.8,
+    "board_airflow_m_s": 1.0,
+    "board_h_w_m2k": 9.0,
+    "grid_cells_long_axis": 32,
+    "source_refinement_factor": 1,
+    "component_to_board_k_per_w": {
+      "U1": 5.0,
+      "U35": 8.0,
+      "U23": 10.0,
+      "U54": 10.0
+    },
+    "mesh_mode": "manual"
+  },
+  "board_power_only": true
+}

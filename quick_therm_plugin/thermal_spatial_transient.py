@@ -184,6 +184,7 @@ def evolve(laplacian, capacity, source_vectors, surface_area, h, emissivity,
     frames = [{"time_s": 0.0, "temperatures_c": temp.tolist()}]
     energy = []
     cache = {}
+    linear_boundary = not np.any(emissivity)
     for step, (start, time_s) in enumerate(zip(timeline, timeline[1:]), 1):
         delta = time_s-start
         source = np.zeros(n)
@@ -210,24 +211,27 @@ def evolve(laplacian, capacity, source_vectors, surface_area, h, emissivity,
             kelvin = temp+273.15
             loss = surface_area*(h*(temp-ambient)+emissivity*SIGMA*(kelvin**4-(ambient+273.15)**4))
             slope = surface_area*(h+4*emissivity*SIGMA*kelvin**3)
-            matrix = laplacian+diags(mass+contact_g+slope, format="csc")
             rhs = source+contact_rhs+mass*previous+slope*temp-loss
-            if len(ids):
-                rhs[free] -= matrix[free][:, ids]@temp[ids]
-            key = delta if not np.any(emissivity) else None
-            factor = cache.get(key) if key is not None else None
-            if factor is None:
+            key = delta if linear_boundary else None
+            entry = cache.get(key) if key is not None else None
+            if entry is None:
+                matrix = laplacian+diags(mass+contact_g+slope, format="csc")
                 factor = splu(matrix[free][:, free].tocsc()) if len(free) else None
+                coupling = matrix[free][:, ids] if len(ids) else None
                 if key is not None:
-                    cache[key] = factor
+                    cache[key] = (factor, coupling)
                     if len(cache) > 128:
                         cache.pop(next(iter(cache)))
+            else:
+                factor, coupling = entry
+            if coupling is not None:
+                rhs[free] -= coupling@temp[ids]
             candidate = factor.solve(rhs[free]) if len(free) else np.array([])
             if not np.all(np.isfinite(candidate)) or np.any(candidate <= -273.15) or np.any(candidate > 10000):
                 raise ValueError("Transient thermal solve diverged.")
             change = max(np.abs(candidate-temp[free]), default=0)
             temp[free] = candidate
-            if change < 1e-7:
+            if linear_boundary or change < 1e-7:
                 break
         else:
             raise ValueError("Transient radiation iteration did not converge.")

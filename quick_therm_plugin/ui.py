@@ -620,6 +620,7 @@ class QuickThermFrame(wx.Frame):
         inspect.Bind(wx.EVT_TOGGLEBUTTON,lambda e:self._toggle_thermal_pane(self.therm_result_splitter,visual_host,inspector,inspect.GetValue(),-self.FromDIP(340),hide_second=True))
         details=wx.ScrolledWindow(inspector);details.SetScrollRate(0,10);detail_layout=wx.BoxSizer(wx.VERTICAL)
         self.therm_view_note=wx.StaticText(details,label='Junction estimates and interpolated fields are distinct from physical board fields.');self.therm_view_note.Wrap(270)
+        self.therm_view_note.SetMaxSize((270,-1))
         detail_layout.Add(self.therm_view_note,0,wx.EXPAND|wx.ALL,8)
         self.therm_analytics=wx.StaticText(details,label='Run thermal to see temperatures, power and coverage.');self.therm_analytics.Wrap(270)
         detail_layout.Add(self.therm_analytics,0,wx.EXPAND|wx.ALL,8)

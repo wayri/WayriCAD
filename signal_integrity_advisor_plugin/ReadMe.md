@@ -6,6 +6,16 @@
 
 **Detailed user guide:** [Read the step-by-step guide](USER_GUIDE.md) · [Offline HTML](USER_GUIDE.html). Covers setup, all workspace tabs, CLI, reports, recovery and model limits.
 
+## Worked board tutorials and complete controls
+
+Follow [Marble](USER_GUIDE.md#marble-worked-example) or [White Rabbit](USER_GUIDE.md#white-rabbit-worked-example), then use the [control-by-control reference](USER_GUIDE.md#control-reference) and [all 13 CLI command tables](USER_GUIDE.md#complete-cli-parameter-reference). Each tutorial states the exact net, pads, input assumptions, expected values and unresolved coverage.
+
+| Marble route screen | White Rabbit imported-board screen |
+|---|---|
+| ![Actual native Marble route tutorial](help-marble-worked.png) | ![Actual native White Rabbit route tutorial](help-white-rabbit-worked.png) |
+
+These are genuine native application captures with explicit illustrative interface assumptions. The White Rabbit conversion has no qualified material stackup; its timing example uses entered Er and Z0. [Board preparation and provenance](../docs/QUICK_TOOL_EXAMPLE_BOARDS.md).
+
 ## Start here
 
 | Need | Open |

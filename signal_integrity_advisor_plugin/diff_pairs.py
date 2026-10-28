@@ -56,6 +56,11 @@ def find_mate(net: str, available: Iterable[str]) -> str:
     """Best mate candidate for ``net`` among ``available`` net names."""
     names = [value for value in available if value]
     lookup = {value.casefold(): value for value in names}
+    return _mate_from_lookup(net, lookup)
+
+
+def _mate_from_lookup(net: str, lookup: dict[str, str]) -> str:
+    """Apply unchanged naming rules to one operation-local net index."""
     for rule, positive_suffix, negative_suffix in _PAIR_RULES:
         base = _strip_suffix(net, positive_suffix)
         polarity = negative_suffix
@@ -76,12 +81,13 @@ def find_mate(net: str, available: Iterable[str]) -> str:
 def detect_pairs(net_names: Iterable[str]) -> List[DiffPair]:
     """Detect every differential pair present in ``net_names``."""
     names = sorted({value for value in net_names if value})
+    lookup = {value.casefold(): value for value in names}
     taken: set[str] = set()
     pairs: List[DiffPair] = []
     for net in names:
         if net in taken:
             continue
-        mate = find_mate(net, names)
+        mate = _mate_from_lookup(net, lookup)
         if not mate or mate == net:
             continue
         classified = classify_pair(net, mate)

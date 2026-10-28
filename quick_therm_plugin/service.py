@@ -136,8 +136,9 @@ def execute(request):
         from .quick_therm import _footprint_properties
 
         footprints = list(board.GetFootprints())
-        components = [fp for fp in footprints if "*" not in str(fp.GetReference())]
-        field_names = sorted({name for fp in components for name in _footprint_properties(fp)})
+        components = [fp for fp in footprints if str(fp.GetReference()).strip() and "*" not in str(fp.GetReference())]
+        properties = {fp.m_Uuid.AsString(): _footprint_properties(fp) for fp in components}
+        field_names = sorted({name for values in properties.values() for name in values})
         mounting_holes = []
         for fp in footprints:
             for pad in fp.Pads():
@@ -164,7 +165,7 @@ def execute(request):
                 "side": "bottom" if fp.IsFlipped() else "top",
                 "x_mm": pcbnew.ToMM(fp.GetPosition().x),
                 "y_mm": pcbnew.ToMM(fp.GetPosition().y),
-                "properties": _footprint_properties(fp),
+                "properties": properties[fp.m_Uuid.AsString()],
             } for fp in components), key=lambda row: row["reference"]),
             "field_names": field_names, "mounting_holes": mounting_holes,
             "source_sha256": before,

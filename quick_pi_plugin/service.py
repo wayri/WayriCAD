@@ -127,11 +127,19 @@ def run_job(request, cancelled=None, timeout=300):
         if _request_key(request)!=cache_key:raise ValueError('The board or project rules changed during cached analysis. Reload and run again.')
         return result
     from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_QUICK_PI, child_environment
+    action=request.get('action','inspect')
     requirements={name: spec for name, spec in REQUIREMENTS_QUICK_PI.items() if name != 'kipy'}
-    if request.get('action')=='ac':
+    if action in ('inspect','geometry'):
+        # Net/terminal inventory and native polygon extraction do not use a
+        # scientific mesher. Avoid probing/importing VTK and SciPy before the
+        # first board view, and never provision unused packages for that view.
+        requirements={}
+    elif request.get('model_dimension')=='3d':
+        requirements={name:spec for name,spec in requirements.items() if not name.startswith('vtk')}
+    elif action=='ac':
         # Explicit cross-sections need no native board IO, VTK or mesher imports.
         requirements={name:spec for name,spec in requirements.items() if name in ('numpy','scipy')}
-    if _requires_gmsh(request):
+    if action not in ('inspect','geometry') and _requires_gmsh(request):
         requirements['gmsh']='gmsh>=4.11,<5'
     python=ensure_runtime(requirements)
     with tempfile.TemporaryDirectory(prefix='wayricad-quick-pi-') as temporary:

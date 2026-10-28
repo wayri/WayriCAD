@@ -16,23 +16,18 @@ assets. It counts downloaded files, including repeat downloads and release metad
 not unique users or installations. GitHub does not separate PCM from direct downloads;
 automatic source ZIP/tar downloads and repository clones are excluded.
 
-**New in 3.6.40:** clearer AC setup and charts, copper-first PI views, readable
-via IDs, differential voltage probes, SI pair timing, individual shunt capacitor
-studies and cleaner HTML/PDF reports. [Release notes](docs/RELEASE_NOTES_3.6.40.md).
+**New in 3.6.41:** faster Quick PI, SI and thermal preparation and solves,
+a guided Joule setup, Blender visualization and illustrated analysis guides.
+[Release notes](docs/RELEASE_NOTES_3.6.41.md).
 
-## New in 3.6.40
+## New in 3.6.41
 
-Download the published release or refresh the WayriCAD package repository in KiCad.
-[Release notes](docs/RELEASE_NOTES_3.6.40.md).
-
-| Improvement | What changes |
+| Improvement | Where to start |
 |---|---|
-| Simpler AC / SMPS workflow | Live outgoing/return preview, one Run action, folded custom settings and large selectable charts with kHz, mΩ and mW. [Quick PI previews](#quick-pi) · [AC guide](quick_pi_plugin/ac_setup_help.html) |
-| Copper-first PI view | All copper layers open together; Silk has its own toggle, off by default. Vias use V1/V2 labels consistently in probes and reports. [Workflow](quick_pi_plugin/README.md#first-open-copper-preview) |
-| Differential PI probes | Pick A and B in one solved 2.5D DC field and inspect their signed voltage difference. [Guide](quick_pi_plugin/README.md#differential-voltage-probes) |
-| SI pair timing | Compare leg delays, skew and explicit-frequency propagation phase, plus mean delay between pairs. [Guide and model limits](signal_integrity_advisor_plugin/ReadMe.md#differential-pair-delay-and-phase-matching) |
-| Shunt capacitor studies | Edit individual C/ESR/ESL branches for PI transients and include endpoint caps in SI circuit exports. [Inputs and limits](quick_pi_plugin/README.md#individual-shunt-capacitors-in-transient-studies) |
-| Cleaner HTML and PDF reports | Readable summaries and tables, optional raw JSON and direct PDF export. [Reporting guide](wayricad_runtime/REPORTS.md) |
+| Faster analysis | [PI measurements](docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md) · [SI measurements](docs/audits/QUICK_SI_SPEED_GUIDE_2026-10-28.md) · [Thermal measurements](docs/audits/QUICKTHERM_SPEED_GUIDE_2026-10-28.md) |
+| Guided Joule feedback | [Materials, cooling and model limits](quick_pi_plugin/USER_GUIDE.md) |
+| Complete analysis workflows | [Marble and White Rabbit tutorials](docs/QUICK_TOOL_EXAMPLE_BOARDS.md) · [Detailed guides](#detailed-analysis-guides) |
+| Blender visualization | [Export supported board geometry, fields and thermal frames](wayricad_runtime/BLENDER.md) |
 
 ## Start here
 
@@ -40,7 +35,7 @@ Download the published release or refresh the WayriCAD package repository in KiC
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.40](https://github.com/wayri/WayriCAD/releases/tag/v3.6.40) · [Release notes](docs/RELEASE_NOTES_3.6.40.md) |
+| Download or update | [Release 3.6.41](https://github.com/wayri/WayriCAD/releases/tag/v3.6.41) · [Release notes](docs/RELEASE_NOTES_3.6.41.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -59,6 +54,10 @@ Download the published release or refresh the WayriCAD package repository in KiC
 
 Each guide covers setup, result interpretation, examples, command-line use,
 report export and troubleshooting, including the limits of each solver.
+
+Follow the [Marble and White Rabbit example-board preparation](docs/QUICK_TOOL_EXAMPLE_BOARDS.md)
+for pinned sources, native-import limits and links to the worked tutorials and
+control references.
 
 **Blender visualization (source update):** completed Quick PI, Quick SI and
 QuickTherm results can be exported as Blender scenes, with supported fields and

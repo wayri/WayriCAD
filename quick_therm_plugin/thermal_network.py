@@ -135,7 +135,7 @@ def _solve_board_sparse(neighbors, sources, ambient, area, h, emissivity):
             raise ValueError("Thermal network diverged; inspect units, power, and heat rejection.")
         change = float(np.max(np.abs(candidate - temp)))
         temp = candidate
-        if change <= 1e-7:
+        if emissivity == 0 or change <= 1e-7:
             return temp.tolist(), iteration + 1
     raise ValueError("Thermal network did not converge; check power, emissivity, and convection inputs.")
 

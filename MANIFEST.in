@@ -107,3 +107,10 @@ include tests/test_blender_importer.py
 include tests/test_blender_ui.py
 include docs/audits/BLENDER_VISUALIZATION_2026-10-28.md
 include docs/images/blender-marble-thermal.png
+include docs/RELEASE_NOTES_3.6.41.md
+include docs/QUICK_TOOL_EXAMPLE_BOARDS.md
+include docs/images/quick-study-map.svg
+include docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md
+include docs/audits/QUICK_SI_SPEED_GUIDE_2026-10-28.md
+include docs/audits/QUICKTHERM_SPEED_GUIDE_2026-10-28.md
+include tests/test_return_path_speed.py

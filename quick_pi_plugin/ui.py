@@ -1693,6 +1693,11 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                     artist=axes.scatter(xyz[:,0],xyz[:,1],xyz[:,2],c=values,cmap='inferno',
                                         s=5,alpha=.85,rasterized=True)
                     axes.set_zlabel('Z (mm)')
+                    from matplotlib.ticker import MaxNLocator
+                    axes.xaxis.set_major_locator(MaxNLocator(nbins=5))
+                    axes.yaxis.set_major_locator(MaxNLocator(nbins=5))
+                    axes.zaxis.set_major_locator(MaxNLocator(nbins=3))
+                    axes.tick_params(labelsize=8)
                     extent=xyz.max(axis=0)-xyz.min(axis=0)
                     axes.set_box_aspect((max(extent[0],.01),max(extent[1],.01),
                                          max(extent[2],.01)),zoom=.85)
@@ -1864,6 +1869,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             from .service import run_job
             request=self._request('solve')
             if request.get('package_conduction'):raise ValueError('Package contacts are unsupported in electrothermal coupling.')
+            if request.get('series'):
+                raise ValueError('Saved-board Joule feedback supports one copper net. Series branch heat contacts require an explicit prepared electrothermal model.')
             if 'load_power_W' in request or any('power_W' in row for row in request.get('sinks',[])):
                 raise ValueError('Electrothermal studies currently require current profiles; constant-power regulation dynamics are not modeled.')
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()

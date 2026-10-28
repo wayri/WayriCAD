@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quick PI control reference</title><style>body{font:16px/1.6 system-ui,Arial,sans-serif;max-width:1120px;margin:28px auto;padding:0 20px;color:#203333;background:#fff}a{color:#126c80}h1,h2,h3{line-height:1.25}h2{margin-top:2em;border-bottom:1px solid #cfdad8;padding-bottom:.3em}img{max-width:100%;height:auto;border:1px solid #dde4e2}.table-scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;margin:1em 0}th,td{border:1px solid #cad8d4;text-align:left;vertical-align:top;padding:9px}th{background:#edf5f2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f3;padding:14px}code{font-family:Consolas,monospace;font-size:.9em}li{margin:.35em 0}@media print{body{max-width:none;font-size:10pt}h2{break-after:avoid}img{max-height:19cm;object-fit:contain}pre,tr{break-inside:avoid}a{color:inherit}}</style></head><body>
+<h1 id="quick-pi-control-reference">Quick PI control reference</h1>
+<p><a href="USER_GUIDE.html">Worked user guide</a> · <a href="CONTROL_REFERENCE.html">Offline control reference</a> · <a href="help.html">Quick help</a></p>
+<p>This reference follows the current source. Guided Joule inputs and Blender are source updates requiring a package containing those changes; previously released 3.6.41 installers have not been replaced. Units beside a control take precedence over the base SI units used in saved JSON. A disabled action is not a passed check.</p>
+<h2 id="workspace-and-load-setup">Workspace and load setup</h2>
+<div class="table-scroll"><table>
+<tr><th>Control</th><th>Operation, units and preconditions</th></tr>
+<tr><td>Setup / Inspect</td><td>Show/hide side panels; drag dividers for more space. Hidden controls retain inputs.</td></tr>
+<tr><td>Fit / + / − / image icon</td><td>Fit, zoom or save the current drawing. Normal wheel zooms, drag pans, double-click fits. An image does not replace numerical evidence.</td></tr>
+<tr><td>Find net</td><td>Literal substring by default. <code>*</code>/<code>?</code> enable wildcards; <code>~</code> enables fuzzy search. Filtering preserves the selected net.</td></tr>
+<tr><td>Net / Pick net</td><td>Exact saved net, or select a saved pad/track/via to choose its net. Rebuild preview after changing scope.</td></tr>
+<tr><td>Source pad / Sink pad</td><td>Different contacts on the actual connected net; labels combine reference and pin number.</td></tr>
+<tr><td>Include other same-net pins</td><td>Appears only when eligible same-footprint pads exist. Review the group; A/W applies to the whole ideal endpoint, not each pin.</td></tr>
+<tr><td>Source · V</td><td>Fixed ideal source voltage; not a regulator waveform.</td></tr>
+<tr><td>Sink current · A</td><td>Prescribed DC demand. Enables supported 2.5D and full-3D current solves.</td></tr>
+<tr><td>Resistive load · Ω</td><td>Solve current through the path plus an external load to 0 V. Not constant-current behavior.</td></tr>
+<tr><td>Constant power · W</td><td>Solve the stable high-voltage DC branch of P=VI. Collapse/infeasibility is retained; no transient regulation is implied.</td></tr>
+<tr><td>Load value</td><td>A, Ω or W according to the selected mode. Changing mode invalidates old results.</td></tr>
+<tr><td>Limit · A</td><td>Source budget: blank means unspecified/unlimited; zero means no budget. It is diagnostic, not a physical limiter.</td></tr>
+<tr><td>Min · V / Max · V</td><td>Primary sink operating bounds. Blank minimum means 0 V, blank maximum is unbounded.</td></tr>
+<tr><td>Additional sinks…</td><td>Add simultaneous units with currents/powers, bounds and reviewed grouped pins. Repeated or overlapping contacts are invalid.</td></tr>
+<tr><td>Package contacts…</td><td>Explicit lead/solder/BGA geometry and material paths. Supported 2.5D prescribed-current cases only; not the same as ideal grouped pins.</td></tr>
+<tr><td>Copper model</td><td>2.5D sheets/barrels or full 3D copper volume. Switching invalidates old fields; 3D does not add AC or temperature feedback.</td></tr>
+<tr><td>Include Joule heating / temperature feedback</td><td>DC already computes I²R. This additionally opens explicit temperature/resistance coupling, supported for one-net 2.5D prescribed-current units.</td></tr>
+<tr><td>Rails / ground returns…</td><td>Explicit multi-rail and return-contact configuration. Different from sampled reference-plane auditing.</td></tr>
+<tr><td>Preview / Run</td><td>Inspect saved copper first; Run validates, meshes and solves. Joule checkbox opens required physical settings first.</td></tr>
+<tr><td>Export / Power flow / Blender…</td><td>Current HTML/JSON evidence, source-to-sink power accounting, or optional Blender field export. None changes PCB geometry.</td></tr>
+<tr><td>Series</td><td>Build an explicit component/net path; review component interpretation, polarity and routing.</td></tr>
+<tr><td>Cancel / progress</td><td>Cancel the isolated worker. Partial work is discarded, not accepted as complete.</td></tr>
+<tr><td>Console / Enter</td><td>Expand command history, enter <code>help</code> or a supported PI/series command. It is not arbitrary Python.</td></tr>
+</table></div>
+<h2 id="mesh-and-material-controls">Mesh and material controls</h2>
+<div class="table-scroll"><table>
+<tr><th>Control</th><th>Meaning and valid use</th></tr>
+<tr><td>Automatic mesh</td><td>Geometry-based 2.5D initial/local sizing. Not error-estimated convergence; off for 3D.</td></tr>
+<tr><td>Mesh · mm</td><td>Manual edge target. Smaller raises cost; it is not a guaranteed error bound.</td></tr>
+<tr><td>Via plating · mm</td><td>Conductive wall thickness, not drill diameter. The example 0.025 mm means 25 µm.</td></tr>
+<tr><td>Copper · °C</td><td>Fixed electrical resistivity temperature, separate from a solved thermal field.</td></tr>
+<tr><td>Initial / ambient · °C</td><td>Initial supported adiabatic-screen temperature. Does not supply cooling.</td></tr>
+<tr><td>Pulse · s</td><td>Prescribed heating/melting-screen duration; no current waveform is inferred.</td></tr>
+<tr><td>Limit · °C</td><td>Entered operating threshold for the screen.</td></tr>
+<tr><td>Copper melt · °C</td><td>Supported 2.5D adiabatic threshold; nominal 1084.62 °C does not predict fuse clearing.</td></tr>
+<tr><td>Latent heat · J/kg</td><td>Fusion heat in that screen; no cooling, arcing or post-melt interruption.</td></tr>
+<tr><td>3D cell budget</td><td>Hard tetrahedron capacity. Failure does not silently coarsen/truncate the model.</td></tr>
+</table></div>
+<h2 id="field-inspector-and-selection">Field inspector and selection</h2>
+<div class="table-scroll"><table>
+<tr><th>Control</th><th>Interpretation</th></tr>
+<tr><td>Layer</td><td>All copper projected or one physical layer. Choose physical layers for unambiguous A/B voltage clicks.</td></tr>
+<tr><td>Result</td><td>Potential/drop/resistance, density/sheet current, dissipation or supported risk/melting metric. Read the actual unit; W, W/mm² and W/mm³ differ.</td></tr>
+<tr><td>Board / Copper / Field / Silk</td><td>Independent visibility. Board keeps edges/holes; Silk starts off. These do not modify the solve.</td></tr>
+<tr><td>Only simulated nets</td><td>Isolate the analyzed domain. Surrounding visible copper is not automatically added to it.</td></tr>
+<tr><td>Smooth gradient / Solver cells</td><td>Interpolated display or raw cell appearance. Probes and peak checks retain solver-cell semantics.</td></tr>
+<tr><td>Auto: selected layer</td><td>Colors fit that layer; other layer colors need not be comparable.</td></tr>
+<tr><td>Shared: all layers</td><td>One scale across solved layers.</td></tr>
+<tr><td>Manual: this metric / Minimum / Maximum</td><td>Explicit finite display bounds; color clipping does not clip numerical values.</td></tr>
+<tr><td>Hotspots</td><td>Ranked concentrated-heating entries; linked row selection locates the copper. Local singular peaks may not converge.</td></tr>
+<tr><td>Losses → By layer / Heating</td><td>Integrated layer watts versus local J/volumetric heat. They are different summaries.</td></tr>
+<tr><td>Full accounting details</td><td>Expand electrical conservation and loss-accounting details.</td></tr>
+<tr><td>Probe → Single point</td><td>Hover/click supported solved geometry. Gaps, holes and unknown nodes remain unknown.</td></tr>
+<tr><td>Set probe A / Set probe B / Clear A/B</td><td>Read signed V(A)−V(B) in one solved reference, or clear both. Not an AC/transient differential waveform.</td></tr>
+<tr><td>Model and selection notes</td><td>Geometry identity, provenance and limits of the selected sample.</td></tr>
+<tr><td>Select / Read</td><td>Cross-select an available native object in the originating editor, or read editor selection. Display-only cells do not become PCB objects.</td></tr>
+<tr><td>Live current controls</td><td>Supported fixed-temperature prescribed-current 2.5D model only. Ctrl+wheel near an unambiguous sink changes that sink demand; normal wheel zooms.</td></tr>
+<tr><td>Near-cursor preview</td><td>Current and parameter changes; wait for the latest update before export. Coupled/3D studies require a real rerun.</td></tr>
+</table></div>
+<h3 id="exact-result-quantities">Exact result quantities</h3>
+<div class="table-scroll"><table>
+<tr><th>Result selector</th><th>Unit and interpretation</th></tr>
+<tr><td>Potential</td><td>V, relative to this solved source/reference convention.</td></tr>
+<tr><td>Voltage drop</td><td>mV from the source, with physical-return sign conventions retained.</td></tr>
+<tr><td>DC drop / current ΔV/I</td><td>mΩ for the current operating demand; not AC impedance.</td></tr>
+<tr><td>Current density</td><td>A/mm², magnitude in copper; mesh/contact peaks can be singular.</td></tr>
+<tr><td>Current flow</td><td>A/mm, sheet-current magnitude, distinct from volumetric J.</td></tr>
+<tr><td>Copper loss density</td><td>W/mm² in the planar field; integrated watts appear separately.</td></tr>
+<tr><td>Adiabatic pulse energy / limit</td><td>Dimensionless supported energy/threshold screen, not a cooling equilibrium.</td></tr>
+<tr><td>Pulse / adiabatic melting action</td><td>Dimensionless action ratio for the supported pulse/material assumptions; not fuse-opening probability.</td></tr>
+</table></div>
+<h2 id="return-path-and-multi-rail-dialogs">Return path and multi-rail dialogs</h2>
+<div class="table-scroll"><table>
+<tr><th>Control</th><th>Procedure</th></tr>
+<tr><td>Signal / rail; Use Setup net</td><td>Choose the actual saved net or copy the main selection.</td></tr>
+<tr><td>Return net; Use suggested return</td><td>Confirm the reference; a GND-like name is only a suggestion.</td></tr>
+<tr><td>Review return path / Export report…</td><td>Run a sampled geometry audit and preserve it. Not an electrical loop solve.</td></tr>
+<tr><td>More return options</td><td>Exposes extra nets, optional contacts and sampling.</td></tr>
+<tr><td>Additional return-net checklist</td><td>Search/check intended references; inspect checked count, including hidden checked rows.</td></tr>
+<tr><td>Source return pad / Load return pad</td><td>Optional exact reference contacts, not power-net contacts.</td></tr>
+<tr><td>Sample mm / Via radius mm</td><td>Along-route pitch and local via search radius. Smaller pitch costs more; sampled coverage is not proof of EM continuity.</td></tr>
+<tr><td>Add net case…</td><td>One rail with its own source voltage, net and load units.</td></tr>
+<tr><td>Edit source / load pads…</td><td>Review ideal multi-pad source/sink groups and total demands.</td></tr>
+<tr><td>Set up ground / return…</td><td>Explicit ground source, load mappings and participating rail(s); shared copper is solved once.</td></tr>
+<tr><td>Edit selected return… / Remove selected return</td><td>Change the selected group; inspect which cases become independent.</td></tr>
+<tr><td>Load JSON… / Save study JSON…</td><td>Preserve a complete reviewed configuration, not an external case-reference descriptor.</td></tr>
+<tr><td>Advanced JSON / Saved-board pad catalogue</td><td>Full supported schema and exact label/UUID inventory. Catalogue presence does not add a pad to the analysis.</td></tr>
+<tr><td>Run / Cancel / Results / Export</td><td>Inspect every case and shared ground-rise status; retain parent evidence with child report directory.</td></tr>
+</table></div>
+<h2 id="more-menu-and-3d-results">More menu and 3D results</h2>
+<div class="table-scroll"><table>
+<tr><th>Action</th><th>Preconditions and next step</th></tr>
+<tr><td>Generate mesh only</td><td>Inspect discretization without claiming a solved field.</td></tr>
+<tr><td>Select 3D copper analysis</td><td>Sets full-volume mode; prescribed current and manual Gmsh sizing required.</td></tr>
+<tr><td>Transient load-step study…</td><td>Explicit lumped R/L/C setup; PCB selection seeds names and, only when valid, one total DC resistance.</td></tr>
+<tr><td>Electrothermal study…</td><td>Advanced steady saved-board or explicit lumped transient coupling. Checkbox flow is steady-only.</td></tr>
+<tr><td>AC / SMPS copper study…</td><td>Explicit uniform cross-section model, not routed-board AC extraction.</td></tr>
+<tr><td>Layer thickness, losses and hotspots…</td><td>Current analytics; unavailable results disable the action.</td></tr>
+<tr><td>Zoom to circuit terminals</td><td>Reframe contacts without moving PCB objects.</td></tr>
+<tr><td>Refine mesh and rerun</td><td>Halve the edge target; expect greater cost. Hold other inputs fixed for comparison.</td></tr>
+<tr><td>Check mesh convergence…</td><td>Supported fixed-input refinement sequence; read unsupported modes before running.</td></tr>
+<tr><td>View convergence plots…</td><td>Inspect retained refinement evidence without another solve.</td></tr>
+<tr><td>Series voltage ladder…</td><td>Component/path drop accounting from an existing supported series result.</td></tr>
+<tr><td>DC current sweep… / View last current sweep…</td><td>Fixed-temperature path sweep, not a coupled thermal sweep.</td></tr>
+<tr><td>Reload saved board</td><td>Re-read the intended saved/refilled revision and invalidate stale derived views.</td></tr>
+<tr><td>3D View</td><td>Board top or interactive 3D copper at physical XYZ mm scale.</td></tr>
+<tr><td>3D Layer</td><td>All copper, saved slab or interlayer barrels. Floating cells do not carry solved current.</td></tr>
+<tr><td>3D Field</td><td>Current density A/mm², potential V or loss density W/mm³. Up to 5,000 deterministic cells drawn; every tetrahedron stays in JSON.</td></tr>
+<tr><td>3D toolbar / Export interactive 3D report…</td><td>Navigate/probe displayed samples and retain HTML/JSON together. Sampling does not prove mesh convergence.</td></tr>
+</table></div>
+<h2 id="ac--smps-study">AC / SMPS study</h2>
+<div class="table-scroll"><table>
+<tr><th>Input or action</th><th>Units, entry and review</th></tr>
+<tr><td>Quick loop / Custom loop</td><td>Quick constructs a declared balanced geometry and one ripple frequency. Custom exposes conductors/harmonics. Run applies visible quick values directly.</td></tr>
+<tr><td>Shared conductor length · mm</td><td>Uniform section length, not width or extracted board route.</td></tr>
+<tr><td>DC rail voltage · V</td><td>Reporting context, not insulation qualification.</td></tr>
+<tr><td>DC load current · A</td><td>Mean current, separate from AC RMS ripple.</td></tr>
+<tr><td>Copper temperature · °C</td><td>Fixed resistivity temperature, not thermal equilibrium.</td></tr>
+<tr><td>Quick preset</td><td>Supported outgoing/return arrangement; inspect its preview. Split-return sharing is an explicit assumption.</td></tr>
+<tr><td>Copper width / thickness · mm</td><td>Actual cross section. 0.035 mm is 35 µm, not PCB thickness.</td></tr>
+<tr><td>Surface gap to return · mm</td><td>Copper-surface gap, not centre spacing.</td></tr>
+<tr><td>Ripple frequency · kHz / Ripple RMS · A</td><td>One harmonic; peak and peak-to-peak amplitudes are not RMS.</td></tr>
+<tr><td>Review recipe in custom table</td><td>Inspect signed current scales and geometry before supplying a custom spectrum.</td></tr>
+<tr><td>Conductor / return table</td><td>Name, centre X/Y mm, width mm, thickness mm, signed current multiplier. Multipliers sum to zero; include all modeled returns.</td></tr>
+<tr><td>Harmonic table</td><td>Distinct frequency Hz and loop RMS A. Keep DC in its separate field.</td></tr>
+<tr><td>Add / Remove conductor or harmonic</td><td>Edit the selected row; this invalidates old curves/export.</td></tr>
+<tr><td>Build SMPS waveform…</td><td>Triangular output ripple or pulsed input current. Enter frequency Hz, ripple peak-to-peak or pulse-ON A, triangular DC mean A, duty 0–1 and highest harmonic order 1–32. Review the resulting RMS table.</td></tr>
+<tr><td>Maximum mesh step / Air boundary padding · mm</td><td>Cross-section resolution and exterior magnetic domain. Refine separately.</td></tr>
+<tr><td>Maximum cells</td><td>Hard capacity, not permission to truncate.</td></tr>
+<tr><td>Convergence tolerance · fraction</td><td>0.01 means 1%, not 0.01%. Does not certify local J peaks.</td></tr>
+<tr><td>Permittivity for length check</td><td>Electrically-short applicability input, not dielectric-loss simulation.</td></tr>
+<tr><td>Run AC / ripple losses / Cancel</td><td>Execute/cancel the section model; no partial result is accepted.</td></tr>
+<tr><td>Summary cards</td><td>Total copper heat W, ripple heat W, loop drop RMS V and combined RMS A.</td></tr>
+<tr><td>Inspect</td><td>Cross section, resistance/reactance or harmonic heating. One supplied frequency is one sample, not a swept measurement.</td></tr>
+<tr><td>Harmonics / Conductors result tables</td><td>Linked selection uses actual frequency/conductor; saved JSON uses SI units.</td></tr>
+<tr><td>Load study… / Save inputs… / Export HTML / JSON…</td><td>Inputs and result evidence are separate artifacts; export only after a current run.</td></tr>
+</table></div>
+<p><img src="help-ac-setup-3.6.40.png" alt="AC geometry setup" width="800" height="475"></p>
+<p><img src="help-ac-impedance-3.6.40.png" alt="AC impedance inspection" width="800" height="475"></p>
+<p>These genuine captures use an explicit illustrative section, not an extracted Marble or White Rabbit switching circuit.</p>
+<h2 id="decoupling-placement-and-lumped-pdn">Decoupling placement and lumped PDN</h2>
+<div class="table-scroll"><table>
+<tr><th>Control</th><th>Meaning and operation</th></tr>
+<tr><td>Rail / ground patterns</td><td>Match saved supply/reference nets; confirm actual matches and capacitor roles.</td></tr>
+<tr><td>Load-reference patterns</td><td>Scope the IC/pad set instead of every unrelated part.</td></tr>
+<tr><td>Maximum capacitor-pad distance</td><td>Millimetres for proximity; shorter does not automatically mean a solved lower loop L.</td></tr>
+<tr><td>Analyze PDN / linked map / CSV</td><td>Eligible rail-to-return capacitors, warning/failure pins and linked component location. No parts are moved.</td></tr>
+<tr><td>Lumped impedance screen</td><td>Independent explicit bank model; not derived from distance alone.</td></tr>
+<tr><td>Source / upstream R · mΩ; source / loop L · nH</td><td>Upstream equivalent; avoid counting it again in individual branches.</td></tr>
+<tr><td>Allowed ripple · mV; Load step ΔI · A</td><td>Defines Ztarget=ΔV/ΔI, a user engineering target.</td></tr>
+<tr><td>Start / stop frequency · Hz; Coarse log samples</td><td>Span and starting grid. Narrow unobserved peaks may remain.</td></tr>
+<tr><td>Capacitor / model; Effective C · µF</td><td>Label and bias-/temperature-/tolerance-adjusted C. No automatic catalogue derating.</td></tr>
+<tr><td>ESR · mΩ; Total ESL · nH; Quantity</td><td>Include mounting/connection L. Integer quantity is a number of identical modeled parts.</td></tr>
+<tr><td>Add capacitor / Remove capacitor</td><td>Edit a model row, not PCB placement or BoM quantity.</td></tr>
+<tr><td>Calculate / Export curves</td><td>Magnitude, phase, target, peaks and refined-grid changes. Target status is sampled-network evidence only.</td></tr>
+<tr><td>Load model JSON… / Save model JSON…</td><td>Exact complete input model with base SI values; see the bundled PDN recipe.</td></tr>
+</table></div>
+<p><img src="help-pdn-setup-3.6.38.png" alt="PDN target and bank setup" width="800" height="505"></p>
+<p><img src="help-pdn-results-3.6.38.png" alt="Explicit bank impedance" width="800" height="505"></p>
+<p><strong>Optimal placement is not implemented.</strong> The tool reviews connectivity and proximity and solves an entered lumped bank. It does not optimize component coordinates or a distributed plane/VRM model. A physical move requires a separate placement workflow and renewed electrical review.</p>
+<h2 id="transient-setup-and-visual-results">Transient setup and visual results</h2>
+<div class="table-scroll"><table>
+<tr><th>Input or action</th><th>Units, procedure and effect</th></tr>
+<tr><td>Source V</td><td>Pre-step ideal source. Initial state is pre-step DC equilibrium.</td></tr>
+<tr><td>Shared / total path R · mΩ</td><td>Shared upstream R. A valid one-load DC seed belongs here only once, not again as branch R.</td></tr>
+<tr><td>Shared source L · nH</td><td>Explicit shared path L; zero deliberately omits it.</td></tr>
+<tr><td>Source budget · A</td><td>Optional diagnostic, not a physical limiter.</td></tr>
+<tr><td>Duration / Integration step · µs</td><td>Overall span and maximum numerical step. Include events and settling; refine independently.</td></tr>
+<tr><td>Load</td><td>Unique unit ID binding demand, branch and capacitor bank.</td></tr>
+<tr><td>Before A / After A</td><td>Prescribed demand, not an inferred IC waveform.</td></tr>
+<tr><td>Step at · µs</td><td>Event time. Pre/post samples can share an event timestamp.</td></tr>
+<tr><td>Branch R · mΩ / Branch L · nH</td><td>Per-load elements after the shared path. Do not double count shared elements.</td></tr>
+<tr><td>Effective C · µF / Cap ESR · mΩ</td><td>Aggregate local bank when no individual bank is assigned.</td></tr>
+<tr><td>Min V / Max V</td><td>Optional unit bounds; missing limits are not passes.</td></tr>
+<tr><td>Add load / Remove load</td><td>Define 1–64 explicit units; inspect associated bank IDs after changes.</td></tr>
+<tr><td>Shunt capacitors for selected load…</td><td>Select a load first. An individual bank replaces that load&#x27;s aggregate C/ESR.</td></tr>
+<tr><td>Return-net candidate filter</td><td>Actual reference; eligible two-pad rail/return C-reference parts only. Unknown parasitics are not guessed.</td></tr>
+<tr><td>Shunt ID / C / ESR / total ESL</td><td>Unique branch label, effective F and reviewed Ω/H values in the displayed units. Include part and connection effects.</td></tr>
+<tr><td>Finite rise time</td><td>Physically justified current edge. An ideal impulse-requiring all-inductive cutset is rejected.</td></tr>
+<tr><td>Bulk ESR / ESL</td><td>Apply only to checked candidate rows; review count and units.</td></tr>
+<tr><td>Recommend time step</td><td>Modal/resolution advice. Apply deliberately, then refine; not convergence proof.</td></tr>
+<tr><td>Advanced SI editor (Ω / H / F / s)</td><td>Same canonical circuit in base units. Do not enter µF as F or µs as s.</td></tr>
+<tr><td>Load inputs JSON… / Save inputs JSON…</td><td>Exact IDs, circuit values and timing independent of result HTML.</td></tr>
+<tr><td>Run transient / Cancel</td><td>Validate and solve the explicit circuit; no complete distributed PCB L/C extraction.</td></tr>
+<tr><td>Voltage / source-current plots</td><td>Hover/pin supported samples; inspect droop, ringing, events and settling.</td></tr>
+<tr><td>Capacitor response</td><td>Select a branch to plot its own internal V/I; review ESR power/energy and total bank accounting.</td></tr>
+<tr><td>Checks / half-step comparison</td><td>Charge, energy and finer-step waveform evidence. Smooth appearance is not numerical acceptance.</td></tr>
+<tr><td>Export HTML / JSON</td><td>Exact samples plus inputs. PDF retains static evidence, not browser interaction.</td></tr>
+</table></div>
+<p><img src="help-transient-setup-3.6.38.png" alt="Engineering-unit transient setup" width="800" height="505"></p>
+<p><img src="help-shunt-transient.png" alt="Computed load-step response" width="800" height="526"></p>
+<p><img src="help-shunt-response.png" alt="Selected individual capacitor response" width="800" height="526"></p>
+<p>These captures use complete explicit circuit examples. They are not measured Marble/White Rabbit PDNs. The older aggregate-only setup predates the individual bank controls; its capture version is retained rather than relabelled.</p>
+<h2 id="guided-joule-feedback-and-advanced-coupling">Guided Joule feedback and advanced coupling</h2>
+<p>Saved-board coupling uses PI’s own thermal backend. It currently rejects plated slots and nonplated holes, even where standalone QuickTherm supports them. The unchanged Marble example stops at this geometry guard; a valid input file alone does not establish a successful temperature solve.</p>
+<p>The updated-source checkbox opens <strong>Materials + cooling</strong> first. Guided fields and <strong>Advanced model inputs</strong> edit one canonical study. Required blank values remain unknown; editing invalidates results. The current net/source and load-unit count are shown so the carried-over selection can be checked.</p>
+<div class="table-scroll"><table>
+<tr><th>Guided input</th><th>Required interpretation</th></tr>
+<tr><td>Ambient temperature · °C</td><td>Actual boundary/initial temperature within the declared material range.</td></tr>
+<tr><td>Dielectric conductivity · W/(m·K)</td><td>Thermal conductivity, not electrical εr.</td></tr>
+<tr><td>Copper thermal conductivity · W/(m·K)</td><td>Separate from electrical resistivity.</td></tr>
+<tr><td>Via plating · mm</td><td>Physical conductive wall thickness shared by linked models.</td></tr>
+<tr><td>Board convection coefficient · W/(m²·K)</td><td>Declared cooling, not solved airflow. Zero omits this contribution.</td></tr>
+<tr><td>Board emissivity · 0–1</td><td>Declared radiation boundary coefficient; zero omits it.</td></tr>
+<tr><td>Copper resistivity at 20 °C · Ω·m</td><td>Reference electrical material law.</td></tr>
+<tr><td>Copper resistance coefficient · 1/K</td><td>Temperature coefficient, not heat capacity.</td></tr>
+<tr><td>Material valid from / to · °C</td><td>Increasing validity range.</td></tr>
+<tr><td>Stop above temperature · °C</td><td>Explicit stop bound, not a certified component rating.</td></tr>
+<tr><td>Advanced grid cells / relaxation</td><td>Thermal resolution and iteration under-relaxation. Do not change them merely to hide a failed check.</td></tr>
+<tr><td>Maximum iterations / temperature and loss tolerances</td><td>Stopping criteria; a cap/range/iteration stop is not a converged point.</td></tr>
+<tr><td>Load study JSON… / Reset selected model</td><td>Load a reviewed configuration or restore its seed; neither establishes physical applicability.</td></tr>
+<tr><td>Run electrothermal / Cancel run</td><td>Steady saved-board temperature/resistance feedback. Canceled/failed points are not accepted.</td></tr>
+<tr><td>Coupled results</td><td>Cold/hot electrical quantities and thermal/convergence plots.</td></tr>
+<tr><td>Checks and solve actions / Export HTML / JSON…</td><td>Conservation, limits and convergence before saving evidence.</td></tr>
+<tr><td>Transient lumped coupling</td><td>Advanced explicit R/L/C plus thermal R/C nodes, separate from saved-board steady feedback.</td></tr>
+</table></div>
+<p><img src="help-joule-guided.png" alt="Native guided Joule setup" width="800" height="580"></p>
+<p>This capture carries Marble&#x27;s selected net but uses illustrative entered physical values; it is setup evidence, not a solved temperature. Current units may use reviewed grouped pins. 3D, package, series, constant-power and shared-return thermal combinations are not silently enabled. Ctrl+scroll live-current reuse does not apply: changing coupled demand or boundaries requires another solve.</p>
+<h2 id="series-and-package-contact-editors">Series and package-contact editors</h2>
+<div class="table-scroll"><table>
+<tr><th>Control or entry</th><th>Operation</th></tr>
+<tr><td>Series start/end pads</td><td>Exact contacts, including nets separated by a component. Review direction/polarity; matching names do not prove a path.</td></tr>
+<tr><td>Component branch selection</td><td>Explicit supported R/L/forward-drop or parallel branch interpretation. Check units, component identity and actual pad connectivity.</td></tr>
+<tr><td>Parallel parts suggestions</td><td>Review each proposed same-endpoint component. Highlighting a candidate does not include it until accepted.</td></tr>
+<tr><td>Resistance / inductance / forward-drop values</td><td>Enter explicit component data; inductance is not a DC resistance. The supported DC model uses winding/series resistance and declared drop behavior.</td></tr>
+<tr><td>Series saved JSON / console command</td><td>Retain exact part/pad identity and model. Output ladder shows path/component drops; it is not a full switching circuit.</td></tr>
+<tr><td>Package reference / pad / face</td><td>Select the actual physical endpoint; reject repeated faces and cross-net identities.</td></tr>
+<tr><td>Lead / solder / BGA contact kind</td><td>Explicit modeled conduction geometry, not a package-name heuristic.</td></tr>
+<tr><td>Length / cross-section / resistivity</td><td>Use the editor&#x27;s indicated mm and Ω·m units. Supplying an attractive package model without reviewed dimensions does not establish resistance.</td></tr>
+<tr><td>Contact preview / Apply to study / remove</td><td>Review the added model paths and remove incorrect entries before rerunning. This edits simulation configuration, not PCB pads.</td></tr>
+</table></div>
+<h2 id="cli-options">CLI options</h2>
+<p>Use <code>wayricad-pi --help</code> in the intended interpreter. Named JSON modes reject unrelated flat DC overrides. Complete recipes are linked from the worked guide.</p>
+<div class="table-scroll"><table>
+<tr><th>Option(s)</th><th>Input and effect</th></tr>
+<tr><td>Positional PCB</td><td>Saved board; alone lists nets/pads/layers. Optional only for supported explicit-study modes.</td></tr>
+<tr><td><code>--net</code>, <code>--source</code>, <code>--sink</code></td><td>Exact selected net and contact labels/IDs.</td></tr>
+<tr><td><code>--voltage</code>, <code>--current</code></td><td>Fixed source V and prescribed sink A.</td></tr>
+<tr><td><code>--load PAD CURRENT_A</code>, <code>--power-load PAD POWER_W</code></td><td>Repeat supported 2.5D load demands.</td></tr>
+<tr><td><code>--load-power</code></td><td>Primary sink constant-power W, with that mode&#x27;s combination guards.</td></tr>
+<tr><td><code>--load-voltage-limits PAD MIN_V MAX_V</code></td><td>Per-load bounds; <code>-</code> omits a bound; needs a matching load.</td></tr>
+<tr><td><code>--sink-min-voltage</code>, <code>--sink-max-voltage</code>, <code>--source-current-limit</code></td><td>Primary sink V bounds and source A budget.</td></tr>
+<tr><td><code>--load-ohms</code>, <code>--sweep START_A STOP_A POINTS</code></td><td>Resistive operating point or prescribed-current sweep, not temperature feedback.</td></tr>
+<tr><td><code>--mesh-edge</code>, <code>--auto-mesh</code>, <code>--max-cells</code></td><td>Manual mm target, automatic 2.5D recommendation and total triangle capacity; conflicting settings fail.</td></tr>
+<tr><td><code>--mesh-backend auto/gmsh/vtk</code></td><td>Requested mesher; full 3D requires Gmsh.</td></tr>
+<tr><td><code>--model-dimension 2.5d/3d</code>, <code>--max-tetrahedra</code></td><td>Volume model and tetrahedron budget, distinct from planar max cells.</td></tr>
+<tr><td><code>--plating</code>, <code>--temperature</code></td><td>Conductive plating mm and fixed electrical °C.</td></tr>
+<tr><td><code>--ambient</code>, <code>--pulse</code>, <code>--temperature-limit</code></td><td>Initial °C, supported adiabatic duration s and operating threshold °C.</td></tr>
+<tr><td><code>--melting-temperature</code>, <code>--latent-heat</code></td><td>Supported 2.5D melting °C and J/kg.</td></tr>
+<tr><td><code>--return-path</code>, <code>--return-nets</code>, <code>--return-pitch</code>, <code>--return-via-radius</code></td><td>Sampled reference audit with explicit nets, mm pitch and via radius.</td></tr>
+<tr><td><code>--batch</code></td><td>Complete multi-net study, including reviewed shared returns where supported.</td></tr>
+<tr><td><code>--transient</code>, <code>--electrothermal</code>, <code>--ac</code></td><td>Complete mode-specific circuit/thermal/cross-section JSON.</td></tr>
+<tr><td><code>--package-conduction</code>, <code>--series-file</code>, <code>--command</code></td><td>Reviewed contact model, series-editor JSON or quoted supported console command.</td></tr>
+<tr><td><code>--mesh-only</code></td><td>Inspect a mesh without a solved electrical field.</td></tr>
+<tr><td><code>--converge-levels</code>, <code>--convergence-tolerance-percent</code></td><td>Supported refinement sequence and relative percentage criterion.</td></tr>
+<tr><td><code>--probe-result</code>, <code>--probe-a</code>, <code>--probe-b</code></td><td>Saved DC two-point sampling: each is <code>LAYER X_MM Y_MM</code>, no new solve.</td></tr>
+<tr><td><code>--verify</code></td><td>Analytical references, not qualification of your board.</td></tr>
+<tr><td><code>--output</code>, <code>--html</code>, <code>--timeout</code></td><td>Separate JSON/HTML paths and worker seconds. Full-3D flat CLI accepts JSON; its window exports interactive 3D HTML.</td></tr>
+<tr><td><code>--help</code></td><td>Exact options for the installed version.</td></tr>
+</table></div>
+<h2 id="limits-and-outcomes-to-check-every-time">Limits and outcomes to check every time</h2>
+<h3 id="exact-secondary-dialog-action-names">Exact secondary-dialog action names</h3>
+<div class="table-scroll"><table>
+<tr><th>Action shown in the window</th><th>What it does</th></tr>
+<tr><td>Run all cases</td><td>Run the reviewed Rails and returns study; inspect each case status, not only its parent summary.</td></tr>
+<tr><td>Set up ground / return after this rail</td><td>Continue directly from adding a rail to mapping that rail&#x27;s ground contacts.</td></tr>
+<tr><td>Choose pads…</td><td>Select the supply-ground contact group in the return-net picker.</td></tr>
+<tr><td>Choose load ground pads…</td><td>Map the selected rail/load row to its intended ground pads; double-clicking the row opens the same picker.</td></tr>
+<tr><td>Suggest matching footprint pads</td><td>Propose same-component ground contacts for review. Suggestions are not automatically confirmed.</td></tr>
+<tr><td>Use selected component</td><td>Populate the series editor from the currently selected candidate.</td></tr>
+<tr><td>Add component to path</td><td>Add that reviewed branch to the explicit path, then inspect validation.</td></tr>
+<tr><td>Save path… / Load path…</td><td>Retain/reload the supported series configuration, including identities and parallel selections.</td></tr>
+<tr><td>Run this path</td><td>Accept the series configuration and execute its supported analysis.</td></tr>
+<tr><td>Highlight detected parts on PCB</td><td>Cross-highlight candidate parallel parts before including them. It does not modify tracks or footprints.</td></tr>
+<tr><td>Add manual capacitor</td><td>Append a shunt branch; enter unique identity, effective C, ESR and total ESL.</td></tr>
+<tr><td>Remove selected</td><td>Remove the selected shunt-model row, not its PCB footprint.</td></tr>
+<tr><td>Use aggregate C instead</td><td>Leave individual-bank mode and use that load&#x27;s aggregate C/ESR fields. Review those fields after returning.</td></tr>
+<tr><td>Set selected ESR / ESL…</td><td>Open the bulk parasitic editor for checked/selected bank rows.</td></tr>
+<tr><td>Set selected rows</td><td>Confirm the bulk values; inspect units and affected row count before Apply bank.</td></tr>
+<tr><td>Add selected board capacitors</td><td>Add selected eligible candidate rows; saved capacitance remains a suggestion, unknown ESR/ESL need explicit values.</td></tr>
+<tr><td>Apply bank</td><td>Validate unique assignments/values and return the bank plus finite-rise setting to the selected load. This does not write PCB fields.</td></tr>
+<tr><td>Add to existing PCB selection</td><td>Keep earlier editor selection instead of replacing it during explicit cross-selection.</td></tr>
+<tr><td>Add sink / Update selected</td><td>Create a load unit or replace the selected unit&#x27;s reviewed demand/limits/pad group.</td></tr>
+<tr><td>PDN target impedance / capacitor bank…</td><td>Open the explicit impedance model from the decoupling placement workspace.</td></tr>
+<tr><td>Calculate impedance</td><td>Calculate the explicit PDN network and its sampled/refined target evidence.</td></tr>
+<tr><td>Export samples CSV…</td><td>Save computed impedance samples with units; not a full distributed-board model.</td></tr>
+<tr><td>Methods / help</td><td>Open the active dialog&#x27;s model, inputs and limitation explanation.</td></tr>
+<tr><td>AC model help</td><td>Open the AC setup guide; RMS, gap/centre spacing and section-model boundaries are explained there.</td></tr>
+</table></div>
+<h3 id="literal-modes-live-tuning-and-series-parameters">Literal modes, live tuning and series parameters</h3>
+<div class="table-scroll"><table>
+<tr><th>Choice or parameter</th><th>Meaning</th></tr>
+<tr><td>Copper and return path</td><td>AC current-density cross section; geometry is explicit, not a PCB trace extraction.</td></tr>
+<tr><td>Resistance and reactance</td><td>AC loop R/X by supplied harmonic frequency, in displayed engineering units.</td></tr>
+<tr><td>Heating by harmonic</td><td>AC copper watts by harmonic; does not include converter switching-device loss.</td></tr>
+<tr><td>Triangular output ripple / Pulsed input current</td><td>Supported SMPS waveform helpers; they generate reviewed RMS harmonics, not a simulated converter controller.</td></tr>
+<tr><td>Steady saved-board coupling / Transient lumped coupling</td><td>Spatial steady board temperature feedback, or explicit circuit/thermal-node transient. Selecting a mode does not extract missing inputs.</td></tr>
+<tr><td>Highest current density / Highest volumetric heating / Copper melting bottlenecks</td><td>Sort hotspot findings by J, local heat generation, or the supported adiabatic melting screen. Each has a distinct unit/model.</td></tr>
+<tr><td>Ctrl+scroll load</td><td>Enable current tuning only for an eligible completed 2.5D fixed-temperature prescribed-current model.</td></tr>
+<tr><td>Total · A</td><td>Set total prescribed demand for supported live tuning. It is not the current through every same-net pin independently.</td></tr>
+<tr><td>Base step · A</td><td>Starting wheel adjustment; initial 0.1 A. Scroll acceleration selects finer/coarser changes. Check the proposed value.</td></tr>
+<tr><td>Cursor preview</td><td>Show/hide the near-pointer change feedback without modifying the solve.</td></tr>
+<tr><td>Selected metric / All metrics</td><td>Show the chosen field&#x27;s proposed change, or the available parameter set; not every simulated physical mode supports live reuse.</td></tr>
+<tr><td>Current · A / Constant power · W</td><td>Additional-sink demand mode; current and power are not interchangeable or both assigned to one unit.</td></tr>
+<tr><td>Resistance / RL</td><td>Series branch R plus optional L. DC drop uses the resistance; stored L is not treated as another DC resistor.</td></tr>
+<tr><td>Fixed forward drop</td><td>Explicit voltage-drop branch under supported DC assumptions.</td></tr>
+<tr><td>Diode at DC current</td><td>Reviewed diode approximation at operating current, not a dynamic switching model.</td></tr>
+<tr><td>Resistance / Inductance</td><td>Engineering-unit entries, e.g. 5mΩ and 1mH. Check the parser&#x27;s preview before Run this path.</td></tr>
+<tr><td>Fixed forward drop</td><td>Enter a reviewed V value, not an arbitrary negative resistance.</td></tr>
+<tr><td>Vf at Iref / Reference current</td><td>Reference diode forward V and corresponding A.</td></tr>
+<tr><td>Ideality n / Junction temperature</td><td>Explicit diode DC model coefficient and °C, initially 2 / 25 °C in the editor.</td></tr>
+</table></div>
+<h3 id="initial-values-and-optional-bounds">Initial values and optional bounds</h3>
+<p>The main window initially shows 1 V / 1 A in prescribed-current 2.5D mode, automatic mesh enabled, manual edge field 0.5 mm, plating 0.025 mm and fixed copper/ambient temperatures 20 °C. Pulse is 1 s, temperature limit 150 °C, nominal melting threshold 1084.62 °C, latent heat 206750 J/kg and 3D capacity 250000 tetrahedra. They are editable initial/example values, not inferred fabrication or operating data. The CLI&#x27;s temperature-limit default is 105 °C; CLI and window defaults are not silently treated as identical evidence.</p>
+<p>Initially Board/Copper/Field are visible, Silk is off, Only simulated nets is on, the field is Voltage drop and the display uses Smooth gradient. The 3D window starts in Board top view / All copper / Current density. Return-audit starting pitch is 0.25 mm and via search radius 2 mm. Source current and maximum voltage bounds start blank; the primary minimum defaults to 0 V. Guided Joule physical unknowns start blank, preserving the source values only when already declared.</p>
+<ol>
+<li>Confirm source revision, model dimension, units, source/load identities and explicit return/thermal boundaries before running.</li>
+<li>Read rejected, incomplete, floating, unknown and failed rows. A plot or process exit alone is not physical acceptance.</li>
+<li>Check conservation and source budget/voltage/temperature limits separately.</li>
+<li>Refine mesh and time where relevant. Playback and smoother colors are not refinement. Local singularities can remain unresolved despite a stable port R.</li>
+<li>Save inputs, complete result and report together. Re-run after source/config changes. Never rewrite numerical assumptions merely to obtain PASS.</li>
+</ol>
+</body></html>
