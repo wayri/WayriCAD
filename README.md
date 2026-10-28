@@ -1011,7 +1011,7 @@ python tools/validate_packages.py --archive-dir .validation/candidate-pcm
 ```
 
 Each plugin also has its own tests. Skipped checks do not establish native GUI
-compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.41.md).
+compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.42.md).
 
 ## Acknowledgements and AI disclosure
 
