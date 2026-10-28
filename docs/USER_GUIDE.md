@@ -103,6 +103,12 @@ save changes before fast preview. See [guard workflow and limits](../via_stitchi
 
 ## Electrical analysis
 
+| Detailed walkthrough | Coverage |
+|---|---|
+| [Quick PI user guide](../quick_pi_plugin/USER_GUIDE.md) | DC and return paths, AC losses, PDN and transient studies, inspection and reports |
+| [Quick SI user guide](../signal_integrity_advisor_plugin/USER_GUIDE.md) | Route screening, return review, neighbour coupling, differential timing and IBIS circuit export |
+| [QuickTherm user guide](../quick_therm_plugin/QUICK_THERM_USER_GUIDE.md) | Component inputs, environments, thermal backends, transient playback and reports |
+
 In Quick PI, select the actual power net and source/sink pads. Set source voltage and sink current. Preview extracted copper, inspect layer coverage, then run the mesh solve. Check the **Net**, **Mesh** and **Results** views before interpreting voltage drop, current density or loss.
 
 ![Quick PI mesh view](../quick_pi_plugin/help-mesh.png)

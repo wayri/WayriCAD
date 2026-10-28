@@ -1,454 +1,165 @@
-# QuickTherm: step-by-step user guide
+# QuickTherm user guide
 
+QuickTherm reads a saved KiCad PCB and performs component, board and scheduled
+transient thermal screening. It is independently installable and does not require
+Quick PI. Thermal inputs entered in its workspace do not change the PCB.
+This guide describes the current 3.6.40 workflow. Screenshots retain their capture
+versions and stated assumptions; older images are not new validation runs.
 
-## Guided heating study
+## Contents
 
-After reviewing **Component inputs**, open **Heating study…** on Board + results.
-The guide lists included source watts and unknown sources, retains the selected
-cooling environment, and offers **Steady state** or **Time-varying board heating**.
-It does not infer heat paths or change material/cooling values. **Apply setup**
-retains the choices; **Apply and run** follows the normal validation and worker.
+| Start or operate | Model or review |
+|---|---|
+| [First study](#first-study) | [Choose a thermal model](#choose-a-thermal-model) |
+| [Component inputs and limits](#component-inputs-and-limits) | [Environment and cooling](#environment-and-cooling) |
+| [Board workspace and probes](#board-workspace-and-probes) | [Mesh and convergence](#mesh-and-convergence) |
+| [Transient heating and playback](#transient-heating-and-playback) | [Contacts, component storage and heatsinks](#contacts-component-storage-and-heatsinks) |
+| [Reports and dissipation Sankey](#reports-and-dissipation-sankey) | [Import Quick PI copper heat](#import-quick-pi-copper-heat) |
+| [CLI and jobsets](#cli-and-jobsets) | [CalculiX and Gmsh](#calculix-and-gmsh) |
+| [Public examples](#public-examples) | [Troubleshooting](#troubleshooting) |
 
-Time inputs accept seconds, `100 ms`, `2 min` or `1 h`. Review volumetric heat
-capacities and initial temperature; existing capacities are illustrative. The
-live advice bounds stored frames, integration intervals and nodes per frame
-under the five-million-value budget. Schedule events can add computed states;
-the solver checks the exact mesh/timeline limits. **Use 100 playback intervals**
-is an explicit convenience choice, not a convergence claim. Refine space and
-time separately. Narrow dialogs scroll vertically and retain readable fields.
+## First study
 
-![Native heating-study guide](examples/quicktherm-heating-study.png)
+1. Save the intended board in PCB Editor, including its current zone fills. Open
+   **WayriCAD QuickTherm**. Unsaved editor changes are not included.
+2. Start on **Component inputs**. Check only the parts whose heat you intend to
+   include. Enter actual dissipated watts; a part's rated maximum power is not
+   its operating dissipation.
+3. For a first independent air screen, enter each part's reviewed RθJA in K/W.
+   Enter junction limits if you want conditional PASS/FAIL decisions. Missing
+   thermal paths remain unknown.
+4. Open **Board + results**. Choose **Air** and the actual ambient temperature.
+   Keep the optional board model disabled for this simple screen.
+5. Click **Run thermal**. Review solved/selected counts and unknown or excluded
+   sources before reading the largest temperature as a board-wide result.
+6. Select parts in the table and board. Use **Export…** to retain HTML and JSON.
+   For a physical board field, continue with the model and boundary sections below.
 
-This actual native KiCad 10.0.6 / wxPython 4.2.2 dialog reads the unchanged public
-`thermal-demo.kicad_pcb` (SHA-256
-`1cfc57ddd9bb546f22ad6984c961ce0745ec1c0f7b9203f749574ade49c9c3ee`). Four included
-sources total 1.05 W. The example requests 10 s, 0.1 s maximum step and 0.1 s
-stored frames; C2 switches off at 4 s. The shown capacities/cooling are declared
-illustrative inputs. This is a setup capture, not a solved temperature result.
-The image is an opaque native client-area capture, with no private path or
-identifier redaction needed.
+The simple air equation is `Tj = Tamb + P × RθJA`. For example, 0.5 W with
+40 K/W at 25 °C gives 45 °C. This is an equation example, not a hardware result.
 
-**Power steps…** now accepts actual **Initially W** and **After W**, rather than
-requiring mental multiplier arithmetic. Leave switch time blank for constant
-power. Watts convert to the existing source multipliers without changing base
-component powers. A zero/unknown base cannot supply positive scheduled power;
-enter it in Component inputs first. Applying this editor chooses held steps.
-Existing multi-event profiles are retained and directed to **Advanced schedules
-+ sinks**, where linear ramps and multiple events remain available. Imported PI
-losses stay fixed unless explicitly scheduled by source ID.
+![Scanned component inputs](examples/quicktherm-input-3.6.38.png)
 
-The separate independent-component RC transient report now provides per-unit
-peak/final temperatures and explicit limit status, a sortable/searchable summary,
-exact stored-time selection, row-to-trace selection and pinned sample probes.
-Missing limits say **NOT EVALUATED**. This lumped RC screen is distinct from the
-native spatial board transient; its report does not add copper-field physics.
+This native public-demo capture shows four included hypothetical heat sources.
+The two mounting footprints are excluded. It precedes the solve; no measured
+hardware temperatures are shown. [Capture inputs](../docs/audits/QUICK_TOOL_VISUALS_3.6.38.md).
 
+## Component inputs and limits
 
-## Automatic and manual mesh
-
-In **Board model**, leave **Automatic mesh** checked to size the supported board
-model from saved geometry. Multilayer mode refines actual rectilinear intervals
-near heat sources, pad/fixture contacts, barrels and copper regions; source/contact
-targets have priority under tight budgets. After a run, read the effective X/Y
-cells, cell-size range and warnings below that control. The HTML report and JSON
-retain the same evidence. Uncheck the option to edit **Mesh cells · long axis**;
-manual mode preserves the existing `source_refinement_factor` setting.
-
-CLI: `wayricad-therm board.kicad_pcb --config study.json --auto-mesh`. The same
-configuration uses `thermal_network_settings.mesh_mode = "auto"`; pass
-`--mesh-mode manual` to use its explicit `grid_cells_long_axis`. Automatic sizing
-defaults to 50,000 total layer cells, four split passes, 511 intervals per axis
-and 2048 sizing regions. Review `auto_mesh_max_layer_cells` and
-`auto_mesh_max_refinement_passes` to adjust those bounded budgets. Storage/sink
-nodes remain within the existing 150,000-node hard limit. Unmet targets and
-omitted features stay warnings; the program never calls a budget-limited mesh
-converged just because a recommendation was used.
-
-Sizing uses region bounds, not a solved thermal-error estimator. Tiny/rotated
-conductors, plated-wall thickness and package solids can remain unresolved.
-Thin-sheet automatic sizing is uniform, and CalculiX sizing remains manual.
-Transient playback does not remesh each frame. Explicit spatial grid sweeps use
-their requested grids and reject identical actual meshes; independently refine
-time steps for transient studies. Automatic sizing does not replace either test.
-
-QuickTherm is the **standalone WayriCAD QuickTherm plugin**. It reads saved
-footprint properties, estimates steady-state component junction temperatures,
-and exports an HTML report with paired JSON evidence. It does not edit the PCB.
-The base component calculation is a lumped thermal screen. Optional board
-models add either a thin-sheet field or a layer-resolved stackup/copper field.
-Neither is CFD or a qualified measurement. The multilayer model also supports explicitly parameterized spatial transients.
-
-After running, click **Dissipation Sankey…** to open the offline source-power
-diagram. Every exported HTML report (UI or CLI) includes it automatically.
-Ribbons run left to right from individual parts and retained copper/contact I²R
-sources to total known dissipation in watts. Hover or focus a ribbon for its
-value, or click to pin a probe. Large studies group sources after the largest 30;
-the complete source table retains their individual watts. Known zero sources and
-unknown/excluded parts are listed separately. It is the saved steady/reference
-operating point, independent of playback time; it shows generated heat, not heat
-transfer paths, environmental outflow or transient heat storage. Unmapped parts
-make the total incomplete, not zero. Avoid duplicating imported Joule heat in
-component dissipation inputs.
-
-![Native vacuum transient heating with time controls](examples/quicktherm-transient-workspace.png)
-
-*Standalone PCM on Windows/KiCad 10.0.6, using the public demo and an assumed 35 µm / 1.53 mm / 35 µm stackup. Illustrative copper/dielectric capacities are 3.45 / 1.8 MJ/(m³·K); emissivity is 0.8, initial/ambient temperature 20 °C and C2 switches off at 4 s. The displayed field is a computed thermal screen, not measured temperatures or an imported component-solid assembly.*
-
-The optional **CalculiX 3D · fixed lower face** mode is a separate bounded
-steady-conduction model. It accepts selected top-side heat sources with known
-power even when RθJA/RθJB is unavailable. In the board-model controls, choose
-that mode, use **Locate CalculiX…** to select the `ccx` executable, then use
-**Check solver setup**. The executable path is remembered locally. Gmsh may be
-installed into QuickTherm's private runtime on first use. Set the fixed
-lower-face temperature, conductivity and mesh target before running. The
-solved top/bottom board field is available without RθJB; package junction
-temperature and junction-limit status remain **UNKNOWN** until a valid RθJB is
-entered or mapped. See the [CalculiX setup and limits](CALCULIX_BRIDGE.md).
-
-![Illustration of the QuickTherm configuration tab](quicktherm-ui.svg)
-
-*UI illustration based on the implemented wxPython controls. The 1 W and 0.5 W
-results shown are synthetic examples, not a screen capture or a measured board.*
-
-![Native QuickTherm enlarged board heat-model view](examples/quicktherm-board-model-view.png)
-
-*Native KiCad 10.0.6 run on the public thermal demo board. The 10 m/s forced-air input and material values are illustrative; the overlay is an approximate board-midplane model, not a measurement.*
-
-![Top-side board contour illustration from a public test fixture](quicktherm-board-map-illustration.png)
-
-*Saved test-fixture outline and footprint locations with synthetic 40/50/60 °C
-junction estimates. The colored strip is supported interpolation only, not a
-measured or solved board temperature. Blank space has no contour support.*
-
-![Top, mirrored bottom, modeled board and illustrative 3D views](quicktherm-top-bottom-3d-illustration.png)
-
-*Four view modes from a public test-board outline with synthetic component
-temperatures, one synthetic bottom-side assignment and assumed model inputs.
-The lower-left panel is the optional thin-sheet board model, distinct from the
-junction markers; the 3D geometry is illustrative.*
-
-## 1. Prepare the saved board
-
-1. In KiCad PCB Editor, save the board you intend to analyze and choose
-   **WayriCAD QuickTherm** from the plugins menu. Its thermometer icon opens
-   the independent QuickTherm window. QuickTherm reads
-   the saved `.kicad_pcb` file; unsaved editor changes are not included.
-2. You can enter dissipated power and thermal resistance directly in the
-   QuickTherm window. The values remain in the window and the PCB is not
-   modified. Alternatively, add custom **footprint properties** with those
-   values on the saved board and map their case-sensitive names in QuickTherm.
-3. Enter actual, characterized values. No power, thermal resistance, airflow,
-   board radiation, or heatsink rating is inferred from a part number or shape.
-   Keep the selected operating point and environmental assumptions together.
-
-Example property names and values for two **illustrative** components:
-
-| Reference | `Power_W` | `RthetaJA` | `RthetaJB` | `RthetaJC` |
-|---|---:|---:|---:|---:|
-| U1 | `1 W` | — | — | `2 K/W` |
-| U2 | `500mW` | `40 K/W` | `5 K/W` | — |
-
-U1 will use an explicit virtual heatsink. U2 will use the air or shared-board
-path. A component with zero dissipation needs an explicit `0 W` if you include
-it in the study. Components outside the selected scope are not counted.
-
-Accepted power values include `1`, `1 W`, `500mW`, and `1000uW`; bare power
-numbers mean watts. Accepted resistances include `40`, `40 K/W`, `40 °C/W`;
-bare resistance numbers mean kelvins per watt. Thermal resistances must be
-positive. Component power may be zero but cannot be negative.
-
-## 2. Review scanned values and enter component inputs
-
-1. Open **WayriCAD QuickTherm** from the intended saved PCB Editor. The maximized window starts on **Component inputs**. Saved properties with unique recognized names are mapped automatically; use **Field mapping…** for nonstandard or ambiguous names.
-2. Review the table's power, RθJA/JB/JC, minimum/maximum junction limits, input source and status. All numeric cells are editable, including RθJB in every environment. Enter units or bare W, K/W and °C values. Blank means unknown; zero power is allowed, resistance must be positive. Edits are detached overrides and do not change the PCB.
-3. Check the parts to include. **Select all** and **Select none** apply to the entire board. Search only changes visible rows; checked hidden rows still run. **Include visible** affects just filtered rows. **Restore saved row** removes selected rows' overrides.
-4. Open **Board + results** and review the environment and ambient temperature. For an independent air screen, enter RθJA; for a lumped vacuum screen, RθJB and board-to-environment resistance; for virtual heatsinks, RθJC and explicit sink paths. A physical **Board model…** study without virtual heatsinks needs known power and reviewed material/boundary settings. Optional RθJB maps board-site temperature to a junction estimate; no RθJA is required for that study.
-5. Click **Run thermal**. Invalid included values are identified before a worker starts. Results show unknown package temperatures when the relevant path is absent. Edits invalidate old results and exports. The default **Scanned values + edits** uses the table; **Saved fields only** uses mapped saved properties without overrides.
-6. Use **Top**, **Bottom**, **3D** and **Fit** above the viewport. Drag to orbit 3D, Shift-drag to pan, wheel to zoom, hover to inspect or use **Probe** to sample a supported field. Only the selected component and one hovered component are labelled. **Details**, **Results** and **Probes** provide context beside the board; hide side panels to widen the viewport.
-
-![Scanned and editable thermal values](examples/quicktherm-input-workspace.png)
-![Interactive saved-board thermal geometry](examples/quicktherm-3d-workspace.png)
-
-*Native KiCad 10.0.6 captures of the public hypothetical thermal demo. The 3D field uses the stated screening assumptions in the README. Footprint bounds are shown; STEP solids are not loaded. One thin-sheet midplane field is distinct from independently solved surface temperatures. Missing values remain unknown.*
-
-## 3. Choose the study scope
-
-Use the component checklist on the left of the QuickTherm window. **Select all**
-checks every saved footprint; **Clear** empties the scope. For a useful thermal
-screen, select the actual dissipating references and any explicitly zero-power
-parts you want recorded. Check that the selected list covers all power sources
-whose heat enters the modeled board node. If an unselected part dissipates
-power, its heat is omitted.
-
-Changing the mapping, environment, scope or heatsink assignment clears the old
-result. Run QuickTherm again after each change.
-
-## 4. Add virtual heatsinks, if present
-
-Click **Virtual heatsinks…**. The editor assigns one virtual path to each
-component. Select a reference, then choose a shape:
-
-| Choice | Preview | Required dimensions |
+| Input | Meaning and units | How to enter it |
 |---|---|---|
-| Straight fins | Parallel fins | Width, depth, height in mm |
-| Pin fins | Pin array | Width, depth, height in mm |
-| Radial fins | Radial top view | Width, depth, height in mm |
-| Flat plate | Plate outline | Width, depth, height in mm |
-| Resistance only · no envelope | Symbolic path | None |
+| Power | Actual heat generation, W | Bare `0.5`, `500mW`, or `1 W`; explicit zero is permitted |
+| RθJA | Junction-to-ambient resistance for the characterized assembly, K/W | Air component screen; do not reuse an air rating in vacuum |
+| RθJB | Junction-to-board equivalent path, K/W | Board-site-to-junction estimate; not a general package-solid model |
+| RθJC | Junction-to-case resistance, K/W | Virtual heatsink path with separate contact and sink resistances |
+| Tmin / Tmax | Allowed junction temperature, °C | Map the selected saved property names or enter detached overrides |
+| Included | Study scope | Hidden checked rows still participate after filtering |
 
-The shape choices start with editable illustrative envelopes: 40 × 40 × 15 mm
-straight fins, 25 × 25 × 10 mm pin fins, 30 × 30 × 20 mm radial fins, and
-40 × 40 × 3 mm plate. These are **not product SKUs or rated heatsinks**. The
-live top-view sketch changes with shape and dimensions, but dimensions do not
-change the temperature calculation.
+Use **Field mapping…** for nonstandard or ambiguous saved footprint property
+names. Unique recognized aliases may be suggested automatically; review them.
+Property-name mappings refer to saved footprint fields, not schematic fields
+that have not been transferred and saved to the PCB.
 
-![Illustration of the virtual heatsink editor](quicktherm-heatsink-editor.svg)
+1. Review each row's scanned value, status and input source.
+2. Edit numeric cells for temporary overrides. Blank means unknown; thermal
+   resistance must be positive and power cannot be negative.
+3. Use **Select all**, **Select none**, or **Include visible** carefully: search
+   changes visibility, while checked scope can extend beyond visible rows.
+4. **Restore saved row** removes selected-row overrides. **Scanned values + edits**
+   uses overrides; **Saved fields only** ignores them and reads mapped fields.
+5. Save PCB changes, then use **Reload saved PCB** before another analysis.
+   Same-board reload retains valid explicit mappings and checked references,
+   but clears old results. Changing inputs invalidates exports.
 
-*UI illustration; the shown dimensions and resistances are synthetic inputs.*
+A computed board-site temperature is not automatically a junction temperature.
+Without a valid package path, Tj and its limits stay UNKNOWN. A body RC node
+also does not qualify a junction limit. Read per-part decisions and coverage;
+missing limits never silently pass. The CLI can require every scoped limit to pass.
 
-Enter a positive **Contact Rθ K/W** for the actual component-to-sink interface.
-Enter **Air sink-to-ambient Rθ K/W** and/or **Vacuum sink-to-environment Rθ K/W**
-for the environments you plan to analyze. These values must account for the
-real orientation and airflow in air, or radiation and conductive mounting in
-vacuum. Air and vacuum values are separate; do not reuse an air rating in
-vacuum. Click **Assign / update heatsink**, then **OK**. To edit an assignment,
-select it in the left list, change its inputs, and assign again. **Remove
-assignment** returns that part to the ordinary RθJA/RθJB path.
+## Choose a thermal model
 
-The **Resistance only** option is useful when you know the thermal path but
-do not have a meaningful geometric envelope. It still needs RθJC, positive
-contact resistance, and an environment-specific sink resistance.
+| Model | Choose it when | Required evidence and important limits |
+|---|---|---|
+| Component-only air | You have RθJA at relevant conditions | Independent `Tamb + P RθJA`; no board spreading or coupling |
+| Component-only vacuum | You have a reviewed board-to-environment path | Shared isothermal board node plus each RθJB; no spatial board field |
+| Virtual heatsink | A specific part has a characterized sink path | RθJC + contact + environment-specific RθSA; no automatic parallel PCB path |
+| Thin sheet | You need an approximate whole-board spreading map | Effective in-plane conductivity, saved thickness and cooling; one midplane field |
+| Copper layers + vertical paths | Layer copper and supported pad/via/mount paths matter | Saved stackup, filled copper, conductivities, plating, mesh and boundaries |
+| CalculiX 3D · fixed lower face | A supported fixed-temperature lower-face conduction study | Gmsh/ccx, explicit mesh/materials; strong geometry and boundary restrictions |
+| Component heating · R / C | Finite equivalent package/body storage is needed | Reviewed meaning, resistance, capacity and optional physical paths |
 
-## 5. Run and interpret the result
+Use **Board model…** or expand **Board heat model**, enable **Include board heat
+model in next run**, and choose the model before running. Existing mapped fields
+and entered powers remain yours to review. Unknown inputs are not inferred from
+colors, STEP geometry, package name or electrical dielectric constant.
 
-Click **Run QuickTherm**. The first result prefers a solved board or layer field
-when available, then supported partial junction interpolation, then a component
-map. A later deliberate view selection is retained on subsequent runs.
-**Top-side map** traces the saved
-Edge.Cuts outline and marks top-mounted footprints at their saved positions.
-**Bottom-side map** marks bottom-mounted parts and mirrors the X axis like a
-physical bottom view. Marker colors encode estimated **component junction**
-temperatures, not board temperature. Reload and rerun after PCB edits. An
-incomplete outline is marked as unverified. **3D overview** extrudes the saved
-outline by its saved thickness and places illustrative component markers above
-or below it. Adjust azimuth and elevation to rotate the view. It does not
-import STEP component models or measured component heights.
+For a thin sheet, enter effective conductivity in W/(m·K), board emissivity,
+airflow assumptions and mesh size. Top and bottom show the same midplane field;
+they are not two independent surface solutions. The saved board supplies thickness.
 
-Choose **Top-side contour** or **Bottom-side contour** to compare nearby solved
-component estimates on that side. Each field uses inverse-distance
-interpolation inside its same-side anchors' convex hull and valid board
-outline. Blank regions have no support. It is **not** a solved
-board-surface temperature, so its colors and extrema cannot be used as board
-hotspot or clearance evidence. Choose **Temperature chart** for a ranked
-component comparison.
+For **Copper layers + vertical paths**:
 
-The dashed boundary is the same-side component-anchor hull. A small colored
-quadrilateral therefore represents **partial junction interpolation**, not a
-whole-board solution. Blank regions are unknown and are not extrapolated.
+1. Save a complete physical stackup, closed Edge.Cuts and filled zones.
+2. Enter dielectric and copper thermal conductivities and fabricated via plating
+   thickness in mm. Electrical εr does not determine thermal conductivity.
+3. Review source contact geometry. A footprint bounding-box injection is a
+   proxy; a configured contact pad uses its saved copper polygon.
+4. Select fixed-temperature contact pads only when a real fixture path exists.
+   Enter fixture temperature and positive contact resistance. An NPTH needs
+   **Include NPTH fixture contacts** and physical mechanical-contact evidence.
+   A GND net name alone creates no cooling path.
+5. Run and inspect each physical layer field, source coverage, signed fixture
+   heat flow and energy residual. Positive fixture heat leaves the board;
+   negative heat enters it.
 
-Click **Whole-board study…** to enable and reveal the existing physical model
-setup. Your chosen model, materials, entered component values, field mappings
-and checked scope are retained. Review conductivity, saved thickness, cooling
-and fixture boundaries, include every actual heat source, then run. Missing
-power, resistance or material evidence is never inferred from the contour.
-The action prefers an available physical board/layer field; choosing another
-view afterward overrides that preference.
+Circular and rotated obround plated slots have supported reduced contact/barrel
+representations in the internal multilayer model. A diagnostic coarse contact
+proxy is not resolved geometry: review its warning and mesh acceptance. Models
+omit airflow fields, detailed package gradients and radiation view factors.
 
-Known physical finite-volume cells display through their declared mesh edges,
-including supported edge and isolated cells. Smooth gradients need neighboring
-known samples. Cutouts, drills and unsupported regions stay blank; junction and
-sampled CalculiX fields keep their own interpolation support. A full extent is
-not evidence of mesh convergence or qualified temperatures.
+## Environment and cooling
 
-Reload of the same saved board retains valid explicit field mappings, entered
-values and checked references while clearing old results and exports. Unique
-recognized field aliases are suggested; ambiguous names require review. A
-single-component board initially selects its reference, without supplying any
-default power or resistance.
+Choose the environment, then expand **Environment boundaries**. Expanded modes
+use the layer-resolved model and explicit boundary parameters; the simple RθJA
+air calculation is not a sealed-enclosure or potting calculation.
 
-For an optional approximate **board temperature** field, expand **Optional
-board conduction / radiation / virtual airflow model** before running. Check
-**Include board heat model in next run**. Review effective in-plane
-conductivity (W/m·K), board emissivity (0–1), and virtual air speeds over the
-board and assigned sinks (m/s). Thickness comes from the saved KiCad board.
-For heatsinks, enter their **exposed area in mm²**; enter a number for one sink
-or `U1=1200, U2=800` for multiple independently sized sinks. The visual envelope does
-not determine fin area. To calculate new model junction temperatures for
-board-cooled parts, choose their saved **Model junction-to-board RθJB field**.
-For sink-cooled parts, the existing mapped RθJC and entered contact resistance
-provide the component-to-sink path. Missing RθJB values leave only board-site
-temperatures for those parts. Airflow must be zero in vacuum. Rerun, then choose
-**Top board model** or **Bottom board model**. Both display the same computed
-thin-sheet **midplane** temperature: this model has no through-thickness
-gradient. **Mesh cells · long axis** controls the board solve resolution;
-the default is 48 and 80 gives a denser study. Component heat is distributed
-over footprint contact areas where those saved bounds are available. Rerun at
-two mesh densities and compare board-site and peak temperatures before relying
-on local values. The color contours draw the calculated cells smoothly but do
-not change the solved temperatures. The 3D overview can display that field. The report separates input
-power, board and sink convection/radiation, and residual heat-balance error.
-The speed-based convection coefficients are screening correlations, **not
-CFD** or a prediction of real flow around board obstacles.
+| Environment | Review these inputs | What is not calculated |
+|---|---|---|
+| Air | Ambient, airflow and emissivity | Airflow is not solved; the simple board approximation uses `h = 5 + 4v` W/(m²·K) |
+| Vacuum | Zero convection, emissivity and/or fixture conduction | Residual gas, chamber view factors and installed contact quality |
+| Forced air | Explicit effective convection h in W/(m²·K), ambient and radiation | Fan operating point and CFD velocity field |
+| Potting | Conductivity W/(m·K), thickness mm and outer h | Full encapsulant geometry or local voids; the boundary is an equivalent series path |
+| Sealed enclosure | Explicit h and prescribed enclosure temperature | Enclosure wall warmup, recirculation and external cooling are not solved |
 
-The analytics strip gives minimum, maximum, mean and median **solved junction
-estimates**, total solved power and the hottest reference. Excluded components
-are omitted from those statistics. The sortable output table lists every
-selected component, including excluded entries and their reasons, with side,
-heat path, power, resistance, legacy junction temperature, rise, optional
-board-site/sink temperature, model junction temperature when an explicit path
-exists, and PCB X/Y. Legacy RθJA is not reused as a junction-to-board
-resistance. Click a
-table row or map marker to highlight the other and select the exact footprint
-in the originating PCB Editor. **Read PCB selection** brings an editor-selected
-component back to the table/map. Cross-selection requires the original live
-editor and unchanged saved board; a stale board is rejected. The status line
-reports solved versus selected counts.
+Vacuum disables airflow/convection. The board workflow requires a solvable steady
+heat rejection path even for a transient run: nonzero radiation or a real fixture
+path. Do not substitute an air heatsink rating for vacuum performance. A fixed
+enclosure temperature assumes something outside the model maintains it.
 
-For an unsinked part in air, QuickTherm uses
-`Tj = Tamb + P × RθJA`. For a virtual-heatsink part it uses
-`Tj = Tamb + P × (RθJC + Rcontact + RθSA)` for the selected environment.
-For unsinked parts in vacuum it uses one isothermal board node:
-`Tboard = Tamb + ΣPboard-path × Rboard→environment`, then
-`Tj = Tboard + P × RθJB`. Power assigned to an independent virtual-heatsink
-path is excluded from that shared board-node sum, so it is not counted twice.
-Parallel heat flow through both a heatsink and PCB is not modeled.
+For CLI board configurations, these settings belong inside
+`thermal_network_settings`: `board_h_w_m2k` for forced air; that coefficient
+plus `enclosure_temperature_c` for sealed; `potting_k_w_mk`,
+`potting_thickness_mm` and `potting_outer_h_w_m2k` for potting. Set top-level
+`environment` to `forced_air`, `sealed` or `potting` and
+`thermal_model_kind` to `multilayer`. Review the effective boundary recorded
+in the result rather than assuming these modes load a material database.
 
-With the illustrative fields above, 25 °C ambient, and a U1 air sink having
-RθJC = 2 K/W, contact = 0.2 K/W and air RθSA = 8 K/W, U1 estimates **35.2 °C**.
-U2 at 0.5 W and RθJA = 40 K/W estimates **45 °C**. In vacuum, if U1 instead
-uses 20 K/W sink-to-environment resistance, it estimates **47.2 °C**. If U2
-uses RθJB = 5 K/W and the 0.5 W board path has 10 K/W board-to-environment
-resistance, the board node is 30 °C and U2 estimates **32.5 °C**. These are
-equation checks, not predictions for a particular product or PCB.
+## Contacts, component storage and heatsinks
 
-In air, incomplete mapped records are excluded and reported; **2/3 solved**
-is not a whole-scope pass. Vacuum requires complete power and thermal fields
-for all selected references because a missing heat source would lower the
-shared-node estimate. A failed or missing input does not receive a guessed
-default.
+### Virtual heatsinks
 
-## 6. Resolve copper layers, vias and fixed fixture temperatures
+Open **Heatsinks…**, choose a component, select straight fins, pin fins, radial
+fins, flat plate or resistance-only, and enter positive contact resistance plus
+air and/or vacuum sink-to-environment resistance. Assign/update, then confirm.
+Remove the assignment to return to its ordinary component path.
 
-1. Save the board with a complete physical stackup, closed Edge.Cuts and filled
-   copper zones. QuickTherm will stop if this saved geometry is missing or if
-   the file changes during analysis.
-2. Expand **Optional board conduction / radiation / virtual airflow model**,
-   enable it and choose **Copper layers + vertical paths**. Set the mesh to
-   24–80 long-axis cells. The exact saved copper outlines, tracks, pads and
-   plated via spans become the lateral and vertical conduction inputs.
-3. Enter the laminate's **dielectric thermal conductivity** in W/m·K and the
-   fabricated **via plating thickness** in mm. Review copper conductivity;
-   the editable starting value is 385 W/m·K. Electrical εr does not supply
-   thermal conductivity. Keep **Copper simplification** at 0 for initial runs;
-   0.5 or 1 cell increases subcell copper sampling without joining islands.
-4. To hold a mounting point at 10 °C, check the exact plated hole in the
-   fixed-temperature contact list, enter **10** for fixture temperature and
-   the characterized contact resistance in K/W. Several checked holes share
-   those values. A selected NPTH needs the explicit mechanical-contact option;
-   it couples the fixture to board dielectric, without inventing a ground-plane
-   connection. A GND net name alone never creates a sink.
-5. Run QuickTherm and choose **Layer model: F.Cu**, inner copper layers or
-   **Layer model: B.Cu** to compare the solved fields. Read each contact's
-   signed heat flow in the HTML/JSON report: positive leaves the board;
-   negative enters it. Review the residual and assumptions. Refine the mesh
-   and compare hotspot temperatures. A small energy residual is numerical
-   conservation, not proof that material or fixture inputs are correct.
+Shape dimensions in mm describe the visual envelope, not a rated product. They
+do not determine thermal resistance. Board-model sinks also need explicitly
+entered exposed area; a fin envelope is not fin area. Airflow and thermal data
+must match the actual environment. The lumped relation is
+`Tj = Tamb + P × (RθJC + Rcontact + RθSA)`.
 
-Virtual heatsinks still need their explicit thermal path and exposed area.
-The layered model is steady-state finite-volume screening. It approximates
-component injection by footprint area and barrel heat flow axially; it omits
-anisotropic laminate detail, contact spreading, airflow fields, view factors,
-transients and electrical-temperature feedback. Whole-circuit coupled
-electrothermal simulation is tracked in [SPIKE #1](https://github.com/wayri/SPIKE-Main/issues/1).
-
-### Optional CalculiX 3D board solve
-
-1. Install a compatible `ccx` executable or enter its full path in the
-   **CalculiX executable** field. KiCad's Python runtime also needs Gmsh.
-2. Save the board with an explicit copper/dielectric stackup and filled zones.
-   Select **CalculiX 3D · fixed lower face** under the board model. Enter the
-   measured copper and dielectric conductivity, XY mesh target and the
-   prescribed temperature of the entire lower board face.
-3. Map component power. Optionally map an RθJB field for estimated junction
-   temperatures. Run QuickTherm. The plugin checks the saved-board hash,
-   meshes copper occupancy, runs CalculiX, imports its final nodal temperature
-   result and rejects an incomplete field or failed lower-face heat balance.
-4. Open the top/bottom workspace. The two overlays and probes now show the
-   imported board field; the component table keeps the lumped estimate separate
-   from any model junction estimate. Review the mesh size, boundary assumption
-   and heat residual in the JSON evidence before using the temperatures.
-
-This mode currently stops with an explicit error for vias, drilled pads,
-mounting contacts, bottom-side heat sources, virtual heatsinks, convection and
-radiation. Its fixed entire lower face is a strong cooling assumption, not a
-model of a point fixture. Use the internal layered screen for board cases that
-need its supported via and mount representations. See the
-[CalculiX model contract](CALCULIX_BRIDGE.md).
-
-## 7. Export and repeat
-
-Use **Open top + bottom workspace…** for simultaneous, resizable front and
-mirrored-back board views. Select **Board temperature** for the optional solved
-board field or **Component estimates** for the explicitly labelled junction
-interpolation. Hover over a position to read its X/Y coordinate, field
-temperature and the junction estimate when the cursor is over a component.
-Click a component or a row in the workspace summary to highlight it in both
-views, the main table and PCB Editor.
-
-![Illustrative native top and bottom thermal workspace](examples/quicktherm-paired-workspace.png)
-
-This native-window illustration uses synthetic component and layer-temperature
-data to show the interaction and shared color scale; it is not a measured run.
-
-Select **Place probe** and click a board coordinate to
-add a labeled virtual temperature probe. The probe table lists side,
-coordinates, temperature, source and status. A probe samples the nearest valid
-field cell; it is **UNKNOWN** outside the board or field coverage. With only
-the basic lumped screen, a probe samples interpolated junction estimates, not
-a board-surface temperature. Run the optional board model for an approximate
-board-temperature probe. **Clear probes** removes them from the next report.
-
-The component table places estimated junction, selected minimum/maximum limit
-and **PASS / FAIL / UNKNOWN** status in its first columns. Click a heading to
-sort. A passing limit check is only as sound as its power, Rθ and temperature
-limits; missing property values never silently pass.
-
-Click **Export report…** after a successful run. QuickTherm writes a local
-`.html` summary and paired `.json` file with the saved-board top view, labeled
-contour, per-component table and analytics, plus exact mapped fields, scope,
-probe rows, temperature-limit decisions, heatsink definitions, assumptions and coverage. Keep the files
-together so the HTML link to JSON works. The report does not modify the PCB.
-After editing fields or replacing a component, save the PCB, reload it in Quick
-QuickTherm, review mapping and scope, and rerun. An old export is not automatically
-updated.
-
-The same read-only analysis can be scripted. Replace the example field names
-and resistance values with those on your saved board:
-
-```text
-wayricad-therm C:/Projects/Example/board.kicad_pcb --environment air --power-field Power_W --theta-ja-field RthetaJA --thermal-refs U1 U2 --html quicktherm-air.html
-wayricad-therm C:/Projects/Example/board.kicad_pcb --environment vacuum --power-field Power_W --theta-jb-field RthetaJB --board-rtheta 10 --thermal-refs U2 --html quicktherm-vacuum.html
-wayricad-therm C:/Projects/Example/board.kicad_pcb --environment air --power-field Power_W --theta-ja-field RthetaJA --temp-min-field Tmin_C --temp-max-field Tmax_C --probe Centre:30,20:top --thermal-refs U1 U2 --html quicktherm-check.html --require-limits-pass
-```
-
-`--require-limits-pass` exits nonzero if any selected part fails or has an
-unknown limit, while still writing the reviewable output. For a repeatable
-board-model run, place the mapped fields, selected references, probes and
-thermal-network settings in a JSON config like the
-[public example](examples/thermal-demo-config.json), then run
-`wayricad-therm board.kicad_pcb --config thermal-config.json --html result.html --require-limits-pass`.
-
-For a native jobset, run:
-
-```text
-wayricad-jobs init Example.kicad_pro --preset thermal --output thermal-jobs.json --set thermal_config=thermal-config.json
-```
-
-Review the generated configuration, then use `wayricad-jobs run thermal-jobs.json`
-or add it to a KiCad jobset using `wayricad-jobs jobset`. The thermal preset
-uses the standalone QuickTherm CLI and fails on failed or unknown mapped limits.
-
-For virtual heatsinks, put a reference-to-sink mapping in `sinks.json`:
+For CLI use, an illustrative `sinks.json` mapping is:
 
 ```json
 {
@@ -464,127 +175,393 @@ For virtual heatsinks, put a reference-to-sink mapping in `sinks.json`:
 }
 ```
 
-Then map the component's RθJC and pass the same scope:
+Pass `--heatsinks sinks.json --theta-jc-field RthetaJC --thermal-refs U1`
+with the ordinary board/power/environment arguments. Replace these hypothetical
+values with characterized data. Components without assigned sinks still need
+the normal RθJA/RθJB mapping for their selected environment.
+
+### Equivalent component heating
+
+Open **Component heating · R / C…** and enable the desired parts. Declare body
+or junction meaning, resistance K/W, capacity J/K and optional initial temperature.
+Steady studies may use zero capacity; transient studies require positive reviewed
+capacity. Power enters each storage node once. An optional contact pad uses its
+saved copper face; blank uses the footprint proxy. Direct package cooling needs
+exposed area, convection h and emissivity together. Vacuum requires h=0.
+
+### Lead and solder paths
+
+Use **Lead / solder contacts…** to enter saved pad number, copper layer, path ID,
+axial dimensions and material conductivity. Supported segments include cylindrical
+pins, rectangular leads and symmetric truncated spherical BGA balls. Repeated path
+IDs are series segments; different IDs are parallel paths.
+
+For those parts, enable component storage, set aggregate R to zero and clear
+an overlapping RθJB. Reviewed internal/interface resistance belongs in the
+explicit path; do not add the complete datasheet RθJB again. Missing/ambiguous
+pads, duplicate ownership and unresolved annuli reject the study. See
+[package conduction](../docs/PACKAGE_CONDUCTION.md) for geometry, equations and examples.
+
+![Computed component heating with loaded models](examples/quicktherm-component-heating.png)
+
+Native public-demo capture with assumed RC values and stackup, validation STEP
+boxes and library models. Gray parts lack declared temperatures. It demonstrates
+computed equivalent-node heating, not solved internal solid gradients.
+[Inputs and validation](../docs/audits/QUICKTHERM_COMPONENT_HEATING.md).
+
+## Import Quick PI copper heat
+
+1. Solve Quick PI at the operating point on the same saved board and export JSON.
+2. In QuickTherm, choose the multilayer model and **Import PI copper losses…**.
+3. Review the imported source count/watts and source identity. The importer checks
+   board hash, feasible operation, stackup and planar/via loss evidence.
+4. Enter actual component dissipation separately. Delivered load power is not
+   necessarily dissipated in that package; do not enter copper watts twice.
+5. Run, then inspect loss coverage and energy balance. Use **Clear imported losses**
+   before changing operating point or replacing the electrical result.
+
+Copper heat deposits conservatively into supported physical cells. Via segments
+use their retained resolved contact stencils. Unsupported cutouts, missing lands
+or unresolved coarse contacts can reject transfer; refine instead of discarding
+heat. Copper-only runs need no selected component sources.
+
+Contact I²R losses need matching explicit thermal paths, identities, faces and
+segment geometry. Material segments allocate joint heat by thermal resistance;
+extra unspecified lumped resistance leaves heat location unknown and rejects
+that transfer. Imported watts stay fixed during playback unless explicitly
+scheduled by source ID. This import does not recalculate electrical current,
+resistivity or losses with temperature. Quick PI's separate electrothermal
+workflow has its own scope; it does not make this an automatic coupled solver.
+
+## Mesh and convergence
+
+Leave **Automatic mesh** checked for an initial geometry-based recommendation.
+The thin-sheet recommendation is uniform. The multilayer model splits actual
+rectilinear intervals around supported sources, contacts, barrels and copper
+regions. Read effective X/Y cells, size range and unmet-target warnings after
+running. Uncheck the control to edit **Mesh cells · long axis** manually.
+CalculiX mesh sizing is manual.
+
+Automatic defaults bound total layer cells to 50,000, four refinement passes,
+511 intervals per axis and 2048 sizing regions. Storage/sink nodes remain within
+the 150,000-node hard limit. Source/contact targets have priority. A budget-limited
+recommendation is not an error-estimated adaptive solution or convergence proof.
+
+1. Establish a small baseline with complete sources and boundaries.
+2. Run successively finer spatial meshes and compare component temperatures,
+   source peaks, layer peaks, field differences and resolved source contact area.
+3. In CLI configuration, use the optional steady `mesh_acceptance` gate. The
+   [model guide](TRANSIENT_MODEL.md#steady-copper-field-mesh-checks) documents
+   grid arrays, allowed temperature change, minimum source cells and shifted-grid checks.
+4. Refine transient time steps independently. Playback never remeshes each frame.
+   A small energy residual proves numerical conservation only.
+
+Tiny or rotated copper, plated-wall thickness and package solids may remain
+unresolved. Diagnostic annulus proxies preserve heat bookkeeping but fail their
+resolution gate. Do not claim a local peak is accurate solely because it is drawn.
+
+## Transient heating and playback
+
+1. Review **Component inputs**, then open **Heating study…**. Choose
+   **Time-varying board heating**, or check **Transient · watch board heating**.
+   The native spatial transient uses the multilayer model.
+2. Review duration, maximum integration step, stored-frame interval, initial
+   temperature and copper/dielectric volumetric heat capacities J/(m³·K).
+   Defaults are 10 s, 0.1 s solver step and 0.1 s frame interval. Capacities
+   are illustrative assumptions until replaced by reviewed material data.
+3. **Power steps…** accepts actual **Initially W**, optional switch time and
+   **After W** for each included part. Blank switch time means constant power.
+   Applying chooses held steps. Positive scheduled power needs positive base
+   power in Component inputs; it cannot come from an unknown/zero source.
+4. For multiple events or linear ramps, retain **Advanced schedules + sinks**.
+   It uses reference-to-`[[time_s, multiplier], ...]` maps: 1 is entered power,
+   0 is off. Choose held steps or linear ramps explicitly. Sink storage requires
+   explicit per-sink J/K capacity.
+5. **Apply setup** retains settings; **Apply and run** validates and starts the
+   normal worker. Integration lands on schedule events and stored times. A frame
+   interval shorter than the maximum solver step also reduces actual time steps.
+6. After running, use **Play/Pause**, **Previous/Next**, slider and speed selector.
+   The 0.25× / 1× / 5× / 20× choices affect playback, not simulated physics.
+   **Steady state** shows the separately calculated steady boundary solution.
+
+![Guided spatial transient setup](examples/quicktherm-heating-study.png)
+
+Native KiCad 10.0.6/wxPython 4.2.2 public-demo setup: four sources total 1.05 W,
+10 s duration, 0.1 s solver/frame intervals, C2 off at 4 s. It is a setup capture,
+not a newly computed temperature. The example material/cooling values are assumptions.
+
+![Native computed transient playback](examples/quicktherm-transient-workspace.png)
+
+Public-demo computed screening study with assumed two-layer stackup, emissivity
+0.8 and reviewed-as-input capacities; C2 switches off at 4 s. This older capture
+has STEP loading off. [Transient capture provenance](../docs/audits/QUICKTHERM_TRANSIENT_PLAYBACK.md).
+
+Each displayed frame is stored computed data; no intermediate temperatures are
+invented. Fast playback or slow drawing may skip visible frames: Previous/Next
+inspects them individually. Color range spans the study, and selected component,
+power, probes and limit checks follow time. Edits stop playback and invalidate
+exports. The limits are 1000 frames and five million node values; oversized
+studies are rejected with guidance. **Use 100 playback intervals** is a convenience,
+not convergence proof. Small pulses retain declared energy, but accurate peaks
+still require time and space refinement. Plated-barrel thermal storage is excluded.
+
+### Other transient tools are separate
+
+- **Independent component RC:** `wayricad-therm --transient STUDY.json` uses the
+  explicit lumped study contract, not the native spatial mesh. Its report offers
+  searchable/sortable per-unit peak/final temperatures, selected stored time,
+  trace selection and pinned probes. Missing limits say NOT EVALUATED. Start
+  with [transient-power-step.json](studies/transient-power-step.json).
+- **Four-board airflow/RC:** `wayricad-therm-transient` runs a separately
+  parameterized four-board network with serial or parallel-passage airflow,
+  fan P–Q/system operating point or prescribed sensitivity flow, optional
+  package/body/sink nodes and ohmic R(T) feedback. It is not CFD or a spatial
+  copper model. Follow [TRANSIENT_MODEL.md](TRANSIENT_MODEL.md), including its
+  flow, source-hash, capacity, insulation and qualification requirements.
+
+A four-board CLI example is:
 
 ```text
-wayricad-therm C:/Projects/Example/board.kicad_pcb --environment air --power-field Power_W --theta-jc-field RthetaJC --thermal-refs U1 --heatsinks sinks.json --html quicktherm-sink.html
+wayricad-therm-transient quick_therm_plugin/examples/thermal-demo-parallel-flow.json --output airflow.json --csv airflow.csv --svg airflow.svg --require-checks-pass
 ```
 
-The CLI returns an error if a required mapping, selected reference, thermal
-path resistance, or environment-specific heatsink value is missing.
+Run from the repository root so the fixture board paths resolve. JSON is full
+evidence; CSV retains time/board/node temperatures and heat flows, and SVG is a
+static plot. This command returns 3 for unmet required checks, 2 for invalid
+input, and 0 for completion without an unmet required gate. It does not export
+the native spatial HTML playback report.
 
-## Troubleshooting and limits
+## Board workspace and probes
 
-| Symptom | Check |
+| Action | Use |
 |---|---|
-| Field selector lacks a name | Add the property to a footprint on the PCB, save, and reload the saved board. |
-| Selected part is excluded | Inspect its field name, units and numeric value in the report; enter complete positive resistances. |
-| Vacuum run refuses to start | Complete all selected power/Rθ fields, enter board-to-environment K/W for unsinked parts, and enter vacuum RθSA for assigned heatsinks. |
-| Heatsink shape changes but temperature does not | This is expected: geometry is visual only; the entered Rθ values drive the calculation. |
-| Temperature seems implausible | Recheck the operating-point power, thermal characterization conditions, units, missing heat sources, contact path and mounting. |
+| Top / Bottom | Inspect saved-side geometry; bottom is mirrored |
+| 3D | Orbitable saved board and declared layer depths; drag orbits, Shift-drag pans |
+| Wheel / drag / Fit | Zoom, pan and reset; these do not move PCB components |
+| Setup / Details | Hide side panels for a larger board viewport |
+| Table row or component click | Cross-select the result and exact component |
+| Read PCB selection | Bring originating editor selection back into the workspace |
+| Probe | Pin supported board-field samples; inspect or clear them in Probes |
+| Top + bottom | Simultaneous front/back comparison with linked selection |
+| STEP models | Load actual saved shapes using KiCad CLI/FreeCAD where available |
 
-The base lumped calculation omits spatial board gradients. Optional thin-sheet
-and layered models approximate heat spreading, convection and radiation using
-the declared inputs. They do not resolve airflow fields, package internals,
-temperature-dependent electrical losses, transients or chamber view factors.
-A virtual sink with no real path to the environment cannot establish a finite
-vacuum steady state.
-Use measurements or a qualified thermal model for design sign-off.
+The viewport shows Edge.Cuts, supported cutouts, holes, slots, pads and footprint
+bounds. Hover reads coordinate and supported temperature; only hovered/selected
+parts receive labels. Blank/outside/drilled regions have no valid board-field
+probe. Saved fields and junction estimates are different quantities.
 
-The two SVG figures in this guide are **UI illustrations derived from the
-implemented controls**. They use synthetic example values. They are not
-screenshots, measured results, or evidence that a live KiCad editor accepted a
-specific board run.
+**Component estimates** contours interpolate same-side junction anchors only
+inside their supported hull and board boundary. They are not board-temperature
+solutions. **Board temperature** and physical layer fields come from the chosen
+solver. Thin-sheet top/bottom share a midplane field. Temperature charts rank
+available component values; missing case/junction temperatures remain unknown.
 
+STEP supplies geometry only. Placements/offsets/rotation are retained when loaded;
+missing models remain outlined and listed. A footprint height or STEP model does
+not supply conductivity, die power, thermal capacity or contact resistance.
+Cross-selection needs the originating live editor and unchanged saved source;
+stale board identity is rejected rather than redirected to a different project.
 
-### Inspecting the saved board in a thermal report
+![Paired top and bottom board inspection](examples/quicktherm-paired-3.6.38.png)
 
-The offline HTML report opens with an interactive full-board viewport. **Top** and **Bottom** show the corresponding saved footprint bounds, reference labels, Edge.Cuts, mounting drills, slots and vias; the bottom view is mirrored. Only the selected component and the component under the pointer show a reference and junction estimate. Hover a part for a temporary label, or select it in the view or sortable table to keep its label visible. Moving away clears the hover label; missing junction values remain unknown. Wheel zooms, drag pans, and **Fit board** resets the view. Hover exposed board space to read the nearest valid thermal field cell. Drilled voids and space outside the saved outline have no probe temperature.
+Native public-demo thin-sheet result: 1.05 W, 20 °C ambient, assumed 35 W/(m·K),
+0.8 emissivity and 10 m/s airflow. Both faces share the midplane field; STEP was
+off. These are illustrative results, not measured board temperatures.
 
-**3D overview** provides an orbitable board extrusion and saved footprint bounds on both faces. Package heights are illustrative and no STEP models are loaded. The report also embeds three offline Matplotlib plots: top board overlay, bottom board overlay and component temperature comparison with available limits. Junction, package case and board contact temperatures are separate quantities; a missing case temperature stays unknown. A thin-sheet solve supplies one shared midplane field on both faces, not independently calculated top and bottom surface temperatures. Circular and rotated obround plated slots are supported by the separate multilayer model; coarse barrel contact proxies remain explicitly reported.
+## Reports and dissipation Sankey
 
+After a valid run, choose **Export…**. Keep HTML and its paired JSON together.
+HTML includes source identity, assumptions, coverage, component limits, probes,
+heat balance and supported interactive board/thermal views. Tables and board
+selection support review without exposing raw evidence as the main presentation.
+Three printable plots show top, bottom and component temperatures. Use the CLI
+`--extended-report-snapshots` only when you also need static 3D/contours/all layers;
+it can be much slower on dense boards. Interactive views and full evidence are
+retained without those extra snapshots.
 
-### Plated slots and analysis progress
+**Dissipation Sankey…** opens an offline left-to-right diagram from individual
+parts and retained copper/contact I²R sources to total known watts. HTML reports
+include it automatically. Hover/focus reads values; click pins a probe. Sources
+after the largest 30 are grouped visually but remain individual in the source
+table. Zero, unknown and excluded parts are listed separately.
 
-# <img src="resources/icon-96.png" width="48" height="48" alt="QuickTherm icon"> WayriCAD QuickTherm
+The Sankey is the saved steady/reference power point, independent of playback
+time. It shows generated heat, not environmental outflow, transient storage or
+heat-transfer paths. Missing sources make the total incomplete.
 
-QuickTherm is an independently installable KiCad PCB Editor plugin for read-only steady-state and scheduled spatial transient thermal screening. It has its own PCM package, toolbar action, native window, icon, command-line interface and HTML/JSON export. It does not require Quick PI to be installed.
-
-The separate `wayricad-therm-transient` command runs an explicitly parameterized, four-board lumped RC transient screen. It uses saved-board source hashes and KiCad reference checks, a declared fan P–Q/system operating point or prescribed-flow sensitivity case, explicit serial or parallel-passage airflow topology, optional package/body and isolated-sink paths, and ohmic R(T) loss feedback. The parallel model warms air from high X to low X within each board and retains a user-entered passage flow split; it is not CFD. See the [transient model guide](TRANSIENT_MODEL.md) for the input contract and limitations. This separate four-board screen does not replace the native spatial board transient described above.
-
-For the separate steady multilayer model, set `"source_refinement_factor": 2` inside `thermal_network_settings` to subdivide rectilinear cells near mapped footprint sources. A CLI JSON config can also include `"mesh_acceptance": {"grid_cells_long_axis": [24, 48, 80], "maximum_change_c": 0.1, "minimum_source_cells": 4}`. The solver repeats the same saved geometry on increasing grids and reports PASS/FAIL from the two finest component, source-peak, layer-peak and spatial-field temperatures, numerical balance and effective source-contact coverage. An optional phase-shifted solve exposes grid sensitivity. A failed or absent mesh gate must not be read as a converged local hotspot result. Source-aligned refinement is a rectilinear screening mesh; it does not resolve package-to-copper contact geometry or qualify physical hotspots.
-
-Start with the [step-by-step user guide](QUICK_THERM_USER_GUIDE.md) or its [offline HTML version](QUICK_THERM_USER_GUIDE.html). The [model and limits](QUICK_THERM.md) explain the equations and supported evidence.
-
-The optional [CalculiX 3D steady-conduction mode](CALCULIX_BRIDGE.md) meshes a supported saved board with Gmsh, runs `ccx`, checks its nodal temperatures and heat balance, and displays imported top/bottom board fields. Select it in the native board-model controls, locate the `ccx` executable, and check the solver setup before running; the executable choice is remembered locally. First use may install Gmsh in QuickTherm's private runtime. Enter or map dissipated power for the selected parts; RθJB is optional and is used only to estimate package junction temperature from the solved board field. The mode requires a fixed lower-face temperature and rejects vias, mounting contacts, heatsinks, convection and radiation until those physics have a qualified mesh contract.
-
-![QuickTherm field mapping and board preview in the native window](examples/quicktherm-native-window.png)
-
-![QuickTherm expanded board view with a temperature scale and component estimates](examples/quicktherm-large-board-view.png)
-
-![QuickTherm approximate board-midplane temperature overlay from the optional heat model](examples/quicktherm-board-model-view.png)
-
-![QuickTherm simultaneous top and bottom board workspace with shared temperature scale and cross-selectable component table](examples/quicktherm-paired-workspace.png)
-
-The paired-workspace screenshot was captured from the native KiCad Python window using a synthetic 60 × 40 mm board outline, two invented components and illustrative layer-temperature arrays. It demonstrates the UI only; the temperatures are not measured or solver-qualified results.
-
-The **Open top + bottom workspace** button opens simultaneous front and mirrored-back thermal views with a live cursor readout, probe placement and a component summary that cross-selects with the plots and PCB Editor. Top and bottom maps display component junction estimates with a translucent, same-side interpolation where enough mapped points exist. Only the selected or hovered component is labelled, so large studies remain readable. The optional board conduction model provides an approximate board-temperature overlay; it needs material, airflow and boundary inputs. The first expanded map above is **not** a computed board-surface temperature. The second view is the optional thin-sheet model, using an assumed 35 W/(m·K) in-plane conductivity, 0.8 emissivity, 10 m/s forced airflow, a 48-cell long-axis grid and the saved 1.6 mm thickness. Those inputs are illustrative, not measured properties of the fixture.
-
-The [component-results screenshot](examples/quicktherm-native-results.png) shows the sortable temperature table and summary in the same native window.
-
-Open a saved board in KiCad PCB Editor and launch **WayriCAD QuickTherm**. Choose only the dissipating components, review the ambient temperature, then use **Enter component inputs…** to supply power and the applicable thermal resistance for each selected part. No saved `Power_W` or `RthetaJA` fields are required for this path, and the PCB is not modified. If your board has complete thermal properties, switch to **Use saved footprint fields** and map them. Both paths show top and bottom views, contours, a 3D overview, a component temperature table, and cross-selection back to PCB Editor. Optional virtual heatsinks and board models include thin-sheet and layer-resolved copper/vertical-path approximations. The report records input provenance, assumptions, coverage and heat balance where applicable. The viewport board models remain steady-state; the separate transient CLI is a lumped RC screen, not CFD or a spatial transient copper-field solver.
-
-For automation, install the source wheel and use `wayricad-therm`:
+For a static PDF, use the report toolbar's browser print/save workflow or:
 
 ```text
-wayricad-therm C:/Projects/Example/board.kicad_pcb --environment air --power-field Power_W --theta-ja-field RthetaJA --thermal-refs U1 U2 --html quicktherm-air.html
+python -m wayricad_runtime.tool_cli report-pdf thermal.html --output thermal.pdf --evidence thermal.json
 ```
 
-### Reproducible example
+The optional `wayricad[reports]` extra supplies ReportLab. Static export retains
+text/tables/embedded PNG/JPEG; unsupported interactive/canvas/SVG views are listed
+as HTML-only. PDF conversion does not rerun the solver or create missing plots.
+[Shared reporting guide](../wayricad_runtime/REPORTS.md).
 
-The public [demonstration PCB](examples/thermal-demo.kicad_pcb) has four hypothetical dissipating parts spread across a 60 × 40 mm board. From the repository root with KiCad 10 native Python and the declared dependencies available:
+## CLI and jobsets
+
+Install the source wheel and required native/scientific runtime, or use KiCad's
+compatible Python with module invocation from the checkout. PCM independently
+installs the plugin; it does not imply that shell commands are globally on PATH.
+Check `wayricad-therm --help` or `python -m quick_therm_plugin.cli --help`.
+
+### Component screen with explicit fields
+
+```text
+wayricad-therm C:/Projects/Example/board.kicad_pcb --environment air --power-field Power_W --theta-ja-field RthetaJA --thermal-refs U1 U2 --ambient 25 --output thermal.json --html thermal.html
+```
+
+Add `--temp-min-field Tmin_C --temp-max-field Tmax_C --require-limits-pass` to
+require all scoped junction limits. Add a repeatable probe such as
+`--probe Centre:30,20:top` (or `bottom`). Vacuum simple screens use
+`--theta-jb-field RthetaJB --board-rtheta 10` instead of the air RθJA mapping.
+The 10 K/W here is an example argument, not a suggested default.
+
+### Repeatable board-model configuration
+
+Start with [thermal-demo-config.json](examples/thermal-demo-config.json), replace
+its scope/fields/materials/boundaries, and retain the reviewed file with outputs.
+
+```text
+wayricad-therm C:/Projects/Example/board.kicad_pcb --config thermal-config.json --auto-mesh --output thermal.json --html thermal.html --require-limits-pass
+```
+
+`--config` cannot be mixed with individual environment, field, scope, heatsink,
+ambient or probe options. Mesh overrides are permitted only with config containing
+`thermal_network_settings`. Use `--mesh-mode manual` for explicit grid control.
+Forced air, potting and sealed environments require config with explicit multilayer
+boundary settings. Config size is bounded to 256 KiB and must map `field_map.power_w`.
+
+A spatial board transient adds top-level `transient_settings` to the multilayer
+config. For example, the following *section* uses hypothetical capacities; it is
+not a complete standalone config:
+
+```json
+{
+  "transient_settings": {
+    "duration_s": 10,
+    "timestep_s": 0.1,
+    "frame_interval_s": 0.1,
+    "initial_c": 20,
+    "copper_volumetric_capacity_j_m3k": 3450000,
+    "dielectric_volumetric_capacity_j_m3k": 1800000,
+    "schedule_interpolation": "step",
+    "power_schedules": {"C2": [[0, 1], [4, 0]]}
+  }
+}
+```
+
+Keep spatial steady mesh acceptance separate from transient runs; refine transient
+space/time with separate analyses. For an independent component RC study:
+
+```text
+wayricad-therm --transient quick_therm_plugin/studies/transient-power-step.json --output rc.json --html rc.html
+```
+
+That mode accepts only transient/output/HTML/timeout options (plus optional board
+provenance), not board-model flags. Its limit-violation exit code is 4. Normal
+board CLI returns 0 for completed analysis, 2 for input/runtime errors and 3 when
+`--require-limits-pass` is unmet; zero without that flag is not a temperature pass.
+
+### Job sequences and KiCad jobsets
+
+```text
+wayricad-jobs init Example.kicad_pro --preset thermal --output thermal-jobs.json --set thermal_config=thermal-config.json
+wayricad-jobs run thermal-jobs.json
+```
+
+Review generated paths/steps before running. The thermal preset invokes the
+standalone CLI with a limit gate. `wayricad-jobs jobset --help` describes conversion
+to KiCad's native jobset; use the resulting jobset from KiCad's normal job runner.
+Keep each board/config/output bound to the intended project and avoid output
+paths that alias sources. [CLI catalogue](../docs/TOOL_CLI_CATALOGUE.md).
+
+## CalculiX and Gmsh
+
+1. Install a compatible CalculiX `ccx`. Choose **CalculiX 3D · fixed lower face**,
+   then **Locate CalculiX…** and **Check solver setup**. The selected executable
+   is remembered locally; PATH or `WAYRICAD_CCX` can also locate it.
+2. Gmsh is reused from PATH or prepared in the private runtime on first use.
+   First setup may need network access; normal runs reuse it.
+3. Use a supported saved board/stackup and top-side heat-source scope. Enter
+   copper/dielectric conductivity, manual XY mesh target and prescribed entire
+   lower-face temperature. Map power; RθJB is optional for displayed Tj.
+4. Run and review solver status, complete imported nodal field, boundary
+   temperatures and lower-face heat balance. Accepted top/bottom fields appear
+   in workspace/probes/report; incomplete results are not presented as solved.
+
+The mesh uses Gmsh XY triangles extruded through stackup intervals into CalculiX
+DC3D6 wedges. Copper classification and source distribution use triangle centroids;
+small features can be missed and need refinement. Other faces are adiabatic.
+The model rejects vias, drilled pads, mounting contacts, bottom-side heat sources,
+virtual heatsinks, convection and radiation. This is not a general air/vacuum
+assembly solver, and fixed entire-lower-face cooling is not a mounting-point model.
+
+CLI config uses `thermal_model_kind: "calculix"` with `calculix_settings`.
+Use `--calculix-dir` to retain a new evidence directory, `--calculix-exe` to supply
+ccx and `--run-calculix` for explicit prepared-deck invocation. Existing evidence
+directories are not overwritten. Automatic rectilinear mesh flags do not apply.
+[Complete configuration and solver contract](CALCULIX_BRIDGE.md).
+
+## Public examples
+
+From the repository root, the following read-only example uses the public demo's
+hypothetical fields, not private project data:
 
 ```text
 python -m quick_therm_plugin.cli quick_therm_plugin/examples/thermal-demo.kicad_pcb --environment air --power-field Power_W --theta-ja-field RthetaJA --thermal-refs C1 C2 C3 J1 --ambient 20 --html quicktherm-demo.html
 ```
 
-The actual run produced the [JSON summary](examples/thermal-demo-result.json) and [self-contained HTML report](examples/thermal-demo-report.html). The result was generated with KiCad 10.0.6 on Windows; the public example files use relative paths.
-
-| Part | Power | Supplied RθJA | Estimated junction at 20 °C ambient |
+| Part | Entered power | RθJA | Independent estimate at 20 °C |
 |---|---:|---:|---:|
 | C1 | 0.20 W | 45 K/W | 29.0 °C |
 | C2 | 0.45 W | 35 K/W | 35.75 °C |
 | C3 | 0.10 W | 65 K/W | 26.5 °C |
 | J1 | 0.30 W | 50 K/W | 35.0 °C |
 
-These are independent `ambient + power × RθJA` estimates. The sample board is a visual fixture with hypothetical fields and repositioned parts, not a routed design or thermal qualification. To regenerate it from the repository fixture, run `examples/build_demo.py`, then run the command above. The example report contains board views and assumptions; the JSON summary is a small subset of the full report evidence.
+These published fixture values follow `Tamb + P RθJA`; no new solve was performed
+for this guide. The [saved example report](examples/thermal-demo-report.html)
+and [summary](examples/thermal-demo-result.json) record the earlier run.
+For board spreading, use the demo config command in the README, retain all its
+assumptions and compare its field with the separate independent estimates.
 
-For the board-model view and automatic limits, use the reviewed [example configuration](examples/thermal-demo-config.json):
+The [four-board transient example](examples/thermal-demo-transient.json) and
+[parallel-flow sensitivity example](examples/thermal-demo-parallel-flow.json)
+are teaching configurations with invented powers, capacities and flow data.
+They are not measured fan/board characterization. See the transient model guide
+before adapting either to hardware.
 
-```text
-wayricad-therm quick_therm_plugin/examples/thermal-demo.kicad_pcb --config quick_therm_plugin/examples/thermal-demo-config.json --html quicktherm-demo.html --require-limits-pass
-```
+## Troubleshooting
 
-The saved example converged with 1.05 W input and a heat-balance residual below 10⁻¹² W. The resulting board-midplane range is about 23.6–27.6 °C, with four component limits passing and two virtual probes recorded. This is a model output under the declared forced-air assumption, not a measurement. The displayed `Tj≈` labels in the board-model view come from the model and mapped `RthetaJB` fields; the simpler table above uses the separate `RthetaJA` screen.
+| Symptom | Action |
+|---|---|
+| A field is absent | Add/transfer it to the PCB footprint, save and reload; review mapping ambiguity |
+| No useful temperatures | Check selected scope, actual power and the thermal path required by the chosen model |
+| A board field exists but Tj is unknown | Map reviewed RθJB or define supported equivalent junction paths; do not substitute board temperature |
+| No temperature in a hole/blank region | This is outside valid field support; inspect outline, mesh and contact warnings |
+| Vacuum solve is singular/rejected | Supply real radiation or fixture rejection; zero convection alone cannot reject heat |
+| Sink shape edits have no temperature effect | Entered thermal resistance/area drive the thermal model, not visual dimensions |
+| Limit status is UNKNOWN | Supply applicable limits and a junction temperature; body or board-only values cannot pass it |
+| PI import is stale or unresolved | Regenerate from exact saved source and refine contacts; do not bypass identity/coverage checks |
+| Transient storage budget exceeded | Increase frame interval or reduce mesh/duration; verify convergence independently |
+| ccx/Gmsh missing | Use Locate/Check solver setup, confirm compatible dependencies; retain the explicit error |
+| Report export disabled | Inputs/source changed; reload/review and rerun before export |
+| Dense report is slow | Keep default three static plots and omit extended snapshots; reduce unnecessary playback output |
+| Editor cross-selection fails | Use originating live editor and same saved board revision, then Read PCB selection |
 
-The PCM action uses the native KiCad Python runtime and launches a separate bounded worker for board analysis. Each installed QuickTherm ZIP carries its own shared runtime files, so it never imports a sibling plugin package.
+Review warnings, incomplete source coverage, failed mesh gates and unknown limits
+before accepting a result. Numerical convergence, conservation and a completed
+command each prove a limited property; none qualifies materials, contacts or
+measured hardware performance.
 
+## Equations, references and further reading
 
-### Inspecting the saved board in a thermal report
-
-The offline HTML report opens with an interactive full-board viewport. **Top** and **Bottom** show the corresponding saved footprint bounds, reference labels, Edge.Cuts, mounting drills, slots and vias; the bottom view is mirrored. Only the selected component and the component under the pointer show a reference and junction estimate. Hover a part for a temporary label, or select it in the view or sortable table to keep its label visible. Moving away clears the hover label; missing junction values remain unknown. Wheel zooms, drag pans, and **Fit board** resets the view. Hover exposed board space to read the nearest valid thermal field cell. Drilled voids and space outside the saved outline have no probe temperature.
-
-**3D overview** provides an orbitable board extrusion and saved footprint bounds on both faces. Package heights are illustrative and no STEP models are loaded. The report also embeds three offline Matplotlib plots: top board overlay, bottom board overlay and component temperature comparison with available limits. Junction, package case and board contact temperatures are separate quantities; a missing case temperature stays unknown. A thin-sheet solve supplies one shared midplane field on both faces, not independently calculated top and bottom surface temperatures. Drilled slots can be displayed even when the multilayer thermal-contact model does not support solving them.
-
-
-## Interactive and spatial transient workflow
-
-Enable **Transient · watch board heating** in **Board + results**. The layered board model is selected and **Transient setup** opens. Review the saved stackup, material conductivity, via plating, emissivity and boundary settings. Enter duration, maximum solver step, stored frame interval, initial temperature and material heat capacities; the capacity defaults are assumptions to review. Native defaults are 10 s duration and 0.1 s for both solver and stored-frame intervals. Each stored playback time is a computed solve endpoint, including schedule events. A frame interval shorter than the maximum solver step also shortens actual integration steps. Smaller intervals take more time and memory; the 1000-frame and five-million-node-value limits reject oversized output with guidance rather than silently coarsening it.
-
-Use **Power steps…** for each included component's initial multiplier, optional switch time and final multiplier. Multiplier `1` uses its entered power, `0` turns it off. Leave the switch time blank for constant power. For several events, use **Advanced schedules + sinks** with a JSON map of references to `[time_s, multiplier]` lists. Choose **Power steps** or **Linear ramps** explicitly. Schedule events split the integration, so a short declared pulse retains its input energy. Virtual sinks need separate explicit J/K capacities.
-
-Choose **Air** for declared convection and radiation to ambient; **Forced air** accepts an effective convection coefficient. **Vacuum** disables convection and retains radiation and fixture conduction. A vacuum board study needs a nonzero emissivity or a fixture heat path because the workflow also solves the steady boundary problem. Airflow fields, residual gas and chamber view factors are not solved.
-
-Run, then use **Play/Pause**, **Previous/Next**, the time slider and speed selector to watch computed heating/cooling in top, bottom or **3D**. Speed choices are 0.25×, 1×, 5× and 20×; faster playback or slow drawing can skip visible frames, while Previous/Next inspects each stored frame. The scale remains fixed across all frames. Camera position, probes, component power, junction estimates and limit checks follow the selected computed time; no extra solution frames are interpolated. **Steady state** selects the separate final boundary solution. The offline HTML report has the same playback controls and retains the source inputs and provenance.
-
-The [QuickTherm README](README.md#interactive-views-and-time-evolution) describes the full input contract. The spatial transient remains separate from the four-board lumped RC command. Missing package resistance leaves junction temperatures unknown; junction offsets have no die heat capacity. Check time-step and mesh refinement independently.
+- [Thermal methods and applicability](QUICK_THERM.md)
+- [Transient network and mesh contracts](TRANSIENT_MODEL.md)
+- [CalculiX/Gmsh method and manuals](CALCULIX_BRIDGE.md)
+- [Lead/solder package conduction](../docs/PACKAGE_CONDUCTION.md)
+- [Solver references and research](README.md#references-and-research)
+- [Installation and compatibility](../docs/INSTALLATION.md)
+- [Offline HTML edition](QUICK_THERM_USER_GUIDE.html)

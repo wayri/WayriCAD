@@ -49,6 +49,17 @@ Download the published release or refresh the WayriCAD package repository in KiC
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
+### Detailed analysis guides
+
+| Tool | Step-by-step user guide | Offline version |
+|---|---|---|
+| Quick PI | [DC paths, returns, AC losses, PDN, transients and probes](quick_pi_plugin/USER_GUIDE.md) | [HTML guide](quick_pi_plugin/USER_GUIDE.html) |
+| Quick SI | [Signal paths, returns, coupling, pair timing and IBIS export](signal_integrity_advisor_plugin/USER_GUIDE.md) | [HTML guide](signal_integrity_advisor_plugin/USER_GUIDE.html) |
+| QuickTherm | [Power inputs, cooling, steady state, transients and temperature inspection](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md) | [HTML guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.html) |
+
+Each guide covers setup, result interpretation, examples, command-line use,
+report export and troubleshooting, including the limits of each solver.
+
 ## Showcase
 
 Click a screenshot for its full resolution. [More screenshots, grouped by plugin](#plugin-previews).
@@ -280,7 +291,7 @@ currencies stay explicit.
 
 ## All 24 plugins
 
-All 24 plugins are available in release **3.6.33**. Assistant is marked **testing**;
+All 24 plugins are available in release **3.6.40**. Assistant is marked **testing**;
 individual package versions and runtime requirements are in their guides.
 Select a plugin for its full guide and supported models.
 
@@ -932,7 +943,7 @@ python tools/validate_packages.py --archive-dir .validation/candidate-pcm
 ```
 
 Each plugin also has its own tests. Skipped checks do not establish native GUI
-compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.33.md).
+compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.40.md).
 
 ## Acknowledgements and AI disclosure
 

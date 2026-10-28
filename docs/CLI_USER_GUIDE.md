@@ -1,5 +1,12 @@
 # WayriCAD CLI User Guide
 
+For complete analysis workflows and command examples, see the
+[Quick PI user guide](../quick_pi_plugin/USER_GUIDE.md),
+[Quick SI user guide](../signal_integrity_advisor_plugin/USER_GUIDE.md), and
+[QuickTherm user guide](../quick_therm_plugin/QUICK_THERM_USER_GUIDE.md).
+These explain the inputs and model limits behind each command as well as how to
+inspect and export its results.
+
 [HTML and PDF reporting](../wayricad_runtime/REPORTS.md) covers
 `python -m wayricad_runtime.tool_cli report result.json --html review.html --pdf review.pdf`
 and `report-pdf review.html --output review.pdf`. Raw JSON stays optional; use

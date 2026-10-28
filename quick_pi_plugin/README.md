@@ -2,6 +2,11 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+**[Detailed user guide](USER_GUIDE.md)** · [Offline HTML guide](USER_GUIDE.html) · [Compact help](help.html)
+
+Start with [Choose a study](USER_GUIDE.md#choose-a-study), then follow the inputs,
+inspection, reports and troubleshooting steps for your selected workflow.
+
 ## Individual shunt capacitors in transient studies
 
 Open **More → Transient load-step study**, select a load row, then
@@ -170,7 +175,7 @@ inferred. The screenshot contains no private design or local paths.
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.38](https://github.com/wayri/WayriCAD/releases/tag/v3.6.38) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation](../docs/INSTALLATION.md) |
 | First power-path check | [Workflow](#workflow) · [Reading results](#reading-results) |
 | Multiple rails, returns and heating | [Multi-net studies](#multi-net-cases-return-copper-and-joule-feedback) |
 | SMPS ripple, skin effect and proximity losses | [AC copper analysis](AC_ANALYSIS.md) |

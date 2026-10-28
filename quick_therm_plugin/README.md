@@ -4,6 +4,7 @@
 
 | Need | Open |
 |---|---|
+| Detailed instructions for every workflow | [Complete user guide](QUICK_THERM_USER_GUIDE.md) · [Offline HTML edition](QUICK_THERM_USER_GUIDE.html) |
 | Install or update | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation](../docs/INSTALLATION.md) |
 | Choose component inputs | [Native workspace](#native-workspace-and-component-inputs) |
 | Run a known example | [Reproducible example](#reproducible-example) |

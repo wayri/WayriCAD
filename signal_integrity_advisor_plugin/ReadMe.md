@@ -2,6 +2,8 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
+**Detailed user guide:** [Read the step-by-step guide](USER_GUIDE.md) · [Offline HTML](USER_GUIDE.html). Covers setup, all workspace tabs, CLI, reports, recovery and model limits.
+
 ## Start here
 
 | Need | Open |

@@ -31,6 +31,11 @@ Each independently installed package includes `help.html` and its local illustra
 
 ## Read a result before applying it
 
+For complete analysis walkthroughs, use the [Quick PI user guide](../quick_pi_plugin/USER_GUIDE.md),
+[Quick SI user guide](../signal_integrity_advisor_plugin/USER_GUIDE.md) and
+[QuickTherm user guide](../quick_therm_plugin/QUICK_THERM_USER_GUIDE.md).
+Each also has an offline HTML version linked from the tool's help and README.
+
 1. Confirm the originating project and saved/live source used by that tool. Saved-copy tools omit unsaved editor changes.
 2. Start with a narrow selection or small scope, then expand after inspecting the preview. Review units, layers, side and exact net/reference names.
 3. Read preserved, rejected, missing and unknown rows. An empty result or completed command does not prove that an engineering check passed.
