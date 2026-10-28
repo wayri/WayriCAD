@@ -15,7 +15,7 @@ DEFAULT_CONFIG = {
     "field_z_mm": 2, "field_grid": 21, "z0_ohm": 50,
     "solver": "SUPERLU", "sweep": "linear", "adaptive_steps": 0,
     "convergence": 0.02, "max_tets": 250000,
-    "rule_area_id": "", "signal_net": "", "reference_net": "", "region_er_reviewed": False,
+    "rule_area_id": "", "signal_net": "", "reference_net": "", "region_er_reviewed": False, "advanced": {},
 }
 
 
@@ -42,7 +42,7 @@ def validate_config(raw):
     if config["sweep"] not in ("linear", "adaptive"):
         raise ValueError("unknown sweep")
     for key in DEFAULT_CONFIG:
-        if key in ("mode", "solver", "sweep", "rule_area_id", "signal_net", "reference_net", "region_er_reviewed"):
+        if key in ("mode", "solver", "sweep", "rule_area_id", "signal_net", "reference_net", "region_er_reviewed", "advanced"):
             continue
         value = config[key]
         if isinstance(value, bool):
@@ -70,15 +70,18 @@ def validate_config(raw):
         raise ValueError("resolution must not exceed 1")
     if config["convergence"] > 1:
         raise ValueError("convergence must not exceed 1")
-    if config["mode"] == "patch":
+    study = config["advanced"].get("study", "driven") if isinstance(config["advanced"], dict) else "driven"
+    if study in ("driven", "optimization", "array") and config["mode"] == "patch":
         if (config["patch_width_mm"] >= config["substrate_x_mm"] or
                 config["patch_length_mm"] >= config["substrate_y_mm"] or
                 config["feed_width_mm"] + 2 * config["inset_width_mm"] >= config["patch_width_mm"] or
                 config["inset_length_mm"] >= config["patch_length_mm"]):
             raise ValueError("patch and inset must fit inside the substrate")
-    elif config['mode'] == 'pcb_line' and (config["line_length_mm"] >= config["substrate_x_mm"] or
+    elif study in ('driven', 'optimization') and config['mode'] == 'pcb_line' and (config["line_length_mm"] >= config["substrate_x_mm"] or
           config["line_width_mm"] >= config["substrate_y_mm"]):
         raise ValueError("line must fit inside the substrate")
+    from .advanced import validate_advanced
+    config['advanced'] = validate_advanced(config['advanced'], config)
     return config
 
 

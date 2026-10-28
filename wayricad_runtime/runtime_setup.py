@@ -74,6 +74,9 @@ REQUIREMENTS_QUICK_EMERGE = {
     'matplotlib': 'matplotlib>=3.8,<4',
     'packaging': 'packaging>=23',
     'kipy': 'kicad-python>=0.8.0,<0.9',
+    'vtk': 'vtk>=9.3,<10',
+    'reportlab': 'reportlab>=4,<5',
+    'matplotlib.backends.backend_wxagg': 'wxPython>=4.2.3,<5',
 }
 REQUIREMENTS_MAGNETICS = {
     'numpy': 'numpy>=1.26,<3', 'scipy': 'scipy>=1.11,<2',

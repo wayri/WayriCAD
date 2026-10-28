@@ -15,6 +15,19 @@ from wayricad_runtime import bootstrap, runtime_setup
 
 
 class ReleaseLaunchTests(unittest.TestCase):
+    def test_flat_workers_do_not_execute_editor_initializer(self):
+        import shutil
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)/'installed'; root.mkdir()
+            for path in source.glob('*.py'): shutil.copy2(path, root/path.name)
+            (root/'__init__.py').write_text("raise RuntimeError('EDITOR_INITIALIZER_EXECUTED')")
+            result = subprocess.run([sys.executable,'-I',str(root/'__main__.py'),'--help'],stdin=subprocess.DEVNULL,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            code = "import runpy; runpy.run_path("+repr(str(root/'network_worker.py'))+", run_name='worker_import')"
+            result = subprocess.run([sys.executable,'-I','-c',code],stdin=subprocess.DEVNULL,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+
     def test_import_and_help_do_not_require_gui(self):
         root = Path(__file__).resolve().parents[2]
         code = ("import sys; sys.modules['wx']=None; "
@@ -37,8 +50,8 @@ class ReleaseLaunchTests(unittest.TestCase):
 
     def test_profile_has_desktop_dependencies_without_solver_or_vtk(self):
         requirements = runtime_setup.REQUIREMENTS_QUICK_EMERGE
-        self.assertEqual(set(requirements), {'numpy', 'matplotlib', 'packaging', 'kipy'})
-        self.assertFalse(any('emerge' in spec or 'vtk' in spec for spec in requirements.values()))
+        self.assertEqual(set(requirements), {'numpy', 'matplotlib', 'packaging', 'kipy', 'vtk', 'reportlab', 'matplotlib.backends.backend_wxagg'})
+        self.assertFalse(any('emerge' in spec for spec in requirements.values()))
         with patch.object(runtime_setup, 'ensure_runtime', return_value=Path('managed-python')) as ensure, \
              patch.object(bootstrap.subprocess, 'call', return_value=0), \
              patch.object(sys, 'argv', ['desktop_entrypoint.py', '--board', 'example.kicad_pcb']):

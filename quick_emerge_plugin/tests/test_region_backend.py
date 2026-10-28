@@ -48,7 +48,8 @@ class RecordingEM:
         self.mw = SimpleNamespace(set_resolution=lambda *args: None, set_frequency_range=lambda *args: None)
         self.mesher = SimpleNamespace(set_boundary_size=lambda *args: None, set_face_size=lambda *args: None)
     def Simulation(self, name): return self
-    def set_solver(self, solver): pass
+    def set_solver(self, solver): return self
+    def set_nthreads(self, threads): self.threads = threads
     def Material(self, **kwargs): return kwargs
     def commit_geometry(self): pass
     def XYPolygon(self, xs, ys, **kwargs):

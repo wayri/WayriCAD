@@ -152,5 +152,31 @@ class ViewportTests(unittest.TestCase):
         self.assertAlmostEqual(self.events[0][1].xdata, 1, places=1)
         self.assertAlmostEqual(self.events[0][1].ydata, 1, places=1)
 
+    def test_toolbar_export_button_does_not_fill_remaining_row(self):
+        self.frame.SetSize((1500,650));self.frame.Layout();wx.Yield()
+        export=next(child for child in self.view.GetChildren()
+            if isinstance(child,wx.Button) and child.GetLabel()=='Image…')
+        self.assertLessEqual(export.GetSize().width,export.GetBestSize().width+self.view.FromDIP(4))
+
+    def test_2d_middle_pan_cursor_zoom_and_double_click_fit(self):
+        view=self.view;view.name='Field probes';view.render(plots.near_field,self.result,reset=True)
+        view.set_mode('Probe');view.canvas.draw();ax=view.axes();initial=view._bounds()
+        x,y=ax.transData.transform((1,1))
+        self.dispatch('button_press_event',x,y,button=2)
+        self.dispatch('motion_notify_event',x+25,y+20,button=2)
+        self.dispatch('button_release_event',x+25,y+20,button=2)
+        self.assertNotEqual(view._bounds(),initial)
+        self.assertEqual(view.interaction,'Probe');self.assertFalse(any(event[-1] for event in self.events))
+        view.fit();view.canvas.draw();ax=view.axes()
+        anchor=(.5,.7);before=ax.transData.transform(anchor)
+        event=MouseEvent('scroll_event',view.canvas,*before,button='up',step=1)
+        view.canvas.callbacks.process('scroll_event',event)
+        after=ax.transData.transform(anchor)
+        np.testing.assert_allclose(after,before,atol=1.)
+        event=MouseEvent('button_press_event',view.canvas,*after,button=1,dblclick=True)
+        view.canvas.callbacks.process('button_press_event',event)
+        self.assertEqual(view._bounds(),view.home)
+        self.assertFalse(view.camera_controls.IsShown())
+
 
 if __name__ == '__main__': unittest.main()

@@ -46,6 +46,19 @@ class SessionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'PCB changed'):
             self.session.start({}, sys.executable, self.root)
 
+    def test_solver_library_hint_is_child_local_and_other_environment_keys_rejected(self):
+        import os
+        self.session.preview({})
+        before=os.environ.get('EMERGE_PARDISO_PATH')
+        proc=FakeProcess()
+        with patch('quick_emerge_plugin.session.subprocess.Popen',return_value=proc) as popen:
+            self.session.start({},sys.executable,self.root,solver_environment={'EMERGE_PARDISO_PATH':'C:/Runtime/mkl_rt.dll'})
+        self.assertEqual(popen.call_args.kwargs['env']['EMERGE_PARDISO_PATH'],'C:/Runtime/mkl_rt.dll')
+        self.assertEqual(os.environ.get('EMERGE_PARDISO_PATH'),before)
+        self.session.cancel()
+        with self.assertRaisesRegex(ValueError,'solver-library'):
+            self.session.start({},sys.executable,self.root,solver_environment={'PYTHONPATH':'unreviewed'})
+
     def test_worker_command_and_isolated_run(self):
         self.session.preview({})
         proc = FakeProcess()

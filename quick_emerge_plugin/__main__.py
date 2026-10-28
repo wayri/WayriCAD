@@ -14,8 +14,12 @@ if __package__ in (None, ''):
     spec = importlib.util.spec_from_file_location(name, root/'__init__.py', submodule_search_locations=[str(root)])
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
-    spec.loader.exec_module(module)
+    # Only the editor may execute the PCM initializer's action registration.
+    # Standalone GUI/solver processes need the package namespace, not callbacks.
     __package__ = name
+    runtime_root = root if (root/'wayricad_runtime').is_dir() else root.parent
+    if (runtime_root/'wayricad_runtime').is_dir():
+        sys.path.insert(0, str(runtime_root))
 
 
 def main(argv=None, *, on_ready=None):

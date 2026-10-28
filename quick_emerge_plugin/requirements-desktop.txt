@@ -1,6 +1,9 @@
 # wx and pcbnew come from the KiCad 10 native base; never pip-install into KiCad.
-wxPython>=4.2
+wxPython>=4.2.3,<5
 matplotlib>=3.8,<4
 packaging>=23
 numpy>=2.2,<2.5
 kicad-python>=0.8.0,<0.9
+
+vtk>=9.3,<10
+reportlab>=4,<5

@@ -1,70 +1,103 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Quick EMerge help</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>WayriCAD Quick EMerge help</title></head>
 <body><h1>WayriCAD Quick EMerge</h1>
-<p><img src="help-workflow.png" alt="Native field viewport with linked sample markers and inspector" width="960"></p>
-<p>Testing beta native EM studies: antenna/PCB-coupon templates and saved-PCB
-rule-area copper crops. Templates use PCB context; region mode imports clipped
-two-layer copper and saved dielectric separation.</p>
-<p>Install the independently packaged beta ZIP using KiCad Plugin and Content Manager’s <strong>Install from File</strong>, then restart PCB Editor. The stable PCM feed remains unchanged.</p>
-<h2>Rule-area subregion simulation</h2>
-<p>Save the PCB, fill zones, define a two-layer stackup and draw a polygonal
-board rule area around the subsection. Choose Saved PCB rule-area region,
-Load saved PCB rule areas, then select the enclosure, F.Cu signal and B.Cu
-reference. Review the entered real permittivity and bare-copper approximation.
-Preview setup displays actual clipped polygons and numbered boundary ports;
-the inspector lists any blockers. Run only after reviewing the cut interfaces.</p>
-<p><img src="help-region.png" alt="Solved saved-copper enclosure and ideal boundary ports" width="960"></p>
-<p>Concave contours and holes are preserved; geometry outside the enclosure is
-omitted. Natural board edges and existing board holes do not become artificial
-ports. The whole two-layer column is cropped, regardless of keepout layer
-permissions. The source PCB and project metadata remain unchanged.</p>
-<p>This initial path supports 1–8 ideal vertical boundary ports and zero-thickness
-PEC copper. Drilled features inside the crop, unfilled zones, unselected cut
-conductors, incomplete return spans, corner-ambiguous ports and curved rule-area
-contours block simulation. Interior feeds, multilayer and populated-component
-models need further integration. Fields retain original board coordinates.</p>
-<ol><li>Choose a model. Enter dimensions in mm, frequency in Hz, impedance in
-ohms and real relative permittivity.</li>
-<li>Wait for automatic first-open solver setup, then select a run destination.
-Setup requires an available Python 3.10–3.13 and at least 3 GiB free.</li>
-<li>Preview the geometry and feed locations, then Run EMerge.</li>
-<li>Inspect S-parameters and the Smith chart. Click for sampled frequency metrics.</li>
-<li>Probe the XY electric-field plane at the middle solved frequency. Rotate
-the relative 3D radiation pattern for the patch.</li></ol>
-<p>Setup changes clear old plots. Cancel stops the worker and retains diagnostic
-files. Plot toolbars export images. Save/load JSON preserves editable setup.</p>
-<h2>Viewports and inspection</h2>
-<p>Compact buttons inside each viewport select Orbit, Pan, Zoom or Probe.
-Left drag performs the selected navigation action; Probe uses left click to
-select a sample. Middle drag pans, Probe's right drag orbits in 3D, and the wheel
-zooms. In 2D, Zoom selects a rectangle. Fit, +, − and Image buttons are alongside
-the mode buttons. O/P/Z/I are interaction shortcuts. Navigation gestures do not
-place probes.</p>
-<p>Choose a camera preset, orthographic/perspective projection, physical Z aspect
-or labeled Z exaggeration. Drag to orbit, scroll to zoom, F to fit, 1–4 for
-camera presets, and F11 to expand/restore the viewport. Camera and selection
-survive color and visibility changes.</p>
-<p>Toggle substrate, copper, ports, field and sample grid. Use linear/log colors
-and an optional field range in V/m. Log scales mask zero; unknown samples stay
-missing. The sample grid is not the FEM mesh.</p>
-<p>Hover for readouts, select Probe and click to select, then Pin sample to record it. Field
-selection is linked between the 2D/3D views. The inspector provides min/max
-navigation and CSV export of pinned samples. Line cut selects two field
-samples and plots nearest-original-sample values against distance in mm, with
-CSV export. These profiles do not interpolate new field measurements.</p>
-<p>Large 3D field displays use at most 64 × 64 cells with cell-average colors;
-probes use the full original grid. Missing cells remain missing. 3D picking
-selects a projected sample within 14 pixels, not a point in an arbitrary volume.</p>
-<p>Dependency updates are checked daily. Set up / check updates forces a check
-or retries installation. Each candidate is installed separately and tested with
-real coarse solves before activation. Failed updates retain the working runtime;
-Restore previous runtime rolls back to a retained compatible environment.
-Cancel setup stops installation. KiCad's Python packages are never upgraded.</p>
-<p>Solver selection, adaptive mesh passes and adaptive AAA sweeps are available.
-Read stopping-limit warnings in the log; completed computation is not convergence.</p>
-<p>Models use zero-thickness PEC, homogeneous lossless dielectric and a first-order
-absorbing air boundary. Mesh convergence, gain/efficiency, general populated/multilayer board
-extraction and live KiCad toolbar operation remain unqualified. Blank field
-cells and singular metrics are unknown. Normalized radiation radius is not gain.</p>
-<p>See <a href="README.md">the user guide</a> for scope, dependencies,
-run artifacts, validation evidence and remaining milestones.</p></body></html>
+<p>This help describes current development source beyond the published
+3.6.43-beta.1 package. Read-only templates use the saved PCB as context;
+rule-area studies import actual enclosed two-layer copper.</p>
+<h2>Start a study</h2>
+<ol><li>Use 1 Geometry for geometry and dimensions, 2 Physics for study/material
+controls, and 3 Solve for sweep, mesh, runtime and output settings. Open and
+Save retain reusable setups. Dimensions are
+mm, frequency entries GHz, impedance ohm; requests and setup JSON use Hz.</li>
+<li>First-open setup needs Python 3.10-3.13, internet and 3 GiB free. The desktop
+requires complete wx/Matplotlib, VTK and ReportLab dependencies separately.
+Saved board/rule-area outlines load during setup. New studies prefer PARDISO
+only after a real solver check; loaded setups preserve their solver choice.</li>
+<li>Select Preview, inspect geometry and numbered ports, then Run simulation.
+Editing setup invalidates old results and requires another preview.</li>
+<li>Use 3D, 2D, Charts, Results and Report. Inspector, View options and Focus keep
+detailed controls separate from the main view. Solved 3D views appear only when
+those data exist.</li></ol>
+<p>Workers run outside the UI. Cancel retains diagnostic files. Completed run
+folders contain the reviewed request, source hashes, result and solver log.
+Source PCB and project files are not written. Reviewed 2D/3D geometry stays
+visible during the solve. Generate preview renders the report inside the
+workbench; Export HTML and Export PDF save copies with retained probes.
+New results replace old report state.</p>
+<h2>Rule-area PCB subsection</h2>
+<p>Save a two-layer board with closed Edge.Cuts and filled zones, then draw a
+polygonal board rule area. Choose Saved PCB rule-area region, load saved rule
+areas, select F.Cu signal and B.Cu reference nets, and review the material and
+bare-copper model. Preview clipped copper and ideal ports before running.
+Unsaved changes are excluded.</p>
+<p>Concavity and holes are preserved. A valid port crosses an actual rule-area
+cut with reference copper across its full span; board edges do not invent
+ports. The full two-layer column is cropped, irrespective of keepout permissions.
+The path supports 1-8 ideal boundary ports. Inside drilled features, unfilled
+zones, unselected cut conductors, incomplete returns, ambiguous corners and
+curved contours block simulation. General multilayer/via-barrel/component
+extraction and interior feeds remain unsupported. The separate internal via
+template does not change those extraction limits.</p>
+<p>Driven/optimization patch templates optionally add an external feed strip
+inside the substrate, with an optional signed patch-center Y offset. Both
+default to zero; a nonzero strip moves the
+ideal feed port to its outer end. It is not a connector/coax model.</p>
+<h2>Views and probing</h2>
+<p>Native VTK supplies 3D geometry/fields; 2D plots and charts use Matplotlib.
+Compact Orbit, Pan, Zoom and Probe buttons select interaction; Fit, zoom and
+Image controls sit alongside. View options select camera/projection, visibility,
+color scale and physical Z aspect or labeled display exaggeration. Focus
+expands/restores the workspace. Display controls never change solver geometry.</p>
+<p>Inspect original E magnitude [V/m], H magnitude [A/m], power-flow magnitude
+[W/m2] or temperature [K], when present. Optional field sampling adds up to
+17 Z layers / 100,000 samples for point-cloud display and XY slices. These are
+recorded samples, not arbitrary continuous-volume interpolation. A chart
+frequency click does not recompute fields at another frequency or excitation.
+Unknown samples stay missing. A sample grid is not the FEM mesh.</p>
+<p>Probe links selected original samples between 2D/3D views. Inspector supports
+extrema, pinned samples and CSV export. Line cut uses nearest original samples
+against distance and does not invent measurements. Radiation is relative
+field magnitude; normalized radius is not gain, efficiency or physical distance.</p>
+<h2>Networks and reports</h2>
+<p>Charts provide magnitude, phase, group delay, impedance, diagnostics and Smith
+views for available networks. Network tools offer renormalization, mixed mode,
+termination, ideal R/L/C embedding and AAA/vector fitting. Each starts from the
+original solved network and records a separate derived result/Touchstone.
+Fields keep their original excitation; fitted data are not new FEM solves.</p>
+<p>Report offers Generate preview, Export HTML and Export PDF. Reports include
+model scope, source checks, response/field charts, selected quantity/slice,
+probes/profiles, limitations and derived-network evidence. HTML embeds its
+assets; PDF needs ReportLab. Stale source/configuration rejects publication.
+Supported driven/array studies can also export planar-sheet DXF and
+Optycal-compatible numeric far-field MsgPack.</p>
+<h2>Study and runtime limits</h2>
+<p>Development studies include driven EM, periodic Floquet, scattering,
+TE10 waveguide, finite arrays, bounded optimization, steady/transient substrate
+thermal conduction and dielectric RF heating. Controls expose simplified
+finite-conductor/loss/dispersion models and ABC/PEC/PMC/PML boundaries. Imports
+require reviewed recipes and manifests; this is not a complete visual CAD
+editor. RF thermal coupling excludes copper surface heating.</p>
+<p>Latest EMerge 3+ is installed into a separate candidate with CAD/export
+requirements. Dependency checks and 22 real compatibility checks must pass
+before activation; allow several minutes (20-minute gate limit). Updates are
+checked daily, failed candidates retain the working runtime, and a compatible
+previous runtime can be restored. Existing packages are not upgraded in place.
+Stale certificates trigger requalification. Setup controls allow retry or an
+existing solver interpreter.</p>
+<p>The tested baseline is EMerge 3.0.0b9/SuperLU. Coarse compatibility solves do
+not establish convergence, antenna accuracy, power balance or array null depth.
+Read adaptive-limit warnings. Optional accelerators and arbitrary future APIs
+need separate qualification. Current native component tests do not prove live
+KiCad menu launch or physical mouse acceptance for the redesigned UI.</p>
+<h2>Earlier beta screenshots</h2>
+<p>The following actual captures show the earlier beta layout, not the current
+workbench. Local interpreter/output paths were replaced by generic paths;
+numerical samples and synthetic-board geometry were preserved. These coarse
+runs do not demonstrate converged designs.</p>
+<p><img src="help-workflow.png" alt="Earlier beta: linked field probes" width="960"></p>
+<p><img src="help-region.png" alt="Earlier beta: saved copper enclosure" width="960"></p>
+<p><img src="help-viewport.png" alt="Earlier beta: expanded field viewport" width="960"></p>
+<p>See the <a href="README.md">user guide</a>,
+<a href="CAPABILITIES.md">capability inventory</a> and
+<a href="VALIDATION.md">dated validation evidence</a> for exact scope.</p>
+</body></html>

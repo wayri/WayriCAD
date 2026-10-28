@@ -43,10 +43,15 @@ class FieldInspection:
             self.x = _axis(field['x_mm'], 'x_mm')
             self.y = _axis(field['y_mm'], 'y_mm')
             self.z = _finite(field['z_mm'], 'z_mm')
-            self.frequency = _finite(field['frequency_hz'], 'frequency_hz')
-            if self.frequency <= 0:
+            self.slice_index = field.get('display_z_index')
+            self.quantity = field.get('display_quantity', 'Temperature' if 'temperature_k' in field else 'E magnitude')
+            self.unit = field.get('display_unit', 'K' if 'temperature_k' in field else 'V/m')
+            self.value_key = field.get('display_value_key', 'temperature_k' if 'temperature_k' in field else 'value_v_m')
+            self.frequency = None if 'temperature_k' in field else _finite(field['frequency_hz'], 'frequency_hz')
+            self.time = _finite(field.get('time_s', 0), 'time_s')
+            if self.frequency is not None and self.frequency <= 0:
                 raise ValueError('frequency_hz must be positive')
-            rows = tuple(tuple(row) for row in field['norm_e_v_m'])
+            rows = tuple(tuple(row) for row in field.get('display_values', field.get('temperature_k', field.get('norm_e_v_m'))))
         except (KeyError, TypeError) as exc:
             raise ValueError('invalid field structure') from exc
         if len(rows) != len(self.y) or any(len(row) != len(self.x) for row in rows):
@@ -65,9 +70,13 @@ class FieldInspection:
 
     def _sample(self, ix, iy):
         value = self.values[iy][ix]
-        return {'x_mm': self.x[ix], 'y_mm': self.y[iy], 'z_mm': self.z,
-                'frequency_hz': self.frequency, 'value_v_m': value,
-                'ix': ix, 'iy': iy, 'unknown': value is None}
+        sample = {'x_mm': self.x[ix], 'y_mm': self.y[iy], 'z_mm': self.z,
+                  self.value_key: value, 'quantity': self.quantity, 'unit': self.unit,
+                  'ix': ix, 'iy': iy, 'unknown': value is None}
+        if self.frequency is None: sample['time_s'] = self.time
+        else: sample['frequency_hz'] = self.frequency
+        if self.slice_index is not None: sample['iz'] = self.slice_index
+        return sample
 
     def probe(self, x, y):
         x, y = _finite(x, 'x'), _finite(y, 'y')

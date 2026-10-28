@@ -88,7 +88,8 @@ class RegionWorkflowTests(unittest.TestCase):
         solved = self.result()
         with patch.object(backend, 'solve', return_value=solved) as solve:
             result = backend.run_request(self.request(review))
-        solve.assert_called_once_with(self.config, region=review['region'])
+        solve.assert_called_once_with(self.config, region=review['region'],
+            export_context={'run_dir': self.root, 'source': review['source']}, qualifying=False)
         published = json.loads((self.root / 'result.json').read_text(encoding='utf-8'))
         self.assertEqual(published, result)
         self.assertEqual(published['source'], source_identity(self.board))

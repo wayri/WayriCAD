@@ -98,7 +98,7 @@ def _launch_desktop(root, identifier, pcbnew, title):
         source = project if project.is_file() else schematic
         if not source.is_file():source=board
         args.append(str(source))
-    elif identifier in {"quick-pi", "quick-therm", "assistant"}:
+    elif identifier in {"quick-pi", "quick-therm", "quick-emerge", "assistant"}:
         args.extend(("--board", str(board)))
     subprocess.Popen(args, env=child_environment(),
                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -150,7 +150,7 @@ def register(package_name, root):
         def Run(self):
             loading = None
             try:
-                if identifier in {"bom-studio", "quick-pi", "quick-therm", "assistant"}:
+                if identifier in {"bom-studio", "quick-pi", "quick-therm", "quick-emerge", "assistant"}:
                     _launch_desktop(root, identifier, pcbnew, self.name)
                     return
                 from .loading import LoadingWindow

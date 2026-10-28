@@ -16,6 +16,8 @@ def _plate(ax, x, y, width, length, z, color, alpha=1):
 def geometry(figure, raw, options=None):
     options = options or {}
     c = validate_config(raw)
+    if c.get('advanced', {}).get('study', 'driven') not in ('driven', 'optimization'):
+        return advanced_geometry(figure, c, options)
     if c['mode'] == 'pcb_region':
         raise ValueError('Rule-area previews require the reviewed clipped polygons, not template dimensions.')
     figure.clear()
@@ -28,12 +30,16 @@ def geometry(figure, raw, options=None):
     if c['mode'] == 'patch':
         w, length, feed, slot, inset = (c[k] for k in (
             'patch_width_mm', 'patch_length_mm', 'feed_width_mm', 'inset_width_mm', 'inset_length_mm'))
+        offset = c['advanced']['patch_offset_y_mm']
         if options.get('copper', True):
-            _plate(ax, -w/2, -length/2+inset, w, length-inset, 0, '#d9a951')
+            _plate(ax, -w/2, -length/2+inset+offset, w, length-inset, 0, '#d9a951')
             for x in (-w/2, feed/2+slot):
-                _plate(ax, x, -length/2, w/2-feed/2-slot, inset, 0, '#d9a951')
-            _plate(ax, -feed/2, -length/2, feed, inset, 0, '#d9a951')
-        ports = [(0, -length/2)]
+                _plate(ax, x, -length/2+offset, w/2-feed/2-slot, inset, 0, '#d9a951')
+            _plate(ax, -feed/2, -length/2+offset, feed, inset, 0, '#d9a951')
+        extension = c['advanced']['patch_feed_extension_mm']
+        if extension and options.get('copper', True):
+            _plate(ax, -feed/2, -length/2-extension+offset, feed, extension, 0, '#d9a951')
+        ports = [(0, -length/2-extension+offset)]
     else:
         length, width = c['line_length_mm'], c['line_width_mm']
         if options.get('copper', True):
@@ -50,23 +56,29 @@ def geometry(figure, raw, options=None):
     figure.subplots_adjust(left=.06, right=.94, bottom=.16, top=.84)
 
 
-def response(figure, result):
-    figure.clear()
-    f = np.asarray(result['frequencies_hz'])/1e9
-    s11 = [complex(*v) for v in result['s_parameters']['S11']]
-    m = metrics(result['frequencies_hz'], s11, result['config']['z0_ohm'])
-    ax, vswr = figure.subplots(2, 1, sharex=True)
-    for name, values in result['s_parameters'].items():
-        db = [20*math.log10(abs(complex(*v))) if any(v) else -np.inf for v in values]
-        ax.plot(f, db, 'o-', label=name)
-    ax.set(ylabel='|S| [dB]', title=f'Sampled minimum |S11|: {m["resonance_hz"]/1e9:.6g} GHz • no convergence claim')
-    ax.axhline(-10, color='gray', linestyle='--', linewidth=0.8)
-    ax.grid(alpha=.25)
-    ax.legend()
-    vswr.plot(f, [np.nan if v is None else v for v in m['vswr']], 'o-', color='#197f72')
-    vswr.set(xlabel='Frequency [GHz]', ylabel='VSWR (passive only)')
-    vswr.grid(alpha=.25)
-    figure.tight_layout()
+def response(figure, result, options=None):
+    from .network import from_result
+    network=from_result(result); analysis=network.analyze()
+    quantity=(options or {}).get('network_quantity','Magnitude')
+    figure.clear();ax=figure.add_subplot(111);f=network.frequencies_hz/1e9
+    if quantity in ('Magnitude','Phase','Group delay'):
+        key,scale,unit={'Magnitude':('magnitude_db',1,'dB'),'Phase':('phase_rad',180/np.pi,'deg'),'Group delay':('group_delay_s',1e9,'ns')}[quantity]
+        values=analysis[key]
+        for i in range(network.port_count):
+            for j in range(network.port_count):ax.plot(f,values[:,i,j]*scale,'o-',markersize=3,label=f'S{i+1}{j+1}')
+        ax.set_ylabel(quantity+' ['+unit+']')
+    elif quantity=='Impedance':
+        values=analysis['input_impedance_ohm']
+        for i in range(network.port_count):
+            ax.plot(f,values[:,i].real,label=f'Port {i+1} real');ax.plot(f,values[:,i].imag,'--',label=f'Port {i+1} imaginary')
+        ax.set_ylabel('Input impedance [ohm]')
+    else:
+        ax.plot(f,analysis['largest_singular_value'],label='Largest singular value')
+        ax.plot(f,analysis['reciprocity_error'],label='Reciprocity error');ax.axhline(1,color='#87949d',linewidth=.8)
+        ax.set_ylabel('Sample diagnostics [unitless]')
+    ax.set_xlabel('Frequency [GHz]');ax.grid(alpha=.18);ax.legend(frameon=False,fontsize=8)
+    ax.set_title(result.get('network_view_label','Original network samples')+' | '+quantity,loc='left',fontsize=11)
+    figure.tight_layout(pad=1.5)
 
 
 def smith(figure, result):
@@ -86,7 +98,8 @@ def smith(figure, result):
     values = np.array([complex(*v) for v in result['s_parameters']['S11']])
     ax.plot(values.real, values.imag, 'o-', color='#177e77', picker=6)
     ax.axhline(0, color='gray', linewidth=.5)
-    ax.set(xlabel='Re Γ', ylabel='Im Γ', title=f'S11 • reference {result["config"]["z0_ohm"]:g} Ω • click a sample to probe')
+    reference=float(np.asarray(result.get('reference_impedance_ohm',result['config']['z0_ohm'])).reshape(-1)[0])
+    ax.set(xlabel='Re Γ', ylabel='Im Γ', title=f'S11 • reference {reference:g} Ω • click a sample to probe')
     ax.set_aspect('equal', adjustable='datalim')
     ax.grid(alpha=.15)
     figure.tight_layout()
@@ -111,13 +124,13 @@ def _field_style(values, options, default_cmap):
 
 
 def _field_values(field):
-    return [[np.nan if v is None else v for v in row] for row in field['norm_e_v_m']]
+    return [[np.nan if v is None else v for v in row] for row in field.get('display_values', field.get('temperature_k', field.get('norm_e_v_m'))) ]
 
 
 def near_field(figure, result, options=None):
     options = options or {}
     figure.clear()
-    field = result['field']
+    field = result.get('thermal', result.get('field'))
     ax = figure.add_subplot(111)
     if options.get('field', True):
         values, norm, cmap = _field_style(_field_values(field), options, 'inferno')
@@ -133,7 +146,7 @@ def near_field(figure, result, options=None):
             ax.axhline(y, color='white', alpha=.35, linewidth=.5)
         ax.text(.02, .98, 'sample grid', transform=ax.transAxes, va='top')
     ax.set(xlabel='X [mm]', ylabel='Y [mm]',
-           title=f'Field plane Z={field["z_mm"]:g} mm • {field["frequency_hz"]/1e9:g} GHz')
+           title=f'Field plane Z={field["z_mm"]:g} mm • {field.get("frequency_hz", 0)/1e9:g} GHz')
     ax.set_aspect('equal')
     if result['config'].get('mode', 'patch') == 'pcb_region' and options.get('show_context', True):
         for shape in result['region']['substrate']['outline']:
@@ -153,7 +166,7 @@ def near_field3d(figure, result, options=None):
     else:
         geometry(figure, result['config'], options)
     ax = figure.axes[0]
-    field = result['field']
+    field = result.get('thermal', result.get('field'))
     x, y = np.meshgrid(field['x_mm'], field['y_mm'])
     z = np.full(x.shape, field['z_mm'], dtype=float)
     if options.get('field', True):
@@ -177,14 +190,14 @@ def near_field3d(figure, result, options=None):
                     faces.append([(x[j, i], y[j, i], z[j, i]) for j, i in corners])
                     colors.append(cmap(norm(float(np.mean(block)))))
             ax.add_collection3d(Poly3DCollection(faces, facecolors=colors, edgecolors='none', alpha=.85))
-            figure.colorbar(ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=.65, label='|E| [V/m]')
+            figure.colorbar(ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=.65, label=f"{field.get('display_quantity', '|E|')} [{field.get('display_unit', 'V/m')}]")
     if options.get('mesh', False):
         ax.plot_wireframe(x, y, z, color='#dddddd', linewidth=.5)
         ax.text2D(.02, .98, 'sample grid', transform=ax.transAxes, va='top')
     thickness = result['region']['substrate']['thickness_mm'] if is_region else validate_config(result['config'])['thickness_mm']
     ax.set_zlim(-thickness*3, max(field['z_mm']*1.5, thickness*5))
     scope = 'Saved rule-area copper; exterior board omitted' if is_region else 'Template geometry; PCB context only'
-    ax.set_title(f'Solver field plane • {field["frequency_hz"]/1e9:g} GHz • Z={field["z_mm"]:g} mm\n{scope}')
+    ax.set_title(f'Solver field plane • {field.get("frequency_hz", 0)/1e9:g} GHz • Z={field["z_mm"]:g} mm\n{scope}')
     figure.subplots_adjust(left=.06, right=.94, bottom=.16, top=.84)
 
 
@@ -216,6 +229,27 @@ def radiation(figure, result, options=None):
     if options.get('mesh', False):
         ax.plot_wireframe(radius*np.sin(t)*np.cos(p), radius*np.sin(t)*np.sin(p), radius*np.cos(t), linewidth=.5)
         ax.text2D(.02, .98, 'sample grid', transform=ax.transAxes, va='top')
-    ax.set(xlabel='X', ylabel='Y', zlabel='Z', title=f'Relative far-field |E| • {field["frequency_hz"]/1e9:g} GHz\nNormalized radius; not gain, efficiency or physical distance')
+    ax.set(xlabel='X', ylabel='Y', zlabel='Z', title=f'Relative far-field |E| • {field.get("frequency_hz", 0)/1e9:g} GHz\nNormalized radius; not gain, efficiency or physical distance')
     ax.set_box_aspect((1, 1, 1))
     figure.subplots_adjust(left=.06, right=.94, bottom=.18, top=.83)
+
+
+def advanced_geometry(figure, config, options=None):
+    """Software fallback for explicit templates; imported surfaces need solved mesh."""
+    c=validate_config(config); study=c['advanced']['study']; figure.clear()
+    ax=figure.add_subplot(111,projection='3d')
+    sx,sy,th=c['substrate_x_mm'],c['substrate_y_mm'],c['thickness_mm']
+    if study=='scattering':
+        if c['advanced']['step_path']:
+            ax.text2D(.1,.5,'Imported geometry is meshed in the solver; no template substitution.',transform=ax.transAxes)
+        else:
+            r=c['advanced']['scatter_radius_mm'];u,v=np.meshgrid(np.linspace(0,2*np.pi,49),np.linspace(0,np.pi,25))
+            ax.plot_surface(r*np.cos(u)*np.sin(v),r*np.sin(u)*np.sin(v),r*np.cos(v),color='#c99c52')
+            ax.set(xlim=(-r,r),ylim=(-r,r),zlim=(-r,r));ax.set_box_aspect((1,1,1))
+    else:
+        _plate(ax,-sx/2,-sy/2,sx,sy,-th/2,'#2a897d',.35)
+        if study=='periodic':_plate(ax,-c['patch_width_mm']/2,-c['patch_length_mm']/2,c['patch_width_mm'],c['patch_length_mm'],0,'#c99c52')
+        ax.set(xlim=(-sx*.6,sx*.6),ylim=(-sy*.6,sy*.6),zlim=(-th*2,th*2))
+        ax.set_box_aspect((sx,sy,max(sx,sy)*.12))
+    ax.set(xlabel='X [mm]',ylabel='Y [mm]',zlabel='Z [mm]',title=study.capitalize()+' geometry | explicit study model')
+    figure.subplots_adjust(left=.03,right=.98,bottom=.08,top=.9)

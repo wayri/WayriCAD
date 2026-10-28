@@ -4,6 +4,7 @@ import json
 import math
 
 from .region_ports import plan_region
+from .advanced import configure_solver, dielectric, assign_conductor, air_region
 
 
 def region_digest(region):
@@ -62,8 +63,8 @@ def build_region(em, np, config, region):
     region, bbox = validate_region(region, config)
     thickness = region['substrate']['thickness_mm']*.001
     model = em.Simulation('QuickEMergeRuleArea')
-    model.set_solver(em.EMSolver[config['solver']])
-    material = em.Material(er=config['er'], color='#268568', opacity=.35)
+    configure_solver(em, model, config)
+    material = dielectric(em, config)
     for shape in region['substrate']['outline']:
         surface = _surface(em, shape, 0)
         em.geo.extrude(surface, dz=-thickness).set_material(material)
@@ -71,7 +72,7 @@ def build_region(em, np, config, region):
     for row in region['copper']:
         z = 0 if row['layer'] == 'F.Cu' else -thickness*1000
         for shape in row['polygons']:
-            conductors.append(_surface(em, shape, z).set_material(em.lib.PEC))
+            conductors.append(assign_conductor(em, _surface(em, shape, z), config))
     ports = []
     widths = []
     for port in region['ports']:
@@ -81,9 +82,8 @@ def build_region(em, np, config, region):
                                  np.array([0, 0, thickness])))
         widths.append(port['width_mm']*.001)
     x0, y0, x1, y1 = [v*.001 for v in bbox]
-    margin = config['air_margin_mm']*.001
-    air = em.geo.Box(x1-x0+2*margin, y1-y0+2*margin, thickness+2*margin,
-                     position=(x0-margin, y0-margin, -thickness-margin)).background()
+    model._quick_conductors = conductors
+    air = air_region(em, config, x1-x0, y1-y0, thickness, x0, y0)
     model.mw.set_resolution(config['resolution'])
     model.mw.set_frequency_range(config['f_start_hz'], config['f_stop_hz'], config['points'])
     model.commit_geometry()

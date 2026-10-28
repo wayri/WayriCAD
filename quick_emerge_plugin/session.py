@@ -1,5 +1,6 @@
 """Run custody and subprocess lifecycle, independent of the native widgets."""
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -28,13 +29,15 @@ class StudySession:
             self.review.update(region=region, region_sha256=region_digest(region))
         return self.review
 
-    def start(self, config, python, output):
+    def start(self, config, python, output, *, solver_environment=None):
         if self.process is not None and self.process.poll() is None:
             raise ValueError('A simulation is already running.')
         if not self.review or self.review['config_sha256'] != config_digest(config):
             raise ValueError('Preview the current setup before running.')
         if source_identity(self.board) != self.review['source']:
             raise ValueError('PCB changed since preview. Preview again.')
+        if solver_environment is not None and (not isinstance(solver_environment, dict) or set(solver_environment)-{'EMERGE_PARDISO_PATH'}):
+            raise ValueError('Only a verified solver-library hint may be supplied.')
         executable = Path(python).expanduser().resolve(strict=True)
         output = Path(output).expanduser().resolve()
         output.mkdir(parents=True, exist_ok=True)
@@ -50,6 +53,7 @@ class StudySession:
                 [str(executable), '-I', str(Path(__file__).with_name('__main__.py')),
                  '--worker', str(self.run_dir/'request.json')],
                 cwd=self.run_dir, stdin=subprocess.DEVNULL, stdout=self.log, stderr=subprocess.STDOUT,
+                env={**os.environ, **(solver_environment or {})},
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         except Exception as exc:
             self.log.close()

@@ -106,7 +106,8 @@ def _descendants(node, tags):
                 yield from _descendants(child, tags)
 
 
-def pdf_bytes(document, *, title='WayriCAD report', include_raw_evidence=False):
+def pdf_bytes(document, *, title='WayriCAD report', include_raw_evidence=False,
+              interaction_note='Use the HTML report for interactive selection, probes and 3D views.'):
     """Render report semantics to PDF bytes; never execute scripts or load URLs.
 
     Inputs are bounded to 32 MiB and 200,000 parsed nodes. Wide tables are split
@@ -337,7 +338,7 @@ def pdf_bytes(document, *, title='WayriCAD report', include_raw_evidence=False):
 
     paragraph(escape(title), 'Title')
     paragraph('Static report export. Text, tables and embedded raster figures are retained. '
-              'Use the HTML report for interactive selection, probes and 3D views.', note_style)
+              + escape(interaction_note), note_style)
     walk(parser.root)
     if omissions:
         paragraph('Views retained in the HTML report', 'Heading2')

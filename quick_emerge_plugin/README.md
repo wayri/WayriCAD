@@ -1,234 +1,165 @@
 # Quick EMerge
 
-Testing beta native electromagnetic workbench for KiCad, version 3.6.43.
-The workbench provides patch/PCB-coupon templates and a **saved-PCB rule-area
-mode** that simulates polygon-clipped two-layer copper. Templates use the PCB
-as context only; rule-area mode imports actual saved copper and explicit
-dielectric separation. Components and the PCB outside the enclosure are omitted.
+Read-only electromagnetic studies for KiCad: antenna and PCB templates, plus
+polygon-clipped **saved-PCB rule-area** simulations. Templates use the saved
+board as context; region mode imports actual enclosed copper. Components and
+board geometry outside the enclosure are omitted.
 
-![Native field viewport with linked probes and inspector](help-workflow.png)
+This guide describes the **current development source**. The published
+[3.6.43 beta package](https://github.com/wayri/WayriCAD/releases/tag/v3.6.43-beta.1)
+contains the earlier workbench and a smaller integration scope. Installing that
+immutable release does not install the development features below. See
+[capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md).
 
-The screenshot shows a coarse EMerge 3 smoke run, not a converged antenna
-design. Local interpreter and output paths were replaced with generic paths;
-numerical data were preserved. See [capability coverage](CAPABILITIES.md) for
-the complete integration scope, including capabilities still to be implemented.
+## Setup and launch
 
-## Install the testing beta
-
-Download the Quick EMerge PCM ZIP from [the 3.6.43 beta prerelease](https://github.com/wayri/WayriCAD/releases/tag/v3.6.43-beta.1), then use KiCad Plugin and Content Manager's **Install from File** and restart PCB Editor. This is an independently installable testing package; the stable PCM feed remains unchanged. Enable the KiCad API; the launcher provisions desktop dependencies separately. See [runtime setup](https://github.com/wayri/WayriCAD/blob/v3.6.43-beta.1/wayricad_runtime/RUNTIME_SETUP.md). First-open solver setup is separate from the desktop/IPC host dependencies.
-
-## Run from source
-
-The desktop Python needs Python 3.10+, wxPython, Matplotlib and NumPy.
-On first open, the dependency manager automatically creates an isolated solver
-environment and installs the latest available **EMerge 3+** release and its
-dependencies. It includes 3.x prereleases because upstream's stable channel is
-currently 2.x. Python 3.10–3.13 must already be available; on Windows the manager
-also discovers Python through the Python launcher and installed KiCad runtimes.
-Packages are installed into the new environment, never into KiCad or another
-tool's interpreter.
+The desktop environment needs Python, complete wxPython/Matplotlib, NumPy,
+VTK and ReportLab; use `requirements-desktop.txt` and the shared
+[runtime setup guide](../wayricad_runtime/RUNTIME_SETUP.md). The desktop and
+EMerge solver run in separate processes. A tiny complex-system check detects
+working SuperLU/PARDISO backends. New studies prefer verified PARDISO when
+available; loaded setups and explicit solver choices are preserved. KiCad-native saved-board extraction
+uses the installed KiCad Python bindings.
 
 ```powershell
 python -m quick_emerge_plugin --board C:/Projects/Example/board.kicad_pcb
 ```
 
-Wait for the visible dependency setup to complete, or select a manual solver
-Python override. Select a run folder with at least 1 GiB free and a model.
-Enter dimensions in **mm**, frequency in **Hz**, and reference impedance
-in **ohms**. Material permittivity is an explicit real relative value. Review
-the native 3D geometry and numbered feed locations with **Preview setup**,
-then select **Run EMerge**. Mesh generation and solving run in a separate
-process, with a visible log and cancellation. Numerical cost is not bounded
-by the free-space check: fine meshes and large air regions can require much
-more memory and time. Start with the supplied mesh and refine deliberately.
+First-open setup discovers Python 3.10-3.13 and installs the latest non-yanked
+EMerge 3+ candidate, including prereleases, into its own environment. Candidate
+installation requires **3 GiB free** and internet access. CAD import and bounded
+DXF/MsgPack export dependencies are included. `pip check` and **22 real
+compatibility checks** must pass before atomic activation. The full gate can
+take several minutes; its timeout is 20 minutes. Existing working environments
+are never upgraded in place. Failed updates retain the working version; a first
+installation can fall back to the tested EMerge 3.0.0b9 baseline.
 
-The IPC action is in `plugin.json`; the source launcher uses the
-originating KiCad API context and never selects another running editor.
-The IPC Python must provide the desktop dependencies and `kicad-python`.
-Source launch and IPC toolbar launch require separate validation; a live KiCad toolbar launch remains unqualified in the recorded evidence.
-
-## Automatic dependencies and safe updates
-
-First-open setup requires at least **3 GiB free** for candidate installation.
-The manager discovers the latest non-yanked EMerge 3+ release on PyPI, installs
-binary wheels into a new virtual environment, checks dependency consistency,
-then performs four real coarse compatibility solves: line coupon, patch with
-radiation, adaptive line and a synthetic polygon-region coupon. Only a passing candidate becomes active through
-an atomic manifest update. The certificate binds installed EMerge's version to
-the exact adapter and qualification code. These smoke checks cover the current
-plugin workflows; they do not guarantee numerical accuracy, convergence or
-every upstream capability.
-
-Opening the tool checks for updates at most once per 24 hours. **Set up / check
-updates** forces a check and retries failed setup. Existing working environments
-are never upgraded in place. A failed update, network outage or unavailable
-wheel leaves the active runtime selected. On first install, an incompatible
-latest release falls back to the tested 3.0.0b9 baseline. **Restore previous
-runtime** switches back to the retained compatible predecessor. Qualified
-versions are retained for recovery, not silently deleted. Cancellation removes
-only the current incomplete candidate and keeps its diagnostic log. Setup is
-locked across windows so two first opens cannot race activation.
-
-Managed environments live under the user's WayriCAD application-data directory
-(`WayriCAD/quick-emerge/runtimes`). Set `WAYRICAD_QUICK_EMERGE_HOME` to choose
-another drive, and `WAYRICAD_QUICK_EMERGE_PYTHON` to select a compatible base
-interpreter. Setup logs and `active.json` are stored there. No administrator
-installation is needed. The desktop/IPC host dependencies remain separate;
-this manager provisions the EM solver and its dependencies.
+Update checks occur at most daily. The Run settings offer setup/retry and
+restore-previous-runtime controls. Stale adapter certificates trigger
+requalification of the existing owned runtime without changing its packages.
+Set `WAYRICAD_QUICK_EMERGE_HOME` to move managed environments to another drive,
+`WAYRICAD_QUICK_EMERGE_PYTHON` for a base interpreter, or select an existing
+solver Python in the workbench. Retained runtimes support rollback; they are
+not silently deleted. This manager never upgrades KiCad's packages.
 
 ## Visual workflow
 
+1. Use **1 Geometry** for the geometry source and dimensions, **2 Physics** for
+   study/material/boundary controls, and **3 Solve** for sweep, mesh and runtime
+   settings. **Open** and **Save** retain reusable study setups. First open
+   loads saved board/rule-area outlines while dependency preparation runs.
+   Copper is extracted by Preview. Dimensions are **mm**, frequency entries are **GHz**, impedance is
+   **ohm**. Setup JSON and solver requests retain canonical Hz.
+2. Select **Preview** and inspect geometry and numbered ports. Review any
+   blocking diagnostics before **Run simulation**. Editing the setup clears
+   stale results, probes and report state and requires another preview.
+3. Switch between **3D**, **2D**, **Charts**, **Results** and **Report**. The
+   3D selector exposes solved field/radiation views only when those data exist.
+   Use **Inspector**, **View options** and **Focus** when needed.
+4. Inspect original samples, export results, or generate a report. Mesh and
+   solver work run outside the UI process; Cancel stops the worker and retains
+   its diagnostic files. Reviewed 2D/3D geometry stays visible during a run.
+   Report previews use native load/error events; new results clear the previous
+   report and offer Generate preview, Export HTML and Export PDF.
+
 ### Simulate a PCB rule-area enclosure
 
-1. Save the PCB with a closed Edge.Cuts outline, filled copper zones and an
-   explicit two-layer stackup. Draw/name a polygonal **board rule area** around
-   the subsection. Its XY enclosure is extruded through both copper layers;
-   KiCad keepout permissions are not electromagnetic boundaries.
-2. Select **Saved PCB rule-area region**, then **Load saved PCB rule areas**.
-   Select the enclosure by name/UUID, its F.Cu signal and B.Cu reference nets,
-   and review the entered relative permittivity and bare-copper approximation.
-   Unsaved editor changes are excluded.
-3. **Preview setup** shows clipped copper, holes and numbered ideal ports in
-   the **PCB enclosure** and **3D setup** views. The inspector lists blockers.
-   Read-only dimensions come from the crop and saved dielectric separation.
-4. Run EMerge after reviewing the ports. Only clipped copper/substrate enters
-   the solve, surrounded by the configured air margin. Board coordinates stay
-   intact for field probes. One boundary port enables relative radiation
-   extraction; multiple ports produce the full S-matrix and Touchstone.
+Save a board with closed Edge.Cuts, filled zones and an explicit two-layer
+stackup. Draw/name a polygonal **board rule area** around the subsection.
+Choose **Saved PCB rule-area region**, load saved rule areas, select the
+F.Cu signal and B.Cu reference nets, and review the material/bare-copper model.
+Unsaved editor changes are excluded. Preview displays the clipped copper,
+substrate and ideal boundary ports; the inspector lists unsupported inputs.
 
-![Saved-copper rule-area study and reviewed boundary ports](help-region.png)
+The XY enclosure crops the full two-layer column. Concavity and holes are
+preserved; it is not replaced by a bounding rectangle. Tracks/arcs and SMT
+pads use a recorded 0.005 mm polygonization tolerance; zones use saved fills.
+A port must cross an actual rule-area cut with reference copper across its
+whole span. Natural board edges and existing holes do not create ports.
 
-Native polygon intersection with the actual board outline preserves concavity,
-holes and disconnected portions. It never substitutes a bounding rectangle.
-Tracks/arcs and SMT pads use a recorded 0.005 mm polygonization tolerance;
-zones use saved fills. Natural board edges and existing board holes do not
-automatically become ports: a feed must lie on an actual rule-area cut, with
-reference copper covering the entire span.
+This path supports **1-8 ideal vertical boundary ports**. Inside drilled
+features, unfilled intersecting zones, unsupported copper graphics, unselected
+cut conductors, incomplete returns, ambiguous corner ports and curved rule-area
+contours block simulation. General multilayer/via-barrel/component extraction,
+interior feeds and footprint-local rule areas remain unsupported. The separate
+internal stripline/via template does not remove these extraction limits.
+Polygon validation is bounded to 20,000 total / 2,000 per-contour vertices.
+Saved dielectric separation, explicit material assumptions, source UUIDs,
+ports and source/geometry hashes accompany the study. Source/configuration
+changes reject stale results. PCB and adjacent project files are not written.
 
-The initial region solver supports **two-layer bare copper and 1–8 ideal
-vertical lumped boundary ports**, homogeneous real εr and zero-thickness PEC.
-Drilled pads/vias inside the enclosure, unsupported copper graphics, unfilled
-intersecting zones, unselected cut conductors, curved rule-area contours,
-ambiguous corner ports and incomplete reference spans block simulation.
-Interior feeds, multilayer boards, footprint-local rule areas and populated
-component models need further integration. No feed is invented when the
-signal does not cross the enclosure. Validation is bounded to 20,000 total /
-2,000 per-contour vertices; choose a smaller enclosure if exceeded. Multiple
-dielectric slabs require review of the homogeneous material approximation.
+### Viewports, probing and charts
 
-Geometry, nets, source UUIDs, ports, source hash and region hash accompany each
-run. Changes to source or reviewed geometry reject the run/result. Native
-extraction uses installed KiCad Python separately from the desktop and solver;
-set `WAYRICAD_QUICK_EMERGE_KICAD_PYTHON` if discovery fails. The PCB and adjacent
-project files remain unchanged.
+Native VTK supplies the 3D scenes; Matplotlib supplies 2D plots and charts.
+Compact **Orbit / Pan / Zoom / Probe**, **Fit**, zoom and image-export buttons
+sit beside the viewer. Choose camera presets and projection in View options;
+physical Z aspect and explicitly labeled exaggeration affect display only.
+Visibility and linear/log color scales preserve the original solver samples.
+A sample grid is not the FEM mesh; missing values remain unknown.
 
-### Native viewports
+Select E magnitude [V/m], H magnitude [A/m], power-flow magnitude [W/m2] or
+thermal temperature [K] when available. EM fields use a recorded solved
+frequency/excitation; clicking another S-parameter frequency does not recompute
+them. Optional volume sampling supplies at most 17 Z layers / 100,000 original
+samples, displayed as a point cloud or selected XY slice. It is not arbitrary
+continuous-volume interpolation. Radiation shows relative electric-field
+magnitude, not calibrated gain, efficiency or physical distance.
 
-Quick EMerge uses dedicated native wx scientific viewports with the same core
-inspection controls as Quick PI/QuickTherm, extended for 3D field and radiation
-samples:
+Probe selects original samples with linked 2D/3D markers. The Inspector offers
+extrema, pinned samples and CSV export. Line cut selects two samples and
+records nearest-original-sample values against distance; it invents no new
+field measurements. Colors may use reduced display geometry while inspection
+retains original data. Focus expands/restores the workspace.
 
-- Each viewport has a compact **Orbit / Pan / Zoom / Probe** button strip,
-  with **Fit, +, − and Image** beside it. In 3D, left drag performs the selected
-  navigation action; **Probe** reserves left click for sample selection. Middle
-  drag pans, and in Probe mode right drag orbits. Wheel zoom works throughout.
-  In 2D, Pan drags the plot and Zoom draws a zoom rectangle. Shortcuts **O, P,
-  Z, I** select Orbit, Pan, Zoom and Probe. The active button stays highlighted.
+Charts offer magnitude, phase, group delay, impedance, diagnostics and a Smith
+chart for networks present in the result. **Network tools** can renormalize,
+convert selected pairs to mixed mode, terminate ports, embed ideal R/L/C, or
+perform bounded AAA/vector fitting. Each operation starts from the original
+solved network and produces separate derived evidence/Touchstone; EM geometry
+and fields retain their original excitation. Fits are models of sampled data,
+not additional FEM solves or evidence of passivity outside the solved band.
 
-- Isometric, top, bottom, front and right presets; orthographic/perspective
-  projection; wheel zoom; **Fit / F**; **1–4** camera shortcuts. Orbit, zoom
-  and selected samples survive changes to colors and visibility.
-- **True Z scale** keeps coordinate aspect ratios physical. Turning it off
-  exaggerates Z by four for readability, explicitly labeled in the viewport.
-  Neither mode changes solver geometry or samples.
-- Separate substrate, copper, ports and field visibility; an optional **sample
-  grid**, light/dark view backgrounds, and five color maps. The sample grid is
-  not the FEM tetrahedral mesh.
-- Shared linear/log field scales and optional manual limits in V/m across
-  the 2D and 3D field views. Zero samples are masked on log scales; unknown
-  samples remain missing. Radiation colors show normalized |E|, not height.
-- Hover readouts and **Probe** click-to-select original samples; synchronized selection
-  markers in the 2D/3D field views; a docked inspector; field min/max navigation;
-  pinned field, network and angular radiation samples with CSV export.
-- **Line cut** selects two field samples and plots 200 nearest-original-sample
-  values against distance in mm. Gaps remain gaps; no interpolated measurement
-  is invented. Export includes sample coordinates, distance, frequency and
-  configuration/context hashes.
-  Selecting Line cut enables Probe mode automatically in both field views.
-- **Focus view / F11** expands the viewport and restores the setup/inspection
-  panels afterward. Plot toolbars retain image export and navigation.
+### Reports and artifacts
 
-![Expanded native field viewport](help-viewport.png)
+The Report view provides **Generate preview**, **Export HTML** and **Export
+PDF**. Reports include model assumptions, original response/field charts,
+selected quantity/slice, probes/profiles, diagnostics and source hashes.
+Derived networks remain distinct from the original response. HTML embeds its
+assets for offline reading; PDF uses ReportLab. Source/configuration custody
+is checked before publication, and stale exports are rejected.
 
-3D near-field picking chooses the closest projected original grid point within
-14 pixels, not an arbitrary volume intersection. Field surfaces show cell-average
-colors; large grids use at most 64 × 64 display cells for bounded rendering.
-A reduced cell touching any unknown/masked original sample is omitted. Probes,
-extrema, profiles and exports continue to use the full original sample grid.
-The current near field remains a single recorded XY plane, not a volume slice
-or a field recomputed when selecting another network frequency.
+Each run records `request.json`, `status.json`, `solver.log` and, on success,
+`result.json`. Network studies also export Touchstone with explicit reference
+impedance; thermal/scattering studies do not invent S-parameters. Optional
+live-model exports provide planar-sheet DXF and Optycal-compatible far-field
+MsgPack for supported driven/array studies. Setup files and completed runs
+are user artifacts, not disposable caches.
 
-- Rotate the native 3D setup view and inspect patch insets, feed ports and
-  substrate. The viewport reports physical aspect or explicit Z exaggeration.
-- Inspect sampled S11 and, for the line coupon, S21. Click a frequency sample
-  or Smith-chart point for return loss, VSWR and complex input impedance.
-- Select a CPU/GPU backend (its optional dependencies must be present), linear
-  or adaptive AAA frequency sampling, and optional adaptive mesh passes. For
-  adaptive sweeps, points is the total sample budget, with a minimum of five.
-  Inspect solver warnings: reaching a sample/mesh limit is not convergence.
-- Probe the nearest near-field sample on the XY plane. The plane is sampled
-  at the middle **solved** frequency; it does not track a clicked S-parameter
-  frequency. Blank samples mean unknown/outside mesh, never zero field.
-- Overlay that electric-field plane on the template in the native 3D field view.
-- Inspect a rotatable 3D relative far-field electric-field pattern for the
-  patch. Its radius is normalized; it is not gain, efficiency or distance.
-- Use plot toolbars to pan, zoom and export images. Save/load setup JSON for
-  another run. Editing setup clears the old plots and requires another preview.
+## Physical scope and validation
 
-Each run has its own directory, containing `request.json`, `status.json`,
-`solver.log` and, only after successful computation, `result.json`. Completed
-results include configuration, source path/hash, backend version, sampled
-complex S-parameters, fields and assumptions. Source/config changes reject
-publication or collection. Source PCB files are never written. Cancelled and
-failed runs retain diagnostics; they are not presented as completed results.
-Completed runs also contain `network.s1p` or `network.s2p` with the full solved
-S-matrix, explicit reference impedance and real/imaginary values in Hz.
-Setup JSON and completed runs are user artifacts, not disposable caches.
+The patch template optionally adds an external feed strip with
+`advanced.patch_feed_extension_mm` (default zero), with signed patch-center
+`advanced.patch_offset_y_mm` (default zero). The patch and feed must fit inside
+the substrate; the ideal feed port moves to the feed outer end. This is a driven/
+optimization patch feature, not a general connector or coax model.
 
-## Numerical scope
+The default model uses PEC and a homogeneous dielectric. Development controls
+add finite-conductor surface/thickness/roughness models, dielectric loss and
+linear frequency dispersion, ABC order 1/2, PEC/PMC/PML boundaries, periodic
+Floquet studies, scattering, TE10 waveguide, finite arrays, bounded optimization,
+steady/transient substrate thermal studies and dielectric RF heating.
+[The capability inventory](CAPABILITIES.md) records the limits of each path.
+Fabrication imports require an explicit reviewed recipe and source manifest;
+they are expert adapters, not a general visual CAD editor/import wizard.
 
-Conductors are zero-thickness PEC surfaces. The substrate is homogeneous,
-lossless and nondispersive. The outer air box uses a first-order absorbing
-boundary. Ports are vertical lumped sheets with an explicit reference
-impedance. There is no conductor loss, dielectric loss, component model,
-automatic mesh-convergence acceptance or measured validation yet. Adaptive mesh
-and sweep controls are available; their stopping limits can precede convergence.
-The minimum plotted S11 is only the minimum **sampled** value. No vector-fit
-interpolation is substituted for solved data. VSWR is undefined for
-reflection magnitude greater than or equal to one. Singular impedance and
-unknown field samples stay unknown.
-
-The adapter follows the APIs in upstream EMerge 3.0.0b9's
-`examples/demo4_patch_antenna.py` and `examples/demo6_striplines_with_vias.py`.
-Geometry is newly implemented against those APIs; no EMerge solver code or
-runtime is vendored. EMerge is by Robert Fennis and contributors, distributed
-under GPL-2.0-or-later; see [upstream](https://github.com/FennisRobert/EMerge).
-
-## Next implementation milestones
-
-1. Qualify the pinned adapter with real solves: analytical line references,
-   patch frequency/mesh refinement and air-boundary sensitivity; compare field
-   and radiation exports against EMerge's own displays.
-2. Extend the implemented rule-area extraction beyond two-layer bare copper:
-   via barrels/plating, multilayer material stacks, populated models and
-   interior ports, preserving the reviewed polygon/source/port contracts.
-3. Add graphical signal/reference port selection on extracted geometry,
-   multiple excitations, frequency-selectable fields, vector/phase displays,
-   volume probes, radiation cuts and gain/efficiency with normalization.
-4. Qualify independent installation, originating-editor toolbar launch, theme
-   behavior, cancellation and convergence workflows across supported systems.
-
-## Validation
+Coarse compatibility solves do **not** establish antenna accuracy, mesh
+convergence, power balance, array null depth or measured hardware agreement.
+Adaptive limits can be reached before convergence. Thermal RF coupling covers
+dielectric loss, not copper surface heating. Unsupported study/control
+combinations fail explicitly. Optional CPU/GPU solver backends require their
+own dependencies and hardware and remain unqualified here. Live KiCad menu
+launch and physical mouse acceptance for the revised UI are separate checks;
+see the dated evidence rather than inferring them from source tests.
 
 ```powershell
 python -m pytest quick_emerge_plugin/tests -q
@@ -236,14 +167,18 @@ python -m pytest quick_emerge_plugin/tests -q
 python -m quick_emerge_plugin --check-runtime
 ```
 
-Development validation on Windows with Python 3.14, wxPython 4.2.5 and installed
-KiCad CLI 10.0.6 covers configuration, analytical reflection metrics, adapter
-unit contracts and subprocess lifecycle. Real EMerge 3.0.0b9/SuperLU runs under
-Python 3.11.9 completed for a three-frequency line coupon, a three-frequency
-patch with radiation extraction, and a five-sample adaptive coupon. The latter
-intentionally exhausted one refinement pass and the sample budget; neither is
-convergence acceptance. A real clipped saved-copper region completed both through
-the scripted service and native UI. Optional solvers, general populated/multilayer PCB extraction and a live
-KiCad toolbar launch remain unqualified. See [validation evidence](VALIDATION.md).
-EMerge 3.0.0b9 itself requires Python older than 3.14; select a compatible
-separate solver interpreter.
+The adapter targets upstream EMerge 3.0.0b9 at commit
+[446232037d175a596606c6c9ea986e372560566f](https://github.com/FennisRobert/EMerge/commit/446232037d175a596606c6c9ea986e372560566f).
+EMerge is by Robert Fennis and contributors, GPL-2.0-or-later. Its solver and
+runtime are not vendored. New releases require fresh compatibility evidence.
+
+## Earlier beta screenshots
+
+These are actual captures of the **earlier beta UI**, not the redesigned
+workbench. Local interpreter/output paths were replaced with generic paths;
+numerical data and synthetic-board coordinates were preserved. The coarse
+patch and rule-area runs are not converged-design evidence.
+
+![Earlier beta: linked field probes](help-workflow.png)
+![Earlier beta: saved-copper region](help-region.png)
+![Earlier beta: expanded field viewport](help-viewport.png)

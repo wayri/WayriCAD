@@ -21,6 +21,10 @@ from .compatibility import CERTIFICATE_NAME, adapter_signature, read_certificate
 
 CHECK_INTERVAL = 24 * 60 * 60
 MIN_FREE_BYTES = 3 * 1024**3
+# The complete compatibility matrix includes a PML solve and CAD/export readback.
+# Keep an active runtime untouched while a slower candidate finishes this gate.
+QUALIFICATION_TIMEOUT = 1200
+SOLVER_EXTRAS = ('ezdxf>=1.4,<2', 'msgpack>=1.1,<2', 'msgpack-numpy>=0.4.8,<0.5')
 ENTRY = Path(__file__).with_name('__main__.py')
 
 
@@ -245,7 +249,7 @@ class DependencyManager:
             run_command([python, '-I', '-m', 'pip', '--isolated', 'check'], log=log,
                         cancel=cancel, timeout=60, progress=progress)
             run_command([python, '-I', ENTRY, '--qualify-runtime', pending], log=log,
-                        cancel=cancel, timeout=300, progress=progress)
+                        cancel=cancel, timeout=QUALIFICATION_TIMEOUT, progress=progress)
             refreshed = read_certificate(pending)
             if not refreshed or refreshed['version'] != certificate['version']:
                 raise RuntimeError('Existing runtime did not produce matching current compatibility evidence.')
@@ -336,12 +340,12 @@ class DependencyManager:
             progress(f'Installing EMerge {version} and its dependencies…')
             run_command([python, '-I', '-m', 'pip', '--isolated', 'install', '--disable-pip-version-check',
                          '--no-cache-dir', '--only-binary=:all:', '--index-url', 'https://pypi.org/simple',
-                         f'emerge=={version}'], log=log, cancel=cancel, progress=progress)
+                         f'emerge[cad]=={version}', *SOLVER_EXTRAS], log=log, cancel=cancel, progress=progress)
             run_command([python, '-I', '-m', 'pip', '--isolated', 'check'], log=log, cancel=cancel,
                         timeout=60, progress=progress)
             progress('Qualifying geometry, solves, fields, radiation and adaptive APIs…')
             run_command([python, '-I', ENTRY, '--qualify-runtime', folder/'quick-emerge-qualified.json'],
-                        log=log, cancel=cancel, timeout=300, progress=progress)
+                        log=log, cancel=cancel, timeout=QUALIFICATION_TIMEOUT, progress=progress)
             candidate = self._runtime(identifier)
             if candidate is None or candidate['version'] != version:
                 raise RuntimeError('Candidate did not produce a matching compatibility certificate.')

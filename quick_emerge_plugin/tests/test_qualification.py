@@ -9,7 +9,10 @@ from quick_emerge_plugin import compatibility, qualification
 
 
 def fake_result(config, **kwargs):
-    count = 1 if config['mode'] == 'patch' else 2
+    study = config['advanced']['study']
+    if study == 'thermal':
+        return dict(port_count=0, s_parameters={}, thermal=dict(x_mm=[0., 1.], y_mm=[0., 1.], temperature_k=[[300.,300.],[300.,300.]], reference_peak_k=300., peak_k=300., reference_transient_peak_k=300., transient={'time_s':[0.,config['advanced']['thermal_time_s']]}))
+    count = 0 if study == 'scattering' else (config['advanced']['array_count_x']*config['advanced']['array_count_y'] if study == 'array' else (2 if study in ('periodic','waveguide') else (1 if config['mode'] == 'patch' else 2)))
     points = config['points']
     result = {'frequencies_hz': [config['f_start_hz'] + i * (config['f_stop_hz'] - config['f_start_hz']) / (points - 1)
                                  for i in range(points)],
@@ -17,6 +20,14 @@ def fake_result(config, **kwargs):
                                for i in range(1, count + 1) for j in range(1, count + 1)},
               'field': {'x_mm': list(range(5)), 'y_mm': list(range(5)),
                         'norm_e_v_m': [[None, 0., 1., 2., 3.] for _ in range(5)]}}
+    if study == 'array':
+        result['array']={'superposition_relative_error':0.}
+    if study == 'waveguide':
+        result['waveguide']={'maximum_s21_complex_error':0.}
+    if config['advanced']['coupled_thermal']:
+        result['thermal']={'peak_k':300.,'coupling':'dielectric only'}
+    if study == 'scattering':
+        result['scattering'] = dict(theta_rad=[0.,1.], phi_rad=[0.,1.], rcs_m2=[[1.,1.],[1.,1.]])
     if config['mode'] == 'patch':
         result['radiation'] = {'theta_rad': [0., 1.], 'phi_rad': [-1., 0., 1.],
                                'norm_e': [[0., 1., 0.], [1., 2., 1.]]}
@@ -33,10 +44,13 @@ class QualificationTests(unittest.TestCase):
 
     def test_templates_and_polygon_region_certificate(self):
         with patch.object(qualification.importlib.metadata, 'version', return_value='3.1.0'), \
-                patch.object(qualification.backend, 'solve', side_effect=fake_result) as solve:
+                patch.object(qualification.backend, 'solve', side_effect=fake_result) as solve, \
+                patch.object(qualification, 'qualify_extended_apis', return_value=['extended-fixture-checks']) as extras:
             cert = qualification.qualify(self.output)
-        self.assertEqual(len(solve.call_args_list), 4)
-        self.assertEqual([call.args[0]['mode'] for call in solve.call_args_list], ['pcb_line', 'patch', 'pcb_line', 'pcb_region'])
+        self.assertEqual(len(solve.call_args_list), 16)
+        extras.assert_called_once_with(self.output.parent)
+        self.assertIn('extended-fixture-checks',cert['checks'])
+        self.assertEqual([call.args[0]['mode'] for call in solve.call_args_list[:4]], ['pcb_line', 'patch', 'pcb_line', 'pcb_region'])
         self.assertEqual(solve.call_args_list[2].args[0]['sweep'], 'adaptive')
         self.assertTrue(all(call.kwargs.get('qualifying') is True for call in solve.call_args_list))
         self.assertEqual(solve.call_args_list[3].kwargs['region']['area']['id'], 'qualification-coupon')

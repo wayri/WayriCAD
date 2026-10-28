@@ -1,187 +1,232 @@
-# Quick EMerge development validation
+# Quick EMerge validation evidence
 
-Recorded 2026-10-28 on Windows. This is beta development evidence, not a hardware or
-numerical qualification report. No production PCB was modified.
+Development evidence recorded **2026-10-29 on Windows**. This document separates
+the current source from the published 3.6.43-beta.1 package. Compatibility
+checks are not numerical or hardware qualification. No production PCB was
+modified. An isolated development candidate was registered in the running
+KiCad 10.0.6 host and launched through its native WayriCAD picker. This proves
+the originating-editor development launch, not installed PCM activation.
 
-## Runtime and source
+## Current runtime and certificate
 
-- Desktop: Python 3.14, wxPython 4.2.5, Matplotlib; native frame created and
-  exercised outside the editor. KiCad CLI 10.0.6 is installed; no live IPC
-  toolbar launch was exercised.
-- Solver: Python 3.11.9, EMerge **3.0.0b9**, emsutil 1.1.4, NumPy 2.2.6,
-  SciPy 1.17.1, Gmsh 4.15.2 and PyVista 0.49.0. An isolated validation
-  environment reused existing scientific dependencies without modifying the
-  shared environment. It is local test staging, not a portable deliverable.
-- Adapter source target: upstream commit
-  `446232037d175a596606c6c9ea986e372560566f`. Later releases require compatibility qualification before activation. The old 2.x layer/port/far-field contracts are not
-  used as compatibility assumptions.
+The reused isolated solver is Python **3.11.9**, EMerge **3.0.0b9**, NumPy 2.2.6,
+SciPy 1.17.1, Matplotlib 3.11.2, Gmsh 4.15.2, emcad 0.2.0, ezdxf 1.4.5,
+msgpack 1.2.4 and msgpack-numpy 0.4.8. Native KiCad is **10.0.6**. The managed
+desktop uses a complete wx/Matplotlib backend and VTK; the host's KiCad Python
+wx build lacks `wx.svg._nanosvg`, so it is not used as the plotting desktop.
+The native bindings remain available for saved-board extraction.
 
-## Checks performed
+The final 22-check run after the patch feed/offset additions exited
+successfully in approximately six minutes.
+The local evidence is retained under `.validation/quick-emerge-v2/backend/`:
+`final-qualified.json`, `final-qualified.log`, `provisioning-dry-run.log` and
+`package-preservation.json`. These local reports are not shipped user assets.
+The certificate records:
 
-- `python -m pytest quick_emerge_plugin/tests -q`:
-  **80 passed, 5 skipped, 88 subtests passed**, including input geometry, non-finite rejection, reflection
-  identities, EMerge 3 argument contracts, theta/phi ordering, Touchstone port
-  order, stale inputs, isolated subprocess arguments, cancellation, result
-  mismatch and a real missing-runtime subprocess.
-- KiCad 10 Python `unittest` for `test_pcb_regions.py`: **5 native tests passed**.
-  These five skip under the desktop interpreter because it has no `pcbnew`.
-- `python -m unittest discover -s tests -v`: **382 tests, 70 skipped, no failures**.
-  TEMP/TMP were directed to the repository scratch directory because the host
-  sandbox denied the default temporary directory. Skips are not passes.
-- KiCad 10 Python `compileall` checked the initial package; the final source
-  was also compiled with the desktop Python after migration.
-- Native GUI smoke: both model previews, edit invalidation, disabled Run until
-  review, resize, solver worker launch, timer-based collection, all six native
-  plot tabs, nearest field probe and sampled frequency metrics. Region studies
-  add a seventh enclosure tab, source/geometry custody checks and read-only
-  native-worker extraction.
-- Local README/help references and the screenshot were checked. No suite
-  release rebuild, install or feed promotion was performed as part of this recorded development evidence.
+- UTC completion: `2026-10-28T20:46:45.120508+00:00` (2026-10-29 local date).
+- Adapter SHA-256: `0801cff08ad994262c9c0a7fbd72dd95794f27da6edb932d64a356691a6466af`.
+- Scope: **API compatibility smoke solves; not numerical accuracy or convergence**.
 
-## Real EMerge 3 solves
+All 22 real checks passed:
 
-All used SuperLU. These intentionally coarse models establish API execution,
-result shape and visualization, not accuracy or acceptance:
+| Checks | Coverage |
+| --- | --- |
+| `pcb_line_linear`, `patch_linear`, `pcb_line_adaptive`, `polygon_region_linear` | Basic networks, fields/radiation, bounded adaptivity, saved-region geometry contract |
+| `lossy_dispersive_line`, `periodic_floquet`, `scattered_sphere` | Material controls, periodic and scattering APIs |
+| `steady_thermal_slab`, `transient_thermal_slab`, `dielectric_rf_heating` | Thermal compatibility adapter and dielectric-loss coupling |
+| `bounded_optimization`, `waveguide_te10`, `internal_via_line`, `shunt_resistor_line` | Real-solve parameter search, TE10, internal via and ideal shunt APIs |
+| `finite_three_patch_array`, `pml_line` | Multiport/coherent array and PML APIs |
+| `import_gds`, `import_gds_xml`, `import_gerber`, `import_odb` | Actual import, mesh, scattering solve and reviewed manifest preservation |
+| `network_aaa_fit_rlc_touchstone_reference`, `live_dxf_optycal_consumer_readback` | Network model/reference checks and actual live export publication/readback |
 
-| Study | Setup | Computed outputs |
-| --- | --- | --- |
-| Line coupon | 20 × 10 mm substrate, 1 mm thick, er 3.38; 10 × 2 mm top trace; PEC ground; 5 mm air margin; resolution 0.5; 2 mm edge mesh; 50 Ω ports; 1–2 GHz, 3 frequencies | Full 2-port S-matrix, 9 × 9 near-field plane at Z=2 mm, Touchstone |
-| Patch | 40 × 40 mm substrate, 1 mm thick, er 3.38; 20 × 20 mm patch, 2 mm feed, two 3 × 5 mm inset slots; 10 mm air margin; resolution 0.4; 3 mm edge mesh; 50 Ω port; 4–5 GHz, 3 frequencies | S11, 9 × 9 near-field plane at Z=2 mm, 31 × 61 relative radiation surface at 4.5 GHz, Touchstone |
-| Adaptive line | Same coupon; one mesh pass, five-sample AAA budget, tolerance 0.02 | Solver completed; mesh refinement reported **not converged**, and AAA reported reaching its sample limit. Neither is marked converged by the plugin. |
-| Native end to end | Coupon launched through the actual wx controls using the isolated 3.x interpreter | Worker completed, full S-matrix collected, field and frequency probe labels exercised |
+An earlier qualification attempt stopped before the slow PML solve finished
+under a 300-second limit and produced no certificate. Provisioning now allows
+1200 seconds for the complete gate. Candidate activation still requires every
+check to pass. Upstream redirected logs emit Windows character-encoding
+warnings for mesh glyphs; the successful process and certificate are the solve
+evidence, not an absence of log warnings.
 
-`help-workflow.png` and `help-viewport.png` are actual native-window captures of
-the solved coarse patch field plane with linked markers and a line-cut overlay.
-The title identifies its template scope. Local solver/output paths were
-replaced with generic paths before capture; the source basename is a synthetic
-context board. No numerical data were redacted or changed. The radiation radius
-is normalized electric-field magnitude, not gain or physical distance.
+## Focused development checks
 
-## Viewport acceptance
+- Dependency-manager suite: **20 passed, 6 subtests passed**. It covers candidate
+  installation/activation, bounded CAD/export requirements, full-gate timeout,
+  unchanged active runtime, failed updates, cancellation, rollback and stale
+  certificate requalification.
+- Exact provisioning requirements resolved with `pip --dry-run --no-index`
+  against the existing solver environment. `pip check` passed. All **53 original
+  distributions retained their prior versions**; CAD/export additions did not
+  upgrade those dependencies. No new environment was created for this final run.
+- Complete shared regression gate: **707 passed, 144 skipped, 502 subtests
+  passed**. A native-netlist subprocess first timed out under concurrent solver
+  load; the isolated check and complete suite passed with valid inherited
+  Windows stdin handles. Skips are not passes.
+- Earlier portable plugin gate: **154 passed, 31 skipped, 180 subtests passed**.
+  The final full gate after live testing is recorded below. Two standalone-loader
+  deprecation warnings remain under Python 3.14.
+- Final native component checks: **7 viewport**, **4 workbench**, **5 scene-data**
+  and **13 reporting tests passed**. The reporting run reused the bundled
+  pure-Python PDF reader; no PDF parseability check remained skipped.
+- The managed desktop is Python **3.11.5**, wxPython **4.3.2** / wxWidgets 3.3.4,
+  Matplotlib **3.11.2** and VTK **9.7.1**. Canvas tests verify the VTK child HWND,
+  enabled interactor, orbit/pan/zoom handlers, original-sample picking and
+  front-versus-back volume samples. Hidden/unsolved result views have explicit
+  empty states. The live gesture evidence below covers the tested Windows host.
+- An extracted local PCM candidate passed independent CLI/runtime checks and
+  native frame creation with bundled runtime/assets, a valid icon bundle,
+  geometry and enabled VTK interactor. All 138 archive entries compiled or
+  passed archive checks as appropriate; no test staging or environment was
+  packaged. This is package isolation evidence, not an installed-editor test.
+- Actual native KiCad extraction, review custody, isolated solver process and
+  publication passed for the two-port coupon without changing source bytes.
+  Six viewer modes, linked probing, a line profile and HTML/PDF reports passed
+  in the current native frame.
 
-Quick PI and QuickTherm's native visibility, color scale, camera and inspection
-controls were inspected as the interaction benchmark. Added tests cover
-nonuniform grid probing, unknown values, extrema, profile distances, scalar/log
-limits, masked-cell omission, bounded large-grid display, radiation color
-mapping, projection/picking and camera persistence. Native wx tests exercised
-drag-vs-click discrimination, manual camera rotation followed by zoom, fit,
-linked selection, pins and source-data preservation.
-Actual Matplotlib mouse events dispatched through the native canvas exercised
-each explicit Orbit, Pan, Zoom and Probe mode: angle changes during orbit,
-translation with unchanged spans during pan, span changes during zoom, 3D
-projected sample selection and 2D probing. Navigation gestures did not trigger
-selection. Camera roll is retained across redraws.
+## Published antenna reproduction
 
-The complete native-window workflow used the real coarse patch results:
-selection in both field views, min/max navigation, two pinned samples, a
-200-sample line profile, probe/profile CSV exports with hashes, manual and log
-scales, dark/light views, panel resize and focus/restore. Setup edits cleared
-results, pins, profiles and stale renderers. A native first-open managed runtime
-also completed a real solver run through the updated window. These checks do
-not establish GPU rendering or a measured frame-rate claim. The current
-viewport displays the exported field plane, not an arbitrary 3D volume.
+The reusable project is
+[`examples/quick_emerge/yeo_lee_2019`](../examples/quick_emerge/yeo_lee_2019/README.md).
+It recreates the conventional unloaded inset-fed antenna in Figure 1(a) of
+[Yeo and Lee (2019), Electronics 8, 502](https://doi.org/10.3390/electronics8050502).
+Native KiCad reload and independent polygon checks confirmed the 80 mm square
+board/ground, 1266.27 mm² signal copper and 0.76 mm dielectric separation.
+Actual saved copper produced one valid 1.66 mm boundary port with no blockers.
+A bounded DRC run was stopped without a completed report; the benchmark is not
+manufacturing-ready.
 
-## Saved PCB rule-area studies
+The initial coarse workflow retained fourteen actual frequency solves: nine
+broad-band samples, three independent narrow-band checks and two mesh checks.
+Those historical checks are superseded for convergence assessment by the
+controlled study in the example's [comparison](../examples/quick_emerge/yeo_lee_2019/COMPARISON.md).
+The later study fixes the 2.6 GHz meshing ceiling, checks both uniform and
+adaptive mesh families, validates fitted minima with new FEM solves, and
+requires two successive response/bandwidth passes followed by boundary and
+global-resolution checks. Matching the paper's resonance on one coarse mesh is
+insufficient. The exact minimum depth is not tabulated in the paper.
 
-KiCad 10.0.6 native tests exercised a saved two-layer coupon with filled B.Cu
-ground and a F.Cu signal crossing a named rule area. The actual board was
-40 × 20 mm, while the selected area was X=10–30 mm and Y=5–15 mm. Saved dielectric
-separation was 1.53 mm. Native tests verified exact clipping, concavity, a rule
-hole splitting the trace, a rule area crossing the board edge, exclusion of an
-outside via, rejection of an inside via, and source immutability. The isolated
-worker was tested under `-I`, including source-overwrite rejection. A separate
-board-only source directory and an existing project-directory manifest remained
-byte-identical after worker shutdown; no project sidecars were created/changed.
+**Numerical agreement is not qualified.** The current completed refinement
+levels and measured resource limits are recorded in that comparison rather
+than duplicated here. The finite ABC2 boundary, ideal PEC sheets and unspecified
+paper port/de-embedding details remain accuracy limits. API compatibility,
+source custody and completed UI workflows do not establish convergence or
+antenna performance.
 
-Planner tests verify whole-span reference coverage (including holes), actual
-rule-area cut interfaces, exclusion of natural board edges/existing board holes
-from port candidates, other cut-net rejection, corner ambiguity, and no invented
-interior feed. Review/run/collect tests reject source, region and port changes.
+## External patch-feed geometry check
 
-The saved coupon completed through both the scripted service and the native UI:
-load enclosure list, choose SIGNAL/GND, review εr=4.2, preview two boundary ports,
-solve 1–2 GHz at three frequencies with SuperLU, then collect all four S-parameters
-and a 9 × 9 field plane retaining X=10–30/Y=5–15 mm. Board hashes remained equal.
-This is API/geometry-custody smoke evidence, not numerical convergence acceptance.
-`help-region.png` captures this native UI result; only local interpreter/output
-paths were replaced with generic values. Its copper, coordinates and port labels
-were preserved.
+The optional `advanced.patch_feed_extension_mm` defaults to zero, preserving
+legacy patch construction. Contract tests cover nonnegative finite values,
+substrate bounds, supported study scope, SI geometry arguments and the shifted
+ideal port. The focused backend/advanced suites recorded **18 passed, 6 skipped,
+27 subtests passed**; the six real advanced tests are opt-in, not passes.
 
-The runtime qualifier now also performs a synthetic polygon-region solve. A
-stale certificate triggers requalification of the existing environment without
-package installation; this was exercised with less than 3 GiB free and retained
-the same active runtime/packages. Worker stdin is detached for reliable hidden
-execution, including pytest capture on Windows.
+A separate real 4-5 GHz two-frequency patch solve passed result checks with a
+5 mm external feed and +0.45 mm patch-center offset. Independent Gmsh mass/bounds checks found one connected
+copper surface, area **0.00038 m2**, matching
+`(20*20 - 2*3*5 + 2*5) mm2`, and a port at **Y=-14.55 mm**. A separate argument-contract check places
+the port at Y=-40 mm for L=31.9 mm, extension=24.5 mm and offset=+0.45 mm
+on an 80 mm substrate.
+Local evidence is `feed-extension.json`, `feed-extension-checks.json` and
+`feed-extension.log` under the backend validation folder. This establishes
+geometry/API execution, not agreement with a published antenna resonance or
+measured design. The final full 22-check runtime rerun passed after this adapter change.
 
-Remaining region limits: two copper layers, lossless homogeneous dielectric,
-PEC surfaces, bare copper and ideal boundary feeds. Inside drilled features,
-multilayer/via-barrel/component models, interior feeds and curved rule-area
-contours are unsupported; blocking diagnostics prevent silently incomplete
-solves. Polygon validation is bounded before expensive planning. General
-arbitrary-board extraction remains unqualified.
+## Independent numerical checks and limits
 
-## Remaining numerical acceptance
+- Rectangular-waveguide TE10 cutoff was approximately 6.557 GHz. Comparison to
+  analytic propagation gave an S21 complex error of approximately 0.000163 for
+  the tested reference case; this is not arbitrary-mode qualification.
+- Transient substrate conduction passed equilibrium, monotonicity and timestep
+  refinement checks against a one-dimensional Fourier reference. A 1 W to 2 W
+  dielectric-heating test retained linear temperature rise. Coupling omits
+  copper surface heating and general fluid/conjugate heat transfer.
+- Coherent array radiation agreed with an independent sum of per-port complex
+  far fields within relative error 1e-10, with total incident power checked
+  against the excitation weights. Coarse-mesh deep-null acceptance failed and
+  is **not qualified**; no null-depth/gain/efficiency claim is made.
+- Network fitting was checked against an independent analytic delay reference;
+  asymmetric multiport data checked Touchstone order (legacy two-port order,
+  row-major for three or more ports). Fits remain derived sampled-data models.
+- The adaptive smoke case deliberately reaches its refinement/sample limits;
+  completion is not convergence. Patch resonance refinement, general line
+  accuracy, boundary sensitivity, power balance and measured hardware agreement
+  remain outstanding. Optional accelerator backends remain unqualified. The
+  bundled PARDISO interface passed an actual complex-system residual check;
+  same-mesh SuperLU/PARDISO S11 differed by 2.71e-13 at 2.475 GHz. New studies
+  prefer PARDISO only after verification; explicit choices remain unchanged.
 
-Analytical line propagation/impedance references, patch resonance refinement,
-air-boundary sensitivity, power balance, loss models and convergence acceptance
-remain outstanding. The local PARDISO path failed while discovering MKL; this
-was not repaired by changing shared dependencies. SuperLU is the explicit
-working default. Optional accelerators remain untested. General populated/multilayer
-KiCad extraction, via barrels, interior port mapping and the remaining upstream
-capabilities are tracked in [CAPABILITIES.md](CAPABILITIES.md).
+## Saved PCB region evidence
 
-## Automatic dependency setup and updates
+Earlier native KiCad 10.0.6 tests used a disposable 40 x 20 mm two-layer coupon
+with filled B.Cu ground and F.Cu signal. The selected enclosure was X=10-30 mm,
+Y=5-15 mm, with 1.53 mm saved dielectric separation. Checks preserved concavity,
+holes, actual board intersection, source identity and read-only behavior;
+inside vias and invalid cut/return interfaces were rejected. The original
+worker and earlier wx UI completed a three-frequency 1-2 GHz two-port solve.
+This historical evidence does not establish the redesigned UI's live editor
+launch or current physical interaction behavior.
 
-A real clean installation into a workspace-owned managed runtime completed:
-EMerge 3.0.0b9 and all dependencies were downloaded from PyPI as binary wheels,
-`pip check` passed, and the three real qualification solves passed before the
-active manifest was published. The independent runtime resolved newer packages,
-including NumPy 2.4.6 and PyVista 0.49.1, rather than inheriting the earlier
-validation environment. A second `ensure` reused the active runtime. The actual
-native first-open path selected it automatically, launched a real line solve,
-and collected its full S-matrix successfully.
+Region extraction still excludes inside drilled features, general multilayer
+stacks/via barrels, populated components and interior feeds. Native rule-area
+crops and the internal stripline/via template are different workflows. Geometry
+custody and API smoke solves do not establish field-solution convergence.
 
-Manager tests cover release selection (including prereleases, excluding yanked
-and development releases), isolated installation commands, dependency/solve
-checks before activation, failed-update preservation, fallback to the tested
-baseline, stale certificates, actual installed-version mismatch, low space,
-concurrent setup locking, cancellation, rollback and path containment. Runner
-tests cover stopping/reaping the worker even when Windows tree termination
-fails or times out. Failed candidate installation and simulated future releases
-use injected failures; there is no claim of testing a future upstream release.
-Native UI checks also covered automatic setup callbacks, run gating,
-cancellation and retry controls. Windows is the tested platform; POSIX
-process-group cancellation is implemented but has not been run on a POSIX host.
+## Earlier release and screenshot provenance
 
-The managed runtime occupies approximately **1.44 GB**, with about 18 MB of
-earlier solver staging and small run artifacts. No source checkout, full build
-tree or release ZIP was created. The validated runtime and logs are retained;
-no pre-existing data or shared runtimes were removed. C: had approximately
-2.2 GiB free after installation; this is not a measured net-free-space claim.
-Future candidate installs require 3 GiB free and will defer safely while space
-is below that threshold.
+The published **3.6.43-beta.1** package contains the earlier workbench. Its
+recorded separate-process checks were **726 passed, 124 skipped, 502 subtests
+passed** for the root suite and **86 passed, 5 skipped, 88 subtests passed** for
+Quick EMerge. Five native PCB extraction tests also passed separately. Its
+extracted installer passed the four-check runtime gate then in use. These are
+historical counts, not test results for the current expanded source.
 
+`help-workflow.png`, `help-viewport.png` and `help-region.png` show actual
+**earlier beta windows**, not the current compact layout/VTK viewer. Local
+interpreter/output paths were replaced by generic paths before capture;
+numerical samples, synthetic-board coordinates and port labels were preserved.
+The images do not demonstrate a converged antenna or the current layout.
+Current live KiCad development acceptance is recorded below.
 
-## Release candidate 3.6.43-beta.1
+Current first-open installation into a fresh environment and installed PCM
+activation still require separate acceptance evidence. Adapter or qualifier
+changes invalidate the recorded certificate; UI-only changes do not alter its
+adapter hash. Skipped tests are not passes.
 
-The prototype was promoted to an independent PCM package in a clean checkout
-of upstream `36192f8195ee757c7dafdc44de7406179a435704`.
-On Windows with Python 3.14, separate test processes recorded **726 passed,
-124 skipped, 502 subtests passed** for the root suite and **86 passed,
-5 skipped, 88 subtests passed** for Quick EMerge. These counts include native
-wx/Matplotlib interaction tests on this host. The five native PCB extraction
-tests also passed separately under KiCad 10.0.6 Python.
+## Live KiCad development acceptance, 2026-10-29
 
-The extracted PCM installer passed all four real EMerge 3.0.0b9 qualification
-solves in an existing isolated Python 3.11.9 runtime. Its native window passed
-camera, linked probe, pinned sample, extrema, profile, CSV, theme, invalidation
-and resize checks with measured coarse patch samples retained from development.
-The refreshed workflow and focused viewport captures show this beta window;
-path fields were set to generic example paths before capture. Samples are
-unchanged, and these images do not demonstrate a converged antenna design.
+The published-paper KiCad antenna was opened in PCB Editor 10.0.6. The isolated
+candidate, with its independently bundled runtime code, was registered in the
+real host and selected in the native WayriCAD picker. First open loaded the
+actual saved board/rule-area outlines and verified PARDISO. Loading the paper
+setup and Preview extracted actual SIGNAL/GND copper with one boundary port
+and zero blocking geometry diagnostics. Source bytes remained unchanged.
 
-All 25 installers passed official schema, payload, icon, entrypoint and hash
-validation. Package documentation links and images passed validation. CI is
-required on the release commit before publication; its run is linked from the
-release notes. Live KiCad IPC toolbar launch remains unqualified. Scientific
-convergence and unsupported upstream capabilities remain outside this beta.
+The physical mouse workflow completed a nine-frequency 2.4–2.6 GHz PARDISO
+solve. Orbit dragging, wheel zoom and pan changed the native VTK scene while
+the worker ran. A 2D click selected the original E-field sample at
+(24, 24, 2) mm, 5896.029 V/m; a distinct 3D click selected (52, 52, 2) mm,
+1316.266 V/m. Both represent the solved plane at 2.5 GHz, not arbitrary volume
+interpolation. A retained probe was included in HTML/PDF exports.
+
+The embedded report visibly rendered its plots, scope and source-custody
+sections. Native WebView load/error events establish readiness without
+JavaScript readback. The exported PDF rendered all nine pages; its retained
+probe text was checked. Local evidence is `live-kicad-checks.json` and
+`paper-benchmark/live-study.html`, `live-study.pdf`, `live-report-contact.png`
+under the task validation directory. These are local evidence, not shipped
+assets or a convergence certificate.
+
+Live testing found stretched Focus/Image toolbar buttons, a clipped view
+selector, a stale pre-report completion message and unnecessary clearing of
+the 2D geometry at run start. The fixes preserve compact content-sized buttons,
+readable view selectors, reviewed geometry and explicit report lifecycle state.
+The final full plugin gate recorded **178 passed, 36 skipped, 192 subtests**. The actual managed VTK desktop
+then passed **21 native component tests**, including wide/narrow toolbar layout. The subsequent scalar-color suite passed
+**11 native scene tests**, including actual framebuffer comparisons to the
+Matplotlib colormap in top/isometric views (within two RGB levels). Scalar
+actors remain unlit/opaque while physical geometry keeps normal shading.
+A final current-source frame using the retained live result also passed
+physical layout/Results/report-preview review, without another FEM solve.
+The shared suite recorded **707 passed, 144 skipped, 502 subtests**.
+
+The live nine-point solve deliberately used the coarse historical mesh to test
+the complete UI workflow. Its completion is not antenna convergence. The
+controlled mesh study and paper comparison remain separate numerical evidence.

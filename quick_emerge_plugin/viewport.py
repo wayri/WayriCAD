@@ -39,6 +39,9 @@ def closest_projected(points, axes, pixel_x, pixel_y, tolerance=14):
 class PlotViewport(wx.Panel):
     def __init__(self, parent, name, callback):
         super().__init__(parent)
+        self.defer_hidden = False
+        self.pending_render = False
+        self.pending_reset = False
         self.name = name
         self.callback = callback
         self.figure = Figure(figsize=(8, 6), dpi=100)
@@ -49,12 +52,12 @@ class PlotViewport(wx.Panel):
         self.toolbar.Hide()
         self.interaction = 'Orbit' if name.startswith('3D') else 'Probe'
         self.mode_buttons = {}
-        controls = wx.BoxSizer(wx.HORIZONTAL)
+        controls = wx.WrapSizer(wx.HORIZONTAL, flags=wx.REMOVE_LEADING_SPACES)
         for mode, tip in [('Orbit', 'Left drag: orbit around the scene. Wheel: zoom.'),
                           ('Pan', 'Left drag: pan the scene without rotating it.'),
                           ('Zoom', 'Left drag: zoom (3D); draw a zoom rectangle (2D).'),
                           ('Probe', 'Left click: select an original sample. Hover: readout. Middle drag: pan; right drag: orbit in 3D.')]:
-            button = wx.ToggleButton(self, label=mode, style=wx.BU_EXACTFIT, size=(-1, 25))
+            button = wx.ToggleButton(self, label=mode, style=wx.BU_EXACTFIT, size=(-1, self.FromDIP(27)))
             button.SetToolTip(tip)
             button.Bind(wx.EVT_TOGGLEBUTTON, lambda event, mode=mode: self.set_mode(mode))
             self.mode_buttons[mode] = button
@@ -63,14 +66,25 @@ class PlotViewport(wx.Panel):
                                    ('+', 'Zoom in; the wheel also zooms.', lambda: self.zoom(.85)),
                                    ('−', 'Zoom out.', lambda: self.zoom(1/.85)),
                                    ('Image…', 'Export the current viewport image.', self.toolbar.save_figure)]:
-            button = wx.Button(self, label=label, style=wx.BU_EXACTFIT, size=(-1, 25))
+            button = wx.Button(self, label=label, style=wx.BU_EXACTFIT, size=(-1, self.FromDIP(27)))
             button.SetToolTip(tip)
             button.Bind(wx.EVT_BUTTON, lambda event, action=action: action())
             controls.Add(button, 0, wx.RIGHT, 3)
-        self.interaction_hint = wx.StaticText(self, label='')
-        controls.Add(self.interaction_hint, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 6)
+        self.interaction_hint = wx.StaticText(self, label='', style=wx.ST_ELLIPSIZE_END)
+        self.interaction_hint.SetMinSize((1,-1));self.interaction_hint.SetForegroundColour('#637382')
+        self.camera_controls=wx.Panel(self);camera_bar=wx.BoxSizer(wx.HORIZONTAL)
+        self.preset_choice=wx.Choice(self.camera_controls,choices=list(PRESETS));self.preset_choice.SetSelection(0)
+        self.preset_choice.SetToolTip('Camera preset · keys 1–5')
+        self.preset_choice.Bind(wx.EVT_CHOICE,lambda event:self.set_camera(preset=self.preset_choice.GetStringSelection()))
+        camera_bar.Add(self.preset_choice,0,wx.RIGHT,5)
+        self.projection_button=wx.ToggleButton(self.camera_controls,label='Ortho',style=wx.BU_EXACTFIT)
+        self.projection_button.SetToolTip('Orthographic / perspective projection')
+        self.projection_button.Bind(wx.EVT_TOGGLEBUTTON,lambda event:self.set_camera(projection='persp' if self.projection_button.GetValue() else 'ortho'))
+        camera_bar.Add(self.projection_button,0);self.camera_controls.SetSizer(camera_bar)
+        status=wx.BoxSizer(wx.HORIZONTAL);status.Add(self.camera_controls,0,wx.RIGHT,8);status.Add(self.interaction_hint,1,wx.ALIGN_CENTER_VERTICAL)
         layout = wx.BoxSizer(wx.VERTICAL)
-        layout.Add(controls, 0, wx.EXPAND | wx.ALL, 4)
+        layout.Add(controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 5)
+        layout.Add(status,0,wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,5)
         layout.Add(self.canvas, 1, wx.EXPAND)
         self.SetSizer(layout)
         self.camera = Camera()
@@ -80,6 +94,7 @@ class PlotViewport(wx.Panel):
         self.arguments = None
         self.picking = []
         self.press = None
+        self._pan_start = None
         self.last_hover = 0
         self.markers = []
         self.selection = None
@@ -91,6 +106,11 @@ class PlotViewport(wx.Panel):
         self.canvas.mpl_connect('scroll_event', self._scroll)
         self.canvas.mpl_connect('key_press_event', self._key)
         self.Bind(wx.EVT_SIZE, self._resize)
+        self.Bind(wx.EVT_SHOW, self._shown)
+
+    def _shown(self, event):
+        if event.IsShown(): wx.CallAfter(self.refresh_canvas)
+        event.Skip()
 
     def _resize(self, event):
         self.Layout()
@@ -100,6 +120,11 @@ class PlotViewport(wx.Panel):
     def refresh_canvas(self):
         if not self or self.IsBeingDeleted():
             return
+        if self.defer_hidden and not self.IsShownOnScreen(): return
+        if self.pending_render:
+            self.pending_render = False
+            reset, self.pending_reset = self.pending_reset, False
+            self.render(reset=reset)
         width, height = self.canvas.GetClientSize()
         if width > 1 and height > 1:
             self.figure.set_size_inches(width/self.figure.dpi, height/self.figure.dpi, forward=False)
@@ -133,6 +158,11 @@ class PlotViewport(wx.Panel):
             self.camera.roll = self.axes().roll
 
     def render(self, renderer=None, arguments=None, *, reset=False, options=None):
+        if self.defer_hidden and not self.IsShownOnScreen():
+            if renderer is not None: self.renderer, self.arguments = renderer, arguments
+            if options is not None: self.options = dict(options)
+            self.pending_render = True; self.pending_reset = self.pending_reset or reset
+            return
         saved = self._bounds() if not reset else None
         self._camera_from_axes()
         if renderer is not None:
@@ -159,7 +189,10 @@ class PlotViewport(wx.Panel):
         self.canvas.draw_idle()
 
     def clear(self):
+        self.pending_render = self.pending_reset = False
         self.figure.clear()
+        message = 'Choose a saved PCB rule area and Preview to inspect its enclosure.' if self.name == 'PCB enclosure' else 'Run a simulation to load this result view.'
+        self.figure.text(.5, .5, message, ha='center', va='center', color='#465563', wrap=True)
         self.renderer = self.arguments = self.home = None
         self.picking = []
         self.markers = []
@@ -203,10 +236,12 @@ class PlotViewport(wx.Panel):
     def set_camera(self, *, preset=None, projection=None, physical_aspect=None):
         self._camera_from_axes()
         if preset:
+            self.preset_choice.SetStringSelection(preset)
             self.camera.elevation, self.camera.azimuth = PRESETS[preset]
             self.camera.roll = 0
         if projection:
             self.camera.projection = projection
+            self.projection_button.SetValue(projection=='persp');self.projection_button.SetLabel('Persp' if projection=='persp' else 'Ortho')
         if physical_aspect is not None:
             self.camera.physical_aspect = physical_aspect
         self._apply_camera()
@@ -221,14 +256,14 @@ class PlotViewport(wx.Panel):
                 self._apply_camera()
             self.canvas.draw_idle()
 
-    def zoom(self, scale):
+    def zoom(self, scale, anchor=None):
         self._camera_from_axes()
         axes = self.axes()
         if axes is None:
             return
-        for get, set_ in [(axes.get_xlim, axes.set_xlim), (axes.get_ylim, axes.set_ylim)] + (
-                [(axes.get_zlim, axes.set_zlim)] if self.is_3d() else []):
-            lo, hi = get(); center = (lo+hi)/2
+        for index, (get, set_) in enumerate([(axes.get_xlim, axes.set_xlim), (axes.get_ylim, axes.set_ylim)] + (
+                [(axes.get_zlim, axes.set_zlim)] if self.is_3d() else [])):
+            lo, hi = get(); center = anchor[index] if anchor is not None and index<2 and not self.is_3d() else (lo+hi)/2
             set_(center+(lo-center)*scale, center+(hi-center)*scale)
         self._apply_camera()
         self.canvas.draw_idle()
@@ -250,6 +285,9 @@ class PlotViewport(wx.Panel):
         axes = self.axes()
         if axes is None:
             return
+        self.camera_controls.Show(self.is_3d())
+        self.mode_buttons['Orbit'].Show(self.is_3d())
+        self.Layout()
         # Release Matplotlib's 2D navigation lock before changing modes.
         current = str(self.toolbar.mode).lower()
         if current:
@@ -270,7 +308,7 @@ class PlotViewport(wx.Panel):
             button.SetValue(mode == self.interaction)
             button.Enable(mode != 'Orbit' or self.is_3d())
         hints = {'Orbit': 'Drag to orbit · wheel zoom', 'Pan': 'Drag to pan · wheel zoom',
-                 'Zoom': 'Drag to zoom · wheel zoom', 'Probe': 'Hover readout · click sample'}
+                 'Zoom': 'Drag to zoom · wheel zoom', 'Probe': 'Hover · click sample · middle / Shift drag pan'}
         self.interaction_hint.SetLabel(hints[self.interaction])
         self.canvas.SetCursor(wx.Cursor(wx.CURSOR_CROSS if self.interaction == 'Probe' else wx.CURSOR_HAND))
 
@@ -283,10 +321,19 @@ class PlotViewport(wx.Panel):
         return None
 
     def _press(self, event):
-        self.press = (event.x, event.y) if event.button == 1 else None
         self.canvas.SetFocus()
+        if getattr(event,'dblclick',False) and event.button==1:
+            self.fit();self.press=None;return
+        axes=self.axes()
+        if axes is not None and not self.is_3d() and event.inaxes is axes and not self.toolbar.mode and (
+                event.button==2 or (event.button==1 and getattr(event,'key',None)=='shift')):
+            self._pan_start=(event.x,event.y,self._bounds(),axes.transData.inverted().frozen())
+            self.press=None;return
+        self.press=(event.x,event.y) if event.button==1 else None
 
     def _release(self, event):
+        if self._pan_start is not None:
+            self._pan_start=None;self.press=None;return
         self._camera_from_axes()
         if (self.interaction == 'Probe' and self.press and event.button == 1 and event.inaxes is self.axes() and
                 not self.toolbar.mode and math.hypot(event.x-self.press[0], event.y-self.press[1]) < 4):
@@ -294,6 +341,12 @@ class PlotViewport(wx.Panel):
         self.press = None
 
     def _hover(self, event):
+        if self._pan_start is not None:
+            x,y,bounds,inverse=self._pan_start
+            start=inverse.transform((x,y));current=inverse.transform((event.x,event.y));delta=current-start
+            self.axes().set_xlim(bounds[0][0]-delta[0],bounds[0][1]-delta[0])
+            self.axes().set_ylim(bounds[1][0]-delta[1],bounds[1][1]-delta[1])
+            self.canvas.draw_idle();return
         if (self.press or self.toolbar.mode or event.inaxes is not self.axes() or
                 time.monotonic()-self.last_hover < .08):
             return
@@ -301,8 +354,9 @@ class PlotViewport(wx.Panel):
         self.callback(self.name, event, self._pick(event), False)
 
     def _scroll(self, event):
-        if event.inaxes is self.axes() and not self.toolbar.mode:
-            self.zoom(.85 if event.button == 'up' else 1/.85)
+        if event.inaxes is self.axes() and self.axes() is not None:
+            anchor=(event.xdata,event.ydata) if not self.is_3d() and event.xdata is not None and event.ydata is not None else None
+            self.zoom(.85 if event.button == 'up' else 1/.85,anchor=anchor)
 
     def _key(self, event):
         modes = {'o': 'Orbit', 'p': 'Pan', 'z': 'Zoom', 'i': 'Probe'}
@@ -314,7 +368,7 @@ class PlotViewport(wx.Panel):
             self.zoom(.85)
         elif event.key == '-':
             self.zoom(1/.85)
-        elif event.key in ('1', '2', '3', '4'):
+        elif event.key in ('1', '2', '3', '4', '5'):
             self.set_camera(preset=list(PRESETS)[int(event.key)-1])
 
     def set_selection(self, row=None, *, pins=None, profile=None):
@@ -341,6 +395,9 @@ class PlotViewport(wx.Panel):
             if self.name == '3D radiation' and row.get('kind') == 'radiation':
                 x, y, z = row['display_xyz']
             elif self.name != '3D radiation' and row.get('kind') == 'field':
+                if not self.is_3d() and self.arguments:
+                    field=self.arguments.get('thermal',self.arguments.get('field',{}))
+                    if abs(row['z_mm']-field.get('z_mm',row['z_mm']))>1e-9: continue
                 x, y, z = row['x_mm'], row['y_mm'], row['z_mm']
             else:
                 continue
