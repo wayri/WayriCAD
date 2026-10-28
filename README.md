@@ -1,6 +1,7 @@
 # WayriCAD
 
 [![Release](https://img.shields.io/github/v/release/wayri/WayriCAD?color=168b78)](https://github.com/wayri/WayriCAD/releases/latest)
+[![Release downloads — GitHub and PCM](https://img.shields.io/github/downloads/wayri/WayriCAD/total?label=downloads%20%28GitHub%20%2B%20PCM%29&color=168b78)](https://github.com/wayri/WayriCAD/releases)
 [![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
 [![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
 [![Tools](https://img.shields.io/badge/Tools-24-168b78)](#all-24-plugins)
@@ -8,6 +9,12 @@
 
 **PCB design, analysis and project review in KiCad.** Choose from 24 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
+
+The download counter updates automatically across all releases. It includes direct
+GitHub downloads and KiCad PCM downloads, since PCM fetches the same GitHub release
+assets. It counts downloaded files, including repeat downloads and release metadata,
+not unique users or installations. GitHub does not separate PCM from direct downloads;
+automatic source ZIP/tar downloads and repository clones are excluded.
 
 **New in 3.6.40:** clearer AC setup and charts, copper-first PI views, readable
 via IDs, differential voltage probes, SI pair timing, individual shunt capacitor
