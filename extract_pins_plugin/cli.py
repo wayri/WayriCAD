@@ -96,6 +96,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_test(sub)
     add_automation_commands(sub)
     add_legacy_board_commands(sub)
+    from .connector_cli import register_commands
+    register_commands(sub)
     return parser
 
 

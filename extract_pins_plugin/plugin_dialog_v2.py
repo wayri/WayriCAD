@@ -82,6 +82,7 @@ class PluginDialogV2(wx.Frame):
         self.SetIcon(wx.Icon(os.path.join(os.path.dirname(__file__), "resources", "icon-48.png"), wx.BITMAP_TYPE_PNG))
         
         self.board = pcbnew.GetBoard()
+        self._connector_initial_refs = [str(fp.GetReference()) for fp in initial_selected_footprints]
         self.extractor = DataExtractor(self.board)
         self.analyzer = SignalFlowAnalyzer(self.extractor)
         self.diagram_gen = SVGDiagramGenerator()
@@ -132,6 +133,13 @@ class PluginDialogV2(wx.Frame):
 
         self.connector_panel = self._create_connector_tab()
         self.notebook.AddPage(self.connector_panel, "Connector Preview")
+
+        try:
+            from .connector_tools_ui import ConnectorToolsPanel
+        except ImportError:
+            from connector_tools_ui import ConnectorToolsPanel
+        self.connector_tools = ConnectorToolsPanel(self.notebook, self.board, self._connector_initial_refs)
+        self.notebook.AddPage(self.connector_tools, "Connector tools")
 
         self.endpoint_trace_panel = self._create_endpoint_trace_tab()
         self.notebook.AddPage(self.endpoint_trace_panel, "2  Endpoint Trace")

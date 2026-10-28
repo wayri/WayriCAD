@@ -114,3 +114,5 @@ include docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md
 include docs/audits/QUICK_SI_SPEED_GUIDE_2026-10-28.md
 include docs/audits/QUICKTHERM_SPEED_GUIDE_2026-10-28.md
 include tests/test_return_path_speed.py
+recursive-include extract_pins_plugin/tests *.py
+include docs/audits/CONNECTOR_TOOLS_2026-10-28.md

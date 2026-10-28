@@ -7,6 +7,7 @@
 | Download and install | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation guide](../docs/INSTALLATION.md) |
 | First use | [Getting started](#usage) |
 | Help | [Offline help](help.html) · [Compatibility](../docs/COMPATIBILITY.md) |
+| Connector mating and labels | [Workflow and CLI guide](CONNECTOR_TOOLS.md) · [Offline version](CONNECTOR_TOOLS.html) |
 | Command line | `wayricad tools run extract-pins -- --help` |
 
 CLI scope: Pin extraction, inspection, diagrams and reports. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
@@ -22,6 +23,9 @@ CLI scope: Pin extraction, inspection, diagrams and reports. The unified command
 - Shows a live selection basket and reference wildcards (for example `J*`), then previews exact pin rows and common nets before export.
 - Produces a self-contained, interactive HTML report for selected components and connectors. Net clicks cross-highlight matching pin rows; pin 1 and available board bounding-box dimensions are marked.
 - Renders IC charts, block diagrams, and power trees in a native SVG viewer, so these previews do not depend on Edge WebView2.
+- Reviews mating-connector pin pairs with explicit top/bottom, rotation, reflection and position settings, then prepares matching label sets with editable naming modifiers.
+- Converts a pasted name column or pin/name CSV into selectable native global, local or hierarchical schematic labels.
+- Exports physical multirow/multicolumn pin tables from numbered pad positions, retaining empty positions and actual pin identities.
 
 ## Limitations
 
@@ -31,6 +35,7 @@ CLI scope: Pin extraction, inspection, diagrams and reports. The unified command
 - Full native hierarchical sheet coverage comes from a KiCad XML netlist; PCB-only coverage depends on saved fields.
 - Generated tables and diagrams do not replace ERC, DRC, or engineering review of ambiguous cross-board links.
 - The embedded connector table is a native HTML summary; use **Export Preview → Interactive HTML** for searchable, cross-highlighting pin rows.
+- Connector mating is a planar contact correspondence review, not a datasheet compatibility or 3D mechanical-fit certification. Copying labels does not apply pin assignments to the board or schematic.
 
 ## Overview
 
@@ -69,6 +74,26 @@ the scope or filters invalidates the previous export until it is previewed again
 - Import pin documents from other projects and build cross-board signal trackers
 - Auto-link exact or normalized labels and apply custom wildcard/regex rules
 - Export cross-project tracker CSV/Markdown and harness-style SVG diagrams
+
+### Connector mating, physical pinouts and pasteable labels
+
+These additions are on `develop` for the next release; the published 3.6.41
+packages do not contain the new Connector tools page.
+
+Open **Connector tools** for three focused pages:
+
+| Page | Workflow |
+|---|---|
+| Mating pair | Select the two connectors, review their posed contact layouts and pin-to-pin mapping, then copy either or both label sets. Add/select naming modifiers and edit individual rows. |
+| Paste labels | Paste one name column or pin/name CSV/TSV, select a numbering sequence, edit the table, then copy all labels or selected rows. |
+| Physical pinout | Export the connector's spatial rows and columns, with side/rotation controls, pin numbers, net names and empty cells. |
+
+The [detailed guide](CONNECTOR_TOOLS.md) explains coordinate conventions,
+label scope, bulk and individual row handling, supported numbering, and the
+`labels`, `connector-grid` and `connector-mate` CLI commands. All three workflows
+are read-only; place copied label anchors on the intended schematic pins/wires.
+See the [validation record](../docs/audits/CONNECTOR_TOOLS_2026-10-28.md) for
+native checks, Marble examples and the remaining interactive-paste test boundary.
 
 ### Signal Flow Analysis
 - Generate consolidated source-to-destination signal flow tables
