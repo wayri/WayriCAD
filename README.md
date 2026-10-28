@@ -16,11 +16,21 @@ assets. It counts downloaded files, including repeat downloads and release metad
 not unique users or installations. GitHub does not separate PCM from direct downloads;
 automatic source ZIP/tar downloads and repository clones are excluded.
 
-**New in 3.6.41:** faster Quick PI, SI and thermal preparation and solves,
-a guided Joule setup, Blender visualization and illustrated analysis guides.
-[Release notes](docs/RELEASE_NOTES_3.6.41.md).
+**New in 3.6.42:** connector mating reviews, matching schematic labels,
+CSV-to-label conversion and physical pinout grids in Pin Extractor.
+[Release notes](docs/RELEASE_NOTES_3.6.42.md).
 
-## New in 3.6.41
+## New in 3.6.42
+
+| Pin Extractor addition | Where to start |
+|---|---|
+| Mating connector pairs | [Top/bottom views, poses and contact mapping](extract_pins_plugin/CONNECTOR_TOOLS.md#review-a-mating-pair) |
+| Matching labels | [Editable modifiers, bulk assignment and individual rows](extract_pins_plugin/CONNECTOR_TOOLS.md) |
+| CSV / TSV to schematic labels | [Numbering and global/local/hierarchical labels](extract_pins_plugin/CONNECTOR_TOOLS.md#paste-csv-or-a-column-of-names) |
+| Physical pinout tables | [Actual connector rows and columns](extract_pins_plugin/CONNECTOR_TOOLS.md#extract-the-actual-rows-and-columns) |
+
+<details>
+<summary>Recent Quick-tool improvements and measured speeds · 3.6.41</summary>
 
 | Improvement | Where to start |
 |---|---|
@@ -29,8 +39,7 @@ a guided Joule setup, Blender visualization and illustrated analysis guides.
 | Complete analysis workflows | [Marble and White Rabbit tutorials](docs/QUICK_TOOL_EXAMPLE_BOARDS.md) · [Detailed guides](#detailed-analysis-guides) |
 | Blender visualization | [Export supported board geometry, fields and thermal frames](wayricad_runtime/BLENDER.md) |
 
-<details>
-<summary>Measured speed improvements</summary>
+
 
 | Study | Before | 3.6.41 |
 |---|---:|---:|
@@ -45,8 +54,8 @@ See the measurement links above for inputs, methods and numerical tolerances.
 
 </details>
 
-[Download 3.6.41](https://github.com/wayri/WayriCAD/releases/tag/v3.6.41) ·
-[Validation and known limits](docs/audits/RELEASE_3.6.41.md)
+[Download 3.6.42](https://github.com/wayri/WayriCAD/releases/tag/v3.6.42) ·
+[Connector validation and known limits](docs/audits/CONNECTOR_TOOLS_2026-10-28.md)
 
 ## Start here
 
@@ -54,7 +63,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.41](https://github.com/wayri/WayriCAD/releases/tag/v3.6.41) · [Release notes](docs/RELEASE_NOTES_3.6.41.md) |
+| Download or update | [Release 3.6.42](https://github.com/wayri/WayriCAD/releases/tag/v3.6.42) · [Release notes](docs/RELEASE_NOTES_3.6.42.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 24 plugins](#all-24-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -314,7 +323,7 @@ currencies stay explicit.
 
 ## All 24 plugins
 
-All 24 plugins are available in release **3.6.41**. Assistant is marked **testing**;
+All 24 plugins are available in release **3.6.42**. Assistant is marked **testing**;
 individual package versions and runtime requirements are in their guides.
 Select a plugin for its full guide and supported models.
 
@@ -337,7 +346,7 @@ Select a plugin for its full guide and supported models.
 | <img src="component_arranger_plugin/icon.png" width="24" height="24" alt="Component Arranger icon"> [Component Arranger](component_arranger_plugin/README.md) | Preview compact anchored group placement, side/rotation/density choices and capacitor order; native validation gates Apply. |
 | <img src="layer_counter_plugin/icon.png" width="24" height="24" alt="Layer Counter icon"> [Layer Counter](layer_counter_plugin/README.md) | Movable copper L1/L2 markers with zone keepouts, 24 styles and explicit mirrored/overlapping core pairs. |
 | <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Browse/search PCB nets and connections; review bulk reference, field and PCB-text edits. |
-| <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. [Connector mating, physical pin grids and CSV-to-label tools](extract_pins_plugin/CONNECTOR_TOOLS.md) are on `develop` for the next release. |
+| <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. [Connector mating, physical pin grids and CSV-to-label tools](extract_pins_plugin/CONNECTOR_TOOLS.md) are included in 3.6.42. |
 | <img src="harness_workbench_plugin/icon.png" width="24" height="24" alt="Harness Workbench icon"> [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Map connectors, cables, bundles and wire requirements. |
 | <img src="copper_balancer_plugin/icon.png" width="24" height="24" alt="Copper Balancer icon"> [Copper Balancer](copper_balancer_plugin/README.md) | Add isolated copper patterns for more even copper density. |
 | <img src="mechanical_check_plugin/icon.png" width="24" height="24" alt="Mechanical Check icon"> [Mechanical Check](mechanical_check_plugin/README.md) | Inspect 3D collisions, clearances and board assemblies. |

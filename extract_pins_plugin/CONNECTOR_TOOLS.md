@@ -4,8 +4,7 @@ Open **Pin Extractor → Connector tools**. Its three pages share a read-only
 workflow: choose inputs, review the preview, then copy the result. These tools
 do not move components, change PCB nets or rename schematic symbols.
 
-Availability: source update on `develop`, for the next release. The published
-3.6.41 packages predate this workflow.
+Availability: included in WayriCAD 3.6.42.
 
 | Page | Start with | Result |
 |---|---|---|

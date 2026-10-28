@@ -77,8 +77,8 @@ the scope or filters invalidates the previous export until it is previewed again
 
 ### Connector mating, physical pinouts and pasteable labels
 
-These additions are on `develop` for the next release; the published 3.6.41
-packages do not contain the new Connector tools page.
+Included in WayriCAD 3.6.42. Refresh the WayriCAD repository in KiCad PCM,
+install the Pin Extractor update and restart PCB Editor.
 
 Open **Connector tools** for three focused pages:
 
