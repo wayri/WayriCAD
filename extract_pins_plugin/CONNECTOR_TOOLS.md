@@ -54,6 +54,14 @@ each other. Review the preview rather than assuming that equal pin numbers mate.
 The model checks planar contact-centre correspondence. It does not prove mating
 height, keying, mechanical clearance, manufacturer compatibility or 3D fit.
 
+**Load B board** runs in a separate native KiCad Python reader, including when
+the main window uses the IPC board adapter. The original live board remains the
+source for A. A missing native runtime produces setup guidance; the other tabs
+remain usable during the read. Source hashes are checked before accepting or
+copying its contacts. The reader bounds an external inventory to 20,000
+footprints and 200,000 numbered contacts; a larger design needs a smaller
+review source. Per-footprint invalid padstacks stay visible as diagnostics.
+
 ## Paste CSV or a column of names
 
 For a single column, choose **Labels** and a numbering sequence:

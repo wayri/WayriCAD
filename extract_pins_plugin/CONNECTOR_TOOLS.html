@@ -17,6 +17,7 @@
 <p>The source coordinates are numbered pad centres in a <strong>board-top XY view</strong>, in millimetres. A pose centres the connector&#x27;s pad bounding box, reflects X for a bottom-side view, applies any additional explicit X reflection, rotates, then adds the relative XY offsets. KiCad Y increases down the screen, so a positive mathematical rotation appears clockwise in this view. The offsets are relative to the centred connector, not a command to move a footprint on the board.</p>
 <p>The default B reflection is a visible starting convention, not a manufacturer&#x27;s pinout rule. Bottom-side selection and the additional reflection can cancel each other. Review the preview rather than assuming that equal pin numbers mate. The model checks planar contact-centre correspondence. It does not prove mating height, keying, mechanical clearance, manufacturer compatibility or 3D fit.</p>
 <h2 id="paste-csv-or-a-column-of-names">Paste CSV or a column of names</h2>
+<p><strong>Load B board</strong> uses a separate native KiCad Python reader even when this window uses IPC. It preserves the originating live A board, checks source hashes and keeps the other tabs responsive. Missing native runtimes produce setup guidance. The external reader is bounded to 20,000 footprints and 200,000 numbered contacts; invalid padstacks remain diagnostics.</p>
 <p>For a single column, choose <strong>Labels</strong> and a numbering sequence:</p>
 <pre><code>SCL
 SDA

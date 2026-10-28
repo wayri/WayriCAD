@@ -17,11 +17,15 @@ as offline HTML. The main README and plugin help now cover these additions.
 
 ## Validation and limits
 
-All 39 native Pin Extractor tests passed, including five UI tests and KiCad
+All 43 native Pin Extractor tests passed, including five UI tests and KiCad
 parse/export checks for all three label kinds. Another 28 related CLI,
 documentation and plugin-inventory tests passed. Public Marble pin grids were
 checked without changing the board; an isolated package CLI check passed.
 See the [validation record](audits/CONNECTOR_TOOLS_2026-10-28.md).
+
+Saved-board loading uses a separate native KiCad reader so it also works when
+the installed plugin runs through the IPC board adapter. The reader was checked
+from an IPC-only parent and does not replace the live working-board context.
 
 The matcher reviews planar contact positions; it does not certify manufacturer
 compatibility, keying or 3D fit. Pasted labels must be anchored to the intended
