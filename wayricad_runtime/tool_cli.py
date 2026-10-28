@@ -24,6 +24,7 @@ COMMANDS={
     'layer-counter':('layer_counter_plugin.cli',(), 'Preview and export copper-layer counters'),
     'mechanical-check':('mechanical_check_plugin.cli',(), 'Saved-board mechanical screening and solid inspection'),
     'project-fusion':('project_fusion_plugin',(), 'Analyze and merge saved projects'),
+    'quick-emerge':('quick_emerge_plugin',(), 'Beta native workbench and isolated EMerge worker/runtime qualification; solver commands require a prepared interpreter'),
     'quick-pi':('quick_pi_plugin.cli',(), 'DC copper, shared returns, melting screens and explicit AC/SMPS harmonic copper loss'),
     'quick-therm':('quick_therm_plugin.cli',(), 'Board/component temperature screening and thermal reports'),
     'signal-integrity':('signal_integrity_advisor_plugin.cli',(), 'Route, return-path and neighbour-exposure maps with local coupled-line crosstalk'),
@@ -70,7 +71,7 @@ def runtime_check(python):
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     subs=parser.add_subparsers(dest='operation',required=True)
-    subs.add_parser('list',help='List all 24 tools and their real headless command surfaces.')
+    subs.add_parser('list',help='List all 25 tools and their real headless command surfaces.')
     show=subs.add_parser('show',help='Describe one tool and how to obtain command help.');show.add_argument('tool')
     doctor=subs.add_parser('doctor',help='Check an interpreter without importing a GUI or loading a board.')
     doctor.add_argument('--python',type=Path,default=Path(sys.executable))

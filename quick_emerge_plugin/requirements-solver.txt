@@ -1,0 +1,5 @@
+# Manual fallback only. Automatic setup selects and qualifies the latest EMerge 3+.
+# Separate Python 3.10–3.13 environment. Tested fallback:
+emerge==3.0.0b9
+# Optional CAD import and acceleration dependencies follow upstream's extras.
+# Do not install into KiCad's bundled Python.

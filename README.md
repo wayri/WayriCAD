@@ -4,10 +4,10 @@
 [![Release downloads — GitHub and PCM](https://img.shields.io/github/downloads/wayri/WayriCAD/total?label=downloads%20%28GitHub%20%2B%20PCM%29&color=168b78)](https://github.com/wayri/WayriCAD/releases)
 [![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
 [![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
-[![Tools](https://img.shields.io/badge/Tools-24-168b78)](#all-24-plugins)
+[![Tools](https://img.shields.io/badge/Tools-25-168b78)](#all-25-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
-**PCB design, analysis and project review in KiCad.** Choose from 24 independently
+**PCB design, analysis and project review in KiCad.** Choose from 25 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
 
 The download counter updates automatically across all releases. It includes direct
@@ -15,6 +15,8 @@ GitHub downloads and KiCad PCM downloads, since PCM fetches the same GitHub rele
 assets. It counts downloaded files, including repeat downloads and release metadata,
 not unique users or installations. GitHub does not separate PCM from direct downloads;
 automatic source ZIP/tar downloads and repository clones are excluded.
+
+**Testing beta:** [Quick EMerge in 3.6.43-beta.1](docs/RELEASE_NOTES_3.6.43-beta.1.md) adds bounded electromagnetic studies; install its ZIP from the prerelease using PCM **Install from File**.
 
 **New in 3.6.42:** connector mating reviews, matching schematic labels,
 CSV-to-label conversion and physical pinout grids in Pin Extractor.
@@ -54,7 +56,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 
 </details>
 
-[Download 3.6.42](https://github.com/wayri/WayriCAD/releases/tag/v3.6.42) ·
+[Download 3.6.43-beta.1](https://github.com/wayri/WayriCAD/releases/tag/v3.6.43-beta.1) ·
 [Connector validation and known limits](docs/audits/CONNECTOR_TOOLS_2026-10-28.md)
 
 ## Start here
@@ -65,7 +67,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Run your first analysis | [Getting started](#getting-started) |
 | Download or update | [Release 3.6.42](https://github.com/wayri/WayriCAD/releases/tag/v3.6.42) · [Release notes](docs/RELEASE_NOTES_3.6.42.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
-| Choose a tool | [All 24 plugins](#all-24-plugins) |
+| Choose a tool | [All 25 plugins](#all-25-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Review algorithms and research | [Methods, sources and verification by tool](docs/METHODS_AND_RESEARCH.md) |
@@ -321,15 +323,16 @@ currencies stay explicit.
 
 <a id="all-21-plugins"></a>
 
-## All 24 plugins
+## All 25 plugins
 
-All 24 plugins are available in release **3.6.42**. Assistant is marked **testing**;
+The catalogue contains 24 existing plugins and the new Quick EMerge beta. Quick EMerge is an independently installable **testing beta** in [3.6.43-beta.1](https://github.com/wayri/WayriCAD/releases/tag/v3.6.43-beta.1); install its PCM ZIP using **Install from File**. The stable PCM feed remains unchanged. Assistant is marked **testing**;
 individual package versions and runtime requirements are in their guides.
 Select a plugin for its full guide and supported models.
 
 | Plugin | Use it for |
 |---|---|
 | <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Plain-English tool selection, visual context and reviewed command execution (testing). |
+| <img src="quick_emerge_plugin/icon.png" width="24" height="24" alt="Quick EMerge icon"> [Quick EMerge](quick_emerge_plugin/README.md) | Testing beta for EM templates and reviewed saved-PCB rule-area copper studies. |
 | <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. |
 | <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Board and component temperatures, heating playback and thermal reports. |
 | <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal delay, reflections, termination and return-path screening. |
@@ -369,7 +372,7 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 |---|---|
 | Run analyses | [Quick PI](#quick-pi) · [QuickTherm](#quicktherm) · [Quick SI](#quick-si) · [Trace RLC](#trace-rlc--impedance) |
 | Improve layout | [Fanout](#fanout-generator) · [Guard vias](#via-stitching) · [Trace Refiner](#trace-refiner) · [Silkscreen](#silkscreen-label-placer) |
-| Coordinate tools | [Assistant](#wayricad-assistant) · [All plugin guides](#all-24-plugins) |
+| Coordinate tools | [Assistant](#wayricad-assistant) · [All plugin guides](#all-25-plugins) |
 
 ### [WayriCAD Assistant](suite_assistant_plugin/README.md)
 
@@ -995,7 +998,7 @@ Hardware planning details are in [System requirements](docs/SYSTEM_REQUIREMENTS.
 
 Use `wayricad jobs` for repeatable analysis/report sequences and KiCad jobsets.
 
-Use `wayricad tools list` to discover all 24 command interfaces, `wayricad tools doctor` to check an interpreter, and `wayricad tools run TOOL -- --help` for detailed options. The [all-tools CLI catalogue](docs/TOOL_CLI_CATALOGUE.md) includes multi-net PI/SI studies, thermal reports and repeatable jobsets.
+Use `wayricad tools list` to discover all 25 command interfaces, `wayricad tools doctor` to check an interpreter, and `wayricad tools run TOOL -- --help` for detailed options. The [all-tools CLI catalogue](docs/TOOL_CLI_CATALOGUE.md) includes multi-net PI/SI studies, thermal reports and repeatable jobsets.
 
 | Developer topic | Reference |
 |---|---|

@@ -2,7 +2,7 @@
 
 [Install](INSTALLATION.md) · [Choose a tool](#tool-directory) · [Routing](#routing-review) · [Electrical analysis](#electrical-analysis) · [BOM and libraries](#bom-and-project-libraries) · [Troubleshooting](TROUBLESHOOTING.md) · [CLI](CLI_USER_GUIDE.md)
 
-This guide covers the current 24-plugin source catalogue. Released packages and new candidate installers are identified in their individual guides. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
+This guide covers the current 25-plugin source catalogue. Released packages and new candidate installers are identified in their individual guides. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
 
 ## Install and first launch
 
@@ -15,6 +15,7 @@ This guide covers the current 24-plugin source catalogue. Released packages and 
    ```
 
 2. Select **WayriCAD Plugin Repository** and install your chosen tools. For an offline package file, download a PCM ZIP from [Releases](https://github.com/wayri/WayriCAD/releases) and choose **Install from File**. A ZIP contains one independent plugin.
+   Quick EMerge is a testing beta available from the [3.6.43-beta.1 prerelease](https://github.com/wayri/WayriCAD/releases/tag/v3.6.43-beta.1) via **Install from File**; the stable feed remains unchanged.
 3. Enable the API in **Preferences → Plugins** and configure the Python interpreter. Allow dependency preparation to finish. Installing a ZIP does not eliminate the first-run dependency requirement.
 4. Restart the PCB Editor, open and save the project, and launch a WayriCAD action. The action passes the originating editor's project context. File-based processing reads saved files; save recent edits first. Standalone CLI/desktop launches need an explicit project when no editor context exists.
 5. Start with **Preview**, **Inspect**, or the tool's read-only analysis. Review diagnostics before using a write/apply operation.
@@ -57,6 +58,7 @@ Select the linked name for detailed instructions. “Review” below means that 
 | Icon | Tool and detailed guide | Start with | Result and write boundary |
 |---|---|---|---|
 | <img src="../suite_assistant_plugin/icon.png" width="28" height="28" alt="WayriCAD Assistant icon"> | [WayriCAD Assistant](../suite_assistant_plugin/README.md) | Saved board and a task in plain English | Review a fixed-tool plan, clarify missing inputs, execute supported analyses and inspect reports (testing) |
+| <img src="../quick_emerge_plugin/icon.png" width="28" height="28" alt="Quick EMerge icon"> | [Quick EMerge](../quick_emerge_plugin/README.md) | Patch or line template, or saved two-layer PCB rule area | Review geometry and ideal ports, run bounded EM studies and inspect sampled fields (testing beta) |
 | <img src="../trace_refiner_plugin/icon.png" width="28" height="28" alt="Trace Refiner icon"> | [Trace Refiner](../trace_refiner_plugin/README.md) | Selected tracks/nets, net classes or layers | Preview minor jog cleanup, validate native connectivity/DRC, then apply with in-window undo |
 | <img src="../component_arranger_plugin/icon.png" width="28" height="28" alt="Component Arranger icon"> | [Component Arranger](../component_arranger_plugin/README.md) | Selected parts, sheets or confirmed schematic clusters | Preview anchored courtyard-aware group placement and measured crossings; native validation, backed-up Apply and in-window Undo |
 | <img src="../layer_counter_plugin/icon.png" width="28" height="28" alt="Layer Counter icon"> | [Layer Counter](../layer_counter_plugin/README.md) | Enabled copper layers and explicit core pairs | Preview and add grouped physical layer markers plus a zone-only keepout |

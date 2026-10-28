@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.6.42"
+version = "3.6.43"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -52,6 +52,7 @@ include = ["*_plugin", "*_plugin.*", "wayricad_runtime"]
 exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.tests.*"]
 
 [tool.setuptools.package-data]
+quick_emerge_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "resources/*.png"]
 wayricad_runtime = ["*.md"]
 suite_assistant_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 bom_studio_plugin = ["*.html", "*.md", "*.json", "*.png", "web/*.html", "web/*.js", "web/*.css", "resources/*.png", "resources/*.ico", "resources/*.md", "examples/*", "examples/*/*", "examples/*/*/*"]
