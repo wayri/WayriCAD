@@ -29,6 +29,25 @@ a guided Joule setup, Blender visualization and illustrated analysis guides.
 | Complete analysis workflows | [Marble and White Rabbit tutorials](docs/QUICK_TOOL_EXAMPLE_BOARDS.md) · [Detailed guides](#detailed-analysis-guides) |
 | Blender visualization | [Export supported board geometry, fields and thermal frames](wayricad_runtime/BLENDER.md) |
 
+<details>
+<summary>Measured speed improvements</summary>
+
+| Study | Before | 3.6.41 |
+|---|---:|---:|
+| Fresh Quick SI analysis — Marble | 7.09 s | 3.77 s |
+| Fresh Quick SI analysis — White Rabbit | 1.52 s | 0.52 s |
+| Marble multilayer thermal solve | 93.07 s | 65.02 s |
+| PI 3D field preparation benchmark | 80.9 ms | 18.2 ms |
+
+These local measurements cover the stated operations, not total startup for
+every board. SI serialized results and the compared thermal values matched.
+See the measurement links above for inputs, methods and numerical tolerances.
+
+</details>
+
+[Download 3.6.41](https://github.com/wayri/WayriCAD/releases/tag/v3.6.41) ·
+[Validation and known limits](docs/audits/RELEASE_3.6.41.md)
+
 ## Start here
 
 | What you need | Where to go |
@@ -59,11 +78,10 @@ Follow the [Marble and White Rabbit example-board preparation](docs/QUICK_TOOL_E
 for pinned sources, native-import limits and links to the worked tutorials and
 control references.
 
-**Blender visualization (source update):** completed Quick PI, Quick SI and
+**Blender visualization — included in 3.6.41:** completed Quick PI, Quick SI and
 QuickTherm results can be exported as Blender scenes, with supported fields and
 stored-frame thermal animation. See the [Blender walkthrough](wayricad_runtime/BLENDER.md)
-for the native actions, CLI and model limits. This update is in the source tree;
-the existing 3.6.40 downloads have not been replaced.
+for the plugin actions, CLI, animation controls and model limits.
 
 ## Showcase
 
@@ -296,7 +314,7 @@ currencies stay explicit.
 
 ## All 24 plugins
 
-All 24 plugins are available in release **3.6.40**. Assistant is marked **testing**;
+All 24 plugins are available in release **3.6.41**. Assistant is marked **testing**;
 individual package versions and runtime requirements are in their guides.
 Select a plugin for its full guide and supported models.
 
@@ -361,6 +379,25 @@ Public Marble, read-only. Exact selected copper is highlighted; zone borders
 remain outlines. [Workflow and native-capture scope](suite_assistant_plugin/README.md).
 
 ### [Quick PI](quick_pi_plugin/README.md)
+
+**Marble 3D copper and guided Joule setup · 3.6.41**
+
+<a href="quick_pi_plugin/help-marble-3d-volume.png"><img src="quick_pi_plugin/help-marble-3d-volume.png" width="960" alt="Quick PI solved Marble 3D copper current density with resistance and conservation checks"></a>
+
+Native Marble conductivity example: 33,238 tetrahedra, 5,000 displayed samples
+and an imposed 0.2 A load. [Reproduce the study](quick_pi_plugin/USER_GUIDE.md#marble-worked-example).
+
+<details>
+<summary>Materials and cooling for Joule feedback</summary>
+
+<a href="quick_pi_plugin/help-joule-guided.png"><img src="quick_pi_plugin/help-joule-guided.png" width="960" alt="Quick PI guided materials and cooling inputs with the selected net and terminals carried over"></a>
+
+Setup preview with illustrative physical inputs. PI's coupled thermal backend
+still rejects Marble's slots and nonplated holes; this image is not a solved
+coupled temperature result. The guide includes a runnable explicit steady
+Joule example and a separate [control reference](quick_pi_plugin/CONTROL_REFERENCE.md).
+
+</details>
 
 **Simpler AC setup and results · 3.6.40**
 
@@ -464,6 +501,15 @@ Rendered synthetic example with explicit model/coverage status; not a passed boa
 
 ### [QuickTherm](quick_therm_plugin/README.md)
 
+**Marble transient walkthrough · 3.6.41**
+
+<a href="quick_therm_plugin/examples/guide-marble-transient.png"><img src="quick_therm_plugin/examples/guide-marble-transient.png" width="960" alt="Three actual stored Marble thermal frames at zero, half and one second with the U1 heat source switching off"></a>
+
+Real board geometry with illustrative loads, capacities and cooling. The frames
+show stored solver states at 0, 0.5 and 1 s; U1 switches off at 0.5 s.
+[Setup, timestep selection and playback](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md#marble-worked-example) ·
+[Blender animation export](wayricad_runtime/BLENDER.md).
+
 **Guided heating study · 3.6.39**
 
 <a href="quick_therm_plugin/examples/quicktherm-heating-study.png"><img src="quick_therm_plugin/examples/quicktherm-heating-study.png" width="834" alt="QuickTherm source watts, cooling and transient timing review"></a>
@@ -540,7 +586,15 @@ Rendered synthetic example with explicit model/coverage status; not a passed boa
 
 ### [Quick SI](signal_integrity_advisor_plugin/ReadMe.md)
 
-**Shunt capacitors in native transient circuits · development**
+**White Rabbit route walkthrough · 3.6.41**
+
+<a href="signal_integrity_advisor_plugin/help-white-rabbit-worked.png"><img src="signal_integrity_advisor_plugin/help-white-rabbit-worked.png" width="960" alt="Quick SI native White Rabbit route workspace showing EBI1_NBS3 and its source and receiver"></a>
+
+Native White Rabbit import: `EBI1_NBS3`, `IC33.J34` to `IC6.A9`, 62.555 mm.
+The tutorial declares its uniform-line and driver/receiver assumptions.
+[Worked example and input limits](signal_integrity_advisor_plugin/USER_GUIDE.md#white-rabbit-worked-example).
+
+**Shunt capacitors in native transient circuits · 3.6.40**
 
 <a href="signal_integrity_advisor_plugin/help-shunt-capacitors.png"><img src="signal_integrity_advisor_plugin/help-shunt-capacitors.png" width="854" alt="SI source and receiver capacitor branches with editable C ESR ESL"></a>
 
@@ -948,7 +1002,7 @@ python tools/validate_packages.py --archive-dir .validation/candidate-pcm
 ```
 
 Each plugin also has its own tests. Skipped checks do not establish native GUI
-compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.40.md).
+compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.41.md).
 
 ## Acknowledgements and AI disclosure
 
