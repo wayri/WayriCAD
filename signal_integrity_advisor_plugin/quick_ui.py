@@ -127,6 +127,9 @@ class QuickSIPanel(wx.Panel):
         self.run_button=wx.Button(left,label='Screen selected path');self.run_button.Bind(wx.EVT_BUTTON,self.run);form.Add(self.run_button,0,wx.EXPAND|wx.TOP,12)
         self.cancel_button=wx.Button(left,label='Cancel analysis');self.cancel_button.Disable();self.cancel_button.Bind(wx.EVT_BUTTON,self.cancel_run);form.Add(self.cancel_button,0,wx.EXPAND|wx.TOP,5)
         self.export=wx.Button(left,label='Export local HTML report');self.export.Disable();self.export.Bind(wx.EVT_BUTTON,self.export_report);form.Add(self.export,0,wx.EXPAND|wx.TOP,6)
+        self.blender=wx.Button(left,label='Blender…');self.blender.Disable();self.blender.Bind(wx.EVT_BUTTON,self.export_blender)
+        self.blender.SetToolTip('Export current route evidence for Blender; no traveling-wave simulation is inferred.')
+        form.Add(self.blender,0,wx.EXPAND|wx.TOP,6)
         self.export_circuit_button=wx.Button(left,label='Export KiCad circuit…');self.export_circuit_button.Disable()
         self.export_circuit_button.Bind(wx.EVT_BUTTON,lambda event:self._start_circuit_export(False));form.Add(self.export_circuit_button,0,wx.EXPAND|wx.TOP,6)
         self.copy_circuit_button=wx.Button(left,label='Copy circuit…');self.copy_circuit_button.Disable()
@@ -337,7 +340,7 @@ class QuickSIPanel(wx.Panel):
         dialog.ShowModal();dialog.Destroy()
 
     def run_study(self,event=None):
-        if self._busy or self._closed:return
+        if self._busy or self._closed or self._circuit_busy:return
         self.changed(None)
         try:
             import copy
@@ -351,7 +354,7 @@ class QuickSIPanel(wx.Panel):
             if fingerprints!=self._source_fingerprints:raise ValueError('Saved PCB or rules changed. Reopen Quick SI before running.')
             request={'mode':'study','board_path':self.board.GetFileName(),'source_fingerprints':fingerprints,'study':config}
             self._cancel=threading.Event();cancel=self._cancel;generation=self._generation;self._job_serial+=1;serial=self._job_serial
-            self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self.status.SetLabel('Screening routes, explicit returns and requested local coupling in one saved snapshot…')
+            self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self._update_circuit_buttons();self.status.SetLabel('Screening routes, explicit returns and requested local coupling in one saved snapshot…')
             def work():
                 payload=error=None
                 try:payload=run_job(request,cancelled=cancel.is_set)
@@ -581,7 +584,7 @@ class QuickSIPanel(wx.Panel):
         return values
 
     def run(self,event=None):
-        if self._busy or self._closed:return
+        if self._busy or self._closed or self._circuit_busy:return
         self.changed(None)
         try:
             values=self._inputs()
@@ -598,7 +601,7 @@ class QuickSIPanel(wx.Panel):
             request={'board_path':self.board.GetFileName(),'source_fingerprints':fingerprints,'net':self.fields['net'].GetValue(),
                      'start':self.fields['start'].GetValue(),'end':self.fields['end'].GetValue(),'reference':self.fields['reference'].GetValue(),'inputs':values}
             self._cancel=threading.Event();cancel=self._cancel;generation=self._generation;self._job_serial+=1;serial=self._job_serial
-            self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self.status.SetLabel('Screening saved PCB in a cancellable worker… You can change inputs or cancel.')
+            self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self._update_circuit_buttons();self.status.SetLabel('Screening saved PCB in a cancellable worker… You can change inputs or cancel.')
             def work():
                 payload=error=None
                 try:payload=run_job(request,cancelled=cancel.is_set)
@@ -685,6 +688,45 @@ class QuickSIPanel(wx.Panel):
         ready=not (self._closed or self._busy or self._circuit_busy) and (
             self.report is not None or bool(self.study_report and any('report' in case for case in self.study_report['cases'])))
         self.export_circuit_button.Enable(ready);self.copy_circuit_button.Enable(ready)
+        if hasattr(self,'blender'):self.blender.Enable(ready)
+
+    def export_blender(self,event=None):
+        if self._closed or self._busy or self._circuit_busy:return
+        bundle=self.study_report or self.report
+        if not bundle:return
+        if self.saved_board:
+            from .service import source_fingerprints
+            try:current=source_fingerprints(self.board.GetFileName())
+            except (OSError,ValueError,RuntimeError) as exc:
+                self.status.SetLabel('Cannot verify saved sources for Blender export: '+str(exc));return
+            if self._result_fingerprints!=current:
+                self.changed(None);self.status.SetLabel('Saved sources changed; reopen Quick SI and rerun before Blender export.');return
+            bundle=dict(bundle)
+            bundle['source_fingerprints']=dict(self._result_fingerprints)
+        from wayricad_runtime.blender_ui import choose_export
+        choose_export(self,bundle,'si',self._blender_task,self.status.SetLabel)
+
+    def _blender_task(self,operation,finished,message):
+        """Use the circuit-export worker gate without blocking native rendering."""
+        if self._closed or self._busy or self._circuit_busy:return
+        generation=self._generation
+        self._circuit_busy=True;self.run_button.Disable();self._update_circuit_buttons();self.status.SetLabel(message)
+        def deliver(answer,error):
+            if self._closed:return
+            self._circuit_busy=False;self.run_button.Enable(not self._busy);self._update_circuit_buttons()
+            if error is not None:self.status.SetLabel('Blender export: '+str(error));return
+            if generation!=self._generation:
+                self.status.SetLabel('Blender bundle represents the previous completed result; inputs changed during export.');return
+            try:finished(answer)
+            except Exception as exc:self.status.SetLabel('Blender export: '+str(exc))
+        def work():
+            answer=error=None
+            try:answer=operation()
+            except Exception as exc:error=exc
+            if not self._closed:
+                try:wx.CallAfter(deliver,answer,error)
+                except RuntimeError:pass
+        threading.Thread(target=work,daemon=True,name='Quick SI Blender export').start()
 
     def _circuit_cases(self):
         if not self.study_report:

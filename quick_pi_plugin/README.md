@@ -2,6 +2,8 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
+**Blender visualization (updated source):** after a supported result, choose **Blender…** to export geometry and fields, with computed-frame animation where available. [Export workflow and limits](../wayricad_runtime/BLENDER.md).
+
 **[Detailed user guide](USER_GUIDE.md)** · [Offline HTML guide](USER_GUIDE.html) · [Compact help](help.html)
 
 Start with [Choose a study](USER_GUIDE.md#choose-a-study), then follow the inputs,

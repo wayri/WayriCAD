@@ -639,3 +639,9 @@ For equations, implementation scope, analytical checks and research attribution:
 All screenshots above retain their documented synthetic/public-board context.
 Older screenshots elsewhere in the README remain useful examples but their
 capture version is not evidence that every window has been recaptured for 3.6.40.
+
+## Blender visualization
+
+This feature is in the updated source; existing 3.6.40 installers do not contain it.
+
+After a supported completed study, choose **Blender…** in the main result workspace. Choose a new output folder and optionally open an installed Blender. The export includes geometry, available field data and supported computed frames. Export saved transient or other supported results through the shared CLI when they are not the main workspace result. Review [the Blender walkthrough](../wayricad_runtime/BLENDER.md) for commands, units, playback, result coverage and limits. This is visualization, not an additional numerical solve.

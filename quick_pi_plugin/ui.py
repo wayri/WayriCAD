@@ -163,7 +163,9 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.export=icon_button(self.setup_panel,'Export',wx.ART_FILE_SAVE,'Export the solved report')
         self.series_button=icon_button(self.setup_panel,'Series',wx.ART_LIST_VIEW,'Build a series path with explicit components')
         self.power_flow=icon_button(self.setup_panel,'Power flow',wx.ART_REPORT_VIEW,'Open the source-to-sink Sankey power budget')
-        for control in (self.preview,self.run,self.export,self.series_button,self.power_flow):actions.Add(control,0,wx.EXPAND)
+        self.blender=icon_button(self.setup_panel,'Blender…',wx.ART_FILE_SAVE,'Export solved geometry and fields for Blender visualization')
+        self.blender.Bind(wx.EVT_BUTTON,self.on_blender)
+        for control in (self.preview,self.run,self.export,self.series_button,self.power_flow,self.blender):actions.Add(control,0,wx.EXPAND)
         setup.Add(actions,0,wx.EXPAND|wx.ALL,8);self.setup_panel.SetSizer(setup)
 
         self.splitter=wx.SplitterWindow(self.workspace_splitter,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
@@ -423,6 +425,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.export.Enable(not self._busy and bool(self.volume_bundle.get('result') if volume else self.bundle.get('result')) and self._saved_source_current)
         self.power_flow.Enable(self.export.IsEnabled())
         if getattr(self,'_live_running',False) or getattr(self,'_live_pending',None) is not None:self.export.Disable();self.power_flow.Disable()
+        if hasattr(self,'blender'):self.blender.Enable(self.export.IsEnabled() and not placement)
         self.cancel.Enable(self._busy);self.cancel.Show(not placement);self.gauge.Show(self._busy and not placement)
         self.more.SetLabel('Reload' if placement else 'More')
         self.more.SetToolTip('Reload the saved board' if placement else 'Transient PI, electrothermal, series studies and diagnostics')
@@ -2009,6 +2012,16 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         bundle=self.bundle
         self._task(lambda:write_report(path,bundle,layer),lambda result:self.status.SetLabel('Exported HTML maps and all-layer JSON: '+result['html']),
                    'Rendering the selected copper view and exporting all numerical results…')
+
+    def on_blender(self,event=None):
+        if self._busy or getattr(self,'_live_running',False) or getattr(self,'_live_pending',None) is not None:
+            self.status.SetLabel('Wait for the current calculation before exporting to Blender.');return
+        if not self._snapshot_current():
+            self.status.SetLabel('Saved board changed. Reload and rerun before exporting to Blender.');return
+        bundle=self.volume_bundle if self.model_dimension.GetSelection()==1 else self.bundle
+        if not bundle.get('result'):return
+        from wayricad_runtime.blender_ui import choose_export
+        choose_export(self,bundle,'pi',self._task,self.status.SetLabel)
 
     def on_cancel(self,event=None):
         pending=getattr(self,'_net_filter_timer',None)

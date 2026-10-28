@@ -101,3 +101,9 @@ include docs/audits/QUICK_PI_COPPER_LABELS_2026-10-27.md
 include docs/audits/QUICK_PI_AC_READABILITY_2026-10-28.md
 include tests/test_pdf_report.py
 include tests/test_report_export.py
+include tests/test_blender_adapters.py
+include tests/test_blender_export.py
+include tests/test_blender_importer.py
+include tests/test_blender_ui.py
+include docs/audits/BLENDER_VISUALIZATION_2026-10-28.md
+include docs/images/blender-marble-thermal.png

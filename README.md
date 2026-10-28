@@ -60,6 +60,12 @@ Download the published release or refresh the WayriCAD package repository in KiC
 Each guide covers setup, result interpretation, examples, command-line use,
 report export and troubleshooting, including the limits of each solver.
 
+**Blender visualization (source update):** completed Quick PI, Quick SI and
+QuickTherm results can be exported as Blender scenes, with supported fields and
+stored-frame thermal animation. See the [Blender walkthrough](wayricad_runtime/BLENDER.md)
+for the native actions, CLI and model limits. This update is in the source tree;
+the existing 3.6.40 downloads have not been replaced.
+
 ## Showcase
 
 Click a screenshot for its full resolution. [More screenshots, grouped by plugin](#plugin-previews).

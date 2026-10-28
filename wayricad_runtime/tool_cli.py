@@ -81,11 +81,27 @@ def main(argv=None):
     pdf.add_argument('source',type=Path);pdf.add_argument('--output',type=Path,required=True)
     pdf.add_argument('--evidence',type=Path,help='Optional paired JSON for source fingerprint checks.')
     pdf.add_argument('--include-raw-evidence',action='store_true',help='Include full JSON blocks in the PDF appendix.')
+    blender=subs.add_parser('blender',help='Export completed PI/SI/Therm results as a data-only Blender scene bundle.')
+    blender.add_argument('source',type=Path,help='Saved complete analysis JSON, not an HTML report or lightweight case reference.')
+    blender.add_argument('--output',type=Path,required=True,help='New visualization directory; existing paths are never replaced.')
+    blender.add_argument('--tool',choices=('auto','pi','si','therm'),default='auto')
+    blender.add_argument('--metric',help='Supported field name for this result; see the Blender guide.')
+    blender.add_argument('--open',action='store_true',help='Launch the optional installed Blender after exporting.')
+    blender.add_argument('--blender',type=Path,help='Explicit Blender executable; also launches the importer.')
+    blender.add_argument('--background',action='store_true',help='Build visualization.blend headlessly, with a ten-minute timeout.')
+    blender.add_argument('--render',type=Path,help='New PNG preview path; requires --background.')
     run=subs.add_parser('run',help='Dispatch a tool; arguments after TOOL (optionally --) go unchanged to its CLI.')
     run.add_argument('--python',type=Path,help='Explicit prepared interpreter, e.g. KiCad 10 Python for native board commands.')
     run.add_argument('tool');run.add_argument('arguments',nargs=argparse.REMAINDER)
     args=parser.parse_args(argv)
     try:
+        if args.operation=='blender':
+            from .blender_export import export_result, run_blender
+            if args.render and not args.background:raise ValueError('--render requires --background.')
+            result=export_result(args.source,args.output,tool=args.tool,metric=args.metric)
+            if args.open or args.blender or args.background:
+                result.update(run_blender(args.output,args.blender,background=args.background,render=args.render))
+            print(json.dumps(result,indent=2));return 0
         if args.operation=='report':
             from .report_export import export
             print(json.dumps(export(args.source,html=args.html,pdf=args.pdf,title=args.title),indent=2));return 0

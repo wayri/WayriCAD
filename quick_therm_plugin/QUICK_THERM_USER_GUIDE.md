@@ -565,3 +565,9 @@ measured hardware performance.
 - [Solver references and research](README.md#references-and-research)
 - [Installation and compatibility](../docs/INSTALLATION.md)
 - [Offline HTML edition](QUICK_THERM_USER_GUIDE.html)
+
+## Blender visualization
+
+This feature is in the updated source; existing 3.6.40 installers do not contain it.
+
+After a supported completed study, choose **Blender…** in the main result workspace. Choose a new output folder and optionally open an installed Blender. The export includes geometry, available field data and supported computed frames. Export saved transient or other supported results through the shared CLI when they are not the main workspace result. Review [the Blender walkthrough](../wayricad_runtime/BLENDER.md) for commands, units, playback, result coverage and limits. This is visualization, not an additional numerical solve.

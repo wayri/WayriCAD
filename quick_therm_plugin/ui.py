@@ -122,6 +122,7 @@ class QuickThermFrame(wx.Frame):
         if hasattr(self, 'therm_inputs'):
             self.therm_inputs.Enable(not self._busy)
         self.therm_export.Enable(not self._busy and bool(self.thermal_bundle.get("quick_therm")))
+        if hasattr(self,'therm_blender'):self.therm_blender.Enable(self.therm_export.IsEnabled())
         self.therm_sankey.Enable(not self._busy and bool(self.thermal_bundle.get("quick_therm")))
         self.therm_sink_button.Enable(not self._busy)
         self.therm_sync.Enable(not self._busy and bool(self.thermal_bundle))
@@ -266,6 +267,11 @@ class QuickThermFrame(wx.Frame):
         self._task(lambda: write_report(path, self.thermal_bundle),
                    lambda result: self.therm_status.SetLabel("Exported " + result["html"]),
                    "Writing local HTML and JSON evidence…")
+
+    def on_blender(self,event=None):
+        if self._busy or not self.thermal_bundle.get('quick_therm'):return
+        from wayricad_runtime.blender_ui import choose_export
+        choose_export(self,self.thermal_bundle,'therm',self._task,self.therm_status.SetLabel)
 
     def on_thermal_sankey(self, event=None):
         """Open an offline source-power diagram without exporting board geometry."""
@@ -525,11 +531,13 @@ class QuickThermFrame(wx.Frame):
         self.therm_whole_board.SetToolTip('Review materials and boundaries for a physical board field.')
         self.therm_sink_button=wx.Button(page,label='Heatsinks…');self.therm_sink_button.Bind(wx.EVT_BUTTON,self.on_virtual_heatsinks)
         self.therm_export=wx.Button(page,label='Export…');self.therm_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('quick_therm'))
+        self.therm_blender=wx.Button(page,label='Blender…');self.therm_blender.Bind(wx.EVT_BUTTON,self.on_blender)
+        self.therm_blender.SetToolTip('Export current board temperatures and stored computed frames for Blender.')
         self.therm_sankey=wx.Button(page,label='Dissipation Sankey…');self.therm_sankey.Bind(wx.EVT_BUTTON,self.on_thermal_sankey)
         self.therm_sankey.SetToolTip('Open an offline diagram of individual source watts → total known dissipation at the saved steady/reference operating point. Also included in HTML reports.')
         actions=wx.FlexGridSizer(0,2,5,5)
         for col in (0,1):actions.AddGrowableCol(col)
-        for control in (self.therm_run,self.therm_whole_board,self.therm_sink_button,self.therm_export,self.therm_sankey):actions.Add(control,0,wx.EXPAND)
+        for control in (self.therm_run,self.therm_whole_board,self.therm_sink_button,self.therm_export,self.therm_sankey,self.therm_blender):actions.Add(control,0,wx.EXPAND)
         layout.Add(actions,0,wx.EXPAND|wx.ALL,8)
         self.therm_status=wx.StaticText(page,label='Open Component inputs to review scanned values and include parts.');self.therm_status.Wrap(270)
         layout.Add(self.therm_status,0,wx.EXPAND|wx.ALL,8)

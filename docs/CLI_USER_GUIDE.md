@@ -7,6 +7,11 @@ For complete analysis workflows and command examples, see the
 These explain the inputs and model limits behind each command as well as how to
 inspect and export its results.
 
+For Blender visualization, use
+`python -m wayricad_runtime.tool_cli blender result.json --output new-scene-folder`.
+The [Blender guide](../wayricad_runtime/BLENDER.md) explains optional launching,
+headless `.blend` creation, supported fields and computed-frame animation.
+
 [HTML and PDF reporting](../wayricad_runtime/REPORTS.md) covers
 `python -m wayricad_runtime.tool_cli report result.json --html review.html --pdf review.pdf`
 and `report-pdf review.html --output review.pdf`. Raw JSON stays optional; use

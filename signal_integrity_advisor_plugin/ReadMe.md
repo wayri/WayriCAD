@@ -2,6 +2,8 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
+**Blender visualization (updated source):** after a supported result, choose **Blender…** to export geometry and fields, with computed-frame animation where available. [Export workflow and limits](../wayricad_runtime/BLENDER.md).
+
 **Detailed user guide:** [Read the step-by-step guide](USER_GUIDE.md) · [Offline HTML](USER_GUIDE.html). Covers setup, all workspace tabs, CLI, reports, recovery and model limits.
 
 ## Start here
