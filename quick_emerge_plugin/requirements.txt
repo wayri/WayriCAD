@@ -1,0 +1,2 @@
+# Desktop only. The solver manager provisions EMerge separately on first open.
+-r requirements-desktop.txt

@@ -12,7 +12,8 @@ def relaunch(root, entrypoint, *, profile='ipc', loading=None):
     from .runtime_setup import (ensure_runtime, child_environment, REQUIREMENTS_IPC,
                                 REQUIREMENTS_EXTRACT, REQUIREMENTS_BOM,
                                 REQUIREMENTS_QUICK_PI, REQUIREMENTS_QUICK_THERM,
-                                REQUIREMENTS_MAGNETICS, REQUIREMENTS_MECHANICAL)
+                                REQUIREMENTS_MAGNETICS, REQUIREMENTS_MECHANICAL,
+                                REQUIREMENTS_QUICK_EMERGE)
     requirements = {} if profile in {'quick-pi-board', 'quick-therm-board'} else dict(REQUIREMENTS_IPC)
     if profile == 'extract':
         requirements.update(REQUIREMENTS_EXTRACT)
@@ -24,6 +25,8 @@ def relaunch(root, entrypoint, *, profile='ipc', loading=None):
         requirements.update(REQUIREMENTS_QUICK_THERM)
     if profile in {'quick-pi-board', 'quick-therm-board'}:
         requirements.pop('kipy', None)
+    if profile == 'quick-emerge':
+        requirements.update(REQUIREMENTS_QUICK_EMERGE)
     if profile == 'magnetics':
         requirements.update(REQUIREMENTS_MAGNETICS)
     if profile == 'mechanical':

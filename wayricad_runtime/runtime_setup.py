@@ -69,6 +69,12 @@ REQUIREMENTS_QUICK_THERM = {
     'matplotlib': 'matplotlib>=3.7,<4',
     'kipy': 'kicad-python>=0.8.0,<0.9',
 }
+REQUIREMENTS_QUICK_EMERGE = {
+    'numpy': 'numpy>=2.2,<2.5',
+    'matplotlib': 'matplotlib>=3.8,<4',
+    'packaging': 'packaging>=23',
+    'kipy': 'kicad-python>=0.8.0,<0.9',
+}
 REQUIREMENTS_MAGNETICS = {
     'numpy': 'numpy>=1.26,<3', 'scipy': 'scipy>=1.11,<2',
     'matplotlib': 'matplotlib>=3.8,<4',

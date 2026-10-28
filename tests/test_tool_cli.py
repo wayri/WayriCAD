@@ -13,7 +13,7 @@ class ToolCLITests(unittest.TestCase):
     def test_catalogue_covers_every_registered_plugin(self):
         from extract_pins_plugin.automation import PLUGIN_CAPABILITIES
         self.assertEqual(set(tool_cli.COMMANDS),{row[0] for row in PLUGIN_CAPABILITIES})
-        self.assertEqual(len(tool_cli.catalogue()['tools']),24)
+        self.assertEqual(len(tool_cli.catalogue()['tools']),25)
 
     def test_alias_and_fixed_module_dispatch_preserve_literal_arguments(self):
         self.assertEqual(tool_cli.command('coordinator', ['--help']),

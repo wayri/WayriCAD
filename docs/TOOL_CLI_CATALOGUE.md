@@ -133,3 +133,7 @@ Silkscreen CLI planning is read only, keeps source hashes, reports proposed posi
 | `wayricad-si circuit study.json --assignments assignments.json --case channelA --output new-circuit` | Native KiCad circuit and retained vendor-model bundle; repeat `--case` to select more routes. |
 
 [Assignment format, assumptions and unsupported topology](../signal_integrity_advisor_plugin/ReadMe.md).
+
+## Quick EMerge beta
+
+`wayricad tools run quick-emerge -- --help` lists native-window, worker and runtime qualification entry points. Worker and qualification commands require the isolated solver interpreter; `--board` opens the native window and requires desktop dependencies. These commands do not modify the PCB. See [Quick EMerge](../quick_emerge_plugin/README.md).
