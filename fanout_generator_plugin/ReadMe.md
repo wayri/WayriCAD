@@ -9,6 +9,7 @@ Start with a small scope, choose a style, inspect the proposal, then apply.
 |---|---|
 | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) | [Install](../docs/INSTALLATION.md) · [Suite CLI](../docs/TOOL_CLI_CATALOGUE.md) |
 | [Choose, style, review](#choose-style-review) | [Command line](#command-line) |
+| [All fanout styles in pictures](#fanout-style-catalogue) | [Modes, angles and presets](#styles-modes-and-presets) |
 | [Connector-edge breakout](#connector-edge-breakout) | [Per-pin/net rules](#different-rules-for-different-pins) |
 | [Adaptive escapes](#adaptive-escapes-around-existing-routing) | [Limitations](#limitations) · [Offline help](help.html) |
 
@@ -238,6 +239,107 @@ Signal families include **DDR, GDDR, SERDES, PCIe, PCI, PXI, PXIe and LVDS**. Ch
 **Auto differential pairs** reviews named mates together, routes a shared parallel section, reports actual escape lengths and rejects both members when a path, spacing or skew check fails. Every path segment appears in the canvas and exported SVG. See the bundled [advanced guide](advanced-fanout.md), [high-speed settings example](high-speed-settings.json) and [custom-angle example](custom-angle-settings.json). Example dimensions are illustrative and must be adapted to your board constraints.
 
 ![Paired escape preview](help-paired.png)
+
+## Fanout style catalogue
+
+The selector contains **16 styles**. **Via-in-pad** is a separate output mode.
+Choose by the actual pad layout, then inspect the live component preview before
+applying. The pictures below show each construction on a spacious synthetic
+footprint; they are **geometry illustrations, not validated routing plans**.
+Gold marks pads, teal marks constructed tracks/vias, and the dashed outline gives
+footprint context (the connector outline is its courtyard). Click a picture to
+enlarge it. Existing native-window screenshots above and below are retained.
+
+### QFP, QFN, SOIC and other perimeter banks
+
+Use these on single aligned banks around a package. Center/exposed pads need
+their own explicit rule. Directions follow the footprint, including its rotation.
+
+| Style and when to use it | Geometry picture |
+|---|---|
+| **Perimeter pitch expansion** — Spreads a bank to a wider outer pitch while preserving pin order. Straight launches, 45° spreading segments and a common outer front make space for vias or onward routing. **Outer pitch = 0** selects a noncompressing pitch from the pad pitch and reviewed track/via clearance; set a positive pitch to request it explicitly. **Launch length** and **Escape length** control reach. Requires Fixed routing, Independent pins, Pattern direction and no angle/XY overrides. | <img src="style-gallery/perimeter-pitch-expansion.png" width="360" alt="Perimeter pitch expansion with straight launches and wider ordered outer endpoints"> |
+| **Staggered rows** — Alternates short and long straight outward escapes along each bank. Useful when adjacent via endpoints need two rows. **Escape length** is the short reach; **Row stagger** adds reach to alternate pads. Alternation follows the complete geometric bank, so selecting fewer pins does not restart it. | <img src="style-gallery/staggered-rows.png" width="360" alt="Perimeter bank with alternating short and long outward escapes"> |
+| **Perimeter alternating inward / outward** — Alternates a short outward escape with a longer inward escape along each bank. Useful only where there is real internal space. The long reach is **Escape length + Row stagger**. Exposed pads or internal copper can block inward routes; rejected pads remain untouched. | <img src="style-gallery/perimeter-alternating-inward-outward.png" width="360" alt="Perimeter bank alternating outward and inward escape directions"> |
+| **Perimeter outward** — Sends each pad straight along its dominant footprint-local edge normal. A simple starting point when a bank already has enough pitch; it does not widen spacing between endpoints. **Escape length** controls reach. | <img src="style-gallery/perimeter-outward.png" width="360" alt="Straight outward escapes normal to each package edge"> |
+
+Both alternating styles require **Fixed → Independent → Pattern**, with zero
+angle offset and XY endpoint overrides. They reject multiple rows on one side;
+use a grid style for arrays. Row stagger is added to the pad-center reach, not
+measured from the copper edge.
+
+### BGA, LGA and other pad grids
+
+These establish short local escape directions; they do not route all inner rows
+out of a dense BGA. Similar-looking pictures can represent different rules.
+In particular, the current BGA/LGA grid and Quadrant outward rules both choose
+the local quadrant diagonal.
+
+| Style and when to use it | Geometry picture |
+|---|---|
+| **BGA/LGA grid outward** — Sends pads diagonally outward according to their footprint-local quadrant. Useful as a grid breakout seed; it does not assign routing channels or layers automatically. Adjust **Escape length** to the real pitch and via geometry. | <img src="style-gallery/bga-lga-grid-outward.png" width="360" alt="Pad array with diagonal outward escapes by quadrant"> |
+| **Dogbone outward** — Quantizes the direction away from the footprint origin to the nearest 45°. Creates a short track and terminal via; dogbone styles create vias even when the ordinary add-vias option is off. Useful where a nearby offset via fits between array pads. | <img src="style-gallery/dogbone-outward.png" width="360" alt="Dogbone outward with nearest-45-degree directions and terminal vias"> |
+| **Dogbone inward** — Reverses the quantized dogbone direction toward the footprint interior, retaining the terminal via. Useful only when inward space is available. Converging routes can collide; the construction picture does not imply acceptance. | <img src="style-gallery/dogbone-inward.png" width="360" alt="Dogbone inward pointing toward the array interior"> |
+| **Quadrant outward** — Uses one of four 45° diagonal headings from the signs of the footprint-local X/Y pad position. Useful for a consistent diagonal direction throughout a quadrant. Unlike Dogbone outward, it does not choose horizontal or vertical headings. | <img src="style-gallery/quadrant-outward.png" width="360" alt="Four array quadrants using four outward diagonal headings"> |
+| **Quadrant inward** — Reverses each quadrant diagonal. A directional seed for selected pads with usable interior space; check neighboring pads and other inward endpoints carefully. | <img src="style-gallery/quadrant-inward.png" width="360" alt="Array quadrants with reversed inward diagonal headings"> |
+| **Four-corner outward** — Points toward the corresponding corner of the native footprint bounding box. Headings vary with pad position rather than using four fixed diagonals. Review the bounding box, especially on rotated or unusually shaped footprints. | <img src="style-gallery/four-corner-outward.png" width="360" alt="Array escapes aiming toward the corresponding footprint bounding-box corners"> |
+| **Four-corner inward** — Reverses the corresponding corner heading. Intended for explicit inward breakout choices, with the same obstacle checks and potential convergence problems as other inward styles. | <img src="style-gallery/four-corner-inward.png" width="360" alt="Array escapes pointing away from their corresponding bounding-box corners toward the interior"> |
+
+### Connectors: SMT and plated through-hole
+
+| Style and when to use it | Geometry picture |
+|---|---|
+| **Connector edge** — Routes to just beyond the selected connector's footprint-local courtyard, falling back to its body/pad hull. Choose **Nearest edge**, **Top**, **Bottom**, **Left** or **Right**; these directions rotate with the footprint. **Edge margin** controls the extra distance. Its bounded obstacle-aware search is separate from the Adaptive mode and requires Fixed routing with Independent pins. Suitable for pin headers, D-sub and other connectors when a legal local breakout exists; NPTH holes are not signal pads. | <img src="style-gallery/connector-edge.png" width="360" alt="Six plated connector pads escaped to their nearest courtyard edge"> |
+
+The example uses six plated pins, nearest-edge exits, no added vias and a 0.5 mm
+edge margin. For dense connectors, select only the intended pins/nets and inspect
+rejections. A reduced local clearance is an explicit review-project export, not
+a silent rule change in the working board. See [connector-edge breakout](#connector-edge-breakout).
+
+### General and custom directions
+
+| Style and when to use it | Geometry picture |
+|---|---|
+| **Radial outward** — Points directly away from the footprint origin without snapping the heading. Useful for irregular distributions where a radial launch fits. A pad at the origin has no meaningful radial direction, so give center pads an explicit rule. | <img src="style-gallery/radial-outward.png" width="360" alt="Continuous radial outward directions from the footprint origin"> |
+| **45-degree spread** — Turns 45° from the nearest footprint-local edge normal, spreading toward the relevant half of that side. Useful for outward diagonal launches around perimeter packages. | <img src="style-gallery/45-degree-spread.png" width="360" alt="Perimeter escapes spreading 45 degrees from their edge normals"> |
+| **Custom-angle spread** — The same edge-normal spreading rule with an editable **Escape angle** below 90° in Pattern mode. The picture uses **30°**. Use this when a shallower outward angle fits better than 45°. | <img src="style-gallery/custom-angle-spread.png" width="360" alt="Perimeter escapes spreading at a custom 30-degree angle"> |
+| **Straight + angled escape** — Starts straight along the footprint edge normal, then turns to the chosen spreading angle. **Launch length** sets the initial straight portion; **Escape length** includes both portions before XY offsets and must exceed the launch. The picture uses a 0.35 mm launch and 30° turn. | <img src="style-gallery/straight-angled-escape.png" width="360" alt="Perimeter escapes with a straight launch followed by a 30-degree angled segment"> |
+
+### Via-in-pad output
+
+| Mode and when to use it | Geometry picture |
+|---|---|
+| **Via-in-pad** — Places the via at the selected pad center, without an escape track. Select it through **Output mode**, rather than the 16-style selector. Useful for explicitly reviewed SMD connections where the fabrication process supports the required via treatment. Pad/via geometry and through-layer obstacles still matter; the plugin does not decide whether filling, capping or special assembly processing is required. | <img src="style-gallery/via-in-pad.png" width="360" alt="Vias centered directly on the array pads with no escape tracks"> |
+
+### Styles, modes and presets
+
+| Control | What it changes | Picture / details |
+|---|---|---|
+| **Fixed / Adaptive routing** | Fixed constructs the selected template. Adaptive searches supported nearby paths, can continue a simple open straight-track stub and may differ from the fixed picture. It does not move existing copper. Connector edge already has its own search; paired escapes use Fixed. | [Actual adaptive preview](#adaptive-escapes-around-existing-routing) |
+| **Independent / Auto differential pairs** | Pair mode replaces individual paths with a coupled parallel escape, optional terminal via flare and an escape-skew check. It requires an unambiguous named mate; it does not compute impedance or perform full-route length matching. | [Paired escape picture](help-paired.png) · [pair settings](advanced-fanout.md#differential-pair-review) |
+| **Pattern / Board absolute / Footprint relative** | Pattern uses the style's geometric rule. Board absolute sets a fixed board heading; Footprint relative rotates a specified heading with the component. In board coordinates, 0° is +X and 90° is +Y, downward in the preview. Package-aligned expansion/stagger styles restrict overrides as described above. | [Angle and dimension guide](help-dimensions.png) |
+| **Add vias / Escape layer** | Adds terminal through vias to ordinary escapes, or selects the escape copper layer. Dogbone and via-in-pad have their own mandatory via behavior; a layer transition may require a source via. | [Advanced geometry guide](advanced-fanout.md) |
+| **Signal profile** | Generic, DDR, GDDR, SERDES, PCIe, PCI, PXI, PXIe and LVDS suggest naming filters and geometry/pair defaults when explicitly loaded. They are not extra fanout styles and do not calculate width or impedance. | [High-speed selection](#advanced-styles-and-high-speed-selection) |
+| **Per-pin / net groups** | Combines styles, dimensions, layers and output modes within one reviewed plan. First matching rule wins; inspect unmatched-pin policy. | [Group picture and workflow](#different-rules-for-different-pins) |
+
+### Picture provenance and dimensions
+
+All 17 catalogue pictures were generated with KiCad 10.0.6 from native synthetic
+footprints using the plugin's path-construction functions. The connector uses
+the actual planner and its six routes were accepted locally. The other pictures
+deliberately show **construction before obstacle/clearance acceptance**, so inward
+convergence remains visible rather than being presented as a successful plan.
+No user board, private path or personal data appears in the pictures.
+
+Common illustrative settings: 0.15 mm track, 0.15 mm clearance, 0.5/0.2 mm via
+diameter/drill, 0.9 mm escape length, 0.35 mm launch, 0.65 mm extra stagger and
+2.05 mm expanded outer pitch. These are examples, not manufacturing defaults or
+recommendations. The grids have 2.4 mm pitch to make headings readable; they do
+not represent a qualified fine-pitch BGA breakout.
+
+The reproducible [renderer](../tools/render_fanout_style_catalogue.py) and
+[geometry/settings receipt](style-gallery/provenance.json) cover every current
+style. Preview your actual board, inspect rejected pins, then refill zones and
+run native DRC after Apply.
 
 ## Implemented methods and research basis
 

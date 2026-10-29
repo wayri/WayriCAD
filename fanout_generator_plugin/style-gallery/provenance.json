@@ -1,0 +1,3508 @@
+{
+  "kicad_version": "10.0.6",
+  "renderer": "render_fanout_style_catalogue.py",
+  "source_sha256": {
+    "routing.py": "24d141d9dcfa896294cbd100884206a271e4acb7abb8da06cd7630f8c616fb53",
+    "perimeter_escape.py": "985a033fb412fdd81624571ac5da0883ff628aac56353a1ae3563383ef63b2d4",
+    "connector_escape.py": "c86215bd9dffe2ec5770dbec6aedc3f3f61929ff99176341f2061a8d1cfbe6ad",
+    "fanout_profiles.py": "78fb32eda73196f889d440429da6105d7de59e47a3934514298d166b14556aed"
+  },
+  "illustrations": [
+    {
+      "style": "Connector edge",
+      "file": "connector-edge.png",
+      "fixture": "connector",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "J1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Connector edge",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": false,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            17.0,
+            19.0
+          ],
+          [
+            14.505,
+            19.0
+          ]
+        ],
+        [
+          [
+            17.0,
+            21.0
+          ],
+          [
+            14.505,
+            21.0
+          ]
+        ],
+        [
+          [
+            20.0,
+            19.0
+          ],
+          [
+            20.0,
+            16.505
+          ]
+        ],
+        [
+          [
+            20.0,
+            21.0
+          ],
+          [
+            20.0,
+            23.495
+          ]
+        ],
+        [
+          [
+            23.0,
+            19.0
+          ],
+          [
+            25.495,
+            19.0
+          ]
+        ],
+        [
+          [
+            23.0,
+            21.0
+          ],
+          [
+            25.495,
+            21.0
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Perimeter pitch expansion",
+      "file": "perimeter-pitch-expansion.png",
+      "fixture": "perimeter",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Perimeter pitch expansion",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            22.4,
+            24.0
+          ],
+          [
+            22.4,
+            24.675
+          ],
+          [
+            23.074998,
+            25.349998
+          ],
+          [
+            23.074998,
+            25.699998
+          ]
+        ],
+        [
+          [
+            20.8,
+            24.0
+          ],
+          [
+            20.8,
+            25.124999
+          ],
+          [
+            21.025,
+            25.349998
+          ],
+          [
+            21.025,
+            25.699998
+          ]
+        ],
+        [
+          [
+            19.2,
+            24.0
+          ],
+          [
+            19.2,
+            25.124999
+          ],
+          [
+            18.975,
+            25.349998
+          ],
+          [
+            18.975,
+            25.699998
+          ]
+        ],
+        [
+          [
+            17.6,
+            24.0
+          ],
+          [
+            17.6,
+            24.675
+          ],
+          [
+            16.925002,
+            25.349998
+          ],
+          [
+            16.925002,
+            25.699998
+          ]
+        ],
+        [
+          [
+            22.4,
+            16.0
+          ],
+          [
+            22.4,
+            15.325
+          ],
+          [
+            23.074998,
+            14.650002
+          ],
+          [
+            23.074998,
+            14.300002
+          ]
+        ],
+        [
+          [
+            20.8,
+            16.0
+          ],
+          [
+            20.8,
+            14.875001
+          ],
+          [
+            21.025,
+            14.650002
+          ],
+          [
+            21.025,
+            14.300002
+          ]
+        ],
+        [
+          [
+            19.2,
+            16.0
+          ],
+          [
+            19.2,
+            14.875001
+          ],
+          [
+            18.975,
+            14.650002
+          ],
+          [
+            18.975,
+            14.300002
+          ]
+        ],
+        [
+          [
+            17.6,
+            16.0
+          ],
+          [
+            17.6,
+            15.325
+          ],
+          [
+            16.925002,
+            14.650002
+          ],
+          [
+            16.925002,
+            14.300002
+          ]
+        ],
+        [
+          [
+            24.0,
+            22.4
+          ],
+          [
+            24.675,
+            22.4
+          ],
+          [
+            25.349998,
+            23.074998
+          ],
+          [
+            25.699998,
+            23.074998
+          ]
+        ],
+        [
+          [
+            24.0,
+            20.8
+          ],
+          [
+            25.124999,
+            20.8
+          ],
+          [
+            25.349998,
+            21.025
+          ],
+          [
+            25.699998,
+            21.025
+          ]
+        ],
+        [
+          [
+            24.0,
+            19.2
+          ],
+          [
+            25.124999,
+            19.2
+          ],
+          [
+            25.349998,
+            18.975
+          ],
+          [
+            25.699998,
+            18.975
+          ]
+        ],
+        [
+          [
+            24.0,
+            17.6
+          ],
+          [
+            24.675,
+            17.6
+          ],
+          [
+            25.349998,
+            16.925002
+          ],
+          [
+            25.699998,
+            16.925002
+          ]
+        ],
+        [
+          [
+            16.0,
+            22.4
+          ],
+          [
+            15.325,
+            22.4
+          ],
+          [
+            14.650002,
+            23.074999
+          ],
+          [
+            14.300002,
+            23.074999
+          ]
+        ],
+        [
+          [
+            16.0,
+            20.8
+          ],
+          [
+            14.875001,
+            20.8
+          ],
+          [
+            14.650002,
+            21.025
+          ],
+          [
+            14.300002,
+            21.025
+          ]
+        ],
+        [
+          [
+            16.0,
+            19.2
+          ],
+          [
+            14.875001,
+            19.2
+          ],
+          [
+            14.650002,
+            18.975001
+          ],
+          [
+            14.300002,
+            18.975001
+          ]
+        ],
+        [
+          [
+            16.0,
+            17.6
+          ],
+          [
+            15.325,
+            17.6
+          ],
+          [
+            14.650002,
+            16.925002
+          ],
+          [
+            14.300002,
+            16.925002
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Dogbone outward",
+      "file": "dogbone-outward.png",
+      "fixture": "grid",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Dogbone outward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            23.6,
+            23.6
+          ],
+          [
+            24.236396,
+            24.236396
+          ]
+        ],
+        [
+          [
+            21.2,
+            23.6
+          ],
+          [
+            21.2,
+            24.5
+          ]
+        ],
+        [
+          [
+            18.8,
+            23.6
+          ],
+          [
+            18.8,
+            24.5
+          ]
+        ],
+        [
+          [
+            16.399999,
+            23.6
+          ],
+          [
+            15.763603,
+            24.236396
+          ]
+        ],
+        [
+          [
+            23.6,
+            21.2
+          ],
+          [
+            24.5,
+            21.2
+          ]
+        ],
+        [
+          [
+            21.2,
+            21.2
+          ],
+          [
+            21.836396,
+            21.836396
+          ]
+        ],
+        [
+          [
+            18.8,
+            21.2
+          ],
+          [
+            18.163604,
+            21.836396
+          ]
+        ],
+        [
+          [
+            16.399999,
+            21.2
+          ],
+          [
+            15.499999,
+            21.2
+          ]
+        ],
+        [
+          [
+            23.6,
+            18.8
+          ],
+          [
+            24.5,
+            18.8
+          ]
+        ],
+        [
+          [
+            21.2,
+            18.8
+          ],
+          [
+            21.836396,
+            18.163604
+          ]
+        ],
+        [
+          [
+            18.8,
+            18.8
+          ],
+          [
+            18.163604,
+            18.163604
+          ]
+        ],
+        [
+          [
+            16.399999,
+            18.8
+          ],
+          [
+            15.499999,
+            18.8
+          ]
+        ],
+        [
+          [
+            23.6,
+            16.399999
+          ],
+          [
+            24.236396,
+            15.763603
+          ]
+        ],
+        [
+          [
+            21.2,
+            16.399999
+          ],
+          [
+            21.2,
+            15.499999
+          ]
+        ],
+        [
+          [
+            18.8,
+            16.399999
+          ],
+          [
+            18.8,
+            15.499999
+          ]
+        ],
+        [
+          [
+            16.399999,
+            16.399999
+          ],
+          [
+            15.763603,
+            15.763603
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Dogbone inward",
+      "file": "dogbone-inward.png",
+      "fixture": "grid",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Dogbone inward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            23.6,
+            23.6
+          ],
+          [
+            22.963604,
+            22.963604
+          ]
+        ],
+        [
+          [
+            21.2,
+            23.6
+          ],
+          [
+            21.2,
+            22.7
+          ]
+        ],
+        [
+          [
+            18.8,
+            23.6
+          ],
+          [
+            18.8,
+            22.7
+          ]
+        ],
+        [
+          [
+            16.399999,
+            23.6
+          ],
+          [
+            17.036395,
+            22.963604
+          ]
+        ],
+        [
+          [
+            23.6,
+            21.2
+          ],
+          [
+            22.7,
+            21.2
+          ]
+        ],
+        [
+          [
+            21.2,
+            21.2
+          ],
+          [
+            20.563604,
+            20.563604
+          ]
+        ],
+        [
+          [
+            18.8,
+            21.2
+          ],
+          [
+            19.436396,
+            20.563604
+          ]
+        ],
+        [
+          [
+            16.399999,
+            21.2
+          ],
+          [
+            17.299999,
+            21.2
+          ]
+        ],
+        [
+          [
+            23.6,
+            18.8
+          ],
+          [
+            22.7,
+            18.8
+          ]
+        ],
+        [
+          [
+            21.2,
+            18.8
+          ],
+          [
+            20.563604,
+            19.436396
+          ]
+        ],
+        [
+          [
+            18.8,
+            18.8
+          ],
+          [
+            19.436396,
+            19.436396
+          ]
+        ],
+        [
+          [
+            16.399999,
+            18.8
+          ],
+          [
+            17.299999,
+            18.8
+          ]
+        ],
+        [
+          [
+            23.6,
+            16.399999
+          ],
+          [
+            22.963604,
+            17.036395
+          ]
+        ],
+        [
+          [
+            21.2,
+            16.399999
+          ],
+          [
+            21.2,
+            17.299999
+          ]
+        ],
+        [
+          [
+            18.8,
+            16.399999
+          ],
+          [
+            18.8,
+            17.299999
+          ]
+        ],
+        [
+          [
+            16.399999,
+            16.399999
+          ],
+          [
+            17.036395,
+            17.036395
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "BGA/LGA grid outward",
+      "file": "bga-lga-grid-outward.png",
+      "fixture": "grid",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "BGA/LGA grid outward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            23.6,
+            23.6
+          ],
+          [
+            24.236396,
+            24.236396
+          ]
+        ],
+        [
+          [
+            21.2,
+            23.6
+          ],
+          [
+            21.836396,
+            24.236396
+          ]
+        ],
+        [
+          [
+            18.8,
+            23.6
+          ],
+          [
+            18.163604,
+            24.236396
+          ]
+        ],
+        [
+          [
+            16.399999,
+            23.6
+          ],
+          [
+            15.763603,
+            24.236396
+          ]
+        ],
+        [
+          [
+            23.6,
+            21.2
+          ],
+          [
+            24.236396,
+            21.836396
+          ]
+        ],
+        [
+          [
+            21.2,
+            21.2
+          ],
+          [
+            21.836396,
+            21.836396
+          ]
+        ],
+        [
+          [
+            18.8,
+            21.2
+          ],
+          [
+            18.163604,
+            21.836396
+          ]
+        ],
+        [
+          [
+            16.399999,
+            21.2
+          ],
+          [
+            15.763603,
+            21.836396
+          ]
+        ],
+        [
+          [
+            23.6,
+            18.8
+          ],
+          [
+            24.236396,
+            18.163604
+          ]
+        ],
+        [
+          [
+            21.2,
+            18.8
+          ],
+          [
+            21.836396,
+            18.163604
+          ]
+        ],
+        [
+          [
+            18.8,
+            18.8
+          ],
+          [
+            18.163604,
+            18.163604
+          ]
+        ],
+        [
+          [
+            16.399999,
+            18.8
+          ],
+          [
+            15.763603,
+            18.163604
+          ]
+        ],
+        [
+          [
+            23.6,
+            16.399999
+          ],
+          [
+            24.236396,
+            15.763603
+          ]
+        ],
+        [
+          [
+            21.2,
+            16.399999
+          ],
+          [
+            21.836396,
+            15.763603
+          ]
+        ],
+        [
+          [
+            18.8,
+            16.399999
+          ],
+          [
+            18.163604,
+            15.763603
+          ]
+        ],
+        [
+          [
+            16.399999,
+            16.399999
+          ],
+          [
+            15.763603,
+            15.763603
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Quadrant outward",
+      "file": "quadrant-outward.png",
+      "fixture": "grid",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Quadrant outward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            23.6,
+            23.6
+          ],
+          [
+            24.236396,
+            24.236396
+          ]
+        ],
+        [
+          [
+            21.2,
+            23.6
+          ],
+          [
+            21.836396,
+            24.236396
+          ]
+        ],
+        [
+          [
+            18.8,
+            23.6
+          ],
+          [
+            18.163604,
+            24.236396
+          ]
+        ],
+        [
+          [
+            16.399999,
+            23.6
+          ],
+          [
+            15.763603,
+            24.236396
+          ]
+        ],
+        [
+          [
+            23.6,
+            21.2
+          ],
+          [
+            24.236396,
+            21.836396
+          ]
+        ],
+        [
+          [
+            21.2,
+            21.2
+          ],
+          [
+            21.836396,
+            21.836396
+          ]
+        ],
+        [
+          [
+            18.8,
+            21.2
+          ],
+          [
+            18.163604,
+            21.836396
+          ]
+        ],
+        [
+          [
+            16.399999,
+            21.2
+          ],
+          [
+            15.763603,
+            21.836396
+          ]
+        ],
+        [
+          [
+            23.6,
+            18.8
+          ],
+          [
+            24.236396,
+            18.163604
+          ]
+        ],
+        [
+          [
+            21.2,
+            18.8
+          ],
+          [
+            21.836396,
+            18.163604
+          ]
+        ],
+        [
+          [
+            18.8,
+            18.8
+          ],
+          [
+            18.163604,
+            18.163604
+          ]
+        ],
+        [
+          [
+            16.399999,
+            18.8
+          ],
+          [
+            15.763603,
+            18.163604
+          ]
+        ],
+        [
+          [
+            23.6,
+            16.399999
+          ],
+          [
+            24.236396,
+            15.763603
+          ]
+        ],
+        [
+          [
+            21.2,
+            16.399999
+          ],
+          [
+            21.836396,
+            15.763603
+          ]
+        ],
+        [
+          [
+            18.8,
+            16.399999
+          ],
+          [
+            18.163604,
+            15.763603
+          ]
+        ],
+        [
+          [
+            16.399999,
+            16.399999
+          ],
+          [
+            15.763603,
+            15.763603
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Quadrant inward",
+      "file": "quadrant-inward.png",
+      "fixture": "grid",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Quadrant inward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            23.6,
+            23.6
+          ],
+          [
+            22.963604,
+            22.963604
+          ]
+        ],
+        [
+          [
+            21.2,
+            23.6
+          ],
+          [
+            20.563604,
+            22.963604
+          ]
+        ],
+        [
+          [
+            18.8,
+            23.6
+          ],
+          [
+            19.436396,
+            22.963604
+          ]
+        ],
+        [
+          [
+            16.399999,
+            23.6
+          ],
+          [
+            17.036395,
+            22.963604
+          ]
+        ],
+        [
+          [
+            23.6,
+            21.2
+          ],
+          [
+            22.963604,
+            20.563604
+          ]
+        ],
+        [
+          [
+            21.2,
+            21.2
+          ],
+          [
+            20.563604,
+            20.563604
+          ]
+        ],
+        [
+          [
+            18.8,
+            21.2
+          ],
+          [
+            19.436396,
+            20.563604
+          ]
+        ],
+        [
+          [
+            16.399999,
+            21.2
+          ],
+          [
+            17.036395,
+            20.563604
+          ]
+        ],
+        [
+          [
+            23.6,
+            18.8
+          ],
+          [
+            22.963604,
+            19.436396
+          ]
+        ],
+        [
+          [
+            21.2,
+            18.8
+          ],
+          [
+            20.563604,
+            19.436396
+          ]
+        ],
+        [
+          [
+            18.8,
+            18.8
+          ],
+          [
+            19.436396,
+            19.436396
+          ]
+        ],
+        [
+          [
+            16.399999,
+            18.8
+          ],
+          [
+            17.036395,
+            19.436396
+          ]
+        ],
+        [
+          [
+            23.6,
+            16.399999
+          ],
+          [
+            22.963604,
+            17.036395
+          ]
+        ],
+        [
+          [
+            21.2,
+            16.399999
+          ],
+          [
+            20.563604,
+            17.036395
+          ]
+        ],
+        [
+          [
+            18.8,
+            16.399999
+          ],
+          [
+            19.436396,
+            17.036395
+          ]
+        ],
+        [
+          [
+            16.399999,
+            16.399999
+          ],
+          [
+            17.036395,
+            17.036395
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Four-corner outward",
+      "file": "four-corner-outward.png",
+      "fixture": "grid",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Four-corner outward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            23.6,
+            23.6
+          ],
+          [
+            24.236396,
+            24.236396
+          ]
+        ],
+        [
+          [
+            21.2,
+            23.6
+          ],
+          [
+            22.093667,
+            23.706584
+          ]
+        ],
+        [
+          [
+            18.8,
+            23.6
+          ],
+          [
+            17.906333,
+            23.706584
+          ]
+        ],
+        [
+          [
+            16.399999,
+            23.6
+          ],
+          [
+            15.763603,
+            24.236396
+          ]
+        ],
+        [
+          [
+            23.6,
+            21.2
+          ],
+          [
+            23.706584,
+            22.093667
+          ]
+        ],
+        [
+          [
+            21.2,
+            21.2
+          ],
+          [
+            21.836396,
+            21.836396
+          ]
+        ],
+        [
+          [
+            18.8,
+            21.2
+          ],
+          [
+            18.163604,
+            21.836396
+          ]
+        ],
+        [
+          [
+            16.399999,
+            21.2
+          ],
+          [
+            16.293415,
+            22.093667
+          ]
+        ],
+        [
+          [
+            23.6,
+            18.8
+          ],
+          [
+            23.706584,
+            17.906333
+          ]
+        ],
+        [
+          [
+            21.2,
+            18.8
+          ],
+          [
+            21.836396,
+            18.163604
+          ]
+        ],
+        [
+          [
+            18.8,
+            18.8
+          ],
+          [
+            18.163604,
+            18.163604
+          ]
+        ],
+        [
+          [
+            16.399999,
+            18.8
+          ],
+          [
+            16.293415,
+            17.906333
+          ]
+        ],
+        [
+          [
+            23.6,
+            16.399999
+          ],
+          [
+            24.236396,
+            15.763603
+          ]
+        ],
+        [
+          [
+            21.2,
+            16.399999
+          ],
+          [
+            22.093667,
+            16.293415
+          ]
+        ],
+        [
+          [
+            18.8,
+            16.399999
+          ],
+          [
+            17.906333,
+            16.293415
+          ]
+        ],
+        [
+          [
+            16.399999,
+            16.399999
+          ],
+          [
+            15.763603,
+            15.763603
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Four-corner inward",
+      "file": "four-corner-inward.png",
+      "fixture": "grid",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Four-corner inward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            23.6,
+            23.6
+          ],
+          [
+            22.963604,
+            22.963604
+          ]
+        ],
+        [
+          [
+            21.2,
+            23.6
+          ],
+          [
+            20.306333,
+            23.493416
+          ]
+        ],
+        [
+          [
+            18.8,
+            23.6
+          ],
+          [
+            19.693667,
+            23.493416
+          ]
+        ],
+        [
+          [
+            16.399999,
+            23.6
+          ],
+          [
+            17.036395,
+            22.963604
+          ]
+        ],
+        [
+          [
+            23.6,
+            21.2
+          ],
+          [
+            23.493416,
+            20.306333
+          ]
+        ],
+        [
+          [
+            21.2,
+            21.2
+          ],
+          [
+            20.563604,
+            20.563604
+          ]
+        ],
+        [
+          [
+            18.8,
+            21.2
+          ],
+          [
+            19.436396,
+            20.563604
+          ]
+        ],
+        [
+          [
+            16.399999,
+            21.2
+          ],
+          [
+            16.506583,
+            20.306333
+          ]
+        ],
+        [
+          [
+            23.6,
+            18.8
+          ],
+          [
+            23.493416,
+            19.693667
+          ]
+        ],
+        [
+          [
+            21.2,
+            18.8
+          ],
+          [
+            20.563604,
+            19.436396
+          ]
+        ],
+        [
+          [
+            18.8,
+            18.8
+          ],
+          [
+            19.436396,
+            19.436396
+          ]
+        ],
+        [
+          [
+            16.399999,
+            18.8
+          ],
+          [
+            16.506583,
+            19.693667
+          ]
+        ],
+        [
+          [
+            23.6,
+            16.399999
+          ],
+          [
+            22.963604,
+            17.036395
+          ]
+        ],
+        [
+          [
+            21.2,
+            16.399999
+          ],
+          [
+            20.306333,
+            16.506583
+          ]
+        ],
+        [
+          [
+            18.8,
+            16.399999
+          ],
+          [
+            19.693667,
+            16.506583
+          ]
+        ],
+        [
+          [
+            16.399999,
+            16.399999
+          ],
+          [
+            17.036395,
+            17.036395
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Perimeter outward",
+      "file": "perimeter-outward.png",
+      "fixture": "perimeter",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Perimeter outward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            22.4,
+            24.0
+          ],
+          [
+            22.4,
+            24.9
+          ]
+        ],
+        [
+          [
+            20.8,
+            24.0
+          ],
+          [
+            20.8,
+            24.9
+          ]
+        ],
+        [
+          [
+            19.2,
+            24.0
+          ],
+          [
+            19.2,
+            24.9
+          ]
+        ],
+        [
+          [
+            17.6,
+            24.0
+          ],
+          [
+            17.6,
+            24.9
+          ]
+        ],
+        [
+          [
+            22.4,
+            16.0
+          ],
+          [
+            22.4,
+            15.1
+          ]
+        ],
+        [
+          [
+            20.8,
+            16.0
+          ],
+          [
+            20.8,
+            15.1
+          ]
+        ],
+        [
+          [
+            19.2,
+            16.0
+          ],
+          [
+            19.2,
+            15.1
+          ]
+        ],
+        [
+          [
+            17.6,
+            16.0
+          ],
+          [
+            17.6,
+            15.1
+          ]
+        ],
+        [
+          [
+            24.0,
+            22.4
+          ],
+          [
+            24.9,
+            22.4
+          ]
+        ],
+        [
+          [
+            24.0,
+            20.8
+          ],
+          [
+            24.9,
+            20.8
+          ]
+        ],
+        [
+          [
+            24.0,
+            19.2
+          ],
+          [
+            24.9,
+            19.2
+          ]
+        ],
+        [
+          [
+            24.0,
+            17.6
+          ],
+          [
+            24.9,
+            17.6
+          ]
+        ],
+        [
+          [
+            16.0,
+            22.4
+          ],
+          [
+            15.1,
+            22.4
+          ]
+        ],
+        [
+          [
+            16.0,
+            20.8
+          ],
+          [
+            15.1,
+            20.8
+          ]
+        ],
+        [
+          [
+            16.0,
+            19.2
+          ],
+          [
+            15.1,
+            19.2
+          ]
+        ],
+        [
+          [
+            16.0,
+            17.6
+          ],
+          [
+            15.1,
+            17.6
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Radial outward",
+      "file": "radial-outward.png",
+      "fixture": "perimeter",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Radial outward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            22.4,
+            24.0
+          ],
+          [
+            22.863046,
+            24.771744
+          ]
+        ],
+        [
+          [
+            20.8,
+            24.0
+          ],
+          [
+            20.976505,
+            24.882523
+          ]
+        ],
+        [
+          [
+            19.2,
+            24.0
+          ],
+          [
+            19.023495,
+            24.882523
+          ]
+        ],
+        [
+          [
+            17.6,
+            24.0
+          ],
+          [
+            17.136954,
+            24.771744
+          ]
+        ],
+        [
+          [
+            22.4,
+            16.0
+          ],
+          [
+            22.863046,
+            15.228256
+          ]
+        ],
+        [
+          [
+            20.8,
+            16.0
+          ],
+          [
+            20.976505,
+            15.117477
+          ]
+        ],
+        [
+          [
+            19.2,
+            16.0
+          ],
+          [
+            19.023495,
+            15.117477
+          ]
+        ],
+        [
+          [
+            17.6,
+            16.0
+          ],
+          [
+            17.136954,
+            15.228256
+          ]
+        ],
+        [
+          [
+            24.0,
+            22.4
+          ],
+          [
+            24.771744,
+            22.863046
+          ]
+        ],
+        [
+          [
+            24.0,
+            20.8
+          ],
+          [
+            24.882523,
+            20.976505
+          ]
+        ],
+        [
+          [
+            24.0,
+            19.2
+          ],
+          [
+            24.882523,
+            19.023495
+          ]
+        ],
+        [
+          [
+            24.0,
+            17.6
+          ],
+          [
+            24.771744,
+            17.136954
+          ]
+        ],
+        [
+          [
+            16.0,
+            22.4
+          ],
+          [
+            15.228256,
+            22.863046
+          ]
+        ],
+        [
+          [
+            16.0,
+            20.8
+          ],
+          [
+            15.117477,
+            20.976505
+          ]
+        ],
+        [
+          [
+            16.0,
+            19.2
+          ],
+          [
+            15.117477,
+            19.023495
+          ]
+        ],
+        [
+          [
+            16.0,
+            17.6
+          ],
+          [
+            15.228256,
+            17.136954
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "45-degree spread",
+      "file": "45-degree-spread.png",
+      "fixture": "perimeter",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "45-degree spread",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            22.4,
+            24.0
+          ],
+          [
+            23.036396,
+            24.636396
+          ]
+        ],
+        [
+          [
+            20.8,
+            24.0
+          ],
+          [
+            21.436396,
+            24.636396
+          ]
+        ],
+        [
+          [
+            19.2,
+            24.0
+          ],
+          [
+            18.563604,
+            24.636396
+          ]
+        ],
+        [
+          [
+            17.6,
+            24.0
+          ],
+          [
+            16.963604,
+            24.636396
+          ]
+        ],
+        [
+          [
+            22.4,
+            16.0
+          ],
+          [
+            23.036396,
+            15.363604
+          ]
+        ],
+        [
+          [
+            20.8,
+            16.0
+          ],
+          [
+            21.436396,
+            15.363604
+          ]
+        ],
+        [
+          [
+            19.2,
+            16.0
+          ],
+          [
+            18.563604,
+            15.363604
+          ]
+        ],
+        [
+          [
+            17.6,
+            16.0
+          ],
+          [
+            16.963604,
+            15.363604
+          ]
+        ],
+        [
+          [
+            24.0,
+            22.4
+          ],
+          [
+            24.636396,
+            23.036396
+          ]
+        ],
+        [
+          [
+            24.0,
+            20.8
+          ],
+          [
+            24.636396,
+            21.436396
+          ]
+        ],
+        [
+          [
+            24.0,
+            19.2
+          ],
+          [
+            24.636396,
+            18.563604
+          ]
+        ],
+        [
+          [
+            24.0,
+            17.6
+          ],
+          [
+            24.636396,
+            16.963604
+          ]
+        ],
+        [
+          [
+            16.0,
+            22.4
+          ],
+          [
+            15.363604,
+            23.036396
+          ]
+        ],
+        [
+          [
+            16.0,
+            20.8
+          ],
+          [
+            15.363604,
+            21.436396
+          ]
+        ],
+        [
+          [
+            16.0,
+            19.2
+          ],
+          [
+            15.363604,
+            18.563604
+          ]
+        ],
+        [
+          [
+            16.0,
+            17.6
+          ],
+          [
+            15.363604,
+            16.963604
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Custom-angle spread",
+      "file": "custom-angle-spread.png",
+      "fixture": "perimeter",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Custom-angle spread",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            22.4,
+            24.0
+          ],
+          [
+            22.85,
+            24.779423
+          ]
+        ],
+        [
+          [
+            20.8,
+            24.0
+          ],
+          [
+            21.25,
+            24.779423
+          ]
+        ],
+        [
+          [
+            19.2,
+            24.0
+          ],
+          [
+            18.75,
+            24.779423
+          ]
+        ],
+        [
+          [
+            17.6,
+            24.0
+          ],
+          [
+            17.15,
+            24.779423
+          ]
+        ],
+        [
+          [
+            22.4,
+            16.0
+          ],
+          [
+            22.85,
+            15.220577
+          ]
+        ],
+        [
+          [
+            20.8,
+            16.0
+          ],
+          [
+            21.25,
+            15.220577
+          ]
+        ],
+        [
+          [
+            19.2,
+            16.0
+          ],
+          [
+            18.75,
+            15.220577
+          ]
+        ],
+        [
+          [
+            17.6,
+            16.0
+          ],
+          [
+            17.15,
+            15.220577
+          ]
+        ],
+        [
+          [
+            24.0,
+            22.4
+          ],
+          [
+            24.779423,
+            22.85
+          ]
+        ],
+        [
+          [
+            24.0,
+            20.8
+          ],
+          [
+            24.779423,
+            21.25
+          ]
+        ],
+        [
+          [
+            24.0,
+            19.2
+          ],
+          [
+            24.779423,
+            18.75
+          ]
+        ],
+        [
+          [
+            24.0,
+            17.6
+          ],
+          [
+            24.779423,
+            17.15
+          ]
+        ],
+        [
+          [
+            16.0,
+            22.4
+          ],
+          [
+            15.220577,
+            22.85
+          ]
+        ],
+        [
+          [
+            16.0,
+            20.8
+          ],
+          [
+            15.220577,
+            21.25
+          ]
+        ],
+        [
+          [
+            16.0,
+            19.2
+          ],
+          [
+            15.220577,
+            18.75
+          ]
+        ],
+        [
+          [
+            16.0,
+            17.6
+          ],
+          [
+            15.220577,
+            17.15
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Straight + angled escape",
+      "file": "straight-angled-escape.png",
+      "fixture": "perimeter",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Straight + angled escape",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            22.4,
+            24.0
+          ],
+          [
+            22.4,
+            24.35
+          ],
+          [
+            22.675,
+            24.826314
+          ]
+        ],
+        [
+          [
+            20.8,
+            24.0
+          ],
+          [
+            20.8,
+            24.35
+          ],
+          [
+            21.075,
+            24.826314
+          ]
+        ],
+        [
+          [
+            19.2,
+            24.0
+          ],
+          [
+            19.2,
+            24.35
+          ],
+          [
+            18.925,
+            24.826314
+          ]
+        ],
+        [
+          [
+            17.6,
+            24.0
+          ],
+          [
+            17.6,
+            24.35
+          ],
+          [
+            17.325,
+            24.826314
+          ]
+        ],
+        [
+          [
+            22.4,
+            16.0
+          ],
+          [
+            22.4,
+            15.65
+          ],
+          [
+            22.675,
+            15.173686
+          ]
+        ],
+        [
+          [
+            20.8,
+            16.0
+          ],
+          [
+            20.8,
+            15.65
+          ],
+          [
+            21.075,
+            15.173686
+          ]
+        ],
+        [
+          [
+            19.2,
+            16.0
+          ],
+          [
+            19.2,
+            15.65
+          ],
+          [
+            18.925,
+            15.173686
+          ]
+        ],
+        [
+          [
+            17.6,
+            16.0
+          ],
+          [
+            17.6,
+            15.65
+          ],
+          [
+            17.325,
+            15.173686
+          ]
+        ],
+        [
+          [
+            24.0,
+            22.4
+          ],
+          [
+            24.35,
+            22.4
+          ],
+          [
+            24.826314,
+            22.675
+          ]
+        ],
+        [
+          [
+            24.0,
+            20.8
+          ],
+          [
+            24.35,
+            20.8
+          ],
+          [
+            24.826314,
+            21.075
+          ]
+        ],
+        [
+          [
+            24.0,
+            19.2
+          ],
+          [
+            24.35,
+            19.2
+          ],
+          [
+            24.826314,
+            18.925
+          ]
+        ],
+        [
+          [
+            24.0,
+            17.6
+          ],
+          [
+            24.35,
+            17.6
+          ],
+          [
+            24.826314,
+            17.325
+          ]
+        ],
+        [
+          [
+            16.0,
+            22.4
+          ],
+          [
+            15.65,
+            22.4
+          ],
+          [
+            15.173686,
+            22.675
+          ]
+        ],
+        [
+          [
+            16.0,
+            20.8
+          ],
+          [
+            15.65,
+            20.8
+          ],
+          [
+            15.173686,
+            21.075
+          ]
+        ],
+        [
+          [
+            16.0,
+            19.2
+          ],
+          [
+            15.65,
+            19.2
+          ],
+          [
+            15.173686,
+            18.925
+          ]
+        ],
+        [
+          [
+            16.0,
+            17.6
+          ],
+          [
+            15.65,
+            17.6
+          ],
+          [
+            15.173686,
+            17.325
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Staggered rows",
+      "file": "staggered-rows.png",
+      "fixture": "perimeter",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Staggered rows",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            22.4,
+            24.0
+          ],
+          [
+            22.4,
+            24.9
+          ]
+        ],
+        [
+          [
+            20.8,
+            24.0
+          ],
+          [
+            20.8,
+            25.55
+          ]
+        ],
+        [
+          [
+            19.2,
+            24.0
+          ],
+          [
+            19.2,
+            24.9
+          ]
+        ],
+        [
+          [
+            17.6,
+            24.0
+          ],
+          [
+            17.6,
+            25.55
+          ]
+        ],
+        [
+          [
+            22.4,
+            16.0
+          ],
+          [
+            22.4,
+            14.45
+          ]
+        ],
+        [
+          [
+            20.8,
+            16.0
+          ],
+          [
+            20.8,
+            15.1
+          ]
+        ],
+        [
+          [
+            19.2,
+            16.0
+          ],
+          [
+            19.2,
+            14.45
+          ]
+        ],
+        [
+          [
+            17.6,
+            16.0
+          ],
+          [
+            17.6,
+            15.1
+          ]
+        ],
+        [
+          [
+            24.0,
+            22.4
+          ],
+          [
+            25.55,
+            22.4
+          ]
+        ],
+        [
+          [
+            24.0,
+            20.8
+          ],
+          [
+            24.9,
+            20.8
+          ]
+        ],
+        [
+          [
+            24.0,
+            19.2
+          ],
+          [
+            25.55,
+            19.2
+          ]
+        ],
+        [
+          [
+            24.0,
+            17.6
+          ],
+          [
+            24.9,
+            17.6
+          ]
+        ],
+        [
+          [
+            16.0,
+            22.4
+          ],
+          [
+            15.1,
+            22.4
+          ]
+        ],
+        [
+          [
+            16.0,
+            20.8
+          ],
+          [
+            14.45,
+            20.8
+          ]
+        ],
+        [
+          [
+            16.0,
+            19.2
+          ],
+          [
+            15.1,
+            19.2
+          ]
+        ],
+        [
+          [
+            16.0,
+            17.6
+          ],
+          [
+            14.45,
+            17.6
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Perimeter alternating inward / outward",
+      "file": "perimeter-alternating-inward-outward.png",
+      "fixture": "perimeter",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Perimeter alternating inward / outward",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            22.4,
+            24.0
+          ],
+          [
+            22.4,
+            24.9
+          ]
+        ],
+        [
+          [
+            20.8,
+            24.0
+          ],
+          [
+            20.8,
+            22.45
+          ]
+        ],
+        [
+          [
+            19.2,
+            24.0
+          ],
+          [
+            19.2,
+            24.9
+          ]
+        ],
+        [
+          [
+            17.6,
+            24.0
+          ],
+          [
+            17.6,
+            22.45
+          ]
+        ],
+        [
+          [
+            22.4,
+            16.0
+          ],
+          [
+            22.4,
+            17.55
+          ]
+        ],
+        [
+          [
+            20.8,
+            16.0
+          ],
+          [
+            20.8,
+            15.1
+          ]
+        ],
+        [
+          [
+            19.2,
+            16.0
+          ],
+          [
+            19.2,
+            17.55
+          ]
+        ],
+        [
+          [
+            17.6,
+            16.0
+          ],
+          [
+            17.6,
+            15.1
+          ]
+        ],
+        [
+          [
+            24.0,
+            22.4
+          ],
+          [
+            22.45,
+            22.4
+          ]
+        ],
+        [
+          [
+            24.0,
+            20.8
+          ],
+          [
+            24.9,
+            20.8
+          ]
+        ],
+        [
+          [
+            24.0,
+            19.2
+          ],
+          [
+            22.45,
+            19.2
+          ]
+        ],
+        [
+          [
+            24.0,
+            17.6
+          ],
+          [
+            24.9,
+            17.6
+          ]
+        ],
+        [
+          [
+            16.0,
+            22.4
+          ],
+          [
+            15.1,
+            22.4
+          ]
+        ],
+        [
+          [
+            16.0,
+            20.8
+          ],
+          [
+            17.55,
+            20.8
+          ]
+        ],
+        [
+          [
+            16.0,
+            19.2
+          ],
+          [
+            15.1,
+            19.2
+          ]
+        ],
+        [
+          [
+            16.0,
+            17.6
+          ],
+          [
+            17.55,
+            17.6
+          ]
+        ]
+      ]
+    },
+    {
+      "style": "Via-in-pad",
+      "file": "via-in-pad.png",
+      "fixture": "grid",
+      "settings": {
+        "scope": "Reference wildcard",
+        "ref": "U1",
+        "width": 0.15,
+        "length": 0.9,
+        "via_diameter": 0.5,
+        "via_drill": 0.2,
+        "pattern": "Via-in-pad",
+        "angle_offset": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "clearance": 0.15,
+        "add_vias": true,
+        "escape_layer": "Pad layer",
+        "output_mode": "Escape traces",
+        "netclass_filter": "All netclasses",
+        "escape_angle": 30,
+        "angle_mode": "Pattern",
+        "launch_length": 0.35,
+        "stagger_pitch": 0.65,
+        "spread_pitch": 2.05,
+        "routing_mode": "Fixed",
+        "adaptive_radius": 3.0,
+        "adaptive_step": 0.25,
+        "signal_profile": "Generic",
+        "net_filter": "*",
+        "pair_mode": "Independent",
+        "pair_gap": 0.2,
+        "max_pair_skew": 0.1,
+        "use_netclass_rules": false,
+        "groups": [],
+        "unmatched": "defaults",
+        "pad_filter": "*",
+        "connector_exit": "Nearest edge",
+        "connector_edge_margin": 0.5,
+        "connector_clearance": ""
+      },
+      "paths_mm": [
+        [
+          [
+            23.6,
+            23.6
+          ]
+        ],
+        [
+          [
+            21.2,
+            23.6
+          ]
+        ],
+        [
+          [
+            18.8,
+            23.6
+          ]
+        ],
+        [
+          [
+            16.399999,
+            23.6
+          ]
+        ],
+        [
+          [
+            23.6,
+            21.2
+          ]
+        ],
+        [
+          [
+            21.2,
+            21.2
+          ]
+        ],
+        [
+          [
+            18.8,
+            21.2
+          ]
+        ],
+        [
+          [
+            16.399999,
+            21.2
+          ]
+        ],
+        [
+          [
+            23.6,
+            18.8
+          ]
+        ],
+        [
+          [
+            21.2,
+            18.8
+          ]
+        ],
+        [
+          [
+            18.8,
+            18.8
+          ]
+        ],
+        [
+          [
+            16.399999,
+            18.8
+          ]
+        ],
+        [
+          [
+            23.6,
+            16.399999
+          ]
+        ],
+        [
+          [
+            21.2,
+            16.399999
+          ]
+        ],
+        [
+          [
+            18.8,
+            16.399999
+          ]
+        ],
+        [
+          [
+            16.399999,
+            16.399999
+          ]
+        ]
+      ]
+    }
+  ]
+}
