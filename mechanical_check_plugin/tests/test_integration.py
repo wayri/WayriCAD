@@ -65,8 +65,11 @@ class LaunchTests(unittest.TestCase):
 
     def test_ipc_profile_prepares_actual_viewer_modules(self):
         from wayricad_runtime import bootstrap
+        flags = SimpleNamespace(**{name: getattr(sys.flags, name) for name in dir(sys.flags)
+                                   if not name.startswith('_')})
+        flags.isolated = True
         with patch('wayricad_runtime.runtime_setup.ensure_runtime', return_value=sys.executable) as prepare, \
-             patch.object(bootstrap.sys, 'flags', SimpleNamespace(isolated=True)):
+             patch.object(bootstrap.sys, 'flags', flags):
             self.assertIsNone(bootstrap.relaunch(ROOT, 'desktop_entrypoint.py', profile='mechanical'))
         self.assertEqual(prepare.call_args.args[0]['OpenGL.GL'], 'PyOpenGL>=3.1,<4')
         self.assertEqual(prepare.call_args.args[0]['OpenGL.GLU'], 'PyOpenGL>=3.1,<4')
