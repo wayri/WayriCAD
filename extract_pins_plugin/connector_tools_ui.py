@@ -334,19 +334,17 @@ class ConnectorToolsPanel(wx.Panel):
         self._loading=True;self._mate_snapshot=None;self.status.SetLabel('Loading B board contacts… You can continue using the other tabs.')
         def worker():
             try:
-                import pcbnew
+                try:
+                    from .connector_board_worker import load_inventory
+                except ImportError:
+                    from connector_board_worker import load_inventory
                 before=path.stat().st_mtime_ns;digest=hashlib.sha256(path.read_bytes()).hexdigest()
-                board=pcbnew.LoadBoard(str(path));inventory={};errors={}
-                for fp in board.GetFootprints():
-                    ref=str(fp.GetReference())
-                    if not ref:continue
-                    if ref in inventory or ref in errors:raise ValueError('External board has duplicate footprint references.')
-                    try:inventory[ref]=mating.footprint_pins(fp)
-                    except ValueError as exc:errors[ref]=str(exc)
+                result=load_inventory(path);inventory=result['inventory'];errors=result['errors']
+                if result['source_sha256']!=digest:raise ValueError('External board changed before extraction. Load it again.')
                 if before!=path.stat().st_mtime_ns or digest!=hashlib.sha256(path.read_bytes()).hexdigest():raise ValueError('External board changed while loading. Try again.')
                 outcome=(inventory,errors,before,digest,None)
             except Exception as exc:outcome=({},{},None,None,str(exc))
-            wx.CallAfter(self.external_done,path,outcome)
+            if self._alive:wx.CallAfter(self.external_done,path,outcome)
         threading.Thread(target=worker,daemon=True).start()
 
     def external_done(self,path,outcome):

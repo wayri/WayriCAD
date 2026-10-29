@@ -23,7 +23,7 @@ manufacturer compatibility. An opposite-face preset is not a datasheet rule.
 
 ## Evidence
 
-The complete Pin Extractor suite passed **39 tests**, including 38 passing
+The complete Pin Extractor suite passed **43 tests**, including 38 passing
 subtests, with the native label-export opt-in enabled. The checks include:
 
 - Asymmetric mirrored/rotated mating, ambiguous and unmatched contacts,
@@ -34,6 +34,9 @@ subtests, with the native label-export opt-in enabled. The checks include:
 - Five native UI tests covering the full Pin Extractor page integration,
   paired row edits and cross-selection, stale-source blocking, bulk and selected
   line copies, physical views and atomic pasted-name assignment failures.
+- Four saved-board worker checks, including a real native reader launched from
+  an IPC-only parent without `LoadBoard`. External reads return JSON and a source
+  hash; they do not replace the originating live board adapter.
 
 Existing CLI, tool-dispatch, documentation and plugin-inventory checks passed
 28 tests and 24 subtests. The new suite is included in the CI workflow.
