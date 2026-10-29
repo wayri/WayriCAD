@@ -72,7 +72,7 @@ window, the viewport container increased from 790 × 564 to 1104 × 582 pixels
 
 1. Open **Setup**, then use **1 Geometry** for the geometry source and dimensions, **2 Physics** for
    study/material/boundary controls, and **3 Solve** for sweep, mesh and runtime
-   settings. **Open** and **Save** retain reusable study setups. First open
+   settings. The top-bar **Files** menu saves or loads setups and results. First open
    loads saved board/rule-area outlines while dependency preparation runs.
    Copper is extracted by Preview. Dimensions are **mm**, frequency entries are **GHz**, impedance is
    **ohm**. Setup JSON and solver requests retain canonical Hz.
@@ -87,6 +87,26 @@ window, the viewport container increased from 790 × 564 to 1104 × 582 pixels
    its diagnostic files. Reviewed 2D/3D geometry stays visible during a run.
    Report previews use native load/error events; new results clear the previous
    report and offer Generate preview, Export HTML and Export PDF.
+
+### Save and reload studies
+
+Use **Files → Save setup…** for reusable geometry, material, physics, sweep and
+solver settings. The file chooser starts in the saved PCB's project directory;
+choose another directory or filename if desired. A missing `.json` extension is
+added. The chosen path is retained for the next operation. **Load setup…**
+restores the complete supported configuration, then requires Preview before a
+new run. Rule-area setups require the exact area and signal/reference nets to
+exist in the current saved board. Invalid or missing choices are reported
+instead of silently substituted. Reusing a setup after the board changes asks
+for explicit confirmation; review current geometry and ports again. Original
+schema-1 setup files remain readable.
+
+Use **Files → Save results…** for a complete completed-results JSON file,
+including original numerical arrays and source evidence. **Load results…**
+opens those saved values in the read-only simulation viewer without solving.
+Historical results remain historical if the board changed or moved; loading
+does not certify them for the current board or enable a live solver run.
+Setup files and result files are separate: choose the matching command.
 
 ### Simulate a PCB rule-area enclosure
 

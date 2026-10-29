@@ -16,7 +16,7 @@ def invoke(root,arguments,capsys):
     return status,json.loads(captured.out) if captured.out else None,captured.err
 
 
-@pytest.mark.parametrize('plugin',['quick-pi','quick-si','quick-therm'])
+@pytest.mark.parametrize('plugin',['quick-pi','quick-si','quick-therm','quick-emerge'])
 def test_common_save_list_show_complete_payload_and_explicit_unverified(tmp_path,capsys,plugin):
     bundle={'mesh':{'points_mm':[[0,0],[1,0],[0,1]],'triangles':[[0,1,2]]},
             'result':{'potential_V':[1,None,0]},'eye':{'time_ui':[0,1,1],'traces_v':[[None,1,0]]}}
@@ -85,9 +85,38 @@ def test_invalid_evidence_never_falls_back_to_unverified_or_echoes_values(tmp_pa
     assert not (tmp_path/'.wayricad').exists()
 
 
-def test_show_cannot_escape_project_and_plugin_mismatch_is_explicit(tmp_path,capsys):
+def test_show_missing_file_and_plugin_mismatch_is_explicit(tmp_path,capsys):
     status,output,error=invoke(tmp_path,['show','../outside.json'],capsys)
     assert status==2 and output is None
     receipt=library.save_result(tmp_path,'pi',{'values':[1]})
     status,output,error=invoke(tmp_path,['show',receipt['relative_path'],'--plugin','quick-si'],capsys)
     assert status==2 and output is None and 'another plugin' in error
+
+
+def test_named_output_relative_external_paths_and_full_arrays(tmp_path,capsys):
+    project=tmp_path/'project';project.mkdir()
+    external=tmp_path/'shared';external.mkdir()
+    bundle={'frequencies_hz':[1e9,2e9], 's_parameters':{'S11':[[.1,.2],[.3,.4]]},
+            'field':{'x_mm':[0,1],'y_mm':[0,1],'norm_e_v_m':[[1,None],[2,3]]}}
+    source=project/'producer.json';source.write_text(json.dumps(bundle))
+    for destination in (Path('named study'),external/'shared data.json'):
+        status,receipt,error=invoke(project,['save',source,'--plugin','quick-emerge','--output',destination],capsys)
+        assert status==0 and not error
+        chosen=Path(receipt['path'])
+        assert chosen.is_file() and chosen.suffix=='.json'
+        record=chosen.relative_to(project) if chosen.is_relative_to(project) else chosen
+        status,loaded,error=invoke(project,['show',record,'--plugin','quick-emerge','--full'],capsys)
+        assert status==0 and not error and loaded['bundle']==bundle
+        assert loaded['receipt']['source_state']=='unverified'
+    assert not (project/'.wayricad').exists()
+
+
+def test_named_output_overwrite_needs_explicit_flag_and_never_replaces_input(tmp_path,capsys):
+    source=tmp_path/'input.json';source.write_text('{"values":[1,null,3]}')
+    before=source.read_bytes();output=tmp_path/'named.json';output.write_bytes(b'keep')
+    status,_,error=invoke(tmp_path,['save',source,'--plugin','quick-pi','--output','named'],capsys)
+    assert status==2 and '--overwrite' in error and output.read_bytes()==b'keep'
+    status,_,error=invoke(tmp_path,['save',source,'--plugin','quick-pi','--output',output,'--overwrite'],capsys)
+    assert status==0 and not error and library.KEY in output.read_text()
+    status,_,error=invoke(tmp_path,['save',source,'--plugin','quick-pi','--output',source,'--overwrite'],capsys)
+    assert status==2 and 'overwrite' in error and source.read_bytes()==before

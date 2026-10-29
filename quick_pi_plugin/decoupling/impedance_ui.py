@@ -9,6 +9,7 @@ import wx.grid
 from matplotlib.figure import Figure
 from ..plot_canvas import FigureCanvasWxAgg,NavigationToolbar2WxAgg
 from .impedance import analyze,initial_model,validate
+from ..study_setup_file import project_directory
 
 
 class PdnImpedanceDialog(wx.Dialog):
@@ -121,7 +122,7 @@ class PdnImpedanceDialog(wx.Dialog):
         self.status.SetLabel('Lumped screening complete. Sampled target checks do not establish real-board transient regulation.')
 
     def _load(self,event=None):
-        with wx.FileDialog(self,'Load explicit PDN model',wildcard='JSON (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
+        with wx.FileDialog(self,'Load explicit PDN model',defaultDir=project_directory(self),wildcard='JSON (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             path=Path(dialog.GetPath())
         try:
@@ -138,7 +139,7 @@ class PdnImpedanceDialog(wx.Dialog):
     def _save(self,event=None):
         try:model=self._model()
         except (ValueError,TypeError) as exc:self.status.SetLabel(str(exc));return
-        with wx.FileDialog(self,'Save explicit PDN model',defaultFile='pdn-capacitor-bank.json',wildcard='JSON (*.json)|*.json',style=wx.FD_SAVE) as dialog:
+        with wx.FileDialog(self,'Save explicit PDN model',defaultDir=project_directory(self),defaultFile='pdn-capacitor-bank.json',wildcard='JSON (*.json)|*.json',style=wx.FD_SAVE) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             path=Path(dialog.GetPath())
         try:

@@ -1,12 +1,14 @@
-# Project-local simulation result library
+# Simulation setup and result files
 
-`wayricad_runtime.project_results` stores complete PI, SI and thermal result
-objects as immutable JSON within the project:
+`wayricad_runtime.project_results` stores complete PI, SI, thermal and Quick
+EMerge beta result objects as integrity-checked JSON. The optional immutable
+canonical library uses these project-local paths:
 
 ```text
 .wayricad/results/quick-pi/<64-character-content-identity>.json
 .wayricad/results/quick-si/<64-character-content-identity>.json
 .wayricad/results/quick-therm/<64-character-content-identity>.json
+.wayricad/results/quick-emerge/<64-character-content-identity>.json
 ```
 
 There is no timestamp-based filename, mutable index, pickle, database, reference
@@ -22,8 +24,10 @@ manufacture geometry, units or input fingerprints.
 1. Complete a simulation in Quick PI, Quick SI or QuickTherm, then choose
    **Save simulation…**. If several results are available, choose the completed
    study to retain. Existing HTML/PDF/report exports remain separate.
-2. The plugin saves a complete JSON record beside the project under
-   `.wayricad/results/<plugin>/`. Saving identical data again reuses that record.
+2. Choose the destination and filename in **Save complete simulation data**.
+   The chooser starts in the saved PCB’s project folder, with a readable
+   `<board>.<plugin>.results.json` name. An explicit overwrite prompt protects
+   an existing chosen file. The content ID remains deterministic inside it.
 3. Choose **Load simulation…** and select its JSON. Only that file is read;
    opening the library does not scan and parse every archived simulation.
 4. The native **Saved simulation • read-only** window shows available saved
@@ -77,15 +81,46 @@ loaded = load_result("C:/Projects/Example", receipt["relative_path"], plugin="qu
 bundle, state = loaded["bundle"], loaded["receipt"]
 ```
 
+## Editable setup files
+
+**Save setup…** and **Load setup…** are separate from numerical results. Both
+open a file chooser in the saved PCB’s project directory. A suggested name is
+`<board>.<plugin>.setup.json`; choose another location or name if needed.
+
+Setup files contain a versioned plugin identifier, the original saved PCB hash
+and the editable inputs. Load validates the complete input before applying it,
+clears old results and does not run a solver. A changed board requires explicit
+review; missing nets/pads or incompatible models are reported rather than
+silently dropped. Preserve referenced external IBIS files when moving an SI
+setup; altered or missing model files cannot be substituted automatically.
+
+Quick PI's main setup includes copper model/material/mesh controls, selected
+net and exact source/sink pads, multipin choices, additional loads, package
+contacts, series request and return-review settings. QuickTherm includes field
+mappings, component scope/overrides/limits, heat paths and reviewed materials,
+mounting contacts, imported current-board PI losses and transient settings.
+Quick SI includes route/eye controls, return pins, study/crosstalk cases and
+IBIS assignments. Quick PI’s AC, multi-rail/shared-return, electrothermal,
+transient/shunt-capacitor and PDN-bank dialogs each provide their own mode-tagged
+setup Save/Load pair. Their suggested names include the study type to keep
+these files separate from the main copper setup. Draft controls, alternate
+AC recipes, capacitor banks and reviewed material metadata are retained. Solver applicability and numeric input checks still apply
+when running; loading a setup does not qualify its physical assumptions.
+
+The canonical hidden `.wayricad/results/` API remains available for deterministic
+CLI libraries. Native Save/Load accepts explicitly chosen names and paths;
+report exports and setup files are separate formats, with actionable errors if
+the wrong kind is selected.
+
 Public signatures are:
 
 ```text
-save_result(project_root, plugin, bundle, *, pocket_kivi=None, version=None)
-load_result(project_root, path, *, plugin=None)
+save_result(project_root, plugin, bundle, *, pocket_kivi=None, version=None, destination=None, protected_sources=())
+load_result(project_root, path, *, plugin=None, chosen=False)
 list_results(project_root, *, plugin=None)
 ```
 
-Canonical plugin names are `quick-pi`, `quick-si` and `quick-therm`. Short aliases
+Canonical plugin names are `quick-pi`, `quick-si`, `quick-therm` and `quick-emerge`. Short aliases
 `pi`, `si`, `therm`/`thermal` and their existing source-package names are accepted
 at the API boundary; stored names and directories always use the canonical form.
 `list_results` checks records and returns receipts sorted by canonical plugin and
@@ -96,8 +131,9 @@ disappearing from the library.
 The returned receipt includes absolute `path`, project-relative `relative_path`,
 `identity`, `plugin`, actual `producer_version` (or explicit `None`), file `bytes`
 and `sha256`, `source_state`, `source_issues`, `source_path`, `source_sha256` and
-`can_restore`. Saving also returns `created`, false when exact identical bytes
-already exist. Loading returns the complete independent producer `bundle` with
+`can_restore`. Saving also returns `created`; for the canonical hidden library it is false
+when exact identical bytes already exist. Named saves atomically replace only
+the explicitly chosen output after the native overwrite confirmation. Loading returns the complete independent producer `bundle` with
 only library metadata removed, alongside its receipt. Portable export metadata
 and original producer fields remain available.
 
@@ -162,17 +198,27 @@ python -m wayricad_runtime.project_results_cli --project C:/Projects/Example lis
 python -m wayricad_runtime.project_results_cli --project C:/Projects/Example save result.json --plugin quick-pi --version ACTUAL_PRODUCER_VERSION
 python -m wayricad_runtime.project_results_cli --project C:/Projects/Example show .wayricad/results/quick-pi/IDENTITY.json
 python -m wayricad_runtime.project_results_cli --project C:/Projects/Example show .wayricad/results/quick-pi/IDENTITY.json --full
+python -m wayricad_runtime.project_results_cli --project C:/Projects/Example save result.json --plugin quick-pi --output board.quick-pi.results.json
+python -m wayricad_runtime.project_results_cli --project C:/Projects/Example show board.quick-pi.results.json --plugin quick-pi
 ```
 
 Replace `IDENTITY` with the receipt's full 64-character identity. CLI plugin
-choices are the three canonical names. Input JSON/evidence filenames are
-relative to the process working directory; library record paths and relative
-evidence `board_path` values are relative to `--project`.
+choices include all four canonical names, including `quick-emerge`. Input
+JSON/evidence filenames are relative to the process working directory; chosen
+record paths, `--output` paths and relative evidence `board_path` values are
+relative to `--project`. `show` accepts a readable named JSON within the project
+or an absolute JSON filename elsewhere; it validates the embedded plugin, schema
+and content identity rather than requiring a hash-shaped filename.
 
 `save` defaults explicitly to **unverified/read-only**, including when an input
 contains hash-shaped metadata. Its JSON receipt makes that state visible. Actual
 producer `--version` is optional and remains unknown when omitted. Strict input
 uses the same 64 MiB/depth/duplicate-key/nonfinite rejection as library loads.
+Named `save --output` appends `.json` when no extension is supplied. Existing
+named outputs require explicit `--overwrite`; the default remains the immutable
+hidden library when `--output` is omitted. Input, evidence and declared source
+files are protected even with `--overwrite`. No data arrays are truncated to
+fit the 64 MiB record limit; oversized records fail with an actionable error.
 Input and evidence files are never changed. Errors return exit status 2 with a
 JSON diagnostic on stderr; successful operations return status 0 and JSON on
 stdout. `list` emits receipts, and default `show` emits a single receipt without

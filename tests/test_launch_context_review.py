@@ -26,6 +26,78 @@ class LaunchContextReviewTests(unittest.TestCase):
                 context.connect()
         factory.assert_not_called()
 
+    def test_two_captured_editors_reconnect_with_their_own_identity(self):
+        clients = [Mock(), Mock(), Mock()]
+        factory = Mock(side_effect=clients)
+        with patch.dict(os.environ, {'KICAD_API_SOCKET': 'socket-A', 'KICAD_API_TOKEN': 'token-A'}):
+            first = context.LaunchContext.capture()
+        with patch.dict(os.environ, {'KICAD_API_SOCKET': 'socket-B', 'KICAD_API_TOKEN': 'token-B'}):
+            second = context.LaunchContext.capture()
+            with patch.dict(sys.modules, {'kipy': SimpleNamespace(KiCad=factory)}):
+                context.connect(launch_context=first)
+                context.connect(launch_context=second)
+                context.connect(launch_context=first)
+        self.assertEqual([call.kwargs['kicad_token'] for call in factory.call_args_list],
+                         ['token-A', 'token-B', 'token-A'])
+        for client in clients:
+            client.get_version.assert_called_once_with()
+        self.assertNotIn('token-A', repr(first))
+
+    def test_token_collision_is_actionable_and_never_tries_another_editor(self):
+        client = Mock()
+        client.get_version.side_effect = RuntimeError(
+            "KiCad returned error: the provided kicad_token did not match this KiCad instance's token")
+        factory = Mock(return_value=client)
+        with patch.dict(sys.modules, {'kipy': SimpleNamespace(KiCad=factory)}):
+            with self.assertRaisesRegex(RuntimeError, 'separate IPC namespace'):
+                context.connect(launch_context=context.LaunchContext('socket-A', 'secret'))
+        factory.assert_called_once_with(socket_path='socket-A', kicad_token='secret', timeout_ms=5000)
+        client.get_board.assert_not_called()
+
+    def test_runtime_preparation_cannot_mix_launch_identity(self):
+        def prepare(*args):
+            os.environ.update(KICAD_API_SOCKET='socket-B', KICAD_API_TOKEN='token-B')
+            return Path('distinct-python').absolute()
+        with patch.dict(os.environ, {'KICAD_API_SOCKET': 'socket-A', 'KICAD_API_TOKEN': 'token-A'}), \
+             patch.object(runtime_setup, 'ensure_runtime', side_effect=prepare), \
+             patch.object(bootstrap.subprocess, 'call', return_value=0) as launch:
+            bootstrap.relaunch('/plugin', 'entry.py')
+        env = launch.call_args.kwargs['env']
+        self.assertEqual((env['KICAD_API_SOCKET'], env['KICAD_API_TOKEN']), ('socket-A', 'token-A'))
+
+    def test_explicit_identity_errors_redact_the_captured_token(self):
+        client=Mock()
+        client.get_version.side_effect=RuntimeError('Failed request captured-secret')
+        with patch.dict(sys.modules, {'kipy':SimpleNamespace(KiCad=Mock(return_value=client))}), \
+             patch.dict(os.environ, {'KICAD_API_TOKEN':'other-secret'}):
+            with self.assertRaisesRegex(RuntimeError, r'^Failed request \[redacted\]$'):
+                context.connect(launch_context=context.LaunchContext('socket-A','captured-secret'))
+
+    def test_standalone_handoff_does_not_acquire_later_editor_context(self):
+        env = context.LaunchContext('', '').apply({'KICAD_API_SOCKET': 'B', 'KICAD_API_TOKEN': 'secret'})
+        self.assertNotIn('KICAD_API_SOCKET', env)
+        self.assertNotIn('KICAD_API_TOKEN', env)
+
+    def test_native_analysis_keeps_the_board_and_editor_pair_during_handoff(self):
+        from wayricad_runtime import native_analysis
+        client = Mock()
+        client.get_board.return_value.get_selection.return_value = []
+        def prepare(tool):
+            os.environ.update(KICAD_API_SOCKET='socket-B', KICAD_API_TOKEN='token-B')
+            return Path('native-python')
+        with patch.dict(os.environ, {'KICAD_API_SOCKET': 'socket-A', 'KICAD_API_TOKEN': 'token-A'}), \
+             patch.object(context, 'connect', return_value=client) as connect, \
+             patch.object(context, 'saved_board', return_value=Path('board-A.kicad_pcb')) as saved, \
+             patch.object(native_analysis, 'native_python', side_effect=prepare), \
+             patch.object(native_analysis.subprocess, 'Popen') as process:
+            native_analysis.launch('/plugin', 'signal_integrity_advisor_plugin')
+        saved.assert_called_once_with(client)
+        self.assertEqual(connect.call_args.kwargs['launch_context'].socket, 'socket-A')
+        args=process.call_args.args[0]
+        self.assertEqual(args[args.index('--board')+1], 'board-A.kicad_pcb')
+        env=process.call_args.kwargs['env']
+        self.assertEqual((env['KICAD_API_SOCKET'],env['KICAD_API_TOKEN']),('socket-A','token-A'))
+
     def test_board_uses_document_filename_and_project_not_cwd(self):
         with tempfile.TemporaryDirectory() as folder:
             board_path = Path(folder) / 'active.kicad_pcb'

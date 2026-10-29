@@ -55,3 +55,18 @@ are recorded with the published release.
 - Regenerated public portable examples use the current real saved-board
   producers and retain the exact unchanged included PCB hash. The final new
   workflow/example regression set passed 101 tests with 2 environment skips.
+- Launch context: 15 regression checks cover two captured editor identities,
+  repeated connections, authentication rejection, missing context, runtime
+  preparation changing the ambient environment, and native analysis retaining
+  its source board and connection pair through the handoff. These are isolated
+  connection/launcher tests, not a fresh live two-editor acceptance run. The
+  previously recorded Windows server endpoint collision remains a host-side
+  limitation with the separate-temporary-directory workaround.
+- Setup/result persistence: 73 focused checks passed with 2 optional-native
+  skips, followed by 14 passing native KiCad Python checks. Coverage includes
+  actual setup Save/Load handlers, all six PI study adapters, shunt-capacitor
+  banks, source/sink groups, thermal overrides and IBIS file-change rejection.
+  EMerge setup and named-result CLI checks passed 31 tests. Independent review
+  reproduced and verified fixes for named-file CLI loading and preventing a
+  result from overwriting a declared study input. These checks use disposable
+  fixtures and in-process native controls, not live editor acceptance.

@@ -19,7 +19,7 @@ def choose_pad_unit(parent, inventory, net, selected=(), *, multiple=True):
     indices = [i for i, row in enumerate(rows) if row['id'] in selected or row.get('label') in selected]
     result = choose_items(parent, labels, selection=indices[0] if indices else -1,
                           checked=indices if multiple else None,
-                          group_keys=[(r.get('footprint_uuid') or r.get('reference') or r.get('label','').rsplit('.',1)[0], net) for r in rows],
+                          group_keys=[(r.get('footprint_uuid') or r['id'], net) for r in rows],
                           group_label='Check component / same net')
     if result is None:
         return None

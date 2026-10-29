@@ -24,11 +24,13 @@
   with source conditions and editable overrides. Opening the picker changes no inputs.
 
 
-**Project simulation library (updated source):** **Save simulation…** keeps the
-complete result in `.wayricad/results/quick-pi/`; **Load simulation…** recalls it
-in a native read-only viewer without solving again. Each JSON has a deterministic
-content ID and retains source evidence, fields and time samples.
-[Workflow, format and CLI](../docs/PROJECT_RESULTS.md).
+**Setup and simulation files:** **Save setup…** and **Load setup…** retain
+editable inputs separately from results. **Save simulation…** opens a filename
+and folder chooser starting in the saved PCB project directory; **Load
+simulation…** opens the chosen complete numerical record read-only without
+solving again. Source evidence and all stored samples remain in the JSON.
+[File workflow, supported setup fields and CLI](../docs/PROJECT_RESULTS.md).
+[AC, transient, electrothermal, batch and PDN setup files](STUDY_SETUP_FILES.md).
 
 **Saved results (updated source):** **Save results** keeps the HTML report and
 complete numerical JSON, plus a portable `.pocket-kivi.json` companion bound to

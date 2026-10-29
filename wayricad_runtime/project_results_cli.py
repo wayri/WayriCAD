@@ -8,7 +8,7 @@ import sys
 
 from . import project_results as library
 
-PLUGINS = ('quick-pi', 'quick-si', 'quick-therm')
+PLUGINS = ('quick-pi', 'quick-si', 'quick-therm', 'quick-emerge')
 _EVIDENCE = {'board_path', 'source_sha256', 'tool', 'version', 'source_state',
              'units', 'coordinate_frame', 'z_basis'}
 _REQUIRED_EVIDENCE = {'board_path', 'source_sha256', 'tool', 'version', 'source_state'}
@@ -37,7 +37,7 @@ def main(argv=None):
     listing = commands.add_parser('list', help='List verified record receipts in deterministic plugin/content order.')
     listing.add_argument('--plugin', choices=PLUGINS)
     show = commands.add_parser('show', help='Inspect one immutable result and its current source state.')
-    show.add_argument('record', type=Path, help='Library record path, relative to the project or absolute inside it.')
+    show.add_argument('record', type=Path, help='Chosen JSON result file; relative to the project or absolute, including an external folder.')
     show.add_argument('--plugin', choices=PLUGINS)
     show.add_argument('--full', action='store_true', help='Include the complete bundle plus receipt; no arrays are shortened.')
     save = commands.add_parser('save', help='Save a complete JSON bundle; unverified/read-only unless explicit evidence is supplied.')
@@ -45,17 +45,28 @@ def main(argv=None):
     save.add_argument('--plugin', choices=PLUGINS, required=True)
     save.add_argument('--version', help='Actual producer version, otherwise explicitly unknown.')
     save.add_argument('--evidence', type=Path, help='Strict JSON portable-export arguments with the ORIGINAL solve-time PCB SHA-256.')
+    save.add_argument('--output', type=Path, help='Named JSON destination, relative to the project or absolute. Omit for the immutable project library.')
+    save.add_argument('--overwrite', action='store_true', help='Permit replacing an existing named output; source/input files remain protected.')
     args = parser.parse_args(argv)
     try:
         if args.command == 'list':
             result = library.list_results(args.project, plugin=args.plugin)
         elif args.command == 'show':
-            loaded = library.load_result(args.project, args.record, plugin=args.plugin)
+            record = args.record if args.record.is_absolute() else args.project / args.record
+            loaded = library.load_result(args.project, record, plugin=args.plugin, chosen=True)
             result = loaded if args.full else loaded['receipt']
         else:
             bundle = _input(args.input)
             evidence = _evidence(args.evidence, args.project) if args.evidence else None
-            result = library.save_result(args.project, args.plugin, bundle, pocket_kivi=evidence, version=args.version)
+            destination = args.output
+            if destination is not None:
+                destination = destination if destination.is_absolute() else args.project / destination
+                if not destination.suffix:destination=destination.with_suffix('.json')
+                if destination.exists() and not args.overwrite:
+                    raise ValueError('Named output already exists. Choose another filename or explicitly use --overwrite.')
+            protected = [args.input] + ([args.evidence] if args.evidence else [])
+            result = library.save_result(args.project, args.plugin, bundle, pocket_kivi=evidence, version=args.version,
+                                         destination=destination, protected_sources=protected)
         print(json.dumps(result, sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(',', ':')))
         return 0
     except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:

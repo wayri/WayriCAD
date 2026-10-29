@@ -7,11 +7,12 @@ Opening the picker changes no settings. Applied values retain their evidence;
 manual changes invalidate that selection and previous simulation results.
 [Available references, units and limits](../docs/THERMAL_MATERIALS.md).
 
-**Project simulation library (updated source):** **Save simulation…** retains
-complete grids, layers, probes and transient frames under
-`.wayricad/results/quick-therm/`. **Load simulation…** opens saved fields and
-time steps read-only without running another simulation.
-[Workflow, deterministic JSON and CLI](../docs/PROJECT_RESULTS.md).
+**Setup and simulation files:** **Save setup…** and **Load setup…** retain
+editable inputs separately from results. **Save simulation…** opens a filename
+and folder chooser starting in the saved PCB project directory; **Load
+simulation…** opens the chosen complete numerical record read-only without
+solving again. Source evidence and all stored samples remain in the JSON.
+[File workflow, supported setup fields and CLI](../docs/PROJECT_RESULTS.md).
 
 **Saved results (updated source):** **Save results** writes HTML, complete
 numerical JSON and a portable `.pocket-kivi.json` companion. Available computed

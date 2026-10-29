@@ -9,6 +9,27 @@ the [feature reference](ReadMe.md), [offline help](help.html) and
 [offline HTML edition](USER_GUIDE.html). Screenshots retain their actual capture
 versions; they demonstrate workflows rather than measured hardware results.
 
+## Save and recall setup
+
+1. Save the PCB, then choose **Save setup…** in the input column. The suggested
+   filename is `<board>.quick-si.setup.json` beside the PCB. Choose any JSON
+   filename or another folder in the dialog.
+2. **Load setup…** restores every main route input, reference layer, return net
+   and optional source/receiver return pin, eye setting, checked study net,
+   drafted study case, directed crosstalk pair and IBIS selection. Blank draft
+   endpoints remain blank; loading does not guess signal direction.
+3. A changed PCB revision requires explicit review before loading. Nets, pads,
+   layers and model assignments are checked against this board first. Missing
+   or changed IBIS files stop loading with an error; no assignment is silently
+   dropped. Keep external `.ibs` files available when moving a setup.
+4. Existing computed results are cleared when setup loads. Run a new analysis.
+   To inspect a previous calculation without running, use **Load simulation…**
+   and choose its result JSON instead. Setup JSON and result JSON are different
+   file types and cannot be substituted for each other.
+
+Cancelled dialogs and invalid files leave existing inputs unchanged. These
+operations change annotation-free analysis data only; the PCB is not written.
+
 ## Contents
 
 - [Marble worked example](#marble-worked-example)

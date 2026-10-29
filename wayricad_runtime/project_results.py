@@ -18,13 +18,14 @@ KEY = 'wayricad_saved_result'
 _PLUGINS = {'pi': 'quick-pi', 'quick-pi': 'quick-pi', 'quick_pi_plugin': 'quick-pi',
             'si': 'quick-si', 'quick-si': 'quick-si', 'signal_integrity_advisor_plugin': 'quick-si',
             'therm': 'quick-therm', 'thermal': 'quick-therm', 'quick-therm': 'quick-therm',
-            'quick_therm_plugin': 'quick-therm'}
+            'quick_therm_plugin': 'quick-therm', 'quick-emerge': 'quick-emerge',
+            'quick_emerge_plugin': 'quick-emerge'}
 _HASH = re.compile(r'[a-f0-9]{64}')
 
 
 def _plugin(value):
     if not isinstance(value, str) or value not in _PLUGINS:
-        raise ValueError('Choose the quick-pi, quick-si or quick-therm result library.')
+        raise ValueError('Choose the quick-pi, quick-si, quick-therm or quick-emerge result library.')
     return _PLUGINS[value]
 
 
@@ -179,6 +180,30 @@ def _sources(bundle):
     return [dict(path=path, sha256=result[path]) for path in sorted(result)]
 
 
+def _protected_inputs(bundle,root):
+    """Collect declared input files before portable path relocation or fallback."""
+    result=[];pending=[bundle];visited=set()
+    from .pocket_kivi_export import _INPUT_FIELDS
+    keys=_INPUT_FIELDS|{'path','ibis_path','ibis_file','recipe_path','configuration_path'}
+    while pending:
+        row=pending.pop()
+        if isinstance(row,(dict,list,tuple)):
+            if id(row) in visited:continue
+            visited.add(id(row))
+        if isinstance(row,(list,tuple)):
+            pending.extend(row);continue
+        if not isinstance(row,dict):continue
+        for key,value in row.items():
+            if key in keys and isinstance(value,str) and value:
+                path=Path(value);result.append(path if path.is_absolute() else root/path)
+            elif key=='source_fingerprints' and isinstance(value,dict):
+                for value in value:
+                    if isinstance(value,str):
+                        path=Path(value);result.append(path if path.is_absolute() else root/path)
+            if isinstance(value,(dict,list,tuple)):pending.append(value)
+    return result
+
+
 def _add_source(result, path, digest):
     _relative(path)
     if digest is not None and (not isinstance(digest, str) or not _HASH.fullmatch(digest.lower())):
@@ -219,7 +244,8 @@ def _identity(bundle):
 def _receipt(root, path, record, raw):
     metadata = record[KEY]
     state, issues = _source_state(root, metadata)
-    return dict(path=str(path), relative_path=path.relative_to(root).as_posix(), plugin=metadata['plugin'],
+    display = path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+    return dict(path=str(path), relative_path=display, plugin=metadata['plugin'],
                 identity=metadata['identity'], producer_version=metadata['producer_version'],
                 bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest(), source_state=state,
                 can_restore=state == 'current', source_path=record.get('source_path') if metadata['source_binding'] == 'verified-saved' else None,
@@ -227,12 +253,12 @@ def _receipt(root, path, record, raw):
                 source_issues=issues)
 
 
-def save_result(project_root, plugin, bundle, *, pocket_kivi=None, version=None):
+def save_result(project_root, plugin, bundle, *, pocket_kivi=None, version=None, destination=None, protected_sources=()):
     """Save immutable full JSON; verified evidence is explicit, never freshly invented."""
     root, plugin = _root(project_root), _plugin(plugin)
     if not isinstance(bundle, dict) or KEY in bundle:
         raise ValueError('Save the complete producer bundle, without library metadata.')
-    protected = []
+    protected = _protected_inputs(bundle,root)
     guard = None
     if pocket_kivi is not None:
         if not isinstance(pocket_kivi, dict):
@@ -249,7 +275,8 @@ def save_result(project_root, plugin, bundle, *, pocket_kivi=None, version=None)
         version = arguments.get('version')
         original = dict(bundle)
         previous = original.pop('pocket_kivi_export', None)
-        portable, _, protected, source = _prepare(original, **arguments)
+        portable, _, verified_protected, source = _prepare(original, **arguments)
+        protected.extend(verified_protected)
         if previous is not None and previous != portable['pocket_kivi_export']:
             raise ValueError('Existing portable metadata conflicts with this export evidence.')
         board, expected, source_root = source
@@ -272,12 +299,12 @@ def save_result(project_root, plugin, bundle, *, pocket_kivi=None, version=None)
     portable[KEY]['identity'] = identity
     raw = _canonical(portable)
     relative = '.wayricad/results/' + plugin + '/' + identity + '.json'
-    target = _inside(root, relative, create=True)
-    for path in protected:
+    target = _inside(root, relative, create=True) if destination is None else _chosen_file(destination)
+    for path in [*protected, *protected_sources]:
         source = Path(path)
         if source.resolve() == target.resolve() or (target.exists() and source.exists() and os.path.samefile(target, source)):
             raise ValueError('Saved results must not overwrite original sources or settings.')
-    if target.exists():
+    if target.exists() and destination is None:
         if not _same_bytes(target, raw):
             raise ValueError('Existing result identity collides with mutated content; it was not overwritten.')
         if guard:guard()
@@ -289,9 +316,14 @@ def save_result(project_root, plugin, bundle, *, pocket_kivi=None, version=None)
         with os.fdopen(descriptor, 'wb') as stream:
             stream.write(raw); stream.flush(); os.fsync(stream.fileno())
         if guard:guard()
-        _inside(root, relative)
+        if destination is None:
+            _inside(root, relative)
+        else:
+            _chosen_file(target)
         try:
-            if os.name == 'nt':
+            if destination is not None:
+                os.replace(staging, target)
+            elif os.name == 'nt':
                 os.rename(staging, target)  # Windows rename fails if target exists.
             else:
                 os.link(staging, target)  # Atomic, exclusive publication on POSIX.
@@ -300,7 +332,7 @@ def save_result(project_root, plugin, bundle, *, pocket_kivi=None, version=None)
             _inside(root, relative)
             if not _same_bytes(target, raw):
                 raise ValueError('Existing result identity collides with mutated content; it was not overwritten.') from None
-        if guard:guard()
+        if guard and destination is None:guard()
     except BaseException:
         if created and not _linked(target) and _same_bytes(target, raw):
             target.unlink()
@@ -310,33 +342,53 @@ def save_result(project_root, plugin, bundle, *, pocket_kivi=None, version=None)
     return dict(_receipt(root, target, portable, raw), created=created)
 
 
-def load_result(project_root, path, *, plugin=None):
+def _chosen_file(value):
+    """Validate an explicitly selected JSON path without constraining its name."""
+    path = Path(value).absolute()
+    if path.suffix.lower() != '.json':
+        raise ValueError('Choose a .json simulation data file.')
+    if not path.parent.is_dir() or _linked(path):
+        raise ValueError('Choose an existing destination directory and a regular JSON file.')
+    return path.resolve()
+
+
+def load_result(project_root, path, *, plugin=None, chosen=False):
     """Inspect verified historical data; stale sources never authorize reattachment."""
     root = _root(project_root)
     candidate = Path(path)
-    if candidate.is_absolute():
+    if chosen:
+        target = _chosen_file(candidate)
+        expected_plugin = _plugin(plugin) if plugin is not None else None
+        parsed = None
+    elif candidate.is_absolute():
         try:
             relative = candidate.relative_to(root).as_posix()
         except ValueError:
             raise ValueError('Choose a saved result inside this project library.') from None
-    else:
+    elif not chosen:
         relative = candidate.as_posix()
-    parsed = _relative(relative)
-    if (len(parsed.parts) != 4 or parsed.parts[:2] != ('.wayricad', 'results')
-            or parsed.suffix != '.json' or not _HASH.fullmatch(parsed.stem)):
-        raise ValueError('Choose a canonical .wayricad/results/<plugin>/<identity>.json record.')
-    expected_plugin = _plugin(parsed.parts[2])
-    if parsed.parts[2] != expected_plugin or (plugin is not None and _plugin(plugin) != expected_plugin):
-        raise ValueError('Saved result belongs to another plugin.')
-    target = _inside(root, relative)
+    if not chosen:
+        parsed = _relative(relative)
+        if (len(parsed.parts) != 4 or parsed.parts[:2] != ('.wayricad', 'results')
+                or parsed.suffix != '.json' or not _HASH.fullmatch(parsed.stem)):
+            raise ValueError('Choose a canonical .wayricad/results/<plugin>/<identity>.json record.')
+        expected_plugin = _plugin(parsed.parts[2])
+        if parsed.parts[2] != expected_plugin or (plugin is not None and _plugin(plugin) != expected_plugin):
+            raise ValueError('Saved result belongs to another plugin.')
+        target = _inside(root, relative)
     with target.open('rb') as stream:
         raw = stream.read(MAX_BYTES + 1)
     record = _decode(raw)
     metadata = record.get(KEY)
+    if isinstance(metadata,dict) and expected_plugin is not None and metadata.get('plugin')!=expected_plugin:
+        raise ValueError('Saved result belongs to another plugin.')
     required = {'schema', 'version', 'plugin', 'producer_version', 'source_binding', 'sources', 'identity'}
     if (not isinstance(metadata, dict) or set(metadata) != required or metadata.get('schema') != SCHEMA
             or type(metadata.get('version')) is not int or metadata['version'] != 1
-            or metadata.get('plugin') != expected_plugin or metadata.get('identity') != parsed.stem
+            or (expected_plugin is not None and metadata.get('plugin') != expected_plugin)
+            or metadata.get('plugin') not in set(_PLUGINS.values())
+            or not isinstance(metadata.get('identity'),str) or not _HASH.fullmatch(metadata['identity'])
+            or (parsed is not None and metadata.get('identity') != parsed.stem)
             or metadata.get('source_binding') not in ('verified-saved', 'unverified')
             or not isinstance(metadata.get('sources'), list) or len(metadata['sources']) > 1024):
         raise ValueError('Saved result metadata is missing, incompatible or belongs to another identity.')

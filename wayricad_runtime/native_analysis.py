@@ -112,8 +112,9 @@ def run_cli(root, argv):
 
 
 def launch(root, tool):
-    from .context import connect, saved_board
-    client = connect()
+    from .context import LaunchContext, connect, saved_board
+    launch_context = LaunchContext.capture()
+    client = connect(launch_context=launch_context)
     source = saved_board(client)
     # Selection is only a hint against the same editor's saved snapshot.
     selection = []
@@ -125,7 +126,7 @@ def launch(root, tool):
     process = subprocess.Popen([str(native_python(tool)), '-I', str(Path(__file__).resolve()),
                                 '--root', str(root), '--tool', tool, '--board', str(source),
                                 '--selection-ids', ','.join(selection)],
-                               env=child_environment(),
+                               env=launch_context.apply(child_environment()),
                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     return process.wait()
 

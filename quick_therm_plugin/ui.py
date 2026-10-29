@@ -97,6 +97,8 @@ class QuickThermFrame(wx.Frame):
         self.project_results=add_project_results(self,self.main_panel,root,'quick-therm',self.board_path,
             lambda:[('Thermal simulation',self.thermal_bundle if self.thermal_bundle.get('quick_therm') else None)],
             status=lambda text:self.status.SetLabel(text),module_file=__file__)
+        from .setup_file import bind as bind_setup
+        self.project_setup=bind_setup(self,self.main_panel,root)
         footer.AddStretchSpacer()
         self.close_button = wx.Button(self.main_panel, wx.ID_CLOSE, label="Close")
         self.close_button.Bind(wx.EVT_BUTTON, lambda event: self.Close())

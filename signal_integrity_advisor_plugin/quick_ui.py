@@ -137,6 +137,12 @@ class QuickSIPanel(wx.Panel):
         self.project_results=add_project_results(self,left,form,'quick-si',board.GetFileName(),
             lambda:[('SI route / eye',self.report),('Multi-net SI study',self.study_report)],
             certify=bool(saved_board),status=lambda text:self.status.SetLabel(text),module_file=__file__)
+        from wayricad_runtime.project_setup_ui import add_project_setup
+        from . import setup_state
+        self.project_setup=add_project_setup(self,left,form,'quick-si',board.GetFileName(),
+            lambda:setup_state.capture(self),lambda state:setup_state.restore(self,state),
+            validate=lambda state:setup_state.validate(self,state),
+            status=lambda text:self.status.SetLabel(text))
         self.blender=wx.Button(left,label='Blender…');self.blender.Disable();self.blender.Bind(wx.EVT_BUTTON,self.export_blender)
         self.blender.SetToolTip('Export current route evidence for Blender; no traveling-wave simulation is inferred.')
         form.Add(self.blender,0,wx.EXPAND|wx.TOP,6)

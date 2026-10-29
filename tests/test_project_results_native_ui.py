@@ -92,16 +92,18 @@ def test_buttons_save_exact_complete_bundle_and_load_without_solver(owner,app,tm
     actions=add_project_results(owner,owner,owner.GetSizer(),'quick-pi',tmp_path/'board.kicad_pcb',
         lambda:[('Completed circuit',bundle)],certify=False,status=status.append)
     actions.task=lambda operation,done:done(operation())
-    actions.on_save()
-    assert any('Saved Completed circuit' in value for value in status)
-    from wayricad_runtime.project_results import list_results,load_result
-    receipts=list_results(tmp_path,plugin='quick-pi')
-    assert len(receipts)==1
-    assert load_result(tmp_path,receipts[0]['path'])['bundle']==bundle
     dialog=Mock();dialog.__enter__=Mock(return_value=dialog);dialog.__exit__=Mock(return_value=False)
     dialog.ShowModal.return_value=wx.ID_OK;dialog.GetSelection.return_value=0
+    dialog.GetPath.return_value=str(tmp_path/'saved-result.json')
+    with patch('wx.FileDialog',return_value=dialog) as chooser:
+        actions.on_save()
+    assert chooser.call_args.kwargs['defaultDir']==str(tmp_path)
+    assert any('Saved Completed circuit' in value for value in status)
+    from wayricad_runtime.project_results import list_results,load_result
+    assert list_results(tmp_path,plugin='quick-pi')==[]
+    assert load_result(tmp_path,tmp_path/'saved-result.json',plugin='quick-pi',chosen=True)['bundle']==bundle
     result=Mock()
-    dialog.GetPath.return_value=receipts[0]['path']
+    dialog.GetPath.return_value=str(tmp_path/'saved-result.json')
     with patch('wx.FileDialog',return_value=dialog),patch('wayricad_runtime.project_results_ui.create_viewer',return_value=result) as opened:
         actions.on_load()
     result.Show.assert_called_once()
@@ -117,6 +119,34 @@ def test_study_hook_retains_actual_result_and_is_idempotent(owner,tmp_path):
     assert actions.available()[0][1] is owner.result and actions.certify is False
     add_study_results(owner,'quick-pi',tmp_path/'board.kicad_pcb')
     assert owner._project_result_actions is actions
+
+
+def test_extensionless_result_and_setup_cancel_preserves_existing_file(owner,tmp_path):
+    from wayricad_runtime.project_setup_ui import add_project_setup
+    target=tmp_path/'chosen.json';target.write_bytes(b'original')
+    dialog=Mock();dialog.__enter__=Mock(return_value=dialog);dialog.__exit__=Mock(return_value=False)
+    dialog.ShowModal.return_value=wx.ID_OK;dialog.GetPath.return_value=str(target.with_suffix(''))
+    actions=add_project_results(owner,owner,owner.GetSizer(),'quick-pi',tmp_path/'board.kicad_pcb',
+        lambda:[('Result',{'samples':[1]})],certify=False)
+    actions.task=Mock()
+    setup=add_project_setup(owner,owner,owner.GetSizer(),'quick-pi',tmp_path/'board.kicad_pcb',lambda:{},Mock())
+    with patch('wx.FileDialog',return_value=dialog),patch('wx.MessageBox',return_value=wx.NO):
+        actions.on_save();setup.on_save()
+    actions.task.assert_not_called()
+    assert target.read_bytes()==b'original'
+
+
+def test_setup_save_never_replaces_referenced_model_json(owner,tmp_path):
+    from wayricad_runtime.project_setup_ui import add_project_setup
+    board=tmp_path/'board.kicad_pcb';board.write_text('(kicad_pcb)')
+    source=tmp_path/'model.json';source.write_bytes(b'{"original":true}')
+    dialog=Mock();dialog.__enter__=Mock(return_value=dialog);dialog.__exit__=Mock(return_value=False)
+    dialog.ShowModal.return_value=wx.ID_OK;dialog.GetPath.return_value=str(source)
+    setup=add_project_setup(owner,owner,owner.GetSizer(),'quick-pi',board,
+        lambda:{'model':{'model_path':str(source)}},Mock())
+    with patch('wx.FileDialog',return_value=dialog),patch('wx.MessageBox') as warning:
+        setup.on_save()
+    assert warning.called and source.read_bytes()==b'{"original":true}'
 
 
 

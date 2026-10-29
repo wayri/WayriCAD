@@ -138,6 +138,12 @@ class ReturnSetupTests(unittest.TestCase):
         self.assertEqual(chosen, [sorted([r for r in inventory['terminals'] if r['net']=='GND'],
             key=lambda r:(r['reference'].casefold(),r['label'].casefold(),r['id']))[2]['id']])
         self.assertEqual(picker.call_args.kwargs['checked'], [2])
+        rows=sorted([r for r in inventory['terminals'] if r['net']=='GND'],
+                    key=lambda r:(r['reference'].casefold(),r['label'].casefold(),r['id']))
+        keys=picker.call_args.kwargs['group_keys']
+        for row,key in zip(rows,keys):
+            if not row.get('footprint_uuid'):
+                self.assertEqual(key,(row['id'],'GND'))
 
     def test_default_summary_edit_and_removal_do_not_require_json(self):
         base, inventory = fixture(); editor = self.editor(case_names=['Main rail']); editor._suggest()

@@ -249,7 +249,7 @@ class PITransientStudyDialog(TransientStudyDialog):
         except (ValueError,TypeError) as exc:self.status.SetLabel(str(exc))
 
     def _load_inputs(self,event=None):
-        with wx.FileDialog(self,'Load explicit PI transient inputs',wildcard='JSON (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
+        with wx.FileDialog(self,'Load explicit PI transient inputs',defaultDir=str(Path(self.board_path).resolve().parent) if self.board_path else '',wildcard='JSON (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             path=Path(dialog.GetPath())
         try:
@@ -273,7 +273,7 @@ class PITransientStudyDialog(TransientStudyDialog):
     def _save_inputs(self,event=None):
         try:study=self._request()['study']
         except ValueError as exc:self.status.SetLabel(str(exc));return
-        with wx.FileDialog(self,'Save explicit PI transient inputs',defaultFile='pi-transient-inputs.json',wildcard='JSON (*.json)|*.json',style=wx.FD_SAVE) as dialog:
+        with wx.FileDialog(self,'Save explicit PI transient inputs',defaultDir=str(Path(self.board_path).resolve().parent) if self.board_path else '',defaultFile='pi-transient-inputs.json',wildcard='JSON (*.json)|*.json',style=wx.FD_SAVE) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             path=Path(dialog.GetPath())
         try:

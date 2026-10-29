@@ -221,7 +221,7 @@ class ElectrothermalStudyDialog(wx.Dialog):
 
     def _load(self,event=None):
         from .electrothermal_cli import load_study
-        with wx.FileDialog(self,'Load electrothermal study',wildcard='JSON study (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
+        with wx.FileDialog(self,'Load electrothermal study',defaultDir=str(Path(self.board_path).resolve().parent) if self.board_path else '',wildcard='JSON study (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             path=dialog.GetPath()
         try:

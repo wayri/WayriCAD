@@ -14,6 +14,7 @@ from matplotlib.figure import Figure
 
 from .ac_cli import load_study, parse_study, protect_outputs
 from .ac_report import draw, summary, write_report, engineering
+from .study_setup_file import project_directory
 
 
 def initial_study():
@@ -386,7 +387,7 @@ class ACStudyDialog(wx.Dialog):
         finally:dialog.Destroy()
 
     def _load(self, event=None):
-        with wx.FileDialog(self, 'Load AC study', wildcard='JSON study (*.json)|*.json', style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
+        with wx.FileDialog(self, 'Load AC study', defaultDir=project_directory(self), wildcard='JSON study (*.json)|*.json', style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
             if dialog.ShowModal() != wx.ID_OK: return
             path = dialog.GetPath()
         try:
@@ -400,7 +401,7 @@ class ACStudyDialog(wx.Dialog):
         if self._quick_dirty and not self._apply_quick():return
         try: study = self._study()
         except (ValueError,OSError) as exc: self.status.SetLabel(str(exc)); return
-        with wx.FileDialog(self, 'Save AC inputs', defaultFile='ac-copper-study.json', wildcard='JSON (*.json)|*.json', style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+        with wx.FileDialog(self, 'Save AC inputs', defaultDir=project_directory(self), defaultFile='ac-copper-study.json', wildcard='JSON (*.json)|*.json', style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal() != wx.ID_OK: return
             path = Path(dialog.GetPath())
         try:

@@ -1,16 +1,58 @@
 """Resolve only the KiCad instance that launched this action."""
 from pathlib import Path
+from dataclasses import dataclass, field
 import os
 
 
-def connect(*, timeout_ms=5000):
-    socket = os.environ.get('KICAD_API_SOCKET', '').strip()
-    token = os.environ.get('KICAD_API_TOKEN', '')
-    if not socket or not token:
+@dataclass(frozen=True)
+class LaunchContext:
+    """An inseparable connection identity captured before runtime preparation."""
+    socket: str
+    token: str = field(repr=False)
+
+    @classmethod
+    def capture(cls):
+        environment = os.environ.copy()
+        return cls(environment.get('KICAD_API_SOCKET', '').strip(),
+                   environment.get('KICAD_API_TOKEN', ''))
+
+    def apply(self, environment):
+        """Replace both inherited values, including removal of absent context."""
+        for name, value in (('KICAD_API_SOCKET', self.socket), ('KICAD_API_TOKEN', self.token)):
+            if value:
+                environment[name] = value
+            else:
+                environment.pop(name, None)
+        return environment
+
+
+def connect(*, timeout_ms=5000, launch_context=None):
+    identity = launch_context if launch_context is not None else LaunchContext.capture()
+    if not identity.socket or not identity.token:
         raise RuntimeError('No originating KiCad connection. Launch this action from the PCB Editor toolbar, or supply a saved board to the standalone CLI.')
     from kipy import KiCad
     # Never enumerate sockets or fall back to another running editor.
-    return KiCad(socket_path=socket, kicad_token=token, timeout_ms=timeout_ms)
+    try:
+        client = KiCad(socket_path=identity.socket, kicad_token=identity.token, timeout_ms=timeout_ms)
+        # Authenticate before loading a tool or exposing board operations.
+        client.get_version()
+    except Exception as exc:
+        if 'provided kicad_token did not match' in str(exc):
+            raise RuntimeError(connection_error_message()) from None
+        if identity.token in str(exc):
+            raise RuntimeError(str(exc).replace(identity.token, '[redacted]')) from None
+        raise
+    return client
+
+
+def connection_error_message():
+    return ('The launching KiCad editor could not authenticate its own connection. '
+            'Another open editor may be using the same IPC endpoint. '
+            'No other board was selected. Save your work, then open the affected PCB '
+            'in a separate IPC namespace using the WayriCAD open-editor helper '
+            '(python tools/open_kicad.py "C:/Projects/Example/board.kicad_pcb"). '
+            'Launch the plugin again from that editor. See the multi-editor section '
+            'in WayriCAD Troubleshooting. Existing editors are not closed automatically.')
 
 
 def saved_board(client=None):
@@ -39,5 +81,7 @@ def saved_board(client=None):
 
 def redact_error(error):
     text = str(error)
+    if 'provided kicad_token did not match' in text:
+        text = connection_error_message()
     token = os.environ.get('KICAD_API_TOKEN', '')
     return text.replace(token, '[redacted]') if token else text

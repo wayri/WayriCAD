@@ -89,6 +89,7 @@ jobs:
           python -m pytest extract_pins_plugin/tests -q
           python -m pytest review_comments_plugin/tests -q
           python -m pytest signal_integrity_advisor_plugin/tests/test_saved_results.py -q
+          python -m pytest signal_integrity_advisor_plugin/tests/test_setup_state.py -q
           python -m pytest mechanical_check_plugin/tests/test_pocket_results.py -q
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p test_quick_si.py -v
           python -m unittest discover -s signal_integrity_advisor_plugin/tests -p test_pair_timing.py -v

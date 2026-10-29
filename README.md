@@ -102,14 +102,20 @@ QuickTherm results can be exported as Blender scenes, with supported fields and
 stored-frame thermal animation. See the [Blender walkthrough](wayricad_runtime/BLENDER.md)
 for the plugin actions, CLI, animation controls and model limits.
 
-### Save and recall simulations — updated source
+### Save setups and recall results
 
-Quick PI, Quick SI and QuickTherm now have **Save simulation…** and
-**Load simulation…** controls. Complete JSON results stay in the project’s
-`.wayricad/results/` folder, separated by plugin and deterministic content ID.
-Loaded results open read-only with plots, time steps and probes; no new solve
-or board edit occurs. The files also retain their supported KiCad GitHub viewer
-structures. [Workflow, format and CLI](docs/PROJECT_RESULTS.md).
+The quick tools open a file chooser in the saved PCB’s folder. Choose the name
+and destination; setup files and computed results are separate JSON files.
+Quick EMerge keeps these actions in its **Files** menu.
+
+| Action | What it retains | When loaded |
+|---|---|---|
+| **Save setup… / Load setup…** | Editable analysis inputs and source-board identity | Restore the inputs, review any changed source and run again |
+| **Save simulation… / Load simulation…** | Complete supported numerical results, plugin identity and provenance | Inspect stored plots, time steps and probes read-only without solving |
+
+The deterministic `.wayricad/results/` library remains available through the
+CLI. Supported result structures can also be read by the KiCad GitHub viewer.
+[File formats, limits and CLI](docs/PROJECT_RESULTS.md).
 
 ## Showcase
 

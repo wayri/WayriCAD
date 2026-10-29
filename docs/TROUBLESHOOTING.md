@@ -118,6 +118,14 @@ not require a longer timeout or a network connection for the local UI.
 
 We reproduced a KiCad **10.0.5 Windows** IPC endpoint collision with two disposable PCB editors sharing the same temporary directory. Both server logs advertised the same `api.sock` endpoint; the second editor could not be addressed independently. The corrected WayriCAD client uses the originating action's socket and token and refuses to fall back to another board, but cannot repair an already-bound KiCad server.
 
+The same symptom is `the provided kicad_token did not match this KiCad instance's token`.
+WayriCAD captures the socket and token together before preparing its runtime,
+preserves that pair through the child-process handoff, and authenticates before
+loading live board operations. It does not share a connection between plugin
+processes, scan for another editor, or retry with an empty token. A collision
+now explains the separate-namespace recovery instead of exposing only the raw
+token error. This does not repair an upstream server endpoint collision.
+
 Open each project through this source-checkout helper to give each Windows editor its own temporary IPC namespace:
 
 ```sh

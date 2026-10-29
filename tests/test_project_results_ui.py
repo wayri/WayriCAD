@@ -38,6 +38,16 @@ def test_pi_probes_read_exact_stored_node_and_null():
         assert value['value'] == bundle['result']['potential_V'][index]
 
 
+def test_emerge_original_network_and_field_samples_have_readonly_plots():
+    data={'frequencies_hz':[1e9,2e9],'s_parameters':{'S11':[[.3,.4],[0,0]]},
+          'field':{'x_mm':[1,2],'y_mm':[3],'norm_e_v_m':[[4,None]]}}
+    before=deepcopy(data);specs=plot_specs(data)
+    network=next(row for row in specs if row['kind']=='line' and row['unit']=='|S|')
+    assert network['values']==[.5,0]
+    field=next(row for row in specs if row['kind']=='grid')
+    assert frame_grid(field)==[[4,None]] and data==before
+
+
 def test_thermal_frame_indexing_retains_null_cutout_and_actual_frames():
     bundle = sample('quick-therm-transient')
     network = bundle['thermal_network']['transient']

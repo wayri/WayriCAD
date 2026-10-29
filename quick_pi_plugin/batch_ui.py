@@ -270,7 +270,7 @@ class BatchStudyDialog(wx.Dialog):
         finally:dialog.Destroy()
 
     def load_study(self,event=None):
-        with wx.FileDialog(self,'Load PI batch study',wildcard='JSON (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
+        with wx.FileDialog(self,'Load PI batch study',defaultDir=str(Path(self.board_path).resolve().parent),wildcard='JSON (*.json)|*.json',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             try:self.setup.SetValue(json.dumps(load_study(dialog.GetPath())[0],indent=2,allow_nan=False))
             except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
@@ -278,7 +278,7 @@ class BatchStudyDialog(wx.Dialog):
     def save_study(self,event=None):
         try:study=self.study()
         except ValueError as exc:self.status.SetLabel(str(exc));return
-        with wx.FileDialog(self,'Save PI batch study',defaultFile='pi-cases.json',wildcard='JSON (*.json)|*.json',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+        with wx.FileDialog(self,'Save PI batch study',defaultDir=str(Path(self.board_path).resolve().parent),defaultFile='pi-cases.json',wildcard='JSON (*.json)|*.json',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             path=Path(dialog.GetPath()).resolve()
         import os

@@ -33,6 +33,18 @@ def plot_specs(bundle):
         visited += 1
         if not isinstance(node, dict):
             continue
+        frequencies,network=node.get('frequencies_hz'),node.get('s_parameters')
+        if isinstance(frequencies,list) and frequencies and isinstance(network,dict):
+            for name,samples in network.items():
+                if (len(frequencies)<=MAX_PLOT_SAMPLES and isinstance(samples,list) and len(samples)==len(frequencies)
+                        and all(isinstance(value,(list,tuple)) and len(value)==2 and all(_number(v) for v in value) for value in samples)
+                        and all(_number(v) for v in frequencies)):
+                    specs.append(dict(label=label+' / '+name+' magnitude',kind='line',x=frequencies,
+                        values=[math.hypot(*value) for value in samples],axis='frequency_hz',unit='|S|'))
+        if isinstance(node.get('x_mm'),list) and isinstance(node.get('y_mm'),list):
+            for field,unit in (('norm_e_v_m','V/m'),('norm_h_a_m','A/m')):
+                if isinstance(node.get(field),list) and node[field]:
+                    specs.append(dict(label=label+' / '+field,kind='grid',x=node['x_mm'],y=node['y_mm'],values=node[field],unit=unit))
         mesh, result = node.get('mesh', {}), node.get('result', {})
         if isinstance(mesh,dict) and isinstance(result,dict) and mesh:
             points=mesh.get('points_mm')
@@ -487,7 +499,7 @@ def create_viewer(parent, loaded):
     return SavedSimulationWindow()
 
 
-def save_project_simulation(project_root, plugin, bundle, *, board_path, module_file=None, certify=True):
+def save_project_simulation(project_root, plugin, bundle, *, board_path, module_file=None, certify=True, destination=None):
     """Archive full evidence even when optional portable certification is unavailable."""
     from .project_results import save_result
     from .pocket_report import evidence_context, result_producer_version
@@ -496,12 +508,14 @@ def save_project_simulation(project_root, plugin, bundle, *, board_path, module_
     if certify:
         try:
             evidence = evidence_context(bundle, tool=plugin, board_path=board_path, version=version)
-            return save_result(project_root, plugin, bundle, pocket_kivi=evidence, version=version)
+            return save_result(project_root, plugin, bundle, pocket_kivi=evidence, version=version,
+                               destination=destination,protected_sources=[board_path])
         except ValueError as error:
             # The complete original result remains useful as historical data.
             # No source certificate or new fingerprint is granted on this path.
             reason = str(error)
-    receipt = save_result(project_root, plugin, bundle, version=version)
+    receipt = save_result(project_root, plugin, bundle, version=version,destination=destination,
+                          protected_sources=[board_path])
     if reason:
         receipt['portable_export_unavailable'] = reason
     return receipt
@@ -520,13 +534,16 @@ class ProjectResultActions:
         row = wx.WrapSizer(wx.HORIZONTAL)
         self.save = wx.Button(parent, label='Save simulation…')
         self.load = wx.Button(parent, label='Load simulation…')
-        self.save.SetToolTip('Keep complete computed values in this project’s .wayricad/results library')
+        self.save.SetToolTip('Choose a JSON file for the complete computed values; starts in the PCB project folder')
         self.load.SetToolTip('Open saved numerical results read-only, without running a solver')
         self.save.Bind(wx.EVT_BUTTON, self.on_save)
         self.load.Bind(wx.EVT_BUTTON, self.on_load)
         row.Add(self.save, 0, wx.RIGHT | wx.BOTTOM, 5)
         row.Add(self.load, 0, wx.BOTTOM, 5)
-        sizer.Add(row, 0, wx.EXPAND | wx.TOP, 5)
+        if sizer is not None:
+            sizer.Add(row, 0, wx.EXPAND | wx.TOP, 5)
+        else:
+            self.save.Hide();self.load.Hide()
 
     def task(self, operation, completed):
         import wx
@@ -576,10 +593,22 @@ class ProjectResultActions:
                     return
                 index = dialog.GetSelection()
         label, bundle = options[index]
-        self.status('Saving complete simulation in the project library…')
+        with wx.FileDialog(self.owner,'Save complete simulation data',defaultDir=str(self.project_root),
+                           defaultFile=self.board_path.stem+'.'+self.plugin+'.results.json',
+                           wildcard='Simulation data (*.json)|*.json',
+                           style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+            if dialog.ShowModal()!=wx.ID_OK:
+                return
+            destination=dialog.GetPath()
+        if not Path(destination).suffix:
+            destination += '.json'
+            if Path(destination).exists() and wx.MessageBox('Replace '+str(destination)+'?', 'Replace simulation file',
+                    wx.YES_NO|wx.NO_DEFAULT|wx.ICON_WARNING,self.owner)!=wx.YES:
+                return
+        self.status('Saving complete simulation data…')
         def save():
             return save_project_simulation(self.project_root, self.plugin, bundle,
-                board_path=self.board_path, module_file=self.module_file, certify=self.certify)
+                board_path=self.board_path, module_file=self.module_file, certify=self.certify,destination=destination)
         def saved(receipt):
             message = 'Saved '+label+': '+receipt['relative_path']
             if receipt.get('portable_export_unavailable'):
@@ -594,7 +623,7 @@ class ProjectResultActions:
             return
         # Choose one immutable JSON; do not parse every full record merely to
         # open the library. A large archive remains proportional to one load.
-        directory=self.project_root/'.wayricad'/'results'/self.plugin
+        directory=self.project_root
         with wx.FileDialog(self.owner,'Load simulation • read-only',defaultDir=str(directory),
                            wildcard='Saved simulation JSON (*.json)|*.json',
                            style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
@@ -606,7 +635,7 @@ class ProjectResultActions:
             viewer=create_viewer(self.owner,loaded)
             viewer.Show()
             self.status(binding_text(loaded['receipt']))
-        self.task(lambda:load_result(self.project_root,path,plugin=self.plugin),show)
+        self.task(lambda:load_result(self.project_root,path,plugin=self.plugin,chosen=True),show)
 
 
 def add_project_results(owner, parent, sizer, plugin, board_path, bundles, *, certify=True, status=None, module_file=None):
@@ -622,4 +651,12 @@ def add_study_results(dialog, plugin, board_path):
         board_path, lambda: [('Completed study', getattr(dialog, 'result', None))], certify=False,
         status=status.SetLabel if status is not None else None,
         module_file=__import__('sys').modules[dialog.__class__.__module__].__file__)
+    if plugin=='quick-pi' and dialog.__class__.__name__ in {'ACStudyDialog','BatchStudyDialog','ElectrothermalStudyDialog','PITransientStudyDialog','PdnImpedanceDialog'}:
+        import importlib
+        import sys
+        package=sys.modules[dialog.__class__.__module__].__package__ or ''
+        if package.endswith('.decoupling'):package=package.rsplit('.',1)[0]
+        elif package=='decoupling':package=''
+        adapter=importlib.import_module('.study_setup_file',package) if package else importlib.import_module('study_setup_file')
+        adapter.add_study_setup(dialog,plugin,board_path)
     dialog.Layout()

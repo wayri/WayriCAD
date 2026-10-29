@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 def relaunch(root, entrypoint, *, profile='ipc', loading=None):
+    from .context import LaunchContext
+    launch_context = LaunchContext.capture()
     from .runtime_setup import (ensure_runtime, child_environment, REQUIREMENTS_IPC,
                                 REQUIREMENTS_EXTRACT, REQUIREMENTS_BOM,
                                 REQUIREMENTS_QUICK_PI, REQUIREMENTS_QUICK_THERM,
@@ -59,7 +61,7 @@ def relaunch(root, entrypoint, *, profile='ipc', loading=None):
     options = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                    stderr=subprocess.DEVNULL,
                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    env = child_environment()
+    env = launch_context.apply(child_environment())
     if loading is None or loading.window is None:
         return subprocess.call(command, env=env, **options)
     with tempfile.TemporaryDirectory(prefix='wayricad-loading-') as folder:

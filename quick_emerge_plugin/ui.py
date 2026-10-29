@@ -786,6 +786,7 @@ class QuickEMergeFrame(wx.Frame):
         if self.closed:
             return
         self.region_busy = False
+        loading_setup = bool(getattr(self, '_pending_region_file', None))
         try:
             if error:
                 raise ValueError(error)
@@ -793,6 +794,10 @@ class QuickEMergeFrame(wx.Frame):
             if data['source'] != source_identity(self.session.board):
                 raise ValueError('Saved PCB changed during extraction; reload rule areas.')
             if config is None:
+                pending_file = getattr(self, '_pending_region_file', None)
+                if pending_file:
+                    from .setup_files import validate_region_choices
+                    validate_region_choices(pending_file[0], data)
                 self.region_listing = data
                 self.rule_area.Clear()
                 for area in data['areas']:
@@ -815,6 +820,9 @@ class QuickEMergeFrame(wx.Frame):
                     self.reference_net.SetStringSelection(pending['reference_net'])
                     self._pending_region_setup = None
                 self.mode.SetSelection(2)
+                if pending_file:
+                    self._apply_setup_config(pending_file[0], pending_file[1])
+                    self._pending_region_file = None
                 self.invalidate()
                 self.region_notice.SetLabel(f'{len(data["areas"])} saved rule areas. Choose nets, review εr, then Preview setup.')
                 self.SetStatusText('Rule areas loaded from the saved PCB; unsaved editor changes are excluded.')
@@ -865,9 +873,11 @@ class QuickEMergeFrame(wx.Frame):
                 self.session.review = None
                 self.SetStatusText('Region preview only • resolve blocking issues before simulation')
         except Exception as exc:
-            self.session.review = None
+            self._pending_region_file = None
+            if not loading_setup:
+                self.session.review = None
             self.region_notice.SetLabel('Cannot preview this saved enclosure: '+str(exc))
-            if config is None:
+            if config is None and not loading_setup:
                 self.region_listing = None
                 self.rule_area.Clear()
             self.log.ChangeValue(str(exc))
@@ -1124,47 +1134,116 @@ class QuickEMergeFrame(wx.Frame):
     def save_setup(self, event):
         try:
             config = self.config()
-            with wx.FileDialog(self, 'Save setup', wildcard='JSON setup (*.json)|*.json', style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
+            previous=getattr(self,'setup_path',None)
+            with wx.FileDialog(self, 'Save setup…', defaultDir=str(previous.parent if previous else self.session.board.parent),
+                    defaultFile=previous.name if previous else self.session.board.stem+'-emerge-setup.json',
+                    wildcard='JSON setup (*.json)|*.json', style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
                 if dialog.ShowModal() == wx.ID_OK:
-                    path = Path(dialog.GetPath())
-                    if path.suffix.lower() != '.json':
-                        raise ValueError('Save setup using a .json filename.')
-                    atomic_json(path, {'schema': 1, 'config': config})
+                    from .setup_files import write_setup
+                    chosen=Path(dialog.GetPath())
+                    if not chosen.suffix and chosen.with_suffix('.json').exists():
+                        with wx.MessageDialog(self,'Replace '+chosen.with_suffix('.json').name+'?',
+                                'Replace setup file',wx.YES_NO|wx.NO_DEFAULT|wx.ICON_WARNING) as review:
+                            if review.ShowModal()!=wx.ID_YES:return
+                    self.setup_path=write_setup(chosen, self.session.board, config)
+                    self.SetStatusText('Saved setup: '+str(self.setup_path))
         except Exception as exc:
             self.message(exc)
 
     def load_setup(self, event):
         try:
-            with wx.FileDialog(self, 'Load setup', wildcard='JSON setup (*.json)|*.json', style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
+            if self.running or self.region_busy or getattr(self,'network_busy',False):
+                raise ValueError('Finish or cancel the current operation before loading a setup.')
+            previous=getattr(self,'setup_path',None)
+            with wx.FileDialog(self, 'Load setup…',defaultDir=str(previous.parent if previous else self.session.board.parent),
+                    wildcard='JSON setup (*.json)|*.json', style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
                 if dialog.ShowModal() != wx.ID_OK:
                     return
-                payload = json.loads(Path(dialog.GetPath()).read_text(encoding='utf-8'))
-                if payload.get('schema') != 1:
-                    raise ValueError('Unsupported setup schema.')
-                self._solver_explicit = True
-                config = validate_config(payload['config'])
-                self.mode.SetSelection(('patch', 'pcb_line', 'pcb_region').index(config['mode']))
-                self.region_material_review.SetValue(config['region_er_reviewed'])
-                self.solver.SetStringSelection(config['solver'])
-                self.sweep.SetSelection(0 if config['sweep'] == 'linear' else 1)
-                advanced = config.get('advanced', {})
-                self.study.SetSelection(self.study_ids.index(advanced.get('study', 'driven')))
-                for key, control in self.advanced_inputs.items():
-                    if key not in advanced: continue
-                    if isinstance(control, wx.CheckBox): control.SetValue(bool(advanced[key]))
-                    elif isinstance(control, wx.Choice): control.SetStringSelection(str(advanced[key]))
-                    elif hasattr(control, 'SetPath'): control.SetPath(str(advanced[key]))
-                    else: control.ChangeValue(str(advanced[key]))
-                for key, control in self.inputs.items():
-                    control.ChangeValue(str(config[key]))
-                self.invalidate()
+                path=Path(dialog.GetPath())
+                from .setup_files import read_setup, validate_region_choices
+                config, source = read_setup(path)
+                from .model import source_identity
+                if source is not None:
+                    if source!=source_identity(self.session.board):
+                        with wx.MessageDialog(self,'This setup was saved for different PCB bytes or another board. '
+                                'Load its parameters against the current saved PCB and review geometry, nets and ports again?',
+                                'Review changed setup source',wx.YES_NO|wx.NO_DEFAULT|wx.ICON_WARNING) as review:
+                            if review.ShowModal()!=wx.ID_YES:return
                 if config['mode'] == 'pcb_region':
-                    self._pending_region_setup = config
-                    self.load_rule_areas()
-                else:
-                    self.preview(None)
+                    if not self.region_listing or self.region_listing.get('source') != source_identity(self.session.board):
+                        self._pending_region_file = (config, path)
+                        self.load_rule_areas()
+                        return
+                    validate_region_choices(config, self.region_listing)
+                self._apply_setup_config(config, path)
         except Exception as exc:
             self.message(exc)
+
+    def _apply_setup_config(self, config, path):
+        controls = list(self.inputs.values()) + list(self.advanced_inputs.values()) + [
+            self.mode, self.region_material_review, self.solver, self.sweep, self.study,
+            self.rule_area, self.signal_net, self.reference_net]
+        snapshot = []
+        for control in controls:
+            getter, setter = (('GetSelection', 'SetSelection') if isinstance(control, wx.Choice) else
+                              ('GetPath', 'SetPath') if hasattr(control, 'GetPath') else
+                              ('GetValue', 'ChangeValue') if hasattr(control, 'ChangeValue') else ('GetValue', 'SetValue'))
+            snapshot.append((control, setter, getattr(control, getter)()))
+        explicit = self._solver_explicit
+        try:
+            self.mode.SetSelection(('patch', 'pcb_line', 'pcb_region').index(config['mode']))
+            self.region_material_review.SetValue(config['region_er_reviewed'])
+            if not self.solver.SetStringSelection(config['solver']):
+                raise ValueError('This setup’s solver is not available in this interface.')
+            self.sweep.SetSelection(0 if config['sweep'] == 'linear' else 1)
+            advanced = config['advanced']
+            self.study.SetSelection(self.study_ids.index(advanced['study']))
+            for key, control in self.advanced_inputs.items():
+                if isinstance(control, wx.CheckBox): control.SetValue(advanced[key])
+                elif isinstance(control, wx.Choice):
+                    if not control.SetStringSelection(str(advanced[key])):
+                        raise ValueError('Unsupported setup choice: '+key)
+                elif hasattr(control, 'SetPath'): control.SetPath(str(advanced[key]))
+                else: control.ChangeValue(str(advanced[key]))
+            for key, control in self.inputs.items():control.ChangeValue(str(config[key]))
+            if config['mode'] == 'pcb_region':
+                self.rule_area.SetSelection(next(i for i, area in enumerate(self.region_listing['areas']) if area['id'] == config['rule_area_id']))
+                self.signal_net.SetStringSelection(config['signal_net'])
+                self.reference_net.SetStringSelection(config['reference_net'])
+            self._solver_explicit = True
+        except Exception:
+            for control, setter, value in snapshot:getattr(control, setter)(value)
+            self._solver_explicit = explicit
+            raise
+        self.setup_path = Path(path).resolve()
+        self.invalidate()
+        self.SetStatusText('Loaded setup: '+Path(path).name+' · Preview to review current geometry and ports before running.')
+
+    def show_files(self,event=None):
+        with wx.Menu() as menu:
+            for label,handler in (('Load setup…',self.load_setup),('Save setup…',self.save_setup),
+                    ('Load results…',self.load_result_file),('Save results…',self.save_result_file)):
+                item=menu.Append(wx.ID_ANY,label)
+                menu.Bind(wx.EVT_MENU,handler,id=item.GetId())
+            self.files_button.PopupMenu(menu)
+
+    def _result_file_actions(self):
+        if getattr(self,'_project_result_actions',None) is None:
+            from wayricad_runtime.project_results_ui import ProjectResultActions
+            self._project_result_actions=ProjectResultActions(self,self,None,'quick-emerge',self.session.board,
+                lambda:[('EM result',self.result)] if self.result else [],certify=False,
+                status=self.SetStatusText,module_file=__file__)
+        return self._project_result_actions
+
+    def save_result_file(self,event=None):
+        if self.running or self.region_busy or getattr(self,'network_busy',False):
+            self.SetStatusText('Finish the current operation before saving completed results.');return
+        return self._result_file_actions().on_save(event)
+
+    def load_result_file(self,event=None):
+        if self.running or self.region_busy or getattr(self,'network_busy',False):
+            self.SetStatusText('Finish the current operation before loading saved results.');return
+        return self._result_file_actions().on_load(event)
 
     def close(self, event):
         self._solver_probe_generation += 1

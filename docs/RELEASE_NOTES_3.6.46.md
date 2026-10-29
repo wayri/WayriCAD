@@ -38,9 +38,20 @@ Quick PI adds reviewed setup workflows.
 - **PI reliability:** editor-connected selection prepares the KiCad IPC dependency;
   simulation saves capture the actual producer version. An optional portable
   export cannot turn an otherwise saveable result into fabricated provenance.
+- **Multiple editors:** runtime handoffs retain the launching editor's socket
+  and token as one captured pair. Connections authenticate before loading live
+  operations. A token mismatch explains recovery instead of switching boards.
+  The Windows shared-endpoint collision still requires launching editors in
+  separate temporary namespaces; see [troubleshooting](TROUBLESHOOTING.md#windows-two-open-editors-and-an-unreachable-second-instance).
 
 Quick EMerge remains an exploratory testing beta. Numerical convergence and
 paper-reference qualification are pending. Fanout creates escape endpoints,
 not complete routed connections: native DRC still reports dangling endpoint
 vias in the synthetic fixtures; those findings were retained, not suppressed.
 The PI power tree records reviewed intent, not a nonlinear converter simulation.
+
+### Simulation setup and result files
+
+- Quick PI, SI and Therm now provide separate setup Save/Load controls. File choosers start in the saved PCB project folder and let you choose another location or filename. Quick PI’s AC, transient, electrothermal, multi-rail and PDN studies retain their own input files.
+- Complete simulation JSON can be saved under a readable chosen name and reopened read-only, including Quick EMerge beta results. Plugin, schema and content checks preserve arrays and identify stale/unverified source data. CLI supports the same named files.
+- Loading setup validates mappings before applying them, clears old results, and asks for explicit review when the board revision changed. Original boards and declared study/model input files are protected from result-file overwrite.

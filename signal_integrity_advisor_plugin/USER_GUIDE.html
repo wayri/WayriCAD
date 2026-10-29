@@ -3,7 +3,7 @@
 <h1 id="quick-si-user-guide">Quick SI user guide</h1>
 <img src="resources/icon-96.png" width="96" height="96" alt="Quick SI icon">
 <p>A control-by-control guide to implemented Quick SI workflows, with worked boards and complete CLI argument tables. It covers 3.6.41 and explicitly marked source updates. Use it with the <a href="ReadMe.md">feature reference</a>, <a href="help.html">offline help</a> and <a href="USER_GUIDE.html">offline HTML edition</a>. Screenshots retain their actual capture versions; they demonstrate workflows rather than measured hardware results.</p>
-<h2 id="contents">Contents</h2>
+<h2 id="save-and-recall-setup">Save and recall setup</h2><p><b>Save setup…</b> suggests <code>&lt;board&gt;.quick-si.setup.json</code> beside the PCB and lets you choose another filename or folder. <b>Load setup…</b> restores route fields, reference layer, return nets and exact optional return pins, eye settings, checked study nets, drafted cases, crosstalk pairs and IBIS selections.</p><p>Changed board revisions require explicit review; unavailable nets, pads, layers or changed/missing IBIS models stop loading before inputs change. Keep external IBIS files available when moving a setup. Loading setup clears old results: run a fresh analysis. <b>Load simulation…</b> instead opens completed numerical result JSON read-only without solving. The two file types are separate. Cancelled dialogs and invalid files leave existing inputs unchanged; the PCB is never written.</p><h2 id="contents">Contents</h2>
 <ul>
 <li><a href="#marble-worked-example">Marble worked example</a></li>
 <li><a href="#white-rabbit-worked-example">White Rabbit worked example</a></li>

@@ -1,10 +1,13 @@
 # WayriCAD Quick SI
 
-**Project simulation library (updated source):** **Save simulation…** retains
-full route, multi-net, eye and waveform data under `.wayricad/results/quick-si/`.
-**Load simulation…** opens the saved numerical result read-only without
-measuring or solving again. Live-editor results remain explicitly unverified.
-[Workflow, deterministic JSON and CLI](../docs/PROJECT_RESULTS.md).
+**Setup and result files:** use **Save setup…** / **Load setup…** for editable
+inputs, and **Save simulation…** / **Load simulation…** for completed numerical
+data. The file chooser starts in the PCB's project folder and lets you choose
+another name or location. Setup includes route fields, return nets and pins,
+eye options, multi-net cases, crosstalk pairs and IBIS selections. IBIS model
+files must still exist with their saved hashes. Loading setup clears old
+results; loading results opens a read-only viewer without solving again.
+[File workflow and deterministic JSON](../docs/PROJECT_RESULTS.md).
 
 **Saved results (updated source):** **Save results / Pocket KiVi** writes HTML
 and complete numerical JSON. Saved-board analyses also get a portable

@@ -173,6 +173,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                     ('3D DC',self.volume_bundle if self.volume_bundle.get('result') else None),
                     ('DC current sweep',self.sweep_bundle),('Return-path review',self.return_bundle)],
             status=lambda text:self.status.SetLabel(text),module_file=__file__)
+        from .setup_file import bind as bind_setup
+        self.project_setup=bind_setup(self,self.setup_panel,setup)
         self.setup_panel.SetSizer(setup)
 
         self.splitter=wx.SplitterWindow(self.workspace_splitter,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
