@@ -67,9 +67,10 @@ See the measurement links above for inputs, methods and numerical tolerances.
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Download or update | [Release 3.6.42](https://github.com/wayri/WayriCAD/releases/tag/v3.6.42) · [Release notes](docs/RELEASE_NOTES_3.6.42.md) |
+| Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
+| Download or update | [Release 3.6.45](https://github.com/wayri/WayriCAD/releases/tag/v3.6.45) · [Release notes](docs/RELEASE_NOTES_3.6.45.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
-| Choose a tool | [All 25 plugins](#all-26-plugins) |
+| Choose a tool | [All 26 plugins](#all-26-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Review algorithms and research | [Methods, sources and verification by tool](docs/METHODS_AND_RESEARCH.md) |
@@ -83,6 +84,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Quick PI | [DC paths, returns, AC losses, PDN, transients and probes](quick_pi_plugin/USER_GUIDE.md) | [HTML guide](quick_pi_plugin/USER_GUIDE.html) |
 | Quick SI | [Signal paths, returns, coupling, pair timing and IBIS export](signal_integrity_advisor_plugin/USER_GUIDE.md) | [HTML guide](signal_integrity_advisor_plugin/USER_GUIDE.html) |
 | QuickTherm | [Power inputs, cooling, steady state, transients and temperature inspection](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md) | [HTML guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.html) |
+| Quick EMerge (beta) | [Setup, antenna templates, bounded PCB regions, probes and reports](quick_emerge_plugin/README.md) | [HTML guide](quick_emerge_plugin/help.html) |
 
 Each guide covers setup, result interpretation, examples, command-line use,
 report export and troubleshooting, including the limits of each solver.
@@ -200,6 +202,7 @@ use the [help table](#help-and-upgrades) below.
 | Check voltage drop and copper losses | [Quick PI](#start-quick-pi) | [PI guide](quick_pi_plugin/README.md#workflow) |
 | Check board and component temperatures | [QuickTherm](#start-quicktherm) | [Thermal guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md) |
 | Screen signal delay and reflections | [Quick SI](#start-quick-si) | [SI guide](signal_integrity_advisor_plugin/ReadMe.md) |
+| Explore antennas and bounded PCB electromagnetic models | [Quick EMerge (beta)](#start-quick-emerge) | [EMerge guide](quick_emerge_plugin/README.md) |
 | Measure route R, L, C and impedance | [Trace RLC](#start-rlc) | [RLC guide](trace_impedance_plugin/ReadMe.md#workflow) |
 | Edit and export a BOM | [BOM workflow](#start-bom) | [BOM guide](bom_studio_plugin/README.md#everyday-workflow) |
 | Inspect copper and component analytics | [Analytics workflow](#start-analytics) | [Analytics guide](bom_studio_plugin/README.md) |
@@ -208,6 +211,29 @@ use the [help table](#help-and-upgrades) below.
 Save the PCB, refill its zones, and save Board Setup before analysis. Start with
 one net or a small component group, then expand the study. Unknown results mean
 an input or model is missing; they are not a pass.
+
+<a id="start-quick-emerge"></a>
+
+### Quick EMerge (beta) — start an electromagnetic study
+
+<img src="quick_emerge_plugin/icon.png" width="48" height="48" alt="Quick EMerge beta icon">
+
+1. Download the [Quick EMerge PCM ZIP from release 3.6.45](https://github.com/wayri/WayriCAD/releases/download/v3.6.45/WayriCAD-quick-emerge-3.6.45-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
+2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
+3. Start with an **Inset-fed patch antenna** template. Review dimensions in **1 Geometry**, material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**. Templates use the board as context; they do not import its copper.
+4. Click **Preview**. Check geometry, numbered ports and any blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and a short frequency sweep before increasing resolution.
+5. Explore **3D**, **2D**, **Charts** and **Results**; inspect samples and pin probes. Use **Save** to retain the setup and **Report** to export HTML or PDF. **Help / F1** opens the offline guide.
+
+For actual PCB copper, use **Saved PCB rule-area region** on a saved, filled
+**two-layer board** with a named rule area and explicit signal/reference nets.
+Review the [supported geometry and port requirements](quick_emerge_plugin/README.md#simulate-a-pcb-rule-area-enclosure)
+before running. Simulation does not modify the board.
+
+**Beta limits:** these are exploratory studies. Numerical convergence and
+paper-reference qualification are still pending; a completed solve alone does
+not establish accuracy. See [validation evidence](quick_emerge_plugin/VALIDATION.md),
+[capability coverage](quick_emerge_plugin/CAPABILITIES.md) and the
+[full guide](quick_emerge_plugin/README.md).
 
 <a id="start-silkscreen"></a>
 
@@ -384,9 +410,33 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 
 | Explore | Previews |
 |---|---|
-| Run analyses | [Quick PI](#quick-pi) · [QuickTherm](#quicktherm) · [Quick SI](#quick-si) · [Trace RLC](#trace-rlc--impedance) |
+| Run analyses | [Quick PI](#quick-pi) · [QuickTherm](#quicktherm) · [Quick SI](#quick-si) · [Quick EMerge (beta)](#quick-emerge-beta) · [Trace RLC](#trace-rlc--impedance) |
 | Improve layout | [Fanout](#fanout-generator) · [Guard vias](#via-stitching) · [Trace Refiner](#trace-refiner) · [Silkscreen](#silkscreen-label-placer) |
 | Coordinate tools | [Assistant](#wayricad-assistant) · [All plugin guides](#all-26-plugins) |
+
+<a id="quick-emerge-beta"></a>
+
+### Quick EMerge (beta)
+
+[Getting started](#start-quick-emerge) · [Full guide](quick_emerge_plugin/README.md) ·
+[Download 3.6.45](https://github.com/wayri/WayriCAD/releases/tag/v3.6.45)
+
+**Antenna template, solved field samples and probes**
+
+<a href="quick_emerge_plugin/help-workflow.png"><img src="quick_emerge_plugin/help-workflow.png" width="960" alt="Quick EMerge beta showing a patch antenna template, a solved field plane and pinned sample probes"></a>
+
+Native workbench capture of a coarse, three-frequency patch-template study.
+The saved board supplies context only; this image does not establish mesh
+convergence or agreement with a measured antenna.
+
+**Saved-PCB region and boundary ports**
+
+<a href="quick_emerge_plugin/help-region.png"><img src="quick_emerge_plugin/help-region.png" width="960" alt="Quick EMerge showing clipped two-layer coupon copper and two ideal ports at the rule-area boundary"></a>
+
+Two-layer coupon example: only copper inside the named rule area enters the
+model. Pink edges identify ideal boundary ports. This earlier experimental
+capture illustrates the region workflow; its mesh is unqualified.
+[Scope and validation evidence](quick_emerge_plugin/VALIDATION.md).
 
 ### [WayriCAD Assistant](suite_assistant_plugin/README.md)
 
