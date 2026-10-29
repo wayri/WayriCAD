@@ -29,6 +29,23 @@ class FieldDisplayTests(unittest.TestCase):
         rows=volume_samples(field);self.assertEqual(len(rows),8)
         self.assertEqual((rows[-1]['x_mm'],rows[-1]['y_mm'],rows[-1]['z_mm'],rows[-1]['iz']),(3,5,4,1))
         with self.assertRaises(ValueError):field_for_display(self.result,'E magnitude',True)
+    def test_volume_slice_uses_its_own_original_xy_coordinates(self):
+        self.raw['volume'].update(x_mm=[10,20],y_mm=[30,40])
+        before=copy.deepcopy(self.result)
+        field=field_for_display(self.result,'E magnitude',0)
+        row=FieldInspection(field).probe(10,30)
+        self.assertEqual((row['x_mm'],row['y_mm'],row['ix'],row['iy']),(10,30,0,0))
+        self.assertEqual(self.result,before)
+
+    def test_sampling_labels_count_stored_axes_and_largest_spacing(self):
+        from quick_emerge_plugin.field_display import plane_sampling_label,angular_sampling_label
+        label=plane_sampling_label({'x_mm':[0,1,3],'y_mm':[0,4]})
+        self.assertIn('3×2 original samples',label);self.assertIn('Δx ≤ 2 mm',label)
+        self.assertIn('Δy ≤ 4 mm',label)
+        label=angular_sampling_label({'theta_rad':[0,math.pi/2,math.pi],'phi_rad':[-math.pi,0,math.pi]})
+        self.assertIn('3×3 stored angular samples',label)
+        self.assertIn('Δθ ≤ 90°',label);self.assertIn('Δφ ≤ 180°',label)
+
     def test_thermal_has_no_invented_frequency_or_em_units(self):
         self.result['thermal']={'x_mm':[1,3],'y_mm':[2,5],'z_mm':-.001,'temperature_k':[[300,301],[302,303]],'time_s':2}
         thermal=field_for_display(self.result,'Temperature');row=FieldInspection(thermal).probe(1,2)

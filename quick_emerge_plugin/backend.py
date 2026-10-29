@@ -161,10 +161,8 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
     conductor_boundaries(em, model, model._quick_conductors, c)
     boundary = outer_boundary(model, air, c)
     if c['adaptive_steps']:
-        progress('Running adaptive mesh refinement (inspect convergence evidence in solver log).', flush=True)
-        model.adaptive_mesh_refinement(max_steps=c['adaptive_steps'], convergence=c['convergence'],
-                                       max_tets=c['max_tets'], frequency=(c['f_start_hz']+c['f_stop_hz'])/2,
-                                       show_mesh=False)
+        from .refinement import refine_mesh
+        refine_mesh(model, c, progress)
     progress('Solving frequency sweep.', flush=True)
     if c['sweep'] == 'adaptive':
         data = model.mw.run_adaptive_sweep(n_initial=min(5, c['points']),
@@ -209,8 +207,9 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
         result.update(model_scope='saved-rule-area-copper', region=region, region_sha256=region_digest(region))
         result['assumptions'][-1] = 'Polygon-clipped saved two-layer copper; ideal boundary ports; external PCB and components omitted'
     if c['advanced']['boundary'] in ('absorbing', 'pml') and (c['mode'] == 'patch' or (c['mode'] == 'pcb_region' and len(ports) == 1)):
-        theta = np.linspace(0, np.pi, 31)
-        phi = np.linspace(-np.pi, np.pi, 61)
+        # Match EMerge's native two-degree angular sampling; retain every sample.
+        theta = np.linspace(0, np.pi, 91)
+        phi = np.linspace(-np.pi, np.pi, 181)
         ff = field.farfield_3d(boundary, thetas=theta, phis=phi,
                               origin=((bbox[0]+bbox[2])*.0005, (bbox[1]+bbox[3])*.0005, -thickness/2))
         norm = ff.E.norm

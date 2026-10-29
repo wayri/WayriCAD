@@ -5,11 +5,18 @@ polygon-clipped **saved-PCB rule-area** simulations. Templates use the saved
 board as context; region mode imports actual enclosed copper. Components and
 board geometry outside the enclosure are omitted.
 
-This guide describes the **current development source**. The published
-[3.6.43 beta package](https://github.com/wayri/WayriCAD/releases/tag/v3.6.43-beta.1)
-contains the earlier workbench and a smaller integration scope. Installing that
-immutable release does not install the development features below. See
-[capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md).
+Quick EMerge is an independently installable testing beta in the
+[3.6.44-beta.1 prerelease](https://github.com/wayri/WayriCAD/releases/tag/v3.6.44-beta.1).
+See the [KiCad workflow help](help.html), [capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md)
+for implemented scope and its limits.
+
+Open **Help** or press **F1** for the offline KiCad guide: saved-board preparation,
+rule-area copper and ports, dielectric setup, sampling, probing and reports.
+New studies use 81 frequency samples, an 81 × 81 field grid and 2° radiation
+sampling. Saved setups retain their explicit frequency/grid counts; **3 Solve →
+Output sampling → Use dense sampling** applies the denser linear preset.
+Frequency samples are FEM solves; field and angular samples evaluate the solved
+field and do not refine its mesh. Report figures export at 200 DPI.
 
 ## Setup and launch
 

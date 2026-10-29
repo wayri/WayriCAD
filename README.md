@@ -16,7 +16,7 @@ assets. It counts downloaded files, including repeat downloads and release metad
 not unique users or installations. GitHub does not separate PCM from direct downloads;
 automatic source ZIP/tar downloads and repository clones are excluded.
 
-**Testing beta:** [Quick EMerge in 3.6.43-beta.1](docs/RELEASE_NOTES_3.6.43-beta.1.md) adds bounded electromagnetic studies; install its ZIP from the prerelease using PCM **Install from File**.
+**Testing beta:** [Quick EMerge in 3.6.44-beta.1](docs/RELEASE_NOTES_3.6.44-beta.1.md) adds bounded electromagnetic studies; install its ZIP from the prerelease using PCM **Install from File**.
 
 **New in 3.6.42:** connector mating reviews, matching schematic labels,
 CSV-to-label conversion and physical pinout grids in Pin Extractor.
@@ -56,7 +56,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 
 </details>
 
-[Download 3.6.43-beta.1](https://github.com/wayri/WayriCAD/releases/tag/v3.6.43-beta.1) ·
+[Download 3.6.44-beta.1](https://github.com/wayri/WayriCAD/releases/tag/v3.6.44-beta.1) ·
 [Connector validation and known limits](docs/audits/CONNECTOR_TOOLS_2026-10-28.md)
 
 ## Start here
@@ -325,7 +325,7 @@ currencies stay explicit.
 
 ## All 25 plugins
 
-The catalogue contains 24 existing plugins and the new Quick EMerge beta. Quick EMerge is an independently installable **testing beta** in [3.6.43-beta.1](https://github.com/wayri/WayriCAD/releases/tag/v3.6.43-beta.1); install its PCM ZIP using **Install from File**. The stable PCM feed remains unchanged. Assistant is marked **testing**;
+The catalogue contains 24 existing plugins and the new Quick EMerge beta. Quick EMerge is an independently installable **testing beta** in [3.6.44-beta.1](https://github.com/wayri/WayriCAD/releases/tag/v3.6.44-beta.1); install its PCM ZIP using **Install from File**. The stable PCM feed remains unchanged. Assistant is marked **testing**;
 individual package versions and runtime requirements are in their guides.
 Select a plugin for its full guide and supported models.
 

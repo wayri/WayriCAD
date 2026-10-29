@@ -118,6 +118,8 @@ class QuickEMergeFrame(wx.Frame):
             self.advanced_inputs[key] = control; self.advanced_rows[key] = (row, field, group)
 
     def update_model_sections(self):
+        if 'convergence' in self.inputs:
+            self.inputs['convergence'].Enable(self.sweep.GetSelection() == 1)
         if not hasattr(self, 'model_sections'):
             return
         mode = self.mode.GetSelection()
@@ -420,11 +422,23 @@ class QuickEMergeFrame(wx.Frame):
                                     mesh=False, cmap='inferno', scale='linear')
 
     def _shortcut(self, event):
-        if event.GetKeyCode() == wx.WXK_F11:
+        if event.GetKeyCode() == wx.WXK_F1:
+            self.on_help()
+        elif event.GetKeyCode() == wx.WXK_F11:
             self.focus_button.SetValue(not self.focus_button.GetValue())
             self.focus_view()
         else:
             event.Skip()
+
+    def on_help(self, event=None):
+        from wayricad_runtime.help import open_help
+        return open_help(self, Path(__file__).with_name('help.html'), 'Quick EMerge · KiCad guide')
+
+    def dense_sampling(self, event=None):
+        self.inputs['points'].ChangeValue(81)
+        self.inputs['field_grid'].ChangeValue(81)
+        self.sweep.SetSelection(0)
+        self.invalidate()
 
     def focus_view(self, event=None):
         if self.focus_button.GetValue():

@@ -15,7 +15,7 @@ This guide covers the current 25-plugin source catalogue. Released packages and 
    ```
 
 2. Select **WayriCAD Plugin Repository** and install your chosen tools. For an offline package file, download a PCM ZIP from [Releases](https://github.com/wayri/WayriCAD/releases) and choose **Install from File**. A ZIP contains one independent plugin.
-   Quick EMerge is a testing beta available from the [3.6.43-beta.1 prerelease](https://github.com/wayri/WayriCAD/releases/tag/v3.6.43-beta.1) via **Install from File**; the stable feed remains unchanged.
+   Quick EMerge is a testing beta available from the [3.6.44-beta.1 prerelease](https://github.com/wayri/WayriCAD/releases/tag/v3.6.44-beta.1) via **Install from File**; the stable feed remains unchanged.
 3. Enable the API in **Preferences → Plugins** and configure the Python interpreter. Allow dependency preparation to finish. Installing a ZIP does not eliminate the first-run dependency requirement.
 4. Restart the PCB Editor, open and save the project, and launch a WayriCAD action. The action passes the originating editor's project context. File-based processing reads saved files; save recent edits first. Standalone CLI/desktop launches need an explicit project when no editor context exists.
 5. Start with **Preview**, **Inspect**, or the tool's read-only analysis. Review diagnostics before using a write/apply operation.

@@ -1,103 +1,34 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>WayriCAD Quick EMerge help</title></head>
-<body><h1>WayriCAD Quick EMerge</h1>
-<p>This help describes current development source beyond the published
-3.6.43-beta.1 package. Read-only templates use the saved PCB as context;
-rule-area studies import actual enclosed two-layer copper.</p>
-<h2>Start a study</h2>
-<ol><li>Use 1 Geometry for geometry and dimensions, 2 Physics for study/material
-controls, and 3 Solve for sweep, mesh, runtime and output settings. Open and
-Save retain reusable setups. Dimensions are
-mm, frequency entries GHz, impedance ohm; requests and setup JSON use Hz.</li>
-<li>First-open setup needs Python 3.10-3.13, internet and 3 GiB free. The desktop
-requires complete wx/Matplotlib, VTK and ReportLab dependencies separately.
-Saved board/rule-area outlines load during setup. New studies prefer PARDISO
-only after a real solver check; loaded setups preserve their solver choice.</li>
-<li>Select Preview, inspect geometry and numbered ports, then Run simulation.
-Editing setup invalidates old results and requires another preview.</li>
-<li>Use 3D, 2D, Charts, Results and Report. Inspector, View options and Focus keep
-detailed controls separate from the main view. Solved 3D views appear only when
-those data exist.</li></ol>
-<p>Workers run outside the UI. Cancel retains diagnostic files. Completed run
-folders contain the reviewed request, source hashes, result and solver log.
-Source PCB and project files are not written. Reviewed 2D/3D geometry stays
-visible during the solve. Generate preview renders the report inside the
-workbench; Export HTML and Export PDF save copies with retained probes.
-New results replace old report state.</p>
-<h2>Rule-area PCB subsection</h2>
-<p>Save a two-layer board with closed Edge.Cuts and filled zones, then draw a
-polygonal board rule area. Choose Saved PCB rule-area region, load saved rule
-areas, select F.Cu signal and B.Cu reference nets, and review the material and
-bare-copper model. Preview clipped copper and ideal ports before running.
-Unsaved changes are excluded.</p>
-<p>Concavity and holes are preserved. A valid port crosses an actual rule-area
-cut with reference copper across its full span; board edges do not invent
-ports. The full two-layer column is cropped, irrespective of keepout permissions.
-The path supports 1-8 ideal boundary ports. Inside drilled features, unfilled
-zones, unselected cut conductors, incomplete returns, ambiguous corners and
-curved contours block simulation. General multilayer/via-barrel/component
-extraction and interior feeds remain unsupported. The separate internal via
-template does not change those extraction limits.</p>
-<p>Driven/optimization patch templates optionally add an external feed strip
-inside the substrate, with an optional signed patch-center Y offset. Both
-default to zero; a nonzero strip moves the
-ideal feed port to its outer end. It is not a connector/coax model.</p>
-<h2>Views and probing</h2>
-<p>Native VTK supplies 3D geometry/fields; 2D plots and charts use Matplotlib.
-Compact Orbit, Pan, Zoom and Probe buttons select interaction; Fit, zoom and
-Image controls sit alongside. View options select camera/projection, visibility,
-color scale and physical Z aspect or labeled display exaggeration. Focus
-expands/restores the workspace. Display controls never change solver geometry.</p>
-<p>Inspect original E magnitude [V/m], H magnitude [A/m], power-flow magnitude
-[W/m2] or temperature [K], when present. Optional field sampling adds up to
-17 Z layers / 100,000 samples for point-cloud display and XY slices. These are
-recorded samples, not arbitrary continuous-volume interpolation. A chart
-frequency click does not recompute fields at another frequency or excitation.
-Unknown samples stay missing. A sample grid is not the FEM mesh.</p>
-<p>Probe links selected original samples between 2D/3D views. Inspector supports
-extrema, pinned samples and CSV export. Line cut uses nearest original samples
-against distance and does not invent measurements. Radiation is relative
-field magnitude; normalized radius is not gain, efficiency or physical distance.</p>
-<h2>Networks and reports</h2>
-<p>Charts provide magnitude, phase, group delay, impedance, diagnostics and Smith
-views for available networks. Network tools offer renormalization, mixed mode,
-termination, ideal R/L/C embedding and AAA/vector fitting. Each starts from the
-original solved network and records a separate derived result/Touchstone.
-Fields keep their original excitation; fitted data are not new FEM solves.</p>
-<p>Report offers Generate preview, Export HTML and Export PDF. Reports include
-model scope, source checks, response/field charts, selected quantity/slice,
-probes/profiles, limitations and derived-network evidence. HTML embeds its
-assets; PDF needs ReportLab. Stale source/configuration rejects publication.
-Supported driven/array studies can also export planar-sheet DXF and
-Optycal-compatible numeric far-field MsgPack.</p>
-<h2>Study and runtime limits</h2>
-<p>Development studies include driven EM, periodic Floquet, scattering,
-TE10 waveguide, finite arrays, bounded optimization, steady/transient substrate
-thermal conduction and dielectric RF heating. Controls expose simplified
-finite-conductor/loss/dispersion models and ABC/PEC/PMC/PML boundaries. Imports
-require reviewed recipes and manifests; this is not a complete visual CAD
-editor. RF thermal coupling excludes copper surface heating.</p>
-<p>Latest EMerge 3+ is installed into a separate candidate with CAD/export
-requirements. Dependency checks and 22 real compatibility checks must pass
-before activation; allow several minutes (20-minute gate limit). Updates are
-checked daily, failed candidates retain the working runtime, and a compatible
-previous runtime can be restored. Existing packages are not upgraded in place.
-Stale certificates trigger requalification. Setup controls allow retry or an
-existing solver interpreter.</p>
-<p>The tested baseline is EMerge 3.0.0b9/SuperLU. Coarse compatibility solves do
-not establish convergence, antenna accuracy, power balance or array null depth.
-Read adaptive-limit warnings. Optional accelerators and arbitrary future APIs
-need separate qualification. Current native component tests do not prove live
-KiCad menu launch or physical mouse acceptance for the redesigned UI.</p>
-<h2>Earlier beta screenshots</h2>
-<p>The following actual captures show the earlier beta layout, not the current
-workbench. Local interpreter/output paths were replaced by generic paths;
-numerical samples and synthetic-board geometry were preserved. These coarse
-runs do not demonstrate converged designs.</p>
-<p><img src="help-workflow.png" alt="Earlier beta: linked field probes" width="960"></p>
-<p><img src="help-region.png" alt="Earlier beta: saved copper enclosure" width="960"></p>
-<p><img src="help-viewport.png" alt="Earlier beta: expanded field viewport" width="960"></p>
-<p>See the <a href="README.md">user guide</a>,
-<a href="CAPABILITIES.md">capability inventory</a> and
-<a href="VALIDATION.md">dated validation evidence</a> for exact scope.</p>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quick EMerge help</title>
+<style>
+body{box-sizing:border-box;max-width:900px;margin:auto;padding:24px;font:14px/1.55 system-ui,"Segoe UI",sans-serif;color:#263341;background:#fff}
+h1{font-size:25px;line-height:1.25}h2{font-size:19px;margin-top:30px}a{color:#087c89}li{margin:7px 0}nav{padding:12px 20px;background:#f2f6f8;border-radius:8px}nav h2{margin-top:0}img{max-width:100%;height:auto}strong{font-weight:600}
+</style></head>
+<body><h1>WayriCAD Quick EMerge: KiCad workflow</h1>
+<p>Open this offline guide with <strong>Help</strong> or <strong>F1</strong> in the workbench. Use the contents to jump to a task.</p>
+<p>Quick EMerge is a read-only testing beta for exploratory electromagnetic studies. It reads a saved PCB; it does not write the board or project. Unsaved PCB Editor changes are excluded. Numerical convergence and physical accuracy are not established by a successful run.</p>
+<nav aria-label="Contents"><h2>Contents</h2><ul>
+<li><a href="#prepare">Prepare a KiCad board</a></li><li><a href="#run">Preview and run</a></li><li><a href="#sampling">Frequency, mesh and samples</a></li><li><a href="#views">Views and exports</a></li><li><a href="#runtime">Dependencies and troubleshooting</a></li></ul></nav>
+<h2 id="prepare">Prepare a KiCad board</h2>
+<ol><li>In KiCad 10 PCB Editor, save a board with closed Edge.Cuts, filled copper zones and an explicit two-layer physical stackup. File &gt; Board Setup opens the stackup settings. Review dielectric thickness and copper separation, then save the board.</li>
+<li>Create a board rule area around the subsection. Use the rule-area tool on the right toolbar, place the first corner, name the area in its properties, and complete the polygon by clicking the first corner or double-clicking. Save again. See the <a href="https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html">KiCad 10 PCB Editor manual</a> for rule areas, zone fills and Board Setup.</li>
+<li>In Quick EMerge, choose <strong>Saved PCB rule-area region</strong>, load the saved rule areas and select the named area. Choose the F.Cu signal net and B.Cu reference net. Review dielectric separation and the explicit material settings; board stackup geometry does not automatically qualify the material model.</li></ol>
+<p>The area outline crops the full two-layer column, regardless of its KiCad keepout permissions. Concavity and holes are retained. Copper crossing the crop can form an ideal boundary port where reference copper covers the full port span; a natural board edge does not create a port. Review the numbered ports in Preview. The region workflow supports 1–8 ideal ports and blocks unsupported geometry, including internal drilled features, unfilled zones, unselected cut conductors and incomplete returns. It does not import a general multilayer board, via barrels, components or interior feeds. The separate via template does not change these limits.</p>
+<h2 id="run">Preview and run</h2>
+<ol><li>Set geometry in <strong>1 Geometry</strong>, materials, boundaries and mesh refinement in <strong>2 Physics</strong>, and frequency, output sampling and runtime in <strong>3 Solve</strong>. Dimensions are mm, frequency is entered in GHz and impedance in ohms.</li>
+<li>Select <strong>Preview</strong>. Inspect the enclosure, copper, materials and numbered ports, and resolve blocking diagnostics. Save the board first if the design changed.</li>
+<li>Select <strong>Run simulation</strong>. The solver runs separately; Cancel stops it and retains diagnostics. Changing setup clears stale results and requires a new preview.</li></ol>
+<h2 id="sampling">Frequency, mesh and samples</h2>
+<p>New studies start with <strong>81 frequency samples</strong>, an <strong>81 × 81 field grid</strong>, and <strong>2° radiation angles (91 × 181)</strong>. Existing saved setups keep their frequency and field-grid settings. Under <strong>3 Solve → Output sampling</strong>, <strong>Use dense sampling</strong> selects 81 linear FEM frequencies and an 81 × 81 field grid without changing mesh settings. A 2.4–2.6 GHz linear sweep then has 2.5 MHz spacing; a smaller span gives finer frequency spacing. More frequency solves take longer.</p>
+<p>The frequency sweep determines the frequencies evaluated for the network response. The FEM mesh discretizes the model for the solve: refining it affects cost and may affect accuracy. Field grids and radiation angular samples are post-processing samples of the computed fields, not extra FEM solves and not the FEM mesh. Increasing display samples does not prove mesh convergence. Fields remain tied to their recorded frequency and excitation; clicking another chart frequency does not recompute them.</p>
+<h2 id="views">Views and exports</h2>
+<p>The 2° radiation grid applies to driven antenna and array results. Scattering studies retain a 6° bistatic RCS grid (31 × 61). Local mesh refinement runs the requested fixed number of passes; it does not automatically qualify the full response. The adaptive AAA response tolerance controls frequency sampling, not mesh-convergence acceptance.</p>
+<p>Use <strong>3D</strong>, <strong>2D</strong>, <strong>Charts</strong>, <strong>Results</strong> and <strong>Report</strong>. Orbit, Pan, Zoom and Probe select viewport interaction; Fit restores the view. View options control visibility, projection, color scale and display aspect without changing solver geometry. Probe selects original samples and links views. The Inspector offers pinned samples, extrema and CSV export; a line cut uses nearest original samples and is not continuous interpolation. Radiation radius is normalized relative field magnitude, not gain or physical distance.</p>
+<p>Charts show available network results. Report offers <strong>Generate preview</strong>, <strong>Export HTML</strong> and <strong>Export PDF</strong>; PDF requires ReportLab. Reports include assumptions, source checks, selected probes and limitations. New results replace previous report state. Source or configuration changes can reject stale exports.</p>
+<h2 id="runtime">Dependencies and troubleshooting</h2>
+<p>First-open managed setup needs internet, Python 3.10–3.13 and 3 GiB free. Desktop dependencies include a complete wxPython/Matplotlib, VTK and ReportLab environment. EMerge runs in a separate managed environment. Candidate updates pass dependency and compatibility checks before activation; a failed update retains the working runtime. Run settings provide setup/retry and restore-previous-runtime controls. Existing working packages are not upgraded in place.</p>
+<ul><li><strong>Empty solved view:</strong> preview geometry first, then run a study that produces the selected field or radiation data. Missing samples remain unknown; an empty view is not a zero field.</li><li><strong>3D or OpenGL unavailable:</strong> check the desktop VTK/OpenGL environment and graphics support; consult the solver and desktop diagnostics. A 2D or chart view may still be available.</li><li><strong>Setup or solver error:</strong> inspect the displayed diagnostic and retained run log, check the interpreter and free space, then retry or restore a compatible previous runtime. Compatibility checks are smoke tests, not proof of convergence.</li></ul>
+<p>Earlier beta layout (paths redacted):</p>
+<p><img src="help-region.png" alt="Earlier beta view of a saved copper enclosure" style="max-width:100%;height:auto"></p>
+<p>For supported studies, limits and dated evidence see the <a href="README.md">user guide</a>, <a href="CAPABILITIES.md">capability inventory</a> and <a href="VALIDATION.md">validation evidence</a>.</p>
 </body></html>

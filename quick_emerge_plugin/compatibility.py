@@ -11,7 +11,7 @@ CERTIFICATE_ISSUER = 'quick-emerge-runtime-qualifier'
 def adapter_signature():
     """Bind a certificate to the exact adapter and qualification implementation."""
     digest = hashlib.sha256()
-    for name in ('backend.py', 'model.py', 'qualification.py', 'compatibility.py',
+    for name in ('backend.py', 'model.py', 'refinement.py', 'qualification.py', 'compatibility.py',
                  'pcb_regions.py', 'region_ports.py', 'region_backend.py', 'advanced.py', 'advanced_studies.py', 'advanced_imports.py', 'advanced_thermal.py', 'advanced_exports.py', 'qualification_data.py', 'network.py', 'network_extensions.py'):
         digest.update(name.encode('ascii') + b'\0')
         digest.update(Path(__file__).with_name(name).read_bytes())

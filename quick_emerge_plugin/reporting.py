@@ -164,7 +164,7 @@ def _png(figure):
 
 def _figure(title, draw):
     from matplotlib.figure import Figure
-    figure = Figure(figsize=(9,5), dpi=125, facecolor='white')
+    figure = Figure(figsize=(9,5), dpi=200, facecolor='white')
     try:
         draw(figure)
         return '<figure><img loading="lazy" alt="'+escape(title,quote=True)+'" src="data:image/png;base64,'+_png(figure)+'"><figcaption>'+escape(title)+'</figcaption></figure>'

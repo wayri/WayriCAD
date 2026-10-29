@@ -120,3 +120,9 @@ include docs/RELEASE_NOTES_3.6.42.md
 
 recursive-include quick_emerge_plugin/tests *.py *.kicad_pcb
 include docs/RELEASE_NOTES_3.6.43-beta.1.md
+
+include docs/RELEASE_NOTES_3.6.44-beta.1.md
+include examples/quick_emerge/yeo_lee_2019/*.md
+include examples/quick_emerge/yeo_lee_2019/*.json
+include examples/quick_emerge/yeo_lee_2019/*.kicad_pcb
+include examples/quick_emerge/yeo_lee_2019/*.kicad_pro

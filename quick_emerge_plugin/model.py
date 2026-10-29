@@ -7,12 +7,12 @@ from pathlib import Path
 
 DEFAULT_CONFIG = {
     "mode": "patch", "f_start_hz": 1.55e9, "f_stop_hz": 1.60e9,
-    "points": 7, "substrate_x_mm": 100, "substrate_y_mm": 100,
+    "points": 81, "substrate_x_mm": 100, "substrate_y_mm": 100,
     "thickness_mm": 1.524, "er": 3.38, "patch_width_mm": 53,
     "patch_length_mm": 52, "feed_width_mm": 3.2, "inset_width_mm": 7,
     "inset_length_mm": 15.5, "line_length_mm": 30, "line_width_mm": 3.2,
     "air_margin_mm": 30, "mesh_edge_mm": 2, "resolution": 0.2,
-    "field_z_mm": 2, "field_grid": 21, "z0_ohm": 50,
+    "field_z_mm": 2, "field_grid": 81, "z0_ohm": 50,
     "solver": "SUPERLU", "sweep": "linear", "adaptive_steps": 0,
     "convergence": 0.02, "max_tets": 250000,
     "rule_area_id": "", "signal_net": "", "reference_net": "", "region_er_reviewed": False, "advanced": {},

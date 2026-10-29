@@ -36,6 +36,19 @@ class SceneDataTests(unittest.TestCase):
         self.assertEqual(data.GetNumberOfCells(),0)
         self.assertEqual(style[:2],(1,10))
 
+    def test_dense_original_grid_retains_every_sample_and_cell(self):
+        n=81
+        x=[list(range(n)) for _ in range(n)];y=[[j]*n for j in range(n)];z=[[2]*n for _ in range(n)]
+        values=[[1.]*n for _ in range(n)]
+        data,_=scene_data.colored_grid(x,y,z,values,{})
+        self.assertEqual(data.GetNumberOfPoints(),81*81)
+        self.assertEqual(data.GetNumberOfCells(),80*80)
+        self.assertEqual(data.GetPoint(80*81+80),(80,80,2))
+        values[40][40]=None
+        data,_=scene_data.colored_grid(x,y,z,values,{})
+        self.assertEqual(data.GetNumberOfPoints(),81*81)
+        self.assertEqual(data.GetNumberOfCells(),80*80-4)
+
     def test_volume_coordinates_and_unknown_log_colors(self):
         volume={'x_mm':[0,2], 'y_mm':[0,3,5], 'z_mm':[1,4],
                 'values':[[[1,None],[0,4],[5,6]],[[7,8],[9,10],[11,12]]]}

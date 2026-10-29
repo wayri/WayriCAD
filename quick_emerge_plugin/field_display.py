@@ -42,7 +42,8 @@ def field_for_display(result, quantity='E magnitude', z_index=None):
         raw['display_volume'].update(values=voxels,quantity=quantity,unit=unit,value_key=key)
         if z_index is not None:
             if isinstance(z_index,bool) or not isinstance(z_index,int) or not 0<=z_index<len(volume['z_mm']):raise ValueError('Invalid original Z layer')
-            values=voxels[z_index];raw['z_mm']=volume['z_mm'][z_index];raw['display_z_index']=z_index
+            values=voxels[z_index];raw['x_mm']=volume['x_mm'];raw['y_mm']=volume['y_mm']
+            raw['z_mm']=volume['z_mm'][z_index];raw['display_z_index']=z_index
     raw.update(display_values=values,display_quantity=quantity,display_unit=unit,display_value_key=key)
     return raw
 
@@ -56,3 +57,25 @@ def volume_samples(field):
                 rows.append(dict(kind='field',ix=ix,iy=iy,iz=iz,x_mm=x,y_mm=y,z_mm=z,frequency_hz=field['frequency_hz'],
                                  quantity=volume['quantity'],unit=volume['unit'],unknown=value is None,**{volume['value_key']:value}))
     return rows
+
+
+def _max_step(axis):
+    return float(np.max(np.abs(np.diff(np.asarray(axis,dtype=float))))) if len(axis)>1 else None
+
+
+def plane_sampling_label(field):
+    """Describe actual stored plane sampling, independently of display pixels."""
+    xs,ys=field['x_mm'],field['y_mm'];dx,dy=_max_step(xs),_max_step(ys)
+    label=f'{len(xs)}×{len(ys)} original samples'
+    steps=[f'Δ{axis} ≤ {step:.4g} mm' for axis,step in [('x',dx),('y',dy)] if step is not None]
+    return label+(' · '+', '.join(steps) if steps else '')
+
+
+def angular_sampling_label(field):
+    """Angular grid density is postprocessing of the recorded FEM solution."""
+    theta,phi=field['theta_rad'],field['phi_rad']
+    steps=[]
+    for axis,values in [('θ',theta),('φ',phi)]:
+        step=_max_step(values)
+        if step is not None:steps.append(f'Δ{axis} ≤ {math.degrees(step):.4g}°')
+    return f'{len(theta)}×{len(phi)} stored angular samples'+(' · '+', '.join(steps) if steps else '')

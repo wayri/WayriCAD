@@ -54,6 +54,39 @@ class WorkbenchTests(unittest.TestCase):
         canvas=view.window if hasattr(view,'window') else view.canvas
         self.assertGreater(canvas.GetClientSize().height,250)
 
+    def test_kicad_help_and_dense_sampling_preserve_mesh_settings(self):
+        f = self.frame
+        before = f.config()
+        f.inputs['points'].ChangeValue(9)
+        f.inputs['field_grid'].ChangeValue(21)
+        f.dense_sampling()
+        after = f.config()
+        self.assertEqual((after['points'], after['field_grid']), (81, 81))
+        self.assertEqual((after['mesh_edge_mm'], after['resolution'], after['adaptive_steps']),
+                         (before['mesh_edge_mm'], before['resolution'], before['adaptive_steps']))
+        help_window = f.on_help()
+        wx.Yield()
+        self.assertTrue(help_window.IsShown())
+        self.assertEqual(help_window._help_path, Path(__file__).resolve().parents[1] / 'help.html')
+        viewer = help_window._help_viewer
+        if hasattr(viewer, 'LoadURL'):
+            from wx import html2
+            loaded = []
+            def ready(event):
+                loaded.append(event.GetURL())
+                self.app.ExitMainLoop()
+                event.Skip()
+            viewer.Bind(html2.EVT_WEBVIEW_LOADED, ready)
+            viewer.LoadURL(help_window._help_path.as_uri())
+            timeout = wx.CallLater(5000, self.app.ExitMainLoop)
+            self.app.MainLoop()
+            timeout.Stop()
+            self.assertIn(help_window._help_path.as_uri(), loaded)
+        else:
+            self.assertIn('KiCad workflow', viewer.ToText())
+        self.assertIs(f.on_help(), help_window)
+        help_window.Close()
+
     def test_toolbar_buttons_remain_content_sized_and_selector_is_readable(self):
         f=self.frame
         for width in (960,1600):

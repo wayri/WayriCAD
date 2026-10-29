@@ -119,6 +119,75 @@ class SceneViewportTests(unittest.TestCase):
         self.assertFalse(view.data_actor.GetProperty().GetLighting())
         self.assertEqual(view.data_actor.GetProperty().GetOpacity(),1.)
 
+    def test_high_density_original_samples_and_native_interactions(self):
+        """Run only after numerical workers are idle; no solver execution."""
+        import copy
+        import json
+        import math
+        import time
+        import numpy as np
+        import vtk
+        view=self.view;metrics={'vtk_version':vtk.vtkVersion.GetVTKVersion()}
+        axis=list(range(81));values=[[float(x+y+1) for x in axis] for y in axis]
+        plane={'config':{},'field':{'x_mm':axis,'y_mm':axis,'z_mm':2,
+            'frequency_hz':2.5e9,'norm_e_v_m':values}}
+        original=copy.deepcopy(plane)
+        start=time.perf_counter()
+        view.render(lambda *args:None,plane,reset=True,options={
+            'show_context':False,'copper':False,'ports':False})
+        view.set_camera(preset='Top');view.window.Update();wx.Yield();view.window.Render()
+        metrics['field_render_ms']=(time.perf_counter()-start)*1000
+        data=view.data_actor.GetMapper().GetInput()
+        self.assertEqual((data.GetNumberOfPoints(),data.GetNumberOfCells()),(81*81,80*80))
+        rows=[dict(kind='field',ix=ix,iy=iy,x_mm=x,y_mm=y,z_mm=2,
+                   frequency_hz=2.5e9,value_v_m=values[iy][ix])
+              for iy,y in enumerate(axis) for ix,x in enumerate(axis)]
+        view.set_samples(rows);target=rows[40*81+40]
+        view.scene.SetWorldPoint(40,40,2,1);view.scene.WorldToDisplay();x,y,_=view.scene.GetDisplayPoint()
+        start=time.perf_counter();picked=view._pick(x,y)
+        metrics['field_pick_ms']=(time.perf_counter()-start)*1000
+        self.assertIs(picked,target)
+        view.set_mode('Probe');view.window.SetEventInformation(round(x),round(y))
+        view.window.InvokeEvent('LeftButtonPressEvent');view.window.InvokeEvent('LeftButtonReleaseEvent')
+        self.assertIs(self.events[-1][2],target);self.assertTrue(self.events[-1][3])
+        camera=view.scene.GetActiveCamera();before=camera.GetPosition();view.set_mode('Orbit')
+        start=time.perf_counter()
+        view.window.SetEventInformation(250,250);view.window.InvokeEvent('LeftButtonPressEvent')
+        view.window.SetEventInformation(290,270);view.window.InvokeEvent('MouseMoveEvent')
+        view.window.InvokeEvent('LeftButtonReleaseEvent')
+        metrics['field_orbit_event_ms']=(time.perf_counter()-start)*1000
+        self.assertNotEqual(before,camera.GetPosition());self.assertEqual(plane,original)
+        theta=np.linspace(0,np.pi,91);phi=np.linspace(-np.pi,np.pi,181)
+        far_values=[[float(1+.1*math.cos(t)+.05*math.cos(p)*math.sin(t)) for p in phi] for t in theta]
+        far={'radiation':{'theta_rad':theta.tolist(),'phi_rad':phi.tolist(),
+             'norm_e':far_values,'frequency_hz':2.5e9}}
+        original_far=copy.deepcopy(far);view.name='3D radiation'
+        start=time.perf_counter();view.render(lambda *args:None,far,reset=True,options={})
+        view.set_camera(preset='Top');view.window.Update();wx.Yield();view.window.Render()
+        metrics['radiation_render_ms']=(time.perf_counter()-start)*1000
+        data=view.data_actor.GetMapper().GetInput()
+        self.assertEqual((data.GetNumberOfPoints(),data.GetNumberOfCells()),(91*181,90*180))
+        peak=max(map(max,far_values));radiation_rows=[]
+        for it,t in enumerate(theta):
+            for ip,p in enumerate(phi):
+                r=far_values[it][ip]/peak
+                radiation_rows.append(dict(kind='radiation',itheta=it,iphi=ip,
+                    frequency_hz=2.5e9,theta_deg=math.degrees(t),phi_deg=math.degrees(p),relative_e=r,
+                    display_xyz=(r*math.sin(t)*math.cos(p),r*math.sin(t)*math.sin(p),r*math.cos(t))))
+        view.set_samples(radiation_rows);target=radiation_rows[23*181+90]
+        view.scene.SetWorldPoint(*target['display_xyz'],1);view.scene.WorldToDisplay();x,y,_=view.scene.GetDisplayPoint()
+        start=time.perf_counter();picked=view._pick(x,y)
+        metrics['radiation_pick_ms']=(time.perf_counter()-start)*1000
+        self.assertIsNotNone(picked)
+        self.assertIs(picked,radiation_rows[picked['itheta']*181+picked['iphi']])
+        self.assertAlmostEqual(picked['relative_e'],far_values[picked['itheta']][picked['iphi']]/peak)
+        self.assertEqual(far,original_far)
+        metrics.update(field_points=81*81,field_cells=80*80,
+                       radiation_points=91*181,radiation_cells=90*180)
+        # Timings are evidence for the current host/load, never a flaky pass
+        # threshold or a claim about the user's physical pointer interaction.
+        print('HIGH_DENSITY_VIEWPORT_METRICS '+json.dumps(metrics,sort_keys=True))
+
     def test_original_volume_render_and_pick(self):
         view=self.view; result=dict(self.result); field=dict(result['field']); result['field']=field
         field['display_volume']={'x_mm':[0,2], 'y_mm':[0,3,5], 'z_mm':[1,4], 'values':[[[1,None],[0,4],[5,6]],[[7,8],[9,10],[11,12]]], 'quantity':'H magnitude','unit':'A/m','value_key':'value_a_m'}

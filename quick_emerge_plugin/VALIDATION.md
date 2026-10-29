@@ -16,15 +16,15 @@ desktop uses a complete wx/Matplotlib backend and VTK; the host's KiCad Python
 wx build lacks `wx.svg._nanosvg`, so it is not used as the plotting desktop.
 The native bindings remain available for saved-board extraction.
 
-The final 22-check run after the patch feed/offset additions exited
-successfully in approximately six minutes.
+The latest 22-check run after denser sampling and public per-pass refinement
+exited successfully in approximately 71 seconds. It reused the existing runtime.
 The local evidence is retained under `.validation/quick-emerge-v2/backend/`:
-`final-qualified.json`, `final-qualified.log`, `provisioning-dry-run.log` and
-`package-preservation.json`. These local reports are not shipped user assets.
+`dense-qualified.json`, `dense-qualified.log`, and the earlier provisioning and
+package-preservation records. These local reports are not shipped user assets.
 The certificate records:
 
-- UTC completion: `2026-10-28T20:46:45.120508+00:00` (2026-10-29 local date).
-- Adapter SHA-256: `0801cff08ad994262c9c0a7fbd72dd95794f27da6edb932d64a356691a6466af`.
+- UTC completion: `2026-10-29T06:37:04.884492+00:00` (2026-10-29 local date).
+- Adapter SHA-256: `36d1bba514cd3e6f37be29a0ead0eefb2bd64f46585109e3164beb21a95b48ff`.
 - Scope: **API compatibility smoke solves; not numerical accuracy or convergence**.
 
 All 22 real checks passed:
@@ -73,7 +73,7 @@ evidence, not an absence of log warnings.
   empty states. The live gesture evidence below covers the tested Windows host.
 - An extracted local PCM candidate passed independent CLI/runtime checks and
   native frame creation with bundled runtime/assets, a valid icon bundle,
-  geometry and enabled VTK interactor. All 138 archive entries compiled or
+  geometry and enabled VTK interactor. All 139 archive entries compiled or
   passed archive checks as appropriate; no test staging or environment was
   packaged. This is package isolation evidence, not an installed-editor test.
 - Actual native KiCad extraction, review custody, isolated solver process and
@@ -230,3 +230,41 @@ The shared suite recorded **707 passed, 144 skipped, 502 subtests**.
 The live nine-point solve deliberately used the coarse historical mesh to test
 the complete UI workflow. Its completion is not antenna convergence. The
 controlled mesh study and paper comparison remain separate numerical evidence.
+
+## Denser sampling and offline KiCad help, 3.6.44 candidate
+
+The portable plugin gate passed **187 tests, 38 skipped, 194 subtests**. The
+shared root gate passed **707 tests, 144 skipped, 502 subtests** after restoring
+the required WayriCAD help branding. Windows sandbox hard-link restrictions
+required the export gate to run with native permissions; no export assertions
+were weakened. Two known standalone-loader warnings remain on Python 3.14.
+
+Twenty data/display tests and a native VTK high-density check retained all
+6,561 field points / 6,400 cells and 16,471 radiation points / 16,200 cells.
+Original-sample identity was preserved. On this host, field and radiation
+renders took about 448 ms and 1,248 ms; these are local timings, not platform
+guarantees. Seven final native workbench tests passed, including dense-preset
+mesh preservation and the offline help page's native load event. Computer Use
+accessibility inspection independently exposed the actual KiCad guide contents;
+the locked desktop prevented a new physical contents-link mouse test. Native
+WebView text readback was empty despite the loaded document, so it is not used
+as the acceptance criterion.
+
+A small-template production StudySession and isolated worker completed **81
+actual FEM frequencies, an 81 x 81 field grid, and a 91 x 181 radiation grid**
+in about 24 seconds including HTML/PDF exports. All six embedded report figures
+were 1800 x 1000 pixels (200 DPI). All 16 PDF pages were rendered and inspected;
+export left the original result unchanged. This is high-density workflow
+acceptance, not the published antenna or spatial convergence. The earlier
+complete nine-frequency result still passes its original configuration digest.
+A separate production two-pass refinement run returned all seven requested
+frequencies and all four entries of its two-port S matrix, guarding against
+stale upstream grid caches after repeated refinement calls.
+
+A separate QA-only immutable adapter snapshot from the earlier study commit
+preserves all physical module hashes while production sampling evolves. Repeated
+public one-refinement calls reproduced the original two-pass meshes and all six
+complex response samples within 2.36e-12. Finer attempts still failed the
+unchanged physical-RAM gate. The latest completed paper mesh remains 94,403
+tetrahedra and unqualified; user confirmation of additional RAM is pending.
+Boundary and global-resolution solves have not run.

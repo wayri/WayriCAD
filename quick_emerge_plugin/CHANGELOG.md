@@ -1,5 +1,12 @@
 # Quick EMerge changes
 
+## 3.6.44 — 2026-10-29
+
+- Expanded native 3D views, linked field probes, line cuts and reports, plus
+  additional materials, boundaries and study types in the bounded integration.
+- Expanded managed solver compatibility qualification to 22 checks. Coarse
+  compatibility solves do not establish numerical convergence or accuracy.
+
 ## 3.6.43 — 2026-10-28
 
 - Saved-PCB polygonal rule-area studies: native filled-copper clipping,

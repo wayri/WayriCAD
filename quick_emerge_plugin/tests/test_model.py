@@ -9,7 +9,8 @@ from quick_emerge_plugin.model import DEFAULT_CONFIG, config_digest, metrics, so
 
 class ModelTests(unittest.TestCase):
     def test_defaults_and_canonical_digest(self):
-        self.assertEqual(validate_config({})["points"], 7)
+        self.assertEqual(validate_config({})["points"], 81)
+        self.assertEqual(validate_config({})["field_grid"], 81)
         self.assertEqual(config_digest({}), config_digest(dict(reversed(list(DEFAULT_CONFIG.items())))))
         self.assertNotEqual(config_digest({}), config_digest({"er": 4}))
 

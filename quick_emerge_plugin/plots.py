@@ -6,6 +6,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from .model import metrics, validate_config
 from .inspection import scale_limits
+from .field_display import plane_sampling_label, angular_sampling_label
 
 
 def _plate(ax, x, y, width, length, z, color, alpha=1):
@@ -70,14 +71,17 @@ def response(figure, result, options=None):
     elif quantity=='Impedance':
         values=analysis['input_impedance_ohm']
         for i in range(network.port_count):
-            ax.plot(f,values[:,i].real,label=f'Port {i+1} real');ax.plot(f,values[:,i].imag,'--',label=f'Port {i+1} imaginary')
+            ax.plot(f,values[:,i].real,'o-',markersize=3,label=f'Port {i+1} real');ax.plot(f,values[:,i].imag,'o--',markersize=3,label=f'Port {i+1} imaginary')
         ax.set_ylabel('Input impedance [ohm]')
     else:
-        ax.plot(f,analysis['largest_singular_value'],label='Largest singular value')
-        ax.plot(f,analysis['reciprocity_error'],label='Reciprocity error');ax.axhline(1,color='#87949d',linewidth=.8)
+        ax.plot(f,analysis['largest_singular_value'],'o-',markersize=3,label='Largest singular value')
+        ax.plot(f,analysis['reciprocity_error'],'o-',markersize=3,label='Reciprocity error');ax.axhline(1,color='#87949d',linewidth=.8)
         ax.set_ylabel('Sample diagnostics [unitless]')
     ax.set_xlabel('Frequency [GHz]');ax.grid(alpha=.18);ax.legend(frameon=False,fontsize=8)
-    ax.set_title(result.get('network_view_label','Original network samples')+' | '+quantity,loc='left',fontsize=11)
+    spacing=np.diff(network.frequencies_hz)
+    sampling=f'{len(f)} stored frequency samples'
+    if len(spacing):sampling+=f' · max Δf {np.max(spacing)/1e6:.5g} MHz'
+    ax.set_title(result.get('network_view_label','Original network samples')+' | '+quantity+'\n'+sampling,loc='left',fontsize=10)
     figure.tight_layout(pad=1.5)
 
 
@@ -99,7 +103,7 @@ def smith(figure, result):
     ax.plot(values.real, values.imag, 'o-', color='#177e77', picker=6)
     ax.axhline(0, color='gray', linewidth=.5)
     reference=float(np.asarray(result.get('reference_impedance_ohm',result['config']['z0_ohm'])).reshape(-1)[0])
-    ax.set(xlabel='Re Γ', ylabel='Im Γ', title=f'S11 • reference {reference:g} Ω • click a sample to probe')
+    ax.set(xlabel='Re Γ', ylabel='Im Γ', title=f'S11 • reference {reference:g} Ω • {len(values)} stored frequency samples\nClick an original sample to probe')
     ax.set_aspect('equal', adjustable='datalim')
     ax.grid(alpha=.15)
     figure.tight_layout()
@@ -138,15 +142,16 @@ def near_field(figure, result, options=None):
             ax.text(.5, .5, 'No plottable field data', ha='center', transform=ax.transAxes)
         else:
             image = ax.pcolormesh(field['x_mm'], field['y_mm'], values, shading='nearest', cmap=cmap, norm=norm)
-            figure.colorbar(image, ax=ax, label='|E| [V/m] • solver excitation')
+            figure.colorbar(image, ax=ax, label=f"{field.get('display_quantity', 'Temperature' if 'temperature_k' in field else '|E|')} [{field.get('display_unit', 'K' if 'temperature_k' in field else 'V/m')}]")
     if options.get('mesh', False):
         for x in field['x_mm']:
             ax.axvline(x, color='white', alpha=.35, linewidth=.5)
         for y in field['y_mm']:
             ax.axhline(y, color='white', alpha=.35, linewidth=.5)
         ax.text(.02, .98, 'sample grid', transform=ax.transAxes, va='top')
+    context=f"{field['time_s']:g} s" if 'temperature_k' in field else f"{field['frequency_hz']/1e9:g} GHz"
     ax.set(xlabel='X [mm]', ylabel='Y [mm]',
-           title=f'Field plane Z={field["z_mm"]:g} mm • {field.get("frequency_hz", 0)/1e9:g} GHz')
+           title=f'Field plane Z={field["z_mm"]:g} mm • {context}\n'+plane_sampling_label(field))
     ax.set_aspect('equal')
     if result['config'].get('mode', 'patch') == 'pcb_region' and options.get('show_context', True):
         for shape in result['region']['substrate']['outline']:
@@ -174,30 +179,26 @@ def near_field3d(figure, result, options=None):
         if norm is None:
             ax.text2D(.5, .5, 'No plottable field data', ha='center', transform=ax.transAxes)
         else:
-            # A cell is omitted if any of its original corner samples is unknown.
-            mask = np.ma.getmaskarray(values)
-            faces = []
-            colors = []
-            # Reduce display cells on dense grids; inspection retains every original sample.
-            x_indices = np.linspace(0, x.shape[1] - 1, min(x.shape[1], 65), dtype=int)
-            y_indices = np.linspace(0, x.shape[0] - 1, min(x.shape[0], 65), dtype=int)
-            for iy, jy in zip(y_indices, y_indices[1:]):
-                for ix, jx in zip(x_indices, x_indices[1:]):
-                    block = values[iy:jy+1, ix:jx+1]
-                    if mask[iy:jy+1, ix:jx+1].any():
-                        continue
-                    corners = [(iy, ix), (iy, jx), (jy, jx), (jy, ix)]
-                    faces.append([(x[j, i], y[j, i], z[j, i]) for j, i in corners])
-                    colors.append(cmap(norm(float(np.mean(block)))))
-            ax.add_collection3d(Poly3DCollection(faces, facecolors=colors, edgecolors='none', alpha=.85))
+            # Retain every original cell, including dense planes. Vectorized
+            # construction avoids a hidden 65-node decimation and the broad
+            # averaging that previously erased narrow peaks and small holes.
+            mask=np.ma.getmaskarray(values)
+            valid=~(mask[:-1,:-1]|mask[:-1,1:]|mask[1:,1:]|mask[1:,:-1])
+            xyz=np.stack((x,y,z),axis=-1)
+            faces=np.stack((xyz[:-1,:-1],xyz[:-1,1:],xyz[1:,1:],xyz[1:,:-1]),axis=-2)[valid]
+            samples=np.asarray(values.filled(np.nan))
+            means=(samples[:-1,:-1]+samples[:-1,1:]+samples[1:,1:]+samples[1:,:-1])/4
+            colors=cmap(norm(means[valid]))
+            ax.add_collection3d(Poly3DCollection(faces,facecolors=colors,edgecolors='none',alpha=1.))
             figure.colorbar(ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=.65, label=f"{field.get('display_quantity', '|E|')} [{field.get('display_unit', 'V/m')}]")
     if options.get('mesh', False):
-        ax.plot_wireframe(x, y, z, color='#dddddd', linewidth=.5)
+        ax.plot_wireframe(x, y, z, color='#dddddd', linewidth=.5,rstride=1,cstride=1)
         ax.text2D(.02, .98, 'sample grid', transform=ax.transAxes, va='top')
     thickness = result['region']['substrate']['thickness_mm'] if is_region else validate_config(result['config'])['thickness_mm']
     ax.set_zlim(-thickness*3, max(field['z_mm']*1.5, thickness*5))
     scope = 'Saved rule-area copper; exterior board omitted' if is_region else 'Template geometry; PCB context only'
-    ax.set_title(f'Solver field plane • {field.get("frequency_hz", 0)/1e9:g} GHz • Z={field["z_mm"]:g} mm\n{scope}')
+    context=f"{field['time_s']:g} s" if 'temperature_k' in field else f"{field['frequency_hz']/1e9:g} GHz"
+    ax.set_title(f'Solver field plane • {context} • Z={field["z_mm"]:g} mm\n'+plane_sampling_label(field)+'\n'+scope,fontsize=10)
     figure.subplots_adjust(left=.06, right=.94, bottom=.16, top=.84)
 
 
@@ -224,12 +225,13 @@ def radiation(figure, result, options=None):
             ax.text2D(.5, .5, 'No plottable radiation data', ha='center', transform=ax.transAxes)
         else:
             ax.plot_surface(radius*np.sin(t)*np.cos(p), radius*np.sin(t)*np.sin(p), radius*np.cos(t),
-                            facecolors=cmap(norm(colors)), shade=False, linewidth=0, antialiased=True)
+                            facecolors=cmap(norm(colors)),shade=False,linewidth=0,antialiased=True,
+                            rcount=radius.shape[0],ccount=radius.shape[1])
             figure.colorbar(ScalarMappable(norm=norm, cmap=cmap), ax=ax, shrink=.65, label='Relative |E| (normalized 0–1)')
     if options.get('mesh', False):
-        ax.plot_wireframe(radius*np.sin(t)*np.cos(p), radius*np.sin(t)*np.sin(p), radius*np.cos(t), linewidth=.5)
+        ax.plot_wireframe(radius*np.sin(t)*np.cos(p), radius*np.sin(t)*np.sin(p), radius*np.cos(t),linewidth=.5,rstride=1,cstride=1)
         ax.text2D(.02, .98, 'sample grid', transform=ax.transAxes, va='top')
-    ax.set(xlabel='X', ylabel='Y', zlabel='Z', title=f'Relative far-field |E| • {field.get("frequency_hz", 0)/1e9:g} GHz\nNormalized radius; not gain, efficiency or physical distance')
+    ax.set(xlabel='X', ylabel='Y', zlabel='Z', title=f'Relative far-field |E| • {field.get("frequency_hz", 0)/1e9:g} GHz\n'+angular_sampling_label(field)+'\nNormalized radius; not gain, efficiency or physical distance')
     ax.set_box_aspect((1, 1, 1))
     figure.subplots_adjust(left=.06, right=.94, bottom=.18, top=.83)
 

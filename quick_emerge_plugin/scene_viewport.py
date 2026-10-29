@@ -8,6 +8,7 @@ import wx
 import vtk
 from vtkmodules.wx.wxVTKRenderWindowInteractor import wxVTKRenderWindowInteractor
 from . import scene_data
+from .field_display import plane_sampling_label, angular_sampling_label
 
 class NativeInteractor(wxVTKRenderWindowInteractor):
     """Initialize VTK only after wx has attached the native child window."""
@@ -271,6 +272,14 @@ class SceneViewport(wx.Panel):
         else:
             label='Relative far-field |E|: normalized radius; not gain, efficiency or physical distance'
             if 'radiation' not in arguments: label='Radiation surface is available for the patch model.'
+        if self.name=='3D fields':
+            sampled=arguments.get('thermal',arguments.get('field'))
+            volume=arguments.get('field',{}).get('display_volume')
+            if self.options.get('field_view','Plane')=='Volume' and volume:
+                label+='\n'+f"{len(volume['x_mm'])}×{len(volume['y_mm'])}×{len(volume['z_mm'])} original volume samples"
+            elif sampled:label+='\n'+plane_sampling_label(sampled)
+        elif self.name=='3D radiation' and 'radiation' in arguments:
+            label+='\n'+angular_sampling_label(arguments['radiation'])
         descriptor=arguments.get('scene_geometry',{}) if isinstance(arguments,dict) else {}
         if self.name=='3D setup' and not descriptor and 'config' not in arguments and 'substrate' not in arguments:
             descriptor=scene_data.preview_geometry(arguments) or {}

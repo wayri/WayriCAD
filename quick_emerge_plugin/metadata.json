@@ -2,7 +2,7 @@
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Quick EMerge (beta)",
   "description": "Interactive EMerge 3+ antenna and saved-PCB rule-area simulations (beta).",
-  "description_full": "Beta read-only native electromagnetic workbench with antenna/coupon templates, reviewed two-layer PCB rule-area copper extraction, interactive 3D and 2D views, linked field probes, S-parameters, radiation plots and exports. An isolated dependency manager installs EMerge 3+ on first open and qualifies updates before activation, retaining rollback. Only documented integration modes are supported; this does not expose every upstream EMerge capability. Bare PEC copper and homogeneous real-permittivity models omit components, losses and PCB outside the selected enclosure. Coarse compatibility solves do not establish accuracy or convergence. Requires a saved PCB, KiCad 10 native Python and internet for initial setup.",
+  "description_full": "Beta read-only electromagnetic workbench with antenna and PCB templates, reviewed two-layer rule-area copper extraction, native interactive 3D/2D views, original-sample probes, S-parameters, radiation and HTML/PDF reports. New studies use 81 frequency samples, an 81 x 81 field grid and two-degree radiation sampling. Offline KiCad-specific Help explains setup, ports and limitations. Documented material, boundary, network and bounded advanced study controls are included; this does not expose every upstream EMerge capability. Region studies omit components, general multilayer/via extraction and PCB outside the enclosure. An isolated dependency manager installs EMerge 3+ and qualifies updates before activation, retaining rollback. Compatibility checks do not establish numerical accuracy or convergence. Requires a saved PCB, KiCad 10 native bindings and internet for initial setup.",
   "identifier": "com.github.wayri.wayricad.quick-emerge",
   "type": "plugin",
   "author": {
@@ -12,7 +12,7 @@
   "license": "GPL-3.0-only",
   "versions": [
     {
-      "version": "3.6.43",
+      "version": "3.6.44",
       "status": "testing",
       "kicad_version": "10.0",
       "runtime": "ipc"
@@ -20,6 +20,6 @@
   ],
   "resources": {
     "homepage": "https://github.com/wayri/WayriCAD",
-    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/v3.6.43-beta.1/quick_emerge_plugin/icon.png"
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/v3.6.44-beta.1/quick_emerge_plugin/icon.png"
   }
 }

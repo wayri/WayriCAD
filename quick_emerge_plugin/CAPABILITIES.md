@@ -1,7 +1,6 @@
 # Quick EMerge capability coverage
 
-This inventory describes **development source**, beyond the published
-3.6.43-beta.1 package. Upstream baseline: EMerge **3.0.0b9**, inspected at
+This inventory describes the 3.6.44-beta.1 source. Upstream baseline: EMerge **3.0.0b9**, inspected at
 [446232037d175a596606c6c9ea986e372560566f](https://github.com/FennisRobert/EMerge/commit/446232037d175a596606c6c9ea986e372560566f).
 The [upstream project metadata](https://github.com/FennisRobert/EMerge/blob/446232037d175a596606c6c9ea986e372560566f/pyproject.toml)
 requires Python 3.10-3.13. This is a bounded integration, not every upstream
