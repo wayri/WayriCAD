@@ -1,0 +1,130 @@
+[
+  {
+    "name": "quick-pi",
+    "plots": [
+      {
+        "title": "Saved nodal potential · F.Cu",
+        "type": "mesh-field",
+        "unit": "V"
+      },
+      {
+        "title": "Saved cell power · F.Cu",
+        "type": "mesh-field",
+        "unit": "W"
+      },
+      {
+        "title": "Saved current density magnitude · F.Cu",
+        "type": "mesh-field",
+        "unit": "A/mm²"
+      }
+    ],
+    "probe": {
+      "x": 15,
+      "y": 5,
+      "z": 0.0175,
+      "value": 3.298891714285714,
+      "name": "Saved nodal potential · F.Cu",
+      "unit": "V",
+      "method": "Interpolated saved nodes"
+    }
+  },
+  {
+    "name": "quick-si",
+    "plots": [
+      {
+        "title": "Saved route impedance",
+        "type": "waveform",
+        "unit": null
+      },
+      {
+        "title": "Illustrative eye diagram",
+        "type": "waveform",
+        "unit": null
+      },
+      {
+        "title": "Saved step response",
+        "type": "waveform",
+        "unit": null
+      }
+    ]
+  },
+  {
+    "name": "quick-therm",
+    "plots": [
+      {
+        "title": "Saved board temperature field",
+        "type": "heatmap",
+        "unit": "°C"
+      },
+      {
+        "title": "Saved board temperature field",
+        "type": "heatmap",
+        "unit": "°C"
+      }
+    ]
+  },
+  {
+    "name": "quick-therm-transient",
+    "plots": [
+      {
+        "title": "Saved thermal transient field · F.Cu",
+        "type": "heatmap",
+        "unit": "°C"
+      },
+      {
+        "title": "Saved thermal transient field · B.Cu",
+        "type": "heatmap",
+        "unit": "°C"
+      },
+      {
+        "title": "Saved board temperature field",
+        "type": "heatmap",
+        "unit": "°C"
+      },
+      {
+        "title": "Saved board temperature field",
+        "type": "heatmap",
+        "unit": "°C"
+      }
+    ],
+    "heater": {
+      "x": 24.375,
+      "y": 4.375,
+      "value": 23.207663444711994,
+      "name": "Saved thermal transient field · F.Cu",
+      "unit": "°C",
+      "method": "Saved cell center"
+    },
+    "cutout": {
+      "x": 14.375,
+      "y": 10.625,
+      "value": null,
+      "name": "Saved thermal transient field · F.Cu",
+      "unit": "°C",
+      "method": "Saved cell center"
+    },
+    "history": {
+      "title": "Saved thermal transient field · F.Cu · probe (24.375, 4.375 mm)",
+      "xLabel": "Time (s)",
+      "series": [
+        {
+          "name": "Saved thermal transient field · F.Cu (°C)",
+          "points": [
+            {
+              "x": 0,
+              "y": 20
+            },
+            {
+              "x": 0.5,
+              "y": 21.879388720174184
+            },
+            {
+              "x": 1,
+              "y": 23.207663444711994
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

@@ -1019,7 +1019,9 @@ class Window(wx.Frame):
         with wx.DirDialog(self,'Choose a reports folder') as dlg:
             if dlg.ShowModal()!=wx.ID_OK:return
             try:
-                paths=export(self.result,dlg.GetPath());self.status.SetLabel('Report saved: '+str(Path(paths['html']).parent))
+                paths=export(self.result,dlg.GetPath(),pocket_kivi=True)
+                self.status.SetLabel(('Report and Pocket KiVi scene saved: ' if paths.get('pocket_kivi_json') else 'Report saved: ')+str(Path(paths['html']).parent)
+                    +(' · '+paths['pocket_kivi_unavailable'] if paths.get('pocket_kivi_unavailable') else ''))
                 wx.LaunchDefaultBrowser(Path(paths['html']).as_uri())
             except Exception as exc:wx.MessageBox(str(exc),'Export error',wx.OK|wx.ICON_ERROR,self)
 

@@ -1,25 +1,25 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v2",
-    "name": "WayriCAD Assistant",
-    "description": "Use local language commands to run suite checks and open generated reports.",
-    "description_full": "Local fuzzy intent matching coordinates registered read-only WayriCAD CLI actions. Shows plans, asks for missing inputs and offers saved-board visual net selection. No cloud, downloaded language model or automatic layout edits. Existing tool runtimes and numerical limits still apply. Independent KiCad 10 IPC plugin.",
-    "identifier": "com.github.wayri.wayricad.assistant",
-    "type": "plugin",
-    "author": {
-        "name": "WayriCAD contributors",
-        "contact": {}
-    },
-    "license": "GPL-3.0-only",
-    "versions": [
-        {
-            "version": "3.6.42",
-            "status": "testing",
-            "kicad_version": "10.0",
-            "runtime": "ipc"
-        }
-    ],
-    "resources": {
-        "homepage": "https://github.com/wayri/WayriCAD",
-        "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/suite_assistant_plugin/icon.png"
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Assistant",
+  "description": "Use local language commands to run suite checks and open generated reports.",
+  "description_full": "Local fuzzy intent matching coordinates registered read-only WayriCAD CLI actions. Shows plans, asks for missing inputs and offers saved-board visual net selection. No cloud, downloaded language model or automatic layout edits. Existing tool runtimes and numerical limits still apply. Independent KiCad 10 IPC plugin.",
+  "identifier": "com.github.wayri.wayricad.assistant",
+  "type": "plugin",
+  "author": {
+    "name": "WayriCAD contributors",
+    "contact": {}
+  },
+  "license": "GPL-3.0-only",
+  "versions": [
+    {
+      "version": "3.6.45",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
     }
+  ],
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/suite_assistant_plugin/icon.png"
+  }
 }

@@ -1,0 +1,151 @@
+{
+  "schema": "wayricad.pocket-kivi-examples/v1",
+  "fixture": "example.kicad_pcb",
+  "source_sha256": "8d60e824376418fa4cad65d37c9d8c8dd5da60c5538b9bf0a11976dbb98f1e7e",
+  "runtime": {
+    "python": "3.11.5",
+    "kicad": "10.0.6",
+    "numpy": "2.4.2",
+    "scipy": "1.17.1",
+    "vtk": "9.6.1",
+    "matplotlib": "3.10.8"
+  },
+  "producer_versions": {
+    "Quick PI": "3.6.45",
+    "Quick SI": "3.6.45",
+    "QuickTherm": "3.6.45"
+  },
+  "producer_modules": {
+    "tools/generate_pocket_kivi_examples.py": "a2d2d57c7bcb946cad0ed764ee68936d5fa2087633b93504ab61c05920d89522",
+    "wayricad_runtime/pocket_kivi_export.py": "f79cbf24f7c1f09ea90dc2c96f1c9766ceb3c3ed7db990857fa608a65e37c58d",
+    "wayricad_runtime/pocket_report.py": "54fb34545ed8773c9df63f31c7435bde7d45bebb1a2e2bb7dd434a624cac660a",
+    "quick_pi_plugin/service.py": "50442ece937a0bf65eb5f7d73ce62813876c35a4f5a60dd6cc135b8ae13d979c",
+    "quick_pi_plugin/board_geometry.py": "f696610674653a3416aa54157cb6c5590726da156002178379770af850de6e97",
+    "quick_pi_plugin/mesh.py": "1bd771ef77857b6ff9e021ac17f702f8f30eed69ed1c5da8c5b6796f7b0c660b",
+    "quick_pi_plugin/solver.py": "ecacc2bf86a29e500cc54cd07a8def1705b4f1bf9a4e0d35b7df7245684abaca",
+    "signal_integrity_advisor_plugin/service.py": "8ce7bfc211c402fb771958fa29fa5621771953233063f08311851fafc16f4a9e",
+    "signal_integrity_advisor_plugin/quick_si.py": "d7d6b207e51c314c0977f99530685c01a9b2255ae206f54b42d1376f28925a5e",
+    "signal_integrity_advisor_plugin/measurement.py": "653340ec32f70d574a7a376b0b31fb0e10971f6e9f0f0840f3fc9cb6b31943f1",
+    "signal_integrity_advisor_plugin/eye_model.py": "12b4fac21e58ca98d0a7c2b8764c1f8dd972359ce7401662b56bc550a2ac5da6",
+    "quick_therm_plugin/service.py": "3752bd36074e7e71cfdbe5abeaa594acbe3aeb0222324dec2c3e8045a7928b84",
+    "quick_therm_plugin/thermal_geometry.py": "f473216bc4b7195e519dea3080781fce49e116cc2c81ba92faebd6891ea70699",
+    "quick_therm_plugin/thermal_multilayer.py": "050aba0cc8bcf707a3516ba44c4b9ac6075e3675b364899d4e0661e451eda4d5",
+    "quick_therm_plugin/thermal_spatial_transient.py": "fdf96c0449632c7b6b30e0e4f2efb1507e1f8549874ed75561953d570267ed62"
+  },
+  "producer_source_normalization": "CRLF to LF only",
+  "files": {
+    "quick-pi.pocket-kivi.json": "57eed4ae723d12336fe4ae2044e8cea9a25dbfb45c15e3a4023628dbc2d09cc5",
+    "quick-si.pocket-kivi.json": "6536ebe44687aac4ee1c2b2a8dbd80cb7a7d21947bf1215e6071a71acf9d4d23",
+    "quick-therm.pocket-kivi.json": "44a38bcf368d0cb2bead0f79757fa850e2139b75a7fc3b5954481e6fe6ebfada",
+    "quick-therm-transient.pocket-kivi.json": "1da4c8a60d40ad03f631f2c9a5e82c555e09eec0d83e84c06f676433afdaa5e5",
+    "viewer-probes.json": "2a55c165e2ad6c6f504bb6fd1ce0060d8a6bfb0bb5388c292d90b48664579ca5",
+    "example.kicad_pro": "4d8e3d77d218508d649a0103f5028a06aec19b8eece3bfa3f51eeb65051eeca4"
+  },
+  "request_inputs": {
+    "pi": {
+      "action": "solve",
+      "net": "/Front outputs/SLOT1",
+      "source_terminal": "J1.1",
+      "sink_terminal": "U1.1",
+      "source_voltage": 3.3,
+      "sink_current": 0.25,
+      "edge_mm": 1.0,
+      "mesh_backend": "vtk",
+      "max_cells": 20000
+    },
+    "si": {
+      "mode": "screen",
+      "net": "/Front outputs/SLOT1",
+      "start": "J1.1",
+      "end": "U1.1",
+      "reference": "B.Cu",
+      "inputs": {
+        "rise_ns": 1.0,
+        "frequency_mhz": 100.0,
+        "source_ohm": 20.0,
+        "load_ohm": null,
+        "z0_ohm": 50.0,
+        "epsilon_eff": 3.0,
+        "eye_bitrate_mbps": 100.0,
+        "eye_swing_v": 1.0
+      }
+    },
+    "thermal": {
+      "action": "quick_therm",
+      "environment": "air",
+      "ambient_c": 20.0,
+      "references": [
+        "U1"
+      ],
+      "input_mode": "manual",
+      "manual_values": {
+        "U1": {
+          "power_w": 0.05,
+          "theta_jb_k_per_w": 4.0
+        }
+      },
+      "thermal_model_kind": "multilayer",
+      "board_power_only": true,
+      "thermal_network_settings": {
+        "dielectric_k_w_mk": 0.3,
+        "via_plating_mm": 0.025,
+        "grid_cells_long_axis": 24,
+        "board_h_w_m2k": 10.0,
+        "board_emissivity": 0.0,
+        "source_contact_pad_numbers": {
+          "U1": "1"
+        }
+      },
+      "probes": [
+        {
+          "label": "Heater",
+          "x_mm": 25.0,
+          "y_mm": 5.0,
+          "side": "top"
+        },
+        {
+          "label": "Cutout",
+          "x_mm": 15.0,
+          "y_mm": 11.0,
+          "side": "top"
+        }
+      ]
+    },
+    "transient_settings": {
+      "duration_s": 1.0,
+      "timestep_s": 0.25,
+      "frame_interval_s": 0.5,
+      "initial_c": 20.0,
+      "copper_volumetric_capacity_j_m3k": 3450000.0,
+      "dielectric_volumetric_capacity_j_m3k": 1700000.0,
+      "power_schedules": {
+        "U1": [
+          [
+            0.0,
+            1.0
+          ],
+          [
+            0.5,
+            1.0
+          ],
+          [
+            1.0,
+            0.0
+          ]
+        ]
+      },
+      "schedule_interpolation": "step"
+    }
+  },
+  "checks": {
+    "native_saved_board_producers": "passed",
+    "unchanged_source_bytes": true,
+    "viewer_adapters": {
+      "status": "passed",
+      "module_hashes": {
+        "analysis-data.js": "527fa763938e256a8a419b0bb4be2f9df36df4c0dbfd8473963fe28a4db6e997",
+        "analysis-spatial.js": "e54ae11f5dd7b56063b2acd3dd21ded6e6b91eaeca430f84fd6cc4c56669f6c3"
+      }
+    }
+  }
+}

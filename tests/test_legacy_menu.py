@@ -51,6 +51,25 @@ def test_headless_worker_does_not_register_menu(tmp_path):
         legacy_menu.register("worker_package", tmp_path)
 
 
+def test_review_menu_supplies_only_originating_saved_board_to_desktop(tmp_path):
+    _manifest(tmp_path,'WayriCAD Review','review-comments')
+    (tmp_path/'desktop_entrypoint.py').write_text('')
+    board=tmp_path/'sensor.kicad_pcb';board.write_text('board')
+    actions=[]
+    class FakeActionPlugin:
+        def register(self):self.defaults();actions.append(self)
+    wx=SimpleNamespace(GetApp=lambda:object(),MessageBox=Mock(),OK=1,ICON_ERROR=2)
+    pcbnew=SimpleNamespace(ActionPlugin=FakeActionPlugin,GetBoard=lambda:SimpleNamespace(GetFileName=lambda:str(board)))
+    with patch.dict(sys.modules,{'pcbnew':pcbnew,'wx':wx}), patch(
+            'wayricad_runtime.runtime_setup.native_python',return_value=Path('native-python')),patch(
+            'wayricad_runtime.runtime_setup.child_environment',return_value={}),patch.object(
+            legacy_menu.subprocess,'Popen') as spawn:
+        legacy_menu.register('installed_review',tmp_path)
+        actions[0].Run()
+    assert spawn.call_args.args[0]==['native-python','-I',str(tmp_path/'desktop_entrypoint.py'),'--board',str(board)]
+    assert spawn.call_args.kwargs['env']=={}
+
+
 def test_copper_menu_never_executes_nested_registration_initializer(tmp_path, monkeypatch):
     _manifest(tmp_path, "WayriCAD Copper Balancer", "copper-balancer")
     nested = tmp_path / "copper_balancer"
@@ -224,3 +243,27 @@ def test_assistant_menu_launches_saved_board_in_standalone_desktop(tmp_path):
     assert spawn.call_args.args[0][-2:] == ["--board", str(board.resolve())]
     assert str(tmp_path / "desktop_entrypoint.py") in spawn.call_args.args[0]
     wx.MessageBox.assert_not_called()
+
+
+def test_quick_emerge_menu_passes_saved_board_without_ipc_socket(tmp_path):
+    _manifest(tmp_path, "WayriCAD Quick EMerge", "quick-emerge")
+    board = tmp_path / "demo.kicad_pcb"
+    board.write_text("board", encoding="utf-8")
+    (tmp_path / "desktop_entrypoint.py").write_text("", encoding="utf-8")
+    actions = []
+
+    class FakeActionPlugin:
+        def register(self):
+            self.defaults()
+            actions.append(self)
+
+    wx = SimpleNamespace(GetApp=lambda: object(), MessageBox=Mock(), OK=1, ICON_ERROR=2)
+    pcbnew = SimpleNamespace(ActionPlugin=FakeActionPlugin,
+                             GetBoard=lambda: SimpleNamespace(GetFileName=lambda: str(board)))
+    with patch.dict(sys.modules, {"pcbnew": pcbnew, "wx": wx}), patch(
+            "wayricad_runtime.runtime_setup.native_python", return_value=Path("python")), patch(
+            "wayricad_runtime.runtime_setup.child_environment", return_value={}), patch.object(
+            legacy_menu.subprocess, "Popen") as spawn:
+        legacy_menu.register("installed_quick_emerge", tmp_path)
+        actions[-1].Run()
+    assert spawn.call_args.args[0][-2:] == ["--board", str(board.resolve())]

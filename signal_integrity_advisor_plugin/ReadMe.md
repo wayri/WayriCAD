@@ -1,10 +1,27 @@
 # WayriCAD Quick SI
 
+**Project simulation library (updated source):** **Save simulation…** retains
+full route, multi-net, eye and waveform data under `.wayricad/results/quick-si/`.
+**Load simulation…** opens the saved numerical result read-only without
+measuring or solving again. Live-editor results remain explicitly unverified.
+[Workflow, deterministic JSON and CLI](../docs/PROJECT_RESULTS.md).
+
+**Saved results (updated source):** **Save results / Pocket KiVi** writes HTML
+and complete numerical JSON. Saved-board analyses also get a portable
+`.pocket-kivi.json` companion with the original PCB fingerprint. Live editor
+results remain explicitly unbound; rerun from the saved board for a verified
+binding. Available paths, waveforms, eye samples and unknown gaps are retained.
+[Export workflow, CLI and limits](../docs/POCKET_KIVI_EXPORT.md).
+
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
 **Blender visualization (updated source):** after a supported result, choose **Blender…** to export geometry and fields, with computed-frame animation where available. [Export workflow and limits](../wayricad_runtime/BLENDER.md).
 
 **Detailed user guide:** [Read the step-by-step guide](USER_GUIDE.md) · [Offline HTML](USER_GUIDE.html). Covers setup, all workspace tabs, CLI, reports, recovery and model limits.
+
+![Quick SI saved eye diagram](help-saved-simulation.png)
+
+Saved public-example data in the native read-only viewer; [capture details and loading limits](../docs/PROJECT_RESULTS.md#saved-viewer-examples).
 
 ## Worked board tutorials and complete controls
 

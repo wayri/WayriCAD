@@ -1,0 +1,9 @@
+# Manual fallback only. Automatic setup selects and qualifies the latest EMerge 3+.
+# Separate Python 3.10-3.13 environment. Tested fallback, including CAD imports:
+emerge[cad]==3.0.0b9
+# Native DXF and Optycal-compatible numeric MsgPack export adapters:
+ezdxf>=1.4,<2
+msgpack>=1.1,<2
+msgpack-numpy>=0.4.8,<0.5
+# Acceleration backends remain optional and require their supported hardware.
+# Do not install into KiCad's bundled Python.

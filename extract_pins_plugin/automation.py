@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 PLUGIN_CAPABILITIES = (
+    ("review-comments", "WayriCAD Review (candidate)", ("sync", "cached", "boards", "locate", "post"), True, "committed-design-and-provider"),
     ("assistant", "WayriCAD Assistant", ("capabilities", "plan", "run"), False, "saved-board"),
     ("project-fusion", "Wayri Project Fusion", ("analyse", "merge", "gui"), True, "saved-project"),
     ("variant-manager", "WayriCAD Variant Manager", ("list", "job", "set-default", "delete", "restore-variants", "gui"), True, "saved-project"),
@@ -36,6 +37,7 @@ PLUGIN_CAPABILITIES = (
     ("manufacturing-readiness", "WayriCAD Manufacturing Readiness Manager", ("audit", "release"), True, "project"),
     ("planar-magnetics", "WayriCAD Planar Magnetics & Actuator Workbench", ("analyze", "simulate", "apply"), True, "model"),
     ("quick-therm", "WayriCAD QuickTherm", ("solve", "probe", "limits", "report"), False, "saved-board"),
+    ("quick-emerge", "WayriCAD Quick EMerge (beta)", ("check-runtime", "qualify-runtime", "worker", "gui"), False, "saved-board"),
     ("quick-pi", "WayriCAD Quick PI", ("inspect", "mesh", "solve", "report", "decoupling"), False, "saved-board"),
     ("protocol-constraints", "WayriCAD Protocol Constraint Composer", ("detect", "compose", "apply"), True, "nets"),
     ("signal-integrity", "WayriCAD Quick SI", ("i2c-pullup", "impedance", "eye", "protocol-suites", "return-path", "test-points", "fixture"), True, "board"),

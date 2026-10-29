@@ -156,7 +156,7 @@ def report_paths(path):
     return output,output.with_suffix('.json')
 
 
-def publish_documents(documents, *, sources=()):
+def publish_documents(documents, *, sources=(), source_guard=None):
     """Atomically replace each rendered file and roll back the set on failure.
 
     This is recoverable process-level publication, not power-loss atomicity of
@@ -170,6 +170,7 @@ def publish_documents(documents, *, sources=()):
         for source in protected:
             if target.resolve()==source or (target.exists() and source.exists() and os.path.samefile(target,source)):
                 raise ValueError('Reports must not overwrite the saved board or input study.')
+    if source_guard:source_guard()
     staged=[];backups={};published=[];retained=set()
     try:
         for target,content in ((Path(path),content) for path,content in documents.items()):
@@ -185,7 +186,9 @@ def publish_documents(documents, *, sources=()):
                     with target.open('rb') as original:shutil.copyfileobj(original,handle)
             backups[target]=backup
         try:
+            if source_guard:source_guard()
             for temporary,target in staged:os.replace(temporary,target);published.append(target)
+            if source_guard:source_guard()
         except BaseException as failure:
             errors=[]
             for target in reversed(published):
@@ -203,16 +206,31 @@ def publish_documents(documents, *, sources=()):
             if backup is not None and backup not in retained:backup.unlink(missing_ok=True)
 
 
-def publish_report(path, document, bundle):
+def publish_report(path, document, bundle, *, pocket_kivi=None):
     """Serialize exact evidence first, then publish its HTML/JSON pair together."""
     output,evidence=report_paths(path)
     payload=json.dumps(bundle,indent=2,ensure_ascii=False,allow_nan=False)+'\n'
     sources=checked_sources(bundle)
     link='<p class="report-download"><a href="'+escape(evidence.name,quote=True)+'">Download complete JSON evidence</a></p>'
+    documents={evidence:payload}
+    guard=None
+    portable=None
+    if pocket_kivi is not None:
+        from .pocket_report import prepare_report
+        portable=output.with_name(output.stem+'.pocket-kivi.json')
+        portable_payload,protected,guard=prepare_report(bundle,pocket_kivi)
+        sources.extend(protected)
+        documents[portable]=portable_payload
+        link+='<p class="report-download"><a href="'+escape(portable.name,quote=True)+'">Open saved results in Pocket KiView (portable JSON)</a></p>'
     marker=re.search(r'</h1\s*>',document,re.I)
     if marker:document=document[:marker.end()]+link+document[marker.end():]
-    publish_documents({evidence:payload,output:document},sources=sources)
-    return {'html':str(output),'json':str(evidence)}
+    elif portable is not None:document+=link
+    documents[output]=document
+    if guard:publish_documents(documents,sources=sources,source_guard=guard)
+    else:publish_documents(documents,sources=sources)
+    result={'html':str(output),'json':str(evidence)}
+    if portable is not None:result['pocket_kivi_json']=str(portable)
+    return result
 
 
 def checked_sources(bundle):

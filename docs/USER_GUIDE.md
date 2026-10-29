@@ -2,7 +2,7 @@
 
 [Install](INSTALLATION.md) · [Choose a tool](#tool-directory) · [Routing](#routing-review) · [Electrical analysis](#electrical-analysis) · [BOM and libraries](#bom-and-project-libraries) · [Troubleshooting](TROUBLESHOOTING.md) · [CLI](CLI_USER_GUIDE.md)
 
-This guide covers the current 24-plugin source catalogue. Released packages and new candidate installers are identified in their individual guides. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
+This guide covers the current 26-plugin catalogue. Released packages and new candidate installers are identified in their individual guides. Quick EMerge is an exploratory beta; Review and Assistant are testing packages. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
 
 ## Install and first launch
 
@@ -57,6 +57,7 @@ Select the linked name for detailed instructions. “Review” below means that 
 | Icon | Tool and detailed guide | Start with | Result and write boundary |
 |---|---|---|---|
 | <img src="../suite_assistant_plugin/icon.png" width="28" height="28" alt="WayriCAD Assistant icon"> | [WayriCAD Assistant](../suite_assistant_plugin/README.md) | Saved board and a task in plain English | Review a fixed-tool plan, clarify missing inputs, execute supported analyses and inspect reports (testing) |
+| <img src="../review_comments_plugin/icon.png" width="28" height="28" alt="WayriCAD Review icon"> | [WayriCAD Review](../review_comments_plugin/README.md) | Committed design and provider conversation | Message cards, inline replies, native GitHub Discussion threads and design-item chips; testing package |
 | <img src="../trace_refiner_plugin/icon.png" width="28" height="28" alt="Trace Refiner icon"> | [Trace Refiner](../trace_refiner_plugin/README.md) | Selected tracks/nets, net classes or layers | Preview minor jog cleanup, validate native connectivity/DRC, then apply with in-window undo |
 | <img src="../component_arranger_plugin/icon.png" width="28" height="28" alt="Component Arranger icon"> | [Component Arranger](../component_arranger_plugin/README.md) | Selected parts, sheets or confirmed schematic clusters | Preview anchored courtyard-aware group placement and measured crossings; native validation, backed-up Apply and in-window Undo |
 | <img src="../layer_counter_plugin/icon.png" width="28" height="28" alt="Layer Counter icon"> | [Layer Counter](../layer_counter_plugin/README.md) | Enabled copper layers and explicit core pairs | Preview and add grouped physical layer markers plus a zone-only keepout |
@@ -65,6 +66,7 @@ Select the linked name for detailed instructions. “Review” below means that 
 | <img src="../variant_manager_plugin/icon.png" width="28" height="28" alt="Variant Manager icon"> | [Variant Manager](../variant_manager_plugin/README.md) | Native KiCad 10 variant definitions | Assembly comparison, bulk operations, conflict-aware merge/swap, Default promotion and verified recovery |
 | <img src="../bom_studio_plugin/icon.png" width="28" height="28" alt="Analytics Studio icon"> | [Analytics Studio](../bom_studio_plugin/README.md) | Saved schematic/project and desired fields | Review staged component data, export purchasing/assembly BOMs; native writes require a reviewed operation |
 | <img src="../embed_3d_plugin/icon.png" width="28" height="28" alt="Embed3D icon"> | [Embed3D](../embed_3d_plugin/README.md) | Project plus library/model search paths | Preview then copy/relink symbols, footprints and models with backups |
+| <img src="../quick_emerge_plugin/icon.png" width="28" height="28" alt="Quick EMerge beta icon"> | [Quick EMerge (beta)](../quick_emerge_plugin/README.md) | Saved PCB, antenna template or reviewed rule area | Exploratory fields, S-parameters, probes and reports; see numerical limits |
 | <img src="../quick_pi_plugin/icon.png" width="28" height="28" alt="Quick PI icon"> | [Quick PI](../quick_pi_plugin/README.md) | Net, source/sink pads, voltage/current | Read-only layered DC mesh, fields, losses and risk screening; integrated decoupling placement review; export reports |
 | <img src="../quick_therm_plugin/icon.png" width="28" height="28" alt="QuickTherm icon"> | [QuickTherm](../quick_therm_plugin/README.md) | Saved board, mapped loss fields and thermal resistances | Independent thermal screening with board views, component temperatures and explicit model coverage |
 | <img src="../trace_impedance_plugin/icon.png" width="28" height="28" alt="Trace RLC / Impedance icon"> | [Trace RLC / Impedance](../trace_impedance_plugin/ReadMe.md) | Connected path or zone terminals and stackup | Read-only trace/via/zone/plane estimates; unknown assumptions stay explicit |

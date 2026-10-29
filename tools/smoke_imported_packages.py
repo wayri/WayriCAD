@@ -41,9 +41,13 @@ def main():
                 raise RuntimeError(
                     'Wheel contains inactive plugin files: ' + ', '.join(sorted(stale_plugins))
                 )
+            for required in ('__main__.py', 'desktop_entrypoint.py', 'requirements.txt', 'requirements-desktop.txt',
+                             'requirements-solver.txt', 'help.html', 'help-workflow.png', 'resources/icon-96.png'):
+                if 'quick_emerge_plugin/' + required not in archive.namelist():
+                    raise RuntimeError('Wheel missing Quick EMerge asset: ' + required)
             archive.extractall(root)
         modules = ('wayricad_runtime.assistant', 'suite_assistant_plugin.__main__', 'wayricad_runtime.tool_cli', 'silkscreen_label_plugin.cli', 'wayricad_runtime.jobs', 'wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
-                   'embed_3d_plugin.__main__', 'quick_pi_plugin.cli', 'quick_therm_plugin.cli', 'signal_integrity_advisor_plugin.cli', 'project_fusion_plugin.__main__', 'variant_manager_plugin.wayri_variants.cli', 'trace_refiner_plugin.cli', 'layer_counter_plugin.cli', 'component_arranger_plugin.cli')
+                   'embed_3d_plugin.__main__', 'quick_emerge_plugin.__main__', 'quick_pi_plugin.cli', 'quick_therm_plugin.cli', 'signal_integrity_advisor_plugin.cli', 'project_fusion_plugin.__main__', 'variant_manager_plugin.wayri_variants.cli', 'trace_refiner_plugin.cli', 'layer_counter_plugin.cli', 'component_arranger_plugin.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'
                       'module=importlib.import_module(sys.argv[2]);'
@@ -58,7 +62,7 @@ from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from argparse import Namespace
 from wayricad_runtime.tool_cli import catalogue
-assert len(catalogue()['tools'])==24
+assert len(catalogue()['tools'])==26
 from wayricad_runtime.control_cli import main as control_main
 params=Path(sys.argv[1])/'tool-params.json'
 params.write_text('{"pattern":"R*","replacement":"X*","values":["R1"]}',encoding='utf-8')
@@ -115,7 +119,7 @@ try:
     assert mime.startswith('text/html') and b'/help.css' in help_html
     assert get_bom('/help.css')[0].startswith('text/css')
     assert get_bom('/SHARED_PARTS.md')[0].startswith('text/plain')
-    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.42'
+    assert json.loads(get_bom('/api/state')[1])['version']=='3.6.44'
     assert (Path(sys.argv[1])/'bom_studio_plugin/help.html').is_file()
     example=Path(sys.argv[1])/'bom_studio_plugin/examples/BOM_Demo.kicad_pro'
     assert example.is_file()

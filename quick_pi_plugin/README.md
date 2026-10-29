@@ -1,5 +1,16 @@
 # WayriCAD Quick PI
 
+**Project simulation library (updated source):** **Save simulation…** keeps the
+complete result in `.wayricad/results/quick-pi/`; **Load simulation…** recalls it
+in a native read-only viewer without solving again. Each JSON has a deterministic
+content ID and retains source evidence, fields and time samples.
+[Workflow, format and CLI](../docs/PROJECT_RESULTS.md).
+
+**Saved results (updated source):** **Save results** keeps the HTML report and
+complete numerical JSON, plus a portable `.pocket-kivi.json` companion bound to
+the saved PCB used by the solver. Batch studies save complete per-case files.
+[Export workflow, CLI and limits](../docs/POCKET_KIVI_EXPORT.md).
+
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick PI icon">
 
 **Blender visualization (updated source):** after a supported result, choose **Blender…** to export geometry and fields, with computed-frame animation where available. [Export workflow and limits](../wayricad_runtime/BLENDER.md).
@@ -15,6 +26,10 @@ checkbox, faster first board loading, lower-overhead full-3D assembly and faster
 
 Start with [Choose a study](USER_GUIDE.md#choose-a-study), then follow the inputs,
 inspection, reports and troubleshooting steps for your selected workflow.
+
+![Quick PI saved copper potential](help-saved-simulation.png)
+
+Saved public-example data in the native read-only viewer; [capture details and loading limits](../docs/PROJECT_RESULTS.md#saved-viewer-examples).
 
 ## Individual shunt capacitors in transient studies
 

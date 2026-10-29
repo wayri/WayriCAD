@@ -1,6 +1,22 @@
 # <img src="resources/icon-96.png" width="48" height="48" alt="QuickTherm icon"> WayriCAD QuickTherm
 
+**Project simulation library (updated source):** **Save simulation…** retains
+complete grids, layers, probes and transient frames under
+`.wayricad/results/quick-therm/`. **Load simulation…** opens saved fields and
+time steps read-only without running another simulation.
+[Workflow, deterministic JSON and CLI](../docs/PROJECT_RESULTS.md).
+
+**Saved results (updated source):** **Save results** writes HTML, complete
+numerical JSON and a portable `.pocket-kivi.json` companion. Available computed
+grids and time frames are retained, including unknown cells. The companion is
+bound to the saved PCB used by the analysis.
+[Export workflow, CLI and limits](../docs/POCKET_KIVI_EXPORT.md).
+
 **Blender visualization (updated source):** after a supported result, choose **Blender…** to export geometry and fields, with computed-frame animation where available. [Export workflow and limits](../wayricad_runtime/BLENDER.md).
+
+![QuickTherm saved transient frame](help-saved-simulation.png)
+
+Saved public-example data in the native read-only viewer; [capture details and loading limits](../docs/PROJECT_RESULTS.md#saved-viewer-examples).
 
 ## Start here
 

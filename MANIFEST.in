@@ -1,4 +1,5 @@
 include README.md
+recursive-include review_comments_plugin/tests *.py
 include docs/METHODS_AND_RESEARCH.md
 include docs/RELEASE_NOTES_3.6.25.md
 include docs/audits/RELEASE_3.6.25.md
@@ -117,3 +118,15 @@ include tests/test_return_path_speed.py
 recursive-include extract_pins_plugin/tests *.py
 include docs/audits/CONNECTOR_TOOLS_2026-10-28.md
 include docs/RELEASE_NOTES_3.6.42.md
+
+recursive-include quick_emerge_plugin/tests *.py *.kicad_pcb
+recursive-include examples/quick_emerge/yeo_lee_2019 *.md *.json *.kicad_pcb *.kicad_pro
+include docs/PROJECT_RESULTS.md
+include docs/POCKET_KIVI_EXPORT.md
+recursive-include docs/examples/pocket-kivi *
+include docs/RELEASE_NOTES_3.6.45.md
+include tests/test_project_results*.py
+include tests/test_tool_picker*.py
+include tests/test_pocket*.py
+include tools/generate_pocket_kivi_examples.py
+include docs/audits/RELEASE_3.6.45.md

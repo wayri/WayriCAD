@@ -1,5 +1,11 @@
 # WayriCAD Mechanical Check
 
+**Saved results (updated source):** exports retain complete JSON and meshes
+alongside HTML/CSV. Saved single-board scenes also include a portable
+`.pocket-kivi.json` companion. Live snapshots and multi-board scenes do not claim
+a single saved-PCB binding; scene coordinates remain explicit.
+[Export workflow and limits](../docs/POCKET_KIVI_EXPORT.md).
+
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Mechanical Check icon">
 
 | Start here | Link |

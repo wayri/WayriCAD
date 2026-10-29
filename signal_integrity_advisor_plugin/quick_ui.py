@@ -9,8 +9,7 @@ from wayricad_runtime.ipc import read_snapshot
 import wx
 from wayricad_runtime.readable_choice import ReadableComboBox
 from .measurement import TraceMeasurementEngine
-from .quick_si import analyze,html_report
-from .cli import write_report
+from .quick_si import analyze
 
 
 def _model_source_stamps(paths):
@@ -133,7 +132,11 @@ class QuickSIPanel(wx.Panel):
         note=wx.StaticText(left,label='Inputs are assumptions. The optional eye uses a uniform lossless line, ideal clock and resistive endpoints. It does not use IBIS export models or establish coupling or protocol signoff.');note.Wrap(300);form.Add(note,0,wx.EXPAND|wx.TOP,10)
         self.run_button=wx.Button(left,label='Screen selected path');self.run_button.Bind(wx.EVT_BUTTON,self.run);form.Add(self.run_button,0,wx.EXPAND|wx.TOP,12)
         self.cancel_button=wx.Button(left,label='Cancel analysis');self.cancel_button.Disable();self.cancel_button.Bind(wx.EVT_BUTTON,self.cancel_run);form.Add(self.cancel_button,0,wx.EXPAND|wx.TOP,5)
-        self.export=wx.Button(left,label='Export local HTML report');self.export.Disable();self.export.Bind(wx.EVT_BUTTON,self.export_report);form.Add(self.export,0,wx.EXPAND|wx.TOP,6)
+        self.export=wx.Button(left,label='Save results / Pocket KiVi…');self.export.SetToolTip('Save the report, complete numerical JSON and a portable Pocket KiVi copy for verified saved-board results.');self.export.Disable();self.export.Bind(wx.EVT_BUTTON,self.export_report);form.Add(self.export,0,wx.EXPAND|wx.TOP,6)
+        from wayricad_runtime.project_results_ui import add_project_results
+        self.project_results=add_project_results(self,left,form,'quick-si',board.GetFileName(),
+            lambda:[('SI route / eye',self.report),('Multi-net SI study',self.study_report)],
+            certify=bool(saved_board),status=lambda text:self.status.SetLabel(text),module_file=__file__)
         self.blender=wx.Button(left,label='Blender…');self.blender.Disable();self.blender.Bind(wx.EVT_BUTTON,self.export_blender)
         self.blender.SetToolTip('Export current route evidence for Blender; no traveling-wave simulation is inferred.')
         form.Add(self.blender,0,wx.EXPAND|wx.TOP,6)
@@ -667,21 +670,26 @@ class QuickSIPanel(wx.Panel):
         self.status.SetLabel(report['status']+' — '+report['edge_screen']);self.export.Enable();self._navigation_buttons();self._update_circuit_buttons()
 
     def export_report(self,event):
+        if self._closed or self._busy or self._circuit_busy:return
         if self.report is None and self.study_report is None:return
         source=Path(self.board.GetFileName())
         if self.saved_board:
             from .service import source_fingerprints
             if self._result_fingerprints!=source_fingerprints(source):
                 self.changed(None);self.status.SetLabel('Saved sources changed; reopen Quick SI and rerun before export.');return
-        with wx.FileDialog(self,'Export Quick SI report',defaultDir=str(source.parent),defaultFile=source.stem+'-quick-si.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+        with wx.FileDialog(self,'Save Quick SI results and Pocket KiVi data',defaultDir=str(source.parent),defaultFile=source.stem+'-quick-si.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
-            try:
-                if self.study_report:
-                    from .report_plots import study_html
-                    payload=study_html(self.study_report)
-                else:payload=html_report(self.report)
-                write_report(dialog.GetPath(),payload,source,'.html')
-            except Exception as exc:wx.MessageBox(str(exc),'Report export failed',wx.OK|wx.ICON_ERROR,self)
+            destination=dialog.GetPath()
+        from .saved_results import write_results
+        report=self.study_report or self.report
+        study=self.study_report is not None
+        fingerprints=dict(self._result_fingerprints) if self._result_fingerprints else None
+        saved=bool(self.saved_board)
+        def finished(result):
+            self.status.SetLabel('Saved HTML, full numerical JSON'+(' and Pocket KiVi JSON' if result.get('pocket_kivi_json') else ' (live source remains unverified)')+': '+result['html'])
+        self._blender_task(lambda:write_results(destination,report,board_path=source,
+            fingerprints=fingerprints,saved=saved,study=study),finished,
+            'Saving complete SI numerical results and report…',label='Save results')
 
     def _circuit_inputs_changed(self):
         # IBIS changes invalidate pending circuit output, but not PCB geometry.
@@ -712,7 +720,7 @@ class QuickSIPanel(wx.Panel):
         from wayricad_runtime.blender_ui import choose_export
         choose_export(self,bundle,'si',self._blender_task,self.status.SetLabel)
 
-    def _blender_task(self,operation,finished,message):
+    def _blender_task(self,operation,finished,message,*,label='Blender export'):
         """Use the circuit-export worker gate without blocking native rendering."""
         if self._closed or self._busy or self._circuit_busy:return
         generation=self._generation
@@ -720,11 +728,11 @@ class QuickSIPanel(wx.Panel):
         def deliver(answer,error):
             if self._closed:return
             self._circuit_busy=False;self.run_button.Enable(not self._busy);self._update_circuit_buttons()
-            if error is not None:self.status.SetLabel('Blender export: '+str(error));return
+            if error is not None:self.status.SetLabel(label+': '+str(error));return
             if generation!=self._generation:
-                self.status.SetLabel('Blender bundle represents the previous completed result; inputs changed during export.');return
+                self.status.SetLabel(label+' represents the previous completed result; inputs changed during export.');return
             try:finished(answer)
-            except Exception as exc:self.status.SetLabel('Blender export: '+str(exc))
+            except Exception as exc:self.status.SetLabel(label+': '+str(exc))
         def work():
             answer=error=None
             try:answer=operation()

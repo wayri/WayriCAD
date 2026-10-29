@@ -1,0 +1,33 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Review",
+  "description": "Message-style KiCad reviews with GitHub/GitLab comments and threaded GitHub Discussions.",
+  "description_full": "Read individual engineering message cards, reply inline, search and highlight authors, and attach saved-revision PCB object/region context. Comments uses GitHub/GitLab general issue/PR/MR conversations; Discussions uses real GitHub GraphQL discussion threads. Confirmed GitLab screenshots share KiView attachment metadata; GitHub attachments use its browser editor. Published comments and anchors remain provider-owned. Local storage is an optional cache and separate drafts. Native schematic selection, overlays and inline diff reviews are unsupported. Testing package; see the native validation scope and remaining platform limits.",
+  "identifier": "com.github.wayri.wayricad.review-comments",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "maintainer": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/review_comments_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "0.1.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
+}

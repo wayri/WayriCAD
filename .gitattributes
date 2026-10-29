@@ -3,3 +3,6 @@ bom_studio_plugin/resources/sources/*.svg -text
 
 # PCM checksums must match the bytes served by GitHub.
 pcm/*.json text eol=lf
+
+# Saved simulation fixtures and receipts are bound to their exact file bytes.
+docs/examples/pocket-kivi/* -text whitespace=cr-at-eol

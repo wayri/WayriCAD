@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "3.6.42"
+version = "3.6.45"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -45,6 +45,9 @@ wayricad-variants = "variant_manager_plugin.wayri_variants.cli:main"
 wayricad-layer-counter = "layer_counter_plugin.cli:main"
 wayricad-arrange = "component_arranger_plugin.cli:main"
 wayricad-trace-refiner = "trace_refiner_plugin.cli:main"
+wayricad-review = "review_comments_plugin.cli:main"
+wayricad-pocket-export = "wayricad_runtime.pocket_kivi_cli:main"
+wayricad-results = "wayricad_runtime.project_results_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -52,6 +55,8 @@ include = ["*_plugin", "*_plugin.*", "wayricad_runtime"]
 exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.tests.*"]
 
 [tool.setuptools.package-data]
+quick_emerge_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "*.svg", "resources/*.png"]
+review_comments_plugin = ["*.html", "*.md", "*.json", "*.txt", "*.png", "resources/*.png"]
 wayricad_runtime = ["*.md"]
 suite_assistant_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 bom_studio_plugin = ["*.html", "*.md", "*.json", "*.png", "web/*.html", "web/*.js", "web/*.css", "resources/*.png", "resources/*.ico", "resources/*.md", "examples/*", "examples/*/*", "examples/*/*/*"]

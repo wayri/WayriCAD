@@ -1,0 +1,6 @@
+{
+  "tool": "review_comments_plugin",
+  "name": "WayriCAD Review",
+  "module": "action",
+  "class": "ReviewPlugin"
+}

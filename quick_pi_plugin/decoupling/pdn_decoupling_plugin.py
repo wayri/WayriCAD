@@ -88,6 +88,10 @@ class PdnFrame(wx.Panel):
     def impedance(self,event=None):
         from .impedance_ui import PdnImpedanceDialog
         dialog=PdnImpedanceDialog(self)
+        board_path=getattr(self.GetTopLevelParent(),'board_path',None) or (self.board.GetFileName() if self.board is not None else None)
+        if board_path:
+            from wayricad_runtime.project_results_ui import add_study_results
+            add_study_results(dialog,'quick-pi',board_path)
         try:dialog.ShowModal()
         finally:dialog.Destroy()
     def pads(self):

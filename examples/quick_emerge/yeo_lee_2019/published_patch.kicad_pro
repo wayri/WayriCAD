@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "filename": "published_patch.kicad_pro",
+    "version": 3
+  },
+  "board": {
+    "design_settings": {
+      "rules": {
+        "min_copper_edge_clearance": 0.0
+      }
+    }
+  },
+  "text_variables": {
+    "BENCHMARK_SOURCE": "Yeo and Lee, Electronics 2019, 8, 502, Figure 1(a); DOI 10.3390/electronics8050502"
+  }
+}

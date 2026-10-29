@@ -50,6 +50,14 @@ for _tool in ('signal-integrity', 'trace-impedance'):
          ('list ' + _tool + ' nets', 'inspect ' + _tool), ('board',),
          dict(board=BOARD, net=NET))
 
+_add('review-comments.inspect-source', 'review-comments', 'Check saved review source',
+     ('check review source', 'inspect review revision'), ('board',), dict(board=BOARD),
+     summary='Read-only saved design/revision check; no provider connection, sync or publication.')
+
+_add('quick-emerge.runtime', 'quick-emerge', 'Inspect EMerge solver runtime',
+     ('emerge runtime', 'check emerge installation'),
+     summary='Inspect the prepared interpreter without installation or simulation.')
+
 _add('quick-pi.solve', 'quick-pi', 'DC rail analysis',
      ('quick pi', 'power integrity', 'voltage drop', 'dc rail'),
      ('board', 'net', 'source', 'sink', 'voltage', 'current'),
@@ -275,8 +283,10 @@ def compile_action(action_id, params, context, output_dir):
         output()
 
     if spec['effect'] == 'help': args.append('--help')
+    elif action_id == 'review-comments.inspect-source': args.extend(['inspect-source', values['board']])
     elif action_id in ('signal-integrity.inspect', 'trace-impedance.inspect'):
         args.extend(['inspect', values['board']]); option('net'); output()
+    elif action_id == 'quick-emerge.runtime': args.append('--check-runtime')
     elif action_id == 'quick-pi.verify': args.append('--verify'); output()
     elif action_id == 'quick-pi.solve':
         args.append(values['board'])

@@ -244,7 +244,7 @@ def execute(args):
     except ImportError as exc:raise RuntimeError("Use KiCad's Python interpreter for saved-board SI analysis; --help works with ordinary Python.") from exc
     source=args.board.resolve()
     if not source.is_file() or source.suffix.lower()!='.kicad_pcb':raise ValueError('Choose an existing .kicad_pcb file.')
-    from .service import source_fingerprints
+    from .service import source_fingerprints,bind_saved_result
     fingerprints=source_fingerprints(source)
     original=hashlib.sha256(source.read_bytes()).hexdigest()
     board=pcbnew.LoadBoard(str(source))
@@ -265,6 +265,7 @@ def execute(args):
         report,_=analyze(board,args.net,args.start,args.end,args.reference,**inputs)
     if source_fingerprints(source)!=fingerprints:raise ValueError('Board or project rules changed during analysis; rerun before exporting.')
     report.update(board=str(source),board_sha256=original,source_fingerprints=fingerprints)
+    report=bind_saved_result(report,source,fingerprints)
     if args.command=='screen':
         if args.role and not args.group.strip():raise ValueError('Supply --group with a protocol --role.')
         if args.group.strip() and not args.role:raise ValueError('Supply --role with a protocol --group.')

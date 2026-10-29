@@ -1,25 +1,25 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v2",
-    "name": "WayriCAD Mechanical Check",
-    "description": "Mechanical collision and proximity review with part distances and point rulers.",
-    "description_full": "Read-only saved-board mechanical validation with optimized exact FreeCAD/Open CASCADE collision and nearest-part searches, manual part-to-part distances, point rulers, closest-approach hover witnesses, board views, optional second PCB placement and cross-sections. Quick 2D uses conservative footprint envelopes and the saved board outline without FreeCAD. Native and offline viewers identify measurement evidence and export HTML/JSON/CSV. KiCad 10 Python/CLI is required; exact solids require FreeCAD Python. IPC checks the saved file and does not capture unsaved edits. KiCad 11 extraction is unverified.",
-    "identifier": "com.github.wayri.wayricad.mechanical-check",
-    "type": "plugin",
-    "author": {
-        "name": "WayriCAD contributors",
-        "contact": {}
-    },
-    "license": "GPL-3.0-only",
-    "versions": [
-        {
-            "version": "3.6.42",
-            "status": "testing",
-            "kicad_version": "10.0",
-            "runtime": "ipc"
-        }
-    ],
-    "resources": {
-        "homepage": "https://github.com/wayri/WayriCAD",
-        "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/mechanical_check_plugin/icon.png"
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Mechanical Check",
+  "description": "Mechanical collision and proximity review with part distances and point rulers.",
+  "description_full": "Read-only saved-board mechanical validation with optimized exact FreeCAD/Open CASCADE collision and nearest-part searches, manual part-to-part distances, point rulers, closest-approach hover witnesses, board views, optional second PCB placement and cross-sections. Quick 2D uses conservative footprint envelopes and the saved board outline without FreeCAD. Native and offline viewers identify measurement evidence and export HTML/JSON/CSV. KiCad 10 Python/CLI is required; exact solids require FreeCAD Python. IPC checks the saved file and does not capture unsaved edits. KiCad 11 extraction is unverified.",
+  "identifier": "com.github.wayri.wayricad.mechanical-check",
+  "type": "plugin",
+  "author": {
+    "name": "WayriCAD contributors",
+    "contact": {}
+  },
+  "license": "GPL-3.0-only",
+  "versions": [
+    {
+      "version": "3.6.45",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
     }
+  ],
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/mechanical_check_plugin/icon.png"
+  }
 }

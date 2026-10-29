@@ -1,39 +1,39 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v2",
-    "name": "WayriCAD Analytics Studio",
-    "description": "Analyze board copper, nets and component contact areas; edit fields and export BOM tables.",
-    "description_full": "WayriCAD Analytics Studio opens the originating KiCad project for local component review, staged field edits, and purchasing or assembly BOM exports. Includes saved-board copper union area by layer and net, filled zones, track lengths, vias and component pad contact areas. Three primary views keep the workflow focused; variants, catalogues, checks and other advanced tools remain available. Supports native KiCad field/grouping/format preferences, CSV/XLSX/TSV and reviewed assembler mappings. No automatic purchasing or upload. Native desktop web view with a local browser fallback; first-time dependency setup may require internet access. Linux/macOS native desktop and KiCad 11 acceptance remain unverified. Shared parts catalogue, reusable templates, reviewed native global library registration and plugin-only alternate suggestions are available from BOM workspace.",
-    "identifier": "com.github.wayri.wayricad.bom-studio",
-    "type": "plugin",
-    "author": {
-        "name": "WayriCAD Analytics Studio contributors",
-        "contact": {}
-    },
-    "license": "GPL-3.0-only",
-    "resources": {
-        "homepage": "https://github.com/wayri/WayriCAD",
-        "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/bom_studio_plugin/icon.png"
-    },
-    "tags": [
-        "bom",
-        "analytics",
-        "copper",
-        "variants",
-        "catalogue",
-        "manufacturing",
-        "ipc"
-    ],
-    "versions": [
-        {
-            "version": "3.6.42",
-            "status": "testing",
-            "kicad_version": "10.0",
-            "runtime": "ipc",
-            "platforms": [
-                "windows",
-                "macos",
-                "linux"
-            ]
-        }
-    ]
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Analytics Studio",
+  "description": "Analyze board copper, nets and component contact areas; edit fields and export BOM tables.",
+  "description_full": "WayriCAD Analytics Studio opens the originating KiCad project for local component review, staged field edits, and purchasing or assembly BOM exports. Includes saved-board copper union area by layer and net, filled zones, track lengths, vias and component pad contact areas. Three primary views keep the workflow focused; variants, catalogues, checks and other advanced tools remain available. Supports native KiCad field/grouping/format preferences, CSV/XLSX/TSV and reviewed assembler mappings. No automatic purchasing or upload. Native desktop web view with a local browser fallback; first-time dependency setup may require internet access. Linux/macOS native desktop and KiCad 11 acceptance remain unverified. Shared parts catalogue, reusable templates, reviewed native global library registration and plugin-only alternate suggestions are available from BOM workspace.",
+  "identifier": "com.github.wayri.wayricad.bom-studio",
+  "type": "plugin",
+  "author": {
+    "name": "WayriCAD Analytics Studio contributors",
+    "contact": {}
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/bom_studio_plugin/icon.png"
+  },
+  "tags": [
+    "bom",
+    "analytics",
+    "copper",
+    "variants",
+    "catalogue",
+    "manufacturing",
+    "ipc"
+  ],
+  "versions": [
+    {
+      "version": "3.6.45",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc",
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ]
+    }
+  ]
 }

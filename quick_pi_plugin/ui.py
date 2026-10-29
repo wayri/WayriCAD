@@ -160,13 +160,20 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         actions=wx.GridSizer(0,2,5,5)
         self.preview=icon_button(self.setup_panel,'Preview',wx.ART_FIND,'Preview saved copper before solving')
         self.run=icon_button(self.setup_panel,'Run',wx.ART_GO_FORWARD,'Run the selected copper simulation')
-        self.export=icon_button(self.setup_panel,'Export',wx.ART_FILE_SAVE,'Export the solved report')
+        self.export=icon_button(self.setup_panel,'Save results',wx.ART_FILE_SAVE,'Save HTML, complete numerical JSON and portable Pocket KiVi data')
         self.series_button=icon_button(self.setup_panel,'Series',wx.ART_LIST_VIEW,'Build a series path with explicit components')
         self.power_flow=icon_button(self.setup_panel,'Power flow',wx.ART_REPORT_VIEW,'Open the source-to-sink Sankey power budget')
         self.blender=icon_button(self.setup_panel,'Blender…',wx.ART_FILE_SAVE,'Export solved geometry and fields for Blender visualization')
         self.blender.Bind(wx.EVT_BUTTON,self.on_blender)
         for control in (self.preview,self.run,self.export,self.series_button,self.power_flow,self.blender):actions.Add(control,0,wx.EXPAND)
-        setup.Add(actions,0,wx.EXPAND|wx.ALL,8);self.setup_panel.SetSizer(setup)
+        setup.Add(actions,0,wx.EXPAND|wx.ALL,8)
+        from wayricad_runtime.project_results_ui import add_project_results
+        self.project_results=add_project_results(self,self.setup_panel,setup,'quick-pi',self.board_path,
+            lambda:[('2.5D DC',self.bundle if self.bundle.get('result') else None),
+                    ('3D DC',self.volume_bundle if self.volume_bundle.get('result') else None),
+                    ('DC current sweep',self.sweep_bundle),('Return-path review',self.return_bundle)],
+            status=lambda text:self.status.SetLabel(text),module_file=__file__)
+        self.setup_panel.SetSizer(setup)
 
         self.splitter=wx.SplitterWindow(self.workspace_splitter,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         self.splitter.SetMinimumPaneSize(self.FromDIP(200));self.splitter.SetSashGravity(1.)
@@ -281,7 +288,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.return_suggest.Bind(wx.EVT_BUTTON,self._return_use_suggestion)
         settings.Add(self.return_suggest,0,wx.RIGHT|wx.BOTTOM,12)
         self.return_run=wx.Button(page,label='Review return path');self.return_run.Bind(wx.EVT_BUTTON,self.on_return_path)
-        self.return_export=wx.Button(page,label='Export report…');self.return_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('return_path'))
+        self.return_export=wx.Button(page,label='Save results…');self.return_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('return_path'))
         settings.Add(self.return_run,0,wx.RIGHT,7);settings.Add(self.return_export,0);layout.Add(settings,0,wx.EXPAND|wx.ALL,10)
         self.return_hint=wx.StaticText(page,label='Choose the actual return; suggestions are names only.')
         layout.Add(self.return_hint,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
@@ -1582,7 +1589,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if dialog.ShowModal()!=wx.ID_OK:return
             path=dialog.GetPath()
         from .report import write_diagnostic_report
-        self._task(lambda:write_diagnostic_report(path,bundle),
+        self._task(lambda:write_diagnostic_report(path,bundle,pocket_kivi=True),
             lambda result:self.return_status.SetLabel('Exported '+result['html']),
             'Writing local HTML and JSON evidence…')
 
@@ -1718,7 +1725,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             probe_state['controller']=attach_probes(canvas,axes,samples,field)
             figure.tight_layout();canvas.draw_idle()
         for choice in (projection,layers,quantities):choice.Bind(wx.EVT_CHOICE,draw)
-        buttons=wx.BoxSizer(wx.HORIZONTAL);save=wx.Button(dialog,label='Export interactive 3D report…')
+        buttons=wx.BoxSizer(wx.HORIZONTAL);save=wx.Button(dialog,label='Save 3D results / Pocket KiVi…')
         buttons.Add(save,0,wx.RIGHT,8);buttons.Add(dialog.CreateButtonSizer(wx.CLOSE),0)
         layout.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,10)
         save.Bind(wx.EVT_BUTTON,lambda e:self._export_3d(dialog,bundle))
@@ -1737,7 +1744,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             target=Path(picker.GetPath())
         try:
             from .volume_view import write_volume_report
-            write_volume_report(target,bundle)
+            write_volume_report(target,bundle,pocket_kivi=True)
         except (OSError,ValueError) as exc:
             wx.MessageBox('Could not export the 3D result: '+str(exc),'Quick PI',wx.OK|wx.ICON_ERROR,parent)
             return
@@ -1840,6 +1847,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
             dialog=BatchStudyDialog(self,initial_study(selected),self.inventory,
                 lambda payload,cancel:run_job(payload,cancelled=cancel,timeout=1800),self.board_path,sha)
+            from wayricad_runtime.project_results_ui import add_study_results
+            add_study_results(dialog,'quick-pi',self.board_path)
             try:dialog.ShowModal()
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
@@ -1854,6 +1863,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
             dialog=ACStudyDialog(self,lambda payload,cancel:run_job(payload,cancelled=cancel,timeout=600),
                 (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha)
+            from wayricad_runtime.project_results_ui import add_study_results
+            add_study_results(dialog,'quick-pi',self.board_path)
             try:dialog.ShowModal()
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
@@ -1877,6 +1888,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             dialog=ElectrothermalStudyDialog(self,(feedback_studies if feedback else initial_studies)(request,self._terminals),
                 lambda payload,cancel:run_job(payload,cancelled=cancel),
                 (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha,steady_only=feedback)
+            from wayricad_runtime.project_results_ui import add_study_results
+            add_study_results(dialog,'quick-pi',self.board_path)
             try:dialog.ShowModal()
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
@@ -1899,6 +1912,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                 lambda payload,cancel:run_job(payload,cancelled=cancel),
                 (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha,
                 terminals=self._terminals,signal_net=request.get('net',''),return_nets=self._return_selected_nets())
+            from wayricad_runtime.project_results_ui import add_study_results
+            add_study_results(dialog,'quick-pi',self.board_path)
             try:dialog.ShowModal()
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
@@ -2017,8 +2032,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             path=dialog.GetPath()
         selected=self.layer.GetSelection();layer=self._layers[selected]['id'] if selected>=0 else None
         bundle=self.bundle
-        self._task(lambda:write_report(path,bundle,layer),lambda result:self.status.SetLabel('Exported HTML maps and all-layer JSON: '+result['html']),
-                   'Rendering the selected copper view and exporting all numerical results…')
+        self._task(lambda:write_report(path,bundle,layer,pocket_kivi=True),lambda result:self.status.SetLabel('Saved HTML, full numerical JSON and Pocket KiVi JSON: '+result['html']),
+                   'Saving the report and all-layer numerical results for Pocket KiVi…')
 
     def on_blender(self,event=None):
         if self._busy or getattr(self,'_live_running',False) or getattr(self,'_live_pending',None) is not None:

@@ -35,8 +35,17 @@ def printable_modes(view,network,options=None):
     return modes
 
 
-def write_diagnostic_report(path,bundle):
+def write_diagnostic_report(path,bundle,*,pocket_kivi=False):
     """Export mapped QuickTherm findings without remote assets."""
+    pocket=None
+    if pocket_kivi:
+        from wayricad_runtime.pocket_report import evidence_context
+        geometry=bundle.get('geometry') or {};z=geometry.get('z_convention')
+        view=bundle.get('board_thermal_view') or {}
+        pocket=evidence_context(bundle,tool='QuickTherm',module_file=__file__,package=__package__,
+            units={'ambient_c':'°C','junction_c':'°C','power_w':'W'},
+            coordinate_frame='KiCad PCB XY in mm' if view.get('outline') or view.get('bbox_mm') else None,
+            z_basis='front-depth' if isinstance(z,str) and 'positive Z down from the top copper surface' in z else None)
     thermal=bundle.get('quick_therm')
     if not thermal:raise ValueError('No QuickTherm result is available.')
     path,json_path=report_paths(path)
@@ -249,6 +258,7 @@ def write_diagnostic_report(path,bundle):
     status='FAIL' if limits.get('status')=='FAIL' else 'INCOMPLETE' if not complete else 'COMPUTED · REVIEW REQUIRED'
     summary=[('Model',thermal.get('model','Unknown')),('Environment',thermal.get('environment','Unknown')),('Ambient',_number(thermal.get('ambient_c'),'°C')),('Components solved',str(coverage.get('solved',0))+' / '+str(coverage.get('scoped',0))),('Temperature limits',limits.get('status','Not supplied')),('Mesh acceptance',(network.get('mesh_acceptance') or {}).get('status','Not verified')),('Board field',network.get('status','Not solved; component estimates only'))]
     document=enhance_report(html+'</html>',status=status,summary=summary,notice='Component junction estimates, board-surface fields and interpolated presentation maps are distinct results. Missing power/material/package inputs and unverified mesh acceptance do not become a pass.',provenance=provenance(bundle))
+    if pocket is not None:return publish_report(path,document,bundle,pocket_kivi=pocket)
     return publish_report(path,document,bundle)
 
 write_report = write_diagnostic_report

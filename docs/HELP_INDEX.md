@@ -5,6 +5,7 @@ Each independently installed package includes `help.html` and its local illustra
 | Plugin | Offline workflow and troubleshooting | Source guide |
 |---|---|---|
 | WayriCAD Assistant (testing) | [Open local help](../suite_assistant_plugin/help.html) | [Read guide](../suite_assistant_plugin/README.md) |
+| WayriCAD Review (testing) | [Open local help](../review_comments_plugin/help.html) | [Read guide](../review_comments_plugin/README.md) |
 | Wayri Project Fusion | [Open local help](../project_fusion_plugin/help.html) | [Read guide](../project_fusion_plugin/README.md) |
 | Analytics Studio | [Open local help](../bom_studio_plugin/help.html) | [Read guide](../bom_studio_plugin/README.md) |
 | Bulk Label Editor | [Open local help](../bulk_label_editor_plugin/help.html) | [Read guide](../bulk_label_editor_plugin/ReadMe.md) |
@@ -20,6 +21,7 @@ Each independently installed package includes `help.html` and its local illustra
 | Mechanical Check | [Open local help](../mechanical_check_plugin/help.html) | [Read guide](../mechanical_check_plugin/README.md) |
 | PCB / Foil Heater Designer | [Open local help](../heater_designer_plugin/help.html) | [Read guide](../heater_designer_plugin/ReadMe.md) |
 | Planar Magnetics & Actuator Workbench | [Open local help](../planar_magnetics_plugin/help.html) | [Read guide](../planar_magnetics_plugin/ReadMe.md) |
+| Quick EMerge (beta) | [Open local help](../quick_emerge_plugin/help.html) | [Read guide](../quick_emerge_plugin/README.md) |
 | Quick PI | [Open local help](../quick_pi_plugin/help.html) | [Read guide](../quick_pi_plugin/README.md) |
 | Quick SI | [Open local help](../signal_integrity_advisor_plugin/help.html) | [Read guide](../signal_integrity_advisor_plugin/ReadMe.md) |
 | QuickTherm | [Open local help](../quick_therm_plugin/help.html) | [Read guide](../quick_therm_plugin/README.md) |

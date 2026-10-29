@@ -18,6 +18,7 @@ class BatchStudyDialog(wx.Dialog):
         self.SetMinSize((700,500));self.runner=runner;self.inventory=inventory
         self.board_path=str(board_path);self.sha=source_sha256;self.result=None
         self._busy=False;self._closed=False;self._closing=False;self._cancel=threading.Event()
+        self._saving_results=False
         root=wx.BoxSizer(wx.VERTICAL)
         note=wx.StaticText(self,label='1 Add the power rails.  2 Set up ground / return copper.  3 Run and review voltage drop and losses. '
             'A return setup can serve one rail or several rails sharing the same ground.')
@@ -310,18 +311,34 @@ class BatchStudyDialog(wx.Dialog):
         self.status.SetLabel(result['batch']['status']+' · '+str(len(rows))+' cases; review shared-return loads, failures and assumptions.')
 
     def export_report(self,event=None):
-        if not self.result:return
-        with wx.FileDialog(self,'Export PI cases',defaultFile='pi-cases.html',wildcard='HTML (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+        if self._busy or not self.result:return
+        with wx.FileDialog(self,'Save PI study and Pocket KiVi case data',defaultFile='pi-cases.html',wildcard='HTML (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             target=dialog.GetPath()
-        try:
-            from .report import write_batch_report
-            write_batch_report(target,self.result);self.status.SetLabel('Exported DC study reports: '+target)
-        except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
+        result=self.result
+        self._busy=True;self._saving_results=True;self.export.Disable();self.run.Disable()
+        controls=(self.setup,self.add,self.units,self.returns,self.edit_return,self.remove_return,self.load,self.save)
+        for control in controls:control.Disable()
+        self.status.SetLabel('Saving full study reports and standalone Pocket KiVi case files…')
+        def deliver(paths,error):
+            self._busy=False;self._saving_results=False
+            if self._closed:return
+            if self._closing:self.finish_close();return
+            self.export.Enable();self.run.Enable()
+            for control in controls:control.Enable()
+            self.status.SetLabel(error if error else 'Saved reports and '+str(len(paths.get('pocket_kivi_jsons',[])))+' portable case files: '+target)
+        def work():
+            paths=error=None
+            try:
+                from .report import write_batch_report
+                paths=write_batch_report(target,result,pocket_kivi=True)
+            except Exception as exc:error=str(exc)
+            wx.CallAfter(deliver,paths,error)
+        threading.Thread(target=work,daemon=True,name='Quick PI result export').start()
 
     def close(self,event=None):
         if self._busy:
-            self._closing=True;self._cancel.set();self.status.SetLabel('Cancelling before closing…')
+            self._closing=True;self._cancel.set();self.status.SetLabel('Finishing the results save before closing…' if self._saving_results else 'Cancelling before closing…')
             if event and hasattr(event,'Veto'):event.Veto()
             return
         self.finish_close()

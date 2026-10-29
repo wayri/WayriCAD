@@ -797,8 +797,24 @@ def _linked_evidence(bundle,reference):
                  'Physical return maps apply only the declared sign transforms to raw potentials/currents; geometry and positive losses are unchanged.'}
 
 
-def write_report(path,bundle,layer=None,*,evidence_reference=None):
+def _pocket_evidence(bundle):
+    from wayricad_runtime.pocket_report import evidence_context
+    geometry=bundle.get('geometry') or bundle.get('mesh',{}).get('geometry',{})
+    result=bundle.get('result') or {}
+    units={key:unit for key,unit in (('potential_V','V'),('cell_power_W','W'),
+            ('cell_J_A_mm2','A/mm²'),('cell_centroid_mm','mm')) if key in result}
+    if 'points_mm' in bundle.get('mesh',{}):units['points_mm']='mm'
+    z=geometry.get('z_convention')
+    return evidence_context(bundle,tool='Quick PI',module_file=__file__,package=__package__,units=units or None,
+        coordinate_frame='KiCad PCB XY in mm' if 'points_mm' in bundle.get('mesh',{}) else None,
+        z_basis='front-depth' if isinstance(z,str) and 'positive Z down from the top copper surface' in z else None)
+
+
+def write_report(path,bundle,layer=None,*,evidence_reference=None,pocket_kivi=False):
     """Export current-layer maps plus all numeric mesh/results as paired JSON."""
+    if pocket_kivi and evidence_reference is not None:
+        raise ValueError('Linked child descriptors are not complete standalone numerical evidence; export the parent result.')
+    pocket=_pocket_evidence(bundle) if pocket_kivi else None
     display_ids=DisplayIDs(bundle)
     published_bundle=dict(bundle,display_identifiers=display_ids.metadata())
     path,json_path=report_paths(path)
@@ -936,11 +952,13 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None):
         publish_documents({json_path:json.dumps(linked,indent=2,ensure_ascii=False,allow_nan=False)+'\n',
                            path:document},sources=sources)
         return {'html':str(path),'json':str(json_path)}
+    if pocket is not None:return publish_report(path,document,published_bundle,pocket_kivi=pocket)
     return publish_report(path,document,published_bundle)
 
 
-def write_sweep_report(path,bundle):
+def write_sweep_report(path,bundle,*,pocket_kivi=False):
     """Export a standalone voltage/current chart and exact JSON sweep rows."""
+    pocket=_pocket_evidence(bundle) if pocket_kivi else None
     sweep=bundle.get('sweep')
     if not sweep or not sweep.get('rows'):
         raise ValueError('Run a current sweep before exporting its report.')
@@ -972,11 +990,14 @@ def write_sweep_report(path,bundle):
     from wayricad_runtime.interactive_plots import interactive_plot
     samples=[[row['current_A'],row[key],row[key],key] for key in ('path_drop_V','sink_voltage_V') for row in rows]
     html=html.replace('</html>',interactive_plot('DC current sweep',samples,'V',x_unit='A',y_unit='V',connect=True)+'</html>')
-    return publish_report(path,_review_html(html,bundle),bundle)
+    document=_review_html(html,bundle)
+    if pocket is not None:return publish_report(path,document,bundle,pocket_kivi=pocket)
+    return publish_report(path,document,bundle)
 
 
-def write_diagnostic_report(path, bundle):
+def write_diagnostic_report(path, bundle, *, pocket_kivi=False):
     """Export return-path findings without remote assets."""
+    pocket=_pocket_evidence(bundle) if pocket_kivi else None
     result = bundle.get('return_path')
     if not result:
         raise ValueError('No return-path result is available.')
@@ -995,7 +1016,9 @@ def write_diagnostic_report(path, bundle):
         position = ', '.join(f'{value:.4g}' for value in row['position_mm']) if row['position_mm'] else '—'
         html += '<tr>' + ''.join('<td>' + escape(str(value)) + '</td>' for value in (
             row['level'], row['code'], row['layer'], position, row['detail'])) + '</tr>'
-    return publish_report(path,_review_html(html+'</table></html>',bundle),bundle)
+    document=_review_html(html+'</table></html>',bundle)
+    if pocket is not None:return publish_report(path,document,bundle,pocket_kivi=pocket)
+    return publish_report(path,document,bundle)
 
 
 def interactive_fields(bundle,layer):
@@ -1016,7 +1039,7 @@ def interactive_fields(bundle,layer):
     return html
 
 
-def write_batch_report(path,bundle):
+def write_batch_report(path,bundle,*,pocket_kivi=False):
     """Publish an offline independent-case index plus linked per-case evidence."""
     from tempfile import TemporaryDirectory
     from urllib.parse import quote
@@ -1027,6 +1050,21 @@ def write_batch_report(path,bundle):
     output.parent.mkdir(parents=True,exist_ok=True)
     case_folder=output.stem+'-cases'
     documents={};comparison=[];details=[];links=[];shared_sections=[]
+    pocket_paths=[];pocket_sources=[];pocket_guards=[]
+
+    def portable_child(candidate,child):
+        from wayricad_runtime.pocket_report import prepare_report
+        payload,protected,guard=prepare_report(child,_pocket_evidence(child))
+        target=output.parent/case_folder/(candidate.stem+'.pocket-kivi.json')
+        documents[target]=payload
+        pocket_paths.append(str(target));pocket_sources.extend(protected);pocket_guards.append(guard)
+        html_target=output.parent/case_folder/candidate.name
+        document=documents[html_target]
+        if isinstance(document,bytes):document=document.decode('utf-8')
+        link='<p class="report-download"><a href="'+escape(target.name,quote=True)+'">Pocket KiView · complete portable result</a></p>'
+        documents[html_target]=document.replace('</h1>','</h1>'+link,1) if '</h1>' in document else link+document
+        return case_folder+'/'+target.name
+
     with TemporaryDirectory(prefix='.wayricad-report-',dir=output.parent) as staging:
         for index,case in enumerate(batch['cases']):
             case_links=[];failures=[]
@@ -1052,6 +1090,9 @@ def write_batch_report(path,bundle):
                     documents[output.parent/case_folder/candidate.with_suffix('.json').name]=json.dumps(_linked_evidence(child,reference) if reference else child,indent=2,ensure_ascii=False,allow_nan=False)
                 relative=case_folder+'/'+filename
                 case_links.append('<a href="'+escape(quote(relative,safe='/'))+'">'+escape(kind)+'</a>')
+                if pocket_kivi:
+                    portable=portable_child(candidate,child)
+                    case_links.append('<a href="'+escape(quote(portable,safe='/'))+'">'+escape(kind)+' · Pocket KiView</a>')
                 links.append(relative)
             result=(case.get('electrical') or {}).get('result',{});loop=case.get('loop') or {}
             shared=case.get('shared_return',{});shared_loads=shared.get('loads',[])
@@ -1093,11 +1134,14 @@ def write_batch_report(path,bundle):
                     'json':'../'+evidence.name,
                     'json_pointer':'/batch/shared_returns/'+str(index)+'/return_conduction',
                     'sign_transforms':transforms})
-                del physical
                 for generated in (candidate,candidate.with_suffix('.json')):
                     documents[output.parent/case_folder/generated.name]=generated.read_bytes()
                 relative=case_folder+'/'+filename;links.append(relative)
                 heading+='<p><a href="'+escape(quote(relative,safe='/'))+'">Common copper mesh, physical ground rise and return-current evidence</a></p>'
+                if pocket_kivi:
+                    portable=portable_child(candidate,physical)
+                    heading+='<p><a href="'+escape(quote(portable,safe='/'))+'">Pocket KiView · complete physical return result</a></p>'
+                del physical
             headings=('Rail','Load ID','Current (A)','Ground rise (V)','Delivered voltage (V)','Load voltage limits')
             body=[]
             for load in group.get('loads',[]):
@@ -1116,5 +1160,13 @@ def write_batch_report(path,bundle):
     # one-byte Python string. Avoid copying the entire archive to add a newline.
     documents[evidence]=json.dumps(bundle,separators=(',',':'),ensure_ascii=True,allow_nan=False)
     documents[output]=document
-    publish_documents(documents,sources=checked_sources(bundle))
-    return {'html':str(output),'json':str(evidence),'case_reports':links}
+    sources=checked_sources(bundle)
+    if pocket_kivi:
+        sources.extend(pocket_sources)
+        def guard():
+            for check in pocket_guards:check()
+        publish_documents(documents,sources=sources,source_guard=guard)
+    else:publish_documents(documents,sources=sources)
+    result={'html':str(output),'json':str(evidence),'case_reports':links}
+    if pocket_kivi:result['pocket_kivi_jsons']=pocket_paths
+    return result

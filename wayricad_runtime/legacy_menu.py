@@ -21,20 +21,38 @@ _NATIVE_ACTIONS = {
 MENU_ACTIONS = {}
 
 
-def _choose_tool():
+def _choose_tool(root=None):
     """Keep every installed tool reachable even when KiCad's menu is taller than the screen."""
     import wx
 
-    dialog = wx.Dialog(None, title="WayriCAD — All tools", size=(480, 480))
+    actions = dict(MENU_ACTIONS)
+    if root is not None:
+        from .tool_picker import installed_desktop_tools
+
+        class InstalledTool:
+            def __init__(self, name, location, identifier):
+                self.name, self.location, self.identifier = name, location, identifier
+
+            def Run(self):
+                import pcbnew
+                _launch_desktop(self.location, self.identifier, pcbnew, self.name)
+
+        for name, (location, identifier) in installed_desktop_tools(root).items():
+            actions.setdefault(name, InstalledTool(name, location, identifier))
+    dialog = wx.Dialog(None, title="WayriCAD — All tools", size=(540, 480),
+                       style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    dialog.SetMinSize((360, 300))
     panel = wx.Panel(dialog)
     layout = wx.BoxSizer(wx.VERTICAL)
     layout.Add(wx.StaticText(panel, label="Search installed WayriCAD tools"), 0, wx.ALL, 10)
     search = wx.SearchCtrl(panel)
     layout.Add(search, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-    choices = wx.ListBox(panel)
+    from .tool_picker import create_tool_list
+    choices = create_tool_list(panel)
     layout.Add(choices, 1, wx.EXPAND | wx.ALL, 10)
     buttons = wx.StdDialogButtonSizer()
     open_button = wx.Button(panel, wx.ID_OK, "Open")
+    open_button.SetDefault()
     buttons.AddButton(open_button)
     buttons.AddButton(wx.Button(panel, wx.ID_CANCEL, "Cancel"))
     buttons.Realize()
@@ -47,7 +65,7 @@ def _choose_tool():
 
     def refresh(_event=None):
         query = search.GetValue().strip().casefold()
-        names = [name for name in sorted(MENU_ACTIONS) if query in name.casefold()]
+        names = [name for name in sorted(actions) if query in name.casefold()]
         choices.Set(names)
         if names:
             choices.SetSelection(0)
@@ -59,13 +77,13 @@ def _choose_tool():
             dialog.EndModal(wx.ID_OK)
 
     search.Bind(wx.EVT_TEXT, refresh)
-    choices.Bind(wx.EVT_LISTBOX_DCLICK, choose)
+    choices.Bind(wx.EVT_LEFT_DCLICK, choose)
     open_button.Bind(wx.EVT_BUTTON, choose)
     refresh()
     search.SetFocus()
     try:
-        if dialog.ShowModal() == wx.ID_OK and selected[0] in MENU_ACTIONS:
-            return MENU_ACTIONS[selected[0]]
+        if dialog.ShowModal() == wx.ID_OK and selected[0] in actions:
+            return actions[selected[0]]
         return None
     finally:
         dialog.Destroy()
@@ -98,7 +116,7 @@ def _launch_desktop(root, identifier, pcbnew, title):
         source = project if project.is_file() else schematic
         if not source.is_file():source=board
         args.append(str(source))
-    elif identifier in {"quick-pi", "quick-therm", "assistant"}:
+    elif identifier in {"quick-pi", "quick-therm", "quick-emerge", "assistant", "review-comments"}:
         args.extend(("--board", str(board)))
     subprocess.Popen(args, env=child_environment(),
                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -132,7 +150,7 @@ def register(package_name, root):
                 self.icon_file_name = str(root / action["icons-light"][0])
 
             def Run(self):
-                chosen = _choose_tool()
+                chosen = _choose_tool(root)
                 if chosen is not None:
                     chosen.Run()
 
@@ -150,7 +168,7 @@ def register(package_name, root):
         def Run(self):
             loading = None
             try:
-                if identifier in {"bom-studio", "quick-pi", "quick-therm", "assistant"}:
+                if identifier in {"bom-studio", "quick-pi", "quick-therm", "quick-emerge", "assistant", "review-comments"}:
                     _launch_desktop(root, identifier, pcbnew, self.name)
                     return
                 from .loading import LoadingWindow

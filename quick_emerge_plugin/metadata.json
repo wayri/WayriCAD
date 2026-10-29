@@ -1,0 +1,25 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Quick EMerge (beta)",
+  "description": "Interactive EMerge 3+ antenna and saved-PCB rule-area simulations (beta).",
+  "description_full": "Beta read-only electromagnetic workbench with antenna and PCB templates, reviewed two-layer rule-area copper extraction, native interactive 3D/2D views, original-sample probes, S-parameters, radiation and HTML/PDF reports. New studies use 81 frequency samples, an 81 x 81 field grid and two-degree radiation sampling. Offline KiCad-specific Help explains setup, ports and limitations. Documented material, boundary, network and bounded advanced study controls are included; this does not expose every upstream EMerge capability. Region studies omit components, general multilayer/via extraction and PCB outside the enclosure. An isolated dependency manager installs EMerge 3+ and qualifies updates before activation, retaining rollback. Compatibility checks do not establish numerical accuracy or convergence. Requires a saved PCB, KiCad 10 native bindings and internet for initial setup.",
+  "identifier": "com.github.wayri.wayricad.quick-emerge",
+  "type": "plugin",
+  "author": {
+    "name": "WayriCAD contributors",
+    "contact": {}
+  },
+  "license": "GPL-3.0-only",
+  "versions": [
+    {
+      "version": "3.6.45",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ],
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/v3.6.45/quick_emerge_plugin/icon.png"
+  }
+}

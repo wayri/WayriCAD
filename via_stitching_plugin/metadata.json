@@ -1,27 +1,27 @@
 {
-    "$schema": "https://go.kicad.org/pcm/schemas/v2",
-    "name": "WayriCAD Via Stitching",
-    "description": "Preview net-aware copper-zone via stitching with geometric clearance exclusions.",
-    "description_full": "Local, reviewable routing with configurable geometry, pad/net scope, clearance checks, zoomable preview, shared headless planners, and recoverable named commit groups. Preview does not modify PCB copper. JSON/SVG command-line planning and verified application write a new board copy.",
-    "identifier": "com.github.wayri.wayricad.via-stitching",
-    "type": "plugin",
-    "author": {
-        "name": "Wayri (Yawar)",
-        "contact": {
-            "github": "https://github.com/wayri"
-        }
-    },
-    "license": "GPL-3.0-only",
-    "resources": {
-        "homepage": "https://github.com/wayri/WayriCAD",
-        "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/via_stitching_plugin/icon.png"
-    },
-    "versions": [
-        {
-            "version": "3.6.42",
-            "status": "testing",
-            "kicad_version": "10.0",
-            "runtime": "ipc"
-        }
-    ]
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Via Stitching",
+  "description": "Preview net-aware copper-zone via stitching with geometric clearance exclusions.",
+  "description_full": "Local, reviewable routing with configurable geometry, pad/net scope, clearance checks, zoomable preview, shared headless planners, and recoverable named commit groups. Preview does not modify PCB copper. JSON/SVG command-line planning and verified application write a new board copy.",
+  "identifier": "com.github.wayri.wayricad.via-stitching",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/via_stitching_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "3.6.45",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
 }

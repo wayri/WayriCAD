@@ -147,7 +147,8 @@ def _analyze(board,net,start,end,reference='Auto',**inputs):
 def html_report(report):
     escape=lambda value:html.escape(str(value))
     rows=''.join('<tr><th>'+escape(key.replace('_',' '))+'</th><td>'+escape('Unknown' if value is None else value)+'</td></tr>'
-                 for key,value in report.items() if key not in ('path','inputs','notes','blockers','schema','eye','route_summary','endpoint_screen','return_path','circuit_topology'))
+                 for key,value in report.items() if key not in ('path','inputs','notes','blockers','schema','eye','route_summary','endpoint_screen','return_path','circuit_topology',
+                    'source_path','source_sha256','source_fingerprints','board_item_ids','endpoint_bindings','producer','export_source_state','export_notes','pocket_kivi_export'))
     summary=report.get('route_summary',{})
     overview='<h2>Route results</h2><table>'+''.join('<tr><th>'+escape(k.replace('_',' '))+'</th><td>'+escape('Unknown' if v is None else v)+'</td></tr>' for k,v in summary.items())+'</table>'
     if report.get('endpoint_screen'):

@@ -4,11 +4,15 @@
 [![Release downloads — GitHub and PCM](https://img.shields.io/github/downloads/wayri/WayriCAD/total?label=downloads%20%28GitHub%20%2B%20PCM%29&color=168b78)](https://github.com/wayri/WayriCAD/releases)
 [![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
 [![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
-[![Tools](https://img.shields.io/badge/Tools-24-168b78)](#all-24-plugins)
+[![Tools](https://img.shields.io/badge/Tools-26-168b78)](#all-26-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
-**PCB design, analysis and project review in KiCad.** Choose from 24 independently
+**PCB design, analysis and project review in KiCad.** Choose from 26 independently
 installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
+
+[Quick EMerge](quick_emerge_plugin/README.md) is an exploratory **beta**.
+[Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
+GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
 
 The download counter updates automatically across all releases. It includes direct
 GitHub downloads and KiCad PCM downloads, since PCM fetches the same GitHub release
@@ -16,9 +20,9 @@ assets. It counts downloaded files, including repeat downloads and release metad
 not unique users or installations. GitHub does not separate PCM from direct downloads;
 automatic source ZIP/tar downloads and repository clones are excluded.
 
-**New in 3.6.42:** connector mating reviews, matching schematic labels,
-CSV-to-label conversion and physical pinout grids in Pin Extractor.
-[Release notes](docs/RELEASE_NOTES_3.6.42.md).
+**New in 3.6.45:** Quick EMerge beta, Review conversations, project-local
+simulation save/load, portable analysis exports and a readable, searchable tool
+launcher. [Release notes](docs/RELEASE_NOTES_3.6.45.md).
 
 ## New in 3.6.42
 
@@ -54,7 +58,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 
 </details>
 
-[Download 3.6.42](https://github.com/wayri/WayriCAD/releases/tag/v3.6.42) ·
+[Download 3.6.45](https://github.com/wayri/WayriCAD/releases/tag/v3.6.45) ·
 [Connector validation and known limits](docs/audits/CONNECTOR_TOOLS_2026-10-28.md)
 
 ## Start here
@@ -65,7 +69,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Run your first analysis | [Getting started](#getting-started) |
 | Download or update | [Release 3.6.42](https://github.com/wayri/WayriCAD/releases/tag/v3.6.42) · [Release notes](docs/RELEASE_NOTES_3.6.42.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
-| Choose a tool | [All 24 plugins](#all-24-plugins) |
+| Choose a tool | [All 25 plugins](#all-26-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Review algorithms and research | [Methods, sources and verification by tool](docs/METHODS_AND_RESEARCH.md) |
@@ -91,6 +95,15 @@ control references.
 QuickTherm results can be exported as Blender scenes, with supported fields and
 stored-frame thermal animation. See the [Blender walkthrough](wayricad_runtime/BLENDER.md)
 for the plugin actions, CLI, animation controls and model limits.
+
+### Save and recall simulations — updated source
+
+Quick PI, Quick SI and QuickTherm now have **Save simulation…** and
+**Load simulation…** controls. Complete JSON results stay in the project’s
+`.wayricad/results/` folder, separated by plugin and deterministic content ID.
+Loaded results open read-only with plots, time steps and probes; no new solve
+or board edit occurs. The files also retain their supported KiCad GitHub viewer
+structures. [Workflow, format and CLI](docs/PROJECT_RESULTS.md).
 
 ## Showcase
 
@@ -320,16 +333,20 @@ currencies stay explicit.
 <a id="all-20-plugins"></a>
 
 <a id="all-21-plugins"></a>
+<a id="all-24-plugins"></a>
 
-## All 24 plugins
+## All 26 plugins
 
-All 24 plugins are available in release **3.6.42**. Assistant is marked **testing**;
-individual package versions and runtime requirements are in their guides.
+Release **3.6.45** includes 26 independently installable plugins. Quick EMerge
+is marked **beta / testing**; Review and Assistant are also testing packages.
+Individual versions, runtime requirements and limits are in their guides.
 Select a plugin for its full guide and supported models.
 
 | Plugin | Use it for |
 |---|---|
 | <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Plain-English tool selection, visual context and reviewed command execution (testing). |
+| <img src="review_comments_plugin/icon.png" width="24" height="24" alt="WayriCAD Review icon"> [WayriCAD Review](review_comments_plugin/README.md) | Message cards, inline replies, GitHub/GitLab comments and a separate GitHub Discussions tab; testing package. |
+| <img src="quick_emerge_plugin/icon.png" width="24" height="24" alt="Quick EMerge beta icon"> [Quick EMerge (beta)](quick_emerge_plugin/README.md) | Read-only antenna and bounded saved-PCB region studies, field probes and reports; exploratory testing beta. |
 | <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. |
 | <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Board and component temperatures, heating playback and thermal reports. |
 | <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal delay, reflections, termination and return-path screening. |
@@ -369,7 +386,7 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 |---|---|
 | Run analyses | [Quick PI](#quick-pi) · [QuickTherm](#quicktherm) · [Quick SI](#quick-si) · [Trace RLC](#trace-rlc--impedance) |
 | Improve layout | [Fanout](#fanout-generator) · [Guard vias](#via-stitching) · [Trace Refiner](#trace-refiner) · [Silkscreen](#silkscreen-label-placer) |
-| Coordinate tools | [Assistant](#wayricad-assistant) · [All plugin guides](#all-24-plugins) |
+| Coordinate tools | [Assistant](#wayricad-assistant) · [All plugin guides](#all-26-plugins) |
 
 ### [WayriCAD Assistant](suite_assistant_plugin/README.md)
 

@@ -36,6 +36,7 @@ DEPENDENCIES: tuple[DependencySpec, ...] = (
 )
 
 SUITE_PACKAGES: tuple[tuple[str, str], ...] = (
+    ('review_comments_plugin', 'WayriCAD Review (candidate)'),
     ('suite_assistant_plugin', 'WayriCAD Assistant'),
     ('bom_studio_plugin', 'BOM Studio'),
     ('bulk_label_editor_plugin', 'Bulk Label Editor'),
@@ -49,6 +50,7 @@ SUITE_PACKAGES: tuple[tuple[str, str], ...] = (
     ('mechanical_check_plugin', 'Mechanical Check'),
     ('planar_magnetics_plugin', 'Planar Magnetics & Actuator Workbench'),
     ('protocol_constraint_composer_plugin', 'Constraint Studio'),
+    ('quick_emerge_plugin', 'Quick EMerge (beta)'),
     ('quick_pi_plugin', 'Quick PI'),
     ('quick_therm_plugin', 'QuickTherm'),
     ('project_fusion_plugin', 'Project Fusion'),
