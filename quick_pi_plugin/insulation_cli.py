@@ -17,13 +17,19 @@ def run(args, argv):
         if path.stat().st_size>limit:raise ValueError('Screening input exceeds its size budget.')
         raw.append(path.read_bytes())
     def invalid(value):raise ValueError('Non-finite JSON input: '+value)
-    report=screen(*[json.loads(value,parse_constant=invalid) for value in raw])
+    bundle,policy=[json.loads(value,parse_constant=invalid) for value in raw]
+    report=screen(bundle,policy)
+    protected=list(sources)
+    for scope in (bundle,bundle.get('request',{})):
+        if isinstance(scope,dict):
+            protected.extend(scope[key] for key in ('board_path','board','source_path','study_input_path')
+                             if isinstance(scope.get(key),str) and scope[key])
     report['input_sha256']=[hashlib.sha256(value).hexdigest() for value in raw]
     if any(path.read_bytes()!=value for path,value in zip(sources,raw)):
         raise ValueError('Screening input changed; discard this result.')
     text=json.dumps(report,indent=2,allow_nan=False)+'\n'
     if args.output:
         if args.output.suffix.lower()!='.json':raise ValueError('Screening output requires .json.')
-        publish_documents({args.output:text},sources=sources)
+        publish_documents({args.output:text},sources=protected)
     print(text,end='')
     return 0 if report['status']=='SCREENED' else 3
