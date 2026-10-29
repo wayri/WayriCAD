@@ -11,6 +11,19 @@ its startup process exits, before the launcher waits for the open plugin to
 close. Startup errors clear the loading window before displaying their error
 message. This lifecycle is shared by the independently installed IPC packages.
 
+## Native electrical windows
+
+The SI/RLC saved-board launcher performs its first native PCB read before
+creating `wx.App`, then passes that board into the analysis frame without a
+second parse. Reversing the order reproduced a native shutdown hang on Windows
+KiCad 10.0.6 with Python 3.11 and wxPython 4.2.2. Source hashes bracket loading
+and frame preparation; changed files cannot open as the original snapshot.
+
+Use `native_analysis.main` for this lifecycle. Native GUI tests prepare/read
+their synthetic fixture before wx startup and copy its bytes per case; they
+must not infer GUI compatibility from a process that only prints test success
+but never exits. Geometry-only workers do not create a wx application.
+
 Dependency installation uses binary wheels. Corporate mirrors, proxies and offline
 wheel directories can be configured through standard pip configuration or environment
 variables: `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, `PIP_FIND_LINKS`, `PIP_NO_INDEX`,

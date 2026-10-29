@@ -1,7 +1,32 @@
 # WayriCAD Quick SI
 
+<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
+
+## Viewport-first workspace
+
+Start with **Set up path… → Run SI → inspect the route**. The route uses the
+full work area by default. Open **Setup** for manual fields, return settings,
+IBIS, eye options and multi-net cases; open **Details** for the complete results
+table. **Fit** frames the routed geometry. **Focus view** hides panels temporarily
+and restores their sizes and visibility. Resizing a window keeps the input panel
+bounded and scrollable without changing assumptions or computed results.
+
+Use **Files** for setup/result Save and Load, HTML/PDF reports, Blender and KiCad
+circuit export. Menu entries follow the same readiness checks as the underlying
+analysis controls. **PCB** keeps editor selection and route/return highlighting
+reachable without opening Setup. Other checks remain in the top tabs.
+
+![Quick SI with the route as the main work area](help-viewport-first.png)
+
+Windows native source-window capture, 2026-10-30, KiCad 10.0.6 Python 3.11 /
+wxPython 4.2.2. Synthetic 60 mm route with two vias; Z0 = 50 Ω and effective
+Er = 3 are explicit assumptions. This is a real geometry/timing screen, not a
+measured board or protocol certification. The 1280 × 800 window has a
+1212 × 516 route canvas. Source board bytes were unchanged; no private data,
+personal paths or image redactions.
+
 **Setup and result files:** use **Save setup…** / **Load setup…** for editable
-inputs, and **Save simulation…** / **Load simulation…** for completed numerical
+inputs, and **Files → Save results…** / **Files → Load results…** for completed numerical
 data. The file chooser starts in the PCB's project folder and lets you choose
 another name or location. Setup includes route fields, return nets and pins,
 eye options, multi-net cases, crosstalk pairs and IBIS selections. IBIS model
@@ -9,16 +34,14 @@ files must still exist with their saved hashes. Loading setup clears old
 results; loading results opens a read-only viewer without solving again.
 [File workflow and deterministic JSON](../docs/PROJECT_RESULTS.md).
 
-**Saved results (updated source):** **Save results / Pocket KiVi** writes HTML
+**Saved results (updated source):** **Files → Export HTML / PDF report…** writes HTML
 and complete numerical JSON. Saved-board analyses also get a portable
 `.pocket-kivi.json` companion with the original PCB fingerprint. Live editor
 results remain explicitly unbound; rerun from the saved board for a verified
 binding. Available paths, waveforms, eye samples and unknown gaps are retained.
 [Export workflow, CLI and limits](../docs/POCKET_KIVI_EXPORT.md).
 
-<img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
-
-**Blender visualization (updated source):** after a supported result, choose **Blender…** to export geometry and fields, with computed-frame animation where available. [Export workflow and limits](../wayricad_runtime/BLENDER.md).
+**Blender visualization (updated source):** after a supported result, choose **Files → Export to Blender…** to export geometry and fields, with computed-frame animation where available. [Export workflow and limits](../wayricad_runtime/BLENDER.md).
 
 **Detailed user guide:** [Read the step-by-step guide](USER_GUIDE.md) · [Offline HTML](USER_GUIDE.html). Covers setup, all workspace tabs, CLI, reports, recovery and model limits.
 
@@ -67,7 +90,7 @@ Fit control to inspect the whole route.
 
 ## Guided path and response setup
 
-Open **Set up path and response…** to review the common SI inputs together.
+Open **Set up path…** to review the common SI inputs together.
 
 | Step | Review |
 |---|---|
@@ -259,7 +282,7 @@ Open the exported project in KiCad Schematic Editor and run its native simulator
 to calculate the IBIS response. The exporter creates a circuit and records its
 assumptions; it does not run or validate the native transient for you.
 
-1. Save the PCB, then run **Screen selected path** or a multi-net study. A live
+1. Save the PCB, then run **Run SI** or a multi-net study. A live
    unsaved-board result cannot be exported as a circuit. Reopen and rerun if the
    PCB, project or custom rules change.
 2. Open **IBIS models for KiCad circuit export**. Use **Load IBIS…** separately
@@ -445,7 +468,7 @@ See [analysis views and probe controls](../docs/ANALYSIS_INTERACTIONS.md) for de
 
 ## Automatic timing and section results
 
-Choose the net and its two pads, then run **Screen selected path**. With a saved
+Choose the net and its two pads, then run **Run SI**. With a saved
 physical stackup, Quick SI now computes a first-order travel time across outer
 microstrip, internal homogeneous dielectric and via transitions without requiring
 manual Er entry. `APPROXIMATE` means adjacent copper is assumed to form ideal
@@ -580,7 +603,7 @@ estimates under those assumptions**, not extracted USB compliance results.
    length, a resistive load, an explicit reference layer, or a clearly labelled
    assumed Z0/effective Er. A blank load means ideal open circuit. Blank Z0/Er
    asks the routed geometry/stackup model; unknown terms stay unknown.
-5. Choose **Screen selected path**. Pan, zoom or Fit the route. Read the model
+5. Choose **Run SI**. Pan, zoom or Fit the route. Read the model
    basis and review notes as well as the numbers. Export a self-contained local
    HTML report if useful; the save dialog defaults to the board's directory.
 
@@ -891,7 +914,7 @@ protocol, device or complete channel.
    name appears as a suggestion; **Use GND** (or **Use suggested return**) is
    an explicit confirmation, not inferred connectivity. **No return-path check**
    leaves the review off.
-3. Run **Screen selected path**. The same run includes the return-copper review;
+3. Run **Run SI**. The same run includes the return-copper review;
    no extra setup window or source/receiver return pins are required.
 
 **More return options** stays collapsed for the normal single-return case. Open
@@ -940,7 +963,7 @@ geometric evidence; neither proves the closed return circuit.
 
 The normal native sidecar runs Quick SI, its optional eye calculation and explicit
 return review in a separate worker process. The window remains available while
-it runs. **Cancel analysis**, changing an input, or closing the window cancels the
+it runs. **Cancel**, changing an input, or closing the window cancels the
 owned job. A result from older inputs cannot replace the current preview.
 
 The worker checks the saved PCB, project and custom-rule hashes before and after

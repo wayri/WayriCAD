@@ -15,17 +15,19 @@ class SetupStateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import wx
+        from .native_ui_fixture import board_fixture
+        board_fixture()
         global _app
         cls.wx=wx; _app=wx.GetApp() or wx.App(False)
 
     def setUp(self):
         import pcbnew
-        from signal_integrity_advisor_plugin.tests.test_study_native import make_board
+        from .native_ui_fixture import copy_board_fixture
         from signal_integrity_advisor_plugin.signal_integrity_advisor_plugin import RoutePreview
         from signal_integrity_advisor_plugin.quick_ui import QuickSIPanel
         from signal_integrity_advisor_plugin.tests.test_ibis_models import SAMPLE
         self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
-        self.path=Path(self.temp.name)/'board.kicad_pcb'; self.config=make_board(self.path)
+        self.path=Path(self.temp.name)/'board.kicad_pcb'; self.config=copy_board_fixture(self.path)
         self.before=self.path.read_bytes(); self.model=Path(self.temp.name)/'device.ibs'; self.model.write_text(SAMPLE)
         self.frame=self.wx.Frame(None,size=(1100,760))
         self.panel=QuickSIPanel(self.frame,pcbnew.LoadBoard(str(self.path)),RoutePreview,saved_board=True)

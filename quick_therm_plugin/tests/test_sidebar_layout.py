@@ -17,6 +17,7 @@ app=wx.App(False);app.SetExitOnFrameDelete(False)
 with patch.object(QuickThermFrame,'_inspect'):
     frame=QuickThermFrame(None,Path(sys.argv[1])/'quick_therm_plugin/examples/thermal-demo.kicad_pcb')
 frame.Maximize(False);frame.Show();frame.book.SetSelection(0)
+frame._toggle_thermal_pane(frame.therm_setup_splitter,frame._therm_input_page,frame.therm_result_splitter,True,340)
 page=frame._therm_input_page
 def descendants(window):
     for child in window.GetChildren():

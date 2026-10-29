@@ -1,5 +1,20 @@
 # <img src="resources/icon-96.png" width="48" height="48" alt="QuickTherm icon"> WayriCAD QuickTherm
 
+**Board-first workspace:** the board view opens with **Setup** and **Details**
+closed. Use **Components** to choose parts, **Setup** for materials/cooling/time,
+and the always-visible **Run** action to solve. **Files** contains separate
+setup and simulation Save/Load actions, report and Blender exports, and the
+dissipation Sankey. **Focus view** hides open panels and
+restores their previous widths; narrow windows show one sidebar at a time.
+Top, Bottom, 3D, Fit and time playback stay beside the viewport.
+
+![QuickTherm board-first workspace](help-viewport-first.png)
+
+The native screenshot reopens the public saved thermal example with illustrative
+inputs; it is not a new solve or hardware measurement. At a 1280 × 800 window,
+the canvas increased from 560 × 447 to 1244 × 560 pixels. See
+[viewport capture details](VIEWPORT_LAYOUT.md).
+
 **Thermal material library:** in the board heat-model controls, use **Dielectric
 material…** or **Copper material…**. Review the preset's source and conditions,
 check the conductivity/capacity properties to apply, and edit known overrides.

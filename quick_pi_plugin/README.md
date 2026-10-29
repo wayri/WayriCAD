@@ -1,5 +1,20 @@
 # WayriCAD Quick PI
 
+## Board-first workspace
+
+The board opens across the window. **Setup** opens net, pad and load inputs;
+**Details** opens layers, colours, tables and probes. **Focus view** hides both
+and restores their previous widths when pressed again. **Run** and **Files**
+stay visible, so setup/result Save and Load remain available with drawers shut.
+Files also provides report and Blender exports.
+The current field name, units and limits remain in the header. Open **Current
+tuning** for numeric controls; Ctrl+scroll still adjusts a solved current while
+that section is folded. Ordinary scroll zooms.
+
+![Quick PI board-first workspace](help-viewport-first.png)
+
+[Workspace sizing, gestures and screenshot provenance](VIEWPORT_LAYOUT.md).
+
 ## Guided setup and reviewed power intent
 
 - **More → Power tree** opens an editable energy-flow diagram for sources, rails,

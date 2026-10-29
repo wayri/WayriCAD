@@ -51,6 +51,32 @@ class LayoutAccessTests(unittest.TestCase):
         self.assertEqual(rows[0][1], 'long value '+'x'*1800)
         self.assertEqual(table.GetSelectedItemCount(), 1)
 
+    def test_later_panel_controls_get_icons_without_duplicate_readers(self):
+        from wayricad_runtime.layout import install_accessibility
+        table=self.table()
+        install_accessibility(self.frame);self.app.Yield()
+        toggle=wx.ToggleButton(self.frame,label='Setup')
+        install_accessibility(self.frame);self.app.Yield()
+        self.assertTrue(toggle.GetBitmap().IsOk())
+        self.assertEqual(toggle.GetLabel(),'Setup')
+        self.assertEqual(table.GetToolTipText().count('Ctrl+Shift+Enter'),1)
+
+    def test_nested_toolbar_reflows_after_late_icons_without_manual_resize(self):
+        from wayricad_runtime.layout import install_accessibility
+        header=wx.Panel(self.frame)
+        row=wx.WrapSizer(wx.HORIZONTAL)
+        buttons=[wx.Button(header,label=label,style=wx.BU_EXACTFIT) for label in ('Setup','Files','Help')]
+        for button in buttons:row.Add(button,0,wx.RIGHT,4)
+        header.SetSizer(row)
+        outer=wx.BoxSizer(wx.VERTICAL);outer.Add(header,0,wx.EXPAND);outer.Add(wx.Panel(self.frame),1,wx.EXPAND)
+        self.frame.SetSizer(outer);self.frame.Show();self.frame.Layout();self.app.Yield()
+        install_accessibility(self.frame);self.app.Yield()
+        for button in buttons:
+            image=button.GetBitmap()
+            picture=image.GetLogicalSize() if hasattr(image,'GetLogicalSize') else image.GetSize()
+            text=button.GetTextExtent(button.GetLabelText())
+            self.assertGreaterEqual(button.GetSize().width,text[0]+picture[0]+button.FromDIP(16))
+
     def test_reader_filters_complete_values_and_details_are_resizable(self):
         from wayricad_runtime.layout import table_data, TableReader
         dialog = TableReader(self.frame, *table_data(self.table()))

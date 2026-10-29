@@ -1,2 +1,2 @@
 """WayriCAD Assistant: local language planning for existing suite commands."""
-__version__ = '3.6.46'
+__version__ = '4.0.0'

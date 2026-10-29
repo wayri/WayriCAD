@@ -104,7 +104,11 @@ class RoutePreview(PanZoomCanvas):
             if index==0:gc.DrawEllipse(sx-6,sy-6,12,12)
             else:gc.DrawRectangle(sx-6,sy-6,12,12)
             gc.SetFont(wx.Font(9,wx.FONTFAMILY_DEFAULT,wx.FONTSTYLE_NORMAL,wx.FONTWEIGHT_BOLD),colour)
-            gc.DrawText(labels[min(index,1)],sx+9,sy-20 if index==0 else sy+8)
+            text=labels[min(index,1)];text_width,text_height=gc.GetTextExtent(text)[:2]
+            size=self.GetClientSize()
+            x=max(4,min(sx+9,size.width-text_width-4))
+            y=max(4,min(sy-20 if index==0 else sy+8,size.height-text_height-4))
+            gc.DrawText(text,x,y)
 
 
 
@@ -119,7 +123,7 @@ class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "3.6.46"
+        self.version = "4.0.0"
 
     def Run(self) -> None:
         board = pcbnew.GetBoard()
@@ -131,6 +135,7 @@ class SignalIntegrityAdvisorPlugin(pcbnew.ActionPlugin):
 class SignalIntegrityFrame(wx.Frame):
     def __init__(self, parent: Any, board: Any, saved_board: bool = False) -> None:
         super().__init__(parent, title="WayriCAD Quick SI", size=(1220, 820), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
+        self.SetIcon(wx.Icon(os.path.join(os.path.dirname(__file__), "resources", "icon-48.png"),wx.BITMAP_TYPE_PNG))
         self.SetMinSize((980, 700)); self.board = board; self.saved_board = saved_board; self.engine = SignalIntegrityEngine(board)
         self._build(); self._load_board(); self.Centre()
 
@@ -138,12 +143,12 @@ class SignalIntegrityFrame(wx.Frame):
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
         header = wx.BoxSizer(wx.HORIZONTAL)
         title = wx.StaticText(panel, label="Quick SI"); title.SetFont(title.GetFont().Bold().Larger())
-        header.Add(title, 1, wx.ALIGN_CENTER_VERTICAL); help_btn = wx.Button(panel, label="Help"); help_btn.Bind(wx.EVT_BUTTON, open_help); header.Add(help_btn)
-        root.Add(header, 0, wx.EXPAND | wx.ALL, 12)
-        if self.saved_board:
-            root.Add(wx.StaticText(panel, label="Electrical checks use saved copper. Test point labels connect separately to this originating editor."), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
-        intro = wx.StaticText(panel, label="1  Choose a check    2  Define electrical limits and routed endpoints    3  Review evidence and disposition")
-        root.Add(intro, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+        header.Add(title, 0, wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,12)
+        from pathlib import Path
+        source = wx.StaticText(panel,label=Path(self.board.GetFileName()).name or 'Unsaved PCB',style=wx.ST_ELLIPSIZE_MIDDLE)
+        source.SetMinSize((1,-1));source.SetToolTip('Electrical checks use this saved copper snapshot; live editor operations require their own current-source check.')
+        header.Add(source,1,wx.ALIGN_CENTER_VERTICAL)
+        root.Add(header, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP | wx.BOTTOM, 8)
         self.tabs = wx.Notebook(panel)
         from .quick_ui import QuickSIPanel
         self.quick_si=QuickSIPanel(self.tabs,self.board,RoutePreview,self.saved_board)

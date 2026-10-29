@@ -64,6 +64,10 @@ class WorkbenchTests(unittest.TestCase):
             f.SetSize(size);f.Layout();wx.Yield()
             self.assertGreaterEqual(f.tabs.GetSize().width,f.GetClientSize().width*.95)
             self.assertGreaterEqual(f.tabs.GetSize().height,300)
+            viewport=f.viewports[f.tabs.GetPageText(f.tabs.GetSelection())]
+            canvas=getattr(viewport,'window',getattr(viewport,'canvas',None))
+            self.assertGreaterEqual(canvas.GetSize().width,f.GetClientSize().width*.95)
+            self.assertGreaterEqual(canvas.GetSize().height,f.GetClientSize().height*.6)
             for control in (f.setup_button,f.preview_button,f.run_button,f.cancel_button):
                 self.assertTrue(control.GetParent().GetClientRect().Contains(control.GetRect()))
         f.toggle_setup(show=True);wx.Yield()
@@ -78,6 +82,12 @@ class WorkbenchTests(unittest.TestCase):
         f.focus_button.SetValue(True);f.focus_view()
         f.focus_button.SetValue(False);f.focus_view();wx.Yield()
         self.assertFalse(f.workspace_splitter.IsSplit());self.assertTrue(f.visual_splitter.IsSplit())
+
+    def test_plan_view_and_navigation_agree(self):
+        f=self.frame;f.select_view('PCB enclosure');wx.Yield()
+        self.assertEqual(f.current_group,'2D')
+        self.assertEqual(f.tabs.GetPageText(f.tabs.GetSelection()),'PCB enclosure')
+        self.assertTrue(f.navigation['2D'].GetValue());self.assertFalse(f.navigation['3D'].GetValue())
 
     def test_kicad_help_and_dense_sampling_preserve_mesh_settings(self):
         f = self.frame

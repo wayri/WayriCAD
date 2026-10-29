@@ -116,6 +116,11 @@ not require a longer timeout or a network connection for the local UI.
 
 ## Windows: two open editors and an unreachable second instance
 
+Quick SI and RLC users should also update to 4.0.0 for the native window
+shutdown fix tested on Windows KiCad 10.0.6. The launcher initializes the native
+saved-board reader before creating wx and reuses the loaded PCB; it rejects a
+source change during preparation.
+
 We reproduced a KiCad **10.0.5 Windows** IPC endpoint collision with two disposable PCB editors sharing the same temporary directory. Both server logs advertised the same `api.sock` endpoint; the second editor could not be addressed independently. The corrected WayriCAD client uses the originating action's socket and token and refuses to fall back to another board, but cannot repair an already-bound KiCad server.
 
 The same symptom is `the provided kicad_token did not match this KiCad instance's token`.

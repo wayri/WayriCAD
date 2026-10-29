@@ -47,7 +47,7 @@ class QuickSIPanel(wx.Panel):
             from .service import source_fingerprints
             self._source_fingerprints=source_fingerprints(board.GetFileName())
         self.Bind(wx.EVT_WINDOW_DESTROY,self._destroyed)
-        root=wx.BoxSizer(wx.HORIZONTAL)
+        root=wx.BoxSizer(wx.VERTICAL)
         self.workspace_splitter=wx.SplitterWindow(self,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         self.workspace_splitter.SetMinimumPaneSize(self.FromDIP(250))
         self.workspace_splitter.SetSashGravity(0.)
@@ -172,12 +172,14 @@ class QuickSIPanel(wx.Panel):
         self.study_choice.SetToolTip('Select one completed study case to inspect its own route, return audit and results.')
         self.study_choice.Hide();self.study_choice.Bind(wx.EVT_COMBOBOX,self._select_study_case)
         right.Add(self.study_choice,0,wx.EXPAND|wx.TOP,5)
-        self.status=wx.StaticText(view_host,label='Choose the source and receiver, review the inputs, then screen the path.');right.Add(self.status,0,wx.EXPAND|wx.ALL,7)
+        self.status=wx.StaticText(view_host,label='Choose the source and receiver, review the inputs, then screen the path.',style=wx.ST_ELLIPSIZE_END)
+        self.status.SetMinSize((1,-1));right.Add(self.status,0,wx.EXPAND|wx.ALL,7)
+        self.status.Bind(wx.EVT_ENTER_WINDOW,lambda event:(self.status.SetToolTip(self.status.GetLabel()),event.Skip()))
         self.results=wx.ListCtrl(self.results_splitter,style=wx.LC_REPORT);self.results.InsertColumn(0,'Measure',width=210);self.results.InsertColumn(1,'Result / evidence',width=620)
         self.results.SetMinSize((-1, 175))
         view_host.SetSizer(right)
-        self.results_splitter.SplitHorizontally(view_host,self.results,-self.FromDIP(200))
-        self.workspace_splitter.SplitVertically(left,self.results_splitter,self.FromDIP(350))
+        from .workspace_ui import Workspace
+        self.workspace=Workspace(self,left,form,view_host,root)
         root.Add(self.workspace_splitter,1,wx.EXPAND|wx.ALL,8);self.SetSizer(root)
         from wayricad_runtime.layout import install_accessibility
         install_accessibility(self,Path(__file__).with_name('help.html'))
@@ -452,6 +454,7 @@ class QuickSIPanel(wx.Panel):
         if hasattr(self,'return_setup'):
             self.return_setup.set_context(self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue())
         self.status.SetLabel('Inputs changed; run a fresh screen before exporting.')
+        if hasattr(self,'workspace'):self.workspace.refresh_summary()
         self._navigation_buttons()
         if event:event.Skip()
 

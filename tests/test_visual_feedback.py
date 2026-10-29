@@ -37,6 +37,8 @@ class VisualFeedbackTests(unittest.TestCase):
                       'Stop', 'Select', 'Clear', 'Reset', 'Focus', 'Fit', 'Apply',
                       'Delete', 'Remove', 'Undo', 'Redo', 'Refresh', 'Search'):
             self.assertIsNotNone(feedback.action_role(label),label)
+        for label in ('Setup','Details','Files','Copy selected','Probe','Zoom in'):
+            self.assertIsNotNone(feedback.action_role(label),label)
 
     def test_existing_artwork_and_unrecognized_controls_are_untouched(self):
         wx,theme,images=self.fake_wx()
@@ -59,6 +61,16 @@ class VisualFeedbackTests(unittest.TestCase):
             theme[0]=3
             self.assertIsNot(first,feedback.bitmap('run',window))
             self.assertEqual(len(images),2)
+
+    def test_bitmap_does_not_query_art_provider_after_app_shutdown(self):
+        wx,theme,images=self.fake_wx()
+        wx.GetApp=lambda:None
+        button=SimpleNamespace(GetLabel=Mock(return_value='Setup'))
+        with patch.dict(sys.modules,{'wx':wx}):
+            self.assertFalse(feedback.bitmap('run').IsOk())
+            self.assertIs(feedback.decorate_button(button),button)
+        button.GetLabel.assert_not_called()
+        self.assertFalse(images)
 
     def test_decoration_preserves_label_tooltip_and_does_not_duplicate_bindings(self):
         wx,theme,images=self.fake_wx()
@@ -133,6 +145,40 @@ class NativeVisualFeedbackTests(unittest.TestCase):
         feedback.decorate_button(button,'apply');self.panel.Layout();self.app.Yield()
         self.assertGreaterEqual(button.GetSize().width,button.GetBestSize().width)
         self.assertGreaterEqual(button.GetMinSize().height,button.GetBestSize().height)
+
+    def test_exactfit_toolbar_buttons_reserve_separate_text_and_icon_space(self):
+        layout=wx.WrapSizer(wx.HORIZONTAL)
+        buttons=[wx.Button(self.panel,label=label,style=wx.BU_EXACTFIT)
+                 for label in ('Setup','Details','Files','Help','Focus view')]
+        for button in buttons:layout.Add(button,0,wx.RIGHT,4)
+        self.panel.SetSizer(layout);self.frame.SetSize((900,180));self.frame.Show();self.panel.Layout()
+        for button in buttons:feedback.decorate_button(button)
+        self.panel.Layout();self.app.Yield()
+        for button in buttons:
+            text=button.GetTextExtent(button.GetLabelText())
+            image=button.GetBitmap()
+            picture=image.GetLogicalSize() if hasattr(image,'GetLogicalSize') else image.GetSize()
+            self.assertGreaterEqual(button.GetSize().width,text[0]+picture[0]+button.FromDIP(16),button.GetLabel())
+
+    def test_existing_toolbar_artwork_is_preserved_and_text_still_fits(self):
+        button=wx.Button(self.panel,label='Files',style=wx.BU_EXACTFIT)
+        artwork=wx.ArtProvider.GetBitmap(wx.ART_WARNING,wx.ART_BUTTON,(16,16))
+        button.SetBitmap(artwork)
+        original=bytes(artwork.ConvertToImage().GetData())
+        feedback.decorate_button(button)
+        self.assertEqual(bytes(button.GetBitmap().ConvertToImage().GetData()),original)
+        text=button.GetTextExtent(button.GetLabelText())
+        self.assertGreaterEqual(button.GetMinSize().width,text[0]+16+button.FromDIP(16))
+
+    def test_queued_theme_refresh_after_control_destruction_is_harmless(self):
+        button=wx.Button(self.panel,label='Setup')
+        feedback.decorate_button(button)
+        state=button._wayricad_visual_feedback
+        button.Destroy();self.app.Yield()
+        event=SimpleNamespace(Skip=Mock())
+        state['refresh'](event)
+        event.Skip.assert_called_once()
+        self.assertFalse(feedback.bitmap('settings',button).IsOk())
 
 
 if __name__=='__main__':unittest.main()

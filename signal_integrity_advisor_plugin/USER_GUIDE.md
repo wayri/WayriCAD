@@ -1,5 +1,15 @@
 # Quick SI user guide
 
+> **Workspace controls:** the route fills the work area on opening. **Set up path…**
+> is the guided starting point; **Setup** shows the manual fields and optional
+> studies described below. **Run SI** starts screening, **Details** opens the
+> results table, and **Files** contains setup/result Save and Load, reports,
+> Blender and KiCad circuit exports. **PCB** contains cross-selection and highlighting.
+> **Fit** frames the route; **Focus view**
+> hides/restores panels without changing inputs or results. Earlier tutorial
+> screenshots are retained as worked examples; their controls now live here.
+
+
 <img src="resources/icon-96.png" width="96" height="96" alt="Quick SI icon">
 
 A control-by-control guide to implemented Quick SI workflows, with worked boards
@@ -23,7 +33,7 @@ versions; they demonstrate workflows rather than measured hardware results.
    or changed IBIS files stop loading with an error; no assignment is silently
    dropped. Keep external `.ibs` files available when moving a setup.
 4. Existing computed results are cleared when setup loads. Run a new analysis.
-   To inspect a previous calculation without running, use **Load simulation…**
+   To inspect a previous calculation without running, use **Files → Load results…**
    and choose its result JSON instead. Setup JSON and result JSON are different
    file types and cannot be substituted for each other.
 
@@ -94,14 +104,14 @@ reopening a board; this does not make old evidence current.
 
 ## First path screen
 
-1. Open **Set up path and response…** in **Quick SI**. Search full net names:
+1. Open **Set up path…** in **Quick SI**. Search full net names:
    ordinary text is substring search, `*`/`?` enables wildcards and `~` fuzzy matching.
 2. Select distinct Source and Receiver pads, for example `U1.1` and `J1.1`.
    Confirm direction from the schematic/device data; swap roles explicitly.
 3. Enter actual driver/line inputs using the table below.
 4. Confirm the real return net in **Return path (optional)** if geometric return
    review is wanted. Extra return-pin assignments are not required for that review.
-5. Choose **Apply and screen**, or **Apply setup** then **Screen selected path**.
+5. Choose **Apply and screen**, or **Apply setup** then **Run SI**.
    Cancel preserves the workspace; input changes invalidate old results.
 6. Review route coverage, model basis, **Needs review** reasons and next actions.
 
@@ -533,7 +543,7 @@ INCOMPLETE also returns 3. Always inspect status and coverage, not just completi
 | Circuit waveform fails | Verify model paths, native IBIS support/mapping/corner, stimulus and timestep convergence |
 
 Saved-board workers hash PCB/project/rules before/after and before result acceptance
-or export. Changing inputs, Cancel analysis or close cancels the owned job. Normal
+or export. Changing inputs, Cancel or close cancels the owned job. Normal
 analysis budget is 300 seconds. Legacy/live windows may be synchronous rather than
 silently analyzing saved bytes. First dependency initialization is real first-run work.
 
@@ -561,7 +571,7 @@ does not imply every method in that reference is implemented.
 
 This feature is in the updated source; existing 3.6.41 installers do not contain it.
 
-After a supported completed study, choose **Blender…** in the main result workspace. Choose a new output folder and optionally open an installed Blender. The export includes geometry, available field data and supported computed frames. Export saved transient or other supported results through the shared CLI when they are not the main workspace result. Review [the Blender walkthrough](../wayricad_runtime/BLENDER.md) for commands, units, playback, result coverage and limits. This is visualization, not an additional numerical solve.
+After a supported completed study, choose **Files → Export to Blender…** in the main result workspace. Choose a new output folder and optionally open an installed Blender. The export includes geometry, available field data and supported computed frames. Export saved transient or other supported results through the shared CLI when they are not the main workspace result. Review [the Blender walkthrough](../wayricad_runtime/BLENDER.md) for commands, units, playback, result coverage and limits. This is visualization, not an additional numerical solve.
 
 
 ## Marble worked example
@@ -575,7 +585,7 @@ Use a disposable, saved copy from the [example-board preparation guide](../docs/
 3. Set rise time **1 ns**, frequency **100 MHz**, source resistance **20 Ω** and receiver resistance **50 Ω**. These are explicit illustrative interface assumptions, not extracted device specifications.
 4. Set assumed uniform Z0 to **50 Ω** and effective Er to **3.2**. Leaving these blank exercises the saved geometry/stackup screen instead and can produce an approximate or incomplete result. Do not compare those two models as though they were the same calculation.
 5. Choose **GND** under Return path. Leave optional return pins unspecified for this coverage-only run. Use **More return options** if the real interface has several reference nets. The reference-layer choice remains **Auto**.
-6. Click **Screen selected path**. Observe progress; **Cancel analysis** stops its owned worker without editing the PCB. The result is valid only for the saved source revision.
+6. Click **Run SI**. Observe progress; **Cancel** stops its owned worker without editing the PCB. The result is valid only for the saved source revision.
 7. Read route length **253.670353 mm**, **31 tracks**, **3 vias** and the routed layers. With the stated complete-route Er assumption, the delay is **1.513644892 ns**. Z0 is the entered **50 Ω**. Their evidence strings explicitly identify assumptions.
 8. Open **Route** to inspect vias/layer transitions, inspect return coverage separately, and review every blocker. `SCREENED` does not certify the actual route's impedance, transitions or return-current distribution.
 9. In a live editor session, **Select route in PCB** selects only the result's native items. **Select return nets in PCB** deliberately selects the assigned whole return-net set. A saved standalone snapshot cannot supply a live editor selection.
@@ -606,7 +616,7 @@ Use the native KiCad import of the White Rabbit Switch v3 SCB described in the [
 2. Choose `EBI1_NBS3`, source `IC33.J34`, receiver `IC6.A9`. The chosen direction is explicit.
 3. Enter **1 ns**, **100 MHz**, **20 Ω** source, **50 Ω** receiver, assumed **50 Ω** uniform Z0 and effective **Er 3.2**. These are illustrative assumptions for a reproducible route screen.
 4. Leave **No return-path check** selected for this first run. That means return coverage was not checked; it does not mean no return is required by the hardware.
-5. Run **Screen selected path**. The native route resolves to **62.554862086 mm**, **9 tracks**, **0 vias**, with **0.373263357 ns** delay under the entered Er. It is not a stackup-derived qualified channel.
+5. Run **Run SI**. The native route resolves to **62.554862086 mm**, **9 tracks**, **0 vias**, with **0.373263357 ns** delay under the entered Er. It is not a stackup-derived qualified channel.
 6. Inspect route endpoints, evidence strings and complete-route circuit coverage. Export separate HTML/JSON. When adding return review, select the actual imported net names and retain every incomplete-reference finding.
 
 ![Native White Rabbit route screen](help-white-rabbit-worked.png)
@@ -631,7 +641,7 @@ This reference covers the current native source interface, including the Blender
 |---|---|---|
 | Quick SI / Neighbour traces / Impedance & pairs / I2C pull-ups / Return path / Test point records / Test point labels / Protocol suites | Select one of the eight top-level tabs | These are separate models/workflows, not stages of one coupled simulation. |
 | Left/right splitter; result-table divider | Drag the sash | Allocate readable space; tables and left settings scroll independently. Resizing changes presentation, not a calculation. |
-| Set up path and response… | Choose net, source and receiver together | Opens the same input model in a grouped dialog. Same-footprint peer pins are shown for review and remain separate SI terminals. |
+| Set up path… | Choose net, source and receiver together | Opens the same input model in a grouped dialog. Same-footprint peer pins are shown for review and remain separate SI terminals. |
 | Net | Exact connected net name | Selecting a different net rebuilds endpoint choices and invalidates the result. A filtered list does not rename a net. |
 | Find net | Literal substring, `*` / `?` wildcard, or `~` fuzzy query | Square brackets stay literal bus punctuation. Match text is not a simulation scope; check the actual selected name. |
 | Select net on board | Pick the intended net in the originating layout | Requires a compatible editor connection. Cancel leaves the current choice. |
@@ -643,8 +653,8 @@ This reference covers the current native source interface, including the Blender
 | Load resistance | Nonnegative Ω; blank is open circuit | Zero is a short, blank is not zero. Used by the resistive reflection model. |
 | Assumed uniform Z0 | Positive Ω or blank | Overrides the uniform screening impedance only; cannot qualify transitions or reference coverage. Blank retains geometry/unknown evidence. |
 | Assumed effective Er | At least 1, or blank | Supplies a full-route propagation assumption. It does not repair a disconnected route. |
-| Screen selected path | Run after source/receiver/model review | Saved studies use an isolated cancellable worker. Errors and unknowns stay explicit. |
-| Cancel analysis | Stop an active owned job | Cancels computation; no PCB geometry is written. Wait for completion before exporting. |
+| Run SI | Run after source/receiver/model review | Saved studies use an isolated cancellable worker. Errors and unknowns stay explicit. |
+| Cancel | Stop an active owned job | Cancels computation; no PCB geometry is written. Wait for completion before exporting. |
 | Route / Eye / step | Choose the lower workspace view | Route is extracted geometry; eye is a separate optional ideal-line model. |
 | Result table | Read measure, value and evidence | Delay, round trip, electrical length, delay/rise, Z0, reflection and matching values retain their model source. Unknown is not zero or a pass. |
 | Study-case dropdown | Choose a completed case | Route, return audit and numbers follow that case, not an aggregate of all nets. |

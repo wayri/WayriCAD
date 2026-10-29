@@ -1,8 +1,24 @@
 # Quick PI user guide
 
 Use this guide to choose, configure and review Quick PI studies. It describes the
-published 3.6.41 workflows and explicitly marked source updates. [README and screenshot provenance](README.md) ·
+4.0.0 workspace and implemented studies. Screenshots retain their capture versions and assumptions. [README and screenshot provenance](README.md) ·
 [Offline HTML edition](USER_GUIDE.html) · [Compact help](help.html).
+
+## Workspace controls
+
+The board view is the main workspace. Opening or closing panels retains inputs and results.
+
+| Control | Workflow |
+|---|---|
+| **Setup** | Net, source/load pads, multipin choices, materials and mesh inputs |
+| **Details** | Layers, field metric, colour legend, losses and probes |
+| **Focus view** | Hide drawers temporarily; restore their previous sizes and visibility |
+| **Files** | Save/load setup or computed data; export reports and Blender data |
+| **Run** | Solve using reviewed inputs; changed inputs clear old results |
+
+![Board-first workspace](help-viewport-first.png)
+
+Quick PI board-first workspace with illustrative analytical plate data. [Capture and layout evidence](VIEWPORT_LAYOUT.md).
 
 ## Contents
 

@@ -128,9 +128,13 @@ def enclosure(figure, region, options=None):
             center = points.mean(axis=0)
             axes.annotate(f'P{port["number"]}', center, xytext=(6, 6), textcoords='offset points', color='#bc1f4c')
     x0, y0, x1, y1 = _bounds(region)
-    margin = max(x1-x0, y1-y0)*.18
-    axes.set(xlim=(x0-margin, x1+margin), ylim=(y0-margin, y1+margin), xlabel='Board X [mm]', ylabel='Board Y [mm]',
-             title=f'Rule-area enclosure • {region["area"].get("name") or region["area"]["id"]}\nOnly clipped copper enters the solver; pink edges are ideal ports')
+    # Frame the actual enclosure, keeping equal physical X/Y scale. A margin
+    # based on the longest dimension wasted most of a long thin ROI's height.
+    x_margin=max((x1-x0)*.03,.05)
+    y_margin=max((y1-y0)*.05,.05)
+    axes.set(xlim=(x0-x_margin, x1+x_margin), ylim=(y0-y_margin, y1+y_margin), xlabel='Board X [mm]', ylabel='Board Y [mm]',
+             title=f'Rule-area plan view • {region["area"].get("name") or region["area"]["id"]}')
     axes.set_aspect('equal')
     axes.grid(alpha=.2)
-    figure.tight_layout()
+    figure.text(.5,.015,'Clipped saved copper only · pink = ideal boundary ports',ha='center',fontsize=8,color='#617583')
+    figure.subplots_adjust(left=.065,right=.985,bottom=.13,top=.91)

@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.path import Path
-from quick_emerge_plugin.region_view import board_context
+from quick_emerge_plugin.region_view import board_context, enclosure
 
 
 class BoardContextTests(unittest.TestCase):
@@ -46,6 +46,17 @@ class BoardContextTests(unittest.TestCase):
         self.figure.canvas.draw()
         with self.assertRaisesRegex(ValueError,'no outline'):
             board_context(self.figure,{'board_outline':[],'board_bounds_mm':[0,0,80,80]})
+
+    def test_enclosure_fit_frames_the_actual_roi_without_stretching(self):
+        shape={'outer_mm':[[10,5],[30,5],[30,15],[10,15]],'holes_mm':[]}
+        region={'substrate':{'outline':[shape]},'copper':[], 'ports':[], 'area':{'id':'roi','name':'Coupon'}}
+        original=copy.deepcopy(region);enclosure(self.figure,region)
+        axes=self.figure.axes[0]
+        self.assertEqual(axes.get_aspect(),1.)
+        np.testing.assert_allclose(axes.get_xlim(),[9.4,30.6])
+        np.testing.assert_allclose(axes.get_ylim(),[4.5,15.5])
+        self.assertIn('plan view',axes.get_title())
+        self.figure.canvas.draw();self.assertEqual(region,original)
 
 
 if __name__=='__main__':unittest.main()

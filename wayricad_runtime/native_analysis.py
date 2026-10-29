@@ -4,6 +4,7 @@ The IPC action supplies the active board's saved path. Native geometry is not
 emulated by the IPC facade; this window explicitly analyzes a saved snapshot.
 """
 import argparse
+import hashlib
 import importlib
 import os
 from pathlib import Path
@@ -145,7 +146,7 @@ def restore_selection(board, identifiers):
             item.SetSelected()
 
 
-def create_frame(root, tool, board_path, selection_ids=(), status=None, cancelled=None):
+def create_frame(root, tool, board_path, selection_ids=(), status=None, cancelled=None, loaded_board=None):
     import pcbnew
     import wx
     sys.path.insert(0,str(Path(root).resolve()))
@@ -168,7 +169,7 @@ def create_frame(root, tool, board_path, selection_ids=(), status=None, cancelle
         loaded.__version__ = version
     sys.modules[package] = loaded
     module = importlib.import_module('.' + module_name, package)
-    board = pcbnew.LoadBoard(str(board_path))
+    board = loaded_board if loaded_board is not None else pcbnew.LoadBoard(str(board_path))
     if status is not None:
         status('Preparing the analysis window…')
     if cancelled is not None and cancelled():
@@ -191,15 +192,33 @@ def main(argv=None):
     args = parser.parse_args(argv)
     loading = None
     try:
+        # KiCad 10 Windows board I/O initializes wx resources. Its first read
+        # precedes Python wx.App to avoid a native shutdown hang.
+        # Reuse this board rather than reading a large project twice.
+        import pcbnew
+        board_path=args.board.expanduser().resolve()
+        source_hash=hashlib.sha256(board_path.read_bytes()).digest()
+        board=pcbnew.LoadBoard(str(board_path))
+        if board is None:
+            raise ValueError('KiCad could not load the saved board.')
+        if hashlib.sha256(board_path.read_bytes()).digest()!=source_hash:
+            raise ValueError('The saved PCB changed while loading. Reload it before analysis.')
         import wx
         from .loading import ensure_wx_app
         app = ensure_wx_app(wx)
         loading = _loading_window(wx, args.tool)
         loading.start()
-        app, frame = create_frame(args.root, args.tool, args.board,
+        app, frame = create_frame(args.root, args.tool, board_path,
                                   filter(None, args.selection_ids.split(',')),
                                   status=loading.stage,
-                                  cancelled=lambda: loading.cancelled)
+                                  cancelled=lambda: loading.cancelled,
+                                  loaded_board=board)
+        try:
+            if hashlib.sha256(board_path.read_bytes()).digest()!=source_hash:
+                raise ValueError('The saved PCB changed while preparing the window. Reload it before analysis.')
+        except Exception:
+            frame.Destroy()
+            raise
         if loading.cancelled:
             frame.Destroy()
             return 0

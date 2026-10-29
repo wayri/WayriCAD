@@ -6,7 +6,7 @@ board as context; region mode imports actual enclosed copper. Components and
 board geometry outside the enclosure are omitted.
 
 Quick EMerge is an independently installable testing beta in the
-[WayriCAD 3.6.46 release](https://github.com/wayri/WayriCAD/releases/tag/v3.6.46).
+[WayriCAD 4.0.0 release](https://github.com/wayri/WayriCAD/releases/tag/v4.0.0).
 See the [KiCad workflow help](help.html), [capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md)
 for implemented scope and its limits.
 
@@ -54,11 +54,26 @@ not silently deleted. This manager never upgrades KiCad's packages.
 The viewport fills the workspace on opening. Use **Setup** in the top bar to
 open the Geometry / Physics / Solve drawer; close it to reclaim that space.
 Preview, Run simulation, Cancel and Help remain available, and progress/errors
-stay in the status bar. The optional Inspector opens below the view, initially
-using at most 30% of its height. **Focus** temporarily hides panels and restores
+stay in the status bar. The optional **Details** inspector opens below the view, initially
+using at most 30% of its height. **Focus view** temporarily hides panels and restores
 their previous visibility. Showing or hiding panels preserves the study and its
 reviewed geometry. The setup sash leaves at least 540 logical pixels for the
 workspace; viewport minimum size is 480 × 300 logical pixels.
+
+![Current Quick EMerge rule-area workspace](help-workspace.png)
+
+The primary flow is **Setup → Preview geometry and ports → Run simulation**.
+Switch among 3D, 2D, Charts, Results and Report afterward. **Fit** frames the
+active geometry or plot. **Files** stays available while Setup is closed.
+
+Windows native source-window capture, 2026-10-30, Python 3.14 / wxPython 4.2.5,
+Matplotlib software rendering and KiCad 10.0.6 native extraction. The repository
+`region_coupon` fixture shows actual clipped saved copper and two planned ideal
+boundary ports. No FEM solve is represented. A 1280 × 800 window has a
+1264 × 549 plot canvas; the source board is unchanged. No private data,
+personal paths or redactions.
+
+The earlier template workspace capture is retained below for comparison.
 
 ![Viewport-first Quick EMerge workbench](help-viewport-first.png)
 
@@ -81,7 +96,7 @@ window, the viewport container increased from 790 × 564 to 1104 × 582 pixels
    stale results, probes and report state and requires another preview.
 3. Switch between **3D**, **2D**, **Charts**, **Results** and **Report**. The
    3D selector exposes solved field/radiation views only when those data exist.
-   Use **Inspector**, **View options** and **Focus** when needed.
+   Use **Details**, **View options** and **Focus view** when needed.
 4. Inspect original samples, export results, or generate a report. Mesh and
    solver work run outside the UI process; Cancel stops the worker and retains
    its diagnostic files. Reviewed 2D/3D geometry stays visible during a run.
@@ -151,11 +166,11 @@ samples, displayed as a point cloud or selected XY slice. It is not arbitrary
 continuous-volume interpolation. Radiation shows relative electric-field
 magnitude, not calibrated gain, efficiency or physical distance.
 
-Probe selects original samples with linked 2D/3D markers. The Inspector offers
+Probe selects original samples with linked 2D/3D markers. The Details inspector offers
 extrema, pinned samples and CSV export. Line cut selects two samples and
 records nearest-original-sample values against distance; it invents no new
 field measurements. Colors may use reduced display geometry while inspection
-retains original data. Focus expands/restores the workspace.
+retains original data. Focus view expands/restores the workspace.
 
 Charts offer magnitude, phase, group delay, impedance, diagnostics and a Smith
 chart for networks present in the result. **Network tools** can renormalize,

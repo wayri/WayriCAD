@@ -53,14 +53,20 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self._history=[];self._history_index=0;self._completions=[];self._completion_prefix=None;self._completion_index=0
         panel=wx.Panel(self);self.main_panel=panel;root=wx.BoxSizer(wx.VERTICAL)
         font=panel.GetFont();font.SetPointSize(9);panel.SetFont(font)
-        self._inputs_visible=True;self._inspector_visible=True
+        self._inputs_visible=False;self._inspector_visible=False
+        self._setup_width=self.FromDIP(280);self._inspector_width=self.FromDIP(280)
+        self._focus_restore=(True,False)
         header=wx.BoxSizer(wx.HORIZONTAL)
         title=wx.StaticText(panel,label='Quick PI');bold=title.GetFont();bold.SetWeight(wx.FONTWEIGHT_BOLD);title.SetFont(bold)
         header.Add(title,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
         filename=StatusText(panel,Path(self.board_path).name);filename.SetToolTip(self.board_path)
         header.Add(filename,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
-        self.setup_toggle=wx.ToggleButton(panel,label='Setup',style=wx.BU_EXACTFIT);self.setup_toggle.SetValue(True)
-        self.inspector_toggle=wx.ToggleButton(panel,label='Inspect',style=wx.BU_EXACTFIT);self.inspector_toggle.SetValue(True)
+        self.metric_summary=wx.StaticText(panel,style=wx.ST_ELLIPSIZE_END)
+        self.metric_summary.SetMinSize((1,-1));header.Add(self.metric_summary,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
+        self.setup_toggle=wx.ToggleButton(panel,label='Setup',style=wx.BU_EXACTFIT)
+        self.inspector_toggle=wx.ToggleButton(panel,label='Details',style=wx.BU_EXACTFIT)
+        self.focus_button=wx.ToggleButton(panel,label='Focus view',style=wx.BU_EXACTFIT)
+        self.focus_button.SetToolTip('Use the full board area; click again to restore your open panels and widths')
         self.setup_toggle.SetToolTip('Show or hide source, loads and simulation settings')
         self.inspector_toggle.SetToolTip('Show or hide layers, result colours and probes')
         self.fit_button=icon_button(panel,'Fit',wx.ART_GO_HOME,'Fit the whole board · double-click the board')
@@ -69,9 +75,14 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.image_button=icon_button(panel,'',wx.ART_FILE_SAVE,'Save the current board image')
         self.more=icon_button(panel,'More',wx.ART_LIST_VIEW,'Transient PI, electrothermal, series studies and diagnostics')
         self.help_button=icon_button(panel,'',wx.ART_HELP,'Quick PI help')
-        for control in (self.setup_toggle,self.inspector_toggle,self.fit_button,self.zoom_in,self.zoom_out,self.image_button,self.more,self.help_button):
-            header.Add(control,0,wx.ALIGN_CENTER_VERTICAL|wx.LEFT,4)
+        self.files_button=icon_button(panel,'Files',wx.ART_FOLDER_OPEN,'Save or load setup and simulation data, or export a report')
+        self.toolbar_run=icon_button(panel,'Run',wx.ART_GO_FORWARD,'Run the current net and load setup; open Setup to choose pads or loads')
+        for control in (self.files_button,self.help_button):header.Add(control,0,wx.ALIGN_CENTER_VERTICAL|wx.LEFT,4)
         root.Add(header,0,wx.EXPAND|wx.ALL,6)
+        toolbar=wx.WrapSizer(wx.HORIZONTAL,flags=wx.REMOVE_LEADING_SPACES)
+        for control in (self.setup_toggle,self.inspector_toggle,self.focus_button,self.fit_button,self.zoom_in,self.zoom_out,self.image_button,self.toolbar_run,self.more):
+            toolbar.Add(control,0,wx.RIGHT|wx.BOTTOM,4)
+        root.Add(toolbar,0,wx.EXPAND|wx.LEFT|wx.RIGHT,6)
         body=wx.BoxSizer(wx.HORIZONTAL)
         self.workspace_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         self.workspace_splitter.SetMinimumPaneSize(self.FromDIP(220))
@@ -184,7 +195,19 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             page=wx.Panel(self.book);layout=wx.BoxSizer(wx.VERTICAL)
             figure=Figure(figsize=(9,7),dpi=100,facecolor='#f3f5f6');canvas=FigureCanvasWxAgg(page,wx.ID_ANY,figure);canvas.SetMinSize((1,1))
             navigation=BoardNavigation(canvas)
-            if name=='Results':self._init_live_controls(page,layout,canvas)
+            if name=='Results':
+                self._init_live_controls(page,layout,canvas)
+                self.live_options=wx.CollapsiblePane(page,label='Current tuning · Ctrl+scroll on copper or a sink',
+                    style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
+                live_host=self.live_options.GetPane();live_layout=wx.BoxSizer(wx.VERTICAL)
+                live_row=layout.GetItem(0).GetSizer();layout.Detach(live_row);layout.Detach(self.live_note)
+                for item in live_row.GetChildren():
+                    if item.GetWindow():item.GetWindow().Reparent(live_host)
+                self.live_note.Reparent(live_host)
+                live_layout.Add(live_row,0,wx.EXPAND|wx.ALL,6);live_layout.Add(self.live_note,0,wx.EXPAND|wx.LEFT|wx.RIGHT,6)
+                live_host.SetSizer(live_layout);self.live_options.Collapse(True)
+                layout.Add(self.live_options,0,wx.EXPAND|wx.LEFT|wx.RIGHT,6)
+                self.live_options.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event,page=page:page.Layout())
             canvas.Bind(wx.EVT_LEFT_DOWN,lambda event,index=len(self.views):self._probe_down(event,index))
             canvas.Bind(wx.EVT_LEFT_UP,lambda event,index=len(self.views):self._probe_up(event,index))
             layout.Add(canvas,1,wx.EXPAND);page.SetSizer(layout)
@@ -193,8 +216,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         from .decoupling.pdn_decoupling_plugin import PdnFrame
         import pcbnew
         self.decoupling=PdnFrame(self.book,None,board_loader=lambda:pcbnew.LoadBoard(self.board_path));self.book.AddPage(self.decoupling,'Decoupling')
-        self._build_inspector();self.splitter.SplitVertically(self.book,self.inspector,790)
-        self.workspace_splitter.SplitVertically(self.setup_panel,self.splitter,self.FromDIP(260))
+        self._build_inspector();self.splitter.Initialize(self.book);self.inspector.Hide()
+        self.workspace_splitter.Initialize(self.splitter);self.setup_panel.Hide()
         body.Add(self.workspace_splitter,1,wx.EXPAND);root.Add(body,1,wx.EXPAND|wx.LEFT|wx.RIGHT,4)
         footer=wx.BoxSizer(wx.HORIZONTAL)
         self.status=StatusText(panel,'Reading the saved board…');footer.Add(self.status,1,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
@@ -213,6 +236,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.layer.Bind(wx.EVT_CHOICE,lambda event:self._draw());self.metric.Bind(wx.EVT_CHOICE,lambda event:self._draw(preserve=True))
         self.book.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED,self._page_changed)
         self.setup_toggle.Bind(wx.EVT_TOGGLEBUTTON,self._toggle_setup);self.inspector_toggle.Bind(wx.EVT_TOGGLEBUTTON,self._toggle_inspector)
+        self.focus_button.Bind(wx.EVT_TOGGLEBUTTON,self._toggle_focus)
+        self.toolbar_run.Bind(wx.EVT_BUTTON,self.on_run);self.files_button.Bind(wx.EVT_BUTTON,self._files_menu)
         self.fit_button.Bind(wx.EVT_BUTTON,lambda event:self._navigate('fit'))
         self.zoom_in.Bind(wx.EVT_BUTTON,lambda event:self._navigate('zoom',.8));self.zoom_out.Bind(wx.EVT_BUTTON,lambda event:self._navigate('zoom',1.25))
         self.image_button.Bind(wx.EVT_BUTTON,self._save_view_image)
@@ -223,7 +248,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.Bind(wx.EVT_CLOSE,self.on_close);self.Bind(wx.EVT_ACTIVATE,self._activated)
         self.timer=wx.Timer(self);self.Bind(wx.EVT_TIMER,lambda event:self.gauge.Pulse() if self._busy else None,self.timer);self.timer.Start(120)
         self._buttons();self._draw();self.Centre();self.Maximize(True)
-        wx.CallAfter(lambda:self.splitter.SetSashPosition(max(self.FromDIP(200),self.splitter.GetClientSize().width-self.FromDIP(260))))
+        wx.CallAfter(self._sync_workspace)
         wx.CallAfter(self._inspect)
         from wayricad_runtime.layout import install_accessibility
         install_accessibility(self,Path(__file__).with_name('help.html'))
@@ -235,16 +260,31 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def _sync_workspace(self):
         placement=self.book.GetSelection()>=len(self.views)
         show_setup=not placement and self._inputs_visible
+        outer_changed=False
         if show_setup and not self.workspace_splitter.IsSplit():
-            self.setup_panel.Show();self.workspace_splitter.SplitVertically(self.setup_panel,self.splitter,self.FromDIP(260))
-        elif not show_setup and self.workspace_splitter.IsSplit():self.workspace_splitter.Unsplit(self.setup_panel)
+            width=min(self._setup_width,max(self.FromDIP(220),int(self.main_panel.GetClientSize().width*.28)))
+            self.setup_panel.Show();self.workspace_splitter.SplitVertically(self.setup_panel,self.splitter,width)
+            outer_changed=True
+        elif not show_setup and self.workspace_splitter.IsSplit():
+            self._setup_width=self.workspace_splitter.GetSashPosition()
+            self.workspace_splitter.Unsplit(self.setup_panel)
+            outer_changed=True
+        # Update the nested splitter width before choosing its right-hand sash.
+        # Otherwise opening both drawers from focus uses the old full width and
+        # squeezes Details down to its minimum until another resize.
+        if outer_changed:self.main_panel.Layout()
         visible=not placement and self._inspector_visible
-        if not visible and self.splitter.IsSplit():self.splitter.Unsplit(self.inspector)
+        if not visible and self.splitter.IsSplit():
+            self._inspector_width=self.splitter.GetClientSize().width-self.splitter.GetSashPosition()-self.splitter.GetSashSize()
+            self.splitter.Unsplit(self.inspector)
         elif visible and not self.splitter.IsSplit():
-            self.inspector.Show();self.splitter.SplitVertically(self.book,self.inspector,max(self.FromDIP(200),self.splitter.GetClientSize().width-self.FromDIP(260)))
+            width=min(self._inspector_width,max(self.FromDIP(220),int(self.main_panel.GetClientSize().width*.28)))
+            self.inspector.Show();self.splitter.SplitVertically(self.book,self.inspector,max(self.FromDIP(200),self.splitter.GetClientSize().width-width-self.splitter.GetSashSize()))
         for toggle,value in ((self.setup_toggle,self._inputs_visible),(self.inspector_toggle,self._inspector_visible)):
             toggle.SetValue(not placement and value);toggle.Enable(not placement)
         for control in (self.fit_button,self.zoom_in,self.zoom_out,self.image_button):control.Enable(not placement)
+        self.focus_button.SetValue(not placement and not self._inputs_visible and not self._inspector_visible)
+        self.focus_button.Enable(not placement)
         self.main_panel.Layout()
 
     def _toggle_setup(self,event=None):
@@ -252,6 +292,30 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
 
     def _toggle_inspector(self,event=None):
         self._inspector_visible=self.inspector_toggle.GetValue();self._sync_workspace()
+
+    def _toggle_focus(self,event=None):
+        if self.focus_button.GetValue():
+            if self._inputs_visible or self._inspector_visible:self._focus_restore=(self._inputs_visible,self._inspector_visible)
+            self._inputs_visible=self._inspector_visible=False
+        else:self._inputs_visible,self._inspector_visible=self._focus_restore
+        self._sync_workspace()
+
+    def _files_menu(self,event=None):
+        """Keep data and report actions reachable while the setup drawer is shut."""
+        menu=wx.Menu()
+        actions=[('Save setup…',self.project_setup.on_save,not self._busy and bool(self.inventory)),
+                 ('Load setup…',self.project_setup.on_load,not self._busy and bool(self.inventory)),
+                 None,
+                 ('Save simulation…',self.project_results.on_save,not self._busy and bool(self.project_results.available())),
+                 ('Load simulation…',self.project_results.on_load,not self._busy),
+                 None,('Export report…',self.on_export,self.export.IsEnabled()),
+                 ('Export to Blender…',self.on_blender,self.blender.IsEnabled())]
+        for action in actions:
+            if action is None:menu.AppendSeparator();continue
+            label,handler,enabled=action;item=menu.Append(wx.ID_ANY,label);item.Enable(enabled)
+            menu.Bind(wx.EVT_MENU,handler,item)
+        try:self.PopupMenu(menu)
+        finally:menu.Destroy()
 
     def _navigate(self,action,factor=None):
         index=self.book.GetSelection()
@@ -455,6 +519,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.max_tetrahedra.Enable(not self._busy and volume)
         if self.book.GetSelection()>=len(self.views):
             for control in (self.net,self.source,self.sink,self.voltage,self.current,self.layer,self.metric,self.preview,self.run,self.export,self.power_flow):control.Disable()
+        self.toolbar_run.SetLabel(self.run.GetLabel());self.toolbar_run.Enable(self.run.IsEnabled())
 
     def _build_inspector(self):
         self.inspector=wx.ScrolledWindow(self.splitter)
@@ -499,7 +564,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.scale_controls=limits
         layout.Add(limits,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
         self.scale_unit=StatusText(self.inspector,label='Scale units follow the selected result')
-        self.color_legend=ColorLegend(self.inspector);layout.Add(self.color_legend,0,wx.EXPAND|wx.ALL,8)
+        from .workspace_layout import WorkspaceLegend
+        self.color_legend=WorkspaceLegend(self.inspector,self.metric_summary);layout.Add(self.color_legend,0,wx.EXPAND|wx.ALL,8)
         layout.Add(self.scale_unit,0,wx.EXPAND|wx.LEFT|wx.RIGHT,8)
         self.inspector_views=wx.Notebook(self.inspector)
         self.inspector_views.SetMinSize((1,220))

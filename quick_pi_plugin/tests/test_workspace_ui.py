@@ -14,6 +14,8 @@ except ImportError:
     wx=None
 
 _app=None
+_LOG=None
+_PREVIOUS_LOG=None
 
 
 def portrait_board(path):
@@ -51,8 +53,10 @@ def portrait_result():
 @unittest.skipIf(wx is None,'native KiCad wx runtime required')
 class WorkspaceTests(unittest.TestCase):
     def test_viewport_resize_panels_and_navigation_preserve_results(self):
-        global _app
+        global _app,_LOG,_PREVIOUS_LOG
         _app=wx.GetApp() or wx.App(False);app=_app
+        if _LOG is None:
+            _LOG=wx.LogStderr();_PREVIOUS_LOG=wx.Log.SetActiveTarget(_LOG)
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'demo-power-board.kicad_pcb';portrait_board(path)
             original=hashlib.sha256(path.read_bytes()).hexdigest()
@@ -65,30 +69,40 @@ class WorkspaceTests(unittest.TestCase):
                     data=portrait_result();data['geometry']['source_sha256']=original
                     from wayricad_runtime.board_render import extract_board
                     data['board_scene']=extract_board(pcbnew.LoadBoard(str(path)),['5V_DEMO'])
+                    frame.show_silkscreen.SetValue(True)
                     frame._accept_result(data,data['request'],'solve');frame.Show();frame.Maximize(False)
                     self.assertIsNotNone(frame.color_legend.scale)
                     self.assertIn('mV',frame.color_legend.scale['unit'])
+                    self.assertIn('Voltage drop',frame.metric_summary.GetLabel());self.assertIn('mV',frame.metric_summary.GetLabel())
                     contours=[item for item in frame.views[2][0].axes[0].patches if str(item.get_gid()).startswith('board-context:footprint:')]
                     self.assertGreaterEqual(len(contours),32)
                     def settle():
                         app.Yield();frame.main_panel.Layout();app.Yield();frame.views[2][1].draw()
-                    for size in ((1320,860),(1000,680),(960,600)):
+                    for size in ((1280,800),(1000,680),(960,600)):
                         frame.SetSize(size);settle()
                         canvas=frame.views[2][1];height=frame.main_panel.GetClientSize().height
-                        self.assertGreater(canvas.GetClientSize().height,.78*height)
-                        self.assertGreater(canvas.GetClientSize().width,.42*frame.main_panel.GetClientSize().width)
-                        self.assertAlmostEqual(frame.setup_panel.GetSize().width,frame.FromDIP(260),delta=2)
-                        self.assertTrue(frame.run.IsShownOnScreen())
+                        self.assertGreater(canvas.GetClientSize().height,.70*height)
+                        self.assertGreater(canvas.GetClientSize().width,.95*frame.main_panel.GetClientSize().width)
+                        self.assertFalse(frame.workspace_splitter.IsSplit());self.assertFalse(frame.splitter.IsSplit())
+                        self.assertFalse(frame.setup_toggle.GetValue());self.assertFalse(frame.inspector_toggle.GetValue());self.assertTrue(frame.focus_button.GetValue())
+                        self.assertTrue(frame.toolbar_run.IsShownOnScreen());self.assertTrue(frame.files_button.IsShownOnScreen())
                         axes=frame.views[2][0].axes[0];self.assertFalse(axes.axison)
                         self.assertGreater(axes.get_position().width,.97);self.assertGreater(axes.get_position().height,.97)
+                    frame.SetSize((1280,800));settle()
+                    frame.setup_toggle.SetValue(True);frame._toggle_setup();frame.inspector_toggle.SetValue(True);frame._toggle_inspector();settle()
+                    frame.workspace_splitter.SetSashPosition(frame.FromDIP(290));frame.splitter.SetSashPosition(frame.splitter.GetClientSize().width-frame.FromDIP(270));settle()
+                    setup_width=frame.workspace_splitter.GetSashPosition();details_width=frame.splitter.GetClientSize().width-frame.splitter.GetSashPosition()-frame.splitter.GetSashSize()
                     before=canvas.GetSize().width
-                    frame.setup_toggle.SetValue(False);frame._toggle_setup();frame.inspector_toggle.SetValue(False);frame._toggle_inspector();settle()
+                    frame.focus_button.SetValue(True);frame._toggle_focus();settle()
                     self.assertFalse(frame.splitter.IsSplit());self.assertGreater(canvas.GetSize().width,before+frame.FromDIP(400))
                     self.assertGreater(canvas.GetSize().width,.95*frame.main_panel.GetClientSize().width)
-                    frame.setup_toggle.SetValue(True);frame._toggle_setup();frame.inspector_toggle.SetValue(True);frame._toggle_inspector();settle()
+                    frame.focus_button.SetValue(False);frame._toggle_focus();settle()
                     self.assertTrue(frame.splitter.IsSplit())
+                    self.assertTrue(frame.setup_toggle.GetValue());self.assertTrue(frame.inspector_toggle.GetValue());self.assertFalse(frame.focus_button.GetValue())
+                    self.assertAlmostEqual(frame.workspace_splitter.GetSashPosition(),setup_width,delta=2)
+                    self.assertAlmostEqual(frame.splitter.GetClientSize().width-frame.splitter.GetSashPosition()-frame.splitter.GetSashSize(),details_width,delta=2)
                     frame.options.Collapse(False);frame.console.Collapse(False);frame._layout_inputs();settle()
-                    self.assertGreater(canvas.GetClientSize().height,.78*frame.main_panel.GetClientSize().height)
+                    self.assertGreater(canvas.GetClientSize().height,.70*frame.main_panel.GetClientSize().height)
                     self.assertGreater(frame.inputs.GetVirtualSize().height,frame.inputs.GetClientSize().height)
                     frame.options.Collapse(True);frame.console.Collapse(True);frame._layout_inputs()
                     axes=frame.views[2][0].axes[0];frame._navigate('fit');canvas.draw();home=axes.get_xlim()
@@ -100,7 +114,8 @@ class WorkspaceTests(unittest.TestCase):
                     self.assertIs(frame.bundle['result'],data['result']);self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),original)
                     capture=os.environ.get('WAYRICAD_PI_WORKSPACE_CAPTURE')
                     if capture:
-                        frame.SetSize((1320,860));frame.field_style.SetSelection(0);frame._draw();frame._navigate('fit');settle();frame.Raise()
+                        frame.focus_button.SetValue(True);frame._toggle_focus()
+                        frame.SetSize((1280,800));frame.field_style.SetSelection(0);frame._draw();frame._navigate('fit');settle();frame.Raise()
                         frame.Refresh();frame.Update();canvas.draw();app.Yield()
                         width,height=frame.main_panel.GetClientSize();bitmap=wx.Bitmap(width,height,24);dc=wx.MemoryDC(bitmap)
                         self.assertTrue(dc.Blit(0,0,width,height,wx.ClientDC(frame.main_panel),0,0));dc.SelectObject(wx.NullBitmap)

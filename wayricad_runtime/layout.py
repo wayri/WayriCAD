@@ -198,9 +198,10 @@ def install_accessibility(frame, help_path=None):
                 open_help(frame, path); return
             event.Skip()
         frame.Bind(wx.EVT_CHAR_HOOK, help_key)
-    if getattr(frame, '_wayricad_accessibility', False):
+    if getattr(frame, '_wayricad_accessibility_pending', False):
         return
     frame._wayricad_accessibility = True
+    frame._wayricad_accessibility_pending = True
     def configure():
         try:
             if not frame or frame.IsBeingDeleted(): return
@@ -209,8 +210,9 @@ def install_accessibility(frame, help_path=None):
         from wx import grid
         from wx import dataview as dv
         from .visual_feedback import decorate_button
+        frame._wayricad_accessibility_pending = False
         def walk(window):
-            if isinstance(window, wx.Button):
+            if isinstance(window, (wx.Button, wx.ToggleButton)):
                 decorate_button(window)
             if isinstance(window, (wx.ListCtrl, grid.Grid)):
                 _attach_table(window)
@@ -218,10 +220,16 @@ def install_accessibility(frame, help_path=None):
                 model = window.GetModel()
                 if hasattr(model, 'GetCount') and hasattr(model, 'GetValueByRow'):
                     _attach_table(window)
-            if isinstance(window, wx.CollapsiblePane):
+            if isinstance(window, wx.CollapsiblePane) and not getattr(window, '_wayricad_relayout', False):
+                window._wayricad_relayout = True
                 def changed(event):
                     relayout(event.GetEventObject()); event.Skip()
                 window.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, changed)
             for child in window.GetChildren(): walk(child)
+            # A late icon can change a control's minimum without resizing its
+            # parent. Reflow nested toolbars, not only the top-level frame.
+            if window.GetSizer() is not None:
+                window.Layout()
+                if isinstance(window,wx.ScrolledWindow):window.FitInside()
         walk(frame); relayout(frame); fit_to_display(frame)
     wx.CallAfter(configure)

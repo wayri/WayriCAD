@@ -8,7 +8,7 @@ GitHub/GitLab issue/PR/MR conversation; **Discussions** uses real GitHub
 Discussions and native threaded replies. GitHub and GitLab own published comments and anchors. Local files hold
 private settings, pending drafts and an optional cache.
 
-Review **0.1.0** is a **testing** package included in WayriCAD 3.6.45.
+Review **4.0.0** is a **testing** package included in WayriCAD 4.0.0.
 
 ![Native review pane with illustrative comments, no provider connected](help-workflow.png)
 

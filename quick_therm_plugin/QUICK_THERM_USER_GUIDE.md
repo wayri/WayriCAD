@@ -3,8 +3,25 @@
 QuickTherm reads a saved KiCad PCB and performs component, board and scheduled
 transient thermal screening. It is independently installable and does not require
 Quick PI. Thermal inputs entered in its workspace do not change the PCB.
-This guide describes the current 3.6.41 workflow. Screenshots retain their capture
+This guide describes the 4.0.0 workspace and implemented thermal models. Screenshots retain their capture
 versions and stated assumptions; older images are not new validation runs.
+
+## Workspace controls
+
+The board view is the main workspace. Opening or closing panels retains inputs and results.
+
+| Control | Workflow |
+|---|---|
+| **Components** | Open the full-size component input table |
+| **Setup** | Field mappings, thermal model, materials, cooling and transient inputs |
+| **Details** | Results, component temperatures, probes and inspection |
+| **Focus view** | Hide sidebars temporarily; restore their previous sizes and visibility |
+| **Files** | Save/load setup or computed data; export reports, dissipation flow and Blender data |
+| **Top / Bottom / 3D** | Inspect the saved board and computed temperatures; playback appears when transient frames exist |
+
+![Board-first workspace](help-viewport-first.png)
+
+QuickTherm board-first workspace using the public saved thermal example. [Capture and layout evidence](VIEWPORT_LAYOUT.md).
 
 ## Contents
 

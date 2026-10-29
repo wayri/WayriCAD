@@ -1,7 +1,8 @@
 # Review companion validation — 29 October 2026
 
-This is a 0.1.0 development candidate. It has not been published or added to
-the public PCM feed. The existing 3.6.42 release assets and tags are unchanged.
+Review is a testing package in WayriCAD 4.0.0. The checks below record the
+review companion's tested scope; platform and provider limitations remain
+explicit. Previously published release assets and tags are unchanged.
 
 ## Checks performed
 

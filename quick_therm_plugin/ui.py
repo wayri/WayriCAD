@@ -55,6 +55,8 @@ class QuickThermFrame(wx.Frame):
         self.therm_probe_definitions = []
         self.therm_probe_mode = False
         self._thermal_default_view = True
+        self._thermal_sidebar_widths={'setup':self.FromDIP(340),'details':self.FromDIP(340)}
+        self._thermal_focus_snapshot=None
         self._busy = False
         self._closed = False
         self._cancel = threading.Event()
@@ -77,6 +79,16 @@ class QuickThermFrame(wx.Frame):
         filename = wx.StaticText(self.main_panel, label=Path(self.board_path).name)
         filename.SetToolTip(self.board_path)
         title.Add(filename, 0, wx.ALIGN_CENTER_VERTICAL)
+        for label,handler,tip,art in (
+                ('Components',self.on_manual_setup,'Review included parts, power and temperature limits',wx.ART_LIST_VIEW),
+                ('Run',self.on_quick_therm,'Run the current thermal setup; missing inputs are explained before solving',wx.ART_GO_FORWARD),
+                ('Files',self._thermal_files,'Save or load setup and complete simulation data',wx.ART_FILE_SAVE)):
+            button=wx.Button(self.main_panel,label=label,style=wx.BU_EXACTFIT)
+            button.SetBitmap(wx.ArtProvider.GetBitmap(art,wx.ART_BUTTON,self.FromDIP((16,16))))
+            button.SetToolTip(tip);button.Bind(wx.EVT_BUTTON,handler)
+            title.Add(button,0,wx.ALIGN_CENTER_VERTICAL|wx.LEFT,5)
+            if label=='Run':self.therm_run_header=button
+            elif label=='Files':self.therm_files_button=button
         root.Add(title, 0, wx.EXPAND | wx.ALL, 6)
         self.book = wx.Notebook(self.main_panel)
         self._build_thermal_page()
@@ -94,11 +106,13 @@ class QuickThermFrame(wx.Frame):
         self.cancel.Bind(wx.EVT_BUTTON, self.on_cancel)
         footer.Add(self.cancel, 0, wx.RIGHT, 8)
         from wayricad_runtime.project_results_ui import add_project_results
-        self.project_results=add_project_results(self,self.main_panel,root,'quick-therm',self.board_path,
+        self._thermal_file_panel=wx.Panel(self.main_panel);file_actions=wx.BoxSizer(wx.VERTICAL)
+        self.project_results=add_project_results(self,self._thermal_file_panel,file_actions,'quick-therm',self.board_path,
             lambda:[('Thermal simulation',self.thermal_bundle if self.thermal_bundle.get('quick_therm') else None)],
             status=lambda text:self.status.SetLabel(text),module_file=__file__)
         from .setup_file import bind as bind_setup
-        self.project_setup=bind_setup(self,self.main_panel,root)
+        self.project_setup=bind_setup(self,self._thermal_file_panel,file_actions)
+        self._thermal_file_panel.SetSizer(file_actions);self._thermal_file_panel.Hide()
         footer.AddStretchSpacer()
         self.close_button = wx.Button(self.main_panel, wx.ID_CLOSE, label="Close")
         self.close_button.Bind(wx.EVT_BUTTON, lambda event: self.Close())
@@ -106,7 +120,9 @@ class QuickThermFrame(wx.Frame):
         root.Add(footer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         self.main_panel.SetSizer(root)
         self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.Bind(wx.EVT_SIZE,self._thermal_workspace_resized)
         self._buttons()
+        self._show_thermal_start()
         self.Centre()
         self.Maximize(True)
         wx.CallAfter(self._inspect)
@@ -115,15 +131,78 @@ class QuickThermFrame(wx.Frame):
 
     def _toggle_thermal_pane(self, splitter, first, second, visible, position, hide_second=False):
         """Keep the board expanded when either sidebar is hidden."""
+        role='details' if hide_second else 'setup'
+        if visible and not getattr(self,'_thermal_restoring_focus',False):
+            self.therm_focus.SetValue(False);self._thermal_focus_snapshot=None
+        if visible and self.therm_setup_splitter.GetClientSize().width<self.FromDIP(1200):
+            if hide_second and self.therm_setup_splitter.IsSplit():
+                self._toggle_thermal_pane(self.therm_setup_splitter,self._therm_input_page,self.therm_result_splitter,False,340)
+            elif not hide_second and self.therm_result_splitter.IsSplit():
+                self._toggle_thermal_pane(self.therm_result_splitter,self.therm_visual_host,self.therm_inspector,False,-340,True)
         if visible and not splitter.IsSplit():
-            first.Show();second.Show();splitter.SplitVertically(first,second,position)
+            available=splitter.GetClientSize().width
+            minimum=self.FromDIP(240 if hide_second else 300)
+            width=min(max(minimum,self._thermal_sidebar_widths[role]),max(minimum,available-self.FromDIP(420)))
+            first.Show();second.Show();splitter.SplitVertically(first,second,-width if hide_second else width)
         elif not visible and splitter.IsSplit():
+            self._thermal_sidebar_widths[role]=(second if hide_second else first).GetSize().width
             splitter.Unsplit(second if hide_second else first)
+        (self.therm_details_toggle if hide_second else self.therm_setup_toggle).SetValue(visible)
         self.therm_board_page.Layout()
+
+    def _thermal_focus(self,event=None):
+        if self.therm_focus.GetValue():
+            self._thermal_focus_snapshot=(self.therm_setup_splitter.IsSplit(),self.therm_result_splitter.IsSplit())
+            self._toggle_thermal_pane(self.therm_setup_splitter,self._therm_input_page,self.therm_result_splitter,False,340)
+            self._toggle_thermal_pane(self.therm_result_splitter,self.therm_visual_host,self.therm_inspector,False,-340,True)
+        else:
+            setup,details=self._thermal_focus_snapshot or (False,False)
+            self._thermal_restoring_focus=True
+            try:
+                self._toggle_thermal_pane(self.therm_setup_splitter,self._therm_input_page,self.therm_result_splitter,setup,340)
+                self._toggle_thermal_pane(self.therm_result_splitter,self.therm_visual_host,self.therm_inspector,details,-340,True)
+            finally:self._thermal_restoring_focus=False
+
+    def _thermal_workspace_resized(self,event):
+        event.Skip()
+        if getattr(self,'_thermal_resize_pending',False):return
+        self._thermal_resize_pending=True
+        def adjust():
+            self._thermal_resize_pending=False
+            if self._closed:return
+            if self.therm_setup_splitter.IsSplit() and self.therm_result_splitter.IsSplit() and self.therm_setup_splitter.GetClientSize().width<self.FromDIP(1200):
+                self._toggle_thermal_pane(self.therm_result_splitter,self.therm_visual_host,self.therm_inspector,False,-340,True)
+        wx.CallAfter(adjust)
+
+    def _thermal_files(self,event=None):
+        menu=wx.Menu()
+        available=not self._busy
+        actions=[('Save setup…',self.project_setup.on_save,available),
+                 ('Load setup…',self.project_setup.on_load,available),
+                 ('Save simulation…',self.project_results.on_save,available and bool(self.project_results.available())),
+                 ('Load simulation…',self.project_results.on_load,available),None,
+                 ('Export report…',lambda event:self.on_export_diagnostic('quick_therm'),self.therm_export.IsEnabled()),
+                 ('Dissipation Sankey…',self.on_thermal_sankey,available and bool(self.thermal_bundle.get('quick_therm'))),
+                 ('Export to Blender…',self.on_blender,self.therm_blender.IsEnabled())]
+        for action in actions:
+            if action is None:menu.AppendSeparator();continue
+            label,handler,enabled=action
+            item=menu.Append(wx.ID_ANY,label);item.Enable(enabled);menu.Bind(wx.EVT_MENU,handler,item)
+        try:self.PopupMenu(menu)
+        finally:menu.Destroy()
+
+    def _show_thermal_start(self):
+        if self.thermal_bundle:return
+        self.therm_figure.clear();axes=self.therm_figure.add_subplot(111);axes.set_axis_off()
+        axes.text(.5,.62,'Thermal board view',ha='center',va='center',fontsize=19,color='#173047',transform=axes.transAxes)
+        axes.text(.5,.43,'1  Components: choose parts and enter power\n2  Setup: review cooling, materials and time settings\n3  Run: inspect the board, temperatures and probes\n\nFiles saves or recalls setups and completed simulations.',
+                  ha='center',va='center',fontsize=11,color='#526672',linespacing=1.8,transform=axes.transAxes)
+        self.therm_canvas.draw_idle()
 
     def _buttons(self):
         self.reload.Enable(not self._busy)
         self.therm_run.Enable(not self._busy)
+        self.therm_run_header.Enable(not self._busy)
         self.therm_whole_board.Enable(not self._busy)
         self.therm_manual_button.Enable(not self._busy)
         if hasattr(self, 'therm_inputs'):
@@ -252,6 +331,7 @@ class QuickThermFrame(wx.Frame):
                     f"{len(refs)} components. Review saved field mappings or enter manual values; "
                     "select the dissipating parts, then run."
                 )
+                self._show_thermal_start()
             finally:
                 self.main_panel.Thaw()
 
@@ -572,18 +652,22 @@ class QuickThermFrame(wx.Frame):
         compact(page);page.Layout();page.FitInside()
 
 
-        visual_host=wx.Panel(self.therm_result_splitter)
-        visual=wx.BoxSizer(wx.VERTICAL);switch=wx.WrapSizer(wx.HORIZONTAL)
-        settings=wx.ToggleButton(visual_host,label='☰  Setup');settings.SetValue(True)
+        visual_host=wx.Panel(self.therm_result_splitter);self.therm_visual_host=visual_host
+        visual=wx.BoxSizer(wx.VERTICAL);switch=wx.WrapSizer(wx.HORIZONTAL,flags=wx.REMOVE_LEADING_SPACES)
+        settings=wx.ToggleButton(visual_host,label='Setup');settings.SetValue(False);self.therm_setup_toggle=settings
+        settings.SetToolTip('Show simulation inputs beside the board; drag the divider to resize')
         settings.Bind(wx.EVT_TOGGLEBUTTON,lambda e:self._toggle_thermal_pane(self.therm_setup_splitter,page,self.therm_result_splitter,settings.GetValue(),self.FromDIP(340)))
         switch.Add(settings,0,wx.RIGHT,5)
+        self.therm_focus=wx.ToggleButton(visual_host,label='Focus view')
+        self.therm_focus.SetToolTip('Temporarily hide Setup and Details; click again to restore the previous panels')
+        self.therm_focus.Bind(wx.EVT_TOGGLEBUTTON,self._thermal_focus);switch.Add(self.therm_focus,0,wx.RIGHT,5)
         for label,mode in [('Top','Top-side map'),('Bottom','Bottom-side map'),('3D','3D overview')]:
-            button=wx.Button(visual_host,label=label,size=(55,-1))
+            button=wx.Button(visual_host,label=label,style=wx.BU_EXACTFIT)
+            button.SetMinSize(self.FromDIP((44,-1)))
+            button.SetToolTip('Show '+mode.lower())
             button.Bind(wx.EVT_BUTTON,lambda e,mode=mode:self._set_thermal_view(mode))
             switch.Add(button,0,wx.RIGHT,4)
             if mode=='3D overview':self.therm_3d_button=button
-        fit=wx.Button(visual_host,label='Fit',size=(45,-1));fit.Bind(wx.EVT_BUTTON,self._fit_thermal_view)
-        switch.Add(fit,0,wx.RIGHT,5)
         self.therm_step_models=wx.CheckBox(visual_host,label='STEP models')
         self.therm_step_models.SetValue(True)
         self.therm_step_models.SetToolTip('Load actual saved STEP models with KiCad and FreeCAD when running. Missing models remain footprint outlines.')
@@ -598,9 +682,11 @@ class QuickThermFrame(wx.Frame):
         switch.Add(self.therm_probe_button,0,wx.RIGHT,5)
         self.therm_expand=wx.Button(visual_host,label='Top + bottom');self.therm_expand.Bind(wx.EVT_BUTTON,self.on_expand_thermal)
         switch.Add(self.therm_expand,0,wx.RIGHT,5)
-        inspect=wx.ToggleButton(visual_host,label='Details');inspect.SetValue(True);switch.Add(inspect,0)
+        inspect=wx.ToggleButton(visual_host,label='Details');inspect.SetValue(False);self.therm_details_toggle=inspect
+        inspect.SetToolTip('Show component temperatures, probes and 3D inspection controls')
+        switch.Add(inspect,0)
         visual.Add(switch,0,wx.EXPAND|wx.BOTTOM,5)
-        timeline=wx.BoxSizer(wx.HORIZONTAL)
+        timeline=wx.BoxSizer(wx.HORIZONTAL);self.therm_timeline=timeline
         self.therm_play=wx.Button(visual_host,label='▶ Play',size=(70,-1))
         self.therm_play.Bind(wx.EVT_BUTTON,self._toggle_thermal_playback);timeline.Add(self.therm_play,0,wx.RIGHT,5)
         self.therm_previous=wx.Button(visual_host,label='◀',size=(32,-1))
@@ -615,6 +701,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_play_speed=ReadableChoice(visual_host,choices=['0.25×','1×','5×','20×']);self.therm_play_speed.SetSelection(1)
         self.therm_play_speed.Bind(wx.EVT_CHOICE,self._thermal_speed_changed);timeline.Add(self.therm_play_speed,0)
         visual.Add(timeline,0,wx.EXPAND|wx.BOTTOM,3)
+        visual.Show(timeline,False)
         self.therm_figure=Figure(figsize=(8,6),dpi=100);self.therm_canvas=FigureCanvasWxAgg(visual_host,wx.ID_ANY,self.therm_figure)
         self.therm_canvas.SetMinSize((250,250))
         self.therm_canvas.mpl_connect('button_press_event',self._thermal_plot_pressed)
@@ -663,6 +750,7 @@ class QuickThermFrame(wx.Frame):
         probe_layout.Add(self.therm_probe_table,1,wx.EXPAND);probes.SetSizer(probe_layout);inspector.AddPage(probes,'Probes')
         self.therm_result_splitter.SplitVertically(visual_host,inspector,-self.FromDIP(340))
         self.therm_setup_splitter.SplitVertically(page,self.therm_result_splitter,self.FromDIP(340))
+        self.therm_result_splitter.Unsplit(inspector);self.therm_setup_splitter.Unsplit(page)
         workspace.Add(self.therm_setup_splitter,1,wx.EXPAND)
         board_page.SetSizer(workspace);self.book.AddPage(board_page,'Board + results')
 
@@ -675,7 +763,7 @@ class QuickThermFrame(wx.Frame):
         run_button=wx.Button(inputs_page,label='▶  Run thermal');run_button.Bind(wx.EVT_BUTTON,self.on_quick_therm)
         input_actions.Add(mapping_button,0,wx.RIGHT,6);input_actions.AddStretchSpacer();input_actions.Add(run_button,0)
         inputs_layout.Add(input_actions,0,wx.EXPAND|wx.ALL,8);inputs_page.SetSizer(inputs_layout)
-        self.book.AddPage(inputs_page,'Component inputs',select=True)
+        self.book.AddPage(inputs_page,'Component inputs')
         self._thermal_rows=[];self._thermal_selected=None;self._thermal_sort=(1,True)
         self.therm_mode.Bind(wx.EVT_CHOICE,self._thermal_mode_changed)
         self.therm_azim.Bind(wx.EVT_SPINCTRL,lambda e:self._draw_thermal())
@@ -997,7 +1085,8 @@ class QuickThermFrame(wx.Frame):
 
     def _show_field_mapping(self,event=None):
         self.book.SetSelection(0)
-        self._therm_input_page.Show();self.therm_fields_pane.Collapse(False)
+        self._toggle_thermal_pane(self.therm_setup_splitter,self._therm_input_page,self.therm_result_splitter,True,340)
+        self.therm_fields_pane.Collapse(False)
         self._therm_input_page.Layout();self._therm_input_page.FitInside();self.therm_board_page.Layout()
 
     def _set_thermal_view(self,mode):
@@ -1024,7 +1113,8 @@ class QuickThermFrame(wx.Frame):
     def on_whole_board_setup(self,event=None):
         """Expose the existing physical study inputs without extrapolating junctions."""
         if self._busy:return
-        self.book.SetSelection(0);self._therm_input_page.Show();self.therm_board_page.Layout()
+        self.book.SetSelection(0)
+        self._toggle_thermal_pane(self.therm_setup_splitter,self._therm_input_page,self.therm_result_splitter,True,340)
         changed=not self.therm_model_enabled.GetValue()
         self.therm_model_enabled.SetValue(True)
         self.therm_model.Collapse(False)
@@ -1374,6 +1464,9 @@ class QuickThermFrame(wx.Frame):
     def _update_thermal_timeline(self):
         if not hasattr(self,'therm_play'):return
         frames=self._thermal_frames();enabled=bool(frames) and not self._busy
+        visible=bool(frames)
+        layout=self.therm_visual_host.GetSizer()
+        layout.Show(self.therm_timeline,visible);self.therm_result_time.Show(visible)
         for ctrl in (self.therm_play,self.therm_previous,self.therm_next,self.therm_time_slider,self.therm_play_speed):ctrl.Enable(enabled)
         self.therm_result_time.Enable(bool(self.thermal_bundle) and not self._busy)
         self.therm_time_slider.SetRange(0,max(1,len(frames)-1))
@@ -1382,6 +1475,7 @@ class QuickThermFrame(wx.Frame):
             self.therm_time_slider.SetValue(max(0,index))
             self.therm_time_label.SetLabel(('Steady state' if index<0 else f"{frames[index]['time_s']:.3g} s")+f" / {frames[-1]['time_s']:.3g} s")
         else:self.therm_time_label.SetLabel('Run a transient study')
+        self.therm_visual_host.Layout()
 
     def _stop_thermal_playback(self):
         self._thermal_timer.Stop();self._thermal_playing=False

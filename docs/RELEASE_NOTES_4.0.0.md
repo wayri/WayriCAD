@@ -1,7 +1,13 @@
-# WayriCAD 3.6.46
+# WayriCAD 4.0.0
 
-Quick EMerge opens around its viewport, fanout has new perimeter patterns, and
-Quick PI adds reviewed setup workflows.
+The quick tools put the board or selected rule area at the centre of the
+workspace, with compact setup and result panels. This release combines the
+save/load and editor-binding fixes with the new analysis and fanout workflows.
+
+- **Quick-tool workspaces:** Quick PI, Quick SI, QuickTherm and Quick EMerge
+  prioritize the viewport, with accessible panel toggles and resizable controls.
+  Shared native actions retain text labels, meaningful icons and tooltips,
+  including controls added after a panel opens.
 
 - **Quick EMerge (beta):** full-width viewport by default, toggleable Setup,
   compact Preview/Run/Cancel actions, optional inspector and preserved panel
@@ -43,6 +49,10 @@ Quick PI adds reviewed setup workflows.
   operations. A token mismatch explains recovery instead of switching boards.
   The Windows shared-endpoint collision still requires launching editors in
   separate temporary namespaces; see [troubleshooting](TROUBLESHOOTING.md#windows-two-open-editors-and-an-unreachable-second-instance).
+- **SI/RLC startup and shutdown:** the native launcher reads the saved PCB
+  before starting wx and reuses that board. This fixes the reproduced Windows
+  KiCad 10.0.6 shutdown hang without parsing the board twice. Changed files are
+  rejected before the analysis window is shown.
 
 Quick EMerge remains an exploratory testing beta. Numerical convergence and
 paper-reference qualification are pending. Fanout creates escape endpoints,

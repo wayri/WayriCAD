@@ -1,8 +1,38 @@
-# WayriCAD 3.6.46 validation scope
+# WayriCAD 4.0.0 validation scope
 
-Development checks recorded on Windows, October 29, 2026. Source, independent
+Development checks recorded on Windows, October 29–30, 2026. Source, independent
 packages, native windows, saved-board numerics and live editor transactions
 are separate evidence classes.
+
+## Board-first workspaces
+
+Native Windows checks use 1280 × 800 windows; canvas sizes are widget pixels,
+not a stretched diagram. The PI and thermal comparisons use the same fixture
+and tab in the previous source and final layouts.
+
+| Tool | Previous canvas | Final canvas |
+|---|---:|---:|
+| Quick PI | 724 × 661 | 1248 × 633 |
+| QuickTherm | 560 × 447 | 1244 × 560 |
+| Quick SI, full production frame | — | 1212 × 516 |
+| Quick EMerge | — | 1264 × 549 |
+
+- Minimum-size PI and thermal canvases measure 928 × 433 and 904 × 440.
+  Drawer toggles retain inputs, results and dragged widths; Focus restores
+  them. Existing big screenshots remain alongside new native captures.
+- SI header assertions measure real text and bitmap extents at 980 pixels
+  wide. Late-icon sizing and nested-toolbar reflow prevent clipped labels.
+  Shared icon/layout/lifecycle checks pass 21 tests in both development wx
+  and the native KiCad Python environment.
+- EMerge's planar rule-area preview preserves physical aspect ratio while
+  reducing excess margins. The fixture ROI grows from about 502 × 251 to
+  779 × 389 pixels. It is a copper/port preview, not a FEM field solution.
+- Independent native review reproduced a shutdown hang when first native
+  board I/O followed wx application creation. The corrected actual SI/RLC
+  launcher completes its normal main loop and exits 0 in a fresh process.
+  Nine SI workspace/setup assertions pass and the process exits 0 after
+  correcting the test fixture's initialization order. No assertions were
+  suppressed and no forced process exit was used.
 
 ## Native and numerical checks
 

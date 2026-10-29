@@ -60,7 +60,7 @@ class QuickEMergeFrame(wx.Frame):
         self.line_start = None
         self.display_options = {}
         self.CreateStatusBar()
-        self.SetStatusText('Review template geometry, then run. Saved PCB supplies context only.')
+        self.SetStatusText('1 Setup → 2 Preview geometry and ports → 3 Run → inspect views and Details. Saved PCB supplies context only.')
         from .workbench_layout import build
         build(self, board)
         self.solver.Unbind(wx.EVT_CHOICE)
@@ -142,7 +142,11 @@ class QuickEMergeFrame(wx.Frame):
         if hasattr(self,'network_tools_button'):
             self.network_tools_button.Show(group=='Charts');self.network_export_button.Show(group=='Charts')
         for name, control in self.navigation.items():
-            control.SetValue(name == group)
+            active=name == group
+            control.SetValue(active)
+            control.SetBackgroundColour('#dcecf4' if active else '#f7f8fa')
+            font=control.GetFont();font.SetWeight(wx.FONTWEIGHT_BOLD if active else wx.FONTWEIGHT_NORMAL)
+            control.SetFont(font);control.Refresh()
         if group in ('Results', 'Report'):
             self.workspace_stack.SetSelection(1 if group == 'Results' else 2)
             return
@@ -185,11 +189,19 @@ class QuickEMergeFrame(wx.Frame):
         if show and not current:
             self.details.Show()
             height=self.visual_splitter.GetClientSize().height
-            self.visual_splitter.SplitHorizontally(self.tabs, self.details, max(self.FromDIP(300), height-min(self.FromDIP(200),round(height*.3))))
+            wanted=getattr(self,'inspector_height',min(self.FromDIP(200),round(height*.3)))
+            self.visual_splitter.SplitHorizontally(self.tabs, self.details, max(self.FromDIP(300), height-wanted))
             self.visual_splitter.SetSashGravity(1.)
         elif not show and current:
+            self.inspector_height=self.visual_splitter.GetClientSize().height-self.visual_splitter.GetSashPosition()
             self.visual_splitter.Unsplit(self.details)
+        if hasattr(self,'details_button'):self.details_button.SetValue(show)
         self.workspace.Layout()
+
+    def fit_view(self,event=None):
+        if self.workspace_stack.GetSelection()!=0:
+            self.SetStatusText('Choose a 3D, 2D or chart view to fit its original data extent.');return
+        self.viewports[self.tabs.GetPageText(self.tabs.GetSelection())].fit()
 
     def show_view_options(self, event=None):
         self.view_options.Show(); self.view_options.Raise()
@@ -462,7 +474,7 @@ class QuickEMergeFrame(wx.Frame):
             self.saved_sashes = (self.workspace_splitter.GetSashPosition(), self.visual_splitter.GetSashPosition(), self.visual_splitter.IsSplit(),self.workspace_splitter.IsSplit())
             if self.workspace_splitter.IsSplit():self.workspace_splitter.Unsplit(self.settings)
             self.setup_button.SetValue(False)
-            if self.visual_splitter.IsSplit(): self.visual_splitter.Unsplit(self.details)
+            if self.visual_splitter.IsSplit(): self.toggle_inspector(show=False)
             self.focus_button.SetLabel('Restore panels')
         else:
             if self.saved_sashes[3]:
@@ -470,7 +482,9 @@ class QuickEMergeFrame(wx.Frame):
                 self.workspace_splitter.SplitVertically(self.settings, self.workspace, self.saved_sashes[0])
             self.setup_button.SetValue(self.saved_sashes[3])
             if self.saved_sashes[2]: self.toggle_inspector(show=True)
-            self.focus_button.SetLabel('Focus')
+            self.focus_button.SetLabel('Focus view')
+        from wayricad_runtime.visual_feedback import decorate_button
+        decorate_button(self.focus_button,role='focus')
         self.Layout()
         wx.CallAfter(self.viewports[self.tabs.GetPageText(self.tabs.GetSelection())].refresh_canvas)
 
@@ -824,6 +838,7 @@ class QuickEMergeFrame(wx.Frame):
                     self._apply_setup_config(pending_file[0], pending_file[1])
                     self._pending_region_file = None
                 self.invalidate()
+                self.source_label.SetLabel(f'Saved PCB source: {self.session.board.name} · choose an enclosure, then Preview copper')
                 self.region_notice.SetLabel(f'{len(data["areas"])} saved rule areas. Choose nets, review εr, then Preview setup.')
                 self.SetStatusText('Rule areas loaded from the saved PCB; unsaved editor changes are excluded.')
                 self.log.ChangeValue(self.region_notice.GetLabel())
@@ -1070,7 +1085,8 @@ class QuickEMergeFrame(wx.Frame):
             can_run = can_run and bool(verified) and (selected in verified or selected not in ('SUPERLU', 'PARDISO'))
         self.run_button.Enable(can_run)
         self.cancel_button.Enable(busy)
-        self.cancel_button.SetLabel('Cancel extraction' if self.region_busy else 'Cancel setup' if self.dependency_busy else 'Cancel run')
+        self.cancel_button.SetLabel('Cancel')
+        self.cancel_button.SetToolTip('Cancel extraction' if self.region_busy else 'Cancel dependency setup' if self.dependency_busy else 'Cancel simulation')
         self.dependencies_button.Enable(not busy)
         self.rollback_button.Enable(not busy)
 

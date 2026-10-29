@@ -62,7 +62,8 @@ class WorkbenchPolicyTests(unittest.TestCase):
         frame.settings.Enable.assert_called_once_with(True)
         frame.preview_button.Enable.assert_called_once_with(True)
         frame.run_button.Enable.assert_called_once_with(False)
-        frame.cancel_button.SetLabel.assert_called_once_with('Cancel setup')
+        frame.cancel_button.SetLabel.assert_called_once_with('Cancel')
+        frame.cancel_button.SetToolTip.assert_called_once_with('Cancel dependency setup')
 
     def test_results_backend_is_readable_without_dumping_metadata(self):
         table=Mock();table.InsertItem.return_value=0

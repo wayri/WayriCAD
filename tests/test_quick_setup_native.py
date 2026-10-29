@@ -7,8 +7,6 @@ from unittest.mock import Mock,patch
 
 try:
     import wx
-    _NATIVE_LOG=wx.LogStderr()
-    _PREVIOUS_LOG=wx.Log.SetActiveTarget(_NATIVE_LOG)
     import pcbnew
     from quick_pi_plugin.ui import QuickPIFrame
     from quick_therm_plugin.ui import QuickThermFrame
@@ -16,14 +14,17 @@ except ImportError:
     wx=None
 
 _APP=None
+_NATIVE_LOG=None
+_PREVIOUS_LOG=None
 
 
 @unittest.skipIf(wx is None,'KiCad native scientific GUI runtime required')
 class QuickSetupNative(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        global _APP
+        global _APP,_NATIVE_LOG,_PREVIOUS_LOG
         _APP=wx.GetApp() or wx.App(False)
+        _NATIVE_LOG=wx.LogStderr();_PREVIOUS_LOG=wx.Log.SetActiveTarget(_NATIVE_LOG)
         cls.app=_APP;cls.app.SetExitOnFrameDelete(False)
 
     def dialog(self,path,accepted=True):

@@ -22,6 +22,7 @@ class ResizableWorkspaceTests(unittest.TestCase):
                 frame=QuickPIFrame(None,str(path))
         try:
             frame.Maximize(False);frame.SetSize((1000,740));frame.Show();frame.Layout();_app.Yield()
+            frame.setup_toggle.SetValue(True);frame._toggle_setup();frame.inspector_toggle.SetValue(True);frame._toggle_inspector();_app.Yield()
             for splitter in (frame.workspace_splitter,frame.splitter):
                 before=splitter.GetSashPosition();splitter.SetSashPosition(before+25)
                 self.assertNotEqual(splitter.GetSashPosition(),before)

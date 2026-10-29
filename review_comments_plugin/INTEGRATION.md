@@ -83,11 +83,10 @@ action; `wayricad-tool.json` loads `action.ReviewPlugin`. Importing the source p
 does not register actions. `python -m review_comments_plugin.cli` supplies CLI
 access. No KiView files are edited by this companion.
 
-This development candidate has its own 0.1.0 testing metadata. Before public
-suite adoption: align the version with the next suite release and finish the
-remaining authenticated-provider and running-editor checks. Catalogue/help,
-inventory, suite CLI, wheel package-data and CI test registration are prepared.
-Do not promote a candidate feed as if unavailable host checks had passed.
+Review follows the 4.0.0 suite version and retains testing metadata. Catalogue,
+help, suite CLI, wheel assets and CI registration are included. Keep the
+remaining authenticated-provider and running-editor checks explicit; a candidate
+feed does not establish that unavailable host checks have passed.
 
 Confirmed GitLab uploads carry the shared attachment fields `provider`, `host`,
 `repository`, `projectId`, `mime`, `url`, `width` and `height`. PNGs are normalized

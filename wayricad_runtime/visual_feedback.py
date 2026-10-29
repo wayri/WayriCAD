@@ -30,6 +30,9 @@ _ART = {
     'fit': ('ART_FULL_SCREEN', 'ART_FIND'),
     'undo': ('ART_UNDO',),
     'redo': ('ART_REDO',),
+    'copy': ('ART_COPY', 'ART_NORMAL_FILE'),
+    'probe': ('ART_FIND',),
+    'zoom': ('ART_FIND',),
 }
 _HINTS = {
     'run': 'Run the selected action', 'preview': 'Preview before making changes',
@@ -43,6 +46,8 @@ _HINTS = {
     'select': 'Select matching items', 'reset': 'Reset the current settings',
     'focus': 'Focus the selected item', 'fit': 'Fit the visible geometry',
     'undo': 'Undo the previous change', 'redo': 'Redo the previous change',
+    'copy': 'Copy the selected information', 'probe': 'Inspect a point in the view',
+    'zoom': 'Change the view magnification',
 }
 _LABEL_ROLES = (
     ('help', 'help'), ('cancel', 'cancel'), ('stop', 'cancel'),
@@ -58,10 +63,22 @@ _LABEL_ROLES = (
     ('undo', 'undo'), ('redo', 'redo'), ('reset', 'reset'),
     ('focus', 'focus'), ('fit', 'fit'), ('select', 'select'),
     ('setting', 'settings'), ('option', 'settings'),
+    ('setup', 'settings'), ('detail', 'report'), ('file', 'open'),
+    ('copy', 'copy'), ('probe', 'probe'), ('zoom', 'zoom'),
     ('back', 'back'), ('next', 'next'),
     ('run', 'run'), ('solve', 'run'), ('analy', 'run'), ('apply', 'run'),
 )
 _BITMAPS = {}
+
+
+def _available(window):
+    """Queued theme/DPI callbacks may outlive their native window."""
+    if window is None:
+        return True
+    try:
+        return bool(window) and not (hasattr(window,'IsBeingDeleted') and window.IsBeingDeleted())
+    except RuntimeError:
+        return False
 
 
 def action_role(label):
@@ -89,6 +106,8 @@ def bitmap(role, window=None, size=16):
     """
     import wx
 
+    if not _available(window) or callable(getattr(wx,'GetApp',None)) and wx.GetApp() is None:
+        return wx.NullBitmap
     role = role if role in _ART else 'info'
     logical = max(12, min(32, int(size)))
     physical = window.FromDIP((logical, logical)) if window is not None else wx.Size(logical, logical)
@@ -109,16 +128,40 @@ def bitmap(role, window=None, size=16):
     return _BITMAPS[key]
 
 
+def _fit_button(button, image, minimum_dip=None):
+    """Reserve distinct icon/text space, including wxMSW's exact-fit buttons."""
+    if not all(callable(getattr(button,name,None)) for name in
+               ('InvalidateBestSize','GetBestSize','GetMinSize','SetMinSize')):
+        return
+    button.InvalidateBestSize()
+    minimum=button.FromDIP(minimum_dip) if minimum_dip is not None else button.GetMinSize()
+    best=button.GetBestSize()
+    width,height=best.width,best.height
+    if callable(getattr(button,'GetTextExtent',None)):
+        # wxMSW 4.2.2 can retain the text-only best size for BU_EXACTFIT even
+        # after SetBitmap and InvalidateBestSize. Measure both visible elements.
+        label=button.GetLabelText() if hasattr(button,'GetLabelText') else button.GetLabel().replace('&','')
+        extents=[button.GetTextExtent(line) for line in label.splitlines() or ['']]
+        picture=image.GetLogicalSize() if hasattr(image,'GetLogicalSize') else image.GetSize()
+        padding=button.FromDIP((20,8))
+        width=max(width,max(extent[0] for extent in extents)+picture[0]+padding[0])
+        height=max(height,max(sum(extent[1] for extent in extents),picture[1])+padding[1])
+    button.SetMinSize((max(width,minimum.width),max(height,minimum.height)))
+
+
 def decorate_button(button, role=None):
     """Add a semantic icon while preserving the button's label and tooltip."""
     import wx
 
+    if not _available(button) or callable(getattr(wx,'GetApp',None)) and wx.GetApp() is None:
+        return button
     chosen = role if role in _ART else action_role(button.GetLabel())
     if chosen is None:
         return button
     state = getattr(button, '_wayricad_visual_feedback', None)
     if state is None:
         if hasattr(button, 'GetBitmap') and button.GetBitmap().IsOk():
+            _fit_button(button,button.GetBitmap())
             return button
         state = {'role': chosen}
         if all(callable(getattr(button,name,None)) for name in ('ToDIP','GetMinSize')):
@@ -126,6 +169,9 @@ def decorate_button(button, role=None):
         button._wayricad_visual_feedback = state
 
         def refresh(event=None):
+            if state.get('destroyed') or not _available(button):
+                if event is not None:event.Skip()
+                return
             image = bitmap(state['role'], button)
             if image.IsOk():
                 button.SetBitmap(image)
@@ -133,14 +179,7 @@ def decorate_button(button, role=None):
                     button.SetBitmapPosition(wx.LEFT)
                 if hasattr(button, 'SetBitmapMargins'):
                     button.SetBitmapMargins(button.FromDIP((4, 0)))
-                # Icons are installed after most sizers were constructed. Drop
-                # the cached text-only best size before measuring the new label.
-                if all(callable(getattr(button,name,None)) for name in
-                       ('InvalidateBestSize','GetBestSize','GetMinSize','SetMinSize')):
-                    button.InvalidateBestSize()
-                    minimum=button.FromDIP(state['minimum_dip']) if 'minimum_dip' in state else button.GetMinSize()
-                    best=button.GetBestSize()
-                    button.SetMinSize((max(best.width,minimum.width),max(best.height,minimum.height)))
+                _fit_button(button,image,state.get('minimum_dip'))
             if event is not None:
                 parent = button.GetParent()
                 if parent is not None:
@@ -152,6 +191,12 @@ def decorate_button(button, role=None):
             event = getattr(wx, name, None)
             if event is not None:
                 button.Bind(event, refresh)
+        destroyed=getattr(wx,'EVT_WINDOW_DESTROY',None)
+        if destroyed is not None:
+            def stop(event):
+                if event.GetEventObject() is button:state['destroyed']=True
+                event.Skip()
+            button.Bind(destroyed,stop)
     state['role'] = chosen
     if not button.GetToolTipText():
         button.SetToolTip(_HINTS.get(chosen, button.GetLabel().replace('&', '')))
