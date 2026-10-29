@@ -96,11 +96,11 @@ def screen_suite(profile_id, paths, *, budgets=None, timing_frequency_hz=None, t
             eye_inputs = eye.get('inputs', {}) if isinstance(eye, dict) else {}
             eye_rate = eye_inputs.get('bitrate_mbps') if isinstance(eye_inputs, dict) else None
             expected = profile['rate_Gbps'] * 1000 if profile['rate_Gbps'] is not None else None
-            available = isinstance(eye, dict) and eye.get('status') == 'ILLUSTRATIVE' and _number(eye_rate) and eye_rate > 0
+            available = isinstance(eye, dict) and eye.get('status') in ('ILLUSTRATIVE','SIMULATED') and _number(eye_rate) and eye_rate > 0
             comparable = available and expected is not None and profile['nyquist_GHz'] is not None
             state = ('INFO' if math.isclose(eye_rate, expected, rel_tol=1e-9) else 'REVIEW') if comparable else 'UNKNOWN'
             add(prefix + 'eye_rate', state, measured=eye_rate if _number(eye_rate) else None, limit=expected, unit='Mb/s',
-                evidence='Optional ideal uniform-line PRBS7 eye rate versus selected data-rate preset. Matching rates do not establish an eye mask, receiver margin, protocol encoding or compliance. ' +
+                evidence='Optional PRBS7 channel eye rate versus selected data-rate preset; inspect the recorded channel model. Matching rates do not establish an eye mask, receiver margin, protocol encoding or compliance. ' +
                          ('Rate matches the preset.' if comparable and state == 'INFO' else 'Rerun the illustrative eye at the preset rate.' if comparable else 'Eye unavailable, or profile has no applicable NRZ rate.'))
         if report.get('status') == 'APPROXIMATE':
             add(prefix + 'timing_model', 'INFO', evidence='Automatic ideal-stackup timing estimate; reference coverage, via reflections and coupling remain separate unresolved checks.')

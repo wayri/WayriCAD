@@ -47,6 +47,11 @@ def validate(panel, state):
         raise ValueError('Unsupported or incomplete Quick SI setup fields.')
     state = copy.deepcopy(state)
     fields = state['fields']
+    # Older setups predate explicit receiver/via parasitics. Blank means no
+    # reviewed via equivalent; it must not revive the former ideal-line eye.
+    if isinstance(fields, dict):
+        for key in ('eye_load_pf','eye_via_l_nh','eye_via_c_pf'):
+            fields.setdefault(key, '')
     if not isinstance(fields, dict) or set(fields) != set(panel.fields) or any(not isinstance(v,str) for v in fields.values()):
         raise ValueError('Quick SI setup must contain every input field as text.')
     if fields['net'] and fields['net'] not in panel._net_names:

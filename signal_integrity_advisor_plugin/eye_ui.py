@@ -47,7 +47,7 @@ class EyePanel(wx.Panel):
         dc.SetBackground(wx.Brush('#fafcfe'));dc.Clear()
         dc.SetTextForeground('#20303c')
         if not self.result or self.result.get('status')=='UNAVAILABLE':
-            text=self.result['reason'] if self.result else 'Enable Illustrative eye, enter the bit rate and source swing, then screen the path.'
+            text=self.result['reason'] if self.result else 'Enable Board RLC eye, enter the bit rate, source swing and receiver load, then screen the path.'
             for i,line in enumerate(__import__('textwrap').wrap(text,65)):
                 dc.DrawText(line,15,15+20*i)
             return

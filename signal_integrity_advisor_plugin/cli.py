@@ -92,8 +92,11 @@ def parser():
             sub.add_argument('--z0-ohm',type=float,help='Explicit assumed uniform Z0 when geometry cannot establish one.')
             sub.add_argument('--epsilon-eff',type=float,help='Explicit effective permittivity for total-route delay screening.')
             sub.add_argument('--html',type=Path,help='Self-contained local HTML with route geometry and evidence.')
-            sub.add_argument('--eye-bitrate-mbps',type=float,help='Opt in to an illustrative uniform-line PRBS7 eye at this bit rate.')
+            sub.add_argument('--eye-bitrate-mbps',type=float,help='Opt in to an extracted board-section RLC PRBS7 eye at this bit rate.')
             sub.add_argument('--eye-swing-v',type=float,default=1.,help='Eye source open-circuit swing, default 1 V; an explicit modeling assumption.')
+            sub.add_argument('--eye-load-pf',type=float,default=0.,help='Explicit receiver input capacitance in pF; default 0, not inferred from IBIS.')
+            sub.add_argument('--eye-via-l-nh',type=float,help='Reviewed return-loop inductance per traversed via, nH; required for via routes.')
+            sub.add_argument('--eye-via-c-pf',type=float,help='Reviewed total shunt capacitance per traversed via, pF; required for via routes.')
             sub.add_argument('--return-net',action='append',default=[],help='Explicit return net; repeat for multiple return nets. No return net is inferred.')
             sub.add_argument('--return-source',help='Source return pad, e.g. U1.2; requires --return-net.')
             sub.add_argument('--return-load',help='Receiver return pad, e.g. J1.2; requires --return-net.')
@@ -256,7 +259,7 @@ def execute(args):
         report={'schema':'wayricad.quick-si-inventory/v1','nets':engine.net_names(),'layers':engine.available_layers(),'ground_nets':engine.ground_nets()}
         if args.net:report['pads']=engine.pads_for_net(args.net)
     else:
-        inputs={name:getattr(args,name) for name in ('rise_ns','frequency_mhz','source_ohm','load_ohm','z0_ohm','epsilon_eff','eye_bitrate_mbps','eye_swing_v')}
+        inputs={name:getattr(args,name) for name in ('rise_ns','frequency_mhz','source_ohm','load_ohm','z0_ohm','epsilon_eff','eye_bitrate_mbps','eye_swing_v','eye_load_pf','eye_via_l_nh','eye_via_c_pf')}
         if args.return_net or args.return_source or args.return_load:
             roles={key:value for key,value in [('source',args.return_source),('load',args.return_load)] if value}
             inputs.update(return_nets=args.return_net,return_terminal_roles=roles,return_terminal_ids=list(roles.values()))

@@ -81,6 +81,7 @@ def native_python(tool=None):
     requirements=dict(REQUIREMENTS_IPC)
     if tool == "signal_integrity_advisor_plugin":
         requirements["matplotlib"]="matplotlib>=3.7,<4"
+        requirements["numpy"]="numpy>=1.24,<3"
     return ensure_runtime(requirements)
 
 

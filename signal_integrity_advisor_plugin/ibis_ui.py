@@ -1,7 +1,7 @@
 """Reviewed IBIS endpoint controls for KiCad circuit export.
 
 Selection is bound to a net and exact PCB Reference.Pad. Loading parses on a
-worker; changing a model never claims to recompute Quick SI's ideal eye.
+worker; changing a model never claims to recompute Quick SI's linear RLC eye.
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ class IbisPane(wx.Panel):
         self._serial = {'source': 0, 'sink': 0}
         self._controls = {}
         layout = wx.BoxSizer(wx.VERTICAL)
-        note = wx.StaticText(self, label='IBIS models are used only by KiCad circuit export. The existing eye plot remains an illustrative ideal-source screen.')
+        note = wx.StaticText(self, label='IBIS models are used only by KiCad circuit export. The board eye uses a separate extracted RLC channel with linear source/load assumptions.')
         note.Wrap(290)
         layout.Add(note, 0, wx.EXPAND | wx.ALL, 5)
         for role, title in (('source', 'Source / driver'), ('sink', 'Receiver / load')):
@@ -307,7 +307,7 @@ def circuit_options_dialog(parent, reports=(), case_ids=()):
     layout.Add(suggestion, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
     layout.Add(timing_note, 0, wx.EXPAND | wx.ALL, 10)
     shunt = wx.Button(dialog, label='Shunt capacitors · none…')
-    shunt.SetToolTip('Add explicit C/ESR/ESL at selected source or receiver nodes in the exported transient circuit. The illustrative eye is unchanged.')
+    shunt.SetToolTip('Add explicit C/ESR/ESL at selected source or receiver nodes in the exported transient circuit. Set receiver capacitance separately in Board RLC eye setup; these export assignments do not change it.')
     shunt.Enable(bool(case_ids))
     def edit_shunts(event):
         nonlocal shunt_banks

@@ -3,15 +3,16 @@ import html
 
 
 def plots(result):
+    board = result.get('model') == 'board-section-rlc-prbs7'
     values = [result['min_v'], result['max_v'], 0., result['inputs']['swing_v'],
               min(result['step_response']['voltage_v']),max(result['step_response']['voltage_v'])]
     low, high = min(values), max(values)
     margin = max((high-low)*.12, .01)
     limits = (low-margin, high+margin)
     return [
-        ('Illustrative PRBS7 eye — ideal clock, no jitter', 'Time (UI)',
+        ('Board RLC PRBS7 eye — linear source, no jitter' if board else 'Illustrative PRBS7 eye — ideal clock, no jitter', 'Time (UI)',
          result['time_ui'], result['traces_v'], limits),
-        ('Receiver step response — uniform lossless line', 'Time (ns)',
+        ('Receiver step response — cascaded board RLC' if board else 'Receiver step response — uniform lossless line', 'Time (ns)',
          result['step_response']['time_ns'], [result['step_response']['voltage_v']], limits),
     ]
 
@@ -41,18 +42,25 @@ def plot_svg(title, xlabel, xs, traces, limits):
 
 def eye_section(result):
     if result.get('status') == 'UNAVAILABLE':
-        return '<h2>Illustrative eye unavailable</h2><p>'+html.escape(result['reason'])+'</p>'
+        return '<h2>Eye unavailable</h2><p>'+html.escape(result['reason'])+'</p>'
     from wayricad_runtime.interactive_plots import interactive_plot
     pictures=''
     for title,xlabel,xs,traces,limits in plots(result):
         rows=[[x,v,v,'Trace '+str(index+1)] for index,trace in enumerate(traces) for x,v in zip(xs,trace)]
         pictures+=interactive_plot(title,rows,'V',x_unit=xlabel,y_unit='V',connect=True)
         pictures+='<details><summary>Static export</summary>'+plot_svg(title,xlabel,xs,traces,limits)+'</details>'
-    return ('<h2>Illustrative eye and step response</h2><p>Uniform lossless line; '
+    board = result.get('model') == 'board-section-rlc-prbs7'
+    description = 'Board-derived distributed RLC channel; ' if board else 'Uniform lossless line; '
+    checks = ''
+    if board:
+        checks = '<h3>Channel and numerical checks</h3><table>'+''.join(
+            '<tr><th>'+html.escape(key.replace('_',' '))+'</th><td>'+html.escape(str(value))+'</td></tr>'
+            for key,value in dict(section_count=len(result['channel_sections']),**result['numerics']).items())+'</table>'
+    return ('<h2>'+('Board RLC eye and step response' if board else 'Illustrative eye and step response')+'</h2><p>'+description+
             'not an IBIS simulation or protocol compliance test.</p>'+pictures+
             f"<p>Sampled center opening: {result['center_opening_v']:.5g} V; "
             f"sampled range: {result['min_v']:.5g} to {result['max_v']:.5g} V.</p>"+
-            '<h3>Model assumptions and limits</h3><ul>'+''.join('<li>'+html.escape(note)+'</li>' for note in result['assumptions']+result['limitations'])+'</ul>')
+            checks+'<h3>Model assumptions and limits</h3><ul>'+''.join('<li>'+html.escape(note)+'</li>' for note in result['assumptions']+result['limitations'])+'</ul>')
 
 
 def standalone_html(result):

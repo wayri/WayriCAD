@@ -18,6 +18,12 @@ def result(status='SCREENED',**extras):
 
 
 class StudyTests(unittest.TestCase):
+    def test_requested_unavailable_eye_keeps_study_incomplete(self):
+        report=run_study(object(),{'cases':[case(inputs={'eye_bitrate_mbps':1000})]},
+            analyzer=lambda *a,**k:result(eye={'status':'UNAVAILABLE','reason':'missing reference'}))
+        self.assertEqual(report['status'],'INCOMPLETE')
+        self.assertEqual(report['summary']['unavailable_eyes'],1)
+
     def test_routes_are_independent_with_exact_inputs(self):
         calls=[]
         def analyze(board,net,start,end,reference,**inputs):

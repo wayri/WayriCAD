@@ -17,7 +17,8 @@ def finite(value, name, minimum=0., strict=False):
 
 
 def screen(path, *, rise_ns=1., frequency_mhz=100., source_ohm=20., load_ohm=None,
-           z0_ohm=None, epsilon_eff=None, terminal_count=2, eye_bitrate_mbps=None, eye_swing_v=1.):
+           z0_ohm=None, epsilon_eff=None, terminal_count=2, eye_bitrate_mbps=None, eye_swing_v=1.,
+           eye_load_pf=0., eye_via_l_nh=None, eye_via_c_pf=None, eye_topology=None):
     """Screen one resolved route; explicit assumptions never become extracted data."""
     rise_ns=finite(rise_ns,'Rise time',strict=True)
     frequency_mhz=finite(frequency_mhz,'Frequency')
@@ -98,16 +99,21 @@ def screen(path, *, rise_ns=1., frequency_mhz=100., source_ohm=20., load_ohm=Non
     if eye_bitrate_mbps is not None:
         finite(eye_bitrate_mbps,'Eye bit rate',strict=True)
         finite(eye_swing_v,'Eye source swing',strict=True)
-        if delay is None or z0 is None:
-            report['eye']={'status':'UNAVAILABLE','reason':'Resolve the route, complete delay and uniform Z0 before generating an eye.'}
-        elif terminal_count != 2 or path.zone_count:
-            report['eye']={'status':'UNAVAILABLE','reason':'The simple eye requires a two-terminal trace/via path without zones or extra branches.'}
+        if terminal_count != 2 or path.zone_count:
+            report['eye']={'status':'UNAVAILABLE','reason':'The board eye requires a two-terminal trace/via path without zones or extra branches.'}
         else:
-            from .eye_model import simulate_eye
-            report['eye']=simulate_eye(z0_ohm=z0,delay_ns=delay,source_ohm=source_ohm,
-                load_ohm=load_ohm,rise_ns=rise_ns,bitrate_mbps=eye_bitrate_mbps,swing_v=eye_swing_v)
-        report['inputs'].update(eye_bitrate_mbps=eye_bitrate_mbps,eye_swing_v=eye_swing_v)
-        report['notes']=[note.replace('and eye diagrams are not solved','are not solved by the route screen; the optional eye uses a separate ideal uniform-line model') for note in report['notes']]
+            from .board_eye import simulate_board_eye
+            try:
+                report['eye']=simulate_board_eye(path,topology=eye_topology,source_ohm=source_ohm,
+                    load_ohm=load_ohm,load_pf=0. if eye_load_pf is None else eye_load_pf,
+                    rise_ns=rise_ns,bitrate_mbps=eye_bitrate_mbps,swing_v=eye_swing_v,
+                    via_l_nh=eye_via_l_nh,via_c_pf=eye_via_c_pf)
+            except ValueError as error:
+                report['eye']={'status':'UNAVAILABLE','reason':str(error)}
+        report['inputs'].update(eye_bitrate_mbps=eye_bitrate_mbps,eye_swing_v=eye_swing_v,
+            eye_load_pf=eye_load_pf,eye_via_l_nh=eye_via_l_nh,eye_via_c_pf=eye_via_c_pf)
+        report['notes']=[note.replace('and eye diagrams are not solved','are not solved by the route screen; the optional board eye uses a separate extracted-section RLC channel') for note in report['notes']]
+        report['notes'].append('Assumed uniform Z0/effective Er apply only to the timing/termination screen, never to the board RLC eye. Inspect its section coverage, endpoint assumptions and numerical checks separately.')
     return report
 
 
@@ -133,9 +139,10 @@ def _analyze(board,net,start,end,reference='Auto',**inputs):
         missing=set(return_nets)-set(engine.net_names())
         if missing:raise ValueError('Return nets are absent from this saved board: '+', '.join(sorted(missing)))
     path=engine.measure(net,start,end,float(inputs.get('frequency_mhz',100.)),reference)
-    report=screen(path,terminal_count=len(pads),**inputs)
     from .circuit_scope import circuit_topology
-    report['circuit_topology']=circuit_topology(board,path,len(pads))
+    topology=circuit_topology(board,path,len(pads))
+    report=screen(path,terminal_count=len(pads),eye_topology=topology,**inputs)
+    report['circuit_topology']=topology
     if return_nets:
         from wayricad_runtime.return_path import collect_board_evidence,audit_return_path
         evidence=collect_board_evidence(board,net,return_nets)

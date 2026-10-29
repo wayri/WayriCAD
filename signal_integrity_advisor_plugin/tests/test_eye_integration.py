@@ -101,14 +101,14 @@ class EyeIntegrationTests(unittest.TestCase):
                 self.assertEqual(result['eye']['status'], 'UNAVAILABLE')
                 self.assertIn('without zones or extra branches', result['eye']['reason'])
 
-    def test_via_path_is_only_illustrative_and_discloses_discontinuities(self):
+    def test_via_path_cannot_silently_fall_back_to_illustrative_eye(self):
         result = screen(self.path(via_count=2, layer_changes=2),
                         source_ohm=50, rise_ns=.1, eye_bitrate_mbps=1000)
-        self.assertEqual(result['eye']['status'], 'ILLUSTRATIVE')
+        self.assertEqual(result['eye']['status'], 'UNAVAILABLE')
+        self.assertNotIn('traces_v', result['eye'])
         self.assertTrue(any('transitions are not calculated' in note for note in result['notes']))
-        self.assertTrue(any('vias' in note for note in result['eye']['limitations']))
         html = html_report(result)
-        self.assertIn('Illustrative eye', html)
+        self.assertIn('Eye unavailable', html)
         self.assertIn('transitions are not calculated', html)
 
     def test_option_off_leaves_original_screen_unchanged(self):

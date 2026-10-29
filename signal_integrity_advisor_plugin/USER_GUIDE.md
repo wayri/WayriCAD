@@ -75,7 +75,7 @@ operations change annotation-free analysis data only; the PCB is not written.
 | Compare several routes? | Multi-net study | Independent cases and case-specific errors |
 | Match P/N timing? | Protocol suites, Pair delay / phase | Skew, explicit-frequency phase and lane mean-delay differences |
 | Investigate nearby traces? | Neighbour traces | Geometric exposure map; conditional local NEXT with model inputs |
-| Explore an ideal line response? | Illustrative eye | Uniform lossless-line eye and step |
+| Simulate a board channel eye? | Board RLC eye | Cascaded extracted sections, receiver C and reviewed via equivalents |
 | Use device IBIS models? | Reviewed circuit export | Separate schematic to open and simulate in KiCad |
 | Select I2C pull-ups? | I2C pull-ups | Permitted resistance range and candidate |
 | Document/label test points? | Test point records / labels | Records or explicitly reviewed editor annotations |
@@ -235,15 +235,21 @@ See [interaction controls](../docs/ANALYSIS_INTERACTIONS.md).
 
 ## Eye and step response
 
-Enable **Illustrative eye**, enter NRZ rate, open-circuit swing, edge and resistive
-endpoints, then screen. The ideal uniform lossless line uses resolved or explicitly
-assumed Z0/delay. Native plots show sample time/voltage; click pins and right-click
-clears probes. Missing samples leave gaps.
+Enable **Board RLC eye**, enter the actual NRZ rate, open-circuit swing,
+driver resistance/rise time and receiver resistance/capacitance, then run SI.
+The channel cascades the selected route's ordered extracted R/L/C sections;
+width changes retain their reflections and copper resistance produces loss.
+Vias require explicit reviewed loop L and shunt C per via. Missing references,
+unsupported sections and unmodelled branches block the eye without ideal fallback.
 
-The PRBS7 eye is not IBIS, a lossy extracted channel, receiver capacitance,
-jitter/BER or a protocol mask test. IBIS assignments and exported shunt capacitors
-do not change this separate ideal-line eye. The standalone CLI eye below is useful
-for exploring explicit hypothetical inputs without loading a PCB.
+The model is linear, with frequency-independent DC copper resistance and
+quasi-static L/C. Skin/proximity effect, dielectric loss, IBIS, coupling and
+jitter are not included. Uniform Z0/Er overrides affect the separate route
+screen, not this eye. Native plots and reports include refinement/settling
+checks; click to pin probes and right-click to clear them.
+
+See the [complete setup, equations, CLI and limits](BOARD_RLC_EYE.md).
+The standalone `wayricad-si eye` command remains explicitly ideal and lossless.
 
 ## IBIS and circuit export
 
@@ -602,7 +608,7 @@ python -m wayricad_runtime.tool_cli report-pdf marble-mdc.html --output marble-m
 
 ### Continue through eye, IBIS and pair studies
 
-For the **ideal eye**, enable it and enter a reviewed bit rate and open-circuit swing; they are not determined from the 100 MHz evaluation frequency. Run again and read Eye / step. This view uses the uniform-line approximation, not IBIS files.
+For the **Board RLC eye**, enter reviewed rate, swing, source/load and receiver capacitance. The rate is not inferred from evaluation frequency. This Marble route has vias: enter characterized loop L/C equivalents or retain an unavailable eye. Uniform Z0/Er assumptions do not complete its channel extraction; IBIS remains separate.
 
 For an **IBIS simulation**, load actual compatible source/receiver model files, review pin/model/role mappings and export a new circuit bundle. Add endpoint shunt branches if required, then run the schematic's simulation in KiCad/ngspice and refine its timestep. This guide does not provide substitute IBIS models for Marble devices.
 
@@ -655,7 +661,7 @@ This reference covers the current native source interface, including the Blender
 | Assumed effective Er | At least 1, or blank | Supplies a full-route propagation assumption. It does not repair a disconnected route. |
 | Run SI | Run after source/receiver/model review | Saved studies use an isolated cancellable worker. Errors and unknowns stay explicit. |
 | Cancel | Stop an active owned job | Cancels computation; no PCB geometry is written. Wait for completion before exporting. |
-| Route / Eye / step | Choose the lower workspace view | Route is extracted geometry; eye is a separate optional ideal-line model. |
+| Route / Eye / step | Choose the lower workspace view | Route is extracted geometry; eye is a separate optional board-section RLC channel. |
 | Result table | Read measure, value and evidence | Delay, round trip, electrical length, delay/rise, Z0, reflection and matching values retain their model source. Unknown is not zero or a pass. |
 | Study-case dropdown | Choose a completed case | Route, return audit and numbers follow that case, not an aggregate of all nets. |
 | Fit / Zoom + / Zoom − / Save image | Native plot toolbar | Fits or changes the view or saves a display image. An image is not the full numerical evidence. |
@@ -672,7 +678,7 @@ This reference covers the current native source interface, including the Blender
 | Setup: Net, Source, Receiver | Choose exact endpoint identity; same-part peer text helps detect extra loads. |
 | Swap source and receiver | Reverses the explicit endpoint roles; review driver and load values separately. |
 | Setup numerical fields | Same rise/frequency/resistance/Z0/Er units and blank semantics as the main workspace. |
-| Generate illustrative eye and step response | Enables ideal NRZ bitrate/swing fields; disabled eye fields do not affect the screen. |
+| Simulate board RLC eye and step response | Enables channel rate, swing, receiver C and reviewed per-via L/C fields; disabled eye fields do not affect the screen. |
 | Apply setup | Validate and retain settings without running. Cancel retains the preceding setup. |
 | Apply and screen | Validate, apply and invoke normal analysis. Validation errors keep the dialog open. |
 | Return path primary | Initially **No return-path check**. Choose an actual return net to request the geometric audit. |
@@ -708,7 +714,8 @@ This reference covers the current native source interface, including the Blender
 
 | Control | Meaning, units and effect |
 |---|---|
-| Illustrative eye checkbox / Generate ideal NRZ eye and step response | Opts into a uniform lossless-line PRBS7 eye/step model. Review source/load, entered bit rate and swing. It does not use IBIS/shunt assignments. |
+| Board RLC eye checkbox / Simulate board RLC eye and step response | Uses ordered extracted RLC sections. Review source/load, receiver C, rate and swing. Via routes need reviewed loop L/C; IBIS/export shunt assignments remain separate. |
+| Receiver capacitance / reviewed via loop L / via shunt C | pF / nH / pF. Blank receiver C means 0; both via fields are required for via routes. Identical equivalents apply to every traversed via; not inferred from IBIS. |
 | Ideal NRZ bit rate / source swing | Positive Mbps and open-circuit V. Model limits reject excessive sample workloads. |
 | Eye plot hover / click | Inspect or pin a sample; changing inputs clears stale plots. It does not measure hardware jitter or BER. |
 | IBIS Load… source and receiver | Load actual `.ibs` files. Parsing is bounded; malformed or unsupported models produce diagnostics. |
@@ -808,7 +815,7 @@ Quick SI contains no capacitor-placement optimizer or PDN impedance solver. Its 
 1. Record board conversion/revision/hash and whether the workflow reads saved or live data.
 2. Confirm source/receiver direction, exact net/pad identity, extra loads, units and reference assumptions.
 3. Distinguish geometric Z0/reference evidence from optional assumptions. Preserve missing sections.
-4. For an ideal eye, review edge, bit rate, swing, load and the bounded uniform-line model. For IBIS, separately review actual compatible models and run/refine the exported simulation.
+4. For a board eye, review edge, bit rate, swing, receiver R/C, extracted sections, via equivalents and convergence. For IBIS, separately review actual compatible models and run/refine the exported simulation.
 5. For coupling, preserve modeled and unresolved lengths and the local matched-port assumption; do not assemble local peaks into a fabricated whole-route waveform.
 6. For pair timing, confirm P/N/group identity and explicit phase frequency. Device/package/skew terms absent from the model remain absent.
 7. Retain explicit inputs, full reports and source hashes. Recreate exports after any change. A favorable number alone is not acceptance evidence.
@@ -958,7 +965,8 @@ The tables below are generated from the current source parser. Units and output 
 | `--z0-ohm` | not supplied | Explicit assumed uniform Z0 when geometry cannot establish one. |
 | `--epsilon-eff` | not supplied | Explicit effective permittivity for total-route delay screening. |
 | `--html` | not supplied | Self-contained local HTML with route geometry and evidence. |
-| `--eye-bitrate-mbps` | not supplied | Opt in to an illustrative uniform-line PRBS7 eye at this bit rate. |
+| `--eye-bitrate-mbps` | not supplied | Opt in to an extracted-section board RLC PRBS7 eye at this bit rate. |
+| `--eye-load-pf` / `--eye-via-l-nh` / `--eye-via-c-pf` | 0 / not supplied / not supplied | Receiver input C and reviewed loop L/shunt C per via. Via fields required for traversed vias. |
 | `--eye-swing-v` | 1.0 | Eye source open-circuit swing, default 1 V; an explicit modeling assumption. |
 | `--return-net` | [] | Explicit return net; repeat for multiple return nets. No return net is inferred. |
 | `--return-source` | not supplied | Source return pad, e.g. U1.2; requires --return-net. |

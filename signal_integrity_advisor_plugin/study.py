@@ -4,7 +4,8 @@ import copy
 import math
 
 INPUTS={'rise_ns','frequency_mhz','source_ohm','load_ohm','z0_ohm','epsilon_eff',
-        'eye_bitrate_mbps','eye_swing_v','return_nets','return_terminal_ids','return_terminal_roles'}
+        'eye_bitrate_mbps','eye_swing_v','eye_load_pf','eye_via_l_nh','eye_via_c_pf',
+        'return_nets','return_terminal_ids','return_terminal_roles'}
 CASE_KEYS={'id','net','start','end','reference','inputs'}
 
 
@@ -76,12 +77,14 @@ def run_study(board,config,*,guard=None,analyzer=None):
             row.update(status='ERROR',error=str(error),error_type=type(error).__name__)
         if guard:guard()
         output.append(row)
-    incomplete=any(row['status'] not in ('SCREENED','REVIEW') or row.get('return_status') in ('INCOMPLETE','UNRESOLVED','UNKNOWN') for row in output)
+    unavailable_eyes=sum(row.get('report',{}).get('eye',{}).get('status')=='UNAVAILABLE' for row in output)
+    incomplete=bool(unavailable_eyes) or any(row['status'] not in ('SCREENED','REVIEW') or row.get('return_status') in ('INCOMPLETE','UNRESOLVED','UNKNOWN') for row in output)
     review=any(row['status']=='REVIEW' or row.get('return_status')=='REVIEW' for row in output)
     result={'schema':'wayricad.quick-si-study/v1','status':'INCOMPLETE' if incomplete else 'REVIEW' if review else 'COMPLETE',
             'model':'Independent source-to-receiver route screens; no inter-net coupling, crosstalk or full-bus qualification.',
             'cases':output,'summary':{'cases':len(output),'reported':sum('report' in row for row in output),
                                     'errors':sum(row['status']=='ERROR' for row in output)}}
+    if unavailable_eyes:result['summary']['unavailable_eyes']=unavailable_eyes
     if config.get('crosstalk'):
         from .crosstalk import checked_pairs,screen_pair
         result['crosstalk']=[]

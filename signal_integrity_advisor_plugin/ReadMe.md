@@ -97,7 +97,7 @@ Open **Set up path…** to review the common SI inputs together.
 | Physical path | Search the net (`*` wildcard, `~` fuzzy), choose distinct source/receiver pads, or explicitly swap their roles. |
 | Other pins | The guide lists other pads on the same physical footprint and net. They remain separate SI terminals; no ideal short or point-to-point channel is invented. |
 | Edge and line | Enter rise time, evaluation frequency and driver/load resistance. Blank load means open. Blank Z0/Er retain the existing geometry/stackup evidence; entered values remain assumptions. |
-| Time response | Enable the existing illustrative NRZ eye/step screen when appropriate. Its ideal uniform lossless line is separate from IBIS circuit simulation. |
+| Time response | Enable Board RLC eye to use extracted sections, explicit receiver C and reviewed via equivalents. This linear channel is separate from IBIS circuit simulation; see its coverage and convergence checks. |
 | Apply | **Apply setup** invalidates old results/exports; **Apply and screen** also runs the existing path analysis. Cancel retains the current workspace. |
 
 ![Quick SI guided path and response setup](help-guided-setup.png)
@@ -277,7 +277,7 @@ closure claim.
 
 Quick SI can export a **separate, editable KiCad simulation project** for a
 completed point-to-point route. The existing Quick SI eye and step plots remain
-illustrative ideal-line calculations; loading IBIS does not change those plots.
+a separate linear board-section RLC calculation; loading IBIS does not change those plots.
 Open the exported project in KiCad Schematic Editor and run its native simulator
 to calculate the IBIS response. The exporter creates a circuit and records its
 assumptions; it does not run or validate the native transient for you.
@@ -558,15 +558,15 @@ not qualify a full IBIS channel or a physical board.
 
 - Inspect a saved routed source-to-receiver path and screen delay, electrical length and transmission-line relevance.
 - Estimate ideal resistive endpoint reflections and series-match candidates; retain impedance/pair and I2C pull-up tools.
-- Generate illustrative PRBS7 eye and step plots for a supported uniform lossless-line model.
+- Simulate PRBS7 eye and step plots from supported extracted board RLC sections, with explicit receiver C and reviewed via equivalents.
 - Apply 33 protocol screening profiles with explicit timing, pair/bus and reference assumptions.
 - Review return paths and test points, preview bulk test-point labels and prepare a silkscreen table.
 - Use read-only analysis CLI commands and export local HTML/JSON evidence.
 
 ## Limitations
 
-- Quick SI's screen and illustrative eye do not run IBIS models; the separate exported circuit requires a KiCad native simulator run. Neither path is BER measurement or protocol compliance certification.
-- The illustrative eye omits loss, jitter/noise, branches and via discontinuities; unresolved parameters, zone routes and extra terminals can disable it.
+- Quick SI's screen and board RLC eye do not run IBIS models; the separate exported circuit requires a KiCad native simulator run. Neither path is BER measurement or protocol compliance certification.
+- The board eye includes DC conductor loss but omits skin/dielectric loss, jitter/noise and coupled aggressors. Unresolved references, zone paths, extra terminals or uncharacterized vias block it.
 - Path endpoints must be on the same net; the tool does not silently bridge series components or disconnected copper.
 - Saved-board geometry and explicit source/load/stackup assumptions determine coverage. Unknown results are not passes; test-point edits require separate review.
 - Automatic line Z0 uses only single-ended microstrip or symmetric stripline screening formulas. Nearby same-layer copper leaves plain-microstrip Z0 unresolved; CPWG and coupled differential impedance need a validated field model.
@@ -613,48 +613,47 @@ Changing an input clears the previous result and disables export until a fresh
 screen is run. IPC analysis uses a saved snapshot; save/refill and reopen after
 editing the board. Analysis does not move copper or write project files.
 
-## Illustrative eye and step response
+## Board RLC eye and step response
 
-Expand **Illustrative eye (optional)** and enable the model. Enter the NRZ bit
-rate and the driver's **open-circuit source swing**, then run the path screen.
-The **Eye / step** tab draws a local PRBS7 eye and receiver step response.
-The HTML export includes both plots, model inputs and limitations.
+**Development source update after 4.0.0:** published 4.0.0 packages still contain
+the earlier ideal-line eye. The board RLC model below is in the current source.
 
-![Native illustrative eye and step response](help-eye.png)
+Enable **Board RLC eye**, enter the actual NRZ rate, open-circuit swing,
+driver resistance/rise time and receiver resistance/capacitance, then run SI.
+The channel cascades the selected route's ordered extracted R/L/C sections;
+width changes retain their reflections and copper resistance produces loss.
+Vias require explicit reviewed loop L and shunt C per via. Missing references,
+unsupported sections and unmodelled branches block the eye without ideal fallback.
 
-The capture uses the Marble path above with assumed 50 ohm Z0, effective Er 3.2,
-100 ps rise time, 1 Gbps bit rate, 1 V source swing, 20 ohm source and open load.
-This is an illustrative what-if calculation, not USB signaling validation.
+The model is linear, with frequency-independent DC copper resistance and
+quasi-static L/C. Skin/proximity effect, dielectric loss, IBIS, coupling and
+jitter are not included. Uniform Z0/Er overrides affect the separate route
+screen, not this eye. Native plots and reports include refinement/settling
+checks; click to pin probes and right-click to clear them.
 
-This is a uniform **lossless transmission-line** model with the screen's delay,
-Z0 and resistive source/load. Rise time means **10â€“90%**; rising and falling edges
-use equal linear ramps. The periodic 127-bit pattern includes settled history.
-The ideal clock is aligned to first arrival. Center opening is minimum high
-minus maximum low at **0.5 UI**; it is not optimized eye height, eye width, BER
-or a protocol pass/fail. Negative opening means overlap at that sampling phase.
-64 samples/UI can miss narrow peaks. No random jitter or noise is added.
+See the [complete setup, equations, CLI and limits](BOARD_RLC_EYE.md).
+The standalone `wayricad-si eye` command remains explicitly ideal and lossless.
 
-Unknown delay/Z0, extra net terminals and zone routes disable the routed eye.
-Vias may contribute to the path's delay estimate, but the eye model does **not**
-simulate their discontinuities. Non-decaying ideal reflections and excessive
-settling workloads produce an actionable error. Source/load matching can be
-compared by changing resistance and rerunning; changing inputs clears old plots.
+![Board-derived eye and step from two synthetic native PCB routes](help-board-rlc-eye.png)
 
-The standalone model needs ordinary Python only, with no KiCad or numerical
-library dependency:
+Both examples are real saved-board extractions of a 60 mm route over filled
+reference planes in KiCad 10.0.6. Width changes from 0.15 to 0.4 mm change R DC
+from 0.19703 to 0.07389 ohm and section Z0 from 78.98 to 48.72 ohm. Source/load,
+rate and receiver C are explicit assumptions. This is synthetic model validation,
+not a measured eye or LPDDR4 signoff. No private board or personal paths are shown.
+
+The earlier Marble what-if capture is retained below as **historical ideal-line
+output**; it is not evidence of extracted via parasitics or the current board model.
+
+![Earlier illustrative ideal-line eye, retained for comparison](help-eye.png)
 
 ```text
-wayricad-si eye --z0-ohm 50 --delay-ns 0.4 --source-ohm 20 --rise-ns 0.1 --bitrate-mbps 1000 --swing-v 1 --output eye.json --html eye.html
+wayricad-si screen board.kicad_pcb --net DATA --start U1.1 --end U2.1 --source-ohm 40 --rise-ns 0.08 --eye-bitrate-mbps 1600 --eye-swing-v 1.1 --eye-load-pf 2 --output data-eye.json --html data-eye.html
 ```
 
-Add `--eye-bitrate-mbps 1000 --eye-swing-v 1` to a `screen` command to use a
-resolved board path. Omitting these flags preserves the original screen.
-An explicitly requested but unavailable routed eye returns CLI exit code 3.
-The standalone model does not infer geometry from a board.
-
-Model basis: successive load arrivals have amplitudes
-`swing Ã— Z0/(Rs+Z0) Ã— (1+Î“L) Ã— (Î“SÃ—Î“L)^n` and delays `(2n+1)Ã—td`.
-See [TI AN-807: Reflectionsâ€”Computations and Waveforms](https://www.ti.com/lit/an/snla027b/snla027b.pdf).
+Use `--eye-via-l-nh` and `--eye-via-c-pf` for reviewed identical via equivalents.
+An explicitly requested unavailable eye returns exit code 3. NumPy is required
+for board eyes and is included in managed SI dependency setup.
 
 ## Path screening results
 
@@ -876,7 +875,8 @@ branches, discontinuities or missing reference copper.
 |---|---|---|
 | Delay and edge-length screening | [quick_si.py](quick_si.py) prefers an explicit whole-path effective-permittivity assumption when supplied, otherwise complete modeled section delay, then a separately labelled ideal-stackup screening estimate. It reports one-way delay, twice that value for round trip, electrical length `360 f_MHz delay_ns / 1000`, and `delay/rise_time`. The `1/6` ratio threshold requests transmission-line review; it is a heuristic, not a protocol limit or proof that a shorter route is safe. Missing route or reference evidence stays unresolved. | [Timing and input-precedence cases](tests/test_quick_si.py). |
 | Endpoint termination screen | Transmission-line reflection coefficients `ΓS = (RS − Z0)/(RS + Z0)` and `ΓL = (RL − Z0)/(RL + Z0)` use declared resistive endpoints; an open load uses `ΓL = 1`. First-arrival and source/load matching guidance applies to the supported endpoint model, not intervening bends, vias, packages or a nonlinear receiver. | [Quick SI cases](tests/test_quick_si.py), [study cases](tests/test_study.py). |
-| Illustrative eye and step | [eye_model.py](eye_model.py) superposes a bounded lossless reflection series: the first receiver coefficient is `Z0/(RS + Z0) × (1 + ΓL)` and each later round trip multiplies it by `ΓS ΓL`, arriving at odd multiples of one-way delay. The source is periodic PRBS7 with a linear ramp whose full duration is `rise_10–90 / 0.8`. All cyclic histories are included, avoiding artificial zero-start eye traces. | [Analytical eye and step checks](tests/test_eye_model.py), [integration](tests/test_eye_integration.py). |
+| Board-derived RLC eye and step | [board_eye.py](board_eye.py) cascades each extracted section's distributed RLC two-port, then applies its transfer to a periodic ramped PRBS7 source. Includes DC copper loss, section-impedance reflections and explicit receiver C. Reviewed per-via loop L/C use pi sections. Missing geometry/topology and failed numerical refinement remain unavailable. Skin/dielectric loss and nonlinear IBIS are absent. See [equations and setup](BOARD_RLC_EYE.md). | [Analytical circuits](tests/test_board_eye.py), [native PCB extraction](tests/test_board_eye_native.py), [integration](tests/test_eye_integration.py). |
+| Standalone ideal eye | [eye_model.py](eye_model.py) retains the explicitly ideal uniform lossless reflection series for `wayricad-si eye`. It is separate from board extraction and uses a cyclic ramped PRBS7 source. | [Lossless analytical checks](tests/test_eye_model.py). |
 | Sampling and convergence limits | Eye traces use 64 samples/UI over two UI for all 127 PRBS7 contexts. The reflection-tail bound and finite work/echo budgets reject inadequately damped cases; `|ΓS ΓL| ≥ 1` is rejected. Step plots retain echo/ramp corners. Eye opening is a sampled model statistic, not BER, statistical jitter, an IBIS receiver or a protocol mask test. | [Eye-model edge cases](tests/test_eye_model.py), [probe UI](tests/test_eye_probe_ui.py). |
 | Directed local crosstalk | [crosstalk.py](crosstalk.py) extracts supported straight parallel equal-width overlaps, solves finite rectangular conductor contours with the declared reference-plane Green function, then superposes lossless even/odd modes. Refinement gates assess supported local sections; mixed dielectric velocities and whole-route cascading are absent. | [Crosstalk analytical/refinement cases](tests/test_crosstalk.py). |
 | Protocol and report workflows | [Protocol profiles](protocol_profiles.py) provide representative inputs/checks, while [report_plots.py](report_plots.py) displays the computed evidence. Reports retain per-study hashes, coverage, blockers and explicit return declarations. Protocol names do not select a separate compliance solver. | [Study report review](tests/test_study_report_review.py), [native study fixtures](tests/test_study_native.py). |

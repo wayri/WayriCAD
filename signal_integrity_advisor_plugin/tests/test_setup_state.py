@@ -43,6 +43,9 @@ class SetupStateTests(unittest.TestCase):
         from signal_integrity_advisor_plugin.ibis_models import load_ibis,assignment_from_catalog
         panel=self.panel
         panel.fields['rise_ns'].ChangeValue('0.75'); panel.fields['z0_ohm'].ChangeValue('52')
+        panel.fields['eye_load_pf'].ChangeValue('2.5')
+        panel.fields['eye_via_l_nh'].ChangeValue('0.6')
+        panel.fields['eye_via_c_pf'].ChangeValue('0.25')
         panel.eye_enabled.SetValue(True); panel.return_setup._use_suggested()
         panel.return_source.SetValue('U1.3'); panel.return_sink.SetValue('J1.3')
         panel.study_cases=copy.deepcopy(self.config['cases'])
@@ -114,6 +117,16 @@ class SetupStateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'changed'):restore(self.panel,checked)
         self.assertEqual(capture(self.panel),before)
         self.assertEqual(self.panel.report,{'keep':'existing result'})
+
+    def test_pre_rlc_setup_loads_with_unreviewed_via_fields_blank(self):
+        from signal_integrity_advisor_plugin.setup_state import capture,validate,restore
+        self.prepare(); state=capture(self.panel)
+        for key in ('eye_load_pf','eye_via_l_nh','eye_via_c_pf'):
+            del state['fields'][key]
+        checked=validate(self.panel,state)
+        restore(self.panel,checked)
+        for key in ('eye_load_pf','eye_via_l_nh','eye_via_c_pf'):
+            self.assertEqual(self.panel.fields[key].GetValue(),'')
 
 
 if __name__=='__main__':unittest.main()

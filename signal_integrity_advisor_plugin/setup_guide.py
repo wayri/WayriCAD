@@ -12,8 +12,11 @@ FIELDS = (
     ('load_ohm', 'Receiver resistance · Ω (blank = open)', True, False),
     ('z0_ohm', 'Assumed uniform Z0 · Ω (blank = geometry)', True, True),
     ('epsilon_eff', 'Assumed effective Er (blank = stackup)', True, True),
-    ('eye_bitrate_mbps', 'Ideal NRZ bit rate · Mbps', False, True),
+    ('eye_bitrate_mbps', 'NRZ bit rate · Mbps', False, True),
     ('eye_swing_v', 'Open-circuit source swing · V', False, True),
+    ('eye_load_pf', 'Receiver capacitance · pF (blank = 0)', True, False),
+    ('eye_via_l_nh', 'Reviewed loop L per via · nH', True, True),
+    ('eye_via_c_pf', 'Reviewed shunt C per via · pF', True, False),
 )
 
 
@@ -208,8 +211,8 @@ def setup_dialog(parent, pads_by_net, terminals, current, values, eye_enabled, r
         control = wx.TextCtrl(scroll, value=str(values.get(key, ''))); inputs[key] = control
         model.Add(wx.StaticText(scroll, label=caption), 0, wx.ALIGN_CENTER_VERTICAL); model.Add(control, 1, wx.EXPAND)
     form.Add(model, 0, wx.EXPAND | wx.ALL, 7)
-    note('3. Optional time-domain screen. Ideal NRZ eye / step uses a uniform lossless line and resistive endpoints. It does not run IBIS, converter dynamics or a full extracted channel.')
-    eye = wx.CheckBox(scroll, label='Generate illustrative eye and step response'); eye.SetValue(eye_enabled)
+    note('3. Optional board RLC eye. Uses ordered extracted trace R/L/C and explicit receiver C. Via routes need reviewed loop L and shunt C per via; the same equivalent applies to every traversed via. Missing references, branches or unsupported geometry block the eye. Skin/dielectric loss and IBIS are not included.')
+    eye = wx.CheckBox(scroll, label='Simulate board RLC eye and step response'); eye.SetValue(eye_enabled)
     form.Add(eye, 0, wx.ALL, 7)
     eye_grid = wx.FlexGridSizer(0, 2, 6, 8); eye_grid.AddGrowableCol(1)
     for key, caption, _, _ in FIELDS:
