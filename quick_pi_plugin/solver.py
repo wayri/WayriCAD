@@ -25,7 +25,7 @@ class _Union:
 
 def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
           sink_current=1.0, options=None, *, sinks=None, source_current_limit=None,
-          mesh_cell_budget=500000, mesh_vertex_budget=250000):
+          mesh_cell_budget=500000, mesh_vertex_budget=250000, shared_return_contacts=False):
     """Solve a selected net mesh and return JSON-serializable physical results.
 
     mesh: points_mm[N,3], triangles[M,3], triangle_thickness_mm[M], optional
@@ -48,9 +48,16 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     in the report. Fusing risk is a no-cooling adiabatic temperature-limit screen,
     not a certified fuse-opening current or an electrothermal simulation.
 
+    shared_return_contacts permits coincident return electrodes only at a
+    zero-volt ground reference. Demands on a shared electrode add; a demand
+    at the reference has zero copper drop but retains its load identity/current.
+    Ordinary source/load overlap remains rejected.
+
     Explicit resource limits retain the default 500,000 triangles / 250,000
     vertices, with explicit hard ceilings of 2,000,000 for each.
     """
+    if not isinstance(shared_return_contacts, bool) or shared_return_contacts and source_voltage != 0:
+        raise SolverError("Shared return contacts require a zero-volt ground reference.")
     for value,name,minimum,maximum in (
             (mesh_cell_budget,'mesh_cell_budget',1,2000000),
             (mesh_vertex_budget,'mesh_vertex_budget',2,2000000)):
@@ -227,8 +234,8 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
         groups = pre_groups
     source = int(groups[source_nodes[0]])
     sink_groups = [int(groups[spec['nodes'][0]]) for spec in sink_specs]
-    if source in sink_groups: raise SolverError('Source and sink electrodes overlap or share an ideal contact; choose separate terminals.')
-    if len(set(sink_groups)) != len(sink_groups):
+    if not shared_return_contacts and source in sink_groups: raise SolverError('Source and sink electrodes overlap or share an ideal contact; choose separate terminals.')
+    if not shared_return_contacts and len(set(sink_groups)) != len(sink_groups):
         raise SolverError('Sink electrodes overlap or share an ideal contact; combine their demand into one sink.')
     g = int(groups.max()) + 1
     grouped_triangles = groups[triangles]
@@ -273,7 +280,7 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
         if not active[sink]: raise SolverError('Source and sink are disconnected in the copper/via mesh: ' + spec['label'])
     free = np.flatnonzero(active & (np.arange(g) != source))
     load = np.zeros(g)
-    for spec, sink in zip(sink_specs, sink_groups): load[sink] = -spec['current_A']
+    for spec, sink in zip(sink_specs, sink_groups): load[sink] -= spec['current_A']
     offset = np.zeros(g)  # solve relative to source to avoid voltage cancellation
     upper=triu(matrix,k=1).tocoo()
     def conservative_reaction(voltage):
@@ -289,20 +296,22 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     try:
         with warnings.catch_warnings():
             warnings.simplefilter('error', MatrixRankWarning)
-            reduced=matrix[free][:,free]
-            diagonal=reduced.diagonal()
-            if np.any(diagonal<=0):raise SolverError('Copper stiffness has a non-positive diagonal.')
-            scale=1/np.sqrt(diagonal)
-            factor=splu(reduced.multiply(scale[:,None]).multiply(scale[None,:]).tocsc())
-            offset[free]=scale*factor.solve(scale*load[free])
-            for _ in range(6):
-                error=load[free]-conservative_reaction(offset)[free]
-                if np.max(np.abs(error))<=max(1e-12,sink_current*1e-10):break
-                offset[free]+=scale*factor.solve(scale*error);refinements+=1
+            if len(free):
+                reduced=matrix[free][:,free]
+                diagonal=reduced.diagonal()
+                if np.any(diagonal<=0):raise SolverError('Copper stiffness has a non-positive diagonal.')
+                scale=1/np.sqrt(diagonal)
+                factor=splu(reduced.multiply(scale[:,None]).multiply(scale[None,:]).tocsc())
+                offset[free]=scale*factor.solve(scale*load[free])
+                for _ in range(6):
+                    error=load[free]-conservative_reaction(offset)[free]
+                    if np.max(np.abs(error))<=max(1e-12,sink_current*1e-10):break
+                    offset[free]+=scale*factor.solve(scale*error);refinements+=1
     except (RuntimeError, MatrixRankWarning) as exc: raise SolverError('Singular copper mesh; inspect disconnected or degenerate contacts.') from exc
     if not np.isfinite(offset[free]).all(): raise SolverError('FEM returned non-finite voltages.')
     reaction = conservative_reaction(offset)
-    residual = float(np.max(np.abs(reaction[free]-load[free])))
+    source_injection = float(reaction[source]-load[source])
+    residual = float(np.max(np.abs(reaction[free]-load[free]))) if len(free) else 0.
     if residual > max(1e-8, sink_current*1e-6): raise SolverError('FEM current conservation failed; refine or repair the mesh.')
     voltage_offset = offset[groups]
     node_active = active[groups]
@@ -342,7 +351,7 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
             if resistance:
                 current=branch_currents.get(index,0)
                 imbalance[pre_groups[a]]-=current;imbalance[pre_groups[b]]+=current
-        imbalance[pre_groups[source_nodes[0]]]+=float(reaction[source])
+        imbalance[pre_groups[source_nodes[0]]]+=source_injection
         for spec in sink_specs: imbalance[pre_groups[spec['nodes'][0]]]-=spec['current_A']
         adjacency={}
         for index,(_,a,b,resistance,_) in enumerate(branches):
@@ -422,7 +431,7 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
     drop = max(row['voltage_drop_V'] for row in sink_results)
     terminal_loss = math.fsum(row['current_A'] * row['voltage_drop_V'] for row in sink_results)
     energy_error = abs(loss-terminal_loss)/max(abs(terminal_loss), 1e-30)
-    if terminal_loss <= 0 or energy_error > 1e-6: raise SolverError('FEM energy balance failed; inspect mesh conditioning.')
+    if (terminal_loss <= 0 and not (shared_return_contacts and terminal_loss == 0 and loss == 0)) or energy_error > 1e-6: raise SolverError('FEM energy balance failed; inspect mesh conditioning.')
 
     over_limit = source_current_limit is not None and sink_current > source_current_limit and not math.isclose(
         sink_current, source_current_limit, rel_tol=1e-12, abs_tol=0.)
@@ -484,13 +493,13 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
             'components':component_results,
             'contains_forward_drop':bool(forward_drops),
             'source_voltage_V': source_voltage, 'sink_voltage_V': source_voltage-drop,
-            'source_current_A': float(reaction[source]), 'sink_current_A': sink_current,
+            'source_current_A': source_injection, 'sink_current_A': sink_current,
             'total_sink_current_A': sink_current, 'sinks': sink_results, 'feasibility': feasibility,
             'voltage_drop_V': drop, 'drop_over_current_ohm': drop/sink_current,
             'drop_over_current_basis': 'two_terminal' if len(sink_results) == 1 else 'worst_sink_drop_over_total_demand',
             'V_over_I_ohm': source_voltage/sink_current,
             'total_power_W': loss, 'conductor_power_W':conductor_loss,'component_power_W':component_loss,
-            'current_balance_error_A': abs(float(reaction[source])-sink_current),
+            'current_balance_error_A': abs(source_injection-sink_current),
             'max_nodal_residual_A': residual, 'energy_relative_error': energy_error,
             'iterative_refinement_steps':refinements,
             'flux_precision_bits':int(np.finfo(np.longdouble).nmant+1),

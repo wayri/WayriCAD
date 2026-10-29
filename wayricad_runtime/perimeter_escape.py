@@ -33,13 +33,12 @@ def _basis(footprint, pad):
     return side, (math.cos(normal), math.sin(normal)), (-math.sin(normal), math.cos(normal))
 
 
-def path(footprint, pad, api, settings):
+def bank(footprint, pad, api):
+    """Return the complete geometric bank, independent of scope/net filters."""
     basis = _basis(footprint, pad)
     if basis is None:
         raise ValueError('A center/exposed pad needs an explicit via-in-pad or custom rule.')
     side, normal, tangent = basis
-    if settings['angle_mode'] != 'Pattern' or any(float(settings[k]) != 0 for k in ('angle_offset','offset_x','offset_y')):
-        raise ValueError('Pitch expansion uses package-aligned 45-degree bends; clear direction/endpoint overrides.')
     def projection(point, axis):
         return point.x*axis[0]+point.y*axis[1]
     rows = []
@@ -58,6 +57,26 @@ def path(footprint, pad, api, settings):
     gaps = [b[0]-a[0] for a,b in zip(rows,rows[1:])]
     if gaps and min(gaps) <= 2:
         raise ValueError('Overlapping or stacked perimeter pads need explicit routing.')
+    return normal, tangent, rows, index, gaps
+
+
+def staggered_path(footprint, pad, api, settings, alternating=False):
+    """Alternate reach/direction by full-bank position, never planner order."""
+    normal, _tangent, _rows, index, _gaps = bank(footprint, pad, api)
+    if settings['angle_mode'] != 'Pattern' or any(float(settings[k]) != 0 for k in ('angle_offset','offset_x','offset_y')):
+        raise ValueError('Perimeter stagger uses package-aligned launches; clear direction/endpoint overrides.')
+    reach = api.FromMM(float(settings['length']) + (index % 2)*float(settings['stagger_pitch']))
+    if alternating and index % 2:
+        reach = -reach
+    start = pad.GetPosition()
+    return [api.VECTOR2I(start.x, start.y),
+            api.VECTOR2I(round(start.x+normal[0]*reach), round(start.y+normal[1]*reach))]
+
+
+def path(footprint, pad, api, settings):
+    normal, tangent, rows, index, gaps = bank(footprint, pad, api)
+    if settings['angle_mode'] != 'Pattern' or any(float(settings[k]) != 0 for k in ('angle_offset','offset_x','offset_y')):
+        raise ValueError('Pitch expansion uses package-aligned 45-degree bends; clear direction/endpoint overrides.')
     native_pitch = max(gaps, default=0)
     minimum = api.FromMM(float(settings['width'])+float(settings['clearance']))+2
     if settings['add_vias']:

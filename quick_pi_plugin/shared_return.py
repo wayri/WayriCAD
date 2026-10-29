@@ -44,7 +44,6 @@ def validate_groups(study):
             if key in mappings:raise ValueError('Repeated shared-return load mapping.')
             mappings.add(key);local_cases.add(load['case'])
             selected=pad_names(load)
-            if pads.intersection(selected):raise ValueError('Return terminal units overlap.')
             pads.update(selected)
         if used_cases.intersection(local_cases):raise ValueError('A rail case can belong to only one shared return.')
         used_cases.update(local_cases);rail_nets=set()
@@ -95,7 +94,7 @@ def execute_groups(study,rows,execute_case,board_path,sha,current):
                 demands.update({(name,s['id']):s for s in specs})
             request={key:copy.deepcopy(group[key]) for key in _SETTINGS if key in group}
             request.update(action='solve',board_path=board_path,net=group['net'],
-                source_terminals=group['source_terminals'],source_voltage=0.,model_dimension='2.5d',
+                source_terminals=group['source_terminals'],source_voltage=0.,model_dimension='2.5d',_shared_return_contacts=True,
                 sinks=[{'id':str(i),'terminals':mapping['terminals'],
                         'current_A':demands[(mapping['case'],mapping['sink'])]['current_A']}
                        for i,mapping in enumerate(group['loads'])])
@@ -116,6 +115,7 @@ def execute_groups(study,rows,execute_case,board_path,sha,current):
                 notice='One simultaneous return copper solve includes common-impedance coupling. '
                     'Raw return FEM potentials/currents have reversed direction; multiply by -1 for physical return injections. '
                     'Each load return contribution I × ground rise includes interaction terms; shared copper loss is counted once. '
+                    'Overlapping return pad units share an ideal electrode; their currents add. A load at supply ground has zero return drop. '
                     'Ideal equipotential pad units and prescribed currents at fixed temperature; no AC fields, regulator dynamics or thermal feedback.')
             returned['return_conduction_notice']=record['notice']
             for i,mapping in enumerate(group['loads']):

@@ -25,7 +25,8 @@ FIELD_STYLES={'smooth':'Smooth gradient','cells':'Solver cells'}
 def terminal_ids(request):
     """All requested load pads, including legacy two-terminal studies."""
     values=[request.get('source_terminal',request.get('source')),
-            request.get('sink_terminal',request.get('sink')),*request.get('source_terminals',[])]
+            request.get('sink_terminal',request.get('sink')),*request.get('source_terminals',[]),
+            *request.get('sink_terminals',[])]
     for row in request.get('sinks',[]):values.extend(row.get('terminals',[row.get('terminal')]))
     return {value for value in values if value is not None}
 

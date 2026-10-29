@@ -55,6 +55,8 @@ REQUIREMENTS_BOM = {
     'shapely.geometry': 'shapely>=2,<3',
 }
 REQUIREMENTS_QUICK_PI = {
+    # Post-solve same-layer insulation screening uses validated polygon gaps.
+    'shapely.geometry': 'shapely>=2,<3',
     'numpy': 'numpy>=1.24,<3', 'scipy': 'scipy>=1.10,<2',
     'matplotlib': 'matplotlib>=3.7,<4',
     # Probe the same native geometry modules used by the mesher. Importing

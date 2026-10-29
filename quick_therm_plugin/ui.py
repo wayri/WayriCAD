@@ -47,6 +47,7 @@ class QuickThermFrame(wx.Frame):
         self.SetMinSize((940, 680))
         self.board_path = str(Path(board_path).resolve())
         self.thermal_bundle = {}
+        self._thermal_materials = {}
         self.inventory = {}
         self.manual_values = {}
         self.manual_temperature_limits = {}
@@ -478,6 +479,12 @@ class QuickThermFrame(wx.Frame):
             model_grid.Add(control,1,wx.EXPAND)
         model_layout=wx.BoxSizer(wx.VERTICAL)
         model_layout.Add(model_headings,0,wx.EXPAND|wx.BOTTOM,6)
+        material_buttons=wx.BoxSizer(wx.VERTICAL)
+        for role,label in (('dielectric','Dielectric material…'),('copper','Copper material…')):
+            button=wx.Button(model_pane,label=label)
+            button.Bind(wx.EVT_BUTTON,lambda event,selected=role:self._edit_thermal_material(selected))
+            material_buttons.Add(button,0,wx.EXPAND|wx.BOTTOM,5)
+        model_layout.Add(material_buttons,0,wx.EXPAND|wx.BOTTOM,8)
         model_layout.Add(model_grid,0,wx.EXPAND)
         solver_setup=wx.BoxSizer(wx.VERTICAL)
         self.therm_ccx_browse=wx.Button(model_pane,label='Locate CalculiX…')
@@ -829,6 +836,35 @@ class QuickThermFrame(wx.Frame):
         dialog.Bind(wx.EVT_BUTTON,apply,id=wx.ID_OK);dialog.SetSizer(layout);resize()
         dialog.ShowModal();dialog.Destroy()
 
+    def _thermal_material_values(self):
+        values={}
+        for role in ('dielectric','copper'):
+            for suffix,attribute in (('k_w_mk','therm_'+role+'_k'),('volumetric_capacity_j_m3k','therm_'+role+'_capacity')):
+                try:values[role+'_'+suffix]=float(getattr(self,attribute).GetValue())
+                except (ValueError,AttributeError):values[role+'_'+suffix]=None
+        return values
+
+    def _edit_thermal_material(self,role):
+        if self._busy:return
+        from wayricad_runtime.thermal_materials_ui import ThermalMaterialDialog
+        from wayricad_runtime.thermal_materials import apply_material_selection
+        picker=ThermalMaterialDialog(self,properties=['thermal_conductivity_w_mk','volumetric_heat_capacity_j_m3k'],
+            category='metal' if role=='copper' else 'laminate')
+        try:
+            if picker.dialog.ShowModal()!=wx.ID_OK:return
+            selection=picker.selection
+            bindings={'thermal_conductivity_w_mk':role+'_k_w_mk',
+                      'volumetric_heat_capacity_j_m3k':role+'_volumetric_capacity_j_m3k'}
+            applied=apply_material_selection({},selection,bindings)
+            for key,value in applied.items():
+                attribute='therm_'+role+('_k' if key.endswith('k_w_mk') else '_capacity')
+                getattr(self,attribute).ChangeValue(str(value))
+            self._thermal_materials[role]={'selection':selection,'bindings':bindings}
+            self._invalidate_thermal()
+            self.therm_status.SetLabel('Reviewed '+role+' material applied to selected conductivity/storage inputs. Run again; other physical inputs need review.')
+        except ValueError as exc:self.therm_status.SetLabel(str(exc))
+        finally:picker.dialog.Destroy()
+
     def _edit_component_storage(self,event=None):
         references=self.therm_inputs.selected_references()
         if not references:
@@ -1021,6 +1057,8 @@ class QuickThermFrame(wx.Frame):
 
 
     def _invalidate_thermal(self,event=None):
+        from wayricad_runtime.thermal_materials import matching_material_selections
+        self._thermal_materials=matching_material_selections(getattr(self,'_thermal_materials',{}),self._thermal_material_values())
         self.therm_mesh_summary.SetLabel('Automatic recommendation pending a new run.' if self.therm_auto_mesh.GetValue() and self.therm_model_kind.GetSelection()!=2 else 'Manual mesh; review resolution and convergence after running.')
         self.therm_mesh_summary.Wrap(260)
         self._input_revision=getattr(self,'_input_revision',0)+1
@@ -1086,6 +1124,9 @@ class QuickThermFrame(wx.Frame):
                          ('maximum_c',self.therm_limit_max.GetValue())) if name},
                      'probes':list(self.therm_probe_definitions)}
             request['load_step_models']=self.therm_step_models.GetValue()
+            from wayricad_runtime.thermal_materials import matching_material_selections
+            if self.therm_model_enabled.GetValue() and self.therm_model_kind.GetSelection() in (1,2):
+                request['material_library']=matching_material_selections(self._thermal_materials,self._thermal_material_values())
             if manual:
                 request['input_mode']='manual'
                 request['manual_values']={ref:effective[ref] for ref in references}

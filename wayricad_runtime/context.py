@@ -4,11 +4,11 @@ import os
 
 
 def connect(*, timeout_ms=5000):
-    from kipy import KiCad
     socket = os.environ.get('KICAD_API_SOCKET', '').strip()
     token = os.environ.get('KICAD_API_TOKEN', '')
     if not socket or not token:
         raise RuntimeError('No originating KiCad connection. Launch this action from the PCB Editor toolbar, or supply a saved board to the standalone CLI.')
+    from kipy import KiCad
     # Never enumerate sockets or fall back to another running editor.
     return KiCad(socket_path=socket, kicad_token=token, timeout_ms=timeout_ms)
 

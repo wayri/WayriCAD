@@ -9,7 +9,7 @@ FANOUT_PATTERNS = (
     'Quadrant outward', 'Quadrant inward', 'Four-corner outward',
     'Four-corner inward', 'Perimeter outward', 'Radial outward',
     '45-degree spread', 'Custom-angle spread', 'Straight + angled escape',
-    'Staggered rows',
+    'Staggered rows', 'Perimeter alternating inward / outward',
 )
 SIGNAL_PROFILES = ('Generic', 'DDR', 'GDDR', 'SERDES', 'PCIe', 'PCI', 'PXI', 'PXIe', 'LVDS')
 ANGLE_MODES = ('Pattern', 'Board absolute', 'Footprint relative')

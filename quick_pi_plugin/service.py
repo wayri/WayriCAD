@@ -177,6 +177,15 @@ def run_job(request, cancelled=None, timeout=300):
 
 
 def execute(request,*,_boards=None):
+    """Capture the actual executing producer before creating numerical evidence."""
+    from wayricad_runtime.pocket_report import producer_version
+    version=producer_version(module_file=__file__,package=__package__)
+    output=_execute(request,_boards=_boards)
+    output['producer_version']=version
+    return output
+
+
+def _execute(request,*,_boards=None):
     from .mesh_sizing import mode as sizing_mode
     sizing_mode(request)
     from .constant_power import guard as guard_power
@@ -257,9 +266,12 @@ def execute(request,*,_boards=None):
     if action=='inspect':
         nets=sorted({str(p.GetNetname()) for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0})
         pad_counts={fp.m_Uuid.AsString():len(list(fp.Pads())) for fp in board.GetFootprints()}
+        properties={fp.m_Uuid.AsString():{str(f.GetName()):str(f.GetText()) for f in fp.GetFields()}
+                    for fp in board.GetFootprints()}
         terminals=[{'id':p.m_Uuid.AsString(),'pad_uuid':p.m_Uuid.AsString(),
                     'footprint_uuid':fp.m_Uuid.AsString(),'component_value':str(fp.GetValue()),
                     'footprint_pad_count':pad_counts[fp.m_Uuid.AsString()],
+                    'component_properties':properties[fp.m_Uuid.AsString()],
                     'reference':str(fp.GetReference()),'pad_number':str(p.GetNumber()),
                     'layer_ids':[int(l) for l in board.GetEnabledLayers().CuStack() if p.IsOnLayer(l)],
                     'label':f'{fp.GetReference()}.{p.GetNumber()}', 'net':str(p.GetNetname())}
@@ -280,12 +292,15 @@ def execute(request,*,_boards=None):
     if action not in ('geometry','mesh','solve'):raise ValueError('Unknown Quick PI action: '+str(action))
     if action=='solve':
         from .terminals import source_names
-        source_names(request)
+        source_check=dict(request)
+        if request.get('series') and 'source_terminals' in source_check:
+            source_check.pop('source_terminal',None)  # Series retains a reviewed display anchor.
+        source_names(source_check)
         specs=sink_requests(request)
         grouped='source_terminals' in request or any('terminals' in spec for spec in specs)
-        if grouped and (request.get('model_dimension','2.5d')!='2.5d' or request.get('series') or
+        if grouped and (request.get('model_dimension','2.5d')!='2.5d' or
                         request.get('package_conduction') or voltage_mode or sweep_mode):
-            raise ValueError('Grouped pad units support current/power 2.5D copper loads only; package, series, 3D and resistive/sweep modes are unsupported.')
+            raise ValueError('Grouped pad units support 2.5D copper loads only; package, 3D and resistive/sweep modes are unsupported.')
     from .board_geometry import extract
     full3d=request.get('model_dimension','2.5d')=='3d'
     if request.get('model_dimension','2.5d') not in ('2.5d','3d'):
@@ -351,6 +366,7 @@ def execute(request,*,_boards=None):
             output['result']=(solve_power if power_mode else solve)(mesh,source_nodes,
                 source_voltage=request.get('source_voltage',1.),sinks=sink_specs,
                 source_current_limit=request.get('source_current_limit'),options=request.get('options'),
+                **({'shared_return_contacts':True} if request.get('_shared_return_contacts') and not power_mode else {}),
                 **_solver_mesh_budgets(request))
             if power_mode:
                 for unit,spec,row in zip(units['loads'],specs,output['result']['sinks']):
@@ -434,13 +450,16 @@ def sink_requests(request):
     if not isinstance(specs,(list,tuple)) or not 1<=len(specs)<=1024:
         raise ValueError('Specify 1 to 1,024 sinks.')
     from .terminals import pad_names
+    shared=request.get('_shared_return_contacts',False)
+    if not isinstance(shared,bool) or shared and request.get('source_voltage')!=0:
+        raise ValueError('Shared return contacts require a zero-volt ground reference.')
     result=[];seen=set();identifiers=set()
     for spec in specs:
         if not isinstance(spec,dict): raise ValueError('Each sink needs a terminal and current_A or power_W.')
         unknown=set(spec)-{'terminal','terminals','id','label','current_A','power_W','min_voltage_V','max_voltage_V'}
         if unknown: raise ValueError('Unknown sink parameter: '+', '.join(sorted(unknown)))
         chosen=pad_names(spec)
-        if seen.intersection(chosen):raise ValueError('Repeated sink terminal: '+', '.join(chosen))
+        if not shared and seen.intersection(chosen):raise ValueError('Repeated sink terminal: '+', '.join(chosen))
         seen.update(chosen)
         if 'id' in spec:
             if not isinstance(spec['id'],str) or not spec['id'].strip() or spec['id'] in identifiers:
@@ -477,30 +496,53 @@ def series_execute(board,path,request):
         matches=[p for p in inventory if p['id']==value or p['label']==value]
         if len(matches)!=1:raise ValueError('Choose an unambiguous pad: '+str(value))
         return matches[0]
+    from .terminals import pad_names
+    def unit(anchor, values):
+        chosen=pad_names({'terminals':values}) if values is not None else [anchor]
+        rows=[terminal(value) for value in chosen];first=terminal(anchor)
+        ids=[row['id'] for row in rows]
+        if len(ids)!=len(set(ids)):
+            raise ValueError('Repeated series endpoint, including label/UUID aliases.')
+        if first['id'] not in ids:
+            raise ValueError('A grouped series electrode must include its reviewed anchor pad.')
+        if any((row['footprint'],row['net'])!=(first['footprint'],first['net']) for row in rows):
+            raise ValueError('Every grouped series electrode must use pads of one exact component and net.')
+        return rows
     sink_spec=sink_requests(request)[0]
-    start=terminal(request['source_terminal']);end=terminal(sink_spec['terminal'])
-    if start['id']==end['id']:raise ValueError('Source and sink terminals must be distinct.')
-    seen={start['id'],end['id']}
+    starts=unit(request['source_terminal'],request.get('source_terminals'))
+    ends=unit(sink_spec['terminal'],request.get('sink_terminals'))
+    start,end=terminal(request['source_terminal']),terminal(sink_spec['terminal'])
+    seen={row['id'] for row in starts}
+    if seen.intersection(row['id'] for row in ends):raise ValueError('Source and sink terminals must be distinct.')
+    seen.update(row['id'] for row in ends)
     previous=start;branches=[];nets=[start['net']]
     if request.get('net') and request['net']!=start['net']:raise ValueError('The named net does not contain the starting pad.')
     for index,branch in enumerate(request['series']):
+        left_rows=unit(branch['from_pad'],branch.get('from_pads'))
+        right_rows=unit(branch['to_pad'],branch.get('to_pads'))
         a=terminal(branch['from_pad']);b=terminal(branch['to_pad'])
-        if a['id']==b['id'] or a['footprint']!=b['footprint']:raise ValueError('Each series branch must join distinct pads of one component.')
-        if a['id'] in seen or b['id'] in seen:
+        if a['id']==b['id'] or a['footprint']!=b['footprint']:
+            raise ValueError('Each series branch must join distinct pads of one component.')
+        branch_ids=[row['id'] for row in [*left_rows,*right_rows]]
+        if len(set(branch_ids))!=len(branch_ids) or seen.intersection(branch_ids):
             raise ValueError('Repeated series endpoint. Each component pad must occur once in the requested path.')
-        seen.update((a['id'],b['id']))
+        seen.update(branch_ids)
         if previous['net']!=a['net']:raise ValueError(f"Copper path changes net without a component: {previous['label']} → {a['label']}")
         parallel=branch.get('parallel',[])
         if not isinstance(parallel,list) or len(parallel)>64:raise ValueError('Define at most 64 explicit parallel components per stage.')
         for parallel_index,element in enumerate([branch,*parallel]):
             left,right=(a,b) if parallel_index==0 else (terminal(element['from_pad']),terminal(element['to_pad']))
+            element_left,element_right=(left_rows,right_rows) if parallel_index==0 else (
+                unit(element['from_pad'],element.get('from_pads')),unit(element['to_pad'],element.get('to_pads')))
             if parallel_index:
                 if left['id']==right['id'] or left['footprint']!=right['footprint']:
                     raise ValueError('A parallel branch must join distinct pads of one component.')
                 if (left['net'],right['net'])!=(a['net'],b['net']):
                     raise ValueError('Parallel components must span exactly the same oriented net pair as their stage.')
-                if left['id'] in seen or right['id'] in seen:raise ValueError('A parallel component pad was already assigned.')
-                seen.update((left['id'],right['id']))
+                identities=[row['id'] for row in [*element_left,*element_right]]
+                if len(set(identities))!=len(identities) or seen.intersection(identities):
+                    raise ValueError('A parallel component pad was already assigned.')
+                seen.update(identities)
             validate_model(element)
             if parallel and ('fixed_drop_v' in element or 'diode' in element):
                 raise ValueError('Parallel stages support linear R/L components only; forward-drop branch sharing is unsupported.')
@@ -511,7 +553,10 @@ def series_execute(board,path,request):
                 raise ValueError('A series component needs resistance, inductance or a forward-drop model.')
             identity=str(element.get('id',left['label'].split('.')[0]))+f':{index}'+(f':parallel{parallel_index}' if parallel_index else '')
             branches.append({**{key:value for key,value in element.items() if key!='parallel'},'id':identity,
-                             'from_terminal':left['id'],'to_terminal':right['id'],'resistance_ohm':resistance,'inductance_h':inductance,
+                             'from_terminal':left['id'],'to_terminal':right['id'],
+                             'from_terminals':[row['id'] for row in element_left],
+                             'to_terminals':[row['id'] for row in element_right],
+                             'resistance_ohm':resistance,'inductance_h':inductance,
                              'from_domain':index,'to_domain':index+1})
         previous=b;nets.append(b['net'])
     if previous['net']!=end['net']:raise ValueError('The last component and ending pad do not share a net.')
@@ -549,17 +594,37 @@ def series_execute(board,path,request):
             merged_layers[layer['id']]['polygons'].extend(layer['polygons'])
         all_terminals.extend(geometry['terminals']);all_vias.extend(geometry['vias'])
         warnings.extend(geometry.get('warnings',[]));domain_counts.append({'net':net,**geometry.get('counts',{})})
+    occupied_nodes=set()
+    def electrode(rows):
+        values=[]
+        for row in rows:
+            indices=mesh['terminal_nodes'].get(row['id'])
+            if not indices:raise ValueError('Selected series pad has no mesh vertices: '+row['label'])
+            values.extend(indices)
+        nodes=sorted(set(values))
+        if occupied_nodes.intersection(nodes):
+            raise ValueError('Distinct series electrodes overlap in the copper mesh; review the pad groups.')
+        occupied_nodes.update(nodes)
+        return nodes
+    source_nodes=electrode(starts);sink_nodes=electrode(ends)
     for branch in branches:
-        mesh['lumped_branches'].append({**branch,'top_nodes':mesh['terminal_nodes'][branch['from_terminal']],
-                                       'bottom_nodes':mesh['terminal_nodes'][branch['to_terminal']]})
+        mesh['lumped_branches'].append({**branch,
+            'top_nodes':electrode([terminal(value) for value in branch['from_terminals']]),
+            'bottom_nodes':electrode([terminal(value) for value in branch['to_terminals']])})
     geometry={**geometry,'net':' → '.join(nets),'nets':list(dict.fromkeys(nets)),
               'layers':list(merged_layers.values()),'terminals':all_terminals,'vias':all_vias,
               'counts':{'nets':len(set(nets))},'domain_counts':domain_counts,'warnings':sorted(set(warnings))}
     geometry['geometry_sha256']=hashlib.sha256(json.dumps(geometry,sort_keys=True).encode()).hexdigest()
     mesh['geometry']=geometry
-    result=solve(mesh,mesh['terminal_nodes'][start['id']],
+    result=solve(mesh,source_nodes,
         source_voltage=request.get('source_voltage',1.),
-        sinks=[{**sink_spec,'nodes':mesh['terminal_nodes'][end['id']],'id':end['id'],'label':end['label']}],
+        sinks=[{**sink_spec,'nodes':sink_nodes,'id':end['id'],'label':' + '.join(row['label'] for row in ends)}],
         source_current_limit=request.get('source_current_limit'),options=request.get('options'))
-    return {'geometry':geometry,'mesh':mesh,'result':result,'request':request,
-            'model':'2.5D DC copper conduction with explicit series R/L and forward-drop branches at prescribed current'}
+    units={'source_terminals':[row['id'] for row in starts],'source_labels':[row['label'] for row in starts],
+           'loads':[{'id':end['id'],'terminals':[row['id'] for row in ends],
+                     'labels':[row['label'] for row in ends],'current_A':sink_spec['current_A']}],
+           'series':[{'id':branch['id'],'from_terminals':branch['from_terminals'],'to_terminals':branch['to_terminals']} for branch in branches],
+           'assumption':'Each explicitly reviewed same-component/net pad group is one ideal equipotential electrode. '
+                        'The source/load current and each component model apply once to the whole group; no equal pad-current split is assumed.'}
+    return {'geometry':geometry,'mesh':mesh,'result':result,'request':request,'terminal_units':units,
+            'model':'2.5D DC copper conduction with explicit series R/L and forward-drop branches at prescribed total current'}

@@ -9,9 +9,31 @@ The local Fanout Generator supports angled and segmented escapes, net-name and n
 | 45-degree spread | Fans pads away from the footprint at 45° to the nearest footprint edge normal. |
 | Custom-angle spread | Uses the same spreading direction with an editable outward angle below 90°. |
 | Straight + angled escape | Starts normal to the footprint edge, then turns to the selected spread angle. Escape length includes the straight launch before XY offsets. |
-| Staggered rows | Alternates the escape length by the row-stagger distance in deterministic footprint/pad-position order. |
+| Staggered rows | Straight outward launches alternate short/long reach on every package side, using the complete bank's pad positions. |
+| Perimeter alternating inward / outward | Alternates short outward and long inward launches on each package side. Blocked inward routes are rejected. |
 
 Existing dogbone, BGA/LGA, quadrant, perimeter, corner and radial styles remain available. Choose **Pattern** direction for footprint-aware spreading, **Board absolute** for a fixed heading, or **Footprint relative** for a heading that follows component rotation. In board coordinates, 0° points toward +X and 90° toward +Y (down the preview). The existing angle offset rotates the chosen heading. Absolute/relative headings accept 0–360°. Via-in-pad remains a separate output mode.
+
+The two perimeter stagger styles require **Fixed**, **Independent** and **Pattern**
+direction with zero rotation/endpoint overrides. On each package side, pads are
+sorted by their position along the package edge; numbering and selection do not
+restart the sequence. Reach is measured from pad center: **Escape length** for
+the first pad, plus **Row stagger** for the second, repeating for the full bank.
+This supports aligned QFP/QFN/SOIC perimeter banks, including rotated packages.
+Grid/multiple-row banks and center/exposed pads need another style or explicit
+via-in-pad rule. Changing pad filters or groups preserves bank alternation.
+
+Inward launches use the same actual pad/copper, through-via, edge/cutout, keepout
+and generated-copper checks as outward launches. Exposed pads can block some or
+all inward candidates. The planner leaves rejected pads untouched; it never flips
+them outward or forces a route through an obstacle. Inspect rejected candidates,
+refill zones and run native DRC after applying. These local checks do not model
+every custom DRC rule or establish complete net routing.
+
+Expand **Dimensions and advanced settings** for a dimensioned illustrative via
+and trace/angle guide. It updates with diameter, drill, width, length, angle and
+stagger settings; the component and main canvases remain the actual route
+previews. The expanded controls scroll within the window without resizing it.
 
 ## Select the intended signals
 

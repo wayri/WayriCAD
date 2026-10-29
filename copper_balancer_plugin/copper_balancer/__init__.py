@@ -1,6 +1,6 @@
 """KiCad discovers this package in its scripting/plugins directory."""
 
-__version__ = "3.6.45"
+__version__ = "3.6.46"
 
 try:
     import pcbnew

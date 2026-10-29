@@ -36,6 +36,10 @@ def _loads(loads, limits, powers=None):
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('board',type=Path,nargs='?')
+    parser.add_argument('--insulation-result',type=Path,help='Saved multi-net batch result JSON for post-solve engineering screening only.')
+    parser.add_argument('--insulation-policy',type=Path,help='Explicit rule/material/environment/voltage and spacing policy JSON; requires --insulation-result.')
+    parser.add_argument('--power-tree',type=Path,help='Validate a reviewed/draft power-intent JSON; does not run or configure a copper solve.')
+    parser.add_argument('--infer-power-tree',action='store_true',help='Suggest unreviewed power intent from a saved board; requires review of roles, returns and polarity.')
     parser.add_argument('--probe-result',type=Path,help='Saved single-case PI JSON for read-only differential voltage probing; no new solve.')
     parser.add_argument('--probe-a',nargs=3,metavar=('LAYER','X_MM','Y_MM'),help='Differential point A on solved 2.5D sheet copper.')
     parser.add_argument('--probe-b',nargs=3,metavar=('LAYER','X_MM','Y_MM'),help='Differential point B; reports V(A)-V(B) in the same saved potential reference.')
@@ -80,6 +84,18 @@ def main(argv=None):
     parser.add_argument('--command',help='Console command, including a series-component path; quote the entire command.')
     parser.add_argument('--series-file',type=Path,help='Reviewed series-editor JSON, including explicitly selected parallel R/L parts.')
     args=parser.parse_args(argv)
+    if args.insulation_result or args.insulation_policy:
+        try:
+            from .insulation_cli import run
+            return run(args, argv if argv is not None else sys.argv[1:])
+        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            print(json.dumps({'status':'ERROR','error':str(exc)}));return 2
+    if args.power_tree or args.infer_power_tree:
+        try:
+            from .power_tree_cli import run
+            return run(args, argv if argv is not None else sys.argv[1:])
+        except (ValueError,RuntimeError,OSError,TimeoutError) as exc:
+            print(json.dumps({'status':'ERROR','error':str(exc)}));return 2
     if args.probe_result:
         try:
             from .differential_probe import differential_probe
@@ -213,12 +229,11 @@ def main(argv=None):
             from .console import parse_command
             inventory=run_job({'action':'inspect','board_path':str(args.board.resolve())},timeout=args.timeout)
             if args.series_file:
-                from .series_editor import build_command
-                from .parallel_parts import with_parallel
+                from .series_editor import parse_saved_path
                 from wayricad_runtime.jobs import load_json
                 data=load_json(args.series_file)
                 if data.get('schema')!=1 or not isinstance(data.get('branches'),list):raise ValueError('Unsupported series-editor JSON.')
-                parsed=with_parallel(parse_command(build_command(data['source'],data['sink'],data['branches']),inventory),data['branches'],inventory)
+                parsed=parse_saved_path(data,inventory)
             else:parsed=parse_command(args.command,inventory)
             if 'console_output' in parsed:print(parsed['console_output']);return 0
             request.update(parsed)

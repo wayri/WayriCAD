@@ -105,6 +105,9 @@ def build(frame, board):
     brand = wx.StaticText(header, label='Quick EMerge')
     font = brand.GetFont(); font.SetPointSize(12); font.MakeBold(); brand.SetFont(font)
     bar.Add(brand, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 10)
+    frame.setup_button = button(header, 'Setup', frame.toggle_setup, toggle=True)
+    frame.setup_button.SetToolTip('Show or hide Geometry, Physics and Solve settings; reviewed geometry stays visible.')
+    bar.Add(frame.setup_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
     frame.source_label = wx.StaticText(header, label=Path(board).name, style=wx.ST_ELLIPSIZE_MIDDLE)
     frame.source_label.SetMinSize((80,-1))
     frame.source_label.SetToolTip('Saved board: '+Path(board).name+' · geometry is read-only')
@@ -216,7 +219,7 @@ def build(frame, board):
     nav.Add(button(frame.workspace,'Inspector',frame.toggle_inspector),0,wx.RIGHT,4)
     nav.Add(button(frame.workspace,'View options',frame.show_view_options),0,wx.RIGHT,4)
     frame.focus_button=button(frame.workspace,'Focus',frame.focus_view,toggle=True);nav.Add(frame.focus_button,0)
-    body.Add(nav,0,wx.EXPAND | wx.ALL,10)
+    body.Add(nav,0,wx.EXPAND | wx.ALL,5)
     frame.workspace_stack=wx.Simplebook(frame.workspace)
     viewer=wx.Panel(frame.workspace_stack); viewer_rows=wx.BoxSizer(wx.VERTICAL)
     frame.view_choice=wx.Choice(viewer)
@@ -234,6 +237,7 @@ def build(frame, board):
     frame.visual_splitter=wx.SplitterWindow(viewer,style=wx.SP_LIVE_UPDATE | wx.SP_NOBORDER)
     frame.visual_splitter.SetMinimumPaneSize(130)
     frame.tabs=wx.Simplebook(frame.visual_splitter)
+    frame.tabs.SetMinSize(frame.FromDIP(wx.Size(480,300)))
     frame.render_backend='Matplotlib software view'
     try:
         from .scene_viewport import SceneViewport
@@ -272,7 +276,7 @@ def build(frame, board):
     viewer_rows.Add(frame.visual_splitter,1,wx.EXPAND)
     frame.probe_label=wx.StaticText(viewer,label='Drag to inspect · wheel to zoom · double-click to fit',style=wx.ST_ELLIPSIZE_END)
     frame.probe_label.SetMinSize((1,-1))
-    frame.probe_label.SetForegroundColour('#607080');viewer_rows.Add(frame.probe_label,0,wx.EXPAND | wx.ALL,8)
+    frame.probe_label.SetForegroundColour('#607080');viewer_rows.Add(frame.probe_label,0,wx.EXPAND | wx.ALL,4)
     viewer.SetSizer(viewer_rows);frame.workspace_stack.AddPage(viewer,'Viewer')
     results=wx.Panel(frame.workspace_stack);result_rows=wx.BoxSizer(wx.VERTICAL)
     frame.result_summary=wx.StaticText(results,label='Run a study to see its results.');result_rows.Add(frame.result_summary,0,wx.EXPAND | wx.ALL,16)
@@ -288,8 +292,24 @@ def build(frame, board):
     frame.report_host=wx.Panel(report);frame.report_host.SetSizer(wx.BoxSizer(wx.VERTICAL));report_rows.Add(frame.report_host,1,wx.EXPAND | wx.ALL,12)
     report.SetSizer(report_rows);frame.workspace_stack.AddPage(report,'Report')
     body.Add(frame.workspace_stack,1,wx.EXPAND);frame.workspace.SetSizer(body)
-    split.SetMinimumPaneSize(frame.FromDIP(270));split.SetSashGravity(0);split.SplitVertically(frame.settings,frame.workspace,frame.FromDIP(310))
+    frame.setup_width=frame.FromDIP(310)
+    split.SetMinimumPaneSize(frame.FromDIP(270));split.SetSashGravity(0)
+    split.Initialize(frame.workspace);frame.settings.Hide()
+    def limit_setup(event):
+        if split.IsSplit():
+            maximum=max(frame.FromDIP(270),split.GetClientSize().width-frame.FromDIP(540))
+            if event.GetSashPosition()>maximum:event.SetSashPosition(maximum)
+        event.Skip()
+    split.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGING,limit_setup)
+    def resize_workspace(event):
+        if split.IsSplit():
+            maximum=max(frame.FromDIP(270),split.GetClientSize().width-frame.FromDIP(540))
+            if split.GetSashPosition()>maximum:split.SetSashPosition(maximum)
+        event.Skip()
+    split.Bind(wx.EVT_SIZE,resize_workspace)
     outer.Add(split,1,wx.EXPAND);panel.SetSizer(outer)
+    frame_layout=wx.BoxSizer(wx.VERTICAL);frame_layout.Add(panel,1,wx.EXPAND)
+    frame.SetSizer(frame_layout)
     frame.view_options=wx.Dialog(frame,title='Display options',size=(570,260),style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     options_layout=wx.BoxSizer(wx.VERTICAL);frame._build_view_controls(frame.view_options,options_layout)
     frame.view_options.SetSizer(options_layout)

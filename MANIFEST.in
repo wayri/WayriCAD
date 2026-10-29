@@ -130,3 +130,7 @@ include tests/test_tool_picker*.py
 include tests/test_pocket*.py
 include tools/generate_pocket_kivi_examples.py
 include docs/audits/RELEASE_3.6.45.md
+
+include docs/RELEASE_NOTES_3.6.46.md
+include docs/audits/RELEASE_3.6.46.md
+include docs/THERMAL_MATERIALS.md

@@ -17,7 +17,7 @@ def wait_preview(frame, timeout=30):
     timer=wx.Timer(frame)
     def check(event):
         if (not frame._preview_busy and frame._routing_job is None) or time.monotonic()>deadline:
-            timer.Stop();wx.CallAfter(loop.Exit)
+            timer.Stop();wx.CallAfter(loop.ScheduleExit)
     frame.Bind(wx.EVT_TIMER,check,timer);timer.Start(100)
     try:loop.Run()
     finally:
@@ -82,6 +82,49 @@ class FanoutLivePreviewTests(unittest.TestCase):
         for button in (self.frame.preview_button,self.frame.commit_button,self.frame.undo_button):
             self.assertTrue(bounds.Contains(button.GetRect()),str(button.GetRect()))
         self.assertFalse(self.frame.export_button.IsShown())
+
+    def test_family_filter_preserves_style_review_and_reports_actual_layout(self):
+        self.frame.auto_refresh.SetValue(False)
+        self.frame._update_style_preview()
+        self.assertIn('Plated through-hole',self.frame.family_guidance.GetLabel())
+        before=self.frame._settings_snapshot()
+        self.frame.pattern_family.SetValue('QFP/QFN / perimeter')
+        event=wx.CommandEvent(wx.EVT_COMBOBOX.typeId,self.frame.pattern_family.GetId())
+        event.SetEventObject(self.frame.pattern_family)
+        self.frame.pattern_family.GetEventHandler().ProcessEvent(event)
+        self.assertEqual(self.frame._settings_snapshot(),before)
+        self.assertEqual(self.frame.pattern.GetValue(),'Connector edge')
+        self.assertIn('Staggered rows',self.frame.pattern.GetStrings())
+        self.assertNotIn('BGA/LGA grid outward',self.frame.pattern.GetStrings())
+        self.frame.pattern.SetValue('Staggered rows');self.frame.on_config_changed(None)
+        self.assertIn('outside this family',self.frame.family_guidance.GetLabel().replace('\n',' '))
+        self.assertFalse(self.frame.commit_button.IsEnabled())
+
+    def test_advanced_dimensions_update_without_resizing_the_frame(self):
+        self.frame.auto_refresh.SetValue(False)
+        self.frame.SetSize((900,650));self.app.Yield()
+        before=self.frame.GetSize()
+        for expanded in (True,False,True,False):
+            self.frame.advanced.Collapse(not expanded)
+            event=wx.CollapsiblePaneEvent(self.frame.advanced,self.frame.advanced.GetId(),not expanded)
+            self.frame.advanced.GetEventHandler().ProcessEvent(event)
+            self.app.Yield()
+            self.assertEqual(self.frame.GetSize(),before)
+        self.frame.width.ChangeValue('.17');self.frame.via_diameter.ChangeValue('.55')
+        self.frame.via_drill.ChangeValue('.25');self.frame.escape_angle.ChangeValue('30')
+        self.frame.on_config_changed(None)
+        dimensions=self.frame.dimension_preview.dimensions()
+        self.assertEqual(dimensions['width'],.17);self.assertEqual(dimensions['via_diameter'],.55)
+        self.assertEqual(dimensions['via_drill'],.25);self.assertEqual(dimensions['escape_angle'],30)
+        self.frame.advanced.Expand();self.app.Yield()
+        self.assertTrue(self.frame.dimension_preview.IsShownOnScreen())
+        self.assertEqual(self.frame.GetSize(),before)
+        self.frame.netclass_filter.Append('HS');self.frame.netclass_filter.SetValue('HS')
+        self.frame.use_netclass_rules.SetValue(True)
+        with patch('wayricad_runtime.routing.project_netclasses',return_value={'classes':[
+                dict(name='HS',track_width=.12,via_diameter=.45,via_drill=.2,clearance=.1)]}):
+            dimensions=self.frame.dimension_preview.dimensions()
+        self.assertEqual(dimensions['width'],.12);self.assertEqual(dimensions['via_diameter'],.45)
 
     def test_settings_reuse_display_context_but_native_geometry_changes_reload(self):
         self.frame.preview(None,silent=True);wait_preview(self.frame)

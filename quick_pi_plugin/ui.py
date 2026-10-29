@@ -1206,6 +1206,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             request['sinks']=([{'terminal':request['sink_terminal']}] if request.get('sink_terminal') else [])+list(self._extra_sinks)
         if require_terminals and self._series_request and action=='solve':
             for key in ('series','net','source_terminal','sink_terminal'):request[key]=self._series_request[key]
+            for key in ('source_terminals','sink_terminals'):
+                if key in self._series_request:request[key]=list(self._series_request[key])
         if require_terminals and not self._series_request:QuickPIFrame._apply_pin_units(self,request)
         if getattr(self,'_package_conduction',[]):
             request['package_conduction']=self._package_conduction
@@ -1603,6 +1605,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         volume=menu.Append(wx.ID_ANY,'Select 3D copper analysis')
         volume.Enable(len(self._terminals)>1)
         self.Bind(wx.EVT_MENU,lambda e:(self.model_dimension.SetSelection(1),self._model_changed()),volume)
+        power_tree=menu.Append(wx.ID_ANY,'Power tree · review rails and converters…')
+        self.Bind(wx.EVT_MENU,self.on_power_tree,power_tree);power_tree.Enable(not self._busy)
         transient=menu.Append(wx.ID_ANY,'Transient load-step study…')
         self.Bind(wx.EVT_MENU,self.on_transient,transient);transient.Enable(not self._busy)
         electrothermal=menu.Append(wx.ID_ANY,'Electrothermal study…')
@@ -1833,6 +1837,18 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         note.Wrap(self.FromDIP(880));layout.Add(note,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
         layout.Add(dialog.CreateButtonSizer(wx.CLOSE),0,wx.ALIGN_RIGHT|wx.ALL,10)
         dialog.SetSizer(layout);canvas.draw();dialog.ShowModal();dialog.Destroy()
+
+    def on_power_tree(self,event=None):
+        if self._busy:return
+        if not self._snapshot_current():
+            self.status.SetLabel('Saved PCB changed. Reload before reviewing power intent.');return
+        from .power_tree_ui import PowerTreeDialog
+        editor=PowerTreeDialog(self,self.inventory,self.board_path,getattr(self,'power_tree_draft',None))
+        try:
+            if editor.dialog.ShowModal()==wx.ID_OK:
+                self.power_tree_draft=editor.tree
+                self.status.SetLabel('Power tree reviewed. Energy-flow arrows do not short nets or change solver terminal models. Save it in the tree editor to retain it.')
+        finally:editor.dialog.Destroy()
 
     def on_batch(self,event=None):
         if self._busy:return

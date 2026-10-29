@@ -45,7 +45,7 @@ class FanoutGeneratorPlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-dark-24.png")
-        self.version = "3.6.45"
+        self.version = "3.6.46"
 
     def Run(self) -> None:
         try:
@@ -476,12 +476,14 @@ class FanoutFrame(wx.Frame):
         self.escape_layer.Enable(not via_in_pad)
         self.add_vias.Enable(not forced)
         if forced: self.add_vias.SetValue(True)
+        if hasattr(self,'dimension_preview'):self.dimension_preview.Refresh()
 
     def on_config_changed(self, _event: Any) -> None:
         if _event is not None and _event.GetEventObject() is self.pattern and self.pattern.GetValue()=='Connector edge':
             self.add_vias.SetValue(False);self.routing_mode.SetValue('Fixed');self.pair_mode.SetValue('Independent')
         self._update_controls()
         self.clear_preview(None)
+        self._update_style_preview()
         self._schedule_live_preview()
 
     def _selection_signature(self) -> Tuple[Any, ...]:
@@ -516,6 +518,7 @@ class FanoutFrame(wx.Frame):
         if len(refs) == 1 and self.scope.GetValue() in ("Selected pads", "Selected footprints"):
             self.ref.ChangeValue(str(refs[0]))
         self.clear_preview(None)
+        self._update_style_preview()
         self._schedule_live_preview()
 
     def on_selection_timer(self, _event: Any) -> None:
@@ -597,8 +600,10 @@ class FanoutFrame(wx.Frame):
                 points.append((pcbnew.ToMM(pos.x),pcbnew.ToMM(pos.y)))
                 diameters.append(pcbnew.ToMM(plan.via_diameter));drills.append(pcbnew.ToMM(plan.via_drill))
         focus=[]
+        observed=None
         for fp in self.board.GetFootprints():
             if str(fp.GetReference())==chosen:
+                observed=fp
                 focus=[(pcbnew.ToMM(p.GetPosition().x),pcbnew.ToMM(p.GetPosition().y)) for p in fp.Pads()]
                 break
         self.style_preview.focus_points=focus
@@ -610,6 +615,12 @@ class FanoutFrame(wx.Frame):
         self.style_summary.SetToolTip('Actual clearance-checked candidates for this component. Rejected pins stay in Candidate details; no hypothetical copper is shown.')
         self.style_summary.Wrap(max(180,self.style_summary.GetParent().GetClientSize().width-16))
         self.style_summary.InvalidateBestSize()
+        from wayricad_runtime.fanout_families import guidance
+        from wx.lib.wordwrap import wordwrap
+        note=guidance(observed,pcbnew,
+            'Via-in-pad' if self.output_mode.GetValue()=='Via-in-pad' else self.pattern.GetValue())
+        self.family_guidance.SetLabel(wordwrap(note,
+            min(270,max(180,self.settings_pane.GetClientSize().width-24)),wx.ClientDC(self.family_guidance)))
         self.settings_pane.GetSizer().Layout();self.settings_pane.FitInside()
         self.Layout()
 

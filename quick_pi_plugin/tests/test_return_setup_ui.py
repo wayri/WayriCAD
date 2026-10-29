@@ -119,10 +119,14 @@ class ReturnSetupTests(unittest.TestCase):
         self.assertEqual(editor.mappings, {})
         self.assertEqual(editor.source_pads, [])
 
-    def test_alias_overlap_is_rejected_before_the_worker(self):
+    def test_shared_return_alias_resolves_but_duplicate_pad_in_one_unit_fails(self):
         editor = self.editor(case_names=['Main rail']); editor._suggest()
         editor.mappings[('Main rail','load-1')] = ['J1.2']
-        with self.assertRaisesRegex(ValueError, 'overlap'): editor.build_study()
+        configured = editor.build_study()['shared_returns'][0]
+        self.assertEqual(configured['loads'][0]['terminals'], ['j1g'])
+        self.assertEqual(configured['source_terminals'], ['j1g'])
+        editor.mappings[('Main rail','load-1')] = ['J1.2','j1g']
+        with self.assertRaisesRegex(ValueError, 'repeated'): editor.build_study()
 
     def test_picker_keeps_uuid_identity_for_duplicate_pad_numbers(self):
         original, inventory = fixture()

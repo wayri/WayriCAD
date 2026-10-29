@@ -58,6 +58,21 @@ class SavedBoardMultisinkTests(unittest.TestCase):
         self.assertEqual([s['current_A'] for s in limited['result']['sinks']], [1, 2])
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(), self.before)
 
+    def test_shared_return_contacts_through_native_extraction_mesh_and_solver(self):
+        request={**self.request,'source_voltage':0.,'_shared_return_contacts':True,
+                 'source_current_limit':10.,'sinks':[
+                     {'id':'at-supply','terminal':'J1.1','current_A':4.},
+                     {'id':'load-a','terminal':'U1.1','current_A':1.},
+                     {'id':'load-b','terminal':'U1.1','current_A':2.}]}
+        result=execute(request)['result']
+        combined=execute({**request,'sinks':[{'terminal':'U1.1','current_A':3.}]})['result']
+        self.assertAlmostEqual(result['source_current_A'],7.,8)
+        self.assertEqual(result['sinks'][0]['voltage_drop_V'],0.)
+        self.assertAlmostEqual(result['total_power_W'],combined['total_power_W'],10)
+        self.assertEqual([r['id'] for r in result['sinks']],['at-supply','load-a','load-b'])
+        self.assertLess(result['current_balance_error_A'],1e-8)
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(),self.before)
+
     def test_display_snapshot_reuses_owned_board_and_is_json_only(self):
         import pcbnew
         for settings,scope in [({'action':'inspect','display_nets':'default'},['VCC']),

@@ -134,7 +134,7 @@ class PlotViewport(wx.Panel):
     def _layout_axes(self):
         if self.is_3d():
             self.axes().set_anchor('C')
-            self.axes().set_position([.04, .12, .76 if len(self.figure.axes) > 1 else .92, .72])
+            self.axes().set_position([.04, .08, .76 if len(self.figure.axes) > 1 else .92, .84])
             if len(self.figure.axes) > 1:
                 right = self.axes().get_position().x1
                 self.figure.axes[1].set_position([min(.9, right+.07), .22, .022, .5])

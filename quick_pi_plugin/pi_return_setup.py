@@ -18,7 +18,9 @@ def choose_pad_unit(parent, inventory, net, selected=(), *, multiple=True):
     labels = [str(row.get('label', row['id']))+' · '+net+' · '+str(row['id']) for row in rows]
     indices = [i for i, row in enumerate(rows) if row['id'] in selected or row.get('label') in selected]
     result = choose_items(parent, labels, selection=indices[0] if indices else -1,
-                          checked=indices if multiple else None)
+                          checked=indices if multiple else None,
+                          group_keys=[(r.get('footprint_uuid') or r.get('reference') or r.get('label','').rsplit('.',1)[0], net) for r in rows],
+                          group_label='Check component / same net')
     if result is None:
         return None
     if not result:
@@ -161,7 +163,7 @@ class ReturnSetupDialog(wx.Dialog):
         if self.rows: self.table.Select(0)
         missing = sum(not self.mappings.get(key) for key, _ in self.rows)+(not self.source_pads)
         self.set_status((str(missing)+' return pad unit(s) still need selection. ' if missing else 'All return pad units selected. ')+
-            'Confirm the actual ground domain and review the mappings, then Apply.')
+            'Confirm the actual ground domain and review the mappings, then Apply. Shared return contacts combine load currents; contacts at supply ground have zero return drop.')
         self.apply.Enable(bool(selected) and bool(self.net.GetStringSelection()))
         self.source_button.Enable(bool(self.net.GetStringSelection())); self.load_button.Enable(bool(self.rows))
 
@@ -200,11 +202,9 @@ class ReturnSetupDialog(wx.Dialog):
                 self.inventory.get('terminals', []), [net], ref)]
         chosen = list(dict.fromkeys(p for c in self._selected() for p in candidates(source_names(c['electrical']))))
         if chosen and (not self.independent_case or len(chosen) == 1): self.source_pads = chosen
-        occupied = set(self.source_pads)
         for key, sink in self.rows:
-            chosen = [p for p in candidates(pad_names(sink)) if p not in occupied]
+            chosen = candidates(pad_names(sink))
             if chosen and (not self.independent_case or len(chosen) == 1): self.mappings[key] = chosen
-            occupied.update(self.mappings.get(key, []))
         self._rebuild(); self.set_status('Suggested by the owning footprints only. Review all rows; missing or ambiguous units still need manual selection. Apply explicitly confirms the mappings.')
 
     def build_study(self):

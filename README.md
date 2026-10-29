@@ -20,6 +20,10 @@ assets. It counts downloaded files, including repeat downloads and release metad
 not unique users or installations. GitHub does not separate PCM from direct downloads;
 automatic source ZIP/tar downloads and repository clones are excluded.
 
+**New in 3.6.46:** viewport-first Quick EMerge beta, alternating perimeter fanout,
+reviewed PI power trees and shared return contacts, post-solve spacing screening,
+and a thermal material library. [Release notes](docs/RELEASE_NOTES_3.6.46.md).
+
 **New in 3.6.45:** Quick EMerge beta, Review conversations, project-local
 simulation save/load, portable analysis exports and a readable, searchable tool
 launcher. [Release notes](docs/RELEASE_NOTES_3.6.45.md).
@@ -58,7 +62,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 
 </details>
 
-[Download 3.6.45](https://github.com/wayri/WayriCAD/releases/tag/v3.6.45) ·
+[Download 3.6.46](https://github.com/wayri/WayriCAD/releases/tag/v3.6.46) ·
 [Connector validation and known limits](docs/audits/CONNECTOR_TOOLS_2026-10-28.md)
 
 ## Start here
@@ -68,7 +72,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
-| Download or update | [Release 3.6.45](https://github.com/wayri/WayriCAD/releases/tag/v3.6.45) · [Release notes](docs/RELEASE_NOTES_3.6.45.md) |
+| Download or update | [Release 3.6.46](https://github.com/wayri/WayriCAD/releases/tag/v3.6.46) · [Release notes](docs/RELEASE_NOTES_3.6.46.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 26 plugins](#all-26-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -218,7 +222,7 @@ an input or model is missing; they are not a pass.
 
 <img src="quick_emerge_plugin/icon.png" width="48" height="48" alt="Quick EMerge beta icon">
 
-1. Download the [Quick EMerge PCM ZIP from release 3.6.45](https://github.com/wayri/WayriCAD/releases/download/v3.6.45/WayriCAD-quick-emerge-3.6.45-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
+1. Download the [Quick EMerge PCM ZIP from release 3.6.46](https://github.com/wayri/WayriCAD/releases/download/v3.6.46/WayriCAD-quick-emerge-3.6.46-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
 2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
 3. Start with an **Inset-fed patch antenna** template. Review dimensions in **1 Geometry**, material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**. Templates use the board as context; they do not import its copper.
 4. Click **Preview**. Check geometry, numbered ports and any blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and a short frequency sweep before increasing resolution.
@@ -363,7 +367,7 @@ currencies stay explicit.
 
 ## All 26 plugins
 
-Release **3.6.45** includes 26 independently installable plugins. Quick EMerge
+Release **3.6.46** includes 26 independently installable plugins. Quick EMerge
 is marked **beta / testing**; Review and Assistant are also testing packages.
 Individual versions, runtime requirements and limits are in their guides.
 Select a plugin for its full guide and supported models.
@@ -419,7 +423,15 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 ### Quick EMerge (beta)
 
 [Getting started](#start-quick-emerge) · [Full guide](quick_emerge_plugin/README.md) ·
-[Download 3.6.45](https://github.com/wayri/WayriCAD/releases/tag/v3.6.45)
+[Download 3.6.46](https://github.com/wayri/WayriCAD/releases/tag/v3.6.46)
+
+**Viewport-first workbench**
+
+<a href="quick_emerge_plugin/help-viewport-first.png"><img src="quick_emerge_plugin/help-viewport-first.png" width="960" alt="Quick EMerge with the full-width viewport and compact Setup, Preview and Run controls"></a>
+
+Setup is a toggleable drawer; the viewport opens full-width. The inspector and
+view options stay available on demand. This fixture-only software-rendered
+capture shows geometry preview, not a solved or qualified field.
 
 **Antenna template, solved field samples and probes**
 
@@ -890,6 +902,14 @@ These options stay separate from the simple main workflow. Native fabrication mi
 record current failures as well as the two reproduced bugs fixed in source.
 Complete dense-board fanout remains unvalidated; the fixture previews below
 show narrower workflows.
+
+**Land-pattern families and perimeter escapes · 3.6.46**
+
+<a href="fanout_generator_plugin/help-families.png"><img src="fanout_generator_plugin/help-families.png" width="960" alt="Fanout Generator family filter and alternating inward/outward preview on a synthetic perimeter package"></a>
+
+Browse perimeter, grid, connector and custom-direction styles. Guidance uses
+actual pad geometry; Preview checks individual candidates. This synthetic
+32-pad fixture shows escape endpoints, not finished routed connections.
 
 **Connector before and proposed after · 3.6.28**
 

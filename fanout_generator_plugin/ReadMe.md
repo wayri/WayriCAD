@@ -14,6 +14,58 @@ Start with a small scope, choose a style, inspect the proposal, then apply.
 
 ## Choose, style, review
 
+Choose **Component land-pattern family** to browse related styles. **All styles**
+shows the full list. Filtering keeps the current style available even when it is
+outside the selected family; it never changes geometry or selects a route for you.
+The note below the style reports the inspected component's observed pad layout,
+using actual pad positions, rotation and SMT/plated-THT attributes. It updates
+with PCB/component selection. Reference and footprint names are not classifiers.
+
+| Land-pattern family | Styles | Applicability |
+|---|---|---|
+| QFP/QFN / perimeter | Perimeter pitch expansion; Staggered rows; Perimeter alternating inward / outward; Perimeter outward | Aligned single banks on package edges; center/exposed pads need separate rules. |
+| BGA/LGA / grid | BGA/LGA grid outward; Dogbone outward/inward; Quadrant outward/inward; Four-corner outward/inward | Array breakouts and directional seeds; real pad/via spacing still determines acceptance. |
+| Connector / SMT or plated THT | Connector edge | Body/edge breakout for SMT or plated through-hole pins. |
+| General / custom direction | Radial outward; 45-degree spread; Custom-angle spread; Straight + angled escape | Explicit directional geometry; review actual pad access and direction. |
+
+A fully populated grid of at least 3 × 3 pads is identified as a grid; aligned
+perimeter banks and plated THT pads get their corresponding suggestions. Sparse
+arrays, SMT connector rows and unusual/mixed shapes can be ambiguous. The note
+then requests manual family review; it does not infer a connector's function.
+The family note is advisory, not a compatibility certificate: styles outside the
+observed family remain explicit choices and Preview reports unsupported/blocked
+pads. Via-in-pad remains a separate output mode. Loading profile defaults
+explicitly returns the filter to All styles before applying the suggested style.
+
+![Native component-family selector and geometry guidance](help-families.png)
+
+Windows / KiCad 10.0.6 source-window capture on a disposable 32-pad fixture,
+2026-10-29. It shows actual accepted local escapes, not onward routing or DRC
+signoff. No personal paths, private designs or redactions are present.
+
+
+For QFP/QFN and other aligned perimeter banks, **Staggered rows** alternates
+short/long straight outward escapes on every side. **Perimeter alternating
+inward / outward** alternates short outward and longer inward escapes. The
+sequence follows the complete bank's pad positions, preserving parity across
+pad/net filters and groups. Set **Escape length** and **Row stagger** under
+advanced settings; these styles require Fixed routing, Independent pins and
+Pattern direction with zero rotation/endpoint overrides. Exposed pads, keepouts
+and copper can block inward candidates; rejected routes remain untouched.
+Center pads and grids need separate rules. See the [geometry and safety details](advanced-fanout.md#styles-and-angles).
+
+Advanced settings include a live dimension guide for via diameter/drill and
+trace width/reach/angle. Expanding or collapsing controls keeps the window size
+and scrolls the settings pane. The guide is illustrative; the two component/board
+canvases show actual accepted geometry. Refill zones and run native DRC after Apply.
+
+![Native fanout dimension guide](help-dimensions.png)
+
+Windows / KiCad 10.0.6 source-window capture from a disposable 32-pad fixture;
+0.5 mm via / 0.2 mm drill, 0.15 mm track, 1 mm reach, 0.4 mm extra reach.
+The angle setting guide is illustrative and separate from package-normal staggered
+geometry. No personal paths or design data are present; no redactions were needed.
+
 1. Select footprints or pads, or enter a reference wildcard. Expand **Limit pins
    or nets** to restrict pin numbers and net names with comma-separated wildcards.
 2. Choose a style. The small component preview shows its actual accepted routes.

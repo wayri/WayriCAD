@@ -110,7 +110,6 @@ class SharedReturnTests(unittest.TestCase):
         mutations=[
             lambda v:v['shared_returns'][0]['loads'].pop(),
             lambda v:v['shared_returns'][0]['loads'][0].update(sink='absent'),
-            lambda v:v['shared_returns'][0]['loads'][0].update(terminals=['G0']),
             lambda v:v['shared_returns'].append(copy.deepcopy(v['shared_returns'][0])),
             lambda v:v['cases'][0]['electrical'].update(load_resistance_ohm=5),
             lambda v:v['cases'][0]['electrical'].update(model_dimension='3d'),

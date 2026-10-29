@@ -68,7 +68,7 @@ def _base(frame,title):
 
 
 def _advanced(frame,parent,sizer):
-    pane=wx.CollapsiblePane(parent,label='Dimensions and advanced settings')
+    pane=wx.CollapsiblePane(parent,label='Dimensions and advanced settings',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
     inner=wx.BoxSizer(wx.VERTICAL);pane.GetPane().SetSizer(inner)
     sizer.Add(pane,0,wx.EXPAND|wx.TOP,8)
     pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:(parent.FitInside(),frame.Layout()))
@@ -117,6 +117,8 @@ def build_fanout(frame,api,help_callback):
     frame.netclass_filter=_combo(left,['All netclasses']+netclass_names(frame.board),'All netclasses')
     frame.output_mode=_combo(left,['Escape traces','Via-in-pad'],'Escape traces')
     frame.pattern=_combo(left,list(FANOUT_PATTERNS),'Perimeter pitch expansion')
+    from .fanout_families import FAMILIES,styles_for
+    frame.pattern_family=_combo(left,['All styles']+list(FAMILIES),'All styles')
     frame.routing_mode=_combo(left,['Fixed','Adaptive'],'Fixed')
     frame.signal_profile=_combo(left,list(SIGNAL_PROFILES),'Generic')
     frame.escape_angle=wx.TextCtrl(left,value='45')
@@ -130,11 +132,14 @@ def build_fanout(frame,api,help_callback):
     intro=wx.StaticText(left,label='1. Select parts or pins in PCB Editor\n2. Choose a style and inspect the preview\n3. Apply when the candidates look right')
     intro.Wrap(270);settings.Add(intro,0,wx.EXPAND|wx.BOTTOM,10)
     frame.ref=wx.TextCtrl(left,value='*')
-    for label,control in (('1 · Pads to fan out',frame.scope),('Reference / wildcard',frame.ref),('Output',frame.output_mode),('2 · Fanout style',frame.pattern)):
+    for label,control in (('1 · Pads to fan out',frame.scope),('Reference / wildcard',frame.ref),('Output',frame.output_mode),('Component land-pattern family',frame.pattern_family),('2 · Fanout style',frame.pattern)):
         text=_row(left,settings,label,control)
         if control is frame.escape_angle:frame.angle_label=text
         if control is frame.ref:frame.ref_label=text
         if control is frame.pattern:
+            frame.family_guidance=wx.StaticText(left,label='Select a component to see its observed pad layout.')
+            frame.family_guidance.SetMinSize((1,-1))
+            frame.family_guidance.Wrap(270);settings.Add(frame.family_guidance,0,wx.EXPAND|wx.BOTTOM,6)
             style_box=wx.StaticBoxSizer(wx.VERTICAL,left,'Selected style on component')
             style_parent=style_box.GetStaticBox()
             frame.style_component=_combo(style_parent,[],'')
@@ -147,6 +152,12 @@ def build_fanout(frame,api,help_callback):
             frame.style_summary.Wrap(250);style_box.Add(frame.style_summary,0,wx.EXPAND|wx.ALL,4)
             settings.Add(style_box,0,wx.EXPAND|wx.BOTTOM,8)
             frame.style_component.Bind(wx.EVT_COMBOBOX,frame._update_style_preview)
+    def filter_family(event):
+        current=frame.pattern.GetValue()
+        frame.pattern.SetItems(styles_for(frame.pattern_family.GetValue(),current))
+        frame.pattern.SetValue(current)
+        frame._update_style_preview()
+    frame.pattern_family.Bind(wx.EVT_COMBOBOX,filter_family)
     frame.connector_exit=_combo(left,['Nearest edge','Top','Bottom','Left','Right'],'Nearest edge')
     frame.connector_exit_label=_row(left,settings,'Connector exit (footprint coordinates)',frame.connector_exit)
     frame.connector_exit.SetToolTip('Connector edge style: choose the nearest body edge or a specific side in footprint-local coordinates. Includes plated through-hole pins.')
@@ -163,7 +174,7 @@ def build_fanout(frame,api,help_callback):
     frame.selection_status=wx.StaticText(left,label='Select pads or footprints in PCB Editor.')
     frame.selection_status.Wrap(255);settings.Add(frame.selection_status,0,wx.TOP|wx.BOTTOM,8)
     frame.fanout_groups=[];frame.group_unmatched='defaults'
-    group_pane=wx.CollapsiblePane(left,label='Per-pin / net groups')
+    group_pane=wx.CollapsiblePane(left,label='Per-pin / net groups',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
     group_sizer=wx.BoxSizer(wx.VERTICAL)
     frame.group_summary=wx.StaticText(group_pane.GetPane(),label='0 groups; unmatched: defaults')
     group_sizer.Add(frame.group_summary,0,wx.ALL,5)
@@ -173,7 +184,7 @@ def build_fanout(frame,api,help_callback):
     group_sizer.Add(edit_groups,0,wx.ALL,5);group_pane.GetPane().SetSizer(group_sizer)
     group_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:(left.FitInside(),frame.Layout()))
     settings.Add(group_pane,0,wx.EXPAND|wx.BOTTOM,8)
-    filters=wx.CollapsiblePane(left,label='Limit pins or nets (optional)')
+    filters=wx.CollapsiblePane(left,label='Limit pins or nets (optional)',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
     target_parent=filters.GetPane();target_sizer=wx.BoxSizer(wx.VERTICAL);target_parent.SetSizer(target_sizer)
     frame.pad_filter=wx.TextCtrl(target_parent,value='*')
     frame.net_filter=wx.TextCtrl(target_parent,value='*')
@@ -183,6 +194,9 @@ def build_fanout(frame,api,help_callback):
     filters.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,lambda event:(left.FitInside(),frame.Layout()))
     settings.Add(filters,0,wx.EXPAND|wx.BOTTOM,8)
     parent,advanced=_advanced(frame,left,settings)
+    from .fanout_dimensions import FanoutDimensions
+    frame.dimension_preview=FanoutDimensions(parent,frame)
+    advanced.Add(frame.dimension_preview,0,wx.EXPAND|wx.BOTTOM,8)
     frame.signal_profile.Reparent(parent);load_profile.Reparent(parent)
     _row(parent,advanced,'Signal family',profile_row)
     frame.netclass_filter.Reparent(parent)
@@ -204,6 +218,7 @@ def build_fanout(frame,api,help_callback):
     frame.pair_gap.SetToolTip('Requested edge spacing on the parallel escape run. Terminal vias may flare for clearance.')
     frame.routing_mode.SetToolTip('Adaptive preserves existing copper and searches nearby short 45-degree escapes. Preview reports blocked or ambiguous existing routes. Fixed uses only the selected pattern.')
     frame.spread_pitch.SetToolTip('Perimeter pitch expansion: target center-to-center spacing. Zero fits existing pitch and track/via clearance; outer traces bend first. Not a BGA style.')
+    frame.stagger_pitch.SetToolTip('Staggered rows and alternating perimeter: extra reach on every second pad in each complete package bank. Selection and net filters preserve this ordering. Inward routes must pass the same obstacle checks.')
     frame.max_pair_skew.SetToolTip('Maximum difference between the two generated escape lengths; excludes existing routing.')
     frame.use_netclass_rules=wx.CheckBox(parent,label='Use netclass track / via dimensions')
     advanced.Add(frame.use_netclass_rules,0,wx.TOP|wx.BOTTOM,8)
@@ -218,6 +233,7 @@ def build_fanout(frame,api,help_callback):
         control=getattr(frame,name);event=wx.EVT_COMBOBOX if isinstance(control,wx.ComboBox) else wx.EVT_CHECKBOX if isinstance(control,wx.CheckBox) else wx.EVT_TEXT
         control.Bind(event,frame.on_config_changed)
     def load_defaults(_event):
+        frame.pattern_family.SetValue('All styles');frame.pattern.SetItems(list(FANOUT_PATTERNS))
         values=profile_defaults(frame.signal_profile.GetValue())
         for name,value in values.items():
             if name not in frame._settings_names:continue

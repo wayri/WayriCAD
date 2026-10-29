@@ -24,7 +24,13 @@ def relaunch(root, entrypoint, *, profile='ipc', loading=None):
     if profile in {'quick-therm', 'quick-therm-board'}:
         requirements.update(REQUIREMENTS_QUICK_THERM)
     if profile in {'quick-pi-board', 'quick-therm-board'}:
-        requirements.pop('kipy', None)
+        # A saved-board PI window can still reverse-sync selection with the
+        # editor that launched it. Its GUI needs IPC; solver workers do not.
+        connected_pi = (profile == 'quick-pi-board' and
+                        os.environ.get('KICAD_API_SOCKET', '').strip() and
+                        os.environ.get('KICAD_API_TOKEN', ''))
+        if not connected_pi:
+            requirements.pop('kipy', None)
     if profile == 'quick-emerge':
         requirements.update(REQUIREMENTS_QUICK_EMERGE)
     if profile == 'magnetics':

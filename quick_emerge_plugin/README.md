@@ -6,7 +6,7 @@ board as context; region mode imports actual enclosed copper. Components and
 board geometry outside the enclosure are omitted.
 
 Quick EMerge is an independently installable testing beta in the
-[WayriCAD 3.6.45 release](https://github.com/wayri/WayriCAD/releases/tag/v3.6.45).
+[WayriCAD 3.6.46 release](https://github.com/wayri/WayriCAD/releases/tag/v3.6.46).
 See the [KiCad workflow help](help.html), [capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md)
 for implemented scope and its limits.
 
@@ -51,7 +51,26 @@ not silently deleted. This manager never upgrades KiCad's packages.
 
 ## Visual workflow
 
-1. Use **1 Geometry** for the geometry source and dimensions, **2 Physics** for
+The viewport fills the workspace on opening. Use **Setup** in the top bar to
+open the Geometry / Physics / Solve drawer; close it to reclaim that space.
+Preview, Run simulation, Cancel and Help remain available, and progress/errors
+stay in the status bar. The optional Inspector opens below the view, initially
+using at most 30% of its height. **Focus** temporarily hides panels and restores
+their previous visibility. Showing or hiding panels preserves the study and its
+reviewed geometry. The setup sash leaves at least 540 logical pixels for the
+workspace; viewport minimum size is 480 × 300 logical pixels.
+
+![Viewport-first Quick EMerge workbench](help-viewport-first.png)
+
+Windows source-window capture on 2026-10-29: Python 3.14, wxPython 4.2.5,
+Matplotlib software rendering, repository `region_coupon` fixture and the default
+parametric patch preview. It shows a template, not a solved/imported PCB.
+No private data or paths appear; no redaction was required. At a 1120 × 780
+window, the viewport container increased from 790 × 564 to 1104 × 582 pixels
+(44% more area). This is layout evidence, not solver or installed-host validation.
+
+
+1. Open **Setup**, then use **1 Geometry** for the geometry source and dimensions, **2 Physics** for
    study/material/boundary controls, and **3 Solve** for sweep, mesh and runtime
    settings. **Open** and **Save** retain reusable study setups. First open
    loads saved board/rule-area outlines while dependency preparation runs.

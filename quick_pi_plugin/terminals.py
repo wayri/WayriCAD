@@ -19,6 +19,9 @@ def source_names(request):
 
 def resolve_units(request,geometry,mesh,specs):
     """Resolve labels/UUIDs on the selected net; reject aliases and node overlap."""
+    shared=request.get('_shared_return_contacts',False)
+    if not isinstance(shared,bool) or shared and request.get('source_voltage') != 0:
+        raise ValueError('Shared return contacts require a zero-volt ground reference.')
     occupied=set();occupied_nodes=set()
     def unit(names):
         rows=[];nodes=[];local_ids=set()
@@ -30,7 +33,7 @@ def resolve_units(request,geometry,mesh,specs):
             if row.get('net',request['net'])!=request['net']:
                 raise ValueError('Every pad in a terminal unit must belong to the selected net.')
             if not indices:raise ValueError('Selected pad has no mesh vertices: '+chosen)
-            if row['id'] in occupied or row['id'] in local_ids or occupied_nodes.intersection(indices):
+            if row['id'] in local_ids or not shared and (row['id'] in occupied or occupied_nodes.intersection(indices)):
                 raise ValueError('Repeated sink identity or terminal pads overlap across source/load units: '+chosen)
             local_ids.add(row['id'])
             rows.append(row);nodes.extend(indices)

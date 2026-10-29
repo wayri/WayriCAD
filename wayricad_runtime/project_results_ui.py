@@ -487,6 +487,26 @@ def create_viewer(parent, loaded):
     return SavedSimulationWindow()
 
 
+def save_project_simulation(project_root, plugin, bundle, *, board_path, module_file=None, certify=True):
+    """Archive full evidence even when optional portable certification is unavailable."""
+    from .project_results import save_result
+    from .pocket_report import evidence_context, result_producer_version
+    version = result_producer_version(bundle, module_file=module_file)
+    reason = None
+    if certify:
+        try:
+            evidence = evidence_context(bundle, tool=plugin, board_path=board_path, version=version)
+            return save_result(project_root, plugin, bundle, pocket_kivi=evidence, version=version)
+        except ValueError as error:
+            # The complete original result remains useful as historical data.
+            # No source certificate or new fingerprint is granted on this path.
+            reason = str(error)
+    receipt = save_result(project_root, plugin, bundle, version=version)
+    if reason:
+        receipt['portable_export_unavailable'] = reason
+    return receipt
+
+
 class ProjectResultActions:
     """Small native project-library controller shared by the three quick tools."""
     def __init__(self, owner, parent, sizer, plugin, board_path, bundles, *, certify=True, status=None, module_file=None):
@@ -558,15 +578,14 @@ class ProjectResultActions:
         label, bundle = options[index]
         self.status('Saving complete simulation in the project library…')
         def save():
-            from .project_results import save_result
-            from .pocket_report import evidence_context, producer_version
-            evidence = None
-            if self.certify:
-                evidence = evidence_context(bundle, tool=self.plugin, board_path=self.board_path,
-                    version=producer_version(module_file=self.module_file))
-            return save_result(self.project_root, self.plugin, bundle, pocket_kivi=evidence,
-                               version=producer_version(module_file=self.module_file))
-        self.task(save, lambda receipt: self.status('Saved '+label+': '+receipt['relative_path']))
+            return save_project_simulation(self.project_root, self.plugin, bundle,
+                board_path=self.board_path, module_file=self.module_file, certify=self.certify)
+        def saved(receipt):
+            message = 'Saved '+label+': '+receipt['relative_path']
+            if receipt.get('portable_export_unavailable'):
+                message += ' · Unverified archive; portable certification unavailable: '+receipt['portable_export_unavailable']
+            self.status(message)
+        self.task(save, saved)
 
     def on_load(self, event=None):
         import wx

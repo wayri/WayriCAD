@@ -1,5 +1,12 @@
 # <img src="resources/icon-96.png" width="48" height="48" alt="QuickTherm icon"> WayriCAD QuickTherm
 
+**Thermal material library:** in the board heat-model controls, use **Dielectric
+material…** or **Copper material…**. Review the preset's source and conditions,
+check the conductivity/capacity properties to apply, and edit known overrides.
+Opening the picker changes no settings. Applied values retain their evidence;
+manual changes invalidate that selection and previous simulation results.
+[Available references, units and limits](../docs/THERMAL_MATERIALS.md).
+
 **Project simulation library (updated source):** **Save simulation…** retains
 complete grids, layers, probes and transient frames under
 `.wayricad/results/quick-therm/`. **Load simulation…** opens saved fields and

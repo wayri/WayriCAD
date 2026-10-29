@@ -29,7 +29,7 @@ class CheckedSelection:
             self.check(index, checked)
 
 
-def choose_items(parent, items, selection=-1, checked=None):
+def choose_items(parent, items, selection=-1, checked=None, *, group_keys=None, group_label="Check same group"):
     """Open a literal-search picker; return original indices, or None on cancel.
 
     ``checked=None`` selects one item. A checked-index iterable enables multiple
@@ -38,6 +38,8 @@ def choose_items(parent, items, selection=-1, checked=None):
     """
     import wx
     items = tuple(items)
+    if group_keys is not None and len(group_keys) != len(items):
+        raise ValueError("Group keys must match picker items.")
     multiple = checked is not None
     state = CheckedSelection(items, checked or ())
     dialog = wx.Dialog(parent, title='Search and choose items' if multiple else 'Search and choose',
@@ -117,6 +119,16 @@ def choose_items(parent, items, selection=-1, checked=None):
                 rebuild()
             button.Bind(wx.EVT_BUTTON, toggle)
             actions.Add(button, 0, wx.RIGHT, 8)
+        if group_keys is not None:
+            group_button = wx.Button(dialog, label=group_label)
+            group_button.SetToolTip('Check every item in the highlighted item group, including hidden search results. Other checked groups are retained.')
+            def check_group(event):
+                if 0 <= selected < len(items) and group_keys[selected] is not None:
+                    for index, key in enumerate(group_keys):
+                        if key == group_keys[selected]: state.check(index)
+                    rebuild()
+            group_button.Bind(wx.EVT_BUTTON, check_group)
+            actions.Add(group_button, 0, wx.RIGHT, 8)
         root.Add(actions, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         listing.Bind(wx.EVT_CHECKLISTBOX, on_check)
     listing.Bind(wx.EVT_LISTBOX, on_select)

@@ -56,12 +56,33 @@ def suggested_resistance(part):
     return text if model.get('resistance_ohm',0)>0 and not model.get('inductance_h',0) else ''
 
 
+def reviewed_group(inventory, anchor, names=None):
+    """Resolve one opt-in same-footprint/net electrode, keeping aliases distinct."""
+    from .terminals import pad_names
+    names=pad_names({'terminals':names}) if names is not None else [anchor]
+    def resolve(value):
+        matches=[row for row in inventory.get('terminals',[]) if value in (row['id'],row.get('label'))]
+        if len(matches)!=1:raise ValueError('Choose one unambiguous saved pad: '+str(value))
+        return matches[0]
+    first=resolve(anchor);rows=[resolve(value) for value in names];ids=[row['id'] for row in rows]
+    if len(set(ids))!=len(ids):raise ValueError('Repeated series endpoint, including label/UUID aliases.')
+    if first['id'] not in ids:raise ValueError('A grouped electrode must include its reviewed anchor pad.')
+    if len(rows)>1:
+        owner=first.get('footprint_uuid')
+        if not owner or not first.get('net') or any(row.get('footprint_uuid')!=owner or row.get('net')!=first['net'] for row in rows):
+            raise ValueError('Grouped series pads require one exact component UUID and one assigned net.')
+    return ids
+
+
 def with_parallel(request, staged, inventory):
     """Attach explicitly reviewed parallel components to the parsed primary path."""
     from copy import deepcopy
     from .console import _model
     result=deepcopy(request)
+    if len(result.get('series',[]))!=len(staged):raise ValueError('Every staged component needs one parsed series branch.')
     for spec,configured in zip(result.get('series',[]),staged):
+        for key,anchor in (('from_pads','from_pad'),('to_pads','to_pad')):
+            if key in configured:spec[key]=reviewed_group(inventory,spec[anchor],configured[key])
         selected=configured.get('parallel',[])
         if not selected:continue
         available={row['footprint_uuid']:row for row in candidates(inventory,spec['from_pad'],spec['to_pad'])}

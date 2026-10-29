@@ -42,6 +42,12 @@ jobs:
         run: python build_pcm.py --clean-feed
       - name: Unit and integration tests
         run: python -m pytest tests -q -s
+      - name: Quick PI setup and return regressions
+        run: >-
+          python -m pytest quick_pi_plugin/tests/test_shared_return_contacts.py
+          quick_pi_plugin/tests/test_shared_return.py quick_pi_plugin/tests/test_power_tree.py
+          quick_pi_plugin/tests/test_power_tree_cli.py quick_pi_plugin/tests/test_insulation_screen.py
+          quick_pi_plugin/tests/test_series_groups.py -q
       - name: Quick EMerge beta regressions
         run: python -m pytest quick_emerge_plugin/tests -q
       - name: Embed3D regressions

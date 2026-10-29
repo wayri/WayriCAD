@@ -1,5 +1,29 @@
 # WayriCAD Quick PI
 
+## Guided setup and reviewed power intent
+
+- **More → Power tree** opens an editable energy-flow diagram for sources, rails,
+  DC/DC converters, isolated supplies, LDOs and loads. Negative rails retain their
+  own return and polarity. Suggestions need review; device roles do not create
+  conductive shorts. [Power-tree guide](POWER_TREE.md).
+- **Edit source / load pads** and **Choose return pads** offer **Check component /
+  same net**, retaining hidden checks when searching. Each unit's current is the
+  total across its pads. Shared return contacts add mapped currents, including
+  multiple rails using the same ground electrode; ordinary supply/source overlap
+  remains an error.
+- **Series → Add explicit pad pair…** permits a reviewed current path through a
+  multi-pad device. Enter an explicit R/RL, drop or diode model and select its
+  current terminals. Optional same-component/net source, sink and component
+  input/output pad groups share one model and one total current. Gate/control
+  behavior and regulator dynamics are not inferred. [Pad-group workflow](SERIES_PAD_GROUPS.md).
+- After a multi-net run, **Spacing screen…** compares solved-net copper spacing
+  with explicit applicable rule/material/environment inputs. Physical creepage
+  needs reviewed surface evidence; it is not inferred from a planar gap.
+  [Screening workflow and limits](INSULATION_SCREEN.md).
+- The electrothermal setup and QuickTherm include a [reviewed material library](../docs/THERMAL_MATERIALS.md),
+  with source conditions and editable overrides. Opening the picker changes no inputs.
+
+
 **Project simulation library (updated source):** **Save simulation…** keeps the
 complete result in `.wayricad/results/quick-pi/`; **Load simulation…** recalls it
 in a native read-only viewer without solving again. Each JSON has a deterministic
@@ -851,7 +875,7 @@ limit. It does not mean a trace will fuse in that time.
 
 ## Series editor, sweep and board screens
 
-Use **Build series path…** in the native window to choose source and sink pads, then add compatible two-pad parts in source-to-load order. **Use KiCad selected pads** reads one or two pads from the PCB Editor that opened Quick PI; review pad order before running. **Use selected component** adds one compatible selected two-pad footprint at the next net transition. The editor validates each net transition with the same parser as the console and can save or reload a JSON path. Its component values are explicit models, not values inferred from the symbol or footprint.
+Use **Build series path…** in the native window to choose source and sink pads, then add two-pad parts or explicitly reviewed current-terminal pairs/groups on multi-pad parts in source-to-load order. **Use KiCad selected pads** reads one or two pads from the PCB Editor that opened Quick PI; review pad order before running. **Use selected component** adds one compatible selected two-pad footprint at the next net transition. The editor validates each net transition with the same parser as the console and can save or reload a JSON path. Its component values are explicit models, not values inferred from the symbol or footprint.
 
 Choose **Resistive load** beside the voltage/current controls to enter a load in ohms. Quick PI solves the positive DC current for that source voltage using the saved copper and explicit components. **More → DC current sweep** plots path drop and sink voltage over 2–200 prescribed positive current points. Both retain the fixed-temperature and mesh assumptions of the main solve; the sweep does not represent a time waveform. The HTML export includes a chart and paired JSON.
 

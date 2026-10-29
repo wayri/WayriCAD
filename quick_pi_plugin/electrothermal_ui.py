@@ -95,6 +95,14 @@ class ElectrothermalStudyDialog(wx.Dialog):
         self.load=wx.Button(self,label='Load study JSON…'); self.reset=wx.Button(self,label='Reset selected model')
         for control in (self.mode,self.load,self.reset): choices.Add(control,0,wx.RIGHT,8)
         root.Add(choices,0,wx.ALL,10)
+        material_choices=wx.BoxSizer(wx.HORIZONTAL)
+        material_choices.Add(wx.StaticText(self,label='Material references'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
+        self.material_buttons=[]
+        for role,label in (('dielectric','Dielectric material…'),('copper','Copper material…')):
+            button=wx.Button(self,label=label)
+            button.Bind(wx.EVT_BUTTON,lambda event,selected=role:self._edit_thermal_material(selected))
+            material_choices.Add(button,0,wx.RIGHT,8);self.material_buttons.append(button)
+        root.Add(material_choices,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         self.book=wx.Notebook(self)
         self.setup=wx.TextCtrl(self.book,style=wx.TE_MULTILINE|wx.TE_DONTWRAP)
         self.setup.ChangeValue(json.dumps(initial['steady'],indent=2,allow_nan=False))
@@ -148,9 +156,40 @@ class ElectrothermalStudyDialog(wx.Dialog):
         self.result=None; self.export.Disable(); self.figure.clear(); self.canvas.draw_idle(); self.details.ChangeValue('')
 
     def _changed(self,event=None):
+        try:
+            from .electrothermal_cli import parse_envelope
+            study=parse_envelope(('{"mode":'+json.dumps(self._kind())+',"study":'+self.setup.GetValue()+'}').encode('utf-8'))['study']
+            if 'material_library' in study:
+                from wayricad_runtime.thermal_materials import matching_material_selections
+                study['material_library']=matching_material_selections(study['material_library'],study.get('thermal_settings',{}))
+                self.setup.ChangeValue(json.dumps(study,indent=2,allow_nan=False))
+        except (ValueError,TypeError):pass
         if self.feedback_controls and not getattr(self,'_editing_guided',False):self._load_guided()
         self.input_path=None; self.input_sha=None; self._invalidate(); self.status.SetLabel('Inputs changed. Rerun electrothermal coupling.')
         if event: event.Skip()
+
+    def _edit_thermal_material(self,role):
+        if self._busy:return
+        if self._kind()!='steady':
+            self.status.SetLabel('Material conductivity presets apply to the steady saved-board model. Transient lumped R/C values remain explicit.');return
+        from wayricad_runtime.thermal_materials_ui import ThermalMaterialDialog
+        from wayricad_runtime.thermal_materials import apply_material_selection
+        try:
+            from .electrothermal_cli import parse_envelope
+            study=parse_envelope(('{"mode":'+json.dumps(self._kind())+',"study":'+self.setup.GetValue()+'}').encode('utf-8'))['study']
+        except ValueError:
+            self.status.SetLabel('Correct Advanced model inputs before applying a material.');return
+        picker=ThermalMaterialDialog(self,properties=['thermal_conductivity_w_mk'],
+            category='metal' if role=='copper' else 'laminate')
+        try:
+            if picker.dialog.ShowModal()!=wx.ID_OK:return
+            selection=picker.selection;bindings={'thermal_conductivity_w_mk':role+'_k_w_mk'}
+            study['thermal_settings']=apply_material_selection(study.get('thermal_settings',{}),selection,bindings)
+            study.setdefault('material_library',{})[role]={'selection':selection,'bindings':bindings}
+            self.setup.ChangeValue(json.dumps(study,indent=2,allow_nan=False));self._changed()
+            self.status.SetLabel('Reviewed '+role+' conductivity applied. Review temperature validity, electrical properties and cooling before rerunning.')
+        except (ValueError,TypeError) as exc:self.status.SetLabel(str(exc))
+        finally:picker.dialog.Destroy()
 
     def _load_guided(self):
         try:study=json.loads(self.setup.GetValue())
@@ -197,6 +236,9 @@ class ElectrothermalStudyDialog(wx.Dialog):
         # Reuse strict intake without writing UI input to a shared temporary path.
         from .electrothermal_cli import parse_envelope
         envelope=parse_envelope(('{"mode":'+json.dumps(self._kind())+',"study":'+text+'}').encode('utf-8'))
+        if 'material_library' in envelope['study']:
+            from wayricad_runtime.thermal_materials import matching_material_selections
+            envelope['study']['material_library']=matching_material_selections(envelope['study']['material_library'],envelope['study'].get('thermal_settings',{}))
         request={'action':'electrothermal',**envelope}
         if self.steady_only:
             from .electrothermal_service import validate_feedback_inputs
@@ -211,6 +253,7 @@ class ElectrothermalStudyDialog(wx.Dialog):
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc));return
         self._invalidate(); self._busy=True; self._cancel.clear(); self.run.Disable(); self.stop.Enable()
         for control in (self.mode,self.setup,self.load,self.reset): control.Disable()
+        for control in self.material_buttons:control.Disable()
         if self.feedback_controls:self.guided.Disable()
         self.status.SetLabel('Running coupled models. Cancellation discards partial results.')
         def work():
@@ -225,6 +268,7 @@ class ElectrothermalStudyDialog(wx.Dialog):
         if self._closed:return
         self.run.Enable(); self.stop.Disable()
         for control in (self.mode,self.setup,self.load,self.reset):control.Enable()
+        for control in self.material_buttons:control.Enable()
         if self.feedback_controls:self.guided.Enable()
         if self._closing:self._finish_close();return
         if self._cancel.is_set():error='Coupled study cancelled. No partial result accepted.'

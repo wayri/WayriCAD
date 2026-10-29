@@ -184,7 +184,8 @@ class QuickEMergeFrame(wx.Frame):
         show = not current if show is None else show
         if show and not current:
             self.details.Show()
-            self.visual_splitter.SplitHorizontally(self.tabs, self.details, max(200, self.visual_splitter.GetClientSize().height - 200))
+            height=self.visual_splitter.GetClientSize().height
+            self.visual_splitter.SplitHorizontally(self.tabs, self.details, max(self.FromDIP(300), height-min(self.FromDIP(200),round(height*.3))))
             self.visual_splitter.SetSashGravity(1.)
         elif not show and current:
             self.visual_splitter.Unsplit(self.details)
@@ -440,15 +441,34 @@ class QuickEMergeFrame(wx.Frame):
         self.sweep.SetSelection(0)
         self.invalidate()
 
+    def toggle_setup(self, event=None, *, show=None):
+        if self.focus_button.GetValue():
+            self.focus_button.SetValue(False);self.focus_view()
+        current=self.workspace_splitter.IsSplit()
+        show=not current if show is None else show
+        if show and not current:
+            self.settings.Show()
+            maximum=max(self.FromDIP(270),self.workspace_splitter.GetClientSize().width-self.FromDIP(540))
+            self.workspace_splitter.SplitVertically(self.settings,self.workspace,min(self.setup_width,maximum))
+        elif current and not show:
+            self.setup_width=self.workspace_splitter.GetSashPosition()
+            self.workspace_splitter.Unsplit(self.settings)
+        self.setup_button.SetValue(show)
+        self.Layout()
+        wx.CallAfter(self.viewports[self.tabs.GetPageText(self.tabs.GetSelection())].refresh_canvas)
+
     def focus_view(self, event=None):
         if self.focus_button.GetValue():
-            self.saved_sashes = (self.workspace_splitter.GetSashPosition(), self.visual_splitter.GetSashPosition(), self.visual_splitter.IsSplit())
-            self.workspace_splitter.Unsplit(self.settings)
+            self.saved_sashes = (self.workspace_splitter.GetSashPosition(), self.visual_splitter.GetSashPosition(), self.visual_splitter.IsSplit(),self.workspace_splitter.IsSplit())
+            if self.workspace_splitter.IsSplit():self.workspace_splitter.Unsplit(self.settings)
+            self.setup_button.SetValue(False)
             if self.visual_splitter.IsSplit(): self.visual_splitter.Unsplit(self.details)
             self.focus_button.SetLabel('Restore panels')
-        elif not self.workspace_splitter.IsSplit():
-            self.settings.Show()
-            self.workspace_splitter.SplitVertically(self.settings, self.workspace, self.saved_sashes[0])
+        else:
+            if self.saved_sashes[3]:
+                self.settings.Show()
+                self.workspace_splitter.SplitVertically(self.settings, self.workspace, self.saved_sashes[0])
+            self.setup_button.SetValue(self.saved_sashes[3])
             if self.saved_sashes[2]: self.toggle_inspector(show=True)
             self.focus_button.SetLabel('Focus')
         self.Layout()

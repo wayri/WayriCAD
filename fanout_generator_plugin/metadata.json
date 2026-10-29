@@ -2,7 +2,7 @@
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Fanout Generator",
   "description": "Preview and generate advanced SMD, BGA, and LGA fanouts with persistent grouped commits.",
-  "description_full": "Local, reviewable routing with configurable geometry, pad/net scope, clearance checks, zoomable preview, shared headless planners, and recoverable named commit groups. Preview does not modify PCB copper. JSON/SVG command-line planning and verified application write a new board copy.",
+  "description_full": "Local, reviewable routing with configurable geometry, pad/net scope, clearance checks, zoomable preview, shared headless planners, and recoverable named commit groups. Preview does not modify PCB copper. JSON/SVG command-line planning and verified application write a new board copy. Perimeter fanout supports alternating short/long rows and alternating inward/outward candidates subject to actual copper and keepout checks. Advanced controls include geometry dimension previews without resizing the window.",
   "identifier": "com.github.wayri.wayricad.fanout-generator",
   "type": "plugin",
   "author": {
@@ -18,7 +18,7 @@
   },
   "versions": [
     {
-      "version": "3.6.45",
+      "version": "3.6.46",
       "status": "testing",
       "kicad_version": "10.0",
       "runtime": "ipc"

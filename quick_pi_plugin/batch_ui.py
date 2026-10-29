@@ -56,9 +56,12 @@ class BatchStudyDialog(wx.Dialog):
         self.status.Wrap(930);root.Add(self.status,0,wx.EXPAND|wx.ALL,10)
         actions=wx.BoxSizer(wx.HORIZONTAL)
         self.run=wx.Button(self,label='Run all cases');self.stop=wx.Button(self,label='Cancel');self.export=wx.Button(self,label='Export HTML / JSON…');close=wx.Button(self,wx.ID_CLOSE,'Close')
+        self.insulation=wx.Button(self,label='Spacing screen…');self.insulation.Disable()
+        self.insulation.SetToolTip('Post-solve multi-net planar clearance and reviewed surface-creepage screening')
+        self.insulation.Bind(wx.EVT_BUTTON,self.show_insulation)
         self.power_flow=wx.Button(self,label='Power flow…')
         self.power_flow.SetToolTip('Source-to-sink power budget; common return losses counted once')
-        for control in (self.run,self.stop,self.export,self.power_flow,close):actions.Add(control,0,wx.RIGHT,8)
+        for control in (self.run,self.stop,self.export,self.power_flow,self.insulation,close):actions.Add(control,0,wx.RIGHT,8)
         root.Add(actions,0,wx.ALIGN_RIGHT|wx.ALL,10);self.SetSizer(root)
         self.setup.Bind(wx.EVT_TEXT,self.changed);self.add.Bind(wx.EVT_BUTTON,self.add_case)
         self.units.Bind(wx.EVT_BUTTON,self.edit_units);self.returns.Bind(wx.EVT_BUTTON,self.add_shared_return)
@@ -71,10 +74,19 @@ class BatchStudyDialog(wx.Dialog):
         self.stop.Disable();self.export.Disable();self.refresh_summary();fit_to_display(self);install_accessibility(self,Path(__file__).with_name('help.html'))
 
     def changed(self,event=None):
-        self.result=None;self.export.Disable();self.details.Clear()
+        self.result=None;self.export.Disable();self.insulation.Disable();self.details.Clear()
         self.refresh_summary()
         self.status.SetLabel('Study changed. Rerun every case before exporting.')
         if event:event.Skip()
+
+    def show_insulation(self,event=None):
+        if self._busy or not self.result:return
+        try:
+            if hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()!=self.sha:
+                raise ValueError('Saved PCB changed. Rerun before insulation screening.')
+            from .insulation_ui import show_insulation
+            show_insulation(self,self.result,self.board_path)
+        except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
 
     def show_power_flow(self,event=None):
         if self._busy or not self.result:
@@ -308,6 +320,7 @@ class BatchStudyDialog(wx.Dialog):
         if result['batch'].get('shared_returns'):
             self.details.AppendText('\n\nShared-return coupling\n'+json.dumps([{k:v for k,v in group.items() if k not in ('return_conduction','physical_return_potential_V')} for group in result['batch']['shared_returns']],indent=2))
         self.book.SetSelection(1);self.export.Enable()
+        self.insulation.Enable(len({row.get('electrical',{}).get('geometry',{}).get('net') for row in rows if row.get('electrical',{}).get('result')})>=2)
         self.status.SetLabel(result['batch']['status']+' · '+str(len(rows))+' cases; review shared-return loads, failures and assumptions.')
 
     def export_report(self,event=None):

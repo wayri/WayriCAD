@@ -385,6 +385,12 @@ class FanoutPlanner:
                 raise ValueError('Use independent perimeter escapes or a paired style; pitch expansion does not infer differential coupling.')
             from .perimeter_escape import path
             return [path(fp, pad, self.api, values) for fp, pad in group]
+        if pattern in ('Staggered rows', 'Perimeter alternating inward / outward'):
+            if pair_id:
+                raise ValueError('Perimeter stagger requires independent escapes; use a paired style for differential pairs.')
+            from .perimeter_escape import staggered_path
+            return [staggered_path(fp, pad, self.api, values,
+                    alternating=pattern == 'Perimeter alternating inward / outward') for fp, pad in group]
         if pair_id:
             angles = [self._direction(fp,pad,pattern) for fp,pad in group]
             vx,vy = sum(math.cos(a) for a in angles),sum(math.sin(a) for a in angles)
@@ -432,8 +438,6 @@ class FanoutPlanner:
             x,y=x+math.cos(normal)*launch,y+math.sin(normal)*launch
             path.append(point(x,y))
             length-=launch
-        if pattern=='Staggered rows':
-            length += self.api.FromMM(float(values['stagger_pitch']))*(row_index%2)
         path.append(point(x+math.cos(angle)*length+ox,y+math.sin(angle)*length+oy))
         return [path]
 
@@ -593,6 +597,8 @@ class FanoutPlanner:
             if pair_id and len({self._layer(pad) for _,pad in group})!=1:reason='pair members must use the same copper layer'
             if not reason:
                 try:
+                    if pattern in ('Staggered rows', 'Perimeter alternating inward / outward') and values['routing_mode'] != 'Fixed':
+                        raise ValueError('Perimeter stagger requires Fixed routing to preserve bank alternation; blocked inward escapes are rejected.')
                     if pattern == 'Connector edge':
                         if pair_id:raise ValueError('Connector edge requires independent pin routing.')
                         from .connector_escape import escape

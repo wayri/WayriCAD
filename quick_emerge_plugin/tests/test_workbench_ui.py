@@ -39,6 +39,7 @@ class WorkbenchTests(unittest.TestCase):
         f.focus_button.SetValue(False);f.focus_view();self.assertTrue(f.visual_splitter.IsSplit())
     def test_primary_materials_and_progressive_study_settings(self):
         f=self.frame
+        f.toggle_setup(show=True);wx.Yield()
         self.assertEqual([f.setup_book.GetPageText(i) for i in range(3)],['1  Geometry','2  Physics','3  Solve'])
         self.assertTrue(f.advanced_pane.IsCollapsed())
         f.setup_book.SetSelection(1);wx.Yield()
@@ -53,6 +54,30 @@ class WorkbenchTests(unittest.TestCase):
         view=f.viewports['3D setup']
         canvas=view.window if hasattr(view,'window') else view.canvas
         self.assertGreater(canvas.GetClientSize().height,250)
+
+
+    def test_viewport_dominates_default_and_setup_preserves_model(self):
+        f=self.frame;before=f.config();review=f.session.review
+        self.assertFalse(f.workspace_splitter.IsSplit())
+        self.assertFalse(f.settings.IsShown());self.assertFalse(f.setup_button.GetValue())
+        for size in ((980,650),(1120,780),(1600,900)):
+            f.SetSize(size);f.Layout();wx.Yield()
+            self.assertGreaterEqual(f.tabs.GetSize().width,f.GetClientSize().width*.95)
+            self.assertGreaterEqual(f.tabs.GetSize().height,300)
+            for control in (f.setup_button,f.preview_button,f.run_button,f.cancel_button):
+                self.assertTrue(control.GetParent().GetClientRect().Contains(control.GetRect()))
+        f.toggle_setup(show=True);wx.Yield()
+        self.assertTrue(f.settings.IsShownOnScreen());self.assertTrue(f.workspace_splitter.IsSplit())
+        f.SetSize((980,650));f.Layout();wx.Yield()
+        self.assertGreaterEqual(f.tabs.GetSize().width,540)
+        f.toggle_setup(show=False);wx.Yield()
+        self.assertEqual(f.config(),before);self.assertIs(f.session.review,review)
+        f.toggle_inspector(show=True);wx.Yield()
+        self.assertGreaterEqual(f.tabs.GetSize().height,300)
+        self.assertLessEqual(f.details.GetSize().height,f.visual_splitter.GetSize().height*.35)
+        f.focus_button.SetValue(True);f.focus_view()
+        f.focus_button.SetValue(False);f.focus_view();wx.Yield()
+        self.assertFalse(f.workspace_splitter.IsSplit());self.assertTrue(f.visual_splitter.IsSplit())
 
     def test_kicad_help_and_dense_sampling_preserve_mesh_settings(self):
         f = self.frame

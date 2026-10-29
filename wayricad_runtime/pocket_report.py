@@ -26,6 +26,12 @@ def producer_version(module_file=None, package=None, version=None):
     location = module_file or getattr(module, '__file__', None)
     if location:
         directory = Path(location).resolve().parent
+        # The installed/source package initializer declares its own version.
+        # Parse it without importing a legacy initializer or an unrelated suite.
+        from .launcher import _package_version
+        candidate = _package_version(directory)
+        if _text(candidate):
+            return candidate
         # Source metadata is adjacent; PCM metadata is above the plugins folder.
         for path in (directory / 'metadata.json', directory.parent / 'metadata.json'):
             if not path.is_file():
@@ -40,6 +46,18 @@ def producer_version(module_file=None, package=None, version=None):
             if _text(candidate):
                 return candidate
     return None
+
+
+def result_producer_version(bundle, *, module_file=None, package=None, version=None):
+    """Keep the solve-time version, including an explicitly unknown version."""
+    if 'producer_version' in bundle:
+        recorded = bundle['producer_version']
+        if recorded is not None and not _text(recorded):
+            raise ValueError('Result producer version is invalid.')
+        if version is not None and recorded != version:
+            raise ValueError('Producer version conflicts with the original result.')
+        return recorded
+    return producer_version(module_file=module_file, package=package, version=version)
 
 
 def _scopes(bundle):
@@ -112,7 +130,7 @@ def evidence_context(bundle, *, tool, module_file=None, package=None, board_path
         raise ValueError('Original solve-time PCB fingerprint is unavailable; rerun from the saved board.')
     if any(digest != digests[0] for digest in digests):
         raise ValueError('Original saved PCB fingerprints conflict; rerun the analysis.')
-    actual_version=producer_version(package=package, module_file=module_file, version=version)
+    actual_version=result_producer_version(bundle, package=package, module_file=module_file, version=version)
     if actual_version is None:
         raise ValueError('Actual producer version is unavailable; portable export cannot label this result.')
     return dict(board_path=board, source_sha256=digests[0], source_state='saved', tool=tool,
