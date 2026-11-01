@@ -1,6 +1,6 @@
 # Review companion validation — 29 October 2026
 
-Review is a testing package in WayriCAD 4.0.0. The checks below record the
+Review is a testing package in WayriCAD 4.0.1. The checks below record the
 review companion's tested scope; platform and provider limitations remain
 explicit. Previously published release assets and tags are unchanged.
 

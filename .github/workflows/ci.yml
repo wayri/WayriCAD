@@ -50,6 +50,8 @@ jobs:
           quick_pi_plugin/tests/test_series_groups.py quick_pi_plugin/tests/test_insulation_cli.py -q
       - name: Quick EMerge beta regressions
         run: python -m pytest quick_emerge_plugin/tests -q
+      - name: Quick SI channel and workflow regressions
+        run: python -m pytest signal_integrity_advisor_plugin/tests -q
       - name: Embed3D regressions
         run: python -m unittest discover -s embed_3d_plugin/tests -v
       - name: BOM Studio regressions

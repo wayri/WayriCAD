@@ -37,6 +37,14 @@ current-control header and at least 70% of client height at minimum size.
 
 ## Screenshot provenance
 
+`help-workspace-polish-4.0.1.png` is a native Windows / KiCad 10.0.6 source-window
+capture from 2026-11-01 at 1280 × 860 (1264 × 819 client pixels), with both drawers
+open to demonstrate Run guidance, report naming and the loss table. Its result
+uses the same analytical plate parameters below; the footprint context remains a
+separate synthetic layout illustration. The source PCB hash was unchanged by the
+capture. There are no private boards, personal paths or redactions. Existing
+captures retain their original versions and are not relabelled as new runs.
+
 `help-viewport-first.png` is an opaque native client-area capture at 1280 × 800,
 using the existing disposable `demo-power-board.kicad_pcb` test fixture. The
 field is the analytical uniform 65 × 90 mm, 35 µm copper plate with full-height

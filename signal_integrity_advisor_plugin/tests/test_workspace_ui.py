@@ -76,6 +76,45 @@ class WorkspaceTests(unittest.TestCase):
         self.assertGreater((bounds[2]-bounds[0])*p.preview.scale,p.preview.GetClientSize().width*.75)
         self.assertIs(p.report,report)
 
+    def test_unavailable_eye_keeps_route_and_explains_next_action(self):
+        from signal_integrity_advisor_plugin.quick_si import analyze
+        p=self.panel
+        p.fields['net'].SetValue('DATA');p.net_changed(None)
+        p.fields['start'].SetValue('U1.1');p.fields['end'].SetValue('J1.1')
+        p.eye_enabled.SetValue(True)
+        values=p._inputs();report,path=analyze(p.board,'DATA','U1.1','J1.1',**values)
+        self.assertEqual(report['eye']['status'],'UNAVAILABLE')
+        p._show_report(report,path,values);_app.Yield()
+        self.assertEqual(p.views.GetSelection(),0)
+        self.assertIn('unavailable',p.views.GetPageText(1))
+        self.assertIn(report['eye']['reason'],p.workspace.summary.GetToolTip().GetTip())
+        self.assertIn('Open Setup / Details',p.status.GetLabel())
+        self.assertFalse(p.workspace_splitter.IsSplit())
+        self.assertFalse(p.results_splitter.IsSplit())
+        p.changed(None)
+        self.assertEqual(p.views.GetPageText(1),'Eye / step')
+        self.assertNotIn('Eye unavailable',p.workspace.summary.GetLabel())
+        self.assertEqual(p.status.GetToolTipText(),p.status.GetLabel())
+
+    def test_ready_board_eye_has_model_and_numerical_feedback(self):
+        from .test_board_eye_native import NativeBoardEyeTests
+        from signal_integrity_advisor_plugin.quick_si import analyze
+        fixture=NativeBoardEyeTests();fixture.source=Path(self.temp.name)/'channel.kicad_pcb'
+        board=fixture.make_board()
+        values=dict(source_ohm=50,rise_ns=.1,eye_bitrate_mbps=1000)
+        report,path=analyze(board,'DATA','U1.1','U2.1',**values)
+        self.assertEqual(report['eye']['status'],'SIMULATED')
+        p=self.panel;p.board=board
+        p._show_report(report,path,values);_app.Yield()
+        self.assertEqual(p.views.GetSelection(),1)
+        self.assertIn('RLC',p.views.GetPageText(1))
+        self.assertIn('U2.1',p.workspace.summary.GetLabel())
+        self.assertIn('Board RLC eye',p.workspace.summary.GetLabel())
+        rows={p.results.GetItemText(i,0):p.results.GetItemText(i,1) for i in range(p.results.GetItemCount())}
+        self.assertEqual(rows['Eye channel'],'Board RLC eye')
+        self.assertIn('Eye refinement error',rows)
+        self.assertIs(p.report,report)
+
     def test_production_frame_header_fits_real_text_and_late_icons(self):
         from signal_integrity_advisor_plugin.signal_integrity_advisor_plugin import SignalIntegrityFrame
         frame=SignalIntegrityFrame(None,self.panel.board,saved_board=True)

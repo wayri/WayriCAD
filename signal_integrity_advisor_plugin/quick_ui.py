@@ -73,7 +73,7 @@ class QuickSIPanel(wx.Panel):
                     if pad.IsSelected():selected.append((net,label))
             nets=sorted({terminal['net'] for terminal in return_terminals},key=self.engine._natural_key)
         self.setup_button=wx.Button(left,label='Set up path and response…')
-        self.setup_button.SetToolTip('Review source/receiver, same-part pads, line assumptions and illustrative eye together. No board changes.')
+        self.setup_button.SetToolTip('Review source/receiver, same-part pads, line assumptions and board RLC eye inputs together. No board changes.')
         self.setup_button.Bind(wx.EVT_BUTTON,self.setup_path);form.Add(self.setup_button,0,wx.EXPAND|wx.TOP,5)
         row('net','Net',choices=nets);self._net_names=nets
         self.net_search=wx.SearchCtrl(left);self.net_search.SetHint('Find net · * wildcard, ~ fuzzy');form.Add(self.net_search,0,wx.EXPAND|wx.TOP,5);self.net_search.Bind(wx.EVT_TEXT,self.filter_nets)
@@ -127,6 +127,8 @@ class QuickSIPanel(wx.Panel):
         row('eye_bitrate_mbps','Bit rate (Mbps)','1000',parent=eye_host,sizer=eye_form)
         row('eye_swing_v','Source open-circuit swing (V)','1',parent=eye_host,sizer=eye_form)
         row('eye_load_pf','Receiver capacitance (pF; blank = 0)','',parent=eye_host,sizer=eye_form)
+        self.fields['eye_bitrate_mbps'].SetToolTip('Actual NRZ data rate in Mbps. This is separate from the route evaluation frequency; it is not inferred from a protocol name.')
+        self.fields['eye_load_pf'].SetToolTip('Explicit receiver input capacitance in pF. Blank means 0 pF; loading an IBIS model does not populate this separate linear channel input.')
         row('eye_via_l_nh','Reviewed loop L per via (nH)','',parent=eye_host,sizer=eye_form)
         row('eye_via_c_pf','Reviewed shunt C per via (pF)','',parent=eye_host,sizer=eye_form)
         self.fields['eye_via_l_nh'].SetToolTip('Required for routes with vias. Enter complete return-loop inductance, not isolated barrel partial inductance. The same reviewed equivalent is used for every traversed via.')
@@ -411,6 +413,7 @@ class QuickSIPanel(wx.Panel):
         case=self.study_report['cases'][self.study_choice.GetSelection()]
         self.ibis.set_context(case.get('net',''),case.get('start',''),case.get('end',''))
         self.results.DeleteAllItems();self.report=None;self.path=None;self.eye_preview.show_result(None)
+        self.views.SetPageText(1,'Eye / step');self.views.SetSelection(0)
         self.preview.show_result(SimpleNamespace(primary=None,mate=None))
         if 'report' in case:
             from .service import restore_path
@@ -418,8 +421,10 @@ class QuickSIPanel(wx.Panel):
         else:
             row=self.results.InsertItem(0,case['id']+' · ERROR');self.results.SetItem(row,1,case.get('error','Unresolved case'))
             self.status.SetLabel('Case failed; other case results are retained. '+case.get('error',''));self._navigation_buttons()
+            self.status.SetToolTip(self.status.GetLabel())
         self.export.Enable()
         self._update_circuit_buttons()
+        if hasattr(self,'workspace'):self.workspace.refresh_summary()
 
     def return_nets_changed(self,event=None):
         self.return_setup._nets_changed(event)
@@ -453,12 +458,14 @@ class QuickSIPanel(wx.Panel):
         if hasattr(self,'study_choice'):self.study_choice.Clear();self.study_choice.Hide()
         self.report=None;self.path=None;self.export.Disable();self.results.DeleteAllItems();self.preview.show_result(SimpleNamespace(primary=None,mate=None))
         self.eye_preview.show_result(None)
+        self.views.SetPageText(1,'Eye / step');self.views.SetSelection(0)
         self._update_circuit_buttons()
         if hasattr(self,'ibis'):
             self.ibis.set_context(self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue())
         if hasattr(self,'return_setup'):
             self.return_setup.set_context(self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue())
         self.status.SetLabel('Inputs changed; run a fresh screen before exporting.')
+        self.status.SetToolTip(self.status.GetLabel())
         if hasattr(self,'workspace'):self.workspace.refresh_summary()
         self._navigation_buttons()
         if event:event.Skip()
@@ -675,13 +682,27 @@ class QuickSIPanel(wx.Panel):
             rows += [('Return-path review',line) for line in summary_text(report['return_path']).splitlines()]
         rows += [('Delay basis',report['delay_source']),('Z0 basis',report['z0_source'])]+[('Review',note) for note in report['notes']]
         if 'eye' in report:
-            eye=report['eye'];self.eye_preview.show_result(eye);self.views.SetSelection(1)
-            if eye.get('status')=='UNAVAILABLE':rows.append(('Eye unavailable',eye['reason']))
+            from .result_feedback import eye_feedback
+            eye=report['eye'];self.eye_preview.show_result(eye)
+            caption,tab=eye_feedback(eye);self.views.SetPageText(1,tab)
+            if eye.get('status')=='UNAVAILABLE':
+                rows.append(('Eye unavailable',eye['reason']))
+                self.views.SetSelection(0)
             else:
-                rows += [('Eye center opening',f"{eye['center_opening_v']:.5g} V (sampled, ideal clock)"),('Eye sampled voltage range',f"{eye['min_v']:.5g} to {eye['max_v']:.5g} V")]
+                self.views.SetSelection(1)
+                rows += [('Eye channel',caption),('Eye center opening',f"{eye['center_opening_v']:.5g} V (sampled, ideal clock)"),('Eye sampled voltage range',f"{eye['min_v']:.5g} to {eye['max_v']:.5g} V")]
+                checks=eye.get('numerics',{})
+                for key,label,unit in [('samples_per_ui','Eye samples per UI',''),('waveform_refinement_error_v','Eye refinement error',' V'),('waveform_tolerance_v','Eye refinement tolerance',' V'),('step_settling_error_v','Step settling error',' V')]:
+                    if key in checks:rows.append((label,f"{checks[key]:.5g}"+unit))
                 rows += [('Eye model',note) for note in eye['limitations']]
         for label,value in rows:index=self.results.InsertItem(self.results.GetItemCount(),label);self.results.SetItem(index,1,value)
-        self.status.SetLabel(report['status']+' — '+report['edge_screen']);self.export.Enable();self._navigation_buttons();self._update_circuit_buttons()
+        status=report['status']+' — '+report['edge_screen']
+        if 'eye' in report:
+            status+=' · '+caption
+            if eye.get('status')=='UNAVAILABLE':status+=': '+eye['reason']+' Open Setup / Details.'
+        self.status.SetLabel(status);self.status.SetToolTip(status)
+        self.export.Enable();self._navigation_buttons();self._update_circuit_buttons()
+        if hasattr(self,'workspace'):self.workspace.refresh_summary()
 
     def export_report(self,event):
         if self._closed or self._busy or self._circuit_busy:return

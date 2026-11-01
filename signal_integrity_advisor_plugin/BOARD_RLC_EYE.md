@@ -1,6 +1,6 @@
 # Board-derived RLC eye and step response
 
-This describes the development source after release 4.0.0; existing 4.0.0
+This model is included in release 4.0.1; earlier 4.0.0
 downloads retain the earlier ideal-line eye.
 
 Quick SI's **Board RLC eye** uses the selected PCB route's ordered sections from

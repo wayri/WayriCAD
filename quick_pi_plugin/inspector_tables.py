@@ -14,6 +14,15 @@ def display(value):
     return str(value)
 
 
+def table_text(titles,rows):
+    """Tab-separated complete values; cell whitespace cannot break a row."""
+    def cell(value):
+        if value is None or isinstance(value,float) and not math.isfinite(value):return 'Unknown'
+        return ' '.join(str(value).replace('\t',' ').splitlines())
+    return '\n'.join('\t'.join(cell(value) for value in row)
+                     for row in [titles,*[row['cells'] for row in rows]])
+
+
 def sorted_rows(rows,column,ascending=True):
     known=[];unknown=[]
     for row in rows:
@@ -41,6 +50,9 @@ class InspectorTable(wx.ListCtrl if wx else object):
         self.Bind(wx.EVT_LIST_COL_END_DRAG,self._column_resized)
         self.Bind(wx.EVT_SIZE,self._resized)
         self.Bind(wx.EVT_MOTION,self._hover)
+        self.Bind(wx.EVT_LEAVE_WINDOW,self._leave)
+        self.Bind(wx.EVT_KEY_DOWN,self._key)
+        self.Bind(wx.EVT_CONTEXT_MENU,self._menu)
 
     def _column_resized(self,event):self._manual_columns=True;event.Skip()
 
@@ -55,8 +67,37 @@ class InspectorTable(wx.ListCtrl if wx else object):
 
     def _hover(self,event):
         index,_=self.HitTest(event.GetPosition())
-        if 0<=index<len(self.rows):self.SetToolTip(' · '.join(display(value) for value in self.rows[index]['cells']))
+        if 0<=index<len(self.rows):self.SetToolTip(' · '.join(display(value) for value in self.rows[index]['cells'])+'\nCtrl+C: copy row · Ctrl+Shift+C: copy table')
+        else:self.UnsetToolTip()
         event.Skip()
+
+    def _leave(self,event):self.UnsetToolTip();event.Skip()
+
+    def copy_rows(self,all_rows=False):
+        index=self.GetFirstSelected()
+        rows=self.rows if all_rows else self.rows[index:index+1] if index>=0 else []
+        if not rows:return False
+        if not wx.TheClipboard.Open():return False
+        try:return wx.TheClipboard.SetData(wx.TextDataObject(table_text(self._titles,rows)))
+        finally:wx.TheClipboard.Close()
+
+    def _key(self,event):
+        if event.ControlDown() and event.GetKeyCode() in (ord('C'),ord('c')):
+            self.copy_rows(event.ShiftDown());return
+        event.Skip()
+
+    def _menu(self,event):
+        position=event.GetPosition()
+        if position!=wx.DefaultPosition:
+            index,_=self.HitTest(self.ScreenToClient(position))
+            if index>=0:self.Select(index)
+        menu=wx.Menu()
+        row=menu.Append(wx.ID_ANY,'Copy selected row\tCtrl+C');row.Enable(self.GetFirstSelected()>=0)
+        all_rows=menu.Append(wx.ID_ANY,'Copy table\tCtrl+Shift+C');all_rows.Enable(bool(self.rows))
+        menu.Bind(wx.EVT_MENU,lambda e:self.copy_rows(),row)
+        menu.Bind(wx.EVT_MENU,lambda e:self.copy_rows(True),all_rows)
+        try:self.PopupMenu(menu)
+        finally:menu.Destroy()
 
     def set_rows(self,rows):
         top=self.GetTopItem() if self.GetItemCount() else 0

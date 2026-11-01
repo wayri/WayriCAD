@@ -25,11 +25,16 @@ class SidebarText(wx.StaticText):
     """Wrap long solver messages without widening the setup panel."""
     def __init__(self,parent,label='',width=218):
         self.wrap_width=parent.FromDIP(width)
-        super().__init__(parent,label=label)
-        self.SetMinSize((1,-1));self.Wrap(self.wrap_width);self.SetToolTip(label)
+        super().__init__(parent,label='')
+        self.SetMinSize((1,-1));self.SetLabel(label)
 
     def SetLabel(self,label):
-        super().SetLabel(label);self.Wrap(self.wrap_width);self.SetToolTip(label)
+        # Native Wrap can leave a single-line best height on wxMSW; explicit
+        # measured line breaks keep the whole message in the scrolling form.
+        from wx.lib.wordwrap import wordwrap
+        dc=wx.ClientDC(self);dc.SetFont(self.GetFont())
+        super().SetLabel(wordwrap(label,self.wrap_width,dc))
+        self.InvalidateBestSize();self.SetToolTip(label)
 
 
 class ColorLegend(wx.Panel):

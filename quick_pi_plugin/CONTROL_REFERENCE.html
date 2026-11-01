@@ -3,6 +3,7 @@
 <h1 id="quick-pi-control-reference">Quick PI control reference</h1>
 <p><a href="USER_GUIDE.html">Worked user guide</a> · <a href="CONTROL_REFERENCE.html">Offline control reference</a> · <a href="help.html">Quick help</a></p>
 <p>This reference follows the current source. Guided Joule inputs and Blender are source updates requiring a package containing those changes; previously released 3.6.41 installers have not been replaced. Units beside a control take precedence over the base SI units used in saved JSON. A disabled action is not a passed check.</p>
+<p><strong>4.0.1 setup guidance:</strong> the top of Setup explains missing/conflicting pads, stale saved-board data and unsupported 3D/Joule combinations. Both Run buttons share the next-action tooltip and stay disabled until those setup gates are resolved. Numeric/mesh/electrical validation still happens on Run; readiness is not convergence or feasibility. <strong>Export report…</strong> is separate from Save setup and Save simulation.</p><p><strong>Copy result tables:</strong> in Losses and Probe, Ctrl+C copies the selected row; Ctrl+Shift+C copies all rows in current sort order. The right-click menu offers both. Copied tab-separated text includes headers, complete stored numeric values and explicit unknowns. Copying changes neither the selected copper result nor solver data.</p>
 <h2 id="workspace-and-load-setup">Workspace and load setup</h2>
 <div class="table-scroll"><table>
 <tr><th>Control</th><th>Operation, units and preconditions</th></tr>

@@ -15,6 +15,30 @@ that section is folded. Ordinary scroll zooms.
 
 [Workspace sizing, gestures and screenshot provenance](VIEWPORT_LAYOUT.md).
 
+### Clearer setup and copyable results
+
+In 4.0.1, **Setup** starts with the next action needed to enable **Run**. The
+toolbar and drawer Run buttons share the same guidance. Same source/sink pads,
+overlapping multipin units, a changed saved board and unsupported 3D or Joule
+feedback combinations keep Run disabled with a specific correction. Numeric,
+mesh and electrical validation still happens when the study runs; readiness is
+not a claim of convergence or load feasibility.
+
+**Export report…** distinguishes HTML/numerical export from the separate setup
+and simulation Save/Load actions. In the **Losses** and **Probe** tables, select
+a row and press **Ctrl+C**, or press **Ctrl+Shift+C** for the whole table. The
+right-click menu offers both actions. Copied tab-separated text includes column
+headers, complete stored numbers and explicit unknowns, in the current sort order.
+Copying does not change the chosen copper result or run a calculation.
+
+![Quick PI setup guidance and readable loss table](help-workspace-polish-4.0.1.png)
+
+Native Windows / KiCad 10.0.6 capture, 2026-11-01. This uses the same illustrative
+analytical plate and synthetic board context described in the
+[capture provenance](VIEWPORT_LAYOUT.md#screenshot-provenance). Both drawers are
+open here to show the controls; the default remains the full-width board view.
+No private design or personal path is shown; no redaction was needed.
+
 ## Guided setup and reviewed power intent
 
 - **More → Power tree** opens an editable energy-flow diagram for sources, rails,

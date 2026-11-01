@@ -92,6 +92,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.inputs=wx.ScrolledWindow(self.setup_panel,style=wx.VSCROLL)
         self.inputs.SetScrollRate(0,12);self.inputs.SetMinSize((1,1))
         controls=wx.BoxSizer(wx.VERTICAL)
+        self.run_hint=SidebarText(self.inputs,'Choose a net, source and sink to start.')
+        controls.Add(self.run_hint,0,wx.EXPAND|wx.BOTTOM,6)
         def field(label,control):
             controls.Add(wx.StaticText(self.inputs,label=label),0,wx.EXPAND|wx.TOP|wx.BOTTOM,4)
             control.SetMinSize((1,-1));controls.Add(control,0,wx.EXPAND|wx.BOTTOM,3)
@@ -492,9 +494,13 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.preview.Enable(not self._busy and bool(self.net.GetValue()))
         volume=self.model_dimension.GetSelection()==1
         self.run.SetLabel('Run 3D' if volume else 'Run')
-        self.run.Enable(not self._busy and len(self._terminals)>1 and
-                        (not volume or (not self._series_request and self.load_mode.GetSelection()==0)))
-        self.export.SetLabel('Export')
+        ready,run_message=self._run_readiness()
+        self.run.Enable(ready);self.run.SetToolTip(run_message)
+        self.toolbar_run.SetToolTip(run_message)
+        if self.run_hint.GetToolTipText()!=run_message:
+            self.run_hint.SetLabel(run_message)
+            self.run_hint.InvalidateBestSize();self.inputs.Layout();self.inputs.FitInside()
+        self.export.SetLabel('Export report…')
         self.export.Enable(not self._busy and bool(self.volume_bundle.get('result') if volume else self.bundle.get('result')) and self._saved_source_current)
         self.power_flow.Enable(self.export.IsEnabled())
         if getattr(self,'_live_running',False) or getattr(self,'_live_pending',None) is not None:self.export.Disable();self.power_flow.Disable()
@@ -520,6 +526,38 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if self.book.GetSelection()>=len(self.views):
             for control in (self.net,self.source,self.sink,self.voltage,self.current,self.layer,self.metric,self.preview,self.run,self.export,self.power_flow):control.Disable()
         self.toolbar_run.SetLabel(self.run.GetLabel());self.toolbar_run.Enable(self.run.IsEnabled())
+
+    def _run_readiness(self):
+        """Explain setup gates without reading geometry or changing solver inputs."""
+        if self._busy:return False,'Working… Cancel stops the current job.'
+        if self.book.GetSelection()>=len(self.views):
+            return False,'Open Net, Mesh or Results to run a copper simulation.'
+        if not self._saved_source_current:
+            return False,'Saved board changed. Use More → Reload saved board, then review the setup.'
+        if not self.net.GetValue():return False,'Choose a net in Setup, or use Pick net on the board.'
+        if len(self._terminals)<2:return False,'This net needs two connected pad terminals for a source-to-load solve.'
+        if not self._series_request:
+            a,b=self.source.GetSelection(),self.sink.GetSelection()
+            if min(a,b)<0:return False,'Choose both a source pad and a sink pad in Setup.'
+            if a==b:return False,'Choose different source and sink pads.'
+            source_ids={self._terminals[a]['id'],*(self._pin_peer_ids['source'] if self.source_pins.GetValue() else [])}
+            sink_ids={self._terminals[b]['id'],*(self._pin_peer_ids['sink'] if self.sink_pins.GetValue() else [])}
+            if source_ids.intersection(sink_ids):
+                return False,'Source and sink pin groups overlap. Choose separate units or uncheck extra pins.'
+        volume=self.model_dimension.GetSelection()==1
+        if volume and (self._series_request or self.load_mode.GetSelection()!=0):
+            return False,'3D needs a single net with a specified sink current; use 2.5D for this load or series path.'
+        if volume and self._extra_sinks:
+            return False,'3D supports one sink unit. Remove additional sinks, or use 2.5D.'
+        if volume and any(c.GetValue().strip() for c in (self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage)):
+            return False,'3D does not evaluate voltage limits or source budgets. Clear these fields, or use 2.5D.'
+        if self.joule_feedback.GetValue():
+            if volume or self.load_mode.GetSelection()!=0:
+                return False,'Joule temperature feedback needs 2.5D specified-current loads.'
+            if self._series_request or self._package_conduction or any('power_W' in row for row in self._extra_sinks):
+                return False,'Joule temperature feedback needs current loads on one copper net, without series or package-contact models.'
+            return True,'Ready. Run opens Materials + cooling.'
+        return True,'Ready. Run the reviewed source and loads.'
 
     def _build_inspector(self):
         self.inspector=wx.ScrolledWindow(self.splitter)

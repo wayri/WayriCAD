@@ -6,7 +6,7 @@ board as context; region mode imports actual enclosed copper. Components and
 board geometry outside the enclosure are omitted.
 
 Quick EMerge is an independently installable testing beta in the
-[WayriCAD 4.0.0 release](https://github.com/wayri/WayriCAD/releases/tag/v4.0.0).
+[WayriCAD 4.0.1 release](https://github.com/wayri/WayriCAD/releases/tag/v4.0.1).
 See the [KiCad workflow help](help.html), [capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md)
 for implemented scope and its limits.
 

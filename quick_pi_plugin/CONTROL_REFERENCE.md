@@ -29,7 +29,9 @@ over the base SI units used in saved JSON. A disabled action is not a passed che
 | Copper model | 2.5D sheets/barrels or full 3D copper volume. Switching invalidates old fields; 3D does not add AC or temperature feedback. |
 | Include Joule heating / temperature feedback | DC already computes I²R. This additionally opens explicit temperature/resistance coupling, supported for one-net 2.5D prescribed-current units. |
 | Rails / ground returns… | Explicit multi-rail and return-contact configuration. Different from sampled reference-plane auditing. |
-| Preview / Run | Inspect saved copper first; Run validates, meshes and solves. Joule checkbox opens required physical settings first. |
+| Preview / Run | Inspect saved copper first; Run validates, meshes and solves. Setup's next-action hint and Run tooltips explain missing/conflicting endpoints, stale data and unsupported model combinations. Joule checkbox opens required physical settings first. Readiness is not convergence or feasibility. |
+| Export report… | Export the current HTML and complete numerical result; separate from Save setup / Save simulation. |
+| Losses / Probe table copy | Ctrl+C or right-click copies the selected row; Ctrl+Shift+C or Copy table copies all rows in current sort order. Includes headers and complete stored values as tab-separated text; unknowns remain unknown. Copying does not change selection or solve data. |
 | Export / Power flow / Blender… | Current HTML/JSON evidence, source-to-sink power accounting, or optional Blender field export. None changes PCB geometry. |
 | Series | Build an explicit component/net path; review component interpretation, polarity and routing. |
 | Cancel / progress | Cancel the isolated worker. Partial work is discarded, not accepted as complete. |

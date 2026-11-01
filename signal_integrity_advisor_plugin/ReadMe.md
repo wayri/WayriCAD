@@ -16,6 +16,23 @@ circuit export. Menu entries follow the same readiness checks as the underlying
 analysis controls. **PCB** keeps editor selection and route/return highlighting
 reachable without opening Setup. Other checks remain in the top tabs.
 
+The header identifies the **displayed result**, including a selected completed
+study case, its delay and whether the eye is **Board RLC**, **ideal-line** or
+unavailable. Hover the header to read the complete route and missing-input reason.
+An unavailable requested eye keeps **Route** visible; open **Setup** to adjust
+inputs and **Details** for the extraction evidence. The eye tab labels its model,
+and Details includes the RLC eye's sampling, refinement error and settling check.
+Changing inputs clears those labels with the old result.
+
+![Quick SI board RLC result feedback](help-result-feedback.png)
+
+Native Windows / KiCad 10.0.6 capture, 2026-11-01: a synthetic saved 60 mm route
+over verified filled reference planes, 1 Gb/s, 1 V open-circuit source swing,
+50 Ω driver, open receiver with explicit 2 pF capacitance and 0.1 ns rise time.
+The 1280 × 800 window retains a 1212 × 546 eye canvas. Linear extracted-section
+RLC only; no skin/dielectric loss, nonlinear IBIS or protocol signoff. Source
+bytes were unchanged. No personal paths, private designs or redactions.
+
 ![Quick SI with the route as the main work area](help-viewport-first.png)
 
 Windows native source-window capture, 2026-10-30, KiCad 10.0.6 Python 3.11 /
@@ -615,8 +632,8 @@ editing the board. Analysis does not move copper or write project files.
 
 ## Board RLC eye and step response
 
-**Development source update after 4.0.0:** published 4.0.0 packages still contain
-the earlier ideal-line eye. The board RLC model below is in the current source.
+**Included in 4.0.1:** earlier 4.0.0 packages retain the ideal-line eye. The
+board RLC model below is included in the 4.0.1 package.
 
 Enable **Board RLC eye**, enter the actual NRZ rate, open-circuit swing,
 driver resistance/rise time and receiver resistance/capacitance, then run SI.

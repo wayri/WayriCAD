@@ -235,6 +235,8 @@ See [interaction controls](../docs/ANALYSIS_INTERACTIONS.md).
 
 ## Eye and step response
 
+The result header follows the displayed completed case, not unrelated draft inputs. It shows route delay and the eye model; hover for full text. Unavailable eyes retain the Route view with the reason in the status and header tooltip. Open Setup to review inputs and Details to inspect extraction and numerical checks. Input edits clear stale tab labels and waveforms.
+
 Enable **Board RLC eye**, enter the actual NRZ rate, open-circuit swing,
 driver resistance/rise time and receiver resistance/capacitance, then run SI.
 The channel cascades the selected route's ordered extracted R/L/C sections;

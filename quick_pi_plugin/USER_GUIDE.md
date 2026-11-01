@@ -1,7 +1,7 @@
 # Quick PI user guide
 
 Use this guide to choose, configure and review Quick PI studies. It describes the
-4.0.0 workspace and implemented studies. Screenshots retain their capture versions and assumptions. [README and screenshot provenance](README.md) ·
+4.0.1 workspace and implemented studies. Screenshots retain their capture versions and assumptions. [README and screenshot provenance](README.md) ·
 [Offline HTML edition](USER_GUIDE.html) · [Compact help](help.html).
 
 ## Workspace controls
@@ -15,6 +15,18 @@ The board view is the main workspace. Opening or closing panels retains inputs a
 | **Focus view** | Hide drawers temporarily; restore their previous sizes and visibility |
 | **Files** | Save/load setup or computed data; export reports and Blender data |
 | **Run** | Solve using reviewed inputs; changed inputs clear old results |
+
+**Run guidance:** the top of Setup explains missing or conflicting pad choices,
+stale saved-board data and unsupported model combinations. Both Run buttons
+remain disabled until those setup gates are resolved; their tooltips give the
+same next action. A ready button does not establish mesh convergence or load
+feasibility. **Export report…** is separate from Save setup / Save simulation.
+
+**Copy results:** in Losses and Probe tables, Ctrl+C copies the selected row;
+Ctrl+Shift+C copies the complete table in its current sort order. The right-click
+menu has the same commands. Headers and complete stored numeric values are
+included as tab-separated text; unknowns stay unknown. Copying does not move the
+selected copper result or alter the solve.
 
 ![Board-first workspace](help-viewport-first.png)
 

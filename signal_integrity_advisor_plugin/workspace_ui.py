@@ -61,10 +61,9 @@ class Workspace:
 
     def refresh_summary(self):
         values={key:self.panel.fields[key].GetValue() for key in ('net','start','end')}
-        message=(values['net']+' · '+(values['start'] or 'Source?')+' → '+(values['end'] or 'Receiver?')
-                 if values['net'] else '1 Set up a path · 2 Run SI · 3 Inspect the route and Details')
-        if self.panel.saved_board:message+=' · Saved PCB snapshot'
-        self.summary.SetLabel(message);self.summary.SetToolTip(message)
+        from .result_feedback import summary_text
+        message,tooltip=summary_text(values,self.panel.report,saved_board=self.panel.saved_board)
+        self.summary.SetLabel(message);self.summary.SetToolTip(tooltip)
 
     def setup_limit(self):
         width=self.panel.workspace_splitter.GetClientSize().width
