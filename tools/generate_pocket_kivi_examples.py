@@ -24,6 +24,9 @@ MODULES=(
     'quick_pi_plugin/service.py','quick_pi_plugin/board_geometry.py','quick_pi_plugin/mesh.py','quick_pi_plugin/solver.py',
     'signal_integrity_advisor_plugin/service.py','signal_integrity_advisor_plugin/quick_si.py',
     'signal_integrity_advisor_plugin/measurement.py','signal_integrity_advisor_plugin/eye_model.py',
+    'signal_integrity_advisor_plugin/board_eye.py','signal_integrity_advisor_plugin/rlc_model.py',
+    'signal_integrity_advisor_plugin/emerge_lines.py',
+    'signal_integrity_advisor_plugin/circuit_scope.py',
     'quick_therm_plugin/service.py','quick_therm_plugin/thermal_geometry.py','quick_therm_plugin/thermal_multilayer.py',
     'quick_therm_plugin/thermal_spatial_transient.py',
 )
@@ -80,6 +83,30 @@ def create_board(path):
     if p.LoadBoard(str(path)) is None:raise ValueError('Native fixture failed KiCad readback.')
 
 
+def si_channel(source,destination):
+    """Retain source geometry/stackup except its explicitly identified island."""
+    import pcbnew
+    from wayricad_runtime.geometry import board_fingerprint
+    from signal_integrity_advisor_plugin.measurement import TraceMeasurementEngine
+    native=pcbnew.LoadBoard(str(source))
+    island=str(uuid.uuid5(uuid.NAMESPACE_URL,'wayricad-pocket-example/floating-island'))
+    matching=[item for item in native.GetTracks() if str(item.m_Uuid.AsString())==island]
+    if len(matching)!=1:raise ValueError('Expected one intentional floating fixture island.')
+    expected=board_fingerprint(native,ignore=matching)
+    stackup=TraceMeasurementEngine(native).stackup_layers()
+    if not destination.exists():
+        # Permanently discard the fixture island while its native parent lives.
+        # Remove transfers ownership to a Python proxy; Delete clears it now.
+        native.Delete(matching[0]);pcbnew.SaveBoard(str(destination),native)
+    derived=pcbnew.LoadBoard(str(destination))
+    if board_fingerprint(derived)!=expected:
+        raise ValueError('SI fixture differs from source beyond the intended isolated track.')
+    if TraceMeasurementEngine(derived).stackup_layers()!=stackup:
+        raise ValueError('SI fixture stackup differs from the common source.')
+    return dict(parent=source.name,removed_item_uuid=island,
+                retained_geometry_sha256=expected,stackup_unchanged=True)
+
+
 def generate(output=DEFAULT_OUTPUT,viewer_extension=None):
     import pcbnew
     import numpy,scipy,vtk,matplotlib
@@ -91,17 +118,24 @@ def generate(output=DEFAULT_OUTPUT,viewer_extension=None):
     output=Path(output).resolve();output.mkdir(parents=True,exist_ok=True)
     board=output/'example.kicad_pcb';create_board(board)
     board_before=board.read_bytes();digest=sha(board)
+    # The common fixture deliberately contains an isolated same-net track to
+    # exercise PI unknowns. A board eye must not silently omit that inventory.
+    # Author a separate complete channel; never change the common source PCB.
+    si_board=output/'si-channel.kicad_pcb'
+    derivation=si_channel(board,si_board)
+    si_before=si_board.read_bytes()
     modules={name:source_sha(ROOT/name) for name in MODULES}
     pi_request=dict(action='solve',board_path=str(board),net=NET,source_terminal='J1.1',sink_terminal='U1.1',
         source_voltage=3.3,sink_current=.25,edge_mm=1.,mesh_backend='vtk',max_cells=20000)
     print('Running saved-PCB Quick PI',flush=True)
     pi=pi_execute(pi_request)
     print('Running saved-PCB Quick SI',flush=True)
-    si_request=dict(mode='screen',board_path=str(board),source_fingerprints=source_fingerprints(board),
+    si_request=dict(mode='screen',board_path=str(si_board),source_fingerprints=source_fingerprints(si_board),
         net=NET,start='J1.1',end='U1.1',reference='B.Cu',
         inputs=dict(rise_ns=1.,frequency_mhz=100.,source_ohm=20.,load_ohm=None,
-                    z0_ohm=50.,epsilon_eff=3.,eye_bitrate_mbps=100.,eye_swing_v=1.))
+                    z0_ohm=50.,epsilon_eff=3.,eye_bitrate_mbps=100.,eye_swing_v=1.,eye_load_pf=2.))
     si=si_execute(si_request)['report']
+    if si['eye']['status']!='SIMULATED':raise ValueError('The native example needs a complete board RLC eye: '+str(si['eye']))
     thermal_request=dict(action='quick_therm',board_path=str(board),expected_source_sha256=digest,
         environment='air',ambient_c=20.,references=['U1'],input_mode='manual',
         manual_values={'U1':{'power_w':.05,'theta_jb_k_per_w':4.}},
@@ -117,32 +151,33 @@ def generate(output=DEFAULT_OUTPUT,viewer_extension=None):
     print('Running saved-PCB QuickTherm transient',flush=True)
     transient=therm_execute(transient_request)
     cases=[('quick-pi.pocket-kivi.json',pi,'Quick PI','quick_pi_plugin',
-            {'points_mm':'mm','potential_V':'V','cell_power_W':'W','cell_J_A_mm2':'A/mm²'},'front-depth'),
+            {'points_mm':'mm','potential_V':'V','cell_power_W':'W','cell_J_A_mm2':'A/mmÂ²'},'front-depth'),
            ('quick-si.pocket-kivi.json',si,'Quick SI','signal_integrity_advisor_plugin',
-            {'length_mm':'mm','delay_ns':'ns','z0_ohm':'Ω','time_ui':'UI','traces_v':'V'},None),
+            {'length_mm':'mm','delay_ns':'ns','z0_ohm':'Î©','time_ui':'UI','traces_v':'V'},None),
            ('quick-therm.pocket-kivi.json',thermal,'QuickTherm','quick_therm_plugin',
-            {'x_centers_mm':'mm','y_centers_mm':'mm','values_c':'°C','power_w':'W'},None),
+            {'x_centers_mm':'mm','y_centers_mm':'mm','values_c':'Â°C','power_w':'W'},None),
            ('quick-therm-transient.pocket-kivi.json',transient,'QuickTherm','quick_therm_plugin',
-            {'x_centers_mm':'mm','y_centers_mm':'mm','temperatures_c':'°C','time_s':'s','power_w':'W'},None)]
+            {'x_centers_mm':'mm','y_centers_mm':'mm','temperatures_c':'Â°C','time_s':'s','power_w':'W'},None)]
     payloads={}
     versions={}
     for filename,bundle,tool,package,units,z_basis in cases:
-        context=evidence_context(bundle,tool=tool,package=package,board_path=board,units=units,
+        context=evidence_context(bundle,tool=tool,package=package,board_path=si_board if tool=='Quick SI' else board,units=units,
             coordinate_frame=None if tool=='Quick SI' else 'KiCad PCB XY in mm',z_basis=z_basis)
         payloads[filename]=portable_json(bundle,**context)
         versions[tool]=context['version']
     if board.read_bytes()!=board_before:raise ValueError('A producer changed the public source PCB.')
+    if si_board.read_bytes()!=si_before:raise ValueError('A producer changed the public SI channel PCB.')
     if any(source_sha(ROOT/name)!=value for name,value in modules.items()):raise ValueError('Producer source changed during generation; rerun.')
-    total=sum(map(len,payloads.values()))+len(board_before)
+    total=sum(map(len,payloads.values()))+len(board_before)+len(si_before)
     if total>5*1024*1024:raise ValueError('Example collection exceeds the 5 MiB target.')
     for name,payload in payloads.items():(output/name).write_bytes(payload)
     # KiCad may create fixture-local project/display defaults. Project rules are
     # part of SI custody; local display state is not a published design input.
-    board.with_suffix('.kicad_prl').unlink(missing_ok=True)
+    for source in (board,si_board):source.with_suffix('.kicad_prl').unlink(missing_ok=True)
     provenance=dict(schema='wayricad.pocket-kivi-examples/v1',fixture='example.kicad_pcb',source_sha256=digest,
         runtime=dict(python=sys.version.split()[0],kicad=pcbnew.GetBuildVersion(),numpy=numpy.__version__,
                      scipy=scipy.__version__,vtk=vtk.vtkVersion.GetVTKVersion(),matplotlib=matplotlib.__version__),
-        producer_versions=versions,
+        producer_versions=versions,source_files={board.name:digest,si_board.name:sha(si_board)},si_derivation=derivation,
         producer_modules=modules,producer_source_normalization='CRLF to LF only',
         files={name:hashlib.sha256(data).hexdigest() for name,data in payloads.items()},
         request_inputs={'pi':{k:v for k,v in pi_request.items() if k!='board_path'},
@@ -154,8 +189,10 @@ def generate(output=DEFAULT_OUTPUT,viewer_extension=None):
     if viewer_extension is not None:
         provenance['checks']['viewer_adapters']=viewer_checks(output,viewer_extension)
         provenance['files']['viewer-probes.json']=sha(output/'viewer-probes.json')
-    project=board.with_suffix('.kicad_pro')
-    if project.exists():provenance['files'][project.name]=sha(project)
+    provenance['files'][si_board.name]=sha(si_board)
+    for source in (board,si_board):
+        project=source.with_suffix('.kicad_pro')
+        if project.exists():provenance['files'][project.name]=sha(project)
     (output/'provenance.json').write_text(json.dumps(provenance,indent=2,ensure_ascii=False,allow_nan=False)+'\n',encoding='utf-8')
     print(json.dumps(dict(files=list(payloads),total_sample_bytes=total,source_sha256=digest)))
     return provenance
@@ -163,7 +200,7 @@ def generate(output=DEFAULT_OUTPUT,viewer_extension=None):
 
 def viewer_checks(output,extension):
     extension=Path(extension).resolve()
-    script=r'''const fs=require('fs'),root=process.argv[1],dir=process.argv[2],a=require(root+'/analysis-data.js'),s=require(root+'/analysis-spatial.js');const names=['quick-pi','quick-si','quick-therm','quick-therm-transient'],rows=[];for(const name of names){const value=JSON.parse(fs.readFileSync(dir+'/'+name+'.pocket-kivi.json','utf8')),parsed=a.parse(name+'.json',JSON.stringify(value));if(!parsed.plots.length)throw Error(name+' has no saved plots');if(!s.sourceBindings(value).some(b=>b.path==='example.kicad_pcb'&&b.sha256===value.source_sha256))throw Error('Source binding lost');const plots=parsed.plots.map(p=>({title:p.title,type:p.type||'waveform',unit:p.unit||null}));const row={name,plots};if(name==='quick-pi'){const p=parsed.plots.find(p=>p.type==='mesh-field'&&p.nodal);row.probe=a.probe(p,15,5);}if(name==='quick-therm-transient'){const p=parsed.plots.find(p=>p.type==='heatmap'&&p.frames);row.heater=a.probe(p,25,5);row.cutout=a.probe(p,15,11);row.history=s.pointHistory(p,25,5);}rows.push(row);}process.stdout.write(JSON.stringify(rows));'''
+    script=r'''const fs=require('fs'),root=process.argv[1],dir=process.argv[2],a=require(root+'/analysis-data.js'),s=require(root+'/analysis-spatial.js');const names=['quick-pi','quick-si','quick-therm','quick-therm-transient'],rows=[];for(const name of names){const value=JSON.parse(fs.readFileSync(dir+'/'+name+'.pocket-kivi.json','utf8')),parsed=a.parse(name+'.json',JSON.stringify(value));if(!parsed.plots.length)throw Error(name+' has no saved plots');if(!s.sourceBindings(value).some(b=>b.path===value.source_path&&b.sha256===value.source_sha256))throw Error('Source binding lost');const plots=parsed.plots.map(p=>({title:p.title,type:p.type||'waveform',unit:p.unit||null}));const row={name,plots};if(name==='quick-pi'){const p=parsed.plots.find(p=>p.type==='mesh-field'&&p.nodal);row.probe=a.probe(p,15,5);}if(name==='quick-therm-transient'){const p=parsed.plots.find(p=>p.type==='heatmap'&&p.frames);row.heater=a.probe(p,25,5);row.cutout=a.probe(p,15,11);row.history=s.pointHistory(p,25,5);}rows.push(row);}process.stdout.write(JSON.stringify(rows));'''
     node=shutil.which('node')
     if not node:raise RuntimeError('Node.js is unavailable for the requested viewer adapter check.')
     result=subprocess.run([node,'-e',script,str(extension),str(output)],stdin=subprocess.DEVNULL,

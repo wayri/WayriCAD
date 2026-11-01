@@ -48,6 +48,20 @@ catalogue now includes its nested PNG/JSON assets in the wheel as well as PCM.
 Six unchanged standalone SWIG ZIPs retain their existing versions and are
 compared byte-for-byte against the prior release.
 
+The first candidate failed the saved-example provenance check: its numerical
+producer hashes preceded the RLC eye change. Examples were regenerated through
+the native services instead of substituting hashes. PI/thermal retain the
+original exact-byte fixture and floating-island tests. SI now uses a separate
+copy with only the intentional island removed; native geometry and stackup
+comparison verifies the derivation. Source bindings, RLC convergence and actual
+viewer-adapter readback are checked for the regenerated results.
+All ten example checks passed with native and actual viewer opt-ins enabled,
+including fresh-folder reproduction and rejection of changed trace geometry or
+dielectric stackup. The generator uses native permanent deletion for its one
+discarded fixture item, avoiding a detached Python-owned track outliving its
+parent during later native reads. No plugin solver or UI source changed in this
+example refresh.
+
 ## Screenshot provenance
 
 The new opaque native captures are dated 2026-11-01. Existing larger screenshots

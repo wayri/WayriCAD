@@ -11,12 +11,22 @@
     "matplotlib": "3.11.2"
   },
   "producer_versions": {
-    "Quick PI": "4.0.0",
-    "Quick SI": "4.0.0",
-    "QuickTherm": "4.0.0"
+    "Quick PI": "4.0.1",
+    "Quick SI": "4.0.1",
+    "QuickTherm": "4.0.1"
+  },
+  "source_files": {
+    "example.kicad_pcb": "8d60e824376418fa4cad65d37c9d8c8dd5da60c5538b9bf0a11976dbb98f1e7e",
+    "si-channel.kicad_pcb": "17dbb52487a54b9b94a0f322cabf23f1c519d3aec8a54367fb6472d77f069995"
+  },
+  "si_derivation": {
+    "parent": "example.kicad_pcb",
+    "removed_item_uuid": "39288a2b-64b2-5257-8b9a-4b34fbf53316",
+    "retained_geometry_sha256": "b9290dbf169c6d50a135c5b5b45a990e3d2c26032cd3cefa7d9034ccd0c3658f",
+    "stackup_unchanged": true
   },
   "producer_modules": {
-    "tools/generate_pocket_kivi_examples.py": "a2d2d57c7bcb946cad0ed764ee68936d5fa2087633b93504ab61c05920d89522",
+    "tools/generate_pocket_kivi_examples.py": "0526afa5a198584f0cf1e8f14c827520ea953430a7aaaa56e535fa4de9e04d92",
     "wayricad_runtime/pocket_kivi_export.py": "f79cbf24f7c1f09ea90dc2c96f1c9766ceb3c3ed7db990857fa608a65e37c58d",
     "wayricad_runtime/pocket_report.py": "70a6e9a38bcd1d41b511bca4d84c25a960a30edf8d5931fc86a60f6291994a20",
     "quick_pi_plugin/service.py": "9c897bb7d5e54476f8df419b5d8472b5050ed53ceed97b215cb0c804b22240cb",
@@ -24,9 +34,13 @@
     "quick_pi_plugin/mesh.py": "1bd771ef77857b6ff9e021ac17f702f8f30eed69ed1c5da8c5b6796f7b0c660b",
     "quick_pi_plugin/solver.py": "14375abcf6206a049fa9a96564148572f22f83cb38dab875ff3c5c4aed740eda",
     "signal_integrity_advisor_plugin/service.py": "8ce7bfc211c402fb771958fa29fa5621771953233063f08311851fafc16f4a9e",
-    "signal_integrity_advisor_plugin/quick_si.py": "d7d6b207e51c314c0977f99530685c01a9b2255ae206f54b42d1376f28925a5e",
+    "signal_integrity_advisor_plugin/quick_si.py": "ce584a4fcac861245518eb17504b43a8201a46c53dd812878a69ee5a80ac76b7",
     "signal_integrity_advisor_plugin/measurement.py": "653340ec32f70d574a7a376b0b31fb0e10971f6e9f0f0840f3fc9cb6b31943f1",
     "signal_integrity_advisor_plugin/eye_model.py": "12b4fac21e58ca98d0a7c2b8764c1f8dd972359ce7401662b56bc550a2ac5da6",
+    "signal_integrity_advisor_plugin/board_eye.py": "62221a030a3ea856000296bece0f8fa0eb9f4352a9ff856e6860cfcf7655fc80",
+    "signal_integrity_advisor_plugin/rlc_model.py": "56b2e20c1439dfeab5cdd0f1feb1f798829420dbcbdc569e8f9d088af3fec740",
+    "signal_integrity_advisor_plugin/emerge_lines.py": "4d28ff31fd4102de2178ec9cde0313e55a79d4307347147c5238a9340439efa0",
+    "signal_integrity_advisor_plugin/circuit_scope.py": "637a3c3cdbac7749132c8da9c8fc4148d09fe31234852921ca70c9ee60a5ad26",
     "quick_therm_plugin/service.py": "3752bd36074e7e71cfdbe5abeaa594acbe3aeb0222324dec2c3e8045a7928b84",
     "quick_therm_plugin/thermal_geometry.py": "f473216bc4b7195e519dea3080781fce49e116cc2c81ba92faebd6891ea70699",
     "quick_therm_plugin/thermal_multilayer.py": "050aba0cc8bcf707a3516ba44c4b9ac6075e3675b364899d4e0661e451eda4d5",
@@ -34,11 +48,14 @@
   },
   "producer_source_normalization": "CRLF to LF only",
   "files": {
-    "quick-pi.pocket-kivi.json": "1f88803e1207eba0bec1b86f8f4dc6ff32321b9aa8ae115de06aac5d33963c76",
-    "quick-si.pocket-kivi.json": "c2c8d9d236ec5435636607fc6d13cdb8d50214951bcf11a02a6ab84422dd7377",
-    "quick-therm.pocket-kivi.json": "22f6c5f34d6e108147007ae31086212aef948e9eaf247cecab3a66e632eaf5d5",
-    "quick-therm-transient.pocket-kivi.json": "9a8a61e30e6e4043e4d92659d53c84f49de37b77d1de1d2104b2471bce5eaf76",
-    "example.kicad_pro": "4d8e3d77d218508d649a0103f5028a06aec19b8eece3bfa3f51eeb65051eeca4"
+    "quick-pi.pocket-kivi.json": "e455b9b319669416873245eee0cba4e5e57b26253280c64ab53536413043f503",
+    "quick-si.pocket-kivi.json": "e2ffad3bbc824194c5527501c7af124ab3a0600b247cda568b81a614e608e183",
+    "quick-therm.pocket-kivi.json": "68fa092613327af71c24e75c2fbc8f457f8378a3fce8e178b88ac58f9dcbcd9a",
+    "quick-therm-transient.pocket-kivi.json": "806a88571e3aeaf776845d8a51723fc68c99d9ef2520d9f7896f1fe33d14fad2",
+    "viewer-probes.json": "2a55c165e2ad6c6f504bb6fd1ce0060d8a6bfb0bb5388c292d90b48664579ca5",
+    "si-channel.kicad_pcb": "17dbb52487a54b9b94a0f322cabf23f1c519d3aec8a54367fb6472d77f069995",
+    "example.kicad_pro": "4d8e3d77d218508d649a0103f5028a06aec19b8eece3bfa3f51eeb65051eeca4",
+    "si-channel.kicad_pro": "187b74f74cdbcfee43af428d2af7ddf3c73edad7e5f539403a5adc66bb43bdfe"
   },
   "request_inputs": {
     "pi": {
@@ -66,7 +83,8 @@
         "z0_ohm": 50.0,
         "epsilon_eff": 3.0,
         "eye_bitrate_mbps": 100.0,
-        "eye_swing_v": 1.0
+        "eye_swing_v": 1.0,
+        "eye_load_pf": 2.0
       }
     },
     "thermal": {
@@ -139,6 +157,12 @@
   "checks": {
     "native_saved_board_producers": "passed",
     "unchanged_source_bytes": true,
-    "viewer_adapters": "not run; pass --viewer-extension with the local extension folder"
+    "viewer_adapters": {
+      "status": "passed",
+      "module_hashes": {
+        "analysis-data.js": "75682f813e10cdb1ae18ad5a27e798ba3b2fc1bb6486f42271356176a7d8cb1f",
+        "analysis-spatial.js": "57b54e45397575d2c6ae7b76d5e003ad9e119a58d4b0c4a2ad0cab4711534504"
+      }
+    }
   }
 }

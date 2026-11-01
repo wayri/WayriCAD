@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -21,13 +22,15 @@ def load(name):return json.loads((EXAMPLES/(name+'.pocket-kivi.json')).read_byte
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def test_every_example_uses_the_same_exact_included_saved_pcb_and_portable_paths():
+def test_every_example_uses_its_exact_included_saved_pcb_and_portable_paths():
     digest=sha(EXAMPLES/'example.kicad_pcb')
     provenance=json.loads((EXAMPLES/'provenance.json').read_bytes())
     assert digest==provenance['source_sha256']=='8d60e824376418fa4cad65d37c9d8c8dd5da60c5538b9bf0a11976dbb98f1e7e'
     for name in NAMES:
         report=load(name)
-        assert report['source_path']=='example.kicad_pcb' and report['source_sha256']==digest
+        source='si-channel.kicad_pcb' if name=='quick-si' else 'example.kicad_pcb'
+        assert report['source_path']==source and report['source_sha256']==sha(EXAMPLES/source)
+        assert provenance['source_files'][source]==report['source_sha256']
         assert report['pocket_kivi_export']['source_state']=='saved'
         assert report['pocket_kivi_export']['version']==provenance['producer_versions'][report['pocket_kivi_export']['tool']]
         assert report['pocket_kivi_export']['units']
@@ -64,19 +67,36 @@ def test_pi_arrays_nulls_saved_coordinates_and_independent_strip_reference():
     assert solved['sink_voltage_V']==pytest.approx(3.297783428571428,abs=1e-12)
 
 
-def test_si_real_route_bindings_explicit_uniform_assumptions_and_full_samples():
+def test_si_real_route_bindings_and_converged_extracted_board_rlc_samples():
     result=load('quick-si');eye=result['eye']
     assert result['endpoint_bindings']==dict(net_name='/Front outputs/SLOT1',source='J1.1',sink='U1.1')
     assert result['board_item_ids']==['c1bf74a6-b509-583c-b3e7-8e8ade035886']
     assert result['path']['length_mm']==20.
     assert result['delay_ns']==pytest.approx(20*math.sqrt(3)/299.792458,abs=1e-15)
     assert result['inputs']['assumed_z0_ohm']==50 and result['inputs']['assumed_epsilon_eff']==3
+    assert result['circuit_topology']['complete'] is True
+    assert result['circuit_topology']['routing_item_count']==1
+    assert eye['model']=='board-section-rlc-prbs7' and eye['status']=='SIMULATED'
+    assert eye['inputs']['load_pf']==2
+    assert len(eye['channel_sections'])==1
+    section=eye['channel_sections'][0]
+    assert section['resistance_ohm']==pytest.approx(1.724e-8*.020/(.001*.000035),abs=1e-12)
+    assert math.sqrt(section['inductance_h']/section['capacitance_f'])!=pytest.approx(50)
+    assert eye['alignment_delay_ns']==pytest.approx(math.sqrt(section['inductance_h']*section['capacitance_f'])*1e9)
+    checks=eye['numerics']
+    assert checks['waveform_refinement_error_v']<=checks['waveform_tolerance_v']
+    assert checks['step_history_error_v']<=checks['step_tolerance_v']
+    assert checks['step_settling_error_v']<=checks['step_tolerance_v']
     assert len(eye['time_ui'])==129 and len(eye['traces_v'])==127
     assert all(len(trace)==129 for trace in eye['traces_v'])
-    assert len(eye['step_response']['time_ns'])==len(eye['step_response']['voltage_v'])==555
+    assert 513<=len(eye['step_response']['time_ns'])==len(eye['step_response']['voltage_v'])<=2049
+    assert eye['step_response']['voltage_v'][-1]==pytest.approx(1.,abs=.001)
     fingerprints=result['source_fingerprints']
-    assert fingerprints['example.kicad_pro']==sha(EXAMPLES/'example.kicad_pro')
-    assert fingerprints['example.kicad_dru'] is None
+    assert fingerprints['si-channel.kicad_pro']==sha(EXAMPLES/'si-channel.kicad_pro')
+    assert fingerprints['si-channel.kicad_dru'] is None
+    provenance=json.loads((EXAMPLES/'provenance.json').read_bytes())
+    assert provenance['si_derivation']['parent']=='example.kicad_pcb'
+    assert provenance['si_derivation']['stackup_unchanged'] is True
 
 
 def test_thermal_steady_source_mapping_cutout_gaps_and_balance():
@@ -142,6 +162,7 @@ def test_native_saved_board_producer_reproduction_optional(tmp_path):
         creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     assert process.returncode==0,process.stderr[-4000:]
     assert sha(tmp_path/'example.kicad_pcb')==sha(EXAMPLES/'example.kicad_pcb')
+    assert sha(tmp_path/'si-channel.kicad_pcb')==sha(EXAMPLES/'si-channel.kicad_pcb')
     for name in NAMES:
         actual=json.loads((tmp_path/(name+'.pocket-kivi.json')).read_bytes());stored=load(name)
         if name=='quick-pi':
@@ -150,9 +171,42 @@ def test_native_saved_board_producer_reproduction_optional(tmp_path):
             assert actual['result']['potential_V']==stored['result']['potential_V']
         elif name=='quick-si':
             assert actual['path']['length_mm']==stored['path']['length_mm']
+            assert actual['source_sha256']==stored['source_sha256']
             assert actual['eye']['traces_v']==stored['eye']['traces_v']
+            assert actual['eye']['step_response']==stored['eye']['step_response']
         elif name=='quick-therm':
             assert actual['thermal_network']['layers']==stored['thermal_network']['layers']
         else:
             assert actual['thermal_network']['transient']['spatial_index']==stored['thermal_network']['transient']['spatial_index']
             assert actual['thermal_network']['transient']['frames']==stored['thermal_network']['transient']['frames']
+
+
+def test_native_si_derivation_rejects_geometry_and_stackup_changes_optional(tmp_path):
+    native=os.environ.get('WAYRICAD_NATIVE_PYTHON')
+    if not native:pytest.skip('Set WAYRICAD_NATIVE_PYTHON to check derived native board geometry.')
+    for name in ('example.kicad_pcb','example.kicad_pro','si-channel.kicad_pcb','si-channel.kicad_pro'):
+        shutil.copyfile(EXAMPLES/name,tmp_path/name)
+    script=r'''
+from pathlib import Path
+import importlib.util,sys
+import pcbnew
+spec=importlib.util.spec_from_file_location('producer',sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+folder=Path(sys.argv[2]);source=folder/'example.kicad_pcb';derived=folder/'si-channel.kicad_pcb'
+baseline=derived.read_bytes()
+assert module.si_channel(source,derived)['stackup_unchanged']
+board=pcbnew.LoadBoard(str(derived));track=next(iter(board.GetTracks()))
+track.SetWidth(track.GetWidth()+pcbnew.FromMM(.1));pcbnew.SaveBoard(str(derived),board)
+try:module.si_channel(source,derived)
+except ValueError as error:assert 'differs' in str(error)
+else:raise AssertionError('Changed trace width passed derivation guard')
+derived.write_bytes(baseline)
+text=derived.read_text();assert text.count('(thickness 1.53)')==1
+derived.write_text(text.replace('(thickness 1.53)','(thickness 1.54)'),encoding='utf-8')
+try:module.si_channel(source,derived)
+except ValueError as error:assert 'stackup' in str(error)
+else:raise AssertionError('Changed dielectric stackup passed derivation guard')
+'''
+    result=subprocess.run([native,'-c',script,str(ROOT/'tools/generate_pocket_kivi_examples.py'),str(tmp_path)],
+                          cwd=ROOT,stdin=subprocess.DEVNULL,capture_output=True,text=True,timeout=45)
+    assert result.returncode==0,result.stderr[-4000:]

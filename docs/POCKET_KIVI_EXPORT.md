@@ -14,7 +14,7 @@ acquiring invented plots or geometry.
 
 ## Save from the tools
 
-[Actual same-PCB PI, SI and thermal examples](examples/pocket-kivi/README.md)
+[Actual saved-PCB PI, SI and thermal examples](examples/pocket-kivi/README.md)
 include the source PCB, complete portable outputs and a reproducible generator.
 
 Quick PI and QuickTherm **Save results** write the readable HTML report, the
