@@ -9,8 +9,9 @@ as the main workspace.
 - **Quick SI:** the header describes the route or study case actually on screen,
   including delay and eye-model availability. An unavailable eye keeps the route
   visible and explains what needs attention.
-- **Quick EMerge (beta):** simple 2D/3D views and a results toggle keep the
-  geometry prominent. Charts and detailed controls open on demand. One Export
+- **Quick EMerge (beta):** full-area 2D/3D geometry views focus on the antenna
+  region without graph framing. A results toggle keeps solved data available;
+  charts and detailed controls open on demand. One Export
   menu saves 2D plots, current 3D views and HTML/PDF reports.
 - **Board-derived SI eyes:** the selected route's extracted R/L/C sections now
   drive the linear PRBS7 eye and step response. Width changes retain their

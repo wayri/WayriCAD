@@ -1,9 +1,14 @@
 # Quick EMerge
 
-Read-only electromagnetic studies for KiCad: antenna and PCB templates, plus
-polygon-clipped **saved-PCB rule-area** simulations. Templates use the saved
-board as context; region mode imports actual enclosed copper. Components and
-board geometry outside the enclosure are omitted.
+Inspect and simulate an antenna region from a saved KiCad PCB. Draw a **rule
+area** around the antenna and feed, then review its actual copper, dielectric
+separation and ideal boundary feed ports. The plugin is read-only. Geometry and
+components outside the selected crop are omitted, so this is not a simulation
+of every coupling to the rest of the board.
+
+Launching from KiCad starts with the saved board and its rule areas. Parametric
+antenna and line templates are optional separate studies; they do not import the
+board's copper.
 
 Quick EMerge is an independently installable testing beta in the
 [WayriCAD 4.0.1 release](https://github.com/wayri/WayriCAD/releases/tag/v4.0.1).
@@ -58,7 +63,16 @@ stay in the status bar. **More → Probe details** opens the inspector below the
 using at most 30% of its height. **More → Focus view** temporarily hides panels and restores
 their previous visibility. Showing or hiding panels preserves the study and its
 reviewed geometry. The setup sash leaves at least 540 logical pixels for the
-workspace; viewport minimum size is 480 × 300 logical pixels.
+workspace; viewport minimum size is 480 × 300 logical pixels. Geometry is drawn
+as a continuous board viewport, without graph axes, ticks or a plot frame.
+**Fit** focuses the signal copper and feed ports with equal physical X/Y scale.
+**More → Fit full study region** reveals the complete crop. These are camera
+changes; they do not change the simulation domain. Cursor coordinates and units
+appear below the view. Wheel zooms; middle-drag pans the 2D view and dragging
+orbits the 3D view. Spatial results also use a large canvas with a compact
+legend; quantity, units, frequency/time and Z remain in the readout. Their actual
+sample mask and values are unchanged; thin antenna outlines show the saved
+signal copper instead of hiding the field beneath opaque graphics.
 
 The primary flow is **Setup → Preview geometry and ports → Run simulation**.
 Choose **2D / 3D** for geometry and **Show results** for solved fields in the
@@ -68,14 +82,29 @@ and PDF. **Fit** frames the active view; **Files** stays available with Setup cl
 
 ![Minimal Quick EMerge workspace](help-minimal-workspace-4.0.1.png)
 
-Windows native capture, 2026-11-01, Python 3.14 / wxPython 4.2.5 with Matplotlib
-software rendering. Public region_coupon board context and parametric line
-template; geometry preview only, no FEM solve. Setup, probe details and extra
-camera controls are closed. No private data, personal paths or redactions.
+Windows native capture, 2026-11-01, Python 3.11.5 / wxPython 4.3.2 / VTK 9.7.1;
+Matplotlib renders the 2D view. KiCad 10.0.6 extracted actual saved copper from
+the public synthetic `antenna_region.kicad_pcb` fixture: a 28 × 22 mm patch and
+2 mm feed inside a 48 × 40 mm rule area, with one ideal boundary feed port.
+The antenna fills a 1264 × 639 canvas inside a 1264 × 738 client area. This is
+a geometry preview, not a FEM solve or a tuned/qualified antenna. Source bytes
+are unchanged. No private data, personal paths or redactions.
+
+![Actual antenna-region field in the full workspace](help-antenna-field-4.0.1.png)
+
+The same source was solved with EMerge 3.0.0b9 / SuperLU at 2.3, 2.4 and 2.5 GHz.
+This native capture displays the original 21 × 21 E-magnitude samples at 2.4 GHz,
+Z = 2 mm, with thin outlines of the actual signal copper. The coarse grid is
+shown as sampled, without smoothing or invented values. This proves end-to-end
+execution and display only; mesh/boundary convergence and physical antenna
+performance are not qualified. Runtime, source immutability and privacy scope
+match the geometry capture above.
 
 
 
-1. Open **Setup**, then use **1 Geometry** for the geometry source and dimensions, **2 Physics** for
+1. Save the board and its antenna rule area in KiCad, then open Quick EMerge.
+   Open **Setup → 1 Geometry**, choose **Saved PCB rule area**, select its
+   enclosure, F.Cu signal net and B.Cu reference net. Use **2 Physics** for
    study/material/boundary controls, and **3 Solve** for sweep, mesh and runtime
    settings. The top-bar **Files** menu saves or loads setups and results. First open
    loads saved board/rule-area outlines while dependency preparation runs.
@@ -148,7 +177,7 @@ Setup files and result files are separate: choose the matching command.
 
 Save a board with closed Edge.Cuts, filled zones and an explicit two-layer
 stackup. Draw/name a polygonal **board rule area** around the subsection.
-Choose **Saved PCB rule-area region**, load saved rule areas, select the
+Choose **Saved PCB rule area**, load saved rule areas, select the
 F.Cu signal and B.Cu reference nets, and review the material/bare-copper model.
 Unsaved editor changes are excluded. Preview displays the clipped copper,
 substrate and ideal boundary ports; the inspector lists unsupported inputs.

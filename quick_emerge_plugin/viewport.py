@@ -143,6 +143,15 @@ class PlotViewport(wx.Panel):
             self.canvas.draw_idle()
 
     def _layout_axes(self):
+        if self.name in ('PCB enclosure', '3D setup', 'Field probes', '3D fields', '3D radiation') and self.axes() is not None:
+            from .cad_view import full_bleed
+            full_bleed(self.figure,legend=self.name not in ('PCB enclosure','3D setup'))
+            if not self.is_3d():
+                width,height = self.canvas.GetClientSize()
+                axes = self.axes(); x0,x1 = axes.get_xlim(); y0,y1 = axes.get_ylim()
+                half = (y1-y0)*max(1,width)*axes.get_position().width/max(1,height)/2
+                axes.set_xlim((x0+x1)/2-half, (x0+x1)/2+half)
+            return
         if self.is_3d():
             self.axes().set_anchor('C')
             self.axes().set_position([.04, .08, .76 if len(self.figure.axes) > 1 else .92, .84])
@@ -180,10 +189,23 @@ class PlotViewport(wx.Panel):
             self.renderer, self.arguments = renderer, arguments
         if options is not None:
             self.options = dict(options)
+        self.options['cad_view'] = self.name in ('PCB enclosure', '3D setup', 'Field probes', '3D fields', '3D radiation')
         if self.renderer is None:
             return
         self.renderer(self.figure, self.arguments, self.options)
-        self.home = self._bounds()
+        if self.options['cad_view'] and (reset or saved is None):
+            from .cad_view import framing_bounds, fit_2d
+            bounds = framing_bounds(self.name,self.arguments)
+            if bounds:
+                axes = self.axes()
+                if self.is_3d():
+                    x0,x1,y0,y1,z0,z1 = bounds
+                    mx,my,mz = max(x1-x0,.01)*.06,max(y1-y0,.01)*.06,max(z1-z0,.01)*.06
+                    axes.set(xlim=(x0-mx,x1+mx),ylim=(y0-my,y1+my),zlim=(z0-mz,z1+mz))
+                else:
+                    width,height = self.canvas.GetClientSize()
+                    xlim,ylim = fit_2d(bounds,width*(.9 if len(self.figure.axes)>1 else 1),height)
+                    axes.set(xlim=xlim,ylim=ylim)
         if saved:
             axes = self.axes()
             axes.set_xlim(saved[0]); axes.set_ylim(saved[1])
@@ -194,6 +216,7 @@ class PlotViewport(wx.Panel):
             self.camera.roll = 0
         self._apply_camera()
         self._layout_axes()
+        self.home = self._bounds() if reset or self.home is None else self.home
         self._style()
         self._configure_interaction()
         self._draw_markers()
@@ -241,7 +264,7 @@ class PlotViewport(wx.Panel):
                     axis.set_pane_color((.08, .13, .18, 1) if self.dark else (.94, .96, .97, 1))
                 axes.grid(bool(self.options.get('mesh', False)))
         axes = self.axes()
-        if self.is_3d():
+        if self.is_3d() and not self.options.get('cad_view'):
             label = 'ORTHOGRAPHIC' if self.camera.projection == 'ortho' else 'PERSPECTIVE'
             if self.name != '3D radiation':
                 label += '  ·  TRUE ASPECT' if self.camera.physical_aspect else '  ·  Z ×4 DISPLAY'
@@ -264,11 +287,36 @@ class PlotViewport(wx.Panel):
     def fit(self):
         axes = self.axes()
         if axes and self.home:
+            if self.name in ('PCB enclosure','Field probes') and not self.is_3d():
+                from .cad_view import framing_bounds, fit_2d
+                bounds = framing_bounds(self.name,self.arguments)
+                if bounds:
+                    width,height = self.canvas.GetClientSize()
+                    xlim,ylim = fit_2d(bounds,width*(.9 if len(self.figure.axes)>1 else 1),height)
+                    axes.set(xlim=xlim,ylim=ylim); self.home = self._bounds(); self.canvas.draw_idle()
+                    return
             axes.set_xlim(self.home[0]); axes.set_ylim(self.home[1])
             if self.is_3d():
                 axes.set_zlim(self.home[2])
                 self._apply_camera()
             self.canvas.draw_idle()
+
+    def fit_region(self):
+        """Show the complete study crop without changing the simulation domain."""
+        if not self.options.get('cad_view') or self.axes() is None:
+            return
+        from .cad_view import framing_bounds, fit_2d
+        bounds = framing_bounds(self.name,self.arguments,focus=False)
+        if not bounds: return self.fit()
+        if not self.is_3d():
+            width,height = self.canvas.GetClientSize()
+            xlim,ylim = fit_2d(bounds,width*(.9 if len(self.figure.axes)>1 else 1),height)
+            self.axes().set(xlim=xlim,ylim=ylim)
+        else:
+            x0,x1,y0,y1,z0,z1 = bounds
+            self.axes().set(xlim=(x0,x1),ylim=(y0,y1),zlim=(z0,z1 or .01))
+            self._apply_camera()
+        self.canvas.draw_idle()
 
     def zoom(self, scale, anchor=None):
         self._camera_from_axes()

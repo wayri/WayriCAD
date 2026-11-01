@@ -120,7 +120,7 @@ recursive-include extract_pins_plugin/tests *.py
 include docs/audits/CONNECTOR_TOOLS_2026-10-28.md
 include docs/RELEASE_NOTES_3.6.42.md
 
-recursive-include quick_emerge_plugin/tests *.py *.kicad_pcb
+recursive-include quick_emerge_plugin/tests *.py *.kicad_pcb *.kicad_pro *.md
 recursive-include examples/quick_emerge/yeo_lee_2019 *.md *.json *.kicad_pcb *.kicad_pro
 include docs/PROJECT_RESULTS.md
 include docs/POCKET_KIVI_EXPORT.md

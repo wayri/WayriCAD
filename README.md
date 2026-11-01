@@ -22,7 +22,7 @@ automatic source ZIP/tar downloads and repository clones are excluded.
 
 **New in 4.0.1:** clearer Quick PI setup feedback, more useful Quick SI route/eye
 status, and board-derived RLC eye simulation. Quick EMerge has simple 2D/3D
-views, a results toggle and grouped plot/report exports. Full-value PI result-table
+views focused on the antenna region, a results toggle and grouped plot/report exports. Full-value PI result-table
 copying and the fanout style picture catalogue are included.
 [Release notes](docs/RELEASE_NOTES_4.0.1.md).
 
@@ -149,7 +149,7 @@ File actions remain available while the board fills the workspace.
 | <a href="quick_pi_plugin/help-viewport-first.png"><img src="quick_pi_plugin/help-viewport-first.png" width="460" alt="Quick PI with a full-width copper viewport and compact controls"></a> | <a href="signal_integrity_advisor_plugin/help-viewport-first.png"><img src="signal_integrity_advisor_plugin/help-viewport-first.png" width="460" alt="Quick SI with a full-width route and collapsible setup and result panels"></a> |
 | Illustrative analytical field; [capture assumptions](quick_pi_plugin/VIEWPORT_LAYOUT.md). | Synthetic saved-PCB route with explicit line assumptions. |
 | **[QuickTherm](quick_therm_plugin/README.md)** | **[Quick EMerge — beta](quick_emerge_plugin/README.md)** |
-| <a href="quick_therm_plugin/help-viewport-first.png"><img src="quick_therm_plugin/help-viewport-first.png" width="460" alt="QuickTherm with a large board temperature view and optional sidebars"></a> | <a href="quick_emerge_plugin/help-minimal-workspace-4.0.1.png"><img src="quick_emerge_plugin/help-minimal-workspace-4.0.1.png" width="460" alt="Quick EMerge with a large 2D template plan, simple 2D/3D controls and grouped exports"></a> |
+| <a href="quick_therm_plugin/help-viewport-first.png"><img src="quick_therm_plugin/help-viewport-first.png" width="460" alt="QuickTherm with a large board temperature view and optional sidebars"></a> | <a href="quick_emerge_plugin/help-minimal-workspace-4.0.1.png"><img src="quick_emerge_plugin/help-minimal-workspace-4.0.1.png" width="460" alt="Quick EMerge with a full-area antenna-region viewport, 2D/3D controls and grouped exports"></a> |
 | Public saved thermal example with illustrative inputs. | Extracted and clipped rule-area copper preview; no FEM solve shown. |
 
 ### Worked examples and previews
@@ -263,14 +263,16 @@ an input or model is missing; they are not a pass.
 
 1. Download the [Quick EMerge PCM ZIP from release 4.0.1](https://github.com/wayri/WayriCAD/releases/download/v4.0.1/WayriCAD-quick-emerge-4.0.1-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
 2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
-3. Start with an **Inset-fed patch antenna** template. Review dimensions in **1 Geometry**, material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**. Templates use the board as context; they do not import its copper.
-4. Click **Preview**. Check geometry, numbered ports and any blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and a short frequency sweep before increasing resolution.
+3. In KiCad, draw a named rule area around the antenna and the feed/ground geometry needed for its model; refill and save the board. In **Setup → 1 Geometry**, use **Saved PCB rule area**, load the areas and select the signal and reference nets. Review material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**.
+4. Click **Preview** to inspect the actual clipped copper and numbered feed ports. Resolve blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and short sweep before increasing resolution.
 5. Choose **2D** or **3D** and enable **Show results** after solving. **More…** opens charts, summaries and probe details. **Export…** saves a 2D plot, a 3D view or an HTML/PDF report; a saved 3D PNG is a still image of the current view. **Files** saves setups and results. **Help / F1** opens the offline guide.
 
 For actual PCB copper, use **Saved PCB rule-area region** on a saved, filled
 **two-layer board** with a named rule area and explicit signal/reference nets.
 Review the [supported geometry and port requirements](quick_emerge_plugin/README.md#simulate-a-pcb-rule-area-enclosure)
 before running. Simulation does not modify the board.
+Templates remain an optional geometry source for standalone studies; they do
+not substitute for copper extracted from the working PCB.
 
 **Beta limits:** these are exploratory studies. Numerical convergence and
 paper-reference qualification are still pending; a completed solve alone does
@@ -466,12 +468,19 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 
 **Simple 2D/3D workspace — 4.0.1**
 
-<a href="quick_emerge_plugin/help-minimal-workspace-4.0.1.png"><img src="quick_emerge_plugin/help-minimal-workspace-4.0.1.png" width="960" alt="Quick EMerge template plan with 2D/3D view selection, results toggle and Export menu"></a>
+<a href="quick_emerge_plugin/help-minimal-workspace-4.0.1.png"><img src="quick_emerge_plugin/help-minimal-workspace-4.0.1.png" width="960" alt="Quick EMerge antenna-region viewport with 2D/3D selection, results toggle and Export menu"></a>
 
 Choose 2D or 3D, then turn on solved results when available. Plot and report
 exports share one menu; detailed controls open on demand. This native capture
-shows a public line-template geometry preview, with no FEM result represented.
+shows actual clipped copper from a public synthetic antenna-on-board fixture,
+with no FEM result represented. Geometry uses the viewport without graph axes.
 The earlier captures below retain their original workflow and validation scope.
+
+<a href="quick_emerge_plugin/help-antenna-field-4.0.1.png"><img src="quick_emerge_plugin/help-antenna-field-4.0.1.png" width="960" alt="Actual coarse antenna-region electric field over saved copper contours in the full-area viewport"></a>
+
+Original 21 × 21 electric-field samples at 2.4 GHz from a three-frequency,
+one-port solve of that saved PCB region. The visible sampling is retained;
+this coarse execution check does not establish convergence or antenna accuracy.
 
 **Viewport-first workbench**
 

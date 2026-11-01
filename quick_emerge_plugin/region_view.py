@@ -67,12 +67,17 @@ def board_context(figure, native_listing, options=None):
              xlabel='Board X [mm]',ylabel='Board Y [mm]')
     axes.set_title('Saved board outlines\nChoose enclosure and nets, review material, then Preview copper',fontsize=10,pad=12)
     axes.set_aspect('equal'); axes.grid(alpha=.15)
-    axes.legend(loc='upper right',fontsize=8,frameon=False)
+    if not options.get('cad_view'):
+        axes.legend(loc='upper right',fontsize=8,frameon=False)
     notice='Outlines only · copper has not been extracted'
     if not areas: notice+='\nNo saved rule areas. Add an enclosure in KiCad, save, then reload.'
     if unsupported: notice+='\nUnavailable enclosure geometry: '+', '.join(unsupported)
-    axes.text(.01,.01,notice,transform=axes.transAxes,fontsize=8,color='#617583',va='bottom',wrap=True)
+    if not options.get('cad_view'):
+        axes.text(.01,.01,notice,transform=axes.transAxes,fontsize=8,color='#617583',va='bottom',wrap=True)
     figure.tight_layout(pad=1.5)
+    if options.get('cad_view'):
+        from .cad_view import full_bleed
+        full_bleed(figure)
 
 
 def geometry(figure, region, options=None):
@@ -105,6 +110,9 @@ def geometry(figure, region, options=None):
              title=f'Saved copper • {region["area"].get("name") or region["area"]["id"]}\nPolygon crop; exterior board and components omitted')
     axes.view_init(elev=28, azim=-55)
     figure.subplots_adjust(left=.06, right=.94, bottom=.16, top=.84)
+    if options.get('cad_view'):
+        from .cad_view import full_bleed
+        full_bleed(figure)
 
 
 def enclosure(figure, region, options=None):
@@ -138,3 +146,6 @@ def enclosure(figure, region, options=None):
     axes.grid(alpha=.2)
     figure.text(.5,.015,'Clipped saved copper only · pink = ideal boundary ports',ha='center',fontsize=8,color='#617583')
     figure.subplots_adjust(left=.065,right=.985,bottom=.13,top=.91)
+    if options.get('cad_view'):
+        from .cad_view import full_bleed
+        full_bleed(figure)

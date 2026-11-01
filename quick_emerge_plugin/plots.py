@@ -55,6 +55,9 @@ def geometry(figure, raw, options=None):
     ax.set_box_aspect((sx, sy, max(sx, sy)*0.28))
     ax.view_init(elev=28, azim=-55)
     figure.subplots_adjust(left=.06, right=.94, bottom=.16, top=.84)
+    if options.get('cad_view'):
+        from .cad_view import full_bleed
+        full_bleed(figure)
 
 
 def response(figure, result, options=None):
@@ -98,6 +101,9 @@ def plan_geometry(figure, raw, options=None):
         axes.view_init(elev=90, azim=-90)
         axes.set_proj_type('ortho'); axes.zaxis.set_visible(False)
         axes.set_title('2D top projection · '+axes.get_title())
+        if options.get('cad_view'):
+            from .cad_view import full_bleed
+            full_bleed(figure)
         return
     parts, ports = geometry_parts(config)
     figure.clear(); axes = figure.add_subplot(111)
@@ -112,6 +118,9 @@ def plan_geometry(figure, raw, options=None):
     axes.set(xlim=(-sx*.55,sx*.55), ylim=(-sy*.55,sy*.55), xlabel='X [mm]', ylabel='Y [mm]',
              title='Template plan · geometry only\nPCB context; no saved-board copper imported')
     axes.set_aspect('equal'); figure.tight_layout(pad=1.5)
+    if options.get('cad_view'):
+        from .cad_view import full_bleed
+        full_bleed(figure)
 
 
 def smith(figure, result):
@@ -187,6 +196,17 @@ def near_field(figure, result, options=None):
             for ring in [shape['outer_mm']]+shape.get('holes_mm', []):
                 points = np.array(ring+[ring[0]])
                 ax.plot(points[:, 0], points[:, 1], color='#aaaaaa', linewidth=1, linestyle='--')
+    if options.get('cad_view') and options.get('copper',True) and result.get('region'):
+        region = result['region']
+        nets = {port['signal_net'] for port in region.get('ports',[]) if port.get('signal_net')}
+        for row in region['copper']:
+            if row['layer'] != 'F.Cu' or row['net'] not in nets: continue
+            for shape in row['polygons']:
+                for ring in [shape['outer_mm']]+shape.get('holes_mm',[]):
+                    points = np.array(ring+[ring[0]])
+                    ax.plot(points[:,0],points[:,1],color='#23323c',linewidth=2)
+                    outline, = ax.plot(points[:,0],points[:,1],color='#e7c270',linewidth=.8)
+                    outline.set_gid('cad-signal-outline')
     figure.tight_layout()
 
 
@@ -284,3 +304,6 @@ def advanced_geometry(figure, config, options=None):
         ax.set_box_aspect((sx,sy,max(sx,sy)*.12))
     ax.set(xlabel='X [mm]',ylabel='Y [mm]',zlabel='Z [mm]',title=study.capitalize()+' geometry | explicit study model')
     figure.subplots_adjust(left=.03,right=.98,bottom=.08,top=.9)
+    if (options or {}).get('cad_view'):
+        from .cad_view import full_bleed
+        full_bleed(figure)

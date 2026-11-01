@@ -266,7 +266,7 @@ class SceneViewport(wx.Panel):
         self._markers()
         self._labels(a)
         if reset:
-            self.scene.ResetCamera(); self._preset('Isometric'); self.scene.ResetCamera()
+            self._fit_scene(); self._preset('Isometric'); self._fit_scene()
         else: self.scene.GetActiveCamera().DeepCopy(camera)
         self.scene.ResetCameraClippingRange(); self.refresh_canvas()
 
@@ -303,8 +303,10 @@ class SceneViewport(wx.Panel):
         if self.name=='3D fields' and self.options.get('field_view','Plane')=='Volume' and arguments.get('field',{}).get('display_volume'):
             label += ' | volume original samples'
         if self.options.get('mesh',False): label += ' | sample grid'
-        text.SetInput(label); text.SetPosition(12,12); prop=text.GetTextProperty(); prop.SetFontSize(13)
-        prop.SetColor(*((.87,.91,.94) if self.dark else (.15,.21,.27))); self.scene.AddViewProp(text)
+        self.scope_caption = label
+        if self.name != '3D setup':
+            text.SetInput(label); text.SetPosition(12,12); prop=text.GetTextProperty(); prop.SetFontSize(13)
+            prop.SetColor(*((.87,.91,.94) if self.dark else (.15,.21,.27))); self.scene.AddViewProp(text)
         axes=vtk.vtkAxesActor(); axes.SetTotalLength(10,10,10); axes.SetXAxisLabelText('X [mm]'); axes.SetYAxisLabelText('Y [mm]'); axes.SetZAxisLabelText('Z [mm]')
         if self.name=='3D radiation':
             axes.SetXAxisLabelText('X'); axes.SetYAxisLabelText('Y'); axes.SetZAxisLabelText('Z'); axes.SetTotalLength(.2,.2,.2)
@@ -342,7 +344,18 @@ class SceneViewport(wx.Panel):
             cam.SetModelTransformMatrix(transform)
         self.scene.ResetCameraClippingRange(); self.refresh_canvas()
 
-    def fit(self): self.scene.ResetCamera(); self.refresh_canvas()
+    def _fit_scene(self, *, focus=True):
+        bounds = None
+        if self.name in ('3D setup','3D fields') and self.arguments:
+            from .cad_view import framing_bounds
+            bounds = framing_bounds(self.name,self.arguments,focus=focus)
+        if bounds:
+            self.scene.ResetCamera(bounds)
+        else:
+            self.scene.ResetCamera()
+
+    def fit(self): self._fit_scene(); self.refresh_canvas()
+    def fit_region(self): self._fit_scene(focus=False); self.refresh_canvas()
     def zoom(self,scale):
         cam=self.scene.GetActiveCamera(); cam.SetParallelScale(cam.GetParallelScale()*scale) if cam.GetParallelProjection() else cam.Dolly(1/scale)
         self.scene.ResetCameraClippingRange(); self.refresh_canvas()

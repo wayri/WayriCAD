@@ -226,6 +226,42 @@ class QuickEMergeFrame(wx.Frame):
         self.tabs.SetSelection(index)
         self.viewports[name].Layout()
         wx.CallAfter(self.viewports[name].refresh_canvas)
+        if name in ('PCB enclosure', '3D setup'):
+            wx.CallAfter(self._geometry_readout, name)
+        elif name in ('Field probes','3D fields','3D radiation'):
+            wx.CallAfter(self._spatial_readout, name)
+
+    def _spatial_readout(self, name):
+        if self.closed or self.result is None or self.tabs.GetPageText(self.tabs.GetSelection()) != name:
+            return
+        if name == '3D radiation':
+            radiation = self.result['radiation']
+            caption = f'Relative |E| · {radiation["frequency_hz"]/1e9:g} GHz · normalized radius, not gain or physical distance'
+        elif self.inspection:
+            field = self.inspection
+            context = f'{field.frequency/1e9:g} GHz' if field.frequency is not None else f'{field.time:g} s'
+            caption = f'{field.quantity} [{field.unit}] · Z {field.z:g} mm · {context} · original solved samples'
+        else:
+            return
+        self.probe_label.SetLabel(caption); self.probe_label.SetToolTip(caption)
+
+    def _geometry_readout(self, name):
+        if self.closed or self.tabs.GetPageText(self.tabs.GetSelection()) != name:
+            return
+        view = self.viewports[name]
+        if view.renderer is None:
+            return
+        arguments = view.arguments
+        if 'substrate' in arguments:
+            scope = 'Saved PCB · '+(arguments['area'].get('name') or 'selected rule area')
+            scope += ' · '+str(len(arguments.get('ports', [])))+' boundary feed ports'
+        elif 'board_outline' in arguments:
+            scope = 'Saved PCB outlines · choose the antenna rule area, then Preview copper'
+        else:
+            scope = 'Template geometry · saved-board copper is not imported'
+        gestures = 'wheel zoom · middle-drag pan' if name=='PCB enclosure' else 'drag orbit · wheel zoom · Shift-drag pan'
+        caption = 'Geometry preview · '+scope+' · mm · '+gestures
+        self.probe_label.SetLabel(caption); self.probe_label.SetToolTip(caption)
 
     def change_chart_quantity(self, event=None):
         self.display_options['network_quantity']=self.chart_quantity.GetStringSelection()
@@ -691,6 +727,13 @@ class QuickEMergeFrame(wx.Frame):
         except Exception as exc: self.message(exc)
 
     def _viewport_probe(self, name, event, sample=None, selected=False):
+        if name == 'PCB enclosure' and event.inaxes is not None and not selected:
+            if event.xdata is not None and event.ydata is not None:
+                axes = self.viewports[name].axes()
+                xlim,ylim = axes.get_xlim(),axes.get_ylim()
+                self.probe_label.SetLabel(f'X {event.xdata:.4g} · Y {event.ydata:.4g} mm'
+                    f' · view {abs(xlim[1]-xlim[0]):.4g} × {abs(ylim[1]-ylim[0]):.4g} mm · wheel zoom')
+            return
         if self.result is None or event.inaxes is None:
             return
         try:

@@ -21,7 +21,10 @@ eye retains Route instead of forcing an empty plot. Input changes clear stale
 model labels and numerical feedback with the previous result.
 
 Quick EMerge keeps 2D/3D navigation and a solved-results toggle above the
-viewport. Charts, summary tables, probe details and specialist controls remain
+viewport, without geometry axes, graph borders, grids or inset plot margins.
+Geometry fit targets the active antenna/signal copper and feed ports; full-region
+fit remains available without changing the simulation domain. Charts, summary
+tables, probe details and specialist controls remain
 available through More. Parametric templates now have a populated 2D plan using
 the same geometry descriptors as the existing 3D preview. This changes preview
 presentation, not FEM equations or the scope of imported PCB copper.
@@ -91,9 +94,19 @@ remain available in the READMEs with their original capture versions.
 
 - [Quick EMerge](../../quick_emerge_plugin/help-minimal-workspace-4.0.1.png):
   1280 × 800 native window, 1264 × 738 client and 1264 × 639 canvas with panels
-  closed. Windows, Python 3.14 / wxPython 4.2.5, Matplotlib software rendering.
-  Public coupon board context and parametric line geometry; no solved FEM field
-  is represented. No private paths or redactions.
+  closed. Windows, Python 3.11.5 / wxPython 4.3.2 / VTK 9.7.1; Matplotlib renders
+  the 2D view.
+  Actual clipped copper from the public `antenna_region` PCB fixture, including
+  the patch, feed and one boundary port. Native KiCad 10.0.6 extraction has no
+  planning blockers; no solved FEM field is represented. The larger source PCB
+  is unchanged. No private paths or redactions. The fixture's three native DRC
+  findings and lack of antenna qualification are documented beside the fixture.
+- [Actual antenna field](../../quick_emerge_plugin/help-antenna-field-4.0.1.png):
+  the same native workspace displays original 21 × 21 E samples at 2.4 GHz,
+  Z=2 mm, with actual saved signal-copper contours. The one-port region completed
+  a three-frequency 2.3–2.5 GHz solve under EMerge 3.0.0b9 / SuperLU, producing
+  S11, near-field and radiation data. This is coarse end-to-end execution
+  evidence, not mesh/boundary convergence or measured antenna qualification.
 - [Quick PI](../../quick_pi_plugin/help-workspace-polish-4.0.1.png): native
   1280 × 860 window on a synthetic demonstration PCB with optional panels open.
   The 0.711492 mV field comes from the analytical 65 × 90 mm copper-plate test;

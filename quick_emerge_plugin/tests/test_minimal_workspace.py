@@ -94,7 +94,19 @@ class MinimalWorkspaceTests(unittest.TestCase):
             path = export_plot(self.frame, dimension, self.root/('view-'+dimension))
             self.assertEqual(path.suffix, '.png')
             self.assertEqual(path.read_bytes()[:8], b'\x89PNG\r\n\x1a\n')
-            self.assertGreater(path.stat().st_size, 10000)
+            import numpy as np
+            image = wx.Image(str(path), wx.BITMAP_TYPE_PNG)
+            viewport = self.frame.viewports['PCB enclosure' if dimension=='2D' else '3D setup']
+            canvas = getattr(viewport, 'window', getattr(viewport, 'canvas', None))
+            scale = 1 if hasattr(viewport, 'window') else 200/viewport.figure.dpi
+            self.assertAlmostEqual(image.GetWidth(), canvas.GetSize().width*scale, delta=1)
+            self.assertAlmostEqual(image.GetHeight(), canvas.GetSize().height*scale, delta=1)
+            pixels = np.frombuffer(image.GetData(), dtype=np.uint8).reshape(image.GetHeight(),image.GetWidth(),3)
+            middle = pixels[image.GetHeight()//10:image.GetHeight()*9//10,
+                            image.GetWidth()//10:image.GetWidth()*9//10].astype(float)
+            copper = (middle[:,:,0]>middle[:,:,1]) & (middle[:,:,1]>middle[:,:,2]+10)
+            self.assertGreater(float(copper.mean()), .01, 'A scene label or orientation widget cannot stand in for copper geometry')
+            self.assertGreaterEqual(len(np.unique(middle.reshape(-1,3), axis=0)), 2)
         self.assertFalse(list(self.root.glob('.view-*.png')))
 
     def test_stale_config_or_source_preserves_existing_destination(self):
@@ -217,6 +229,70 @@ class MinimalWorkspaceTests(unittest.TestCase):
                 self.assertEqual(dialog.call_args.kwargs['defaultDir'], str(self.board.parent))
                 self.assertEqual(Path(dialog.call_args.kwargs['defaultFile']).suffix, '.'+kind)
         self.assertFalse(getattr(f, 'report_busy', False))
+
+    def test_geometry_canvas_has_no_graph_frame_and_mm_scale_is_equal(self):
+        f = self.frame; f.select_view('PCB enclosure'); wx.Yield()
+        view = f.viewports['PCB enclosure']; view.canvas.draw(); axes = view.axes()
+        self.assertFalse(axes.axison); self.assertEqual(axes.get_title(), '')
+        self.assertEqual(tuple(axes.get_position().bounds), (0,0,1,1))
+        origin = axes.transData.transform((0,0))
+        x = axes.transData.transform((1,0)); y = axes.transData.transform((0,1))
+        self.assertAlmostEqual(x[0]-origin[0], y[1]-origin[1], delta=.01)
+        self.assertFalse(view.figure.texts)
+
+    def test_fit_full_region_changes_only_camera_and_returns_to_active_geometry(self):
+        f = self.frame; before = f.config(); f.select_view('PCB enclosure'); wx.Yield()
+        view = f.viewports['PCB enclosure']; focused = view.axes().get_xlim()
+        view.fit_region(); view.canvas.draw(); whole = view.axes().get_xlim()
+        self.assertGreater(whole[1]-whole[0], focused[1]-focused[0])
+        view.fit(); view.canvas.draw()
+        self.assertAlmostEqual(view.axes().get_xlim()[0], focused[0])
+        self.assertAlmostEqual(view.axes().get_xlim()[1], focused[1])
+        self.assertEqual(f.config(), before)
+
+    def test_geometry_cursor_reports_physical_coordinates_outside_canvas(self):
+        from types import SimpleNamespace
+        f = self.frame; f.select_view('PCB enclosure'); wx.Yield()
+        f._viewport_probe('PCB enclosure', SimpleNamespace(inaxes=f.viewports['PCB enclosure'].axes(),xdata=2.5,ydata=3.4))
+        self.assertIn('X 2.5 · Y 3.4 mm', f.probe_label.GetLabel())
+        self.assertIn('view ', f.probe_label.GetLabel())
+        self.assertIsNone(f.result)
+
+    def test_cad_mm_scale_survives_resize_scroll_and_real_middle_drag(self):
+        from matplotlib.backend_bases import MouseEvent
+        f=self.frame; original=f.config(); f.select_view('PCB enclosure'); wx.Yield()
+        view=f.viewports['PCB enclosure']; axes=view.axes()
+        def equal_mm():
+            view.canvas.draw()
+            origin=axes.transData.transform((0,0))
+            x=axes.transData.transform((1,0)); y=axes.transData.transform((0,1))
+            self.assertAlmostEqual(x[0]-origin[0],y[1]-origin[1],delta=.01)
+        for size in ((980,650),(1600,900)):
+            f.SetSize(size); f.Layout(); wx.Yield(); view.refresh_canvas(); equal_mm()
+            xlim,ylim=axes.get_xlim(),axes.get_ylim()
+            x,y=axes.transData.transform(((xlim[0]+xlim[1])/2,(ylim[0]+ylim[1])/2))
+            scroll=MouseEvent('scroll_event',view.canvas,x,y,button='up',step=1)
+            view.canvas.callbacks.process('scroll_event',scroll); equal_mm()
+            before=axes.get_xlim()
+            for name,dx,dy in (('button_press_event',0,0),('motion_notify_event',20,10),('button_release_event',20,10)):
+                event=MouseEvent(name,view.canvas,x+dx,y+dy,button=2)
+                view.canvas.callbacks.process(name,event)
+            self.assertNotEqual(axes.get_xlim(),before); equal_mm()
+        self.assertEqual(f.config(),original)
+
+    def test_spatial_result_keeps_large_cad_view_and_metadata_without_graph_axes(self):
+        f=self.frame; result=self.result(); original=copy.deepcopy(result)
+        f.install_result(result); f.select_view('Field probes'); wx.Yield()
+        view=f.viewports['Field probes']; view.canvas.draw(); axes=view.axes()
+        self.assertFalse(axes.axison); self.assertEqual(axes.get_title(),'')
+        self.assertAlmostEqual(axes.get_position().width,.9)
+        self.assertAlmostEqual(axes.get_position().height,1.)
+        origin=axes.transData.transform((0,0)); x=axes.transData.transform((1,0)); y=axes.transData.transform((0,1))
+        self.assertAlmostEqual(x[0]-origin[0],y[1]-origin[1],delta=.01)
+        self.assertIn('V/m',f.probe_label.GetLabel()); self.assertIn('Z 1 mm',f.probe_label.GetLabel())
+        self.assertIn('GHz',f.probe_label.GetLabel())
+        self.assertEqual(len(view.figure.axes),2)
+        self.assertEqual(result,original)
 
 
 if __name__ == '__main__': unittest.main()
