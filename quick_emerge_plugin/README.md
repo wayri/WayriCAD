@@ -336,3 +336,5 @@ patch and rule-area runs are not converged-design evidence.
 ![Earlier beta: linked field probes](help-workflow.png)
 ![Earlier beta: saved-copper region](help-region.png)
 ![Earlier beta: expanded field viewport](help-viewport.png)
+
+Reports show the active geometry, materials, boundary, mesh and sampling settings. PDF summaries omit inactive template defaults; the collapsed HTML configuration and downloadable JSON retain the complete setup for reproduction. Saved-PCB dimensions come from the recorded region.

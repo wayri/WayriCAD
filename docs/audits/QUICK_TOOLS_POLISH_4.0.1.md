@@ -45,6 +45,13 @@ cut probes also match their recorded values and 3D radii within 1e-12. Reports
 resolve angular pins from the source samples rather than trusting display text.
 These are relative-field patterns, not gain in dBi or efficiency.
 
+Reports show an active-study settings table with readable labels and units.
+Region dimensions and dielectric separation come from the recorded geometry.
+Full canonical settings remain in collapsed HTML/JSON evidence; PDF replaces
+that block with a provenance note instead of printing dictionary text and
+inactive defaults. This presentation change passed 24 focused checks and 12
+subtests, plus readback of the actual antenna result's material/solver settings.
+
 These changes do not alter the PI solver or SI channel equations. The previously
 unreleased [board-derived RLC eye](../../signal_integrity_advisor_plugin/BOARD_RLC_EYE.md)
 is included in the 4.0.1 packages, with its separate analytical and native

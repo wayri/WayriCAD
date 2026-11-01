@@ -19,6 +19,7 @@ import re
 from .model import config_digest, source_identity, validate_config
 from .network import from_result
 from .inspection import FieldInspection
+from .report_settings import active_settings
 
 
 def fit_validation_notice(fit):
@@ -370,7 +371,7 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
         chunks.append('<p class="note">Physical dimensions come from the saved copper geometry above. Patch, line and substrate-extent template settings in the stored configuration below are inactive defaults for this PCB-region study.</p>')
     if 'optimization' in snapshot:
         chunks.append('<h3>Bounded optimization evidence</h3><p>Plots and geometry correspond to the best recorded driven configuration. The review configuration records the requested optimization bounds.</p><pre>'+escape(json.dumps(snapshot['optimization'],indent=2,allow_nan=False))+'</pre>')
-    chunks.extend(['<details><summary>Full stored configuration (includes inactive defaults)</summary>',_table(['Configuration key (unit in key)','Value'],sorted(c.items())),'</details></section>',
+    chunks.extend(['<h3>Active setup</h3>',_table(['Category','Setting','Value'],active_settings(snapshot)), '<details id="full-stored-configuration"><summary>Full stored configuration (includes inactive defaults)</summary><pre>',escape(json.dumps(c,ensure_ascii=False,allow_nan=False,indent=2)),'</pre></details></section>',
                    '<section id="network"><h2>Sampled RF response</h2>',
                    '<p>Magnitude uses 20 log10 |S|; return loss is its negative on the diagonal. Exact zeros are -infinity dB. No interpolated or fitted samples are added. Off-diagonal entries retain receiver/source direction.</p>'])
     if include_figures:
@@ -411,7 +412,7 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
         chunks.append(_thermal_section(snapshot,include_figures))
     chunks.append(derived_html)
     chunks.extend(['</section><section id="limits"><h2>Mesh, convergence and interpretation limits</h2>',
-                   _table(['Requested mesh / sweep control','Value'],[(k,c[k]) for k in ('mesh_edge_mm','resolution','adaptive_steps','convergence','max_tets','sweep','points')]),
+                   _table(['Requested mesh / sweep control','Value'],[(label,value) for group,label,value in active_settings(snapshot) if group in ('Mesh','Solve')]),
                    '<p class="notice">Requested refinement settings do not demonstrate convergence. The report does not infer a converged mesh from a completed solver run. Tetrahedron counts, achieved error and refinement history are unknown unless supplied as explicit solver evidence below.</p>'])
     for key in ('mesh','mesh_statistics','convergence','convergence_history','mesh_convergence'):
         if key in snapshot:
@@ -468,6 +469,9 @@ def export_pdf(path,result,**kwargs):
     # Avoid repeating the generated HTML h1 and matching figcaptions there.
     printable=re.sub(r'<figcaption>.*?</figcaption>','',content,flags=re.S)
     printable=re.sub(r'<h1>.*?</h1>','',printable,count=1,flags=re.S)
+    printable=re.sub(r'<details id="full-stored-configuration">.*?</details>',
+                     '<p>The complete stored configuration, including inactive defaults, is retained in the HTML report and complete JSON evidence.</p>',
+                     printable,flags=re.S)
     payload=pdf_bytes(printable,title=str(kwargs.get('title','Quick EMerge study')),
                       interaction_note='The offline HTML report retains the evidence and charts. Use the Quick EMerge workbench for interactive probing and 3D navigation.')
     if result_digest(snapshot)!=result_digest(result):
@@ -597,7 +601,7 @@ def _build_nonnetwork(snapshot,original,expected_config,expected_source,verify_s
             '<section id="scope"><h2>Geometry and model scope</h2>',
             _table(['Evidence','Recorded value'],[('Geometry scope',snapshot['model_scope']),('Solver version',snapshot['backend']['version']),('Originating source',Path(snapshot['source']['path']).name),('Source verification','Current bytes checked' if verify_source else 'ARCHIVAL: current source bytes NOT checked')])]
     if include_figures:chunks.append(_figure('Recorded geometry scope; dimensions in millimetres.',lambda f:_special_geometry(f,snapshot)))
-    chunks.extend(['<details><summary>Full stored configuration (includes inactive defaults)</summary>',_table(['Configuration key (unit in key)','Value'],sorted(c.items())),'</details></section>',
+    chunks.extend(['<h3>Active setup</h3>',_table(['Category','Setting','Value'],active_settings(snapshot)), '<details id="full-stored-configuration"><summary>Full stored configuration (includes inactive defaults)</summary><pre>',escape(json.dumps(c,ensure_ascii=False,allow_nan=False,indent=2)),'</pre></details></section>',
                    '<section id="fields"><h2>'+('Sampled temperature' if thermal else 'Scattering and radiation')+'</h2>'])
     if thermal:
         t=snapshot['thermal'];inspection=_thermal_data(snapshot)
@@ -630,7 +634,7 @@ def _build_nonnetwork(snapshot,original,expected_config,expected_source,verify_s
     chunks.append(_selection_html(selected,line,include_figures))
     chunks.append(_radiation_selection_html(radiation_selected))
     chunks.extend(['</section><section id="limits"><h2>Mesh, convergence and interpretation limits</h2>',
-                   _table(['Requested control','Value'],[(k,c[k]) for k in ('mesh_edge_mm','resolution','adaptive_steps','convergence','max_tets')]),
+                   _table(['Requested control','Value'],[(label,value) for group,label,value in active_settings(snapshot) if group in ('Mesh','Solve')]),
                    '<p class="notice">Requested mesh controls do not establish achieved error. Mesh/time refinement history and tetrahedron counts are unknown unless supplied explicitly below.</p>',
                    '<ul>'+''.join('<li>'+escape(v)+'</li>' for v in snapshot['assumptions'])+'</ul>'])
     for key in ('mesh','mesh_statistics','convergence','convergence_history','mesh_convergence'):

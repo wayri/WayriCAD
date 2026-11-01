@@ -61,6 +61,32 @@ class ReportingTests(unittest.TestCase):
         self.assertIsNone(evidence['report_selections']['probes'][0]['value_v_m'])
         self.assertEqual(evidence['report_selections']['line_profile'][1]['value_v_m'],1)
 
+    def test_active_summary_and_pdf_omit_full_configuration(self):
+        result=deepcopy(self.result)
+        result['config']['er']=4.3
+        result['config']['advanced']['conductor']='finite'
+        result['config_sha256']=config_digest(result['config'])
+        document=build_html_report(result,include_figures=False)
+        block=re.search(r'<details id="full-stored-configuration">.*?<pre>(.*?)</pre></details>',document,re.S)
+        from html import unescape
+        self.assertEqual(json.loads(unescape(block.group(1))),result['config'])
+        self.assertIn('Relative permittivity at start frequency',document)
+        try:
+            import pypdf
+            import reportlab
+        except ImportError:
+            self.skipTest('ReportLab and pypdf required for PDF readback')
+        path=self.root/'readable.pdf'
+        export_pdf(path,result,include_figures=False)
+        text='\n'.join(page.extract_text() for page in pypdf.PdfReader(path).pages)
+        self.assertIn('Relative permittivity at start frequency',text)
+        self.assertIn('4.3',text)
+        self.assertIn('Conductor conductivity',text)
+        self.assertIn('complete JSON evidence',text)
+        self.assertNotIn('Full stored configuration',text)
+        self.assertNotIn('patch_width_mm',text)
+        self.assertNotIn("{'study':",text)
+
     def test_reject_stale_setup_source_and_invalid_raw_data(self):
         with self.assertRaisesRegex(ValueError,'stale'):
             build_html_report(self.result,expected_config={**self.result['config'],'er':4},include_figures=False)
