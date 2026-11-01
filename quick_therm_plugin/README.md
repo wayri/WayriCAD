@@ -1,5 +1,17 @@
 # <img src="resources/icon-96.png" width="48" height="48" alt="QuickTherm icon"> WayriCAD QuickTherm
 
+## Quick start
+
+| Step | Action |
+| --- | --- |
+| 1. Prepare inputs | Save the PCB and use **Components** to choose parts and review their power inputs. |
+| 2. Define the model | Open **Setup** for materials, cooling/environment and steady or transient settings. |
+| 3. Run and inspect | Choose **Run**, then use Top/Bottom/3D views, probes and component temperatures. Use time playback when transient frames exist. |
+| 4. Keep the study | **Files** saves or loads setup and simulation data separately and exports reports. |
+
+[Latest release](https://github.com/wayri/WayriCAD/releases/latest) ·
+[Complete thermal guide](QUICK_THERM_USER_GUIDE.md) · [Thermal model and limits](QUICK_THERM.md)
+
 **Board-first workspace:** the board view opens with **Setup** and **Details**
 closed. Use **Components** to choose parts, **Setup** for materials/cooling/time,
 and the always-visible **Run** action to solve. **Files** contains separate

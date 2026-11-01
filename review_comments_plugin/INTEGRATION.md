@@ -83,7 +83,7 @@ action; `wayricad-tool.json` loads `action.ReviewPlugin`. Importing the source p
 does not register actions. `python -m review_comments_plugin.cli` supplies CLI
 access. No KiView files are edited by this companion.
 
-Review follows the 4.0.1 suite version and retains testing metadata. Catalogue,
+Review follows the 4.0.2 suite version and retains testing metadata. Catalogue,
 help, suite CLI, wheel assets and CI registration are included. Keep the
 remaining authenticated-provider and running-editor checks explicit; a candidate
 feed does not establish that unavailable host checks have passed.

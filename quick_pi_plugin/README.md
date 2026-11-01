@@ -1,5 +1,18 @@
 # WayriCAD Quick PI
 
+## Quick start
+
+| Step | Action |
+| --- | --- |
+| 1. Prepare | Save the PCB and fill its zones in KiCad. |
+| 2. Set up | Open **Setup**; choose the net, source contacts and load contacts. Review grouped pins and return settings. |
+| 3. Run | Enter the source voltage and loads, select the supported model and choose **Run**. Read any readiness correction before solving. |
+| 4. Inspect | Use **Details** for losses, hotspots and probes. Ordinary scroll zooms; supported current tuning uses Ctrl+scroll. |
+| 5. Keep results | **Files** saves or loads setup and simulation data separately and exports reports. |
+
+[Download the latest release](https://github.com/wayri/WayriCAD/releases/latest) ·
+[Complete PI guide](USER_GUIDE.md) · [Model and solver methods](#solver-methods)
+
 ## Board-first workspace
 
 The board opens across the window. **Setup** opens net, pad and load inputs;

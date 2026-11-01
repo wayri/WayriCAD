@@ -2,6 +2,18 @@
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
+## Quick start
+
+| Step | Action |
+| --- | --- |
+| 1. Choose the path | Save the PCB, open **Set up path…** and select its signal and endpoints. |
+| 2. Review assumptions | In **Setup**, review the return reference, driver/load and requested eye model. |
+| 3. Analyze | Choose **Run SI**, then inspect **Route**, the available eye/step view and **Details**. The header identifies the displayed model and missing inputs. |
+| 4. Save or share | Use **Files** for separate setup/result Save and Load, HTML/PDF reports and supported circuit exports. |
+
+[Latest release](https://github.com/wayri/WayriCAD/releases/latest) ·
+[Complete SI guide](USER_GUIDE.md) · [Board RLC eye scope](BOARD_RLC_EYE.md)
+
 ## Viewport-first workspace
 
 Start with **Set up path… → Run SI → inspect the route**. The route uses the

@@ -4,7 +4,7 @@
 
 | Need | Open |
 |---|---|
-| Install or update | [Release 3.6.32](https://github.com/wayri/WayriCAD/releases/tag/v3.6.32) · [Installation](../docs/INSTALLATION.md) |
+| Install or update | [Latest release](https://github.com/wayri/WayriCAD/releases/latest) · [Installation](../docs/INSTALLATION.md) |
 | First request | [Get started](#get-started) |
 | Supported actions and limits | [What it can do](#what-it-can-do) · [Implementation evidence](../docs/audits/assistant-local-orchestration.md) |
 | Scripts and help | [CLI](#cli) · [Offline help](help.html) |
@@ -13,7 +13,7 @@ Describe a check in plain English, review its interpretation and get results fro
 
 ![Native Assistant window](help-assistant.png)
 
-**Release 3.6.28 includes this package as testing.** Review interpreted commands and tool limitations before using their results.
+**Included as a testing package in the current WayriCAD release.** Review interpreted commands and tool limitations before using their results.
 
 ## Get started
 

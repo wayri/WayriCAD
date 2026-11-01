@@ -11,9 +11,23 @@ antenna and line templates are optional separate studies; they do not import the
 board's copper.
 
 Quick EMerge is an independently installable testing beta in the
-[WayriCAD 4.0.1 release](https://github.com/wayri/WayriCAD/releases/tag/v4.0.1).
+[WayriCAD 4.0.2 release](https://github.com/wayri/WayriCAD/releases/tag/v4.0.2).
 See the [KiCad workflow help](help.html), [capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md)
 for implemented scope and its limits.
+
+## Quick start
+
+| Step | Action |
+| --- | --- |
+| 1. Select the antenna | Save a filled PCB with a named rule area around the antenna and required feed/ground geometry. |
+| 2. Review the crop | In **Setup**, select **Saved PCB rule area**, its signal/reference nets and material inputs. Choose **Preview** and inspect the actual copper and feed ports. |
+| 3. Simulate | Review the sweep, mesh and boundary settings, then choose **Run simulation**. |
+| 4. View results | Enable **Show results**. Choose the field or radiation view; radiation offers **2D** XZ/YZ/azimuth cuts and an interactive **3D** pattern. |
+| 5. Save or export | **Files** saves setup/results. **Export…** saves PNG views and HTML/PDF reports. |
+
+Radiation views require stored radiation samples and show relative field, not
+gain in dBi or efficiency. [Radiation controls and interpretation](#2d-and-3d-radiation-patterns).
+The screenshots below retain their 4.0.1 capture context.
 
 Open **Help** or press **F1** for the offline KiCad guide: saved-board preparation,
 rule-area copper and ports, dielectric setup, sampling, probing and reports.
