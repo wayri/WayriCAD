@@ -124,12 +124,14 @@ class WorkbenchTests(unittest.TestCase):
 
     def test_toolbar_buttons_remain_content_sized_and_selector_is_readable(self):
         f=self.frame
+        f.install_result(self.result())
         for width in (960,1600):
-            f.SetSize((width,780));f.navigate('2D');f.Layout();wx.Yield()
+            f.SetSize((width,780));f.select_view('S-parameters');f.Layout();wx.Yield()
             with self.subTest(window_width=width):
                 self.assertLessEqual(f.focus_button.GetSize().width,
                     f.focus_button.GetBestSize().width+f.FromDIP(4))
-                text_width=f.view_choice.GetTextExtent('PCB enclosure').width
+                self.assertTrue(f.view_choice.IsShownOnScreen())
+                text_width=f.view_choice.GetTextExtent('S-parameters').width
                 self.assertGreaterEqual(f.view_choice.GetClientSize().width,text_width+f.FromDIP(30))
         for name in ('PCB enclosure','3D setup'):
             f.select_view(name);f.Layout();wx.Yield()

@@ -21,8 +21,9 @@ not unique users or installations. GitHub does not separate PCM from direct down
 automatic source ZIP/tar downloads and repository clones are excluded.
 
 **New in 4.0.1:** clearer Quick PI setup feedback, more useful Quick SI route/eye
-status, and board-derived RLC eye simulation. Full-value PI result-table copying
-and the fanout style picture catalogue are included.
+status, and board-derived RLC eye simulation. Quick EMerge has simple 2D/3D
+views, a results toggle and grouped plot/report exports. Full-value PI result-table
+copying and the fanout style picture catalogue are included.
 [Release notes](docs/RELEASE_NOTES_4.0.1.md).
 
 **New in 4.0.0:** board-first quick-tool workspaces, compact setup and results
@@ -148,7 +149,7 @@ File actions remain available while the board fills the workspace.
 | <a href="quick_pi_plugin/help-viewport-first.png"><img src="quick_pi_plugin/help-viewport-first.png" width="460" alt="Quick PI with a full-width copper viewport and compact controls"></a> | <a href="signal_integrity_advisor_plugin/help-viewport-first.png"><img src="signal_integrity_advisor_plugin/help-viewport-first.png" width="460" alt="Quick SI with a full-width route and collapsible setup and result panels"></a> |
 | Illustrative analytical field; [capture assumptions](quick_pi_plugin/VIEWPORT_LAYOUT.md). | Synthetic saved-PCB route with explicit line assumptions. |
 | **[QuickTherm](quick_therm_plugin/README.md)** | **[Quick EMerge — beta](quick_emerge_plugin/README.md)** |
-| <a href="quick_therm_plugin/help-viewport-first.png"><img src="quick_therm_plugin/help-viewport-first.png" width="460" alt="QuickTherm with a large board temperature view and optional sidebars"></a> | <a href="quick_emerge_plugin/help-workspace.png"><img src="quick_emerge_plugin/help-workspace.png" width="460" alt="Quick EMerge showing the selected rule-area copper preview in its main workspace"></a> |
+| <a href="quick_therm_plugin/help-viewport-first.png"><img src="quick_therm_plugin/help-viewport-first.png" width="460" alt="QuickTherm with a large board temperature view and optional sidebars"></a> | <a href="quick_emerge_plugin/help-minimal-workspace-4.0.1.png"><img src="quick_emerge_plugin/help-minimal-workspace-4.0.1.png" width="460" alt="Quick EMerge with a large 2D template plan, simple 2D/3D controls and grouped exports"></a> |
 | Public saved thermal example with illustrative inputs. | Extracted and clipped rule-area copper preview; no FEM solve shown. |
 
 ### Worked examples and previews
@@ -264,7 +265,7 @@ an input or model is missing; they are not a pass.
 2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
 3. Start with an **Inset-fed patch antenna** template. Review dimensions in **1 Geometry**, material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**. Templates use the board as context; they do not import its copper.
 4. Click **Preview**. Check geometry, numbered ports and any blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and a short frequency sweep before increasing resolution.
-5. Explore **3D**, **2D**, **Charts** and **Results**; inspect samples and pin probes. Use **Save** to retain the setup and **Report** to export HTML or PDF. **Help / F1** opens the offline guide.
+5. Choose **2D** or **3D** and enable **Show results** after solving. **More…** opens charts, summaries and probe details. **Export…** saves a 2D plot, a 3D view or an HTML/PDF report; a saved 3D PNG is a still image of the current view. **Files** saves setups and results. **Help / F1** opens the offline guide.
 
 For actual PCB copper, use **Saved PCB rule-area region** on a saved, filled
 **two-layer board** with a named rule area and explicit signal/reference nets.
@@ -462,6 +463,15 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 
 [Getting started](#start-quick-emerge) · [Full guide](quick_emerge_plugin/README.md) ·
 [Download 4.0.1](https://github.com/wayri/WayriCAD/releases/tag/v4.0.1)
+
+**Simple 2D/3D workspace — 4.0.1**
+
+<a href="quick_emerge_plugin/help-minimal-workspace-4.0.1.png"><img src="quick_emerge_plugin/help-minimal-workspace-4.0.1.png" width="960" alt="Quick EMerge template plan with 2D/3D view selection, results toggle and Export menu"></a>
+
+Choose 2D or 3D, then turn on solved results when available. Plot and report
+exports share one menu; detailed controls open on demand. This native capture
+shows a public line-template geometry preview, with no FEM result represented.
+The earlier captures below retain their original workflow and validation scope.
 
 **Viewport-first workbench**
 

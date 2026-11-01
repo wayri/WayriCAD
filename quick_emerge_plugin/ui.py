@@ -137,6 +137,9 @@ class QuickEMergeFrame(wx.Frame):
             page.Layout(); page.FitInside()
 
     def navigate(self, group):
+        from .workspace_actions import result_views
+        if group in ('2D', '3D'):
+            self.last_dimension = group
         self.current_group = group
         if hasattr(self, 'chart_quantity'): self.chart_quantity.Show(group == 'Charts')
         if hasattr(self,'network_tools_button'):
@@ -148,6 +151,7 @@ class QuickEMergeFrame(wx.Frame):
             font=control.GetFont();font.SetWeight(wx.FONTWEIGHT_BOLD if active else wx.FONTWEIGHT_NORMAL)
             control.SetFont(font);control.Refresh()
         if group in ('Results', 'Report'):
+            self.results_button.SetValue(bool(self.result))
             self.workspace_stack.SetSelection(1 if group == 'Results' else 2)
             return
         mapping = {'3D': ['3D setup', '3D fields', '3D radiation'],
@@ -155,13 +159,64 @@ class QuickEMergeFrame(wx.Frame):
                    'Charts': ['S-parameters', 'Smith chart']}
         self.workspace_stack.SetSelection(0)
         names = mapping[group]
-        if group == '3D':
-            names = ['3D setup']
-            if self.result and ('field' in self.result or 'thermal' in self.result): names.append('3D fields')
-            if self.result and 'radiation' in self.result: names.append('3D radiation')
+        if group in ('2D', '3D'):
+            names = result_views(self.result, group) if self.results_button.GetValue() else []
+            if not names:
+                names = ['PCB enclosure' if group == '2D' else '3D setup']
+                self.results_button.SetValue(False)
+        else:
+            self.results_button.SetValue(bool(self.result))
+        self.results_button.Enable(self.result is not None)
         previous = self.tabs.GetPageText(self.tabs.GetSelection()) if self.tabs.GetSelection() >= 0 else ''
         self.view_choice.Set(names); self.view_choice.SetSelection(names.index(previous) if previous in names else 0)
+        self.view_selectors.Show(group == 'Charts' or len(names) > 1)
+        self.view_selectors.Layout(); self.workspace_stack.GetPage(0).Layout()
         self.choose_view()
+
+    def toggle_result_view(self, event=None):
+        from .workspace_actions import result_views
+        previous = self.viewports[self.tabs.GetPageText(self.tabs.GetSelection())]
+        dimension = getattr(self, 'last_dimension', '3D')
+        if self.results_button.GetValue() and not result_views(self.result, dimension):
+            if self.result and self.result.get('s_parameters'):
+                self.navigate('Charts')
+                return
+            self.SetStatusText('No solved '+dimension+' field is available for this study; geometry remains visible.')
+        self.navigate(dimension)
+        selected = self.viewports[self.tabs.GetPageText(self.tabs.GetSelection())]
+        if dimension == '3D' and previous is not selected and hasattr(previous, 'scene') and hasattr(selected, 'scene'):
+            selected.scene.GetActiveCamera().DeepCopy(previous.scene.GetActiveCamera())
+            selected.scene.ResetCameraClippingRange(); selected.refresh_canvas()
+        elif dimension == '3D' and previous is not selected and previous.is_3d():
+            import copy
+            selected.refresh_canvas(); previous._camera_from_axes()
+            selected.camera = copy.deepcopy(previous.camera)
+            bounds = previous._bounds(); axes = selected.axes()
+            axes.set_xlim(bounds[0]); axes.set_ylim(bounds[1]); axes.set_zlim(bounds[2])
+            selected._apply_camera(); selected.canvas.draw_idle()
+
+    def show_workspace_more(self, event=None):
+        from .workspace_actions import build_more_menu
+        menu = build_more_menu(self)
+        try:
+            self.more_button.PopupMenu(menu)
+        finally:
+            menu.Destroy()
+
+    def show_exports(self, event=None):
+        from .workspace_actions import build_export_menu
+        menu = build_export_menu(self)
+        try:
+            self.export_button.PopupMenu(menu)
+        finally:
+            menu.Destroy()
+
+    def export_plot(self, dimension, path=None):
+        from .workspace_actions import export_plot
+        try:
+            return export_plot(self, dimension, path)
+        except Exception as exc:
+            self.message(exc)
 
     def choose_view(self, event=None):
         name = self.view_choice.GetStringSelection()
@@ -180,6 +235,7 @@ class QuickEMergeFrame(wx.Frame):
 
     def select_view(self, name):
         group = '3D' if name.startswith('3D') else '2D' if name in ('PCB enclosure', 'Field probes') else 'Charts'
+        self.results_button.SetValue(name not in ('3D setup', 'PCB enclosure'))
         self.navigate(group)
         self.view_choice.SetStringSelection(name); self.choose_view()
 
@@ -317,10 +373,16 @@ class QuickEMergeFrame(wx.Frame):
             return
         path = None
         if kind != 'preview':
-            with wx.FileDialog(self, f'Export {kind.upper()} report', wildcard=f'{kind.upper()} report (*.{kind})|*.{kind}',
+            with wx.FileDialog(self, f'Export {kind.upper()} report', defaultDir=str(self.session.board.parent),
+                               defaultFile=self.session.board.stem+'-emerge.'+kind, wildcard=f'{kind.upper()} report (*.{kind})|*.{kind}',
                                style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
                 if dialog.ShowModal() != wx.ID_OK: return
-                path = Path(dialog.GetPath())
+                from .workspace_actions import output_path
+                try:
+                    path = output_path(dialog.GetPath(), '.'+kind, self, confirm_added_extension=True)
+                except ValueError as exc:
+                    self.message(exc); return
+                if path is None: return
         try:
             expected = self.config()
             from .model import config_digest
@@ -570,6 +632,7 @@ class QuickEMergeFrame(wx.Frame):
         else:
             preview_config = result.get('optimization', {}).get('best_config', result['config'])
             self.viewports['3D setup'].render(plots.geometry, preview_config, reset=True, options=self.display_options)
+            self.viewports['PCB enclosure'].render(plots.plan_geometry, preview_config, reset=True, options=self.display_options)
         renderers = {}
         if result.get('s_parameters'):
             renderers.update({'S-parameters': plots.response, 'Smith chart': lambda figure, data, options: plots.smith(figure, data)})
@@ -600,6 +663,7 @@ class QuickEMergeFrame(wx.Frame):
         self.probe_label.SetLabel('Select Probe to inspect original samples. Orbit, pan and zoom to navigate.')
         self.refresh_field_views(reset=True)
         self.refresh_results()
+        self.results_button.Enable(True)
 
     def refresh_field_views(self, *, reset=False):
         if not self.result or not (self.result.get('field') or self.result.get('thermal')): return
@@ -1049,6 +1113,8 @@ class QuickEMergeFrame(wx.Frame):
         self.clear_inspection()
         for view in self.viewports.values():
             view.clear()
+        self.results_button.SetValue(False); self.results_button.Disable()
+        self.navigate(getattr(self, 'last_dimension', '3D'))
         self.SetStatusText('Setup changed • preview required')
         if event:
             event.Skip()
@@ -1067,14 +1133,19 @@ class QuickEMergeFrame(wx.Frame):
                 view.clear()
                 if name == '3D setup':
                     view.render(plots.geometry, config, reset=True, options=self.display_options)
+                elif name == 'PCB enclosure':
+                    view.render(plots.plan_geometry, config, reset=True, options=self.display_options)
             self.run_button.Enable()
+            self.results_button.SetValue(False); self.results_button.Disable()
             self.select_view('3D setup')
+            self.probe_label.SetLabel('Geometry preview · drag to inspect · wheel to zoom · Show results after a simulation')
             self.SetStatusText('Preview ready • PEC, lossless dielectric, absorbing boundary • template only')
         except Exception as exc:
             self.message(exc)
 
     def running_state(self, running):
         self.running = running
+        if hasattr(self, 'results_button'): self.results_button.Enable(self.result is not None and not running)
         busy = running or self.dependency_busy or self.region_busy or getattr(self,'network_busy',False)
         self.settings.Enable(not (running or self.region_busy or getattr(self,'network_busy',False)))
         self.preview_button.Enable(not (running or self.region_busy or getattr(self,'network_busy',False)))
@@ -1100,6 +1171,8 @@ class QuickEMergeFrame(wx.Frame):
             for name, view in self.viewports.items():
                 if name not in ('3D setup', 'PCB enclosure'):
                     view.clear()
+            if hasattr(self, 'results_button'):
+                self.results_button.SetValue(False); self.navigate(getattr(self, 'last_dimension', '3D'))
             self.running_state(True)
             self.log.SetValue(f'Run: {self.session.run_dir}\n')
             self.details.SetSelection(3)
@@ -1236,12 +1309,15 @@ class QuickEMergeFrame(wx.Frame):
         self.SetStatusText('Loaded setup: '+Path(path).name+' · Preview to review current geometry and ports before running.')
 
     def show_files(self,event=None):
-        with wx.Menu() as menu:
+        menu = wx.Menu()
+        try:
             for label,handler in (('Load setup…',self.load_setup),('Save setup…',self.save_setup),
                     ('Load results…',self.load_result_file),('Save results…',self.save_result_file)):
                 item=menu.Append(wx.ID_ANY,label)
                 menu.Bind(wx.EVT_MENU,handler,id=item.GetId())
             self.files_button.PopupMenu(menu)
+        finally:
+            menu.Destroy()
 
     def _result_file_actions(self):
         if getattr(self,'_project_result_actions',None) is None:

@@ -85,6 +85,35 @@ def response(figure, result, options=None):
     figure.tight_layout(pad=1.5)
 
 
+def plan_geometry(figure, raw, options=None):
+    """Draw the same template contours as the 3D view in physical X/Y units."""
+    from matplotlib.patches import PathPatch
+    from .geometry_parts import geometry_parts
+    from .region_view import _path
+    options = options or {}
+    config = validate_config(raw)
+    if config['advanced']['study'] not in ('driven', 'optimization'):
+        geometry(figure, config, options)
+        axes = figure.axes[0]
+        axes.view_init(elev=90, azim=-90)
+        axes.set_proj_type('ortho'); axes.zaxis.set_visible(False)
+        axes.set_title('2D top projection · '+axes.get_title())
+        return
+    parts, ports = geometry_parts(config)
+    figure.clear(); axes = figure.add_subplot(111)
+    for category, shape, z, color, opacity in sorted(parts, key=lambda part: part[2]):
+        if options.get(category, True):
+            patch = PathPatch(_path(shape), facecolor=color, edgecolor=color, alpha=opacity)
+            patch.set_gid('template-'+category); axes.add_patch(patch)
+    for number, (a, _) in enumerate(ports if options.get('ports', True) else [], 1):
+        axes.plot(a[0], a[1], 'o', color='#d94770', markersize=5)
+        axes.annotate('P'+str(number), a[:2], xytext=(6,6), textcoords='offset points', color='#b52d54')
+    sx,sy=config['substrate_x_mm'],config['substrate_y_mm']
+    axes.set(xlim=(-sx*.55,sx*.55), ylim=(-sy*.55,sy*.55), xlabel='X [mm]', ylabel='Y [mm]',
+             title='Template plan · geometry only\nPCB context; no saved-board copper imported')
+    axes.set_aspect('equal'); figure.tight_layout(pad=1.5)
+
+
 def smith(figure, result):
     figure.clear()
     ax = figure.add_subplot(111)

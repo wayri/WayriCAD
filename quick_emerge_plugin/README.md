@@ -54,17 +54,56 @@ not silently deleted. This manager never upgrades KiCad's packages.
 The viewport fills the workspace on opening. Use **Setup** in the top bar to
 open the Geometry / Physics / Solve drawer; close it to reclaim that space.
 Preview, Run simulation, Cancel and Help remain available, and progress/errors
-stay in the status bar. The optional **Details** inspector opens below the view, initially
-using at most 30% of its height. **Focus view** temporarily hides panels and restores
+stay in the status bar. **More → Probe details** opens the inspector below the view, initially
+using at most 30% of its height. **More → Focus view** temporarily hides panels and restores
 their previous visibility. Showing or hiding panels preserves the study and its
 reviewed geometry. The setup sash leaves at least 540 logical pixels for the
 workspace; viewport minimum size is 480 × 300 logical pixels.
 
-![Current Quick EMerge rule-area workspace](help-workspace.png)
-
 The primary flow is **Setup → Preview geometry and ports → Run simulation**.
-Switch among 3D, 2D, Charts, Results and Report afterward. **Fit** frames the
-active geometry or plot. **Files** stays available while Setup is closed.
+Choose **2D / 3D** for geometry and **Show results** for solved fields in the
+same dimension. **More** holds result charts, the numerical summary, probes and
+specialist controls. **Export…** saves plots and offers report preview, HTML
+and PDF. **Fit** frames the active view; **Files** stays available with Setup closed.
+
+![Minimal Quick EMerge workspace](help-minimal-workspace-4.0.1.png)
+
+Windows native capture, 2026-11-01, Python 3.14 / wxPython 4.2.5 with Matplotlib
+software rendering. Public region_coupon board context and parametric line
+template; geometry preview only, no FEM solve. Setup, probe details and extra
+camera controls are closed. No private data, personal paths or redactions.
+
+
+
+1. Open **Setup**, then use **1 Geometry** for the geometry source and dimensions, **2 Physics** for
+   study/material/boundary controls, and **3 Solve** for sweep, mesh and runtime
+   settings. The top-bar **Files** menu saves or loads setups and results. First open
+   loads saved board/rule-area outlines while dependency preparation runs.
+   Copper is extracted by Preview. Dimensions are **mm**, frequency entries are **GHz**, impedance is
+   **ohm**. Setup JSON and solver requests retain canonical Hz.
+2. Select **Preview** and inspect geometry and numbered ports. Review any
+   blocking diagnostics before **Run simulation**. Editing the setup clears
+   stale results, probes and report state and requires another preview.
+3. Choose **2D** or **3D**, then toggle **Show results** to compare geometry with
+   solved fields. The selector appears only when there are multiple result
+   views. **More** holds charts, the summary, probe details and display settings.
+   **More → Viewport controls** restores the full Orbit/Pan/Zoom/Probe and camera
+   toolbar. Wheel zoom and drag navigation work with those controls hidden.
+4. Inspect original samples, export results, or generate a report. Mesh and
+   solver work run outside the UI process; Cancel stops the worker and retains
+   its diagnostic files. Reviewed 2D/3D geometry stays visible during a run.
+   **Export…** offers PNG plots and report preview, HTML and PDF. PNGs are static
+   figures; the native 3D view remains interactive. File choosers begin in the
+   board project folder and permit another location. Missing extensions are
+   added. Plots check current source/setup before and after writing and replace
+   the destination only after a successful render. Reports also check custody;
+   changed results cannot silently produce a new report.
+
+### Earlier workspaces
+
+The following captures retain the previous layouts for comparison.
+
+![Earlier Quick EMerge rule-area workspace](help-workspace.png)
 
 Windows native source-window capture, 2026-10-30, Python 3.14 / wxPython 4.2.5,
 Matplotlib software rendering and KiCad 10.0.6 native extraction. The repository
@@ -84,24 +123,6 @@ No private data or paths appear; no redaction was required. At a 1120 × 780
 window, the viewport container increased from 790 × 564 to 1104 × 582 pixels
 (44% more area). This is layout evidence, not solver or installed-host validation.
 
-
-1. Open **Setup**, then use **1 Geometry** for the geometry source and dimensions, **2 Physics** for
-   study/material/boundary controls, and **3 Solve** for sweep, mesh and runtime
-   settings. The top-bar **Files** menu saves or loads setups and results. First open
-   loads saved board/rule-area outlines while dependency preparation runs.
-   Copper is extracted by Preview. Dimensions are **mm**, frequency entries are **GHz**, impedance is
-   **ohm**. Setup JSON and solver requests retain canonical Hz.
-2. Select **Preview** and inspect geometry and numbered ports. Review any
-   blocking diagnostics before **Run simulation**. Editing the setup clears
-   stale results, probes and report state and requires another preview.
-3. Switch between **3D**, **2D**, **Charts**, **Results** and **Report**. The
-   3D selector exposes solved field/radiation views only when those data exist.
-   Use **Details**, **View options** and **Focus view** when needed.
-4. Inspect original samples, export results, or generate a report. Mesh and
-   solver work run outside the UI process; Cancel stops the worker and retains
-   its diagnostic files. Reviewed 2D/3D geometry stays visible during a run.
-   Report previews use native load/error events; new results clear the previous
-   report and offer Generate preview, Export HTML and Export PDF.
 
 ### Save and reload studies
 
@@ -152,8 +173,9 @@ changes reject stale results. PCB and adjacent project files are not written.
 ### Viewports, probing and charts
 
 Native VTK supplies the 3D scenes; Matplotlib supplies 2D plots and charts.
-Compact **Orbit / Pan / Zoom / Probe**, **Fit**, zoom and image-export buttons
-sit beside the viewer. Choose camera presets and projection in View options;
+Use **More → Viewport controls** for **Orbit / Pan / Zoom / Probe**, camera
+presets and extra zoom/image buttons. **Fit** and **Export…** stay beside the
+viewer. Choose projection and display controls in **More → Display settings…**;
 physical Z aspect and explicitly labeled exaggeration affect display only.
 Visibility and linear/log color scales preserve the original solver samples.
 A sample grid is not the FEM mesh; missing values remain unknown.
@@ -166,7 +188,7 @@ samples, displayed as a point cloud or selected XY slice. It is not arbitrary
 continuous-volume interpolation. Radiation shows relative electric-field
 magnitude, not calibrated gain, efficiency or physical distance.
 
-Probe selects original samples with linked 2D/3D markers. The Details inspector offers
+Probe selects original samples with linked 2D/3D markers. **More → Probe details** offers
 extrema, pinned samples and CSV export. Line cut selects two samples and
 records nearest-original-sample values against distance; it invents no new
 field measurements. Colors may use reduced display geometry while inspection
@@ -182,8 +204,8 @@ not additional FEM solves or evidence of passivity outside the solved band.
 
 ### Reports and artifacts
 
-The Report view provides **Generate preview**, **Export HTML** and **Export
-PDF**. Reports include model assumptions, original response/field charts,
+**Export…** provides **Preview report**, **Export HTML report…** and **Export
+PDF report…**. Reports include model assumptions, original response/field charts,
 selected quantity/slice, probes/profiles, diagnostics and source hashes.
 Derived networks remain distinct from the original response. HTML embeds its
 assets for offline reading; PDF uses ReportLab. Source/configuration custody

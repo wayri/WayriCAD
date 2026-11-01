@@ -53,6 +53,8 @@ class PlotViewport(wx.Panel):
         self.interaction = 'Orbit' if name.startswith('3D') else 'Probe'
         self.mode_buttons = {}
         controls = wx.WrapSizer(wx.HORIZONTAL, flags=wx.REMOVE_LEADING_SPACES)
+        self.controls_sizer = controls
+        self.controls_visible = True
         for mode, tip in [('Orbit', 'Left drag: orbit around the scene. Wheel: zoom.'),
                           ('Pan', 'Left drag: pan the scene without rotating it.'),
                           ('Zoom', 'Left drag: zoom (3D); draw a zoom rectangle (2D).'),
@@ -107,6 +109,15 @@ class PlotViewport(wx.Panel):
         self.canvas.mpl_connect('key_press_event', self._key)
         self.Bind(wx.EVT_SIZE, self._resize)
         self.Bind(wx.EVT_SHOW, self._shown)
+
+    def show_controls(self, visible):
+        """Keep gesture controls available without consuming the default viewport."""
+        self.controls_visible = bool(visible)
+        self.controls_sizer.ShowItems(self.controls_visible)
+        self.mode_buttons['Orbit'].Show(self.controls_visible and self.is_3d())
+        self.interaction_hint.Show(self.controls_visible)
+        self.camera_controls.Show(self.controls_visible and self.is_3d())
+        self.Layout()
 
     def _shown(self, event):
         if event.IsShown(): wx.CallAfter(self.refresh_canvas)
@@ -203,6 +214,9 @@ class PlotViewport(wx.Panel):
         if not self.is_3d():
             return
         axes = self.axes()
+        if self.name == 'PCB enclosure':
+            axes.view_init(elev=90, azim=-90); axes.set_proj_type('ortho')
+            return
         axes.view_init(elev=self.camera.elevation, azim=self.camera.azimuth, roll=self.camera.roll)
         axes.set_proj_type(self.camera.projection)
         ranges = [abs(b-a) for a, b in (axes.get_xlim(), axes.get_ylim(), axes.get_zlim())]
@@ -285,8 +299,8 @@ class PlotViewport(wx.Panel):
         axes = self.axes()
         if axes is None:
             return
-        self.camera_controls.Show(self.is_3d())
-        self.mode_buttons['Orbit'].Show(self.is_3d())
+        self.camera_controls.Show(self.controls_visible and self.is_3d())
+        self.mode_buttons['Orbit'].Show(self.controls_visible and self.is_3d())
         self.Layout()
         # Release Matplotlib's 2D navigation lock before changing modes.
         current = str(self.toolbar.mode).lower()

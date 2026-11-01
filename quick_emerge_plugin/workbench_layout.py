@@ -211,33 +211,43 @@ def build(frame, board):
     # The native default stretches the last item on every wrapped row.
     # Tool buttons must keep their content width at every DPI/window size.
     nav = wx.WrapSizer(wx.HORIZONTAL, flags=wx.REMOVE_LEADING_SPACES); frame.navigation = {}
-    for name in ['3D','2D','Charts','Results','Report']:
+    for name in ['2D','3D']:
         control=button(frame.workspace,name,lambda event,name=name:frame.navigate(name),toggle=True)
         nav.Add(control,0,wx.RIGHT,4);frame.navigation[name]=control
-    nav.AddSpacer(10)
+    frame.results_button=button(frame.workspace,'Show results',frame.toggle_result_view,toggle=True)
+    frame.results_button.SetToolTip('Switch between the reviewed geometry and available solved fields without changing the study')
+    nav.Add(frame.results_button,0,wx.RIGHT,8)
     frame.details_button=button(frame.workspace,'Details',frame.toggle_inspector,toggle=True)
     frame.details_button.SetToolTip('Show or hide original-sample probes, line profiles and the solver log')
-    nav.Add(frame.details_button,0,wx.RIGHT,4)
+    frame.details_button.Hide()
     frame.fit_button=button(frame.workspace,'Fit',frame.fit_view)
     frame.fit_button.SetToolTip('Fit the active geometry or plot to its original data extent')
     nav.Add(frame.fit_button,0,wx.RIGHT,4)
-    nav.Add(button(frame.workspace,'View options',frame.show_view_options),0,wx.RIGHT,4)
-    frame.focus_button=button(frame.workspace,'Focus view',frame.focus_view,toggle=True);nav.Add(frame.focus_button,0)
+    frame.export_button=button(frame.workspace,'Export…',frame.show_exports)
+    frame.export_button.SetToolTip('Save the 2D or 3D plot, preview a report, or export HTML/PDF')
+    nav.Add(frame.export_button,0,wx.RIGHT,4)
+    frame.more_button=button(frame.workspace,'More…',frame.show_workspace_more)
+    frame.more_button.SetToolTip('Charts, result summary, probes, display settings and viewport controls')
+    nav.Add(frame.more_button,0)
+    frame.focus_button=button(frame.workspace,'Focus view',frame.focus_view,toggle=True)
+    frame.focus_button.Hide()
     body.Add(nav,0,wx.EXPAND | wx.ALL,5)
     frame.workspace_stack=wx.Simplebook(frame.workspace)
     viewer=wx.Panel(frame.workspace_stack); viewer_rows=wx.BoxSizer(wx.VERTICAL)
-    frame.view_choice=wx.Choice(viewer)
+    frame.view_selectors=wx.Panel(viewer)
+    frame.view_choice=wx.Choice(frame.view_selectors)
     # The controller populates this choice after construction; an initially
     # empty native Choice otherwise retains a tiny best width on Windows.
     frame.view_choice.SetMinSize((viewer.FromDIP(170),-1))
     frame.view_choice.SetToolTip('Choose the geometry, field or chart view')
     frame.view_choice.Bind(wx.EVT_CHOICE,frame.choose_view)
     selectors=wx.WrapSizer(wx.HORIZONTAL, flags=wx.REMOVE_LEADING_SPACES);selectors.Add(frame.view_choice,0,wx.RIGHT|wx.BOTTOM,6)
-    frame.chart_quantity=wx.Choice(viewer,choices=['Magnitude','Phase','Group delay','Impedance','Diagnostics']);frame.chart_quantity.SetSelection(0)
+    frame.chart_quantity=wx.Choice(frame.view_selectors,choices=['Magnitude','Phase','Group delay','Impedance','Diagnostics']);frame.chart_quantity.SetSelection(0)
     frame.chart_quantity.Bind(wx.EVT_CHOICE,frame.change_chart_quantity);selectors.Add(frame.chart_quantity,0,wx.RIGHT,8);frame.chart_quantity.Hide()
-    frame.network_tools_button=button(viewer,'Network tools',frame.network_tools);selectors.Add(frame.network_tools_button,0,wx.RIGHT,8);frame.network_tools_button.Hide()
-    frame.network_export_button=button(viewer,'Export Touchstone',frame.export_network);selectors.Add(frame.network_export_button,0);frame.network_export_button.Hide()
-    viewer_rows.Add(selectors,0,wx.LEFT | wx.RIGHT | wx.BOTTOM,8)
+    frame.network_tools_button=button(frame.view_selectors,'Network tools',frame.network_tools);selectors.Add(frame.network_tools_button,0,wx.RIGHT,8);frame.network_tools_button.Hide()
+    frame.network_export_button=button(frame.view_selectors,'Export Touchstone',frame.export_network);selectors.Add(frame.network_export_button,0);frame.network_export_button.Hide()
+    frame.view_selectors.SetSizer(selectors)
+    viewer_rows.Add(frame.view_selectors,0,wx.EXPAND|wx.LEFT | wx.RIGHT | wx.BOTTOM,8)
     frame.visual_splitter=wx.SplitterWindow(viewer,style=wx.SP_LIVE_UPDATE | wx.SP_NOBORDER)
     frame.visual_splitter.SetMinimumPaneSize(130)
     frame.tabs=wx.Simplebook(frame.visual_splitter)
@@ -253,6 +263,7 @@ def build(frame, board):
         page=factory(frame.tabs,name,frame._viewport_probe)
         if isinstance(page, PlotViewport): page.defer_hidden=True
         frame.tabs.AddPage(page,name);frame.viewports[name]=page
+        page.show_controls(False)
         frame.figures[name]=(getattr(page,'figure',None),getattr(page,'canvas',None))
     frame.details=wx.Notebook(frame.visual_splitter)
     inspector=wx.Panel(frame.details);inspector_rows=wx.BoxSizer(wx.VERTICAL)

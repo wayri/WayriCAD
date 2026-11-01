@@ -49,6 +49,8 @@ class SceneViewport(wx.Panel):
         self.style.AddObserver('LeftButtonReleaseEvent', self._on_release)
         self.style.AddObserver('MouseMoveEvent', self._on_move)
         self.mode_buttons = {}; bar = wx.WrapSizer(wx.HORIZONTAL, flags=wx.REMOVE_LEADING_SPACES)
+        self.controls_sizer = bar
+        self.controls_visible = True
         tips={'Orbit':'Orbit [O] · left drag; wheel zoom; Shift + drag pans',
               'Pan':'Pan [P] · left drag; wheel zoom', 'Zoom':'Zoom [Z] · drag; wheel zoom',
               'Probe':'Probe [I] · click an original field sample; Shift + drag pans'}
@@ -69,6 +71,7 @@ class SceneViewport(wx.Panel):
         help_button.SetToolTip('Viewport gestures and keyboard shortcuts')
         help_button.Bind(wx.EVT_BUTTON,self.show_gestures);bar.Add(help_button,0,wx.BOTTOM,3)
         camera_bar=wx.BoxSizer(wx.HORIZONTAL)
+        self.camera_sizer = camera_bar
         self.preset_choice=wx.Choice(self,choices=['Isometric','Top','Bottom','Front','Right'])
         self.preset_choice.SetSelection(0);self.preset_choice.SetToolTip('Camera preset · keys 1–5')
         self.preset_choice.Bind(wx.EVT_CHOICE,lambda event:self.set_camera(preset=self.preset_choice.GetStringSelection()))
@@ -87,6 +90,13 @@ class SceneViewport(wx.Panel):
         self.window.Bind(wx.EVT_WINDOW_DESTROY,self._destroy_window)
         self.set_mode('Orbit')
         self.clear()
+
+    def show_controls(self, visible):
+        """Expose the full camera toolbar only when it is requested."""
+        self.controls_visible = bool(visible)
+        self.controls_sizer.ShowItems(self.controls_visible)
+        self.camera_sizer.ShowItems(self.controls_visible)
+        self.Layout()
 
     def _destroy_window(self,event):
         if event.GetEventObject() is self.window:
@@ -418,7 +428,20 @@ class SceneViewport(wx.Panel):
             else: continue
             sphere=vtk.vtkSphereSource(); sphere.SetCenter(*point); sphere.SetRadius(.5 if self.name!='3D radiation' else .025); sphere.Update(); self._actor(sphere.GetOutput(),color)
         if self.profile and self.name=='3D fields': self._line(self.profile[0],self.profile[1],(.25,.85,.8))
-    def export_image(self):
-        with wx.FileDialog(self,'Export scene',wildcard='PNG image (*.png)|*.png',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal()!=wx.ID_OK: return
-            capture=vtk.vtkWindowToImageFilter(); capture.SetInput(self.window.GetRenderWindow()); capture.Update(); writer=vtk.vtkPNGWriter(); writer.SetFileName(dialog.GetPath()); writer.SetInputConnection(capture.GetOutputPort()); writer.Write()
+    def export_image(self, path=None):
+        if path is None:
+            with wx.FileDialog(self,'Export scene',wildcard='PNG image (*.png)|*.png',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
+                if dialog.ShowModal()!=wx.ID_OK: return
+                path=dialog.GetPath()
+        self.Layout()
+        self.window.Refresh(False); self.window.Update()
+        render_window = self.window.GetRenderWindow()
+        width, height = self.window.GetClientSize()
+        if not render_window.GetGenericWindowId() or width < 2 or height < 2:
+            raise ValueError('The 3D viewport is not ready; open it before saving its image.')
+        render_window.SetSize(width, height); render_window.Render()
+        capture=vtk.vtkWindowToImageFilter(); capture.SetInput(render_window)
+        capture.ReadFrontBufferOff(); capture.Update()
+        if capture.GetOutput().GetDimensions()[:2] != (width, height):
+            raise ValueError('The 3D renderer returned an incomplete image; the destination was preserved.')
+        writer=vtk.vtkPNGWriter(); writer.SetFileName(str(path)); writer.SetInputConnection(capture.GetOutputPort()); writer.Write()
