@@ -122,19 +122,12 @@ def validate_report_result(result, *, expected_config=None, expected_source=None
             raise ValueError('Field frequency is not in the solved sweep')
     if 'radiation' in result:
         try:
-            r = result['radiation']
-            theta, phi, norm = (np.asarray(r[k], dtype=float) for k in ('theta_rad','phi_rad','norm_e'))
-            frequency = float(r['frequency_hz'])
-            if (theta.ndim != 1 or phi.ndim != 1 or len(theta)<2 or len(phi)<2
-                    or norm.shape != (len(theta),len(phi))
-                    or any(not np.isfinite(a).all() for a in (theta,phi,norm))
-                    or np.any(np.diff(theta)<=0) or np.any(np.diff(phi)<=0)
-                    or theta[0]<0 or theta[-1]>np.pi+1e-12
-                    or np.any(norm<0) or not np.isfinite(frequency)
-                    or not np.any(np.isclose(frequencies,frequency,rtol=1e-12,atol=0))):
+            from .radiation_pattern import prepare_radiation
+            samples=prepare_radiation(result['radiation'],allow_zero=True)
+            if not np.any(np.isclose(frequencies,samples.frequency,rtol=1e-12,atol=0)):
                 raise ValueError('Invalid radiation axes, magnitudes or frequency')
-        except (KeyError, TypeError, OverflowError) as exc:
-            raise ValueError('Invalid radiation structure') from exc
+        except (KeyError,TypeError,OverflowError,ValueError) as exc:
+            raise ValueError('Invalid radiation axes, magnitudes or frequency: '+str(exc)) from exc
     return network
 
 
@@ -170,6 +163,25 @@ def _figure(title, draw):
         return '<figure><img loading="lazy" alt="'+escape(title,quote=True)+'" src="data:image/png;base64,'+_png(figure)+'"><figcaption>'+escape(title)+'</figcaption></figure>'
     finally:
         figure.clear()
+
+
+def _radiation_figures(result):
+    from .radiation_pattern import radiation_status,available_cuts,radiation_cut
+    from .plots import radiation,radiation_polar
+    samples,reason=radiation_status(result)
+    if samples is None:
+        from .radiation_pattern import prepare_radiation
+        import numpy as np
+        stored=prepare_radiation(result.get('radiation'),allow_zero=True)
+        if stored.peak==0 and np.isfinite(stored.magnitude).all():
+            reason='All recorded far-field magnitudes are zero; a normalized pattern is unavailable.'
+        return '<p>'+escape(reason)+'</p>'
+    chunks=[_figure('3D relative far-field |E| at '+_format(samples.frequency/1e9)+' GHz; normalized to the maximum known stored sample, not gain or efficiency.',lambda f:radiation(f,result))]
+    for name in available_cuts(samples):
+        cut=radiation_cut(samples,name)
+        caption=name+'; '+cut['caption']+'; '+cut['convention']+'. Same global normalization as 3D; unknown or unsampled directions remain gaps.'
+        chunks.append(_figure(caption,lambda f,name=name:radiation_polar(f,result,{'radiation_cut':name})))
+    return ''.join(chunks)
 
 
 def _charts(network, analysis):
@@ -267,6 +279,23 @@ def _selection_html(selected,line,include_figures):
     return ''.join(chunks)
 
 
+def _radiation_selections(result,probes):
+    requested=[probe for probe in (probes or []) if isinstance(probe,dict) and probe.get('kind')=='radiation']
+    if not requested:return []
+    from .radiation_pattern import prepare_radiation,resolve_probe
+    samples=prepare_radiation(result.get('radiation'),allow_zero=True)
+    return [dict(label=str(probe.get('label',f'R{index+1}')),**resolve_probe(samples,probe))
+            for index,probe in enumerate(requested)]
+
+
+def _radiation_selection_html(selected):
+    if not selected:return ''
+    return '<h3>Radiation probes</h3><p>Values re-read from original angular samples; one global stored-sample maximum, not gain.</p>'+_table(
+        ['Probe','GHz','Theta [deg]','Phi [deg]','Relative |E|','Original index','Status'],
+        [[row['label'],row['frequency_hz']/1e9,row['theta_deg'],row['phi_deg'],row['relative_e'],
+          str(row['theta_index'])+', '+str(row['phi_index']),row['status']] for row in selected])
+
+
 def _derived_section(derived,network,result,include_figures):
     from .network_extensions import deserialize_network
     if not isinstance(derived,dict) or derived.get('schema')!=1 or derived.get('kind')!='derived-network': raise ValueError('Invalid derived network evidence')
@@ -308,6 +337,7 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
     derived_html=_derived_section(derived_snapshot,network,snapshot,include_figures) if derived_snapshot is not None else ''
     analysis=network.analyze()
     selected,line=_selections(snapshot,probes,line_profile)
+    radiation_selected=_radiation_selections(snapshot,probes)
     custody=result_digest(snapshot)
     c=snapshot['config']
     summary=[('Mode',c['mode']),('Geometry scope',snapshot['model_scope']),('Solver',snapshot['backend'].get('backend','EMerge')),
@@ -372,15 +402,11 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
     if 'radiation' in snapshot:
         chunks.append('<p>Far-field |E| is shown as a relative pattern normalized to its recorded maximum; absolute gain, efficiency and radiated power are unavailable.</p>')
         if include_figures:
-            import numpy as np
-            if np.max(snapshot['radiation']['norm_e'])>0:
-                from .plots import radiation
-                chunks.append(_figure('Relative far-field pattern at '+_format(snapshot['radiation']['frequency_hz']/1e9)+' GHz; normalized radius has no length unit.',lambda f:radiation(f,snapshot)))
-            else:
-                chunks.append('<p>All recorded far-field magnitudes are zero; a normalized pattern is unavailable.</p>')
+            chunks.append(_radiation_figures(snapshot))
     else:
         chunks.append('<p>Radiation data were not recorded for this study.</p>')
     chunks.append(_selection_html(selected,line,include_figures))
+    chunks.append(_radiation_selection_html(radiation_selected))
     if 'thermal' in snapshot:
         chunks.append(_thermal_section(snapshot,include_figures))
     chunks.append(derived_html)
@@ -393,6 +419,7 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
     chunks.append('<ul>'+''.join('<li>'+escape(v)+'</li>' for v in snapshot['assumptions']+analysis['limits'])+'</ul></section>')
     evidence={'result':snapshot,'report_selections':{'probes':selected,'line_profile':line},'result_sha256':custody,
               'network_sha256':network.digest(),'source_verified_at_export':bool(verify_source)}
+    if radiation_selected:evidence['report_selections']['radiation_probes']=radiation_selected
     encoded=base64.b64encode(json.dumps(evidence,ensure_ascii=False,allow_nan=False,indent=2).encode('utf-8')).decode('ascii')
     chunks.extend(['<section id="custody"><h2>Source and result custody</h2>',
                    _table(['Identity','SHA-256'],[('Source PCB bytes',snapshot['source']['sha256']),('Normalized configuration',snapshot['config_sha256']),('Complete result JSON (canonical)',custody),('Sampled network (canonical)',network.digest())]+([('Region geometry',snapshot['region_sha256'])] if 'region_sha256' in snapshot else [])),
@@ -554,6 +581,7 @@ def _build_nonnetwork(snapshot,original,expected_config,expected_source,verify_s
     c=snapshot['config'];thermal='thermal' in snapshot
     custody=result_digest(snapshot)
     selected,line=_selections(snapshot,probes,line_profile)
+    radiation_selected=_radiation_selections(snapshot,probes)
     peak=float(snapshot['thermal']['peak_k']) if thermal else float(np.max(snapshot['scattering']['rcs_m2']))
     chunks=['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
             '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">',
@@ -596,11 +624,11 @@ def _build_nonnetwork(snapshot,original,expected_config,expected_source,verify_s
             if 'field' in snapshot:
                 from .plots import near_field
                 chunks.append(_figure('Sampled electric-field norm [V/m] for the recorded plane-wave excitation.',lambda f:near_field(f,snapshot)))
-            if 'radiation' in snapshot and np.max(snapshot['radiation']['norm_e'])>0:
-                from .plots import radiation
-                chunks.append(_figure('Relative scattered far-field |E|; normalized radius, not gain or efficiency.',lambda f:radiation(f,snapshot)))
+            if 'radiation' in snapshot:
+                chunks.append(_radiation_figures(snapshot))
         chunks.append('<details><summary>Complete angular RCS samples</summary>'+_table(['Theta [deg]','Phi [deg]','RCS [m²]'],[[theta[i]*180/np.pi,phi[j]*180/np.pi,rcs[i,j]] for i in range(len(theta)) for j in range(len(phi))])+'</details>')
     chunks.append(_selection_html(selected,line,include_figures))
+    chunks.append(_radiation_selection_html(radiation_selected))
     chunks.extend(['</section><section id="limits"><h2>Mesh, convergence and interpretation limits</h2>',
                    _table(['Requested control','Value'],[(k,c[k]) for k in ('mesh_edge_mm','resolution','adaptive_steps','convergence','max_tets')]),
                    '<p class="notice">Requested mesh controls do not establish achieved error. Mesh/time refinement history and tetrahedron counts are unknown unless supplied explicitly below.</p>',
@@ -608,6 +636,7 @@ def _build_nonnetwork(snapshot,original,expected_config,expected_source,verify_s
     for key in ('mesh','mesh_statistics','convergence','convergence_history','mesh_convergence'):
         if key in snapshot:chunks.append('<details><summary>Recorded '+escape(key.replace('_',' '))+'</summary><pre>'+escape(json.dumps(snapshot[key],indent=2))+'</pre></details>')
     evidence={'result':snapshot,'report_selections':{'probes':selected,'line_profile':line},'result_sha256':custody,'source_verified_at_export':bool(verify_source)}
+    if radiation_selected:evidence['report_selections']['radiation_probes']=radiation_selected
     encoded=base64.b64encode(json.dumps(evidence,ensure_ascii=False,allow_nan=False,indent=2).encode()).decode()
     hashes=[('Source PCB bytes',snapshot['source']['sha256']),('Normalized configuration',snapshot['config_sha256']),('Complete result JSON (canonical)',custody)]
     for key in ('region_sha256',):

@@ -222,10 +222,10 @@ class PlotViewport(wx.Panel):
         self._draw_markers()
         self.canvas.draw_idle()
 
-    def clear(self):
+    def clear(self, message=None):
         self.pending_render = self.pending_reset = False
         self.figure.clear()
-        message = 'Choose a saved PCB rule area and Preview to inspect its enclosure.' if self.name == 'PCB enclosure' else 'Run a simulation to load this result view.'
+        message = message or ('Choose a saved PCB rule area and Preview to inspect its enclosure.' if self.name == 'PCB enclosure' else 'Run a simulation to load this result view.')
         self.figure.text(.5, .5, message, ha='center', va='center', color='#465563', wrap=True)
         self.renderer = self.arguments = self.home = None
         self.picking = []
@@ -323,6 +323,8 @@ class PlotViewport(wx.Panel):
         axes = self.axes()
         if axes is None:
             return
+        if self.name=='Radiation pattern':
+            axes.set_ylim(0,max(1e-8,axes.get_ylim()[1]*scale));self.canvas.draw_idle();return
         for index, (get, set_) in enumerate([(axes.get_xlim, axes.set_xlim), (axes.get_ylim, axes.set_ylim)] + (
                 [(axes.get_zlim, axes.set_zlim)] if self.is_3d() else [])):
             lo, hi = get(); center = anchor[index] if anchor is not None and index<2 and not self.is_3d() else (lo+hi)/2
@@ -338,6 +340,7 @@ class PlotViewport(wx.Panel):
             raise ValueError('Unknown viewport interaction mode: '+str(mode))
         if mode == 'Orbit' and not self.is_3d():
             mode = 'Probe'
+        if self.name=='Radiation pattern' and mode in ('Pan','Zoom'): mode='Probe'
         self.interaction = mode
         self.press = None
         self._configure_interaction()
@@ -368,13 +371,22 @@ class PlotViewport(wx.Panel):
             self.interaction = 'Probe'
         for mode, button in self.mode_buttons.items():
             button.SetValue(mode == self.interaction)
-            button.Enable(mode != 'Orbit' or self.is_3d())
+            button.Enable((mode != 'Orbit' or self.is_3d()) and not(self.name=='Radiation pattern' and mode in ('Pan','Zoom')))
         hints = {'Orbit': 'Drag to orbit · wheel zoom', 'Pan': 'Drag to pan · wheel zoom',
                  'Zoom': 'Drag to zoom · wheel zoom', 'Probe': 'Hover · click sample · middle / Shift drag pan'}
         self.interaction_hint.SetLabel(hints[self.interaction])
+        if self.name=='Radiation pattern': self.interaction_hint.SetLabel('Click original angular sample · wheel radial zoom · F fits the full pattern')
         self.canvas.SetCursor(wx.Cursor(wx.CURSOR_CROSS if self.interaction == 'Probe' else wx.CURSOR_HAND))
 
     def _pick(self, event):
+        if self.name=='Radiation pattern' and self.axes() is not None and self.picking:
+            points=np.array([(row['angle_rad'],row['relative_e']) for row in self.picking])
+            pixels=self.axes().transData.transform(points)
+            distance=np.sum((pixels-np.array([event.x,event.y]))**2,axis=1)
+            low,high=self.axes().get_ylim()
+            distance[(points[:,1]<low)|(points[:,1]>high)]=np.inf
+            index=int(np.argmin(distance))
+            return self.picking[index] if distance[index]<=14**2 else None
         if self.is_3d():
             points = [row['display_xyz'] if 'display_xyz' in row else
                       (row['x_mm'], row['y_mm'], row['z_mm']) for row in self.picking]
@@ -387,7 +399,7 @@ class PlotViewport(wx.Panel):
         if getattr(event,'dblclick',False) and event.button==1:
             self.fit();self.press=None;return
         axes=self.axes()
-        if axes is not None and not self.is_3d() and event.inaxes is axes and not self.toolbar.mode and (
+        if self.name!='Radiation pattern' and axes is not None and not self.is_3d() and event.inaxes is axes and not self.toolbar.mode and (
                 event.button==2 or (event.button==1 and getattr(event,'key',None)=='shift')):
             self._pan_start=(event.x,event.y,self._bounds(),axes.transData.inverted().frozen())
             self.press=None;return
@@ -397,9 +409,13 @@ class PlotViewport(wx.Panel):
         if self._pan_start is not None:
             self._pan_start=None;self.press=None;return
         self._camera_from_axes()
-        if (self.interaction == 'Probe' and self.press and event.button == 1 and event.inaxes is self.axes() and
+        sample=self._pick(event) if self.name=='Radiation pattern' else None
+        # Polar wedge containment can reject its seam even at a visible stored
+        # sample. Accept only an actual projected sample hit, never an estimate.
+        hit=event.inaxes is self.axes() or (self.name=='Radiation pattern' and sample is not None)
+        if (self.interaction == 'Probe' and self.press and event.button == 1 and hit and
                 not self.toolbar.mode and math.hypot(event.x-self.press[0], event.y-self.press[1]) < 4):
-            self.callback(self.name, event, self._pick(event), True)
+            self.callback(self.name, event, sample if self.name=='Radiation pattern' else self._pick(event), True)
         self.press = None
 
     def _hover(self, event):
@@ -409,11 +425,13 @@ class PlotViewport(wx.Panel):
             self.axes().set_xlim(bounds[0][0]-delta[0],bounds[0][1]-delta[0])
             self.axes().set_ylim(bounds[1][0]-delta[1],bounds[1][1]-delta[1])
             self.canvas.draw_idle();return
-        if (self.press or self.toolbar.mode or event.inaxes is not self.axes() or
+        sample=self._pick(event) if self.name=='Radiation pattern' else None
+        hit=event.inaxes is self.axes() or (self.name=='Radiation pattern' and sample is not None)
+        if (self.press or self.toolbar.mode or not hit or
                 time.monotonic()-self.last_hover < .08):
             return
         self.last_hover = time.monotonic()
-        self.callback(self.name, event, self._pick(event), False)
+        self.callback(self.name, event, sample if self.name=='Radiation pattern' else self._pick(event), False)
 
     def _scroll(self, event):
         if event.inaxes is self.axes() and self.axes() is not None:
@@ -449,14 +467,18 @@ class PlotViewport(wx.Panel):
         for artist in list(axes.lines)+list(axes.collections)+list(axes.texts):
             if artist.get_gid() == 'inspection-marker':
                 artist.remove()
-        if self.name not in ('Field probes', '3D fields', '3D radiation'):
+        if self.name not in ('Field probes', '3D fields', '3D radiation','Radiation pattern'):
             return
         bounds = self._bounds()
         for row, color in [(row, '#41d9cb') for row in self.markers] + (
                 [(self.selection, '#ff566a')] if self.selection else []):
-            if self.name == '3D radiation' and row.get('kind') == 'radiation':
+            if self.name=='Radiation pattern' and row.get('kind')=='radiation':
+                matches=[sample for sample in self.picking if sample.get('theta_index')==row.get('theta_index') and sample.get('phi_index')==row.get('phi_index')]
+                if not matches: continue
+                x,y,z=matches[0]['angle_rad'],matches[0]['relative_e'],0
+            elif self.name == '3D radiation' and row.get('kind') == 'radiation':
                 x, y, z = row['display_xyz']
-            elif self.name != '3D radiation' and row.get('kind') == 'field':
+            elif self.name in ('Field probes','3D fields') and row.get('kind') == 'field':
                 if not self.is_3d() and self.arguments:
                     field=self.arguments.get('thermal',self.arguments.get('field',{}))
                     if abs(row['z_mm']-field.get('z_mm',row['z_mm']))>1e-9: continue

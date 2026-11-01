@@ -36,6 +36,15 @@ only after a valid PNG is ready. Unavailable solved fields are not replaced with
 geometry under a result label. A 3D PNG is a still image; the native viewer
 retains its interactive camera.
 
+Radiation views add XZ/YZ/azimuth polar cuts alongside the interactive 3D
+relative-field surface. Both normalize against the same maximum known stored
+sample. Cuts retain actual angular indices and gaps; duplicated azimuth seams
+cannot invent a missing half-plane. Isotropic, dipole and asymmetric analytical
+patterns independently check plane selection and normalization. Actual antenna
+cut probes also match their recorded values and 3D radii within 1e-12. Reports
+resolve angular pins from the source samples rather than trusting display text.
+These are relative-field patterns, not gain in dBi or efficiency.
+
 These changes do not alter the PI solver or SI channel equations. The previously
 unreleased [board-derived RLC eye](../../signal_integrity_advisor_plugin/BOARD_RLC_EYE.md)
 is included in the 4.0.1 packages, with its separate analytical and native
@@ -50,12 +59,20 @@ eye navigation, numerical rows and displayed-case identity. The user's real
 clipboard and PCB projects are not used. Viewport, setup persistence and result
 probe tests retain their existing assertions.
 
-The final EMerge native workspace run passed 34 tests without skips, including
+The initial EMerge native workspace run passed 34 tests without skips, including
 2D/3D switching, preserved cameras, menu dispatch, viewport sizing, project-folder
 choosers and atomic exports. Its renderer/report run passed 38 tests with one
 optional PDF-readback skip. A hardware export regression caught and fixed an
 initial blank VTK buffer: capture now requires an attached viewport at its actual
 size, renders before reading the back buffer and checks image dimensions.
+
+The radiation addition passed 27 analytical/report checks, eight focused native
+checks and all 13 native scene checks. Picking coincident volume samples now
+uses visible cell depth, then resolves an original stored sample; it does not
+return an interpolated field value. Volume fit includes the stored Z layers.
+Radiation retains a separate normalized camera instead of inheriting the PCB's
+millimetre bounds. Polar probes, radial zoom, partial coverage, exports and
+stale angular-pin rejection are covered.
 
 The release procedure runs shared root tests, SI regressions, affected PI setup
 and return tests, EMerge regressions, package/document validators and isolated
@@ -107,6 +124,12 @@ remain available in the READMEs with their original capture versions.
   a three-frequency 2.3–2.5 GHz solve under EMerge 3.0.0b9 / SuperLU, producing
   S11, near-field and radiation data. This is coarse end-to-end execution
   evidence, not mesh/boundary convergence or measured antenna qualification.
+- [2D radiation](../../quick_emerge_plugin/help-antenna-radiation-2d-4.0.1.png)
+  and [3D radiation](../../quick_emerge_plugin/help-antenna-radiation-3d-4.0.1.png):
+  native 1264 × 738 clients with 1264 × 602 canvases, using the same 2.4 GHz
+  result and its original 91 × 181 angular samples. Windows, Python 3.11.5,
+  wxPython 4.3.2 and VTK 9.7.1. Both use the same stored-peak normalization;
+  neither is gain or efficiency. No private paths or redactions.
 - [Quick PI](../../quick_pi_plugin/help-workspace-polish-4.0.1.png): native
   1280 × 860 window on a synthetic demonstration PCB with optional panels open.
   The 0.711492 mV field comes from the analytical 65 × 90 mm copper-plate test;

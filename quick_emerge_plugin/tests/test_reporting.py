@@ -125,6 +125,65 @@ class ReportingTests(unittest.TestCase):
         r['radiation']['norm_e']=[[1]]
         with self.assertRaises(ValueError):validate_report_result(r)
 
+    def test_partial_unknown_radiation_reports_keep_gaps_and_include_polar_cuts(self):
+        from quick_emerge_plugin.tests.test_radiation_pattern import pattern
+        result=deepcopy(self.result);result['radiation']=pattern()
+        result['radiation']['frequency_hz']=result['frequencies_hz'][1]
+        result['radiation']['norm_e'][2][8]=None
+        original=deepcopy(result)
+        document=build_html_report(result)
+        for name in ('XZ cut','YZ cut','XY azimuth'):
+            self.assertIn(name,document)
+        self.assertIn('unknown or unsampled directions remain gaps',document)
+        self.assertEqual(result,original)
+        try: import reportlab
+        except ImportError: self.skipTest('ReportLab unavailable')
+        path=self.root/'partial-radiation.pdf';export_pdf(path,result)
+        self.assertTrue(path.read_bytes().startswith(b'%PDF-'))
+        self.assertEqual(result,original)
+
+    def test_all_unknown_radiation_remains_unavailable_and_nonfinite_rejected(self):
+        from quick_emerge_plugin.tests.test_radiation_pattern import pattern
+        result=deepcopy(self.result);result['radiation']=pattern()
+        result['radiation']['frequency_hz']=result['frequencies_hz'][1]
+        result['radiation']['norm_e']=[[None]*17 for _ in range(9)]
+        document=build_html_report(result)
+        self.assertIn('No positive known radiation samples',document)
+        result['radiation']['norm_e'][0][0]=float('nan')
+        with self.assertRaisesRegex(ValueError,'nonfinite'):build_html_report(result)
+
+    def test_radiation_probe_table_recomputes_original_values_and_retains_evidence(self):
+        import math
+        from quick_emerge_plugin.tests.test_radiation_pattern import pattern
+        result=deepcopy(self.result)
+        result['radiation']=pattern(lambda theta,phi:abs(math.sin(theta))*(1+.3*math.cos(phi)))
+        frequency=result['frequencies_hz'][1];result['radiation']['frequency_hz']=frequency
+        probe=dict(kind='radiation',theta_index=4,phi_index=8,theta_deg=90,phi_deg=0,
+                   frequency_hz=frequency,relative_e=999,label='<Angular pin>')
+        document=build_html_report(result,probes=[probe],include_figures=False)
+        self.assertIn('Radiation probes',document);self.assertIn('&lt;Angular pin&gt;',document)
+        parsed=_AssetInspector();parsed.feed(document)
+        evidence=json.loads(base64.b64decode(parsed.downloads[0].split(',',1)[1]))
+        row=evidence['report_selections']['radiation_probes'][0]
+        self.assertEqual(row['relative_e'],1.);self.assertEqual(row['recorded_norm_e'],1.3)
+        self.assertEqual(evidence['report_selections']['probes'],[])
+        result['radiation']['norm_e'][4][8]=None
+        document=build_html_report(result,probes=[probe],include_figures=False)
+        self.assertIn('Unknown / normalized pattern unavailable',document)
+        parsed=_AssetInspector();parsed.feed(document)
+        evidence=json.loads(base64.b64decode(parsed.downloads[0].split(',',1)[1]))
+        self.assertIsNone(evidence['report_selections']['radiation_probes'][0]['relative_e'])
+
+    def test_stale_radiation_probe_indices_angles_and_frequency_are_rejected(self):
+        from quick_emerge_plugin.tests.test_radiation_pattern import pattern
+        result=deepcopy(self.result);result['radiation']=pattern()
+        frequency=result['frequencies_hz'][1];result['radiation']['frequency_hz']=frequency
+        probe=dict(kind='radiation',theta_index=4,phi_index=8,theta_deg=90,phi_deg=0,frequency_hz=frequency)
+        for changes in (dict(theta_index=-1),dict(theta_index=99),dict(phi_index=True),dict(theta_deg=89),
+                        dict(phi_deg=10),dict(frequency_hz=frequency+1e6)):
+            with self.subTest(changes=changes),self.assertRaisesRegex(ValueError,'Radiation probe'):
+                build_html_report(result,probes=[dict(probe,**changes)],include_figures=False)
+
 
     def test_real_thermal_contract_without_fictitious_rf(self):
         r=deepcopy(self.result)
@@ -201,13 +260,17 @@ class ReportingTests(unittest.TestCase):
         field['volume']['poynting_w_m2']=[[[[v]*3 for _ in range(3)] for _ in range(2)] for v in (3,4,0)]
         probes=[{'kind':'field','x_mm':0,'y_mm':0,'quantity':'H magnitude','iz':1,'value_a_m':999},
                 {'kind':'field','x_mm':0,'y_mm':0,'quantity':'Power-flow magnitude','value_w_m2':999},
-                {'kind':'radiation'},{'kind':'network'}]
+                {'kind':'network'}]
         doc=build_html_report(r,probes=probes,include_figures=False)
         parsed=_AssetInspector();parsed.feed(doc);e=json.loads(base64.b64decode(parsed.downloads[0].split(',',1)[1]))
         values=e['report_selections']['probes'];self.assertEqual(len(values),2)
         self.assertEqual((values[0]['value_a_m'],values[0]['z_mm'],values[0]['iz']),(3,2,1))
         self.assertEqual(values[1]['value_w_m2'],5)
         self.assertIn('A/m',doc);self.assertIn('W/m2',doc)
+
+    def test_malformed_radiation_pin_is_not_silently_dropped(self):
+        with self.assertRaisesRegex(ValueError,'Radiation data were not recorded'):
+            build_html_report(self.result,probes=[{'kind':'radiation'}],include_figures=False)
 
     def test_coupled_thermal_and_derived_custody(self):
         from quick_emerge_plugin.network import from_result

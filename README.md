@@ -22,8 +22,9 @@ automatic source ZIP/tar downloads and repository clones are excluded.
 
 **New in 4.0.1:** clearer Quick PI setup feedback, more useful Quick SI route/eye
 status, and board-derived RLC eye simulation. Quick EMerge has simple 2D/3D
-views focused on the antenna region, a results toggle and grouped plot/report exports. Full-value PI result-table
-copying and the fanout style picture catalogue are included.
+views focused on the antenna region, 2D/3D radiation patterns and grouped
+plot/report exports. Full-value PI result-table copying and the fanout style
+picture catalogue are included.
 [Release notes](docs/RELEASE_NOTES_4.0.1.md).
 
 **New in 4.0.0:** board-first quick-tool workspaces, compact setup and results
@@ -265,7 +266,8 @@ an input or model is missing; they are not a pass.
 2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
 3. In KiCad, draw a named rule area around the antenna and the feed/ground geometry needed for its model; refill and save the board. In **Setup → 1 Geometry**, use **Saved PCB rule area**, load the areas and select the signal and reference nets. Review material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**.
 4. Click **Preview** to inspect the actual clipped copper and numbered feed ports. Resolve blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and short sweep before increasing resolution.
-5. Choose **2D** or **3D** and enable **Show results** after solving. **More…** opens charts, summaries and probe details. **Export…** saves a 2D plot, a 3D view or an HTML/PDF report; a saved 3D PNG is a still image of the current view. **Files** saves setups and results. **Help / F1** opens the offline guide.
+5. Enable **Show results** and choose the field or radiation view. Radiation has **2D** XZ/YZ/azimuth cuts and an interactive **3D** pattern using the same stored samples. **More…** opens charts, summaries and probes.
+6. **Export…** saves PNG plots and HTML/PDF reports; a saved 3D PNG is a still image. **Files** saves setups and results. **Help / F1** opens the offline guide.
 
 For actual PCB copper, use **Saved PCB rule-area region** on a saved, filled
 **two-layer board** with a named rule area and explicit signal/reference nets.
@@ -474,13 +476,20 @@ Choose 2D or 3D, then turn on solved results when available. Plot and report
 exports share one menu; detailed controls open on demand. This native capture
 shows actual clipped copper from a public synthetic antenna-on-board fixture,
 with no FEM result represented. Geometry uses the viewport without graph axes.
-The earlier captures below retain their original workflow and validation scope.
 
 <a href="quick_emerge_plugin/help-antenna-field-4.0.1.png"><img src="quick_emerge_plugin/help-antenna-field-4.0.1.png" width="960" alt="Actual coarse antenna-region electric field over saved copper contours in the full-area viewport"></a>
 
 Original 21 × 21 electric-field samples at 2.4 GHz from a three-frequency,
 one-port solve of that saved PCB region. The visible sampling is retained;
 this coarse execution check does not establish convergence or antenna accuracy.
+
+| 2D radiation cuts | Interactive 3D radiation pattern |
+| --- | --- |
+| <a href="quick_emerge_plugin/help-antenna-radiation-2d-4.0.1.png"><img src="quick_emerge_plugin/help-antenna-radiation-2d-4.0.1.png" width="460" alt="Relative-field polar cut from the actual antenna-region solve"></a> | <a href="quick_emerge_plugin/help-antenna-radiation-3d-4.0.1.png"><img src="quick_emerge_plugin/help-antenna-radiation-3d-4.0.1.png" width="460" alt="Interactive 3D relative-field radiation surface from the same solved angular samples"></a> |
+
+Both use the same original 2.4 GHz angular samples and stored-peak normalization.
+These relative-field views do not establish gain, efficiency or convergence.
+The earlier captures below retain their original workflow and validation scope.
 
 **Viewport-first workbench**
 

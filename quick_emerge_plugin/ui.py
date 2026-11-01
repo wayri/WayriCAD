@@ -168,7 +168,10 @@ class QuickEMergeFrame(wx.Frame):
             self.results_button.SetValue(bool(self.result))
         self.results_button.Enable(self.result is not None)
         previous = self.tabs.GetPageText(self.tabs.GetSelection()) if self.tabs.GetSelection() >= 0 else ''
-        self.view_choice.Set(names); self.view_choice.SetSelection(names.index(previous) if previous in names else 0)
+        partner = {'3D radiation':'Radiation pattern','Radiation pattern':'3D radiation'}.get(previous)
+        preferred = '3D radiation' if group=='3D' else 'Radiation pattern'
+        selected = previous if previous in names else partner if partner in names else preferred if getattr(self,'result_view_kind',None)=='radiation' and preferred in names else names[0]
+        self.view_choice.Set(names); self.view_choice.SetStringSelection(selected)
         self.view_selectors.Show(group == 'Charts' or len(names) > 1)
         self.view_selectors.Layout(); self.workspace_stack.GetPage(0).Layout()
         self.choose_view()
@@ -184,10 +187,11 @@ class QuickEMergeFrame(wx.Frame):
             self.SetStatusText('No solved '+dimension+' field is available for this study; geometry remains visible.')
         self.navigate(dimension)
         selected = self.viewports[self.tabs.GetPageText(self.tabs.GetSelection())]
-        if dimension == '3D' and previous is not selected and hasattr(previous, 'scene') and hasattr(selected, 'scene'):
+        physical_pair = {previous.name,selected.name} <= {'3D setup','3D fields'}
+        if dimension == '3D' and physical_pair and previous is not selected and hasattr(previous, 'scene') and hasattr(selected, 'scene'):
             selected.scene.GetActiveCamera().DeepCopy(previous.scene.GetActiveCamera())
             selected.scene.ResetCameraClippingRange(); selected.refresh_canvas()
-        elif dimension == '3D' and previous is not selected and previous.is_3d():
+        elif dimension == '3D' and physical_pair and previous is not selected and previous.is_3d():
             import copy
             selected.refresh_canvas(); previous._camera_from_axes()
             selected.camera = copy.deepcopy(previous.camera)
@@ -224,19 +228,30 @@ class QuickEMergeFrame(wx.Frame):
             return
         index = next(i for i in range(self.tabs.GetPageCount()) if self.tabs.GetPageText(i) == name)
         self.tabs.SetSelection(index)
+        if name in ('3D radiation','Radiation pattern'): self.result_view_kind='radiation'
+        elif name in ('3D fields','Field probes'): self.result_view_kind='field'
+        self.radiation_cut.Show(name=='Radiation pattern')
+        self.view_selectors.Show(self.current_group=='Charts' or self.view_choice.GetCount()>1 or name=='Radiation pattern')
+        self.view_selectors.Layout(); self.workspace_stack.GetPage(0).Layout()
         self.viewports[name].Layout()
         wx.CallAfter(self.viewports[name].refresh_canvas)
         if name in ('PCB enclosure', '3D setup'):
             wx.CallAfter(self._geometry_readout, name)
-        elif name in ('Field probes','3D fields','3D radiation'):
+        elif name in ('Field probes','3D fields','3D radiation','Radiation pattern'):
             wx.CallAfter(self._spatial_readout, name)
 
     def _spatial_readout(self, name):
         if self.closed or self.result is None or self.tabs.GetPageText(self.tabs.GetSelection()) != name:
             return
-        if name == '3D radiation':
+        if name in ('3D radiation','Radiation pattern'):
             radiation = self.result['radiation']
-            caption = f'Relative |E| · {radiation["frequency_hz"]/1e9:g} GHz · normalized radius, not gain or physical distance'
+            caption = f'Relative |E| · {radiation["frequency_hz"]/1e9:g} GHz · unitless radius / maximum known stored sample across all angles · not gain or efficiency'
+            if name=='Radiation pattern':
+                from .radiation_pattern import radiation_cut
+                try:
+                    cut = radiation_cut(self._radiation_samples,self.radiation_cut.GetStringSelection())
+                    caption += ' · '+cut['caption']+' · '+cut['convention']
+                except ValueError as exc: caption = str(exc)
         elif self.inspection:
             field = self.inspection
             context = f'{field.frequency/1e9:g} GHz' if field.frequency is not None else f'{field.time:g} s'
@@ -270,10 +285,29 @@ class QuickEMergeFrame(wx.Frame):
             self.viewports['S-parameters'].render(plots.response,getattr(self,'network_chart_result',None) or self.result,options=self.display_options)
 
     def select_view(self, name):
-        group = '3D' if name.startswith('3D') else '2D' if name in ('PCB enclosure', 'Field probes') else 'Charts'
+        if name in ('Radiation pattern','3D radiation'):
+            from .workspace_actions import result_views
+            dimension = '3D' if name.startswith('3D') else '2D'
+            if name not in result_views(self.result,dimension):
+                from .radiation_pattern import radiation_status
+                _,reason = radiation_status(self.result)
+                self.SetStatusText(reason or 'No original sampled principal-plane cut is available.');return
+        group = '3D' if name.startswith('3D') else '2D' if name in ('PCB enclosure', 'Field probes','Radiation pattern') else 'Charts'
         self.results_button.SetValue(name not in ('3D setup', 'PCB enclosure'))
         self.navigate(group)
         self.view_choice.SetStringSelection(name); self.choose_view()
+
+    def change_radiation_cut(self,event=None):
+        if not getattr(self,'_radiation_samples',None): return
+        from .radiation_pattern import radiation_cut
+        try:
+            cut = radiation_cut(self._radiation_samples,self.radiation_cut.GetStringSelection())
+        except ValueError as exc:
+            self.viewports['Radiation pattern'].clear(str(exc)); self.probe_label.SetLabel(str(exc));return
+        options = dict(self.display_options,radiation_cut=cut['name'])
+        self.viewports['Radiation pattern'].set_samples([row for row in cut['samples'] if row is not None])
+        self.viewports['Radiation pattern'].render(plots.radiation_polar,self.result,reset=True,options=options)
+        self._spatial_readout('Radiation pattern')
 
     def toggle_inspector(self, event=None, *, show=None):
         current = self.visual_splitter.IsSplit()
@@ -614,6 +648,7 @@ class QuickEMergeFrame(wx.Frame):
             for name, view in self.viewports.items():
                 view.dark = self.theme.GetSelection() == 1
                 local = dict(options)
+                if name=='Radiation pattern': local['radiation_cut']=self.radiation_cut.GetStringSelection()
                 if name == '3D radiation':
                     local.pop('minimum', None); local.pop('maximum', None)
                 view.render(options=local)
@@ -674,7 +709,9 @@ class QuickEMergeFrame(wx.Frame):
             renderers.update({'S-parameters': plots.response, 'Smith chart': lambda figure, data, options: plots.smith(figure, data)})
         if self.inspection:
             renderers.update({'Field probes': plots.near_field, '3D fields': plots.near_field3d})
-        if result.get('radiation'): renderers['3D radiation'] = plots.radiation
+        from .radiation_pattern import radiation_status,available_cuts,sample_row
+        self._radiation_samples,self._radiation_error=radiation_status(result)
+        if self._radiation_samples is not None: renderers['3D radiation'] = plots.radiation
         for name, renderer in renderers.items():
             options = dict(self.display_options)
             if name == '3D radiation': options.pop('minimum', None); options.pop('maximum', None)
@@ -685,16 +722,15 @@ class QuickEMergeFrame(wx.Frame):
             self.viewports['3D fields'].set_samples(rows)
             context = f"{field.frequency/1e9:g} GHz" if field.frequency is not None else f"{field.time:g} s"
             self.inspector_text.ChangeValue(f'{len(field.x)} x {len(field.y)} original {field.quantity} samples [{field.unit}], {context}, Z={field.z:g} mm.\nNearest original samples; no arbitrary volume interpolation.\n'+result.get('model_scope', ''))
-        if result.get('radiation'):
-            radiation = result['radiation']; peak = max(max(row) for row in radiation['norm_e'])
-            rows = []
-            if peak > 0:
-                for i, theta in enumerate(radiation['theta_rad']):
-                    for j, phi in enumerate(radiation['phi_rad']):
-                        radius = radiation['norm_e'][i][j]/peak
-                        rows.append(dict(kind='radiation', frequency_hz=radiation['frequency_hz'],theta_deg=math.degrees(theta),phi_deg=math.degrees(phi),relative_e=radius,
-                                         display_xyz=(radius*math.sin(theta)*math.cos(phi),radius*math.sin(theta)*math.sin(phi),radius*math.cos(theta))))
+        if self._radiation_samples is not None:
+            samples=self._radiation_samples
+            rows=[sample_row(samples,i,j) for i in range(len(samples.theta)) for j in range(len(samples.phi))]
+            rows=[row for row in rows if row is not None]
             self.viewports['3D radiation'].set_samples(rows)
+            cuts=available_cuts(samples)
+            if cuts:
+                if self.radiation_cut.GetStringSelection() not in cuts: self.radiation_cut.SetStringSelection(cuts[0])
+                self.change_radiation_cut()
         self.source_label.SetLabel(f"{self.session.board.name} | {result.get('model_scope', '')}")
         self.probe_label.SetLabel('Select Probe to inspect original samples. Orbit, pan and zoom to navigate.')
         self.refresh_field_views(reset=True)
@@ -734,7 +770,7 @@ class QuickEMergeFrame(wx.Frame):
                 self.probe_label.SetLabel(f'X {event.xdata:.4g} · Y {event.ydata:.4g} mm'
                     f' · view {abs(xlim[1]-xlim[0]):.4g} × {abs(ylim[1]-ylim[0]):.4g} mm · wheel zoom')
             return
-        if self.result is None or event.inaxes is None:
+        if self.result is None or (event.inaxes is None and not(name=='Radiation pattern' and sample is not None)):
             return
         try:
             if name in ('Field probes', '3D fields'):
@@ -751,7 +787,7 @@ class QuickEMergeFrame(wx.Frame):
                 value = 'unknown' if sample[key] is None else f'{sample[key]:.7g} {self.inspection.unit}'
                 context = f"{sample['frequency_hz']/1e9:g} GHz" if 'frequency_hz' in sample else f"{sample['time_s']:g} s"
                 text = f"Original sample [{sample['ix']}, {sample['iy']}] | {context}\nX={sample['x_mm']:g} mm Y={sample['y_mm']:g} mm Z={sample['z_mm']:g} mm | {self.inspection.quantity}={value}"
-            elif name == '3D radiation':
+            elif name in ('3D radiation','Radiation pattern'):
                 if sample is None or not self.visibility['field'].GetValue():
                     return
                 text = f'Radiation sample • {sample["frequency_hz"]/1e9:g} GHz\nθ={sample["theta_deg"]:.5g}°  φ={sample["phi_deg"]:.5g}°  relative |E|={sample["relative_e"]:.7g}\nNormalized radius; not gain or physical distance.'
@@ -781,7 +817,7 @@ class QuickEMergeFrame(wx.Frame):
                 self.pin_button.Enable()
                 self.inspector_text.ChangeValue(text)
                 self.toggle_inspector(show=True)
-                for field_view in ('Field probes', '3D fields', '3D radiation'):
+                for field_view in ('Field probes', '3D fields', '3D radiation','Radiation pattern'):
                     self.viewports[field_view].set_selection(sample, pins=self.pins)
                 if sample['kind'] == 'field' and self.mouse_mode.GetSelection() == 1:
                     self.line_sample(sample)
@@ -811,20 +847,20 @@ class QuickEMergeFrame(wx.Frame):
         value = ('unknown' if row.get(self.inspection.value_key) is None else f"{row[self.inspection.value_key]:.7g} {self.inspection.unit}") if row['kind'] == 'field' else (
             f"{row['relative_e']:.7g} relative |E|" if row['kind'] == 'radiation' else f"{row['s11_db']:.6g} dB")
         self.pins_list.SetItem(index, 3, location); self.pins_list.SetItem(index, 4, value)
-        for name in ('Field probes', '3D fields', '3D radiation'):
+        for name in ('Field probes', '3D fields', '3D radiation','Radiation pattern'):
             self.viewports[name].set_selection(self.current_probe, pins=self.pins)
 
     def select_pin(self, event):
         row = self.pins[event.GetIndex()]
         self.current_probe = row
         self.inspector_text.ChangeValue('\n'.join(f'{key}: {value}' for key, value in row.items() if key != 'display_xyz'))
-        for name in ('Field probes', '3D fields', '3D radiation'):
+        for name in ('Field probes', '3D fields', '3D radiation','Radiation pattern'):
             self.viewports[name].set_selection(row, pins=self.pins)
 
     def clear_probes(self, event=None):
         self.pins = []
         self.pins_list.DeleteAllItems()
-        for name in ('Field probes', '3D fields', '3D radiation'):
+        for name in ('Field probes', '3D fields', '3D radiation','Radiation pattern'):
             self.viewports[name].set_selection(self.current_probe, pins=[])
 
     def line_sample(self, row):
@@ -1142,6 +1178,7 @@ class QuickEMergeFrame(wx.Frame):
     def invalidate(self, event=None):
         self.session.review = None
         self.result = None
+        self._radiation_samples=None
         self.network_output=self.network_chart_result=None
         self.region_plan = None
         self.update_model_sections()

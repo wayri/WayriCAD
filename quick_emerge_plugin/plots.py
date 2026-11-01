@@ -261,12 +261,10 @@ def radiation(figure, result, options=None):
         ax.set_axis_off()
         return
     field = result['radiation']
-    t, p = np.meshgrid(field['theta_rad'], field['phi_rad'], indexing='ij')
-    values = np.asarray(field['norm_e'], dtype=float)
-    peak = values.max()
-    if peak <= 0 or not np.isfinite(values).all():
-        raise ValueError('Radiation field is empty or non-finite.')
-    radius = values/peak
+    from .radiation_pattern import prepare_radiation
+    samples=prepare_radiation(field)
+    t, p = np.meshgrid(samples.theta,samples.phi,indexing='ij')
+    radius=samples.relative
     ax = figure.add_subplot(111, projection='3d')
     if options.get('field', True):
         colors, norm, cmap = _field_style(radius, options, 'viridis')
@@ -283,6 +281,23 @@ def radiation(figure, result, options=None):
     ax.set(xlabel='X', ylabel='Y', zlabel='Z', title=f'Relative far-field |E| • {field.get("frequency_hz", 0)/1e9:g} GHz\n'+angular_sampling_label(field)+'\nNormalized radius; not gain, efficiency or physical distance')
     ax.set_box_aspect((1, 1, 1))
     figure.subplots_adjust(left=.06, right=.94, bottom=.18, top=.83)
+
+
+def radiation_polar(figure,result,options=None):
+    """Plot a principal-plane cut using only original sampled directions."""
+    from .radiation_pattern import prepare_radiation,radiation_cut,CUTS
+    options=options or {}
+    samples=prepare_radiation(result.get('radiation'))
+    cut=radiation_cut(samples,options.get('radiation_cut',CUTS[0]))
+    figure.clear();axes=figure.add_subplot(111,projection='polar')
+    axes.set_theta_zero_location('E' if cut['name']=='XY azimuth' else 'N')
+    axes.set_theta_direction(1 if cut['name']=='XY azimuth' else -1)
+    if options.get('field',True):
+        axes.plot(cut['angles_rad'],cut['relative_e'],'o-',color='#147e88',markersize=2.5,linewidth=1)
+    axes.set_ylim(0,1.05);axes.set_yticks([.25,.5,.75,1.])
+    axes.set_rlabel_position(135);axes.grid(alpha=.3)
+    axes.set_title(cut['name']+' · '+cut['caption']+'\nRelative |E| / global stored-sample maximum · '+f'{samples.frequency/1e9:g} GHz',fontsize=9,y=1.065,pad=0)
+    figure.subplots_adjust(left=.02,right=.98,bottom=.045,top=.875)
 
 
 def advanced_geometry(figure, config, options=None):

@@ -28,8 +28,10 @@ def result_views(result, dimension):
     names = []
     if result.get('field') or result.get('thermal'):
         names.append('Field probes' if dimension == '2D' else '3D fields')
-    if dimension == '3D' and result.get('radiation'):
-        names.append('3D radiation')
+    from .radiation_pattern import radiation_status, available_cuts
+    samples,_ = radiation_status(result)
+    if samples is not None and (dimension=='3D' or available_cuts(samples)):
+        names.append('3D radiation' if dimension=='3D' else 'Radiation pattern')
     return names
 
 
@@ -42,6 +44,8 @@ def plot_name(frame, dimension):
         if not names:
             raise ValueError('This result has no '+dimension+' field. Turn off Show results to export geometry.')
         selected = frame.tabs.GetPageText(frame.tabs.GetSelection())
+        partner = {'3D radiation':'Radiation pattern','Radiation pattern':'3D radiation'}.get(selected)
+        if partner in names: return partner
         return selected if selected in names else names[0]
     return 'PCB enclosure' if dimension == '2D' else '3D setup'
 
@@ -134,6 +138,13 @@ def build_more_menu(frame):
         item = menu.Append(wx.ID_ANY, label); item.Enable(available)
         menu.Bind(wx.EVT_MENU, lambda event, group=group: frame.navigate(group), id=item.GetId())
     menu.AppendSeparator()
+    from .radiation_pattern import radiation_status, available_cuts
+    radiation,reason = radiation_status(frame.result)
+    for label,name in (('2D radiation pattern','Radiation pattern'),('3D radiation pattern','3D radiation')):
+        item = menu.Append(wx.ID_ANY,label)
+        item.Enable(radiation is not None and (name=='3D radiation' or bool(available_cuts(radiation))))
+        item.SetHelp(reason or 'Relative |E| from original stored angles; not gain or efficiency.')
+        menu.Bind(wx.EVT_MENU,lambda event,name=name:frame.select_view(name),id=item.GetId())
     region = menu.Append(wx.ID_ANY, 'Fit full study region')
     name = frame.tabs.GetPageText(frame.tabs.GetSelection())
     region.Enable(name in ('PCB enclosure', '3D setup', 'Field probes', '3D fields') and frame.viewports[name].renderer is not None)

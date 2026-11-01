@@ -1,6 +1,6 @@
 # Quick EMerge capability coverage
 
-This inventory describes the 3.6.44-beta.1 source. Upstream baseline: EMerge **3.0.0b9**, inspected at
+This inventory describes the 4.0.1 source. Upstream baseline: EMerge **3.0.0b9**, inspected at
 [446232037d175a596606c6c9ea986e372560566f](https://github.com/FennisRobert/EMerge/commit/446232037d175a596606c6c9ea986e372560566f).
 The [upstream project metadata](https://github.com/FennisRobert/EMerge/blob/446232037d175a596606c6c9ea986e372560566f/pyproject.toml)
 requires Python 3.10-3.13. This is a bounded integration, not every upstream
@@ -19,6 +19,7 @@ API or arbitrary user-supplied EMerge scripting.
 | Components/optimization | Ideal FEM mid-line shunt R/L/C; bounded parameter search using real solves | No populated component library or unrestricted optimizer. Search budget/mesh may limit the answer. |
 | Thermal | Steady/transient substrate conduction; dielectric RF-loss heating | Pinned-b9 compatibility adapter; independent slab/time-step references checked. No copper surface heating, general conjugate heat transfer or arbitrary multiphysics. |
 | Fields | Complex E/H sampling; E/H/power-flow magnitude; thermal K; XY plane, bounded Z stack and point-cloud view | Maximum 17 layers/100,000 samples. Recorded frequency/excitation; no automatic recomputation on chart selection or arbitrary continuous-volume probe. |
+| Radiation views | 2D XZ/YZ/azimuth cuts and interactive 3D relative-field patterns from the same stored angular samples | Shared normalization to the maximum known stored magnitude. Unknown coverage remains a gap; sampled plane angles are explicit. Relative patterns are not gain in dBi, efficiency or measured antenna qualification. |
 | Native inspection | VTK 3D; 2D plots; navigation, linked original-sample probes, pins/extrema/nearest-sample profiles, CSV | Component tests and physical gestures are distinct acceptance scopes. No measured frame-rate or every-GPU compatibility claim. |
 | RF networks | Full solved matrix, magnitude/phase/group delay/impedance/Smith diagnostics, renormalization, mixed mode, port termination, ideal RLC embedding, AAA/vector fit, Touchstone | Derived networks are separate evidence; original EM fields do not change. No out-of-band/passivity guarantee from a fit. |
 | Exports/reports | Source-checked offline HTML and PDF reports; charts/probes/derived-network evidence; exact planar-sheet DXF; official Optycal-compatible far-field MsgPack | Live exports limited to supported driven/array models. Numeric MsgPack protocol/readback, not an installed Optycal GUI. PDFs need ReportLab. |

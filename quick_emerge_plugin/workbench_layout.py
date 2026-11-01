@@ -246,6 +246,11 @@ def build(frame, board):
     frame.chart_quantity.Bind(wx.EVT_CHOICE,frame.change_chart_quantity);selectors.Add(frame.chart_quantity,0,wx.RIGHT,8);frame.chart_quantity.Hide()
     frame.network_tools_button=button(frame.view_selectors,'Network tools',frame.network_tools);selectors.Add(frame.network_tools_button,0,wx.RIGHT,8);frame.network_tools_button.Hide()
     frame.network_export_button=button(frame.view_selectors,'Export Touchstone',frame.export_network);selectors.Add(frame.network_export_button,0);frame.network_export_button.Hide()
+    from .radiation_pattern import CUTS
+    frame.radiation_cut=wx.Choice(frame.view_selectors,choices=list(CUTS));frame.radiation_cut.SetSelection(0)
+    frame.radiation_cut.SetToolTip('Principal-plane cut from original angular samples; the actual sampled plane is reported below')
+    frame.radiation_cut.Bind(wx.EVT_CHOICE,frame.change_radiation_cut)
+    selectors.Add(frame.radiation_cut,0,wx.LEFT,6);frame.radiation_cut.Hide()
     frame.view_selectors.SetSizer(selectors)
     viewer_rows.Add(frame.view_selectors,0,wx.EXPAND|wx.LEFT | wx.RIGHT | wx.BOTTOM,8)
     frame.visual_splitter=wx.SplitterWindow(viewer,style=wx.SP_LIVE_UPDATE | wx.SP_NOBORDER)
@@ -258,7 +263,7 @@ def build(frame, board):
         frame.scene_viewport_class=SceneViewport;frame.render_backend='VTK hardware 3D'
     except ImportError:
         frame.scene_viewport_class=None
-    for name in ['3D setup','S-parameters','Smith chart','Field probes','3D fields','3D radiation','PCB enclosure']:
+    for name in ['3D setup','S-parameters','Smith chart','Field probes','3D fields','3D radiation','Radiation pattern','PCB enclosure']:
         factory=frame.scene_viewport_class if name.startswith('3D') and frame.scene_viewport_class else PlotViewport
         page=factory(frame.tabs,name,frame._viewport_probe)
         if isinstance(page, PlotViewport): page.defer_hidden=True

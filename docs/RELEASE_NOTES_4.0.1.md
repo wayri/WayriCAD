@@ -13,6 +13,10 @@ as the main workspace.
   region without graph framing. A results toggle keeps solved data available;
   charts and detailed controls open on demand. One Export
   menu saves 2D plots, current 3D views and HTML/PDF reports.
+- **Radiation patterns:** XZ/YZ/azimuth polar cuts and interactive 3D patterns
+  share the same stored-sample normalization. Angular probes and report tables
+  retain the original values. These are relative-field patterns, not antenna
+  gain in dBi or efficiency.
 - **Board-derived SI eyes:** the selected route's extracted R/L/C sections now
   drive the linear PRBS7 eye and step response. Width changes retain their
   reflections; receiver capacitance and reviewed via equivalents are explicit

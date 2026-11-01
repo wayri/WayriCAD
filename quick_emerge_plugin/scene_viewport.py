@@ -208,6 +208,11 @@ class SceneViewport(wx.Panel):
         foreground=(.87,.91,.94) if self.dark else (.15,.21,.27)
         bar.GetTitleTextProperty().SetColor(*foreground);bar.GetTitleTextProperty().SetFontSize(12)
         bar.GetLabelTextProperty().SetColor(*foreground);bar.GetLabelTextProperty().SetFontSize(11)
+        if self.name=='3D radiation':
+            bar.UnconstrainedFontSizeOn();bar.SetTitle('Relative |E|')
+            bar.SetPosition(.89,.18);bar.SetWidth(.09);bar.SetHeight(.62)
+            for prop in (bar.GetTitleTextProperty(),bar.GetLabelTextProperty()):
+                prop.BoldOff();prop.ItalicOff()
         bar.SetLabelFormat('%.3g');self.scene.AddViewProp(bar)
 
     def _field(self,field,thermal=False):
@@ -227,9 +232,9 @@ class SceneViewport(wx.Panel):
         self._scalarbar(style,f"{volume['quantity']} [{volume['unit']}]")
 
     def _radiation(self,field):
-        values=field['norm_e']; peak=max(max(row) for row in values)
-        if not math.isfinite(peak) or peak<=0: raise ValueError('Radiation field is empty or non-finite')
-        r=[[v/peak for v in row] for row in values]; t,p=field['theta_rad'],field['phi_rad']
+        from .radiation_pattern import prepare_radiation
+        samples=prepare_radiation(field)
+        r=samples.relative.tolist();t,p=samples.theta,samples.phi
         x=[[r[j][i]*math.sin(theta)*math.cos(phi) for i,phi in enumerate(p)] for j,theta in enumerate(t)]
         y=[[r[j][i]*math.sin(theta)*math.sin(phi) for i,phi in enumerate(p)] for j,theta in enumerate(t)]
         z=[[r[j][i]*math.cos(theta) for i,phi in enumerate(p)] for j,theta in enumerate(t)]
@@ -304,7 +309,7 @@ class SceneViewport(wx.Panel):
             label += ' | volume original samples'
         if self.options.get('mesh',False): label += ' | sample grid'
         self.scope_caption = label
-        if self.name != '3D setup':
+        if self.name not in ('3D setup','3D radiation'):
             text.SetInput(label); text.SetPosition(12,12); prop=text.GetTextProperty(); prop.SetFontSize(13)
             prop.SetColor(*((.87,.91,.94) if self.dark else (.15,.21,.27))); self.scene.AddViewProp(text)
         axes=vtk.vtkAxesActor(); axes.SetTotalLength(10,10,10); axes.SetXAxisLabelText('X [mm]'); axes.SetYAxisLabelText('Y [mm]'); axes.SetZAxisLabelText('Z [mm]')
@@ -349,6 +354,9 @@ class SceneViewport(wx.Panel):
         if self.name in ('3D setup','3D fields') and self.arguments:
             from .cad_view import framing_bounds
             bounds = framing_bounds(self.name,self.arguments,focus=focus)
+            volume=self.arguments.get('field',{}).get('display_volume') if self.name=='3D fields' else None
+            if bounds and volume and self.options.get('field_view')=='Volume':
+                bounds=(*bounds[:4],min(bounds[4],*volume['z_mm']),max(bounds[5],*volume['z_mm']))
         if bounds:
             self.scene.ResetCamera(bounds)
         else:
@@ -378,7 +386,7 @@ class SceneViewport(wx.Panel):
         if not width or not height: return None
         # VTK resolves depth on the actual plotted dataset. Screen-only nearest
         # neighbors can select an invisible sample on the back of a surface.
-        picker=vtk.vtkPointPicker(); picker.PickFromListOn(); picker.AddPickList(self.data_actor)
+        picker=vtk.vtkCellPicker(); picker.PickFromListOn(); picker.AddPickList(self.data_actor)
         picker.SetTolerance(14/math.hypot(width,height))
         if not picker.Pick(x,y,0,self.scene) or picker.GetPointId()<0: return None
         position=np.asarray(picker.GetPickPosition())

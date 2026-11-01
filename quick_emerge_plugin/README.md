@@ -99,6 +99,7 @@ shown as sampled, without smoothing or invented values. This proves end-to-end
 execution and display only; mesh/boundary convergence and physical antenna
 performance are not qualified. Runtime, source immutability and privacy scope
 match the geometry capture above.
+The field/radiation selector is visible above a 1264 × 602 canvas.
 
 
 
@@ -230,6 +231,47 @@ perform bounded AAA/vector fitting. Each operation starts from the original
 solved network and produces separate derived evidence/Touchstone; EM geometry
 and fields retain their original excitation. Fits are models of sampled data,
 not additional FEM solves or evidence of passivity outside the solved band.
+
+### 2D and 3D radiation patterns
+
+After a result containing radiation is loaded, use **More → 2D radiation
+pattern** or **More → 3D radiation pattern**. You can also enable **Show results**
+and choose radiation in the view selector. Switching **2D / 3D** keeps radiation
+selected. Each view remembers its camera.
+
+The 2D selector offers **XZ cut**, **YZ cut** and **XY azimuth** in the model's
+Cartesian axes. Theta is measured from +Z. XZ combines the sampled phi = 0° and
+180° halves, and YZ combines +90° and −90°. Their polar angle runs from +Z toward
++X or +Y on the positive half. XY uses theta = 90° and azimuth phi from +X toward
++Y. If a nearby sampled plane is used, its actual angle is shown; an azimuth cut
+at a different theta is labelled as a cone, not the XY plane. Missing halves,
+unknown samples and uncovered poles remain gaps.
+
+Both views divide by the **same maximum known stored field magnitude across all
+angles**, so a weaker cut stays weaker. Radius is relative |E|, not length,
+gain, dBi, efficiency or radiated power. Lines join recorded samples; no extra
+field values are computed. Click an original plotted sample to inspect or pin
+its theta, phi and relative value. The 2D wheel changes radial zoom only;
+**Fit** restores the complete pattern. The 3D view supports orbit, pan and zoom.
+
+**Export…** saves the active 2D pattern or 3D camera image. HTML/PDF reports
+include the 3D surface, available principal-plane cuts and a separate table of
+radiation probes re-read from original indices. Changed frequencies, angles or
+invalid indices are rejected; unknown values remain explicit. Studies without
+radiation keep these views disabled with an explanation.
+
+![Actual antenna XZ radiation cut](help-antenna-radiation-2d-4.0.1.png)
+
+![Interactive native 3D relative radiation pattern](help-antenna-radiation-3d-4.0.1.png)
+
+Windows native captures, 2026-11-01, Python 3.11.5 / wxPython 4.3.2 / VTK 9.7.1.
+Each view has a 1264 × 602 canvas inside a 1264 × 738 client area.
+Both show the same actual 2.4 GHz radiation result from the public synthetic
+antenna-region study above: 91 theta × 181 phi samples at 2° spacing. The 2D cut
+uses original samples; the 3D surface displays their relative magnitudes. These
+are a coarse three-frequency execution example, not mesh/boundary convergence
+or measured antenna qualification. Source bytes are unchanged; no private data,
+personal paths or redactions.
 
 ### Reports and artifacts
 

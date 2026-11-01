@@ -115,7 +115,7 @@ class SceneViewportTests(unittest.TestCase):
         view._volume(volume)
         self.assertFalse(view.data_actor.GetProperty().GetLighting())
         self.assertEqual(view.data_actor.GetProperty().GetOpacity(),1.)
-        view._radiation({'theta_rad':[0,1,2],'phi_rad':[-1,0,1],'norm_e':[[1,1,1],[1,2,1],[1,1,1]]})
+        view._radiation({'theta_rad':[0,1,2],'phi_rad':[-1,0,1],'norm_e':[[1,1,1],[1,2,1],[1,1,1]],'frequency_hz':1e9})
         self.assertFalse(view.data_actor.GetProperty().GetLighting())
         self.assertEqual(view.data_actor.GetProperty().GetOpacity(),1.)
 
@@ -215,6 +215,16 @@ class SceneViewportTests(unittest.TestCase):
         view.scene.SetWorldPoint(0,0,4,1);view.scene.WorldToDisplay();x,y,_=view.scene.GetDisplayPoint()
         self.assertEqual(view._pick(x,y),front)
         view.render(options={'field':False});self.assertIsNone(view._pick(x,y))
+
+    def test_volume_camera_fits_original_z_layers_not_the_selected_plane(self):
+        view=self.view;result=dict(self.result);result['field']=dict(result['field'])
+        result['field']['display_volume']={'x_mm':[0,2],'y_mm':[0,2],'z_mm':[1,20],
+            'values':[[[1,2],[3,4]],[[5,6],[7,8]]],'quantity':'E magnitude','unit':'V/m','value_key':'value_v_m'}
+        view.render(lambda *args:None,result,reset=True,options={'field_view':'Volume'})
+        view.set_camera(preset='Top')
+        self.assertGreater(view.scene.GetActiveCamera().GetPosition()[2],20)
+        self.assertGreater(view.scene.GetActiveCamera().GetFocalPoint()[2],result['field']['z_mm'])
+        self.assertEqual(result['field']['display_volume']['z_mm'],[1,20])
 
     def test_native_drag_modes(self):
         view=self.view; interactor=view.window; cam=view.scene.GetActiveCamera()
