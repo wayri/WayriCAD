@@ -97,11 +97,17 @@ class NativePolishTests(unittest.TestCase):
               {'cells':('second',2.),'target':'B'}]
         table.set_rows(rows);table.Select(0)
         self.app.Yield();before=list(selected)
+        from wayricad_runtime.layout import install_accessibility
+        install_accessibility(self.frame);self.app.Yield()
+        def key(code,shift=False):
+            event=wx.KeyEvent(wx.EVT_KEY_DOWN.typeId);event.SetKeyCode(code)
+            event.SetControlDown(True);event.SetShiftDown(shift)
+            table.GetEventHandler().ProcessEvent(event)
         clipboard=Mock();clipboard.Open.return_value=True;clipboard.SetData.return_value=True
         with patch.object(wx,'TheClipboard',clipboard):
-            table._key(SimpleNamespace(ControlDown=lambda:True,GetKeyCode=lambda:ord('C'),ShiftDown=lambda:False))
+            key(ord('C'))
             self.assertEqual(clipboard.SetData.call_args.args[0].GetText(),'Copper\tLoss\nwide reference name\t0.1234567890123')
-            table._key(SimpleNamespace(ControlDown=lambda:True,GetKeyCode=lambda:ord('C'),ShiftDown=lambda:True))
+            key(ord('C'),True)
             self.assertIn('second\t2.0',clipboard.SetData.call_args.args[0].GetText())
             self.assertEqual(clipboard.Close.call_count,2)
             def inspect_menu(menu):
@@ -112,6 +118,8 @@ class NativePolishTests(unittest.TestCase):
             with patch.object(table,'PopupMenu',side_effect=inspect_menu):
                 table._menu(SimpleNamespace(GetPosition=lambda:wx.DefaultPosition))
             self.assertIn('second\t2.0',clipboard.SetData.call_args.args[0].GetText())
+        with patch('wayricad_runtime.layout.read_table') as reader:
+            key(wx.WXK_RETURN,True);reader.assert_called_once_with(table)
         self.assertEqual(selected,before)
         table._hover(SimpleNamespace(GetPosition=lambda:wx.Point(-10,-10),Skip=lambda:None))
         self.assertFalse(table.GetToolTipText())

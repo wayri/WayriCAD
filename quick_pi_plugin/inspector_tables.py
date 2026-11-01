@@ -42,9 +42,12 @@ class InspectorTable(wx.ListCtrl if wx else object):
         super().__init__(parent,style=wx.LC_REPORT|wx.LC_SINGLE_SEL|wx.BORDER_SIMPLE)
         self.SetMinSize((1,85));self.rows=[];self._callback=on_select
         self._updating=False;self.sort_column=None;self.ascending=True;self._titles=[title for title,_ in columns]
+        # Own precision-preserving copy keys instead of the generic reader's
+        # displayed-text copy hook; retain its full-table reader shortcut below.
+        self._wayricad_reader=True
         self._fit_columns=fit_columns;self._manual_columns=False
         for index,(title,width) in enumerate(columns):self.InsertColumn(index,title,width=width)
-        self.SetToolTip('Click a column heading to sort. Drag column borders to resize; scroll horizontally for additional columns. Select a row to focus its copper result.')
+        self.SetToolTip('Click a column heading to sort. Drag column borders to resize; scroll horizontally for additional columns. Select a row to focus its copper result. Ctrl+C copies a row; Ctrl+Shift+C copies the table; Ctrl+Shift+Enter reads full table values.')
         self.Bind(wx.EVT_LIST_COL_CLICK,self._column_clicked)
         self.Bind(wx.EVT_LIST_ITEM_SELECTED,self._selected)
         self.Bind(wx.EVT_LIST_COL_END_DRAG,self._column_resized)
@@ -67,7 +70,7 @@ class InspectorTable(wx.ListCtrl if wx else object):
 
     def _hover(self,event):
         index,_=self.HitTest(event.GetPosition())
-        if 0<=index<len(self.rows):self.SetToolTip(' · '.join(display(value) for value in self.rows[index]['cells'])+'\nCtrl+C: copy row · Ctrl+Shift+C: copy table')
+        if 0<=index<len(self.rows):self.SetToolTip(' · '.join(display(value) for value in self.rows[index]['cells'])+'\nCtrl+C: copy row · Ctrl+Shift+C: copy table · Ctrl+Shift+Enter: read table')
         else:self.UnsetToolTip()
         event.Skip()
 
@@ -82,6 +85,9 @@ class InspectorTable(wx.ListCtrl if wx else object):
         finally:wx.TheClipboard.Close()
 
     def _key(self,event):
+        if event.ControlDown() and event.ShiftDown() and event.GetKeyCode() in (wx.WXK_RETURN,wx.WXK_NUMPAD_ENTER):
+            from wayricad_runtime.layout import read_table
+            read_table(self);return
         if event.ControlDown() and event.GetKeyCode() in (ord('C'),ord('c')):
             self.copy_rows(event.ShiftDown());return
         event.Skip()
