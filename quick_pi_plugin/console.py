@@ -19,7 +19,8 @@ HELP = '''QuickPI commands:
   run pi START D1.1 1V D1.2 END
   run pi START D1.1 diode(Vf=0.7V,Iref=1A,n=2,T=25C) D1.2 END
   run pi START R1:5m:10nH END
-Quote names containing spaces. Pads use reference.number or their unique ID.
+Quote names containing spaces. Pads use reference.number; duplicate numbers
+have a numbered choice such as 'Q1.1 [pad 2/3]' with exact ID kept internally.
 Each intervening copper section must share an actual net. Component shortcuts
 require exactly two distinct pads and an unambiguous incoming net.
 Resistance defaults to ohms; inductance requires H. Prefixes are case-sensitive:
@@ -70,14 +71,29 @@ def _model(text):
     return parse_drop(text) or _rl(text)
 
 
+def terminal_aliases(inventory):
+    """Readable stable choices for duplicate reference.pin labels, keyed by ID."""
+    groups = {}
+    for row in inventory.get('terminals', []):
+        if isinstance(row, dict) and row.get('id') and row.get('label'):
+            groups.setdefault(str(row['label']), []).append(str(row['id']))
+    aliases = {}
+    for label, identifiers in groups.items():
+        for index, identifier in enumerate(sorted(identifiers), 1):
+            aliases[identifier] = (label if len(identifiers) == 1
+                                   else f'{label} [pad {index}/{len(identifiers)}]')
+    return aliases
+
+
 def _inventory(inventory):
     rows = inventory.get('terminals', [])
+    aliases = terminal_aliases(inventory)
     lookup = {}
     by_component = {}
     for row in rows:
         if not isinstance(row, dict) or not row.get('id') or not row.get('label'):
             raise ValueError('Terminal inventory requires nonempty IDs and labels.')
-        for key in {str(row['id']), str(row['label'])}:
+        for key in {str(row['id']), str(row['label']), aliases[str(row['id'])]}:
             lookup.setdefault(key, []).append(row)
         if '.' in str(row['label']):
             reference, pad = str(row['label']).rsplit('.', 1)
@@ -121,7 +137,8 @@ def parse_command(text, inventory):
         if len(tokens) == 2 and tokens[1] not in nets:
             raise ValueError('Unknown net: ' + tokens[1])
         rows = inventory.get('terminals', [])
-        labels = [str(row['label']) + '  [' + str(row.get('net') or 'unassigned') + ']'
+        aliases = terminal_aliases(inventory)
+        labels = [aliases[str(row['id'])] + '  [' + str(row.get('net') or 'unassigned') + ']'
                   for row in rows if len(tokens) == 1 or row.get('net') == tokens[1]]
         return {'console_output': '\n'.join(sorted(labels)) or 'No matching pads.'}
     if tokens[:2] != ['run', 'pi']:
@@ -216,10 +233,75 @@ def suggestions(text, inventory):
     elif completed == ['pads']:
         candidates = inventory.get('nets', [])
     elif completed[:2] == ['run', 'pi']:
-        candidates = [row['label'] for row in inventory.get('terminals', [])]
-        if completed == ['run', 'pi']:
-            candidates = list(inventory.get('nets', [])) + candidates
+        candidates = _path_suggestions(completed[2:],inventory)
     else:
         return []
     return [shlex.join([*completed, candidate]) for candidate in sorted(set(candidates))
-            if candidate.startswith(prefix)]
+            if candidate.casefold().startswith(prefix.casefold())][:50]
+
+
+def _path_suggestions(args, inventory):
+    """Suggest only pads on the currently verified saved-net chain."""
+    lookup, components = _inventory(inventory)
+    aliases = terminal_aliases(inventory)
+    net = None
+    if args and args[0] in inventory.get('nets', []):
+        net = args[0];args = args[1:]
+    if not args:
+        pads = [aliases[str(row['id'])] for row in inventory.get('terminals', [])
+                if row.get('net') and (net is None or row['net'] == net)]
+        return list(inventory.get('nets', [])) + pads if net is None else pads
+    try:
+        source = _terminal(args[0], lookup)
+    except ValueError:
+        return []
+    if net is not None and source['net'] != net:
+        return []
+    cursor = source
+    used = {source['id']}
+    middle = args[1:]
+    while middle:
+        token = middle[0]
+        if ':' in token and token not in lookup:
+            parts = token.split(':')
+            pads = components.get(parts[0], [])
+            incoming = [row for row in pads if row.get('net') == cursor['net']]
+            if len(pads) != 2 or len(incoming) != 1 or len(parts) not in (2, 3):
+                return []
+            try:_model('+'.join(parts[1:]))
+            except ValueError:return []
+            outgoing = next(row for row in pads if row['id'] != incoming[0]['id'])
+            if not outgoing.get('net') or outgoing['net'] == cursor['net']:
+                return []
+            used.update((incoming[0]['id'], outgoing['id']))
+            cursor = outgoing;middle = middle[1:]
+            continue
+        try:entry = _terminal(token, lookup)
+        except ValueError:return []
+        if entry['net'] != cursor['net'] or entry['id'] in used:
+            return []
+        if len(middle) == 1:
+            return ['5m', '100m', '10nH', '1V']
+        try:_model(middle[1])
+        except ValueError:return []
+        if len(middle) == 2:
+            reference = _reference(entry)
+            return [aliases[str(row['id'])] for row in components.get(reference, [])
+                    if row['id'] not in used and row['id'] != entry['id']
+                    and row.get('net') and row['net'] != entry['net']]
+        try:exit_pad = _terminal(middle[2], lookup)
+        except ValueError:return []
+        if _reference(entry) != _reference(exit_pad) or exit_pad['id'] in used or exit_pad['net'] == entry['net']:
+            return []
+        used.update((entry['id'], exit_pad['id']))
+        cursor = exit_pad;middle = middle[3:]
+    rows = inventory.get('terminals', [])
+    pads = [aliases[str(row['id'])] for row in rows if row.get('net') == cursor['net']
+            and row['id'] not in used]
+    shortcuts = []
+    for reference, group in components.items():
+        if (len(group) == 2 and len([row for row in group if row.get('net') == cursor['net']]) == 1
+                and all(row['id'] not in used for row in group)
+                and len({row.get('net') for row in group}) == 2):
+            shortcuts.append(reference+':')
+    return pads+shortcuts

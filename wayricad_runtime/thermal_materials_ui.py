@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from .thermal_materials import (PROPERTY_LABELS, PROPERTY_UNITS, get_material,
-                                list_materials, review_material)
+                                list_materials, review_material, material_form_state,
+                                validate_material_selection)
 
 
 class ThermalMaterialDialog:
@@ -12,7 +13,7 @@ class ThermalMaterialDialog:
     The caller explicitly binds numeric values to its controls and retains the
     selection as provenance; opening this dialog changes no model input.
     """
-    def __init__(self, parent, *, properties=None, category=None, initial_id=None):
+    def __init__(self, parent, *, properties=None, category=None, initial_id=None, initial_selection=None):
         import wx
         self.wx = wx; self.selection = None
         self.allowed = list(PROPERTY_UNITS) if properties is None else list(properties)
@@ -20,6 +21,9 @@ class ThermalMaterialDialog:
             raise ValueError('Choose supported thermal material properties.')
         self.records = list_materials(category)
         if not any(row['id'] == 'custom' for row in self.records): self.records.append(get_material('custom'))
+        self.initial_selection=validate_material_selection(initial_selection) if initial_selection is not None else None
+        if self.initial_selection is not None:
+            initial_id=self.initial_selection['id']
         self.dialog = wx.Dialog(parent, title='Thermal material library · review and apply',
                                 size=(820, 700), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         root = wx.BoxSizer(wx.VERTICAL)
@@ -60,12 +64,13 @@ class ThermalMaterialDialog:
             lines.extend(['', PROPERTY_LABELS[key] + ': ' + str(prop['value']) + ' ' + prop['unit'],
                           'Basis: ' + prop['basis'], prop['conditions'], prop['method']])
         self.evidence.SetValue('\n'.join(lines))
+        form=material_form_state(record['id'],self.allowed,self.initial_selection)
         for key in self.allowed:
-            prop = record['properties'].get(key)
-            self.values[key].SetValue(str(prop['value']) if prop else '')
-            self.checks[key].SetValue(bool(prop) and key == 'thermal_conductivity_w_mk')
-        self.reviewed.SetValue(False); self.review_note.SetValue('')
-        self.status.SetLabel('Select properties and review their conditions before applying.')
+            value=form['values'][key]
+            self.values[key].SetValue(str(value) if value is not None else '')
+            self.checks[key].SetValue(key in form['selected'])
+        self.reviewed.SetValue(False); self.review_note.SetValue(form['review_note'])
+        self.status.SetLabel('Known supported properties are selected together. Review their conditions before applying; unknown values remain blank.')
 
     def selected_record(self):
         """Non-mutating validation entrypoint, also useful for native tests."""

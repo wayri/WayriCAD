@@ -11,7 +11,7 @@ antenna and line templates are optional separate studies; they do not import the
 board's copper.
 
 Quick EMerge is an independently installable testing beta in the
-[WayriCAD 4.0.2 release](https://github.com/wayri/WayriCAD/releases/tag/v4.0.2).
+[WayriCAD 4.1.0 release](https://github.com/wayri/WayriCAD/releases/tag/v4.1.0).
 See the [KiCad workflow help](help.html), [capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md)
 for implemented scope and its limits.
 

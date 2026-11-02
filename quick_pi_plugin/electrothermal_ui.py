@@ -98,6 +98,9 @@ class ElectrothermalStudyDialog(wx.Dialog):
         material_choices=wx.BoxSizer(wx.HORIZONTAL)
         material_choices.Add(wx.StaticText(self,label='Material references'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,10)
         self.material_buttons=[]
+        defaults=wx.Button(self,label='Populate material + ambient defaults…')
+        defaults.Bind(wx.EVT_BUTTON,self._populate_thermal_defaults)
+        material_choices.Add(defaults,0,wx.RIGHT,8);self.material_buttons.append(defaults)
         for role,label in (('dielectric','Dielectric material…'),('copper','Copper material…')):
             button=wx.Button(self,label=label)
             button.Bind(wx.EVT_BUTTON,lambda event,selected=role:self._edit_thermal_material(selected))
@@ -168,6 +171,24 @@ class ElectrothermalStudyDialog(wx.Dialog):
         self.input_path=None; self.input_sha=None; self._invalidate(); self.status.SetLabel('Inputs changed. Rerun electrothermal coupling.')
         if event: event.Skip()
 
+    def _populate_thermal_defaults(self,event=None):
+        if self._busy:return
+        if self._kind()!='steady':
+            self.status.SetLabel('Material defaults apply to the steady board model. Lumped transient heat paths and capacities remain explicit.');return
+        from wayricad_runtime.thermal_defaults_ui import choose_defaults
+        from .electrothermal_cli import parse_envelope
+        try:
+            study=parse_envelope(('{"mode":'+json.dumps(self._kind())+',"study":'+self.setup.GetValue()+'}').encode('utf-8'))['study']
+            settings=study.setdefault('thermal_settings',{})
+            keys=('ambient_c','dielectric_k_w_mk','copper_k_w_mk','via_plating_mm','board_h_w_m2k','board_emissivity')
+            result=choose_defaults(self,{key:settings.get(key) for key in keys})
+            if result is None:return
+            for key in result['changed']:settings[key]=result['values'][key]
+            if result['changed']:
+                self.setup.ChangeValue(json.dumps(study,indent=2,allow_nan=False));self._changed()
+            self.status.SetLabel(str(len(result['changed']))+' thermal starting values populated. Review cooling, electrical properties and material temperature validity before running.')
+        except (ValueError,TypeError) as exc:self.status.SetLabel(str(exc))
+
     def _edit_thermal_material(self,role):
         if self._busy:return
         if self._kind()!='steady':
@@ -179,8 +200,10 @@ class ElectrothermalStudyDialog(wx.Dialog):
             study=parse_envelope(('{"mode":'+json.dumps(self._kind())+',"study":'+self.setup.GetValue()+'}').encode('utf-8'))['study']
         except ValueError:
             self.status.SetLabel('Correct Advanced model inputs before applying a material.');return
+        initial=study.get('material_library',{}).get(role,{}).get('selection')
         picker=ThermalMaterialDialog(self,properties=['thermal_conductivity_w_mk'],
-            category='metal' if role=='copper' else 'laminate')
+            category='metal' if role=='copper' else 'laminate',
+            initial_id='copper-screening' if role=='copper' else 'fr4-screening',initial_selection=initial)
         try:
             if picker.dialog.ShowModal()!=wx.ID_OK:return
             selection=picker.selection;bindings={'thermal_conductivity_w_mk':role+'_k_w_mk'}

@@ -138,3 +138,12 @@ include docs/THERMAL_MATERIALS.md
 include docs/RELEASE_NOTES_4.0.1.md
 include docs/audits/QUICK_TOOLS_POLISH_4.0.1.md
 include docs/RELEASE_NOTES_4.0.2.md
+include docs/RELEASE_NOTES_4.1.0.md
+include docs/audits/RELEASE_4.1.0.md
+include docs/audits/SAVED_FIELD_GRADIENTS_2026-11-02.md
+include docs/audits/REPORT_FORMATS_AND_PATH_SCOPE_2026-11-02.md
+include tests/test_saved_field_render.py
+include tests/test_report_context.py
+include tests/test_report_formats.py
+include tests/test_thermal_defaults.py
+include tests/test_quick_setup_native.py

@@ -74,6 +74,11 @@ No private design or personal path is shown; no redaction was needed.
   [Screening workflow and limits](INSULATION_SCREEN.md).
 - The electrothermal setup and QuickTherm include a [reviewed material library](../docs/THERMAL_MATERIALS.md),
   with source conditions and editable overrides. Opening the picker changes no inputs.
+  **Populate material + ambient defaults…** previews known illustrative thermal
+  starting values, fills blanks by default, and replaces existing values only
+  when explicitly selected. Electrical properties, material validity and lumped
+  transient heat paths remain explicit. Reopened material selections retain
+  their property choices and overrides.
 
 
 **Setup and simulation files:** **Save setup…** and **Load setup…** retain

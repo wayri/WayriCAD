@@ -1,4 +1,4 @@
-"""Detect two-terminal parts across the exact saved net pair; models stay reviewed."""
+"""Detect reviewed parallel parts across an exact saved pair of nets."""
 from __future__ import annotations
 
 import re
@@ -12,11 +12,20 @@ def stage_pads(inventory,source_label,staged,index):
     net=source[0]['net']
     for number,stage in enumerate(staged):
         pads=[row for row in rows if row.get('reference',row.get('label','').rsplit('.',1)[0])==stage['reference']]
-        incoming=[row for row in pads if row.get('net')==net]
-        if len(pads)!=2 or len(incoming)!=1:raise ValueError('Parallel detection needs an unambiguous two-pad primary path.')
-        outgoing=next(row for row in pads if row['id']!=incoming[0]['id'])
-        if number==index:return incoming[0]['id'],outgoing['id']
-        net=outgoing['net']
+        if 'from_pad' in stage or 'to_pad' in stage:
+            incoming=[row for row in pads if stage.get('from_pad') in (row['id'],row.get('label'))]
+            outgoing=[row for row in pads if stage.get('to_pad') in (row['id'],row.get('label'))]
+            if len(incoming)!=1 or len(outgoing)!=1 or incoming[0]['id']==outgoing[0]['id']:
+                raise ValueError('Parallel review needs an explicit primary current-pad pair.')
+            entry,exit_pad=incoming[0],outgoing[0]
+            if entry.get('net')!=net or not exit_pad.get('net') or exit_pad['net']==net:
+                raise ValueError('Explicit primary current pads must cross the reviewed net pair.')
+        else:
+            incoming=[row for row in pads if row.get('net')==net]
+            if len(pads)!=2 or len(incoming)!=1:raise ValueError('Parallel detection needs an unambiguous two-pad primary path.')
+            entry=incoming[0];exit_pad=next(row for row in pads if row['id']!=entry['id'])
+        if number==index:return entry['id'],exit_pad['id']
+        net=exit_pad['net']
     raise ValueError('Select a component stage first.')
 
 
@@ -31,13 +40,16 @@ def candidates(inventory, from_id, to_id, excluded=()):
     excluded=set(excluded)|{start.get('footprint_uuid'),end.get('footprint_uuid')}
     result=[]
     for owner,pads in grouped.items():
-        if owner in excluded or len(pads)!=2 or len({p['id'] for p in pads})!=2:continue
-        incoming=[p for p in pads if p.get('net')==start['net']]
-        outgoing=[p for p in pads if p.get('net')==end['net']]
-        if len(incoming)!=1 or len(outgoing)!=1:continue
+        if owner in excluded or len({p['id'] for p in pads})!=len(pads):continue
+        incoming=sorted((p for p in pads if p.get('net')==start['net']),key=lambda p:str(p['id']))
+        outgoing=sorted((p for p in pads if p.get('net')==end['net']),key=lambda p:str(p['id']))
+        if not incoming or not outgoing:continue
         a,b=incoming[0],outgoing[0]
         result.append({'id':a.get('reference',a.get('label','').rsplit('.',1)[0]),
                        'footprint_uuid':owner,'from_pad':a['id'],'to_pad':b['id'],
+                       'from_pads':[row['id'] for row in incoming],
+                       'to_pads':[row['id'] for row in outgoing],
+                       'excluded_pads':[row['id'] for row in pads if row not in incoming and row not in outgoing],
                        'component_value':a.get('component_value','')})
     return sorted(result,key=lambda row:(row['id'],row['footprint_uuid']))
 
@@ -80,19 +92,35 @@ def with_parallel(request, staged, inventory):
     from .console import _model
     result=deepcopy(request)
     if len(result.get('series',[]))!=len(staged):raise ValueError('Every staged component needs one parsed series branch.')
+    by_id={row['id']:row for row in inventory.get('terminals',[])}
+    primary_owners={by_id[stage['from_pad']].get('footprint_uuid') for stage in result['series']}
+    used_owners=set()
     for spec,configured in zip(result.get('series',[]),staged):
         for key,anchor in (('from_pads','from_pad'),('to_pads','to_pad')):
             if key in configured:spec[key]=reviewed_group(inventory,spec[anchor],configured[key])
         selected=configured.get('parallel',[])
         if not selected:continue
-        available={row['footprint_uuid']:row for row in candidates(inventory,spec['from_pad'],spec['to_pad'])}
+        available={row['footprint_uuid']:row for row in candidates(inventory,spec['from_pad'],spec['to_pad'],primary_owners)}
         branches=[]
         for part in selected:
-            found=available.get(part.get('footprint_uuid'))
+            owner=part.get('footprint_uuid')
+            found=available.get(owner)
             if found is None:raise ValueError('A parallel component no longer spans the selected net pair. Review the path.')
+            if owner in used_owners:raise ValueError('A parallel component may be used only once in the series path.')
+            used_owners.add(owner)
             model=_model(part['model'])
             if 'fixed_drop_v' in model or 'diode' in model:raise ValueError('Parallel DC paths currently support reviewed R/L models, not forward-drop models.')
-            branches.append({key:found[key] for key in ('id','from_pad','to_pad')}|model)
+            left=part.get('from_pad',found['from_pad']);right=part.get('to_pad',found['to_pad'])
+            if left not in found['from_pads'] or right not in found['to_pads']:
+                raise ValueError('A parallel current pad is no longer on the reviewed net pair.')
+            branch={'id':found['id'],'from_pad':left,'to_pad':right,**model}
+            for key,anchor in (('from_pads',left),('to_pads',right)):
+                if key in part:
+                    ids=reviewed_group(inventory,anchor,part[key])
+                    if any(identifier not in found[key] for identifier in ids):
+                        raise ValueError('A parallel pad group is outside the reviewed net pair.')
+                    branch[key]=ids
+            branches.append(branch)
         if 'fixed_drop_v' in spec or 'diode' in spec:raise ValueError('A forward-drop component cannot be used as a parallel R/L stage.')
         spec['parallel']=branches
     return result

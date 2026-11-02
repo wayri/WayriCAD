@@ -4,8 +4,11 @@ import hashlib
 import importlib.util
 import tempfile
 import unittest
+from types import SimpleNamespace as NS
+from unittest.mock import patch
 
 from quick_pi_plugin.parallel_parts import candidates,suggested_resistance,stage_pads,with_parallel
+from quick_pi_plugin.series_editor import draft_from_request,grouped_pad_preview,parse_saved_path
 
 
 def inventory():
@@ -17,7 +20,112 @@ def inventory():
     return {'terminals':rows,'nets':['VIN','OUT','OTHER']}
 
 
+def multipad_inventory():
+    chosen=inventory()
+    for ref in ('Q1','Q2'):
+        for identifier,number,net in [('d1','1','VIN'),('d2','2','VIN'),
+                                      ('s1','3','OUT'),('s2','4','OUT'),('g','5','CTRL')]:
+            chosen['terminals'].append({'id':ref+identifier,'label':ref+'.'+number,
+                'reference':ref,'net':net,'footprint_uuid':ref.lower()})
+    chosen['nets'].append('CTRL')
+    return chosen
+
+
+def multipad_path():
+    return {'schema':1,'source':'J1.1','sink':'U1.1','branches':[
+        {'reference':'Q1','from_pad':'Q1d1','to_pad':'Q1s1',
+         'from_pads':['Q1d1','Q1d2'],'to_pads':['Q1s1','Q1s2'],'model':'100m',
+         'parallel':[{'footprint_uuid':'q2','from_pad':'Q2d1','to_pad':'Q2s1',
+                      'from_pads':['Q2d1','Q2d2'],'to_pads':['Q2s1','Q2s2'],'model':'200m'}]}]}
+
+
 class ParallelPartTests(unittest.TestCase):
+    def test_multipad_q_parallel_keeps_exact_reviewed_groups_and_unequal_models(self):
+        chosen=multipad_inventory();path=multipad_path()
+        found=candidates(chosen,'Q1d1','Q1s1')
+        q2=next(row for row in found if row['id']=='Q2')
+        self.assertEqual(q2['from_pads'],['Q2d1','Q2d2'])
+        self.assertEqual(q2['to_pads'],['Q2s1','Q2s2'])
+        self.assertEqual(q2['excluded_pads'],['Q2g'])
+        parsed=parse_saved_path(path,chosen)
+        primary=parsed['series'][0];parallel=primary['parallel'][0]
+        self.assertEqual((primary['resistance_ohm'],parallel['resistance_ohm']),(.1,.2))
+        self.assertEqual((parallel['from_pads'],parallel['to_pads']),
+                         (['Q2d1','Q2d2'],['Q2s1','Q2s2']))
+        self.assertNotIn('Q2g',str(parsed))
+        preview='\n'.join(grouped_pad_preview(parsed,chosen))
+        self.assertIn('Q2 parallel: Q2.1, Q2.2 → Q2.3, Q2.4',preview)
+        self.assertNotIn('Q2.5',preview)
+        restored=draft_from_request(parsed,chosen)['path']
+        self.assertEqual(parse_saved_path(restored,chosen)['series'],parsed['series'])
+        self.assertEqual(restored['branches'][0]['parallel'][0]['from_pads'],['Q2d1','Q2d2'])
+
+    def test_multipad_parallel_subset_does_not_expand_on_restore(self):
+        chosen=multipad_inventory();path=multipad_path()
+        part=path['branches'][0]['parallel'][0]
+        part.update(from_pad='Q2d2',from_pads=['Q2d2'],to_pads=['Q2s1'])
+        parsed=parse_saved_path(path,chosen)
+        restored=draft_from_request(parsed,chosen)['path']
+        self.assertEqual(restored['branches'][0]['parallel'][0]['from_pads'],['Q2d2'])
+        self.assertEqual(parse_saved_path(restored,chosen)['series'],parsed['series'])
+
+    def test_multipad_parallel_rejects_gate_wrong_owner_reuse_and_drop(self):
+        chosen=multipad_inventory()
+        for change,pattern in [
+            (lambda part:part['from_pads'].append('Q2g'),'one assigned net'),
+            (lambda part:part['from_pads'].append('Q1d2'),'one exact component'),
+            (lambda part:part.update(to_pad='Q2g'),'net pair'),
+            (lambda part:part.update(model='1V'),'R/L'),
+        ]:
+            path=multipad_path();change(path['branches'][0]['parallel'][0])
+            with self.subTest(pattern=pattern),self.assertRaisesRegex(ValueError,pattern):
+                parse_saved_path(path,chosen)
+        path=multipad_path();path['branches'][0]['parallel'].append(
+            dict(path['branches'][0]['parallel'][0]))
+        with self.assertRaisesRegex(ValueError,'only once'):
+            parse_saved_path(path,chosen)
+
+    def test_multipad_parallel_solver_shares_unequal_current_once_per_group(self):
+        from quick_pi_plugin.service import series_execute
+        from quick_pi_plugin.tests.test_solver import strip
+        chosen=multipad_inventory();request=parse_saved_path(multipad_path(),chosen)
+        request.update(source_voltage=3.3,sink_current=2.)
+        def uuid(value):return NS(AsString=lambda:value)
+        footprints=[]
+        for ref in ('J1','Q1','Q2','U1'):
+            rows=[row for row in chosen['terminals'] if row['reference']==ref]
+            pads=[NS(GetNetCode=lambda:1,m_Uuid=uuid(row['id']),
+                     GetNumber=lambda value=row['label'].split('.')[1]:value,
+                     GetNetname=lambda value=row['net']:value) for row in rows]
+            footprints.append(NS(GetReference=lambda value=ref:value,m_Uuid=uuid(ref),
+                                 Pads=lambda values=pads:values))
+        board=NS(GetFootprints=lambda:footprints)
+        def extract(_board,net,**_kwargs):
+            return {'net':net,'terminals':[row for row in chosen['terminals'] if row['net']==net],
+                    'layers':[{'id':0,'name':'F.Cu','polygons':[],'mesh_regions':[]}],
+                    'vias':[],'warnings':[],'counts':{}}
+        def mesh(geometry,**_kwargs):
+            result,left,right=strip(nx=3,ny=5)
+            result['mesh_sizing']={'mode':'manual'};result['mesh_report']=[]
+            if geometry['net']=='VIN':
+                result['terminal_nodes']={'s':[left[2]],'Q1d1':[right[0]],
+                    'Q1d2':[right[1]],'Q2d1':[right[4]],'Q2d2':[right[5]]}
+            else:
+                result['terminal_nodes']={'l':[right[2]],'Q1s1':[left[0]],
+                    'Q1s2':[left[1]],'Q2s1':[left[4]],'Q2s2':[left[5]]}
+            return result
+        with patch('quick_pi_plugin.board_geometry.extract',side_effect=extract), \
+             patch('quick_pi_plugin.mesh.build_mesh',side_effect=mesh):
+            bundle=series_execute(board,Path('Example.kicad_pcb'),request)
+        currents=[row['current_A'] for row in bundle['result']['components']]
+        self.assertEqual(len(currents),2)
+        self.assertAlmostEqual(sum(currents),2.,places=7)
+        self.assertGreater(currents[0],currents[1])
+        self.assertAlmostEqual(currents[0]/currents[1],2.,delta=.03)
+        self.assertEqual([len(row['top_nodes']) for row in bundle['mesh']['lumped_branches']],[2,2])
+        self.assertNotIn('Q1g',bundle['mesh']['terminal_nodes'])
+        self.assertNotIn('Q2g',bundle['mesh']['terminal_nodes'])
+
     def test_detects_exact_pair_including_reverse_pin_order(self):
         found=candidates(inventory(),'R11','R12')
         self.assertEqual([row['id'] for row in found],['C1','R2'])
@@ -30,6 +138,17 @@ class ParallelPartTests(unittest.TestCase):
         self.assertEqual(stage_pads(inventory(),'J1.1',[{'reference':'R1','model':'100m'}],0),('R11','R12'))
         self.assertEqual(suggested_resistance({'id':'L1','component_value':'10uH'}),'')
         self.assertEqual(suggested_resistance({'id':'R2','component_value':'unknown'}),'')
+
+    def test_explicit_multipad_primary_can_review_two_pad_parallel_part(self):
+        chosen=inventory()
+        chosen['terminals'].extend([
+            dict(id='Qin',label='Q1.1',reference='Q1',net='VIN',footprint_uuid='q1'),
+            dict(id='Qout',label='Q1.3',reference='Q1',net='OUT',footprint_uuid='q1'),
+            dict(id='Qgate',label='Q1.2',reference='Q1',net='CTRL',footprint_uuid='q1')])
+        stage={'reference':'Q1','from_pad':'Qin','to_pad':'Qout','model':'100m'}
+        self.assertEqual(stage_pads(chosen,'J1.1',[stage],0),('Qin','Qout'))
+        self.assertEqual([row['id'] for row in candidates(chosen,'Qin','Qout')],['C1','R1','R2'])
+        self.assertNotIn('Qgate',str(stage_pads(chosen,'J1.1',[stage],0)))
 
     def test_reviewed_request_contains_separate_electrical_branches(self):
         request={'series':[{'id':'R1','from_pad':'R11','to_pad':'R12','resistance_ohm':.1}]}

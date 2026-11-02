@@ -34,6 +34,15 @@ Opening the picker changes no settings. Applied values retain their evidence;
 manual changes invalidate that selection and previous simulation results.
 [Available references, units and limits](../docs/THERMAL_MATERIALS.md).
 
+**Material + ambient defaults…** in Setup previews the suite's known
+illustrative conductivity, heat-storage, surface, plating and environment inputs
+together. It fills blanks while retaining loaded or edited values; an explicit
+replacement option applies the preview to existing fields too. Initial, enclosure
+and lower-face temperatures use the chosen ambient when populated. Review these
+starting assumptions before solving; missing material/package evidence stays
+unknown. Material pickers populate all known supported properties and reopen with
+the previous selection and overrides.
+
 **Setup and simulation files:** **Save setup…** and **Load setup…** retain
 editable inputs separately from results. **Save simulation…** opens a filename
 and folder chooser starting in the saved PCB project directory; **Load
