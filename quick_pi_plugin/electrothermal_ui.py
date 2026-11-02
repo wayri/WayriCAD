@@ -281,12 +281,12 @@ class ElectrothermalStudyDialog(wx.Dialog):
 
     def _export(self,event=None):
         if not self.result:return
-        with wx.FileDialog(self,'Export electrothermal evidence',defaultFile='electrothermal.html',wildcard='HTML (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal()!=wx.ID_OK:return
-            path=dialog.GetPath()
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        path=choose_report_path(self,'.','electrothermal','Export electrothermal evidence')
+        if path is None:return
         if Path(path).with_suffix('.json').exists() and wx.MessageBox('Replace the existing paired JSON report?','Paired report exists',wx.YES_NO|wx.NO_DEFAULT,self)!=wx.YES:return
-        try: write_report(path,self.result); self.status.SetLabel('Exported '+path)
-        except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
+        try:self.status.SetLabel(saved_report_message(write_report(path,self.result)))
+        except (ValueError,OSError,RuntimeError) as exc:self.status.SetLabel(str(exc))
 
     def _close(self,event=None):
         if self._busy:

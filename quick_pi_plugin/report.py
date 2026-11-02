@@ -815,6 +815,7 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None,pocket_kivi=Fa
     """Export current-layer maps plus all numeric mesh/results as paired JSON."""
     if pocket_kivi and evidence_reference is not None:
         raise ValueError('Linked child descriptors are not complete standalone numerical evidence; export the parent result.')
+    pdf=Path(path).suffix.lower()=='.pdf'
     pocket=_pocket_evidence(bundle) if pocket_kivi else None
     display_ids=DisplayIDs(bundle)
     published_bundle=dict(bundle,display_identifiers=display_ids.metadata())
@@ -946,19 +947,25 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None,pocket_kivi=Fa
         html+='</table>'
     html+='<h2>Assumptions and inputs</h2><p>'+escape(assumptions.get('notice','DC conduction approximation; not an AC or thermal field solve.'))+'</p><pre>'+escape(json.dumps({'request':bundle.get('request',{}),'material':result.get('material',{}),'thermal':assumptions,'geometry_warnings':bundle.get('geometry',{}).get('warnings',[]),'mesh_report':bundle.get('mesh',{}).get('mesh_report',[])},indent=2))+'</pre></html>'
     document=_review_html(html,bundle)
+    from wayricad_runtime.report_context import organize_report
+    document=organize_report(document,bundle)
     if linked:
         linked=dict(linked,display_identifiers=display_ids.metadata())
         from wayricad_runtime.report_ui import checked_sources,publish_documents
         sources=checked_sources(bundle)  # Validate full original custody, not the descriptor.
-        publish_documents({json_path:json.dumps(linked,indent=2,ensure_ascii=False,allow_nan=False)+'\n',
-                           path:document},sources=sources)
-        return {'html':str(path),'json':str(json_path)}
-    if pocket is not None:return publish_report(path,document,published_bundle,pocket_kivi=pocket)
-    return publish_report(path,document,published_bundle)
+        documents={json_path:json.dumps(linked,indent=2,ensure_ascii=False,allow_nan=False)+'\n',path:document}
+        if pdf:
+            from wayricad_runtime.pdf_report import pdf_bytes
+            documents[path.with_suffix('.pdf')]=pdf_bytes(document,title=path.stem)
+        publish_documents(documents,sources=sources)
+        return dict(html=str(path),json=str(json_path),**({'pdf':str(path.with_suffix('.pdf'))} if pdf else {}))
+    if pocket is not None:return publish_report(path,document,published_bundle,pocket_kivi=pocket,pdf=pdf)
+    return publish_report(path,document,published_bundle,pdf=pdf)
 
 
 def write_sweep_report(path,bundle,*,pocket_kivi=False):
     """Export a standalone voltage/current chart and exact JSON sweep rows."""
+    pdf=Path(path).suffix.lower()=='.pdf'
     pocket=_pocket_evidence(bundle) if pocket_kivi else None
     sweep=bundle.get('sweep')
     if not sweep or not sweep.get('rows'):
@@ -992,12 +999,13 @@ def write_sweep_report(path,bundle,*,pocket_kivi=False):
     samples=[[row['current_A'],row[key],row[key],key] for key in ('path_drop_V','sink_voltage_V') for row in rows]
     html=html.replace('</html>',interactive_plot('DC current sweep',samples,'V',x_unit='A',y_unit='V',connect=True)+'</html>')
     document=_review_html(html,bundle)
-    if pocket is not None:return publish_report(path,document,bundle,pocket_kivi=pocket)
-    return publish_report(path,document,bundle)
+    if pocket is not None:return publish_report(path,document,bundle,pocket_kivi=pocket,pdf=pdf)
+    return publish_report(path,document,bundle,pdf=pdf)
 
 
 def write_diagnostic_report(path, bundle, *, pocket_kivi=False):
     """Export return-path findings without remote assets."""
+    pdf=Path(path).suffix.lower()=='.pdf'
     pocket=_pocket_evidence(bundle) if pocket_kivi else None
     result = bundle.get('return_path')
     if not result:
@@ -1018,8 +1026,8 @@ def write_diagnostic_report(path, bundle, *, pocket_kivi=False):
         html += '<tr>' + ''.join('<td>' + escape(str(value)) + '</td>' for value in (
             row['level'], row['code'], row['layer'], position, row['detail'])) + '</tr>'
     document=_review_html(html+'</table></html>',bundle)
-    if pocket is not None:return publish_report(path,document,bundle,pocket_kivi=pocket)
-    return publish_report(path,document,bundle)
+    if pocket is not None:return publish_report(path,document,bundle,pocket_kivi=pocket,pdf=pdf)
+    return publish_report(path,document,bundle,pdf=pdf)
 
 
 def interactive_fields(bundle,layer):
@@ -1063,6 +1071,7 @@ def saved_field_surface(bundle,layer,metric):
 
 def write_batch_report(path,bundle,*,pocket_kivi=False):
     """Publish an offline independent-case index plus linked per-case evidence."""
+    pdf=Path(path).suffix.lower()=='.pdf'
     from tempfile import TemporaryDirectory
     from urllib.parse import quote
     from wayricad_runtime.report_ui import checked_sources, publish_documents
@@ -1182,6 +1191,15 @@ def write_batch_report(path,bundle,*,pocket_kivi=False):
     # one-byte Python string. Avoid copying the entire archive to add a newline.
     documents[evidence]=json.dumps(bundle,separators=(',',':'),ensure_ascii=True,allow_nan=False)
     documents[output]=document
+    from wayricad_runtime.report_context import organize_report
+    documents[output]=organize_report(document,bundle)
+    if pdf:
+        from wayricad_runtime.pdf_report import pdf_bytes
+        printable=documents[output]
+        for child,content in documents.items():
+            if child!=output and child.suffix.lower()=='.html':
+                printable+='\n'+(content.decode('utf-8') if isinstance(content,bytes) else content)
+        documents[output.with_suffix('.pdf')]=pdf_bytes(printable,title='Quick PI study and case reports')
     sources=checked_sources(bundle)
     if pocket_kivi:
         sources.extend(pocket_sources)
@@ -1190,5 +1208,6 @@ def write_batch_report(path,bundle,*,pocket_kivi=False):
         publish_documents(documents,sources=sources,source_guard=guard)
     else:publish_documents(documents,sources=sources)
     result={'html':str(output),'json':str(evidence),'case_reports':links}
+    if pdf:result['pdf']=str(output.with_suffix('.pdf'))
     if pocket_kivi:result['pocket_kivi_jsons']=pocket_paths
     return result

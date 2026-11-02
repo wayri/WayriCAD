@@ -712,16 +712,16 @@ class QuickSIPanel(wx.Panel):
             from .service import source_fingerprints
             if self._result_fingerprints!=source_fingerprints(source):
                 self.changed(None);self.status.SetLabel('Saved sources changed; reopen Quick SI and rerun before export.');return
-        with wx.FileDialog(self,'Save Quick SI results and Pocket KiVi data',defaultDir=str(source.parent),defaultFile=source.stem+'-quick-si.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal()!=wx.ID_OK:return
-            destination=dialog.GetPath()
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        destination=choose_report_path(self,source.parent,source.stem+'-quick-si')
+        if destination is None:return
         from .saved_results import write_results
         report=self.study_report or self.report
         study=self.study_report is not None
         fingerprints=dict(self._result_fingerprints) if self._result_fingerprints else None
         saved=bool(self.saved_board)
         def finished(result):
-            self.status.SetLabel('Saved HTML, full numerical JSON'+(' and Pocket KiVi JSON' if result.get('pocket_kivi_json') else ' (live source remains unverified)')+': '+result['html'])
+            self.status.SetLabel(saved_report_message(result)+(' (live source remains unverified)' if not saved else ''))
         self._blender_task(lambda:write_results(destination,report,board_path=source,
             fingerprints=fingerprints,saved=saved,study=study),finished,
             'Saving complete SI numerical results and report…',label='Save results')

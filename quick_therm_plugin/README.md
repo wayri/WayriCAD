@@ -451,4 +451,6 @@ Drag the divider beside Setup or Details to resize that sidebar. Both sidebars c
 
 ## HTML and PDF reports
 
+Export report now offers HTML and PDF. PDF saves a printable companion together with HTML and complete numerical JSON; interactive views remain available in HTML. Reports place plots and data under recorded net/path scope, list full source paths, and identify grouped endpoints by reference and pin number. Series stages retain their declared order and models; absent connectivity stays Unknown.
+
 Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.

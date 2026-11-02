@@ -325,9 +325,9 @@ class BatchStudyDialog(wx.Dialog):
 
     def export_report(self,event=None):
         if self._busy or not self.result:return
-        with wx.FileDialog(self,'Save PI study and Pocket KiVi case data',defaultFile='pi-cases.html',wildcard='HTML (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal()!=wx.ID_OK:return
-            target=dialog.GetPath()
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        target=choose_report_path(self,'.','pi-cases','Export PI study')
+        if target is None:return
         result=self.result
         self._busy=True;self._saving_results=True;self.export.Disable();self.run.Disable()
         controls=(self.setup,self.add,self.units,self.returns,self.edit_return,self.remove_return,self.load,self.save)
@@ -339,7 +339,7 @@ class BatchStudyDialog(wx.Dialog):
             if self._closing:self.finish_close();return
             self.export.Enable();self.run.Enable()
             for control in controls:control.Enable()
-            self.status.SetLabel(error if error else 'Saved reports and '+str(len(paths.get('pocket_kivi_jsons',[])))+' portable case files: '+target)
+            self.status.SetLabel(error if error else saved_report_message(paths)+' · '+str(len(paths.get('pocket_kivi_jsons',[])))+' portable case files')
         def work():
             paths=error=None
             try:

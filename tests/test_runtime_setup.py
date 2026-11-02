@@ -57,6 +57,9 @@ class RuntimeSetupTests(unittest.TestCase):
             bootstrap.relaunch(Path('plugin'), 'ipc_entrypoint.py', profile='extract')
             self.assertEqual(ensure.call_args.args[0],
                              {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_EXTRACT})
+            bootstrap.relaunch(Path('plugin'), 'ipc_entrypoint.py', profile='quick-si')
+            self.assertEqual(ensure.call_args.args[0],
+                             {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_REPORTS})
             bootstrap.relaunch(Path('plugin'), 'desktop_entrypoint.py', profile='bom')
             self.assertEqual(ensure.call_args.args[0],
                              {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_BOM})

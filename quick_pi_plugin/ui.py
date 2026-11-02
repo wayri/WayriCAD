@@ -173,7 +173,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         actions=wx.GridSizer(0,2,5,5)
         self.preview=icon_button(self.setup_panel,'Preview',wx.ART_FIND,'Preview saved copper before solving')
         self.run=icon_button(self.setup_panel,'Run',wx.ART_GO_FORWARD,'Run the selected copper simulation')
-        self.export=icon_button(self.setup_panel,'Save results',wx.ART_FILE_SAVE,'Save HTML, complete numerical JSON and portable Pocket KiVi data')
+        self.export=icon_button(self.setup_panel,'Save results',wx.ART_FILE_SAVE,'Save HTML or PDF, complete numerical JSON and portable Pocket KiVi data')
         self.series_button=icon_button(self.setup_panel,'Series',wx.ART_LIST_VIEW,'Build a series path with explicit components')
         self.power_flow=icon_button(self.setup_panel,'Power flow',wx.ART_REPORT_VIEW,'Open the source-to-sink Sankey power budget')
         self.blender=icon_button(self.setup_panel,'Blender…',wx.ART_FILE_SAVE,'Export solved geometry and fields for Blender visualization')
@@ -1691,14 +1691,12 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def on_export_diagnostic(self,kind):
         bundle=self.return_bundle
         if kind not in bundle:return
-        name=Path(self.board_path).stem+'-return-path.html'
-        with wx.FileDialog(self,'Export analysis',defaultDir=str(Path(self.board_path).parent),defaultFile=name,
-                           wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal()!=wx.ID_OK:return
-            path=dialog.GetPath()
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        path=choose_report_path(self,Path(self.board_path).parent,Path(self.board_path).stem+'-return-path')
+        if path is None:return
         from .report import write_diagnostic_report
         self._task(lambda:write_diagnostic_report(path,bundle,pocket_kivi=True),
-            lambda result:self.return_status.SetLabel('Exported '+result['html']),
+            lambda result:self.return_status.SetLabel(saved_report_message(result)),
             'Writing local HTML and JSON evidence…')
 
     def on_help(self,event=None):
@@ -1847,18 +1845,16 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def _export_3d(self,parent,bundle):
         if not bundle.get('result'):return
         name=Path(self.board_path).stem+'-quick-pi-3d.html'
-        with wx.FileDialog(parent,'Export 3D field',defaultDir=str(Path(self.board_path).parent),
-                           defaultFile=name,wildcard='HTML (*.html)|*.html',
-                           style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as picker:
-            if picker.ShowModal()!=wx.ID_OK:return
-            target=Path(picker.GetPath())
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        target=choose_report_path(parent,Path(self.board_path).parent,Path(name).stem,'Export 3D field')
+        if target is None:return
         try:
             from .volume_view import write_volume_report
-            write_volume_report(target,bundle,pocket_kivi=True)
-        except (OSError,ValueError) as exc:
+            exported=write_volume_report(target,bundle,pocket_kivi=True)
+        except (OSError,ValueError,RuntimeError) as exc:
             wx.MessageBox('Could not export the 3D result: '+str(exc),'Quick PI',wx.OK|wx.ICON_ERROR,parent)
             return
-        self.status.SetLabel('Exported complete 3D field: '+str(target))
+        self.status.SetLabel(saved_report_message(exported))
 
     def on_series_details(self,event=None):
         components=self.bundle.get('result',{}).get('components',[])
@@ -2149,12 +2145,12 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if not self.bundle.get('result'):return
         if not self._snapshot_current():
             self.status.SetLabel('Saved board changed. Reload and rerun before exporting.');return
-        with wx.FileDialog(self,'Export self-contained results',defaultDir=str(Path(self.board_path).parent),defaultFile=Path(self.board_path).stem+'-quick-pi.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal()!=wx.ID_OK:return
-            path=dialog.GetPath()
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        path=choose_report_path(self,Path(self.board_path).parent,Path(self.board_path).stem+'-quick-pi')
+        if path is None:return
         selected=self.layer.GetSelection();layer=self._layers[selected]['id'] if selected>=0 else None
         bundle=self.bundle
-        self._task(lambda:write_report(path,bundle,layer,pocket_kivi=True),lambda result:self.status.SetLabel('Saved HTML, full numerical JSON and Pocket KiVi JSON: '+result['html']),
+        self._task(lambda:write_report(path,bundle,layer,pocket_kivi=True),lambda result:self.status.SetLabel(saved_report_message(result)),
                    'Saving the report and all-layer numerical results for Pocket KiVi…')
 
     def on_blender(self,event=None):

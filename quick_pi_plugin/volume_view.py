@@ -86,15 +86,16 @@ def write_volume_report(path,bundle,*,pocket_kivi=False):
     """Export offline orbit/pan/zoom views and exact sampled cell probes."""
     import json
     from pathlib import Path
+    pdf=Path(path).suffix.lower()=='.pdf'
     from wayricad_runtime.interactive_plots import interactive_plot
+    from wayricad_runtime.report_ui import publish_report,report_paths
     pocket=None
     if pocket_kivi:
         from .report import _pocket_evidence
-        from wayricad_runtime.report_ui import publish_report,report_paths
         pocket=_pocket_evidence(bundle)
-        path,_=report_paths(path)
-    else:
-        path=Path(path).with_suffix('.html');path.parent.mkdir(parents=True,exist_ok=True)
+    path,_=report_paths(path)
+    if pocket is None and not pdf:
+        path.parent.mkdir(parents=True,exist_ok=True)
         path.with_suffix('.json').write_text(json.dumps(bundle,allow_nan=False),encoding='utf-8')
     html='<html lang="en"><meta charset="utf-8"><title>Quick PI 3D copper</title><style>body{font:15px system-ui;max-width:1100px;margin:30px auto}figure{margin:18px 0}</style><h1>Quick PI 3D copper</h1><p>Display samples only. Exact complete tetrahedron results are retained in the paired JSON. This is fixed-temperature DC conduction, not AC impedance or thermal transient analysis.</p>'
     from .sankey import sankey_section
@@ -103,6 +104,22 @@ def write_volume_report(path,bundle,*,pocket_kivi=False):
         xyz,values,count=sampled_cells(bundle,quantity=quantity)
         rows=[[float(p[0]),float(p[1]),float(v),'Sampled cell',float(p[2])] for p,v in zip(xyz,values)]
         html+=interactive_plot(label,rows,label,three_d=True)
-    if pocket is not None:return publish_report(path,html+'</html>',bundle,pocket_kivi=pocket)
-    path.write_text(html+'</html>',encoding='utf-8')
+        if pdf and len(values):
+            import base64
+            from io import BytesIO
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_agg import FigureCanvasAgg
+            from html import escape
+            figure=Figure(figsize=(7,5));FigureCanvasAgg(figure)
+            axis=figure.add_subplot(projection='3d')
+            image=axis.scatter(xyz[:,0],xyz[:,1],xyz[:,2],c=values,cmap='inferno',s=8)
+            axis.set_xlabel('X (mm)');axis.set_ylabel('Y (mm)');axis.set_zlabel('Z (mm)')
+            axis.set_title(label+' · saved display samples')
+            figure.colorbar(image,ax=axis,shrink=.65)
+            output=BytesIO();figure.savefig(output,format='png',dpi=140,bbox_inches='tight')
+            html+='<figure><img alt="'+escape(label)+' saved 3D samples" src="data:image/png;base64,'+base64.b64encode(output.getvalue()).decode('ascii')+'"><figcaption>Static projection of '+str(len(values))+' saved display samples; complete numerical cells remain in JSON.</figcaption></figure>'
+    if pocket is not None or pdf:
+        return publish_report(path,html+'</html>',bundle,pocket_kivi=pocket,pdf=pdf)
+    from wayricad_runtime.report_context import organize_report
+    path.write_text(organize_report(html+'</html>',bundle),encoding='utf-8')
     return {'html':str(path),'json':str(path.with_suffix('.json'))}

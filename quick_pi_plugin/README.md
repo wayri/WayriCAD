@@ -1363,6 +1363,8 @@ use computed synthetic data and contain no private board or local folder paths.
 
 ## HTML and PDF reports
 
+Export report now offers HTML and PDF. PDF saves a printable companion together with HTML and complete numerical JSON; interactive views remain available in HTML. Reports place plots and data under recorded net/path scope, list full source paths, and identify grouped endpoints by reference and pin number. Series stages retain their declared order and models; absent connectivity stays Unknown.
+
 Saved HTML field maps retain the native viewport's smooth gradient, palette and
 selected scale. Selecting **Solver cells** before export retains flat cell
 colors instead. Gradients cover only the saved solved mesh; holes and unknown

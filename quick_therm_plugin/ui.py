@@ -341,19 +341,14 @@ class QuickThermFrame(wx.Frame):
     def on_export_diagnostic(self, kind="quick_therm"):
         if not self.thermal_bundle.get("quick_therm"):
             return
-        name = Path(self.board_path).stem + "-quick-therm.html"
-        with wx.FileDialog(self, "Save QuickTherm results and Pocket KiVi data",
-                           defaultDir=str(Path(self.board_path).parent), defaultFile=name,
-                           wildcard="HTML report (*.html)|*.html",
-                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal() != wx.ID_OK:
-                return
-            path = dialog.GetPath()
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        path=choose_report_path(self,Path(self.board_path).parent,Path(self.board_path).stem+'-quick-therm')
+        if path is None:return
         from .report import write_report
 
         bundle = self.thermal_bundle
         self._task(lambda: write_report(path, bundle, pocket_kivi=True),
-                   lambda result: self.therm_status.SetLabel("Saved HTML, complete numerical JSON and Pocket KiVi JSON: " + result["html"]),
+                   lambda result: self.therm_status.SetLabel(saved_report_message(result)),
                    "Saving thermal fields, frames and report for Pocket KiVi…")
 
     def on_blender(self,event=None):
@@ -624,7 +619,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_whole_board=wx.Button(page,label='Board model…');self.therm_whole_board.Bind(wx.EVT_BUTTON,self.on_whole_board_setup)
         self.therm_whole_board.SetToolTip('Review materials and boundaries for a physical board field.')
         self.therm_sink_button=wx.Button(page,label='Heatsinks…');self.therm_sink_button.Bind(wx.EVT_BUTTON,self.on_virtual_heatsinks)
-        self.therm_export=wx.Button(page,label='Save results…');self.therm_export.SetToolTip('Save HTML, complete numerical JSON and portable Pocket KiVi data.');self.therm_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('quick_therm'))
+        self.therm_export=wx.Button(page,label='Save results…');self.therm_export.SetToolTip('Save HTML or PDF, complete numerical JSON and portable Pocket KiVi data.');self.therm_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('quick_therm'))
         self.therm_blender=wx.Button(page,label='Blender…');self.therm_blender.Bind(wx.EVT_BUTTON,self.on_blender)
         self.therm_blender.SetToolTip('Export current board temperatures and stored computed frames for Blender.')
         self.therm_sankey=wx.Button(page,label='Dissipation Sankey…');self.therm_sankey.Bind(wx.EVT_BUTTON,self.on_thermal_sankey)
