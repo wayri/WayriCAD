@@ -14,8 +14,8 @@ installable plugins in the source catalogue. Processing runs locally after setup
 [Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
 GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
 
-**Release 4.1.1:** retained series-path setups, readable pin groups and manual path
-suggestions; material/ambient defaults; scoped HTML/PDF reports with saved field gradients.
+**Release 4.1.1:** completed series paths open across all solved copper layers;
+saved series simulations open on a complete-path potential overview.
 [Download 4.1.1](https://github.com/wayri/WayriCAD/releases/tag/v4.1.1) ·
 [Release notes](docs/RELEASE_NOTES_4.1.1.md) · [Getting started](#getting-started)
 
