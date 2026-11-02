@@ -18,12 +18,14 @@ def capture(frame):
     return deepcopy(dict(controls=capture_controls(frame,**OPTIONS),net=frame.net.GetValue(),
         endpoints=endpoints,return_nets=frame._return_selected_nets(),return_pads=returns,
         extra_sinks=frame._extra_sinks,series_request=frame._series_request,
-        package_conduction=frame._package_conduction))
+        package_conduction=frame._package_conduction,
+        series_draft=getattr(frame,'_series_draft',None)))
 
 
 def validate(frame,state):
     required={'controls','net','endpoints','return_nets','return_pads','extra_sinks','series_request','package_conduction'}
-    if not isinstance(state,dict) or set(state)!=required:raise ValueError('Incomplete Quick PI setup.')
+    if not isinstance(state,dict) or not required.issubset(state) or set(state)-required-{'series_draft'}:
+        raise ValueError('Incomplete Quick PI setup.')
     validate_controls(frame,state['controls'],**OPTIONS)
     nets=frame.inventory.get('nets',[])
     if state['net'] not in nets:raise ValueError('Saved PI net is not present in this board.')
@@ -36,7 +38,7 @@ def validate(frame,state):
     if not isinstance(state['return_nets'],list) or any(name not in nets for name in state['return_nets']):
         raise ValueError('Saved return nets no longer exist.')
     for identifier in state['endpoints'].values():
-        if identifier is not None and terminals[identifier].get('net')!=state['net']:
+        if state['series_request'] is None and identifier is not None and terminals[identifier].get('net')!=state['net']:
             raise ValueError('Saved endpoint is no longer on the selected net.')
     for identifier in state['return_pads'].values():
         if identifier is not None and terminals[identifier].get('net') not in state['return_nets']:
@@ -73,6 +75,19 @@ def validate(frame,state):
                 if key in row and (not isinstance(row[key],list) or any(value not in terminals for value in row[key])):
                     raise ValueError('A saved series electrode no longer exists.')
             pending.extend(value for value in row.values() if isinstance(value,(dict,list)))
+        from .series_editor import draft_from_request,parse_saved_path
+        # Validate the complete cross-net topology and all electrodes, not the
+        # single-net picker's endpoint restriction.
+        parse_saved_path(draft_from_request(request,frame.inventory)['path'],frame.inventory)
+        for role,key in (('source','source_terminal'),('sink','sink_terminal')):
+            if state['endpoints'][role]!=request.get(key):
+                raise ValueError('Saved series endpoint controls do not match the path.')
+    draft=state.get('series_draft')
+    if draft is not None:
+        if (not isinstance(draft,dict) or not isinstance(draft.get('path'),dict)
+                or not isinstance(draft['path'].get('branches'),list)
+                or len(draft['path']['branches'])>128):
+            raise ValueError('Invalid saved series editor draft.')
     return deepcopy(state)
 
 
@@ -89,8 +104,15 @@ def restore(frame,state):
         label=next((name for name,value in frame._return_pad_ids.items() if value==identifier),'Not specified')
         getattr(frame,'return_'+role).SetStringSelection(label)
     frame._extra_sinks=deepcopy(state['extra_sinks']);frame._series_request=deepcopy(state['series_request'])
+    frame._series_draft=deepcopy(state.get('series_draft'))
     frame._package_conduction=deepcopy(state['package_conduction'])
-    if frame._series_request:frame._series_request['board_path']=frame.board_path
+    if frame._series_request:
+        frame._series_request['board_path']=frame.board_path
+        from .series_session import restore_endpoints
+        restore_endpoints(frame,frame._series_request)
+        if frame._series_draft is None:
+            from .series_editor import draft_from_request
+            frame._series_draft=draft_from_request(frame._series_request,frame.inventory)
     frame.loads_button.SetLabel(f'Additional sinks ({len(frame._extra_sinks)})…')
     frame.package_button.SetLabel(f'Package contacts ({len(frame._package_conduction)})…')
     frame.current_label.SetLabel(('Load · A','Load · Ω','Load · W')[frame.load_mode.GetSelection()])

@@ -104,6 +104,29 @@ def get_material(identifier):
     raise ValueError('Unknown thermal material preset: ' + str(identifier))
 
 
+def material_form_state(identifier, properties, selection=None):
+    """Populate every known supported property; never turn an unknown into zero.
+
+    A current reviewed selection retains its overrides and selected fields when
+    reopened. Choosing a different reference returns that reference's values.
+    """
+    properties = list(properties)
+    if not properties or set(properties) - PROPERTY_UNITS.keys():
+        raise ValueError('Choose supported thermal material properties.')
+    record = get_material(identifier)
+    if selection is not None:
+        selection = validate_material_selection(selection)
+    selected = list(record['properties'])
+    note = ''
+    if selection is not None and selection['id'] == identifier:
+        record['properties'].update(selection['properties'])
+        selected = list(selection['properties'])
+        note = selection['review_note']
+    return {'values': {key: record['properties'][key]['value'] if key in record['properties'] else None
+                       for key in properties},
+            'selected': [key for key in properties if key in selected], 'review_note': note}
+
+
 def _positive(value, name):
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
         raise ValueError(name + ' must be a known finite positive SI value.')

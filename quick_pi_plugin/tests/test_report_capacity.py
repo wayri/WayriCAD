@@ -40,10 +40,10 @@ class ReportCapacityTests(unittest.TestCase):
         class LargeTriangles:
             def __len__(self):return 100001
         bundle['mesh']['triangles']=LargeTriangles()
-        self.assertEqual(report._static_report_plan(bundle),(('drop','density','loss'),'cells',True))
+        self.assertEqual(report._static_report_plan(bundle),(('drop','density','loss'),'smooth',True))
         bundle['report_options']={'extended_snapshots':True}
         self.assertEqual(len(report._static_report_plan(bundle)[0]),8)
-        self.assertEqual(report._static_report_plan(bundle)[1],'cells')
+        self.assertEqual(report._static_report_plan(bundle)[1],'smooth')
         for options in ({'extended_snapshots':1},{'extended_snapshots':'yes'},{'unknown':True},[]):
             bundle['report_options']=options
             with self.subTest(options=options),self.assertRaises(ValueError):report._static_report_plan(bundle)
@@ -84,16 +84,23 @@ class ReportCapacityTests(unittest.TestCase):
              patch.object(report,'interactive_fields',wraps=report.interactive_fields) as interactive:
             paths=report.write_report(Path(directory)/'dense.html',bundle)
             self.assertEqual([call.args[2] for call in snapshot.call_args_list],['drop','density','loss'])
-            self.assertTrue(all(call.args[3]=='cells' for call in snapshot.call_args_list))
+            self.assertTrue(all(call.args[3]=='smooth' for call in snapshot.call_args_list))
             interactive.assert_called_once()
             html=Path(paths['html']).read_text(encoding='utf-8')
-            self.assertIn('Solver cells style',html)
+            self.assertIn('retains the selected field style',html)
             self.assertNotIn('Additional potential, resistance, flow',html)
             exported=json.loads(Path(paths['json']).read_text(encoding='utf-8'))
             labels=exported.pop('display_identifiers')
             self.assertEqual(labels['scheme'],'wayricad.pi-display-ids/v1')
             self.assertEqual(exported,bundle)
         self.assertEqual(bundle,before)
+
+    def test_large_report_preserves_explicit_solver_cells(self):
+        bundle=dense_bundle();bundle['view_settings']={'field_style':'cells'}
+        metrics,style,large=report._static_report_plan(bundle)
+        self.assertTrue(large)
+        self.assertEqual(style,'cells')
+        self.assertEqual(metrics,('drop','density','loss'))
 
     def test_snapshot_releases_figure_cycles(self):
         references=[];native=report.draw_view

@@ -330,10 +330,11 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
                       title='Quick EMerge study', include_figures=True, derived_network=None):
     """Create a self-contained report; no files are written or network accessed."""
     snapshot=deepcopy(result)
+    from wayricad_runtime.report_context import organize_report
     network=validate_report_result(snapshot,expected_config=expected_config,expected_source=expected_source,verify_source=verify_source)
     if network is None:
         if derived_network is not None: raise ValueError('Derived network requires an original sampled network')
-        return _build_nonnetwork(snapshot,result,expected_config,expected_source,verify_source,probes,line_profile,title,include_figures)
+        return organize_report(_build_nonnetwork(snapshot,result,expected_config,expected_source,verify_source,probes,line_profile,title,include_figures),snapshot)
     derived_snapshot=deepcopy(derived_network) if derived_network is not None else None
     derived_html=_derived_section(derived_snapshot,network,snapshot,include_figures) if derived_snapshot is not None else ''
     analysis=network.analyze()
@@ -432,7 +433,7 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
     if derived_snapshot is not None: _derived_section(derived_snapshot,network,snapshot,False)
     if result_digest(result)!=custody:
         raise ValueError('Result changed during report generation; retry from current data')
-    return ''.join(chunks)
+    return organize_report(''.join(chunks),snapshot)
 
 
 def _publish(path,result,content,extension,validation):

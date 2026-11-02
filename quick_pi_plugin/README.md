@@ -74,6 +74,11 @@ No private design or personal path is shown; no redaction was needed.
   [Screening workflow and limits](INSULATION_SCREEN.md).
 - The electrothermal setup and QuickTherm include a [reviewed material library](../docs/THERMAL_MATERIALS.md),
   with source conditions and editable overrides. Opening the picker changes no inputs.
+  **Populate material + ambient defaults…** previews known illustrative thermal
+  starting values, fills blanks by default, and replaces existing values only
+  when explicitly selected. Electrical properties, material validity and lumped
+  transient heat paths remain explicit. Reopened material selections retain
+  their property choices and overrides.
 
 
 **Setup and simulation files:** **Save setup…** and **Load setup…** retain
@@ -1362,6 +1367,14 @@ numbers and units. Full values are also available in row tooltips. These capture
 use computed synthetic data and contain no private board or local folder paths.
 
 ## HTML and PDF reports
+
+Export report now offers HTML and PDF. PDF saves a printable companion together with HTML and complete numerical JSON; interactive views remain available in HTML. Reports place plots and data under recorded net/path scope, list full source paths, and identify grouped endpoints by reference and pin number. Series stages retain their declared order and models; absent connectivity stays Unknown.
+
+Saved HTML field maps retain the native viewport's smooth gradient, palette and
+selected scale. Selecting **Solver cells** before export retains flat cell
+colors instead. Gradients cover only the saved solved mesh; holes and unknown
+regions remain empty. Interactive probes report exact saved cell values,
+independently of display shading. Large reports retain the selected shading.
 
 Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.
 

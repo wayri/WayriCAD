@@ -51,7 +51,10 @@ def test_native_saved_pi_plot_and_pin_preserve_original_values(owner, app):
         spec=viewer.current_spec()
         event=SimpleNamespace(inaxes=viewer.figure.axes[0],xdata=spec['x'][0],ydata=spec['y'][0],button=1)
         viewer.pin(event)
-        assert viewer.pins[0]['value']==original['result']['potential_V'][0]
+        matching=[original['result']['potential_V'][i] for i,point in enumerate(original['mesh']['points_mm'])
+                  if point[:2]==[event.xdata,event.ydata] and point[2]==spec['z']]
+        assert matching and len(set(matching))==1
+        assert viewer.pins[0]['value']==matching[0]
         assert viewer.bundle==original
         assert not hasattr(viewer,'board') and not hasattr(viewer,'_accept_result')
     finally:viewer.Destroy();app.Yield()

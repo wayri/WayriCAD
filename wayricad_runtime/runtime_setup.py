@@ -48,6 +48,7 @@ def _pip_source_options(python):
 
 REQUIREMENTS_IPC = {'kipy': 'kicad-python>=0.8.0,<0.9'}
 REQUIREMENTS_EXTRACT = {'networkx': 'networkx>=2.8,<4'}
+REQUIREMENTS_REPORTS = {'reportlab': 'reportlab>=4,<5'}
 REQUIREMENTS_BOM = {
     'zstandard': 'zstandard>=0.25,<1',
     # Loading geometry also loads GEOS; the lightweight root alone can pass
@@ -55,6 +56,7 @@ REQUIREMENTS_BOM = {
     'shapely.geometry': 'shapely>=2,<3',
 }
 REQUIREMENTS_QUICK_PI = {
+    'reportlab': 'reportlab>=4,<5',
     # Post-solve same-layer insulation screening uses validated polygon gaps.
     'shapely.geometry': 'shapely>=2,<3',
     'numpy': 'numpy>=1.24,<3', 'scipy': 'scipy>=1.10,<2',
@@ -67,6 +69,7 @@ REQUIREMENTS_QUICK_PI = {
     'kipy': 'kicad-python>=0.8.0,<0.9',
 }
 REQUIREMENTS_QUICK_THERM = {
+    'reportlab': 'reportlab>=4,<5',
     'numpy': 'numpy>=1.24,<3', 'scipy': 'scipy>=1.10,<2',
     'matplotlib': 'matplotlib>=3.7,<4',
     'kipy': 'kicad-python>=0.8.0,<0.9',

@@ -7,7 +7,7 @@ import pytest
 
 from wayricad_runtime.project_results import save_result, load_result
 from wayricad_runtime.project_results_ui import (MAX_PLOT_SAMPLES, binding_text, frame_grid,
-                                                plot_specs, probe_sample)
+                                                plot_specs, probe_sample, _saved_field_image)
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / 'docs/examples/pocket-kivi'
@@ -32,10 +32,134 @@ def test_library_roundtrip_actual_complete_samples_keeps_values(tmp_path, name, 
 
 def test_pi_probes_read_exact_stored_node_and_null():
     bundle = sample('quick-pi')
-    spec = next(row for row in plot_specs(bundle) if row['label'].endswith('potential_V'))
+    specs = [row for row in plot_specs(bundle) if 'potential_V' in row['label']]
     for index in (0, bundle['result']['potential_V'].index(None)):
-        value = probe_sample(spec, spec['x'][index], spec['y'][index])
+        point = bundle['mesh']['points_mm'][index]
+        spec = next(row for row in specs if any(x == point[0] and y == point[1]
+                         for x, y in zip(row['x'], row['y'])))
+        value = probe_sample(spec, point[0], point[1])
         assert value['value'] == bundle['result']['potential_V'][index]
+
+
+def test_saved_pi_mesh_draws_only_supported_layer_triangles_with_gradient():
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.collections import TriMesh
+    from matplotlib.figure import Figure
+
+    bundle = sample('quick-pi')
+    specs = [row for row in plot_specs(bundle) if row['kind'] == 'mesh']
+    assert {row['label'].split(' / ')[-1] for row in specs} == {'potential_V', 'cell_power_W'}
+    for spec in specs:
+        figure = Figure(); canvas = FigureCanvasAgg(figure); axis = figure.add_subplot()
+        image, probe = _saved_field_image(axis, spec)
+        canvas.draw()
+        assert isinstance(image, TriMesh)
+        assert image._triangulation.triangles.shape[0] == len(spec['triangles'])
+        assert probe is spec
+        expected = len(spec['triangles'])*3 if spec['cell_values'] is not None else len(spec['vertices'])
+        assert image.get_array().size == expected
+    assert any(row['kind'] == 'points' and any(value is None for value in row['values'])
+               for row in plot_specs(bundle))
+
+
+def test_saved_pi_does_not_triangulate_raw_points_or_bridge_elevations():
+    data = {'mesh': {'points_mm': [[0,0,0],[1,0,0],[0,1,0],
+                                   [0,0,1],[1,0,1],[0,1,1]],
+                     'triangles': [[0,1,2],[3,4,5],[0,1,4]],
+                     'triangle_layer': [0,1,0]},
+            'result': {'potential_V': [0,1,2,3,4,5]}}
+    specs = plot_specs(data)
+    mesh = [row for row in specs if row['kind'] == 'mesh']
+    assert len(mesh) == 2
+    assert [len(row['triangles']) for row in mesh] == [1,1]
+    assert {row['z'] for row in mesh} == {0,1}
+    raw = {'mesh': {'points_mm': data['mesh']['points_mm']}, 'result': data['result']}
+    assert all(row['kind'] == 'points' for row in plot_specs(raw))
+    mismatch = deepcopy(data)
+    mismatch['result']['cell_layer'] = [1,0,0]
+    assert all(row['kind'] == 'points' for row in plot_specs(mismatch))
+
+
+def test_saved_thermal_draw_uses_native_field_support_and_keeps_unknowns():
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.collections import QuadMesh, TriMesh
+    from matplotlib.figure import Figure
+
+    steady = sample('quick-therm')
+    layer = next(row for row in plot_specs(steady) if row['kind'] == 'grid' and
+                 row['field'].get('value_location') == 'finite_volume_cell')
+    figure = Figure(); canvas = FigureCanvasAgg(figure); axis = figure.add_subplot()
+    image, probe = _saved_field_image(axis, layer)
+    canvas.draw()
+    assert isinstance(image, (QuadMesh, TriMesh))
+    assert any(isinstance(item, QuadMesh) for item in axis.collections)
+    assert all(item.get_clip_path() is not None for item in axis.collections)
+    assert frame_grid(probe) == layer['values']
+    transient = sample('quick-therm-transient')
+    frame_spec = next(row for row in plot_specs(transient) if row['kind'] == 'frames')
+    figure = Figure(); canvas = FigureCanvasAgg(figure); axis = figure.add_subplot()
+    image, probe = _saved_field_image(axis, frame_spec, 2)
+    canvas.draw()
+    assert image is not None and probe['values'] == frame_grid(frame_spec, 2)
+    assert any(value is None for row in probe['values'] for value in row)
+
+
+def test_saved_thermal_sparse_points_do_not_gain_cell_area():
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.collections import PathCollection, QuadMesh, TriMesh
+    from matplotlib.figure import Figure
+
+    data = {'field': {'x_centers_mm': [0,1], 'y_centers_mm': [0,1],
+                      'values_c': [[20,None],[None,None]]}}
+    spec = next(row for row in plot_specs(data) if row['kind'] == 'grid')
+    figure = Figure(); canvas = FigureCanvasAgg(figure); axis = figure.add_subplot()
+    image, _ = _saved_field_image(axis, spec)
+    canvas.draw()
+    assert isinstance(image, PathCollection)
+    assert not any(isinstance(item, (QuadMesh, TriMesh)) for item in axis.collections)
+
+
+def test_saved_thermal_cell_and_gradient_share_native_scale_across_frames():
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    spec = dict(kind='frames', x=[0,1], y=[0,1], cells=[[0,0],[1,0],[0,1],[1,1]],
+                layer=0, count=4, unit='°C',
+                field=dict(value_location='finite_volume_cell',
+                           x_edges_mm=[-.5,.5,1.5], y_edges_mm=[-.5,.5,1.5]),
+                frames=[dict(time_s=0, temperatures_c=[20,20,20,20]),
+                        dict(time_s=1, temperatures_c=[20,40,20,40])])
+    for frame in (0,1):
+        figure = Figure(); canvas = FigureCanvasAgg(figure); axis = figure.add_subplot()
+        image, _ = _saved_field_image(axis, spec, frame)
+        canvas.draw()
+        assert len(axis.collections) == 2  # Physical cells and smooth known quad.
+        assert all(artist.norm is image.norm for artist in axis.collections)
+        assert all(artist.get_clim() == (20,40) for artist in axis.collections)
+    spec['frames'] = [spec['frames'][0]]
+    figure = Figure(); canvas = FigureCanvasAgg(figure); axis = figure.add_subplot()
+    image, _ = _saved_field_image(axis, spec)
+    canvas.draw()
+    assert image.get_clim() == (19.5,20.5)
+
+
+def test_saved_drill_needs_outer_outline_for_clip():
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    spec = dict(kind='grid', x=[0,1], y=[0,1], values=[[20,30],[20,30]], unit='°C',
+                field=dict(value_location='finite_volume_cell',
+                           x_edges_mm=[-.5,.5,1.5], y_edges_mm=[-.5,.5,1.5]),
+                drills=[dict(contour_mm=[[.2,.2],[.8,.2],[.8,.8],[.2,.8]])])
+    figure = Figure(); canvas = FigureCanvasAgg(figure); axis = figure.add_subplot()
+    _saved_field_image(axis, spec)
+    canvas.draw()
+    assert all(artist.get_clip_path() is None for artist in axis.collections)
+    spec['outline'] = [dict(outer_mm=[[-.5,-.5],[1.5,-.5],[1.5,1.5],[-.5,1.5]])]
+    figure = Figure(); canvas = FigureCanvasAgg(figure); axis = figure.add_subplot()
+    _saved_field_image(axis, spec)
+    canvas.draw()
+    assert all(artist.get_clip_path() is not None for artist in axis.collections)
 
 
 def test_emerge_original_network_and_field_samples_have_readonly_plots():

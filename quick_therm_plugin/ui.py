@@ -341,19 +341,14 @@ class QuickThermFrame(wx.Frame):
     def on_export_diagnostic(self, kind="quick_therm"):
         if not self.thermal_bundle.get("quick_therm"):
             return
-        name = Path(self.board_path).stem + "-quick-therm.html"
-        with wx.FileDialog(self, "Save QuickTherm results and Pocket KiVi data",
-                           defaultDir=str(Path(self.board_path).parent), defaultFile=name,
-                           wildcard="HTML report (*.html)|*.html",
-                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal() != wx.ID_OK:
-                return
-            path = dialog.GetPath()
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        path=choose_report_path(self,Path(self.board_path).parent,Path(self.board_path).stem+'-quick-therm')
+        if path is None:return
         from .report import write_report
 
         bundle = self.thermal_bundle
         self._task(lambda: write_report(path, bundle, pocket_kivi=True),
-                   lambda result: self.therm_status.SetLabel("Saved HTML, complete numerical JSON and Pocket KiVi JSON: " + result["html"]),
+                   lambda result: self.therm_status.SetLabel(saved_report_message(result)),
                    "Saving thermal fields, frames and report for Pocket KiVi…")
 
     def on_blender(self,event=None):
@@ -408,6 +403,10 @@ class QuickThermFrame(wx.Frame):
         self.therm_study_setup.SetToolTip('Review source power, cooling assumptions, steady/transient mode and playback work before running.')
         self.therm_study_setup.Bind(wx.EVT_BUTTON,self.on_heating_study)
         layout.Add(self.therm_study_setup,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        self.therm_populate_defaults=wx.Button(page,label='Material + ambient defaults…')
+        self.therm_populate_defaults.SetToolTip('Preview known illustrative material, storage and boundary inputs. Fill blanks by default; optionally replace selected existing values.')
+        self.therm_populate_defaults.Bind(wx.EVT_BUTTON,self._populate_thermal_defaults)
+        layout.Add(self.therm_populate_defaults,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         setup=wx.FlexGridSizer(0,2,6,8);setup.AddGrowableCol(1)
         self.therm_input_mode=ReadableChoice(page,choices=['Scanned values + edits','Saved fields only'])
         self.therm_input_mode.SetSelection(0)
@@ -624,7 +623,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_whole_board=wx.Button(page,label='Board model…');self.therm_whole_board.Bind(wx.EVT_BUTTON,self.on_whole_board_setup)
         self.therm_whole_board.SetToolTip('Review materials and boundaries for a physical board field.')
         self.therm_sink_button=wx.Button(page,label='Heatsinks…');self.therm_sink_button.Bind(wx.EVT_BUTTON,self.on_virtual_heatsinks)
-        self.therm_export=wx.Button(page,label='Save results…');self.therm_export.SetToolTip('Save HTML, complete numerical JSON and portable Pocket KiVi data.');self.therm_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('quick_therm'))
+        self.therm_export=wx.Button(page,label='Save results…');self.therm_export.SetToolTip('Save HTML or PDF, complete numerical JSON and portable Pocket KiVi data.');self.therm_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('quick_therm'))
         self.therm_blender=wx.Button(page,label='Blender…');self.therm_blender.Bind(wx.EVT_BUTTON,self.on_blender)
         self.therm_blender.SetToolTip('Export current board temperatures and stored computed frames for Blender.')
         self.therm_sankey=wx.Button(page,label='Dissipation Sankey…');self.therm_sankey.Bind(wx.EVT_BUTTON,self.on_thermal_sankey)
@@ -796,6 +795,7 @@ class QuickThermFrame(wx.Frame):
         selected=self.therm_model_kind.GetSelection() if self.therm_model_enabled.GetValue() else -1
         for ctrl in (self.therm_time_enabled,self.therm_env,self.therm_ambient,self.therm_input_mode,
                      self.therm_model_enabled,self.therm_model_kind,self.therm_study_setup):ctrl.Enable(not self._busy)
+        self.therm_populate_defaults.Enable(not self._busy)
         for ctrl in (self.therm_time_duration,self.therm_time_step,self.therm_frame_interval,self.therm_time_initial,
                      self.therm_copper_capacity,self.therm_dielectric_capacity,self.therm_power_schedule,
                      self.therm_sink_capacity,self.therm_schedule_interpolation,self.therm_power_steps):
@@ -926,6 +926,26 @@ class QuickThermFrame(wx.Frame):
         dialog.Bind(wx.EVT_BUTTON,apply,id=wx.ID_OK);dialog.SetSizer(layout);resize()
         dialog.ShowModal();dialog.Destroy()
 
+    def _populate_thermal_defaults(self,event=None):
+        if self._busy:return
+        from wayricad_runtime.thermal_defaults_ui import choose_defaults
+        bindings={
+            'ambient_c':'therm_ambient','initial_temperature_c':'therm_time_initial',
+            'fixed_lower_face_c':'therm_ccx_bottom','enclosure_temperature_c':'therm_enclosure_c',
+            'board_k_w_mk':'therm_k','dielectric_k_w_mk':'therm_dielectric_k','copper_k_w_mk':'therm_copper_k',
+            'dielectric_volumetric_capacity_j_m3k':'therm_dielectric_capacity',
+            'copper_volumetric_capacity_j_m3k':'therm_copper_capacity',
+            'board_emissivity':'therm_emissivity','board_airflow_m_s':'therm_air_board',
+            'sink_airflow_m_s':'therm_air_sink','board_h_w_m2k':'therm_explicit_h',
+            'potting_k_w_mk':'therm_potting_k','potting_thickness_mm':'therm_potting_thickness',
+            'potting_outer_h_w_m2k':'therm_potting_outer_h','via_plating_mm':'therm_plating'}
+        current={key:getattr(self,attribute).GetValue() for key,attribute in bindings.items()}
+        result=choose_defaults(self,current)
+        if result is None:return
+        for key in result['changed']:getattr(self,bindings[key]).ChangeValue(str(result['values'][key]))
+        if result['changed']:self._invalidate_thermal()
+        self.therm_status.SetLabel(str(len(result['changed']))+' illustrative starting values populated. Review material grade, plating and cooling before running; existing values were retained unless replacement was selected.')
+
     def _thermal_material_values(self):
         values={}
         for role in ('dielectric','copper'):
@@ -938,8 +958,10 @@ class QuickThermFrame(wx.Frame):
         if self._busy:return
         from wayricad_runtime.thermal_materials_ui import ThermalMaterialDialog
         from wayricad_runtime.thermal_materials import apply_material_selection
+        initial=getattr(self,'_thermal_materials',{}).get(role,{}).get('selection')
         picker=ThermalMaterialDialog(self,properties=['thermal_conductivity_w_mk','volumetric_heat_capacity_j_m3k'],
-            category='metal' if role=='copper' else 'laminate')
+            category='metal' if role=='copper' else 'laminate',
+            initial_id='copper-screening' if role=='copper' else 'fr4-screening',initial_selection=initial)
         try:
             if picker.dialog.ShowModal()!=wx.ID_OK:return
             selection=picker.selection

@@ -112,7 +112,25 @@ class ConsoleTest(unittest.TestCase):
             self.assertEqual([shlex.split(x) for x in suggestions(text, INVENTORY)],
                              [['run', 'pi', 'Power input']])
         self.assertEqual(suggestions('run pi C1.1 R1.', INVENTORY),
-                         ['run pi C1.1 R1.1', 'run pi C1.1 R1.2'])
+                         ['run pi C1.1 R1.1'])
+        self.assertEqual(suggestions('run pi C1.1 R1.1 5m R1.', INVENTORY),
+                         ['run pi C1.1 R1.1 5m R1.2'])
+        self.assertEqual(suggestions('run pi C1.1 R1.1 5m R1.2 U', INVENTORY),
+                         ['run pi C1.1 R1.1 5m R1.2 U8.2'])
+
+    def test_duplicate_reference_pin_has_stable_readable_alias_without_guessing(self):
+        from quick_pi_plugin.console import terminal_aliases
+        inventory=copy.deepcopy(INVENTORY)
+        inventory['terminals'].append({'id':'a-duplicate','label':'C1.1','net':'Power input'})
+        aliases=terminal_aliases(inventory)
+        assert set(aliases.values()) >= {'C1.1 [pad 1/2]','C1.1 [pad 2/2]'}
+        with self.assertRaisesRegex(ValueError,'Ambiguous'):
+            parse_command('run pi C1.1 C2.1',inventory)
+        result=parse_command('run pi '+shlex.quote(aliases['source'])+' C2.1',inventory)
+        self.assertEqual(result['source_terminal'],'source')
+        output=parse_command('pads "Power input"',inventory)['console_output']
+        self.assertIn(aliases['source']+'  [Power input]',output)
+        self.assertIn(aliases['a-duplicate']+'  [Power input]',output)
 
 
 if __name__ == '__main__':

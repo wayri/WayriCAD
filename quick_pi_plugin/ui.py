@@ -45,6 +45,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.bundle={};self.inventory={};self.return_bundle={};self.sweep_bundle={};self.volume_bundle={}
         self._busy=False;self._closed=False;self._closing=False
         self._series_request=None
+        self._series_draft=None
         self._package_conduction=[]
         self._cancel=threading.Event();self._terminals=[];self._layers=[];self._plot_keys={};self._probe_controllers={}
         self._extra_sinks=[];self._inspection=None;self._finding_rows=[];self._saved_source_current=True
@@ -159,6 +160,9 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.latent.SetToolTip('Copper heat of fusion, J/kg. Editable nominal pure-copper input; no cooling, arcing or clearing-time prediction.')
         for label,control in [('Mesh · mm',self.edge),('Via plating · mm',self.plating),('Copper · °C',self.temperature),('Initial / ambient · °C',self.ambient),('Pulse · s',self.pulse),('Limit · °C',self.limit),('Copper melt · °C',self.melting),('Latent heat · J/kg',self.latent),('3D cell budget',self.max_tetrahedra)]:
             grid.Add(wx.StaticText(pane,label=label),0,wx.ALIGN_CENTER_VERTICAL);control.SetMinSize((1,-1));grid.Add(control,0,wx.EXPAND)
+        self.material_defaults_button=wx.Button(pane,label='Populate defaults…')
+        self.material_defaults_button.Bind(wx.EVT_BUTTON,self.on_material_defaults)
+        grid.Add(wx.StaticText(pane,label='Starting assumptions'));grid.Add(self.material_defaults_button,0,wx.EXPAND)
         pane.SetSizer(grid);controls.Add(self.options,0,wx.EXPAND|wx.TOP|wx.BOTTOM,6)
         self.console=wx.CollapsiblePane(self.inputs,label='Console',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE);self.console.Collapse(True)
         console_panel=self.console.GetPane();console_layout=wx.BoxSizer(wx.VERTICAL)
@@ -173,7 +177,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         actions=wx.GridSizer(0,2,5,5)
         self.preview=icon_button(self.setup_panel,'Preview',wx.ART_FIND,'Preview saved copper before solving')
         self.run=icon_button(self.setup_panel,'Run',wx.ART_GO_FORWARD,'Run the selected copper simulation')
-        self.export=icon_button(self.setup_panel,'Save results',wx.ART_FILE_SAVE,'Save HTML, complete numerical JSON and portable Pocket KiVi data')
+        self.export=icon_button(self.setup_panel,'Save results',wx.ART_FILE_SAVE,'Save HTML or PDF, complete numerical JSON and portable Pocket KiVi data')
         self.series_button=icon_button(self.setup_panel,'Series',wx.ART_LIST_VIEW,'Build a series path with explicit components')
         self.power_flow=icon_button(self.setup_panel,'Power flow',wx.ART_REPORT_VIEW,'Open the source-to-sink Sankey power budget')
         self.blender=icon_button(self.setup_panel,'Blender…',wx.ART_FILE_SAVE,'Export solved geometry and fields for Blender visualization')
@@ -1051,7 +1055,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if request.get('action') in ('geometry','mesh','solve','converge'):
             request=dict(request,include_display_scene=True)
             if not self.isolate_nets.GetValue():request['display_nets']=None
-        self._console_write('Job: '+json.dumps(request,ensure_ascii=False))
+        from .series_session import display_request
+        self._console_write('Job: '+json.dumps(display_request(request,self.inventory),ensure_ascii=False))
         self._task(lambda:run_job(request,cancelled=self._cancel.is_set,timeout=300),finished,message)
 
     def _inspect(self):
@@ -1534,6 +1539,9 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             from .console import parse_command
             parsed=parse_command(line,self.inventory)
             if 'console_output' in parsed:self._console_write(parsed['console_output']);return
+            if parsed.get('series'):
+                from .series_editor import draft_from_request
+                self._series_draft=draft_from_request(parsed,self.inventory)
             self._start_parsed_path(parsed,'Running the console circuit in the isolated solver…')
         except Exception as exc:self._console_write('Error: '+str(exc));return
 
@@ -1544,10 +1552,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if request.get('net') in self.inventory.get('nets',[]):
             self.net.SetValue(request['net']);self._set_terminals()
         if self._series_request:
-            self._terminals=[next(t for t in self.inventory['terminals'] if request[key] in (t['id'],t.get('label')))
-                             for key in ('source_terminal','sink_terminal')]
-            labels=[t['label'] for t in self._terminals]
-            self.source.Set(labels);self.sink.Set(labels);self.source.SetSelection(0);self.sink.SetSelection(1)
+            from .series_session import restore_endpoints
+            restore_endpoints(self,request)
         else:
             for control,key in ((self.source,'source_terminal'),(self.sink,'sink_terminal')):
                 index=next((i for i,t in enumerate(self._terminals) if request.get(key) in (t['id'],t.get('label'))),None)
@@ -1559,10 +1565,25 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def on_series_editor(self,event=None):
         if self._busy or not self.inventory.get('terminals'):return
         from .series_editor import SeriesPathDialog
-        parsed=SeriesPathDialog(self,self.inventory,self.board_path).show()
+        from .series_editor import draft_from_request
+        draft=getattr(self,'_series_draft',None)
+        if draft is None and self._series_request:
+            draft=draft_from_request(self._series_request,self.inventory)
+        parsed,self._series_draft=SeriesPathDialog(self,self.inventory,self.board_path,existing=draft).show_with_draft()
         if parsed:
             try:self._start_parsed_path(parsed,'Solving selected series components and saved copper…')
             except Exception as exc:self.status.SetLabel(str(exc))
+
+    def on_material_defaults(self,event=None):
+        if self._busy:return
+        from wayricad_runtime.thermal_defaults_ui import choose_defaults
+        fields={'ambient_c':self.ambient,'initial_temperature_c':self.temperature,
+                'via_plating_mm':self.plating}
+        result=choose_defaults(self,{key:control.GetValue() for key,control in fields.items()},
+                               title='Populate copper and environment inputs')
+        if result is None:return
+        for key in result['changed']:fields[key].ChangeValue(str(result['values'][key]))
+        if result['changed']:self._invalidate()
 
     def _page_changed(self,event):
         self._draw();self._buttons();event.Skip()
@@ -1691,14 +1712,12 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def on_export_diagnostic(self,kind):
         bundle=self.return_bundle
         if kind not in bundle:return
-        name=Path(self.board_path).stem+'-return-path.html'
-        with wx.FileDialog(self,'Export analysis',defaultDir=str(Path(self.board_path).parent),defaultFile=name,
-                           wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal()!=wx.ID_OK:return
-            path=dialog.GetPath()
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        path=choose_report_path(self,Path(self.board_path).parent,Path(self.board_path).stem+'-return-path')
+        if path is None:return
         from .report import write_diagnostic_report
         self._task(lambda:write_diagnostic_report(path,bundle,pocket_kivi=True),
-            lambda result:self.return_status.SetLabel('Exported '+result['html']),
+            lambda result:self.return_status.SetLabel(saved_report_message(result)),
             'Writing local HTML and JSON evidence…')
 
     def on_help(self,event=None):
@@ -1847,18 +1866,16 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def _export_3d(self,parent,bundle):
         if not bundle.get('result'):return
         name=Path(self.board_path).stem+'-quick-pi-3d.html'
-        with wx.FileDialog(parent,'Export 3D field',defaultDir=str(Path(self.board_path).parent),
-                           defaultFile=name,wildcard='HTML (*.html)|*.html',
-                           style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as picker:
-            if picker.ShowModal()!=wx.ID_OK:return
-            target=Path(picker.GetPath())
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        target=choose_report_path(parent,Path(self.board_path).parent,Path(name).stem,'Export 3D field')
+        if target is None:return
         try:
             from .volume_view import write_volume_report
-            write_volume_report(target,bundle,pocket_kivi=True)
-        except (OSError,ValueError) as exc:
+            exported=write_volume_report(target,bundle,pocket_kivi=True)
+        except (OSError,ValueError,RuntimeError) as exc:
             wx.MessageBox('Could not export the 3D result: '+str(exc),'Quick PI',wx.OK|wx.ICON_ERROR,parent)
             return
-        self.status.SetLabel('Exported complete 3D field: '+str(target))
+        self.status.SetLabel(saved_report_message(exported))
 
     def on_series_details(self,event=None):
         components=self.bundle.get('result',{}).get('components',[])
@@ -2149,12 +2166,12 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if not self.bundle.get('result'):return
         if not self._snapshot_current():
             self.status.SetLabel('Saved board changed. Reload and rerun before exporting.');return
-        with wx.FileDialog(self,'Export self-contained results',defaultDir=str(Path(self.board_path).parent),defaultFile=Path(self.board_path).stem+'-quick-pi.html',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
-            if dialog.ShowModal()!=wx.ID_OK:return
-            path=dialog.GetPath()
+        from wayricad_runtime.report_dialog import choose_report_path, saved_report_message
+        path=choose_report_path(self,Path(self.board_path).parent,Path(self.board_path).stem+'-quick-pi')
+        if path is None:return
         selected=self.layer.GetSelection();layer=self._layers[selected]['id'] if selected>=0 else None
         bundle=self.bundle
-        self._task(lambda:write_report(path,bundle,layer,pocket_kivi=True),lambda result:self.status.SetLabel('Saved HTML, full numerical JSON and Pocket KiVi JSON: '+result['html']),
+        self._task(lambda:write_report(path,bundle,layer,pocket_kivi=True),lambda result:self.status.SetLabel(saved_report_message(result)),
                    'Saving the report and all-layer numerical results for Pocket KiVi…')
 
     def on_blender(self,event=None):

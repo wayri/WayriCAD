@@ -6,11 +6,13 @@ import math
 import uuid
 
 
-def interactive_plot(title, rows, unit='', three_d=False, polygons=None, x_unit='mm', y_unit='mm', connect=False):
+def interactive_plot(title, rows, unit='', three_d=False, polygons=None, x_unit='mm', y_unit='mm', connect=False, field=None):
     """Build an offline canvas viewport from [x,y,value,label,z] sample rows.
 
     Optional polygons correspond one-to-one to rows and restrict field probes
     to their actual cells. Unknown values remain visible but cannot be probed.
+    An optional field uses native display triangles/palette/limits for Gouraud
+    shading. Rows and polygons still provide exact solver-cell probe values.
     Three-dimensional views orbit/pan/zoom in display space only.
     """
     ident='plot-'+uuid.uuid4().hex
@@ -20,26 +22,47 @@ def interactive_plot(title, rows, unit='', three_d=False, polygons=None, x_unit=
         for index in (0,1,2,4):
             if index<len(values) and isinstance(values[index],(int,float)) and not math.isfinite(values[index]):values[index]=None
         clean.append(values)
-    data=json.dumps({'rows':clean,'polygons':polygons,'unit':unit,'three':three_d,'xunit':x_unit,'yunit':y_unit,'connect':connect},allow_nan=False).replace('<','\\u003c')
+    if field and three_d:raise ValueError('Saved mesh fields require a two-dimensional field view.')
+    data=json.dumps({'rows':clean,'polygons':polygons,'unit':unit,'three':three_d,'xunit':x_unit,'yunit':y_unit,'connect':connect,'field':field},allow_nan=False).replace('<','\\u003c')
+    from .field_render import FIELD_SCRIPT
+    shading=FIELD_SCRIPT if field else ''
     return ('<figure id="'+ident+'" class="interactive-analysis"><figcaption>'+escape(title)+'</figcaption>'
-        '<p>Hover for exact sampled values; click to pin a probe. Drag to '+('orbit; Shift-drag to pan' if three_d else 'pan')+'; wheel to zoom. Display movement does not change the PCB or simulation.</p>'
+        '<p>'+('Saved field shading; probes retain exact solver-cell values. ' if field else '')+'Hover for exact sampled values; click to pin a probe. Drag to '+('orbit; Shift-drag to pan' if three_d else 'pan')+'; wheel to zoom. Display movement does not change the PCB or simulation.</p>'
         '<button type="button" data-fit>Fit</button> <button type="button" data-clear>Clear probes</button>'
         '<canvas style="width:100%;height:420px;display:block;background:#f5f8fa;touch-action:none;cursor:crosshair" aria-label="'+escape(title)+'"></canvas>'
-        '<output style="display:block;min-height:1.5em" aria-live="polite">No probe</output><ol data-probes></ol>'
-        '<script>(()=>{const host=document.getElementById("'+ident+'"),data='+data+';'+_SCRIPT+'})();</script></figure>')
+        '<div data-field-scale></div><output style="display:block;min-height:1.5em" aria-live="polite">No probe</output><ol data-probes></ol>'
+        '<script>(()=>{const host=document.getElementById("'+ident+'"),data='+data+';'+shading+_SCRIPT+'})();</script></figure>')
 
 
 _SCRIPT=r'''
 const canvas=host.querySelector('canvas'),ctx=canvas.getContext('2d'),out=host.querySelector('output'),list=host.querySelector('[data-probes]');
 let yaw=.35,pitch=.5,zoom=1,pan=[0,0],drag=null,points=[],saved=[],hover=null;
 const finite=data.rows.filter(r=>Number.isFinite(r[0])&&Number.isFinite(r[1]));
-const xs=finite.map(r=>r[0]),ys=finite.map(r=>r[1]),zs=finite.map(r=>Number.isFinite(r[4])?r[4]:0);
+const xs=data.field?[data.field.bounds[0],data.field.bounds[2]]:finite.map(r=>r[0]),ys=data.field?[data.field.bounds[1],data.field.bounds[3]]:finite.map(r=>r[1]),zs=finite.map(r=>Number.isFinite(r[4])?r[4]:0);
 const extent=a=>a.length?[a.reduce((x,y)=>Math.min(x,y)),a.reduce((x,y)=>Math.max(x,y))]:[0,1];const ex=extent(xs),ey=extent(ys),ez=extent(zs),bounds=[...ex,...ey,...ez];
 const center=[(bounds[0]+bounds[1])/2,(bounds[2]+bounds[3])/2,(bounds[4]+bounds[5])/2];
+const fieldRaster=data.field?SavedField.mesh(data.field,data.field.palette,data.field.limits,data.field.style):null,fieldCanvas=fieldRaster?SavedField.canvas(fieldRaster):null;
+if(data.field){const legend=host.querySelector('[data-field-scale]'),bar=document.createElement('span');bar.style.cssText='display:inline-block;width:180px;height:14px;margin:0 8px;vertical-align:middle';bar.style.background='linear-gradient(to right,'+data.field.palette.map(c=>'rgb('+c.slice(0,3).join(',')+')').join(',')+')';legend.append(document.createTextNode(data.field.limits[0].toPrecision(6)+' '+data.unit),bar,document.createTextNode(data.field.limits[1].toPrecision(6)+' '+data.unit+' · '+(data.field.style==='cells'?'Solver cells':'Smooth gradient')));}
 function project(r){let x=r[0]-center[0],y=r[1]-center[1],z=(r[4]||0)-center[2];if(data.three){let a=x*Math.cos(yaw)-y*Math.sin(yaw),b=x*Math.sin(yaw)+y*Math.cos(yaw);x=a;y=b*Math.cos(pitch)-z*Math.sin(pitch);}const s=Math.min(canvas.width/(bounds[1]-bounds[0]||1),canvas.height/(bounds[3]-bounds[2]||1))*.8*zoom;return [canvas.width/2+x*s+pan[0],canvas.height/2+y*s+pan[1]];}
 function value(r){return Number.isFinite(r[2])?r[2].toPrecision(7)+' '+data.unit:'Unknown';}
 function describe(r){return (r[3]||'Sample')+' | X '+r[0].toPrecision(6)+' '+data.xunit+', Y '+r[1].toPrecision(6)+' '+data.yunit+(data.three?', Z '+(r[4]||0).toPrecision(6):'')+' | '+value(r);}
-function draw(){canvas.width=Math.max(300,canvas.clientWidth);canvas.height=420;ctx.clearRect(0,0,canvas.width,canvas.height);points=[];ctx.fillStyle='#334';ctx.font='12px sans-serif';ctx.fillText('X ('+data.xunit+')',10,canvas.height-10);ctx.fillText('Y ('+data.yunit+')',10,18);let values=data.rows.filter(r=>Number.isFinite(r[2])).map(r=>r[2]),range=extent(values),lo=range[0],hi=range[1];data.rows.forEach((r,i)=>{if(!Number.isFinite(r[0])||!Number.isFinite(r[1]))return;let p=project(r),poly=data.polygons&&data.polygons[i];points.push({p,r,i,poly:poly&&poly.map(v=>project([v[0],v[1],0,'',r[4]]))});ctx.fillStyle=Number.isFinite(r[2])?'hsl('+(240-240*(r[2]-lo)/(hi-lo||1))+',75%,48%)':'#a0a8ad';if(poly){ctx.beginPath();poly.forEach((v,j)=>{let q=project([v[0],v[1],0,'',r[4]]);j?ctx.lineTo(...q):ctx.moveTo(...q);});ctx.closePath();ctx.fill();}else{ctx.beginPath();ctx.arc(...p,4,0,Math.PI*2);ctx.fill();}});if(data.connect){ctx.strokeStyle='#147f94';ctx.lineWidth=1.5;ctx.beginPath();let previous=null;data.rows.forEach(r=>{if(!Number.isFinite(r[0])||!Number.isFinite(r[1])||!Number.isFinite(r[2])){previous=null;return;}let p=project(r);if(previous&&previous[3]===r[3])ctx.lineTo(...p);else ctx.moveTo(...p);previous=r;});ctx.stroke();}saved.forEach((r,i)=>{let p=project(r);ctx.strokeStyle='#111';ctx.strokeRect(p[0]-6,p[1]-6,12,12);ctx.fillStyle='#111';ctx.fillText('P'+(i+1),p[0]+8,p[1]-8);});if(hover){ctx.strokeStyle='#333';ctx.beginPath();ctx.moveTo(hover[0],0);ctx.lineTo(hover[0],canvas.height);ctx.moveTo(0,hover[1]);ctx.lineTo(canvas.width,hover[1]);ctx.stroke();}}
+function draw(){
+ canvas.width=Math.max(300,canvas.clientWidth);canvas.height=420;ctx.clearRect(0,0,canvas.width,canvas.height);points=[];
+ if(fieldCanvas){const b=fieldRaster.bounds,a=project([b[0],b[1],0]),z=project([b[2],b[3],0]);ctx.drawImage(fieldCanvas,a[0],a[1],z[0]-a[0],z[1]-a[1]);}
+ ctx.fillStyle='#334';ctx.font='12px sans-serif';ctx.fillText('X ('+data.xunit+')',10,canvas.height-10);ctx.fillText('Y ('+data.yunit+')',10,18);
+ const range=extent(data.rows.filter(r=>Number.isFinite(r[2])).map(r=>r[2])),lo=range[0],hi=range[1];
+ data.rows.forEach((r,i)=>{
+  if(!Number.isFinite(r[0])||!Number.isFinite(r[1]))return;
+  const p=project(r),poly=data.polygons&&data.polygons[i];points.push({p,r,i,poly:poly&&poly.map(v=>project([v[0],v[1],0,'',r[4]]))});
+  if(data.field)return;
+  ctx.fillStyle=Number.isFinite(r[2])?'hsl('+(240-240*(r[2]-lo)/(hi-lo||1))+',75%,48%)':'#a0a8ad';
+  if(poly){ctx.beginPath();poly.forEach((v,j)=>{const q=project([v[0],v[1],0,'',r[4]]);j?ctx.lineTo(...q):ctx.moveTo(...q);});ctx.closePath();ctx.fill();}
+  else{ctx.beginPath();ctx.arc(...p,4,0,Math.PI*2);ctx.fill();}
+ });
+ if(data.connect){ctx.strokeStyle='#147f94';ctx.lineWidth=1.5;ctx.beginPath();let previous=null;data.rows.forEach(r=>{if(!Number.isFinite(r[0])||!Number.isFinite(r[1])||!Number.isFinite(r[2])){previous=null;return;}const p=project(r);if(previous&&previous[3]===r[3])ctx.lineTo(...p);else ctx.moveTo(...p);previous=r;});ctx.stroke();}
+ saved.forEach((r,i)=>{const p=project(r);ctx.strokeStyle='#111';ctx.strokeRect(p[0]-6,p[1]-6,12,12);ctx.fillStyle='#111';ctx.fillText('P'+(i+1),p[0]+8,p[1]-8);});
+ if(hover){ctx.strokeStyle='#333';ctx.beginPath();ctx.moveTo(hover[0],0);ctx.lineTo(hover[0],canvas.height);ctx.moveTo(0,hover[1]);ctx.lineTo(canvas.width,hover[1]);ctx.stroke();}
+}
 function inside(p,poly){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){let a=poly[i],b=poly[j];if(((a[1]>p[1])!=(b[1]>p[1]))&&(p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0]))c=!c;}return c;}
 function pick(p){if(data.polygons)return points.find(q=>q.poly&&inside(p,q.poly))||null;let best=null,d=12;points.forEach(q=>{let dd=Math.hypot(q.p[0]-p[0],q.p[1]-p[1]);if(dd<d){d=dd;best=q;}});return best;}
 function pos(e){let b=canvas.getBoundingClientRect();return [(e.clientX-b.left)*canvas.width/b.width,(e.clientY-b.top)*canvas.height/b.height];}

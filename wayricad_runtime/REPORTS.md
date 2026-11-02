@@ -10,6 +10,10 @@ normal report view. Paired exports include a complete JSON download.
 
 ## Save a PDF
 
+Quick PI, QuickTherm and Quick SI provide HTML and PDF choices in their Export report file dialog. PDF export publishes PDF, HTML and complete numerical JSON together; failed rendering or publication retains the previous report set. Managed runtimes include the PDF renderer. Quick EMerge retains its separate HTML/PDF controls.
+
+Recorded net names, directed path endpoints, grouped reference.pin numbers and explicit series stages precede the corresponding report data. Aggregate fields retain a combined scope listing the included paths; they are not relabeled as individual branch solutions. Source paths are shown in full as recorded, without resolving relative paths or inventing missing connectivity.
+
 Open a trusted exported HTML report and choose **Print / save as PDF**, or use your
 browser's print command. Check its print preview: interactive canvas content depends
 on the browser's current rendered state. Retain the HTML and paired JSON for probes,

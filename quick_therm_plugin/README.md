@@ -34,6 +34,15 @@ Opening the picker changes no settings. Applied values retain their evidence;
 manual changes invalidate that selection and previous simulation results.
 [Available references, units and limits](../docs/THERMAL_MATERIALS.md).
 
+**Material + ambient defaults…** in Setup previews the suite's known
+illustrative conductivity, heat-storage, surface, plating and environment inputs
+together. It fills blanks while retaining loaded or edited values; an explicit
+replacement option applies the preview to existing fields too. Initial, enclosure
+and lower-face temperatures use the chosen ambient when populated. Review these
+starting assumptions before solving; missing material/package evidence stays
+unknown. Material pickers populate all known supported properties and reopen with
+the previous selection and overrides.
+
 **Setup and simulation files:** **Save setup…** and **Load setup…** retain
 editable inputs separately from results. **Save simulation…** opens a filename
 and folder chooser starting in the saved PCB project directory; **Load
@@ -245,7 +254,7 @@ Component labels appear only for the selected part or the part under the pointer
 
 Choose top, bottom or 3D board views. Drag to orbit a 3D view, Shift-drag to pan, and use the wheel or plot toolbar to zoom. Hover to inspect the local board temperature and component estimates; click to pin a probe. Select a component in the view or table to cross-highlight it. Changing the time frame updates the board field, component power, junction estimate and temperature-limit status together. Camera movements do not modify the PCB. Enable STEP models to add the real saved component geometry to the computed board field.
 
-The offline HTML report includes interactive board views, component temperature probes and time curves alongside printable snapshots. Unknown junction temperatures remain unknown without explicit RθJB; coordinate probes in other analysis tools do not imply a solved field. See [analysis interactions](../docs/ANALYSIS_INTERACTIONS.md).
+The offline HTML report includes interactive board views, component temperature probes and time curves alongside printable snapshots. Saved spatial views default to **Smooth gradient**, using the native inferno color map and selected-field temperature scale. **Solver cells** exposes the raw cell display. Layer selection and computed transient frames retain the smooth view; probes still return the saved cell/sample values. Missing cells, board cutouts and drilled voids stay blank, and smoothing does not add a solved field to component-only results. Unknown junction temperatures remain unknown without explicit RθJB; coordinate probes in other analysis tools do not imply a solved field. See [analysis interactions](../docs/ANALYSIS_INTERACTIONS.md).
 
 Air, vacuum, forced air, potting and sealed-enclosure modes are available. For **forced air**, enter the effective board/sink convection coefficients. **Vacuum** requires zero convection and an explicit radiation or fixture path. **Potting** needs conductivity, thickness and outer convection, and models their series thermal resistance. **Sealed** needs a fixed enclosure temperature and effective heat-transfer coefficient. Potting heat capacity and lateral spreading, enclosure heating and airflow fields are not solved.
 
@@ -450,5 +459,7 @@ Use Ctrl/Shift in the component table to select several parts. Plot highlights u
 Drag the divider beside Setup or Details to resize that sidebar. Both sidebars can be hidden from the board toolbar and reopened; the board fills the released space. Setup sections scroll independently, and the Results and Probes tables retain horizontal scrolling for all columns.
 
 ## HTML and PDF reports
+
+Export report now offers HTML and PDF. PDF saves a printable companion together with HTML and complete numerical JSON; interactive views remain available in HTML. Reports place plots and data under recorded net/path scope, list full source paths, and identify grouped endpoints by reference and pin number. Series stages retain their declared order and models; absent connectivity stays Unknown.
 
 Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.

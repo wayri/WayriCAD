@@ -86,6 +86,7 @@ def draw(figure, bundle):
 
 
 def write_report(path, bundle):
+    pdf=Path(path).suffix.lower()=='.pdf'
     path = Path(path).resolve().with_suffix('.html')
     json_path = path.with_suffix('.json')
     protected = [Path(bundle[k]).resolve() for k in ('board_path', 'study_input_path') if bundle.get(k)]
@@ -117,6 +118,11 @@ def write_report(path, bundle):
     html += '<p><a href="' + escape(json_path.name) + '">Raw results, model inputs and provenance (JSON)</a></p>'
     html += '<img alt="Cold/hot electrical and thermal results" src="data:image/png;base64,' + base64.b64encode(stream.getvalue()).decode('ascii') + '">'
     html += '<h2>Checks and assumptions</h2><pre>' + escape(summary(bundle)) + '</pre><h2>Explicit inputs</h2><pre>' + escape(json.dumps(bundle['study'], indent=2, allow_nan=False)) + '</pre></html>'
+    from wayricad_runtime.report_context import organize_report
+    html=organize_report(html,bundle)
+    if pdf:
+        from wayricad_runtime.report_ui import publish_report
+        return publish_report(path,html,bundle,pdf=True)
     payload = json.dumps(bundle, indent=2, allow_nan=False) + '\n'
     path.parent.mkdir(parents=True, exist_ok=True)
     staged = []; backups = {}; published = []; retained = set()

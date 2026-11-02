@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import shlex
+from copy import deepcopy
 
 
 def compatible_components(inventory, net, used=()):
@@ -34,6 +35,165 @@ def build_command(source_label, sink_label, branches):
             tokens.append(branch['reference'] + ':' + branch['model'])
     tokens.append(sink_label)
     return shlex.join(tokens)
+
+
+def display_path_command(data, inventory):
+    """Show reviewed reference.pin labels while the saved path retains IDs."""
+    from .console import terminal_aliases
+    aliases=terminal_aliases(inventory)
+    def label(value):
+        matches=[row for row in inventory.get('terminals',[]) if value in (row.get('id'),row.get('label'))]
+        return aliases[str(matches[0]['id'])] if len(matches)==1 else value
+    branches=[]
+    for branch in data.get('branches',[]):
+        shown=dict(branch)
+        for key in ('from_pad','to_pad'):
+            if key in shown:shown[key]=label(shown[key])
+        branches.append(shown)
+    return build_command(label(data.get('source','')),label(data.get('sink','')),branches)
+
+
+def grouped_pad_preview(request, inventory):
+    """Show reviewed multi-pad electrodes and every selected parallel branch."""
+    from .console import terminal_aliases
+    aliases=terminal_aliases(inventory)
+    lines=[]
+    for title,key in (('Source','source_terminals'),('Sink','sink_terminals')):
+        ids=request.get(key,[])
+        if len(ids)>1:lines.append(title+' pads: '+', '.join(aliases.get(str(identifier),str(identifier)) for identifier in ids))
+    for number,stage in enumerate(request.get('series',[]),1):
+        for element in [stage,*stage.get('parallel',[])]:
+            prefix='Stage '+str(number)+' '+str(element.get('id',''))
+            if element is not stage:
+                incoming=element.get('from_pads',[element.get('from_pad')])
+                outgoing=element.get('to_pads',[element.get('to_pad')])
+                describe=lambda ids:', '.join(aliases.get(str(value),str(value)) for value in ids if value)
+                model=[]
+                if element.get('resistance_ohm'):model.append(str(element['resistance_ohm'])+' Ω')
+                if element.get('inductance_h'):model.append(str(element['inductance_h'])+' H')
+                lines.append(prefix+' parallel: '+describe(incoming)+' → '+describe(outgoing)+
+                             (' · '+', '.join(model) if model else ''))
+                continue
+            for title,key in (('incoming','from_pads'),('outgoing','to_pads')):
+                ids=element.get(key,[])
+                if len(ids)>1:
+                    lines.append(prefix+' '+title+' pads: '+
+                                 ', '.join(aliases.get(str(identifier),str(identifier)) for identifier in ids))
+    return lines
+
+
+def current_pad_group(rows, anchor, include_peers):
+    """One current electrode: only exact-footprint pads on the anchor net."""
+    if not include_peers:return [anchor]
+    from .pin_units import peers
+    return [anchor,*[row['id'] for row in peers(rows,anchor)]]
+
+
+def path_from_command(command, inventory, existing=None):
+    """Turn a validated manual path into the unchanged schema-1 editor format."""
+    from .console import parse_command
+    parsed=parse_command(command,inventory)
+    if parsed.get('action')!='solve':raise ValueError('Enter a run pi source-to-sink path.')
+    tokens=shlex.split(command)
+    args=tokens[2:]
+    if args and args[0] in inventory.get('nets',[]):args=args[1:]
+    middle=args[1:-1]
+    branches=[];index=0
+    for solved in parsed['series']:
+        token=middle[index]
+        if ':' in token and not any(token in (row.get('id'),row.get('label')) for row in inventory.get('terminals',[])):
+            parts=token.split(':');model='+'.join(parts[1:]);index+=1
+        else:
+            model=middle[index+1];index+=3
+        branches.append({'reference':solved['id'],'from_pad':solved['from_pad'],
+                         'to_pad':solved['to_pad'],'model':model})
+    if index!=len(middle):raise ValueError('Manual path has unmatched series tokens.')
+    def label(identifier):
+        rows=[row for row in inventory.get('terminals',[]) if row.get('id')==identifier]
+        if len(rows)!=1:raise ValueError('Manual path terminal is no longer in the saved board.')
+        return identifier if sum(row.get('label')==rows[0]['label'] for row in inventory['terminals'])>1 else rows[0]['label']
+    data={'schema':1,'source':label(parsed['source_terminal']),
+          'sink':label(parsed['sink_terminal']),'branches':branches}
+    if isinstance(existing,dict):
+        try:old=parse_saved_path(existing,inventory)
+        except ValueError:old={}
+        for key,anchor in (('source_terminals','source_terminal'),('sink_terminals','sink_terminal')):
+            if old.get(anchor)==parsed[anchor]:
+                if key in existing:data[key]=deepcopy(existing[key])
+            else:
+                group=current_pad_group(inventory['terminals'],parsed[anchor],True)
+                if len(group)>1:data[key]=group
+        old_stages=old.get('series',[])
+        for branch,stage in zip(branches,parsed['series']):
+            previous=next((i for i,row in enumerate(old_stages)
+                           if (row['id'],row['from_pad'],row['to_pad'])==
+                              (stage['id'],stage['from_pad'],stage['to_pad'])),None)
+            if previous is not None:
+                for key in ('from_pads','to_pads','parallel'):
+                    if key in existing['branches'][previous]:
+                        branch[key]=deepcopy(existing['branches'][previous][key])
+            else:
+                for key,anchor in (('from_pads','from_pad'),('to_pads','to_pad')):
+                    group=current_pad_group(inventory['terminals'],stage[anchor],True)
+                    if len(group)>1:branch[key]=group
+    parse_saved_path(data,inventory)
+    return data
+
+
+def draft_from_request(request, inventory):
+    """Seed the editor from a restored solve request without changing schema 1."""
+    if not isinstance(request,dict) or not isinstance(request.get('series'),list):
+        raise ValueError('A restored series solve request is required.')
+    def row_for(value):
+        matches=[row for row in inventory.get('terminals',[])
+                 if value in (row.get('id'),row.get('label'))]
+        if len(matches)!=1:raise ValueError('Restored series pad is missing or ambiguous: '+str(value))
+        return matches[0]
+    def token(value):
+        row=row_for(value)
+        return row['id'] if sum(item.get('label')==row['label'] for item in inventory['terminals'])>1 else row['label']
+    def model(branch):
+        if isinstance(branch.get('model'),str) and branch['model'].strip():return branch['model']
+        if branch.get('fixed_drop_v') is not None:return repr(float(branch['fixed_drop_v']))+'V'
+        diode=branch.get('diode')
+        if isinstance(diode,dict):
+            return ('diode(Vf='+repr(float(diode['vf_ref_v']))+'V,Iref='+
+                    repr(float(diode['reference_current_a']))+'A,n='+
+                    repr(float(diode['ideality']))+',T='+repr(float(diode['temperature_c']))+'C)')
+        values=[]
+        if branch.get('resistance_ohm'):values.append(repr(float(branch['resistance_ohm']))+'Ω')
+        if branch.get('inductance_h'):values.append(repr(float(branch['inductance_h']))+'H')
+        if not values:raise ValueError('Restored series component has no explicit model.')
+        return '+'.join(values)
+    branches=[]
+    for stage in request['series']:
+        if not isinstance(stage,dict):raise ValueError('Restored series stage is malformed.')
+        entry,exit_pad=row_for(stage.get('from_pad')),row_for(stage.get('to_pad'))
+        reference=entry.get('reference',entry['label'].rsplit('.',1)[0])
+        branch={'reference':reference,'from_pad':entry['id'],'to_pad':exit_pad['id'],
+                'model':model(stage)}
+        for key in ('from_pads','to_pads'):
+            if key in stage:branch[key]=deepcopy(stage[key])
+        if stage.get('parallel'):
+            parallel=[]
+            for part in stage['parallel']:
+                left,right=row_for(part.get('from_pad')),row_for(part.get('to_pad'))
+                owner=left.get('footprint_uuid')
+                if not owner or owner!=right.get('footprint_uuid'):
+                    raise ValueError('Restored parallel part has no exact footprint identity.')
+                configured={'footprint_uuid':owner,'from_pad':left['id'],'to_pad':right['id'],
+                            'model':model(part)}
+                for key in ('from_pads','to_pads'):
+                    if key in part:configured[key]=deepcopy(part[key])
+                parallel.append(configured)
+            branch['parallel']=parallel
+        branches.append(branch)
+    path={'schema':1,'source':token(request.get('source_terminal')),
+          'sink':token(request.get('sink_terminal')),'branches':branches}
+    for key in ('source_terminals','sink_terminals'):
+        if key in request:path[key]=deepcopy(request[key])
+    parse_saved_path(path,inventory)
+    return {'path':path,'editor':{}}
 
 
 def reviewed_pair(inventory, net, from_pad, to_pad):
@@ -95,9 +255,14 @@ def _editor_selection(board_path):
 
 
 def selected_pad_labels(board_path, inventory):
+    selected=set(selected_pad_ids(board_path,inventory))
+    return [row['label'] for row in inventory.get('terminals',[]) if row['id'] in selected]
+
+
+def selected_pad_ids(board_path, inventory):
     from wayricad_runtime.ipc import uid
     selected = {uid(item) for item in _editor_selection(board_path)}
-    return [row['label'] for row in inventory.get('terminals', []) if row['id'] in selected]
+    return [row['id'] for row in inventory.get('terminals', []) if row['id'] in selected]
 
 
 def selected_component_references(board_path):
@@ -133,14 +298,20 @@ class SeriesPathDialog:
         import wx
         from wayricad_runtime.readable_choice import ReadableChoice
         self.wx = wx;self.inventory=inventory;self.board_path=board_path;self.request=None
-        self.branches=list(existing.get('branches', [])) if existing else []
+        initial_path=existing.get('path',{}) if isinstance(existing,dict) and 'path' in existing else existing
+        self.branches=deepcopy(initial_path.get('branches',[])) if isinstance(initial_path,dict) else []
         self.endpoint_groups={}
         self.dialog=wx.Dialog(parent,title='Quick PI · Series path editor',
                               size=parent.FromDIP((930,700)),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         root=wx.BoxSizer(wx.VERTICAL)
         intro=wx.StaticText(self.dialog,label='Choose source and sink pads, then add components in path order. For multi-pad devices, review an explicit current-terminal pair. Values are explicit assumptions; saved copper supplies the intervening nets.')
         intro.Wrap(parent.FromDIP(880));root.Add(intro,0,wx.EXPAND|wx.ALL,12)
-        labels=sorted(row['label'] for row in inventory.get('terminals', []))
+        from .console import terminal_aliases
+        self._pad_aliases=terminal_aliases(inventory)
+        by_id={str(row['id']):row for row in inventory.get('terminals',[])}
+        self._display_to_token={alias:(identifier if alias!=by_id[identifier]['label'] else alias)
+            for identifier,alias in self._pad_aliases.items()}
+        labels=sorted(self._display_to_token)
         endpoints=wx.BoxSizer(wx.HORIZONTAL)
         self.source=ReadableChoice(self.dialog,choices=labels);self.sink=ReadableChoice(self.dialog,choices=labels)
         if labels:self.source.SetSelection(0);self.sink.SetSelection(min(1,len(labels)-1))
@@ -193,6 +364,18 @@ class SeriesPathDialog:
         explicit.Bind(wx.EVT_BUTTON,self._explicit_pair)
         right.Add(explicit,0,wx.ALIGN_RIGHT|wx.TOP,8);main.Add(right,1,wx.EXPAND)
         root.Add(main,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
+        root.Add(wx.StaticText(self.dialog,label='Manual saved-net path · type or paste, then apply'),0,wx.LEFT|wx.TOP,12)
+        self.manual=wx.TextCtrl(self.dialog)
+        self.manual.SetHint('run pi J1.1 Q1.1 100m Q1.3 U1.1')
+        root.Add(self.manual,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
+        self.manual_matches=wx.ListBox(self.dialog,size=(-1,72))
+        root.Add(self.manual_matches,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,12)
+        apply_manual=wx.Button(self.dialog,label='Use manual path')
+        apply_manual.Bind(wx.EVT_BUTTON,self._apply_manual)
+        root.Add(apply_manual,0,wx.ALIGN_RIGHT|wx.RIGHT|wx.TOP,12)
+        self.manual.Bind(wx.EVT_TEXT,self._manual_changed)
+        self.manual_matches.Bind(wx.EVT_LISTBOX_DCLICK,self._manual_pick)
+        self._manual_pending=False
         root.Add(wx.StaticText(self.dialog,label='Preview and validation'),0,wx.LEFT|wx.TOP,12)
         self.preview=wx.TextCtrl(self.dialog,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,100))
         root.Add(self.preview,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
@@ -205,14 +388,89 @@ class SeriesPathDialog:
         run.Bind(wx.EVT_BUTTON,self._run);footer.Add(run,0,wx.RIGHT,8);footer.Add(cancel,0)
         root.Add(footer,0,wx.EXPAND|wx.ALL,12)
         self.dialog.SetSizer(root)
+        minimum=root.CalcMin();current=self.dialog.GetClientSize()
+        self.dialog.SetClientSize((max(current.width,minimum.width),max(current.height,minimum.height)))
         self.source.Bind(wx.EVT_CHOICE,self._changed);self.sink.Bind(wx.EVT_CHOICE,self._changed)
         self.kind.Bind(wx.EVT_CHOICE,self._changed)
         self._changed()
+        if isinstance(initial_path,dict):
+            self._restore_path(initial_path)
+        else:
+            from .pin_units import peers
+            for control,check in ((self.source,self.source_all),(self.sink,self.sink_all)):
+                value=self._chosen(control)
+                matches=[row for row in self.inventory.get('terminals',[])
+                         if value in (row.get('id'),row.get('label'))]
+                check.SetValue(len(matches)==1 and bool(peers(self.inventory['terminals'],matches[0]['id'])))
+            self._changed()
+        if isinstance(existing,dict) and isinstance(existing.get('editor'),dict):
+            editor=existing['editor']
+            kind=editor.get('kind')
+            if type(kind) is int and 0<=kind<self.kind.GetCount():self.kind.SetSelection(kind)
+            for key,value in editor.get('values',{}).items():
+                if key in self.values and isinstance(value,str):self.values[key][1].SetValue(value)
+            self._changed()
+            component=editor.get('component')
+            choice=next((i for i,(reference,_) in enumerate(self.candidates) if reference==component),None)
+            if choice is not None:self.component.SetSelection(choice)
+            selected=editor.get('selected_stage')
+            if type(selected) is int and 0<=selected<len(self.branches):self.list.SetSelection(selected)
+            self.manual.SetValue(editor.get('manual','') if isinstance(editor.get('manual'),str) else '')
+            self._manual_pending=bool(editor.get('manual_pending'))
+
+    def _restore_path(self,data):
+        """Restore saved schema-1 controls without replacing exact pad identities."""
+        for control,key in ((self.source,'source'),(self.sink,'sink')):
+            value=data.get(key)
+            matches=[row for row in self.inventory.get('terminals',[])
+                     if value in (row.get('id'),row.get('label'),self._pad_aliases.get(str(row.get('id'))))]
+            if len(matches)==1:control.SetStringSelection(self._pad_aliases[str(matches[0]['id'])])
+            else:control.SetSelection(self.wx.NOT_FOUND)
+        self.source_all.SetValue(len(data.get('source_terminals',[]))>1)
+        self.sink_all.SetValue(len(data.get('sink_terminals',[]))>1)
+        self.endpoint_groups={key:deepcopy(data[key]) for key in ('source_terminals','sink_terminals')
+                              if isinstance(data.get(key),list)}
+        self.branches=deepcopy(data.get('branches',[]))
+        self._changed()
+
+    def draft_snapshot(self):
+        """Capture even an unfinished dialog; callers retain this until PI closes."""
+        try:path=deepcopy(self._path_data())
+        except ValueError:
+            path={'schema':1,'source':self._chosen(self.source),'sink':self._chosen(self.sink),
+                  'branches':deepcopy(self.branches),**deepcopy(self.endpoint_groups)}
+        selected=self.component.GetSelection()
+        component=self.candidates[selected][0] if 0<=selected<len(self.candidates) else None
+        return {'path':path,'editor':{'kind':self.kind.GetSelection(),
+            'values':{key:control.GetValue() for key,(_,control) in self.values.items()},
+            'component':component,'selected_stage':self.list.GetSelection(),
+            'manual':self.manual.GetValue(),'manual_pending':self._manual_pending}}
+
+    def _manual_changed(self,event):
+        from .console import suggestions
+        self._manual_pending=True
+        self.manual_matches.Set(suggestions(self.manual.GetValue(),self.inventory)[:12])
+        event.Skip()
+
+    def _manual_pick(self,event):
+        choice=self.manual_matches.GetStringSelection()
+        if choice:self.manual.SetValue(choice);self.manual.SetInsertionPointEnd();self.manual.SetFocus()
+        event.Skip()
+
+    def _apply_manual(self,event):
+        try:
+            try:previous=self._path_data()
+            except ValueError:previous={}
+            data=path_from_command(self.manual.GetValue(),self.inventory,existing=previous)
+            self._restore_path(data)
+            self._manual_pending=False
+            return True
+        except ValueError as exc:
+            self.wx.MessageBox(str(exc),'Review manual series path',self.wx.OK|self.wx.ICON_WARNING)
+            return False
 
     def _parallel_candidates(self,index):
         from .parallel_parts import stage_pads,candidates
-        if any('from_pad' in branch for branch in self.branches[:index+1]):
-            return []  # Explicit multi-pad stages have no automatic parallel inference.
         start,end=stage_pads(self.inventory,self._chosen(self.source),self.branches,index)
         excluded={part['footprint_uuid'] for i,branch in enumerate(self.branches) if i!=index
                   for part in branch.get('parallel',[])}
@@ -232,7 +490,8 @@ class SeriesPathDialog:
         data={'schema':1,'source':self._chosen(self.source),'sink':self._chosen(self.sink),'branches':self.branches}
         for control,check,key in ((self.source,self.source_all,'source_terminals'),(self.sink,self.sink_all,'sink_terminals')):
             if not check.GetValue():continue
-            selected=[row for row in self.inventory.get('terminals',[]) if row.get('label')==self._chosen(control)]
+            selected=[row for row in self.inventory.get('terminals',[])
+                      if self._chosen(control) in (row.get('id'),row.get('label'))]
             if len(selected)!=1:raise ValueError('Choose an unambiguous source and sink anchor.')
             identifier=selected[0]['id']
             if key in self.endpoint_groups:
@@ -249,20 +508,42 @@ class SeriesPathDialog:
         wx=self.wx;index=self.list.GetSelection()
         try:parts=self._parallel_candidates(index)
         except (ValueError,KeyError) as exc:self.preview.SetValue(str(exc));return
-        dialog=wx.Dialog(self.dialog,title='Review parallel components',size=(680,440),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+        dialog=wx.Dialog(self.dialog,title='Review parallel components',size=(780,560),style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         layout=wx.BoxSizer(wx.VERTICAL)
-        note=wx.StaticText(dialog,label='These two-pad parts span exactly the same saved net pair. Check parts to include and review each R/L model. Capacitor, diode and unknown DCR models are not guessed.')
-        note.Wrap(630);layout.Add(note,0,wx.EXPAND|wx.ALL,10)
-        area=wx.ScrolledWindow(dialog,style=wx.VSCROLL);area.SetScrollRate(0,12);grid=wx.FlexGridSizer(0,2,8,12);grid.AddGrowableCol(1)
+        note=wx.StaticText(dialog,label='These parts have current pads on the exact saved net pair. Check each part and its incoming/outgoing pads, then review the R/L model. Gate, control and other-net pads stay excluded. Capacitor, diode and unknown DCR models are not guessed.')
+        note.Wrap(720);layout.Add(note,0,wx.EXPAND|wx.ALL,10)
+        area=wx.ScrolledWindow(dialog,style=wx.VSCROLL);area.SetScrollRate(0,12);stack=wx.BoxSizer(wx.VERTICAL)
         selected={row['footprint_uuid']:row for row in self.branches[index].get('parallel',[])}
         controls=[]
         for part in parts:
             old=selected.get(part['footprint_uuid'],{})
-            check=wx.CheckBox(area,label=part['id']+' · '+str(part['component_value']))
-            check.SetValue(bool(old));text=wx.TextCtrl(area,value=old.get('model',suggested_resistance(part)))
-            text.SetHint('Explicit model, e.g. 100m or 10mH+30m')
-            grid.Add(check,0,wx.ALIGN_CENTER_VERTICAL);grid.Add(text,1,wx.EXPAND);controls.append((part,check,text))
-        area.SetSizer(grid);layout.Add(area,1,wx.EXPAND|wx.ALL,10)
+            pad_labels=self._pad_aliases
+            panel=wx.Panel(area);item=wx.BoxSizer(wx.VERTICAL)
+            check=wx.CheckBox(panel,label=part['id']+' · '+str(part['component_value']))
+            item.Add(check,0,wx.BOTTOM,4)
+            check.SetValue(bool(old))
+            for title,key,anchor in (('Incoming current pads','from_pads','from_pad'),
+                                     ('Outgoing current pads','to_pads','to_pad')):
+                item.Add(wx.StaticText(panel,label=title),0,wx.TOP|wx.BOTTOM,3)
+                chosen=set(old.get(key,[old.get(anchor,part[anchor])]) if old else part[key])
+                checks=[];line=wx.BoxSizer(wx.HORIZONTAL)
+                for identifier in part[key]:
+                    pad=wx.CheckBox(panel,label=pad_labels.get(identifier,identifier))
+                    pad.SetValue(identifier in chosen);line.Add(pad,0,wx.RIGHT,10)
+                    checks.append((identifier,pad))
+                item.Add(line,0,wx.EXPAND)
+                if key=='from_pads':incoming_checks=checks
+                else:outgoing_checks=checks
+            if part['excluded_pads']:
+                item.Add(wx.StaticText(panel,label='Excluded other-net pads: '+
+                         ', '.join(pad_labels.get(value,value) for value in part['excluded_pads'])),0,wx.TOP,4)
+            item.Add(wx.StaticText(panel,label='Reviewed R/L model'),0,wx.TOP,5)
+            model=wx.TextCtrl(panel,value=old.get('model',suggested_resistance(part)))
+            model.SetHint('Explicit model, e.g. 100m or 10mH+30m')
+            item.Add(model,0,wx.EXPAND|wx.BOTTOM,5)
+            panel.SetSizer(item);stack.Add(panel,0,wx.EXPAND|wx.ALL,8)
+            controls.append((part,check,model,incoming_checks,outgoing_checks))
+        area.SetSizer(stack);layout.Add(area,1,wx.EXPAND|wx.ALL,10)
         highlight=wx.Button(dialog,label='Highlight detected parts on PCB')
         def locate(_event):
             try:
@@ -274,21 +555,27 @@ class SeriesPathDialog:
         try:
             if dialog.ShowModal()!=wx.ID_OK:return
             reviewed=[]
-            for part,check,text in controls:
+            for part,check,text,incoming_checks,outgoing_checks in controls:
                 if not check.GetValue():continue
                 model=text.GetValue().strip();parsed=_model(model)
                 if 'diode' in parsed or 'fixed_drop_v' in parsed:raise ValueError('Parallel DC stages require R/L models.')
-                reviewed.append({'footprint_uuid':part['footprint_uuid'],'model':model})
+                incoming=[identifier for identifier,control in incoming_checks if control.GetValue()]
+                outgoing=[identifier for identifier,control in outgoing_checks if control.GetValue()]
+                if not incoming or not outgoing:raise ValueError('Choose at least one incoming and outgoing current pad for each selected parallel part.')
+                reviewed.append({'footprint_uuid':part['footprint_uuid'],'from_pad':incoming[0],
+                                 'to_pad':outgoing[0],'from_pads':incoming,'to_pads':outgoing,'model':model})
             self.branches[index]['parallel']=reviewed;self._changed();self.list.SetSelection(index);self._parallel_note()
         except ValueError as exc:wx.MessageBox(str(exc),'Review parallel models',wx.OK|wx.ICON_WARNING)
         finally:dialog.Destroy()
 
     def _chosen(self,control):
-        return control.GetStringSelection() if control.GetSelection()>=0 else ''
+        if control.GetSelection()<0:return ''
+        selection=control.GetStringSelection()
+        return self._display_to_token.get(selection,selection) if control in (self.source,self.sink) and hasattr(self,'_display_to_token') else selection
 
     def _cursor_net(self):
         label=self._chosen(self.source)
-        row=next((row for row in self.inventory.get('terminals',[]) if row['label']==label),None)
+        row=next((row for row in self.inventory.get('terminals',[]) if label in (row['id'],row.get('label'))),None)
         if row is None:return ''
         net=row['net']
         for branch in self.branches:
@@ -312,10 +599,11 @@ class SeriesPathDialog:
         for control,check,role in ((self.source,self.source_all,'source'),(self.sink,self.sink_all,'sink')):
             if changed is control or changed is check:self.endpoint_groups.pop(role+'_terminals',None)
             if changed is control:check.SetValue(False)
-            selected=next((row for row in self.inventory.get('terminals',[]) if row.get('label')==self._chosen(control)),None)
+            selected=next((row for row in self.inventory.get('terminals',[]) if self._chosen(control) in (row.get('id'),row.get('label'))),None)
             others=peers(self.inventory.get('terminals',[]),selected['id']) if selected else []
             check.Enable(bool(others))
             if not others:check.SetValue(False)
+            elif changed is control:check.SetValue(True)
             check.SetLabel('Include all '+str(len(others)+1)+' same-component/net '+role+' pads'+(' (total current)' if role=='sink' else ''))
         active=self.kind.GetSelection()
         for key,(label,control) in self.values.items():
@@ -326,15 +614,17 @@ class SeriesPathDialog:
         self.candidates=compatible_components(self.inventory,net,used) if net else []
         self.component.Set([ref+' · '+net+' → '+next_net for ref,next_net in self.candidates])
         if self.candidates:self.component.SetSelection(0)
-        pad_labels={row['id']:row['label'] for row in self.inventory.get('terminals',[])}
+        pad_labels=self._pad_aliases
         self.list.Set([row['reference']+'  ·  '+(pad_labels.get(row['from_pad'],row['from_pad'])+' → '+pad_labels.get(row['to_pad'],row['to_pad'])+'  ·  ' if 'from_pad' in row else '')+row['model']+(f" (+{len(row['parallel'])} parallel)" if row.get('parallel') else '') for row in self.branches])
         if self.branches:self.list.SetSelection(len(self.branches)-1)
         self._parallel_note()
         try:
-            command=build_command(self._chosen(self.source),self._chosen(self.sink),self.branches)
+            command=display_path_command(self._path_data(),self.inventory)
             parsed=self._parsed()
             found=[part['id'] for i in range(len(self.branches)) for part in self._parallel_candidates(i)]
+            groups=grouped_pad_preview(parsed,self.inventory)
             self.preview.SetValue(command+'\n\nValid saved-net path · '+str(len(parsed['series']))+' series stage(s).'+
+                                  ('\n'+'\n'.join(groups) if groups else '')+
                                   ('\nDetected parallel parts: '+', '.join(found)+' · review with Parallel parts.' if found else ''))
         except Exception as exc:
             self.preview.SetValue((command if 'command' in locals() else '')+'\n\nReview: '+str(exc))
@@ -385,14 +675,32 @@ class SeriesPathDialog:
         include_out=wx.CheckBox(dialog,label='Include all other same-net outgoing pads on this component')
         layout.Add(include_in,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,12)
         layout.Add(include_out,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
+        group_preview=wx.StaticText(dialog,label='')
+        layout.Add(group_preview,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,12)
         incoming=[];outgoing=[]
+        from .pin_units import peers
+        def show_groups(_event=None):
+            def labels(pads,choice,check):
+                if not pads or choice.GetSelection()<0:return 'None'
+                ids=current_pad_group(rows,pads[choice.GetSelection()]['id'],check.GetValue())
+                return ', '.join(self._pad_aliases.get(str(value),str(value)) for value in ids)
+            group_preview.SetLabel('Incoming: '+labels(incoming,entry,include_in)+
+                                   '\nOutgoing: '+labels(outgoing,exit_pad,include_out))
+            group_preview.Wrap(700);dialog.Layout()
+        def default_group(check,pads,choice):
+            check.SetValue(bool(pads) and choice.GetSelection()>=0 and
+                           bool(peers(rows,pads[choice.GetSelection()]['id'])))
+            show_groups()
         def update(_event=None):
-            include_in.SetValue(False);include_out.SetValue(False)
             incoming[:]=[p for p in eligible[component.GetStringSelection()] if p.get('net')==net]
             outgoing[:]=[p for p in eligible[component.GetStringSelection()] if p.get('net') and p['net']!=net]
             for control,pads in ((entry,incoming),(exit_pad,outgoing)):
-                control.Set([p['label']+' ['+p['net']+']' for p in pads]);control.SetSelection(0)
+                control.Set([self._pad_aliases.get(str(p['id']),p['label'])+' ['+p['net']+']' for p in pads]);control.SetSelection(0)
+            default_group(include_in,incoming,entry);default_group(include_out,outgoing,exit_pad)
         component.Bind(wx.EVT_CHOICE,update);update()
+        entry.Bind(wx.EVT_CHOICE,lambda _event:default_group(include_in,incoming,entry))
+        exit_pad.Bind(wx.EVT_CHOICE,lambda _event:default_group(include_out,outgoing,exit_pad))
+        include_in.Bind(wx.EVT_CHECKBOX,show_groups);include_out.Bind(wx.EVT_CHECKBOX,show_groups)
         reviewed=wx.CheckBox(dialog,label='I reviewed these current terminals and the explicit model; other pads remain excluded.')
         layout.Add(reviewed,0,wx.EXPAND|wx.ALL,12)
         layout.Add(dialog.CreateButtonSizer(wx.OK|wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,12);dialog.SetSizer(layout)
@@ -403,10 +711,9 @@ class SeriesPathDialog:
             model=self._model()
             from .console import _model
             _model(model)
-            from .pin_units import peers
             branch={'reference':reference,'from_pad':a['id'],'to_pad':b['id'],'model':model}
             for row,check,key in ((a,include_in,'from_pads'),(b,include_out,'to_pads')):
-                if check.GetValue():branch[key]=[row['id'],*[p['id'] for p in peers(rows,row['id'])]]
+                if check.GetValue():branch[key]=current_pad_group(rows,row['id'],True)
             self.branches.append(branch)
             self._changed()
         except (ValueError,IndexError) as exc:
@@ -438,21 +745,33 @@ class SeriesPathDialog:
 
     def _selection(self,event):
         try:
-            labels=selected_pad_labels(self.board_path,self.inventory)
-            if not labels:raise ValueError('Select one or two saved-board pads in the originating PCB Editor, then retry.')
+            identifiers=selected_pad_ids(self.board_path,self.inventory)
+            if not identifiers:raise ValueError('Select one or two saved-board pads in the originating PCB Editor, then retry.')
             self.source_all.SetValue(False);self.sink_all.SetValue(False);self.endpoint_groups.clear()
-            for control,label in ((self.source,labels[0]),(self.sink,labels[1] if len(labels)>1 else '')):
-                if label:control.SetStringSelection(label)
+            for control,identifier in ((self.source,identifiers[0]),(self.sink,identifiers[1] if len(identifiers)>1 else '')):
+                if identifier:control.SetStringSelection(self._pad_aliases[str(identifier)])
             self._changed()
-            if len(labels)>2:self.wx.MessageBox('More than two pads are selected. The first two were used; review their order.','Selection review')
+            if len(identifiers)>2:self.wx.MessageBox('More than two pads are selected. The first two were used; review their order.','Selection review')
         except Exception as exc:self.wx.MessageBox(str(exc),'KiCad selection',self.wx.OK|self.wx.ICON_WARNING)
 
     def _save(self,event):
-        data=self._path_data()
+        if self._manual_pending and not self._apply_manual(event):return
+        try:
+            data=self._path_data()
+            parse_saved_path(data,self.inventory)
+        except ValueError as exc:
+            self.wx.MessageBox(str(exc),'Complete the series path before saving',self.wx.OK|self.wx.ICON_WARNING)
+            return
         with self.wx.FileDialog(self.dialog,'Save series path',defaultDir=str(Path(self.board_path).parent),
              wildcard='JSON (*.json)|*.json',style=self.wx.FD_SAVE|self.wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=self.wx.ID_OK:return
-            Path(dialog.GetPath()).write_text(json.dumps(data,indent=2)+'\n',encoding='utf-8')
+            target=Path(dialog.GetPath());board=Path(self.board_path)
+            if (target.suffix.lower()!='.json' or target.resolve()==board.resolve()
+                    or target.exists() and board.exists() and target.samefile(board)):
+                self.wx.MessageBox('Choose a .json series path file distinct from the PCB.',
+                                   'Cannot save path',self.wx.OK|self.wx.ICON_WARNING)
+                return
+            target.write_text(json.dumps(data,indent=2)+'\n',encoding='utf-8')
 
     def _load(self,event):
         with self.wx.FileDialog(self.dialog,'Load series path',defaultDir=str(Path(self.board_path).parent),
@@ -461,22 +780,24 @@ class SeriesPathDialog:
             try:
                 data=json.loads(Path(dialog.GetPath()).read_text(encoding='utf-8'))
                 parse_saved_path(data,self.inventory)
-                for control,key in ((self.source,'source'),(self.sink,'sink')):
-                    row=next(row for row in self.inventory['terminals'] if data[key] in (row['id'],row.get('label')))
-                    control.SetStringSelection(row['label'])
-                self.source_all.SetValue(len(data.get('source_terminals',[]))>1)
-                self.sink_all.SetValue(len(data.get('sink_terminals',[]))>1)
-                self.endpoint_groups={key:list(data[key]) for key in ('source_terminals','sink_terminals') if key in data}
-                self.branches=list(data['branches']);self._changed()
+                self._restore_path(data)
+                self.manual.SetValue('');self._manual_pending=False
             except (OSError,KeyError,TypeError,ValueError) as exc:
                 self.wx.MessageBox(str(exc),'Cannot load path',self.wx.OK|self.wx.ICON_WARNING)
 
     def _run(self,event):
         try:
+            if self._manual_pending and not self._apply_manual(event):return
             self.request=self._parsed()
             self.dialog.EndModal(self.wx.ID_OK)
         except ValueError as exc:self.wx.MessageBox(str(exc),'Review the series path',self.wx.OK|self.wx.ICON_WARNING)
 
-    def show(self):
-        try:return self.request if self.dialog.ShowModal()==self.wx.ID_OK else None
+    def show_with_draft(self):
+        """Return request and in-memory draft on Run, Cancel, or window close."""
+        try:
+            accepted=self.dialog.ShowModal()==self.wx.ID_OK
+            return (self.request if accepted else None),self.draft_snapshot()
         finally:self.dialog.Destroy()
+
+    def show(self):
+        return self.show_with_draft()[0]

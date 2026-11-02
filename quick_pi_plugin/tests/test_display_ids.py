@@ -63,7 +63,7 @@ class DisplayIDTests(unittest.TestCase):
     def test_html_and_json_have_same_via_mapping_with_original_ids(self):
         b=bundle();b['geometry']['layers'].append({'id':31,'name':'B.Cu','polygons':[]})
         b['geometry']['vias']=[{'id':'original-via-uuid','x_mm':5,'y_mm':.5}]
-        b['mesh']['vias']=[{'id':'original-via-uuid:0-31','top_layer':0,'bottom_layer':31,'x_mm':5,'y_mm':.5}]
+        b['mesh']['vias']=[{'id':'original-via-uuid:0-31','top_layer':0,'bottom_layer':31,'x_mm':5,'y_mm':.5,'drill_mm':.3,'plating_mm':.025}]
         b['result']['vias']=[{'id':'original-via-uuid:0-31','current_A':1,'current_density_A_mm2':100,'power_W':.001,'thermal':{}}]
         with tempfile.TemporaryDirectory() as temporary:
             path=Path(temporary)/'report.html'

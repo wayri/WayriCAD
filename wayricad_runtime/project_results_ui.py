@@ -23,6 +23,99 @@ def _number(value):
     return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
 
 
+def _saved_triangles(mesh, count):
+    """Accept only complete, explicit 2.5D triangle topology."""
+    triangles = mesh.get('triangles')
+    points = mesh.get('points_mm')
+    if (not isinstance(points, list) or not isinstance(triangles, list)
+            or not triangles or len(triangles) > MAX_PLOT_SAMPLES):
+        return None
+    if any(not isinstance(point, (list, tuple)) or len(point) < 2
+           or not all(_number(value) for value in point[:min(3, len(point))]) for point in points):
+        return None
+    if any(not isinstance(row, (list, tuple)) or len(row) != 3
+           or any(type(index) is not int or index < 0 or index >= count for index in row)
+           or len(set(row)) != 3 for row in triangles):
+        return None
+    return triangles
+
+
+def _pi_field_specs(label, mesh, result, key, unit):
+    points = mesh.get('points_mm')
+    values = result.get(key)
+    if not isinstance(values, list) or not values:
+        return []
+    if len(values) > MAX_PLOT_SAMPLES:
+        return [_unavailable(label+' / '+key, 'Plot budget exceeded (200,000 stored samples)')]
+    positions = points if key == 'potential_V' else result.get('cell_centroid_mm')
+    if not isinstance(positions, list) or len(positions) != len(values):
+        return []
+    groups = {}
+    for index, point in enumerate(positions):
+        if (not isinstance(point, (list, tuple)) or len(point) < 2
+                or not all(_number(value) for value in point[:min(3, len(point))])):
+            return []
+        groups.setdefault(point[2] if len(point) > 2 else None, []).append(index)
+    if len(groups) > 64:
+        return [_unavailable(label+' / '+key,
+            'Unstructured 3D field has more than 64 stored elevations; full volume reconstruction is unavailable')]
+
+    triangles = _saved_triangles(mesh, len(points) if isinstance(points, list) else 0)
+    mesh_layers, result_layers = mesh.get('triangle_layer'), result.get('cell_layer')
+    if (triangles and isinstance(mesh_layers, list) and isinstance(result_layers, list)
+            and len(mesh_layers) == len(result_layers) == len(triangles)
+            and any(str(a) != str(b) for a, b in zip(mesh_layers, result_layers))):
+        triangles = None
+    layers = mesh_layers
+    if not isinstance(layers, list) or len(layers) != len(triangles or []):
+        layers = result_layers
+    if not isinstance(layers, list) or len(layers) != len(triangles or []):
+        layers = [None] * len(triangles or [])
+    if key == 'cell_power_W' and len(values) != len(triangles or []):
+        triangles = None
+    if key == 'potential_V' and len(values) != len(points or []):
+        triangles = None
+    by_plane = {}
+    if triangles:
+        for index, triangle in enumerate(triangles):
+            elevations = {points[vertex][2] if len(points[vertex]) > 2 else None for vertex in triangle}
+            if len(elevations) != 1:
+                continue
+            elevation = next(iter(elevations))
+            if key == 'cell_power_W' and elevation != (positions[index][2] if len(positions[index]) > 2 else None):
+                continue
+            if key == 'potential_V' and any(values[vertex] is None or not _number(values[vertex]) for vertex in triangle):
+                continue
+            if key == 'cell_power_W' and (values[index] is None or not _number(values[index])):
+                continue
+            by_plane.setdefault((elevation, str(layers[index])), []).append(index)
+    specs = []
+    for elevation, indices in groups.items():
+        plane = '' if elevation is None else ' / saved Z = '+str(elevation)+' mm'
+        supported = [(layer, selected) for (z, layer), selected in by_plane.items() if z == elevation]
+        for layer, selected in supported:
+            vertex_indices = sorted({vertex for cell in selected for vertex in triangles[cell]})
+            local_vertex = {vertex: position for position, vertex in enumerate(vertex_indices)}
+            probe_indices = vertex_indices if key == 'potential_V' else selected
+            specs.append(dict(label=label+plane+(' / layer '+layer if layer != 'None' else '')+' / '+key,
+                kind='mesh', x=[positions[i][0] for i in probe_indices],
+                y=[positions[i][1] for i in probe_indices], z=elevation,
+                values=[values[i] for i in probe_indices], unit=unit,
+                vertices=[points[i][:2] for i in vertex_indices],
+                triangles=[[local_vertex[vertex] for vertex in triangles[cell]] for cell in selected],
+                cell_values=[values[cell] for cell in selected] if key == 'cell_power_W' else None,
+                thicknesses=[mesh.get('triangle_thickness_mm', [None]*len(triangles))[cell] for cell in selected]
+                    if isinstance(mesh.get('triangle_thickness_mm'), list) and len(mesh['triangle_thickness_mm']) == len(triangles) else None))
+        used = set(vertex for _, selected in supported for cell in selected for vertex in triangles[cell]) if key == 'potential_V' and supported else set(cell for _, selected in supported for cell in selected)
+        unsupported = [index for index in indices if index not in used]
+        if unsupported or not supported:
+            specs.append(dict(label=label+plane+' / '+key+(' (samples without supported triangles)' if supported else ''),
+                kind='points', x=[positions[i][0] for i in unsupported],
+                y=[positions[i][1] for i in unsupported], z=elevation,
+                values=[values[i] for i in unsupported], unit=unit))
+    return specs
+
+
 def plot_specs(bundle):
     """Describe stored plots without changing payloads or deriving missing samples."""
     specs = []
@@ -52,32 +145,12 @@ def plot_specs(bundle):
                 specs.append(_unavailable(label+' / volume data','This mesh layout has no supported saved points_mm field; full 3D reconstruction is unavailable'))
             if isinstance(points,list) and points:
                 for key,unit in [('potential_V','V'),('cell_power_W','W')]:
-                    values=result.get(key)
-                    if not isinstance(values,list) or not values:
-                        continue
-                    positions=points if key=='potential_V' else result.get('cell_centroid_mm',[])
-                    if len(values)>MAX_PLOT_SAMPLES:
-                        specs.append(_unavailable(label+' / '+key,'Plot budget exceeded (200,000 stored samples)'))
-                        continue
-                    if not isinstance(positions,list) or len(positions)!=len(values):
-                        continue
-                    groups={}
-                    for index,point in enumerate(positions):
-                        if not isinstance(point,(list,tuple)) or len(point)<2 or not all(_number(v) for v in point[:min(3,len(point))]):
-                            groups={};break
-                        elevation=point[2] if len(point)>2 else None
-                        groups.setdefault(elevation,[]).append(index)
-                    if len(groups)>64:
-                        specs.append(_unavailable(label+' / '+key,'Unstructured 3D field has more than 64 stored elevations; full volume reconstruction is unavailable'))
-                        continue
-                    for elevation,indices in groups.items():
-                        plane='' if elevation is None else ' / saved Z = '+str(elevation)+' mm'
-                        specs.append(dict(label=label+plane+' / '+key,kind='points',
-                            x=[positions[i][0] for i in indices],y=[positions[i][1] for i in indices],
-                            z=elevation,values=[values[i] for i in indices],unit=unit))
+                    specs.extend(_pi_field_specs(label, mesh, result, key, unit))
         if all(isinstance(node.get(key), list) and node[key] for key in ('x_centers_mm', 'y_centers_mm', 'values_c')):
             specs.append(dict(label=label+' / temperature', kind='grid', x=node['x_centers_mm'],
-                              y=node['y_centers_mm'], values=node['values_c'], unit='°C'))
+                              y=node['y_centers_mm'], values=node['values_c'], unit='°C', field=node,
+                              outline=bundle.get('board_thermal_view',{}).get('outline',[]),
+                              drills=bundle.get('board_thermal_view',{}).get('drills',[])))
         spatial, frames = node.get('spatial_index'), node.get('frames')
         if isinstance(spatial, dict) and isinstance(frames, list) and frames:
             cells = spatial.get('cells', [])
@@ -89,7 +162,11 @@ def plot_specs(bundle):
                         continue
                     specs.append(dict(label=label+' / '+str(layer.get('name', index)), kind='frames',
                         x=spatial['x_centers_mm'], y=spatial['y_centers_mm'], cells=cells,
-                        layer=index, count=count, frames=frames, unit='°C'))
+                        layer=index, count=count, frames=frames, unit='°C',
+                        field=next((row for row in bundle.get('thermal_network',{}).get('layers',[])
+                            if isinstance(row,dict) and row.get('id')==layer.get('id')), {}),
+                        outline=bundle.get('board_thermal_view',{}).get('outline',[]),
+                        drills=bundle.get('board_thermal_view',{}).get('drills',[])))
         if isinstance(node.get('time_ui'), list) and isinstance(node.get('traces_v'), list):
             eye_size=sum(len(row) if isinstance(row,list) else MAX_PLOT_SAMPLES+1 for row in node['traces_v'])
             if eye_size > MAX_PLOT_SAMPLES:
@@ -174,7 +251,7 @@ def probe_sample(spec, x, y=None, *, frame=0):
         column = min(range(len(spec['x'])), key=lambda i: abs(spec['x'][i]-x))
         row = min(range(len(spec['y'])), key=lambda i: abs(spec['y'][i]-(y if y is not None else 0)))
         return dict(x=spec['x'][column], y=spec['y'][row], value=frame_grid(spec, frame)[row][column], unit=spec['unit'])
-    if spec['kind'] == 'points':
+    if spec['kind'] in ('points', 'mesh'):
         index = min(range(len(spec['x'])), key=lambda i: (spec['x'][i]-x)**2+(spec['y'][i]-(y if y is not None else 0))**2)
         distance=(spec['x'][index]-x)**2+(spec['y'][index]-(y if y is not None else 0))**2
         tied=[i for i in range(len(spec['x'])) if abs((spec['x'][i]-x)**2+(spec['y'][i]-(y if y is not None else 0))**2-distance)<1e-14]
@@ -192,6 +269,105 @@ def probe_sample(spec, x, y=None, *, frame=0):
     else:
         value = values[index]
     return dict(x=spec['x'][index], value=value, unit=spec['unit'])
+
+
+def _saved_field_image(axis, spec, frame=0):
+    """Draw archived spatial support and return its image and exact-sample probe."""
+    import numpy as np
+    kind = spec['kind']
+    if kind == 'mesh':
+        vertices = np.asarray(spec['vertices'], dtype=float)
+        triangles = np.asarray(spec['triangles'], dtype=int)
+        if spec.get('cell_values') is None:
+            colors = np.asarray(spec['values'], dtype=float)
+            # Probe values are ordered by the compact vertex index for nodal fields.
+            image = axis.tripcolor(vertices[:, 0], vertices[:, 1], triangles, colors,
+                                   shading='gouraud', cmap='viridis', edgecolors='none')
+        else:
+            cell_values = np.asarray(spec['cell_values'], dtype=float)
+            corners = vertices[triangles]
+            areas = np.abs((corners[:, 1, 0]-corners[:, 0, 0])*(corners[:, 2, 1]-corners[:, 0, 1])-
+                           (corners[:, 2, 0]-corners[:, 0, 0])*(corners[:, 1, 1]-corners[:, 0, 1]))/2
+            colors = np.empty((len(triangles), 3), dtype=float)
+            thicknesses = spec.get('thicknesses') or [None]*len(triangles)
+            for depth in dict.fromkeys(thicknesses):
+                group = np.asarray([i for i, value in enumerate(thicknesses) if value == depth], dtype=int)
+                nodes, inverse = np.unique(triangles[group], return_inverse=True)
+                inverse = inverse.ravel()
+                weights = np.repeat(areas[group], 3)
+                total = np.bincount(inverse, weights=weights, minlength=len(nodes))
+                weighted = np.bincount(inverse, weights=np.repeat(cell_values[group], 3)*weights,
+                                       minlength=len(nodes))
+                averages = np.divide(weighted, total, out=np.zeros_like(weighted), where=total > 0)
+                colors[group] = averages[inverse].reshape(-1, 3)
+            # Duplicate display corners retain discontinuities across thicknesses.
+            image = axis.tripcolor(corners[:, :, 0].ravel(), corners[:, :, 1].ravel(),
+                                   np.arange(len(triangles)*3).reshape(-1, 3), colors.ravel(),
+                                   shading='gouraud', cmap='inferno', edgecolors='none')
+        return image, spec
+    if kind in ('grid', 'frames'):
+        from matplotlib.colors import Normalize
+        from .thermal_field import _draw_field
+        values = frame_grid(spec, frame)
+        probe = dict(kind='grid', x=spec['x'], y=spec['y'], values=values, unit=spec['unit'])
+        field = dict(spec.get('field') or {}, x_centers_mm=spec['x'], y_centers_mm=spec['y'], values_c=values)
+        if field.get('status') == 'unavailable':
+            return None, probe
+        if kind == 'frames':
+            offset, end = spec['layer'] * spec['count'], (spec['layer']+1) * spec['count']
+            scale_values = (value for record in spec['frames'] if isinstance(record, dict)
+                            and isinstance(record.get('temperatures_c'), list)
+                            for value in record['temperatures_c'][offset:end])
+        else:
+            scale_values = (value for row in values for value in row)
+        low, high = math.inf, -math.inf
+        for value in scale_values:
+            if _number(value):
+                low, high = min(low, value), max(high, value)
+        if not math.isfinite(low):
+            low, high = 0., 1.
+        if low == high:
+            low -= .5
+            high += .5
+        norm = Normalize(low, high)
+        previous = len(axis.collections)
+        image = _draw_field(axis, field, {'outline': spec.get('outline', [])}, norm, 0.)
+        if (image is not None and spec.get('drills') and
+                any(len(shape.get('outer_mm', [])) >= 3 for shape in spec.get('outline', []))):
+            from matplotlib.path import Path as MplPath
+            vertices, codes = [], []
+            def ring(points, hole=False):
+                if len(points) < 3:
+                    return
+                xy = [tuple(point[:2]) for point in points]
+                area = sum(a[0]*b[1]-b[0]*a[1] for a, b in zip(xy, xy[1:]+xy[:1]))
+                if (area > 0) == hole:
+                    xy.reverse()
+                vertices.extend([*xy, xy[0]])
+                codes.extend([MplPath.MOVETO, *[MplPath.LINETO]*(len(xy)-1), MplPath.CLOSEPOLY])
+            for shape in spec.get('outline', []):
+                ring(shape.get('outer_mm', []))
+                for hole in shape.get('holes_mm', []):
+                    ring(hole, True)
+            for drill in spec['drills']:
+                ring(drill.get('contour_mm', []), True)
+            if vertices:
+                clip = MplPath(vertices, codes)
+                for artist in list(axis.collections)[previous:]:
+                    artist.set_clip_path(clip, axis.transData)
+        if image is None:
+            x, y = np.meshgrid(spec['x'], spec['y'])
+            samples = np.asarray([[np.nan if value is None else value for value in row] for row in values], dtype=float)
+            finite = np.isfinite(samples)
+            if finite.any():
+                image = axis.scatter(x[finite], y[finite], c=samples[finite], s=16,
+                                     norm=norm, cmap='inferno')
+        return image, probe
+    values = np.asarray([np.nan if value is None else value for value in spec['values']], dtype=float)
+    finite = np.isfinite(values)
+    image = axis.scatter(np.asarray(spec['x'])[finite], np.asarray(spec['y'])[finite],
+                         c=values[finite], s=16, cmap='viridis') if finite.any() else None
+    return image, spec
 
 
 def binding_text(receipt):
@@ -428,7 +604,6 @@ def create_viewer(parent, loaded):
                 self.canvas.draw_idle()
 
         def draw_saved(self):
-            import numpy as np
             self.figure.clear()
             axis = self.figure.add_subplot(111)
             spec = self.current_spec()
@@ -440,20 +615,18 @@ def create_viewer(parent, loaded):
             elif spec['kind']=='unavailable':
                 axis.text(.5,.5,spec['reason'],ha='center',va='center',wrap=True,transform=axis.transAxes)
             elif spec['kind'] in ('grid', 'frames'):
-                values = frame_grid(spec, self.frame_index)
-                self.probe_spec=dict(kind='grid',x=spec['x'],y=spec['y'],values=values,unit=spec['unit'])
-                field = np.array([[float('nan') if v is None else v for v in row] for row in values])
-                image = axis.pcolormesh(spec['x'], spec['y'], np.ma.masked_invalid(field), shading='nearest')
-                self.figure.colorbar(image, ax=axis, label=spec['unit'])
+                image, self.probe_spec = _saved_field_image(axis, spec, self.frame_index)
+                if image is not None:
+                    self.figure.colorbar(image, ax=axis, label=spec['unit'])
                 axis.set_xlabel('Saved X (mm)');axis.set_ylabel('Saved Y (mm)');axis.set_aspect('equal')
                 if spec['kind'] == 'frames':
                     self.time.SetRange(0, max(1, len(spec['frames'])-1))
                     self.time.Show();self.time_label.Show()
                     self.time_label.SetLabel('Stored frame '+str(self.frame_index+1)+' / '+str(len(spec['frames']))+' · t = '+str(spec['frames'][self.frame_index]['time_s'])+' s')
-            elif spec['kind'] == 'points':
-                values = [float('nan') if value is None else value for value in spec['values']]
-                image = axis.scatter(spec['x'], spec['y'], c=np.ma.masked_invalid(values), s=16)
-                self.figure.colorbar(image, ax=axis, label=spec['unit'])
+            elif spec['kind'] in ('points', 'mesh'):
+                image, self.probe_spec = _saved_field_image(axis, spec)
+                if image is not None:
+                    self.figure.colorbar(image, ax=axis, label=spec['unit'])
                 axis.set_xlabel('Saved X (mm) · selected stored elevation only');axis.set_ylabel('Saved Y (mm)');axis.set_aspect('equal')
             elif spec['kind'] == 'eye':
                 for values in spec['values']:

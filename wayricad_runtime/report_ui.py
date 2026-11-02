@@ -17,6 +17,7 @@ REPORT_CSS = '''
 
 # Shared document layout. Viewer-specific canvas styles remain local.
 REPORT_CSS += """
+.report-context,.report-scoped-body{display:block!important;grid-template-columns:none!important}.report-context table{width:100%;border-collapse:collapse;table-layout:auto;margin:12px 0 22px}.report-context th,.report-context td{padding:8px;border:1px solid #d9e3e8;text-align:left;vertical-align:top;overflow-wrap:anywhere}.report-context th{background:#eef4f7}
 :root{--report-ink:#203744;--report-accent:#156b76;--report-line:#d9e3e8}
 body{max-width:1320px;padding:24px 32px;margin:0 auto;line-height:1.55}
 h1{font-size:clamp(25px,3vw,36px);line-height:1.2;letter-spacing:-.025em;margin:18px 0 24px}
@@ -206,8 +207,11 @@ def publish_documents(documents, *, sources=(), source_guard=None):
             if backup is not None and backup not in retained:backup.unlink(missing_ok=True)
 
 
-def publish_report(path, document, bundle, *, pocket_kivi=None):
+def publish_report(path, document, bundle, *, pocket_kivi=None, pdf=False):
     """Serialize exact evidence first, then publish its HTML/JSON pair together."""
+    from .report_context import organize_report
+    document=organize_report(document,bundle)
+    pdf = pdf or Path(path).suffix.lower() == '.pdf'
     output,evidence=report_paths(path)
     payload=json.dumps(bundle,indent=2,ensure_ascii=False,allow_nan=False)+'\n'
     sources=checked_sources(bundle)
@@ -226,9 +230,13 @@ def publish_report(path, document, bundle, *, pocket_kivi=None):
     if marker:document=document[:marker.end()]+link+document[marker.end():]
     elif portable is not None:document+=link
     documents[output]=document
+    if pdf:
+        from .pdf_report import pdf_bytes
+        documents[output.with_suffix('.pdf')]=pdf_bytes(document, title=output.stem.replace('-', ' '))
     if guard:publish_documents(documents,sources=sources,source_guard=guard)
     else:publish_documents(documents,sources=sources)
     result={'html':str(output),'json':str(evidence)}
+    if pdf:result['pdf']=str(output.with_suffix('.pdf'))
     if portable is not None:result['pocket_kivi_json']=str(portable)
     return result
 

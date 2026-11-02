@@ -270,6 +270,7 @@ def _check_sources(bundle):
 def write_report(path, bundle):
     """Publish paired HTML/JSON atomically, preserving prior reports on failure."""
     from .ac_cli import protect_outputs
+    pdf=Path(path).suffix.lower()=='.pdf'
     path = Path(path).resolve().with_suffix('.html'); data_path = path.with_suffix('.json')
     protect_outputs((path, data_path), [bundle[key] for key in ('board_path', 'study_input_path') if bundle.get(key)])
     _check_sources(bundle)
@@ -309,6 +310,11 @@ document.getElementById('clear').onclick=()=>{document.querySelectorAll('.select
 </script></html>'''
     from wayricad_runtime.report_ui import enhance_report
     html=enhance_report(html,status=status,summary=[('DC copper heating',engineering(result.get('dc_loss_w'),'W')),('AC ripple heating',engineering(result.get('ac_loss_w'),'W')),('Total copper heating',engineering(result.get('total_loss_w'),'W'))],notice='Explicit straight-conductor cross-section. Copper-loop AC drop is not delivered rail ripple. Review convergence and model applicability before using estimates.')
+    from wayricad_runtime.report_context import organize_report
+    html=organize_report(html,bundle)
+    if pdf:
+        from wayricad_runtime.report_ui import publish_report
+        return publish_report(path,html,bundle,pdf=True)
     payload = json.dumps(bundle, indent=2, allow_nan=False)+'\n'
     _check_sources(bundle)
     path.parent.mkdir(parents=True, exist_ok=True)

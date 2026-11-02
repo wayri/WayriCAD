@@ -7,6 +7,30 @@ edit only known values, and acknowledge applicability before **Apply selected
 properties**. Unknown properties remain blank. Overrides require a source and
 conditions review note and retain the original preset provenance.
 
+## Populate a complete starting setup
+
+QuickTherm **Setup → Material + ambient defaults…** previews the known
+illustrative board/dielectric/copper conductivity, heat storage, surface,
+plating and environment inputs together with their units. It fills blank inputs
+by default. Loaded settings, entered values and nonempty invalid text are retained;
+select **Replace existing inputs too** only when you want the previewed values to
+replace them. Opening or cancelling changes nothing. The selected ambient also
+supplies blank initial, enclosure and fixed lower-face temperatures.
+
+These are the suite's existing screening starting values, not data inferred from
+the PCB or a manufacturer qualification. Review actual material grade, finish,
+plating and cooling before running. Package heat paths, missing density/specific
+heat and material validity ranges remain unknown. Surface emissivity and
+convection defaults are explicit workbench assumptions, separate from the
+manufacturer material references below. Quick PI's steady electrothermal setup
+offers the same fill/replace preview for the thermal inputs its model consumes;
+electrical properties and temperature-validity evidence remain explicit.
+
+Material pickers select all known supported properties together, so a reference
+with conductivity and volumetric capacity can populate both in one application.
+Reopening a current selection retains its chosen properties, overrides and review
+note. Unavailable reference properties remain blank and unchecked.
+
 QuickTherm exposes **Dielectric material…** and **Copper material…** in **Board
 heat model**. They apply selected conductivity and optional volumetric capacity
 to the corresponding layered/3D material inputs; they do not change the
@@ -64,9 +88,15 @@ numeric fields changed. The caller retains the full selection in study
 provenance. These functions have no native GUI dependency.
 
 The native `ThermalMaterialDialog(parent, properties=[…], category=None,
-initial_id=None)` exposes `.dialog` and sets `.selection` only on explicit
+initial_id=None, initial_selection=None)` exposes `.dialog` and sets `.selection` only on explicit
 acceptance. Property keys are `thermal_conductivity_w_mk`,
 `volumetric_heat_capacity_j_m3k`, `density_kg_m3` and `specific_heat_j_kgk`.
 Callers limit the picker to properties their model consumes and bind targets
 explicitly; the picker cannot silently apply one material to both copper and
 dielectric, or convert a reference value into a qualification claim.
+
+`thermal_defaults.populate_settings(current, ambient_c=None,
+replace_existing=False)` fills exposed supported fields without mutating inputs.
+An omitted ambient uses the current ambient when supplied, or the existing
+20 °C screening start. `thermal_defaults_ui.choose_defaults(parent,current)`
+returns the previewed values and changed keys only after explicit application.

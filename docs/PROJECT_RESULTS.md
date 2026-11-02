@@ -34,6 +34,14 @@ manufacture geometry, units or input fingerprints.
    fields, graphs, time steps and probes. **Advanced data** retains the complete
    numerical structure, with paged expansion for large arrays.
 
+Saved Quick PI fields use the stored triangle connectivity and layer/elevation
+separately for smooth potential and copper-power colour fields. Saved thermal
+fields use declared finite-volume cell edges or complete known sample quads,
+clipped to the stored board outline and openings. Values without supported
+field geometry remain individual samples; missing cells and unsupported 3D
+volumes are never filled by an inferred surface. Time, frequency and eye data
+remain curves, and probes continue to report stored values.
+
 Loading does not run a solver, replace active setup controls, change sink
 currents, select objects in the current editor or modify a board. The source
 banner distinguishes matching, stale and unverified data. Historical data stays

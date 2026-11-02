@@ -50,6 +50,62 @@ class QuickSetupNative(unittest.TestCase):
         self.assertEqual(module.capture(frame),original)
         self.assertEqual(Path(frame.board_path).read_bytes(),board_bytes)
 
+    def test_pi_saved_series_keeps_cross_net_endpoint_and_reopens_editor_draft(self):
+        from quick_pi_plugin import setup_file
+        from quick_pi_plugin.series_editor import draft_from_request,parse_saved_path
+        from quick_pi_plugin.series_session import restore_endpoints
+        rows=[dict(id=identifier,label=reference+'.'+str(pin),reference=reference,
+                   footprint_uuid=reference,net=net)
+              for identifier,reference,pin,net in [('s1','J1',1,'A'),('s2','J1',2,'A'),
+                  ('a1','Q1',1,'A'),('a2','Q1',2,'A'),('b1','Q1',3,'B'),('b2','Q1',4,'B'),
+                  ('gate','Q1',5,'G'),('e1','U1',1,'B'),('e2','U1',2,'B')]]
+        path_data=dict(schema=1,source='J1.1',sink='U1.1',source_terminals=['s1','s2'],
+                       sink_terminals=['e1','e2'],branches=[dict(reference='Q1',model='100m',
+                       from_pad='a1',to_pad='b1',from_pads=['a1','a2'],to_pads=['b1','b2'])])
+        with tempfile.TemporaryDirectory() as folder:
+            board=Path(folder)/'example.kicad_pcb';pcbnew.SaveBoard(str(board),pcbnew.BOARD())
+            with patch.object(QuickPIFrame,'_inspect'):
+                frame=QuickPIFrame(None,board);self.app.Yield()
+                try:
+                    frame.inventory={'nets':['A','B','G'],'terminals':rows}
+                    frame.net.Set(frame.inventory['nets']);frame.net.SetValue('A');frame._set_terminals()
+                    frame.return_signal.Set(frame.inventory['nets']);frame.return_signal.SetStringSelection('A')
+                    frame.return_nets.Set(frame.inventory['nets']);frame._return_nets_changed()
+                    frame._series_request=parse_saved_path(path_data,frame.inventory)
+                    frame._series_request['board_path']=frame.board_path
+                    restore_endpoints(frame,frame._series_request)
+                    frame._series_draft=draft_from_request(frame._series_request,frame.inventory)
+                    frame._series_draft['editor']={'manual':'run pi J1.1 Q1.1 100m Q1.3 U1.1','manual_pending':False}
+                    original=setup_file.capture(frame)
+                    path=Path(folder)/'series-setup.json'
+                    with patch('wx.FileDialog',return_value=self.dialog(path)),patch('wx.MessageBox') as warning:
+                        frame.project_setup.on_save();warning.assert_not_called()
+                    frame._series_request=None;frame._series_draft=None;frame._set_terminals()
+                    with patch('wx.FileDialog',return_value=self.dialog(path)),patch('wx.MessageBox') as warning:
+                        frame.project_setup.on_load();warning.assert_not_called()
+                    self.assertEqual(setup_file.capture(frame),original)
+                    request=frame._request('solve')
+                    self.assertEqual(request['sink_terminals'],['e1','e2'])
+                    self.assertEqual(request['series'][0]['from_pads'],['a1','a2'])
+                    self.assertEqual(frame.sink.GetStringSelection(),'U1.1')
+                    draft=frame._series_draft
+                    fake=Mock();fake.show_with_draft.return_value=(None,draft)
+                    with patch('quick_pi_plugin.series_editor.SeriesPathDialog',return_value=fake) as dialog:
+                        frame.on_series_editor()
+                        self.assertEqual(dialog.call_args.kwargs['existing'],draft)
+                    self.assertEqual(frame._series_draft,draft)
+                    from quick_pi_plugin.series_editor import SeriesPathDialog
+                    editor=SeriesPathDialog(frame,frame.inventory,frame.board_path,existing=draft)
+                    editor.dialog.Layout()
+                    self.assertLessEqual(editor.dialog.GetSizer().CalcMin().height,
+                                         editor.dialog.GetClientSize().height)
+                    with patch.object(editor.dialog,'ShowModal',return_value=wx.ID_CANCEL):
+                        parsed,kept=editor.show_with_draft()
+                    self.assertIsNone(parsed)
+                    self.assertEqual(kept['path'],draft['path'])
+                finally:
+                    frame.Destroy();self.app.Yield()
+
     def test_pi_actual_handler_roundtrip_net_endpoints_and_returns(self):
         from quick_pi_plugin import setup_file
         with tempfile.TemporaryDirectory() as folder:
