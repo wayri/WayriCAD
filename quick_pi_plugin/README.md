@@ -1363,6 +1363,12 @@ use computed synthetic data and contain no private board or local folder paths.
 
 ## HTML and PDF reports
 
+Saved HTML field maps retain the native viewport's smooth gradient, palette and
+selected scale. Selecting **Solver cells** before export retains flat cell
+colors instead. Gradients cover only the saved solved mesh; holes and unknown
+regions remain empty. Interactive probes report exact saved cell values,
+independently of display shading. Large reports retain the selected shading.
+
 Use [the common report workflow](../wayricad_runtime/REPORTS.md) to save HTML as PDF, or render this tool's saved JSON as readable HTML/PDF tables. The direct PDF exporter retains text, tables and embedded PNG/JPEG figures; interactive-only views are listed explicitly and remain available in HTML. Install the optional `reports` extra only in the interpreter performing PDF export.
 
 ## Differential voltage probes
