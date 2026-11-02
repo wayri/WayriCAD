@@ -215,6 +215,22 @@ def plot_specs(bundle):
                 queue.append((label+' / '+key, value, *time_context))
             elif isinstance(value, list) and value and isinstance(value[0], dict) and key not in ('frames', 'segments', 'cells'):
                 queue.extend((label+' / '+key+' '+str(index), child, *time_context) for index, child in enumerate(value[:max(0, 512-len(queue))]) if isinstance(child, dict))
+    if bundle.get('request',{}).get('series'):
+        # The first archived plot used to show only the first physical plane.
+        # Keep those exact per-plane views, but initially show the entire path.
+        fields=_pi_field_specs('Result',bundle.get('mesh',{}),bundle.get('result',{}),'potential_V','V')
+        meshes=[row for row in fields if row['kind']=='mesh']
+        if len(meshes)>1 and sum(len(row['values']) for row in meshes)<=MAX_PLOT_SAMPLES:
+            overview=dict(label='Complete series path / all copper layers (projected) / potential_V',
+                kind='mesh',x=[],y=[],z=None,values=[],unit='V',vertices=[],triangles=[],cell_values=None,
+                sample_z=[],notice='Projected layer fields overlap; values are not summed. Choose a physical layer for unambiguous inspection.')
+            for row in meshes:
+                offset=len(overview['vertices'])
+                overview['vertices'].extend(row['vertices'])
+                overview['triangles'].extend([[index+offset for index in cell] for cell in row['triangles']])
+                for key in ('x','y','values'):overview[key].extend(row[key])
+                overview['sample_z'].extend([row['z']]*len(row['values']))
+            specs.insert(0,overview)
     return specs
 
 
@@ -256,7 +272,7 @@ def probe_sample(spec, x, y=None, *, frame=0):
         distance=(spec['x'][index]-x)**2+(spec['y'][index]-(y if y is not None else 0))**2
         tied=[i for i in range(len(spec['x'])) if abs((spec['x'][i]-x)**2+(spec['y'][i]-(y if y is not None else 0))**2-distance)<1e-14]
         ambiguous=any(spec['values'][i]!=spec['values'][index] for i in tied)
-        return dict(x=spec['x'][index],y=spec['y'][index],z=spec.get('z'),
+        return dict(x=spec['x'][index],y=spec['y'][index],z=spec['sample_z'][index] if 'sample_z' in spec else spec.get('z'),
                     value=None if ambiguous else spec['values'][index],unit=spec['unit'],ambiguous=ambiguous)
     index = min(range(len(spec['x'])), key=lambda i: abs(spec['x'][i]-x))
     values = spec['values']
@@ -627,7 +643,8 @@ def create_viewer(parent, loaded):
                 image, self.probe_spec = _saved_field_image(axis, spec)
                 if image is not None:
                     self.figure.colorbar(image, ax=axis, label=spec['unit'])
-                axis.set_xlabel('Saved X (mm) · selected stored elevation only');axis.set_ylabel('Saved Y (mm)');axis.set_aspect('equal')
+                axis.set_xlabel('Saved X (mm) · '+('all layers projected' if spec.get('sample_z') else 'selected stored elevation only'));axis.set_ylabel('Saved Y (mm)');axis.set_aspect('equal')
+                if spec.get('notice'):self.probe.SetLabel(spec['notice'])
             elif spec['kind'] == 'eye':
                 for values in spec['values']:
                     axis.plot(spec['x'], values, color='#178b91', alpha=.12, linewidth=.8)

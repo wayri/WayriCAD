@@ -147,3 +147,5 @@ include tests/test_report_context.py
 include tests/test_report_formats.py
 include tests/test_thermal_defaults.py
 include tests/test_quick_setup_native.py
+include docs/RELEASE_NOTES_4.1.1.md
+include docs/audits/SERIES_RESULT_OVERVIEW_4.1.1.md

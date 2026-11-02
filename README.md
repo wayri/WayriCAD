@@ -14,10 +14,10 @@ installable plugins in the source catalogue. Processing runs locally after setup
 [Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
 GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
 
-**Release 4.1.0:** retained series-path setups, readable pin groups and manual path
-suggestions; material/ambient defaults; scoped HTML/PDF reports with saved field gradients.
-[Download 4.1.0](https://github.com/wayri/WayriCAD/releases/tag/v4.1.0) ·
-[Release notes](docs/RELEASE_NOTES_4.1.0.md) · [Getting started](#getting-started)
+**Release 4.1.1:** completed series paths open across all solved copper layers;
+saved series simulations open on a complete-path potential overview.
+[Download 4.1.1](https://github.com/wayri/WayriCAD/releases/tag/v4.1.1) ·
+[Release notes](docs/RELEASE_NOTES_4.1.1.md) · [Getting started](#getting-started)
 
 <details>
 <summary>About the download counter</summary>
@@ -95,7 +95,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
-| Download or update | [Release 4.1.0](https://github.com/wayri/WayriCAD/releases/tag/v4.1.0) · [Release notes](docs/RELEASE_NOTES_4.1.0.md) |
+| Download or update | [Release 4.1.1](https://github.com/wayri/WayriCAD/releases/tag/v4.1.1) · [Release notes](docs/RELEASE_NOTES_4.1.1.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 26 plugins](#all-26-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -277,7 +277,7 @@ an input or model is missing; they are not a pass.
 
 <img src="quick_emerge_plugin/icon.png" width="48" height="48" alt="Quick EMerge beta icon">
 
-1. Download the [Quick EMerge PCM ZIP from release 4.1.0](https://github.com/wayri/WayriCAD/releases/download/v4.1.0/WayriCAD-quick-emerge-4.1.0-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
+1. Download the [Quick EMerge PCM ZIP from release 4.1.1](https://github.com/wayri/WayriCAD/releases/download/v4.1.1/WayriCAD-quick-emerge-4.1.1-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
 2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
 3. In KiCad, draw a named rule area around the antenna and the feed/ground geometry needed for its model; refill and save the board. In **Setup → 1 Geometry**, use **Saved PCB rule area**, load the areas and select the signal and reference nets. Review material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**.
 4. Click **Preview** to inspect the actual clipped copper and numbered feed ports. Resolve blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and short sweep before increasing resolution.
@@ -425,7 +425,7 @@ currencies stay explicit.
 
 ## All 26 plugins
 
-Release **4.1.0** includes 26 independently installable plugins. Quick EMerge
+Release **4.1.1** includes 26 independently installable plugins. Quick EMerge
 is marked **beta / testing**; Review and Assistant are also testing packages.
 Individual versions, runtime requirements and limits are in their guides.
 Select a plugin for its full guide and supported models.
@@ -481,7 +481,7 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 ### Quick EMerge (beta)
 
 [Getting started](#start-quick-emerge) · [Full guide](quick_emerge_plugin/README.md) ·
-[Download 4.1.0](https://github.com/wayri/WayriCAD/releases/tag/v4.1.0)
+[Download 4.1.1](https://github.com/wayri/WayriCAD/releases/tag/v4.1.1)
 
 **Simple 2D/3D workspace — 4.0.1**
 
