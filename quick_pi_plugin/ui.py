@@ -1460,6 +1460,11 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             wx.CallAfter(self._load_result_scene,result,expected,sorted(net for net in required if net))
         self.bundle['board_scene']=self._board_scene
         self._set_layer_choices(layer_rows(result))
+        # A previous single-net preview may have selected the source layer.
+        # Series paths span nets/layers: open the complete solved path first.
+        if request.get('series'):
+            overview=next((i for i,row in enumerate(self._layers) if row['id']=='all'),None)
+            if overview is not None:self.layer.SetSelection(overview)
         mesh=result.get('mesh',{});self.mesh_count.SetLabel(f"{len(mesh.get('points_mm',[])):,} nodes · {len(mesh.get('triangles',[])):,} triangles" if mesh else '')
         for warning in result.get('geometry',{}).get('warnings',[]):self._console_write('Geometry: '+str(warning))
         self._plot_keys.clear();self.book.SetSelection(2 if action=='solve' else 1 if action=='mesh' else 0)

@@ -20,6 +20,11 @@ The board opens across the window. **Setup** opens net, pad and load inputs;
 and restores their previous widths when pressed again. **Run** and **Files**
 stay visible, so setup/result Save and Load remain available with drawers shut.
 Files also provides report and Blender exports.
+Completed series paths open with **All copper layers (projected)**, including
+when the preceding single-net preview used one physical layer. Saved series
+simulations also open on a complete-path potential overview. Choose a physical
+layer for unambiguous inspection where projected copper overlaps; the overview
+does not sum fields or change stored results.
 The current field name, units and limits remain in the header. Open **Current
 tuning** for numeric controls; Ctrl+scroll still adjusts a solved current while
 that section is folded. Ordinary scroll zooms.
