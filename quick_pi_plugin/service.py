@@ -129,7 +129,7 @@ def run_job(request, cancelled=None, timeout=300):
     from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_QUICK_PI, child_environment
     action=request.get('action','inspect')
     requirements={name: spec for name, spec in REQUIREMENTS_QUICK_PI.items() if name != 'kipy'}
-    if action in ('inspect','geometry'):
+    if action in ('inspect','geometry','detect_returns'):
         # Net/terminal inventory and native polygon extraction do not use a
         # scientific mesher. Avoid probing/importing VTK and SciPy before the
         # first board view, and never provision unused packages for that view.
@@ -139,7 +139,7 @@ def run_job(request, cancelled=None, timeout=300):
     elif action=='ac':
         # Explicit cross-sections need no native board IO, VTK or mesher imports.
         requirements={name:spec for name,spec in requirements.items() if name in ('numpy','scipy')}
-    if action not in ('inspect','geometry') and _requires_gmsh(request):
+    if action not in ('inspect','geometry','detect_returns') and _requires_gmsh(request):
         requirements['gmsh']='gmsh>=4.11,<5'
     python=ensure_runtime(requirements)
     with tempfile.TemporaryDirectory(prefix='wayricad-quick-pi-') as temporary:
@@ -255,6 +255,8 @@ def _execute(request,*,_boards=None):
     path=Path(request['board_path']).resolve()
     if not path.is_file() or path.suffix.lower()!='.kicad_pcb':raise ValueError('Choose a saved KiCad PCB.')
     before=hashlib.sha256(path.read_bytes()).hexdigest()
+    if request.get('action')=='detect_returns' and request.get('source_sha256')!=before:
+        raise ValueError('The saved board changed. Reload before detecting return candidates.')
     identity=(str(path),before)
     board=_boards.get(identity) if _boards is not None else None
     if board is None:
@@ -281,6 +283,14 @@ def _execute(request,*,_boards=None):
         output={'nets':nets,'terminals':terminals,'layers':[{'id':layer,'name':board.GetLayerName(layer)}
                 for layer in board.GetEnabledLayers().CuStack()],'source_sha256':before}
         return _display_output(output,request,board,path,before)
+    if action=='detect_returns':
+        from wayricad_runtime.return_candidates import suggest_return_candidates
+        result=suggest_return_candidates(board,request['signal_net'],
+            sample_pitch_mm=float(request.get('sample_pitch_mm',.5)),
+            max_candidates=request.get('max_candidates',32))
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=before:
+            raise ValueError('The board changed during return detection. Reload and run again.')
+        return {'return_candidates':result,'source_sha256':before,'request':request}
     if action=='return_path':
         from .return_path import collect_board_evidence,audit_return_path
         evidence=collect_board_evidence(board,request['signal_net'],request['return_nets'])

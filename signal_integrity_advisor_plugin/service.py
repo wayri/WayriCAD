@@ -47,7 +47,6 @@ def execute(request):
     """Load and analyze one saved snapshot inside the owned worker process."""
     before=require_source(request)
     import pcbnew
-    from .quick_si import analyze
     board=pcbnew.LoadBoard(str(Path(request['board_path']).resolve()))
     if board is None:raise ValueError('KiCad could not load this saved PCB.')
     if request.get('mode')=='neighbours':
@@ -62,6 +61,7 @@ def execute(request):
         require_source(request)
         report=bind_saved_result(report,request['board_path'],before)
         return {'study':report,'source_fingerprints':before}
+    from .quick_si import analyze
     report,path=analyze(board,request['net'],request['start'],request['end'],request.get('reference','Auto'),**request.get('inputs',{}))
     require_source(request)
     identifiers=[str(item.m_Uuid.AsString()) for item in path.board_items]
@@ -97,8 +97,15 @@ def run_job(request,cancelled=None,timeout=300,python=None):
     if not math.isfinite(float(timeout)) or float(timeout)<=0:raise ValueError('Worker timeout must be finite and positive.')
     if cancelled and cancelled():raise InterruptedError('Quick SI cancelled before starting.')
     if python is None:
-        from wayricad_runtime.native_analysis import native_python
-        python=native_python('signal_integrity_advisor_plugin')
+        if request.get('mode')=='neighbours':
+            # Geometry and the local ideal-coupling model use native KiCad and
+            # the standard library. Do not import/provision plotting or IPC
+            # dependencies for every read-only neighbour-map request.
+            from wayricad_runtime.runtime_setup import ensure_runtime
+            python=ensure_runtime({})
+        else:
+            from wayricad_runtime.native_analysis import native_python
+            python=native_python('signal_integrity_advisor_plugin')
     if cancelled and cancelled():raise InterruptedError('Quick SI cancelled before starting.')
     from wayricad_runtime.runtime_setup import child_environment
     with tempfile.TemporaryDirectory(prefix='wayricad-quick-si-') as directory:

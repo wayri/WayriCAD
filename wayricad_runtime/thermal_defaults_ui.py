@@ -19,6 +19,9 @@ def choose_defaults(parent, current, title='Populate material and environment de
     root.Add(line, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
     replace = wx.CheckBox(dialog, label='Replace existing inputs too · otherwise fill blanks only')
     root.Add(replace, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+    temperatures = wx.CheckBox(dialog, label='Apply starting ambient to all temperature inputs · keep material edits')
+    temperatures.SetToolTip('Explicitly set ambient, initial, fixed lower-face and enclosure temperatures together. Other existing values are retained unless replacement is selected above.')
+    root.Add(temperatures, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
     preview = wx.TextCtrl(dialog, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP)
     root.Add(preview, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
     status = wx.StaticText(dialog, label=''); status.SetMinSize((1,-1)); root.Add(status, 0, wx.EXPAND | wx.ALL, 12)
@@ -28,7 +31,8 @@ def choose_defaults(parent, current, title='Populate material and environment de
     root.Add(buttons, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
 
     def proposal():
-        return populate_settings(current, ambient_c=ambient.GetValue(), replace_existing=replace.GetValue())
+        return populate_settings(current, ambient_c=ambient.GetValue(), replace_existing=replace.GetValue(),
+                                 replace_temperatures=temperatures.GetValue())
 
     def resize(event=None):
         note.SetLabel(NOTICE);note.Wrap(max(300,dialog.GetClientSize().width-30))
@@ -48,12 +52,12 @@ def choose_defaults(parent, current, title='Populate material and environment de
                 lines.append(label+' ['+unit+']: '+before+' → '+str(updated[key])+
                              ('  (populate)' if key in changed else '  (retain)'))
             preview.ChangeValue('\n'.join(lines))
-            status.SetLabel(str(len(changed))+' field(s) will change. Existing values are retained unless replacement is selected.')
+            status.SetLabel(str(len(changed))+' field(s) will change. Review populated values below; temperature replacement does not replace material edits.')
             status.Wrap(max(300,dialog.GetClientSize().width-30))
             apply.Enable(True)
         except ValueError as exc:
             status.SetLabel(str(exc)); apply.Enable(False)
-        apply.SetLabel('Apply starting values' if replace.GetValue() else 'Populate missing fields')
+        apply.SetLabel('Apply starting values' if replace.GetValue() or temperatures.GetValue() else 'Populate missing fields')
         if event:event.Skip()
 
     def accept(event):
@@ -65,6 +69,7 @@ def choose_defaults(parent, current, title='Populate material and environment de
         except ValueError as exc:status.SetLabel(str(exc))
 
     ambient.Bind(wx.EVT_TEXT, refresh); replace.Bind(wx.EVT_CHECKBOX, refresh)
+    temperatures.Bind(wx.EVT_CHECKBOX, refresh)
     apply.Bind(wx.EVT_BUTTON, accept)
     dialog.Bind(wx.EVT_SIZE,resize)
     dialog.SetSizer(root); dialog.SetMinSize((700, 560)); refresh();resize()

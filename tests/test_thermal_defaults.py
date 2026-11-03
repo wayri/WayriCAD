@@ -51,6 +51,21 @@ class ThermalDefaultsTests(unittest.TestCase):
         for value in (True,None,'cold',float('nan'),float('inf'),-273.15,10001):
             with self.subTest(value=value),self.assertRaises(ValueError):screening_defaults(value)
 
+    def test_temperature_only_replace_preserves_reviewed_materials_and_unknowns(self):
+        current={'ambient_c':'20','initial_temperature_c':'20','enclosure_temperature_c':'35',
+                 'fixed_lower_face_c':'18','copper_k_w_mk':'400',
+                 'dielectric_k_w_mk':'','board_emissivity':.7,'density_kg_m3':None}
+        before=deepcopy(current)
+        updated,changed=populate_settings(current,ambient_c=42,replace_temperatures=True)
+        self.assertEqual(current,before)
+        for key in ('ambient_c','initial_temperature_c','enclosure_temperature_c','fixed_lower_face_c'):
+            self.assertEqual(updated[key],42.)
+            self.assertIn(key,changed)
+        self.assertEqual(updated['copper_k_w_mk'],'400')
+        self.assertEqual(updated['board_emissivity'],.7)
+        self.assertEqual(updated['dielectric_k_w_mk'],.3)
+        self.assertIsNone(updated['density_kg_m3'])
+
     def test_material_form_selects_all_known_supported_properties(self):
         state=material_form_state('fr4-screening',[K,CV])
         self.assertEqual(state['selected'],[K,CV])
@@ -93,6 +108,31 @@ class ThermalDefaultsTests(unittest.TestCase):
 
 @unittest.skipUnless(importlib.util.find_spec('wx'),'Native wx runtime required for module imports')
 class DefaultsControllerTests(unittest.TestCase):
+    def test_native_temperature_only_option_applies_ambient_without_replacing_materials(self):
+        import wx
+        from wayricad_runtime.thermal_defaults_ui import choose_defaults
+        app=wx.GetApp() or wx.App(False)
+        current={'ambient_c':'20','initial_temperature_c':'20','copper_k_w_mk':'400'}
+        original=deepcopy(current)
+        def accept(dialog):
+            controls=dialog.GetChildren()
+            ambient=next(control for control in controls if isinstance(control,wx.TextCtrl)
+                         and not control.GetWindowStyleFlag() & wx.TE_MULTILINE)
+            temperatures=next(control for control in controls if isinstance(control,wx.CheckBox)
+                              and control.GetLabel().startswith('Apply starting ambient'))
+            temperatures.SetValue(True)
+            ambient.SetValue('42')
+            temperatures.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.EVT_CHECKBOX.typeId,temperatures.GetId()))
+            apply=next(control for control in controls if isinstance(control,wx.Button)
+                       and control.GetLabel()=='Apply starting values')
+            apply.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.EVT_BUTTON.typeId,apply.GetId()))
+            return wx.ID_OK
+        with patch.object(wx.Dialog,'ShowModal',accept),patch.object(wx.Dialog,'EndModal'):
+            result=choose_defaults(None,current)
+        self.assertEqual(current,original)
+        self.assertEqual(result['values'],{'ambient_c':42.,'initial_temperature_c':42.,'copper_k_w_mk':'400'})
+        self.assertEqual(result['changed'],['ambient_c','initial_temperature_c'])
+
     def test_native_defaults_preview_cancel_does_not_change_inputs_or_show_window(self):
         import wx
         from wayricad_runtime.thermal_defaults_ui import choose_defaults

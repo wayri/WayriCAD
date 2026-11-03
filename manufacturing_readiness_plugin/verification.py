@@ -28,6 +28,8 @@ def drc_evidence(report,returncode):
 
 def find_cli():
     candidates=[Path(sys.executable).with_name('kicad-cli.exe'),Path(sys.executable).with_name('kicad-cli')]
+    base=Path(getattr(sys,'_base_executable',sys.executable))
+    candidates.extend((base.with_name('kicad-cli.exe'),base.with_name('kicad-cli')))
     for variable in ('ProgramW6432','ProgramFiles'):
         if os.environ.get(variable):
             candidates += [Path(os.environ[variable])/'KiCad'/version/'bin'/'kicad-cli.exe' for version in ('11.0','10.0')]

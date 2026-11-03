@@ -55,6 +55,11 @@ require explicit exposed area; an optional sink-to-board shunt is represented
 only when its resistance is supplied. Results contain a selectable temperature
 map for every copper layer, per-contact heat flow and a signed energy balance.
 
+The steady radiation solve limits Newton temperature steps so a weak ambient
+radiation tangent does not reject an otherwise finite equilibrium. Numerical
+convergence and energy balance do not establish that constant material
+properties remain valid over the predicted temperature range.
+
 The **Copper simplification** choice samples each saved copper polygon with
 0, 0.5 or 1 cell of subcell coverage. It does not blur temperatures or create
 connections across separate copper islands. Compare mesh sizes and inspect

@@ -32,7 +32,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "4.1.3"
+        self.version = "4.2.0"
 
     def Run(self) -> None:
         try:
@@ -136,8 +136,10 @@ class TraceFrame(wx.Frame):
         export.Bind(wx.EVT_BUTTON, self.export_csv)
         more = wx.Button(panel, label="More")
         more.Bind(wx.EVT_BUTTON, self._more)
+        self.bulk_button = wx.Button(panel, label="All nets / Bundles…")
+        self.bulk_button.Bind(wx.EVT_BUTTON, self.open_bulk)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(more, 0, wx.ALL, 5)
+        row.Add(self.bulk_button, 0, wx.ALL, 5); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(more, 0, wx.ALL, 5)
         self.measure_button.SetDefault()
         root.Add(row, 0, wx.ALIGN_RIGHT)
         self.summary = wx.StaticText(panel, label="Select a net and optional start/end pads.")
@@ -210,6 +212,13 @@ class TraceFrame(wx.Frame):
         panel.SetSizer(root)
         self._mode_changed(None)
         self.workflow.set_step(0, "Choose a net and two terminals. Auto reference searches ground copper by layer.")
+
+    def open_bulk(self, _event: Any = None) -> None:
+        from .bulk_ui import create_bulk_frame
+        try:
+            create_bulk_frame(self).Show()
+        except Exception as exc:
+            wx.MessageBox(str(exc), 'RLC all nets / bundles', wx.OK | wx.ICON_ERROR, self)
 
     def _mode_changed(self, _event: Any) -> None:
         zone = self.mode.GetSelection() == 1

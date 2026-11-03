@@ -139,7 +139,7 @@ def _probe(python, requirements=()):
         return None
 
 
-def native_python():
+def native_python(*, _probe_results=None):
     override = os.environ.get('WAYRICAD_KICAD_PYTHON')
     candidates = [override] if override else []
     python_names = {'python', 'python.exe', 'pythonw.exe'}
@@ -160,9 +160,13 @@ def native_python():
     for candidate in dict.fromkeys(str(p) for p in candidates if p):
         if sys.platform == 'win32' and Path(candidate).name.lower() not in python_names:
             continue
-        if Path(candidate).is_file() and _probe(candidate):
+        identity = _probe(candidate) if Path(candidate).is_file() else None
+        if identity:
             # Resolving a POSIX venv executable symlink loses its site-packages.
-            return Path(os.path.abspath(candidate))
+            executable = Path(os.path.abspath(candidate))
+            if _probe_results is not None:
+                _probe_results[str(executable)] = identity
+            return executable
     raise RuntimeError('KiCad 10 Python with pcbnew and wx could not be loaded. '
                        'Install the complete KiCad 10 desktop package (including Python bindings), '
                        'or set WAYRICAD_KICAD_PYTHON to its Python executable. '
@@ -222,12 +226,15 @@ def ensure_runtime(requirements=(), *, cache_dir=None, timeout=300):
     Native-only callers pass nothing and never create an environment or use pip.
     """
     requirements = dict(requirements)
-    native = native_python()
-    if _probe(native, requirements):
+    # Discovery already imports pcbnew/wx in an isolated child. Reuse that
+    # identity only within this call; every new request still checks its host.
+    probe_results = {}
+    native = native_python(_probe_results=probe_results)
+    if not requirements or _probe(native, requirements):
         return native
     # A cache identity is needed only when provisioning a private environment.
     # Do not start another native Python merely to discard its identity.
-    identity = _probe(native)
+    identity = probe_results.get(str(native)) or _probe(native)
     root = Path(cache_dir) if cache_dir is not None else cache_root()
     root.mkdir(parents=True, exist_ok=True)
     key = hashlib.sha256(json.dumps([str(native), identity, sorted(requirements.items())]).encode()).hexdigest()[:20]

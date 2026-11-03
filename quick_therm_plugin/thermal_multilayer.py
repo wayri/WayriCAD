@@ -1198,7 +1198,23 @@ def _solve_multilayer_thermal(geometry, view, result, settings, progress=None, *
             if len(fixed_ids):
                 rhs[free] -= matrix[free][:, fixed_ids] @ temp[fixed_ids]
             candidate = spsolve(matrix[free][:, free], rhs[free])
-            if not np.all(np.isfinite(candidate)) or np.max(candidate)>10000 or np.min(candidate)<-273.15:
+            if not np.all(np.isfinite(candidate)):
+                raise ValueError("Thermal solve diverged; check power and boundary inputs.")
+            if not linear_boundary:
+                # The ambient radiation tangent can be very weak. Its first
+                # Newton step may exceed the supported temperature range even
+                # when the nonlinear equilibrium is well inside it. Limit the
+                # step to one current absolute-temperature scale, rather than
+                # rejecting that unaccepted tangent prediction as a solution.
+                step = candidate-temp[free]
+                scale = max(100.0, float(np.max(kelvin[free])))
+                damping = min(1.0, scale/max(float(np.max(np.abs(step))), 1e-30))
+                cooling = step < 0
+                if np.any(cooling):
+                    damping = min(damping, float(np.min(
+                        .9*kelvin[free][cooling]/-step[cooling])))
+                candidate = temp[free]+damping*step
+            if np.max(candidate)>10000 or np.min(candidate)<-273.15:
                 raise ValueError("Thermal solve diverged; check power and boundary inputs.")
             change = float(np.max(np.abs(candidate-temp[free])))
             temp[free] = candidate

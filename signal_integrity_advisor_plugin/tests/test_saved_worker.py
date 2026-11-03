@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import tempfile
+import sys
 from types import SimpleNamespace as NS
 import unittest
 from unittest.mock import patch
@@ -23,6 +24,32 @@ class SavedWorkerTests(unittest.TestCase):
  def test_timeout_is_bounded(self):
   for value in (0,-1,float('nan'),float('inf')):
    with self.assertRaises(ValueError):service.run_job({},timeout=value)
+ def test_neighbour_map_uses_native_only_runtime_without_scientific_provisioning(self):
+  calls=iter([False,True])
+  with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value='native') as native, \
+       patch('wayricad_runtime.native_analysis.native_python') as scientific,patch('subprocess.Popen') as popen:
+   with self.assertRaises(InterruptedError):
+    service.run_job({'mode':'neighbours'},cancelled=lambda:next(calls))
+   native.assert_called_once_with({});scientific.assert_not_called();popen.assert_not_called()
+ def test_route_screen_retains_scientific_runtime_validation(self):
+  calls=iter([False,True])
+  with patch('wayricad_runtime.native_analysis.native_python',return_value='scientific') as scientific, \
+       patch('wayricad_runtime.runtime_setup.ensure_runtime') as native:
+   with self.assertRaises(InterruptedError):service.run_job({'mode':'route'},cancelled=lambda:next(calls))
+   scientific.assert_called_once_with('signal_integrity_advisor_plugin');native.assert_not_called()
+ def test_neighbour_map_does_not_import_route_analysis(self):
+  with tempfile.TemporaryDirectory() as directory:
+   path=Path(directory)/'board.kicad_pcb';path.write_text('board',encoding='utf-8')
+   fingerprints=service.source_fingerprints(path)
+   request={'board_path':str(path),'source_fingerprints':fingerprints,'mode':'neighbours'}
+   board=object()
+   with patch.dict(sys.modules,{'pcbnew':NS(LoadBoard=lambda path:board),
+                               'signal_integrity_advisor_plugin.quick_si':None}), \
+        patch('signal_integrity_advisor_plugin.neighbours.map_board',return_value={'schema':'wayricad.si-neighbours/v1'}) as mapper:
+    result=service.execute(request)
+   self.assertEqual(result['source_fingerprints'],fingerprints)
+   self.assertEqual(result['neighbours']['source_sha256'],fingerprints[str(path.resolve())])
+   self.assertIs(mapper.call_args.args[0],board)
  def test_native_objects_are_reattached_by_exact_unique_uuid(self):
   row=lambda uid:NS(m_Uuid=NS(AsString=lambda:uid))
   item=row('track');board=NS(GetTracks=lambda:[item],Zones=lambda:[])

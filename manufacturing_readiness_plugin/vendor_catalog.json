@@ -1,0 +1,4057 @@
+{
+  "schema": "wayricad.vendor-catalog/v1",
+  "retrieved": "2026-11-04",
+  "notes": "Starter catalogue. Profiles are conditional source-based screening inputs, not fabrication approval; missing rules remain unknown. Vendor names without profiles require confirmation.",
+  "profiles": [
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "lion-mii-1oz",
+      "name": "LionCircuits MII · 1 oz · 2 or 4 layers",
+      "vendor": "LionCircuits",
+      "service": "Make in India",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2,
+          4
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "lion-capabilities",
+          "url": "https://www.lioncircuits.com/pcb-manufacturing-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "LionCircuits rigid PCB service capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 1 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 1 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Plated annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > annular rings. Manufacturer publishes 0.152 mm / 6 mil. The conservative exact 6 mil conversion is shown; verify drill-size reference with the fabricator."
+        },
+        {
+          "id": "circuit-edge",
+          "title": "Circuit to routed board edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3048,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > circuit to edge. Manufacturer publishes 0.3 mm / 12 mil. The conservative exact 12 mil conversion is used; confirm edge machining process."
+        },
+        {
+          "id": "mechanical-drill",
+          "title": "Mechanical drill diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.35,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > mechanical drill hole diameter. Manufacturer specifies mechanical drilling 0.35–6.3 mm. Tool versus finished diameter must be confirmed."
+        },
+        {
+          "id": "mask-dam",
+          "title": "Solder mask dam width",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > solder mask dam. Check actual solder mask web and selected mask process with the manufacturer."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Only explicitly listed checks are included. Other vendor and assembly requirements remain unknown."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "lion-custom-1oz",
+      "name": "LionCircuits Custom · 1 oz",
+      "vendor": "LionCircuits",
+      "service": "Custom",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          1,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "lion-capabilities",
+          "url": "https://www.lioncircuits.com/pcb-manufacturing-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "LionCircuits rigid PCB service capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 1 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 1 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Plated annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > annular rings. Manufacturer publishes 0.152 mm / 6 mil. The conservative exact 6 mil conversion is shown; verify drill-size reference with the fabricator."
+        },
+        {
+          "id": "circuit-edge",
+          "title": "Circuit to routed board edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3048,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > circuit to edge. Manufacturer publishes 0.3 mm / 12 mil. The conservative exact 12 mil conversion is used; confirm edge machining process."
+        },
+        {
+          "id": "mechanical-drill",
+          "title": "Mechanical drill diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.25,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > mechanical drill hole diameter. Manufacturer specifies mechanical drilling 0.25–6.3 mm. Tool versus finished diameter must be confirmed."
+        },
+        {
+          "id": "mask-dam",
+          "title": "Solder mask dam width",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > solder mask dam. Check actual solder mask web and selected mask process with the manufacturer."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Six layers and above require the vendor sales process. Only explicitly listed checks are included."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "lion-rush-1oz",
+      "name": "LionCircuits Rush · 1 oz",
+      "vendor": "LionCircuits",
+      "service": "Rush",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          1,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "lion-capabilities",
+          "url": "https://www.lioncircuits.com/pcb-manufacturing-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "LionCircuits rigid PCB service capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.2032,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 1 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.2032,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 1 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Plated annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > annular rings. Manufacturer publishes 0.152 mm / 6 mil. The conservative exact 6 mil conversion is shown; verify drill-size reference with the fabricator."
+        },
+        {
+          "id": "circuit-edge",
+          "title": "Circuit to routed board edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3048,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > circuit to edge. Manufacturer publishes 0.3 mm / 12 mil. The conservative exact 12 mil conversion is used; confirm edge machining process."
+        },
+        {
+          "id": "mechanical-drill",
+          "title": "Mechanical drill diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.4,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > mechanical drill hole diameter. Manufacturer specifies mechanical drilling 0.4–6.3 mm. Tool versus finished diameter must be confirmed."
+        },
+        {
+          "id": "mask-dam",
+          "title": "Solder mask dam width",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.25,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > solder mask dam. Check actual solder mask web and selected mask process with the manufacturer."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Six layers and above require the vendor sales process. Only explicitly listed checks are included."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "jlc-rigid-2l-1oz",
+      "name": "JLCPCB rigid FR-4 · 2 layers · 1 oz",
+      "vendor": "JLCPCB",
+      "service": "Rigid FR-4",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight specifies finished copper. Copper weight is the finished outer-layer value.",
+        "material": "FR4",
+        "copper_basis": "finished"
+      },
+      "sources": [
+        {
+          "id": "jlc-rigid",
+          "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "JLCPCB rigid PCB capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.1,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > minimum track width and spacing. Rigid FR-4, 1 oz. The vendor lists a separate local BGA fan-out exception, not applied globally."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.1,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > minimum track width and spacing. Rigid FR-4, 1 oz. The vendor lists a separate local BGA fan-out exception, not applied globally."
+        },
+        {
+          "id": "pth-annular-ring",
+          "title": "PTH annular ring, absolute minimum",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.18,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > PTH annular ring. Applies to PTH pads; manufacturer also publishes a larger recommended PTH ring. Verify actual tooling and pad/via category."
+        },
+        {
+          "id": "via-drill",
+          "title": "Via-hole diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Drilling > minimum via hole size. 2 or more copper layers; manufacturer lists extra cost for 0.15 mm and a separate conditional 0.10 mm option. Confirm finished/tool-hole meaning."
+        },
+        {
+          "id": "non-plated-hole",
+          "title": "Non-plated hole diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.5,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Drilling > minimum non-plated holes. Vendor specification for NPTH; review board notes and machining process."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "PTH ring is an absolute minimum, not the vendor recommendation; additional category-specific conditions still apply."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "jlc-rigid-multilayer-1oz",
+      "name": "JLCPCB rigid FR-4 · 4–32 even layers · 1 oz",
+      "vendor": "JLCPCB",
+      "service": "Rigid FR-4 multilayer",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          4,
+          6,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18,
+          20,
+          22,
+          24,
+          26,
+          28,
+          30,
+          32
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight specifies finished copper. Copper weight is the finished outer-layer value. The manufacturer publishes 0.5 oz finished inner copper as the default; confirm this exact inner copper in the selected stackup. Rules are applied globally and conservatively; other inner copper weights are unresolved.",
+        "material": "FR4",
+        "copper_basis": "finished",
+        "inner_copper_oz": [
+          0.5
+        ]
+      },
+      "sources": [
+        {
+          "id": "jlc-rigid",
+          "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "JLCPCB rigid PCB capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.09,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > minimum track width and spacing. Rigid FR-4, 1 oz. The vendor lists a separate local BGA fan-out exception, not applied globally."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.09,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > minimum track width and spacing. Rigid FR-4, 1 oz. The vendor lists a separate local BGA fan-out exception, not applied globally."
+        },
+        {
+          "id": "pth-annular-ring",
+          "title": "PTH annular ring, absolute minimum",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > PTH annular ring. Applies to PTH pads; manufacturer also publishes a larger recommended PTH ring. Verify actual tooling and pad/via category."
+        },
+        {
+          "id": "via-drill",
+          "title": "Via-hole diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Drilling > minimum via hole size. 2 or more copper layers; manufacturer lists extra cost for 0.15 mm and a separate conditional 0.10 mm option. Confirm finished/tool-hole meaning."
+        },
+        {
+          "id": "non-plated-hole",
+          "title": "Non-plated hole diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.5,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Drilling > minimum non-plated holes. Vendor specification for NPTH; review board notes and machining process."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Confirm final layer stack and foil weights; this profile is intentionally scoped to listed even layer counts."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "pcbway-normal-2l-1oz",
+      "name": "PCBWay rigid · 2 layers · 35 µm · conservative guidance",
+      "vendor": "PCBWay",
+      "service": "Rigid PCB conservative guidance",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "material": "FR4",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "pcbway-capabilities",
+          "url": "https://www.pcbway.com/capabilities.html",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "PCBWay PCB capabilities and advanced process table"
+        },
+        {
+          "id": "pcbway-guidance",
+          "url": "https://www.pcbway.com/helpcenter/ordering_parameter_instruction/What_is_the_Min_Track_Spacing_for_1oz__2oz__3oz__Copper_weight_.html",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "PCBWay rigid PCB trace width and spacing guidance"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Recommended trace width for cost/yield",
+          "category": "DRC",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [
+            "pcbway-guidance"
+          ],
+          "severity": "warning",
+          "notes": "Strict recommendation: above 6 mil (0.1524 mm), not an inclusive minimum. Source: rigid-PCB trace and spacing guidance. PCBWay recommends strictly greater than 6 mil (0.1524 mm), not greater than or equal to 6 mil, for lower cost; this is guidance, not an absolute manufacturing minimum. Verify manually; the native compiler only represents inclusive bounds."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Recommended copper spacing for cost/yield",
+          "category": "DRC",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [
+            "pcbway-guidance"
+          ],
+          "severity": "warning",
+          "notes": "Strict recommendation: above 6 mil (0.1524 mm), not an inclusive minimum. Source: rigid-PCB trace and spacing guidance. PCBWay recommends strictly greater than 6 mil (0.1524 mm), not greater than or equal to 6 mil, for lower cost; this is guidance, not an absolute manufacturing minimum. Verify manually; the native compiler only represents inclusive bounds."
+        },
+        {
+          "id": "edge-routing",
+          "title": "Line to routed board edge, normal process",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.25,
+          "maximum": null,
+          "source_ids": [
+            "pcbway-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Advanced PCB Capabilities > image transfer > line to board edge. The source specifies a line-to-edge value for CNC milling. Confirm other copper items and machining methods separately."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Via-centered pad annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "pcbway-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: PCB Prototype Capabilities > minimum width of annular ring. The capability table describes pads with vias in the middle; do not treat this as a universal PTH requirement."
+        },
+        {
+          "id": "legend-height",
+          "title": "Silkscreen character height",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.8,
+          "maximum": null,
+          "source_ids": [
+            "pcbway-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: PCB Prototype Capabilities > minimum character height. Manufacturer legibility guidance; inspect generated fabrication output."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "The 6 mil value is published guidance for yield/cost, not a universal capability limit. The published advanced-process table starts at 3 layers and is not used as a two-layer specification. This profile has no compilable native DRC rules; native vendor rule execution is unavailable until applicable limits are confirmed. Use its checklist for manual review."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "pcbpower-rigid-2l-1oz-start",
+      "name": "PCB Power rigid · 2 layers · 1 oz starting copper",
+      "vendor": "PCB Power",
+      "service": "Rigid PCB",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight specifies starting copper.",
+        "material": "FR4",
+        "copper_basis": "starting"
+      },
+      "sources": [
+        {
+          "id": "pcbpower-rigid",
+          "url": "https://www.pcbpower.com/technology/technical-capabilities-rigid-pcb",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "PCB Power rigid PCB technical capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "pcbpower-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Circuit Layers > starting copper thickness 1.0 oz. Specified for starting copper thickness 1.0 oz; confirm start copper separately from finished copper."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper spacing",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "pcbpower-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Circuit Layers > starting copper thickness 1.0 oz. Specified for starting copper thickness 1.0 oz; confirm start copper separately from finished copper."
+        },
+        {
+          "id": "outer-edge-routing",
+          "title": "Outer copper to routed edge",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.2,
+          "maximum": null,
+          "source_ids": [
+            "pcbpower-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Copper Clearance from PCB Edge > routing > outer layer. Outer copper, routing only. Inner copper and scoring have different values."
+        },
+        {
+          "id": "finished-via-hole",
+          "title": "Minimum finished via hole",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1,
+          "maximum": null,
+          "source_ids": [
+            "pcbpower-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Drilling > minimum finished via hole size. Finished via diameter; vendor separately specifies minimum 0.20 mm tool diameter."
+        },
+        {
+          "id": "legend-height",
+          "title": "Minimum legend character height",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 1,
+          "maximum": null,
+          "source_ids": [
+            "pcbpower-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Legend > minimum character height. Vendor capability; verify actual plotted legend."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "The source specifies starting copper, not necessarily finished foil. Confirm applicability with the quoted stackup."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "pban-general-2l-1oz",
+      "name": "P-ban general rigid · 2 layers · 35 µm",
+      "vendor": "P-ban.com",
+      "service": "General rigid through-hole",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer. This General 2-layer profile is limited to nominal 1.6 mm board thickness; other thicknesses remain unresolved.",
+        "material": "FR4",
+        "copper_basis": "vendor_order_option",
+        "thickness_mm": [
+          1.6
+        ]
+      },
+      "sources": [
+        {
+          "id": "pban-standard",
+          "url": "https://www.p-ban.com/form/data/p-ban_about_nq.pdf",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "P-ban through-hole rigid board manufacturing specification table"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum track width, general specification",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "pban-standard"
+          ],
+          "severity": "error",
+          "notes": "Source: Through-hole rigid board specification table > general specification > copper foil thickness 35 µm. 35 µm copper; conservative published general specification. The 1-Click minimum is a separate service condition; confirm chosen service."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper spacing, general specification",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "pban-standard"
+          ],
+          "severity": "error",
+          "notes": "Source: Through-hole rigid board specification table > general specification > copper foil thickness 35 µm. 35 µm copper; conservative published general specification. The 1-Click minimum is a separate service condition; confirm chosen service."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Japanese-language published general specification, distinct from separately quoted finer 1-Click or custom processes."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "oshpark-prototype-2l-1oz",
+      "name": "OSH Park prototype · 2 layers · 1 oz FR4",
+      "vendor": "OSH Park",
+      "service": "Two-layer Prototype",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2
+        ],
+        "material": "FR4",
+        "thickness_mm": [
+          1.6
+        ],
+        "finish": [
+          "ENIG"
+        ],
+        "notes": "Verify the chosen quoted process, foil and stackup. Profile context requires the explicit service parameters. Copper weight specifies finished copper.",
+        "copper_basis": "finished"
+      },
+      "sources": [
+        {
+          "id": "official",
+          "url": "https://docs.oshpark.com/services/",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "OSH Park fabrication services"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Two Layer Boards > minimum design rules. 6 mil."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Two Layer Boards > minimum design rules. 6 mil."
+        },
+        {
+          "id": "drill",
+          "title": "Minimum drill diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.254,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Two Layer Boards > minimum design rules. 10 mil. Confirm finished versus tool diameter."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Minimum annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.127,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Two Layer Boards > minimum design rules. 5 mil. Confirm measurement reference."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Bound to the 1 oz, FR4 1.6 mm, purple mask and ENIG prototype service. Other services require their own checks."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "sierra-notouch-2l-1oz",
+      "name": "Sierra NoTouch · 2 layers · 1 oz FR4",
+      "vendor": "Sierra Circuits",
+      "service": "NoTouch PCB",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2
+        ],
+        "material": "FR4",
+        "thickness_mm": [
+          1.5748
+        ],
+        "finish": [
+          "ENIG",
+          "HASL"
+        ],
+        "notes": "Verify the chosen quoted process, foil and stackup. Profile context requires the explicit service parameters. Copper weight specifies finished copper.",
+        "copper_basis": "finished"
+      },
+      "sources": [
+        {
+          "id": "official",
+          "url": "https://www.protoexpress.com/kb/no-touch-pcbs-specs/",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "Sierra Circuits NoTouch PCB specifications"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum trace width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.1016,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: No Touch PCB Specifications > minimum trace and space. 4 mil."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.1016,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: No Touch PCB Specifications > minimum trace and space. 4 mil."
+        },
+        {
+          "id": "drill-finished",
+          "title": "Minimum finished hole size",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.2032,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: No Touch PCB Specifications > minimum hole size. 8 mil finished hole; not tool diameter."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Minimum annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.127,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: No Touch PCB Specifications > minimum width of annular rings. 5 mil measured against finished hole."
+        },
+        {
+          "id": "prohibited-features",
+          "title": "Review NoTouch prohibited features",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: No Touch PCB Specifications > restrictions. Arrays, internal cutouts/slots, milling, blind/buried vias, and specified special processes are excluded."
+        },
+        {
+          "id": "electrical-test",
+          "title": "Confirm electrical test requirements",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: No Touch PCB Specifications > electrical testing. Electrical testing is not offered for NoTouch; confirm the selected ordering service."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Nominal thickness is 0.062 in = 1.5748 mm; manufacturer states a tolerance. NoTouch restrictions differ from Sierra Web PCB."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "multicb-pool-2l-1oz",
+      "name": "Multi-CB lowest-cost pool · 2 layers · FR4",
+      "vendor": "Multi Circuit Boards",
+      "service": "Lowest cost pool",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2
+        ],
+        "material": "FR4",
+        "thickness_mm": [
+          1.55
+        ],
+        "finish": [
+          "HASL lead-free",
+          "ENIG"
+        ],
+        "notes": "Verify the chosen quoted process, foil and stackup. Profile context requires the explicit service parameters. Copper weight specifies finished copper.",
+        "copper_basis": "finished"
+      },
+      "sources": [
+        {
+          "id": "official",
+          "url": "https://www.multi-circuit-boards.eu/en/pricing/printed-circuit-boards/pooling-options.html",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "Multi-CB PCB pooling options"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum trace width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.1,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: 2 Layers > lowest-cost pool > track-width/-space. 100 µm, 35 µm final copper."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper spacing",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.1,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: 2 Layers > lowest-cost pool > track-width/-space. 100 µm, 35 µm final copper."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Minimum annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: 2 Layers > lowest-cost pool > annular ring. 100 µm; confirm drill/tool interpretation."
+        },
+        {
+          "id": "drill",
+          "title": "Minimum drill diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.2,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: 2 Layers > lowest-cost pool > minimum drill. 200 µm; confirm tool versus finished diameter."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Specific pool service with FR4 1.55 mm and 35 µm final copper; finish is lead-free HAL or ENIG option. Other products are separate."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "aisler-4l-35um-enig",
+      "name": "AISLER · 4 layers · 35 µm ENIG",
+      "vendor": "AISLER",
+      "service": "4-layer 35 µm ENIG prototype",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          4
+        ],
+        "material": "FR4",
+        "thickness_mm": [
+          0.8,
+          1.6
+        ],
+        "finish": [
+          "ENIG"
+        ],
+        "notes": "Verify the chosen quoted process, foil and stackup. Profile context requires the explicit service parameters. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "official",
+          "url": "https://community.aisler.net/t/4-layer-35-m-enig-design-rules/3733",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "AISLER 4-layer 35 µm ENIG design rules"
+        },
+        {
+          "id": "aisler-portfolio",
+          "url": "https://community.aisler.net/t/pcb-portfolio/101/2",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "AISLER PCB portfolio and material scope"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum trace width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.125,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Minimum Copper Features > minimum tracewidth. 125 µm."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper spacing",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.125,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Minimum Copper Spacing / Clearance > copper/copper. 125 µm."
+        },
+        {
+          "id": "edge-clearance",
+          "title": "Minimum copper to edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Minimum Copper Spacing / Clearance > copper to edge. 300 µm; confirm routed edges and special edge plating."
+        },
+        {
+          "id": "via-drill",
+          "title": "Minimum via drill",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.25,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Vias > minimum via drill. 250 µm; vias and component PTH have different rules."
+        },
+        {
+          "id": "via-ring",
+          "title": "Minimum via annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Vias > minimum via annular ring. 100 µm; component PTH has a different ring."
+        },
+        {
+          "id": "pth-ring",
+          "title": "Minimum component PTH annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.3,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Plated Through Hole > minimum PTH annular ring. 300 µm; verify drill compensation."
+        },
+        {
+          "id": "legend-height",
+          "title": "Minimum silkscreen text height",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.8,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Silkscreen > minimum text height. 800 µm."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Valid for manufacturer stated 0.8 or 1.6 mm board thickness and ENIG. Confirm 35 µm foil interpretation and exact stackup with AISLER."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "lion-custom-2oz",
+      "name": "LionCircuits Custom · 2 oz",
+      "vendor": "LionCircuits",
+      "service": "Custom",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          2
+        ],
+        "layers": [
+          1,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "lion-capabilities",
+          "url": "https://www.lioncircuits.com/pcb-manufacturing-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "LionCircuits rigid PCB service capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.254,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 2 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.254,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 2 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Plated annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > annular rings. Manufacturer publishes 0.152 mm / 6 mil. The conservative exact 6 mil conversion is shown; verify drill-size reference with the fabricator."
+        },
+        {
+          "id": "circuit-edge",
+          "title": "Circuit to routed board edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3048,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > circuit to edge. Manufacturer publishes 0.3 mm / 12 mil. The conservative exact 12 mil conversion is used; confirm edge machining process."
+        },
+        {
+          "id": "mechanical-drill",
+          "title": "Mechanical drill diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.25,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > mechanical drill hole diameter. Manufacturer specifies mechanical drilling 0.25–6.3 mm. Tool versus finished diameter must be confirmed."
+        },
+        {
+          "id": "mask-dam",
+          "title": "Solder mask dam width",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > solder mask dam. Check actual solder mask web and selected mask process with the manufacturer."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Six layers and above require the vendor sales process. Only explicitly listed checks are included."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "lion-custom-3oz",
+      "name": "LionCircuits Custom · 3 oz",
+      "vendor": "LionCircuits",
+      "service": "Custom",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          3
+        ],
+        "layers": [
+          1,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "lion-capabilities",
+          "url": "https://www.lioncircuits.com/pcb-manufacturing-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "LionCircuits rigid PCB service capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.3048,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 3 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.3048,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 3 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Plated annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > annular rings. Manufacturer publishes 0.152 mm / 6 mil. The conservative exact 6 mil conversion is shown; verify drill-size reference with the fabricator."
+        },
+        {
+          "id": "circuit-edge",
+          "title": "Circuit to routed board edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3048,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > circuit to edge. Manufacturer publishes 0.3 mm / 12 mil. The conservative exact 12 mil conversion is used; confirm edge machining process."
+        },
+        {
+          "id": "mechanical-drill",
+          "title": "Mechanical drill diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.25,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > mechanical drill hole diameter. Manufacturer specifies mechanical drilling 0.25–6.3 mm. Tool versus finished diameter must be confirmed."
+        },
+        {
+          "id": "mask-dam",
+          "title": "Solder mask dam width",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > solder mask dam. Check actual solder mask web and selected mask process with the manufacturer."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Six layers and above require the vendor sales process. Only explicitly listed checks are included."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "lion-rush-2oz",
+      "name": "LionCircuits Rush · 2 oz",
+      "vendor": "LionCircuits",
+      "service": "Rush",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          2
+        ],
+        "layers": [
+          1,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "lion-capabilities",
+          "url": "https://www.lioncircuits.com/pcb-manufacturing-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "LionCircuits rigid PCB service capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.254,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 2 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.254,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > minimum trace spacing/width. 2 oz copper; manufacturer publishes the value in mil. Exact conversion to mm is used."
+        },
+        {
+          "id": "annular-ring",
+          "title": "Plated annular ring",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > annular rings. Manufacturer publishes 0.152 mm / 6 mil. The conservative exact 6 mil conversion is shown; verify drill-size reference with the fabricator."
+        },
+        {
+          "id": "circuit-edge",
+          "title": "Circuit to routed board edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3048,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > circuit to edge. Manufacturer publishes 0.3 mm / 12 mil. The conservative exact 12 mil conversion is used; confirm edge machining process."
+        },
+        {
+          "id": "mechanical-drill",
+          "title": "Mechanical drill diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.4,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > mechanical drill hole diameter. Manufacturer specifies mechanical drilling 0.4–6.3 mm. Tool versus finished diameter must be confirmed."
+        },
+        {
+          "id": "mask-dam",
+          "title": "Solder mask dam width",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.25,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > selected service > solder mask dam. Check actual solder mask web and selected mask process with the manufacturer."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        },
+        {
+          "id": "trace-to-pour",
+          "title": "Trace to copper pour clearance",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.3048,
+          "maximum": null,
+          "source_ids": [
+            "lion-capabilities"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB > Rush service > minimum distance between trace and copper pour. At 2 oz the stated distance is 12 mil, larger than the general 10 mil trace spacing."
+        }
+      ],
+      "notes": "Six layers and above require the vendor sales process. Only explicitly listed checks are included."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "jlc-rigid-2l-2oz",
+      "name": "JLCPCB rigid FR-4 · 2 layers · 2 oz",
+      "vendor": "JLCPCB",
+      "service": "Rigid FR-4",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          2
+        ],
+        "layers": [
+          2
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight specifies finished copper. Copper weight is the finished outer-layer value.",
+        "material": "FR4",
+        "copper_basis": "finished"
+      },
+      "sources": [
+        {
+          "id": "jlc-rigid",
+          "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "JLCPCB rigid PCB capabilities"
+        },
+        {
+          "id": "jlc-copper-guide",
+          "url": "https://jlcpcb.com/help/article/jlcpcb-copper-weight",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "JLCPCB copper weight design-rule guide"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.16,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid",
+            "jlc-copper-guide"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > minimum track width and spacing, and Copper Weight Guide > Design Rules. Both require 0.16 mm for 2-layer 2 oz; the capabilities table lists 0.15 mm for multilayer while the copper-weight guide says 0.16 mm for any layer. The more conservative 0.16 mm is used; resolve conflicting vendor documents before ordering."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.16,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid",
+            "jlc-copper-guide"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > minimum track width and spacing, and Copper Weight Guide > Design Rules. Both require 0.16 mm for 2-layer 2 oz; the capabilities table lists 0.15 mm for multilayer while the copper-weight guide says 0.16 mm for any layer. The more conservative 0.16 mm is used; resolve conflicting vendor documents before ordering."
+        },
+        {
+          "id": "pth-annular-ring",
+          "title": "PTH annular ring, 2 oz",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.254,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > PTH annular ring. For 2 oz the listed requirement is at least 0.254 mm; verify tooling and pad category."
+        },
+        {
+          "id": "via-drill",
+          "title": "Via-hole diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Drilling > minimum via hole size. 2 or more copper layers; manufacturer lists extra cost for 0.15 mm and a separate conditional 0.10 mm option. Confirm finished/tool-hole meaning."
+        },
+        {
+          "id": "non-plated-hole",
+          "title": "Non-plated hole diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.5,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Drilling > minimum non-plated holes. Vendor specification for NPTH; review board notes and machining process."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "PTH ring is an absolute minimum, not the vendor recommendation; additional category-specific conditions still apply."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "jlc-rigid-multilayer-2oz",
+      "name": "JLCPCB rigid FR-4 · 4–32 even layers · 2 oz",
+      "vendor": "JLCPCB",
+      "service": "Rigid FR-4 multilayer",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          2
+        ],
+        "layers": [
+          4,
+          6,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18,
+          20,
+          22,
+          24,
+          26,
+          28,
+          30,
+          32
+        ],
+        "notes": "A user must select this exact scope and confirm the chosen manufacturer service and quoted manufacturing process. Copper weight specifies finished copper. Copper weight is the finished outer-layer value. The manufacturer publishes 0.5 oz finished inner copper as the default; confirm this exact inner copper in the selected stackup. Rules are applied globally and conservatively; other inner copper weights are unresolved.",
+        "material": "FR4",
+        "copper_basis": "finished",
+        "inner_copper_oz": [
+          0.5
+        ]
+      },
+      "sources": [
+        {
+          "id": "jlc-rigid",
+          "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "JLCPCB rigid PCB capabilities"
+        },
+        {
+          "id": "jlc-copper-guide",
+          "url": "https://jlcpcb.com/help/article/jlcpcb-copper-weight",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "JLCPCB copper weight design-rule guide"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum routed track width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.16,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid",
+            "jlc-copper-guide"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > minimum track width and spacing, and Copper Weight Guide > Design Rules. Both require 0.16 mm for 2-layer 2 oz; the capabilities table lists 0.15 mm for multilayer while the copper-weight guide says 0.16 mm for any layer. The more conservative 0.16 mm is used; resolve conflicting vendor documents before ordering."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum copper clearance",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.16,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid",
+            "jlc-copper-guide"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > minimum track width and spacing, and Copper Weight Guide > Design Rules. Both require 0.16 mm for 2-layer 2 oz; the capabilities table lists 0.15 mm for multilayer while the copper-weight guide says 0.16 mm for any layer. The more conservative 0.16 mm is used; resolve conflicting vendor documents before ordering."
+        },
+        {
+          "id": "pth-annular-ring",
+          "title": "PTH annular ring, 2 oz",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.254,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Traces > PTH annular ring. For 2 oz the listed requirement is at least 0.254 mm; verify tooling and pad category."
+        },
+        {
+          "id": "via-drill",
+          "title": "Via-hole diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Drilling > minimum via hole size. 2 or more copper layers; manufacturer lists extra cost for 0.15 mm and a separate conditional 0.10 mm option. Confirm finished/tool-hole meaning."
+        },
+        {
+          "id": "non-plated-hole",
+          "title": "Non-plated hole diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.5,
+          "maximum": null,
+          "source_ids": [
+            "jlc-rigid"
+          ],
+          "severity": "error",
+          "notes": "Source: Rigid PCB Capabilities > Drilling > minimum non-plated holes. Vendor specification for NPTH; review board notes and machining process."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Confirm final layer stack and foil weights; this profile is intentionally scoped to listed even layer counts."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "nextpcb-rigid-2l-1oz",
+      "name": "NextPCB rigid FR4 · 2 layers · 1 oz outer",
+      "vendor": "NextPCB",
+      "service": "Rigid PCB manufacturing",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2
+        ],
+        "material": "FR4",
+        "notes": "The 3 mil feature values are listed for 1 oz outer copper. The profile is limited to two-layer FR4; confirm finished copper and the quote. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "official",
+          "url": "https://mobile.nextpcb.com/pcb-capabilities",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "NextPCB manufacturing capabilities"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum outer trace width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.08,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Minimum Trace Width & Spacing > 1 oz outer layer. Manufacturer gives 3 mil, approximately 0.08 mm; this rounded value is conservative for the 2-layer scope."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum outer trace spacing",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.08,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Minimum Trace Width & Spacing > 1 oz outer layer. Manufacturer gives 3 mil, approximately 0.08 mm. SMD, hole and via spacing have additional, larger limits."
+        },
+        {
+          "id": "smd-pad-spacing",
+          "title": "Different-net SMD pad clearance",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.15,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Minimum Clearance > SMD pad to SMD pad. Applies to pads without holes on different nets."
+        },
+        {
+          "id": "pth-track",
+          "title": "PTH to track clearance",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.23,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Minimum Clearance > PTH to track. Vendor gives 9 mil (approximately 0.23 mm); category-specific check."
+        },
+        {
+          "id": "via-track",
+          "title": "Via to track clearance",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.18,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Minimum Clearance > via to track. Vendor gives 7 mil (approximately 0.18 mm); category-specific check."
+        },
+        {
+          "id": "nonplated-hole",
+          "title": "Non-plated hole diameter",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.4,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Drill / Hole Size > minimum non-plated holes. Confirm finished and tool diameter."
+        },
+        {
+          "id": "trace-routing-edge",
+          "title": "Trace to routed board edge",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.2,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Board Outlines > trace to outline. V-cut and panel edges have different requirements."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Global trace/copper DRC uses conservative 0.08 mm. Larger category-specific manufacturing clearances are separate manual checks; they must not be treated as covered by the generic clearance."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "seeed-fusion-2l-1oz",
+      "name": "Seeed Fusion FR4 · 2 layers · 1 oz",
+      "vendor": "Seeed Fusion",
+      "service": "Fusion FR4",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          1
+        ],
+        "layers": [
+          2
+        ],
+        "material": "FR4",
+        "thickness_mm": [
+          0.6,
+          0.8,
+          1,
+          1.2,
+          1.6,
+          2,
+          2.5,
+          3
+        ],
+        "finish": [
+          "HASL leaded",
+          "HASL lead-free",
+          "ENIG",
+          "OSP",
+          "hard gold"
+        ],
+        "notes": "Select the Fusion FR4 service and confirm chosen options with the manufacturer. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "official",
+          "url": "https://wiki.seeedstudio.com/Service_for_Fusion_PCB/",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "Seeed Fusion PCB & PCBA service guide"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum trace width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.1016,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > minimum trace width / spacing. Selected copper weight: 1 oz; RF coils have additional conditions."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum trace spacing",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.1016,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > minimum trace width / spacing. Selected copper weight: 1 oz; different feature categories may require additional clearance."
+        },
+        {
+          "id": "circuit-edge",
+          "title": "Circuit to board edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > circuit-to-board-edge clearance. Confirm scoring/panel geometry and any edge plating."
+        },
+        {
+          "id": "plated-slot",
+          "title": "Minimum plated slot width",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.65,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > milled slot width, plated."
+        },
+        {
+          "id": "legend-height",
+          "title": "Minimum silkscreen text height",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.5842,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > silkscreen. 23 mil converted exactly."
+        },
+        {
+          "id": "rf-coil",
+          "title": "RF coil trace width / spacing",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > additional conditions. RF coil trace width and spacing must each be at least 6 mil (0.1524 mm), while the vendor also requires selecting its 4/4 mil order option. For 2 oz and 3 oz, the 4/4 order option may conflict with the higher-copper general trace/spacing options; obtain vendor clarification for the actual order before fabrication."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Specific to FR4 two-layer Fusion service. Solder-mask dam varies with mask color and selected option; unknown cases require vendor confirmation."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "seeed-fusion-2l-2oz",
+      "name": "Seeed Fusion FR4 · 2 layers · 2 oz",
+      "vendor": "Seeed Fusion",
+      "service": "Fusion FR4",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          2
+        ],
+        "layers": [
+          2
+        ],
+        "material": "FR4",
+        "thickness_mm": [
+          0.6,
+          0.8,
+          1,
+          1.2,
+          1.6,
+          2,
+          2.5,
+          3
+        ],
+        "finish": [
+          "HASL leaded",
+          "HASL lead-free",
+          "ENIG",
+          "OSP",
+          "hard gold"
+        ],
+        "notes": "Select the Fusion FR4 service and confirm chosen options with the manufacturer. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "official",
+          "url": "https://wiki.seeedstudio.com/Service_for_Fusion_PCB/",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "Seeed Fusion PCB & PCBA service guide"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum trace width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.254,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > minimum trace width / spacing. Selected copper weight: 2 oz; RF coils have additional conditions."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum trace spacing",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.254,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > minimum trace width / spacing. Selected copper weight: 2 oz; different feature categories may require additional clearance."
+        },
+        {
+          "id": "circuit-edge",
+          "title": "Circuit to board edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > circuit-to-board-edge clearance. Confirm scoring/panel geometry and any edge plating."
+        },
+        {
+          "id": "plated-slot",
+          "title": "Minimum plated slot width",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.65,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > milled slot width, plated."
+        },
+        {
+          "id": "legend-height",
+          "title": "Minimum silkscreen text height",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.5842,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > silkscreen. 23 mil converted exactly."
+        },
+        {
+          "id": "rf-coil",
+          "title": "RF coil trace width / spacing",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > additional conditions. RF coil trace width and spacing must each be at least 6 mil (0.1524 mm), while the vendor also requires selecting its 4/4 mil order option. For 2 oz and 3 oz, the 4/4 order option may conflict with the higher-copper general trace/spacing options; obtain vendor clarification for the actual order before fabrication."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Specific to FR4 two-layer Fusion service. Solder-mask dam varies with mask color and selected option; unknown cases require vendor confirmation."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "seeed-fusion-2l-3oz",
+      "name": "Seeed Fusion FR4 · 2 layers · 3 oz",
+      "vendor": "Seeed Fusion",
+      "service": "Fusion FR4",
+      "revision": "Source accessed 2026-11-04",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [
+          3
+        ],
+        "layers": [
+          2
+        ],
+        "material": "FR4",
+        "thickness_mm": [
+          0.6,
+          0.8,
+          1,
+          1.2,
+          1.6,
+          2,
+          2.5,
+          3
+        ],
+        "finish": [
+          "HASL leaded",
+          "HASL lead-free",
+          "ENIG",
+          "OSP",
+          "hard gold"
+        ],
+        "notes": "Select the Fusion FR4 service and confirm chosen options with the manufacturer. Copper weight is the vendor order option label; no starting-to-finished copper conversion is asserted. Confirm the physical copper basis with the manufacturer.",
+        "copper_basis": "vendor_order_option"
+      },
+      "sources": [
+        {
+          "id": "official",
+          "url": "https://wiki.seeedstudio.com/Service_for_Fusion_PCB/",
+          "retrieved": "2026-11-04",
+          "verified": "2026-11-04",
+          "title": "Seeed Fusion PCB & PCBA service guide"
+        }
+      ],
+      "rules": [
+        {
+          "id": "track-width",
+          "title": "Minimum trace width",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "track_width",
+          "unit": "mm",
+          "minimum": 0.381,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > minimum trace width / spacing. Selected copper weight: 3 oz; RF coils have additional conditions."
+        },
+        {
+          "id": "copper-clearance",
+          "title": "Minimum trace spacing",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "clearance",
+          "unit": "mm",
+          "minimum": 0.381,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > minimum trace width / spacing. Selected copper weight: 3 oz; different feature categories may require additional clearance."
+        },
+        {
+          "id": "circuit-edge",
+          "title": "Circuit to board edge",
+          "category": "DRC",
+          "backend": "native_drc",
+          "constraint": "edge_clearance",
+          "unit": "mm",
+          "minimum": 0.3,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > circuit-to-board-edge clearance. Confirm scoring/panel geometry and any edge plating."
+        },
+        {
+          "id": "plated-slot",
+          "title": "Minimum plated slot width",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.65,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > milled slot width, plated."
+        },
+        {
+          "id": "legend-height",
+          "title": "Minimum silkscreen text height",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.5842,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > silkscreen. 23 mil converted exactly."
+        },
+        {
+          "id": "rf-coil",
+          "title": "RF coil trace width / spacing",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": "mm",
+          "minimum": 0.1524,
+          "maximum": null,
+          "source_ids": [
+            "official"
+          ],
+          "severity": "error",
+          "notes": "Source: Common FR-4 Manufacturing Specifications > additional conditions. RF coil trace width and spacing must each be at least 6 mil (0.1524 mm), while the vendor also requires selecting its 4/4 mil order option. For 2 oz and 3 oz, the 4/4 order option may conflict with the higher-copper general trace/spacing options; obtain vendor clarification for the actual order before fabrication."
+        },
+        {
+          "id": "process-confirmation",
+          "title": "Confirm process, stackup and selected quote",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Confirm the manufacturer accepts the selected material, copper weights, stackup, finish and layer count for this particular order."
+        },
+        {
+          "id": "fabrication-package",
+          "title": "Review fabrication outputs and drill definitions",
+          "category": "DFM",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review current Gerbers, outline, drill data, plated and non-plated holes, and vendor instructions together."
+        },
+        {
+          "id": "assembly-package",
+          "title": "Review assembly inputs and selected process",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review BOM, component rotations, placement file, assembly drawing, solder paste and applicable variant with the selected assembler."
+        },
+        {
+          "id": "assembly-clearance",
+          "title": "Review placement, rework and inspection access",
+          "category": "DFA",
+          "backend": "manual",
+          "constraint": null,
+          "unit": null,
+          "minimum": null,
+          "maximum": null,
+          "source_ids": [],
+          "severity": "error",
+          "notes": "Review clearances, fiducials, tooling, polarity and access with the assembler. No unpublished numerical limit has been assumed."
+        }
+      ],
+      "notes": "Specific to FR4 two-layer Fusion service. Solder-mask dam varies with mask color and selected option; unknown cases require vendor confirmation."
+    }
+  ],
+  "vendors": [
+    {
+      "id": "lioncircuits",
+      "name": "LionCircuits",
+      "region": "India",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.lioncircuits.com/pcb-manufacturing-capabilities"
+      ],
+      "status": "profiles_available",
+      "notes": "Published process-specific rigid PCB capabilities; confirm selected service and quote."
+    },
+    {
+      "id": "pcbpower",
+      "name": "PCB Power",
+      "region": "India",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.pcbpower.com/technology/technical-capabilities-rigid-pcb",
+        "https://www.pcbpower.com/technology/technical-capabilities-pcba"
+      ],
+      "status": "profiles_available",
+      "notes": "A rigid 1 oz starting-copper profile is available. Assembly and other fabrication options need separate verified rules."
+    },
+    {
+      "id": "pc-process",
+      "name": "PC Process",
+      "region": "India",
+      "services": [
+        "fabrication"
+      ],
+      "source_urls": [
+        "https://www.pcprocess.in/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Requested manufacturer; its official site was inaccessible during this review. No numerical limits have been populated."
+    },
+    {
+      "id": "krypton-solutions",
+      "name": "Krypton Solutions",
+      "region": "India and United States",
+      "services": [
+        "assembly",
+        "contract manufacturing"
+      ],
+      "source_urls": [
+        "https://www.krypton-solutions.com/contact-us/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Contract assembly/EMS company with Bangalore production; numerical project-specific PCB/assembly limits require vendor confirmation."
+    },
+    {
+      "id": "jlcpcb",
+      "name": "JLCPCB",
+      "region": "China",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://jlcpcb.com/capabilities/pcb-capabilities"
+      ],
+      "status": "profiles_available",
+      "notes": "Rigid FR-4 1 oz two-layer and multilayer profiles are available; separate categories and manufacturing options need additional profiles."
+    },
+    {
+      "id": "pcbway",
+      "name": "PCBWay",
+      "region": "China",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.pcbway.com/capabilities.html"
+      ],
+      "status": "profiles_available",
+      "notes": "A conservative rigid 1 oz 2-layer guidance profile is available; its 6 mil warning is a recommendation, not an absolute capability. Advanced processes and assemblies require separate profiles."
+    },
+    {
+      "id": "pban",
+      "name": "P-ban.com",
+      "region": "Japan",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.p-ban.com/quality/spec.html",
+        "https://www.p-ban.com/form/data/p-ban_about_nq.pdf"
+      ],
+      "status": "profiles_available",
+      "notes": "General-specification 35 µm 2-layer profile. Source specification is Japanese; verify the quoted service."
+    },
+    {
+      "id": "meiko",
+      "name": "Meiko",
+      "region": "Japan and Vietnam",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.meiko-elec.com/english/product/",
+        "https://www.meiko-elec.com/english/product/ems/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Manufacturer identifies multiple products and EMS sites; no general numerical profile is inferred from capability marketing."
+    },
+    {
+      "id": "ibiden",
+      "name": "IBIDEN",
+      "region": "Japan",
+      "services": [
+        "fabrication",
+        "packaging"
+      ],
+      "source_urls": [
+        "https://www.ibiden.com/product/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Product information does not establish a process-specific PCB design-rule profile."
+    },
+    {
+      "id": "kce",
+      "name": "KCE Electronics",
+      "region": "Thailand",
+      "services": [
+        "fabrication"
+      ],
+      "source_urls": [
+        "https://www.kce.co.th/Eng/aboutKCE.aspx"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Select facility, construction and quotation before accepting numerical limits."
+    },
+    {
+      "id": "guh-circuit",
+      "name": "GUH Circuit Industry",
+      "region": "Malaysia",
+      "services": [
+        "fabrication"
+      ],
+      "source_urls": [
+        "https://www.guhutilities.com.my/page/electronic-division"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Manufacturer group describes PCB production; no process-specific numerical rules verified."
+    },
+    {
+      "id": "sunshine-pcb-penang",
+      "name": "Sunshine PCB Penang",
+      "region": "Malaysia",
+      "services": [
+        "fabrication"
+      ],
+      "source_urls": [
+        "https://www.sunshinepcbgroup.com/penang-malaysia"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Confirm Penang facility process and quotation for applicable rules."
+    },
+    {
+      "id": "jabil-penang",
+      "name": "Jabil Penang",
+      "region": "Malaysia",
+      "services": [
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.jabil.com/contact/locations/penang.html"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Assembly/EMS facility; no standalone board-fabrication limits inferred."
+    },
+    {
+      "id": "oshpark",
+      "name": "OSH Park",
+      "region": "United States",
+      "services": [
+        "fabrication"
+      ],
+      "source_urls": [
+        "https://docs.oshpark.com/services/"
+      ],
+      "status": "profiles_available",
+      "notes": "Two-layer 1 oz FR4 prototype profile; mixed-copper 4/6-layer options need separate scope."
+    },
+    {
+      "id": "sierra-circuits",
+      "name": "Sierra Circuits",
+      "region": "United States",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.protoexpress.com/kb/no-touch-pcbs-specs/"
+      ],
+      "status": "profiles_available",
+      "notes": "NoTouch 2-layer profile; Web PCB and advanced services have different limits."
+    },
+    {
+      "id": "multicb",
+      "name": "Multi Circuit Boards",
+      "region": "Europe",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.multi-circuit-boards.eu/en/pricing/printed-circuit-boards/pooling-options.html"
+      ],
+      "status": "profiles_available",
+      "notes": "Lowest-cost pool 2-layer FR4 35 µm profile; distinguish final and starting copper."
+    },
+    {
+      "id": "aisler",
+      "name": "AISLER",
+      "region": "Europe",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://community.aisler.net/t/4-layer-35-m-enig-design-rules/3733"
+      ],
+      "status": "profiles_available",
+      "notes": "Four-layer 35 µm ENIG profile restricted to 0.8 or 1.6 mm board."
+    },
+    {
+      "id": "eurocircuits",
+      "name": "Eurocircuits",
+      "region": "Europe",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.eurocircuits.com/technical-guidelines/pcb-design-guidelines/classification/",
+        "https://www.eurocircuits.com/services/semi-flex-pool/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Current classification and semi-flex services have different layer- and process-specific limits; profile requires mixed-layer copper scope and manufacturer confirmation."
+    },
+    {
+      "id": "beta-layout",
+      "name": "Beta LAYOUT / PCB-POOL",
+      "region": "Europe",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://eu.beta-layout.com/pcb/technology/presettings/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Vendor publishes multiple PCB-POOL and overseas services. Verify current service-specific rule source and process before numerical profile."
+    },
+    {
+      "id": "shogini",
+      "name": "Shogini Technoarts",
+      "region": "India",
+      "services": [
+        "fabrication"
+      ],
+      "source_urls": [
+        "https://www.shogini.com/infrastructure/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Manufacturer describes PCB production at its Pune facility; project-specific limits need a current process capability document."
+    },
+    {
+      "id": "ascent-circuits",
+      "name": "Ascent Circuits",
+      "region": "India",
+      "services": [
+        "fabrication"
+      ],
+      "source_urls": [
+        "https://ascentcircuits.com/about/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Manufacturer describes a broad PCB product range; confirm construction-specific limits with the selected service."
+    },
+    {
+      "id": "fine-line-circuits",
+      "name": "Fine-Line Circuits",
+      "region": "India",
+      "services": [
+        "fabrication"
+      ],
+      "source_urls": [
+        "https://www.finelineindia.com/capabilities/product-capabilities/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Manufacturer lists multiple board technologies. Numerical values require the applicable product capability table and quotation."
+    },
+    {
+      "id": "advancedpcb",
+      "name": "AdvancedPCB",
+      "region": "United States",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.advancedpcb.com/en-us/solutions/standard-pcbs/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Standard and advanced services differ; numerical design rules require the matching current service specification."
+    },
+    {
+      "id": "sunstone",
+      "name": "Sunstone Circuits",
+      "region": "United States",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://www.sunstone.com/docs/default-source/collateral/introducing-sunstone.pdf"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Manufacturer identifies PCB fabrication and assembly; verify process-specific numerical limits before profile creation."
+    },
+    {
+      "id": "nextpcb",
+      "name": "NextPCB",
+      "region": "China",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://mobile.nextpcb.com/pcb-capabilities",
+        "https://www.nextpcb.com/pcb-assembly-capabilities"
+      ],
+      "status": "profiles_available",
+      "notes": "Two-layer 1 oz outer copper FR4 profile; geometry-category clearances remain manual until a supported evaluator is available."
+    },
+    {
+      "id": "seeed-fusion",
+      "name": "Seeed Fusion",
+      "region": "China",
+      "services": [
+        "fabrication",
+        "assembly"
+      ],
+      "source_urls": [
+        "https://wiki.seeedstudio.com/Service_for_Fusion_PCB/"
+      ],
+      "status": "profiles_available",
+      "notes": "Three two-layer FR4 copper-weight profiles; four-layer inner-copper and soldermask options require separate checks."
+    },
+    {
+      "id": "ats",
+      "name": "AT&S",
+      "region": "Europe and Asia",
+      "services": [
+        "fabrication"
+      ],
+      "source_urls": [
+        "https://ats.net/en/company/ats-worldwide/"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Multiple production sites and technologies. No facility-specific numerical design-rule profile is inferred from company-level marketing."
+    },
+    {
+      "id": "unimicron",
+      "name": "Unimicron",
+      "region": "Taiwan and China",
+      "services": [
+        "fabrication",
+        "packaging"
+      ],
+      "source_urls": [
+        "https://www.uniflex.com.tw/esg/en/product01.html"
+      ],
+      "status": "needs_vendor_confirmation",
+      "notes": "Manufacturer describes PCB and substrate products; confirm a site and technology-specific rule document."
+    }
+  ]
+}

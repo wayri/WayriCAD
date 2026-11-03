@@ -156,3 +156,10 @@ include docs/audits/REPORT_EXPORT_SERIES_DISCOVERY.md
 include tests/test_report_data.py
 include tests/test_report_images.py
 include tests/browser_compact_report.cjs
+
+include docs/RELEASE_NOTES_4.2.0.md
+include docs/audits/RELEASE_4.2.0.md
+recursive-include manufacturing_readiness_plugin/tests *.py
+recursive-include trace_impedance_plugin/tests *.py
+include tests/test_dfm_presentation.py
+include tests/test_return_candidates.py

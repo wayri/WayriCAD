@@ -36,6 +36,25 @@ def inputs(environment="air"):
 
 
 class MultilayerThermalTests(unittest.TestCase):
+    def test_radiation_newton_overshoot_does_not_reject_valid_equilibrium(self):
+        geometry, view, result, settings = inputs("vacuum")
+        settings.update(board_h_w_m2k=0, board_emissivity=.85)
+        # Equal uniform heating of both faces gives an isothermal analytical
+        # reference: P = emissivity * sigma * area * (T_K**4 - ambient_K**4).
+        view["components"][0]["bbox_mm"] = [0, 0, 12, 12]
+        second = copy.deepcopy(view["components"][0])
+        second.update(reference="U2", side="bottom")
+        view["components"].append(second)
+        result["components"][0]["power_w"] = 50
+        result["components"].append(
+            {"reference": "U2", "power_w": 50, "heat_path": "board"})
+        expected = (100/(.85*5.670374419e-8*2*.012*.012)+293.15**4)**.25-273.15
+        solved = solve_multilayer_thermal(geometry, view, result, settings)
+        self.assertEqual(solved["status"], "converged")
+        for part in solved["components"]:
+            self.assertAlmostEqual(part["board_site_c"], expected, places=6)
+        self.assertLess(abs(solved["heat_balance"]["residual_w"]), 1e-7)
+
     def test_drill_stencil_keeps_partial_boundary_cell_power(self):
         contact = {"outer": [[.2, 0], [2.36, 0], [2.36, 1], [.2, 1]],
                    "holes": [[[1.2, .2], [1.8, .2], [1.8, .8], [1.2, .8]]]}

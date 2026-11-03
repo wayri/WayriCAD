@@ -37,8 +37,10 @@ manual changes invalidate that selection and previous simulation results.
 **Material + ambient defaults…** in Setup previews the suite's known
 illustrative conductivity, heat-storage, surface, plating and environment inputs
 together. It fills blanks while retaining loaded or edited values; an explicit
-replacement option applies the preview to existing fields too. Initial, enclosure
-and lower-face temperatures use the chosen ambient when populated. Review these
+replacement option applies the preview to existing fields too. **Apply starting
+ambient to all temperature inputs** updates ambient, initial, enclosure and
+lower-face temperatures together while retaining edited material properties.
+With both replacement options off, only blank fields change. Review these
 starting assumptions before solving; missing material/package evidence stays
 unknown. Material pickers populate all known supported properties and reopen with
 the previous selection and overrides.

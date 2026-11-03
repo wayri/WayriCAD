@@ -63,6 +63,27 @@ class ReturnReviewTests(unittest.TestCase):
         self.assertEqual(request['return_via_radius_mm'], 2.)
         self.assertEqual(request['return_terminal_ids'], [])
 
+    def test_detection_keeps_selection_until_explicit_review_and_cancel(self):
+        import hashlib
+        f=self.frame
+        f.inventory['source_sha256']=hashlib.sha256(self.path.read_bytes()).hexdigest()
+        with patch.object(f,'_snapshot_current',return_value=True),patch.object(f,'_job') as run:
+            f.on_detect_returns()
+        request=run.call_args.args[0]
+        self.assertEqual(request['action'],'detect_returns')
+        self.assertEqual(request['signal_net'],'VCC')
+        self.assertEqual(f._return_selected_nets(),[])
+        bundle={'source_sha256':f.inventory['source_sha256'],
+                'return_candidates':{'candidates':[{'net':'GND'}]}}
+        with patch('quick_pi_plugin.return_candidates_ui.choose_candidate',return_value=None):
+            f._accept_return_candidates(bundle)
+        self.assertEqual(f._return_selected_nets(),[])
+        with patch('quick_pi_plugin.return_candidates_ui.choose_candidate',return_value='GND'):
+            f._accept_return_candidates(bundle)
+        self.assertEqual(f._return_selected_nets(),['GND'])
+        self.assertEqual(f.batch_button.GetLabel(),'Batch studies…')
+        self.assertEqual(f.return_button.GetLabel(),'Return paths…')
+
     def test_multiple_returns_and_duplicate_pad_identities_survive(self):
         f = self.frame; f._return_use_suggestion()
         f.return_nets.Check(f.return_nets.FindString('AGND')); f._return_nets_changed()
