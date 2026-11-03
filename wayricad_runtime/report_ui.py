@@ -213,7 +213,7 @@ def publish_report(path, document, bundle, *, pocket_kivi=None, pdf=False):
     document=organize_report(document,bundle)
     pdf = pdf or Path(path).suffix.lower() == '.pdf'
     output,evidence=report_paths(path)
-    payload=json.dumps(bundle,indent=2,ensure_ascii=False,allow_nan=False)+'\n'
+    payload=json.dumps(bundle,separators=(',',':'),ensure_ascii=False,allow_nan=False)+'\n'
     sources=checked_sources(bundle)
     link='<p class="report-download"><a href="'+escape(evidence.name,quote=True)+'">Download complete JSON evidence</a></p>'
     documents={evidence:payload}

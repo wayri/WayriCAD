@@ -129,6 +129,10 @@ def report_html(bundle, layer):
                  layers=list(map(str,mesh['triangle_layer'])),potential=result['potential_V'],
                  selected=bundle.get('differential_probes',{}))
     raw=json.dumps(payload,allow_nan=False,separators=(',',':')).replace('<','\\u003c').replace('>','\\u003e').replace('&','\\u0026')
+    from wayricad_runtime.report_data import script_json
+    expression,compressed=script_json(payload)
+    stored='' if compressed else '<script type="application/json" class="diff-data">'+raw+'</script>'
+    expression=expression if compressed else "JSON.parse(root.querySelector('.diff-data').textContent)"
     options=''.join('<option value="'+escape(value,quote=True)+'"'+(' selected' if value==str(layer) else '')+'>'+escape(names.get(value,value))+'</option>' for value in layers)
     static=_static_reading(reading)
     return '''<section class="interactive-analysis" id="pi-differential"><h2>Differential voltage probe</h2>
@@ -138,9 +142,8 @@ def report_html(bundle, layer):
 <button type="button" class="diff-clear">Clear probes</button>
 <p class="diff-readout" role="status" aria-live="polite">Select A and B.</p>
 <canvas width="900" height="450" style="width:100%;max-width:900px;height:auto;background:#f5f9fa" aria-label="Solved copper differential probe map"></canvas>
-<script type="application/json" class="diff-data">'''+raw+'''</script>
-<script>(()=>{
-const root=document.getElementById('pi-differential'),data=JSON.parse(root.querySelector('.diff-data').textContent),canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d'),layer=root.querySelector('.diff-layer'),target=root.querySelector('.diff-target'),readout=root.querySelector('.diff-readout');
+'''+stored+'<script>('+('async ' if compressed else '')+'''()=>{
+const root=document.getElementById('pi-differential'),data='''+expression+''',canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d'),layer=root.querySelector('.diff-layer'),target=root.querySelector('.diff-target'),readout=root.querySelector('.diff-readout');
 let selected=data.selected||{},bounds,scale,ox,oy;
 const byLayer=new Map();data.triangles.forEach((tri,i)=>{const k=data.layers[i];if(!byLayer.has(k))byLayer.set(k,[]);byLayer.get(k).push(i);});
 const cross=(a,b)=>a[0]*b[1]-a[1]*b[0],sub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
@@ -149,4 +152,4 @@ function draw(){const indices=byLayer.get(layer.value)||[];let xmin=Infinity,ymi
 for(const key of ['a','b']){const p=selected[key];if(!p||String(p.layer)!==layer.value)continue;const x=ox+p.x_mm*scale,y=oy+p.y_mm*scale;ctx.beginPath();ctx.arc(x,y,7,0,2*Math.PI);ctx.strokeStyle=key==='a'?'#b44d11':'#1765b2';ctx.lineWidth=3;ctx.stroke();ctx.fillStyle=ctx.strokeStyle;ctx.font='bold 15px sans-serif';ctx.fillText(key.toUpperCase(),x+11,y-8);}
 const describe=key=>{const p=selected[key];if(!p)return key.toUpperCase()+': not selected';const value=sample(p);return key.toUpperCase()+': layer '+p.layer+'; '+p.x_mm.toPrecision(7)+', '+p.y_mm.toPrecision(7)+' mm; '+(value===null?'Unknown':value.toPrecision(8)+' V');};let text=describe('a')+' | '+describe('b');if(selected.a&&selected.b){const a=sample(selected.a),b=sample(selected.b);text+=' | V(A) - V(B): '+(a===null||b===null||!Number.isFinite(a-b)?'Unknown':(a-b).toPrecision(8)+' V');}readout.textContent=text;}
 canvas.addEventListener('click',event=>{const rect=canvas.getBoundingClientRect(),x=(event.clientX-rect.left)*canvas.width/rect.width,y=(event.clientY-rect.top)*canvas.height/rect.height;selected[target.value]={layer:layer.value,x_mm:(x-ox)/scale,y_mm:(y-oy)/scale};target.value=target.value==='a'?'b':'a';draw();});layer.addEventListener('change',draw);root.querySelector('.diff-clear').addEventListener('click',()=>{selected={};target.value='a';draw();});draw();
-})();</script></section>'''
+})()'''+('.catch(error=>{document.querySelector("#pi-differential .diff-readout").textContent="Interactive probe unavailable: "+error.message+". Static figures and exact JSON remain available.";})' if compressed else '')+''';</script></section>'''

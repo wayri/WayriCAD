@@ -2,7 +2,6 @@
 from __future__ import annotations
 import base64
 from html import escape
-import io
 import json
 from pathlib import Path
 from wayricad_runtime.report_ui import enhance_report, provenance, publish_report, report_paths
@@ -113,8 +112,9 @@ def write_diagnostic_report(path,bundle,*,pocket_kivi=False):
                     draw_temperature_comparison(figure, bundle)
                 else:
                     draw_thermal_view(figure,view,mode,network=network)
-                image=io.BytesIO();figure.savefig(image,format='png',dpi=115)
-                html+='<h2>'+escape(mode)+' — printable snapshot</h2><img style="max-width:100%" alt="'+escape(mode)+'" src="data:image/png;base64,'+base64.b64encode(image.getvalue()).decode('ascii')+'">'
+                from wayricad_runtime.report_images import figure_png
+                image=figure_png(figure,dpi=115)
+                html+='<h2>'+escape(mode)+' — printable snapshot</h2><img style="max-width:100%" alt="'+escape(mode)+'" src="data:image/png;base64,'+base64.b64encode(image).decode('ascii')+'">'
             html+='<p>Contour: '+escape(view.get('field',{}).get('meaning','Interpolation of component junction estimates; not a physical board-surface solve.'))+'</p>'
             stats=analytics.get('temperature_c',{})
             summary=' · '.join(escape(label)+' '+_number(stats.get(key),'°C') for label,key in

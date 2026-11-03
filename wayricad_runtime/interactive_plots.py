@@ -23,7 +23,8 @@ def interactive_plot(title, rows, unit='', three_d=False, polygons=None, x_unit=
             if index<len(values) and isinstance(values[index],(int,float)) and not math.isfinite(values[index]):values[index]=None
         clean.append(values)
     if field and three_d:raise ValueError('Saved mesh fields require a two-dimensional field view.')
-    data=json.dumps({'rows':clean,'polygons':polygons,'unit':unit,'three':three_d,'xunit':x_unit,'yunit':y_unit,'connect':connect,'field':field},allow_nan=False).replace('<','\\u003c')
+    from .report_data import script_json
+    data,compressed=script_json({'rows':clean,'polygons':polygons,'unit':unit,'three':three_d,'xunit':x_unit,'yunit':y_unit,'connect':connect,'field':field})
     from .field_render import FIELD_SCRIPT
     shading=FIELD_SCRIPT if field else ''
     return ('<figure id="'+ident+'" class="interactive-analysis"><figcaption>'+escape(title)+'</figcaption>'
@@ -31,7 +32,8 @@ def interactive_plot(title, rows, unit='', three_d=False, polygons=None, x_unit=
         '<button type="button" data-fit>Fit</button> <button type="button" data-clear>Clear probes</button>'
         '<canvas style="width:100%;height:420px;display:block;background:#f5f8fa;touch-action:none;cursor:crosshair" aria-label="'+escape(title)+'"></canvas>'
         '<div data-field-scale></div><output style="display:block;min-height:1.5em" aria-live="polite">No probe</output><ol data-probes></ol>'
-        '<script>(()=>{const host=document.getElementById("'+ident+'"),data='+data+';'+shading+_SCRIPT+'})();</script></figure>')
+        '<script>('+('async ' if compressed else '')+'()=>{const host=document.getElementById("'+ident+'"),data='+data+';'+shading+_SCRIPT+'})()'+
+        ('.catch(error=>{document.getElementById("'+ident+'").querySelector("output").textContent="Interactive plot unavailable: "+error.message+". Static figures and exact JSON remain available.";})' if compressed else '')+';</script></figure>')
 
 
 _SCRIPT=r'''

@@ -48,3 +48,20 @@ Windows was locked when the test windows became available. Native automated
 widget and saved-board checks do not establish a live-editor click-through.
 No fresh native KiCad 11 qualification was performed; its support remains
 experimental. Previously published 4.1.2 binaries have not been replaced.
+
+## Compact reports in 4.1.3
+
+Large interactive data is encoded with deterministic gzip, with no sample
+removal, decimal rounding or network request. An offline Chromium check decoded
+all three fields and the differential probe, rendered eight plots and exercised
+Fit without script errors or external requests. Static PNG optimization preserves
+dimensions, exact RGBA pixels, DPI, transparency and ICC profiles. Compact JSON
+retains the same decoded numerical values. PDF page streams are compressed.
+
+The same saved series fixture's HTML changed from 16,606,226 to 4,238,418 bytes;
+PDF was 583,923 bytes, with 13 pages and eight figures. Its numerical sidecar was
+6,224,137 bytes. All eight PNGs had identical decoded pixels before and after.
+Rendered PDF pages and the browser field view were inspected for readable
+headers, pin groups, tables and field shading. Large compressed plots require a
+browser with the standard DecompressionStream API; static figures and exact JSON
+remain available otherwise.

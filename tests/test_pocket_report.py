@@ -43,13 +43,15 @@ def pi(source):
     return value
 
 
-def test_default_common_pair_retains_exact_bytes_and_return_contract(tmp_path):
+def test_default_common_pair_retains_values_and_return_contract_with_compact_json(tmp_path):
     bundle={'values':[1,None,2],'schema':'existing/v1'}
     path=tmp_path/'report.html'
     result=report_ui.publish_report(path,'plain original document',bundle)
     assert result=={'html':str(path),'json':str(path.with_suffix('.json'))}
     assert path.read_bytes()==b'plain original document'
-    assert path.with_suffix('.json').read_bytes()==(json.dumps(bundle,indent=2,ensure_ascii=False,allow_nan=False)+'\n').encode()
+    encoded=(json.dumps(bundle,separators=(',',':'),ensure_ascii=False,allow_nan=False)+'\n').encode()
+    assert path.with_suffix('.json').read_bytes()==encoded
+    assert json.loads(encoded)==bundle
     assert {p.name for p in tmp_path.iterdir()}=={'report.html','report.json'}
 
 
