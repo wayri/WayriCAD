@@ -204,7 +204,10 @@ UNKNOWN because no reference/material/edge model is supplied. The older
 
 Open **Neighbour traces**, choose/type an exact target net (blank searches all
 connected nets), select a copper layer and set the search radius in mm.
-**Map neighbours** runs a cancellable worker on the saved board. Search the
+**Map neighbours** runs a cancellable native-only worker on the saved board;
+it does not provision or import plotting, array or IPC dependencies for this
+geometric analysis. Route and eye jobs retain their scientific runtime checks.
+Search the
 results, hover/click coloured traces, or select a table row for shortest edge
 gap, parallel overlap and closest board location. Wheel zooms, drag pans and
 **Fit map** restores the overview.

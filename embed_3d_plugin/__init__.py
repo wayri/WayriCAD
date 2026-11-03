@@ -1,5 +1,5 @@
 """WayriCAD Embed3D: actual embedded model files, unchanged model transforms."""
-__version__ = '4.1.3'
+__version__ = '4.2.0'
 
 
 def register():

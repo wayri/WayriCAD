@@ -19,6 +19,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
 FRAMES = {
     'trace_impedance_plugin': ('trace_impedance_plugin', 'TraceFrame'),
     'signal_integrity_advisor_plugin': ('signal_integrity_advisor_plugin', 'SignalIntegrityFrame'),
+    'manufacturing_readiness_plugin': ('dfm_ui', 'DFMFrame'),
 }
 
 
@@ -28,7 +29,8 @@ class LoadingCancelled(Exception):
 
 def _loading_window(wx, tool):
     """Paint a status frame before KiCad's short blocking board read."""
-    title = 'Trace RLC / Impedance' if tool == 'trace_impedance_plugin' else 'Quick SI'
+    title = {'trace_impedance_plugin': 'Trace RLC / Impedance',
+             'manufacturing_readiness_plugin': 'DFM / DFA Studio'}.get(tool, 'Quick SI')
 
     class LoadingWindow(wx.Frame):
         def __init__(self):
@@ -77,11 +79,13 @@ def child_environment():
 
 
 def native_python(tool=None):
-    from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_IPC
+    from wayricad_runtime.runtime_setup import ensure_runtime, REQUIREMENTS_IPC, REQUIREMENTS_REPORTS
     requirements=dict(REQUIREMENTS_IPC)
     if tool == "signal_integrity_advisor_plugin":
         requirements["matplotlib"]="matplotlib>=3.7,<4"
         requirements["numpy"]="numpy>=1.24,<3"
+    if tool in ('trace_impedance_plugin', 'manufacturing_readiness_plugin'):
+        requirements.update(REQUIREMENTS_REPORTS)
     return ensure_runtime(requirements)
 
 

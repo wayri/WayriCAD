@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "4.1.3"
+version = "4.2.0"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -71,6 +71,7 @@ extract_pins_plugin = ["*.html", "*.md", "*.txt", "*.svg", "*.png", "metadata.js
 harness_workbench_plugin = ["*.html", "*.md", "*.png", "metadata.json"]
 fanout_generator_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "style-gallery/*.png", "style-gallery/*.json"]
 trace_impedance_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
+manufacturing_readiness_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 "signal_integrity_advisor_plugin.return_path" = ["*.html", "*.md", "*.png"]
 "signal_integrity_advisor_plugin.test_points" = ["*.html", "*.md", "*.png"]
 "quick_pi_plugin.decoupling" = ["*.html", "*.md", "*.png"]

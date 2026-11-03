@@ -7,17 +7,34 @@
 [![Tools](https://img.shields.io/badge/Tools-26-168b78)](#all-26-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
-**PCB design, analysis and project review in KiCad.** Choose from 26 independently
-installable plugins in the source catalogue. Processing runs locally after setup. KiCad 10 is the validated target.
+**KiCad engineering tools for layout, circuit analysis and manufacturing.** Choose
+from 26 independently installable plugins. Processing runs locally after setup.
+KiCad 10 is the native validation target; KiCad 11 support remains experimental.
 
 [Quick EMerge](quick_emerge_plugin/README.md) is an exploratory **beta**.
 [Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
 GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
 
-**Release 4.1.3:** smaller lossless HTML/PDF reports, restored-simulation export
-fixes, and reviewed series-path discovery with parallel components and pin groups.
-[Download 4.1.3](https://github.com/wayri/WayriCAD/releases/tag/v4.1.3) ·
-[Release notes](docs/RELEASE_NOTES_4.1.3.md) · [Getting started](#getting-started)
+**Release 4.2.0:** visual DFM/DFA checklists, whole-board and bundle RLC extraction,
+inferred reference planes, PI series power trees, and setup/runtime fixes.
+[Download 4.2.0](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0) ·
+[Release notes and validation limits](docs/RELEASE_NOTES_4.2.0.md) · [Getting started](#getting-started)
+
+- [DFM / DFA Studio](manufacturing_readiness_plugin/DFM_DFA.md): save/load sourced
+  process checklists, inspect linked findings and export HTML/PDF. The catalogue
+  contains 21 process presets: 20 with native rules and one manual checklist,
+  plus 28 manufacturer directory entries. Directory coverage is not rule coverage.
+- [RLC all nets and bundles](trace_impedance_plugin/ReadMe.md#whole-board-sections-and-net-bundles):
+  extract physical sections and review saved reference-plane evidence. Branched
+  nets retain section results; bundle membership does not imply coupled impedance.
+- [Quick PI](quick_pi_plugin/README.md): inspect series power accounting and pin
+  groups, with separate batch and return-path controls. Thermal setup and native
+  runtime startup checks also receive focused fixes.
+
+Native KiCad 10.0.6 fixtures and hidden controller checks are recorded. The full
+editor series save/reload workflow, requested power-tree/return-path screenshots,
+live cross-probing and KiCad 11 acceptance remain pending. See the release notes
+before relying on those workflows.
 
 <details>
 <summary>About the download counter</summary>
@@ -32,6 +49,10 @@ automatic source ZIP/tar downloads and repository clones are excluded.
 
 <details>
 <summary>Earlier releases and validation history</summary>
+
+**Release 4.1.3:** smaller lossless HTML/PDF reports, restored-simulation export
+fixes, and reviewed series-path discovery with parallel components and pin groups.
+[Release notes](docs/RELEASE_NOTES_4.1.3.md).
 
 **New in 4.0.1:** clearer Quick PI setup feedback, more useful Quick SI route/eye
 status, and board-derived RLC eye simulation. Quick EMerge has simple 2D/3D
@@ -95,7 +116,8 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
-| Download or update | [Release 4.1.2](https://github.com/wayri/WayriCAD/releases/tag/v4.1.2) · [Release notes](docs/RELEASE_NOTES_4.1.2.md) |
+| Download or update | [Release 4.2.0](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0) · [Release notes](docs/RELEASE_NOTES_4.2.0.md) |
+| Check manufacturing and assembly requirements | [DFM / DFA Studio](manufacturing_readiness_plugin/DFM_DFA.md) · [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 26 plugins](#all-26-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
@@ -112,6 +134,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Quick SI | [Signal paths, returns, coupling, pair timing and IBIS export](signal_integrity_advisor_plugin/USER_GUIDE.md) | [HTML guide](signal_integrity_advisor_plugin/USER_GUIDE.html) |
 | QuickTherm | [Power inputs, cooling, steady state, transients and temperature inspection](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md) | [HTML guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.html) |
 | Quick EMerge (beta) | [Setup, antenna templates, bounded PCB regions, probes and reports](quick_emerge_plugin/README.md) | [HTML guide](quick_emerge_plugin/help.html) |
+| DFM / DFA Studio | [Vendor processes, saved checklists, native DRC and visual findings](manufacturing_readiness_plugin/DFM_DFA.md) | [HTML guide](manufacturing_readiness_plugin/help.html) |
 
 Each guide covers setup, result interpretation, examples, command-line use,
 report export and troubleshooting, including the limits of each solver.
@@ -277,7 +300,7 @@ an input or model is missing; they are not a pass.
 
 <img src="quick_emerge_plugin/icon.png" width="48" height="48" alt="Quick EMerge beta icon">
 
-1. Download the [Quick EMerge PCM ZIP from release 4.1.2](https://github.com/wayri/WayriCAD/releases/download/v4.1.2/WayriCAD-quick-emerge-4.1.2-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
+1. Download the [Quick EMerge PCM ZIP from release 4.2.0](https://github.com/wayri/WayriCAD/releases/download/v4.2.0/WayriCAD-quick-emerge-4.2.0-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
 2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
 3. In KiCad, draw a named rule area around the antenna and the feed/ground geometry needed for its model; refill and save the board. In **Setup → 1 Geometry**, use **Saved PCB rule area**, load the areas and select the signal and reference nets. Review material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**.
 4. Click **Preview** to inspect the actual clipped copper and numbered feed ports. Resolve blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and short sweep before increasing resolution.
@@ -301,12 +324,12 @@ not establish accuracy. See [validation evidence](quick_emerge_plugin/VALIDATION
 
 ### Silkscreen Label Placer — arrange readable labels
 
-1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its [0.3.3 PCM ZIP](https://github.com/wayri/WayriCAD/releases/download/v3.6.24/WayriCAD-silkscreen-label-0.3.3-PCM.zip) and use **Install from File**. Restart PCB Editor.
+1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its PCM ZIP from the [current release](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0) and use **Install from File**. Restart PCB Editor.
 2. Open **WayriCAD Silkscreen Label Placer** and choose all eligible labels, problem-only correction or selected parts. Leave **References only (R1, C1…)** selected to preserve values and manual text. Acceptable labels are preserved and leaders are off by default.
 3. Under **Options**, enable automatic sizing and set a minimum height if needed. Choose allowed orientations and reading directions. Add editable bold, italic or knockout rules for test points and connectors.
 4. Click **Preview**, inspect both board sides and unresolved labels, then **Apply labels**. Run KiCad DRC before saving. Labels that cannot fit safely stay unchanged.
 
-[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Release](https://github.com/wayri/WayriCAD/releases/tag/v3.6.24)
+[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Current release](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0)
 
 <a id="start-quick-pi"></a>
 
@@ -382,6 +405,8 @@ route may have usable section results without a single overall impedance.
 3. Run **Analyze**, then inspect the copper preview and per-section R, L, C and impedance.
 4. Export the results. Use **Line cross section** for manually entered supported CPW,
    grounded CPW or coupled-stripline geometries.
+5. Choose **All nets / Bundles…** to extract sections across the saved board or
+   explicit net groups, with optional reference-plane inference from filled copper.
 
 Automatic board impedance covers supported single-ended microstrip/stripline
 sections. Differential-pair mode measures paths/skew; it does not automatically
@@ -425,7 +450,7 @@ currencies stay explicit.
 
 ## All 26 plugins
 
-Release **4.1.2** includes 26 independently installable plugins. Quick EMerge
+Release **4.2.0** includes 26 independently installable plugins. Quick EMerge
 is marked **beta / testing**; Review and Assistant are also testing packages.
 Individual versions, runtime requirements and limits are in their guides.
 Select a plugin for its full guide and supported models.
@@ -438,7 +463,7 @@ Select a plugin for its full guide and supported models.
 | <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. |
 | <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Board and component temperatures, heating playback and thermal reports. |
 | <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal delay, reflections, termination and return-path screening. |
-| <img src="trace_impedance_plugin/icon.png" width="24" height="24" alt="Trace RLC / Impedance icon"> [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Route resistance, inductance, capacitance and supported impedance estimates. |
+| <img src="trace_impedance_plugin/icon.png" width="24" height="24" alt="Trace RLC / Impedance icon"> [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Route, all-net and bundle section extraction, reference-plane evidence and supported R/L/C/Z0 estimates. |
 | <img src="bom_studio_plugin/icon.png" width="24" height="24" alt="Analytics Studio icon"> [Analytics Studio](bom_studio_plugin/README.md) | BOM editing, purchasing tables and board/copper analytics. |
 | <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Protocol presets, clearance matrices, scoped layer profiles and reviewed export. |
 | <img src="project_fusion_plugin/icon.png" width="24" height="24" alt="Project Fusion icon"> [Project Fusion](project_fusion_plugin/README.md) | Combine projects or circuit blocks and review linked updates. |
@@ -457,7 +482,7 @@ Select a plugin for its full guide and supported models.
 | <img src="mechanical_check_plugin/icon.png" width="24" height="24" alt="Mechanical Check icon"> [Mechanical Check](mechanical_check_plugin/README.md) | Inspect 3D collisions, clearances and board assemblies. |
 | <img src="heater_designer_plugin/icon.png" width="24" height="24" alt="Heater Designer icon"> [Heater Designer](heater_designer_plugin/ReadMe.md) | Design and preview PCB or foil heating patterns. |
 | <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Design PCB coils and screen magnetic/actuator behavior. |
-| <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) | Check fabrication constraints and prepare manufacturing outputs. |
+| <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness / DFM / DFA Studio](manufacturing_readiness_plugin/ReadMe.md) | Sourced process checklists, visual fabrication/assembly findings and existing manufacturing-release gates. |
 
 [Silkscreen Label Placer](silkscreen_label_plugin/README.md) is available as an independent native KiCad 10 plugin in the WayriCAD package feed, with its own icon, automatic sizing and formatting rules. See its [installation guide](silkscreen_label_plugin/README.md#install-and-limits).
 
@@ -481,7 +506,7 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 ### Quick EMerge (beta)
 
 [Getting started](#start-quick-emerge) · [Full guide](quick_emerge_plugin/README.md) ·
-[Download 4.1.2](https://github.com/wayri/WayriCAD/releases/tag/v4.1.2)
+[Download 4.2.0](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0)
 
 **Simple 2D/3D workspace — 4.0.1**
 
@@ -1133,7 +1158,11 @@ Review geometry, material assumptions and the selected thermal/electrical model.
 
 <a href="manufacturing_readiness_plugin/help-workflow.png"><img src="manufacturing_readiness_plugin/help-workflow.png" width="960" alt="Manufacturing Readiness native findings and review workspace"></a>
 
-Review fabrication findings against your manufacturer's actual requirements.
+The package provides separate **Manufacturing Readiness Manager** and **DFM / DFA
+Studio** actions. Save/load process checklists, filter native findings by family,
+severity or layer, inspect saved copper and dimensions, and export HTML/PDF with
+paired evidence. The existing project-DRC, jobset and release-archive workflow is
+retained. [DFM/DFA workflow, vendor coverage and validation limits](manufacturing_readiness_plugin/DFM_DFA.md).
 
 ## Help and upgrades
 

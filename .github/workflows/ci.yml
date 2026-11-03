@@ -55,6 +55,10 @@ jobs:
         run: python -m pytest quick_emerge_plugin/tests -q
       - name: Quick SI channel and workflow regressions
         run: python -m pytest signal_integrity_advisor_plugin/tests -q
+      - name: Manufacturing checklist and DFM report regressions
+        run: python -m pytest manufacturing_readiness_plugin/tests -q
+      - name: RLC whole-board and bundle regressions
+        run: python -m pytest trace_impedance_plugin/tests -q
       - name: Embed3D regressions
         run: python -m unittest discover -s embed_3d_plugin/tests -v
       - name: BOM Studio regressions
@@ -127,6 +131,17 @@ jobs:
           python tools/validate_packages.py
           python tools/validate_docs.py
           python tools/smoke_imported_packages.py
+      - name: Retain validated release assets
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-release-assets
+          path: |
+            dist/wayricad-*
+            releases/*.zip
+            pcm/pkgs.json
+            pcm/repo.json
+          retention-days: 7
 
   pi-reference:
     name: PI known-answer benchmarks

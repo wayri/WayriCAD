@@ -10,11 +10,31 @@ from quick_pi_plugin import cli,service
 
 class ServiceGuards(unittest.TestCase):
     def test_native_inventory_and_geometry_do_not_probe_scientific_meshers(self):
-        for action in ('inspect','geometry'):
+        for action in ('inspect','geometry','detect_returns'):
             with self.subTest(action=action),patch('wayricad_runtime.runtime_setup.ensure_runtime',side_effect=RuntimeError('probe stop')) as probe:
                 with self.assertRaisesRegex(RuntimeError,'probe stop'):
                     service.run_job({'action':action})
                 self.assertEqual(probe.call_args.args[0],{})
+
+    def test_return_detection_rejects_stale_or_changed_saved_source(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'board.kicad_pcb';path.write_bytes(b'saved')
+            request={'action':'detect_returns','board_path':str(path),'signal_net':'VCC',
+                     'source_sha256':hashlib.sha256(b'saved').hexdigest()}
+            board=Mock()
+            with patch.dict('sys.modules',{'pcbnew':Mock(LoadBoard=Mock(return_value=board))}), \
+                 patch('wayricad_runtime.return_candidates.suggest_return_candidates',return_value={'candidates':[]}) as detect:
+                result=service.execute(request)
+                self.assertEqual(result['source_sha256'],request['source_sha256'])
+                detect.assert_called_once_with(board,'VCC',sample_pitch_mm=.5,max_candidates=32)
+                with self.assertRaisesRegex(ValueError,'saved board changed'):
+                    service.execute(dict(request,source_sha256='old'))
+                def change(*args,**kwargs):
+                    path.write_bytes(b'changed');return {'candidates':[]}
+                detect.side_effect=change
+                with self.assertRaisesRegex(ValueError,'changed during return detection'):
+                    service.execute(request)
 
     def test_full_volume_runtime_does_not_require_planar_vtk(self):
         with patch('wayricad_runtime.runtime_setup.ensure_runtime',side_effect=RuntimeError('probe stop')) as probe:

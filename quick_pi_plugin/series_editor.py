@@ -393,7 +393,9 @@ class SeriesPathDialog:
         footer=wx.BoxSizer(wx.HORIZONTAL)
         save=wx.Button(self.dialog,label='Save path…');load=wx.Button(self.dialog,label='Load path…')
         save.Bind(wx.EVT_BUTTON,self._save);load.Bind(wx.EVT_BUTTON,self._load)
-        footer.Add(load,0,wx.RIGHT,7);footer.Add(save,0)
+        footer.Add(load,0,wx.RIGHT,7);footer.Add(save,0,wx.RIGHT,7)
+        tree=wx.Button(self.dialog,label='Power tree…')
+        tree.Bind(wx.EVT_BUTTON,self._power_tree);footer.Add(tree,0)
         footer.AddStretchSpacer()
         run=wx.Button(self.dialog,wx.ID_OK,label='Run this path');cancel=wx.Button(self.dialog,wx.ID_CANCEL,label='Cancel')
         run.Bind(wx.EVT_BUTTON,self._run);footer.Add(run,0,wx.RIGHT,8);footer.Add(cancel,0)
@@ -448,6 +450,16 @@ class SeriesPathDialog:
                               if isinstance(data.get(key),list)}
         self.branches=deepcopy(data.get('branches',[]))
         self._changed()
+
+    def _power_tree(self,event=None):
+        from .series_power_tree import series_path_tree
+        from .series_power_tree_ui import show_series_power_tree
+        try:
+            tree=series_path_tree(self._path_data(),self.inventory)
+            if tree is None:raise ValueError('Infer or enter a series path first.')
+            show_series_power_tree(self.dialog,tree)
+        except (ValueError,KeyError) as exc:
+            self.wx.MessageBox(str(exc),'Series power tree',self.wx.OK|self.wx.ICON_INFORMATION,self.dialog)
 
     def _infer(self,event=None):
         from .series_inference import choose_inferred_path

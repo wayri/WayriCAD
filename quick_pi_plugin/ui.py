@@ -141,9 +141,12 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.joule_feedback.SetToolTip('DC always calculates copper I²R losses. Check this to configure explicit materials, cooling boundaries and steady temperature-to-resistance feedback. Supported for 2.5D prescribed-current loads only.')
         controls.Add(self.joule_feedback,0,wx.EXPAND|wx.BOTTOM,6)
         self.joule_feedback.Bind(wx.EVT_CHECKBOX,self._invalidate)
-        self.batch_button=wx.Button(self.inputs,label='Rails / ground returns…')
-        self.batch_button.SetToolTip('Set up the ground return for this rail, or add multiple rails with shared return copper. The guided tables show all pad mappings together.')
+        self.batch_button=wx.Button(self.inputs,label='Batch studies…')
+        self.batch_button.SetToolTip('Review multiple rail studies, with optional shared return copper and pad mappings.')
         controls.Add(self.batch_button,0,wx.EXPAND|wx.BOTTOM,6);self.batch_button.Bind(wx.EVT_BUTTON,self.on_batch)
+        self.return_button=wx.Button(self.inputs,label='Return paths…')
+        self.return_button.SetToolTip('Review the selected signal and explicitly choose its return net.')
+        controls.Add(self.return_button,0,wx.EXPAND|wx.BOTTOM,6);self.return_button.Bind(wx.EVT_BUTTON,self.on_return_setup)
         self.operation_note=SidebarText(self.inputs,'Source voltage → sink current')
         controls.Add(self.operation_note,0,wx.EXPAND|wx.BOTTOM,6)
         self.options=wx.CollapsiblePane(self.inputs,label='Mesh & material',style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
@@ -356,8 +359,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.return_primary.SetSelection(0);self.return_primary.SetMinSize((210,-1))
         settings.Add(wx.StaticText(page,label='Return net'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
         settings.Add(searchable_row(self.return_primary),0,wx.RIGHT|wx.BOTTOM,8)
-        self.return_suggest=wx.Button(page,label='Use suggested return')
-        self.return_suggest.Bind(wx.EVT_BUTTON,self._return_use_suggestion)
+        self.return_suggest=wx.Button(page,label='Detect return candidates…')
+        self.return_suggest.Bind(wx.EVT_BUTTON,self.on_detect_returns)
         settings.Add(self.return_suggest,0,wx.RIGHT|wx.BOTTOM,12)
         self.return_run=wx.Button(page,label='Review return path');self.return_run.Bind(wx.EVT_BUTTON,self.on_return_path)
         self.return_export=wx.Button(page,label='Save results…');self.return_export.Bind(wx.EVT_BUTTON,lambda e:self.on_export_diagnostic('return_path'))
@@ -419,9 +422,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         names=list(self.inventory.get('nets',[]));signal=self.return_signal.GetStringSelection()
         candidates=suggest_return_nets(names,signal)
         self._return_suggestion=candidates[0]['name'] if candidates else None
-        self.return_suggest.SetLabel(('Use '+self._return_suggestion if len(self._return_suggestion)<36 else 'Use suggested return') if self._return_suggestion else 'No name suggestion')
-        self.return_suggest.SetToolTip((self._return_suggestion+' — name suggestion only; confirm the actual return.') if self._return_suggestion else 'Choose the actual return net manually.')
-        self.return_suggest.Enable(not self._busy and bool(self._return_suggestion))
+        self.return_suggest.SetToolTip('Rank saved filled-zone coverage for this signal. Review evidence and choose a candidate explicitly.')
+        self.return_suggest.Enable(not self._busy and bool(signal))
         selected=self._return_selected_nets()
         choices=['Choose return net…']+names
         if len(selected)>1:choices.append('Multiple selected · see More options')
@@ -493,7 +495,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         selected_returns=self._return_selected_nets();signal=self.return_signal.GetStringSelection()
         self.return_run.Enable(not self._busy and bool(signal and selected_returns) and signal not in selected_returns)
         self.return_primary.Enable(not self._busy);self.return_current.Enable(not self._busy)
-        self.return_suggest.Enable(not self._busy and bool(getattr(self,'_return_suggestion',None)))
+        self.return_suggest.Enable(not self._busy and bool(signal))
+        self.return_button.Enable(not self._busy)
         self.return_export.Enable(not self._busy and bool(self.return_bundle.get('return_path')))
         self.preview.Enable(not self._busy and bool(self.net.GetValue()))
         volume=self.model_dimension.GetSelection()==1
@@ -1667,6 +1670,38 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
 
 
 
+    def on_return_setup(self,event=None):
+        if self._busy:return
+        self.book.SetSelection(self.book.FindPage(self._return_page))
+        self._return_use_current()
+
+    def on_detect_returns(self,event=None):
+        if self._busy:return
+        if not self._snapshot_current():
+            self.return_status.SetLabel('Saved PCB changed. Reload before detecting return candidates.');return
+        signal=self.return_signal.GetStringSelection()
+        if not signal:return
+        request={'action':'detect_returns','board_path':self.board_path,'signal_net':signal,
+                 'source_sha256':self.inventory.get('source_sha256'),'sample_pitch_mm':.5}
+        self._job(request,self._accept_return_candidates,'Detecting candidates from saved filled copper…')
+
+    def _accept_return_candidates(self,bundle):
+        import hashlib
+        if hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()!=bundle.get('source_sha256'):
+            raise ValueError('Saved PCB changed. Reload before choosing a return candidate.')
+        from .return_candidates_ui import choose_candidate
+        name=choose_candidate(self,bundle['return_candidates'])
+        if name is None:return
+        if hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()!=bundle.get('source_sha256'):
+            raise ValueError('Saved PCB changed during candidate review. Reload and detect again.')
+        if name not in [row['net'] for row in bundle['return_candidates']['candidates']]:
+            raise ValueError('Choose one of the reviewed return candidates.')
+        # Zone-only nets need not have appeared in the pad inventory.
+        if name not in self.inventory.get('nets',[]):
+            self.inventory['nets']=sorted([*self.inventory.get('nets',[]),name])
+            self.return_nets.Append(name);self._return_refresh_hint()
+        self.return_primary.SetStringSelection(name);self._return_primary_changed()
+
     def on_return_path(self,event=None):
         if self._busy:return
         signal=self.return_signal.GetStringSelection()
@@ -1737,6 +1772,9 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.Bind(wx.EVT_MENU,lambda e:(self.model_dimension.SetSelection(1),self._model_changed()),volume)
         power_tree=menu.Append(wx.ID_ANY,'Power tree · review rails and converters…')
         self.Bind(wx.EVT_MENU,self.on_power_tree,power_tree);power_tree.Enable(not self._busy)
+        series_tree=menu.Append(wx.ID_ANY,'Series power tree · drops, losses and pin groups…')
+        self.Bind(wx.EVT_MENU,self.on_series_power_tree,series_tree)
+        series_tree.Enable(not self._busy and bool(self._series_request))
         transient=menu.Append(wx.ID_ANY,'Transient load-step study…')
         self.Bind(wx.EVT_MENU,self.on_transient,transient);transient.Enable(not self._busy)
         electrothermal=menu.Append(wx.ID_ANY,'Electrothermal study…')
@@ -1881,6 +1919,26 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             wx.MessageBox('Could not export the 3D result: '+str(exc),'Quick PI',wx.OK|wx.ICON_ERROR,parent)
             return
         self.status.SetLabel(saved_report_message(exported))
+
+    def on_series_power_tree(self,event=None):
+        if self._busy:return
+        if not self._snapshot_current():
+            self.status.SetLabel('Saved PCB changed. Reload before opening the series power tree.');return
+        from .series_power_tree import build_series_power_tree
+        from .series_power_tree_ui import show_series_power_tree
+        from wayricad_runtime.report_ui import checked_sources
+        bundle=self.bundle if self.bundle.get('request',{}).get('series') else {
+            'request':self._series_request or {},'geometry':self.inventory}
+        tree=build_series_power_tree(bundle)
+        if tree is not None:
+            try:
+                def guard():
+                    if not self._snapshot_current():raise ValueError('Saved PCB changed. Reload before saving the power tree.')
+                    checked_sources(bundle)
+                show_series_power_tree(self,tree,board_path=self.board_path,
+                    expected_sha256=tree.get('source_sha256') or self.inventory.get('source_sha256'),
+                    sources=checked_sources(bundle),source_guard=guard)
+            except (OSError,ValueError) as exc:self.status.SetLabel(str(exc))
 
     def on_series_details(self,event=None):
         components=self.bundle.get('result',{}).get('components',[])

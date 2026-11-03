@@ -13,6 +13,10 @@ CLI scope: JSON manufacturing audit; native DRC remains a separate release gate.
 
 ## Capabilities
 
+- Open the separate **DFM / DFA Studio** action for persistent checklists,
+  process-scoped vendor presets, optional checks after saved changes, linked
+  native findings and HTML/PDF evidence. See the [workflow and coverage](DFM_DFA.md).
+
 - Audit saved track, via, pad-drill, slot and supported annular-ring geometry against a fabricator profile.
 - Check routed copper-to-board-edge clearance for straight tracks and ordinary vias against a configurable profile limit.
 - Capture project inputs and run local KiCad JSON DRC and a selected jobset against that snapshot.

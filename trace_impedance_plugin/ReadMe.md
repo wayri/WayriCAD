@@ -97,6 +97,75 @@ The stackup source, copper thickness, dielectric separation and permittivity are
 
 ## Read-only CLI
 
+### Whole-board sections and net bundles
+
+In the native analyzer, choose **All nets / Bundles…**. Select all saved nets,
+check exact nets, or load/edit a named bundle definition. **Infer reference
+planes from filled copper** searches geometric reference candidates, including
+non-ground-named planes. Choose a section budget and **Extract sections**.
+The saved board is loaded in a private worker snapshot so editing and the
+existing path workspace remain responsive. Cancel stops after the current
+native read/section; a long native board read cannot be interrupted mid-call.
+
+Select a full net/path in the result list to show its actual copper and sections.
+The preview and section table select each other. **Select section in PCB**
+resolves its UUID in the originating editor, checks source identity, confirms
+the complete selection and requests zoom-to-selection. This requires the
+originating KiCad IPC connection; a saved-board window opened outside that
+context cannot navigate an arbitrary editor. Source PCB, project and custom
+rule changes invalidate results. No analysis action edits copper or rules.
+
+**Load bundles…** and **Save bundles…** retain exact net names and independent
+group membership. **Export HTML…** and **Export PDF…** publish a paired HTML/JSON
+report (plus PDF when selected) with complete net/path headings, pin labels,
+per-section units, reference evidence and unknowns. HTML diagrams are inline SVG;
+PDF diagrams use compact lossless PNG. Export checks the PCB/project/rule hashes
+again and protects input files. PDF uses the shared optional report runtime;
+no dependency installation is triggered by this workspace.
+
+`wayricad-rlc bulk Example.kicad_pcb --output board-sections.json`
+extracts every routed trace/arc and via section on all saved nets. Repeat
+`--net /Interface/D0 --net /Interface/D1` to restrict the scope. Branches are
+retained as independent physical sections with item UUIDs and endpoints;
+the tool does not choose arbitrary terminal pairs or invent a net-equivalent
+resistance/impedance. Filled islands and unfilled zones remain listed as
+unresolved zone geometry until a terminal corridor is reviewed in Zone mode.
+
+Use `--bundles bundles.json` for portable, explicit net groups:
+
+```json
+{
+  "schema": "wayricad.rlc-bundles/v1",
+  "bundles": [
+    {"name": "Data bus", "nets": ["/Interface/D0", "/Interface/D1"]},
+    {"name": "Clock pair", "nets": ["CLK_P", "CLK_N"]}
+  ]
+}
+```
+
+With bundles and no explicit `--net`, only bundle members are extracted.
+Overlapping bundles reuse the same per-net results. Grouping a clock pair or
+bus does not extract coupled/differential impedance, crosstalk, mutual L/C or
+terminations; these remain explicitly unknown.
+
+Reference inference searches actual saved filled islands on adjacent copper
+layers and requires full section-corridor coverage. It records the candidate
+net, layer, island ID and saved dielectric evidence. Ground-like names are not
+required in this mode; non-ground-named candidates retain an explicit unknown
+electrical-return role and a partial status. A plane's geometry is not proof
+of its AC return connection. Overlapping candidates on one layer are ambiguous
+and are not chosen by their name or enumeration order. Use
+`--named-ground-only` to retain the path tool's named-ground candidate policy.
+Missing dielectric data, unsupported via fields, lateral coupling and other
+existing model blockers remain visible.
+
+`--max-sections 20000` bounds extracted sections by default. A budget limit
+or cancellation returns an incomplete report with omitted item UUIDs and
+never a passing status. CLI exit code 3 identifies a partial or incomplete
+bulk extraction. Source PCB bytes are checked before and after extraction.
+Results contain per-section Z0 where supported; they are not a whole-board
+electromagnetic solve or one uniform impedance for a branched net.
+
 `wayricad-rlc infer-series Example.kicad_pcb --start J1.1 --end J2.1 --output candidates.json`
 discovers candidate net chains, parallel banks and incoming/outgoing/excluded pin
 groups through the shared PI/RLC topology engine. It does not run an RLC or DC

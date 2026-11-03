@@ -19,11 +19,17 @@ def parser():
     line.add_argument('--gap-mm',type=float,help='Lateral-ground slot for CPW or pair gap for coupled stripline.')
     line.add_argument('--er',type=float,required=True)
     line.add_argument('--output',type=Path,help='Separate JSON report path.')
-    for name in ('inspect','path','zone','infer-series'):
+    for name in ('inspect','path','zone','infer-series','bulk'):
         command=commands.add_parser(name)
         command.add_argument('board',type=Path)
         command.add_argument('--output',type=Path,help='Write JSON atomically; source design files are never replaced.')
-        if name=='inspect':
+        if name=='bulk':
+            command.add_argument('--net',action='append',help='Exact net; repeat to select several. Omit to extract all nets.')
+            command.add_argument('--bundles',type=Path,help='JSON wayricad.rlc-bundles/v1 explicit net groups.')
+            command.add_argument('--frequency-mhz',type=float,default=100.)
+            command.add_argument('--named-ground-only',action='store_true',help='Restrict inferred references to named grounds; coverage remains mandatory.')
+            command.add_argument('--max-sections',type=int,default=20000,help='Explicit section budget; truncation is reported, never passing.')
+        elif name=='inspect':
             command.add_argument('--net',help='Include endpoints and zone IDs for this exact net.')
         elif name=='infer-series':
             command.add_argument('--start',required=True,help='Source pad on any net, e.g. J1.1.')
@@ -71,7 +77,12 @@ def analyze(args):
                 'operation':'infer-series',
                 'result':result}
     engine=TraceMeasurementEngine(board)
-    if args.command=='inspect':
+    if args.command=='bulk':
+        from .bulk import extract_board
+        bundles=json.loads(args.bundles.read_text(encoding='utf-8')) if args.bundles else None
+        report=extract_board(engine,nets=args.net,bundles=bundles,frequency_mhz=args.frequency_mhz,
+                             infer_references=not args.named_ground_only,max_sections=args.max_sections)
+    elif args.command=='inspect':
         report={'nets':engine.net_names(),'ground_nets':engine.ground_nets(),
                 'layers':engine.available_layers(), 'zones':engine.zone_options(args.net)}
         if args.net:report['pads']=engine.pads_for_net(args.net)
@@ -84,8 +95,10 @@ def analyze(args):
     if getattr(args,'sweep_mhz',None):
         from .frequency_analysis import sweep
         report['frequency_sweep']=sweep(report,*args.sweep_mhz)
+    if hashlib.sha256(source.read_bytes()).hexdigest()!=source_digest:
+        raise ValueError('The saved PCB changed during extraction. Reload it and retry.')
     return {'schema':'wayricad.rlc/v1','board':str(source),
-            'board_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
+            'board_sha256':source_digest,
             'operation':args.command,'result':report}
 
 
@@ -106,11 +119,13 @@ def write_report(destination,document,source):
 def main(argv=None):
     args=parser().parse_args(argv)
     try:
+        if getattr(args,'bundles',None) and args.output and args.output.resolve()==args.bundles.resolve():
+            raise ValueError('Output must not overwrite the bundle definition file.')
         report=analyze(args)
         if args.output:write_report(args.output,report,getattr(args,'board',Path.cwd()))
         else:print(json.dumps(report,indent=2,allow_nan=False))
         status=report['result'].get('status','ok')
-        return 2 if status=='disconnected' else 3 if status=='partial' else 0
+        return 2 if status=='disconnected' else 3 if status in ('partial','cancelled','section_budget_exceeded') else 0
     except (RuntimeError,ValueError,OSError) as exc:
         print('WayriCAD RLC: '+str(exc),file=sys.stderr)
         return 1

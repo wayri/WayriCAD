@@ -136,6 +136,35 @@ class RuntimeSetupTests(unittest.TestCase):
             self.assertFalse(cache.exists())
             run.assert_not_called()
 
+    def test_native_only_reuses_discovery_health_check(self):
+        with patch.dict(runtime.os.environ, {'WAYRICAD_KICAD_PYTHON': 'native/python.exe'}), \
+             patch.object(Path, 'is_file', return_value=True), \
+             patch.object(runtime, '_probe', return_value='identity') as probe:
+            executable = runtime.ensure_runtime()
+            self.assertEqual(executable, Path('native/python.exe').absolute())
+        probe.assert_called_once_with('native/python.exe')
+
+    def test_cached_runtime_reuses_only_same_call_native_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            native = Path('native/python.exe').absolute()
+            requirements = {'numpy': 'numpy>=1.24,<3'}
+            key = runtime.hashlib.sha256(runtime.json.dumps(
+                [str(native), 'identity', sorted(requirements.items())]).encode()).hexdigest()[:20]
+            executable = Path(directory) / key / ('Scripts/python.exe' if runtime.os.name == 'nt' else 'bin/python')
+            executable.parent.mkdir(parents=True)
+            executable.touch()
+            def probe(python, modules=()):
+                return None if Path(python) == native and modules else 'identity'
+            with patch.dict(runtime.os.environ, {'WAYRICAD_KICAD_PYTHON': str(native)}), \
+                 patch.object(Path, 'is_file', return_value=True), \
+                 patch.object(runtime, '_probe', side_effect=probe) as check, \
+                 patch.object(runtime, '_run') as run:
+                for _ in range(2):
+                    self.assertEqual(runtime.ensure_runtime(requirements, cache_dir=directory), executable)
+            self.assertEqual(check.call_count, 6)
+            self.assertEqual(sum(call.args == (executable, requirements) for call in check.call_args_list), 2)
+            run.assert_not_called()
+
     def test_failed_install_is_actionable_and_never_targets_native(self):
         with tempfile.TemporaryDirectory() as directory:
             def probe(python, requirements=()):

@@ -27,6 +27,26 @@
         "resources/icon-dark-48.png",
         "resources/icon-dark-96.png"
       ]
+    },
+    {
+      "identifier": "dfm-studio",
+      "name": "WayriCAD DFM / DFA Studio",
+      "description": "Vendor DRC, persistent checklists and linked fabrication and assembly findings.",
+      "show-button": true,
+      "scopes": [
+        "pcb"
+      ],
+      "entrypoint": "dfm_entrypoint.py",
+      "icons-light": [
+        "resources/icon-24.png",
+        "resources/icon-48.png",
+        "resources/icon-96.png"
+      ],
+      "icons-dark": [
+        "resources/icon-dark-24.png",
+        "resources/icon-dark-48.png",
+        "resources/icon-dark-96.png"
+      ]
     }
   ]
 }

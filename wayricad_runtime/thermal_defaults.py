@@ -34,6 +34,9 @@ NOTICE = ('Illustrative starting assumptions from the existing QuickTherm / Quic
           'fabrication plating and cooling boundary. Unknown density, specific heat, package '
           'thermal paths and material validity ranges are not invented.')
 
+TEMPERATURE_FIELDS = frozenset(('ambient_c', 'initial_temperature_c',
+                               'fixed_lower_face_c', 'enclosure_temperature_c'))
+
 
 def screening_defaults(ambient_c=20.):
     """Return detached SI values supported by the existing model controls."""
@@ -61,13 +64,16 @@ def screening_defaults(ambient_c=20.):
     }
 
 
-def populate_settings(current, *, ambient_c=None, replace_existing=False):
+def populate_settings(current, *, ambient_c=None, replace_existing=False, replace_temperatures=False):
     """Fill only exposed known fields; preserve edited and loaded values by default.
 
     Invalid nonempty text is retained so the normal input validation can explain
     it. The operation never changes the caller's mapping or its unknown fields.
+    Explicit temperature replacement updates only exposed temperatures to the
+    selected ambient, leaving existing material and boundary coefficients alone.
     """
-    if not isinstance(current, dict) or type(replace_existing) is not bool:
+    if (not isinstance(current, dict) or type(replace_existing) is not bool
+            or type(replace_temperatures) is not bool):
         raise ValueError('Provide current settings and an explicit replacement choice.')
     if ambient_c is None:
         ambient_c = current.get('ambient_c')
@@ -79,6 +85,7 @@ def populate_settings(current, *, ambient_c=None, replace_existing=False):
         if key not in defaults:
             continue
         missing = current[key] is None or (isinstance(current[key], str) and not current[key].strip())
-        if (missing or replace_existing) and current[key] != defaults[key]:
+        replace = replace_existing or (replace_temperatures and key in TEMPERATURE_FIELDS)
+        if (missing or replace) and current[key] != defaults[key]:
             result[key] = defaults[key]; changed.append(key)
     return result, changed
