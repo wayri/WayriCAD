@@ -146,7 +146,23 @@ def prepare_report(bundle, evidence):
     if bundle.get('evidence_reference') is not None or bundle.get('schema') == 'wayricad.pi-report-reference/v1':
         raise ValueError('A linked child descriptor is not complete standalone numerical evidence.')
     from .pocket_kivi_export import _prepare, _checked_inputs
-    _, payload, protected, source = _prepare(bundle, **evidence)
+    original = dict(bundle)
+    has_previous = 'pocket_kivi_export' in original
+    previous = original.pop('pocket_kivi_export', None)
+    arguments = dict(evidence)
+    if has_previous:
+        # Saved simulations already contain portable metadata. Keep its original
+        # declarations (including unknown units), but recheck source custody.
+        normalize = lambda value: re.sub(r'[^a-z0-9]', '', value.lower()) if isinstance(value, str) else None
+        if (not isinstance(previous, dict) or
+                normalize(previous.get('tool')) != normalize(evidence.get('tool')) or
+                previous.get('version') != evidence.get('version')):
+            raise ValueError('Existing portable metadata conflicts with this report evidence.')
+        arguments.update(tool=previous.get('tool'), units=previous.get('units'),
+                         coordinate_frame=previous.get('coordinate_frame'), z_basis=previous.get('zBasis'))
+    portable, payload, protected, source = _prepare(original, **arguments)
+    if has_previous and previous != portable['pocket_kivi_export']:
+        raise ValueError('Existing portable metadata conflicts with this report evidence.')
     board, expected, root = source
 
     def guard():

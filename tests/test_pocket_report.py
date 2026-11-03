@@ -73,6 +73,52 @@ def test_portable_link_is_visible_without_h1(source,tmp_path):
     assert 'no-heading.pocket-kivi.json' in path.read_text()
 
 
+@pytest.mark.parametrize('suffix', ['html', 'pdf'])
+def test_restored_full_series_exports_report_with_original_portable_metadata(source,tmp_path,suffix,monkeypatch):
+    from quick_pi_plugin.report import write_report
+    from quick_pi_plugin.tests.test_series_result_overview import series_bundle
+    from wayricad_runtime.project_results import save_result, load_result
+    bundle=series_bundle()
+    bundle['producer_version']='1.2.3'
+    board,digest=source
+    bundle['geometry'].update(source_path=str(board),source_sha256=digest)
+    bundle['request']['board_path']=str(board)
+    arguments=dict(evidence(source),tool='quick-pi')
+    receipt=save_result(tmp_path,'quick-pi',bundle,pocket_kivi=arguments)
+    loaded=load_result(tmp_path,receipt['path'],plugin='quick-pi')
+    reopened=loaded['bundle']
+    monkeypatch.chdir(tmp_path)
+    before=deepcopy(reopened)
+    result=write_report(tmp_path/('series.'+suffix),reopened,layer='all',pocket_kivi=True)
+    portable=json.loads(Path(result['pocket_kivi_json']).read_bytes())
+    assert portable['pocket_kivi_export']==reopened['pocket_kivi_export']
+    assert portable['result']==bundle['result']
+    assert portable['mesh']['triangles']==bundle['mesh']['triangles']
+    assert json.loads(Path(result['json']).read_bytes())['result']==bundle['result']
+    assert reopened==before
+    if suffix=='pdf':
+        from pypdf import PdfReader
+        reader=PdfReader(result['pdf'])
+        assert len(reader.pages)>0
+        assert sum(len(page.images) for page in reader.pages)>0
+
+
+@pytest.mark.parametrize('change', [dict(version='other'),dict(tool='other'),dict(schema='other'),
+                                  dict(source_state='live'),dict(extra='unknown'),None])
+def test_reexport_rejects_conflicting_portable_metadata_before_publication(source,tmp_path,change):
+    from wayricad_runtime.pocket_kivi_export import portable_bundle
+    bundle=portable_bundle(bound(source),**evidence(source))
+    bundle['source_path']=str(source[0])
+    bundle['request']['board_path']=str(source[0])
+    if change is None:bundle['pocket_kivi_export']=None
+    else:bundle['pocket_kivi_export'].update(change)
+    path=tmp_path/'reexport.html'
+    with pytest.raises(ValueError,match='conflicts'):
+        report_ui.publish_report(path,'<h1>Saved result</h1>',bundle,pocket_kivi=evidence(source))
+    assert not path.exists()
+    assert not path.with_suffix('.json').exists()
+
+
 def test_three_existing_outputs_roll_back_if_third_replace_fails(source,tmp_path):
     path=tmp_path/'result.html'
     targets=[path.with_suffix('.json'),tmp_path/'result.pocket-kivi.json',path]
