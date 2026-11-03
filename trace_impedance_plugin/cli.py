@@ -19,12 +19,16 @@ def parser():
     line.add_argument('--gap-mm',type=float,help='Lateral-ground slot for CPW or pair gap for coupled stripline.')
     line.add_argument('--er',type=float,required=True)
     line.add_argument('--output',type=Path,help='Separate JSON report path.')
-    for name in ('inspect','path','zone'):
+    for name in ('inspect','path','zone','infer-series'):
         command=commands.add_parser(name)
         command.add_argument('board',type=Path)
         command.add_argument('--output',type=Path,help='Write JSON atomically; source design files are never replaced.')
         if name=='inspect':
             command.add_argument('--net',help='Include endpoints and zone IDs for this exact net.')
+        elif name=='infer-series':
+            command.add_argument('--start',required=True,help='Source pad on any net, e.g. J1.1.')
+            command.add_argument('--end',required=True,help='Load pad on any net, e.g. U1.1.')
+            command.add_argument('--include-unknown',action='store_true',help='Also propose net pairs through other device classes; all current pins and device states need review.')
         else:
             command.add_argument('--net',required=True)
             command.add_argument('--start',required=True,help='Start pad, e.g. U1.1.')
@@ -53,8 +57,19 @@ def analyze(args):
     except ImportError as exc:
         raise RuntimeError("Run this command with KiCad 10's Python interpreter, which provides pcbnew.") from exc
     from .measurement import TraceMeasurementEngine
+    source_digest=hashlib.sha256(source.read_bytes()).hexdigest()
     board=pcbnew.LoadBoard(str(source))
     if board is None:raise ValueError('KiCad could not load the board.')
+    if args.command=='infer-series':
+        from wayricad_runtime.series_topology import board_inventory,infer_series_paths
+        result=infer_series_paths(board_inventory(board),args.start,args.end,
+                                  include_unknown=args.include_unknown)
+        if hashlib.sha256(source.read_bytes()).hexdigest()!=source_digest:
+            raise ValueError('The saved PCB changed during discovery. Reload it and retry.')
+        return {'schema':'wayricad.rlc/v1','board':str(source),
+                'board_sha256':source_digest,
+                'operation':'infer-series',
+                'result':result}
     engine=TraceMeasurementEngine(board)
     if args.command=='inspect':
         report={'nets':engine.net_names(),'ground_nets':engine.ground_nets(),

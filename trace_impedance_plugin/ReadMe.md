@@ -97,6 +97,14 @@ The stackup source, copper thickness, dielectric separation and permittivity are
 
 ## Read-only CLI
 
+`wayricad-rlc infer-series Example.kicad_pcb --start J1.1 --end J2.1 --output candidates.json`
+discovers candidate net chains, parallel banks and incoming/outgoing/excluded pin
+groups through the shared PI/RLC topology engine. It does not run an RLC or DC
+solver or infer component parameters. Review the route and enter electrical
+models in Quick PI's Series editor. Default device classes, search bounds and
+limitations are documented in the [path discovery guide](../quick_pi_plugin/SERIES_PAD_GROUPS.md#automatic-path-discovery).
+Use `--include-unknown` only when reviewing other device classes explicitly.
+
 Run with KiCad 10's Python, from this repository or with the wheel installed:
 
 ```powershell

@@ -49,6 +49,7 @@ jobs:
           quick_pi_plugin/tests/test_power_tree_cli.py quick_pi_plugin/tests/test_insulation_screen.py
           quick_pi_plugin/tests/test_series_groups.py quick_pi_plugin/tests/test_series_result_overview.py
           quick_pi_plugin/tests/test_series_editor_screen.py
+          quick_pi_plugin/tests/test_series_inference.py
           quick_pi_plugin/tests/test_insulation_cli.py -q
       - name: Quick EMerge beta regressions
         run: python -m pytest quick_emerge_plugin/tests -q

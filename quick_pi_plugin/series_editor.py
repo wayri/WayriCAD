@@ -329,6 +329,13 @@ class SeriesPathDialog:
         for control in (self.source_all,self.sink_all):
             peer_row.Add(control,1,wx.RIGHT,10);control.Bind(wx.EVT_CHECKBOX,self._changed)
         root.Add(peer_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        infer_row=wx.WrapSizer(wx.HORIZONTAL)
+        infer=wx.Button(body,label='Infer paths from source to sink…')
+        infer.Bind(wx.EVT_BUTTON,self._infer)
+        infer_row.Add(infer,0,wx.RIGHT,10)
+        self.infer_unknown=wx.CheckBox(body,label='Include other device types (review current pins and device state)')
+        infer_row.Add(self.infer_unknown,0,wx.ALIGN_CENTER_VERTICAL)
+        root.Add(infer_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         main=wx.BoxSizer(wx.HORIZONTAL)
         left=wx.BoxSizer(wx.VERTICAL)
         left.Add(wx.StaticText(body,label='Ordered component path'),0,wx.BOTTOM,5)
@@ -441,6 +448,17 @@ class SeriesPathDialog:
                               if isinstance(data.get(key),list)}
         self.branches=deepcopy(data.get('branches',[]))
         self._changed()
+
+    def _infer(self,event=None):
+        from .series_inference import choose_inferred_path
+        try:
+            data=choose_inferred_path(self.dialog,self.inventory,self._chosen(self.source),self._chosen(self.sink),
+                                      include_unknown=self.infer_unknown.GetValue())
+            if data is not None:
+                self._restore_path(data)
+                self.manual.SetValue('');self._manual_pending=False
+        except ValueError as exc:
+            self.wx.MessageBox(str(exc),'Infer series paths',self.wx.OK|self.wx.ICON_WARNING,parent=self.dialog)
 
     def draft_snapshot(self):
         """Capture even an unfinished dialog; callers retain this until PI closes."""

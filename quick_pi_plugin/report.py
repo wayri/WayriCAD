@@ -768,7 +768,8 @@ def _report_snapshot(bundle,layer,metric,style):
         manual=settings.get('manual',{})
         limits=result_scale(bundle,metric) if mode==1 else tuple(manual['limits']) if mode==2 and manual.get('metric')==metric else None
         draw_view(figure,bundle,'Results',layer,metric,limits,field_style=style)
-        figure.savefig(stream,format='png',dpi=110,facecolor='white')
+        from wayricad_runtime.report_images import figure_png
+        stream.write(figure_png(figure,dpi=110,facecolor='white'))
         scale_note=(' · all-layer scale' if mode==1 else ' · manual scale' if limits is not None else '')
         diagnostic=' · requested-load diagnostic (source current limit exceeded)' if bundle['result'].get('feasibility',{}).get('source_current_limit_exceeded') else ''
         return '<figure><figcaption>'+escape(metric_name(bundle,metric)+scale_note+diagnostic)+'</figcaption><p>'+escape(field_note(metric,style))+'</p><img alt="'+escape(metric_name(bundle,metric))+'" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'"></figure>'

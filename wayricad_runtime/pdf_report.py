@@ -349,7 +349,7 @@ def pdf_bytes(document, *, title='WayriCAD report', include_raw_evidence=False,
         paragraph('No printable report content.')
     buffer = io.BytesIO()
     pdf = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=42, leftMargin=42,
-                            topMargin=42, bottomMargin=45, title=title, author='WayriCAD')
+                            topMargin=42, bottomMargin=45, title=title, author='WayriCAD',pageCompression=1)
 
     def page_footer(canvas, doc):
         canvas.saveState()

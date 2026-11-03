@@ -151,3 +151,8 @@ include docs/RELEASE_NOTES_4.1.1.md
 include docs/audits/SERIES_RESULT_OVERVIEW_4.1.1.md
 include docs/RELEASE_NOTES_4.1.2.md
 include docs/audits/SERIES_EDITOR_SCREEN_FIT_4.1.2.md
+include docs/RELEASE_NOTES_4.1.3.md
+include docs/audits/REPORT_EXPORT_SERIES_DISCOVERY.md
+include tests/test_report_data.py
+include tests/test_report_images.py
+include tests/browser_compact_report.cjs

@@ -14,10 +14,10 @@ installable plugins in the source catalogue. Processing runs locally after setup
 [Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
 GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
 
-**Release 4.1.2:** the series editor fits the display work area, with scrollable
-inputs and permanently visible Load, Save, Run and Cancel actions.
-[Download 4.1.2](https://github.com/wayri/WayriCAD/releases/tag/v4.1.2) ·
-[Release notes](docs/RELEASE_NOTES_4.1.2.md) · [Getting started](#getting-started)
+**Release 4.1.3:** smaller lossless HTML/PDF reports, restored-simulation export
+fixes, and reviewed series-path discovery with parallel components and pin groups.
+[Download 4.1.3](https://github.com/wayri/WayriCAD/releases/tag/v4.1.3) ·
+[Release notes](docs/RELEASE_NOTES_4.1.3.md) · [Getting started](#getting-started)
 
 <details>
 <summary>About the download counter</summary>
