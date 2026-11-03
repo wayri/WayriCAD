@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 try:
     import wx
+    import pcbnew
     from quick_pi_plugin.ui import QuickPIFrame
 except ImportError:
     wx=None
@@ -17,6 +18,7 @@ class FieldStyleControlTests(unittest.TestCase):
         frame=QuickPIFrame.__new__(QuickPIFrame)
         wx.Frame.__init__(frame,None,title='Synthetic field control test')
         frame.splitter=wx.SplitterWindow(frame)
+        frame.metric_summary=wx.StaticText(frame,label='Field scale')
         try:
             with patch.object(QuickPIFrame,'_draw') as draw:
                 frame._build_inspector()

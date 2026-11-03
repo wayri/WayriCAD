@@ -9,7 +9,7 @@ except ImportError:
     wx=None
 
 
-@unittest.skipIf(wx is None,'Native KiCad wx runtime required')
+@unittest.skipIf(wx is None or fixture.wx is None,'Native KiCad wx runtime required')
 class DifferentialUITests(unittest.TestCase):
     def test_native_pair_selection_clear_and_stale_guard(self):
         case=fixture.LiveUITests('test_plain_wheel_zoom_empty_space_and_disabled_scroll_do_not_change_load')
