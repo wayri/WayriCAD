@@ -20,6 +20,9 @@ The board opens across the window. **Setup** opens net, pad and load inputs;
 and restores their previous widths when pressed again. **Run** and **Files**
 stay visible, so setup/result Save and Load remain available with drawers shut.
 Files also provides report and Blender exports.
+HTML and PDF reports can be exported again from a loaded simulation while its
+saved PCB fingerprint still matches. Portable companions retain the original
+producer version and declared units, including unknown units.
 Completed series paths open with **All copper layers (projected)**, including
 when the preceding single-net preview used one physical layer. Saved series
 simulations also open on a complete-path potential overview. Choose a physical
@@ -76,6 +79,10 @@ No private design or personal path is shown; no redaction was needed.
   current terminals. Optional same-component/net source, sink and component
   input/output pad groups share one model and one total current. Gate/control
   behavior and regulator dynamics are not inferred. [Pad-group workflow](SERIES_PAD_GROUPS.md).
+- **Series → Infer paths from source to sink…** finds candidate net chains and
+  parallel component banks. Review incoming/outgoing and excluded pin numbers,
+  select the parts, and enter R/L or forward-drop models before using the path.
+  [Discovery workflow and limits](SERIES_PAD_GROUPS.md#automatic-path-discovery).
 - After a multi-net run, **Spacing screen…** compares solved-net copper spacing
   with explicit applicable rule/material/environment inputs. Physical creepage
   needs reviewed surface evidence; it is not inferred from a planar gap.

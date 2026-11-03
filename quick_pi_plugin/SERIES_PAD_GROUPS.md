@@ -55,3 +55,41 @@ contract. Example values below illustrate the format only:
 The example excludes Q1.5. Actual pad groups and operating-state assumptions
 must be reviewed against the saved design. Inductance fields require explicit
 H units such as `1mH`, `10nH` or `1pH`; `1m+1p` is ambiguous and rejected.
+
+## Automatic path discovery
+
+Choose source and sink pads in **Series**, then **Infer paths from source to
+sink…**. Select a candidate net route. Each stage lists the components spanning
+that saved net pair as a proposed parallel bank, with incoming, outgoing and
+excluded pin numbers. Uncheck unused parts or pins and enter each component's
+model. Bare resistor values can be suggested from their saved Value field;
+other models start blank. Inductor value is not DCR. Use `100mΩ`,
+`5mΩ+10nH`, `0.7V` or the existing diode expression. Parallel stages require R/L
+models. **Use reviewed path** validates the inputs and returns them to the normal
+series editor; it does not run the solver. The ordinary draft, setup, path and
+simulation save/load workflows retain the reviewed topology and pin groups.
+
+Default discovery considers R, L, FB, F, D, Q, SW and NT references. **Include
+other device types** permits additional component classes for explicit terminal
+and state review. Source/load footprints are never treated as intervening
+conductors. No bias, gate behavior, converter action, copper continuity or
+electrical parameter is established by a saved net-name match.
+
+Search is bounded to 24 candidate routes, 16 stages and 5,000 expansions; the
+dialog reports truncation. It avoids repeated nets and footprints. Every device
+in a proposed bank is reserved for that candidate, even if later unchecked, so
+some multifunction routes can be omitted. Discovery is a starting point; manual
+and explicit pad-pair entry remain available.
+
+Read-only automation:
+
+```text
+wayricad-pi Example.kicad_pcb --infer-series --source J1.1 --sink J2.1 --output candidates.json
+wayricad-rlc infer-series Example.kicad_pcb --start J1.1 --end J2.1 --output candidates.json
+```
+
+The JSON contains suggestions, not a solved circuit or a ready `--series-file`.
+The PI command returns 3 when no route is found. RLC discovery uses the same
+topology engine; its numerical path analysis continues to measure individual
+copper segments. AC, transient, electrothermal and thermal tools keep their
+existing model boundaries; they do not acquire an unsupported component solver.
