@@ -25,6 +25,9 @@ when the preceding single-net preview used one physical layer. Saved series
 simulations also open on a complete-path potential overview. Choose a physical
 layer for unambiguous inspection where projected copper overlaps; the overview
 does not sum fields or change stored results.
+The series editor stays within the display work area. On smaller displays or at
+high display scaling, its inputs scroll while Load path, Save path, Run and Cancel
+remain visible at the bottom.
 The current field name, units and limits remain in the header. Open **Current
 tuning** for numeric controls; Ctrl+scroll still adjusts a solved current while
 that section is folded. Ordinary scroll zooms.
