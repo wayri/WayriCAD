@@ -439,6 +439,9 @@ def run_saved_board_transient(config):
     before = {}
     hashes_by_board = {}
     positions_by_board = {}
+    from wayricad_runtime.saved_board import assert_current, load_board, provenance
+    loaded_boards = []  # Retain every converted snapshot lease through the solve.
+    source_evidence = {}
     for bi, board in enumerate(boards):
         path = Path(board.get("board_path", "")).resolve()
         if not path.is_file() or path.suffix.lower() != ".kicad_pcb":
@@ -449,9 +452,13 @@ def run_saved_board_transient(config):
             raise ValueError("A saved board changed since its thermal inputs were reviewed.")
         import pcbnew
 
-        loaded = pcbnew.LoadBoard(str(path))
+        loaded = load_board(str(path), pcbnew=pcbnew)
         if loaded is None:
             raise ValueError("KiCad could not load an assembly board.")
+        loaded_boards.append(loaded)
+        evidence = provenance(loaded)
+        if evidence is not None:
+            source_evidence[str(board.get("name", ""))] = evidence
         footprints = {fp.GetReference(): fp for fp in loaded.GetFootprints()}
         references = set(footprints)
         missing = sorted(str(component.get("reference", ""))
@@ -476,6 +483,10 @@ def run_saved_board_transient(config):
     for path, digest in before.items():
         if hashlib.sha256(Path(path).read_bytes()).hexdigest() != digest:
             raise ValueError("A saved board changed during thermal analysis.")
+    for loaded in loaded_boards:
+        assert_current(loaded)
     result["source_sha256"] = hashes_by_board
     result["saved_component_x_mm"] = positions_by_board
+    if source_evidence:
+        result["saved_board_provenance"] = source_evidence
     return result

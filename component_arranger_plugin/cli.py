@@ -19,6 +19,8 @@ def parser():
     p.add_argument('--group', default='A', help='Alphabetical inferred group ID')
     p.add_argument('--list-groups', action='store_true')
     p.add_argument('--wire-mm', type=float, default=25)
+    p.add_argument('--attraction-strength',type=float,default=1.0,
+                   help='Schematic pin attraction strength 0..10; 0 disables it (default 1)')
     p.add_argument('--include-local-labels', action='store_true', help='Explicitly authorize local-label cluster merging')
     p.add_argument('--include-global-labels', action='store_true', help='Explicitly authorize global-label cluster merging')
     p.add_argument('--anchor', help='Anchor reference; inferred if omitted, reported in JSON')
@@ -82,9 +84,11 @@ def run_native(options):
         area = f.x-w/2,f.y-h/2,f.x+w/2,f.y+h/2
     targets = dict(row.split('=',1) for row in options['capacitor'])
     plan = native.propose(board, api, refs, anchor=anchor, area=area, density=options['density'], allowed_sides=sides,
-                          allowed_angles=tuple(float(a) for a in options['angles'].split(',')), capacitor_targets=targets)
+                          allowed_angles=tuple(float(a) for a in options['angles'].split(',')), capacitor_targets=targets,
+                          schematic_wire_mm=options['wire_mm'],attraction_strength=options.get('attraction_strength',1.0))
     if options['validate'] or options.get('output'): native.validate(board, api, plan)
     def source_check():
+        native.check_schematic_sources(plan.schematic_sources)
         if any((hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None) != h for p,h in custody.items()):
             raise ValueError('Source board/project/schematic/rules changed; retry.')
     source_check()
@@ -92,6 +96,9 @@ def run_native(options):
                   source_sha256=custody[source], anchor=next(f.reference for f in models if f.key==anchor),
                   area_mm=area, result=asdict(plan.result), evidence=plan.evidence, groups=groups,
                   external_pads=[asdict(p) for p in plan.external_pads])
+    report['pin_attraction']=dict(strength=options.get('attraction_strength',1.0),
+        springs=plan.options['pin_springs'],source_fingerprints=plan.schematic_sources,
+        wire_threshold_mm=options['wire_mm'])
     if options.get('output'):
         output = Path(options['output']).resolve()
         targets = [output, output.with_suffix('.kicad_pro'), output.with_suffix('.kicad_dru')]

@@ -94,6 +94,71 @@ class NativeTests(unittest.TestCase):
         self.assertEqual(before, self.native.fingerprint(self.board, api))
         self.assertEqual(text, self.path.read_bytes())
 
+    def test_saved_pin_springs_drive_native_candidate_and_keep_source(self):
+        from component_arranger_plugin.tests.test_grouping import schematic, symbol, wire
+        source=self.path.with_suffix('.kicad_sch')
+        source.write_text(schematic(symbol('U1',0)+symbol('R1',10)+wire(0,0,10,0)),encoding='utf-8')
+        original=self.native.serialize(self.board,api)
+        plan=self.plan()
+        self.assertEqual(plan.result.after.springs,1)
+        spring=plan.options['pin_springs'][0]
+        self.assertEqual(spring['from_pin'],spring['to_pin'])
+        self.assertEqual(spring['net'],'SIGNAL_A')
+        self.assertEqual(spring['wire_length_mm'],10)
+        self.assertLess(plan.result.after.spring_energy_mm,plan.result.before.spring_energy_mm)
+        self.native.validate(self.board,api,plan)
+        tx=self.native.Transaction(self.board,api,plan).exchange(True)
+        tx.exchange(False)
+        self.assertEqual(self.native.serialize(self.board,api),original)
+        source.write_text(source.read_text()+'\n',encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'schematic'):
+            self.native.check(self.board,api,plan)
+
+    def test_child_schematic_metadata_stales_apply_and_spring_disable_is_explicit(self):
+        from component_arranger_plugin.tests.test_grouping import schematic, symbol, wire
+        source=self.path.with_suffix('.kicad_sch')
+        child=source.with_name('child.kicad_sch')
+        child.write_text(schematic(symbol('X1',0)),encoding='utf-8')
+        source.write_text(schematic(symbol('U1',0)+symbol('R1',10)+wire(0,0,10,0)+
+            '(sheet (uuid "child") (property "Sheetfile" "child.kicad_sch"))'),encoding='utf-8')
+        plan=self.plan()
+        self.assertIn(str(child.resolve()),plan.schematic_sources)
+        child.write_text(child.read_text()+'\n',encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'schematic'):self.native.check(self.board,api,plan)
+        disabled=self.plan(attraction_strength=0)
+        self.assertFalse(disabled.schematic_sources)
+        self.assertEqual(disabled.result.after.springs,0)
+
+    def test_oversized_metadata_falls_back_without_blocking_manual_placement(self):
+        from component_arranger_plugin import grouping
+        from component_arranger_plugin.tests.test_grouping import schematic, symbol, wire
+        source=self.path.with_suffix('.kicad_sch')
+        source.write_text(schematic(symbol('U1',0)+symbol('R1',10)+wire(0,0,10,0)),encoding='utf-8')
+        with patch.object(grouping,'_METADATA_MAX_BYTES',8):
+            plan=self.plan()
+        self.assertTrue(plan.result.complete)
+        self.assertEqual(plan.result.after.springs,0)
+        self.assertTrue(any('limit exceeded' in warning for warning in plan.result.warnings))
+        self.native.check(self.board,api,plan)
+
+    def test_cli_reports_pin_names_weights_and_original_schematic_custody(self):
+        import json
+        from component_arranger_plugin import cli
+        from component_arranger_plugin.tests.test_grouping import schematic, symbol, wire
+        source=self.path.with_suffix('.kicad_sch')
+        source.write_text(schematic(symbol('U1',0)+symbol('R1',10)+wire(0,0,10,0)),encoding='utf-8')
+        before=self.path.read_bytes()
+        options=vars(cli.parser().parse_args([str(self.path),'--refs','U1,R1',
+            '--anchor','U1','--width-mm','20','--height-mm','10','--attraction-strength','2']))
+        report=cli.run_native(options)
+        spring=report['pin_attraction']['springs'][0]
+        self.assertEqual({spring['from_reference'],spring['to_reference']},{'U1','R1'})
+        self.assertEqual(spring['wire_length_mm'],10)
+        self.assertEqual(report['pin_attraction']['strength'],2)
+        self.assertIn(str(source.resolve()),report['pin_attraction']['source_fingerprints'])
+        json.dumps(report,allow_nan=False)
+        self.assertEqual(self.path.read_bytes(),before)
+
     def test_full_native_snapshot_restores_custom_children_metadata_and_group(self):
         """Full-image recovery fixture; the injected digest is not DRC acceptance."""
         fp = self.parts[1]

@@ -250,7 +250,8 @@ def execute(args):
     from .service import source_fingerprints,bind_saved_result
     fingerprints=source_fingerprints(source)
     original=hashlib.sha256(source.read_bytes()).hexdigest()
-    board=pcbnew.LoadBoard(str(source))
+    from wayricad_runtime.saved_board import assert_current, load_board
+    board=load_board(str(source), pcbnew=pcbnew)
     if board is None:raise ValueError('KiCad could not load the board.')
     from .measurement import TraceMeasurementEngine
     from .quick_si import analyze,html_report
@@ -267,8 +268,9 @@ def execute(args):
             checked_case({'net':args.net,'start':args.start,'end':args.end,'inputs':inputs})
         report,_=analyze(board,args.net,args.start,args.end,args.reference,**inputs)
     if source_fingerprints(source)!=fingerprints:raise ValueError('Board or project rules changed during analysis; rerun before exporting.')
+    assert_current(board)
     report.update(board=str(source),board_sha256=original,source_fingerprints=fingerprints)
-    report=bind_saved_result(report,source,fingerprints)
+    report=bind_saved_result(report,source,fingerprints,board=board)
     if args.command=='screen':
         if args.role and not args.group.strip():raise ValueError('Supply --group with a protocol --role.')
         if args.group.strip() and not args.role:raise ValueError('Supply --role with a protocol --group.')

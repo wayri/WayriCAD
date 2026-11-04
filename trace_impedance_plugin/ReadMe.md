@@ -11,6 +11,13 @@
 
 CLI scope: Read-only path, via and filled-zone estimates. The unified command requires the [suite CLI installation](../docs/TOOL_CLI_CATALOGUE.md); installing this PCM plugin alone does not install the complete CLI suite.
 
+**Newer saved boards:** read-only analysis uses a strict private conversion for
+boards newer than KiCad 10. The launching editor supplies its matching CLI;
+standalone runs can select it with `KICAD_CLI`. Unsupported conversion stops the
+run. The original PCB, project and rules stay unchanged; converted reports retain
+their source and converter provenance. This does not establish editing or DRC
+equivalence. Reopen and rerun after source, rules or converter changes.
+
 ## Capabilities
 
 - Inspect connected trace/via/zone paths or terminal-defined filled-zone/plane corridors, with actual copper previews.

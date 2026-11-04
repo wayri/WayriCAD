@@ -82,6 +82,7 @@ class LaunchContextReviewTests(unittest.TestCase):
         from wayricad_runtime import native_analysis
         client = Mock()
         client.get_board.return_value.get_selection.return_value = []
+        client.get_version.return_value = SimpleNamespace(major=10, minor=0, patch=6)
         def prepare(tool):
             os.environ.update(KICAD_API_SOCKET='socket-B', KICAD_API_TOKEN='token-B')
             return Path('native-python')

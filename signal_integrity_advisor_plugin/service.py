@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import time
 import re
+from wayricad_runtime.saved_board import assert_current, load_board, provenance
 
 
 def source_fingerprints(board_path):
@@ -25,7 +26,7 @@ def require_source(request):
     return current
 
 
-def bind_saved_result(report, board_path, fingerprints):
+def bind_saved_result(report, board_path, fingerprints, *, board=None):
     """Attach the worker's original saved-PCB evidence without computing a new hash."""
     path = Path(board_path).resolve()
     expected = fingerprints.get(str(path)) if isinstance(fingerprints, dict) else None
@@ -39,33 +40,40 @@ def bind_saved_result(report, board_path, fingerprints):
         other = Path(declared_path)
         if (other if other.is_absolute() else path.parent / other).resolve() != path:
             raise ValueError('Quick SI result declares a different source board.')
-    return dict(report, source_path=str(path), source_sha256=expected,
-                source_fingerprints=dict(fingerprints))
+    result = dict(report, source_path=str(path), source_sha256=expected,
+                  source_fingerprints=dict(fingerprints))
+    evidence = provenance(board)
+    if evidence is not None:
+        result['saved_board_provenance'] = evidence
+    return result
 
 
 def execute(request):
     """Load and analyze one saved snapshot inside the owned worker process."""
     before=require_source(request)
     import pcbnew
-    board=pcbnew.LoadBoard(str(Path(request['board_path']).resolve()))
+    board=load_board(str(Path(request['board_path']).resolve()), pcbnew=pcbnew)
     if board is None:raise ValueError('KiCad could not load this saved PCB.')
+    def guard():
+        require_source(request)
+        assert_current(board)
     if request.get('mode')=='neighbours':
         from .neighbours import map_board
-        report=map_board(board,request.get('settings'),guard=lambda:require_source(request))
-        require_source(request)
-        report=bind_saved_result(report,request['board_path'],before)
+        report=map_board(board,request.get('settings'),guard=guard)
+        guard()
+        report=bind_saved_result(report,request['board_path'],before,board=board)
         return {'neighbours':report,'source_fingerprints':before}
     if request.get('mode')=='study':
         from .study import run_study
-        report=run_study(board,request['study'],guard=lambda:require_source(request))
-        require_source(request)
-        report=bind_saved_result(report,request['board_path'],before)
+        report=run_study(board,request['study'],guard=guard)
+        guard()
+        report=bind_saved_result(report,request['board_path'],before,board=board)
         return {'study':report,'source_fingerprints':before}
     from .quick_si import analyze
     report,path=analyze(board,request['net'],request['start'],request['end'],request.get('reference','Auto'),**request.get('inputs',{}))
-    require_source(request)
+    guard()
     identifiers=[str(item.m_Uuid.AsString()) for item in path.board_items]
-    report=bind_saved_result(report,request['board_path'],before)
+    report=bind_saved_result(report,request['board_path'],before,board=board)
     report['board_item_ids']=identifiers
     report['endpoint_bindings']={'net_name':request['net'],'source':request['start'],'sink':request['end']}
     return {'report':report,'path_data':{key:value for key,value in vars(path).items() if key!='board_items'},
@@ -74,6 +82,7 @@ def execute(request):
 
 def restore_path(payload,board):
     """Reattach UUIDs only on the UI thread to its original local board."""
+    assert_current(board)
     from dataclasses import fields
     from .measurement import PathMeasurement
     names={field.name for field in fields(PathMeasurement)}-{'board_items'}
@@ -108,13 +117,16 @@ def run_job(request,cancelled=None,timeout=300,python=None):
             python=native_python('signal_integrity_advisor_plugin')
     if cancelled and cancelled():raise InterruptedError('Quick SI cancelled before starting.')
     from wayricad_runtime.runtime_setup import child_environment
+    from wayricad_runtime.analysis_process import worker_options, stop_worker
     with tempfile.TemporaryDirectory(prefix='wayricad-quick-si-') as directory:
         root=Path(directory);source=root/'request.json';target=root/'response.json'
         source.write_text(json.dumps(request,allow_nan=False),encoding='utf-8')
+        environment = child_environment()
+        environment['WAYRICAD_ANALYSIS_SCRATCH'] = str(root)
         with (root/'worker.log').open('w+',encoding='utf-8') as log:
             process=subprocess.Popen([str(python),'-I',str(Path(__file__).with_name('worker.py')),str(source),str(target)],
-                env=child_environment(),stdin=subprocess.DEVNULL,stdout=log,stderr=log,
-                creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                env=environment,stdin=subprocess.DEVNULL,stdout=log,stderr=log,
+                **worker_options())
             started=time.monotonic()
             try:
                 while process.poll() is None:
@@ -123,9 +135,7 @@ def run_job(request,cancelled=None,timeout=300,python=None):
                     time.sleep(.1)
             finally:
                 if process.poll() is None:
-                    process.terminate()
-                    try:process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
+                    stop_worker(process)
             log.seek(0);details=log.read()[-2000:]
             if not target.is_file():raise RuntimeError('Quick SI worker produced no result. '+details)
             try:result=json.loads(target.read_text(encoding='utf-8'))

@@ -32,6 +32,65 @@ def save_tree_data(path, tree, *, sources, source_guard):
                       sources=sources, source_guard=source_guard)
 
 
+def save_diagram(path, tree, *, sources, source_guard):
+    from pathlib import Path
+    from wayricad_runtime.report_ui import publish_documents
+    from .series_path_diagram import diagram_svg
+    if Path(path).suffix.lower() != '.svg':
+        raise ValueError('Use a separate .svg series-diagram destination.')
+    publish_documents({Path(path): diagram_svg(tree)}, sources=sources, source_guard=source_guard)
+
+
+def diagram_canvas(parent, tree):
+    """Native vector painting avoids enormous bitmaps for long parallel banks."""
+    import wx
+    import math
+    from .series_path_diagram import diagram_layout
+    drawing = diagram_layout(tree)
+    class Canvas(wx.ScrolledWindow):
+        def __init__(self):
+            super().__init__(parent, style=wx.HSCROLL | wx.VSCROLL)
+            self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+            self.SetScrollRate(12, 12)
+            self.scale = 1.
+            self.Bind(wx.EVT_PAINT, self.paint)
+            self.Bind(wx.EVT_SIZE, self.resize)
+            self.fit_width()
+
+        def fit_width(self):
+            size = self.FromDIP((drawing['width'], drawing['height']))
+            # Normal popup widths show both buses. Very narrow windows retain a
+            # readable minimum scale and may scroll horizontally.
+            self.scale = max(.75, min(1., max(1, self.GetClientSize().width - 2) / size.width))
+            target = wx.Size(math.ceil(size.width * self.scale), math.ceil(size.height * self.scale))
+            if self.GetVirtualSize() != target:
+                self.SetVirtualSize(target)
+
+        def resize(self, event):
+            self.fit_width()
+            self.Refresh(False)
+            event.Skip()
+
+        def paint(self, event):
+            dc = wx.AutoBufferedPaintDC(self)
+            dc.SetBackground(wx.Brush('white')); dc.Clear()
+            self.PrepareDC(dc)
+            dc.SetUserScale(self.scale, self.scale)
+            for item in sorted(drawing['commands'], key=lambda c: c['kind'] == 'text'):
+                if item['kind'] == 'line':
+                    dc.SetPen(wx.Pen('#426878', self.FromDIP(2)))
+                    dc.DrawLine(*[self.FromDIP(round(item[k])) for k in ('x1', 'y1', 'x2', 'y2')])
+                elif item['kind'] == 'rect':
+                    dc.SetPen(wx.Pen('#426878')); dc.SetBrush(wx.Brush('#eef5f4'))
+                    dc.DrawRoundedRectangle(*[self.FromDIP(round(item[k])) for k in ('x', 'y', 'width', 'height')], self.FromDIP(5))
+                else:
+                    font = self.GetFont()
+                    font.SetPixelSize(wx.Size(0, self.FromDIP(item['size'])))
+                    dc.SetFont(font); dc.SetTextForeground('#172c34')
+                    dc.DrawText(item['text'], self.FromDIP(round(item['x'])), self.FromDIP(round(item['y'])))
+    return Canvas()
+
+
 def show_series_power_tree(parent, tree, *, board_path=None, expected_sha256=None, sources=(), source_guard=None):
     import json
     from pathlib import Path
@@ -54,7 +113,9 @@ def show_series_power_tree(parent, tree, *, board_path=None, expected_sha256=Non
     notice = wx.StaticText(dialog, label=tree['notice'])
     notice.Wrap(dialog.FromDIP(900))
     layout.Add(notice, 0, wx.EXPAND | wx.ALL, 10)
-    panel = ScrolledPanel(dialog)
+    tabs = wx.Notebook(dialog)
+    tabs.AddPage(diagram_canvas(tabs, tree), 'Series path diagram')
+    panel = ScrolledPanel(tabs)
     flow = wx.BoxSizer(wx.VERTICAL)
     for index, node in enumerate(tree['nodes']):
         if index:
@@ -69,7 +130,8 @@ def show_series_power_tree(parent, tree, *, board_path=None, expected_sha256=Non
         flow.Add(box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
     panel.SetSizer(flow)
     panel.SetupScrolling(scroll_x=False)
-    layout.Add(panel, 1, wx.EXPAND | wx.ALL, 5)
+    tabs.AddPage(panel, 'Power and pin details')
+    layout.Add(tabs, 1, wx.EXPAND | wx.ALL, 5)
     buttons = wx.BoxSizer(wx.HORIZONTAL)
     save = wx.Button(dialog, label='Save tree data…')
     save.Enable(guard is not None)
@@ -86,6 +148,21 @@ def show_series_power_tree(parent, tree, *, board_path=None, expected_sha256=Non
                     wx.MessageBox(str(exc), 'Could not save power tree', wx.OK | wx.ICON_ERROR, dialog)
     save.Bind(wx.EVT_BUTTON, save_tree)
     buttons.Add(save, 0, wx.ALL, 5)
+    image = wx.Button(dialog, label='Save diagram SVG…')
+    image.Enable(guard is not None)
+    if guard is None:
+        image.SetToolTip('Export from the main PI workspace with a verified saved-design context.')
+    def save_image(_event):
+        with wx.FileDialog(dialog, 'Save series path diagram', defaultFile='series-path.svg',
+                           wildcard='SVG diagram (*.svg)|*.svg',
+                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as picker:
+            if picker.ShowModal() == wx.ID_OK:
+                try:
+                    save_diagram(picker.GetPath(), tree, sources=protected, source_guard=guard)
+                except (OSError, ValueError) as exc:
+                    wx.MessageBox(str(exc), 'Could not save series diagram', wx.OK | wx.ICON_ERROR, dialog)
+    image.Bind(wx.EVT_BUTTON, save_image)
+    buttons.Add(image, 0, wx.ALL, 5)
     buttons.AddStretchSpacer()
     close = wx.Button(dialog, wx.ID_CLOSE, 'Close')
     close.Bind(wx.EVT_BUTTON, lambda _event: dialog.EndModal(wx.ID_CLOSE))

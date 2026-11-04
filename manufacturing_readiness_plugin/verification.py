@@ -27,6 +27,13 @@ def drc_evidence(report,returncode):
 
 
 def find_cli():
+    # Native DRC must use the launching newer host's CLI, never the analysis
+    # helper's KiCad 10 executable or the downgraded geometry snapshot.
+    selected=os.environ.get('WAYRICAD_ANALYSIS_CLI')
+    if selected:
+        path=Path(selected).expanduser().resolve()
+        if not path.is_file():raise ValueError('The originating KiCad CLI is no longer available.')
+        return path
     candidates=[Path(sys.executable).with_name('kicad-cli.exe'),Path(sys.executable).with_name('kicad-cli')]
     base=Path(getattr(sys,'_base_executable',sys.executable))
     candidates.extend((base.with_name('kicad-cli.exe'),base.with_name('kicad-cli')))

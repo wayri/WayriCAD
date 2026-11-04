@@ -15,26 +15,30 @@ KiCad 10 is the native validation target; KiCad 11 support remains experimental.
 [Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
 GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
 
-**Release 4.2.0:** visual DFM/DFA checklists, whole-board and bundle RLC extraction,
-inferred reference planes, PI series power trees, and setup/runtime fixes.
-[Download 4.2.0](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0) ·
-[Release notes and validation limits](docs/RELEASE_NOTES_4.2.0.md) · [Getting started](#getting-started)
+**Release 4.3.0 candidate:** review inferred Quick PI series paths inside the
+editor, save named batch setups, inspect a complete series diagram and planar
+wire-length evidence, and use bounded schematic pin attraction in Component
+Arranger. Read-only analysis of strictly convertible newer saved boards is
+experimental; KiCad 10.0.6 remains the native target.
+[Download 4.3.0](https://github.com/wayri/WayriCAD/releases/tag/v4.3.0) ·
+[Release notes and validation limits](docs/RELEASE_NOTES_4.3.0.md) · [Getting started](#getting-started)
 
-- [DFM / DFA Studio](manufacturing_readiness_plugin/DFM_DFA.md): save/load sourced
-  process checklists, inspect linked findings and export HTML/PDF. The catalogue
-  contains 21 process presets: 20 with native rules and one manual checklist,
-  plus 28 manufacturer directory entries. Directory coverage is not rule coverage.
-- [RLC all nets and bundles](trace_impedance_plugin/ReadMe.md#whole-board-sections-and-net-bundles):
-  extract physical sections and review saved reference-plane evidence. Branched
-  nets retain section results; bundle membership does not imply coupled impedance.
-- [Quick PI](quick_pi_plugin/README.md): inspect series power accounting and pin
-  groups, with separate batch and return-path controls. Thermal setup and native
-  runtime startup checks also receive focused fixes.
+- [Quick PI](quick_pi_plugin/README.md): infer and review VIN → MID → OUT paths,
+  parallel devices and current pins in the editor; save independent named batch
+  cases and inspect a schematic path diagram with guarded SVG export.
+- [Saved-board analysis](docs/SAVED_BOARD_ANALYSIS.md): Quick PI, QuickTherm,
+  Quick SI, Trace RLC and DFM/DFA Studio can inspect strictly convertible newer
+  saved boards using the originating editor's CLI and a native KiCad 10 helper.
+- [Component Arranger](component_arranger_plugin/README.md): optional pin-level
+  schematic springs guide placement only where drawn wires match exact same-net
+  PCB pads. Native validation still gates Apply.
 
-Native KiCad 10.0.6 fixtures and hidden controller checks are recorded. The full
-editor series save/reload workflow, requested power-tree/return-path screenshots,
-live cross-probing and KiCad 11 acceptance remain pending. See the release notes
-before relying on those workflows.
+Windows KiCad 10.0.6 editor checks completed a three-net, two-bank, 20-current-pin
+series run with setup and simulation reload plus HTML, PDF, SVG and compact
+diagram inspection. A KiCad 11 development build checked the newer saved format,
+inline inference, explicit models, the full path run, setup reload and HTML.
+Its PDF, diagram and screenshots remain pending; the full KiCad 11 suite is not
+qualified. See [compatibility evidence](docs/COMPATIBILITY.md#43-candidate-editor-evidence).
 
 <details>
 <summary>About the download counter</summary>
@@ -49,6 +53,10 @@ automatic source ZIP/tar downloads and repository clones are excluded.
 
 <details>
 <summary>Earlier releases and validation history</summary>
+
+**Release 4.2.0:** DFM/DFA checklists, whole-board and bundle RLC extraction,
+reference-plane evidence and PI series power trees.
+[Release notes](docs/RELEASE_NOTES_4.2.0.md).
 
 **Release 4.1.3:** smaller lossless HTML/PDF reports, restored-simulation export
 fixes, and reviewed series-path discovery with parallel components and pin groups.
@@ -116,7 +124,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
-| Download or update | [Release 4.2.0](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0) · [Release notes](docs/RELEASE_NOTES_4.2.0.md) |
+| Download or update | [Release 4.3.0](https://github.com/wayri/WayriCAD/releases/tag/v4.3.0) · [Release notes](docs/RELEASE_NOTES_4.3.0.md) |
 | Check manufacturing and assembly requirements | [DFM / DFA Studio](manufacturing_readiness_plugin/DFM_DFA.md) · [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 26 plugins](#all-26-plugins) |
@@ -300,7 +308,7 @@ an input or model is missing; they are not a pass.
 
 <img src="quick_emerge_plugin/icon.png" width="48" height="48" alt="Quick EMerge beta icon">
 
-1. Download the [Quick EMerge PCM ZIP from release 4.2.0](https://github.com/wayri/WayriCAD/releases/download/v4.2.0/WayriCAD-quick-emerge-4.2.0-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
+1. Download the [Quick EMerge PCM ZIP from release 4.3.0](https://github.com/wayri/WayriCAD/releases/download/v4.3.0/WayriCAD-quick-emerge-4.3.0-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
 2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
 3. In KiCad, draw a named rule area around the antenna and the feed/ground geometry needed for its model; refill and save the board. In **Setup → 1 Geometry**, use **Saved PCB rule area**, load the areas and select the signal and reference nets. Review material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**.
 4. Click **Preview** to inspect the actual clipped copper and numbered feed ports. Resolve blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and short sweep before increasing resolution.
@@ -324,12 +332,12 @@ not establish accuracy. See [validation evidence](quick_emerge_plugin/VALIDATION
 
 ### Silkscreen Label Placer — arrange readable labels
 
-1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its PCM ZIP from the [current release](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0) and use **Install from File**. Restart PCB Editor.
+1. Install **Silkscreen Label Placer** from the WayriCAD package feed, or download its PCM ZIP from the [current release](https://github.com/wayri/WayriCAD/releases/tag/v4.3.0) and use **Install from File**. Restart PCB Editor.
 2. Open **WayriCAD Silkscreen Label Placer** and choose all eligible labels, problem-only correction or selected parts. Leave **References only (R1, C1…)** selected to preserve values and manual text. Acceptable labels are preserved and leaders are off by default.
 3. Under **Options**, enable automatic sizing and set a minimum height if needed. Choose allowed orientations and reading directions. Add editable bold, italic or knockout rules for test points and connectors.
 4. Click **Preview**, inspect both board sides and unresolved labels, then **Apply labels**. Run KiCad DRC before saving. Labels that cannot fit safely stay unchanged.
 
-[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Current release](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0)
+[User guide and formatting examples](silkscreen_label_plugin/README.md) · [Current release](https://github.com/wayri/WayriCAD/releases/tag/v4.3.0)
 
 <a id="start-quick-pi"></a>
 
@@ -450,7 +458,7 @@ currencies stay explicit.
 
 ## All 26 plugins
 
-Release **4.2.0** includes 26 independently installable plugins. Quick EMerge
+Release **4.3.0** includes 26 independently installable plugins. Quick EMerge
 is marked **beta / testing**; Review and Assistant are also testing packages.
 Individual versions, runtime requirements and limits are in their guides.
 Select a plugin for its full guide and supported models.
@@ -506,7 +514,7 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 ### Quick EMerge (beta)
 
 [Getting started](#start-quick-emerge) · [Full guide](quick_emerge_plugin/README.md) ·
-[Download 4.2.0](https://github.com/wayri/WayriCAD/releases/tag/v4.2.0)
+[Download 4.3.0](https://github.com/wayri/WayriCAD/releases/tag/v4.3.0)
 
 **Simple 2D/3D workspace — 4.0.1**
 

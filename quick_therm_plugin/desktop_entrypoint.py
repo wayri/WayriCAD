@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -25,17 +26,27 @@ def main():
                           profile="quick-therm-board" if args.board else "quick-therm", loading=loading)
         if status is not None:
             return status
-        from wayricad_runtime.native_analysis import active_saved_board, child_environment
+        from wayricad_runtime.native_analysis import child_environment
 
-        board = args.board.resolve() if args.board else active_saved_board()
+        environment = child_environment()
+        if args.board:
+            board = args.board.resolve()
+        else:
+            from wayricad_runtime.context import connect, saved_board
+            from wayricad_runtime.saved_board import origin_environment
+            client = connect()
+            board = saved_board(client)
+            environment = origin_environment(client, environment)
         if not board.is_file() or board.suffix.lower() != ".kicad_pcb":
             raise ValueError("Choose a saved KiCad PCB.")
-        process = subprocess.Popen(
-            [sys.executable, "-I", str(ROOT / "quickmain.py"), "--board", str(board), "--ui"],
-            env=child_environment(),
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        return process.wait()
+        with tempfile.TemporaryDirectory(prefix='wayricad-therm-window-') as scratch:
+            environment['WAYRICAD_ANALYSIS_SCRATCH'] = scratch
+            process = subprocess.Popen(
+                [sys.executable, "-I", str(ROOT / "quickmain.py"), "--board", str(board), "--ui"],
+                env=environment,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            return process.wait()
     except Exception as exc:
         return failure(exc, "WayriCAD QuickTherm")
     finally:

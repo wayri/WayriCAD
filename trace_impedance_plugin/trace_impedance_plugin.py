@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ import pcbnew
 import wx
 from wayricad_runtime.readable_choice import ReadableChoice, ReadableComboBox
 from wayricad_runtime.searchable_selection import searchable_row
+from wayricad_runtime.saved_board import assert_current, provenance
 
 from .measurement import PathMeasurement, TraceMeasurementEngine
 from .help_utils import open_help
@@ -32,7 +34,7 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
         self.show_toolbar_button = True
         self.icon_file_name = os.path.join(os.path.dirname(__file__), "resources", "icon-24.png")
         self.dark_icon_file_name = self.icon_file_name.replace("icon-24.png", "icon-dark-24.png")
-        self.version = "4.2.0"
+        self.version = "4.3.0"
 
     def Run(self) -> None:
         try:
@@ -354,6 +356,7 @@ class TraceFrame(wx.Frame):
 
     def analyze(self, _event: Any) -> None:
         try:
+            assert_current(self.board)
             frequency = float(self.frequency.GetValue())
             self.mate_result = None
             if self.mode.GetSelection() == 1:
@@ -370,9 +373,11 @@ class TraceFrame(wx.Frame):
                     self.mate_result = self.engine.measure(mate, pads[0], pads[-1], frequency, self.reference.GetValue())
                 elif pads:
                     self.current.notes.append(f"Mate {mate} has fewer than two terminals; pair measurement unavailable.")
+            assert_current(self.board)
             self._show(self.current)
             self.workflow.set_step(2, "Review geometry, per-section estimates and notes; export when ready." if self.saved_board else "Review route geometry, skew, and notes; cross-select or highlight the pair; then export if appropriate.")
         except Exception as exc:
+            self._invalidate(None)
             wx.MessageBox(str(exc), "Trace analysis failed", wx.OK | wx.ICON_ERROR)
 
     def _on_route_pick(self, data: Any) -> None:
@@ -567,9 +572,13 @@ class TraceFrame(wx.Frame):
                 wx.MessageBox("Choose a separate .csv report.", "Export", parent=self); return
             row = self.current.as_dict()
             try:
+                assert_current(self.board)
+                evidence = provenance(self.board)
+                if evidence is not None:
+                    row['saved_board_provenance'] = json.dumps(evidence, sort_keys=True)
                 with target.open("w", newline="", encoding="utf-8") as handle:
                     writer = csv.DictWriter(handle, fieldnames=list(row)); writer.writeheader(); writer.writerow(row)
-            except OSError as exc:
+            except (OSError, ValueError) as exc:
                 wx.MessageBox(str(exc), "Export failed", parent=self); return
             self.workflow.set_step(3, "Validate critical results with a field solver or measurement before release.")
 

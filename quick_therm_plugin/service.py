@@ -17,6 +17,7 @@ def run_job(request, cancelled=None, timeout=1800, progress=None):
     from wayricad_runtime.runtime_setup import (
         REQUIREMENTS_QUICK_THERM, child_environment, ensure_runtime,
     )
+    from wayricad_runtime.analysis_process import worker_options, stop_worker
 
     requirements = {name: spec for name, spec in REQUIREMENTS_QUICK_THERM.items()
                     if name != "kipy"}
@@ -32,13 +33,15 @@ def run_job(request, cancelled=None, timeout=1800, progress=None):
         payload = dict(request, _emit_progress=bool(progress))
         source.write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")
         log_path = root / "worker.log"
+        environment = child_environment()
+        environment['WAYRICAD_ANALYSIS_SCRATCH'] = str(root)
         with log_path.open("w+", encoding="utf-8") as log:
             process = subprocess.Popen(
                 [str(python), "-I", str(Path(__file__).with_name("quickmain.py")),
                  "--worker", str(source), str(target)],
-                env=child_environment(), stdin=subprocess.DEVNULL,
+                env=environment, stdin=subprocess.DEVNULL,
                 stdout=log, stderr=log,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                **worker_options(),
             )
             started = time.monotonic()
             progress_offset = 0
@@ -70,12 +73,7 @@ def run_job(request, cancelled=None, timeout=1800, progress=None):
                 read_progress()
             finally:
                 if process.poll() is None:
-                    process.terminate()
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait(timeout=5)
+                    stop_worker(process)
             log.seek(0)
             details = log.read()[-4000:]
             if not target.is_file():
@@ -128,9 +126,12 @@ def execute(request):
     before = hashlib.sha256(path.read_bytes()).hexdigest()
     if request.get("expected_source_sha256") and request["expected_source_sha256"] != before:
         raise ValueError("The saved PCB changed since it was loaded. Reload it and review the thermal inputs.")
-    board = pcbnew.LoadBoard(str(path))
+    from wayricad_runtime.saved_board import assert_current, load_board, provenance
+    board = load_board(str(path), pcbnew=pcbnew)
     if board is None:
         raise ValueError("KiCad could not load this PCB.")
+    evidence = provenance(board)
+    source_evidence = {'saved_board_provenance': evidence} if evidence is not None else {}
     action = request.get("action", "inspect")
     if action == "inspect":
         from .quick_therm import _footprint_properties
@@ -155,6 +156,7 @@ def execute(request):
                 })
         if hashlib.sha256(path.read_bytes()).hexdigest() != before:
             raise ValueError("The board changed during inspection. Reload and run again.")
+        assert_current(board)
         return {
             'layers':[{'id':int(layer),'name':board.GetLayerName(layer)}
                       for layer in board.GetEnabledLayers().CuStack()] if hasattr(board,'GetEnabledLayers') else [],
@@ -169,6 +171,7 @@ def execute(request):
             } for fp in components), key=lambda row: row["reference"]),
             "field_names": field_names, "mounting_holes": mounting_holes,
             "source_sha256": before,
+            **source_evidence,
         }
     if action != "quick_therm":
         raise ValueError("Unknown QuickTherm action: " + str(action))
@@ -438,6 +441,7 @@ def execute(request):
     probes = sample_probes(view, thermal_network, request.get("probes"))
     if hashlib.sha256(path.read_bytes()).hexdigest() != before:
         raise ValueError("The board changed during QuickTherm analysis. Reload and run again.")
+    assert_current(board)
 
     return {
         "quick_therm": result, "board_thermal_view": view,
@@ -446,4 +450,5 @@ def execute(request):
         "request": {key: value for key, value in request.items() if key != "_emit_progress"},
         "temperature_limits": limits, "probes": probes,
         "source_sha256": before,
+        **source_evidence,
     }

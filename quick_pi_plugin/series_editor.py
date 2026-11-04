@@ -316,7 +316,8 @@ class SeriesPathDialog:
         labels=sorted(self._display_to_token)
         endpoints=wx.BoxSizer(wx.HORIZONTAL)
         self.source=ReadableChoice(body,choices=labels);self.sink=ReadableChoice(body,choices=labels)
-        if labels:self.source.SetSelection(0);self.sink.SetSelection(min(1,len(labels)-1))
+        if labels:self.source.SetSelection(0)
+        self.sink.SetSelection(wx.NOT_FOUND)
         for name,ctrl in (('Source pad',self.source),('Sink pad',self.sink)):
             endpoints.Add(wx.StaticText(body,label=name),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
             endpoints.Add(ctrl,1,wx.RIGHT,12)
@@ -330,12 +331,16 @@ class SeriesPathDialog:
             peer_row.Add(control,1,wx.RIGHT,10);control.Bind(wx.EVT_CHECKBOX,self._changed)
         root.Add(peer_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         infer_row=wx.WrapSizer(wx.HORIZONTAL)
-        infer=wx.Button(body,label='Infer paths from source to sink…')
+        infer=wx.Button(body,label='Auto infer path')
         infer.Bind(wx.EVT_BUTTON,self._infer)
         infer_row.Add(infer,0,wx.RIGHT,10)
         self.infer_unknown=wx.CheckBox(body,label='Include other device types (review current pins and device state)')
         infer_row.Add(self.infer_unknown,0,wx.ALIGN_CENTER_VERTICAL)
+        self.infer_unknown.Bind(wx.EVT_CHECKBOX,self._changed)
         root.Add(infer_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        from .series_inference import InlineInference
+        self.inference=InlineInference(body,inventory,self._accept_inferred)
+        root.Add(self.inference.panel,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         main=wx.BoxSizer(wx.HORIZONTAL)
         left=wx.BoxSizer(wx.VERTICAL)
         left.Add(wx.StaticText(body,label='Ordered component path'),0,wx.BOTTOM,5)
@@ -388,6 +393,12 @@ class SeriesPathDialog:
         root.Add(wx.StaticText(body,label='Preview and validation'),0,wx.LEFT|wx.TOP,12)
         self.preview=wx.TextCtrl(body,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,100))
         root.Add(self.preview,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        from .series_batch_setup import SeriesBatchSetup
+        voltage=parent.voltage.GetValue() if hasattr(parent,'voltage') else '1'
+        current=parent.current.GetValue() if hasattr(parent,'current') else '1'
+        if hasattr(parent,'load_mode') and parent.load_mode.GetSelection()!=0:current=''
+        self.batch_setup=SeriesBatchSetup(body,self,voltage,current)
+        root.Add(self.batch_setup.panel,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         body.SetSizer(root)
         outer=wx.BoxSizer(wx.VERTICAL);outer.Add(body,1,wx.EXPAND)
         footer=wx.BoxSizer(wx.HORIZONTAL)
@@ -435,9 +446,20 @@ class SeriesPathDialog:
             if type(selected) is int and 0<=selected<len(self.branches):self.list.SetSelection(selected)
             self.manual.SetValue(editor.get('manual','') if isinstance(editor.get('manual'),str) else '')
             self._manual_pending=bool(editor.get('manual_pending'))
+            if isinstance(editor.get('inference'),dict):
+                saved=editor['inference'];query=saved.get('query') or {}
+                def identity(value):
+                    return next((row['id'] for row in inventory.get('terminals',[])
+                                 if value in (row.get('id'),row.get('label'))),value)
+                if all(identity(query.get(role))==identity(self._chosen(getattr(self,role)))
+                       for role in ('source','sink')):
+                    self.infer_unknown.SetValue(bool(query.get('include_unknown',False)))
+                    self.inference.restore(saved)
+            if isinstance(editor.get('batch'),dict):self.batch_setup.restore(editor['batch'])
 
-    def _restore_path(self,data):
+    def _restore_path(self,data,keep_inference=False):
         """Restore saved schema-1 controls without replacing exact pad identities."""
+        if hasattr(self,'inference') and not keep_inference:self.inference.invalidate()
         for control,key in ((self.source,'source'),(self.sink,'sink')):
             value=data.get(key)
             matches=[row for row in self.inventory.get('terminals',[])
@@ -449,7 +471,9 @@ class SeriesPathDialog:
         self.endpoint_groups={key:deepcopy(data[key]) for key in ('source_terminals','sink_terminals')
                               if isinstance(data.get(key),list)}
         self.branches=deepcopy(data.get('branches',[]))
-        self._changed()
+        self._preserve_inference=keep_inference
+        try:self._changed()
+        finally:self._preserve_inference=False
 
     def _power_tree(self,event=None):
         from .series_power_tree import series_path_tree
@@ -462,15 +486,26 @@ class SeriesPathDialog:
             self.wx.MessageBox(str(exc),'Series power tree',self.wx.OK|self.wx.ICON_INFORMATION,self.dialog)
 
     def _infer(self,event=None):
-        from .series_inference import choose_inferred_path
-        try:
-            data=choose_inferred_path(self.dialog,self.inventory,self._chosen(self.source),self._chosen(self.sink),
-                                      include_unknown=self.infer_unknown.GetValue())
-            if data is not None:
-                self._restore_path(data)
-                self.manual.SetValue('');self._manual_pending=False
-        except ValueError as exc:
-            self.wx.MessageBox(str(exc),'Infer series paths',self.wx.OK|self.wx.ICON_WARNING,parent=self.dialog)
+        self.inference.infer(self._chosen(self.source),self._chosen(self.sink),
+                             include_unknown=self.infer_unknown.GetValue())
+
+    def _accept_inferred(self,data):
+        data=deepcopy(data)
+        for role,check in (('source',self.source_all),('sink',self.sink_all)):
+            if not check.GetValue():data.pop(role+'_terminals',None)
+        self._restore_path(data,keep_inference=True)
+        # Acceptance transfers authority to the editable ordered path.
+        self.inference.invalidate()
+        self.manual.ChangeValue('');self._manual_pending=False
+
+    def _reviewed_editor_path(self):
+        if self._manual_pending and self.manual.GetValue().strip():
+            if not self._apply_manual(None):raise ValueError('Complete the manual path before adding a batch setup.')
+            self.inference.invalidate()
+        elif self.inference.proposal is not None:
+            self._accept_inferred(self.inference.reviewed_path())
+        data=self._path_data();parse_saved_path(data,self.inventory)
+        return data
 
     def draft_snapshot(self):
         """Capture even an unfinished dialog; callers retain this until PI closes."""
@@ -483,7 +518,8 @@ class SeriesPathDialog:
         return {'path':path,'editor':{'kind':self.kind.GetSelection(),
             'values':{key:control.GetValue() for key,(_,control) in self.values.items()},
             'component':component,'selected_stage':self.list.GetSelection(),
-            'manual':self.manual.GetValue(),'manual_pending':self._manual_pending}}
+            'manual':self.manual.GetValue(),'manual_pending':self._manual_pending,
+            'inference':self.inference.snapshot(),'batch':self.batch_setup.snapshot()}}
 
     def _manual_changed(self,event):
         from .console import suggestions
@@ -635,6 +671,8 @@ class SeriesPathDialog:
         wx=self.wx
         from .pin_units import peers
         changed=event.GetEventObject() if event and hasattr(event,'GetEventObject') else None
+        if not getattr(self,'_preserve_inference',False) and hasattr(self,'inference'):
+            self.inference.invalidate()
         for control,check,role in ((self.source,self.source_all,'source'),(self.sink,self.sink_all,'sink')):
             if changed is control or changed is check:self.endpoint_groups.pop(role+'_terminals',None)
             if changed is control:check.SetValue(False)
@@ -828,7 +866,7 @@ class SeriesPathDialog:
 
     def _run(self,event):
         try:
-            if self._manual_pending and not self._apply_manual(event):return
+            self._reviewed_editor_path()
             self.request=self._parsed()
             self.dialog.EndModal(self.wx.ID_OK)
         except ValueError as exc:self.wx.MessageBox(str(exc),'Review the series path',self.wx.OK|self.wx.ICON_WARNING)

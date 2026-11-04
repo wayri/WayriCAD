@@ -12,6 +12,13 @@
 [Latest release](https://github.com/wayri/WayriCAD/releases/latest) ·
 [Complete thermal guide](QUICK_THERM_USER_GUIDE.md) · [Thermal model and limits](QUICK_THERM.md)
 
+**Newer saved boards:** read-only analysis uses a strict private conversion for
+boards newer than KiCad 10. The launching editor supplies its matching CLI;
+standalone runs can select it with `KICAD_CLI`. Unsupported conversion stops the
+run. The original PCB, project and rules stay unchanged; converted results retain
+their source and converter provenance. This does not establish editing or DRC
+equivalence. Reload and rerun after source, rules or converter changes.
+
 **Board-first workspace:** the board view opens with **Setup** and **Details**
 closed. Use **Components** to choose parts, **Setup** for materials/cooling/time,
 and the always-visible **Run** action to solve. **Files** contains separate

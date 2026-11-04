@@ -3,16 +3,69 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 
 SCHEMA = 'wayricad.pi-batch/v1'
 MAX_CASES = 32
-_ELECTRICAL = {'net','source_terminal','source_terminals','source_voltage','sinks','sink_terminal','sink_current',
+_ELECTRICAL = {'net','source_terminal','source_terminals','source_voltage','sinks','sink_terminal','sink_terminals','sink_current','series',
     'source_current_limit','sink_min_voltage','sink_max_voltage','edge_mm','plating_mm',
     'mesh_backend','mesh_sizing','max_cells','model_dimension','max_tetrahedra','options','stackup_override',
     'package_conduction','load_resistance_ohm','load_power_W'}
 _RETURN = {'return_nets','sample_pitch_mm','return_via_radius_mm','return_terminal_ids','return_terminal_roles'}
+
+
+def _validate_series(electrical,case,study):
+    """Check portable series contracts; saved-pad topology needs board inventory."""
+    from .terminals import pad_names
+    from .series_models import validate_model
+    stages=electrical['series']
+    if not isinstance(stages,list) or not 1<=len(stages)<=128:
+        raise ValueError('Series batch cases need 1 to 128 explicit component stages.')
+    if (electrical.get('model_dimension','2.5d')!='2.5d' or
+            any(key in electrical for key in ('load_power_W','load_resistance_ohm','sinks')) or
+            'package_conduction' in electrical or
+            any(key in case for key in ('return_conduction','electrothermal')) or study.get('shared_returns')):
+        raise ValueError('Series batch cases support independent 2.5D prescribed-current paths only; '
+                         'constant power/resistance, multisink, 3D, package conduction, return conduction, '
+                         'electrothermal and shared returns are unsupported.')
+    for key in ('source_voltage','sink_current'):
+        value=electrical.get(key)
+        if type(value) not in (int,float) or not math.isfinite(value) or (key=='sink_current' and value<0):
+            raise ValueError('Series batch cases need finite source_voltage and nonnegative prescribed sink_current.')
+    occupied=set()
+    def electrode(spec,anchor,group):
+        value=spec.get(anchor)
+        if not isinstance(value,str) or not value.strip():
+            raise ValueError('Each series electrode needs an explicit anchor pad: '+anchor)
+        ids=pad_names({'terminals':spec[group]}) if group in spec else [value]
+        # Anchor/group aliases need saved inventory before identity comparison.
+        if occupied.intersection(ids):
+            raise ValueError('Repeated series endpoint across source, sink or component electrodes.')
+        occupied.update(ids)
+    electrode(electrical,'source_terminal','source_terminals')
+    electrode(electrical,'sink_terminal','sink_terminals')
+    for stage in stages:
+        if not isinstance(stage,dict):raise ValueError('Every series stage must be an explicit component object.')
+        parallel=stage.get('parallel',[])
+        if not isinstance(parallel,list) or len(parallel)>64:
+            raise ValueError('Define at most 64 explicit parallel components per series stage.')
+        for index,branch in enumerate([stage,*parallel]):
+            if not isinstance(branch,dict) or (index and 'parallel' in branch):
+                raise ValueError('Parallel series components must be explicit, non-nested objects.')
+            electrode(branch,'from_pad','from_pads');electrode(branch,'to_pad','to_pads')
+            try:
+                validate_model(branch)
+                values=[float(branch.get(key,0.)) for key in ('resistance_ohm','inductance_h')]
+            except (TypeError,OverflowError) as exc:
+                raise ValueError('Series component model values must be finite numbers.') from exc
+            if any(not math.isfinite(value) or value<0 for value in values):
+                raise ValueError('Series R and L must be finite and nonnegative.')
+            if not any(values) and not any(key in branch for key in ('fixed_drop_v','diode')):
+                raise ValueError('Every series component needs resistance, inductance or a forward-drop model.')
+            if parallel and any(key in branch for key in ('fixed_drop_v','diode')):
+                raise ValueError('Parallel series stages support linear R/L models only.')
 
 
 def validate_study(study):
@@ -37,8 +90,11 @@ def validate_study(study):
         sizing_mode(electrical)
         if not all(key in electrical for key in ('net','source_voltage')):
             raise ValueError('Every case needs explicit net, source pad unit and source_voltage.')
-        from .terminals import source_names
-        source_names(electrical)
+        if 'series' in electrical:
+            _validate_series(electrical,case,study)
+        else:
+            from .terminals import source_names
+            source_names(electrical)
         if not isinstance(electrical['net'],str) or not electrical['net'].strip():
             raise ValueError('Case net must be a nonempty string.')
         from .constant_power import requested,guard

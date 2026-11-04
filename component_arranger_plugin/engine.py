@@ -62,6 +62,8 @@ class Settings:
     capacitor_targets: Mapping[str, str] = field(default_factory=dict)
     crossing_weight: float = 10.0
     external_pads: tuple[Pad, ...] = ()
+    pin_springs: tuple[Mapping, ...] = ()
+    attraction_strength: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,9 @@ class Metrics:
     edges: int
     capacitor_order_violations: int = 0
     capacitor_distance_mm: float = 0.0
+    spring_energy_mm: float = 0.0
+    spring_length_mm: float = 0.0
+    springs: int = 0
 
 
 @dataclass(frozen=True)
@@ -394,7 +399,11 @@ def metrics(footprints: tuple[Footprint, ...], settings: Settings | None = None)
                 groups.setdefault(number,[]).append((value,d,fp.key))
         for members in groups.values():
             violations += sum(a[0] < b[0] and a[1] >= b[1]-EPS for a in members for b in members)
-    return Metrics(sum(e[3] for e in edges),crossings,len(edges),violations,distance)
+    from .attraction import measure
+    spring_energy, spring_length = measure(footprints, settings.pin_springs,
+        settings.attraction_strength, transform) if settings else (0.0, 0.0)
+    return Metrics(sum(e[3] for e in edges),crossings,len(edges),violations,distance,
+                   spring_energy,spring_length,len(settings.pin_springs) if settings else 0)
 
 
 def _density(footprints,settings):
@@ -419,7 +428,7 @@ def _score(footprints,settings):
     density_error = abs(_density(footprints, settings) - settings.density)
     return (m.capacitor_order_violations, m.crossings,
             max(0.0, density_error - 0.05),
-            m.length_mm + m.capacitor_distance_mm, density_error)
+            m.length_mm + m.capacitor_distance_mm + m.spring_energy_mm, density_error)
 
 
 def _validate(footprints, settings, obstacles, board_outline, board_holes):
@@ -431,6 +440,8 @@ def _validate(footprints, settings, obstacles, board_outline, board_holes):
         raise ValueError(f"At most {MAX_PADS} selected plus external pads are supported; choose a smaller group (no endpoints were omitted)")
     if settings.anchor not in {fp.key for fp in footprints}:
         raise ValueError("Choose an anchor footprint from the selection")
+    from .attraction import validate
+    validate(footprints,settings.pin_springs,settings.attraction_strength)
     if not settings.allowed_sides or not set(settings.allowed_sides) <= {"top","bottom"}:
         raise ValueError("Allowed sides must contain top and/or bottom")
     if not settings.allowed_angles or any(not math.isfinite(a) for a in settings.allowed_angles):
@@ -474,7 +485,8 @@ def arrange(footprints: tuple[Footprint, ...], settings: Settings, *,
     by max_candidates and passes, with no guaranteed crossing/density target.
     Priority is capacitor ordering, crossing count, then meeting the requested
     density within five percentage points. Outside that band, the nearest
-    sampled density wins; inside it, length plus capacitor pad distance wins.
+    sampled density wins; inside it, MST length, capacitor pad distance and
+    schematic pin-spring cost determine the preferred pose.
     Density can trade some length but can never override crossing priority. Up to 128 selected footprints and 512 total pad endpoints are
     supported without silently discarding external connections.
     Movable parts may use only allowed absolute angles and permitted sides; THT
@@ -530,6 +542,10 @@ def arrange(footprints: tuple[Footprint, ...], settings: Settings, *,
             remaining = [p for p in movable if p.key not in {q.key for q in placed} and p.key != fp.key]
             # Unplaced originals contribute to objective only, never to legality.
             target = targets[fp.key][1] if fp.key in targets else (anchor.x,anchor.y)
+            if settings.attraction_strength and settings.pin_springs:
+                from .attraction import target as pin_target
+                target = pin_target(current_fp,tuple(placed+[current_fp]+remaining),
+                                    settings.pin_springs,transform) or target
             positions = sorted(set([(current_fp.x,current_fp.y),(fp.x,fp.y),*grid]),
                                key=lambda p:(math.dist(p,target),p))
             slots = max(1,(settings.max_candidates-evaluations)//max(1,(settings.passes-pass_index)*len(movable)-index))

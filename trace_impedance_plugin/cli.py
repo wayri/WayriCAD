@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+from wayricad_runtime.saved_board import assert_current, load_board, provenance
 
 
 def parser():
@@ -64,18 +65,21 @@ def analyze(args):
         raise RuntimeError("Run this command with KiCad 10's Python interpreter, which provides pcbnew.") from exc
     from .measurement import TraceMeasurementEngine
     source_digest=hashlib.sha256(source.read_bytes()).hexdigest()
-    board=pcbnew.LoadBoard(str(source))
+    board=load_board(str(source), pcbnew=pcbnew)
     if board is None:raise ValueError('KiCad could not load the board.')
+    evidence = provenance(board)
+    source_evidence = {'saved_board_provenance': evidence} if evidence is not None else {}
     if args.command=='infer-series':
         from wayricad_runtime.series_topology import board_inventory,infer_series_paths
         result=infer_series_paths(board_inventory(board),args.start,args.end,
                                   include_unknown=args.include_unknown)
         if hashlib.sha256(source.read_bytes()).hexdigest()!=source_digest:
             raise ValueError('The saved PCB changed during discovery. Reload it and retry.')
+        assert_current(board)
         return {'schema':'wayricad.rlc/v1','board':str(source),
                 'board_sha256':source_digest,
                 'operation':'infer-series',
-                'result':result}
+                'result':result, **source_evidence}
     engine=TraceMeasurementEngine(board)
     if args.command=='bulk':
         from .bulk import extract_board
@@ -97,9 +101,10 @@ def analyze(args):
         report['frequency_sweep']=sweep(report,*args.sweep_mhz)
     if hashlib.sha256(source.read_bytes()).hexdigest()!=source_digest:
         raise ValueError('The saved PCB changed during extraction. Reload it and retry.')
+    assert_current(board)
     return {'schema':'wayricad.rlc/v1','board':str(source),
             'board_sha256':source_digest,
-            'operation':args.command,'result':report}
+            'operation':args.command,'result':report, **source_evidence}
 
 
 def write_report(destination,document,source):

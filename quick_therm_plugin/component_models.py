@@ -49,15 +49,17 @@ def discover():
 
 
 def _run(args, root, cancelled, deadline):
+    from wayricad_runtime.analysis_process import worker_options, stop_worker
     if cancelled and cancelled():
         raise InterruptedError('Component model loading cancelled.')
     env = os.environ.copy()
     for key in ('PYTHONHOME', 'VIRTUAL_ENV', 'PYTHONPATH'):
         env.pop(key, None)
+    env['WAYRICAD_ANALYSIS_SCRATCH'] = str(root)
     with (root/'process.log').open('w+', encoding='utf-8') as log:
         process = subprocess.Popen(list(map(str, args)), stdin=subprocess.DEVNULL,
                                    stdout=log, stderr=log, env=env,
-                                   creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                                   **worker_options())
         try:
             while process.poll() is None:
                 if cancelled and cancelled():
@@ -67,8 +69,7 @@ def _run(args, root, cancelled, deadline):
                 time.sleep(.1)
         finally:
             if process.poll() is None:
-                process.kill()
-                process.wait(timeout=10)
+                stop_worker(process)
         if process.returncode:
             log.seek(0)
             raise RuntimeError('STEP model process failed: '+log.read()[-2000:])
@@ -115,7 +116,17 @@ def load_component_models(board_path, expected_source_sha256, cancelled=None, pr
         for model in prepared['model_files']:
             if hashlib.sha256(Path(model['path']).read_bytes()).hexdigest() != model['sha256']:
                 raise ValueError('A STEP model changed while loading; run again.')
+        evidence = prepared.get('saved_board_provenance')
+        if evidence is not None:
+            for name, expected in evidence['source_fingerprints'].items():
+                source = Path(name)
+                actual = hashlib.sha256(source.read_bytes()).hexdigest() if source.is_file() else None
+                if actual != expected:
+                    raise ValueError('Saved PCB or project rules changed while loading STEP models; reload it.')
+            if hashlib.sha256(Path(evidence['converter_path']).read_bytes()).hexdigest() != evidence['converter_sha256']:
+                raise ValueError('Analysis CLI changed while loading STEP models; run again.')
         return {'components':output['components'], 'source_sha256':before,
+                **({'saved_board_provenance': evidence} if evidence is not None else {}),
                 'coverage':{'loaded':sorted(output['components']),
                             'missing':prepared['missing']+output['missing']},
                 'coordinate_system':'KiCad XY mm; board bottom Z=0, top Z=board thickness',

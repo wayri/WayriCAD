@@ -88,6 +88,9 @@ def validate(frame,state):
                 or not isinstance(draft['path'].get('branches'),list)
                 or len(draft['path']['branches'])>128):
             raise ValueError('Invalid saved series editor draft.')
+        if isinstance(draft.get('editor'),dict) and draft['editor'].get('batch') is not None:
+            from .series_batch_setup import validate_state
+            validate_state(draft['editor']['batch'],frame.inventory)
     return deepcopy(state)
 
 

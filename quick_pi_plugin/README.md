@@ -1,5 +1,9 @@
 # WayriCAD Quick PI
 
+Newer saved PCB files use the [shared read-only conversion adapter](../docs/SAVED_BOARD_ANALYSIS.md).
+KiCad 10 retains its direct native load path. The KiCad 10 helper is still
+required; unsupported newer-format features are refused without changing sources.
+
 ## Quick start
 
 | Step | Action |
@@ -79,10 +83,24 @@ No private design or personal path is shown; no redaction was needed.
   current terminals. Optional same-component/net source, sink and component
   input/output pad groups share one model and one total current. Gate/control
   behavior and regulator dynamics are not inferred. [Pad-group workflow](SERIES_PAD_GROUPS.md).
-- **Series → Infer paths from source to sink…** finds candidate net chains and
+- **Series → Auto infer path** displays candidate net chains directly in the editor and
   parallel component banks. Review incoming/outgoing and excluded pin numbers,
   select the parts, and enter R/L or forward-drop models before using the path.
   [Discovery workflow and limits](SERIES_PAD_GROUPS.md#automatic-path-discovery).
+- **Batch series setups** in the same editor keeps named paths with their own
+  source voltage and load current. Add or update a reviewed path, save/load the
+  batch setup, then **Run batch…** to open the batch results workspace. Each case
+  retains all stages, parallel parts and current-pin groups. Cases are independent
+  2.5D prescribed-current studies; coupled returns, electrothermal and 3D runs
+  require their dedicated workflows. Unfinished inference and queued setups also
+  persist when the series editor closes and in the main saved setup.
+- **Series → Power tree…** includes a scrollable **Series path diagram** with
+  separate parallel branches, component models, net names and every current pin.
+  Solved trees also show current, voltage drop and loss. Wire labels distinguish
+  shortest planar saved track/arc endpoint-chain lengths from estimated straight
+  pad-center distances and unavailable lengths. Zones, via barrels and offset
+  connections are not measured. The details tab retains all power and pin data;
+  SVG export is available with a verified saved-design context.
 - After a multi-net run, **Spacing screen…** compares solved-net copper spacing
   with explicit applicable rule/material/environment inputs. Physical creepage
   needs reviewed surface evidence; it is not inferred from a planar gap.
