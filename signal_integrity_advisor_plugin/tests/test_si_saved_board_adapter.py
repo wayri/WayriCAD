@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from signal_integrity_advisor_plugin import service
+from signal_integrity_advisor_plugin import neighbours, service
 
 
 class SavedBoardAdapterTests(unittest.TestCase):
@@ -23,7 +23,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
                        'source_fingerprints': service.source_fingerprints(path)}
             with patch.dict(sys.modules, {'pcbnew': pcbnew}), \
                  patch.object(service, 'load_board', return_value=board) as load, \
-                 patch('signal_integrity_advisor_plugin.neighbours.map_board', return_value={}) as mapper:
+                 patch.object(neighbours, 'map_board', return_value={}) as mapper:
                 result = service.execute(request)['neighbours']
                 load.assert_called_once_with(str(path.resolve()), pcbnew=pcbnew)
                 mapper.call_args.kwargs['guard']()
@@ -43,7 +43,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
                        'source_fingerprints': service.source_fingerprints(path)}
             with patch.dict(sys.modules, {'pcbnew': SimpleNamespace()}), \
                  patch.object(service, 'load_board', return_value=board), \
-                 patch('signal_integrity_advisor_plugin.neighbours.map_board', return_value={}):
+                 patch.object(neighbours, 'map_board', return_value={}):
                 with self.assertRaisesRegex(ValueError, 'CLI changed'):
                     service.execute(request)
 
@@ -56,7 +56,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
             request = {'board_path': str(path), 'mode': 'neighbours',
                        'source_fingerprints': service.source_fingerprints(path)}
             with patch.dict(sys.modules, {'pcbnew': pcbnew}), \
-                 patch('signal_integrity_advisor_plugin.neighbours.map_board', return_value={}):
+                 patch.object(neighbours, 'map_board', return_value={}):
                 result = service.execute(request)['neighbours']
             pcbnew.LoadBoard.assert_called_once_with(str(path.resolve()))
             self.assertNotIn('saved_board_provenance', result)

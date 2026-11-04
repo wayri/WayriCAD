@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from quick_pi_plugin import electrothermal_service
+from quick_pi_plugin import electrothermal, electrothermal_service
 
 
 @pytest.mark.parametrize('changed', [False, True])
@@ -21,7 +21,7 @@ def test_electrothermal_preserves_and_rechecks_conversion_provenance(tmp_path, c
         if changed:project.write_bytes(b'{"changed":true}')
         return {'solved':True}
     with patch.object(electrothermal_service,'prepare_saved_study',return_value=prepared), \
-         patch('quick_pi_plugin.electrothermal.solve_electrothermal',side_effect=solve):
+         patch.object(electrothermal,'solve_electrothermal',side_effect=solve):
         request=dict(board_path=str(source),study={'electrical':{}})
         if changed:
             with pytest.raises(ValueError,match='changed'):electrothermal_service.execute(request)

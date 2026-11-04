@@ -9,16 +9,18 @@ import unittest
 from unittest.mock import Mock, patch
 
 from quick_therm_plugin import component_model_worker, component_models, service, thermal_transient
+from wayricad_runtime import analysis_process, bootstrap, context, native_analysis, runtime_setup
+from wayricad_runtime import saved_board as saved_board_adapter
 
 
 class SavedBoardAdapterTests(unittest.TestCase):
     def test_cancelled_worker_uses_parent_owned_converter_scratch(self):
         process = SimpleNamespace(poll=Mock(return_value=None), terminate=Mock(), wait=Mock())
         cancellations = iter([False, True])
-        with patch('wayricad_runtime.runtime_setup.ensure_runtime', return_value='python'), \
-             patch('wayricad_runtime.runtime_setup.child_environment', return_value={}), \
+        with patch.object(runtime_setup, 'ensure_runtime', return_value='python'), \
+             patch.object(runtime_setup, 'child_environment', return_value={}), \
              patch.object(service.subprocess, 'Popen', return_value=process) as popen, \
-             patch('wayricad_runtime.analysis_process.stop_worker', side_effect=lambda child: child.terminate()) as stop:
+             patch.object(analysis_process, 'stop_worker', side_effect=lambda child: child.terminate()) as stop:
             with self.assertRaises(InterruptedError):
                 service.run_job({}, cancelled=lambda: next(cancellations))
         process.terminate.assert_called_once_with()
@@ -46,11 +48,11 @@ class SavedBoardAdapterTests(unittest.TestCase):
             client = object(); process = SimpleNamespace(wait=Mock(return_value=0))
             with patch.object(sys, 'argv', ['desktop_entrypoint.py']), \
                  patch.dict('os.environ', {'WAYRICAD_SPLASH_READY': '1'}), \
-                 patch('wayricad_runtime.bootstrap.relaunch', return_value=None), \
-                 patch('wayricad_runtime.native_analysis.child_environment', return_value={'base': 'env'}), \
-                 patch('wayricad_runtime.context.connect', return_value=client), \
-                 patch('wayricad_runtime.context.saved_board', return_value=path), \
-                 patch('wayricad_runtime.saved_board.origin_environment', return_value={'origin': 'bound'}) as origin, \
+                 patch.object(bootstrap, 'relaunch', return_value=None), \
+                 patch.object(native_analysis, 'child_environment', return_value={'base': 'env'}), \
+                 patch.object(context, 'connect', return_value=client), \
+                 patch.object(context, 'saved_board', return_value=path), \
+                 patch.object(saved_board_adapter, 'origin_environment', return_value={'origin': 'bound'}) as origin, \
                  patch.object(desktop_entrypoint.subprocess, 'Popen', return_value=process) as popen:
                 self.assertEqual(desktop_entrypoint.main(), 0)
             origin.assert_called_once_with(client, {'base': 'env'})
@@ -67,7 +69,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
             board = SimpleNamespace(GetFootprints=lambda: [], _wayricad_saved_board=snapshot)
             pcbnew = SimpleNamespace()
             with patch.dict(sys.modules, {'pcbnew': pcbnew}), \
-                 patch('wayricad_runtime.saved_board.load_board', return_value=board) as load:
+                 patch.object(saved_board_adapter, 'load_board', return_value=board) as load:
                 result = service.execute({'action': 'inspect', 'board_path': str(path)})
             load.assert_called_once_with(str(path.resolve()), pcbnew=pcbnew)
             snapshot.assert_current.assert_called_once_with()
@@ -81,7 +83,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
             snapshot = SimpleNamespace(assert_current=Mock(side_effect=ValueError('CLI changed')), record={})
             board = SimpleNamespace(GetFootprints=lambda: [], _wayricad_saved_board=snapshot)
             with patch.dict(sys.modules, {'pcbnew': SimpleNamespace()}), \
-                 patch('wayricad_runtime.saved_board.load_board', return_value=board):
+                 patch.object(saved_board_adapter, 'load_board', return_value=board):
                 with self.assertRaisesRegex(ValueError, 'CLI changed'):
                     service.execute({'action': 'inspect', 'board_path': str(path)})
 
@@ -100,7 +102,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
                 self.assertTrue(all(not item._wayricad_saved_board.assert_current.called for item in loaded))
                 return {}
             with patch.dict(sys.modules, {'pcbnew': SimpleNamespace()}), \
-                 patch('wayricad_runtime.saved_board.load_board', side_effect=loaded) as load, \
+                 patch.object(saved_board_adapter, 'load_board', side_effect=loaded) as load, \
                  patch.object(thermal_transient, 'solve_coupled_transient', side_effect=solve):
                 result = thermal_transient.run_saved_board_transient({'boards': boards})
             self.assertEqual(load.call_count, 4)
@@ -122,7 +124,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
                 return True
             pcbnew = SimpleNamespace(ToMM=lambda value: value, SaveBoard=Mock(side_effect=save))
             with patch.dict(sys.modules, {'pcbnew': pcbnew}), \
-                 patch('wayricad_runtime.saved_board.load_board', return_value=board), \
+                 patch.object(saved_board_adapter, 'load_board', return_value=board), \
                  patch.object(component_model_worker, 'model_variables', return_value={}):
                 component_model_worker.prepare({'board_path': str(path), 'root': str(root),
                     'source_sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
