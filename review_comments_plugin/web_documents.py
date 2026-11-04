@@ -80,12 +80,15 @@ class ReviewDocuments:
 
     def __init__(self, path: str | Path):
         given = Path(path).expanduser().absolute()
-        if (any(part.is_symlink() for part in (given, *given.parents)) or
+        if (given.is_symlink() or given.parent.is_symlink() or
                 given.suffix.lower() not in _KINDS or not given.is_file()):
             raise ValueError('Choose a saved KiCad PCB or schematic file.')
         self.root = given.parent.resolve()
         selected = given.resolve()
-        _no_links(self.root, given)
+        # Ancestors above the explicitly selected directory can be OS aliases
+        # (macOS /var -> /private/var). Bind to the canonical selected root;
+        # links within that root remain forbidden on every subsequent read.
+        _no_links(self.root, selected)
         paths = {selected}
         pair_suffix = '.kicad_sch' if selected.suffix.lower() == '.kicad_pcb' else '.kicad_pcb'
         pair = selected.with_suffix(pair_suffix)

@@ -12,7 +12,7 @@ class WebAssetsTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         for name in required_paths(linked_models=True):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)

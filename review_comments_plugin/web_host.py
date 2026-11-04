@@ -56,6 +56,12 @@ def _read_file(path: Path, root: Path, limit: int) -> bytes:
 
 def _snapshot(viewer_root: Path, web_root: Path) -> dict[str, bytes]:
     paths = discover_assets(viewer_root, include_3d=True, linked_models=True)
+    # Discovery rejects a linked selected root and linked asset children.
+    # Use its canonical root for relative checks, including macOS /var aliases.
+    viewer_root = viewer_root.resolve(strict=True)
+    if web_root.is_symlink():
+        raise ValueError('Review web assets need a real directory.')
+    web_root = web_root.resolve(strict=True)
     manifest = asset_manifest(viewer_root, include_3d=True, linked_models=True)
     by_name = {record.path: record for record in manifest}
     files = {}

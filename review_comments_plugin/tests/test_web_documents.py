@@ -17,7 +17,7 @@ class ReviewDocumentsTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
 
     def test_paired_board_and_recursive_schematic_catalog(self):
         board = self.root / 'Demo.kicad_pcb'
@@ -101,6 +101,47 @@ class ReviewDocumentsTests(unittest.TestCase):
         with patch.object(Path, 'is_symlink', lambda path: path == board or original(path)):
             with self.assertRaisesRegex(ValueError, 'linked'):
                 catalog.load('Demo.kicad_pcb')
+
+    def test_ancestor_alias_is_accepted_but_selected_and_parent_links_are_rejected(self):
+        real = self.root / 'real' / 'Project'
+        real.mkdir(parents=True)
+        board = real / 'Main.kicad_pcb'
+        board.write_text('(kicad_pcb)', encoding='utf-8')
+        alias = self.root / 'alias'
+        try:
+            alias.symlink_to(real.parent, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest('directory symlinks are unavailable in this environment')
+        selected = alias / 'Project' / board.name
+        self.assertFalse(selected.is_symlink())
+        self.assertFalse(selected.parent.is_symlink())
+        catalog = ReviewDocuments(selected)
+        self.assertEqual(catalog.root, real)
+        self.assertEqual(catalog.path_for(board.name), board)
+        self.assertEqual(catalog.load(board.name)['source'], '(kicad_pcb)')
+        with self.assertRaisesRegex(ValueError, 'Choose a saved'):
+            ReviewDocuments(alias / 'Project')
+        selected_link = real / 'Linked.kicad_pcb'
+        selected_link.symlink_to(board)
+        with self.assertRaisesRegex(ValueError, 'Choose a saved'):
+            ReviewDocuments(selected_link)
+        parent_link = self.root / 'Project-link'
+        parent_link.symlink_to(real, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'Choose a saved'):
+            ReviewDocuments(parent_link / board.name)
+
+    def test_linked_schematic_child_is_rejected(self):
+        root = self.root / 'Root.kicad_sch'
+        child = self.root / 'Child.kicad_sch'
+        target = self.root / 'Real.kicad_sch'
+        root.write_text(schematic('Child.kicad_sch'), encoding='utf-8')
+        target.write_text(schematic(), encoding='utf-8')
+        try:
+            child.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest('file symlinks are unavailable in this environment')
+        with self.assertRaisesRegex(ValueError, 'linked'):
+            ReviewDocuments(root)
 
 
 if __name__ == '__main__':
