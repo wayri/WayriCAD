@@ -190,7 +190,7 @@ class Provider:
         token = self.tokens(self.provider, self.origin)
         headers = {'Accept': 'application/vnd.github+json' if self.provider == 'github' else 'application/json',
                    'User-Agent': 'WayriCAD-Review/0.1'}
-        headers['Authorization' if self.provider == 'github' else 'PRIVATE-TOKEN'] = ('Bearer ' + token if self.provider == 'github' else token)
+        headers['Authorization'] = 'Bearer ' + token
         if etag:
             headers['If-None-Match'] = etag
         data = binary

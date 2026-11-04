@@ -97,11 +97,11 @@ class Composer(wx.Panel):
         self.extra_formats.SetSizer(extras)
         self.extra_formats.Hide()
         layout.Add(self.extra_formats, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-        self.book = wx.Simplebook(self)
-        self.editor = wx.TextCtrl(self.book, style=wx.TE_MULTILINE | wx.TE_RICH2 | wx.BORDER_NONE)
+        self.book = wx.Simplebook(self, style=wx.BORDER_NONE)
+        self.editor = wx.TextCtrl(self.book, style=wx.TE_MULTILINE | wx.TE_RICH2 | wx.TE_NO_VSCROLL | wx.BORDER_NONE)
         self.editor.SetBackgroundColour('#ffffff')
         self.editor.SetForegroundColour(INK)
-        self.editor.SetHint('Write a review… Paste screenshots or drop PNG / JPEG images here.')
+        self.editor.SetName('Review message')
         self.editor.SetMinSize((-1, 110))
         self.editor.SetMaxLength(16000)
         self.editor.SetDropTarget(ReviewDropTarget(self))
@@ -231,7 +231,7 @@ class Composer(wx.Panel):
             return
         from .composer_format import preview_html
         try:
-            self.preview.SetPage(preview_html(self.editor.GetValue()))
+            self.preview.SetPage(preview_html(self.editor.GetValue(), theme=getattr(self.owner, 'review_theme', 'light')))
         except ValueError as error:
             self.owner.status.SetLabel(str(error))
 

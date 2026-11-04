@@ -6,6 +6,7 @@ import pytest
 wx = pytest.importorskip('wx')
 
 from review_comments_plugin.conversation_ui import ConversationPane, MessageCard, short_time
+from review_comments_plugin.ui import ReviewPane
 
 BASE = dict(repository='example/board', ref='a' * 40, file='board.kicad_pcb')
 
@@ -130,12 +131,76 @@ def test_feed_only_constructs_eighty_cards_at_a_time(pane):
     assert len(pane.cards) == 80 and pane.cards[-1].row['id'] == '199'
 
 
+def test_offscreen_cards_keep_their_height_with_hidden_scrollbars(pane):
+    pane.session.rows = [message(str(i), body='Review routing ' + str(i)) for i in range(4)]
+    pane.populate()
+    pane.wrap_cards()
+    assert all(card.GetSize().height >= card.GetMinSize().height > 0 for card in pane.cards)
+
+
 def test_search_and_refresh_preserve_composer(pane):
     pane.compose.SetValue('Unsent engineering note')
     pane.search.SetValue('mating')
     pane.populate(force=True)
     assert len(pane.cards) == 1 and pane.cards[0].row['author'] == 'bob'
     assert pane.compose.GetValue() == 'Unsent engineering note'
+
+
+def test_visible_inactive_refresh_is_single_flight_and_uses_captured_session():
+    session = fake_session(rows=[message()])
+    session.refresh = Mock(return_value=[message('2')])
+    session.require_authorization = Mock()
+    candidate = SimpleNamespace(session=session, busy=False, closed=False,
+        IsShown=Mock(return_value=True), IsIconized=Mock(return_value=False),
+        IsActive=Mock(side_effect=AssertionError('focus must not gate polling')),
+        task=Mock(), populate=Mock(), send=Mock(), compose=Mock(IsEnabled=Mock(return_value=True)))
+    ReviewPane.refresh(candidate)
+    operation, complete = candidate.task.call_args.args[:2]
+    assert operation() == [message('2')]
+    complete(None)
+    candidate.populate.assert_called_once()
+    assert candidate.task.call_args.kwargs['foreground'] is True
+    candidate.IsActive.assert_not_called()
+    candidate.busy = True
+    ReviewPane.refresh(candidate)
+    assert candidate.task.call_count == 1
+    candidate.busy = False
+    candidate.session = fake_session()
+    complete(None)
+    candidate.populate.assert_called_once()
+
+
+def test_hidden_or_minimized_review_pauses_provider_requests():
+    session = fake_session()
+    session.refresh = Mock()
+    for shown, iconized in [(False, False), (True, True)]:
+        candidate = SimpleNamespace(session=session, busy=False, closed=False,
+            IsShown=Mock(return_value=shown), IsIconized=Mock(return_value=iconized),
+            IsActive=Mock(side_effect=AssertionError('focus must not be queried')),
+            task=Mock(), timer=Mock(), status=Mock())
+        ReviewPane.refresh(candidate)
+        candidate.task.assert_not_called()
+        candidate.timer.StartOnce.assert_called_once_with(8000)
+        candidate.IsActive.assert_not_called()
+
+
+def test_inactive_visible_worker_completion_is_applied():
+    from review_comments_plugin import ui
+    callbacks = []
+    session = fake_session()
+    session.interval_seconds = 8
+    candidate = SimpleNamespace(busy=False, closed=False, generation=0, session=session,
+        status=Mock(), timer=Mock(), Layout=Mock(), IsShown=Mock(return_value=True),
+        IsIconized=Mock(return_value=False), IsActive=Mock(side_effect=AssertionError('focus gate')))
+    completed = Mock()
+    with patch.object(ui.threading, 'Thread', side_effect=lambda *, target, **kwargs: SimpleNamespace(start=target)), \
+            patch.object(ui.wx, 'CallAfter', side_effect=lambda fn, *args: callbacks.append((fn, args))):
+        assert ReviewPane.task(candidate, lambda: 'remote edit', completed, foreground=True)
+    callback, args = callbacks.pop()
+    callback(*args)
+    completed.assert_called_once_with('remote edit')
+    candidate.IsActive.assert_not_called()
+    candidate.timer.StartOnce.assert_called_once_with(8000)
 
 
 def test_attachment_chips_are_removable_without_json_or_url_in_composer(pane):
@@ -170,12 +235,92 @@ def test_timestamps_survive_wx_windows_locale_initialization(app):
 
 def test_workspace_has_guided_workflow_resizable_composer_and_drop_target(pane):
     from review_comments_plugin.composer_ui import ReviewDropTarget
-    assert pane.sidebar.IsShown()
-    pane.toggle_workflow()
     assert not pane.sidebar.IsShown()
+    pane.toggle_workflow()
+    assert pane.sidebar.IsShown()
     assert pane.splitter.IsSplit()
     assert isinstance(pane.compose.GetDropTarget(), ReviewDropTarget)
     assert {'bold', 'italic', 'link', 'table', 'codeblock', 'tasks'} <= pane.composer.format_buttons.keys()
+
+
+def test_single_theme_toggle_preserves_draft_and_updates_native_and_web_palettes(pane):
+    pane.compose.SetValue('Keep this review draft')
+    with patch('review_comments_plugin.conversation_ui.atomic_json') as save:
+        pane.toggle_theme()
+        assert pane.review_theme == 'dark' and pane.design_canvas.theme == 'dark'
+        assert pane.theme_button.GetLabel() == 'Light mode'
+        assert pane.compose.GetBackgroundColour() == wx.Colour('#202733')
+        assert pane.compose.GetValue() == 'Keep this review draft'
+        pane.toggle_theme()
+        assert pane.review_theme == 'light' and pane.design_canvas.theme == 'light'
+        assert pane.compose.GetBackgroundColour() == wx.Colour('#ffffff')
+        assert save.call_count == 2
+        pane.compose.Clear()
+        pane.toggle_theme()
+        assert pane.compose.GetValue() == ''
+
+
+def test_github_account_actions_ignore_gitlab_host_setting(pane):
+    pane.values.update(provider='github', host='https://gitlab.com')
+    assert pane.auth_identity() == ('github', 'https://github.com')
+    assert pane.check_authorization()
+
+
+def test_expiry_preserves_draft_and_revokes_ui_authority(pane):
+    pane.compose.SetValue('Unpublished review text')
+    pane.session.require_authorization = Mock(side_effect=RuntimeError('expired'))
+    before = pane.generation
+    assert not pane.check_authorization()
+    assert pane.session.status == 'signed out'
+    assert pane.compose.GetValue() == 'Unpublished review text'
+    assert not pane.send.IsEnabled() and pane.generation > before
+    assert not pane.timer.IsRunning()
+    assert pane.design_canvas.markers == []
+    pane.session.publish.assert_not_called()
+
+
+def test_expiry_cleanup_runs_once_when_backend_detected_it_first(pane):
+    pane.compose.SetValue('Retain this draft')
+    pane.session.status = 'signed out'
+    before = pane.generation
+    assert not pane.check_authorization()
+    assert pane.generation == before + 1 and not pane.send.IsEnabled()
+    assert not pane.check_authorization()
+    assert pane.generation == before + 1
+
+
+def test_queued_publication_keeps_original_session_after_reconnect(pane):
+    pane.compose.SetValue('Review the power path')
+    original = pane.session
+    operations = []
+    pane.task = lambda operation, complete, *args, **kwargs: operations.append(operation)
+    pane.post()
+    replacement = fake_session()
+    pane.session = replacement
+    original.publish.side_effect = RuntimeError('original authorization revoked')
+    with pytest.raises(RuntimeError, match='revoked'):
+        operations[0]()
+    replacement.publish.assert_not_called()
+
+
+def test_queued_completion_rechecks_authorization_before_applying_result(pane):
+    from review_comments_plugin import ui
+    expired = [False]
+    def authorize():
+        if expired[0]:
+            raise RuntimeError('expired')
+    pane.session.require_authorization = authorize
+    completed = Mock()
+    callbacks = []
+    with patch.object(ui.threading, 'Thread', side_effect=lambda *, target, **kwargs: SimpleNamespace(start=target)), \
+            patch.object(ui.wx, 'CallAfter', side_effect=lambda fn, *args: callbacks.append((fn, args))):
+        assert pane.task(lambda: 'late result', completed, authorization=authorize)
+    expired[0] = True
+    callback, args = callbacks[-1]
+    callback(*args)
+    completed.assert_not_called()
+    assert pane.session.status == 'signed out'
+    assert not pane.send.IsEnabled()
 
 
 def test_rich_composer_preserves_markdown_and_local_preview(pane):

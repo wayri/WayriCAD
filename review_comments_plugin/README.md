@@ -8,24 +8,101 @@ GitHub/GitLab issue/PR/MR conversation; **Discussions** uses real GitHub
 Discussions and native threaded replies. GitHub and GitLab own published comments and anchors. Local files hold
 private settings, pending drafts and an optional cache.
 
-Review **4.1.0** is a **testing** package included in
-[WayriCAD 4.1.0](https://github.com/wayri/WayriCAD/releases/tag/v4.1.0).
+Review **4.4.0** is a **testing** package. The embedded KiView canvas
+and direct desktop sign-in are in this source, but are not in the published
+[Review 4.3.0 testing package](https://github.com/wayri/WayriCAD/releases/tag/v4.3.0).
+The final Windows source viewer has passed a saved KiCad 10 visual check;
+live OAuth and installed-package acceptance remain separate. See the
+[offline visual user guide](USER_GUIDE.html) for setup and an illustrated tour.
 
-![Native review pane with illustrative comments, no provider connected](help-workflow.png)
+## What appears beside KiCad
 
-The image is a native wx window capture using illustrative comments. It is UI
-layout evidence, not a live GitHub/GitLab or running-editor demonstration.
+Launching Review opens a separate, resizable native wx window beside PCB
+Editor. It contains message cards, Comments and Discussions tabs, search,
+author filters and a Markdown reply composer. Current source has a compact
+header with one **Light mode / Dark mode** toggle, **Account**, and **More**.
+**More** holds settings, refresh, reviewer highlights, workflow, design
+visibility and Review sign-out. Filters and the PCB layer list open when needed;
+the theme applies to the whole window and embedded viewer. Its embedded
+KiView pane also renders saved PCB and schematic files, including a selector
+for paired files and schematic hierarchy sheets. The pane supports independent
+pan, zoom, PCB layer controls, comment pins and regions, and a PCB 3D view.
+It does not mirror unsaved editor geometry or make design edits; those stay in
+the main KiCad window. The current document catalog supplies no component
+model assets, so 3D uses stand-ins where models are needed. STEP models are not
+supported by this integration.
 
-![Discussions tab with individual messages and an inline reply composer](help-discussions.png)
+The current-source pane needs a separately supplied KiView asset directory:
+set `WAYRICAD_REVIEW_VIEWER_ROOT` before launch or choose **Viewer assets…**.
+KiView is not bundled with Review while its separate distribution rights are
+being resolved. The pane serves an in-memory snapshot of those assets through
+a temporary loopback listener, closed with the window. **Open project/design…**
+chooses a saved PCB or schematic; **Review this file** connects its exact saved
+file to the provider conversation. Pins and regions are local drafts until
+**Send message** publishes them. Provider reads, saved-file SHA-256 and scope
+matching remain the authority for displayed markers and publication.
 
-The Discussions preview also uses illustrative data. Settings and authentication
-stay out of the conversation feed. Engineering messages can carry component,
-net or region context without turning the pane into a properties table.
+For an object-linked message, the intended interaction is:
 
-![Formatted composer preview with a pending illustrative image](help-composer.png)
+1. Select one PCB object in the originating editor.
+2. In Review, choose **Use PCB selection**, write a message and explicitly send it.
+3. The provider stores the comment with the repository, exact saved commit,
+   design path and object UUID.
+4. After a successful provider refresh, click the message's design-item button
+   to request selection and focus in the originating PCB Editor through IPC.
 
-This native demo shows the local preview and a synthetic attachment thumbnail;
-no provider upload or remote image fetch is represented.
+Use the direct Review IPC action for that editor connection. The **All tools**
+saved-board fallback opens the conversation window without live navigation.
+Running-editor selection has isolated regression coverage but is **not yet
+verified by a live Review-to-PCB Editor acceptance test**. The independent
+viewer shows schematic and PCB markers; native schematic selection and native
+KiCad canvas overlays are unavailable.
+
+The current source integration was captured in the actual Windows Review
+window using KiCad's PIC programmer demo. The drawing is real saved-design
+geometry; comments are explicitly illustrative, with sending disabled and no
+provider or live editor connected. These are source-development screenshots,
+not screenshots of the published 4.3.0 package.
+
+![Full PCB with interactive comment markers](screenshots/review-pcb.png)
+
+![Review schematic and comments in dark theme](screenshots/review-dark.jpg)
+
+![The same Review window in light theme](screenshots/review-light.jpg)
+
+![Interactive 3D board with projected comment markers](screenshots/review-3d.png)
+
+The 3D capture uses approximate component stand-ins; linked model count is zero.
+See [validation and screenshot provenance](VALIDATION.md) for the tested scope.
+
+## How GitHub and GitLab connect
+
+| Destination | What Review synchronizes |
+| --- | --- |
+| GitHub issue or pull request | The root description and general conversation comments, through the issue-comment REST API. |
+| GitLab issue or merge request | The root description and general notes; self-hosted HTTPS instances are supported. |
+| GitHub Discussion | Actual Discussion comments and threaded replies through GraphQL, in the separate Discussions tab. |
+
+Connect the local Git worktree, an exact committed design and an existing
+conversation number in Settings. Current-source desktop **Sign in browser**
+uses the provider's device flow directly. It needs no CLI installation or
+token paste. The access token stays in this process's memory and expires after
+at most eight hours, sooner if the provider's token does. Activity does not
+extend it; closing Review loses the sign-in. There is no silent refresh or CLI
+fallback. **Send message** publishes explicitly. Active refresh is about every
+eight seconds; drafts remain local until sent.
+
+An example is a message about a connector's return via: select that via, attach
+its context, then post to a PR's general conversation. Another reviewer can
+read the same provider comment and, with the matching saved revision and an
+IPC-connected editor, request navigation to that object. The shared KiView
+marker carries its design context; it does not make GitHub or GitLab natively
+render the PCB. Browser rendering is a separate KiView capability.
+
+Inline code-diff review comments, PR review summaries, shared cursors and
+GitHub Projects editing are not implemented. GitHub Projects and GitLab work
+boards open in the browser. GitLab screenshots have a confirmed-upload flow;
+GitHub image attachments use the provider's browser editor.
 
 ## Start a review
 
@@ -44,17 +121,16 @@ action for live-editor navigation.
    Check the detected repository/worktree, full commit ID and
    design path. Enter the issue, pull request or merge request number, and the
    GitHub Discussion number for the separate Discussions tab.
-3. Choose **Connect with browser**. Install [GitHub CLI](https://cli.github.com/)
-   or [GitLab CLI](https://docs.gitlab.com/cli/) first. Credentials stay in the
-   provider CLI's storage; this plugin never saves a token in its configuration.
-   Approve the official CLI application in this computer's browser. Phone sign-in
-   is separate. Connected appears only after a successful provider API check.
-   If a stored GitLab CLI session is confirmed rejected with HTTP 401, this
-   explicit action replaces that host’s rejected session before browser approval.
-   Missing sessions open sign-in directly. Permission, network and malformed-response
-   failures do not clear credentials. **Cancel sign-in** stops an unfinished flow; sign-in does not restart automatically.
-   If the browser does not open, cancel and use **Copy terminal sign-in command**
-   in your normal PowerShell window to expose any interactive CLI prompt.
+3. In current source, choose **Account → Sign in browser** (or **Sign in** in
+   the header). Review opens the provider's device-code page; copy the displayed
+   code if needed, approve access in the browser, then return. GitHub defaults
+   to `public_repo` and `write:discussion`. Check **Include private GitHub
+   repositories** only if needed; it requests the broader `repo` write scope.
+   GitLab requests `api`; its OAuth application must allow the device grant.
+   Self-hosted GitLab needs a public client ID via
+   `WAYRICAD_REVIEW_GITLAB_CLIENT_ID`. A disabled device grant or missing client
+   ID fails with an actionable message. The account is verified before Review
+   treats sign-in as complete. No live OAuth acceptance is claimed here.
 4. Read the message cards and use **Reply** on the relevant card, or write a new
    message. **Send message** or **Ctrl+Enter** publishes to the active conversation.
    **View thread** focuses a message and its replies; **All messages** returns to
@@ -62,6 +138,11 @@ action for live-editor navigation.
    context** to filter; **People** highlights authors without hiding other messages.
 5. **Open in provider** opens the authoritative thread. Settings also
    provides **Open work board** for GitHub Projects or GitLab issue boards.
+
+Expiry or Review sign-out blocks provider reads, publication, uploads and native
+navigation, and clears canvas comment authority while preserving drafts.
+**More → Sign out** affects this Review process only; it does not sign out the
+browser, KiView extension or a shared CLI session.
 
 On the Discussions tab, open the provider to choose or create an engineering
 topic if none exists, then enter its Discussion number in Settings. The plugin
@@ -117,7 +198,8 @@ message or erase draft text. **Ctrl+Enter** remains the explicit send shortcut.
 | Action | Behaviour |
 | --- | --- |
 | + Design context → Selected PCB object | Reads one native PCB selection; the UUID must exist in the saved file. |
-| + Design context → Region | Enter board-top XY, width and height in mm. The anchor is published, without drawing anything into the design. |
+| + Design context → Region | Enter board-top XY, width and height in mm. Current source can also draft a region in the embedded viewer. Neither action changes the design. |
+| Embedded viewer → Pin comment / Region comment | Draft a point or region on the saved PCB or schematic after the matching provider conversation has refreshed; write and explicitly send the message to publish it. |
 | Design-item chip on a message | Resolves a matching provider-read UUID in the originating PCB editor. Selection is confirmed; previous selection is restored on failure where supported. |
 | Paste image — GitLab | Preview a clipboard PNG, approve its upload, then post the confirmed image link and KiView attachment metadata with your comment. Images are reduced to at most 1024 pixels per side. |
 | Paste image — GitHub | Opens GitHub's browser editor for its supported image/screenshot attachment workflow. Refresh after posting there. |
@@ -127,9 +209,11 @@ message or erase draft text. **Ctrl+Enter** remains the explicit send shortcut.
 | Author / With design context / Search | Combine filters for an author, provider-read anchors and message/design text. Search stays within a focused thread. Clear filters retains the thread and draft. |
 | People | Highlight several authors without filtering them. This does not imply online presence, typing or cursors. |
 
-Refresh runs about every eight seconds while the pane is active, backing off to
-two minutes after failures. Requests do not overlap. Hidden, inactive and closed
-panes do not start polling; hidden responses do not update the visible pane.
+Refresh runs about every eight seconds while the pane is visible, including
+while you work in the main KiCad editor, backing off to two minutes after
+failures. Requests do not overlap. Hidden, minimized, signed-out and closed
+panes pause polling. Remote additions, edits and deletions replace the complete
+conversation snapshot and update the matching in-view markers.
 Text drafts survive refresh and failed publication. A next draft typed during
 publication is preserved. Pending text is saved separately before posting and
 on close, so it cannot be mistaken for a published comment.
@@ -147,13 +231,14 @@ general-purpose attachment upload endpoint used by this plugin.
 | Capability | Status |
 | --- | --- |
 | GitHub issue / PR general conversation | Read and post through REST issue-comment endpoints. |
-| GitLab issue / MR general notes | Read and post using `glab api`, including self-hosted HTTPS instances. |
+| GitLab issue / MR general notes | Read and post through the current-source desktop OAuth transport, including self-hosted HTTPS instances. Published 4.3.0 uses `glab api`. |
 | GitHub Discussions | Complete GraphQL reads of comments and replies, with native threaded `addDiscussionComment` publication. Requires an existing Discussion and provider permissions. |
 | Pocket KiView anchors | Shared `kicad-review:v1` published Markdown marker, exact provider/host/repository/commit/file matching. |
-| GitLab issue boards | CLI API lists board names; browser handles board interaction. |
+| GitLab issue boards | Provider API lists board names; browser handles board interaction. |
 | GitHub Projects | Opens repository Projects in the browser. No Projects GraphQL changes are implemented. |
 | PCB navigation | Official IPC selection through the originating editor; no saved design edits. |
-| Schematic selection / transient region overlays | Unavailable in this adapter. Use the revision link/KiView; no fake markers are written. |
+| Embedded saved-design viewer (4.4.0) | KiView PCB, schematic and hierarchy-file navigation, PCB 3D, independent pan/zoom/layers and review markers; needs separately supplied assets. Windows source visual checks passed; native editor attachment remains unverified. |
+| Schematic selection / native KiCad canvas overlays | Unavailable in this adapter. The embedded viewer draws its own review layer; no fake native markers are written. |
 | Inline diff reviews / PR review summaries | Not imported. Open the provider to inspect these. |
 | Presence / shared cursors / typing | Not implemented; polling is comment synchronization only. |
 
@@ -182,10 +267,31 @@ python -m review_comments_plugin.cli --settings review-settings.json locate 1234
 `cached` prints explicitly unverified cached data and never permits navigation.
 `inspect-source` checks the saved design against its local Git HEAD without
 settings or provider access. It is also available as a read-only Assistant action.
-There is no local HTTP listener, fixed port, background service or token bridge.
+The CLI keeps its separate legacy `gh`/`glab` authentication; desktop's
+memory-only sign-in does not supply credentials to CLI commands.
+The current-source embedded viewer uses an ephemeral loopback HTTP listener for
+its allowlisted, in-memory assets. It has no fixed port or background service;
+the published 4.3.0 package did not include this viewer.
 The suite dispatcher also exposes `wayricad-tools run review-comments -- --help`.
 
-See [integration contract](INTEGRATION.md), [offline help](help.html) and
+## Online viewer interchange
+
+The saved `.kicad_pcb` and `.kicad_sch` documents use the same KiView renderer
+as the online viewer. Comments share the `kicad-review:v1` Markdown marker.
+Actual online-parser round trips covered GitHub/GitLab PCB and schematic
+point/region annotations, reference and net names, Unicode text and review
+state metadata. The online client's JSON export and sidecar serializers also
+accepted those annotations. Desktop Review reads provider Markdown; it does
+not directly open arbitrary annotation JSON as a synced conversation.
+
+Both clients must select the same provider/host, repository, full 40-character
+commit ID and file path. Branch-name annotations are not current-revision
+authority in desktop Review. Remote comment changes refresh automatically;
+new messages still require an explicit Send. Changing the design's Git revision
+requires reconnecting that saved revision; Review never pulls or rewrites a
+working tree automatically.
+
+See [visual user guide](USER_GUIDE.html), [integration contract](INTEGRATION.md), [offline help](help.html) and
 [validation scope](VALIDATION.md).
 
 ## Methods and references
@@ -197,8 +303,9 @@ See [integration contract](INTEGRATION.md), [offline help](help.html) and
 - [GitLab Notes API](https://docs.gitlab.com/api/notes/) supplies issue/MR notes.
 - [GitLab Markdown uploads](https://docs.gitlab.com/api/project_markdown_uploads/)
   publishes confirmed screenshot attachments.
-- [GitHub browser login](https://cli.github.com/manual/gh_auth_login) and
-  [GitLab browser login](https://docs.gitlab.com/cli/auth/login/) own authentication.
+- [GitHub OAuth device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)
+  and [GitLab device grant](https://docs.gitlab.com/api/oauth2/) describe the
+  current-source desktop sign-in.
 - [KiCad IPC API](https://dev-docs.kicad.org/en/apis-and-binding/ipc-api/)
   provides read-only object selection/navigation. API capability is separate
   from native-window verification.
