@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from trace_impedance_plugin import bulk_ui, cli
+from trace_impedance_plugin import bulk_ui, cli, measurement
 
 
 class SavedBoardAdapterTests(unittest.TestCase):
@@ -23,7 +23,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
             args = cli.parser().parse_args(['inspect', str(path)])
             with patch.dict(sys.modules, {'pcbnew': pcbnew}), \
                  patch.object(cli, 'load_board', return_value=board) as load, \
-                 patch('trace_impedance_plugin.measurement.TraceMeasurementEngine', return_value=engine):
+                 patch.object(measurement, 'TraceMeasurementEngine', return_value=engine):
                 result = cli.analyze(args)
             load.assert_called_once_with(str(path.resolve()), pcbnew=pcbnew)
             snapshot.assert_current.assert_called_once_with()
@@ -38,7 +38,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
             board = SimpleNamespace(_wayricad_saved_board=snapshot)
             with patch.dict(sys.modules, {'pcbnew': SimpleNamespace()}), \
                  patch.object(bulk_ui, 'load_board', return_value=board), \
-                 patch('trace_impedance_plugin.measurement.TraceMeasurementEngine'), \
+                 patch.object(measurement, 'TraceMeasurementEngine'), \
                  patch('trace_impedance_plugin.bulk.extract_board', return_value={}):
                 with self.assertRaisesRegex(ValueError, 'CLI changed'):
                     bulk_ui.extract_saved(path)
@@ -51,7 +51,7 @@ class SavedBoardAdapterTests(unittest.TestCase):
             board = object()
             pcbnew = SimpleNamespace(LoadBoard=Mock(return_value=board))
             with patch.dict(sys.modules, {'pcbnew': pcbnew}), \
-                 patch('trace_impedance_plugin.measurement.TraceMeasurementEngine'), \
+                 patch.object(measurement, 'TraceMeasurementEngine'), \
                  patch('trace_impedance_plugin.bulk.extract_board', return_value={}):
                 document, loaded = bulk_ui.extract_saved(path)
             pcbnew.LoadBoard.assert_called_once_with(str(path.resolve()))
